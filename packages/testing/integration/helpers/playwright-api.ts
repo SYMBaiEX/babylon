@@ -3,6 +3,8 @@
  *
  * Provides a Playwright APIRequestContext for making authenticated API calls
  * in integration tests. Uses the authenticated state from Playwright setup.
+ *
+ * @module testing/integration/helpers/playwright-api
  */
 
 import { existsSync, readFileSync } from 'fs';
@@ -21,20 +23,20 @@ let testUserId: string | null = null;
 let browser: Awaited<ReturnType<typeof chromium.launch>> | null = null;
 
 /**
- * Check if Playwright authentication is available (without throwing errors)
+ * Checks if Playwright authentication is available.
  *
  * Use this to conditionally skip tests when auth isn't set up.
  *
- * @returns {boolean} True if auth file exists and tests can run
+ * @returns `true` if auth file exists and tests can run
  */
 export function isAuthAvailable(): boolean {
   return existsSync(authFile);
 }
 
 /**
- * Get a descriptive reason why auth is not available
+ * Gets a descriptive reason why auth is not available.
  *
- * @returns {string} Description of why auth is unavailable
+ * @returns Description of why auth is unavailable
  */
 export function getAuthUnavailableReason(): string {
   if (!existsSync(authFile)) {
@@ -44,9 +46,9 @@ export function getAuthUnavailableReason(): string {
 }
 
 /**
- * Initialize Playwright API request context with authentication
+ * Initializes Playwright API request context with authentication.
  *
- * @returns {Promise<{ apiRequest: APIRequestContext; testUserId: string }>}
+ * @returns Promise resolving to API request context and test user ID
  */
 export async function initPlaywrightAPI(): Promise<{
   apiRequest: APIRequestContext;
@@ -56,7 +58,6 @@ export async function initPlaywrightAPI(): Promise<{
     return { apiRequest, testUserId };
   }
 
-  // Check if auth state exists
   if (!existsSync(authFile)) {
     throw new Error(
       `Authentication state file not found: ${authFile}\n` +
@@ -66,7 +67,6 @@ export async function initPlaywrightAPI(): Promise<{
     );
   }
 
-  // Load test tokens if available (for fallback)
   let tokens: { TEST_USER_ID?: string; TEST_ACCESS_TOKEN?: string } | null =
     null;
   if (existsSync(tokenFile)) {
@@ -77,7 +77,6 @@ export async function initPlaywrightAPI(): Promise<{
     }
   }
 
-  // Create browser context with authenticated state
   browser = await chromium.launch();
   const context = await browser.newContext({
     storageState: authFile,
@@ -86,14 +85,12 @@ export async function initPlaywrightAPI(): Promise<{
 
   apiRequest = context.request;
 
-  // Get user ID from API or token file
   try {
     const response = await apiRequest.get(`${baseURL}/api/users/me`);
     if (response.ok()) {
       const userData = await response.json();
       testUserId = userData.user?.id || tokens?.TEST_USER_ID || null;
     } else {
-      // Fallback to token file if API fails
       testUserId = tokens?.TEST_USER_ID || null;
     }
   } catch (error) {
@@ -114,7 +111,7 @@ export async function initPlaywrightAPI(): Promise<{
 }
 
 /**
- * Cleanup Playwright API request context
+ * Cleans up Playwright API request context.
  */
 export async function cleanupPlaywrightAPI(): Promise<void> {
   if (apiRequest) {
@@ -129,7 +126,9 @@ export async function cleanupPlaywrightAPI(): Promise<void> {
 }
 
 /**
- * Get the API base URL
+ * Gets the API base URL.
+ *
+ * @returns The API base URL string
  */
 export function getAPIBaseURL(): string {
   return `${baseURL}/api`;

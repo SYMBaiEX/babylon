@@ -20,9 +20,9 @@ import type {
 } from '@a2a-js/sdk/server';
 import { v4 as uuidv4 } from 'uuid';
 import { db } from '@babylon/db';
-import { logger } from '@babylon/shared';
-import { generateSnowflakeId } from '@babylon/shared';
-import type { JsonRpcRequest, JsonValue } from '../types/a2a';
+import { generateSnowflakeId, logger } from '@babylon/shared';
+import type { JsonValue } from '@babylon/shared';
+import type { JsonRpcRequest } from '../types/a2a';
 import {
   handleAppealBanWithEscrow,
   handleCreateEscrowPayment,
@@ -37,7 +37,7 @@ import {
  */
 interface BabylonCommand {
   operation: string;
-  params: Record<string, unknown>;
+  params: Record<string, JsonValue>;
 }
 
 export class BabylonAgentExecutor implements AgentExecutor {
@@ -98,7 +98,7 @@ export class BabylonAgentExecutor implements AgentExecutor {
           parts: [
             {
               kind: 'data',
-              data: { result: result ?? null } as { [k: string]: unknown },
+              data: { result: result ?? null } as { [k: string]: JsonValue },
             },
           ],
         },
@@ -150,7 +150,7 @@ export class BabylonAgentExecutor implements AgentExecutor {
   private async executeOperation(
     command: BabylonCommand,
     context: RequestContext
-  ): Promise<unknown> {
+  ): Promise<ExecutorOperationResult> {
     switch (command.operation) {
       case 'social.create_post':
         return this.createPost(command.params, context);
@@ -241,15 +241,15 @@ export class BabylonAgentExecutor implements AgentExecutor {
     );
   }
 
-  private ensureRecord(value: unknown): Record<string, unknown> {
+  private ensureRecord(value: unknown): Record<string, JsonValue> {
     if (value && typeof value === 'object' && !Array.isArray(value)) {
-      return value as Record<string, unknown>;
+      return value as Record<string, JsonValue>;
     }
     return {};
   }
 
   private async createPost(
-    params: Record<string, unknown>,
+    params: Record<string, JsonValue>,
     context: RequestContext
   ) {
     const content =
@@ -393,9 +393,9 @@ export class BabylonAgentExecutor implements AgentExecutor {
 
   // Escrow operations
   private async createEscrowPayment(
-    params: Record<string, unknown>,
+    params: Record<string, JsonValue>,
     context: RequestContext
-  ): Promise<unknown> {
+  ): Promise<ExecutorOperationResult> {
     const agentId = context.contextId || context.taskId;
     const requestParams: Record<string, JsonValue> = {
       recipientId: String(params.recipientId ?? ''),
@@ -419,9 +419,9 @@ export class BabylonAgentExecutor implements AgentExecutor {
   }
 
   private async verifyEscrowPayment(
-    params: Record<string, unknown>,
+    params: Record<string, JsonValue>,
     context: RequestContext
-  ): Promise<unknown> {
+  ): Promise<ExecutorOperationResult> {
     const agentId = context.contextId || context.taskId;
     const request = {
       jsonrpc: '2.0' as const,
@@ -443,9 +443,9 @@ export class BabylonAgentExecutor implements AgentExecutor {
   }
 
   private async refundEscrowPayment(
-    params: Record<string, unknown>,
+    params: Record<string, JsonValue>,
     context: RequestContext
-  ): Promise<unknown> {
+  ): Promise<ExecutorOperationResult> {
     const agentId = context.contextId || context.taskId;
     const requestParams: Record<string, JsonValue> = {
       escrowId: String(params.escrowId ?? ''),
@@ -468,9 +468,9 @@ export class BabylonAgentExecutor implements AgentExecutor {
   }
 
   private async listEscrowPayments(
-    params: Record<string, unknown>,
+    params: Record<string, JsonValue>,
     context: RequestContext
-  ): Promise<unknown> {
+  ): Promise<ExecutorOperationResult> {
     const agentId = context.contextId || context.taskId;
     const requestParams: Record<string, JsonValue> = {};
     if (params.recipientId)
@@ -493,9 +493,9 @@ export class BabylonAgentExecutor implements AgentExecutor {
   }
 
   private async appealBanWithEscrow(
-    params: Record<string, unknown>,
+    params: Record<string, JsonValue>,
     context: RequestContext
-  ): Promise<unknown> {
+  ): Promise<ExecutorOperationResult> {
     const agentId = context.contextId || context.taskId;
     const request = {
       jsonrpc: '2.0' as const,
@@ -516,9 +516,9 @@ export class BabylonAgentExecutor implements AgentExecutor {
   // Basic Moderation Operations
 
   private async blockUser(
-    params: Record<string, unknown>,
+    params: Record<string, JsonValue>,
     context: RequestContext
-  ): Promise<unknown> {
+  ): Promise<ExecutorOperationResult> {
     const agentId = context.contextId || context.taskId;
     const targetUserId = String(params.userId ?? '');
     const reason = params.reason ? String(params.reason) : null;
@@ -575,9 +575,9 @@ export class BabylonAgentExecutor implements AgentExecutor {
   }
 
   private async unblockUser(
-    params: Record<string, unknown>,
+    params: Record<string, JsonValue>,
     context: RequestContext
-  ): Promise<unknown> {
+  ): Promise<ExecutorOperationResult> {
     const agentId = context.contextId || context.taskId;
     const targetUserId = String(params.userId ?? '');
 
@@ -596,9 +596,9 @@ export class BabylonAgentExecutor implements AgentExecutor {
   }
 
   private async muteUser(
-    params: Record<string, unknown>,
+    params: Record<string, JsonValue>,
     context: RequestContext
-  ): Promise<unknown> {
+  ): Promise<ExecutorOperationResult> {
     const agentId = context.contextId || context.taskId;
     const targetUserId = String(params.userId ?? '');
     const reason = params.reason ? String(params.reason) : null;
@@ -639,9 +639,9 @@ export class BabylonAgentExecutor implements AgentExecutor {
   }
 
   private async unmuteUser(
-    params: Record<string, unknown>,
+    params: Record<string, JsonValue>,
     context: RequestContext
-  ): Promise<unknown> {
+  ): Promise<ExecutorOperationResult> {
     const agentId = context.contextId || context.taskId;
     const targetUserId = String(params.userId ?? '');
 
@@ -660,9 +660,9 @@ export class BabylonAgentExecutor implements AgentExecutor {
   }
 
   private async reportUser(
-    params: Record<string, unknown>,
+    params: Record<string, JsonValue>,
     context: RequestContext
-  ): Promise<unknown> {
+  ): Promise<ExecutorOperationResult> {
     const agentId = context.contextId || context.taskId;
     const targetUserId = String(params.userId ?? '');
     const category = String(params.category ?? 'other');
@@ -707,9 +707,9 @@ export class BabylonAgentExecutor implements AgentExecutor {
   }
 
   private async reportPost(
-    params: Record<string, unknown>,
+    params: Record<string, JsonValue>,
     context: RequestContext
-  ): Promise<unknown> {
+  ): Promise<ExecutorOperationResult> {
     const agentId = context.contextId || context.taskId;
     const postId = String(params.postId ?? '');
     const category = String(params.category ?? 'other');
@@ -754,9 +754,9 @@ export class BabylonAgentExecutor implements AgentExecutor {
   }
 
   private async getBlocks(
-    params: Record<string, unknown>,
+    params: Record<string, JsonValue>,
     context: RequestContext
-  ): Promise<unknown> {
+  ): Promise<ExecutorOperationResult> {
     const agentId = context.contextId || context.taskId;
     const limit = params.limit ? Number(params.limit) : 20;
     const offset = params.offset ? Number(params.offset) : 0;
@@ -794,9 +794,9 @@ export class BabylonAgentExecutor implements AgentExecutor {
   }
 
   private async getMutes(
-    params: Record<string, unknown>,
+    params: Record<string, JsonValue>,
     context: RequestContext
-  ): Promise<unknown> {
+  ): Promise<ExecutorOperationResult> {
     const agentId = context.contextId || context.taskId;
     const limit = params.limit ? Number(params.limit) : 20;
     const offset = params.offset ? Number(params.offset) : 0;
@@ -834,9 +834,9 @@ export class BabylonAgentExecutor implements AgentExecutor {
   }
 
   private async checkBlockStatus(
-    params: Record<string, unknown>,
+    params: Record<string, JsonValue>,
     context: RequestContext
-  ): Promise<unknown> {
+  ): Promise<ExecutorOperationResult> {
     const agentId = context.contextId || context.taskId;
     const targetUserId = String(params.userId ?? '');
 
@@ -859,9 +859,9 @@ export class BabylonAgentExecutor implements AgentExecutor {
   }
 
   private async checkMuteStatus(
-    params: Record<string, unknown>,
+    params: Record<string, JsonValue>,
     context: RequestContext
-  ): Promise<unknown> {
+  ): Promise<ExecutorOperationResult> {
     const agentId = context.contextId || context.taskId;
     const targetUserId = String(params.userId ?? '');
 

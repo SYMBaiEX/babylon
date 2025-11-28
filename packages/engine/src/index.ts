@@ -26,24 +26,10 @@ export {
   OrganizationBehavior,
   type OrganizationType,
 } from './GameGenerator';
-// Note: GameHistory, GeneratedGame types are re-exported from ./types/shared
+// GameHistory, GeneratedGame types are re-exported from ./types/shared
 
 // Game Loop
 export { GameLoop, type TickResult } from './GameLoop';
-
-// Game Simulator
-export {
-  GameSimulator,
-  type AgentState,
-  type GameConfig,
-  type GameEvent,
-  type GameEventData,
-  type GameEventType,
-  type GameResult,
-  type GameSimulatorEvents,
-  type MarketState,
-  type ReputationChange,
-} from './GameSimulator';
 
 // Game World
 export {
@@ -56,7 +42,7 @@ export {
   type WorldConfig,
   type WorldState,
 } from './GameWorld';
-// Note: WorldEvent type is re-exported from ./types/shared
+// WorldEvent type is re-exported from ./types/shared
 
 // Market Decision Engine
 export { MarketDecisionEngine } from './MarketDecisionEngine';

@@ -515,7 +515,7 @@ export async function executeGameTick(
     const modelName = process.env.MARKET_DECISION_MODEL || 'qwen/qwen3-32b';
 
     // Model-aware output token limits:
-    // Note: Input and output are SEPARATE limits on modern models
+    // Input and output are SEPARATE limits on modern models
     // - Kimi models: 260k INPUT + 16k OUTPUT (separate)
     // - qwen3-32b: 130k INPUT + 32k OUTPUT (separate)
     const isKimiModel = modelName.toLowerCase().includes('kimi');
@@ -2830,7 +2830,7 @@ async function resolveMarketOnChain(
   });
 
   // Resolve market on-chain
-  // Note: winningOutcome must be uint8 (0 or 1 for binary markets)
+  // winningOutcome must be uint8 (0 or 1 for binary markets)
   const txHash = await walletClient.writeContract({
     address: diamondAddress as `0x${string}`,
     abi: parseAbi(PREDICTION_MARKET_ABI),

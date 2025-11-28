@@ -21,9 +21,6 @@
  * - Agents use new model
  */
 
-// Re-export from shared for backwards compatibility
-export { callClaudeDirect } from '@babylon/shared';
-
 // Direct providers (for specific use cases)
 export * from './direct-groq';
 

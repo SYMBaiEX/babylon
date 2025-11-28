@@ -2,7 +2,7 @@
  * Benchmark Data Viewer
  *
  * Provides utilities to view and inspect benchmark data.
- * Useful for debugging, validation, and understanding benchmark structure.
+ * Useful for validation and understanding benchmark structure.
  */
 
 import { promises as fs } from 'fs';

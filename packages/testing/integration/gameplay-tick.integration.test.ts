@@ -14,10 +14,13 @@ import { afterAll, beforeAll, describe, expect, mock, test } from 'bun:test';
 import { db } from '@babylon/db';
 import type { MockJSONSchema } from '../types/test-types';
 
-// Mock LLM client BEFORE importing serverless-game-tick
-// This ensures executeGameTick uses the mock
-// Note: We mock @babylon/engine and override only BabylonLLMClient
-// Internal code uses relative imports, but BabylonLLMClient is exported from root
+/**
+ * Mock LLM client BEFORE importing serverless-game-tick.
+ *
+ * This ensures executeGameTick uses the mock. We mock @babylon/engine and override
+ * only BabylonLLMClient. Internal code uses relative imports, but BabylonLLMClient
+ * is exported from root for external use.
+ */
 mock.module('@babylon/engine', async () => {
   // Import actual engine to preserve all other exports
   const actualEngine = await import('@babylon/engine');
@@ -56,8 +59,11 @@ mock.module('@babylon/engine', async () => {
 
           // Priority 2: Schema-based detection (more reliable than prompt parsing)
           if (schema?.properties) {
-            // Question generation (has questions array property)
-            // Note: Return format matches what XML parser produces (root element unwrapped)
+            /**
+             * Question generation (has questions array property).
+             *
+             * Return format matches what XML parser produces (root element unwrapped).
+             */
             if (schema.properties.questions) {
               return {
                 questions: [
@@ -293,8 +299,11 @@ mock.module('@babylon/engine', async () => {
               };
             }
 
-            // Question generation prompts - look for "Generate X prediction market questions"
-            // Note: Check for 'ACTORS:' only after excluding MAIN ACTORS scenario prompts
+            /**
+             * Question generation prompts - look for "Generate X prediction market questions".
+             *
+             * Check for 'ACTORS:' only after excluding MAIN ACTORS scenario prompts.
+             */
             const isQuestionGeneration =
               _prompt.includes('prediction market questions') ||
               _prompt.includes('COMPANIES:') ||
@@ -302,7 +311,9 @@ mock.module('@babylon/engine', async () => {
                 !_prompt.includes('MAIN ACTORS:'));
 
             if (isQuestionGeneration) {
-              // Note: Return format matches what XML parser produces (root element unwrapped)
+              /**
+               * Return format matches what XML parser produces (root element unwrapped).
+               */
               return {
                 questions: [
                   {

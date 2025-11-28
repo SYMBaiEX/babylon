@@ -7,7 +7,6 @@
 import { shuffleArray } from './randomization';
 import type { Actor, ActorRelationship } from '../types/shared';
 
-// Re-export shuffleArray for backwards compatibility
 export { shuffleArray };
 
 /**

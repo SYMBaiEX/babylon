@@ -1,10 +1,11 @@
 /**
  * External Agent Adapter
  *
- * Manages connections to external agents via A2A, MCP, or custom protocols
- * Provides unified interface for interacting with external agents
+ * Manages connections to external agents via A2A, MCP, or custom protocols.
+ * Provides standard interface for interacting with external agents.
  *
- * Enhanced with:
+ * @remarks
+ * Features:
  * - JSON-RPC 2.0 A2A protocol support
  * - Multiple authentication methods (OAuth2, Bearer, API Key)
  * - Agent discovery via .well-known/agent-card.json
@@ -12,7 +13,7 @@
  * - Streaming message support
  * - Connection pooling and retry logic
  *
- * @see agent-patch-plan.md Phases 2 & 3
+ * @packageDocumentation
  */
 
 import { db } from '@babylon/db';
@@ -25,14 +26,19 @@ import type { JsonValue } from '../types/common';
 // Re-export TrustLevel from types for backwards compatibility
 export { TrustLevel } from '../types/agent-registry';
 
+/**
+ * Gets encryption key from environment
+ * @internal
+ */
 const getEncryptionKey = () => {
   if (process.env.CRON_SECRET) return process.env.CRON_SECRET;
   if (process.env.NODE_ENV === 'production') {
-    // Throw only when actually trying to use the key in production without it
     throw new Error('CRON_SECRET must be set in production');
   }
   return 'dev-key-change-in-production-32-chars!!';
 };
+
+/** Encryption algorithm for API key storage */
 const ALGORITHM = 'aes-256-cbc';
 
 export type Protocol = 'a2a' | 'mcp' | 'agent0' | 'custom';
@@ -62,7 +68,9 @@ export interface ExternalAgentConnection {
 
 /**
  * Message interface for external agent communication
- * Note: This is different from AgentMessage in types.ts which is for internal agent messaging
+ *
+ * @remarks
+ * This is different from AgentMessage in types.ts which is for internal agent messaging.
  */
 export interface ExternalAgentMessage {
   type: string;
@@ -81,26 +89,29 @@ export interface AgentResponse {
 
 /**
  * JSON-RPC 2.0 request structure for A2A protocol
+ * @internal
  */
 interface JsonRpcRequest {
   jsonrpc: '2.0';
   id: string | number;
   method: string;
-  params?: Record<string, unknown>;
+  params?: Record<string, JsonValue>;
 }
 
 /**
  * JSON-RPC 2.0 response structure
+ * @internal
  */
 interface JsonRpcResponse {
   jsonrpc: '2.0';
   id: string | number;
-  result?: unknown;
-  error?: { code: number; message: string; data?: unknown };
+  result?: JsonValue;
+  error?: { code: number; message: string; data?: JsonValue };
 }
 
 /**
  * Authentication credentials storage
+ * @internal
  */
 interface AuthCredentials {
   method: AuthMethod;
@@ -116,7 +127,8 @@ interface AuthCredentials {
 
 /**
  * External Agent Adapter
- * Routes messages to external agents based on their protocol
+ *
+ * Routes messages to external agents based on their protocol (A2A, MCP, Agent0, or custom).
  */
 export class ExternalAgentAdapter {
   private connections: Map<string, ExternalAgentConnection> = new Map();
@@ -125,12 +137,12 @@ export class ExternalAgentAdapter {
     new Map();
   private healthCheckInterval: NodeJS.Timeout | null = null;
   private requestIdCounter = 0;
-  private readonly DISCOVERY_CACHE_TTL = 300000; // 5 minutes
+  private readonly DISCOVERY_CACHE_TTL = 300000;
 
   constructor(private healthCheckIntervalMs = 60000) {}
 
   /**
-   * Initialize adapter and start health checks
+   * Initializes adapter and starts health checks
    */
   async initialize(): Promise<void> {
     await this.loadConnections();
@@ -138,7 +150,8 @@ export class ExternalAgentAdapter {
   }
 
   /**
-   * Load all active external agent connections from database
+   * Loads all active external agent connections from database
+   * @internal
    */
   private async loadConnections(): Promise<void> {
     const externalAgents = await db.query.externalAgentConnections.findMany({
@@ -313,20 +326,25 @@ export class ExternalAgentAdapter {
     message: ExternalAgentMessage
   ): Promise<AgentResponse> {
     const requestId = ++this.requestIdCounter;
+    const params: Record<string, JsonValue> = {
+      parts: [
+        {
+          type: 'text',
+          content: message.content,
+        },
+      ],
+    };
+    if (message.contextId !== undefined) {
+      params.contextId = message.contextId;
+    }
+    if (message.metadata !== undefined) {
+      params.metadata = message.metadata;
+    }
     const request: JsonRpcRequest = {
       jsonrpc: '2.0',
       id: requestId,
       method: 'message/send',
-      params: {
-        parts: [
-          {
-            type: 'text',
-            content: message.content,
-          },
-        ],
-        contextId: message.contextId,
-        metadata: message.metadata,
-      },
+      params,
     };
 
     try {

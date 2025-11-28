@@ -1,11 +1,10 @@
 /**
  * Agent Communication Hub
  *
- * Central hub for agent-to-agent communication
- * Routes messages between internal and external agents
- * Integrates with EventBus for real-time events
+ * Central hub for agent-to-agent communication, routing messages between
+ * internal and external agents and integrating with EventBus for real-time events.
  *
- * @see agent-patch-plan.md Phase 3.2
+ * @packageDocumentation
  */
 
 import { AgentType } from '../types/agent-registry';
@@ -33,6 +32,7 @@ export interface Message {
 
 /**
  * Type guard to check if data is a Message
+ * @internal
  */
 function isMessage(data: unknown): data is Message {
   return (
@@ -57,19 +57,23 @@ function isMessage(data: unknown): data is Message {
   );
 }
 
+/**
+ * Message routing information
+ */
 export interface MessageRoute {
   messageId: string;
   from: string;
   to: string;
   protocol: 'internal' | 'a2a' | 'mcp' | 'agent0' | 'custom';
   status: 'pending' | 'sent' | 'delivered' | 'failed';
-  timestamp: string; // ISO 8601 string for JSON serialization
+  timestamp: string;
   error?: string;
 }
 
 /**
  * Communication Hub for Agent Messaging
- * Handles routing, delivery, and event broadcasting
+ *
+ * Handles routing, delivery, and event broadcasting for agent-to-agent communication.
  */
 export class CommunicationHub {
   private eventBus: EventBus;

@@ -1,7 +1,10 @@
 /**
  * Groq Plugin for Babylon Agents
- * Provides access to Groq's fast LLM inference
- * Based on working otc-agent implementation
+ *
+ * Provides access to Groq's fast LLM inference for agent decision-making.
+ * Supports both small and large models with automatic trajectory logging.
+ *
+ * @packageDocumentation
  */
 
 import { createGroq } from '@ai-sdk/groq';
@@ -23,6 +26,10 @@ import { logger } from '../shared/logger';
 import { isPromptLoggingEnabled, logPrompt } from '../utils/prompt-logger';
 import type { TrajectoryLoggerService } from './plugin-trajectory-logger/src/TrajectoryLoggerService';
 
+/**
+ * Gets Groq base URL from runtime settings
+ * @internal
+ */
 function getBaseURL(runtime: {
   getSetting: (key: string) => string | undefined;
 }): string {
@@ -31,6 +38,10 @@ function getBaseURL(runtime: {
   );
 }
 
+/**
+ * Finds model name for tokenization
+ * @internal
+ */
 function findModelName(model: ModelTypeName): TiktokenModel {
   const name =
     model === ModelType.TEXT_SMALL
@@ -39,18 +50,30 @@ function findModelName(model: ModelTypeName): TiktokenModel {
   return name as TiktokenModel;
 }
 
+/**
+ * Tokenizes text using tiktoken
+ * @internal
+ */
 async function tokenizeText(model: ModelTypeName, prompt: string) {
   const encoding = encodingForModel(findModelName(model));
   const tokens = encoding.encode(prompt);
   return tokens;
 }
 
+/**
+ * Detokenizes tokens back to text
+ * @internal
+ */
 async function detokenizeText(model: ModelTypeName, tokens: number[]) {
   const modelName = findModelName(model);
   const encoding = encodingForModel(modelName);
   return encoding.decode(tokens);
 }
 
+/**
+ * Generates text using Groq API
+ * @internal
+ */
 async function generateGroqText(
   groq: ReturnType<typeof createGroq>,
   model: string,
@@ -66,7 +89,7 @@ async function generateGroqText(
     trajectoryId?: string;
     purpose?: 'action' | 'reasoning' | 'evaluation' | 'response' | 'other';
     actionType?: string;
-    modelVersion?: string; // RL model version if using trained model
+    modelVersion?: string;
   }
 ) {
   const startTime = Date.now();
@@ -96,7 +119,6 @@ async function generateGroqText(
     });
   }
 
-  // Log to trajectory if available
   if (params.trajectoryLogger && params.trajectoryId) {
     const stepId = params.trajectoryLogger.getCurrentStepId(
       params.trajectoryId
@@ -113,7 +135,7 @@ async function generateGroqText(
         purpose: params.purpose || 'action',
         actionType: params.actionType,
         latencyMs,
-        promptTokens: undefined, // Token counts not available from Groq SDK
+        promptTokens: undefined,
         completionTokens: undefined,
       });
     }
@@ -122,6 +144,10 @@ async function generateGroqText(
   return result.text;
 }
 
+/**
+ * Generates structured object using Groq API
+ * @internal
+ */
 async function generateGroqObject(
   groq: ReturnType<typeof createGroq>,
   model: string,
@@ -196,7 +222,6 @@ export const groqPlugin: Plugin = {
         runtime.getSetting('SMALL_MODEL') ??
         'llama-3.1-8b-instant';
 
-      // Get trajectory logger from runtime if available
       interface RuntimeWithExtensions extends IAgentRuntime {
         trajectoryLogger?: TrajectoryLoggerService;
         currentTrajectoryId?: string;
@@ -246,7 +271,6 @@ export const groqPlugin: Plugin = {
         runtime.getSetting('LARGE_MODEL') ??
         'qwen/qwen3-32b';
 
-      // Get trajectory logger from runtime if available
       type RuntimeWithTrajectory = typeof runtime & {
         trajectoryLogger?: TrajectoryLoggerService;
         currentTrajectoryId?: string;

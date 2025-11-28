@@ -80,7 +80,6 @@ import { PointsService } from '@babylon/api';
 import { requireUserByIdentifier } from '@babylon/api';
 import { UserIdParamSchema } from '@babylon/shared';
 
-// Link social schema (extending the one in schemas/game.ts)
 const LinkSocialRequestSchema = z.object({
   platform: z.enum(['farcaster', 'twitter', 'wallet']),
   username: z.string().optional(),
@@ -92,7 +91,12 @@ const LinkSocialRequestSchema = z.object({
 
 /**
  * POST /api/users/[userId]/link-social
- * Link a social account and award points if first time
+ *
+ * Links a social account to the user profile and awards points if this is the first time linking this platform.
+ *
+ * @param request - Next.js request containing platform and account details
+ * @param context - Route context with user ID parameter
+ * @returns Success response with linked account information
  */
 export const POST = withErrorHandling(
   async (

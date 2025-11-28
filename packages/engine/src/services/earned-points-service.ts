@@ -161,7 +161,7 @@ export class EarnedPointsService {
     const earnedPointsDelta = computedEarnedPoints - currentEarnedPoints;
 
     // Log if there was a pre-existing mismatch (for monitoring purposes)
-    // This can happen if points got out of sync due to previous bugs
+    // Points may be out of sync due to concurrent updates or race conditions
     const expectedPointsFromPreviousPnL = EarnedPointsService.pnlToPoints(
       storedLifetimePnL - (newLifetimePnL - storedLifetimePnL)
     );
@@ -169,7 +169,7 @@ export class EarnedPointsService {
       expectedPointsFromPreviousPnL !== currentEarnedPoints &&
       storedLifetimePnL !== newLifetimePnL
     ) {
-      // Note: storedLifetimePnL should == newLifetimePnL since we're in the same tx
+      // storedLifetimePnL should equal newLifetimePnL since we're in the same transaction
       // If they differ, something unexpected happened
       logger.warn(
         'Earned points may have been out of sync (auto-correcting)',

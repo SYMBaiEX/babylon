@@ -100,7 +100,6 @@
  * });
  * ```
  *
- * @see {@link /lib/services/notification-service} Notification service
  */
 
 import type { NextRequest } from 'next/server';
@@ -138,7 +137,12 @@ import type { JsonValue } from '@babylon/api';
 
 /**
  * POST /api/posts/[id]/share
- * Share/repost a post to user's feed
+ *
+ * Shares/reposts a post to the user's feed. Creates a repost post and share record.
+ *
+ * @param request - Next.js request containing optional quote comment
+ * @param context - Route context with post ID parameter
+ * @returns Share result with updated share count and repost post data
  */
 export const POST = withErrorHandling(
   async (
@@ -149,7 +153,6 @@ export const POST = withErrorHandling(
     const user = await authenticate(request);
     const { id: postId } = PostIdParamSchema.parse(await context.params);
 
-    // Apply rate limiting (no duplicate detection - DB prevents duplicate shares)
     const rateLimitError = checkRateLimitAndDuplicates(
       user.userId,
       null,
@@ -175,7 +178,6 @@ export const POST = withErrorHandling(
     });
     const canonicalUserId = canonicalUser.id;
 
-    // Check if post exists first and is not in the future
     const now = new Date();
     const [post] = await db
       .select({
@@ -188,12 +190,10 @@ export const POST = withErrorHandling(
       .where(eq(posts.id, postId))
       .limit(1);
 
-    // Don't allow sharing future posts
     if (post && post.timestamp > now) {
       throw new NotFoundError('Post', postId);
     }
 
-    // Check if either user has blocked the other (if post exists)
     if (post) {
       const [isBlocked, hasBlockedMe] = await Promise.all([
         hasBlocked(post.authorId, canonicalUserId),
@@ -205,12 +205,9 @@ export const POST = withErrorHandling(
       }
     }
 
-    // If post doesn't exist, try to auto-create it based on format
     if (!post) {
-      // Parse post ID to extract metadata
       const parseResult = parsePostId(postId);
 
-      // Require valid format for shares (unlike likes, which can use defaults)
       if (!parseResult.success) {
         throw new BusinessLogicError(
           'Invalid post ID format',
@@ -220,7 +217,6 @@ export const POST = withErrorHandling(
 
       const { gameId, authorId, timestamp } = parseResult.metadata;
 
-      // Check if post already exists
       const [existingPost] = await db
         .select({ id: posts.id })
         .from(posts)
@@ -237,11 +233,9 @@ export const POST = withErrorHandling(
         });
       }
     } else if (post.deletedAt) {
-      // Post exists but is deleted
       throw new BusinessLogicError('Cannot share deleted post', 'POST_DELETED');
     }
 
-    // Check if already shared
     const [existingShare] = await db
       .select({ id: shares.id })
       .from(shares)
@@ -252,7 +246,6 @@ export const POST = withErrorHandling(
       throw new BusinessLogicError('Post already shared', 'ALREADY_SHARED');
     }
 
-    // Create share record
     await db.insert(shares).values({
       id: await generateSnowflakeId(),
       userId: canonicalUserId,
@@ -261,11 +254,8 @@ export const POST = withErrorHandling(
 
     await NPCInteractionTracker.trackShare(canonicalUserId, postId);
 
-    // Create a repost post (like a retweet) that shows on user's profile and feed
-    // Use Snowflake ID for repost
     const repostId = await generateSnowflakeId();
 
-    // Get original post content and author for repost
     const [originalPost] = await db
       .select({
         content: posts.content,
@@ -276,7 +266,6 @@ export const POST = withErrorHandling(
       .where(eq(posts.id, postId))
       .limit(1);
 
-    // Don't allow reposting future posts
     if (originalPost && originalPost.timestamp > now) {
       throw new NotFoundError('Post', postId);
     }
@@ -284,7 +273,6 @@ export const POST = withErrorHandling(
     let repostPostData = null;
 
     if (originalPost) {
-      // Get original author info (could be User, Actor, or Organization)
       const [[originalUser], [originalActor], [originalOrg]] =
         await Promise.all([
           db
@@ -327,20 +315,16 @@ export const POST = withErrorHandling(
         originalActor?.profileImageUrl ||
         originalOrg?.imageUrl;
 
-      // Create repost post with reference to original
-      // For quote posts: content = quote commentary only
-      // For simple reposts: content = empty string
       const repostContent = quoteComment || '';
 
-      // Create repost post with reference to original
       const [createdRepost] = await db
         .insert(posts)
         .values({
           id: repostId,
           content: repostContent,
-          authorId: canonicalUserId, // Repost author is the user who shared
+          authorId: canonicalUserId,
           timestamp: new Date(),
-          originalPostId: postId, // Store reference to original post
+          originalPostId: postId,
         })
         .returning();
 
@@ -351,10 +335,9 @@ export const POST = withErrorHandling(
         );
       }
 
-      // Format repost data for broadcast
       repostPostData = {
         id: createdRepost.id,
-        content: createdRepost.content, // Quote commentary or empty string
+        content: createdRepost.content,
         authorId: createdRepost.authorId,
         authorName:
           canonicalUser.username ||
@@ -398,8 +381,6 @@ export const POST = withErrorHandling(
       );
     }
 
-    // Create notification for post author (if not self-share)
-    // Check if author is a User (not an Actor) before notifying
     const [postAuthor] = await db
       .select({ authorId: posts.authorId })
       .from(posts)
@@ -411,7 +392,6 @@ export const POST = withErrorHandling(
       postAuthor.authorId &&
       postAuthor.authorId !== canonicalUserId
     ) {
-      // Check if the authorId references a User (not an Actor)
       const [postAuthorUser] = await db
         .select({ id: users.id })
         .from(users)
@@ -423,7 +403,6 @@ export const POST = withErrorHandling(
       }
     }
 
-    // Get updated share count
     const [shareCountResult] = await db
       .select({ count: count() })
       .from(shares)
@@ -458,7 +437,16 @@ export const POST = withErrorHandling(
 
 /**
  * DELETE /api/posts/[id]/share
- * Unshare/remove repost
+ *
+ * Unshares a post and removes the associated repost post from the user's feed.
+ * Deletes the share record, removes the repost post if it exists, invalidates caches,
+ * and updates share count. Tracks unshare event for analytics.
+ *
+ * @param request - Next.js request
+ * @param context - Route context with post ID parameter
+ * @returns Unshare result with updated share count and success status
+ * @throws {401} Unauthorized
+ * @throws {404} Share not found
  */
 export const DELETE = withErrorHandling(
   async (
@@ -476,7 +464,6 @@ export const DELETE = withErrorHandling(
     await ensureUserForAuth(user, { displayName: fallbackDisplayName });
     const canonicalUserId = getCanonicalUserId(user);
 
-    // Find existing share
     const [share] = await db
       .select({ id: shares.id })
       .from(shares)
@@ -487,8 +474,6 @@ export const DELETE = withErrorHandling(
       throw new NotFoundError('Share', `${postId}-${canonicalUserId}`);
     }
 
-    // Delete repost post if it exists
-    // Find the repost post using originalPostId field (direct database reference)
     const [repostPost] = await db
       .select({ id: posts.id })
       .from(posts)
@@ -502,7 +487,6 @@ export const DELETE = withErrorHandling(
       .limit(1);
 
     if (repostPost) {
-      // Delete the repost post
       await db.delete(posts).where(eq(posts.id, repostPost.id));
       logger.info(
         'Deleted repost post',
@@ -517,10 +501,8 @@ export const DELETE = withErrorHandling(
       );
     }
 
-    // Delete share
     await db.delete(shares).where(eq(shares.id, share.id));
 
-    // Get updated share count
     const [shareCountResult] = await db
       .select({ count: count() })
       .from(shares)

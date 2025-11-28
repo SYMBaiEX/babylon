@@ -119,6 +119,19 @@ function verifyVercelCronRequest(request: NextRequest): boolean {
   return true;
 }
 
+/**
+ * POST /api/cron/game-tick
+ *
+ * Executes game tick, advancing the game simulation by one day. Processes world events,
+ * generates new content (posts, articles, questions), updates market states, and triggers
+ * agent autonomous actions. Uses generation locks to prevent concurrent execution.
+ * Supports staging environment relay.
+ *
+ * @param request - Next.js request (CRON_SECRET required in Authorization header)
+ * @returns Execution result with generated content, events processed, and timing metrics
+ * @throws {401} Invalid or missing CRON_SECRET
+ * @throws {409} Game tick already in progress (generation lock held)
+ */
 export const POST = withErrorHandling(async (request: NextRequest) => {
   // 1. Verify this is a legitimate cron request
   if (!verifyVercelCronRequest(request)) {
@@ -152,7 +165,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     });
   }
 
-  // 1.6. Check GAME_START environment variable (legacy override)
+  // 1.6. Check GAME_START environment variable (manual override)
   const gameStartEnv = process.env.GAME_START?.toLowerCase();
   if (gameStartEnv === 'false' || gameStartEnv === '0') {
     logger.info(
@@ -397,6 +410,15 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
 });
 
 // GET endpoint for Vercel Cron (some cron services use GET)
+/**
+ * GET /api/cron/game-tick
+ *
+ * Health check endpoint for game tick cron job. Returns current game state and generation status.
+ * Allows Vercel Cron requests identified by user-agent or special headers.
+ *
+ * @param request - Next.js request
+ * @returns Game tick status and current game state information
+ */
 export const GET = withErrorHandling(async (request: NextRequest) => {
   // Allow Vercel Cron requests (identified by user-agent or special headers)
   const userAgent = request.headers.get('user-agent')?.toLowerCase() || '';

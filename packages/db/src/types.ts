@@ -1,10 +1,12 @@
 /**
- * Database Types - Drizzle ORM compatible types
+ * Database Types
  *
- * These types replace the database types that were previously used.
+ * Core types for database operations including JSON values, decimals, errors, and query inputs.
  */
 
-// JSON types for Drizzle
+/**
+ * JSON value type representing all valid JSON values.
+ */
 export type JsonValue =
   | string
   | number
@@ -16,7 +18,10 @@ export type JsonObject = { [key: string]: JsonValue };
 export type JsonArray = JsonValue[];
 export type InputJsonValue = JsonValue;
 
-// Decimal handling - use string for database storage
+/**
+ * Decimal number class for precise decimal arithmetic.
+ * Uses string representation for database storage to avoid floating-point precision issues.
+ */
 export class Decimal {
   private value: string;
 
@@ -75,7 +80,9 @@ export class Decimal {
   }
 }
 
-// Database error codes (matches PostgreSQL codes)
+/**
+ * PostgreSQL database error codes.
+ */
 export const DbErrorCodes = {
   UNIQUE_VIOLATION: '23505',
   FOREIGN_KEY_VIOLATION: '23503',
@@ -83,7 +90,9 @@ export const DbErrorCodes = {
   CHECK_VIOLATION: '23514',
 } as const;
 
-// Error class for database errors
+/**
+ * Database error class with error code support.
+ */
 export class DatabaseError extends Error {
   code: string;
 
@@ -94,13 +103,20 @@ export class DatabaseError extends Error {
   }
 }
 
-// Database error type - union of all possible database error types
+/**
+ * Union type representing all possible database error types.
+ */
 export type DatabaseErrorType =
   | DatabaseError
   | Error
   | { code?: string; message?: string; name?: string };
 
-// Type guard to convert catch clause error to DatabaseErrorType
+/**
+ * Convert an unknown error to DatabaseErrorType.
+ *
+ * @param error - Error to convert
+ * @returns DatabaseErrorType instance
+ */
 export function toDatabaseErrorType(error: unknown): DatabaseErrorType {
   if (error instanceof DatabaseError || error instanceof Error) {
     return error;
@@ -111,12 +127,16 @@ export function toDatabaseErrorType(error: unknown): DatabaseErrorType {
   return new Error(String(error));
 }
 
-// Check if an error is a unique constraint violation
+/**
+ * Check if an error is a unique constraint violation.
+ *
+ * @param error - Error to check
+ * @returns True if the error is a unique constraint violation
+ */
 export function isUniqueConstraintError(error: DatabaseErrorType): boolean {
   if (error instanceof DatabaseError) {
     return error.code === DbErrorCodes.UNIQUE_VIOLATION;
   }
-  // PostgreSQL error format
   if (typeof error === 'object' && error !== null && 'code' in error) {
     const pgError = error as { code?: string };
     return pgError.code === DbErrorCodes.UNIQUE_VIOLATION;
@@ -124,7 +144,9 @@ export function isUniqueConstraintError(error: DatabaseErrorType): boolean {
   return false;
 }
 
-// Filter input types (for where clauses)
+/**
+ * Where input type for filtering queries with support for AND, OR, and NOT operators.
+ */
 export type WhereInput<T> = Partial<{
   [K in keyof T]:
     | T[K]
@@ -147,21 +169,28 @@ export type WhereInput<T> = Partial<{
   NOT?: WhereInput<T> | WhereInput<T>[];
 };
 
-// Order by input type
+/**
+ * Order by input type for sorting query results.
+ */
 export type OrderByInput<T> = Partial<{
   [K in keyof T]: 'asc' | 'desc';
 }>;
 
-// Select input type
+/**
+ * Select input type for specifying which fields to return.
+ */
 export type SelectInput<T> = Partial<{
   [K in keyof T]: boolean;
 }>;
 
-// Include input type (for relations)
+/**
+ * Include input type for loading relations in queries.
+ */
 export type IncludeInput = Record<
   string,
   boolean | { select?: Record<string, boolean>; include?: IncludeInput }
 >;
+
 
 
 

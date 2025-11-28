@@ -1447,6 +1447,11 @@ async function runPipeline(args: ReturnType<typeof parseArgs>): Promise<void> {
   });
 }
 
+/**
+ * Main entry point for training domain commands.
+ *
+ * @param args - Raw command-line arguments for the training domain
+ */
 export async function runTrainCommand(args: string[]): Promise<void> {
   const parsed = parseArgs(args);
 

@@ -140,8 +140,11 @@ export const marketOutcomeEvaluator: Evaluator = {
 
     const npcPosts = posts.filter((p) => authorMap.get(p.authorId)?.isActor);
 
-    // Get current trust scores from database
-    // Note: Trust scores are computed from historical performance and stored in AgentPerformanceMetrics
+    /**
+     * Get current trust scores from database.
+     *
+     * Trust scores are computed from historical performance and stored in AgentPerformanceMetrics.
+     */
     const npcTrust: Record<string, NPCTrustScore> = {};
 
     // Trust scores are computed from post outcomes, not from AgentPerformanceMetrics
@@ -183,8 +186,11 @@ export const marketOutcomeEvaluator: Evaluator = {
       npcUpdated++;
     }
 
-    // Save NPC trust scores
-    // Note: messageManager API not available - trust scores updated in memory only
+    /**
+     * Save NPC trust scores.
+     *
+     * messageManager API not available - trust scores updated in memory only.
+     */
     logger.info(
       `[NPC Trust] Updated ${npcUpdated} NPC trust scores (in-memory only)`
     );
@@ -205,8 +211,11 @@ export const marketOutcomeEvaluator: Evaluator = {
     });
 
     if (agentPosition) {
-      // Get current performance scores
-      // Note: messageManager API not available - using fresh state
+      /**
+       * Get current performance scores.
+       *
+       * messageManager API not available - using fresh state.
+       */
       const performance: AgentPerformanceScore = {
         marketsTraded: 0,
         correctPredictions: 0,
@@ -240,7 +249,9 @@ export const marketOutcomeEvaluator: Evaluator = {
       performance.lastUpdated = new Date().toISOString();
 
       // Save performance
-      // Note: messageManager API not available - performance tracked in-memory only
+      /**
+       * messageManager API not available - performance tracked in-memory only.
+       */
       logger.info(
         `[Performance] ${agentCorrect ? 'WIN' : 'LOSS'} - Win rate: ${(performance.winRate * 100).toFixed(0)}% (${performance.correctPredictions}/${performance.marketsTraded}), P&L: $${performance.totalPnL.toFixed(2)}`
       );

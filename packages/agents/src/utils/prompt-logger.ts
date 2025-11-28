@@ -3,6 +3,8 @@
  *
  * Logs all LLM prompts and responses to markdown files for debugging.
  * Files are saved as: debug/prompts/<timestamp>_<promptType>.md
+ *
+ * @packageDocumentation
  */
 
 import * as fs from 'fs';
@@ -25,7 +27,9 @@ export interface PromptLogEntry {
 }
 
 /**
- * Check if prompt logging is enabled via environment variable
+ * Checks if prompt logging is enabled via environment variable
+ *
+ * @returns True if DEBUG_SAVE_PROMPTS or DEBUG_PROMPTS is set to 'true' or '1'
  */
 export function isPromptLoggingEnabled(): boolean {
   return (
@@ -37,7 +41,9 @@ export function isPromptLoggingEnabled(): boolean {
 }
 
 /**
- * Log a prompt and its response to a markdown file
+ * Logs a prompt and its response to a markdown file
+ *
+ * @param entry - Prompt log entry with input, output, and metadata
  */
 export async function logPrompt(entry: PromptLogEntry): Promise<void> {
   if (!isPromptLoggingEnabled()) {

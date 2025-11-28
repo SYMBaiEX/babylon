@@ -27,16 +27,15 @@ import { autonomousTradingService } from './AutonomousTradingService';
  * Agent interface for planning
  *
  * Represents agent configuration needed for action planning.
- * Uses `unknown` for directives/constraints as they are stored as JSON
- * and parsed dynamically based on agent configuration.
+ * Directives are stored as AgentDirective[], constraints as AgentConstraints.
  */
 interface PlanningAgent {
   agentSystem?: string;
   displayName: string;
-  /** Agent directives stored as JSON (parsed dynamically) */
-  agentDirectives?: unknown;
-  /** Agent constraints stored as JSON (parsed dynamically) */
-  agentConstraints?: unknown;
+  /** Agent directives stored as JSON array */
+  agentDirectives?: AgentDirective[] | JsonValue | null;
+  /** Agent constraints stored as JSON object */
+  agentConstraints?: AgentConstraints | JsonValue | null;
   agentMaxActionsPerTick?: number;
   agentRiskTolerance?: string;
   autonomousTrading?: boolean;
@@ -54,7 +53,7 @@ export interface PlannedAction {
   reasoning: string;
   goalId?: string; // Which goal does this serve?
   estimatedImpact: number; // Expected progress toward goal (0-1)
-  params: Record<string, unknown>;
+  params: Record<string, JsonValue>;
   constraints?: string[]; // Which constraints apply
 }
 
@@ -134,7 +133,7 @@ export interface AutonomousExecutionResult {
     action: PlannedAction;
     success: boolean;
     /** Action-specific result data (type varies by action type) */
-    result?: unknown;
+    result?: JsonValue;
     /** Error message if action failed */
     error?: string;
   }>;
@@ -210,7 +209,7 @@ export class AutonomousPlanningCoordinator {
     // If no goals configured, use simplified planning
     if (context.goals.active.length === 0) {
       logger.info(
-        'No goals configured, using legacy single-action mode',
+        'No goals configured, using simple single-action mode',
         undefined,
         'PlanningCoordinator'
       );
@@ -543,15 +542,15 @@ Your action plan (JSON only):`;
 
     const parsed = JSON.parse(jsonMatch[0]) as {
       reasoning: string;
-      actions: Array<{
-        type: string;
-        priority: number;
-        goalId?: string;
-        reasoning: string;
-        estimatedImpact: number;
-        params?: Record<string, unknown>;
-      }>;
-    };
+    actions: Array<{
+      type: string;
+      priority: number;
+      goalId?: string;
+      reasoning: string;
+      estimatedImpact: number;
+      params?: Record<string, JsonValue>;
+    }>;
+  };
 
     const actions: PlannedAction[] = parsed.actions.map((a) => ({
       type: a.type as PlannedAction['type'],
@@ -626,7 +625,7 @@ Your action plan (JSON only):`;
   }
 
   /**
-   * Generate simple plan for agents without goals (legacy mode)
+   * Generate simple plan for agents without goals (simple mode)
    */
   private generateSimplePlan(
     agent: PlanningAgent,
@@ -670,7 +669,7 @@ Your action plan (JSON only):`;
     return {
       actions: actions.slice(0, agent.agentMaxActionsPerTick || 3),
       totalActions: actions.length,
-      reasoning: 'Legacy mode: executing enabled capabilities',
+      reasoning: 'Simple mode: executing enabled capabilities',
       goalsAddressed: [],
       estimatedCost: actions.length,
     };
@@ -782,7 +781,7 @@ Your action plan (JSON only):`;
     agentUserId: string,
     runtime: IAgentRuntime,
     action: PlannedAction
-  ): Promise<{ success: boolean; data?: unknown; error?: string }> {
+  ): Promise<{ success: boolean; data?: JsonValue; error?: string }> {
     logger.info(
       `Executing ${action.type} action`,
       { agentId: agentUserId, priority: action.priority },

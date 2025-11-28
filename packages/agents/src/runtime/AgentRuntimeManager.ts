@@ -5,7 +5,11 @@
  * Manages multiple concurrent Eliza agent runtimes in a serverless environment.
  * Each agent gets its own isolated runtime instance with its own character configuration.
  *
+ * @remarks
  * Integrates with AgentRegistry for lifecycle management and agent discovery.
+ * Supports runtime caching for warm container reuse in serverless environments.
+ *
+ * @packageDocumentation
  */
 
 import { actors, db, eq, users } from '@babylon/db';
@@ -35,7 +39,10 @@ import {
 } from '../plugins/plugin-trajectory-logger/src/action-interceptor';
 import { TrajectoryLoggerService } from '../plugins/plugin-trajectory-logger/src/TrajectoryLoggerService';
 
-// Extended AgentRuntime with Babylon-specific properties
+/**
+ * Extended AgentRuntime with Babylon-specific properties
+ * @internal
+ */
 interface ExtendedAgentRuntime extends AgentRuntime {
   currentModelVersion?: string;
   currentModel?: string;
@@ -43,9 +50,10 @@ interface ExtendedAgentRuntime extends AgentRuntime {
   modelDelegates?: Record<string, unknown>;
 }
 
-// Global runtime cache for warm container reuse
+/** Global runtime cache for warm container reuse */
 const globalRuntimes = new Map<string, AgentRuntime>();
-// Global trajectory logger instances per agent
+
+/** Global trajectory logger instances per agent */
 const trajectoryLoggers = new Map<string, TrajectoryLoggerService>();
 
 export class AgentRuntimeManager {
@@ -67,11 +75,15 @@ export class AgentRuntimeManager {
   }
 
   /**
-   * Get or create a runtime for any agent type
-   * Routes to type-specific factory based on registry entry (if exists) or falls back to legacy USER_CONTROLLED
+   * Gets or creates a runtime for any agent type
+   *
+   * Routes to type-specific factory based on registry entry, or falls back
+   * to fallback USER_CONTROLLED if no registry entry exists.
+   *
+   * @param agentUserId - Agent user ID
+   * @returns Agent runtime instance
    */
   public async getRuntime(agentUserId: string): Promise<AgentRuntime> {
-    // Check cache first
     if (globalRuntimes.has(agentUserId)) {
       const runtime = globalRuntimes.get(agentUserId)!;
       logger.info(
@@ -82,11 +94,9 @@ export class AgentRuntimeManager {
       return runtime;
     }
 
-    // Try to load from registry first (new unified approach)
     const registration = await agentRegistry.getAgentById(agentUserId);
 
     if (registration) {
-      // Route to type-specific factory based on registry
       let runtime: AgentRuntime;
       switch (registration.type) {
         case AgentType.USER_CONTROLLED:
@@ -676,9 +686,9 @@ export class AgentRuntimeManager {
       try {
         await agentRegistry.clearRuntimeInstance(agentUserId);
       } catch {
-        // Agent may not be in registry (legacy agents), ignore error
+        // Agent may not be in registry (unregistered agents), ignore error
         logger.debug(
-          `Could not clear registry for ${agentUserId}, likely legacy agent`,
+          `Could not clear registry for ${agentUserId}, likely unregistered agent`,
           undefined,
           'AgentRuntimeManager'
         );

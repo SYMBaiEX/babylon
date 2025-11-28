@@ -38,7 +38,8 @@ export interface DatasetMetadata {
 }
 
 export interface UploadOptions {
-  datasetName: string; // e.g., 'babylonlabs/agent-benchmarks'
+  /** Dataset name (e.g., 'babylonlabs/agent-benchmarks') */
+  datasetName: string;
   version?: string;
   description?: string;
   private?: boolean;

@@ -219,7 +219,7 @@ export class MarketDecisionEngine {
     }
 
     // Set output token limits based on model and provider:
-    // Note: Input and output are SEPARATE limits on modern models
+    // Input and output token limits are separate on modern models
     // Per https://console.groq.com/docs/models:
     // - Kimi models: 262k INPUT (separate from 16,384 OUTPUT)
     // - qwen3-32b: 131k INPUT (separate from 40,960 OUTPUT)
@@ -609,11 +609,11 @@ Your FIRST character MUST be '<' and your LAST character MUST be '>'.
 ${prompt}`
             : prompt;
 
-        // Lower temperature on retry for more deterministic output
+        // Reduce temperature on retry for more deterministic output
         const temperature =
           retryCount > 0 ? Math.max(0.3, 0.7 - retryCount * 0.1) : 0.7;
 
-        // Build options for this attempt
+        // Configure LLM options for this attempt
         const llmOptions = {
           ...baseLlmOptions,
           temperature,
@@ -705,7 +705,7 @@ ${prompt}`
         const provider = this.llm.getProvider();
         const modelUsed = this.tokenConfig.model || 'default (from LLM client)';
 
-        // Log detailed error information for debugging
+        // Log detailed error information for monitoring and troubleshooting
         logger.error(
           'LLM API error during decision generation',
           {
@@ -1702,7 +1702,7 @@ ${prompt}`
           // Don't reject - 30% is a guideline, not a hard limit
         }
 
-        // Validate market type (only 'perp' or 'prediction' are valid, 'pool' was removed)
+        // Validate market type (only 'perp' or 'prediction' are valid)
         if (!decision.marketType) {
           rejectionReasons['missing_market_type'] =
             (rejectionReasons['missing_market_type'] || 0) + 1;

@@ -10,32 +10,51 @@ import { ethers } from 'ethers';
 import { logger } from './logger';
 import type { DeploymentEnv } from './env-detection';
 
+/**
+ * Contract addresses for a deployment.
+ *
+ * Includes all core contracts and optional components that may be deployed.
+ */
 export interface ContractAddresses {
-  // Diamond system
+  /** Diamond proxy contract address */
   diamond: string;
+  /** DiamondCut facet address */
   diamondCutFacet: string;
+  /** DiamondLoupe facet address */
   diamondLoupeFacet: string;
+  /** PredictionMarket facet address */
   predictionMarketFacet: string;
+  /** Oracle facet address */
   oracleFacet: string;
-  // Optional facets (not all deployments have these)
+  /** LiquidityPool facet address (optional) */
   liquidityPoolFacet?: string;
+  /** PerpetualMarket facet address (optional) */
   perpetualMarketFacet?: string;
+  /** ReferralSystem facet address (optional) */
   referralSystemFacet?: string;
-  // Identity system
+  /** ERC-8004 Identity Registry address */
   identityRegistry: string;
+  /** ERC-8004 Reputation System address */
   reputationSystem: string;
-  // Oracle system
+  /** Babylon Game Oracle address (optional) */
   babylonOracle?: string;
+  /** Predimarket contract address (optional) */
   predimarket?: string;
+  /** Market Factory address (optional) */
   marketFactory?: string;
+  /** Contest Oracle address (optional) */
   contestOracle?: string;
-  // Moderation system
+  /** Ban Manager address (optional) */
   banManager?: string;
+  /** Reporting System address (optional) */
   reportingSystem?: string;
+  /** Reputation Label Manager address (optional) */
   labelManager?: string;
-  // Test infrastructure
+  /** Chainlink Oracle mock address (testnet only) */
   chainlinkOracle?: string;
+  /** UMA Oracle mock address (testnet only) */
   umaOracle?: string;
+  /** Test ERC20 token address (testnet only) */
   testToken?: string;
 }
 
@@ -61,11 +80,16 @@ export interface ValidationResult {
 /**
  * Load deployment info from module imports
  */
+/**
+ * Load deployment information from module imports.
+ *
+ * @param env - Deployment environment to load
+ * @returns Deployment info or null if not found
+ */
 export async function loadDeployment(
   env: DeploymentEnv
 ): Promise<DeploymentInfo | null> {
   try {
-    // Try to import from module paths
     if (env === 'localnet') {
       const deployment = await import('@babylon/contracts/deployments/local');
       return deployment.default as DeploymentInfo;
@@ -79,7 +103,6 @@ export async function loadDeployment(
       return deployment.default as DeploymentInfo;
     }
   } catch {
-    // Module import failed, return null
     return null;
   }
 
@@ -87,16 +110,19 @@ export async function loadDeployment(
 }
 
 /**
- * Save deployment info to JSON file
- * 
- * NOTE: This function uses Node.js file system APIs and is not compatible with edge runtime.
- * Only use this in Node.js environments (scripts, build-time, etc.).
+ * Save deployment information to JSON file.
+ *
+ * @remarks This function uses Node.js file system APIs and is not compatible
+ * with edge runtime. Only use in Node.js environments (scripts, build-time, etc.).
+ *
+ * @param env - Deployment environment
+ * @param deployment - Deployment information to save
+ * @throws Error if file system access is not available
  */
 export async function saveDeployment(
   env: DeploymentEnv,
   deployment: DeploymentInfo
 ): Promise<void> {
-  // Check if we're in a Node.js environment with file system access
   if (typeof process === 'undefined' || typeof process.cwd !== 'function') {
     throw new Error(
       'saveDeployment requires Node.js environment with file system access. Not available in edge runtime.'
@@ -112,7 +138,6 @@ export async function saveDeployment(
   const dirpath = path.join(process.cwd(), deploymentPaths[env]);
   const filepath = path.join(dirpath, 'index.json');
 
-  // Create directory if it doesn't exist
   if (!fs.existsSync(dirpath)) {
     fs.mkdirSync(dirpath, { recursive: true });
   }
@@ -138,7 +163,6 @@ export async function validateDeployment(
   const contracts: Partial<ContractAddresses> = {};
 
   try {
-    // Load deployment info
     const deployment = await loadDeployment(env);
 
     if (!deployment) {
@@ -154,10 +178,7 @@ export async function validateDeployment(
       };
     }
 
-    // Create provider
     const provider = new ethers.JsonRpcProvider(rpcUrl);
-
-    // Check network
     const network = await provider.getNetwork();
     const deploymentChainId = BigInt(deployment.chainId);
     if (network.chainId !== deploymentChainId) {
@@ -166,10 +187,8 @@ export async function validateDeployment(
       );
     }
 
-    // Validate each contract
     const contractsToValidate = expectedContracts || deployment.contracts;
 
-    // Diamond (main proxy)
     if (contractsToValidate.diamond) {
       const code = await provider.getCode(contractsToValidate.diamond);
       if (code === '0x' || code === '0x0') {
@@ -184,7 +203,6 @@ export async function validateDeployment(
       }
     }
 
-    // Identity Registry
     if (contractsToValidate.identityRegistry) {
       const code = await provider.getCode(contractsToValidate.identityRegistry);
       if (code === '0x' || code === '0x0') {
@@ -201,7 +219,6 @@ export async function validateDeployment(
       }
     }
 
-    // Reputation System
     if (contractsToValidate.reputationSystem) {
       const code = await provider.getCode(contractsToValidate.reputationSystem);
       if (code === '0x' || code === '0x0') {
@@ -218,10 +235,8 @@ export async function validateDeployment(
       }
     }
 
-    // Test a simple contract call to ensure it's working
     if (contracts.diamond) {
       try {
-        // Try to call a read function (getBalance is safe)
         const diamondContract = new ethers.Contract(
           contracts.diamond,
           ['function getBalance(address) view returns (uint256)'],
@@ -307,7 +322,6 @@ export async function updateEnvFile(
   env: DeploymentEnv,
   contracts: ContractAddresses
 ): Promise<void> {
-  // Check if we're in a Node.js environment with file system access
   if (typeof process === 'undefined' || typeof process.cwd !== 'function') {
     throw new Error(
       'updateEnvFile requires Node.js environment with file system access. Not available in edge runtime.'
@@ -327,7 +341,6 @@ export async function updateEnvFile(
     envContent = fs.readFileSync(envFile, 'utf-8');
   }
 
-  // Update or add contract addresses
   const updates: Record<string, string | undefined> = {
     NEXT_PUBLIC_DIAMOND_ADDRESS: contracts.diamond,
     NEXT_PUBLIC_IDENTITY_REGISTRY: contracts.identityRegistry,
@@ -432,7 +445,15 @@ export function printDeploymentValidationResult(
 }
 
 /**
- * Wait for transaction confirmation
+ * Wait for transaction confirmation.
+ *
+ * Polls the network until the transaction has the required number of confirmations.
+ *
+ * @param provider - Ethers provider instance
+ * @param txHash - Transaction hash to wait for
+ * @param confirmations - Number of confirmations required (default: 1)
+ * @returns Transaction receipt or null if timeout
+ * @throws Error if confirmation timeout is reached
  */
 export async function waitForTransaction(
   provider: ethers.Provider,
@@ -446,7 +467,7 @@ export async function waitForTransaction(
   );
 
   let attempts = 0;
-  const maxAttempts = 60; // 5 minutes with 5s intervals
+  const maxAttempts = 60;
 
   while (attempts < maxAttempts) {
     try {

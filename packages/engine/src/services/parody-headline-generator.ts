@@ -115,7 +115,7 @@ export class ParodyHeadlineGenerator {
         ? response.response
         : (response as { parodyTitle: string; parodyContent?: string });
 
-    // Post-process LLM output to fix any real names that slipped through
+    // Apply character mapping to replace any real names with fictional equivalents
     const processedTitle = await characterMappingService.transformText(
       parodyData.parodyTitle
     );

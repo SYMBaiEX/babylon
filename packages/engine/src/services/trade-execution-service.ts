@@ -165,7 +165,7 @@ export class TradeExecutionService {
     // Update decision to use normalized ID
     decision.npcId = normalizedNpcId;
 
-    // Note: Balance checks are performed inside transactions to ensure atomicity
+    // Balance checks are performed inside transactions to ensure atomicity
     // and prevent race conditions when multiple trades are queued for the same NPC
 
     // Handle close position

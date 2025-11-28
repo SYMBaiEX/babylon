@@ -18,7 +18,9 @@ export interface TrainingConfig {
   gamma: number;
 }
 
-// Shared validation result type
+/**
+ * Shared validation result type for configuration validation.
+ */
 export interface ValidationResult {
   valid: boolean;
   errors: string[];

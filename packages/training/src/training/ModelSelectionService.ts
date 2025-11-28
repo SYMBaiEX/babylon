@@ -41,8 +41,7 @@ export interface TrainingBundle {
 }
 
 export class ModelSelectionService {
-  // Default base model - uses Qwen3-4B-128K (4B params, 128K context)
-  // Scale up via MODEL_TIER or AVAILABLE_VRAM_GB env vars
+  /** Default base model - uses Qwen3-4B-128K (4B params, 128K context). Scale up via MODEL_TIER or AVAILABLE_VRAM_GB env vars */
   private readonly BASE_MODEL =
     process.env.BASE_MODEL || 'unsloth/Qwen3-4B-128K';
   private readonly BUNDLE_THRESHOLD = 1000;

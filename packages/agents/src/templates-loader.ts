@@ -1,19 +1,22 @@
 /**
  * Agent Templates Loader
  *
- * Loads agent templates from TypeScript data files.
- * Uses direct imports for optimal performance and type safety.
+ * Loads agent templates from TypeScript data files using direct imports
+ * for optimal performance and type safety.
  *
- * **Architecture:**
+ * @remarks
+ * Architecture:
  * - Individual TypeScript files for each template
  * - Index file exports all templates
  * - In-memory caching for performance
  * - Direct imports for template lookups
  *
- * **Performance:**
+ * Performance:
  * - First load: <1ms (direct imports, no file I/O)
  * - Subsequent loads: <1ms (uses cache)
  * - Template lookups: Direct import (fastest)
+ *
+ * @packageDocumentation
  */
 
 import { templates, templateIds } from './templates';
@@ -21,17 +24,17 @@ import type { AgentTemplate } from './types/agent-template';
 
 /**
  * In-memory cache for loaded templates
+ * @internal
  */
 const templateCache: Map<string, AgentTemplate> = new Map();
 
 /**
- * Initialize cache from imported data
+ * Initializes cache from imported data
+ * @internal
  */
 function initializeCache(): void {
   if (templateCache.size === 0) {
-    // Convert readonly arrays to mutable objects and populate cache
     templates.forEach((template) => {
-      // Create a mutable copy of the template data
       const templateData = { ...template } as AgentTemplate;
       templateCache.set(templateData.archetype, templateData);
     });
@@ -39,7 +42,7 @@ function initializeCache(): void {
 }
 
 /**
- * Get all available template IDs
+ * Gets all available template IDs
  *
  * @returns Array of template archetype IDs
  */
@@ -48,7 +51,7 @@ export function getTemplateIds(): readonly string[] {
 }
 
 /**
- * Get all templates
+ * Gets all templates
  *
  * @returns Array of all agent templates
  */
@@ -58,9 +61,9 @@ export function getAllTemplates(): AgentTemplate[] {
 }
 
 /**
- * Get a template by archetype ID
+ * Gets a template by archetype ID
  *
- * @param archetype The archetype ID (e.g., 'trader', 'researcher')
+ * @param archetype - The archetype ID (e.g., 'trader', 'researcher')
  * @returns Template data or null if not found
  */
 export function getTemplate(archetype: string): AgentTemplate | null {
@@ -69,7 +72,7 @@ export function getTemplate(archetype: string): AgentTemplate | null {
 }
 
 /**
- * Get a random template
+ * Gets a random template
  *
  * @returns Random template or null if no templates available
  */

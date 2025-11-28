@@ -115,7 +115,7 @@ export class OracleService {
     // Store commitment locally
     await CommitmentStore.store({
       questionId,
-      sessionId: '', // Will be set after transaction
+      sessionId: '', // Set after transaction completes
       salt,
       commitment,
       createdAt: new Date(),
@@ -346,7 +346,7 @@ export class OracleService {
         // Store commitment
         await CommitmentStore.store({
           questionId: game.questionId,
-          sessionId: '', // Will be set after transaction
+          sessionId: '', // Set after transaction completes
           salt,
           commitment,
           createdAt: new Date(),
@@ -429,7 +429,7 @@ export class OracleService {
         );
 
       // Update stored commitments and build results
-      // Debug: List all pending commitments before trying to retrieve
+      // List all pending commitments before retrieval for monitoring
       const allPending = await CommitmentStore.listPending();
       logger.info(
         `Found ${allPending.length} pending commitments before update`,

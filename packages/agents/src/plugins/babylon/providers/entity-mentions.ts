@@ -248,8 +248,10 @@ async function findEntityMentions(
     }
   }
 
-  // Note: Actors are not available via A2A, so we skip them
-  // This is acceptable as actors are internal game entities
+  /**
+   * Actors are not available via A2A, so we skip them.
+   * This is acceptable as actors are internal game entities.
+   */
 
   // Deduplicate by ID
   const seen = new Set<string>();

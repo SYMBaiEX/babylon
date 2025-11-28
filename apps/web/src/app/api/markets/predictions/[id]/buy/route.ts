@@ -111,7 +111,17 @@ import { PredictionMarketTradeSchema } from '@babylon/shared';
 import { ensureMarketOnChain } from '@babylon/engine';
 /**
  * POST /api/markets/predictions/[id]/buy
- * Buy YES or NO shares in a prediction market
+ *
+ * Buys YES or NO shares in a prediction market using Automated Market Maker (AMM) pricing.
+ * Calculates share quantity, fees, updates wallet balance, creates/updates position, and records price history.
+ * Supports both virtual and on-chain trading with automatic market creation if needed.
+ *
+ * @param request - Next.js request containing buy parameters (side, amount)
+ * @param context - Route context with market ID parameter
+ * @returns Purchase result with shares purchased, total cost, fees, and updated balance
+ * @throws {400} Invalid input, insufficient funds, or market not found
+ * @throws {401} Unauthorized
+ * @throws {404} Market not found
  */
 export const POST = withErrorHandling(
   async (

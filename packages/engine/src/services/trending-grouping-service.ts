@@ -76,7 +76,6 @@ export interface GroupedTrend {
   rank: number;
 }
 
-// GroupingInstruction interface removed - now using XML parsing instead of JSON
 
 /**
  * Calculate estimated cost for LLM call (rough estimates)
@@ -435,8 +434,6 @@ Return ONLY valid XML. No markdown, no explanations.`;
   }
 }
 
-// Legacy analyzeTagRelationships and generateGroupSummary functions removed
-// Summaries are now generated in the combined analyzeAndSummarizeTags call
 
 /**
  * Generate a one-sentence summary for a single trending tag based on recent posts

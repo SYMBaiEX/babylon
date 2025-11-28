@@ -58,7 +58,7 @@ export class TrajectoryRecorder {
     this.activeTrajectories.set(trajectoryId, {
       trajectoryId,
       agentId: options.agentId,
-      scenarioId: options.scenarioId || windowId, // Use windowId as scenarioId if not provided
+      scenarioId: options.scenarioId || windowId,
       startTime: Date.now(),
       steps: [],
     });
@@ -67,7 +67,7 @@ export class TrajectoryRecorder {
       trajectoryId,
       agentId: options.agentId,
       scenarioId: options.scenarioId,
-      windowId, // Log window_id for debugging
+      windowId,
     });
 
     return trajectoryId;

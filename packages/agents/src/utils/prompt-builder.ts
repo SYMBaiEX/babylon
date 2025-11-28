@@ -1,9 +1,10 @@
 /**
  * Safe Prompt Builder for Agents
  *
- * Ensures prompts stay under model context limits
- * Consolidates prompt building logic
- * Prevents context window overflow
+ * Ensures prompts stay under model context limits and consolidates prompt
+ * building logic to prevent context window overflow.
+ *
+ * @packageDocumentation
  */
 
 import { logger } from '../shared/logger';
@@ -21,11 +22,11 @@ export interface PromptSection {
 }
 
 /**
- * Build a safe prompt that fits within model context limits
+ * Builds a safe prompt that fits within model context limits
  *
  * @param sections - Ordered prompt sections with priorities
  * @param model - Model name (for context limit lookup)
- * @param safetyMargin - Tokens to reserve (default: 2000 for safety)
+ * @param safetyMargin - Tokens to reserve (default: 2000)
  * @returns Truncated prompt that fits within context limit
  */
 export function buildSafePrompt(

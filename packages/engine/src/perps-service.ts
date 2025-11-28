@@ -33,8 +33,16 @@ let perpsEngineInstance: PerpetualsEngine | null = null;
 let initializationPromise: Promise<void> | null = null;
 let initializing = false;
 
+/**
+ * Get the singleton PerpetualsEngine instance.
+ *
+ * Lazily initializes the engine on first call. The engine can only be
+ * instantiated on the server side (not in browser environments).
+ *
+ * @returns The singleton PerpetualsEngine instance
+ * @throws Error if called in browser environment or if initialization is in progress
+ */
 export function getPerpsEngine(): PerpetualsEngine {
-  // Only instantiate on server side
   if (typeof window !== 'undefined') {
     throw new Error(
       'PerpetualsEngine can only be instantiated on the server side'
@@ -56,6 +64,12 @@ export function getPerpsEngine(): PerpetualsEngine {
   return perpsEngineInstance;
 }
 
+/**
+ * Ensure the PerpetualsEngine is initialized and ready.
+ *
+ * Waits for initialization to complete if it's in progress.
+ * Creates a new instance if one doesn't exist.
+ */
 export async function ensurePerpsEngineReady(): Promise<void> {
   if (!perpsEngineInstance) {
     getPerpsEngine();
@@ -66,11 +80,26 @@ export async function ensurePerpsEngineReady(): Promise<void> {
   }
 }
 
+/**
+ * Get the PerpetualsEngine instance, ensuring it's ready.
+ *
+ * Waits for initialization to complete before returning the instance.
+ *
+ * @returns The ready PerpetualsEngine instance
+ */
 export async function getReadyPerpsEngine(): Promise<PerpetualsEngine> {
   await ensurePerpsEngineReady();
   return getPerpsEngine();
 }
 
+/**
+ * Execute a function with a ready PerpetualsEngine instance.
+ *
+ * Ensures the engine is initialized before executing the provided function.
+ *
+ * @param fn - Function to execute with the engine instance
+ * @returns Result of the function execution
+ */
 export async function withPerpsEngine<T>(
   fn: (engine: PerpetualsEngine) => Promise<T> | T
 ): Promise<T> {
@@ -187,6 +216,10 @@ async function initializePerpsEngine(): Promise<void> {
   }
 }
 
-// NOTE: Singleton export removed to prevent initialization during Next.js build
-// Use getPerpsEngine() function instead to lazily initialize when needed
+/**
+ * Perpetuals engine singleton access.
+ *
+ * Use {@link getPerpsEngine} to lazily initialize the engine when needed.
+ * This prevents initialization during Next.js build processes.
+ */
 

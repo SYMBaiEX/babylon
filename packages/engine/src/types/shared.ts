@@ -14,6 +14,7 @@ export type {
   ActorsDatabase,
   ActorState,
   ActorTier,
+  GroupChatMessage as ChatMessage,
   DayTimeline,
   ElizaCharacter,
   ElizaMessageExample,
@@ -57,9 +58,6 @@ export {
   POST_TYPES,
   RELATIONSHIP_TYPES,
 } from '@babylon/shared';
-
-// Backwards compatibility - re-export deprecated ChatMessage
-export type { GroupChatMessage as ChatMessage } from '@babylon/shared';
 
 /**
  * World context for prompts (engine-specific)

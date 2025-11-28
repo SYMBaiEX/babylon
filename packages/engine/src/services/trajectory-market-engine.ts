@@ -176,7 +176,7 @@ export class TrajectoryMarketEngine {
         },
       };
 
-      // Calculate immediate reward (0 for now, will be updated after market resolves)
+      // Immediate reward calculated when market resolves
       const reward = 0;
 
       // Complete step
@@ -203,10 +203,9 @@ export class TrajectoryMarketEngine {
 
     await this.recorder.endTrajectory(this.trajectoryId, {
       finalBalance: undefined, // Would need pool balance
-      finalPnL: undefined, // Will be calculated later when markets resolve
+      finalPnL: undefined, // Calculated when markets resolve
       windowId: getCurrentWindowId(),
       gameKnowledge: {
-        // Could add future outcomes here
         actualOutcomes: {},
       },
     });

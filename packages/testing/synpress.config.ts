@@ -1,10 +1,16 @@
+/**
+ * Synpress configuration for Playwright tests.
+ *
+ * Configures Playwright for Synpress-style tests with wallet integration.
+ * Note: Wallet setup is commented out as Privy uses embedded wallets, not MetaMask extension.
+ *
+ * @module testing/synpress.config
+ */
+
 import { defineConfig, devices } from '@playwright/test';
-// Wallet setup will be configured when MetaMask integration is needed
-// import { defineWalletSetup } from '@synthetixio/synpress'
 import { config } from 'dotenv';
 import { resolve } from 'path';
 
-// Load environment variables from root .env.local and .env
 const rootDir = resolve(__dirname, '../..');
 config({ path: resolve(rootDir, '.env.local') });
 config({ path: resolve(rootDir, '.env') });
@@ -14,7 +20,6 @@ const _SEED_PHRASE =
   'test test test test test test test test test test test junk';
 const _PASSWORD = process.env.WALLET_PASSWORD || 'Tester@1234';
 
-// Verify Privy test credentials are loaded (for debugging)
 if (process.env.PRIVY_TEST_EMAIL) {
   console.log('✅ Privy test credentials loaded successfully');
 } else {
@@ -78,8 +83,6 @@ export default defineConfig({
       name: 'chromium',
       use: {
         ...devices['Desktop Chrome'],
-        // Wallet setup commented out - Privy uses embedded wallets, not MetaMask extension
-        // ...defineWalletSetup(SEED_PHRASE, PASSWORD),
       },
     },
   ],

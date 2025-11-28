@@ -17,8 +17,11 @@ import type {
 // Re-export schema types for convenience
 export type { Trajectory, TrainingBatch, TrainedModel, LlmCallLog };
 
-// Trajectory Step types
-// Note: These are simplified versions for training pipeline.
+/**
+ * Trajectory Step types.
+ *
+ * Simplified versions optimized for the training pipeline.
+ */
 export interface TrajectoryStep {
   stepNumber: number;
   timestamp: number;

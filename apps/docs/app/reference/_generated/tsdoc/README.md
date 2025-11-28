@@ -6,11 +6,9 @@
 
 ## Modules
 
-- [agents/AgentRegistry](agents/AgentRegistry/README.md)
 - [agents/AutonomousAgent](agents/AutonomousAgent/README.md)
 - [agents/agent0/Agent0Client](agents/agent0/Agent0Client/README.md)
 - [agents/agent0/GameDiscovery](agents/agent0/GameDiscovery/README.md)
-- [agents/agent0/IPFSPublisher](agents/agent0/IPFSPublisher/README.md)
 - [agents/agent0/ReputationBridge](agents/agent0/ReputationBridge/README.md)
 - [agents/agent0/SubgraphClient](agents/agent0/SubgraphClient/README.md)
 - [agents/agent0/UnifiedDiscovery](agents/agent0/UnifiedDiscovery/README.md)
@@ -19,7 +17,6 @@
 - [engine/ArticleGenerator](engine/ArticleGenerator/README.md)
 - [engine/EmotionSystem](engine/EmotionSystem/README.md)
 - [engine/FeedGenerator](engine/FeedGenerator/README.md)
-- [engine/GameSimulator](engine/GameSimulator/README.md)
 - [engine/GameWorld](engine/GameWorld/README.md)
 - [engine/MarketDecisionEngine](engine/MarketDecisionEngine/README.md)
 - [engine/PerpetualsEngine](engine/PerpetualsEngine/README.md)

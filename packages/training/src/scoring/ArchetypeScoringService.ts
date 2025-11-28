@@ -49,7 +49,7 @@ interface RulerScoreResponse {
 }
 
 export interface ScoringOptions {
-  /** Override archetype (useful for testing) */
+  /** Override archetype */
   archetype?: string;
   /** Include detailed action context in prompt */
   includeActionDetails?: boolean;

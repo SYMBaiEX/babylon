@@ -1,6 +1,9 @@
 /**
  * Waitlist Service
- * Manages waitlist signups, positions, and invite codes
+ *
+ * @description Manages waitlist signups, position tracking, and invite code
+ * generation. Handles referral tracking, position calculations based on points,
+ * and leaderboard rankings for waitlist participants.
  */
 
 import { nanoid } from 'nanoid';
@@ -57,8 +60,15 @@ export class WaitlistService {
   }
 
   /**
-   * Mark an existing user as waitlisted (after they complete onboarding)
-   * NOTE: Users should be created through normal onboarding flow first
+   * Mark an existing user as waitlisted
+   *
+   * @description Marks a user as waitlisted after they complete onboarding.
+   * Users must be created through the normal onboarding flow before calling
+   * this method. Handles referral code processing and initial point awards.
+   *
+   * @param {string} userId - User ID to mark as waitlisted
+   * @param {string} [referralCode] - Optional referral code used during signup
+   * @returns {Promise<WaitlistMarkResult>} Waitlist marking result with position and invite code
    */
   static async markAsWaitlisted(
     userId: string,
@@ -214,9 +224,9 @@ export class WaitlistService {
           );
           referrerRewarded = false;
         }
-        // Valid referral - use unified referral system
+        // Valid referral - use referral system
         else {
-          // Use PointsService.awardReferralSignup for unified referral processing
+          // Use PointsService.awardReferralSignup for referral processing
           // This handles weekly limits, IP checks, and creates proper Referral records
           const referralResult = await PointsService.awardReferralSignup(
             referrer.id,
@@ -270,7 +280,7 @@ export class WaitlistService {
             referrerRewarded = true;
 
             logger.info(
-              `Rewarded referrer ${referrer.id} with ${referralResult.pointsAwarded} points via unified system`,
+              `Rewarded referrer ${referrer.id} with ${referralResult.pointsAwarded} points via referral system`,
               {
                 referrerId: referrer.id,
                 pointsAwarded: referralResult.pointsAwarded,

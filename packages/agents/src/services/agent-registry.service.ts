@@ -1,13 +1,11 @@
 /**
  * Unified Agent Registry Service
  *
- * @description Single source of truth for all agent types: USER_CONTROLLED, NPC, EXTERNAL.
- * Provides unified registration, discovery, and management for all agent types. Supports
- * ERC-8004, Agent0 SDK, and A2A Protocol.
+ * Single source of truth for all agent types: USER_CONTROLLED, NPC, EXTERNAL.
+ * Provides registration, discovery, and management for all agent types
+ * with support for ERC-8004, Agent0 SDK, and A2A Protocol.
  *
- * Based on: agent-unified-architecture.md
- *
- * @see src/types/agent-registry.types.ts for type definitions
+ * @packageDocumentation
  */
 
 import { createCipheriv, createDecipheriv, randomBytes } from 'crypto';
@@ -41,17 +39,25 @@ import type {
 } from '../types/agent-registry';
 import { AgentStatus, AgentType } from '../types/agent-registry';
 
+/**
+ * Gets encryption key from environment or dev fallback
+ * @internal
+ */
 const getEncryptionKey = () => {
   if (process.env.CRON_SECRET) return process.env.CRON_SECRET;
   if (process.env.NODE_ENV === 'production') {
-    // Throw only when actually trying to use the key in production without it
     throw new Error('CRON_SECRET must be set in production');
   }
   return 'dev-key-change-in-production-32-chars!!';
 };
+
+/** Encryption algorithm for API key storage */
 const ALGORITHM = 'aes-256-cbc';
 
-// Type for registry with relations loaded
+/**
+ * Registry entry with loaded relations
+ * @internal
+ */
 type RegistryWithRelations = AgentRegistry & {
   capabilities: typeof agentCapabilities.$inferSelect | null;
   User?: User | null;
@@ -60,26 +66,25 @@ type RegistryWithRelations = AgentRegistry & {
 };
 
 /**
- * Unified Agent Registry Service Class
+ * Unified Agent Registry Service
  *
- * @description Service class for managing unified agent registry. Provides methods
- * for registering, discovering, and managing agents of all types (USER_CONTROLLED, NPC, EXTERNAL).
+ * Service for managing agent registry with support for all agent types.
  */
 export class AgentRegistryService {
   /**
-   * Register a USER_CONTROLLED agent from User record
+   * Registers a USER_CONTROLLED agent from User record
    *
-   * @description Creates registry entry linked to existing User. Verifies user exists
-   * and is not already registered. Creates registry entry with USER_CONTROLLED type.
+   * Creates registry entry linked to existing User. Verifies user exists
+   * and is not already registered.
    *
-   * @param {object} params - Registration parameters
-   * @param {string} params.userId - User ID
-   * @param {string} params.name - Agent name
-   * @param {string} params.systemPrompt - System prompt
-   * @param {AgentCapabilities} params.capabilities - Agent capabilities
-   * @param {TrustLevel} [params.trustLevel=0] - Trust level (default: 0)
-   * @returns {Promise<UnifiedAgentRegistration>} Registered agent
-   * @throws {Error} If user not found or already registered
+   * @param params - Registration parameters
+   * @param params.userId - User ID
+   * @param params.name - Agent name
+   * @param params.systemPrompt - System prompt
+   * @param params.capabilities - Agent capabilities
+   * @param params.trustLevel - Trust level (default: 0)
+   * @returns Registered agent
+   * @throws Error if user not found or already registered
    */
   async registerUserAgent(params: {
     userId: string;

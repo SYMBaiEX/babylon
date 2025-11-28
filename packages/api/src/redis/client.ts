@@ -1,7 +1,7 @@
 /**
  * Redis Client - Common interface for both local and production Redis
  *
- * @description Provides a unified Redis client that works with both:
+ * @description Provides a Redis client that works with both:
  * - Local Development: Uses standard Redis protocol via ioredis
  *   (REDIS_URL=redis://localhost:6379)
  * - Vercel Production: Uses Upstash REST API via @upstash/redis

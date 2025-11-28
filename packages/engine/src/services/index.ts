@@ -25,7 +25,7 @@ export * from './npc-persona-generator';
 export * from './RelationshipManager';
 export * from './reply-rate-limiter';
 
-// Group Chat Service (consolidated from group-chat-invite + group-chat-sweep)
+// Group Chat Service
 export {
   GroupChatService,
   type InviteChance,
@@ -48,7 +48,7 @@ export * from './price-update-service';
 export * from './signal-extraction-service';
 export * from './trajectory-market-engine';
 
-// Prediction Market Service (consolidated from prediction-market-event + prediction-price-history)
+// Prediction Market Service
 export {
   PredictionMarketService,
   type PredictionTradeEvent,
@@ -68,7 +68,7 @@ export * from './post-generation-helpers';
 export * from './question-arc-planner';
 export * from './parody-headline-generator';
 
-// Tag Service (consolidated from tag-generation + tag-storage)
+// Tag Service
 export {
   generateTagsFromPost,
   generateTagsForPosts,

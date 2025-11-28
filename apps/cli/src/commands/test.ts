@@ -104,9 +104,6 @@ async function runLoadTest(args: ReturnType<typeof parseArgs>): Promise<void> {
   console.log(`  99th Percentile:   ${result.responseTime.p99.toFixed(2)}ms`);
   console.log(`  Max:               ${result.responseTime.max.toFixed(2)}ms`);
 
-  // Note: Slow query monitoring can be added via queryMonitor if available
-  // Currently disabled as getSlowQueries is not implemented
-
   // Assessment
   const p95 = result.responseTime.p95;
   const successRate = result.throughput.successRate;
@@ -211,6 +208,11 @@ async function runA2AStressTest(args: ReturnType<typeof parseArgs>): Promise<voi
   }
 }
 
+/**
+ * Main entry point for test domain commands.
+ *
+ * @param args - Raw command-line arguments for the test domain
+ */
 export async function runTestCommand(args: string[]): Promise<void> {
   const parsed = parseArgs(args);
 

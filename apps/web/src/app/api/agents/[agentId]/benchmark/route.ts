@@ -104,7 +104,7 @@ import { promises as fs } from 'fs';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import * as path from 'path';
-import { db } from '@babylon/db';
+import { db, type JsonValue } from '@babylon/db';
 import {
   agentRuntimeManager,
   AutonomousCoordinator,
@@ -170,7 +170,7 @@ export async function POST(
   // Parse request body
   const body = (await req.json()) as {
     benchmarkPath?: string;
-    benchmarkData?: unknown;
+    benchmarkData?: JsonValue;
     runs?: number;
     outputDir?: string;
   };
@@ -340,7 +340,7 @@ export async function POST(
 
 async function runSingleBenchmark(
   agentId: string,
-  snapshot: unknown,
+  snapshot: JsonValue,
   outputDir: string
 ): Promise<SimulationResult> {
   logger.info('Starting single benchmark run', { agentId }, 'AgentBenchmark');
@@ -349,7 +349,7 @@ async function runSingleBenchmark(
   const runtime = await agentRuntimeManager.getRuntime(agentId);
 
   // Type assertion for snapshot - cast to proper type
-  const typedSnapshot = snapshot as BenchmarkGameSnapshot;
+  const typedSnapshot = snapshot as unknown as BenchmarkGameSnapshot;
 
   // Create simulation engine
   const simConfig: SimulationConfig = {
@@ -364,7 +364,7 @@ async function runSingleBenchmark(
   // Create A2A interface and inject into runtime
   const a2aInterface = new SimulationA2AInterface(engine, agentId);
   // Extend runtime with simulation A2A interface
-  (runtime as { a2aClient?: unknown }).a2aClient = a2aInterface;
+  (runtime as { a2aClient?: SimulationA2AInterface }).a2aClient = a2aInterface;
 
   logger.info(
     'Runtime and A2A interface initialized',

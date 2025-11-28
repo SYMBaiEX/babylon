@@ -1,14 +1,12 @@
 #!/usr/bin/env bun
 
 /**
- * Agent Management Commands
+ * @fileoverview Agent management commands
  *
- * Commands:
- *   spawn        - Create test agents
- *   list         - List agents
- *   enable       - Enable autonomous features for an agent
- *   disable      - Disable autonomous features for an agent
- *   agent0-config - Configure Agent0 integration
+ * Provides commands for creating test agents, listing agents, and managing
+ * autonomous features for agents. Also includes Agent0 integration configuration.
+ *
+ * @module cli/commands/agent
  */
 
 import { existsSync, readFileSync, writeFileSync } from 'fs';
@@ -336,6 +334,11 @@ async function toggleAgentFeatures(
   }
 }
 
+/**
+ * Main entry point for agent domain commands.
+ *
+ * @param args - Raw command-line arguments for the agent domain
+ */
 export async function runAgentCommand(args: string[]): Promise<void> {
   const parsed = parseArgs(args);
 

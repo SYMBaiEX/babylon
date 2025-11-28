@@ -245,7 +245,7 @@ export class AlphaGroupInviteService {
   }
 
   /**
-   * Get invite statistics for debugging
+   * Get invite statistics for monitoring and analysis
    */
   static async getInviteStats(): Promise<{
     totalInvites: number;

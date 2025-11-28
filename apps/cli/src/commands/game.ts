@@ -1,19 +1,20 @@
 #!/usr/bin/env bun
 
 /**
- * @fileoverview Game management commands
+ * Game Management Commands
  *
- * Provides commands for controlling game state, generating game content,
- * running simulations, and validating actor data.
- *
- * @module cli/commands/game
+ * Commands:
+ *   start     - Start the continuous game
+ *   pause     - Pause the continuous game
+ *   status    - Show game runtime status
+ *   generate  - Generate a new game with scenarios and questions
+ *   validate  - Validate actor data integrity
  */
 
 import { db, eq, games, generateSnowflakeId as dbGenerateSnowflakeId, closeDatabase } from '@babylon/db';
-import { GameGenerator, GameSimulator, loadActorsData } from '@babylon/engine';
+import { GameGenerator, loadActorsData } from '@babylon/engine';
 import { nanoid } from 'nanoid';
-import { writeFile } from 'fs/promises';
-import { parseArgs, wantsHelp, getOption, getFlag } from '../lib/args.js';
+import { getFlag, parseArgs, wantsHelp } from '../lib/args.js';
 import { logger } from '../lib/logger.js';
 import type { GameHistory, GroupMessage } from '@babylon/engine';
 import type { JsonValue } from '@babylon/db';
@@ -164,6 +165,17 @@ async function showGameStatus(): Promise<void> {
   }
 }
 
+/**
+ * Validates and converts a JsonValue to a GameHistory object.
+ *
+ * Ensures the value matches the expected GameHistory structure with required fields:
+ * gameNumber, completedAt, summary, keyOutcomes, highlights, and topMoments.
+ *
+ * @param value - JSON value from database to validate
+ * @returns Validated GameHistory object
+ * @throws {Error} If the value doesn't match the expected GameHistory structure
+ * @internal
+ */
 function validateGameHistory(value: JsonValue): GameHistory {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     throw new Error('Invalid game history format');
@@ -192,6 +204,17 @@ function validateGameHistory(value: JsonValue): GameHistory {
   };
 }
 
+/**
+ * Generates a minimal game history from database records when full history isn't available.
+ *
+ * Creates a simplified GameHistory from posts and questions for use as context
+ * in subsequent game generation. Extracts top posts and creates highlights.
+ *
+ * @param gameId - ID of the game to generate history for
+ * @param gameNumber - Sequential game number for this game
+ * @returns Minimal GameHistory object with summary and highlights from posts
+ * @internal
+ */
 async function generateMinimalGameHistory(
   gameId: string,
   gameNumber: number
@@ -219,6 +242,15 @@ async function generateMinimalGameHistory(
   };
 }
 
+/**
+ * Validates actor data integrity by checking all affiliations reference valid organizations.
+ *
+ * Ensures no orphaned affiliation references exist that could cause errors during
+ * game generation. Validates that every actor affiliation matches an existing organization ID.
+ *
+ * @throws {Error} Exits process with code 1 if any invalid affiliations are found
+ * @internal
+ */
 async function validateActorsData(): Promise<void> {
   const actorsData = loadActorsData();
   const actors = actorsData.actors;
@@ -246,6 +278,17 @@ async function validateActorsData(): Promise<void> {
   }
 }
 
+/**
+ * Generates a complete game with scenarios, questions, and timeline.
+ *
+ * Validates actors, checks for API keys, loads previous game history for context,
+ * generates new game content using GameGenerator, and saves to database.
+ * Creates genesis game if no games exist.
+ *
+ * @param args - Parsed command-line arguments
+ * @throws {Error} Exits process with code 1 if API keys missing or generation fails
+ * @internal
+ */
 async function generateGame(args: ReturnType<typeof parseArgs>): Promise<void> {
   const verbose = getFlag(args, 'verbose', 'v');
 
@@ -389,110 +432,17 @@ async function generateGame(args: ReturnType<typeof parseArgs>): Promise<void> {
   logger.success(`Game saved (ID: ${savedGame.id})`);
 }
 
-async function runSimulation(args: ReturnType<typeof parseArgs>): Promise<void> {
-  const outcomeStr = getOption(args, 'outcome');
-  const countStr = getOption(args, 'count');
-  const save = getOption(args, 'save');
-  const fast = getFlag(args, 'fast');
-  const verbose = getFlag(args, 'verbose', 'v');
-  const jsonOutput = getFlag(args, 'json');
-
-  const outcome = outcomeStr !== 'NO';
-  const count = parseInt(countStr || '1', 10);
-
-  if (count === 1) {
-    // Single game
-    const simulator = new GameSimulator({
-      outcome,
-      numAgents: 5,
-      duration: 30,
-    });
-
-    if (verbose && !jsonOutput) {
-      logger.header('Game Simulation');
-
-      simulator.on('game:started', (event) => {
-        console.log(`Question: ${event.data.question}`);
-        console.log(`Outcome: ${outcome ? 'YES' : 'NO'}`);
-        console.log(`Agents: ${event.data.agents}`);
-      });
-
-      simulator.on('agent:bet', (event) => {
-        console.log(`${event.agentId}: Bet ${event.data.outcome ? 'YES' : 'NO'} (${event.data.amount} tokens)`);
-      });
-
-      simulator.on('outcome:revealed', (event) => {
-        console.log(`\nOutcome: ${event.data.outcome ? 'YES' : 'NO'}`);
-      });
-
-      simulator.on('game:ended', (event) => {
-        console.log(`Winners: ${event.data.winners.join(', ')}`);
-      });
-    }
-
-    const result = await simulator.runCompleteGame();
-
-    if (save) {
-      await writeFile(save, JSON.stringify(result, null, 2));
-      if (!jsonOutput) {
-        logger.success(`Saved to: ${save}`);
-      }
-    }
-
-    if (jsonOutput) {
-      console.log(JSON.stringify(result, null, 2));
-    } else {
-      console.log('\nGame complete:');
-      console.log(`  Duration: ${result.endTime - result.startTime}ms`);
-      console.log(`  Events: ${result.events.length}`);
-      console.log(`  Winners: ${result.winners.length}/${result.agents.length}`);
-    }
-  } else {
-    // Batch games
-    if (!jsonOutput) {
-      logger.header(`Running ${count} simulations...`);
-    }
-
-    const results = [];
-    const start = Date.now();
-
-    for (let i = 0; i < count; i++) {
-      const sim = new GameSimulator({
-        outcome: i % 2 === 0,
-        numAgents: 5,
-      });
-      const result = await sim.runCompleteGame();
-      results.push(result);
-
-      if (!fast && !jsonOutput) {
-        process.stdout.write(`\r[${i + 1}/${count}] ${Math.round(((i + 1) / count) * 100)}%`);
-      }
-    }
-
-    const duration = Date.now() - start;
-
-    if (jsonOutput) {
-      console.log(JSON.stringify({
-        count: results.length,
-        duration,
-        results: results.map((r) => ({
-          id: r.id,
-          outcome: r.outcome,
-          winners: r.winners.length,
-          events: r.events.length,
-        })),
-      }, null, 2));
-    } else {
-      const yesGames = results.filter((r) => r.outcome).length;
-      console.log(`\n\n${count} games completed`);
-      console.log(`  Total time: ${duration}ms`);
-      console.log(`  Avg time: ${Math.round(duration / count)}ms/game`);
-      console.log(`  YES outcomes: ${yesGames} (${Math.round((yesGames / count) * 100)}%)`);
-      console.log(`  NO outcomes: ${count - yesGames} (${Math.round(((count - yesGames) / count) * 100)}%)`);
-    }
-  }
+async function runSimulation(_args: ReturnType<typeof parseArgs>): Promise<void> {
+  logger.header('Game Simulation');
+  logger.warn('Simulation feature is not yet implemented');
+  logger.info('Use "babylon game generate" to generate game content instead.');
 }
 
+/**
+ * Main entry point for game domain commands.
+ *
+ * @param args - Raw command-line arguments for the game domain
+ */
 export async function runGameCommand(args: string[]): Promise<void> {
   const parsed = parseArgs(args);
 

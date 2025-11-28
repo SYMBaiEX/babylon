@@ -58,20 +58,6 @@ describe('IPFSPublisher', () => {
     expect(validation.success).toBe(true);
   });
 
-  test('publishMetadata is deprecated and directs to Agent0 SDK', async () => {
-    // publishMetadata is intentionally deprecated
-    // It should throw an error directing developers to use Agent0Client.registerAgent()
-    await expect(
-      publisher.publishMetadata({
-        name: 'Test',
-        description: 'Test',
-        version: '1.0.0',
-        endpoints: {},
-        capabilities: { markets: [], actions: [] },
-      })
-    ).rejects.toThrow('Use Agent0Client.registerAgent() instead');
-  });
-
   test('isAvailable always returns true (gateway-only mode)', () => {
     // In gateway-only mode, we're always "available" since we use public gateway
     expect(publisher.isAvailable()).toBe(true);

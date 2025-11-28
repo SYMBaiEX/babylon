@@ -1,9 +1,10 @@
 /**
  * Service Interfaces for @babylon/agents
  *
- * These interfaces define the contracts for services that can be injected
- * from the application layer. This allows the agents package to be
- * decoupled from the specific implementations in apps/web.
+ * Defines contracts for services that can be injected from the application layer,
+ * allowing the agents package to be decoupled from specific implementations.
+ *
+ * @packageDocumentation
  */
 
 import type { JsonValue } from '../types/common';

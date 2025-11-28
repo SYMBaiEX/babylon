@@ -188,9 +188,11 @@ export class BabylonLLMClient {
       model?: string;
       temperature?: number;
       maxTokens?: number;
-      format?: 'xml' | 'json'; // Default to XML for robustness
-      promptType?: string; // For debug logging
-      promptTemplate?: string; // For debug logging
+      format?: 'xml' | 'json';
+      /** Prompt type identifier for logging and monitoring */
+      promptType?: string;
+      /** Prompt template for logging and monitoring */
+      promptTemplate?: string;
     } = {}
   ): Promise<T> {
     const defaultModel = this.getDefaultModel();
@@ -199,7 +201,7 @@ export class BabylonLLMClient {
       model = defaultModel,
       temperature = 0.7,
       maxTokens = 16000,
-      format = 'xml', // Default to XML for more robust parsing
+      format = 'xml',
       promptType = 'unknown',
       promptTemplate,
     } = options;
@@ -257,7 +259,7 @@ export class BabylonLLMClient {
         let content = response.choices[0]!.message.content!;
         let finishReason = response.choices[0]!.finish_reason;
 
-        // Debug logging: Log raw prompt and response
+        // Log prompt and response for monitoring
         const fullInput = `System: ${systemContent}\n\nUser: ${prompt}`;
         await this.logPromptDebug(fullInput, content, {
           promptType,
@@ -368,12 +370,12 @@ export class BabylonLLMClient {
             'BabylonLLMClient'
           );
 
-          // Log parsed output for debugging
+          // Log parsed output for monitoring
           await this.logParsedOutput(xmlResult.data, promptType);
 
           return xmlResult.data as T;
         }
-        // Use JSON parser (legacy)
+        // Use JSON parser
         // If we had a continuation, use the advanced parser
         if (content.includes('Continue from where you left off')) {
           const parsed = parseContinuationContent(content);
@@ -409,7 +411,7 @@ export class BabylonLLMClient {
           );
         }
 
-        // Log parsed output for debugging
+        // Log parsed output for monitoring
         await this.logParsedOutput(parsed, promptType);
 
         return parsed as T;
@@ -512,7 +514,7 @@ export class BabylonLLMClient {
   }
 
   /**
-   * Log parsed output for debugging
+   * Log parsed output for monitoring and analysis
    */
   private async logParsedOutput(
     data: JsonValue,
@@ -523,8 +525,8 @@ export class BabylonLLMClient {
         return;
       }
 
-      // The parsed output is already logged in logPromptDebug via the main flow
-      // This is just for additional structured data if needed
+      // Parsed output is logged via the main flow
+      // This provides additional structured data for monitoring
       logger.debug(
         'Parsed LLM output',
         {
@@ -539,7 +541,7 @@ export class BabylonLLMClient {
   }
 
   /**
-   * Log prompt and response for debugging
+   * Log prompt and response for monitoring and analysis
    */
   private async logPromptDebug(
     input: string,

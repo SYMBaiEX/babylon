@@ -36,9 +36,12 @@ const LOCK_DURATION_MS = 15 * 60 * 1000; // 15 minutes
 export async function acquireGenerationLock(
   processId?: string
 ): Promise<boolean> {
-  // If processId is not provided, we generate one here.
-  // Note: In the original implementation, it generated one internally if missing.
-  // To maintain compatibility with the interface, we handle it here.
+  /**
+   * If processId is not provided, we generate one here.
+   *
+   * In the original implementation, it generated one internally if missing.
+   * To maintain compatibility with the interface, we handle it here.
+   */
   const lockHolder =
     processId || `serverless-${Date.now()}-${randomBytes(8).toString('hex')}`;
 

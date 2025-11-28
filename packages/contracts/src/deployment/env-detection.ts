@@ -1,26 +1,47 @@
 /**
+ * @packageDocumentation
+ * @module @babylon/contracts/deployment/env-detection
+ *
  * Environment Detection and Validation
  *
- * Detects deployment environment (localnet, testnet, mainnet)
- * and validates required configuration.
+ * Detects deployment environment (localnet, testnet, mainnet) and validates
+ * required configuration. Provides utilities for environment detection,
+ * configuration validation, and deployment information retrieval.
  */
 
 import { logger } from './logger';
 
+/**
+ * Supported deployment environments.
+ */
 export type DeploymentEnv = 'localnet' | 'testnet' | 'mainnet';
 
+/**
+ * Chain configuration for a deployment environment.
+ */
 export interface ChainConfig {
+  /** Chain ID for the network */
   chainId: number;
+  /** Human-readable network name */
   name: string;
+  /** RPC endpoint URL */
   rpcUrl: string;
+  /** Block explorer URL */
   explorerUrl: string;
+  /** Native currency configuration */
   nativeCurrency: {
+    /** Currency name */
     name: string;
+    /** Currency symbol */
     symbol: string;
+    /** Number of decimals */
     decimals: number;
   };
 }
 
+/**
+ * Chain configurations for all supported deployment environments.
+ */
 export const CHAIN_CONFIGS: Record<DeploymentEnv, ChainConfig> = {
   localnet: {
     chainId: 31337,
@@ -57,19 +78,35 @@ export const CHAIN_CONFIGS: Record<DeploymentEnv, ChainConfig> = {
   },
 };
 
+/**
+ * Result of environment validation.
+ */
 export interface EnvValidationResult {
+  /** Whether the environment configuration is valid */
   valid: boolean;
+  /** Detected deployment environment */
   environment: DeploymentEnv;
+  /** List of validation errors */
   errors: string[];
+  /** List of validation warnings */
   warnings: string[];
+  /** Chain configuration for the environment */
   config: ChainConfig;
 }
 
 /**
- * Detect deployment environment from environment variables
+ * Detect deployment environment from environment variables.
+ *
+ * Checks multiple sources in order of precedence:
+ * 1. `DEPLOYMENT_ENV` environment variable
+ * 2. `USE_MAINNET` flag
+ * 3. `NODE_ENV` (production defaults to testnet)
+ * 4. `NEXT_PUBLIC_CHAIN_ID` chain ID
+ * 5. RPC URL patterns
+ *
+ * @returns Detected deployment environment
  */
 export function detectEnvironment(): DeploymentEnv {
-  // Explicit environment variable
   const explicitEnv = process.env.DEPLOYMENT_ENV;
   if (
     explicitEnv === 'localnet' ||
@@ -79,18 +116,14 @@ export function detectEnvironment(): DeploymentEnv {
     return explicitEnv;
   }
 
-  // Check for mainnet flag
   if (process.env.USE_MAINNET === 'true') {
     return 'mainnet';
   }
 
-  // Check NODE_ENV
   if (process.env.NODE_ENV === 'production') {
-    // Default to testnet in production unless USE_MAINNET is set
     return 'testnet';
   }
 
-  // Check chain ID
   const chainId = process.env.NEXT_PUBLIC_CHAIN_ID;
   if (chainId) {
     switch (Number.parseInt(chainId)) {
@@ -103,7 +136,6 @@ export function detectEnvironment(): DeploymentEnv {
     }
   }
 
-  // Check RPC URL patterns
   const rpcUrl =
     process.env.NEXT_PUBLIC_RPC_URL ||
     process.env.BASE_SEPOLIA_RPC_URL ||
@@ -120,12 +152,17 @@ export function detectEnvironment(): DeploymentEnv {
     }
   }
 
-  // Default to localnet for development
   return 'localnet';
 }
 
 /**
- * Validate environment configuration
+ * Validate environment configuration.
+ *
+ * Checks that all required environment variables are set for the detected
+ * or specified environment. Returns validation results with errors and warnings.
+ *
+ * @param env - Optional environment to validate. If not provided, detects automatically.
+ * @returns Validation result with errors, warnings, and configuration
  */
 export function validateEnvironment(env?: DeploymentEnv): EnvValidationResult {
   const environment = env || detectEnvironment();
@@ -133,19 +170,16 @@ export function validateEnvironment(env?: DeploymentEnv): EnvValidationResult {
   const errors: string[] = [];
   const warnings: string[] = [];
 
-  // Common validation
   if (!process.env.DATABASE_URL) {
     errors.push('DATABASE_URL is required');
   }
 
-  // Check either NEXT_PUBLIC_PRIVY_APP_ID or PRIVY_APP_ID (interchangeable)
   const privyAppId =
     process.env.NEXT_PUBLIC_PRIVY_APP_ID || process.env.PRIVY_APP_ID;
   if (!privyAppId) {
     errors.push('NEXT_PUBLIC_PRIVY_APP_ID (or PRIVY_APP_ID) is required');
   }
 
-  // Network-specific validation
   switch (environment) {
     case 'localnet':
       validateLocalnet(errors, warnings);
@@ -168,8 +202,6 @@ export function validateEnvironment(env?: DeploymentEnv): EnvValidationResult {
 }
 
 function validateLocalnet(_errors: string[], warnings: string[]): void {
-  // Localnet should have everything auto-configured
-  // Just check that we're not accidentally using production keys
   if (
     process.env.DEPLOYER_PRIVATE_KEY &&
     !process.env.DEPLOYER_PRIVATE_KEY.startsWith('0xac0974')
@@ -179,14 +211,12 @@ function validateLocalnet(_errors: string[], warnings: string[]): void {
     );
   }
 
-  // Check Redis (optional but recommended)
   if (!process.env.REDIS_URL) {
     warnings.push('REDIS_URL not set (SSE will use polling fallback)');
   }
 }
 
 function validateTestnet(errors: string[], warnings: string[]): void {
-  // Testnet requires contracts to be deployed
   if (!process.env.NEXT_PUBLIC_DIAMOND_ADDRESS) {
     errors.push('NEXT_PUBLIC_DIAMOND_ADDRESS is required for testnet');
     errors.push('Deploy contracts with: bun run contracts:deploy:testnet');
@@ -196,14 +226,12 @@ function validateTestnet(errors: string[], warnings: string[]): void {
     errors.push('NEXT_PUBLIC_IDENTITY_REGISTRY is required for testnet');
   }
 
-  // Check for deployment keys (warning only for dev server)
   if (!process.env.DEPLOYER_PRIVATE_KEY) {
     warnings.push(
       'DEPLOYER_PRIVATE_KEY not set (required for contract deployment)'
     );
   }
 
-  // Check Agent0 configuration
   if (process.env.AGENT0_ENABLED === 'true') {
     if (!process.env.BASE_SEPOLIA_RPC_URL) {
       errors.push('BASE_SEPOLIA_RPC_URL is required when AGENT0_ENABLED=true');
@@ -220,7 +248,6 @@ function validateTestnet(errors: string[], warnings: string[]): void {
     }
   }
 
-  // Check for verification key
   if (!process.env.ETHERSCAN_API_KEY) {
     warnings.push(
       'ETHERSCAN_API_KEY not set (contract verification will fail)'
@@ -229,7 +256,6 @@ function validateTestnet(errors: string[], warnings: string[]): void {
 }
 
 function validateMainnet(errors: string[], warnings: string[]): void {
-  // Mainnet requires explicit opt-in
   if (process.env.USE_MAINNET !== 'true') {
     errors.push('USE_MAINNET must be set to "true" to deploy to mainnet');
     errors.push(
@@ -237,7 +263,6 @@ function validateMainnet(errors: string[], warnings: string[]): void {
     );
   }
 
-  // Require all contract addresses
   if (!process.env.NEXT_PUBLIC_DIAMOND_ADDRESS) {
     errors.push('NEXT_PUBLIC_DIAMOND_ADDRESS is required for mainnet');
   }
@@ -250,19 +275,16 @@ function validateMainnet(errors: string[], warnings: string[]): void {
     errors.push('NEXT_PUBLIC_REPUTATION_SYSTEM is required for mainnet');
   }
 
-  // Require deployment key
   if (!process.env.DEPLOYER_PRIVATE_KEY) {
     errors.push('DEPLOYER_PRIVATE_KEY is required for mainnet deployment');
   }
 
-  // Require verification key
   if (!process.env.ETHERSCAN_API_KEY) {
     errors.push(
       'ETHERSCAN_API_KEY is required for mainnet (contract verification)'
     );
   }
 
-  // Check Agent0 for mainnet
   if (process.env.AGENT0_ENABLED === 'true') {
     if (!process.env.BASE_RPC_URL) {
       errors.push(
@@ -281,7 +303,6 @@ function validateMainnet(errors: string[], warnings: string[]): void {
     }
   }
 
-  // Production checks
   if (process.env.NODE_ENV === 'production') {
     const privyAppId =
       process.env.PRIVY_APP_ID || process.env.NEXT_PUBLIC_PRIVY_APP_ID;
@@ -373,9 +394,6 @@ export function loadEnvFile(env: DeploymentEnv): void {
 
   const envFile = envFiles[env];
   logger.info(`Loading environment from ${envFile}`, undefined, 'EnvDetection');
-
-  // Note: In production, dotenv should be loaded before this
-  // This is mainly for documentation
 }
 
 /**

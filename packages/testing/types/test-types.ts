@@ -10,13 +10,7 @@ import type { TrainedModel, TrainingBatch, Trajectory } from '@babylon/db';
 // Actors Data Types
 // ============================================================================
 
-// Note: ActorData, Organization, and ActorsDatabase are now exported from @babylon/shared
-// Legacy alias for backward compatibility in tests
-export type {
-  ActorData,
-  ActorsDatabase as ActorsDataFile,
-  Organization as OrganizationData,
-} from '@babylon/shared';
+// Note: ActorData, Organization, and ActorsDatabase should be imported directly from @babylon/shared
 
 // ============================================================================
 // Database Mock Types
@@ -147,12 +141,12 @@ export type PartialPositionsResponse = {
 };
 
 // ============================================================================
-// Actors Index Types (legacy - kept for backwards compatibility)
+// Actors Index Types (deprecated - kept for backwards compatibility)
 // Note: Data is now stored in TypeScript files, not JSON
 // ============================================================================
 
 /**
- * Reference to an actor file (legacy type, kept for compatibility)
+ * Reference to an actor file (deprecated, kept for compatibility)
  */
 export interface ActorFileRef {
   id: string;
@@ -160,7 +154,7 @@ export interface ActorFileRef {
 }
 
 /**
- * Reference to an organization file (legacy type, kept for compatibility)
+ * Reference to an organization file (deprecated, kept for compatibility)
  */
 export interface OrganizationFileRef {
   id: string;
@@ -168,7 +162,7 @@ export interface OrganizationFileRef {
 }
 
 /**
- * Structure of the actors index (legacy type, kept for compatibility)
+ * Structure of the actors index (deprecated, kept for compatibility)
  */
 export interface ActorsIndexFile {
   actors: ActorFileRef[];

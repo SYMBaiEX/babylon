@@ -24,8 +24,10 @@ export interface ModelBenchmarkResult {
 }
 
 export interface ModelUploadOptions {
-  modelId: string; // Database model ID
-  modelName: string; // HuggingFace model name (e.g., 'babylonlabs/babylon-agent-v1')
+  /** Database model ID */
+  modelId: string;
+  /** HuggingFace model name (e.g., 'babylonlabs/babylon-agent-v1') */
+  modelName: string;
   description?: string;
   private?: boolean;
   includeWeights?: boolean;

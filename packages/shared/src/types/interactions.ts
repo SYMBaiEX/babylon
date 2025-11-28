@@ -68,11 +68,6 @@ export interface CommentData {
   // API response includes these directly
   likeCount?: number;
   replyCount?: number;
-  // Deprecated: kept for backwards compatibility
-  _count?: {
-    reactions: number;
-    replies: number;
-  };
 }
 
 // ============================================================================

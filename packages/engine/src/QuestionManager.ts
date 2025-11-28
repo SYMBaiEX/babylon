@@ -58,7 +58,6 @@
  * ```
  */
 
-// Removed fs and path imports - using TypeScript imports instead
 import {
   actors,
   and,
@@ -1206,7 +1205,8 @@ XML: <response><questions><question><text>...</text><resolutionCriteria>...</res
         .limit(1);
       let nextQuestionNumber = (lastQuestion?.questionNumber ?? 0) + 1;
 
-      const scenarioId = 1; // Note: Will be replaced with dynamic scenario selection when schema supports it
+      // Using default scenario ID until dynamic scenario selection is implemented
+      const scenarioId = 1;
       const now = new Date();
 
       // Create each question

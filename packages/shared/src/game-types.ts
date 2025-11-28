@@ -16,7 +16,9 @@ export type ActorTier = (typeof ACTOR_TIERS)[keyof typeof ACTOR_TIERS];
  */
 export type PostType = (typeof POST_TYPES)[keyof typeof POST_TYPES];
 
-// Note: OrgType is exported from constants.ts to avoid duplicate exports
+/**
+ * OrgType is exported from constants.ts to avoid duplicate exports
+ */
 
 /**
  * Core Actor data structure
@@ -119,8 +121,8 @@ export interface ActorFollow {
 }
 
 /**
- * Legacy: Simple connection between actors (used in game setup)
- * @deprecated Use ActorRelationship instead
+ * Simple connection between actors (used in game setup)
+ * For richer relationships with persistence, use ActorRelationship instead
  */
 export interface ActorConnection {
   actor1: string;
@@ -213,8 +215,10 @@ export interface FeedPost {
   authorProfileImageUrl?: string | null;
   replyTo?: string;
   relatedQuestion?: number; // Prediction market question ID
-  // NOTE: relatedEvent is kept in-memory during generation but NOT persisted
-  // or exposed to agents. Used for offline RL training only.
+  /**
+   * Related event is kept in-memory during generation but NOT persisted
+   * or exposed to agents. Used for offline RL training only.
+   */
   relatedEvent?: string | null;
   gameId?: string | null;
   dayNumber?: number | null;
@@ -426,11 +430,6 @@ export interface GroupChatMessage {
   timestamp: string;
   clueStrength: number; // 0-1
 }
-
-/**
- * @deprecated Use GroupChatMessage instead
- */
-export type ChatMessage = GroupChatMessage;
 
 /**
  * Luck change event

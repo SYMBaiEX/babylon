@@ -10,6 +10,7 @@
  * - Grouping by scenario for GRPO
  */
 
+import type { JsonValue } from '@babylon/shared';
 import type {
   ARTTrajectory,
   ChatMessage,
@@ -172,7 +173,10 @@ export function toARTTrajectory(trajectory: Trajectory): ARTTrajectory {
       gameKnowledge: extractGameKnowledge(trajectory),
 
       // Performance metrics for RULER
-      metrics: trajectory.metrics,
+      metrics: JSON.parse(JSON.stringify(trajectory.metrics)) as Record<
+        string,
+        JsonValue
+      >,
     },
     metrics: filterNumericMetrics(trajectory.metrics),
   };
@@ -201,15 +205,15 @@ function filterNumericMetrics(
  */
 function extractGameKnowledge(trajectory: Trajectory): {
   trueProbabilities?: Record<string, number>;
-  actualOutcomes?: Record<string, unknown>;
-  hiddenVariables?: Record<string, unknown>;
-  gameEvents?: unknown[];
+  actualOutcomes?: Record<string, JsonValue>;
+  hiddenVariables?: Record<string, JsonValue>;
+  gameEvents?: JsonValue[];
 } {
   const knowledge: {
     trueProbabilities?: Record<string, number>;
-    actualOutcomes?: Record<string, unknown>;
-    hiddenVariables?: Record<string, unknown>;
-    gameEvents?: unknown[];
+    actualOutcomes?: Record<string, JsonValue>;
+    hiddenVariables?: Record<string, JsonValue>;
+    gameEvents?: JsonValue[];
   } = {};
 
   // Extract from metadata if available
@@ -221,21 +225,21 @@ function extractGameKnowledge(trajectory: Trajectory): {
   if (trajectory.metadata.futureOutcomes) {
     knowledge.actualOutcomes = trajectory.metadata.futureOutcomes as Record<
       string,
-      unknown
+      JsonValue
     >;
   }
 
   if (trajectory.metadata.hiddenVariables) {
     knowledge.hiddenVariables = trajectory.metadata.hiddenVariables as Record<
       string,
-      unknown
+      JsonValue
     >;
   }
 
   // Extract from steps (game events)
   const gameEvents = trajectory.steps
     .map((s) => s.metadata?.gameEvent)
-    .filter(Boolean);
+    .filter((e): e is JsonValue => !!e);
 
   if (gameEvents.length > 0) {
     knowledge.gameEvents = gameEvents;

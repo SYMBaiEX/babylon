@@ -14,7 +14,7 @@ import type {
   State,
 } from '@elizaos/core';
 import { logger } from '../../../shared/logger';
-import type { JsonValue } from '../../../types/common';
+import type { JsonValue } from '@babylon/shared';
 import type { TrajectoryLoggerService } from './TrajectoryLoggerService';
 
 /**
@@ -63,7 +63,7 @@ export function wrapActionWithLogging(
       runtime: IAgentRuntime,
       message: Memory,
       state?: State,
-      options?: unknown,
+      options?: HandlerOptions,
       callback?: HandlerCallback
     ): Promise<void> => {
       const context = getTrajectoryContext(runtime);
@@ -74,7 +74,7 @@ export function wrapActionWithLogging(
             runtime,
             message,
             state,
-            options as HandlerOptions | undefined,
+            options,
             callback
           );
         }
@@ -94,7 +94,7 @@ export function wrapActionWithLogging(
             runtime,
             message,
             state,
-            options as HandlerOptions | undefined,
+            options,
             callback
           );
         }
@@ -164,7 +164,7 @@ export function wrapActionWithLogging(
           runtime,
           message,
           state,
-          options as HandlerOptions | undefined,
+          options,
           callback
         ).then(successHandler, errorHandler);
       } else {
@@ -197,7 +197,7 @@ export function wrapPluginActions(
  * Log LLM call from action context
  */
 export function logLLMCallFromAction(
-  actionContext: Record<string, JsonValue>,
+  actionContext: Record<string, JsonValue | undefined>,
   trajectoryLogger: TrajectoryLoggerService,
   trajectoryId: string
 ): void {
@@ -233,7 +233,7 @@ export function logLLMCallFromAction(
  * Log provider access from action context
  */
 export function logProviderFromAction(
-  actionContext: Record<string, JsonValue>,
+  actionContext: Record<string, JsonValue | undefined>,
   trajectoryLogger: TrajectoryLoggerService,
   trajectoryId: string
 ): void {
@@ -247,9 +247,9 @@ export function logProviderFromAction(
 
   trajectoryLogger.logProviderAccess(stepId, {
     providerName: (actionContext.providerName as string) || 'unknown',
-    data: (actionContext.data as Record<string, unknown>) || {},
+    data: (actionContext.data as Record<string, JsonValue>) || ({} as Record<string, JsonValue>),
     purpose: (actionContext.purpose as string) || 'action',
-    query: (actionContext.query as Record<string, unknown>) || undefined,
+    query: (actionContext.query as Record<string, JsonValue>) || undefined,
   });
 }
 

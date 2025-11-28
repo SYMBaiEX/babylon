@@ -1,17 +1,18 @@
 /**
  * NPC Bootstrap Service
  *
- * @description Initializes NPC agents at server startup. Loads all Actor records
- * from database, registers each NPC in AgentRegistry (if not already registered),
- * creates runtime instances using AgentRuntimeManager, and sets up NPC-specific configurations.
+ * Initializes NPC agents at server startup. Loads all Actor records from database,
+ * registers each NPC in AgentRegistry (if not already registered), creates runtime
+ * instances using AgentRuntimeManager, and sets up NPC-specific configurations.
  *
+ * @remarks
  * Responsibilities:
  * 1. Load all Actor records from database
  * 2. Register each NPC in AgentRegistry (if not already registered)
  * 3. Create runtime instances using AgentRuntimeManager
  * 4. Set up NPC-specific configurations
  *
- * Based on: agent-unified-architecture.md
+ * @packageDocumentation
  */
 
 import { type Actor, actors, asc, db, eq } from '@babylon/db';
@@ -28,10 +29,7 @@ import { AgentStatus, AgentType } from '../types/agent-registry';
 import { agentRegistry } from './agent-registry.service';
 
 /**
- * NPC bootstrap result
- *
- * @description Contains summary of NPC bootstrap operation including total NPCs,
- * registration counts, initialization counts, failures, and error details.
+ * Result of NPC bootstrap operation
  */
 export interface NPCBootstrapResult {
   totalNpcs: number;
@@ -42,23 +40,13 @@ export interface NPCBootstrapResult {
 }
 
 /**
- * NPC Bootstrap Service Class
+ * Service for bootstrapping NPC agents
  *
- * @description Singleton service class for bootstrapping NPC agents. Provides
- * methods to bootstrap all NPCs, bootstrap individual NPCs, remove NPCs, refresh
- * NPC configurations, and get bootstrap status.
+ * Singleton service for managing NPC agent initialization, registration, and lifecycle.
  */
 export class NPCBootstrapService {
-  /**
-   * Singleton instance
-   * @private
-   */
   private static instance: NPCBootstrapService;
 
-  /**
-   * Private constructor for singleton pattern
-   * @private
-   */
   private constructor() {
     logger.info(
       'NPCBootstrapService initialized',
@@ -68,11 +56,9 @@ export class NPCBootstrapService {
   }
 
   /**
-   * Get singleton instance
+   * Gets singleton instance
    *
-   * @description Returns the singleton instance of NPCBootstrapService.
-   *
-   * @returns {NPCBootstrapService} Singleton instance
+   * @returns Singleton instance
    */
   public static getInstance(): NPCBootstrapService {
     if (!NPCBootstrapService.instance) {

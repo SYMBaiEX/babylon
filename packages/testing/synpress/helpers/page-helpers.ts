@@ -1,5 +1,7 @@
 /**
- * Page navigation helpers for synpress tests
+ * Page navigation helpers for synpress tests.
+ *
+ * @module testing/synpress/helpers/page-helpers
  */
 
 import type { Page } from '@playwright/test';
@@ -7,8 +9,13 @@ import type { Page } from '@playwright/test';
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000';
 
 /**
- * Wait for the server to be healthy before proceeding
- * This helps prevent flakiness when the server is slow to respond
+ * Waits for the server to be healthy before proceeding.
+ *
+ * Helps prevent flakiness when the server is slow to respond.
+ *
+ * @param maxRetries - Maximum number of retry attempts (default: 5)
+ * @param retryDelay - Delay between retries in milliseconds (default: 2000)
+ * @throws Error if server is not healthy after all retries
  */
 export async function waitForServerHealthy(
   maxRetries = 5,
@@ -41,14 +48,16 @@ export async function waitForServerHealthy(
 }
 
 /**
- * Navigate to a route and wait for it to load
- * Includes server health check to prevent flakiness
+ * Navigates to a route and waits for it to load.
+ *
+ * Includes server health check to prevent flakiness.
+ *
+ * @param page - Playwright page instance
+ * @param route - Route path to navigate to
+ * @throws Error if navigation fails after all retries
  */
 export async function navigateTo(page: Page, route: string): Promise<void> {
-  // First ensure server is healthy
   await waitForServerHealthy(3, 1000);
-
-  // Navigate with retry logic for slow server
   let lastError: Error | null = null;
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
@@ -72,24 +81,24 @@ export async function navigateTo(page: Page, route: string): Promise<void> {
 }
 
 /**
- * Wait for page to be fully loaded and hydrated
+ * Waits for page to be fully loaded and hydrated.
+ *
+ * @param page - Playwright page instance
+ * @param timeout - Maximum time to wait in milliseconds (default: 15000)
  */
 export async function waitForPageLoad(
   page: Page,
   timeout = 15000
 ): Promise<void> {
   try {
-    // Wait for DOM content to be loaded
     await page.waitForLoadState('domcontentloaded', { timeout });
 
-    // Wait for at least one button to be visible (indicates React has hydrated)
     await page
       .waitForSelector('button', { state: 'visible', timeout: 10000 })
       .catch(() => {
         console.log('⚠️ No buttons found, page may not have fully hydrated');
       });
 
-    // Small delay to let any async components finish loading
     await page.waitForTimeout(500);
   } catch (_e) {
     console.log('⚠️ Page load wait timed out, continuing...');
@@ -97,8 +106,11 @@ export async function waitForPageLoad(
 }
 
 /**
- * Wait a bit between tests to let the server recover
- * This helps prevent flakiness from server overload
+ * Waits a short period between tests to let the server recover.
+ *
+ * Helps prevent flakiness from server overload.
+ *
+ * @param page - Playwright page instance
  */
 export async function cooldownBetweenTests(page: Page): Promise<void> {
   await page.waitForTimeout(500);

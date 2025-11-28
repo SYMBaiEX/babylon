@@ -257,6 +257,11 @@ async function runTestnetSetup(): Promise<void> {
   }
 }
 
+/**
+ * Main entry point for deploy domain commands.
+ *
+ * @param args - Raw command-line arguments for the deploy domain
+ */
 export async function runDeployCommand(args: string[]): Promise<void> {
   const parsed = parseArgs(args);
 

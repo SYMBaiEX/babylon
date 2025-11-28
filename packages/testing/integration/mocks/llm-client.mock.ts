@@ -1,10 +1,12 @@
+/**
+ * Mock LLM client for game tick tests.
+ *
+ * Avoids hitting real APIs during tests which causes timeouts and flakes.
+ * Mocks @babylon/engine and overrides only BabylonLLMClient.
+ */
 import { mock } from 'bun:test';
 
-// Mock LLM client for game tick tests
-// This avoids hitting real APIs during tests which causes timeouts and flakes
-// Note: We mock @babylon/engine and override only BabylonLLMClient
 mock.module('@babylon/engine', async () => {
-  // Import actual engine to preserve all other exports
   const actualEngine = await import('@babylon/engine');
   
   const createMockClient = () => ({
@@ -53,7 +55,7 @@ mock.module('@babylon/engine', async () => {
       }
 
       // Handle no-schema cases by checking prompt content
-      // IMPORTANT: Check scenario generation FIRST because "MAIN ACTORS:" contains "ACTORS:"
+      // Check scenario generation first because "MAIN ACTORS:" contains "ACTORS:"
       const isScenarioGeneration =
         _prompt.includes('Create 3 dramatic, satirical scenarios') ||
         (_prompt.includes('MAIN ACTORS:') && _prompt.includes('<scenarios>'));
@@ -80,7 +82,7 @@ mock.module('@babylon/engine', async () => {
         (_prompt.includes('ACTORS:') && !_prompt.includes('MAIN ACTORS:'));
 
       if (isQuestionGeneration) {
-        // Note: Return format matches what XML parser produces (root element unwrapped)
+        // Return format matches what XML parser produces (root element unwrapped)
         return {
           questions: [
             {
@@ -104,7 +106,6 @@ mock.module('@babylon/engine', async () => {
     complete: async () => 'Mock completion response',
   });
 
-  // Return actual engine exports with mocked BabylonLLMClient
   return {
     ...actualEngine,
     BabylonLLMClient: {

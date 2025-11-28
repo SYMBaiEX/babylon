@@ -51,11 +51,7 @@ export class ModelDeployer {
 
     logger.info(`Deploying to ${targetAgents.length} agents`);
 
-    // Create deployment records
     const deploymentId = `deploy-${Date.now()}`;
-
-    // Note: modelDeployment table may not exist in the schema
-    // Skip deployment records for now, just update the model status
 
     // Update model status
     await db

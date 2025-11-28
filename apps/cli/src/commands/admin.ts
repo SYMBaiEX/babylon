@@ -1,13 +1,12 @@
 #!/usr/bin/env bun
 
 /**
- * Admin Management Commands
+ * @fileoverview Admin user management commands
  *
- * Commands:
- *   check <user>  - Check if user is admin
- *   grant <user>  - Grant admin privileges
- *   revoke <user> - Revoke admin privileges
- *   list          - List all admin users
+ * Provides commands for checking, granting, and revoking admin privileges,
+ * as well as listing all admin users in the system.
+ *
+ * @module cli/commands/admin
  */
 
 import { asc, db, eq, or, sql, users, closeDatabase } from '@babylon/db';
@@ -39,6 +38,16 @@ EXAMPLES:
 `);
 }
 
+/**
+ * Checks and displays admin status for a user.
+ *
+ * Searches by username, wallet address, or user ID. Shows recent users if not found.
+ * Displays user details including ID, username, display name, and admin status.
+ *
+ * @param identifier - Username, wallet address, or user ID to check
+ * @throws Exits process with code 1 if user not found
+ * @internal
+ */
 async function checkAdmin(identifier: string): Promise<void> {
   logger.header('Check Admin Status');
 
@@ -88,6 +97,16 @@ async function checkAdmin(identifier: string): Promise<void> {
   }
 }
 
+/**
+ * Grants admin privileges to a user.
+ *
+ * Verifies the user exists and is not an actor/NPC before granting privileges.
+ * Updates the database and verifies the change was applied.
+ *
+ * @param identifier - Username, wallet address, or user ID to grant admin to
+ * @throws Exits process with code 1 if user not found or is an actor
+ * @internal
+ */
 async function grantAdmin(identifier: string): Promise<void> {
   logger.header('Grant Admin Privileges');
 
@@ -134,6 +153,15 @@ async function grantAdmin(identifier: string): Promise<void> {
   console.log(`  Verified: ${verification[0]?.isAdmin ? '✅' : '❌'}`);
 }
 
+/**
+ * Revokes admin privileges from a user.
+ *
+ * Searches by username, wallet address, or user ID and removes admin status.
+ *
+ * @param identifier - Username, wallet address, or user ID to revoke admin from
+ * @throws Exits process with code 1 if user not found
+ * @internal
+ */
 async function revokeAdmin(identifier: string): Promise<void> {
   logger.header('Revoke Admin Privileges');
 
@@ -171,6 +199,14 @@ async function revokeAdmin(identifier: string): Promise<void> {
   logger.success(`Revoked admin privileges from ${user.username || user.walletAddress || user.id}`);
 }
 
+/**
+ * Lists all users with admin privileges.
+ *
+ * Displays username, display name, wallet address, user ID, and join date
+ * for all admin users, ordered by creation date.
+ *
+ * @internal
+ */
 async function listAdmins(): Promise<void> {
   logger.header('Admin Users');
 
@@ -204,6 +240,20 @@ async function listAdmins(): Promise<void> {
   console.log(`${'─'.repeat(50)}`);
 }
 
+/**
+ * Main entry point for admin domain commands.
+ *
+ * Routes to appropriate sub-command handlers and ensures database cleanup.
+ *
+ * **Supported Commands:**
+ * - `check <identifier>` - Check admin status of a user
+ * - `grant <identifier>` - Grant admin privileges to a user
+ * - `revoke <identifier>` - Revoke admin privileges from a user
+ * - `list` - List all admin users
+ *
+ * @param args - Raw command-line arguments for the admin domain
+ * @throws Exits process with code 1 on error, 0 on success
+ */
 export async function runAdminCommand(args: string[]): Promise<void> {
   const parsed = parseArgs(args);
 

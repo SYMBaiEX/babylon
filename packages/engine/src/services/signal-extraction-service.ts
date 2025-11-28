@@ -6,7 +6,7 @@
  * Aggregates and analyzes signal from feed posts for:
  * - Internal game engine decision making
  * - NPC trading decisions
- * - Admin debugging and monitoring
+ * - Admin monitoring and analysis
  * - Testing and validation
  *
  * ⚠️ SECURITY: This service reveals weighted predictions and should NEVER
@@ -87,7 +87,7 @@ export class SignalExtractionService {
     }
 
     // Get all posts related to this question
-    // Note: Signal metadata (pointsToward, clueStrength) currently stored in-memory during game
+    // Signal metadata (pointsToward, clueStrength) is stored in-memory during game execution
     // For now, we analyze post content and use gameId to find related posts
     const now = new Date();
     const postsList = await db
@@ -177,7 +177,7 @@ export class SignalExtractionService {
     let signalPosts = 0;
 
     // Process each post
-    // NOTE: Currently posts don't have pointsToward in DB
+      // Posts do not currently store pointsToward metadata in the database
     // We use sentiment analysis as a proxy for signal
     for (const post of postsList) {
       // Skip non-NPC posts (only NPCs provide signal)

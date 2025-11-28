@@ -21,9 +21,17 @@ export class DistributedLockService {
   /**
    * Acquire a distributed lock
    *
-   * Uses a "check-first, create-second" pattern to avoid triggering unique constraint errors
-   * in normal cases. Race conditions (multiple processes checking and creating
-   * simultaneously) may still produce errors which are handled gracefully.
+   * @description Uses a "check-first, create-second" pattern to avoid triggering
+   * unique constraint errors in normal cases. Race conditions (multiple processes
+   * checking and creating simultaneously) are handled gracefully with proper error
+   * recovery. Supports automatic stale lock recovery for expired locks.
+   *
+   * @param {LockOptions} options - Lock acquisition options
+   * @param {string} options.lockId - Unique lock identifier
+   * @param {number} options.durationMs - Lock duration in milliseconds
+   * @param {string} options.operation - Operation name for logging
+   * @param {string} [options.processId] - Optional process identifier (auto-generated if not provided)
+   * @returns {Promise<boolean>} True if lock was acquired, false otherwise
    */
   static async acquireLock(options: LockOptions): Promise<boolean> {
     const { lockId, durationMs, operation, processId } = options;
@@ -117,15 +125,14 @@ export class DistributedLockService {
       );
       return true;
     } catch (error: unknown) {
-      // Unique constraint violation (race condition - another process created it first)
+      // Handle unique constraint violation (race condition - another process created it first)
       const errorCode =
         typeof error === 'object' && error !== null && 'code' in error
           ? (error as { code: string }).code
           : '';
 
       if (errorCode === '23505') {
-        // PostgreSQL unique violation code
-        // Another process created it between our check and create - that's fine, just skip
+        // PostgreSQL unique violation - another process acquired the lock first
         const [currentLock] = await db
           .select()
           .from(generationLocks)
@@ -164,15 +171,18 @@ export class DistributedLockService {
 
   /**
    * Release a distributed lock
+   *
+   * @description Releases a lock only if it's held by the specified process ID.
+   * This prevents accidental release of locks held by other processes. Process ID
+   * is required for safe lock release in distributed environments.
+   *
+   * @param {string} lockId - Lock identifier to release
+   * @param {string} [processId] - Process ID that holds the lock (required for safe release)
+   * @returns {Promise<void>}
    */
   static async releaseLock(lockId: string, processId?: string): Promise<void> {
     if (!processId) {
-      // If no process ID provided, we can't safely release (unless we force it, but let's be safe)
-      // For serverless, the caller usually knows their process ID if they passed it to acquire
-      // If they didn't pass it to acquire, they can't release it safely.
-      // However, `acquireLock` generates one if missing. The caller needs that ID to release.
-      // This implies the caller MUST provide processId or capture the return of acquire (which currently just returns bool).
-      // To fix this, we'll assume the caller manages the ID.
+      // Process ID is required for safe lock release to prevent releasing locks held by other processes
       logger.warn(
         `releaseLock called without processId for ${lockId} - unsafe release prevented`,
         undefined,
@@ -216,7 +226,13 @@ export class DistributedLockService {
   }
 
   /**
-   * Check if lock is held
+   * Check if a lock is currently held
+   *
+   * @description Queries the database to check if a lock exists and is still valid
+   * (not expired). Returns the lock information if held, null otherwise.
+   *
+   * @param {string} lockId - Lock identifier to check
+   * @returns {Promise<object | null>} Lock information if held and valid, null otherwise
    */
   static async checkLock(lockId: string) {
     const [lock] = await db

@@ -1,14 +1,15 @@
 /**
  * Autonomous Agent Services
- * Centralized exports for all autonomous behaviors
+ *
+ * Centralized exports for all autonomous agent behaviors including trading,
+ * posting, commenting, messaging, and batch response processing.
+ *
+ * @packageDocumentation
  */
 
-// Individual services (for specific use cases)
 export { autonomousA2AService } from './AutonomousA2AService';
 export { autonomousBatchResponseService } from './AutonomousBatchResponseService';
 export { autonomousCommentingService } from './AutonomousCommentingService';
-// Main coordinator (use this for all autonomous operations)
-// Now includes optional trajectory recording via recordTrajectories parameter
 export {
   AutonomousCoordinator,
   type AutonomousTickResult,

@@ -1,8 +1,10 @@
 /**
  * Autonomous A2A Service
  *
- * Handles autonomous agent actions using the A2A protocol.
- * Provides advanced actions beyond direct database access.
+ * Handles autonomous agent actions using the A2A protocol for protocol-compliant
+ * interactions. Provides advanced actions beyond direct database access.
+ *
+ * @packageDocumentation
  */
 
 import { db } from '@babylon/db';
@@ -13,6 +15,8 @@ import type { BabylonRuntime } from '../plugins/babylon/types';
 
 /**
  * Type guard to check if runtime has A2A client
+ *
+ * @internal
  */
 function isBabylonRuntime(runtime: IAgentRuntime): runtime is BabylonRuntime {
   return (
@@ -21,6 +25,10 @@ function isBabylonRuntime(runtime: IAgentRuntime): runtime is BabylonRuntime {
   );
 }
 
+/**
+ * Prediction market data structure
+ * @internal
+ */
 interface PredictionMarket {
   id: string;
   yesShares: number;
@@ -29,6 +37,10 @@ interface PredictionMarket {
   question: string;
 }
 
+/**
+ * Perpetual position data structure
+ * @internal
+ */
 interface PerpPosition {
   id: string;
   side: string;
@@ -36,10 +48,31 @@ interface PerpPosition {
   entryPrice: number;
 }
 
+interface PortfolioPosition {
+  id: string;
+  marketId?: string;
+  ticker?: string;
+  side: string;
+  amount: number;
+  price: number;
+  pnl?: number;
+  type: 'prediction' | 'perp';
+}
+
+/**
+ * Service for autonomous actions via A2A protocol
+ */
 export class AutonomousA2AService {
   /**
-   * Execute autonomous trading via A2A
-   * Uses LLM-based decision making for intelligent trades
+   * Executes autonomous trading via A2A protocol
+   *
+   * Uses LLM-based decision making to analyze market conditions and execute
+   * intelligent trades through the A2A protocol.
+   *
+   * @param agentUserId - Agent user ID
+   * @param runtime - Agent runtime with A2A client
+   * @returns Trade execution result
+   * @throws Error if agent not found or A2A client unavailable
    */
   async executeA2ATrade(
     agentUserId: string,
@@ -116,9 +149,9 @@ export class AutonomousA2AService {
     }
 
     // Get portfolio for context
-    const portfolio = (await a2aClient.sendRequest('a2a.getPortfolio', {})) as {
+    const portfolio = (await a2aClient.sendRequest('a2a.getPortfolio', {})) as unknown as {
       balance: number;
-      positions: Array<Record<string, unknown>>;
+      positions: Array<PortfolioPosition>;
       pnl: number;
     };
 

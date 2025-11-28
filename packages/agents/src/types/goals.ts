@@ -4,6 +4,8 @@
  * Defines the structure for user-configurable agent goals and autonomous behavior.
  */
 
+import type { JsonValue } from './common';
+
 /**
  * Agent Goal Types
  */
@@ -158,7 +160,7 @@ export interface GoalProgressUpdate {
   actionType: string;
   actionId?: string;
   impact: number; // How much progress (0-1)
-  metadata?: Record<string, unknown>;
+  metadata?: Record<string, JsonValue>;
 }
 
 /**

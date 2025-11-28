@@ -116,15 +116,18 @@ import { findUserByIdentifier } from '@babylon/api';
 import { UserIdParamSchema } from '@babylon/shared';
 
 /**
- * POST Handler - Follow User or Actor
+ * POST /api/users/[userId]/follow
  *
- * @description Creates a follow relationship between authenticated user and target user/actor
+ * Creates a follow relationship between the authenticated user and target user or actor.
+ * Supports both regular users (via Follow model) and actors/NPCs (via UserActorFollow and FollowStatus models).
+ * Sends follow notifications, invalidates caches, and tracks analytics events.
  *
- * @param {NextRequest} request - Next.js request object
- * @param {Object} context - Route context
- * @returns {Promise<NextResponse>} Follow relationship data
- * @throws {BusinessLogicError} When trying to follow self or already following
- * @throws {NotFoundError} When target user/actor not found
+ * @param request - Next.js request object
+ * @param context - Route context with user ID parameter (can be user ID or actor ID)
+ * @returns Follow relationship data with target user/actor details
+ * @throws {400} Already following, self-follow attempt, or rate limited
+ * @throws {401} Unauthorized
+ * @throws {404} Target user or actor not found
  */
 export const POST = withErrorHandling(
   async (

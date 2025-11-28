@@ -102,13 +102,7 @@ export async function getCachedAgent0ReputationScore(
     'Agent0ReputationCache'
   );
 
-  // Recalculate local reputation
   await recalculateReputation(userId);
-
-  // Note: Agent0 network reputation aggregation is handled by:
-  // - Agent0FeedbackService.getAgentReputation() - Fetches on-chain reputation
-  // - ReputationBridge.getReputation() - Aggregates on-chain + local reputation
-  // For now, we use local reputation calculation which is sufficient for most use cases
   if (user.agent0TokenId) {
     logger.debug(
       'Agent0 token ID found, using local reputation calculation',

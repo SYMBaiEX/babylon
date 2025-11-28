@@ -1,10 +1,10 @@
 /**
  * Agent Event Bus
  *
- * Provides pub/sub event system for agent communication
- * Supports real-time event broadcasting and subscriptions
+ * Provides pub/sub event system for agent communication with real-time event
+ * broadcasting and subscriptions.
  *
- * @see agent-patch-plan.md Phase 3.2
+ * @packageDocumentation
  */
 
 import { logger } from '../shared/logger';
@@ -14,11 +14,14 @@ export type EventHandler<T extends JsonValue = JsonValue> = (
   data: T
 ) => void | Promise<void>;
 
+/**
+ * Agent event structure
+ */
 export interface AgentEvent<T extends JsonValue = JsonValue> {
   type: string;
   agentId?: string;
   data: T;
-  timestamp: string; // ISO 8601 string for JSON serialization
+  timestamp: string;
   metadata?: Record<string, JsonValue>;
 }
 
@@ -31,7 +34,8 @@ export interface Subscription<T extends JsonValue = JsonValue> {
 
 /**
  * Event Bus for Agent Communication
- * Thread-safe pub/sub system with filtering and wildcards
+ *
+ * Thread-safe pub/sub system with filtering and wildcard support.
  */
 export class EventBus {
   private subscriptions: Map<string, Subscription<JsonValue>[]> = new Map();

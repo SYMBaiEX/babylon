@@ -107,7 +107,17 @@ import { PredictionMarketIdSchema } from '@babylon/shared';
 import { PredictionMarketSellSchema } from '@babylon/shared';
 /**
  * POST /api/markets/predictions/[id]/sell
- * Sell shares from prediction market position
+ *
+ * Sells shares from a prediction market position using Automated Market Maker (AMM) pricing.
+ * Calculates gross proceeds, fees, net proceeds, and P&L. Updates position (partial or full closure)
+ * and records price history. Supports both virtual and on-chain trading.
+ *
+ * @param request - Next.js request containing sell parameters (shares, positionId)
+ * @param context - Route context with market ID parameter
+ * @returns Sale result with proceeds, P&L, remaining shares, and updated balance
+ * @throws {400} Invalid input, insufficient shares, or position not found
+ * @throws {401} Unauthorized
+ * @throws {404} Market or position not found
  */
 export const POST = withErrorHandling(
   async (

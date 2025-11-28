@@ -1,7 +1,9 @@
 /**
  * Shared Type Definitions for @babylon/agents
  *
- * Common types used throughout the agents package
+ * Common types used throughout the agents package.
+ *
+ * @packageDocumentation
  */
 
 /**

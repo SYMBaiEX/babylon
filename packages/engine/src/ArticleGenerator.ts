@@ -247,7 +247,7 @@ export class ArticleGenerator {
       typeof question.id === 'number' ? question.id : null;
     const syntheticEvent: WorldEvent = {
       id: `question-${question.id}-${stage}`,
-      day: 0, // Will be set by caller
+      day: 0, // Set by caller
       type:
         stage === 'breaking'
           ? 'announcement'

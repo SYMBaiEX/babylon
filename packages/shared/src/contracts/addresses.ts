@@ -20,8 +20,11 @@ export interface ERC8004ContractAddresses {
   oracleFacet: Address;
 }
 
-// Localnet (Hardhat) - Chain ID: 31337
-// Note: For dynamic localnet addresses, use @babylon/contracts/deployment
+/**
+ * Localnet (Hardhat) - Chain ID: 31337
+ *
+ * For dynamic localnet addresses, use @babylon/contracts/deployment
+ */
 export const LOCAL_CONTRACTS: ERC8004ContractAddresses = {
   identityRegistry: (process.env.NEXT_PUBLIC_IDENTITY_REGISTRY_LOCAL ||
     '0x0000000000000000000000000000000000000000') as Address,
@@ -49,8 +52,11 @@ export const BASE_SEPOLIA_CONTRACTS: ERC8004ContractAddresses = {
     '0x0000000000000000000000000000000000000000') as Address, // Diamond handles all facets
 };
 
-// Ethereum Sepolia (Legacy Testnet) - Chain ID: 11155111
-// Note: Agent0 contracts are deployed on Ethereum Sepolia
+/**
+ * Ethereum Sepolia (Testnet) - Chain ID: 11155111
+ *
+ * Agent0 contracts are deployed on Ethereum Sepolia
+ */
 export const SEPOLIA_CONTRACTS: ERC8004ContractAddresses = {
   identityRegistry: (process.env.NEXT_PUBLIC_IDENTITY_REGISTRY_SEPOLIA ||
     '0x0000000000000000000000000000000000000000') as Address,
@@ -106,7 +112,7 @@ export function getERC8004ContractAddresses(
       return LOCAL_CONTRACTS;
     case 84532: // Base Sepolia (primary)
       return BASE_SEPOLIA_CONTRACTS;
-    case 11155111: // Ethereum Sepolia (legacy, Agent0 network)
+    case 11155111: // Ethereum Sepolia (Agent0 network)
       return SEPOLIA_CONTRACTS;
     case 1: // Ethereum Mainnet
       return MAINNET_CONTRACTS;

@@ -3,7 +3,11 @@
  *
  * Full implementation of Agent0 SDK client for agent registration, search, and feedback.
  * Implements IAgent0Client interface for complete Agent0 integration.
- * Uses dynamic imports to handle CommonJS/ESM interop.
+ *
+ * @remarks
+ * Uses dynamic imports to handle CommonJS/ESM interop with the agent0-sdk package.
+ *
+ * @packageDocumentation
  */
 
 import type {
@@ -19,7 +23,8 @@ import { logger } from '@babylon/shared';
 import type { JsonValue } from '../types/common';
 
 /**
- * Contract addresses interface for Agent0 integration
+ * Contract addresses for Agent0 integration
+ * @internal
  */
 interface ContractAddresses {
   identityRegistry: `0x${string}`;
@@ -28,11 +33,14 @@ interface ContractAddresses {
   network: string;
 }
 
-// Contract addresses provider function - must be set by apps/web
 let contractAddressesProvider: (() => ContractAddresses) | null = null;
 
 /**
- * Configure the contract addresses provider
+ * Configures the contract addresses provider
+ *
+ * Must be called by the application layer (apps/web) to provide contract addresses.
+ *
+ * @param provider - Function that returns contract addresses
  */
 export function setContractAddressesProvider(
   provider: () => ContractAddresses
@@ -41,13 +49,13 @@ export function setContractAddressesProvider(
 }
 
 /**
- * Get contract addresses, using provider if available
+ * Gets contract addresses using provider or fallback
+ * @internal
  */
 function getContractAddresses(): ContractAddresses {
   if (contractAddressesProvider) {
     return contractAddressesProvider();
   }
-  // Fallback for development/testing
   return {
     identityRegistry: '0x0000000000000000000000000000000000000000',
     reputationSystem: '0x0000000000000000000000000000000000000000',
@@ -91,20 +99,20 @@ export class Agent0Client implements IAgent0Client {
     filecoinPrivateKey?: string;
     subgraphUrl?: string;
   }) {
-    // Set chain ID based on network
     if (config.network === 'localnet') {
-      this.chainId = 31337; // Hardhat default chain ID
+      this.chainId = 31337;
     } else if (config.network === 'sepolia') {
       this.chainId = 11155111;
     } else {
-      this.chainId = 1; // mainnet
+      this.chainId = 1;
     }
     this.config = config;
     this.sdk = null;
   }
 
   /**
-   * Initialize SDK - fails fast on any error
+   * Initializes SDK - fails fast on any error
+   * @internal
    */
   private async ensureSDK(): Promise<void> {
     if (this.sdk) return;
@@ -116,7 +124,6 @@ export class Agent0Client implements IAgent0Client {
 
     this.initPromise = (async () => {
       try {
-        // Validate IPFS provider configuration
         const ipfsProvider = this.config.ipfsProvider || 'node';
         if (ipfsProvider === 'pinata' && !this.config.pinataJwt) {
           throw new Error(
@@ -129,17 +136,13 @@ export class Agent0Client implements IAgent0Client {
           );
         }
 
-        // For localnet with 'node' provider, provide default IPFS node URL if not specified
         let ipfsNodeUrl = this.config.ipfsNodeUrl;
         if (ipfsProvider === 'node' && !ipfsNodeUrl) {
-          // Default to public IPFS gateway for localnet/testing
           ipfsNodeUrl = 'https://ipfs.io';
         }
 
-        // Get contract addresses for registry overrides (needed for localnet)
         let registryOverrides: SDKConfig['registryOverrides'] | undefined;
         if (this.chainId === 31337) {
-          // For localnet, provide reputation registry address from local deployment
           try {
             const contracts = getContractAddresses();
             if (
@@ -186,7 +189,6 @@ export class Agent0Client implements IAgent0Client {
           'Agent0Client'
         );
 
-        // Clear initPromise on success so retries work if needed
         this.initPromise = null;
       } catch (error) {
         logger.error(
@@ -198,9 +200,7 @@ export class Agent0Client implements IAgent0Client {
           },
           'Agent0Client'
         );
-        // Clear initPromise on error so retries can attempt again
         this.initPromise = null;
-        // Don't set SDK on error - keep it null
         throw error;
       }
     })();
@@ -389,7 +389,6 @@ export class Agent0Client implements IAgent0Client {
 
     const searchParams: SearchParams = {};
 
-    // Map strategies or skills to a2aSkills (both represent A2A skills)
     if (filters.strategies && filters.strategies.length > 0) {
       searchParams.a2aSkills = filters.strategies;
     } else if (filters.skills && filters.skills.length > 0) {
@@ -403,7 +402,6 @@ export class Agent0Client implements IAgent0Client {
     if (filters.x402Support !== undefined) {
       searchParams.x402support = filters.x402Support;
     } else if (filters.hasX402 !== undefined) {
-      // Legacy support for hasX402
       searchParams.x402support = filters.hasX402;
     }
 
@@ -426,11 +424,15 @@ export class Agent0Client implements IAgent0Client {
   }
 
   /**
-   * Submit feedback for an agent
+   * Submits feedback for an agent
    *
-   * Note: This method requires the agent to have pre-authorized feedback from the client address.
+   * @remarks
+   * This method requires the agent to have pre-authorized feedback from the client address.
    * For user-submitted feedback, use Agent0FeedbackService which handles authorization properly.
    * For system-level reputation updates, ensure the agent has pre-authorized the system address.
+   *
+   * @param params - Feedback parameters
+   * @throws Error if SDK not initialized or feedback submission fails
    */
   async submitFeedback(params: Agent0FeedbackParams): Promise<void> {
     await this.ensureSDK();
@@ -463,20 +465,16 @@ export class Agent0Client implements IAgent0Client {
     // For system-level feedback, we need to sign authorization
     // The SDK's signer (from config.privateKey) is used to sign the authorization
     // The agent should have pre-authorized this client address during registration
-    // Get the signer address from the private key
     const signerWallet = new Wallet(this.config.privateKey);
     const signerAddress = signerWallet.address as `0x${string}`;
 
-    // Sign feedback authorization (client signs to authorize themselves)
-    // The agent should have pre-authorized this client address during registration
     const auth = await this.sdk.signFeedbackAuth(
       agentId,
       signerAddress,
-      undefined, // index (auto-increment)
-      24 // 24 hour expiry
+      undefined,
+      24
     );
 
-    // Submit feedback with authorization
     await this.sdk.giveFeedback(agentId, feedbackFile, auth);
 
     logger.info(
@@ -547,9 +545,11 @@ export class Agent0Client implements IAgent0Client {
   }
 
   /**
-   * Check if Agent0 SDK is available
-   * Note: This will return false if SDK hasn't been initialized yet.
-   * Call ensureSDK() or any method that uses the SDK to initialize it first.
+   * Checks if Agent0 SDK is available
+   *
+   * @returns True if SDK is initialized and not in read-only mode
+   * @remarks Returns false if SDK hasn't been initialized yet. Call ensureSDK()
+   * or any method that uses the SDK to initialize it first.
    */
   isAvailable(): boolean {
     return this.sdk !== null && !this.sdk.isReadOnly;
@@ -599,8 +599,6 @@ export function getAgent0Client(): Agent0Client {
       );
     }
 
-    // Support localnet RPC URL
-    // Agent0 operates on Ethereum, not Base, so we use Ethereum RPC URLs
     const rpcUrl =
       process.env.AGENT0_RPC_URL ||
       (network === 'localnet'
@@ -624,7 +622,6 @@ export function getAgent0Client(): Agent0Client {
       );
     }
 
-    // Validate IPFS provider configuration
     const ipfsProvider =
       (process.env.AGENT0_IPFS_PROVIDER as 'node' | 'filecoinPin' | 'pinata') ||
       'node';

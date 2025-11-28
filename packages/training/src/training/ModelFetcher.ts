@@ -36,10 +36,8 @@ export async function getLatestRLModel(): Promise<ModelArtifact | null> {
     return null;
   }
 
-  // storagePath or modelId identifies the model
   const rlModelId = model.storagePath || model.modelId;
 
-  // Validate critical fields
   if (!rlModelId || rlModelId.trim().length === 0) {
     logger.error(
       'Model has no storagePath or modelId',

@@ -68,10 +68,13 @@ export const getPostHogServerClient = (): PostHogServerClient | null => {
       // Timeout for network requests (5 seconds for serverless)
       requestTimeout: 5000,
 
-      // Important: Always shutdown gracefully to ensure events are sent
-      // Use in API routes: await posthog.shutdown() before returning
-      // Note: PostHog errors are handled via try-catch in our wrapper functions
-      // and timeout wrappers to prevent blocking in serverless environments
+      /**
+       * Important: Always shutdown gracefully to ensure events are sent.
+       * Use in API routes: await posthog.shutdown() before returning.
+       *
+       * PostHog errors are handled via try-catch in our wrapper functions
+       * and timeout wrappers to prevent blocking in serverless environments.
+       */
     });
   }
 

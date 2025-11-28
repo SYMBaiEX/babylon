@@ -10,9 +10,17 @@ import { logger } from '../shared/logger';
 import { generateSnowflakeId } from '../shared/snowflake';
 import { callGroqDirect } from '../llm/direct-groq';
 
+/**
+ * Service for autonomous direct message responses
+ */
 export class AutonomousDMService {
   /**
-   * Check for unread DMs and respond
+   * Checks for unread DMs and generates responses
+   *
+   * @param agentUserId - Agent user ID
+   * @param _runtime - Agent runtime (reserved for future use)
+   * @returns Number of responses created
+   * @throws Error if agent not found
    */
   async respondToDMs(
     agentUserId: string,

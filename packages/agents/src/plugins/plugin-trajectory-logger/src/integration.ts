@@ -19,12 +19,15 @@ export interface TrajectoryMetadata {
 /**
  * Final metrics for trajectory completion
  */
-export interface FinalMetrics {
+/**
+ * Final metrics for trajectory completion.
+ * Extends Record<string, JsonValue> to be compatible with endTrajectory method.
+ */
+export type FinalMetrics = Record<string, JsonValue> & {
   totalReward?: number;
   stepCount?: number;
   successRate?: number;
-  [key: string]: JsonValue | undefined;
-}
+};
 
 /**
  * Provider access data structure
@@ -229,7 +232,9 @@ export function withTrajectoryLogging<
           actionName: fn.name || 'anonymous',
           parameters: { args: args as JsonValue[] },
           success,
-          result: success ? { result: result as JsonValue } : { error },
+          result: (success && result !== undefined
+            ? { result: result as JsonValue }
+            : { error: error || 'Unknown error' }) as Record<string, JsonValue>,
         },
         {
           reward: success ? 0.05 : -0.05,

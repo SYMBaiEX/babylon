@@ -6,6 +6,8 @@
  * 2. Configure database for test isolation
  * 3. Set up graceful cleanup handlers
  * 4. Configure LLM timeouts for faster test failures
+ *
+ * @module testing/integration/preload
  */
 
 // Set test environment first (before any imports)
@@ -22,10 +24,11 @@ import { db } from '@babylon/db';
  * Global test lifecycle hooks for database isolation
  */
 
-// Cleanup stale locks before running tests
+/**
+ * Removes stale generation locks that may interfere with test execution.
+ */
 async function cleanupStaleLocks(): Promise<void> {
   try {
-    // Clean up any expired generation locks that might block tests
     const expiredLocks = await db.generationLock.deleteMany({
       where: {
         expiresAt: { lt: new Date() },
@@ -38,13 +41,11 @@ async function cleanupStaleLocks(): Promise<void> {
       );
     }
 
-    // Also clean up any test-specific locks (from previous test runs)
     const testLocks = await db.generationLock.deleteMany({
       where: {
         OR: [
           { id: { contains: 'test' } },
           { lockedBy: { contains: 'test' } },
-          // Clean up serverless locks older than 15 minutes
           {
             AND: [
               { lockedBy: { startsWith: 'serverless-' } },
@@ -61,17 +62,15 @@ async function cleanupStaleLocks(): Promise<void> {
       );
     }
   } catch (error) {
-    // Non-fatal - tests may still work
     console.warn('[Test Preload] Could not cleanup stale locks:', error);
   }
 }
 
 /**
- * Cleanup test data that might interfere with other tests
+ * Removes test data that may interfere with other tests.
  */
 async function cleanupTestData(): Promise<void> {
   try {
-    // Clean up test users (those created by tests with specific prefixes)
     const testUsers = await db.user.deleteMany({
       where: {
         OR: [

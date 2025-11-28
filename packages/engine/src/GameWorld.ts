@@ -37,7 +37,6 @@
  * - scandal, rumor, deal, conflict, revelation
  *
  * @see {@link GameEngine} - Production system (not used in GameEngine)
- * @see {@link GameSimulator} - Uses similar patterns for autonomous simulation
  * @see {@link FeedGenerator} - Converts events to social media posts
  *
  * @example
@@ -833,7 +832,7 @@ export class GameWorld extends EventEmitter implements TypedGameWorldEmitter {
         ? rawResponse.response
         : (rawResponse as { headline: string; report: string });
 
-    // Post-process to fix any real names that slipped through
+    // Apply character mapping to replace any real names with fictional equivalents
     const processedHeadline = await characterMappingService.transformText(
       response.headline
     );
@@ -888,7 +887,7 @@ export class GameWorld extends EventEmitter implements TypedGameWorldEmitter {
         ? rawResponse.response
         : (rawResponse as { rumor: string });
 
-    // Post-process to fix any real names that slipped through
+    // Apply character mapping to replace any real names with fictional equivalents
     const processed = await characterMappingService.transformText(
       response.rumor
     );
@@ -930,7 +929,7 @@ export class GameWorld extends EventEmitter implements TypedGameWorldEmitter {
         ? rawResponse.response
         : (rawResponse as { conversation: string });
 
-    // Post-process to fix any real names that slipped through
+    // Apply character mapping to replace any real names with fictional equivalents
     const processed = await characterMappingService.transformText(
       response.conversation
     );
@@ -976,7 +975,7 @@ export class GameWorld extends EventEmitter implements TypedGameWorldEmitter {
         ? rawResponse.response
         : (rawResponse as { analysis: string });
 
-    // Post-process to fix any real names that slipped through
+    // Apply character mapping to replace any real names with fictional equivalents
     const processed = await characterMappingService.transformText(
       response.analysis
     );
@@ -1014,7 +1013,7 @@ export class GameWorld extends EventEmitter implements TypedGameWorldEmitter {
         ? rawResponse.response
         : (rawResponse as { summary: string });
 
-    // Post-process to fix any real names that slipped through
+    // Apply character mapping to replace any real names with fictional equivalents
     const processed = await characterMappingService.transformText(
       response.summary
     );

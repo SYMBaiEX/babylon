@@ -5,17 +5,13 @@
 
 import { beforeAll, describe, expect, it } from 'bun:test';
 import { loadActorsData } from '@babylon/engine';
-import type {
-  ActorData,
-  ActorsDataFile,
-  OrganizationData,
-} from '../types/test-types';
+import type { ActorData, ActorsDatabase, Organization } from '@babylon/shared';
 
 describe('Actors.json Data Integrity', () => {
-  let actorsData: ActorsDataFile;
+  let actorsData: ActorsDatabase;
 
   beforeAll(async () => {
-    actorsData = loadActorsData() as ActorsDataFile;
+    actorsData = loadActorsData() as ActorsDatabase;
   });
 
   describe('Actor Required Fields', () => {
@@ -132,42 +128,42 @@ describe('Actors.json Data Integrity', () => {
   describe('Organization Required Fields', () => {
     it('all organizations should have id', () => {
       const missing = actorsData.organizations.filter(
-        (o: OrganizationData) => !o.id
+        (o: Organization) => !o.id
       );
       expect(missing).toHaveLength(0);
     });
 
     it('all organizations should have name', () => {
       const missing = actorsData.organizations.filter(
-        (o: OrganizationData) => !o.name
+        (o: Organization) => !o.name
       );
       expect(missing).toHaveLength(0);
     });
 
     it('all organizations should have type', () => {
       const missing = actorsData.organizations.filter(
-        (o: OrganizationData) => !o.type
+        (o: Organization) => !o.type
       );
       expect(missing).toHaveLength(0);
     });
 
     it('all organizations should have description', () => {
       const missing = actorsData.organizations.filter(
-        (o: OrganizationData) => !o.description
+        (o: Organization) => !o.description
       );
       expect(missing).toHaveLength(0);
     });
 
     it('all organizations should have postStyle', () => {
       const missing = actorsData.organizations.filter(
-        (o: OrganizationData) => !o.postStyle
+        (o: Organization) => !o.postStyle
       );
       expect(missing).toHaveLength(0);
     });
 
     it('all organizations should have postExample array', () => {
       const missing = actorsData.organizations.filter(
-        (o: OrganizationData) => !Array.isArray(o.postExample)
+        (o: Organization) => !Array.isArray(o.postExample)
       );
       expect(missing).toHaveLength(0);
     });
@@ -175,24 +171,24 @@ describe('Actors.json Data Integrity', () => {
     it('all company-type organizations should have initialPrice (number)', () => {
       // Only companies need initialPrice - media organizations don't have stock prices
       const companies = actorsData.organizations.filter(
-        (o: OrganizationData) => o.type === 'company'
+        (o: Organization) => o.type === 'company'
       );
       const missing = companies.filter(
-        (o: OrganizationData) => typeof o.initialPrice !== 'number'
+        (o: Organization) => typeof o.initialPrice !== 'number'
       );
       expect(missing).toHaveLength(0);
     });
 
     it('all organizations should have originalName', () => {
       const missing = actorsData.organizations.filter(
-        (o: OrganizationData) => !o.originalName
+        (o: Organization) => !o.originalName
       );
       expect(missing).toHaveLength(0);
     });
 
     it('all organizations should have originalHandle', () => {
       const missing = actorsData.organizations.filter(
-        (o: OrganizationData) => !o.originalHandle
+        (o: Organization) => !o.originalHandle
       );
       expect(missing).toHaveLength(0);
     });
@@ -257,7 +253,7 @@ describe('Actors.json Data Integrity', () => {
 
     it('organization names should be parodied', () => {
       const notParodied = actorsData.organizations.filter(
-        (o: OrganizationData) => o.name === o.originalName
+        (o: Organization) => o.name === o.originalName
       );
       expect(notParodied).toHaveLength(0);
     });
@@ -271,14 +267,14 @@ describe('Actors.json Data Integrity', () => {
     });
 
     it('all organization IDs should be unique', () => {
-      const ids = actorsData.organizations.map((o: OrganizationData) => o.id);
+      const ids = actorsData.organizations.map((o: Organization) => o.id);
       const uniqueIds = new Set(ids);
       expect(uniqueIds.size).toBe(ids.length);
     });
 
     it('actor affiliations should reference valid organization IDs', () => {
       const orgIds = new Set(
-        actorsData.organizations.map((o: OrganizationData) => o.id)
+        actorsData.organizations.map((o: Organization) => o.id)
       );
 
       for (const actor of actorsData.actors) {
@@ -299,7 +295,7 @@ describe('Actors.json Data Integrity', () => {
     it('all company initialPrice values should be number', () => {
       // Only companies have initialPrice - media organizations don't have stock prices
       const companies = actorsData.organizations.filter(
-        (o: OrganizationData) => o.type === 'company'
+        (o: Organization) => o.type === 'company'
       );
       for (const org of companies) {
         expect(typeof org.initialPrice).toBe('number');

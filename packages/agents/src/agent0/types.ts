@@ -4,7 +4,8 @@
  * Type-safe interfaces for Agent0 SDK integration
  */
 
-import type { AgentCapabilities, AgentProfile } from '@babylon/a2a';
+import type { AgentProfile } from '@babylon/a2a';
+import type { AgentCapabilities } from '@babylon/shared';
 
 /**
  * Agent0 Client Interface

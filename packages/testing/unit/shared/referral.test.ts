@@ -4,11 +4,7 @@
  */
 
 import { describe, expect, it } from 'bun:test';
-import {
-  getReferralShareText,
-  getReferralUrl,
-  getShortReferralUrl,
-} from '@babylon/shared';
+import { getReferralShareText, getReferralUrl } from '@babylon/shared';
 
 describe('Referral Utilities', () => {
   describe('getReferralUrl', () => {
@@ -29,18 +25,6 @@ describe('Referral Utilities', () => {
       const url1 = getReferralUrl('user1');
       const url2 = getReferralUrl('user2');
       expect(url1).not.toBe(url2);
-    });
-  });
-
-  describe('getShortReferralUrl', () => {
-    it('should generate short referral URL with ref parameter', () => {
-      const url = getShortReferralUrl('CODE123');
-      expect(url).toContain('ref=CODE123');
-    });
-
-    it('should generate valid URL format', () => {
-      const url = getShortReferralUrl('CODE123');
-      expect(() => new URL(url)).not.toThrow();
     });
   });
 

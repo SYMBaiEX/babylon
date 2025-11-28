@@ -4,7 +4,6 @@
  * Validates that benchmark metrics are calculated correctly against ground truth.
  */
 
-// Use shared ValidationResult type
 import type { ValidationResult } from '../training/ConfigValidator';
 import { logger } from '../utils/logger';
 import type { GroundTruth } from './BenchmarkDataGenerator';

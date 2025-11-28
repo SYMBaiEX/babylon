@@ -242,7 +242,7 @@ export function luckToDescription(luck: 'low' | 'medium' | 'high'): string {
  * - Converts numeric mood to descriptive emotional state
  * - Adds luck description
  * - Includes relationship context when interacting with specific actors
- * - Supports both ActorRelationship (new) and ActorConnection (legacy) formats
+ * - Supports both ActorRelationship (new) and deprecated ActorConnection formats
  *
  * **Generated Context Format:**
  * ```
@@ -285,7 +285,7 @@ Current luck: ${luckDesc}`;
 
   // Add relationship context if responding to specific actor
   if (targetActorId && actorId && relationships && relationships.length > 0) {
-    // Check if it's the new ActorRelationship format or legacy ActorConnection format
+    // Support both ActorRelationship and ActorConnection formats
     const firstItem = relationships[0];
     if (!firstItem) {
       return context;
@@ -294,7 +294,7 @@ Current luck: ${luckDesc}`;
     const isNewFormat = 'actor1Id' in firstItem;
 
     if (isNewFormat) {
-      // New format: ActorRelationship
+      // ActorRelationship format
       const relationship = (relationships as ActorRelationship[]).find(
         (r) =>
           (r.actor1Id === actorId && r.actor2Id === targetActorId) ||
@@ -308,7 +308,7 @@ Relationship with ${targetActorId}: ${relationship.relationshipType} - be ${relM
 Context: ${relationship.history || 'No additional context'}`;
       }
     } else {
-      // Legacy format: ActorConnection
+      // ActorConnection format
       const relationship = (relationships as ActorConnection[]).find(
         (r) =>
           (r.actor1 === actorId && r.actor2 === targetActorId) ||

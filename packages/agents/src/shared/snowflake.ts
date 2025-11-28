@@ -1,7 +1,7 @@
 /**
  * Snowflake ID Generator Re-export
  *
- * Re-exports snowflake utilities from @babylon/shared for backwards compatibility.
+ * Re-exports snowflake ID generation utilities from @babylon/shared.
  */
 export {
   generateSnowflakeId,

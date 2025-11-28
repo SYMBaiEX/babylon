@@ -69,7 +69,7 @@ export class AutomationPipeline {
         config.minTrajectoriesForTraining ??
         (Number.isFinite(envMinTrajectories) && envMinTrajectories > 0
           ? envMinTrajectories
-          : 1), // Default to 1 trajectory minimum (for testing - can be overridden via env)
+          : 1),
       minGroupSize:
         config.minGroupSize ??
         (Number.isFinite(envMinGroupSize) && envMinGroupSize > 0
@@ -283,7 +283,6 @@ export class AutomationPipeline {
     // Check readiness
     const readiness = await this.checkTrainingReadiness();
 
-    // If forcing, allow training even with 0 trajectories (for testing)
     if (!readiness.ready && !options.force) {
       return {
         success: false,
@@ -389,7 +388,7 @@ export class AutomationPipeline {
         id: batchId,
         batchId,
         scenarioId: windowId,
-        baseModel: modelSelection.modelPath, // FIX: Use selected model, not config
+        baseModel: modelSelection.modelPath,
         modelVersion: nextVersion,
         trajectoryIds: JSON.stringify(
           await this.getTrajectoryIds(maxTrajectories)
@@ -415,14 +414,13 @@ export class AutomationPipeline {
       BATCH_ID: batchId,
       MODEL_VERSION: nextVersion,
       WINDOW_ID: windowId,
-      BASE_MODEL: modelSelection.modelPath, // Use selected model from ModelSelectionService
-      MAX_EXAMPLES: dataLimit ? dataLimit.toString() : '2000', // CRITICAL: Hard limit to prevent 200GB usage
+      BASE_MODEL: modelSelection.modelPath,
+      MAX_EXAMPLES: dataLimit ? dataLimit.toString() : '2000',
       DATABASE_URL: process.env.DATABASE_URL || '',
       ATROPOS_API_URL: this.config.atroposApiUrl || 'http://localhost:8000',
       VLLM_PORT: String(this.config.vllmPort || 9001),
-      // Allow forcing training with minimal data for testing
       FORCE_TRAINING: options.force ? 'true' : 'false',
-      MIN_AGENTS_PER_WINDOW: '1', // Lower minimum for testing
+      MIN_AGENTS_PER_WINDOW: '1',
     };
 
     logger.info(
@@ -439,12 +437,12 @@ export class AutomationPipeline {
     const pythonCmd = process.platform === 'win32' ? 'python' : 'python3';
 
     const trainingProcess = spawn(pythonCmd, [pythonScript], {
-      detached: false, // Keep attached to see output
-      stdio: ['ignore', 'pipe', 'pipe'], // Capture stdout/stderr for debugging
+      detached: false,
+      stdio: ['ignore', 'pipe', 'pipe'],
       env,
     });
 
-    // Log output for debugging
+    // Capture and log training process output
     trainingProcess.stdout?.on('data', (data: Buffer) => {
       logger.info('Training stdout', { output: data.toString().trim() });
     });
@@ -564,8 +562,9 @@ export class AutomationPipeline {
   }
 
   /**
-   * Clean up export files to prevent disk space accumulation
-   * CRITICAL: Export files can accumulate to 200GB+ if not cleaned up
+   * Clean up export files to prevent disk space accumulation.
+   *
+   * Export files can accumulate to 200GB+ if not cleaned up.
    */
   private async cleanupExportFiles(batchId: string): Promise<void> {
 
@@ -597,16 +596,13 @@ export class AutomationPipeline {
     if (this.currentTrainingJob) {
       const status = await this.monitorTraining(this.currentTrainingJob);
       if (status.status === 'completed') {
-        // Deploy model (Python script already created model record)
         await this.deployModel(this.currentTrainingJob);
-        // CRITICAL: Clean up export files to prevent disk space accumulation
         await this.cleanupExportFiles(this.currentTrainingJob);
         this.currentTrainingJob = null;
       } else if (status.status === 'failed') {
         logger.error('Training job failed', {
           batchId: this.currentTrainingJob,
         });
-        // Clean up export files even on failure
         await this.cleanupExportFiles(this.currentTrainingJob);
         this.currentTrainingJob = null;
       }
@@ -717,8 +713,10 @@ export class AutomationPipeline {
   }
 
   /**
-   * Deploy trained model
-   * Note: Model is already created by Python script, this just marks trajectories as used
+   * Deploy trained model.
+   *
+   * The model is created by the Python training script. This method marks
+   * trajectories as used and updates the training batch status.
    */
   private async deployModel(batchId: string): Promise<void> {
     const batchResult = await db

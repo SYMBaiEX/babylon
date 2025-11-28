@@ -39,7 +39,7 @@ import type { Actor, Organization, Question } from './model-types';
 import { generateSnowflakeId } from '@babylon/shared';
 
 /**
- * FeedPost type for backwards compatibility
+ * FeedPost type representing a post in the feed.
  */
 export interface FeedPost {
   id: string;
@@ -58,17 +58,19 @@ export interface FeedPost {
  */
 class DatabaseService {
   /**
-   * Expose db for direct queries
+   * Direct access to the database client for custom queries.
    */
   get db() {
     return db;
   }
 
   /**
-   * Initialize game state in database
+   * Initialize game state in the database.
+   * Creates a new continuous game if one doesn't exist.
+   *
+   * @returns The game instance (existing or newly created)
    */
   async initializeGame() {
-    // Check if game already exists
     const existing = await db
       .select()
       .from(games)
@@ -80,7 +82,6 @@ class DatabaseService {
       return existing[0];
     }
 
-    // Create new game
     const gameId = await generateSnowflakeId();
     const created = await db
       .insert(games)
@@ -89,7 +90,7 @@ class DatabaseService {
         isContinuous: true,
         isRunning: true,
         currentDate: new Date(),
-        speed: 60000, // 1 minute ticks
+        speed: 60000,
         updatedAt: new Date(),
       })
       .returning();
@@ -100,7 +101,9 @@ class DatabaseService {
   }
 
   /**
-   * Get current game state
+   * Get the current continuous game state.
+   *
+   * @returns The current game state or null if no game exists
    */
   async getGameState() {
     const result = await db
@@ -112,7 +115,11 @@ class DatabaseService {
   }
 
   /**
-   * Update game state (currentDay, currentDate, lastTickAt, etc.)
+   * Update game state with new values.
+   *
+   * @param data - Partial game state data to update
+   * @returns The updated game state
+   * @throws Error if game is not initialized
    */
   async updateGameState(data: {
     currentDay?: number;
@@ -136,7 +143,10 @@ class DatabaseService {
   // ========== POSTS ==========
 
   /**
-   * Create a new post
+   * Create a new post in the database.
+   *
+   * @param post - Post data including id, content, author, timestamp, and optional game fields
+   * @returns The created post record
    */
   async createPost(post: FeedPost & { gameId?: string; dayNumber?: number }) {
     const created = await db
@@ -155,8 +165,10 @@ class DatabaseService {
   }
 
   /**
-   * Create a post with all fields (including article fields)
-   * Used by serverless game tick
+   * Create a post with all fields including article-specific fields.
+   *
+   * @param data - Complete post data including article fields
+   * @returns The created post record
    */
   async createPostWithAllFields(data: {
     id: string;
@@ -174,7 +186,6 @@ class DatabaseService {
     dayNumber?: number;
     timestamp: Date;
   }) {
-    // Validate dayNumber to prevent INT4 overflow
     const safeDayNumber =
       typeof data.dayNumber === 'number' &&
       Number.isFinite(data.dayNumber) &&
@@ -214,7 +225,10 @@ class DatabaseService {
   }
 
   /**
-   * Create multiple posts in batch
+   * Create multiple posts in a single batch operation.
+   *
+   * @param postsData - Array of post data objects
+   * @returns Object with count of created posts
    */
   async createManyPosts(
     postsData: Array<FeedPost & { gameId?: string; dayNumber?: number }>
@@ -222,7 +236,6 @@ class DatabaseService {
     if (postsData.length === 0) return { count: 0 };
 
     const values = postsData.map((post) => {
-      // Validate dayNumber to prevent INT4 overflow
       const safeDayNumber =
         typeof post.dayNumber === 'number' &&
         Number.isFinite(post.dayNumber) &&
@@ -254,8 +267,12 @@ class DatabaseService {
   }
 
   /**
-   * Get recent posts with cursor-based or offset-based pagination
-   * Filters out posts from test users (isTest = true)
+   * Get recent posts with cursor-based or offset-based pagination.
+   * Automatically filters out posts from test users.
+   *
+   * @param limit - Maximum number of posts to return (default: 100)
+   * @param cursorOrOffset - Cursor string for cursor-based pagination or number for offset-based
+   * @returns Array of recent posts
    */
   async getRecentPosts(limit = 100, cursorOrOffset?: string | number) {
     const isCursor = typeof cursorOrOffset === 'string';
@@ -271,7 +288,6 @@ class DatabaseService {
 
     const now = new Date();
 
-    // Build conditions
     const conditions = [isNull(posts.deletedAt)];
 
     if (cursor) {
@@ -281,7 +297,6 @@ class DatabaseService {
       conditions.push(lte(posts.timestamp, now));
     }
 
-    // Get posts with extra to account for test user filtering
     const allPosts = await db
       .select()
       .from(posts)
@@ -290,10 +305,8 @@ class DatabaseService {
       .offset(cursor ? 0 : offset)
       .orderBy(desc(posts.timestamp));
 
-    // Get all author IDs
     const authorIds = [...new Set(allPosts.map((p) => p.authorId))];
 
-    // Check which authors are test users
     const [testUsers, testActors] = await Promise.all([
       db
         .select({ id: users.id })
@@ -310,7 +323,6 @@ class DatabaseService {
       ...testActors.map((a) => a.id),
     ]);
 
-    // Filter out posts from test users
     const filteredPosts = allPosts
       .filter((post) => !testAuthorIds.has(post.authorId))
       .slice(0, limit);
@@ -329,8 +341,13 @@ class DatabaseService {
   }
 
   /**
-   * Get posts by actor with cursor-based or offset-based pagination
-   * Filters out posts if the actor is a test user
+   * Get posts by a specific actor with cursor-based or offset-based pagination.
+   * Returns empty array if the actor is a test user.
+   *
+   * @param authorId - ID of the actor/user whose posts to retrieve
+   * @param limit - Maximum number of posts to return (default: 100)
+   * @param cursorOrOffset - Cursor string or offset number for pagination
+   * @returns Array of posts by the actor
    */
   async getPostsByActor(
     authorId: string,
@@ -349,7 +366,6 @@ class DatabaseService {
       offset,
     });
 
-    // Check if this actor/user is a test user
     const [user, actor] = await Promise.all([
       db
         .select({ isTest: users.isTest })
@@ -365,7 +381,6 @@ class DatabaseService {
 
     const isTestUser = user[0]?.isTest || actor[0]?.isTest || false;
 
-    // If it's a test user, return empty array
     if (isTestUser) {
       logger.info('DatabaseService.getPostsByActor - test user filtered', {
         authorId,
@@ -376,7 +391,6 @@ class DatabaseService {
 
     const now = new Date();
 
-    // Build conditions
     const conditions = [eq(posts.authorId, authorId), isNull(posts.deletedAt)];
 
     if (cursor) {
@@ -406,7 +420,9 @@ class DatabaseService {
   }
 
   /**
-   * Get total post count
+   * Get the total count of all posts in the database.
+   *
+   * @returns Total number of posts
    */
   async getTotalPosts() {
     const result = await db.select({ count: count() }).from(posts);
@@ -416,7 +432,10 @@ class DatabaseService {
   // ========== QUESTIONS ==========
 
   /**
-   * Create a question
+   * Create a new question in the database.
+   *
+   * @param question - Question data including text, resolution date, and optional fields
+   * @returns The created question record
    */
   async createQuestion(question: {
     text: string;
@@ -450,7 +469,7 @@ class DatabaseService {
   }
 
   /**
-   * Convert DB Question to TypeScript Question with additional fields
+   * Adapt database question to include computed fields like timeframe.
    */
   private adaptQuestion(dbQuestion: Question): Question & {
     scenario: number;
@@ -464,7 +483,7 @@ class DatabaseService {
   }
 
   /**
-   * Calculate timeframe category from resolution date
+   * Calculate timeframe category (24h, 7d, 30d, 30d+) from resolution date.
    */
   private calculateTimeframe(resolutionDate: Date): string {
     const now = new Date();
@@ -480,7 +499,10 @@ class DatabaseService {
   }
 
   /**
-   * Get active questions
+   * Get active questions, optionally filtered by timeframe.
+   *
+   * @param timeframe - Optional timeframe filter: '24h', '7d', '30d', or '30d+'
+   * @returns Array of active questions with computed fields
    */
   async getActiveQuestions(timeframe?: string) {
     const now = new Date();
@@ -523,7 +545,9 @@ class DatabaseService {
   }
 
   /**
-   * Get questions to resolve (resolutionDate <= now)
+   * Get active questions that are ready to be resolved (resolutionDate <= now).
+   *
+   * @returns Array of questions ready for resolution
    */
   async getQuestionsToResolve() {
     const result = await db
@@ -540,7 +564,9 @@ class DatabaseService {
   }
 
   /**
-   * Get all questions (active and resolved)
+   * Get all questions including both active and resolved.
+   *
+   * @returns Array of all questions
    */
   async getAllQuestions() {
     const result = await db
@@ -552,7 +578,11 @@ class DatabaseService {
   }
 
   /**
-   * Resolve a question
+   * Resolve a question with the specified outcome.
+   *
+   * @param id - Question ID to resolve
+   * @param resolvedOutcome - The outcome (true/false) for the question
+   * @returns The updated question record
    */
   async resolveQuestion(id: string, resolvedOutcome: boolean) {
     const updated = await db
@@ -570,12 +600,14 @@ class DatabaseService {
   // ========== ORGANIZATIONS ==========
 
   /**
-   * Upsert organization (create or update)
+   * Upsert an organization: create if it doesn't exist, update if it does.
+   *
+   * @param org - Organization data with required id and name
+   * @returns The created or updated organization record
    */
   async upsertOrganization(
     org: Partial<Organization> & { id: string; name: string }
   ) {
-    // Check if exists
     const existing = await db
       .select({ id: organizations.id })
       .from(organizations)
@@ -614,7 +646,11 @@ class DatabaseService {
   }
 
   /**
-   * Update organization price
+   * Update an organization's current price.
+   *
+   * @param id - Organization ID
+   * @param price - New price value
+   * @returns The updated organization record
    */
   async updateOrganizationPrice(id: string, price: number) {
     const updated = await db
@@ -627,7 +663,9 @@ class DatabaseService {
   }
 
   /**
-   * Get all companies (with prices)
+   * Get all companies ordered by current price (descending).
+   *
+   * @returns Array of company organizations
    */
   async getCompanies() {
     return await db
@@ -638,24 +676,25 @@ class DatabaseService {
   }
 
   /**
-   * Convert DB Organization to TypeScript Organization
-   */
-  private adaptOrganization(dbOrg: Organization): Organization {
-    return dbOrg;
-  }
-
-  /**
-   * Get all organizations
+   * Get all organizations in the database.
+   *
+   * @returns Array of all organizations
    */
   async getAllOrganizations() {
     const orgs = await db.select().from(organizations);
-    return orgs.map((o) => this.adaptOrganization(o));
+    return orgs;
   }
 
   // ========== STOCK PRICES ==========
 
   /**
-   * Record a price update
+   * Record a stock price update for an organization.
+   *
+   * @param organizationId - Organization ID
+   * @param price - Current price
+   * @param change - Price change amount
+   * @param changePercent - Price change percentage
+   * @returns The created price record
    */
   async recordPriceUpdate(
     organizationId: string,
@@ -680,7 +719,11 @@ class DatabaseService {
   }
 
   /**
-   * Record daily snapshot (EOD prices)
+   * Record a daily end-of-day (EOD) price snapshot with OHLCV data.
+   *
+   * @param organizationId - Organization ID
+   * @param data - OHLCV data (open, high, low, close, volume)
+   * @returns The created snapshot record
    */
   async recordDailySnapshot(
     organizationId: string,
@@ -714,7 +757,11 @@ class DatabaseService {
   }
 
   /**
-   * Get price history for a company
+   * Get price history for an organization.
+   *
+   * @param organizationId - Organization ID
+   * @param limit - Maximum number of records to return (default: 1440)
+   * @returns Array of price records ordered by timestamp (newest first)
    */
   async getPriceHistory(organizationId: string, limit = 1440) {
     return await db
@@ -726,7 +773,11 @@ class DatabaseService {
   }
 
   /**
-   * Get daily snapshots only
+   * Get daily end-of-day price snapshots for an organization.
+   *
+   * @param organizationId - Organization ID
+   * @param days - Number of days of snapshots to retrieve (default: 30)
+   * @returns Array of daily snapshot records
    */
   async getDailySnapshots(organizationId: string, days = 30) {
     return await db
@@ -745,7 +796,10 @@ class DatabaseService {
   // ========== EVENTS ==========
 
   /**
-   * Create a world event
+   * Create a world event in the database.
+   *
+   * @param event - Event data including type, description, actors, and visibility
+   * @returns The created event record
    */
   async createEvent(event: {
     id: string;
@@ -760,7 +814,6 @@ class DatabaseService {
     gameId?: string;
     dayNumber?: number;
   }) {
-    // Convert description to string if it's an object
     let descriptionString: string;
     if (typeof event.description === 'string') {
       descriptionString = event.description;
@@ -773,7 +826,6 @@ class DatabaseService {
       descriptionString = String(event.description || '');
     }
 
-    // Validate integer fields to prevent INT4 overflow
     const safeRelatedQuestion =
       typeof event.relatedQuestion === 'number' &&
       Number.isFinite(event.relatedQuestion) &&
@@ -826,7 +878,10 @@ class DatabaseService {
   }
 
   /**
-   * Get recent events
+   * Get recent world events ordered by timestamp.
+   *
+   * @param limit - Maximum number of events to return (default: 100)
+   * @returns Array of recent events
    */
   async getRecentEvents(limit = 100) {
     return await db
@@ -839,10 +894,12 @@ class DatabaseService {
   // ========== ACTORS ==========
 
   /**
-   * Upsert actor (create or update)
+   * Upsert an actor: create if it doesn't exist, update if it does.
+   *
+   * @param actor - Actor data with required id and name
+   * @returns The created or updated actor record
    */
   async upsertActor(actor: Partial<Actor> & { id: string; name: string }) {
-    // Check if exists
     const existing = await db
       .select({ id: actors.id })
       .from(actors)
@@ -912,7 +969,9 @@ class DatabaseService {
   }
 
   /**
-   * Get all actors
+   * Get all actors ordered by tier and name.
+   *
+   * @returns Array of all actors
    */
   async getAllActors() {
     return await db
@@ -922,7 +981,10 @@ class DatabaseService {
   }
 
   /**
-   * Get actor by ID
+   * Get an actor by ID.
+   *
+   * @param id - Actor ID
+   * @returns The actor record or null if not found
    */
   async getActor(id: string) {
     const result = await db
@@ -936,7 +998,9 @@ class DatabaseService {
   // ========== UTILITY ==========
 
   /**
-   * Get database stats
+   * Get database statistics including counts and game state.
+   *
+   * @returns Object containing various database statistics
    */
   async getStats() {
     const [
@@ -983,7 +1047,9 @@ class DatabaseService {
   }
 
   /**
-   * Get all games
+   * Get all games ordered by creation date (newest first).
+   *
+   * @returns Array of all game records
    */
   async getAllGames() {
     return await db.select().from(games).orderBy(desc(games.createdAt));

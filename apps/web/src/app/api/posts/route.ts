@@ -284,8 +284,10 @@ type PostWithOriginal = Post & {
 };
 
 /**
- * Safely convert a date value to ISO string
- * Handles Date objects, strings, and null/undefined
+ * Converts a date value to ISO string format, handling various input types.
+ *
+ * @param date - Date object, ISO string, or null/undefined
+ * @returns ISO string representation of the date, or current date ISO string if invalid/null
  */
 function toISOStringSafe(date: Date | string | null | undefined): string {
   if (!date) {
@@ -309,6 +311,16 @@ function toISOStringSafe(date: Date | string | null | undefined): string {
   return new Date().toISOString();
 }
 
+/**
+ * GET /api/posts
+ *
+ * Retrieves paginated posts feed with advanced filtering, caching, and repost detection.
+ * Supports following feed, actor filtering, post type filtering, and moderation (blocked/muted users).
+ * Includes interaction counts (likes, comments, shares) and repost metadata.
+ *
+ * @param request - Next.js request with query parameters
+ * @returns Posts feed response with pagination cursor
+ */
 export const GET = withErrorHandling(async (request: NextRequest) => {
   const { searchParams } = new URL(request.url);
   const limit = Number.parseInt(searchParams.get('limit') || '100');
@@ -327,7 +339,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     const allFollowedIds = await getCacheOrFetch(
       followsCacheKey,
       async () => {
-        const [userFollowsList, actorFollowsList, legacyActorFollowsList] =
+        const [userFollowsList, actorFollowsList, npcFollowStatuses] =
           await Promise.all([
             db
               .select({ followingId: follows.followingId })
@@ -352,7 +364,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         const followedUserIds = userFollowsList.map((f) => f.followingId);
         const followedActorIds = new Set<string>();
         actorFollowsList.forEach((f) => followedActorIds.add(f.actorId));
-        legacyActorFollowsList.forEach((f) => followedActorIds.add(f.npcId));
+        npcFollowStatuses.forEach((f) => followedActorIds.add(f.npcId));
         return [...followedUserIds, ...Array.from(followedActorIds)];
       },
       {
@@ -977,7 +989,16 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 });
 
 /**
- * POST /api/posts - Create a new post
+ * POST /api/posts
+ *
+ * Creates a new post with content validation, rate limiting, and mention notifications.
+ * Automatically extracts @mentions, sends notifications, broadcasts via SSE, and invalidates caches.
+ *
+ * @param request - Next.js request containing post content in JSON body
+ * @returns Created post object with author details and metadata
+ * @throws {400} Invalid content (empty, too long, duplicate, rate limited)
+ * @throws {401} Unauthorized - authentication required
+ * @throws {500} Internal server error
  */
 export const POST = withErrorHandling(async (request: NextRequest) => {
   const authUser = await authenticate(request);

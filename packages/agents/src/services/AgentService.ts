@@ -1,9 +1,15 @@
 /**
  * Agent Service v2 - Agents are Users
  *
- * ARCHITECTURE: Agents ARE users (isAgent=true), not separate entities.
+ * Core service for agent lifecycle management. Agents are implemented as users
+ * with isAgent=true, allowing them to participate fully in the platform.
+ *
+ * @remarks
+ * Architecture: Agents ARE users (isAgent=true), not separate entities.
  * They can post, comment, join chats, trade, and do everything users can do.
  * The creating user "manages" them via the managedBy field.
+ *
+ * @packageDocumentation
  */
 
 import {
@@ -31,9 +37,20 @@ import type { JsonValue } from '../types/common';
 import { agentIdentityService } from '../identity/AgentIdentityService';
 import type { AgentPerformance, CreateAgentParams } from '../types';
 
+/**
+ * Service for agent lifecycle management
+ */
 export class AgentServiceV2 {
   /**
-   * Create agent (creates a full User with isAgent=true)
+   * Creates a new agent (creates a full User with isAgent=true)
+   *
+   * Creates a complete user account with agent capabilities, wallet, and
+   * initial configuration. The agent can immediately participate in all
+   * platform activities.
+   *
+   * @param params - Agent creation parameters
+   * @returns Created user/agent entity
+   * @throws Error if manager not found or insufficient points for deposit
    */
   async createAgent(params: CreateAgentParams): Promise<User> {
     const {
@@ -74,10 +91,6 @@ export class AgentServiceV2 {
     const randomSuffix = Math.random().toString(36).substring(2, 8);
     const agentUsername = `agent_${baseUsername}_${randomSuffix}`;
     const agentUserId = await generateSnowflakeId();
-
-    // Model selection happens at runtime via cascade:
-    // 1. Qwen 32b from Groq (if GROQ_API_KEY available)
-    // 2. Claude (if ANTHROPIC_API_KEY available)
     // 3. OpenAI (if OPENAI_API_KEY available)
 
     const agent = await withTransaction(async (tx) => {
@@ -176,7 +189,7 @@ export class AgentServiceV2 {
       'AgentService'
     );
 
-    // Register agent in unified registry if service is available
+    // Register agent in registry if service is available
     const agentRegistry = getService('agentRegistry');
     if (agentRegistry) {
       try {
@@ -228,7 +241,7 @@ export class AgentServiceV2 {
         });
 
         logger.info(
-          `Agent ${agentUserId} registered in unified registry`,
+          `Agent ${agentUserId} registered in registry`,
           undefined,
           'AgentService'
         );

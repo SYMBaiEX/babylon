@@ -87,8 +87,6 @@
  * });
  * ```
  *
- * @see {@link @babylon/api} Profile rate limiter
- * @see {@link /lib/services/points-service} Points service
  */
 
 import type { NextRequest } from 'next/server';
@@ -116,6 +114,21 @@ import type { StringRecord } from '@babylon/shared';
 /**
  * POST /api/users/[userId]/update-profile
  * Update user profile information
+ */
+/**
+ * POST /api/users/[userId]/update-profile
+ *
+ * Updates user profile information including username, display name, bio, images, and social
+ * media visibility settings. Includes rate limiting, username uniqueness validation, on-chain
+ * profile updates (optional), points awards for profile completion, and backend signing support.
+ * Only the profile owner can update their own profile.
+ *
+ * @param request - Next.js request containing profile update fields
+ * @param context - Route context with user ID parameter (must match authenticated user)
+ * @returns Updated user object with points awarded and on-chain transaction info
+ * @throws {400} Username taken, rate limit exceeded, or invalid input
+ * @throws {401} Unauthorized
+ * @throws {403} Cannot update another user's profile
  */
 export const POST = withErrorHandling(
   async (

@@ -12,27 +12,28 @@ import { createOpenAI } from '@ai-sdk/openai';
 // The actual type is LanguageModelV2 from @ai-sdk/provider but it's not exported in all versions
 type LanguageModelType = unknown;
 import { generateText } from 'ai';
+import type { A2APerpPosition } from '@babylon/a2a';
+import type { JsonValue } from '@babylon/shared';
 import type { MemoryEntry } from './memory';
 
 export interface PredictionMarket {
+  id?: string;
   question: string;
   yesShares: number;
   noShares: number;
-  [key: string]: JsonValue | undefined;
 }
 
 export interface PerpMarket {
+  ticker?: string;
   name: string;
   currentPrice: number;
-  [key: string]: JsonValue | undefined;
 }
 
 export interface FeedPost {
+  id?: string;
   content: string;
-  [key: string]: JsonValue | undefined;
+  authorId?: string;
 }
-
-import type { A2APerpPosition, JsonValue } from '@babylon/a2a';
 
 export interface DecisionContext {
   portfolio: { balance: number; positions: A2APerpPosition[]; pnl: number };

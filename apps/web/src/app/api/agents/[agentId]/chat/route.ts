@@ -120,42 +120,6 @@
  * ```
  */
 
-/**
- * Agent Chat Interaction API (Legacy TSDoc)
- *
- * @param {string} agentId - Agent user ID (path parameter)
- * @query {number} limit - Max messages to return (default: 50)
- *
- * @returns {object} Chat history
- * @property {boolean} success - Operation success
- * @property {array} messages - Array of message objects with timestamps
- *
- * @throws {400} Invalid message content or insufficient points
- * @throws {404} Agent not found or unauthorized
- * @throws {500} Internal server error or unsafe content generation
- *
- * @example
- * ```typescript
- * // Send message
- * const response = await fetch(`/api/agents/${agentId}/chat`, {
- *   method: 'POST',
- *   body: JSON.stringify({
- *     message: 'What's your trading strategy?',
- *     usePro: true
- *   })
- * });
- * const { response, pointsCost, balanceAfter } = await response.json();
- *
- * // Get history
- * const history = await fetch(`/api/agents/${agentId}/chat?limit=20`);
- * const { messages } = await history.json();
- * ```
- *
- * @see {@link /lib/agents/runtime/AgentRuntimeManager} Runtime manager
- * @see {@link /lib/utils/content-safety} Content safety checks
- * @see {@link /src/app/agents/[agentId]/page.tsx} Chat interface UI
- */
-
 import { ModelType } from '@elizaos/core';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
@@ -167,6 +131,20 @@ import { logger } from '@babylon/shared';
 import { authenticateUser } from '@babylon/api';
 import { checkAgentOutput, checkUserInput } from '@babylon/shared';
 
+/**
+ * POST /api/agents/[agentId]/chat
+ *
+ * Sends a message to an autonomous agent and receives a response. Validates input safety,
+ * checks agent ownership, deducts points, generates agent response using LLM, checks output
+ * safety, and stores conversation history. Supports both standard and pro-tier models.
+ *
+ * @param req - Next.js request containing message content and optional usePro flag
+ * @param params - Route parameters with agentId
+ * @returns Agent response with message ID, content, points cost, model used, and balance
+ * @throws {400} Invalid message content, unsafe input, or insufficient points
+ * @throws {401} Unauthorized
+ * @throws {404} Agent not found or user doesn't own agent
+ */
 export const POST = withErrorHandling(
   async (
     req: NextRequest,
@@ -505,6 +483,18 @@ ${agent!.displayName} (respond in 1-3 sentences, conversational):`;
   }
 );
 
+/**
+ * GET /api/agents/[agentId]/chat
+ *
+ * Retrieves chat history with an autonomous agent. Returns paginated conversation messages
+ * with timestamps, model used, and points cost for each message. Verifies agent ownership.
+ *
+ * @param req - Next.js request with optional limit query parameter (default: 50)
+ * @param params - Route parameters with agentId
+ * @returns Chat history with array of message objects
+ * @throws {401} Unauthorized
+ * @throws {404} Agent not found or user doesn't own agent
+ */
 export const GET = withErrorHandling(
   async (
     req: NextRequest,

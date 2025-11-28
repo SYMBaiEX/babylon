@@ -1,4 +1,5 @@
 import { type UUID } from '@elizaos/core';
+import type { JsonValue } from '@babylon/shared';
 
 /**
  * Enhanced Trajectory Types for RULER/OpenPipe ART Training
@@ -41,10 +42,10 @@ export interface ProviderAccess {
   timestamp: number;
 
   // What was requested
-  query?: Record<string, unknown>;
+  query?: Record<string, JsonValue>;
 
   // What was returned
-  data: Record<string, unknown>;
+  data: Record<string, JsonValue>;
 
   // Context
   purpose: string; // Why this provider was accessed
@@ -57,7 +58,7 @@ export interface ActionAttempt {
   // Action details
   actionType: string; // 'CREATE_POST', 'BUY_SHARES', 'SEND_MESSAGE', etc.
   actionName: string;
-  parameters: Record<string, unknown>;
+  parameters: Record<string, JsonValue>;
 
   // Context that led to this action
   reasoning?: string; // Why agent chose this action
@@ -65,7 +66,7 @@ export interface ActionAttempt {
 
   // Outcome
   success: boolean;
-  result?: Record<string, unknown>;
+  result?: Record<string, JsonValue>;
   error?: string;
 
   // Reward signals
@@ -90,7 +91,7 @@ export interface EnvironmentState {
   recentEngagement?: number;
 
   // Any other relevant state
-  custom?: Record<string, unknown>;
+  custom?: Record<string, JsonValue>;
 }
 
 export interface TrajectoryStep {
@@ -100,7 +101,7 @@ export interface TrajectoryStep {
 
   // Environment observation at this step
   environmentState: EnvironmentState;
-  observation: Record<string, unknown>; // Raw observation from environment
+  observation: Record<string, JsonValue>; // Raw observation from environment
 
   // Agent cognition
   llmCalls: LLMCall[]; // All LLM calls made during this step
@@ -115,7 +116,7 @@ export interface TrajectoryStep {
   done: boolean; // Is episode finished?
 
   // Metadata
-  metadata?: Record<string, unknown>;
+  metadata?: Record<string, JsonValue>;
 }
 
 export interface RewardComponents {
@@ -178,7 +179,7 @@ export interface Trajectory {
     successRate?: number;
     errorCount?: number;
 
-    [key: string]: unknown;
+    [key: string]: JsonValue | undefined;
   };
 
   // Context for training (For RULER judge to use)
@@ -197,11 +198,11 @@ export interface Trajectory {
     comparisonGroup?: string; // For RULER comparison
 
     // Additional context for RULER
-    initialState?: Record<string, unknown>; // Starting conditions
+    initialState?: Record<string, JsonValue>; // Starting conditions
     goalDescription?: string; // What agent was trying to achieve
     constraints?: string[]; // Rules/constraints agent should follow
 
-    [key: string]: unknown;
+    [key: string]: JsonValue | undefined;
   };
 }
 
@@ -246,14 +247,14 @@ export interface ARTTrajectory {
     // Game knowledge for RULER
     gameKnowledge?: {
       trueProbabilities?: Record<string, number>;
-      actualOutcomes?: Record<string, unknown>;
-      hiddenVariables?: Record<string, unknown>;
+      actualOutcomes?: Record<string, JsonValue>;
+      hiddenVariables?: Record<string, JsonValue>;
     };
 
     // Performance metrics for RULER
-    metrics?: Record<string, unknown>;
+    metrics?: Record<string, JsonValue>;
 
-    [key: string]: unknown;
+    [key: string]: JsonValue | undefined;
   };
 
   // Metrics (for analysis, not training)
@@ -384,5 +385,5 @@ export interface TrainingBatch {
   // Metadata
   createdAt: number;
   modelVersion: string;
-  trainingConfig?: Record<string, unknown>;
+  trainingConfig?: Record<string, JsonValue>;
 }

@@ -370,6 +370,8 @@ export async function getAgentLLMStatus(): Promise<{
   configured: boolean;
   available: boolean;
   details: Record<string, string | boolean>;
+  model?: string;
+  error?: string;
 }> {
   const provider = getConfiguredProvider();
   const details: Record<string, string | boolean> = {};

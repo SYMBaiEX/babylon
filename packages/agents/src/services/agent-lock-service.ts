@@ -1,11 +1,10 @@
 /**
  * Agent Lock Service
  *
- * @description Per-agent distributed locks to prevent concurrent agent tick execution.
- * Each agent gets its own lock to prevent double-ticking or stacking ticks. Uses
- * database-based locking that works across multiple servers with automatic stale
- * lock recovery (15 minutes expiry).
+ * Per-agent distributed locks to prevent concurrent agent tick execution.
+ * Each agent gets its own lock to prevent double-ticking or stacking ticks.
  *
+ * @remarks
  * Features:
  * - Per-agent locking (independent locks for each agent)
  * - Database-based locking (works across multiple servers)
@@ -14,7 +13,7 @@
  * - No external dependencies (uses Drizzle)
  * - Serverless-safe (uses timestamp + random bytes instead of process.pid)
  *
- * Usage:
+ * @example
  * ```typescript
  * if (!await acquireAgentLock(agentId)) {
  *   return; // Skip this agent, still running from previous tick
@@ -26,6 +25,8 @@
  *   await releaseAgentLock(agentId, processId);
  * }
  * ```
+ *
+ * @packageDocumentation
  */
 
 import { randomBytes } from 'crypto';

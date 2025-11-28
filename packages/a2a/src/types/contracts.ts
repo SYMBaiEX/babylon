@@ -1,7 +1,7 @@
 /**
  * Smart Contract Type Definitions
  *
- * Complete interfaces for blockchain contract interactions
+ * TypeScript interfaces for blockchain contract interactions
  */
 
 /**

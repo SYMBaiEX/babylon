@@ -5,6 +5,7 @@
  */
 
 import { db, llmCallLogs, trajectories } from '@babylon/db';
+import type { JsonValue } from '@babylon/shared';
 import type { UUID } from '@elizaos/core';
 import { v4 as uuidv4 } from 'uuid';
 import { logger } from '../../../shared/logger';
@@ -33,7 +34,7 @@ export class TrajectoryLoggerService {
       episodeId?: string;
       batchId?: string;
       groupIndex?: number;
-      metadata?: Record<string, unknown>;
+      metadata?: Record<string, JsonValue>;
     } = {}
   ): string {
     const trajectoryId = uuidv4();
@@ -58,7 +59,7 @@ export class TrajectoryLoggerService {
         episodeLength: 0,
         finalStatus: 'completed',
       },
-      metadata: options.metadata || {},
+      metadata: (options.metadata || {}) as Record<string, JsonValue>,
     };
 
     this.activeTrajectories.set(trajectoryId, trajectory);
@@ -310,7 +311,7 @@ export class TrajectoryLoggerService {
   async endTrajectory(
     trajectoryId: string,
     status: 'completed' | 'terminated' | 'error' | 'timeout',
-    finalMetrics?: Record<string, unknown>
+    finalMetrics?: Record<string, JsonValue>
   ): Promise<void> {
     const trajectory = this.activeTrajectories.get(trajectoryId);
     if (!trajectory) {

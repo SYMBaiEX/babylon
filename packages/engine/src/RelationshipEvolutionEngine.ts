@@ -97,7 +97,7 @@ export class RelationshipEvolutionEngine {
         const randomChance = Math.random() > 0.7; // 30% chance even without shared context
 
         if (hasSharedContext || randomChance) {
-          // Generate simple text description - USE LLM if available, fallback to templates
+          // Generate simple text description using LLM if available, otherwise use templates
           let history: string;
           let type: string;
           let sentiment: number;
@@ -416,7 +416,7 @@ Also determine:
 
 Return JSON: { "description": "...", "type": "...", "sentiment": 0.0 }`;
 
-      // Retry logic (up to 3 attempts) - LLM determines EVERYTHING
+      // Retry logic: up to 3 attempts with LLM-generated relationship updates
       let newHistory = 'professional relationship';
       let newType = 'acquaintances';
       let newSentiment = avgSentiment;

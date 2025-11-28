@@ -1,12 +1,13 @@
 /**
  * A2A API Response Types
- * Strongly typed responses for all A2A protocol methods
+ *
+ * Strongly typed response interfaces for all A2A protocol methods
  */
 
 import type { JsonValue } from '@babylon/shared';
 
 /**
- * Balance response from a2a.getBalance
+ * Balance information response
  */
 export interface A2ABalanceResponse {
   balance: number;
@@ -17,7 +18,7 @@ export interface A2ABalanceResponse {
 }
 
 /**
- * Prediction market position
+ * Prediction market position data
  */
 export interface A2AMarketPosition {
   id: string;
@@ -31,14 +32,14 @@ export interface A2AMarketPosition {
 }
 
 /**
- * Perpetual position
+ * Perpetual futures position data
  */
 export interface A2APerpPosition {
   id: string;
   ticker: string;
   side: 'long' | 'short';
   size: number;
-  amount?: number; // Some responses use 'amount' instead of 'size'
+  amount?: number;
   entryPrice: number;
   currentPrice: number;
   leverage: number;
@@ -47,7 +48,7 @@ export interface A2APerpPosition {
 }
 
 /**
- * Positions response from a2a.getPositions
+ * Combined positions response
  */
 export interface A2APositionsResponse {
   marketPositions: A2AMarketPosition[];
@@ -55,7 +56,7 @@ export interface A2APositionsResponse {
 }
 
 /**
- * Prediction market data
+ * Prediction market information
  */
 export interface A2APredictionMarket {
   id: string;
@@ -69,14 +70,14 @@ export interface A2APredictionMarket {
 }
 
 /**
- * Predictions response from a2a.getPredictions
+ * Prediction markets list response
  */
 export interface A2APredictionsResponse {
   predictions: A2APredictionMarket[];
 }
 
 /**
- * Perpetual market data
+ * Perpetual futures market information
  */
 export interface A2APerpetualMarket {
   name: string;
@@ -89,7 +90,7 @@ export interface A2APerpetualMarket {
 }
 
 /**
- * Perpetuals response from a2a.getPerpetuals
+ * Perpetual markets list response
  */
 export interface A2APerpetualsResponse {
   tickers?: A2APerpetualMarket[];

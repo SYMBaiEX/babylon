@@ -39,20 +39,21 @@ export interface AgentAction {
   timestamp: number;
   type: AgentActionType;
   data: Record<string, unknown>;
-  duration: number; // How long agent took to respond
+  /** How long agent took to respond in milliseconds */
+  duration: number;
   correctness?: {
-    // Prediction market correctness
+    /** Prediction market correctness tracking */
     predictionCorrect?: boolean;
     actualOutcome?: boolean;
     predictedOutcome?: boolean;
 
-    // Perp trade correctness
+    /** Perpetual trade correctness tracking */
     perpCorrect?: boolean;
     sentimentAtTrade?: number;
     priceChange?: number;
     expectedDirection?: 'up' | 'down';
 
-    // Sentiment analysis accuracy
+    /** Sentiment analysis accuracy tracking */
     sentimentAccuracy?: number;
     sentimentAtTime?: number;
     actualSentiment?: number;
@@ -157,7 +158,7 @@ export class SimulationEngine {
   private actions: AgentAction[] = [];
   private startTime: number = 0;
 
-  // Agent positions (tracked for metrics)
+  /** Agent positions tracked for metrics calculation */
   private predictionPositions: Map<string, PredictionPosition> = new Map();
   private perpPositions: Map<string, PerpPosition> = new Map();
   private socialStats = {
@@ -171,9 +172,9 @@ export class SimulationEngine {
   }
 
   /**
-   * Run the complete simulation
+   * Run the complete simulation.
    *
-   * NOTE: This method calculates final metrics after the simulation has been run.
+   * Calculates final metrics after the simulation has been run.
    * In fast-forward mode, the actual simulation must be driven externally by:
    * 1. External runner calling agent logic
    * 2. Agent making A2A calls which trigger actions
@@ -182,18 +183,12 @@ export class SimulationEngine {
    * This method then computes the final results.
    */
   async run(): Promise<SimulationResult> {
-    // If we haven't started yet, this is being called to get results
-    // after external execution. Just calculate metrics.
     if (this.startTime === 0) {
       this.startTime = Date.now();
     }
 
     const endTime = Date.now();
-
-    // Calculate metrics based on actions that were taken
     const metrics = this.calculateMetrics();
-
-    // Validate metrics
     const validation = MetricsValidator.validate(
       metrics,
       this.actions,
@@ -213,7 +208,6 @@ export class SimulationEngine {
       });
     }
 
-    // Build trajectory data
     const trajectory = this.buildTrajectory();
 
     logger.info('Simulation completed', {
@@ -256,7 +250,6 @@ export class SimulationEngine {
    * Returns true if we've processed all ticks
    */
   isComplete(): boolean {
-    // We're done when currentTick reaches or exceeds the number of ticks
     return this.currentTick >= this.config.snapshot.ticks.length;
   }
 
@@ -289,12 +282,10 @@ export class SimulationEngine {
    * Get current game state (called by agent via A2A)
    */
   getGameState(): GameState {
-    // If we haven't started yet (tick 0), return initial state
     if (this.currentTick === 0) {
       return this.config.snapshot.initialState;
     }
 
-    // Otherwise return the state from the current tick (adjusted for 0-indexing)
     const tick = this.config.snapshot.ticks[this.currentTick - 1];
     return tick ? tick.state : this.config.snapshot.initialState;
   }

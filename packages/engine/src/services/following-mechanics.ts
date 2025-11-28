@@ -212,8 +212,7 @@ export class FollowingMechanics {
       );
 
     // Create notification for the user (NPCs follow users, not the other way around)
-    // Note: For NPC follows, we use the NPC's ID as actorId since they're not real users
-    // In the future, if NPCs have user records, we can update this
+    // For NPC follows, use the NPC's ID as actorId since they're not real users
     // Notification handled by API layer - engine doesn't manage notifications
     try {
       const { notifyFollow } = await import('@babylon/api');
@@ -269,7 +268,7 @@ export class FollowingMechanics {
     npcId: string,
     reason: string
   ): Promise<void> {
-    // Log unfollow reason for analytics/debugging
+    // Log unfollow reason for analytics and monitoring
     logger.info(
       `User ${userId} unfollowed ${npcId}. Reason: ${reason}`,
       undefined,

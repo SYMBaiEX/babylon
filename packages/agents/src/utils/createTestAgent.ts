@@ -1,8 +1,9 @@
 /**
  * Test Agent Creation Utility
  *
- * Creates test agents for benchmarking and RL training.
- * Ensures agents exist with proper configuration.
+ * Creates test agents for benchmarking and RL training with proper configuration.
+ *
+ * @packageDocumentation
  */
 
 import { db, eq, like, users } from '@babylon/db';
@@ -38,7 +39,11 @@ export interface CreateTestAgentResult {
 }
 
 /**
- * Create or get test agent
+ * Creates or gets a test agent
+ *
+ * @param prefix - Username prefix for the test agent
+ * @param config - Test agent configuration
+ * @returns Test agent creation result
  */
 export async function createTestAgent(
   prefix = 'test-agent',

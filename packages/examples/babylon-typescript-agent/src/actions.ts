@@ -4,7 +4,7 @@
  * Executes decisions via Babylon A2A protocol
  */
 
-import type { JsonValue } from '@babylon/a2a';
+import type { JsonValue } from '@babylon/shared';
 import type { Decision } from './decision';
 
 export interface ActionResult {

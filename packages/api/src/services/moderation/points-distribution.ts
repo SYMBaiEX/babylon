@@ -1,8 +1,9 @@
 /**
  * Points Distribution Service
  *
- * Distributes forfeited account points to successful reporters when
- * CSAM/scammer is confirmed.
+ * @description Distributes forfeited account points to successful reporters when
+ * content violations (CSAM/scammer) are confirmed. Handles point allocation based
+ * on report evaluation outcomes and ensures fair distribution among valid reporters.
  */
 
 import {
@@ -17,7 +18,12 @@ import {
 } from '@babylon/db';
 import { logger, generateSnowflakeId } from '@babylon/shared';
 
-// PointsService interface - will be injected from the web app
+/**
+ * PointsService interface for dependency injection
+ *
+ * @description Service interface injected from the web application layer
+ * to avoid circular dependencies between packages.
+ */
 type PointsService = {
   awardPoints: (
     userId: string,
@@ -31,7 +37,7 @@ type PointsService = {
   }>;
 };
 
-// This will be injected from the web app
+// Service instance injected from the web application layer
 let pointsServiceInstance: PointsService | null = null;
 
 export function setPointsService(service: PointsService): void {

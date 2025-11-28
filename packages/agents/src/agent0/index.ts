@@ -1,7 +1,10 @@
 /**
  * Agent0 Integration
  *
- * Provides integration with Agent0's on-chain reputation system
+ * Provides integration with Agent0's on-chain reputation system, agent discovery,
+ * feedback submission, and ERC-8004 compliance.
+ *
+ * @packageDocumentation
  */
 
 export {

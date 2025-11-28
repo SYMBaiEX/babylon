@@ -119,16 +119,4 @@ export class IPFSPublisher {
   isAvailable(): boolean {
     return true;
   }
-
-  /**
-   * Publish metadata to IPFS
-   * DEPRECATED: Use Agent0Client.registerAgent() instead
-   * Agent0 SDK handles IPFS publishing via agent.registerIPFS()
-   */
-  async publishMetadata(_metadata: AgentMetadata): Promise<string> {
-    throw new Error(
-      'Direct IPFS publishing is deprecated. Use Agent0Client.registerAgent() instead. ' +
-        'The Agent0 SDK handles IPFS publishing automatically via agent.registerIPFS().'
-    );
-  }
 }

@@ -257,13 +257,7 @@ export async function syncUserReputationToERC8004(
           );
           onChainError = 'Agent has no wallet address';
         } else {
-          // Use Agent0Client for feedback submission
-          // This uses the SDK's giveFeedback method
-          // Note: This requires the agent to have pre-authorized feedback from the system address
-          // The SDK will handle signing and submission if properly configured
           try {
-            // Check if Agent0Client is available before attempting to use it
-            // getAgent0Client() may throw if not configured, so we catch that
             const agent0Client = getAgent0Client();
 
             // Verify client is available and not in read-only mode

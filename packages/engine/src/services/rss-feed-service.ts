@@ -202,7 +202,7 @@ export class RSSFeedService {
         lastError = error as Error;
 
         if (attempt === maxRetries - 1) {
-          // Last attempt failed
+          // Final retry attempt failed
           logger.error(
             `Failed to fetch RSS feed after ${maxRetries} attempts`,
             { url, error },

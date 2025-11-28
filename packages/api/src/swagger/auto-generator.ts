@@ -48,20 +48,19 @@ interface OpenAPISpec {
  * ```
  */
 export async function generateAutoSpec() {
-  // Dynamically import swagger-jsdoc if available
-  // swagger-jsdoc is an optional dev dependency for docs generation
+  // Dynamically import swagger-jsdoc if available (optional dev dependency)
   let swaggerJsdoc: SwaggerJsdocFunction | null = null;
   try {
     const swaggerModule = await import('swagger-jsdoc');
-    // Cast through unknown to handle type mismatch between swagger-jsdoc types and our interface
+    // Handle type mismatch between swagger-jsdoc types and our interface
     swaggerJsdoc = swaggerModule.default as unknown as SwaggerJsdocFunction;
   } catch {
-    // swagger-jsdoc not installed, will fall back to manual spec only
+    // swagger-jsdoc not installed - fall back to manual spec only
   }
 
   // Check if we're in a Node.js environment with file system access
   if (typeof process === 'undefined' || typeof process.cwd !== 'function') {
-    // Edge runtime - return minimal spec without file scanning
+    // Edge runtime environment - return minimal spec without file scanning
     return {
       openapi: swaggerDefinition.openapi || '3.0.0',
       info: swaggerDefinition.info,
@@ -72,15 +71,14 @@ export async function generateAutoSpec() {
 
   const options: SwaggerJsdocOptions = {
     definition: swaggerDefinition,
-    // Scan all route files for @openapi JSDoc comments
-    // Use absolute paths for better reliability
+    // Scan all route files for @openapi JSDoc comments using absolute paths
     apis: [
       path.join(process.cwd(), 'src/app/api/**/*.ts'),
       path.join(process.cwd(), 'src/app/api/**/*.tsx'),
     ],
   };
 
-  // Generate auto spec if swagger-jsdoc is available, otherwise use empty spec
+  // Generate auto spec if swagger-jsdoc is available, otherwise use base spec
   const autoSpec: OpenAPISpec = swaggerJsdoc
     ? (swaggerJsdoc(options) as OpenAPISpec)
     : { openapi: swaggerDefinition.openapi || '3.0.0', info: swaggerDefinition.info };
@@ -95,17 +93,16 @@ export async function generateAutoSpec() {
     autoSpec.info = swaggerDefinition.info;
   }
 
-  // Merge with manual generator to fill in missing routes
-  // This ensures we have complete documentation even if swagger-jsdoc misses some routes
+  // Merge with manual generator to ensure complete documentation coverage
   const manualSpec = generateOpenApiSpec();
 
-  // Merge paths: auto-generated takes precedence, but manual fills gaps
-  const mergedSpec: OpenAPISpec = {
+  // Merge paths: auto-generated takes precedence, manual spec fills gaps
+  const combinedSpec: OpenAPISpec = {
     ...swaggerDefinition,
     ...autoSpec,
     paths: {
       ...(manualSpec.paths || {}),
-      ...(autoSpec.paths || {}), // Auto-generated paths override manual ones
+      ...(autoSpec.paths || {}),
     },
     tags: [
       ...(Array.isArray(manualSpec.tags) ? manualSpec.tags : []),
@@ -115,14 +112,14 @@ export async function generateAutoSpec() {
 
   // Remove duplicate tags
   const uniqueTags = new Map();
-  if (Array.isArray(mergedSpec.tags)) {
-    mergedSpec.tags.forEach((tag: { name: string; description?: string }) => {
+  if (Array.isArray(combinedSpec.tags)) {
+    combinedSpec.tags.forEach((tag: { name: string; description?: string }) => {
       if (!uniqueTags.has(tag.name)) {
         uniqueTags.set(tag.name, tag);
       }
     });
-    mergedSpec.tags = Array.from(uniqueTags.values());
+    combinedSpec.tags = Array.from(uniqueTags.values());
   }
 
-  return mergedSpec;
+  return combinedSpec;
 }

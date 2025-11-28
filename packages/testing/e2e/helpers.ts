@@ -1,7 +1,16 @@
+/**
+ * E2E test helpers for authentication and common operations.
+ *
+ * @module testing/e2e/helpers
+ */
+
 import type { Page } from '@playwright/test';
 
 /**
- * Get Privy test account credentials from environment
+ * Gets Privy test account credentials from environment variables.
+ *
+ * @returns Object containing email and password
+ * @throws Error if PRIVY_TEST_EMAIL is not set
  */
 export function getPrivyTestAccount() {
   const email = process.env.PRIVY_TEST_EMAIL;
@@ -17,18 +26,15 @@ export function getPrivyTestAccount() {
 }
 
 /**
- * Authenticate with Privy and wait for successful login
+ * Authenticates with Privy and waits for successful login.
+ *
+ * @param page - Playwright page instance
  */
 export async function authenticateWithPrivy(page: Page) {
   const { email, password } = getPrivyTestAccount();
 
-  // Navigate to home page
   await page.goto('/');
-
-  // Wait for page to load slightly
   await page.waitForLoadState('domcontentloaded');
-
-  // Check for authentication indicators first
   const isAlreadyLoggedIn = await page
     .evaluate(() => {
       const hasUserMenu =
@@ -46,7 +52,6 @@ export async function authenticateWithPrivy(page: Page) {
     return;
   }
 
-  // Look for login button or modal input
   const loginButton = page
     .locator(
       'button:has-text("Log in"), button:has-text("Sign in"), button:has-text("Login"), button:has-text("Connect")'
@@ -58,13 +63,11 @@ export async function authenticateWithPrivy(page: Page) {
     )
     .first();
 
-  // Check if modal is ALREADY open
   let isLoginModalOpen = await emailInput
     .isVisible({ timeout: 2000 })
     .catch(() => false);
 
   if (!isLoginModalOpen) {
-    // Try to find and click login button
     const loginButtonVisible = await loginButton
       .isVisible({ timeout: 5000 })
       .catch(() => false);
@@ -84,7 +87,6 @@ export async function authenticateWithPrivy(page: Page) {
   }
 
   if (!isLoginModalOpen) {
-    // One last check if we missed the logged-in state
     const loggedInNow = await page
       .evaluate(() => {
         const hasUserMenu =
@@ -98,16 +100,12 @@ export async function authenticateWithPrivy(page: Page) {
       return;
     }
 
-    // If we are here, we failed to open modal AND are not logged in
-    // On localhost, app should auto-open modal.
     throw new Error('Could not find login button or open login modal on page');
   }
 
-  // Fill in email
   await emailInput.fill(email);
   await page.waitForTimeout(500);
 
-  // Click continue/submit
   const continueButton = page
     .locator(
       'button:has-text("Continue"), button:has-text("Log in"), button:has-text("Submit"), button[type="submit"]'
@@ -118,7 +116,6 @@ export async function authenticateWithPrivy(page: Page) {
   await continueButton.click();
   await page.waitForTimeout(2000);
 
-  // If password is required, fill it in
   if (password) {
     const passwordInput = page.locator('input[type="password"]').first();
     const passwordVisible = await passwordInput
@@ -139,7 +136,6 @@ export async function authenticateWithPrivy(page: Page) {
     }
   }
 
-  // Wait for successful authentication
   type WindowWithPrivyToken = Window & {
     __privyAccessToken?: unknown;
   };

@@ -33,25 +33,6 @@ export function getReferralUrl(usernameOrCode: string): string {
 }
 
 /**
- * Generate a short referral URL with ref code
- *
- * @param referralCode - The user's referral code
- * @returns Short referral URL with ref parameter (e.g., https://babylon.market?ref=CODE)
- *
- * @example
- * ```typescript
- * const url = getShortReferralUrl('babylon-ABC123')
- * // Returns: "https://babylon.market?ref=babylon-ABC123"
- * ```
- *
- * @deprecated Use getReferralUrl instead for better OG tag support and social sharing
- */
-export function getShortReferralUrl(referralCode: string): string {
-  const baseUrl = getBaseUrl();
-  return `${baseUrl}?ref=${encodeURIComponent(referralCode)}`;
-}
-
-/**
  * Format referral URL for display (truncated)
  *
  * @param usernameOrCode - The user's username or referral code

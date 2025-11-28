@@ -1,15 +1,22 @@
 /**
  * Report Evaluation Service
  *
- * Collects context (chat messages, posts, reports) and uses AI to evaluate
- * report validity and determine appropriate actions.
+ * @description Collects contextual information including chat messages, posts, and
+ * historical reports, then uses AI to evaluate report validity and determine
+ * appropriate moderation actions. Provides confidence scores and recommended actions
+ * for each evaluation.
  */
 
 import { count, db, desc, eq, messages, posts, reports, users } from '@babylon/db';
 import { callClaudeDirect } from '@babylon/shared';
 import { logger } from '@babylon/shared';
 
-// NotificationService interface - will be injected from the web app
+/**
+ * NotificationService interface for dependency injection
+ *
+ * @description Service interface injected from the web application layer
+ * to avoid circular dependencies between packages.
+ */
 type NotificationService = {
   createNotification: (params: {
     userId: string;

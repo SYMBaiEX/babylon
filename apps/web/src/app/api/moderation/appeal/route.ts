@@ -76,7 +76,7 @@ import { baseSepolia } from 'viem/chains';
 import { z } from 'zod';
 import type { JsonValue } from '@babylon/db';
 import { db } from '@babylon/db';
-import { callClaudeDirect } from '@babylon/agents';
+import { callClaudeDirect } from '@babylon/shared';
 import { authenticate } from '@babylon/api';
 import { successResponse, withErrorHandling } from '@babylon/api';
 import { logger } from '@babylon/shared';

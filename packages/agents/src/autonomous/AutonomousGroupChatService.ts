@@ -2,6 +2,8 @@
  * Autonomous Group Chat Service
  *
  * Handles agents participating in group chats autonomously
+ *
+ * @packageDocumentation
  */
 
 import { and, db, desc, eq, gte, messages, users } from '@babylon/db';
@@ -10,9 +12,17 @@ import { logger } from '../shared/logger';
 import { generateSnowflakeId } from '../shared/snowflake';
 import { callGroqDirect } from '../llm/direct-groq';
 
+/**
+ * Service for autonomous group chat participation
+ */
 export class AutonomousGroupChatService {
   /**
-   * Participate in group chats agent is member of
+   * Participates in group chats the agent is a member of
+   *
+   * @param agentUserId - Agent user ID
+   * @param _runtime - Agent runtime (reserved for future use)
+   * @returns Number of messages created
+   * @throws Error if agent not found
    */
   async participateInGroupChats(
     agentUserId: string,

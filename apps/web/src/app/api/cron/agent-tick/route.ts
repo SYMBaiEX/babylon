@@ -73,10 +73,30 @@ import { AgentStatus, AgentType } from '@babylon/agents';
 export const maxDuration = 800; // 13.3 minutes max for agent tick (matches vercel.json)
 export const dynamic = 'force-dynamic';
 
+/**
+ * GET /api/cron/agent-tick
+ *
+ * Alias for POST endpoint to support GET requests from cron services.
+ *
+ * @param req - Next.js request
+ * @returns Same response as POST endpoint
+ */
 export async function GET(req: NextRequest) {
   return POST(req);
 }
 
+/**
+ * POST /api/cron/agent-tick
+ *
+ * Executes autonomous agent tick, running all active agents through their configured
+ * autonomous actions (trading, posting, commenting, DMs, group chats). Processes agents
+ * sequentially with distributed locking, deducts points, logs activities, and auto-pauses
+ * agents with insufficient points. Supports staging environment relay.
+ *
+ * @param _req - Next.js request (CRON_SECRET required in Authorization header)
+ * @returns Execution result with agents processed, paused, errors, and timing metrics
+ * @throws {401} Invalid or missing CRON_SECRET
+ */
 export async function POST(_req: NextRequest) {
   const startTime = Date.now();
   const processId = `agent-tick-${Date.now()}-${Math.random().toString(36).substring(7)}`;
@@ -103,7 +123,7 @@ export async function POST(_req: NextRequest) {
     });
   }
 
-  // 2. Check GAME_START environment variable (legacy override)
+  // 2. Check GAME_START environment variable (manual override)
   const gameStartEnv = process.env.GAME_START?.toLowerCase();
   if (gameStartEnv === 'false' || gameStartEnv === '0') {
     logger.info(
@@ -169,7 +189,7 @@ export async function POST(_req: NextRequest) {
     });
   }
 
-  // NEW: Query via unified AgentRegistry to include both USER agents and NPCs
+  // NEW: Query via AgentRegistry to include both USER agents and NPCs
   const registeredAgents = await agentRegistry.discoverAgents({
     types: [AgentType.USER_CONTROLLED, AgentType.NPC],
     statuses: [AgentStatus.ACTIVE, AgentStatus.INITIALIZED],

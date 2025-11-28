@@ -236,8 +236,13 @@ export class FeedGenerator extends EventEmitter {
   private trendContext = '';
 
   /**
-   * Post-process generated content to fix any real names that slipped through
-   * This is a safety net in case LLMs ignore prompt instructions
+   * Apply character mapping to generated content.
+   *
+   * Replaces any real names that may appear in LLM-generated content
+   * with their fictional equivalents to maintain world consistency.
+   *
+   * @param content - Generated content to process
+   * @returns Content with real names replaced by fictional equivalents
    */
   private async postProcessContent(content: string): Promise<string> {
     const transformed = await characterMappingService.transformText(content);
@@ -432,7 +437,7 @@ export class FeedGenerator extends EventEmitter {
    *
    * @description
    * Relationships affect how actors reference each other in posts and reactions.
-   * Supports both ActorRelationship (new) and ActorConnection (legacy) formats
+   * Supports both ActorRelationship (new) and deprecated ActorConnection formats
    * for backward compatibility.
    *
    * **Relationship Effects:**
@@ -998,7 +1003,7 @@ export class FeedGenerator extends EventEmitter {
         return [];
       }
 
-      // Debug: Log raw response structure on first attempt
+      // Log raw response structure on first attempt for monitoring
       if (attempt === 0) {
         logger.info(
           'Media batch raw response structure',
@@ -1046,7 +1051,7 @@ export class FeedGenerator extends EventEmitter {
           const nested = responseData.posts.post;
           posts = Array.isArray(nested) ? nested : [nested];
         } else {
-          // Debug: Log what we got
+          // Log unexpected response structure for monitoring
           logger.warn(
             'Unexpected posts structure',
             {
@@ -1067,7 +1072,7 @@ export class FeedGenerator extends EventEmitter {
         );
       }
 
-      // Debug: Log what posts look like
+      // Log post structure for monitoring
       if (attempt === 0 && posts.length > 0) {
         logger.info(
           'Sample post structure',
@@ -1106,7 +1111,7 @@ export class FeedGenerator extends EventEmitter {
           pointsToward: p.pointsToward ?? null,
         }));
 
-      // Post-process to fix any real names that slipped through
+      // Apply character mapping to replace any real names with fictional equivalents
       const processedPosts = await Promise.all(
         validPosts.map(async (p) => {
           const originalContent = p.post;
@@ -1335,7 +1340,7 @@ export class FeedGenerator extends EventEmitter {
           pointsToward: r.pointsToward ?? null,
         }));
 
-      // Post-process to fix any real names that slipped through
+      // Apply character mapping to replace any real names with fictional equivalents
       const validReactions = await Promise.all(
         filteredReactions.map(async (r) => ({
           post: await this.postProcessContent(r.post),
@@ -1517,7 +1522,7 @@ export class FeedGenerator extends EventEmitter {
           pointsToward: c.pointsToward ?? null,
         }));
 
-      // Post-process to fix any real names that slipped through
+      // Apply character mapping to replace any real names with fictional equivalents
       const validCommentary = await Promise.all(
         filteredCommentary.map(async (c) => ({
           post: await this.postProcessContent(c.post),
@@ -1697,7 +1702,7 @@ export class FeedGenerator extends EventEmitter {
             }
           }
         } else {
-          // Debug: Log what we got
+          // Log unexpected response structure for monitoring
           logger.warn(
             'Conspiracy response has unexpected structure',
             {
@@ -1716,7 +1721,7 @@ export class FeedGenerator extends EventEmitter {
         );
       }
 
-      // Debug: Log sample if we have posts
+      // Log sample posts for monitoring
       if (attempt === 0 && conspiracy.length > 0) {
         logger.info(
           'Sample conspiracy structure',
@@ -1750,7 +1755,7 @@ export class FeedGenerator extends EventEmitter {
           pointsToward: c.pointsToward ?? null,
         }));
 
-      // Post-process to fix any real names that slipped through
+      // Apply character mapping to replace any real names with fictional equivalents
       const validConspiracy = await Promise.all(
         filteredConspiracy.map(async (c) => ({
           post: await this.postProcessContent(c.post),
@@ -2475,7 +2480,7 @@ export class FeedGenerator extends EventEmitter {
         }
       }
 
-      // Debug: Log extraction details on first attempt
+      // Log extraction details on first attempt for monitoring
       if (attempt === 0) {
         logger.info(
           'Ambient posts extraction',
@@ -2525,7 +2530,7 @@ export class FeedGenerator extends EventEmitter {
           };
         });
 
-      // Post-process to fix any real names that slipped through
+      // Apply character mapping to replace any real names with fictional equivalents
       const validPosts = await Promise.all(
         filteredPosts.map(async (p) => ({
           post: await this.postProcessContent(p.post),
@@ -2772,7 +2777,7 @@ export class FeedGenerator extends EventEmitter {
         }
       }
 
-      // Debug: Log extraction details on first attempt
+      // Log extraction details on first attempt for monitoring
       if (attempt === 0) {
         logger.info(
           'Replies extraction',
@@ -2826,7 +2831,7 @@ export class FeedGenerator extends EventEmitter {
           };
         });
 
-      // Post-process to fix any real names that slipped through
+      // Apply character mapping to replace any real names with fictional equivalents
       const validReplies = await Promise.all(
         filteredReplies.map(async (r) => ({
           post: await this.postProcessContent(r.post),

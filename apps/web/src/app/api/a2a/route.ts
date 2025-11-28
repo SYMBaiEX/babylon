@@ -143,6 +143,17 @@ function checkApiKey(request: NextRequest): NextResponse | null {
  * @param request - Next.js request containing JSON-RPC payload
  * @returns JSON-RPC response with result or error
  */
+/**
+ * POST /api/a2a
+ *
+ * Handles JSON-RPC 2.0 A2A protocol requests. Processes agent-to-agent communication
+ * tasks including message sending, task execution, and agent discovery. Validates
+ * API key authentication and routes requests to the appropriate executor.
+ *
+ * @param request - Next.js request containing JSON-RPC 2.0 A2A protocol message
+ * @returns JSON-RPC 2.0 response with result or error
+ * @throws {401} Invalid or missing API key
+ */
 export async function POST(request: NextRequest) {
   try {
     const authError = checkApiKey(request);
@@ -187,6 +198,16 @@ export async function POST(request: NextRequest) {
  *
  * @param request - Next.js request object
  * @returns Agent card JSON with service information
+ */
+/**
+ * GET /api/a2a
+ *
+ * Returns the Babylon agent card (capabilities, endpoints, metadata) for A2A protocol discovery.
+ * Provides agent information for external agents to discover and interact with this agent.
+ *
+ * @param request - Next.js request (API key required in X-Babylon-Api-Key header)
+ * @returns Agent card JSON with capabilities and metadata
+ * @throws {401} Invalid or missing API key
  */
 export async function GET(request: NextRequest) {
   const authError = checkApiKey(request);

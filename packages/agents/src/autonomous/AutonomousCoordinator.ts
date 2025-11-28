@@ -404,8 +404,10 @@ export class AutonomousCoordinator {
       result.actionsExecuted.groupMessages += groupMessages;
     }
 
-    // NOTE: DMs are handled by batch response service above
-    // No need for separate DM service - avoiding duplication
+    /**
+     * DMs are handled by batch response service above.
+     * No need for separate DM service - avoiding duplication.
+     */
 
     result.success = true;
     result.duration = Date.now() - startTime;

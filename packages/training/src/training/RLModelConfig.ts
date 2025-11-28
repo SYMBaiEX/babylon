@@ -62,11 +62,14 @@ export interface RLModelConfig {
   enabled: boolean;
   atroposApiUrl?: string;
   vllmPort?: number;
-  modelVersion?: string; // If specified, use this version. Otherwise use latest.
-  fallbackToBase: boolean; // If RL model fails, fall back to base model
+  /** If specified, use this version. Otherwise use latest. */
+  modelVersion?: string;
+  /** If RL model fails, fall back to base model */
+  fallbackToBase: boolean;
   baseModel: string;
   modelTier: ModelTier;
-  availableVramGb?: number; // Auto-detected or set via env
+  /** Auto-detected or set via environment variable */
+  availableVramGb?: number;
 }
 
 /**
@@ -94,7 +97,6 @@ const archetypeModelRegistry: Map<string, ArchetypeModelConfig> = new Map();
 export function registerArchetypeModel(config: ArchetypeModelConfig): void {
   const existing = archetypeModelRegistry.get(config.archetype);
   
-  // Only replace if new model is better or no existing model
   if (!existing || (config.benchmarkScore && (!existing.benchmarkScore || config.benchmarkScore > existing.benchmarkScore))) {
     archetypeModelRegistry.set(config.archetype, config);
     console.log(`📦 Registered model for archetype '${config.archetype}': ${config.modelId}`);
@@ -126,7 +128,7 @@ export function hasArchetypeModel(archetype: string): boolean {
 }
 
 /**
- * Clear all registered models (for testing)
+ * Clear all registered models
  */
 export function clearArchetypeModels(): void {
   archetypeModelRegistry.clear();

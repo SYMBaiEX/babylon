@@ -1,12 +1,13 @@
 /**
  * Agent Identity Service
  *
- * Handles:
- * 1. Privy embedded wallet creation for agent users
- * 2. Agent0 network registration (ERC-8004)
- * 3. On-chain identity verification
+ * Handles agent identity management including Privy embedded wallet creation,
+ * Agent0 network registration (ERC-8004), and on-chain identity verification.
  *
- * IMPORTANT: Agents are Users (isAgent=true)
+ * @remarks
+ * Agents are Users (isAgent=true) and participate fully in the platform.
+ *
+ * @packageDocumentation
  */
 
 import {
@@ -23,10 +24,18 @@ import { agentWalletService } from './AgentWalletService';
 import { logger } from '../shared/logger';
 import { generateSnowflakeId } from '../shared/snowflake';
 
+/**
+ * Service for agent identity management
+ */
 export class AgentIdentityService {
   /**
-   * Create embedded wallet for agent user via Privy
-   * Delegates to AgentWalletService for actual Privy integration
+   * Creates embedded wallet for agent user via Privy
+   *
+   * Delegates to AgentWalletService for actual Privy integration.
+   *
+   * @param agentUserId - Agent user ID
+   * @returns Wallet address and Privy wallet ID
+   * @throws Error if agent user not found
    */
   async createAgentWallet(agentUserId: string): Promise<{
     walletAddress: string;

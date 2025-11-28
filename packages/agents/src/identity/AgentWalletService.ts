@@ -1,11 +1,11 @@
 /**
  * Agent Wallet Service
  *
- * Handles agent wallet creation and on-chain registration with ZERO user interaction
- * - Creates Privy embedded wallets for agents
- * - Signs transactions server-side
- * - Handles gas fees automatically
- * - Registers on ERC-8004 identity registry
+ * Handles agent wallet creation and on-chain registration with zero user interaction.
+ * Creates Privy embedded wallets, signs transactions server-side, handles gas fees
+ * automatically, and registers agents on ERC-8004 identity registry.
+ *
+ * @packageDocumentation
  */
 
 import { agentLogs, db, eq, type JsonValue, users } from '@babylon/db';
@@ -15,22 +15,37 @@ import { v4 as uuidv4 } from 'uuid';
 import { getAgent0Client } from '../agent0/Agent0Client';
 import { logger } from '../shared/logger';
 
-// Type definitions for Privy SDK (not exported by package)
+/**
+ * Privy wallet structure
+ * @internal
+ */
 interface PrivyWallet {
   address: string;
   id: string;
 }
 
+/**
+ * Privy user structure
+ * @internal
+ */
 interface PrivyUser {
   id: string;
   wallet?: PrivyWallet;
 }
 
+/**
+ * Privy create user parameters
+ * @internal
+ */
 interface PrivyCreateUserParams {
   create_embedded_wallet: boolean;
   linked_accounts: Array<Record<string, unknown>>;
 }
 
+/**
+ * Privy sign transaction parameters
+ * @internal
+ */
 interface PrivySignTransactionParams {
   wallet_id: string;
   transaction: {
@@ -40,11 +55,18 @@ interface PrivySignTransactionParams {
   };
 }
 
+/**
+ * Privy signed transaction response
+ * @internal
+ */
 interface PrivySignedTransaction {
   signed_transaction: string;
 }
 
-// Extended Privy client with additional methods
+/**
+ * Extended Privy client with additional methods
+ * @internal
+ */
 interface ExtendedPrivyClient extends PrivyClient {
   createUser(params: PrivyCreateUserParams): Promise<PrivyUser>;
   signTransaction(

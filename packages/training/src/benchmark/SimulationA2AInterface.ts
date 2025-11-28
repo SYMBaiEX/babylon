@@ -316,7 +316,7 @@ export class SimulationA2AInterface {
    * Send A2A request (JSON-RPC style)
    *
    * Routes requests to appropriate handler methods based on method name.
-   * All methods are logged and timed for debugging.
+   * All methods are logged and timed.
    *
    * @param method - A2A method name (e.g., 'a2a.getPredictions')
    * @param params - Optional parameters for the method
@@ -410,7 +410,6 @@ export class SimulationA2AInterface {
           throw new Error(`Unknown A2A method: ${method}`);
       }
 
-      // NOTE: Don't auto-advance tick here - let the benchmark runner control the tick progression
       // This allows the agent to make multiple A2A calls within a single tick
 
       const duration = Date.now() - actionStart;

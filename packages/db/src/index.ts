@@ -35,8 +35,11 @@ export { TableRepository } from './client';
 // Re-export types
 export * from './types';
 
-// Re-export unique relation types from model-types
-// Note: Base types (User, Actor, etc.) are already exported from schema
+/**
+ * Re-export unique relation types from model-types.
+ *
+ * Base types (User, Actor, etc.) are already exported from schema.
+ */
 export type {
   ChatWithParticipants,
   ChatWithParticipantsAndMessages,

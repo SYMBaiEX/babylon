@@ -13,6 +13,7 @@
 import { execSync } from 'child_process';
 import { ethers } from 'ethers';
 import { db, closeDatabase } from '@babylon/db';
+import { getAgentLLMStatus } from '@babylon/agents/llm';
 import { parseArgs, wantsHelp } from '../lib/args.js';
 import { logger } from '../lib/logger.js';
 
@@ -27,12 +28,13 @@ TARGETS:
   game      Game status (running/paused, tick info)
   wallet    Wallet status (balance, nonce, pending txs)
   agent0    Agent0 registration and configuration
+  llm       Agent LLM provider status
   all       Show all status (default)
 
 EXAMPLES:
   babylon status           Show all status
   babylon status game      Game status only
-  babylon status wallet    Wallet status only
+  babylon status llm       LLM provider status
 `);
 }
 
@@ -163,6 +165,35 @@ async function checkWalletStatus(): Promise<void> {
   console.log(`   Base Fee: ${block!.baseFeePerGas ? ethers.formatUnits(block!.baseFeePerGas, 'gwei') : 'N/A'} gwei`);
 }
 
+async function checkLLMStatus(): Promise<void> {
+  logger.header('🧠 Agent LLM Status');
+
+  const status = await getAgentLLMStatus();
+  
+  console.log(`Provider: ${status.provider}`);
+  console.log(`Available: ${status.available ? '✅ Yes' : '❌ No'}`);
+  
+  if (status.model) {
+    console.log(`Model: ${status.model}`);
+  }
+  
+  if (status.error) {
+    logger.warn(`Error: ${status.error}`);
+  }
+  
+  console.log('\nEnvironment:');
+  console.log(`  AGENT_LLM_PROVIDER: ${process.env.AGENT_LLM_PROVIDER || 'groq (default)'}`);
+  console.log(`  OLLAMA_HOST: ${process.env.OLLAMA_HOST || 'http://localhost:11434'}`);
+  console.log(`  HUGGINGFACE_API_KEY: ${process.env.HUGGINGFACE_API_KEY ? '✅ Set' : '❌ Not set'}`);
+  console.log(`  GROQ_API_KEY: ${process.env.GROQ_API_KEY ? '✅ Set' : '❌ Not set'}`);
+  
+  if (status.available) {
+    logger.success('LLM provider is ready');
+  } else {
+    logger.fail('LLM provider is not available');
+  }
+}
+
 async function checkAgent0Status(): Promise<void> {
   logger.header('🤖 Agent0 Status');
 
@@ -243,10 +274,16 @@ async function showAllStatus(): Promise<void> {
   await checkGameStatus();
   await checkWalletStatus();
   await checkAgent0Status();
+  await checkLLMStatus();
 
   logger.header('✅ Status Check Complete');
 }
 
+/**
+ * Main entry point for status domain commands.
+ *
+ * @param args - Raw command-line arguments for the status domain
+ */
 export async function runStatusCommand(args: string[]): Promise<void> {
   const parsed = parseArgs(args);
 
@@ -267,6 +304,10 @@ export async function runStatusCommand(args: string[]): Promise<void> {
 
       case 'agent0':
         await checkAgent0Status();
+        break;
+
+      case 'llm':
+        await checkLLMStatus();
         break;
 
       case 'all':

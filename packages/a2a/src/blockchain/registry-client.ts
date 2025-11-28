@@ -5,8 +5,8 @@
 
 import { ethers, type Contract } from 'ethers';
 import { z } from 'zod';
-import { Logger } from '@babylon/shared';
-import type { AgentProfile, AgentReputation, JsonValue } from '../types/a2a';
+import { Logger, type JsonValue } from '@babylon/shared';
+import type { AgentProfile, AgentReputation } from '../types/a2a';
 import type {
   IdentityRegistryContract,
   ReputationSystemContract,

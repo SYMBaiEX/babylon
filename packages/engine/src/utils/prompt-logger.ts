@@ -1,8 +1,12 @@
 /**
- * Prompt Debug Logger for @babylon/engine
+ * Prompt Logger
  *
- * Logs all LLM prompts and responses to markdown files for debugging.
- * Files are saved as: debug/prompts/<timestamp>_<promptType>.md
+ * Logs LLM prompts and responses to markdown files for monitoring and analysis.
+ * Files are saved to: debug/prompts/<timestamp>_<promptType>.md
+ *
+ * Enable via environment variables:
+ * - DEBUG_SAVE_PROMPTS=true
+ * - DEBUG_PROMPTS=true
  */
 
 import * as fs from 'fs';
@@ -51,7 +55,7 @@ export async function logPrompt(entry: PromptLogEntry): Promise<void> {
     const debugDir = path.join(process.cwd(), 'debug', 'prompts');
     const filepath = path.join(debugDir, filename);
 
-    // Create debug directory if it doesn't exist
+    // Ensure prompt log directory exists
     if (!fs.existsSync(debugDir)) {
       fs.mkdirSync(debugDir, { recursive: true });
     }
@@ -80,7 +84,7 @@ export async function logPrompt(entry: PromptLogEntry): Promise<void> {
       lines.push(``);
     }
 
-    // Add prompt template if available
+    // Include prompt template in log if provided
     if (entry.promptTemplate) {
       lines.push(`## Prompt Template`, ``);
       lines.push('```');

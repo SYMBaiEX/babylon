@@ -35,7 +35,6 @@ export interface ModelConfig {
  * Registry of all available models for benchmarking
  */
 export const MODEL_REGISTRY: ModelConfig[] = [
-  // Groq models
   {
     id: 'llama-8b',
     displayName: 'LLaMA 3.1 8B',
@@ -72,8 +71,6 @@ export const MODEL_REGISTRY: ModelConfig[] = [
     parametersBillions: 46,
     isBaseline: false,
   },
-
-  // OpenAI models
   {
     id: 'gpt-4o',
     displayName: 'GPT-4o',
@@ -90,8 +87,6 @@ export const MODEL_REGISTRY: ModelConfig[] = [
     tier: 'lite',
     isBaseline: false,
   },
-
-  // Anthropic models
   {
     id: 'claude-sonnet',
     displayName: 'Claude 3.5 Sonnet',

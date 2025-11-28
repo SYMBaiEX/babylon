@@ -39,7 +39,12 @@ import {
 } from '@babylon/shared';
 import { getContractAddresses, getRpcUrl } from '@babylon/contracts';
 
-// Web-specific dependencies - to be injected from app layer
+/**
+ * Agent0Client interface for dependency injection
+ *
+ * @description Client interface for Agent0 registry operations, injected from
+ * the web application layer to avoid circular dependencies.
+ */
 type Agent0Client = {
   registerAgent: (params: {
     name: string;
@@ -51,6 +56,12 @@ type Agent0Client = {
   }) => Promise<{ tokenId: number; metadataCID?: string }>;
 };
 
+/**
+ * OnboardingServices interface for dependency injection
+ *
+ * @description Service interfaces for onboarding operations, injected from
+ * the web application layer to avoid circular dependencies.
+ */
 type OnboardingServices = {
   getAgent0Client: () => Agent0Client;
   syncAfterAgent0Registration: (userId: string, tokenId: number) => Promise<void>;
@@ -1108,8 +1119,7 @@ export async function confirmOnchainProfileUpdate({
     args: [BigInt(tokenId)],
   });
 
-  // Profile is returned as a tuple from the contract
-  // Type assertion is safe because we know the contract ABI structure
+  // Profile is returned as a tuple from the contract - type assertion is safe based on ABI
   const profileArray = profile as [
     string, // name
     string, // endpoint

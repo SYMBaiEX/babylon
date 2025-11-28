@@ -709,7 +709,7 @@ export class LiquiditySimulator {
         // Remove position
         this.perpMarket.positions.splice(i, 1);
 
-        logger.debug?.(
+        logger.info(
           `Liquidation: ${pos.side} position at ${currentPrice.toFixed(2)} (liq: ${pos.liquidationPrice.toFixed(2)})`,
           { positionId: pos.id, size: pos.size, leverage: pos.leverage },
           'LiquiditySimulator'

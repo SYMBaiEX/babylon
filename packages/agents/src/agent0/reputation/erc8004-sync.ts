@@ -124,9 +124,10 @@ export async function syncReputationToERC8004(
 }
 
 /**
- * Sync all user reputations to ERC-8004 (simple version)
- * Useful for batch operations or migrations
- * Note: For cron jobs, use syncAllReputationsToERC8004 from erc8004-reputation-sync.ts instead
+ * Syncs all user reputations to ERC-8004 (simple version)
+ *
+ * Useful for batch operations or migrations. For cron jobs, use
+ * syncAllReputationsToERC8004 from erc8004-reputation-sync.ts instead.
  */
 export async function syncAllReputationsToERC8004Simple(): Promise<void> {
   const userList = await db

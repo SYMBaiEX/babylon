@@ -14,7 +14,9 @@ export const ACTOR_TIERS = {
   C_TIER: 'C_TIER',
 } as const;
 
-// Note: ActorTier type is exported from @babylon/shared/types to avoid duplication
+/**
+ * ActorTier type is exported from @babylon/shared/types to avoid duplication
+ */
 
 /**
  * Feed Widget Configuration
@@ -55,7 +57,9 @@ export const POST_TYPES = {
   ARTICLE: 'article',
 } as const;
 
-// Note: PostType is exported from @babylon/shared/types to avoid duplication
+/**
+ * PostType is exported from @babylon/shared/types to avoid duplication
+ */
 
 /**
  * Day ranges for escalation rules

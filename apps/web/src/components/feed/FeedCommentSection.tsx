@@ -262,7 +262,7 @@ export function FeedCommentSection({
       userAvatar: replyComment.author?.profileImageUrl || undefined,
       parentCommentId: replyComment.parentCommentId,
       parentCommentAuthorName: parentAuthorName,
-      likeCount: replyComment._count?.reactions || 0,
+      likeCount: replyComment.likeCount ?? 0,
       isLiked: false,
       replies: [],
     };
@@ -297,7 +297,7 @@ export function FeedCommentSection({
       userAvatar: commentData.author?.profileImageUrl || undefined,
       parentCommentId: undefined,
       parentCommentAuthorName: undefined,
-      likeCount: commentData._count?.reactions || 0,
+      likeCount: commentData.likeCount ?? 0,
       isLiked: false,
       replies: [],
     };

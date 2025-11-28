@@ -4,10 +4,11 @@
  * Model Management Commands
  *
  * Commands:
- *   list          - List available models
- *   upload        - Upload model to HuggingFace
- *   collect-data  - Collect game data for HuggingFace dataset
+ *   list           - List available trained models
+ *   upload         - Upload model to HuggingFace Hub
+ *   collect-data   - Collect game data for HuggingFace dataset
  *   upload-dataset - Upload dataset to HuggingFace
+ *   ollama         - Manage Ollama local models (list, pull, delete)
  */
 
 import { promises as fs } from 'fs';
@@ -25,10 +26,11 @@ USAGE:
   babylon model <command> [options]
 
 COMMANDS:
-  list           List available trained models
+  list           List available trained models (database)
   upload         Upload model to HuggingFace Hub
   collect-data   Collect game data for HuggingFace dataset
   upload-dataset Upload dataset to HuggingFace
+  ollama         Manage Ollama local models (list, pull, delete)
 
 OPTIONS (upload):
   --model=ID            Model ID from database (required)
@@ -46,20 +48,37 @@ OPTIONS (upload-dataset):
   --repo=NAME           HuggingFace repo name (required)
   --private             Make dataset private
 
+OPTIONS (ollama):
+  list                  List all local Ollama models
+  pull --name=MODEL     Pull/download a model
+  delete --name=MODEL   Delete a local model
+  status                Check Ollama server status
+
 ENVIRONMENT:
   HUGGING_FACE_TOKEN or HF_TOKEN  Your HuggingFace API token
+  OLLAMA_BASE_URL                 Ollama server URL (default: http://localhost:11434)
 
 EXAMPLES:
   babylon model list
   babylon model collect-data --days=7
   babylon model upload-dataset --repo=babylonlabs/game-data
   babylon model upload --model=v1 --hf-name=org/model --private
+  babylon model ollama list
+  babylon model ollama pull --name=qwen2.5:7b-instruct
+  babylon model ollama status
 
 ADVANCED:
   For full RL pipeline: babylon train pipeline --archetype <name>
 `);
 }
 
+/**
+ * Lists trained models from the database.
+ *
+ * Displays model ID, base model, status, creation date, HuggingFace repo, and benchmark scores.
+ *
+ * @internal
+ */
 async function listModels(): Promise<void> {
   logger.header('Trained Models');
 
@@ -93,6 +112,15 @@ async function listModels(): Promise<void> {
   console.log(`${'─'.repeat(60)}`);
 }
 
+/**
+ * Collects game data for HuggingFace dataset creation.
+ *
+ * Gathers trajectories, benchmark results, and trained models from the database
+ * and writes them to JSON files in the specified output directory.
+ *
+ * @param args - Parsed command-line arguments
+ * @internal
+ */
 async function collectGameData(args: ReturnType<typeof parseArgs>): Promise<void> {
   const outputDir = getOption(args, 'output') || 'data/huggingface';
   const daysParam = getOption(args, 'days');
@@ -172,6 +200,16 @@ async function collectGameData(args: ReturnType<typeof parseArgs>): Promise<void
   console.log(`  babylon model upload-dataset --source=${outputDir} --repo=<your-repo>`);
 }
 
+/**
+ * Uploads collected game data to HuggingFace as a dataset.
+ *
+ * Creates or updates a HuggingFace dataset repository and uploads all JSON files
+ * from the source directory.
+ *
+ * @param args - Parsed command-line arguments
+ * @throws Exits process with code 1 if token missing, source invalid, or upload fails
+ * @internal
+ */
 async function uploadDataset(args: ReturnType<typeof parseArgs>): Promise<void> {
   const sourceDir = getOption(args, 'source') || 'data/huggingface';
   const repoName = getOption(args, 'repo');
@@ -284,6 +322,16 @@ async function uploadDataset(args: ReturnType<typeof parseArgs>): Promise<void> 
   console.log(`\n🔗 Dataset URL: https://huggingface.co/datasets/${repoName}`);
 }
 
+/**
+ * Uploads a trained model to HuggingFace Hub.
+ *
+ * Finds the model in the database, uploads it using HuggingFaceModelUploader,
+ * and updates the database with the HuggingFace repository name.
+ *
+ * @param args - Parsed command-line arguments
+ * @throws Exits process with code 1 if model not found, token missing, or upload fails
+ * @internal
+ */
 async function uploadModel(args: ReturnType<typeof parseArgs>): Promise<void> {
   const modelId = getOption(args, 'model');
   const hfModelName = getOption(args, 'hf-name');
@@ -364,6 +412,268 @@ async function uploadModel(args: ReturnType<typeof parseArgs>): Promise<void> {
   }
 }
 
+// ============================================================================
+// Ollama Management Commands
+// ============================================================================
+
+const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
+
+interface OllamaModel {
+  name: string;
+  size: number;
+  digest: string;
+  modified_at: string;
+  details?: {
+    format?: string;
+    family?: string;
+    parameter_size?: string;
+    quantization_level?: string;
+  };
+}
+
+/**
+ * Lists all Ollama models installed locally.
+ *
+ * @internal
+ */
+async function ollamaList(): Promise<void> {
+  logger.header('Ollama Models');
+
+  try {
+    const response = await fetch(`${OLLAMA_BASE_URL}/api/tags`, {
+      signal: AbortSignal.timeout(10000),
+    });
+
+    if (!response.ok) {
+      logger.fail(`Ollama API error: ${response.status}`);
+      process.exit(1);
+    }
+
+    const data = await response.json() as { models?: OllamaModel[] };
+    const models = data.models || [];
+
+    if (models.length === 0) {
+      console.log('No models installed.\n');
+      console.log('To install a model:');
+      console.log('  babylon model ollama pull --name=qwen2.5:7b-instruct');
+      console.log('  ollama pull qwen2.5:7b-instruct');
+      return;
+    }
+
+    console.log(`Found ${models.length} model(s):\n`);
+
+    for (const model of models) {
+      const sizeGB = (model.size / 1024 / 1024 / 1024).toFixed(2);
+      const modified = new Date(model.modified_at).toLocaleDateString();
+
+      console.log(`${'─'.repeat(60)}`);
+      console.log(`Model:     ${model.name}`);
+      console.log(`Size:      ${sizeGB} GB`);
+      console.log(`Modified:  ${modified}`);
+      if (model.details) {
+        if (model.details.parameter_size) {
+          console.log(`Params:    ${model.details.parameter_size}`);
+        }
+        if (model.details.quantization_level) {
+          console.log(`Quant:     ${model.details.quantization_level}`);
+        }
+      }
+    }
+    console.log(`${'─'.repeat(60)}`);
+
+    // Show archetype-specific models
+    const archetypeModels = models.filter(m => m.name.startsWith('babylon-'));
+    if (archetypeModels.length > 0) {
+      console.log('\n🎯 Babylon Trained Models:');
+      for (const model of archetypeModels) {
+        const archetype = model.name.replace('babylon-', '').replace(':latest', '');
+        console.log(`  - ${archetype}: ${model.name}`);
+      }
+    }
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      logger.fail('Ollama request timed out');
+    } else {
+      logger.fail(`Cannot connect to Ollama at ${OLLAMA_BASE_URL}`);
+      console.log('\nMake sure Ollama is running:');
+      console.log('  ollama serve');
+    }
+    process.exit(1);
+  }
+}
+
+/**
+ * Pulls/downloads an Ollama model from the registry.
+ *
+ * @param args - Parsed command-line arguments
+ * @internal
+ */
+async function ollamaPull(args: ReturnType<typeof parseArgs>): Promise<void> {
+  const modelName = getOption(args, 'name');
+
+  if (!modelName) {
+    logger.fail('--name is required');
+    console.log('\nExample: babylon model ollama pull --name=qwen2.5:7b-instruct');
+    process.exit(1);
+  }
+
+  logger.header(`Pulling Model: ${modelName}`);
+
+  try {
+    console.log('Downloading... (this may take a while)\n');
+
+    const response = await fetch(`${OLLAMA_BASE_URL}/api/pull`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: modelName, stream: false }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      logger.fail(`Failed to pull model: ${errorText}`);
+      process.exit(1);
+    }
+
+    const result = await response.json() as { status?: string };
+    logger.success(`Model ${modelName} pulled successfully`);
+    console.log(`Status: ${result.status || 'completed'}`);
+
+    // Verify the model is available
+    console.log('\nVerifying model...');
+    await ollamaList();
+  } catch {
+    logger.fail(`Cannot connect to Ollama at ${OLLAMA_BASE_URL}`);
+    console.log('\nMake sure Ollama is running:');
+    console.log('  ollama serve');
+    process.exit(1);
+  }
+}
+
+/**
+ * Deletes a local Ollama model.
+ *
+ * @param args - Parsed command-line arguments
+ * @internal
+ */
+async function ollamaDelete(args: ReturnType<typeof parseArgs>): Promise<void> {
+  const modelName = getOption(args, 'name');
+
+  if (!modelName) {
+    logger.fail('--name is required');
+    console.log('\nExample: babylon model ollama delete --name=qwen2.5:7b-instruct');
+    process.exit(1);
+  }
+
+  logger.header(`Deleting Model: ${modelName}`);
+
+  try {
+    const response = await fetch(`${OLLAMA_BASE_URL}/api/delete`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: modelName }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      logger.fail(`Failed to delete model: ${errorText}`);
+      process.exit(1);
+    }
+
+    logger.success(`Model ${modelName} deleted`);
+  } catch {
+    logger.fail(`Cannot connect to Ollama at ${OLLAMA_BASE_URL}`);
+    process.exit(1);
+  }
+}
+
+/**
+ * Checks Ollama server status and shows installed models.
+ *
+ * @internal
+ */
+async function ollamaStatus(): Promise<void> {
+  logger.header('Ollama Status');
+
+  console.log(`Server URL: ${OLLAMA_BASE_URL}\n`);
+
+  try {
+    const response = await fetch(`${OLLAMA_BASE_URL}/api/tags`, {
+      signal: AbortSignal.timeout(5000),
+    });
+
+    if (response.ok) {
+      const data = await response.json() as { models?: OllamaModel[] };
+      const modelCount = data.models?.length || 0;
+
+      logger.success('Ollama is running');
+      console.log(`\n  Models installed: ${modelCount}`);
+
+      // Check if recommended models are available
+      const recommendedModels = [
+        'qwen2.5:7b-instruct',
+        'llama3.2:3b',
+        'mistral:7b',
+      ];
+
+      const modelNames = data.models?.map(m => m.name) || [];
+      console.log('\n  Recommended models:');
+      for (const model of recommendedModels) {
+        const installed = modelNames.some(m => m.includes(model.split(':')[0] ?? ''));
+        console.log(`    ${installed ? '✅' : '❌'} ${model}`);
+      }
+
+      if (modelCount === 0) {
+        console.log('\n📥 To install the default model:');
+        console.log('  babylon model ollama pull --name=qwen2.5:7b-instruct');
+      }
+    } else {
+      logger.fail(`Ollama returned status ${response.status}`);
+    }
+  } catch {
+    logger.fail('Ollama is not running');
+    console.log('\nTo start Ollama:');
+    console.log('  ollama serve');
+    console.log('\nOr install Ollama:');
+    console.log('  https://ollama.ai/download');
+  }
+}
+
+/**
+ * Routes Ollama subcommands to appropriate handlers.
+ *
+ * @param args - Parsed command-line arguments
+ * @internal
+ */
+async function runOllamaCommand(args: ReturnType<typeof parseArgs>): Promise<void> {
+  const subCommand = args.positional[0] || 'status';
+
+  switch (subCommand) {
+    case 'list':
+      await ollamaList();
+      break;
+    case 'pull':
+      await ollamaPull(args);
+      break;
+    case 'delete':
+      await ollamaDelete(args);
+      break;
+    case 'status':
+      await ollamaStatus();
+      break;
+    default:
+      logger.fail(`Unknown ollama command: ${subCommand}`);
+      console.log('\nAvailable commands: list, pull, delete, status');
+      process.exit(1);
+  }
+}
+
+/**
+ * Main entry point for model domain commands.
+ *
+ * Routes to appropriate sub-command handlers and ensures database cleanup.
+ *
+ * @param args - Raw command-line arguments for the model domain
+ */
 export async function runModelCommand(args: string[]): Promise<void> {
   const parsed = parseArgs(args);
 
@@ -371,6 +681,9 @@ export async function runModelCommand(args: string[]): Promise<void> {
     printHelp();
     process.exit(0);
   }
+
+  // Commands that don't need database
+  const noDatabaseCommands = ['ollama'];
 
   try {
     switch (parsed.command) {
@@ -390,6 +703,10 @@ export async function runModelCommand(args: string[]): Promise<void> {
         await uploadDataset(parsed);
         break;
 
+      case 'ollama':
+        await runOllamaCommand(parsed);
+        break;
+
       default:
         if (parsed.command) {
           logger.fail(`Unknown command: ${parsed.command}`);
@@ -398,6 +715,8 @@ export async function runModelCommand(args: string[]): Promise<void> {
         process.exit(parsed.command ? 1 : 0);
     }
   } finally {
-    await closeDatabase();
+    if (!noDatabaseCommands.includes(parsed.command || '')) {
+      await closeDatabase();
+    }
   }
 }

@@ -9,13 +9,32 @@ import type { NewsArticlePacingEngine } from './NewsArticlePacingEngine';
 import type { PerpetualsEngine } from './PerpetualsEngine';
 import type { RelationshipEvolutionEngine } from './RelationshipEvolutionEngine';
 
+/**
+ * Result of a single game tick execution
+ */
 export interface TickResult {
+  /** World events generated during this tick */
   events: WorldEvent[];
+  /** Feed posts generated during this tick */
   posts: FeedPost[];
+  /** Number of trades executed during this tick */
   tradeCount: number;
+  /** Whether market state was updated (funding rates processed) */
   marketUpdated: boolean;
 }
 
+/**
+ * Game Loop - Core game tick execution engine
+ *
+ * Orchestrates the execution of a single game tick, coordinating:
+ * - Market maintenance (funding rates, price updates)
+ * - NPC trading decisions and execution
+ * - World event generation
+ * - Feed post generation
+ * - Relationship evolution
+ *
+ * Used by both live game ticks (cron jobs) and game simulation (full game generation).
+ */
 export class GameLoop {
   constructor(
     private world: GameWorld,
@@ -23,12 +42,13 @@ export class GameLoop {
     private marketDecisions: MarketDecisionEngine,
     private perps: PerpetualsEngine,
     private relationships: RelationshipEvolutionEngine,
-    // Reserved for future article generation integration
-    // Using void to satisfy TypeScript while keeping the property for future use
+    /**
+     * News article pacing engine for article generation.
+     * Currently reserved for future integration.
+     */
     private readonly _articles: NewsArticlePacingEngine
   ) {
-    // Explicitly reference to satisfy TypeScript unused variable check
-    // This will be used in future article generation features
+    // Suppress unused variable warning until article generation is integrated
     void this._articles;
   }
 
@@ -194,7 +214,14 @@ export class GameLoop {
   }
 
   /**
-   * Generates a full history by fast-forwarding the loop
+   * Generate a complete game history by executing all ticks
+   *
+   * Fast-forwards through the entire game duration, executing all ticks
+   * sequentially to generate a complete game history.
+   *
+   * @param gameId - ID of the game instance
+   * @param durationDays - Number of days to simulate (default: 30)
+   * @returns Array of tick results for the entire game duration
    */
   async simulateFullGame(
     gameId: string,

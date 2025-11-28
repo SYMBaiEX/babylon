@@ -206,7 +206,7 @@ export class CommitmentStore {
   }
 
   /**
-   * List all pending commitments (for recovery/debugging)
+   * List all pending commitments for recovery and monitoring
    */
   static async listPending(): Promise<StoredCommitment[]> {
     const stored = await db

@@ -1,16 +1,17 @@
+/**
+ * Playwright configuration for E2E tests.
+ *
+ * @module testing/playwright.config
+ * @see https://playwright.dev/docs/test-configuration
+ */
+
 import { defineConfig, devices } from '@playwright/test';
 import dotenv from 'dotenv';
 import path from 'path';
 
-// Load environment variables from root .env.local and .env
 const rootDir = path.resolve(__dirname, '../..');
 dotenv.config({ path: path.resolve(rootDir, '.env.local') });
 dotenv.config({ path: path.resolve(rootDir, '.env') });
-
-/**
- * Playwright configuration for E2E tests
- * See https://playwright.dev/docs/test-configuration
- */
 export default defineConfig({
   testDir: './e2e',
 
@@ -51,40 +52,30 @@ export default defineConfig({
     },
   },
 
-  /* Configure projects for major browsers */
   projects: [
-    // Setup project - runs once before all tests to authenticate
     {
       name: 'setup',
       testMatch: /.*\.setup\.ts/,
       testDir: './e2e',
     },
-
-    // Integration auth setup - extracts tokens from authenticated browser context
     {
       name: 'setup-integration-auth',
       testMatch: /.*integration.*\.setup\.ts/,
       testDir: './integration',
       use: {
-        // Use authenticated state from E2E setup
         storageState: path.resolve(rootDir, '.playwright/auth.json'),
       },
       dependencies: ['setup'],
     },
-
-    // Main test project - depends on setup and uses saved auth state
     {
       name: 'chromium',
       use: {
         ...devices['Desktop Chrome'],
-        // Use authenticated state from setup
         storageState: path.resolve(rootDir, '.playwright/auth.json'),
       },
       dependencies: ['setup'],
-      testIgnore: ['**/*.api.test.ts', '**/*.e2e.test.ts'], // Ignore API/E2E tests that don't need browser auth or have their own flow
+      testIgnore: ['**/*.api.test.ts', '**/*.e2e.test.ts'],
     },
-
-    // API/E2E Tests - requires auth for API calls with cookies
     {
       name: 'api-e2e',
       testMatch: ['**/*.e2e.test.ts'],
@@ -94,10 +85,6 @@ export default defineConfig({
       dependencies: ['setup'],
     },
   ],
-
-  /* Run your local dev server before starting the tests */
-  // In CI, server is started separately in workflow
-  // Locally, Playwright will start the dev server
   webServer: process.env.CI
     ? undefined
     : {

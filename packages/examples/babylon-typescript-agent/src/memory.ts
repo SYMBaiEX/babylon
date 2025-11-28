@@ -4,7 +4,7 @@
  * Simple in-memory storage for recent actions and context
  */
 
-import type { JsonValue } from '@babylon/a2a';
+import type { JsonValue } from '@babylon/shared';
 
 export interface MemoryEntry {
   action: string;

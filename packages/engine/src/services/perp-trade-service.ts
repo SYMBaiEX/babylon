@@ -33,19 +33,18 @@ import type { TradeImpactInput } from './market-impact-service';
 import { WalletService } from './wallet-service';
 
 /**
- * NO-OP: User perpetual trades do not affect spot prices
+ * Applies trade impacts for perpetual futures positions.
  *
- * Perpetuals are synthetic derivatives. User trades create positions that:
- * - Track the underlying spot price (set by NPC trading)
- * - Are settled via funding rate payments between longs and shorts
- * - Do NOT influence the underlying organization price
+ * This is a no-op function because perpetuals are synthetic derivatives.
+ * User trades create positions that track the underlying spot price (set by NPC trading)
+ * and are settled via funding rate payments, but do not influence the underlying
+ * organization price. Only NPC spot trading affects prices.
+ *
+ * @param _trades - Trade impact inputs (unused, as this is a no-op)
  */
 async function applyPerpTradeImpacts(_trades: TradeImpactInput[]): Promise<void> {
-  // Perpetuals are synthetic - user/agent trades do NOT affect spot price
-  // Only NPC spot trading (handled in serverless-game-tick.ts) affects prices
-  // Funding rates balance long/short imbalances every 8 hours
   logger.debug(
-    'applyPerpTradeImpacts called but is no-op (perps are synthetic)',
+    'Perpetual trade impacts are synthetic and do not affect spot prices',
     undefined,
     'PerpTradeService'
   );
@@ -295,8 +294,7 @@ export class PerpTradeService {
       input.ticker
     );
 
-    // Cache invalidation handled by API layer
-    // Note: Engine doesn't manage cache, API layer handles invalidation
+    // Cache invalidation is handled by the API layer, not the engine
     logger.debug(
       'Perp position opened, cache invalidation handled by API layer',
       { userId: authUser.userId },

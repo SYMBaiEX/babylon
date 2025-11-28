@@ -58,6 +58,7 @@ import type {
   GeneratedGame,
   GenesisGame,
   GroupChat,
+  GroupChatMessage,
   LuckChange,
   MoodChange,
   Organization,
@@ -166,7 +167,7 @@ function getActorGroupContext(
         if (!dayData) continue;
 
         const msgs = dayData.groupChats?.[group.id] || [];
-        msgs.slice(-2).forEach((msg: ChatMessage) => {
+        msgs.slice(-2).forEach((msg: GroupChatMessage) => {
           const actor = allActors.find((a) => a.id === msg.from);
           const content =
             msg.message.length > 40
@@ -313,7 +314,7 @@ export type {
   ActorConnection,
   DayTimeline,
   WorldEvent,
-  ChatMessage,
+  GroupChatMessage,
   LuckChange,
   MoodChange,
   GameResolution,
@@ -1128,7 +1129,7 @@ Key outcomes: ${h.keyOutcomes.map((o) => `${o.questionText} → ${o.outcome ? 'Y
     organizations: Organization[]
   ): Promise<Scenario[]> {
     const historyContext = this.getHistoryContext();
-    // Clean history context to remove explicit question lists that confuse the LLM
+    // Remove explicit question lists from history context to improve LLM response quality
     const cleanHistoryContext = historyContext.replace(
       /Prediction outcomes from last month:[\s\S]*?Key moments:/,
       'Key moments:'
@@ -1369,7 +1370,7 @@ REMINDER: Generate SCENARIOS only. Do NOT generate questions.`;
     organizations: Organization[]
   ): Promise<Question[]> {
     const prompt = createQuestionPrompt(scenarios, organizations);
-    // Note: Not using schema validation here because LLM sometimes returns array format
+    // Accept both object and array response formats for flexibility
     const rawResult = await this.llm.generateJSON<
       { questions: Question[] } | Array<{ questions: Question[] }>
     >(prompt, undefined, {

@@ -60,10 +60,9 @@ function asDrizzleTable<T extends PgTable>(table: T): PgTable {
   return table as PgTable;
 }
 
-// ============================================================================
-// Types
-// ============================================================================
-
+/**
+ * Drizzle schema type representing all database tables.
+ */
 export type DrizzleSchema = typeof schema;
 export type SchemaDatabase = PostgresJsDatabase<DrizzleSchema>;
 export type SchemaTables = ExtractTablesWithRelations<DrizzleSchema>;
@@ -142,7 +141,9 @@ function getRelationalQueryBuilder<
   return null;
 }
 
-/** Generic where condition */
+/**
+ * Generic where condition type supporting various comparison operators.
+ */
 type WhereValue<T> =
   | T
   | {
@@ -162,7 +163,9 @@ type WhereValue<T> =
   | null
   | undefined;
 
-/** Where input for a table */
+/**
+ * Where input type for table queries supporting AND, OR, and NOT operators.
+ */
 type WhereInput<TTable> = {
   [K in keyof TTable]?: WhereValue<TTable[K]>;
 } & {
@@ -185,12 +188,16 @@ function createWhereInputById<
   >;
 }
 
-/** Order by input */
+/**
+ * Order by input type for sorting query results.
+ */
 type OrderByInput<TTable> = {
   [K in keyof TTable]?: 'asc' | 'desc';
 };
 
-/** Include input for relations - properly typed with SQLValue for where clauses */
+/**
+ * Include input type for loading relations in queries.
+ */
 type IncludeInput = Record<
   string,
   | boolean
@@ -203,10 +210,14 @@ type IncludeInput = Record<
     }
 >;
 
-/** Select input for fields */
+/**
+ * Select input type for specifying which fields to return.
+ */
 type SelectInput = Record<string, boolean>;
 
-/** Find options */
+/**
+ * Options for find operations including filtering, sorting, pagination, and relations.
+ */
 interface FindOptions<TSelect> {
   where?: WhereInput<TSelect>;
   orderBy?: OrderByInput<TSelect> | OrderByInput<TSelect>[];
@@ -216,18 +227,24 @@ interface FindOptions<TSelect> {
   select?: SelectInput;
 }
 
-/** Extended type that allows relation access - used when include is specified */
+/**
+ * Extended type that includes relation data when include is specified in queries.
+ */
 export type WithRelations<T> = T &
   Record<string, SQLValue | Record<string, SQLValue>>;
 
-/** Create options */
+/**
+ * Options for create operations including data and optional relation loading.
+ */
 interface CreateOptions<TInsert> {
   data: TInsert;
   select?: SelectInput;
   include?: IncludeInput;
 }
 
-/** Update options - allows increment/decrement operations for numeric fields */
+/**
+ * Update data type supporting direct values and increment/decrement operations for numeric fields.
+ */
 type UpdateData<TInsert> = {
   [K in keyof TInsert]?:
     | TInsert[K]
@@ -242,13 +259,17 @@ interface UpdateOptions<TSelect, TInsert> {
   include?: IncludeInput;
 }
 
-/** Delete options */
+/**
+ * Options for delete operations including where clause and optional field selection.
+ */
 interface DeleteOptions<TSelect> {
   where: WhereInput<TSelect>;
   select?: SelectInput;
 }
 
-/** Upsert options */
+/**
+ * Options for upsert operations (create or update).
+ */
 interface UpsertOptions<TSelect, TInsert> {
   where: WhereInput<TSelect>;
   create: TInsert;
@@ -256,10 +277,9 @@ interface UpsertOptions<TSelect, TInsert> {
   include?: IncludeInput;
 }
 
-// ============================================================================
-// Where Clause Builder
-// ============================================================================
-
+/**
+ * Build a Drizzle SQL where clause from a where input object.
+ */
 function buildWhereClause<
   TTable extends PgTable,
   TWhere extends Record<string, DatabaseValue | JsonValue>,
@@ -310,7 +330,6 @@ function buildWhereClause<
     }
 
     const tableConfig = getTableConfig(table);
-    // Find column by name - columns is an array
     const column = findColumnByName(tableConfig, key);
     if (!column) continue;
 
@@ -339,7 +358,6 @@ function buildWhereClause<
           ops.not !== null &&
           'equals' in ops.not
         ) {
-          // Type guard ensures ops.not has equals property - access it directly
           const notEqualsValue = (ops.not as { equals: DatabaseValue }).equals;
           conditions.push(ne(column, notEqualsValue));
         } else {
@@ -381,7 +399,6 @@ function buildWhereClause<
         }
       }
     } else {
-      // Direct value comparison
       conditions.push(eq(column, value));
     }
   }
@@ -391,10 +408,9 @@ function buildWhereClause<
   return and(...conditions);
 }
 
-// ============================================================================
-// Order By Builder
-// ============================================================================
-
+/**
+ * Build Drizzle SQL order by clauses from an order by input object.
+ */
 function buildOrderBy<TTable extends PgTable>(
   table: TTable,
   orderBy:
@@ -410,7 +426,6 @@ function buildOrderBy<TTable extends PgTable>(
   const tableConfig = getTableConfig(table);
   for (const order of orders) {
     for (const [key, direction] of Object.entries(order)) {
-      // Find column by name - columns is an array
       const column = findColumnByName(tableConfig, key);
       if (column) {
         result.push(direction === 'desc' ? desc(column) : asc(column));
@@ -421,12 +436,10 @@ function buildOrderBy<TTable extends PgTable>(
   return result;
 }
 
-// ============================================================================
-// Table Repository
-// ============================================================================
-
-// Type that represents all database value types including JSON columns
-// All JSON columns use .$type<JsonValue>() in schema, providing proper typing
+/**
+ * Type representing all valid database value types including JSON columns.
+ * JSON columns use .$type<JsonValue>() in schema definitions for proper typing.
+ */
 type DatabaseValue =
   | SQLValue
   | { [key: string]: DatabaseValue }
@@ -434,9 +447,11 @@ type DatabaseValue =
   | JsonValue
   | JsonValue[];
 
-// TableRepository accepts Drizzle's inferred types
-// Best Practice (2025): JSON columns use json('column').$type<JsonValue>() in schema
-// This provides proper typing - all JSON columns are now properly typed as JsonValue
+/**
+ * Table repository providing ORM-style methods for database operations.
+ * Supports findUnique, findMany, create, update, delete, and aggregate operations.
+ * JSON columns should use json('column').$type<JsonValue>() in schema definitions.
+ */
 export class TableRepository<
   TTable extends PgTable,
   TSelect extends Record<string, DatabaseValue | JsonValue>, // JsonValue for JSON columns, DatabaseValue for others
@@ -449,12 +464,14 @@ export class TableRepository<
     private readonly table: TTable,
     private readonly tableName: string
   ) {
-    // Store query API reference for type-safe access
     this.queryAPI = this.drizzle.query;
   }
 
   /**
-   * Build Drizzle 'with' clause from include
+   * Build Drizzle relational query 'with' clause from include options.
+   *
+   * @param include - Include configuration for loading relations
+   * @returns Drizzle-compatible 'with' clause configuration
    */
   private buildWithClause(
     include: IncludeInput
@@ -465,10 +482,6 @@ export class TableRepository<
         withClause[key] = true;
       } else if (typeof value === 'object' && value !== null) {
         const nested: RelationalQueryConfig = {};
-        // Convert where clause from Record format to SQL if provided
-        // Note: Drizzle's relational query builder expects SQL for where clauses
-        // For now, we'll skip where conversion as it requires table context
-        // The relational query builder will handle this at runtime
         if (value.take) nested.limit = value.take;
         if (value.orderBy) {
           const orders: SQL[] = [];
@@ -483,7 +496,6 @@ export class TableRepository<
         }
         if (value.include) nested.with = this.buildWithClause(value.include);
         if (value.select) {
-          // Convert select to boolean format for with clause
           nested.with = {
             ...nested.with,
             ...Object.fromEntries(
@@ -890,8 +902,6 @@ export class TableRepository<
     } = {};
 
     if (options._count) {
-      // Use Drizzle's typed select with $dynamic() for conditional where clause
-      // Helper ensures type safety
       let query = this.drizzle
         .select({ count: drizzleCount() })
         .from(asDrizzleTable(this.table))
@@ -906,17 +916,13 @@ export class TableRepository<
       };
     }
 
-    // Handle _sum
     if (options._sum) {
       const sumResult: Record<string, number | null> = {};
       const tableConfig = getTableConfig(this.table);
       for (const [key, shouldSum] of Object.entries(options._sum)) {
         if (shouldSum) {
-          // Find column by name - columns is an array
           const column = findColumnByName(tableConfig, key);
           if (column) {
-            // Use Drizzle's typed select with $dynamic() for conditional where clause
-            // Helper ensures type safety
             let query = this.drizzle
               .select({ sum: sql<number>`SUM(${column})` })
               .from(asDrizzleTable(this.table))
@@ -934,17 +940,13 @@ export class TableRepository<
       result._sum = sumResult;
     }
 
-    // Handle _avg
     if (options._avg) {
       const avgResult: Record<string, number | null> = {};
       const tableConfig = getTableConfig(this.table);
       for (const [key, shouldAvg] of Object.entries(options._avg)) {
         if (shouldAvg) {
-          // Find column by name - columns is an array
           const column = findColumnByName(tableConfig, key);
           if (column) {
-            // Use Drizzle's typed select with $dynamic() for conditional where clause
-            // Helper ensures type safety
             let query = this.drizzle
               .select({ avg: sql<number>`AVG(${column})` })
               .from(asDrizzleTable(this.table))
@@ -962,17 +964,13 @@ export class TableRepository<
       result._avg = avgResult;
     }
 
-    // Handle _min
     if (options._min) {
       const minResult: Record<string, number | null> = {};
       const tableConfig = getTableConfig(this.table);
       for (const [key, shouldMin] of Object.entries(options._min)) {
         if (shouldMin) {
-          // Find column by name - columns is an array
           const column = findColumnByName(tableConfig, key);
           if (column) {
-            // Use Drizzle's typed select with $dynamic() for conditional where clause
-            // Helper ensures type safety
             let query = this.drizzle
               .select({ min: sql<number>`MIN(${column})` })
               .from(asDrizzleTable(this.table))
@@ -990,17 +988,13 @@ export class TableRepository<
       result._min = minResult;
     }
 
-    // Handle _max
     if (options._max) {
       const maxResult: Record<string, number | null> = {};
       const tableConfig = getTableConfig(this.table);
       for (const [key, shouldMax] of Object.entries(options._max)) {
         if (shouldMax) {
-          // Find column by name - columns is an array
           const column = findColumnByName(tableConfig, key);
           if (column) {
-            // Use Drizzle's typed select with $dynamic() for conditional where clause
-            // Helper ensures type safety
             let query = this.drizzle
               .select({ max: sql<number>`MAX(${column})` })
               .from(asDrizzleTable(this.table))
@@ -1022,7 +1016,10 @@ export class TableRepository<
   }
 
   /**
-   * Group by with aggregation
+   * Group records by specified fields and perform aggregations.
+   *
+   * @param options - Group by options including fields, aggregations, and ordering
+   * @returns Array of grouped results with aggregations
    */
   async groupBy<TKey extends keyof TSelect>(options: {
     by: TKey[];
@@ -1037,31 +1034,25 @@ export class TableRepository<
   }): Promise<Array<Record<string, DatabaseValue | JsonValue>>> {
     const whereClause = buildWhereClause(this.table, options.where);
 
-    // Build select clause with group by columns and aggregations
     const selectFields: Record<string, PgColumn | SQL> = {};
     let countKey: string | null = null;
 
-    // Add group by columns
     const tableConfig = getTableConfig(this.table);
     for (const key of options.by) {
-      // Find column by name - columns is an array
       const column = findColumnByName(tableConfig, key as string);
       if (column) {
         selectFields[key as string] = column;
       }
     }
 
-    // Track if we should return simple count (boolean _count) vs nested (_count.fieldName)
     let simpleCount = false;
 
-    // Add count if specified - store the key for later transformation
     if (options._count) {
       if (typeof options._count === 'boolean' && options._count) {
         selectFields._countValue = drizzleCount();
         countKey = '_all';
         simpleCount = true;
       } else if (typeof options._count === 'object') {
-        // Count specific columns - use first key
         const keys = Object.keys(options._count);
         if (keys.length > 0) {
           countKey = keys[0] ?? null;
@@ -1070,19 +1061,14 @@ export class TableRepository<
       }
     }
 
-    // Build group by clause
     const groupByColumns: PgColumn[] = [];
     for (const key of options.by) {
-      // Find column by name - columns is an array
       const column = findColumnByName(tableConfig, key as string);
       if (column) {
         groupByColumns.push(column);
       }
     }
 
-    // Use Drizzle's typed query builder with $dynamic() for conditional chaining
-    // selectFields contains PgColumn and SQL values which are compatible with SelectedFields
-    // Helper ensures type safety
     let query = this.drizzle
       .select(selectFields as SelectedFields)
       .from(asDrizzleTable(this.table))
@@ -1097,19 +1083,14 @@ export class TableRepository<
 
     const results = await query;
 
-    // Transform results to match groupBy format
-    // Returns { groupByColumn: value, _count: number } for boolean _count
-    // Or { groupByColumn: value, _count: { columnName: count } } for object _count
     return (results as Array<Record<string, DatabaseValue | JsonValue>>).map(
       (row) => {
         const transformed: Record<string, DatabaseValue | JsonValue> = {};
         for (const [key, value] of Object.entries(row)) {
           if (key === '_countValue' && countKey) {
             if (simpleCount) {
-              // For _count: true, return count directly
               transformed._count = Number(value);
             } else {
-              // For _count: { field: true }, return nested object
               transformed._count = { [countKey]: Number(value) };
             }
           } else {
@@ -1122,21 +1103,23 @@ export class TableRepository<
   }
 }
 
-// ============================================================================
-// Type Helpers for Model Types
-// ============================================================================
-
-// Infer select type from Drizzle table
+/**
+ * Type helper to infer the select type from a Drizzle table.
+ */
 type InferSelect<T extends PgTable> = T['$inferSelect'];
-// Infer insert type from Drizzle table
+
+/**
+ * Type helper to infer the insert type from a Drizzle table.
+ */
 type InferInsert<T extends PgTable> = T['$inferInsert'];
 
-// ============================================================================
-// DrizzleClient Interface
-// ============================================================================
 
+/**
+ * Drizzle database client interface providing ORM-style API and direct Drizzle access.
+ * Includes table repositories for all database models and core Drizzle query methods.
+ */
 export interface DrizzleClient {
-  // Core Drizzle methods
+  /** Core Drizzle ORM query methods */
   select: SchemaDatabase['select'];
   selectDistinct: SchemaDatabase['selectDistinct'];
   selectDistinctOn: SchemaDatabase['selectDistinctOn'];
@@ -1147,12 +1130,12 @@ export interface DrizzleClient {
   transaction: SchemaDatabase['transaction'];
   query: SchemaDatabase['query'];
 
-  // Connection management
+  /** Connection management methods */
   $connect: () => Promise<void>;
   $disconnect: () => Promise<void>;
   $transaction: <T>(callback: (tx: DrizzleClient) => Promise<T>) => Promise<T>;
 
-  // Raw SQL queries
+  /** Raw SQL query methods using tagged template strings */
   $queryRaw: <T = Record<string, SQLValue>>(
     strings: TemplateStringsArray,
     ...values: SQLValue[]
@@ -1162,7 +1145,7 @@ export interface DrizzleClient {
     ...values: SQLValue[]
   ) => Promise<number>;
 
-  // Model repositories
+  /** Table repositories for database models */
   user: TableRepository<
     typeof schema.users,
     InferSelect<typeof schema.users>,
@@ -1595,18 +1578,18 @@ export interface DrizzleClient {
   >;
 }
 
-// ============================================================================
-// Client Factory
-// ============================================================================
-
+/**
+ * Create a Drizzle client instance with table repositories and query methods.
+ *
+ * @param drizzle - Drizzle database instance
+ * @returns Configured DrizzleClient with all table repositories
+ */
 export function createDrizzleClient(drizzle: SchemaDatabase): DrizzleClient {
   const $connect = async (): Promise<void> => {
     // No-op - Drizzle handles connections automatically
   };
 
   const $disconnect = async (): Promise<void> => {
-    // Access global state directly to avoid circular dependency
-    // This implementation matches helpers.ts but must be duplicated due to circular dependency constraints
     type PostgresClient = ReturnType<typeof postgres>;
     const globalForDb = globalThis as typeof globalThis & {
       postgresClient: PostgresClient | undefined;
@@ -1627,23 +1610,17 @@ export function createDrizzleClient(drizzle: SchemaDatabase): DrizzleClient {
     callback: (tx: DrizzleClient) => Promise<T>
   ): Promise<T> => {
     return drizzle.transaction(async (tx) => {
-      // Transaction type is compatible with SchemaDatabase for our use case
       const txClient = createDrizzleClient(tx as SchemaDatabase);
       return callback(txClient);
     });
   };
 
-  // $queryRaw as a tagged template function - use sql to construct the query
   const $queryRaw = async <T = Record<string, SQLValue>>(
     strings: TemplateStringsArray,
     ...values: SQLValue[]
   ): Promise<T[]> => {
-    // sql template tag properly handles template strings - it's a tagged template function
-    // SQLValue includes all valid types: string | number | boolean | null | Date | SQL | Param | bigint | arrays | objects
     const query = sql(strings, ...values);
     const result = await drizzle.execute(query);
-    // Drizzle's execute returns an array-like result (RowList) that can be treated as an array
-    // This is safe because the caller provides the expected type T
     return Array.from(result) as T[];
   };
 
@@ -1651,11 +1628,8 @@ export function createDrizzleClient(drizzle: SchemaDatabase): DrizzleClient {
     strings: TemplateStringsArray,
     ...values: SQLValue[]
   ): Promise<number> => {
-    // sql template tag properly handles template strings - it's a tagged template function
-    // SQLValue includes all valid types: string | number | boolean | null | Date | SQL | Param | bigint | arrays | objects
     const query = sql(strings, ...values);
     await drizzle.execute(query);
-    // Drizzle's execute doesn't return rowCount directly, return 1 to indicate success
     return 1;
   };
 

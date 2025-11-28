@@ -3,6 +3,8 @@
  *
  * Re-exports from @babylon/training for convenience.
  * The canonical source for all training utilities is @babylon/training.
+ *
+ * @packageDocumentation
  */
 
 export {

@@ -7,6 +7,9 @@
 
 import { logger } from './logger';
 
+/**
+ * Metrics for a single database query execution.
+ */
 interface QueryMetrics {
   query: string;
   duration: number;
@@ -15,6 +18,9 @@ interface QueryMetrics {
   operation: string;
 }
 
+/**
+ * Aggregated statistics for slow queries of a specific type.
+ */
 interface SlowQueryStats {
   count: number;
   totalDuration: number;
@@ -23,29 +29,31 @@ interface SlowQueryStats {
   queries: QueryMetrics[];
 }
 
+/**
+ * Query performance monitor that tracks and aggregates slow query statistics.
+ */
 class QueryMonitor {
   private slowQueries: Map<string, SlowQueryStats> = new Map();
   private queryLog: QueryMetrics[] = [];
   private readonly SLOW_QUERY_THRESHOLD_MS =
     Number(process.env.SLOW_QUERY_THRESHOLD_MS) || 100;
   private readonly MAX_LOG_SIZE = 1000;
-  private readonly STATS_WINDOW_MS = 60000; // 1 minute
+  private readonly STATS_WINDOW_MS = 60000;
 
   /**
-   * Record a database query execution
+   * Record a database query execution for performance tracking.
+   *
+   * @param metrics - Query execution metrics
    */
   recordQuery(metrics: QueryMetrics): void {
-    // Add to rolling log
     this.queryLog.push(metrics);
     if (this.queryLog.length > this.MAX_LOG_SIZE) {
       this.queryLog.shift();
     }
 
-    // Track slow queries
     if (metrics.duration >= this.SLOW_QUERY_THRESHOLD_MS) {
       this.recordSlowQuery(metrics);
 
-      // Log slow query immediately
       logger.warn('Slow query detected', {
         model: metrics.model,
         operation: metrics.operation,
@@ -70,7 +78,6 @@ class QueryMonitor {
       existing.maxDuration = Math.max(existing.maxDuration, metrics.duration);
       existing.queries.push(metrics);
 
-      // Keep only last 10 examples
       if (existing.queries.length > 10) {
         existing.queries.shift();
       }
@@ -86,7 +93,9 @@ class QueryMonitor {
   }
 
   /**
-   * Get slow query statistics
+   * Get aggregated slow query statistics by query type.
+   *
+   * @returns Object mapping query types to their slow query statistics
    */
   getSlowQueryStats(): Record<string, SlowQueryStats> {
     const stats: Record<string, SlowQueryStats> = {};
@@ -99,14 +108,20 @@ class QueryMonitor {
   }
 
   /**
-   * Get recent queries
+   * Get recent query metrics from the rolling log.
+   *
+   * @param limit - Maximum number of queries to return (default: 100)
+   * @returns Array of recent query metrics
    */
   getRecentQueries(limit = 100): QueryMetrics[] {
     return this.queryLog.slice(-limit);
   }
 
   /**
-   * Get query statistics for a time window
+   * Get query statistics for a specified time window.
+   *
+   * @param windowMs - Time window in milliseconds (default: 60000 = 1 minute)
+   * @returns Object containing query statistics including percentiles
    */
   getQueryStats(windowMs: number = this.STATS_WINDOW_MS): {
     totalQueries: number;
@@ -150,17 +165,17 @@ class QueryMonitor {
   }
 
   /**
-   * Clear old data
+   * Clean up old query data older than the specified time.
+   *
+   * @param olderThanMs - Remove data older than this many milliseconds (default: 300000 = 5 minutes)
    */
   cleanup(olderThanMs = 300000): void {
     const cutoff = Date.now() - olderThanMs;
 
-    // Clean query log
     this.queryLog = this.queryLog.filter(
       (q) => q.timestamp.getTime() >= cutoff
     );
 
-    // Clean slow query examples
     for (const [key, stats] of this.slowQueries.entries()) {
       stats.queries = stats.queries.filter(
         (q) => q.timestamp.getTime() >= cutoff
@@ -173,7 +188,7 @@ class QueryMonitor {
   }
 
   /**
-   * Reset all stats
+   * Reset all query statistics and clear the query log.
    */
   reset(): void {
     this.slowQueries.clear();
@@ -181,15 +196,16 @@ class QueryMonitor {
   }
 
   /**
-   * Sanitize query string for logging (remove sensitive data, truncate)
+   * Sanitize query string for safe logging by removing sensitive data and truncating.
+   *
+   * @param query - Query string to sanitize
+   * @returns Sanitized query string
    */
   private sanitizeQuery(query: string): string {
-    // Truncate very long queries
     if (query.length > 500) {
       return query.substring(0, 500) + '...';
     }
 
-    // Remove potential sensitive data (email, phone, passwords, etc.)
     return query
       .replace(/email\s*=\s*['"][^'"]+['"]/gi, 'email=***')
       .replace(/password\s*=\s*['"][^'"]+['"]/gi, 'password=***')
@@ -198,7 +214,7 @@ class QueryMonitor {
   }
 
   /**
-   * Log summary statistics
+   * Log summary statistics including slow query counts and percentiles.
    */
   logSummary(): void {
     const stats = this.getQueryStats();
@@ -218,7 +234,6 @@ class QueryMonitor {
       uniqueSlowQueries: slowQueryCount,
     });
 
-    // Log top 5 slowest query types
     if (slowQueryCount > 0) {
       const sortedSlowQueries = Object.entries(slowQueryStats)
         .sort((a, b) => b[1].avgDuration - a[1].avgDuration)
@@ -236,20 +251,22 @@ class QueryMonitor {
   }
 }
 
-// Singleton instance
+/**
+ * Singleton query monitor instance for tracking database query performance.
+ */
 export const queryMonitor = new QueryMonitor();
 
-// Export types
+/**
+ * Export query monitor types.
+ */
 export type { QueryMetrics, SlowQueryStats };
 
-// Periodic cleanup every 5 minutes
 if (typeof setInterval !== 'undefined') {
   setInterval(() => {
     queryMonitor.cleanup();
   }, 300000);
 }
 
-// Log summary every minute in development
 if (
   process.env.NODE_ENV === 'development' &&
   typeof setInterval !== 'undefined'

@@ -1,11 +1,18 @@
 /**
  * Error Classes for @babylon/agents
  *
- * Provides structured error handling with proper context and metadata.
+ * Provides structured error handling with proper context and metadata for
+ * all error scenarios including validation, authentication, authorization,
+ * and external service failures.
+ *
+ * @packageDocumentation
  */
 
 /**
  * Base error class for all Babylon errors
+ *
+ * Provides structured error handling with timestamps, context, and proper
+ * error codes for API responses.
  */
 export abstract class BabylonError extends Error {
   public readonly timestamp: Date;
@@ -43,6 +50,8 @@ export abstract class BabylonError extends Error {
 
 /**
  * Validation error for input validation failures
+ *
+ * Thrown when input parameters fail validation checks.
  */
 export class ValidationError extends BabylonError {
   constructor(
@@ -55,7 +64,9 @@ export class ValidationError extends BabylonError {
 }
 
 /**
- * Authentication error for auth failures
+ * Authentication error for authentication failures
+ *
+ * Thrown when authentication fails due to missing, invalid, or expired tokens.
  */
 export class AuthenticationError extends BabylonError {
   constructor(
@@ -72,6 +83,8 @@ export class AuthenticationError extends BabylonError {
 
 /**
  * Authorization error for permission failures
+ *
+ * Thrown when a user lacks permission to perform a requested action.
  */
 export class AuthorizationError extends BabylonError {
   constructor(
@@ -85,6 +98,8 @@ export class AuthorizationError extends BabylonError {
 
 /**
  * Not found error for missing resources
+ *
+ * Thrown when a requested resource does not exist.
  */
 export class NotFoundError extends BabylonError {
   constructor(
@@ -104,6 +119,8 @@ export class NotFoundError extends BabylonError {
 
 /**
  * Conflict error for duplicate resources or conflicting operations
+ *
+ * Thrown when an operation conflicts with existing state.
  */
 export class ConflictError extends BabylonError {
   constructor(
@@ -115,7 +132,9 @@ export class ConflictError extends BabylonError {
 }
 
 /**
- * Database error for database issues
+ * Database error for database operation failures
+ *
+ * Thrown when database operations fail.
  */
 export class DatabaseError extends BabylonError {
   constructor(
@@ -136,6 +155,8 @@ export class DatabaseError extends BabylonError {
 
 /**
  * External service error for third-party service failures
+ *
+ * Thrown when external service calls fail.
  */
 export class ExternalServiceError extends BabylonError {
   constructor(

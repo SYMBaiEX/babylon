@@ -175,8 +175,10 @@ export const babylonPlugin: Plugin = {
     entityMentionsProvider, // Detect and enrich entity mentions (users, companies, stocks)
   ],
 
-  // Note: Trust tracking and performance evaluation moved to plugin-experience
-  // See: marketOutcomeEvaluator in plugin-experience/src/evaluators
+  /**
+   * Trust tracking and performance evaluation moved to plugin-experience.
+   * See: marketOutcomeEvaluator in plugin-experience/src/evaluators
+   */
 
   actions: [
     // Trading actions
@@ -206,8 +208,8 @@ export const babylonPlugin: Plugin = {
  */
 export async function initializeBabylonPlugin(
   runtime: {
-    a2aClient?: unknown;
-    registerPlugin?: (plugin: unknown) => void | Promise<void>;
+    a2aClient?: import('./integration-a2a-sdk').BabylonA2AClient | null;
+    registerPlugin?: (plugin: Plugin) => void | Promise<void>;
     agentId?: string;
   },
   config: {

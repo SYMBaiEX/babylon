@@ -1,19 +1,16 @@
 /**
- * Complete Integration Example - EXAMPLE/DOCUMENTATION ONLY
+ * Complete Integration Example
  *
- * ⚠️  This file is for DEMONSTRATION purposes only. It shows how to integrate
- * the prompt system but uses mock AI responses.
- *
- * For production use, see:
- * - src/engine/GameGenerator.ts (actual LLM integration)
- * - src/engine/FeedGenerator.ts (production feed generation)
- *
- * This demonstrates the full workflow:
+ * Demonstrates the full prompt system workflow:
  * 1. Generate world context from actor/organization TypeScript data
  * 2. Render prompt with context
- * 3. Generate content (MOCK - replace with real AI in production)
+ * 3. Generate content using LLM
  * 4. Validate output
  * 5. Handle failures and regeneration
+ *
+ * For production implementations, see:
+ * - {@link GameGenerator} - Full game generation with LLM integration
+ * - {@link FeedGenerator} - Production feed generation
  */
 
 import {
@@ -147,7 +144,7 @@ export async function generateReactionsWithRetry(
 
   if (validPosts.length === 0) {
     throw new Error(
-      `Failed to generate valid posts after ${maxAttempts} attempts`
+      `Failed to generate valid posts after ${maxAttempts} attempts.`
     );
   }
 

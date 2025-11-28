@@ -1,5 +1,7 @@
 /**
- * Privy authentication helpers for synpress tests
+ * Privy authentication helpers for synpress tests.
+ *
+ * @module testing/synpress/helpers/privy-auth
  */
 
 import type { Page } from '@playwright/test';
@@ -12,7 +14,10 @@ export interface PrivyTestAccount {
 }
 
 /**
- * Get Privy test account credentials from environment
+ * Gets Privy test account credentials from environment variables.
+ *
+ * @returns Privy test account credentials
+ * @throws Error if PRIVY_TEST_EMAIL is not set
  */
 export function getPrivyTestAccount(): PrivyTestAccount {
   const email = process.env.PRIVY_TEST_EMAIL || 'test@example.com';
@@ -37,18 +42,14 @@ export function getPrivyTestAccount(): PrivyTestAccount {
 }
 
 /**
- * Wait for Privy SDK to be initialized and ready
+ * Waits for Privy SDK to be initialized and ready.
  *
- * @description Waits for Privy SDK to be loaded and ready before attempting authentication.
- * Verifies that PrivyProvider is rendered (not the fallback UI) and that the SDK
- * has finished initializing. This is critical because Privy SDK must be ready before
- * any authentication UI interactions can succeed.
+ * Verifies that PrivyProvider is rendered and the SDK has finished initializing.
+ * This is critical because Privy SDK must be ready before any authentication
+ * UI interactions can succeed.
  *
- * Detection strategy:
- * 1. Wait for page to fully hydrate (buttons visible)
- * 2. Check for warning banner (indicates Privy not configured in dev mode)
- * 3. Look for actual Privy UI elements (login buttons, dialogs) which proves SDK is working
- * 4. The SDK is ready when we can interact with Privy authentication UI
+ * @param page - Playwright page instance
+ * @param timeout - Maximum time to wait in milliseconds (default: 60000)
  */
 async function waitForPrivyReady(page: Page, timeout = 60000): Promise<void> {
   console.log('⏳ Waiting for Privy SDK to initialize...');
@@ -56,8 +57,6 @@ async function waitForPrivyReady(page: Page, timeout = 60000): Promise<void> {
   const startTime = Date.now();
 
   try {
-    // STEP 1: First wait for page to hydrate - look for any button
-    // This ensures React has finished rendering before we check for Privy
     console.log('⏳ Waiting for page to hydrate...');
     let pageHydrated = false;
     for (let i = 0; i < 30; i++) {
@@ -74,14 +73,13 @@ async function waitForPrivyReady(page: Page, timeout = 60000): Promise<void> {
     }
 
     if (!pageHydrated) {
-      // Try reloading the page once
       console.log('⚠️ Page not hydrated, attempting reload...');
       await page.reload({ waitUntil: 'domcontentloaded' });
       await page.waitForTimeout(2000);
     }
 
-    // STEP 2: Check if our debug warning banner is visible (indicates Privy not configured)
-    // Note: This only shows in development mode (NODE_ENV !== 'production')
+    // Check if warning banner is visible (indicates Privy not configured)
+    // This only shows in development mode (NODE_ENV !== 'production')
     const warningBanner = page
       .locator('[data-testid="privy-not-configured-warning"]')
       .first();
@@ -154,7 +152,6 @@ async function waitForPrivyReady(page: Page, timeout = 60000): Promise<void> {
     }
 
     if (!privyReady) {
-      // Gather debugging information
       const debugInfo = await page
         .evaluate(() => {
           const info: Record<string, unknown> = {
@@ -202,7 +199,7 @@ export async function loginWithPrivyEmail(
 ): Promise<void> {
   console.log('🔄 Starting Privy login flow...');
 
-  // CRITICAL: Wait for Privy SDK to be ready before attempting any UI interactions
+  // Wait for Privy SDK to be ready before attempting any UI interactions
   // This ensures the SDK has finished initializing and authentication UI is available
   await waitForPrivyReady(page);
 

@@ -139,8 +139,11 @@ export const sendToAdminAction: Action = {
       };
     }
 
-    // Find the most recent room where admin and agent have communicated
-    // Note: Since we can't directly query by entityId, use a fallback approach
+    /**
+     * Find the most recent room where admin and agent have communicated.
+     *
+     * Since we can't directly query by entityId, use a fallback approach.
+     */
     const adminMessages = await runtime.getMemories({
       roomId: runtime.agentId, // Use agent's default room as fallback
       count: 10,

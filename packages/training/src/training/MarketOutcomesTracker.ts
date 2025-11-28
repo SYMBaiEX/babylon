@@ -215,6 +215,3 @@ export class MarketOutcomesTracker {
     };
   }
 }
-
-// NOTE: Test agent spawning code commented out - requires STRATEGIES and simulateAgent implementations
-// See git history to restore when ready

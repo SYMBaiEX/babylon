@@ -1,16 +1,12 @@
 #!/usr/bin/env bun
 
 /**
- * Database Management Commands
+ * @fileoverview Database management commands
  *
- * Commands:
- *   start    - Start PostgreSQL container
- *   stop     - Stop PostgreSQL container
- *   restart  - Restart PostgreSQL container
- *   status   - Check database status
- *   migrate  - Run database migrations
- *   seed     - Seed database with initial data
- *   reset    - Reset database (drop + migrate)
+ * Provides commands for managing the PostgreSQL database container, running migrations,
+ * seeding data, and checking database status using Docker and docker-compose.
+ *
+ * @module cli/commands/db
  */
 
 import { $ } from 'bun';
@@ -50,6 +46,15 @@ ENVIRONMENT:
 `);
 }
 
+/**
+ * Verifies Docker is installed and running.
+ *
+ * Checks both Docker installation and daemon status before proceeding with
+ * database operations.
+ *
+ * @throws Exits process with code 1 if Docker is not installed or not running
+ * @internal
+ */
 async function checkDocker(): Promise<void> {
   logger.step('Checking Docker installation...');
 
@@ -72,6 +77,12 @@ async function checkDocker(): Promise<void> {
   logger.success('Docker is running');
 }
 
+/**
+ * Verifies docker-compose.yml exists in project root.
+ *
+ * @throws Exits process with code 1 if compose file not found
+ * @internal
+ */
 function checkComposeFile(): void {
   const composePath = join(process.cwd(), COMPOSE_FILE);
   if (!existsSync(composePath)) {
@@ -80,6 +91,12 @@ function checkComposeFile(): void {
   }
 }
 
+/**
+ * Checks if the PostgreSQL container is currently running.
+ *
+ * @returns `true` if container is running, `false` otherwise
+ * @internal
+ */
 async function isContainerRunning(): Promise<boolean> {
   const result = await $`docker ps --filter name=${CONTAINER_NAME} --format "{{.Names}}"`
     .quiet()
@@ -88,6 +105,12 @@ async function isContainerRunning(): Promise<boolean> {
   return result.trim() === CONTAINER_NAME;
 }
 
+/**
+ * Checks if the PostgreSQL container exists (running or stopped).
+ *
+ * @returns `true` if container exists, `false` otherwise
+ * @internal
+ */
 async function doesContainerExist(): Promise<boolean> {
   const result = await $`docker ps -a --filter name=${CONTAINER_NAME} --format "{{.Names}}"`
     .quiet()
@@ -96,6 +119,14 @@ async function doesContainerExist(): Promise<boolean> {
   return result.trim() === CONTAINER_NAME;
 }
 
+/**
+ * Starts the PostgreSQL database container.
+ *
+ * Creates container if it doesn't exist and waits for health check to pass.
+ * Uses docker-compose to manage the container lifecycle.
+ *
+ * @internal
+ */
 async function startDatabase(): Promise<void> {
   logger.header('Starting PostgreSQL');
 
@@ -136,6 +167,13 @@ async function startDatabase(): Promise<void> {
   await showConnectionInfo();
 }
 
+/**
+ * Stops the PostgreSQL database container.
+ *
+ * Gracefully stops the container using docker-compose stop.
+ *
+ * @internal
+ */
 async function stopDatabase(): Promise<void> {
   logger.header('Stopping PostgreSQL');
 
@@ -151,6 +189,13 @@ async function stopDatabase(): Promise<void> {
   logger.success('PostgreSQL stopped');
 }
 
+/**
+ * Restarts the PostgreSQL database container.
+ *
+ * Stops and then starts the container with a brief delay between operations.
+ *
+ * @internal
+ */
 async function restartDatabase(): Promise<void> {
   logger.header('Restarting PostgreSQL');
 
@@ -159,6 +204,14 @@ async function restartDatabase(): Promise<void> {
   await startDatabase();
 }
 
+/**
+ * Displays the current database container status.
+ *
+ * Shows running state, uptime, health status, and connection information.
+ * Provides helpful messages if container doesn't exist or isn't running.
+ *
+ * @internal
+ */
 async function showStatus(): Promise<void> {
   logger.header('Database Status');
 
@@ -199,6 +252,14 @@ async function showStatus(): Promise<void> {
   }
 }
 
+/**
+ * Displays database connection information.
+ *
+ * Shows host, port, database name, user, password, and connection URL
+ * for the PostgreSQL container.
+ *
+ * @internal
+ */
 async function showConnectionInfo(): Promise<void> {
   console.log('\nConnection Info:');
   console.log('  Host:     localhost');
@@ -209,6 +270,15 @@ async function showConnectionInfo(): Promise<void> {
   console.log('\n  URL: postgresql://babylon:babylon_dev_password@localhost:5432/babylon');
 }
 
+/**
+ * Runs database migrations using drizzle-kit push.
+ *
+ * Pushes schema changes from Drizzle ORM definitions to the database.
+ * Requires the database container to be running.
+ *
+ * @throws Exits process with code 1 if database is not running
+ * @internal
+ */
 async function runMigrations(): Promise<void> {
   logger.header('Running Database Migrations');
 
@@ -223,6 +293,15 @@ async function runMigrations(): Promise<void> {
   logger.success('Migrations complete');
 }
 
+/**
+ * Seeds the database with initial data.
+ *
+ * Runs the seed script to populate the database with actors, organizations,
+ * and other initial data. Requires the database container to be running.
+ *
+ * @throws Exits process with code 1 if database is not running
+ * @internal
+ */
 async function seedDatabase(): Promise<void> {
   logger.header('Seeding Database');
 
@@ -237,6 +316,15 @@ async function seedDatabase(): Promise<void> {
   logger.success('Database seeded');
 }
 
+/**
+ * Resets the database by dropping and recreating schema.
+ *
+ * **Warning:** This will delete all data! Forces schema push using drizzle-kit.
+ * Requires the database container to be running.
+ *
+ * @throws Exits process with code 1 if database is not running
+ * @internal
+ */
 async function resetDatabase(): Promise<void> {
   logger.header('Resetting Database');
 
@@ -253,6 +341,23 @@ async function resetDatabase(): Promise<void> {
   logger.success('Database reset complete');
 }
 
+/**
+ * Main entry point for database domain commands.
+ *
+ * Routes to appropriate sub-command handlers based on parsed arguments.
+ *
+ * **Supported Commands:**
+ * - `start` - Start PostgreSQL container
+ * - `stop` - Stop PostgreSQL container
+ * - `restart` - Restart PostgreSQL container
+ * - `status` - Show database status
+ * - `migrate` - Run database migrations
+ * - `seed` - Seed database with initial data
+ * - `reset` - Reset database (drop + migrate)
+ *
+ * @param args - Raw command-line arguments for the database domain
+ * @throws Exits process with code 1 on error, 0 on success
+ */
 export async function runDbCommand(args: string[]): Promise<void> {
   const parsed = parseArgs(args);
 

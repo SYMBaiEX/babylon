@@ -1,7 +1,9 @@
 /**
  * Agent P&L Service
  *
- * Handles P&L tracking, trade recording, and rollup to user accounts
+ * Handles P&L tracking, trade recording, and rollup to user accounts.
+ *
+ * @packageDocumentation
  */
 
 import {
@@ -18,9 +20,25 @@ import { v4 as uuidv4 } from 'uuid';
 import { logger } from '../shared/logger';
 import { generateSnowflakeId } from '../shared/snowflake';
 
+/**
+ * Service for agent profit and loss tracking
+ */
 export class AgentPnLService {
   /**
-   * Record a trade for an agent
+   * Records a trade for an agent and updates P&L
+   *
+   * @param params - Trade parameters
+   * @param params.agentId - Agent ID
+   * @param params.userId - User ID
+   * @param params.marketType - Market type (prediction or perp)
+   * @param params.marketId - Market ID for prediction markets
+   * @param params.ticker - Ticker for perpetual markets
+   * @param params.action - Trade action (open or close)
+   * @param params.side - Trade side (long/short/yes/no)
+   * @param params.amount - Trade amount
+   * @param params.price - Trade price
+   * @param params.pnl - Realized P&L (for close actions)
+   * @param params.reasoning - Trade reasoning
    */
   async recordTrade(params: {
     agentId: string;

@@ -209,7 +209,7 @@ export const MODEL_TOKEN_LIMITS: Record<string, number> = {
   'unsloth/Qwen3-8B-128K': 131072, // 8B params, 128K context (16GB VRAM min)
   'unsloth/Qwen3-14B-128K': 131072, // 14B params, 128K context (24GB VRAM min)
   'unsloth/Qwen3-32B-128K': 131072, // 32B params, 128K context (48GB VRAM min)
-  'OpenPipe/Qwen3-14B-Instruct': 32768, // 32,768 native INPUT via W&B API (legacy)
+  'OpenPipe/Qwen3-14B-Instruct': 32768, // 32,768 native INPUT via W&B API
   'Qwen/Qwen2.5-32B-Instruct': 131072, // 131k INPUT, 40,960 OUTPUT (separate)
 
   // Groq Models - INPUT CONTEXT (per https://console.groq.com/docs/models)

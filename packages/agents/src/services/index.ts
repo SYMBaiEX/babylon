@@ -1,12 +1,13 @@
 /**
  * Agent Services
  *
- * Core services for agent management
+ * Core services for agent lifecycle management, registry, and operations.
+ *
+ * @packageDocumentation
  */
 
 export * from './AgentPnLService';
 export * from './AgentService';
-// Export interfaces but exclude IAgent0Client to avoid conflict with agent0/index.ts
 export {
   type IAgentRegistry,
   type IWalletService,
