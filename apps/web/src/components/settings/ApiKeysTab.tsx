@@ -8,7 +8,7 @@ import {
   Trash2,
   AlertTriangle,
 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
 import { logger } from '@babylon/shared';
@@ -46,7 +46,7 @@ export function ApiKeysTab() {
   const [newKey, setNewKey] = useState<ApiKeyResponse | null>(null);
   const [keyName, setKeyName] = useState('');
 
-  const fetchKeys = async () => {
+  const fetchKeys = useCallback(async () => {
     try {
       setLoading(true);
       const token = await getAccessToken();
@@ -73,11 +73,11 @@ export function ApiKeysTab() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [getAccessToken]);
 
   useEffect(() => {
     fetchKeys();
-  }, []);
+  }, [fetchKeys]);
 
   const handleGenerateKey = async () => {
     try {
@@ -191,10 +191,10 @@ export function ApiKeysTab() {
         <div className="flex items-start gap-3">
           <AlertTriangle className="h-5 w-5 shrink-0 text-yellow-500" />
           <div className="space-y-1">
-            <p className="font-semibold text-yellow-500 text-sm">
+            <p className="font-semibold text-sm text-yellow-500">
               Keep your API keys secure
             </p>
-            <p className="text-yellow-500/90 text-sm">
+            <p className="text-sm text-yellow-500/90">
               API keys provide full access to your account. Never share them or
               commit them to version control. If a key is compromised, revoke it
               immediately.

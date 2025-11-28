@@ -47,7 +47,7 @@ import { NextResponse } from 'next/server';
 import { logger } from '@babylon/shared';
 import { modelSelectionService } from '@babylon/training';
 
-export async function GET() {
+export async function GET(): Promise<NextResponse> {
   try {
     // Get summary
     const summary = await modelSelectionService.getSelectionSummary();
