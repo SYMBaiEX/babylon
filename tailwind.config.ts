@@ -1,8 +1,5 @@
-import type { Config } from 'tailwindcss'
-import type { PluginAPI } from 'tailwindcss/types/config'
-
-const config: Config = {
-  darkMode: ['class'],
+const config = {
+  darkMode: 'class',
   content: [
     './src/**/*.{ts,tsx}',
     './app/**/*.{ts,tsx}',
@@ -116,8 +113,8 @@ const config: Config = {
     },
   },
   plugins: [
-    require('tailwindcss-animate'),
-    function({ addUtilities }: PluginAPI) {
+    // Animation utilities are configured in postcss.config.mjs for Tailwind v4
+    function({ addUtilities }: { addUtilities: (utilities: Record<string, Record<string, string | Record<string, string>>>) => void }) {
       addUtilities({
         '.scrollbar-hide': {
           /* Firefox */

@@ -212,8 +212,7 @@ const config: Config = {
   },
 
   plugins: [
-    // Animation utilities plugin
-    require('tailwindcss-animate'),
+    // Animation utilities are configured in postcss.config.mjs for Tailwind v4
   ],
 }
 
