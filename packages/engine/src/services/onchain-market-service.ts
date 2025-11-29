@@ -13,7 +13,7 @@ import {
 import { privateKeyToAccount } from 'viem/accounts';
 import { baseSepolia } from 'viem/chains';
 import { db, eq, markets } from '@babylon/db';
-import { logger } from '@babylon/shared';
+import { logger, DIAMOND_ADDRESS } from '@babylon/shared';
 
 /**
  * Create a prediction market on-chain
@@ -27,7 +27,7 @@ export async function createMarketOnChain(
   endDate: Date,
   oracleAddress?: Address
 ): Promise<`0x${string}` | null> {
-  const diamondAddress = process.env.NEXT_PUBLIC_DIAMOND_ADDRESS as Address;
+  const diamondAddress = DIAMOND_ADDRESS as Address;
   const deployerPrivateKey = process.env.DEPLOYER_PRIVATE_KEY as `0x${string}`;
   const rpcUrl = process.env.NEXT_PUBLIC_RPC_URL;
 

@@ -292,9 +292,13 @@ export async function isContractDeployed(
 }
 
 /**
- * Get contract addresses from environment variables
+ * Get contract addresses from canonical config
+ * 
+ * @deprecated Use @babylon/shared/config instead
  */
 export function getContractAddressesFromEnv(): Partial<ContractAddresses> {
+  // Import dynamically to avoid circular dependencies
+  // This function is deprecated - use @babylon/shared/config directly
   return {
     diamond: process.env.NEXT_PUBLIC_DIAMOND_ADDRESS,
     identityRegistry: process.env.NEXT_PUBLIC_IDENTITY_REGISTRY,

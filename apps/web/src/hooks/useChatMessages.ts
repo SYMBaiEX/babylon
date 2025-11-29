@@ -256,7 +256,7 @@ export function useChatMessages(chatId: string | null) {
   );
 
   // Subscribe to chat channel
-  const channel = chatId ? `chat:${chatId}` : null;
+  const channel: `chat:${string}` | null = chatId ? `chat:${chatId}` : null;
   const { isConnected } = useSSEChannel(channel, handleChatUpdate);
 
   // Load messages when switching chats

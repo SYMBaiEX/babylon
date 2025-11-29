@@ -91,14 +91,15 @@ export {
 // Redis
 export {
   redis,
-  redisClientType,
+  getRedis,
+  getRedisClient,
   isRedisAvailable,
   safePublish,
   safePoll,
   closeRedis,
   streamAdd,
   streamRead,
-  type RedisClientType,
+  type RedisInstance,
   type StreamMessage,
 } from './redis';
 

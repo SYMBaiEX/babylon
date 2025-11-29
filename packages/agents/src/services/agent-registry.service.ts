@@ -24,8 +24,8 @@ import {
   externalAgentConnections,
   gte,
   ilike,
+  inArray,
   or,
-  sql,
   type User,
   users,
 } from '@babylon/db';
@@ -401,11 +401,11 @@ export class AgentRegistryService {
     const conditions = [];
 
     if (types && types.length > 0) {
-      conditions.push(sql`${agentRegistries.type} = ANY(${types})`);
+      conditions.push(inArray(agentRegistries.type, types));
     }
 
     if (statuses && statuses.length > 0) {
-      conditions.push(sql`${agentRegistries.status} = ANY(${statuses})`);
+      conditions.push(inArray(agentRegistries.status, statuses));
     }
 
     if (minTrustLevel !== undefined) {

@@ -71,3 +71,6 @@ export * from './posthog';
 
 // Share utilities
 export * from './share';
+
+// Public configuration (canonical contract addresses, endpoints, game settings)
+export * from './config';

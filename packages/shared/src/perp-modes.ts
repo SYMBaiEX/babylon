@@ -7,6 +7,8 @@
  * - hybrid: Off-chain execution with periodic on-chain settlement (best of both)
  */
 
+import { DIAMOND_ADDRESS } from './config';
+
 export type PerpSettlementMode = 'offchain' | 'onchain' | 'hybrid';
 
 export interface PerpModeConfig {
@@ -31,15 +33,15 @@ export interface PerpModeConfig {
 }
 
 /**
- * Load configuration from environment variables
+ * Load configuration from canonical config with environment overrides
  */
 export const PERP_CONFIG: PerpModeConfig = {
   // Default to off-chain MVP for fastest performance
   settlementMode: (process.env.NEXT_PUBLIC_PERP_SETTLEMENT_MODE ||
     'offchain') as PerpSettlementMode,
 
-  // On-chain contract addresses (optional)
-  diamondAddress: process.env.NEXT_PUBLIC_DIAMOND_ADDRESS,
+  // On-chain contract addresses from canonical config
+  diamondAddress: DIAMOND_ADDRESS,
 
   // Hybrid mode settings (1 hour batches, 100 positions max)
   hybridBatchInterval: Number.parseInt(
@@ -73,7 +75,7 @@ export function validatePerpConfig(): void {
     !PERP_CONFIG.diamondAddress
   ) {
     throw new Error(
-      'NEXT_PUBLIC_DIAMOND_ADDRESS required for onchain/hybrid settlement modes'
+      'Diamond address required for onchain/hybrid settlement modes'
     );
   }
 

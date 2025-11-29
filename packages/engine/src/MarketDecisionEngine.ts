@@ -1524,10 +1524,9 @@ ${prompt}`
           decision.npcName = context.npcName;
         }
 
-        // Ensure npcId is set from context if missing
-        if (!decision.npcId) {
-          decision.npcId = context.npcId;
-        }
+        // Always use context's canonical npcId (string from database)
+        // XML parser may convert numeric IDs to numbers, causing type errors downstream
+        decision.npcId = context.npcId;
 
         // Validate hold action
         if (decision.action === 'hold') {

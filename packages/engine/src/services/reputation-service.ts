@@ -17,7 +17,7 @@ import {
 import { privateKeyToAccount } from 'viem/accounts';
 import { baseSepolia } from 'viem/chains';
 import { db, eq, positions, users } from '@babylon/db';
-import { logger } from '@babylon/shared';
+import { logger, REPUTATION_SYSTEM_BASE_SEPOLIA } from '@babylon/shared';
 import { REPUTATION_SYSTEM_ABI } from '@babylon/shared';
 
 // =============================================================================
@@ -84,9 +84,8 @@ export async function syncReputationIfAvailable(
   return await reputationSyncService.batchSync(options);
 }
 
-// Contract addresses
-const REPUTATION_SYSTEM = process.env
-  .NEXT_PUBLIC_REPUTATION_SYSTEM_BASE_SEPOLIA as Address;
+// Contract addresses from canonical config
+const REPUTATION_SYSTEM = REPUTATION_SYSTEM_BASE_SEPOLIA as Address;
 
 // Server wallet for paying gas (testnet only!)
 const DEPLOYER_PRIVATE_KEY = process.env.DEPLOYER_PRIVATE_KEY as `0x${string}`;

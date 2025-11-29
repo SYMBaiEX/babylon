@@ -7,7 +7,7 @@ import {
   verifyRealtimeToken,
 } from '@babylon/api';
 import { connections } from '@babylon/api';
-import { redis, streamRead } from '@babylon/api';
+import { getRedisClient, streamRead } from '@babylon/api';
 
 // Vercel function configuration
 export const maxDuration = 300; // 5 minutes max for SSE connections
@@ -64,6 +64,7 @@ export async function GET(request: NextRequest) {
 
   const userId = realtimePayload.userId;
 
+  const redis = getRedisClient();
   if (!redis) {
     logger.error(
       'Redis/Upstash not configured - realtime disabled',

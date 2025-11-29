@@ -16,6 +16,9 @@ import { join } from 'path';
 import { parseArgs, wantsHelp, getFlag } from '../lib/args.js';
 import { logger } from '../lib/logger.js';
 
+// Path to contracts package (foundry.toml location)
+const CONTRACTS_DIR = join(process.cwd(), 'packages', 'contracts');
+
 // Network configurations
 const NETWORKS = {
   local: {
@@ -139,31 +142,31 @@ async function deployToNetwork(network: NetworkName, skipVerify: boolean, _force
     }
   }
 
-  // Compile contracts
+  // Compile contracts (run from contracts directory where foundry.toml is)
   logger.step('Compiling contracts...');
-  await $`forge build`.quiet();
+  await $`cd ${CONTRACTS_DIR} && forge build`.quiet();
   logger.success('Contracts compiled');
 
   // Clean previous artifacts for local
   if (network === 'local') {
     logger.step('Cleaning previous artifacts...');
-    await $`rm -rf broadcast cache`.quiet();
+    await $`rm -rf ${CONTRACTS_DIR}/broadcast ${CONTRACTS_DIR}/cache`.quiet();
     
     // Configure mining
     await $`cast rpc evm_setAutomine false --rpc-url ${config.rpcUrl}`.quiet();
     await $`cast rpc evm_setIntervalMining 1000 --rpc-url ${config.rpcUrl}`.quiet();
   }
 
-  // Deploy
+  // Deploy (run from contracts directory where foundry.toml is)
   logger.step('Deploying contracts...');
   
-  const scriptPath = 'packages/contracts/script/DeployBabylon.s.sol:DeployBabylon';
+  const scriptPath = 'script/DeployBabylon.s.sol:DeployBabylon';
   process.env.DEPLOYER_PRIVATE_KEY = config.privateKey;
   
   const verifyFlag = !skipVerify && network !== 'local' ? '--verify' : '';
   
   try {
-    const result = await $`forge script ${scriptPath} \
+    const result = await $`cd ${CONTRACTS_DIR} && forge script ${scriptPath} \
       --rpc-url ${config.rpcUrl} \
       --private-key ${config.privateKey} \
       --broadcast ${verifyFlag}`;

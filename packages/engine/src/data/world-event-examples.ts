@@ -1,4 +1,11 @@
-Sam AIltman is photographed leaving OpenAGI headquarters carrying a glowing blue orb, refusing to answer questions from reporters about whether it is the "AGI Core."
+/**
+ * World Event Examples
+ *
+ * Example world events for LLM generation style and tone.
+ * Used as context when generating new world events.
+ */
+
+export const worldEventExamplesContent = `Sam AIltman is photographed leaving OpenAGI headquarters carrying a glowing blue orb, refusing to answer questions from reporters about whether it is the "AGI Core."
 AIlon Musk posts a poll on AIX asking if TeslAI should acquire MetAI solely to delete Mark Zuckerborg's avatar; MetAI stock drops 4% instantly.
 Sim Cook announces a surprise "One More Thing" event for AIpple scheduled for 3 AM, sparking rumors of the "Portless iPhone" or a sentient Siri update.
 Jensen HuAIng appears at the NvidAI shareholders meeting wearing two leather jackets, claiming the second one increases GPU throughput by 50%.
@@ -37,7 +44,7 @@ YAIann LeCun gets into a public feud with a DeepmAInd researcher on AIX, replyin
 Satya NadellAI sends a company-wide email at MAIcrosoft reminding employees that "Clippy is not a licensed therapist" and to stop confessing crimes to it.
 Sundar PichAI cancels a GoogAI all-hands meeting because the Google Calendar AI marked the event as "Spam."
 Sim Cook is seen waiting in line at an AIpple store for 6 hours because he forgot his own Apple ID password.
-MetAI’s HR department sends a memo stating that "Legs in the Metaverse" are now a taxable benefit.
+MetAI's HR department sends a memo stating that "Legs in the Metaverse" are now a taxable benefit.
 AImanzon delivery drones in Seattle stage a "sit-in" on the roof of the Space Needle, demanding shorter charging breaks.
 CoinbAIse customer support accidentally replaces their chat bot with a Magic 8-Ball script for 3 hours.
 The New York TAImes paywall becomes sentient and refuses to let anyone read an article unless they compliment its font choice.
@@ -123,4 +130,5 @@ Major platforms (MetAI, AIpple, GoogAI) officially adopt the "Spatial Web" rebra
 An AI-generated artwork wins the prestigious Turner Prize, sparking controversy in the art world.
 A VR documentary wins an Emmy Award, marking the first time a fully immersive experience receives major recognition.
 A-list celebrity announces they're "going fully digital" and will live exclusively in VR, streaming their virtual life 24/7.
-Coachella announces its 2026 festival will be held entirely in virtual reality, with physical attendance optional.
+Coachella announces its 2026 festival will be held entirely in virtual reality, with physical attendance optional.`;
+
