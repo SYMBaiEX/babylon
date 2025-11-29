@@ -62,16 +62,17 @@ import {
   authenticate,
   successResponse
 } from '@/lib/api/auth-middleware';
-import { 
-  db, 
-  users, 
-  referrals, 
-  follows, 
+import {
+  db,
+  users,
+  referrals,
+  follows,
   tradingFees,
-  eq, 
-  and, 
-  gte, 
+  eq,
+  and,
   inArray,
+  isNull,
+  isNotNull,
   count,
   sum,
   desc
@@ -214,19 +215,46 @@ export const GET = withErrorHandling(async (
 
   const totalFeesEarned = Number(feeEarnings?.total || 0);
 
-  // Calculate weekly referral count (last 7 days) - only completed
-  const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-  const [weeklyCountResult] = await db.select({
+  // Calculate referral stats for the unqualified limit system
+  // Unqualified = completed AND qualifiedAt IS NULL AND signupPointsAwarded = true
+  const [unqualifiedCountResult] = await db.select({
     count: count(),
   })
     .from(referrals)
     .where(and(
       eq(referrals.referrerId, canonicalUserId),
       eq(referrals.status, 'completed'),
-      gte(referrals.completedAt, oneWeekAgo)
+      isNull(referrals.qualifiedAt),
+      eq(referrals.signupPointsAwarded, true)
     ));
 
-  const weeklyReferralCount = Number(weeklyCountResult?.count || 0);
+  const unqualifiedCount = Number(unqualifiedCountResult?.count || 0);
+
+  // Qualified = completed AND qualifiedAt IS NOT NULL
+  const [qualifiedCountResult] = await db.select({
+    count: count(),
+  })
+    .from(referrals)
+    .where(and(
+      eq(referrals.referrerId, canonicalUserId),
+      eq(referrals.status, 'completed'),
+      isNotNull(referrals.qualifiedAt)
+    ));
+
+  const qualifiedCount = Number(qualifiedCountResult?.count || 0);
+
+  // Pending points = completed AND signupPointsAwarded = false (waiting for slot)
+  const [pendingPointsCountResult] = await db.select({
+    count: count(),
+  })
+    .from(referrals)
+    .where(and(
+      eq(referrals.referrerId, canonicalUserId),
+      eq(referrals.status, 'completed'),
+      eq(referrals.signupPointsAwarded, false)
+    ));
+
+  const pendingPointsCount = Number(pendingPointsCountResult?.count || 0);
 
   // Check if referrer (current user) is following the referred users
   const completedUserIds = completedReferralsData
@@ -315,12 +343,16 @@ export const GET = withErrorHandling(async (
     },
     stats: {
       totalReferrals: completedReferralsData.length, // Only completed count
-      pendingReferrals: pendingReferredUsers.length, // NEW: Pending count
+      pendingReferrals: pendingReferredUsers.length, // Pending profile completion count
       totalFeesEarned,
       feeShareRate: 0.50, // 50% of fees
       followingCount: followingUserIds.size,
-      weeklyReferralCount,
-      weeklyLimit: 10,
+      // Unqualified referral limit stats
+      unqualifiedCount, // Unqualified referrals with points awarded (counts toward limit)
+      qualifiedCount, // Qualified referrals (unlimited, don't count toward limit)
+      pendingPointsCount, // Referrals waiting for points (FIFO queue)
+      unqualifiedLimit: 10, // Maximum unqualified referrals at any time
+      slotsAvailable: Math.max(0, 10 - unqualifiedCount), // Available slots for new referrals
     },
     referredUsers: completedReferredUsers, // Completed users
     pendingReferredUsers: formattedPendingUsers, // NEW: Pending users

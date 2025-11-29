@@ -91,7 +91,8 @@
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts",
     "types/**/*.d.ts",
-    "tests/**/*.ts"
+    "tests/**/*.ts",
+    "tailwind.config.ts"
   ],
   "exclude": [
     "node_modules",

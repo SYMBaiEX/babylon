@@ -663,6 +663,10 @@ describe('Gameplay Tick Integration', () => {
       return
     }
 
+    // Use a shorter timeout for the test to fail fast if endpoint hangs
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 10000) // 10 second timeout
+
     try {
       const response = await fetch(`${BASE_URL}/api/cron/agent-tick`, {
         method: 'POST',
@@ -670,8 +674,10 @@ describe('Gameplay Tick Integration', () => {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${cronSecret}`,
         },
-        signal: AbortSignal.timeout(30000), // 30 second timeout for cron job
+        signal: controller.signal,
       })
+
+      clearTimeout(timeoutId)
 
       // Should return 200 or handle gracefully
       expect(response.status).toBeGreaterThanOrEqual(200)
@@ -680,11 +686,19 @@ describe('Gameplay Tick Integration', () => {
       if (response.ok) {
         const data = await response.json()
         console.log('✅ Cron endpoint response:', data)
+        // Verify response structure
+        expect(data).toHaveProperty('success')
+        expect(typeof data.success).toBe('boolean')
       }
     } catch (error) {
-      // Network errors are acceptable for this test
+      clearTimeout(timeoutId)
+      // If it's an abort error, the endpoint took too long
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new Error(`Cron endpoint timed out after 10 seconds - endpoint may be hanging`)
+      }
+      // Other network errors are acceptable for this test
       console.log('⚠️  Cron endpoint test error (acceptable):', error)
     }
-  })
+  }, 15000) // 15 second test timeout (longer than fetch timeout)
 })
 

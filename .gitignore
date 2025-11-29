@@ -12,6 +12,10 @@
 # next.js
 /.next/
 /out/
+.next/
+dist/
+.turbo/
+/.turbo/
 
 # production
 /build
@@ -30,6 +34,7 @@ yarn-error.log*
 .env
 
 # act (local GitHub Actions) secrets
+.secrets
 .secrets.local
 
 # vercel
@@ -86,4 +91,4 @@ public/uploads/posts/*
 !public/uploads/.gitkeep
 !public/uploads/*/.gitkeep
 
-python/trained_models
+python/trained_models.secrets
