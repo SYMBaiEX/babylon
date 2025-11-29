@@ -24,8 +24,7 @@
     "nextra": "^4.6.0",
     "nextra-theme-docs": "^4.6.0",
     "react": "^19.2.0",
-    "react-dom": "^19.2.0",
-    "tailwindcss-animate": "^1.0.7"
+    "react-dom": "^19.2.0"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.1",
