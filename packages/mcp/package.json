@@ -47,12 +47,14 @@
     "typecheck": "tsc -b ."
   },
   "dependencies": {
-    "@babylon/shared": "workspace:*"
+    "@babylon/shared": "workspace:*",
+    "@babylon/a2a": "workspace:*"
   },
   "peerDependencies": {
     "@babylon/db": "workspace:*",
     "@babylon/api": "workspace:*",
     "@babylon/shared": "workspace:*",
+    "@babylon/a2a": "workspace:*",
     "drizzle-orm": "^0.44.7",
     "ethers": "^6.15.0",
     "zod": "^4.1.12"

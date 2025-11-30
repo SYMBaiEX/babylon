@@ -375,6 +375,7 @@
       "name": "@babylon/mcp",
       "version": "0.1.0",
       "dependencies": {
+        "@babylon/a2a": "workspace:*",
         "@babylon/shared": "workspace:*",
       },
       "devDependencies": {
@@ -383,6 +384,7 @@
         "typescript": "^5.9.3",
       },
       "peerDependencies": {
+        "@babylon/a2a": "workspace:*",
         "@babylon/api": "workspace:*",
         "@babylon/db": "workspace:*",
         "@babylon/shared": "workspace:*",

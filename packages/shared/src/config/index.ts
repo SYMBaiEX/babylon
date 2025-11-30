@@ -84,7 +84,6 @@ export function getCurrentChainId(): number {
   switch (nodeEnv) {
     case 'production':
       return 8453;
-    case 'staging':
     case 'test':
       return 84532;
     default:
