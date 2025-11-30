@@ -381,23 +381,38 @@ export async function processOnchainRegistration({
   } else {
     const address = walletAddress! as Address;
 
-    // Always check blockchain before registration to avoid re-registration errors
-    isRegistered = await publicClient.readContract({
-      address: IDENTITY_REGISTRY,
-      abi: identityRegistryAbi,
-      functionName: 'isRegistered',
-      args: [address],
-    });
+    // In local dev, contracts may not be deployed yet during startup
+    // Check if contract exists before calling it
+    const contractCode = await publicClient.getCode({ address: IDENTITY_REGISTRY });
+    const contractExists = contractCode && contractCode !== '0x' && contractCode.length > 2;
 
-    if (isRegistered && !tokenId) {
-      tokenId = Number(
-        await publicClient.readContract({
-          address: IDENTITY_REGISTRY,
-          abi: identityRegistryAbi,
-          functionName: 'getTokenId',
-          args: [address],
-        })
+    if (!contractExists) {
+      // Contract not deployed yet - use database state
+      logger.warn(
+        'Identity registry contract not deployed yet, using database state',
+        { contractAddress: IDENTITY_REGISTRY, chainId },
+        'processOnchainRegistration'
       );
+      isRegistered = dbUser.onChainRegistered && dbUser.nftTokenId !== null;
+    } else {
+      // Contract exists - check blockchain for registration status
+      isRegistered = await publicClient.readContract({
+        address: IDENTITY_REGISTRY,
+        abi: identityRegistryAbi,
+        functionName: 'isRegistered',
+        args: [address],
+      });
+
+      if (isRegistered && !tokenId) {
+        tokenId = Number(
+          await publicClient.readContract({
+            address: IDENTITY_REGISTRY,
+            abi: identityRegistryAbi,
+            functionName: 'getTokenId',
+            args: [address],
+          })
+        );
+      }
     }
   }
 
@@ -661,9 +676,30 @@ export async function processOnchainRegistration({
     );
   }
 
+  // Debug: log all events in receipt
+  logger.info(
+    'Transaction receipt logs',
+    {
+      txHash: registrationTxHash ?? submittedTxHash,
+      totalLogs: finalizedReceipt.logs.length,
+      logAddresses: finalizedReceipt.logs.map((l: Log) => l.address),
+      identityRegistryAddress: IDENTITY_REGISTRY,
+    },
+    'processOnchainRegistration'
+  );
+
   // Filter logs by contract address first to avoid decoding errors on Transfer events
   const contractLogs = finalizedReceipt.logs.filter(
     (log: Log) => log.address.toLowerCase() === IDENTITY_REGISTRY.toLowerCase()
+  );
+
+  logger.info(
+    'Filtered contract logs',
+    {
+      contractLogsCount: contractLogs.length,
+      topics: contractLogs.map((l: Log) => l.topics),
+    },
+    'processOnchainRegistration'
   );
 
   const agentRegisteredLog = contractLogs.find((log: Log) => {
@@ -677,9 +713,19 @@ export async function processOnchainRegistration({
         topics: log.topics,
         strict: false,
       });
+      logger.info(
+        'Decoded log event',
+        { eventName: decodedLog.eventName },
+        'processOnchainRegistration'
+      );
       return decodedLog.eventName === 'AgentRegistered';
-    } catch {
+    } catch (decodeError) {
       // Log signature not in ABI (e.g., ERC-721 Transfer event) - skip this log
+      logger.warn(
+        'Failed to decode log',
+        { topics: log.topics, error: String(decodeError) },
+        'processOnchainRegistration'
+      );
       return false;
     }
   });
@@ -689,6 +735,10 @@ export async function processOnchainRegistration({
       'AgentRegistered event not found in receipt',
       {
         txHash: registrationTxHash ?? submittedTxHash,
+        totalLogs: finalizedReceipt.logs.length,
+        contractLogs: contractLogs.length,
+        allLogAddresses: finalizedReceipt.logs.map((l: Log) => l.address.toLowerCase()),
+        expectedAddress: IDENTITY_REGISTRY.toLowerCase(),
       }
     );
   }
