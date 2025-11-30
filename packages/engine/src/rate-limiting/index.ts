@@ -12,12 +12,15 @@ export {
   getRateLimitStatus,
   RATE_LIMIT_CONFIGS,
   resetRateLimit,
+} from '@babylon/shared/src/rate-limiting/user-rate-limiter';
+
+export {
   checkDuplicate,
   cleanupDuplicates,
   clearAllDuplicates,
   clearDuplicates,
   DUPLICATE_DETECTION_CONFIGS,
   getDuplicateStats,
-} from '@babylon/shared';
+} from '@babylon/shared/src/rate-limiting/duplicate-detector';
 
 

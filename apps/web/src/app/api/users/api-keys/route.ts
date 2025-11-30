@@ -8,7 +8,7 @@
 
 import type { NextRequest } from 'next/server';
 import { authenticate } from '@babylon/api';
-import { generateApiKey, hashApiKey } from '@babylon/shared';
+import { generateApiKey, hashApiKey } from '@babylon/shared/src/utils/api-keys';
 import { userApiKeys, asUser, generateSnowflakeId } from '@babylon/db';
 import { successResponse, withErrorHandling } from '@babylon/api';
 import { logger } from '@babylon/shared';

@@ -2,15 +2,20 @@
  * Utils barrel file
  *
  * Re-exports all utilities from the utils module
+ * 
+ * NOTE: Server-only utilities that use Node.js crypto are NOT exported here:
+ * - api-keys (uses crypto.randomBytes, crypto.createHash)
+ * - ip-utils (uses crypto.createHash)
+ * Import these directly in server code:
+ *   import { generateApiKey } from '@babylon/shared/src/utils/api-keys';
+ *   import { getHashedClientIp } from '@babylon/shared/src/utils/ip-utils';
  */
 
-export * from './api-keys';
 export * from './assets';
 export * from './content-analysis';
 export * from './content-safety';
 export * from './decimal-converter';
 export * from './format';
-export * from './ip-utils';
 export * from './json-parser';
 export * from './logger';
 export * from './name-replacement';

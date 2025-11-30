@@ -2,7 +2,6 @@
   "name": "@babylon/shared",
   "version": "0.1.0",
   "private": true,
-  "type": "module",
   "description": "Shared types, constants, and utilities for Babylon",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
@@ -12,10 +11,25 @@
       "import": "./src/index.ts",
       "require": "./src/index.ts"
     },
-    "./posthog/server": {
-      "types": "./src/posthog/server.ts",
-      "import": "./src/posthog/server.ts",
-      "require": "./src/posthog/server.ts"
+    "./src/rate-limiting/user-rate-limiter": {
+      "types": "./src/rate-limiting/user-rate-limiter.ts",
+      "import": "./src/rate-limiting/user-rate-limiter.ts",
+      "require": "./src/rate-limiting/user-rate-limiter.ts"
+    },
+    "./src/rate-limiting/duplicate-detector": {
+      "types": "./src/rate-limiting/duplicate-detector.ts",
+      "import": "./src/rate-limiting/duplicate-detector.ts",
+      "require": "./src/rate-limiting/duplicate-detector.ts"
+    },
+    "./src/utils/api-keys": {
+      "types": "./src/utils/api-keys.ts",
+      "import": "./src/utils/api-keys.ts",
+      "require": "./src/utils/api-keys.ts"
+    },
+    "./src/utils/ip-utils": {
+      "types": "./src/utils/ip-utils.ts",
+      "import": "./src/utils/ip-utils.ts",
+      "require": "./src/utils/ip-utils.ts"
     }
   },
   "scripts": {

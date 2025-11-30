@@ -29,7 +29,8 @@ import {
   type User,
   users,
 } from '@babylon/db';
-import { logger, verifyApiKey } from '@babylon/shared';
+import { logger } from '@babylon/shared';
+import { verifyApiKey } from '@babylon/shared/src/utils/api-keys';
 import type {
   AgentCapabilities,
   AgentDiscoveryFilter,

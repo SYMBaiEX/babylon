@@ -98,12 +98,12 @@ import { ConflictError, InternalServerError } from '@babylon/api';
 import { successResponse, withErrorHandling } from '@babylon/api';
 import { logger } from '@babylon/shared';
 import type { OnboardingProfilePayload } from '@babylon/shared';
-import { trackServerEvent } from '@babylon/shared';
+import { trackServerEvent } from '@/lib/posthog/server';
 import { notifyNewAccount } from '@babylon/api';
 import { PointsService } from '@babylon/api';
 import { getOrCreateReferralCode } from '@babylon/api';
 import { generateSnowflakeId } from '@babylon/shared';
-import { getHashedClientIp } from '@babylon/shared';
+import { getHashedClientIp } from '@babylon/shared/src/utils/ip-utils';
 import { OnboardingProfileSchema } from '@babylon/shared';
 import type { JsonValue } from '@babylon/api';
 

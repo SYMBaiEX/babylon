@@ -5,7 +5,7 @@
  */
 
 import { userApiKeys, eq, asSystem } from '@babylon/db';
-import { hashApiKey } from '@babylon/shared';
+import { hashApiKey } from '@babylon/shared/src/utils/api-keys';
 import { logger } from '@babylon/shared';
 
 /**

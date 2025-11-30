@@ -60,14 +60,17 @@ export * from './storage';
 // Services
 export * from './services';
 
-// Rate limiting utilities
-export * from './rate-limiting';
+// Rate limiting utilities - Server-only (uses Node.js crypto)
+// Import directly in server code:
+//   import { checkRateLimit, RATE_LIMIT_CONFIGS } from '@babylon/shared/src/rate-limiting';
+// export * from './rate-limiting';
 
 // Referral utilities
 export * from './referral';
 
-// PostHog server utilities
-export * from './posthog';
+// PostHog utilities moved to apps/web/src/lib/posthog
+// Server: import { trackServerEvent } from '@/lib/posthog/server'
+// Client: import { posthog, initPostHog } from '@/lib/posthog'
 
 // Share utilities
 export * from './share';

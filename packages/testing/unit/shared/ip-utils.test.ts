@@ -8,7 +8,7 @@ import {
   getClientIp,
   getHashedClientIp,
   hashIpAddress,
-} from '@babylon/shared';
+} from '@babylon/shared/src/utils/ip-utils';
 
 describe('IP Utils', () => {
   describe('hashIpAddress', () => {

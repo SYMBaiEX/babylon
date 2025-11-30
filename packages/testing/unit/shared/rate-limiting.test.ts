@@ -6,14 +6,16 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
 import {
   checkDuplicate,
-  checkRateLimit,
   clearAllDuplicates,
-  clearAllRateLimits,
   DUPLICATE_DETECTION_CONFIGS,
   getDuplicateStats,
+} from '@babylon/shared/src/rate-limiting/duplicate-detector';
+import {
+  checkRateLimit,
+  clearAllRateLimits,
   getRateLimitStatus,
   RATE_LIMIT_CONFIGS,
-} from '@babylon/shared';
+} from '@babylon/shared/src/rate-limiting/user-rate-limiter';
 
 describe('Rate Limiting (Shared)', () => {
   beforeEach(() => {
