@@ -78,15 +78,32 @@ async function executeAgentTick() {
 
   if (!response) return;
 
-  const data = await response.json();
-
+  // Check content-type before parsing JSON
+  const contentType = response.headers.get('content-type') || '';
+  
   if (!response.ok) {
-    console.error(`Agent tick #${tickCount} failed (HTTP ${response.status})`, data, 'LocalCron');
+    if (contentType.includes('application/json')) {
+      const data = await response.json();
+      console.error(`Agent tick #${tickCount} failed (HTTP ${response.status})`, data, 'LocalCron');
+    } else {
+      const text = await response.text();
+      console.error(`Agent tick #${tickCount} failed (HTTP ${response.status})`, { 
+        body: text.slice(0, 500) 
+      }, 'LocalCron');
+    }
     return;
   }
 
+  if (!contentType.includes('application/json')) {
+    console.error(`Agent tick #${tickCount} returned non-JSON response`, { contentType }, 'LocalCron');
+    return;
+  }
+
+  const data = await response.json();
+
   console.info(`✅ Agent tick #${tickCount} completed`, {
-    agentsProcessed: data.agentsProcessed || 0,
+    agentsProcessed: data.processed || 0,
+    totalActions: data.totalActions || 0,
     errors: data.errors || 0,
   }, 'LocalCron');
 }
