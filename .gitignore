@@ -91,3 +91,9 @@ python/trained_models
 packages/contracts/dependencies/
 packages/training/python/trained_models
 _docs/
+
+# Serena
+.serena/
+
+# Claude Code
+.claude/
