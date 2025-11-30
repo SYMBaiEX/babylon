@@ -344,10 +344,9 @@ const nextConfig: NextConfig = {
       ];
 
       // Use function-based externals to catch all imports of server-only packages
-      // Webpack externals function signature: (context, request, callback)
+      // Webpack externals function signature: ({context, request}, callback)
       const externalizeServerOnly = (
-        _context: string,
-        request: string,
+        { request }: { context?: string; request?: string },
         callback: (
           error?: Error | null,
           result?: string
