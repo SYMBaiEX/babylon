@@ -5,7 +5,7 @@
  */
 
 // Client-side utilities
-export { initPostHog, posthog } from './client';
+export { initPostHog, posthog, getPostHog } from './client';
 
 // Server-side utilities
 export {

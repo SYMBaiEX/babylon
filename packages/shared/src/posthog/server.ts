@@ -11,20 +11,35 @@ import type {
   JsonValue,
 } from '../types/common';
 
-// Dynamic import to avoid client-side bundling
 // PostHog is an optional peer dependency
+// Use lazy initialization with dynamic import to avoid bundling in client builds
 let PostHog: PostHogServerConstructor | null = null;
-
-if (typeof window === 'undefined') {
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    PostHog = require('posthog-node').PostHog as PostHogServerConstructor;
-  } catch {
-    // PostHog not available
-  }
-}
-
+let posthogLoadPromise: Promise<PostHogServerConstructor | null> | null = null;
 let posthogClient: PostHogServerClient | null = null;
+
+/**
+ * Lazily load the PostHog server constructor.
+ * Uses dynamic import to ensure webpack can tree-shake this in client builds.
+ */
+async function loadPostHogServer(): Promise<PostHogServerConstructor | null> {
+  if (typeof window !== 'undefined') return null;
+  if (PostHog) return PostHog;
+  
+  if (!posthogLoadPromise) {
+    posthogLoadPromise = (async () => {
+      try {
+        const module = await import('posthog-node');
+        PostHog = module.PostHog as PostHogServerConstructor;
+        return PostHog;
+      } catch {
+        // PostHog not available
+        return null;
+      }
+    })();
+  }
+  
+  return posthogLoadPromise;
+}
 
 /**
  * Handle PostHog errors gracefully without blocking
@@ -44,9 +59,17 @@ function handlePostHogError(error: Error, context: string): void {
   }
 }
 
-export const getPostHogServerClient = (): PostHogServerClient | null => {
+/**
+ * Get the PostHog server client asynchronously.
+ * This ensures the PostHog module is loaded before use.
+ */
+export const getPostHogServerClient = async (): Promise<PostHogServerClient | null> => {
   // Only initialize on server
-  if (typeof window !== 'undefined' || !PostHog) return null;
+  if (typeof window !== 'undefined') return null;
+
+  // Wait for PostHog to be loaded
+  const PostHogConstructor = await loadPostHogServer();
+  if (!PostHogConstructor) return null;
 
   const apiKey = process.env.NEXT_PUBLIC_POSTHOG_KEY;
   const apiHost =
@@ -60,8 +83,8 @@ export const getPostHogServerClient = (): PostHogServerClient | null => {
   }
 
   // Singleton pattern
-  if (!posthogClient && PostHog) {
-    posthogClient = new PostHog(apiKey, {
+  if (!posthogClient) {
+    posthogClient = new PostHogConstructor(apiKey, {
       host: apiHost,
       flushAt: 20, // Flush after 20 events
       flushInterval: 10000, // Flush every 10 seconds
@@ -89,7 +112,7 @@ export const trackServerEvent = async (
   event: string,
   properties?: StringRecord<JsonValue>
 ) => {
-  const client = getPostHogServerClient();
+  const client = await getPostHogServerClient();
   if (!client) return;
 
   try {
@@ -119,7 +142,7 @@ export const identifyServerUser = async (
   distinctId: string,
   properties: StringRecord<JsonValue>
 ) => {
-  const client = getPostHogServerClient();
+  const client = await getPostHogServerClient();
   if (!client) return;
 
   try {
@@ -148,7 +171,7 @@ export const trackServerError = async (
     statusCode?: number;
   } & StringRecord<JsonValue>
 ) => {
-  const client = getPostHogServerClient();
+  const client = await getPostHogServerClient();
   if (!client) return;
 
   try {
@@ -183,7 +206,7 @@ export const trackServerError = async (
  * Wraps flush in timeout and error handling to prevent blocking
  */
 export const flushPostHog = async () => {
-  const client = getPostHogServerClient();
+  const client = await getPostHogServerClient();
   if (!client) return;
 
   try {

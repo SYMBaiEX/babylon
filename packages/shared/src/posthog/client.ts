@@ -5,28 +5,53 @@
 
 import type {
   PostHogClient,
-  PostHogClientConstructor,
   StringRecord,
   JsonValue,
 } from '../types/common';
 
-// Dynamic import to avoid SSR issues
 // PostHog is an optional peer dependency
+// Use lazy initialization with dynamic import to avoid bundling issues
 let posthog: PostHogClient | null = null;
+let posthogInitPromise: Promise<PostHogClient | null> | null = null;
 
-if (typeof window !== 'undefined') {
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const PostHogConstructor = require('posthog-js')
-      .default as PostHogClientConstructor;
-    posthog = PostHogConstructor();
-  } catch {
-    // PostHog not available
+/**
+ * Lazily load and initialize the PostHog client.
+ * Uses dynamic import to ensure webpack can tree-shake this in server builds.
+ */
+async function loadPostHog(): Promise<PostHogClient | null> {
+  if (typeof window === 'undefined') return null;
+  if (posthog) return posthog;
+  
+  if (!posthogInitPromise) {
+    posthogInitPromise = (async () => {
+      try {
+        const module = await import('posthog-js');
+        // posthog-js exports the constructor as default
+        // The module.default is a function that returns a PostHogClient
+        const PostHogConstructor = module.default as unknown as () => PostHogClient;
+        posthog = PostHogConstructor();
+        return posthog;
+      } catch {
+        // PostHog not available
+        return null;
+      }
+    })();
   }
+  
+  return posthogInitPromise;
 }
 
-export const initPostHog = () => {
-  if (typeof window === 'undefined' || !posthog) return;
+// Initialize PostHog immediately on client-side (non-blocking)
+if (typeof window !== 'undefined') {
+  loadPostHog();
+}
+
+export const initPostHog = async (): Promise<PostHogClient | null> => {
+  if (typeof window === 'undefined') return null;
+
+  // Wait for PostHog to be loaded
+  const client = await loadPostHog();
+  if (!client) return null;
 
   const apiKey = process.env.NEXT_PUBLIC_POSTHOG_KEY;
   const apiHost =
@@ -34,12 +59,12 @@ export const initPostHog = () => {
 
   if (!apiKey) {
     console.warn('PostHog: API key not found. Analytics will be disabled.');
-    return;
+    return null;
   }
 
   // Initialize PostHog only once
-  if (!posthog?.__loaded && posthog) {
-    posthog.init(apiKey, {
+  if (!client.__loaded) {
+    client.init(apiKey, {
       api_host: apiHost,
 
       // Capture settings
@@ -97,8 +122,16 @@ export const initPostHog = () => {
     });
   }
 
-  return posthog;
+  return client;
 };
 
+/**
+ * Get the PostHog client synchronously.
+ * Returns null if PostHog hasn't been loaded yet.
+ * Use initPostHog() for guaranteed client access.
+ */
+export const getPostHog = (): PostHogClient | null => posthog;
+
+// Export posthog as a getter that returns the current client (may be null during initial load)
 export { posthog };
 

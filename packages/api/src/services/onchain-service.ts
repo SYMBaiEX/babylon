@@ -369,22 +369,39 @@ export async function processOnchainRegistration({
     const address = walletAddress! as Address;
 
     // Try to check onchain status, but gracefully handle contract unavailability
-    isRegistered = await publicClient.readContract({
-      address: IDENTITY_REGISTRY,
-      abi: identityRegistryAbi,
-      functionName: 'isRegistered',
-      args: [address],
-    });
+    // In local development, the blockchain may not be running
+    try {
+      isRegistered = await publicClient.readContract({
+        address: IDENTITY_REGISTRY,
+        abi: identityRegistryAbi,
+        functionName: 'isRegistered',
+        args: [address],
+      });
 
-    if (isRegistered && !tokenId) {
-      tokenId = Number(
-        await publicClient.readContract({
-          address: IDENTITY_REGISTRY,
-          abi: identityRegistryAbi,
-          functionName: 'getTokenId',
-          args: [address],
-        })
-      );
+      if (isRegistered && !tokenId) {
+        tokenId = Number(
+          await publicClient.readContract({
+            address: IDENTITY_REGISTRY,
+            abi: identityRegistryAbi,
+            functionName: 'getTokenId',
+            args: [address],
+          })
+        );
+      }
+    } catch (error) {
+      // In local development (chainId 31337), blockchain may not be running
+      // Fall back to database state
+      if (chainId === 31337) {
+        logger.warn(
+          'Local blockchain unavailable, falling back to database state',
+          { userId: user.userId, walletAddress: address },
+          'processOnchainRegistration'
+        );
+        isRegistered = dbUser.onChainRegistered && dbUser.nftTokenId !== null;
+      } else {
+        // On testnets/mainnet, propagate the error
+        throw error;
+      }
     }
   }
 
@@ -1204,24 +1221,42 @@ export async function getOnchainRegistrationStatus(
       transport: http(getRpcUrl()),
     });
 
-    const onchainRegistered = await publicClient.readContract({
-      address: IDENTITY_REGISTRY,
-      abi: identityRegistryAbi,
-      functionName: 'isRegistered',
-      args: [userRecord.walletAddress as Address],
-    });
-
-    if (onchainRegistered && !tokenId) {
-      const queriedTokenId = await publicClient.readContract({
+    // Try to check onchain status, but gracefully handle contract unavailability
+    // In local development, the blockchain may not be running
+    try {
+      const onchainRegistered = await publicClient.readContract({
         address: IDENTITY_REGISTRY,
         abi: identityRegistryAbi,
-        functionName: 'getTokenId',
+        functionName: 'isRegistered',
         args: [userRecord.walletAddress as Address],
       });
-      tokenId = Number(queriedTokenId);
-    }
 
-    isRegistered = onchainRegistered;
+      if (onchainRegistered && !tokenId) {
+        const queriedTokenId = await publicClient.readContract({
+          address: IDENTITY_REGISTRY,
+          abi: identityRegistryAbi,
+          functionName: 'getTokenId',
+          args: [userRecord.walletAddress as Address],
+        });
+        tokenId = Number(queriedTokenId);
+      }
+
+      isRegistered = onchainRegistered;
+    } catch (error) {
+      // In local development (chainId 31337), blockchain may not be running
+      // Fall back to database state (already set above)
+      if (chainId === 31337) {
+        logger.warn(
+          'Local blockchain unavailable, using database state',
+          { userId: user.userId, walletAddress: userRecord.walletAddress },
+          'getOnchainRegistrationStatus'
+        );
+        // isRegistered already set from database state above
+      } else {
+        // On testnets/mainnet, propagate the error
+        throw error;
+      }
+    }
   }
 
   logger.info(
