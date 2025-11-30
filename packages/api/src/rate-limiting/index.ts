@@ -4,7 +4,7 @@
  * Centralized exports for rate limiting functionality
  */
 
-// Rate limiting (doesn't use crypto, can stay in shared)
+// Rate limiting (moved from @babylon/shared)
 export {
   checkRateLimit,
   cleanupRateLimits,
@@ -12,7 +12,7 @@ export {
   getRateLimitStatus,
   RATE_LIMIT_CONFIGS,
   resetRateLimit,
-} from '@babylon/shared';
+} from './user-rate-limiter';
 
 // Duplicate detection (uses crypto, moved to api)
 export {

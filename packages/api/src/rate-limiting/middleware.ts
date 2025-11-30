@@ -5,11 +5,11 @@
  */
 
 import { NextResponse } from 'next/server';
+import { logger } from '@babylon/shared';
 import {
   checkRateLimit,
-  logger,
   type RATE_LIMIT_CONFIGS,
-} from '@babylon/shared';
+} from './user-rate-limiter';
 import {
   checkDuplicate,
   type DUPLICATE_DETECTION_CONFIGS,

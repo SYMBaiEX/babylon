@@ -2,10 +2,10 @@
  * Rate Limiting Module
  *
  * User-level rate limiting and duplicate content detection utilities.
- * Re-exports from @babylon/shared and @babylon/api for backward compatibility.
+ * Re-exports from @babylon/api for backward compatibility.
  */
 
-// Rate limiting (from shared - no crypto dependency)
+// Rate limiting (moved to @babylon/api)
 export {
   checkRateLimit,
   cleanupRateLimits,
@@ -13,9 +13,9 @@ export {
   getRateLimitStatus,
   RATE_LIMIT_CONFIGS,
   resetRateLimit,
-} from '@babylon/shared';
+} from '@babylon/api';
 
-// Duplicate detection (from api - uses crypto)
+// Duplicate detection (in @babylon/api)
 export {
   checkDuplicate,
   cleanupDuplicates,

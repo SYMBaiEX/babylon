@@ -680,7 +680,11 @@ export class PointsService {
 
     // Find the oldest pending referral (FIFO) that hasn't received signup points yet
     const pendingReferralResult = await db
-      .select()
+      .select({
+        id: referrals.id,
+        referredUserId: referrals.referredUserId,
+        completedAt: referrals.completedAt,
+      })
       .from(referrals)
       .where(
         and(
@@ -774,7 +778,10 @@ export class PointsService {
 
     // Find the referral record
     const referralResult = await db
-      .select()
+      .select({
+        id: referrals.id,
+        qualifiedAt: referrals.qualifiedAt,
+      })
       .from(referrals)
       .where(
         and(

@@ -26,3 +26,15 @@ export {
   DUPLICATE_DETECTION_CONFIGS,
   getDuplicateStats,
 } from './duplicate-detector';
+
+// Token counter utilities (moved from @babylon/shared)
+export {
+  countTokens,
+  countTokensSync,
+  truncateToTokenLimit,
+  truncateToTokenLimitSync,
+  MODEL_TOKEN_LIMITS,
+  getModelTokenLimit,
+  getSafeContextLimit,
+  budgetTokens,
+} from './token-counter';

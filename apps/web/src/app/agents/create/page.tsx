@@ -48,7 +48,7 @@ import { PageContainer } from '@/components/shared/PageContainer';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import type { AgentTemplate } from '@babylon/agents';
+import type { AgentTemplate } from '@babylon/agents/client';
 import { useAuth } from '@/hooks/useAuth';
 import { cn } from '@babylon/shared';
 

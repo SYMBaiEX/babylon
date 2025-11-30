@@ -101,8 +101,17 @@ function getOnboardingServices(): OnboardingServices {
 const contracts = getContractAddresses();
 export const IDENTITY_REGISTRY = contracts.identityRegistry;
 export const REPUTATION_SYSTEM = contracts.reputationSystem as Address;
-export const DEPLOYER_PRIVATE_KEY = process.env
-  .DEPLOYER_PRIVATE_KEY as `0x${string}`;
+
+// Hardhat default account #0 private key (has 10000 ETH on local node)
+const HARDHAT_DEFAULT_PRIVATE_KEY =
+  '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80' as const;
+
+// Use Hardhat's pre-funded account for local development, otherwise use env var
+const chainId = Number(process.env.NEXT_PUBLIC_CHAIN_ID || 31337);
+export const DEPLOYER_PRIVATE_KEY: `0x${string}` =
+  chainId === 31337
+    ? HARDHAT_DEFAULT_PRIVATE_KEY
+    : (process.env.DEPLOYER_PRIVATE_KEY as `0x${string}`);
 
 export interface OnchainRegistrationInput {
   user: AuthenticatedUser;
@@ -660,13 +669,18 @@ export async function processOnchainRegistration({
     if (log.topics.length === 0) {
       return false;
     }
-    const decodedLog = decodeEventLog({
-      abi: identityRegistryAbi,
-      data: log.data,
-      topics: log.topics,
-      strict: false,
-    });
-    return decodedLog.eventName === 'AgentRegistered';
+    try {
+      const decodedLog = decodeEventLog({
+        abi: identityRegistryAbi,
+        data: log.data,
+        topics: log.topics,
+        strict: false,
+      });
+      return decodedLog.eventName === 'AgentRegistered';
+    } catch {
+      // Log signature not in ABI (e.g., ERC-721 Transfer event) - skip this log
+      return false;
+    }
   });
 
   if (!agentRegisteredLog) {

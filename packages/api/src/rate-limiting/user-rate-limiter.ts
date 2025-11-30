@@ -5,7 +5,7 @@
  * Supports different rate limits for different actions.
  */
 
-import { logger } from '../utils/logger';
+import { logger } from '@babylon/shared';
 
 interface RateLimitRecord {
   count: number;

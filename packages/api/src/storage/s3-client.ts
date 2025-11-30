@@ -10,7 +10,7 @@
 import { S3Client, DeleteObjectCommand, CreateBucketCommand, PutBucketPolicyCommand } from '@aws-sdk/client-s3'
 import { Upload } from '@aws-sdk/lib-storage'
 import { put as vercelBlobPut, del as vercelBlobDel } from '@vercel/blob'
-import { logger } from '../utils/logger'
+import { logger } from '@babylon/shared'
 
 // Storage configuration
 const isProduction = process.env.NODE_ENV === 'production'

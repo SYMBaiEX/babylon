@@ -22,8 +22,16 @@ import { REPUTATION_SYSTEM_ABI } from '@babylon/shared';
 // Contract addresses from canonical config
 const REPUTATION_SYSTEM = REPUTATION_SYSTEM_BASE_SEPOLIA as Address;
 
-// Server wallet for paying gas (testnet only!)
-const DEPLOYER_PRIVATE_KEY = process.env.DEPLOYER_PRIVATE_KEY as `0x${string}`;
+// Hardhat default account #0 private key (has 10000 ETH on local node)
+const HARDHAT_DEFAULT_PRIVATE_KEY =
+  '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80' as const;
+
+// Server wallet for paying gas - uses Hardhat's pre-funded account for local dev
+const chainId = Number(process.env.NEXT_PUBLIC_CHAIN_ID || 31337);
+const DEPLOYER_PRIVATE_KEY: `0x${string}` =
+  chainId === 31337
+    ? HARDHAT_DEFAULT_PRIVATE_KEY
+    : (process.env.DEPLOYER_PRIVATE_KEY as `0x${string}`);
 
 /**
  * Market resolution information

@@ -21,8 +21,8 @@ import {
   isNull,
   count,
 } from '@babylon/db';
-import { PointsService } from '@babylon/api/services/points-service';
-import { getOrCreateReferralCode } from '@babylon/api/services/referral-service';
+import { PointsService } from '@babylon/api';
+import { getOrCreateReferralCode } from '@babylon/api';
 import { POINTS, generateSnowflakeId } from '@babylon/shared';
 
 // Test user IDs that we'll clean up
