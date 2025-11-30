@@ -4,7 +4,7 @@ import { sdk } from '@farcaster/miniapp-sdk';
 import { usePrivy } from '@privy-io/react-auth';
 import { useLoginToMiniApp } from '@privy-io/react-auth/farcaster';
 import { createContext, useContext, useEffect, useRef, useState } from 'react';
-import { logger } from '@babylon/shared';
+import { logger } from '@babylon/shared/client';
 
 /**
  * Consolidated Farcaster Mini App Provider.

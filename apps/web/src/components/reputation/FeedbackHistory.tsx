@@ -40,7 +40,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { getProfileUrl } from '@babylon/shared';
+import { getProfileUrl } from '@babylon/shared/client';
 
 /**
  * Feedback item structure for feedback history.

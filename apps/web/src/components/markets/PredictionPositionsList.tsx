@@ -3,7 +3,7 @@
 import { CheckCircle, XCircle } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
-import { cn } from '@babylon/shared';
+import { cn } from '@babylon/shared/client';
 import {
   type SellPredictionDetails,
   TradeConfirmationDialog,

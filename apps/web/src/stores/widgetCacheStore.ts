@@ -10,7 +10,7 @@ import type {
   PredictionPosition,
   UserBalanceData,
   UserProfileStats,
-} from '@babylon/shared';
+} from '@babylon/shared/client';
 
 /**
  * Trending item structure for trending panel (supports grouped trends).

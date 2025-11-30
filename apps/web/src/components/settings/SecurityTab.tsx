@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
-import { logger } from '@babylon/shared';
+import { logger } from '@babylon/shared/client';
 
 /**
  * Security tab component for managing account security settings.

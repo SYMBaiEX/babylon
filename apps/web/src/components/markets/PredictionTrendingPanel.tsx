@@ -7,7 +7,7 @@ import {
   usePredictionMarkets,
   usePredictionMarketsPolling,
 } from '@/stores/predictionMarketsStore';
-import { cn } from '@babylon/shared';
+import { cn } from '@babylon/shared/client';
 
 /**
  * Prediction market summary structure for trending panel.

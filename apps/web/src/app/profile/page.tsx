@@ -23,7 +23,7 @@ import { PageContainer } from '@/components/shared/PageContainer';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { TaggedText } from '@/components/shared/TaggedText';
 import { useAuth } from '@/hooks/useAuth';
-import { cn } from '@babylon/shared';
+import { cn } from '@babylon/shared/client';
 import { useAuthStore } from '@/stores/authStore';
 
 interface ProfileFormData {

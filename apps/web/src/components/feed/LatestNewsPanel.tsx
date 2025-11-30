@@ -7,7 +7,7 @@ import { Skeleton } from '@/components/shared/Skeleton';
 // ArticleDetailModal removed - articles now use /post/[id] page
 import { useWidgetRefresh } from '@/contexts/WidgetRefreshContext';
 import { useSSEChannel } from '@/hooks/useSSE';
-import { logger } from '@babylon/shared';
+import { logger } from '@babylon/shared/client';
 import { useWidgetCacheStore } from '@/stores/widgetCacheStore';
 
 /**

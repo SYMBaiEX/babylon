@@ -20,7 +20,7 @@
 
 import { create } from 'zustand';
 import { useEffect, useCallback, useRef } from 'react';
-import { logger } from '@babylon/shared';
+import { logger } from '@babylon/shared/client';
 
 /**
  * Prediction market data structure from API

@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { Skeleton } from '@/components/shared/Skeleton';
-import { getProfileUrl } from '@babylon/shared';
+import { getProfileUrl } from '@babylon/shared/client';
 
 /**
  * Trending post structure for trending posts panel.

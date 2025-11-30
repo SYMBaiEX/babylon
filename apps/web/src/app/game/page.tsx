@@ -3,7 +3,7 @@
 import { Activity } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { PageContainer } from '@/components/shared/PageContainer';
-import { cn } from '@babylon/shared';
+import { cn } from '@babylon/shared/client';
 
 interface GameStats {
   totalPosts: number;

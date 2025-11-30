@@ -27,12 +27,12 @@ import { VerifiedBadge } from '@/components/shared/VerifiedBadge';
 import { TradesFeed } from '@/components/trades/TradesFeed';
 import { useAuth } from '@/hooks/useAuth';
 import { useErrorToasts } from '@/hooks/useErrorToasts';
-import { getBannerImageUrl } from '@babylon/shared';
-import { extractUsername, isUsername } from '@babylon/shared';
-import { cn } from '@babylon/shared';
-import { POST_TYPES, type Actor, type FeedPost, type Organization } from '@babylon/shared';
+import { getBannerImageUrl } from '@babylon/shared/client';
+import { extractUsername, isUsername } from '@babylon/shared/client';
+import { cn } from '@babylon/shared/client';
+import { POST_TYPES, type Actor, type FeedPost, type Organization } from '@babylon/shared/client';
 import { useGameStore } from '@/stores/gameStore';
-import type { ProfileInfo } from '@babylon/shared';
+import type { ProfileInfo } from '@babylon/shared/client';
 
 export default function ActorProfilePage() {
   const params = useParams();

@@ -6,8 +6,8 @@ import { toast } from 'sonner';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { useAuth } from '@/hooks/useAuth';
 import { useSocialTracking } from '@/hooks/usePostHog';
-import { logger } from '@babylon/shared';
-import { cn } from '@babylon/shared';
+import { logger } from '@babylon/shared/client';
+import { cn } from '@babylon/shared/client';
 
 /**
  * Follow button component for following/unfollowing users.

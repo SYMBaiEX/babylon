@@ -13,7 +13,7 @@ import { Avatar } from '@/components/shared/Avatar';
 import { PageContainer } from '@/components/shared/PageContainer';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { useAuth } from '@/hooks/useAuth';
-import { cn } from '@babylon/shared';
+import { cn } from '@babylon/shared/client';
 
 interface BlockedUser {
   id: string;

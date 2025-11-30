@@ -9,8 +9,8 @@ import {
 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { logger } from '@babylon/shared';
-import { cn } from '@babylon/shared';
+import { logger } from '@babylon/shared/client';
+import { cn } from '@babylon/shared/client';
 
 /**
  * Training data statistics structure for training data tab.

@@ -13,7 +13,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { Avatar } from '@/components/shared/Avatar';
 import { Skeleton } from '@/components/shared/Skeleton';
-import { cn } from '@babylon/shared';
+import { cn } from '@babylon/shared/client';
 
 /**
  * Admin user structure for admin management tab.

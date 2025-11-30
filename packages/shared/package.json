@@ -11,6 +11,11 @@
       "import": "./src/index.ts",
       "require": "./src/index.ts"
     },
+    "./client": {
+      "types": "./src/client.ts",
+      "import": "./src/client.ts",
+      "require": "./src/client.ts"
+    },
     "./src/rate-limiting/user-rate-limiter": {
       "types": "./src/rate-limiting/user-rate-limiter.ts",
       "import": "./src/rate-limiting/user-rate-limiter.ts",

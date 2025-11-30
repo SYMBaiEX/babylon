@@ -31,7 +31,7 @@
 
 import { Star, Target, Trophy, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { cn } from '@babylon/shared';
+import { cn } from '@babylon/shared/client';
 import { ReputationBadge } from '../reputation/ReputationBadge';
 import { FeedbackForm } from './FeedbackForm';
 

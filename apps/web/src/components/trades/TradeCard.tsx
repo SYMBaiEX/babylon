@@ -11,7 +11,7 @@ import {
 import type { AppRouterInstance } from 'next/dist/shared/lib/app-router-context.shared-runtime';
 import { useRouter } from 'next/navigation';
 import { Avatar } from '@/components/shared/Avatar';
-import { cn } from '@babylon/shared';
+import { cn } from '@babylon/shared/client';
 
 /**
  * Trade type discriminator for trade card display.

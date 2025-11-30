@@ -40,7 +40,7 @@ import {
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { Avatar } from '@/components/shared/Avatar';
-import { cn } from '@babylon/shared';
+import { cn } from '@babylon/shared/client';
 
 /**
  * Group member structure for group details modal.

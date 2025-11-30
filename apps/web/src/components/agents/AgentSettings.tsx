@@ -8,8 +8,8 @@ import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { useAuth } from '@/hooks/useAuth';
-import { logger } from '@babylon/shared';
-import { cn } from '@babylon/shared';
+import { logger } from '@babylon/shared/client';
+import { cn } from '@babylon/shared/client';
 
 /**
  * Agent settings component for configuring agent properties.

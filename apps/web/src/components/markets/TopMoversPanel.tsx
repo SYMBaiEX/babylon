@@ -7,7 +7,7 @@ import {
   usePerpMarketsPolling,
   type PerpMarket,
 } from '@/stores/perpMarketsStore';
-import { cn } from '@babylon/shared';
+import { cn } from '@babylon/shared/client';
 
 /**
  * Top movers panel component for displaying biggest gainers and losers.

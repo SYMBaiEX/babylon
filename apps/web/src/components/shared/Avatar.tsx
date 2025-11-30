@@ -1,8 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { cn } from '@babylon/shared';
-import { sanitizeId } from '@babylon/shared';
+import { cn } from '@babylon/shared/client';
+import { sanitizeId } from '@babylon/shared/client';
 
 /**
  * Props for the Avatar component.

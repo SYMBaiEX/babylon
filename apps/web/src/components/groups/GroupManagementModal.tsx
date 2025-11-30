@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Avatar } from '@/components/shared/Avatar';
-import { cn } from '@babylon/shared';
+import { cn } from '@babylon/shared/client';
 import { useAuthStore } from '@/stores/authStore';
 
 /**

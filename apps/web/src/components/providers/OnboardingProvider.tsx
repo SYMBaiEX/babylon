@@ -10,13 +10,13 @@ import {
 import { useAuth } from '@/hooks/useAuth';
 import { useRegisterAgentTx } from '@/hooks/useRegisterAgentTx';
 import { apiFetch } from '@/utils/api-fetch';
-import { CHAIN, POINTS } from '@babylon/shared';
-import { logger } from '@babylon/shared';
-import type { OnboardingProfilePayload } from '@babylon/shared';
+import { CHAIN, POINTS } from '@babylon/shared/client';
+import { logger } from '@babylon/shared/client';
+import type { OnboardingProfilePayload } from '@babylon/shared/client';
 import {
   getWalletErrorMessage,
   WALLET_ERROR_MESSAGES,
-} from '@babylon/shared';
+} from '@babylon/shared/client';
 
 /**
  * Check if we're on a local network where smart wallets aren't supported.
@@ -26,7 +26,7 @@ import {
 const isLocalNetwork = CHAIN.id === 31337;
 
 import { type User as StoreUser, useAuthStore } from '@/stores/authStore';
-import type { JsonValue } from '@babylon/shared';
+import type { JsonValue } from '@babylon/shared/client';
 
 import { clearReferralCode, getReferralCode } from './ReferralCaptureProvider';
 

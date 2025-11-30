@@ -26,7 +26,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { usePortfolioPnL } from '@/hooks/usePortfolioPnL';
 import { useUserPositions } from '@/hooks/useUserPositions';
 import { usePerpMarkets, type PerpMarket } from '@/stores/perpMarketsStore';
-import { cn } from '@babylon/shared';
+import { cn } from '@babylon/shared/client';
 
 interface PredictionUserPosition {
   id: string;

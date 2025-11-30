@@ -1,7 +1,7 @@
 'use client';
 
 import type * as React from 'react';
-import { cn } from '@babylon/shared';
+import { cn } from '@babylon/shared/client';
 
 /**
  * Alert dialog component for displaying modal confirmations and alerts.

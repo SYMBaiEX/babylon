@@ -1,5 +1,5 @@
 import React from 'react';
-import { cn } from '@babylon/shared';
+import { cn } from '@babylon/shared/client';
 
 /**
  * Progress bar component for displaying completion status.

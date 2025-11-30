@@ -3,7 +3,7 @@
 import { Check, X as XIcon } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
-import { cn } from '@babylon/shared';
+import { cn } from '@babylon/shared/client';
 
 /**
  * Share verification modal component for verifying external shares.

@@ -21,9 +21,9 @@ import {
   calculateExpectedPayout,
   PredictionPricing,
 } from '@babylon/engine/client';
-import { cn } from '@babylon/shared';
+import { cn } from '@babylon/shared/client';
 
-import type { PerpPositionFromAPI, PredictionPosition } from '@babylon/shared';
+import type { PerpPositionFromAPI, PredictionPosition } from '@babylon/shared/client';
 
 /**
  * Format error message from API response payload.

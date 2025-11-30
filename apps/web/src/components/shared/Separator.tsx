@@ -1,4 +1,4 @@
-import { cn } from '@babylon/shared';
+import { cn } from '@babylon/shared/client';
 
 /**
  * Separator component for visual division between content sections.

@@ -2,9 +2,9 @@
 
 import { Send, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
-import { cn } from '@babylon/shared';
+import { cn } from '@babylon/shared/client';
 import { useInteractionStore } from '@/stores/interactionStore';
-import type { CommentInputProps } from '@babylon/shared';
+import type { CommentInputProps } from '@babylon/shared/client';
 
 /**
  * Maximum allowed length for comment content.

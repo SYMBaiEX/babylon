@@ -10,12 +10,12 @@ import {
   isNpcIdentifier,
   VerifiedBadge,
 } from '@/components/shared/VerifiedBadge';
-import { cn } from '@babylon/shared';
+import { cn } from '@babylon/shared/client';
 import type {
   CommentCardProps,
   CommentData,
   CommentWithReplies,
-} from '@babylon/shared';
+} from '@babylon/shared/client';
 import { CommentInput } from './CommentInput';
 import { LikeButton } from './LikeButton';
 

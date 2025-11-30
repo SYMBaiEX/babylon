@@ -13,7 +13,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { usePerpTrade } from '@/hooks/usePerpTrade';
 import { useWalletBalance } from '@/hooks/useWalletBalance';
 import { FEE_CONFIG } from '@babylon/engine/client';
-import { cn } from '@babylon/shared';
+import { cn } from '@babylon/shared/client';
 
 /**
  * Perpetual market structure for trading modal.

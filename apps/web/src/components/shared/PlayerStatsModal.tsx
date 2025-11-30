@@ -15,7 +15,7 @@ import {
 import Image from 'next/image';
 import { useEffect, useState } from 'react';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
-import { logger } from '@babylon/shared';
+import { logger } from '@babylon/shared/client';
 
 interface UserProfile {
   id: string;

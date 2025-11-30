@@ -8,7 +8,7 @@ import { PageContainer } from '@/components/shared/PageContainer';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
-import { cn } from '@babylon/shared';
+import { cn } from '@babylon/shared/client';
 
 interface Agent {
   id: string;

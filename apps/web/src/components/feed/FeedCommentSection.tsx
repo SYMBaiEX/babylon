@@ -9,9 +9,9 @@ import { PostCard } from '@/components/posts/PostCard';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { useAuth } from '@/hooks/useAuth';
-import { cn } from '@babylon/shared';
+import { cn } from '@babylon/shared/client';
 import { useInteractionStore } from '@/stores/interactionStore';
-import type { CommentData, CommentWithReplies } from '@babylon/shared';
+import type { CommentData, CommentWithReplies } from '@babylon/shared/client';
 
 /**
  * Feed comment section component for displaying post comments.

@@ -3,7 +3,7 @@
 import { Edit, Globe, Newspaper, RefreshCw, Save, X, Zap } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { Skeleton } from '@/components/shared/Skeleton';
-import { cn } from '@babylon/shared';
+import { cn } from '@babylon/shared/client';
 
 /**
  * World fact structure for world facts section.

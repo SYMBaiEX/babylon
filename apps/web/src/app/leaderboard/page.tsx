@@ -14,7 +14,7 @@ import { PageContainer } from '@/components/shared/PageContainer';
 import { RankBadge, RankNumber } from '@/components/shared/RankBadge';
 import { LeaderboardSkeleton } from '@/components/shared/Skeleton';
 import { useAuth } from '@/hooks/useAuth';
-import { formatCurrency } from '@babylon/shared';
+import { formatCurrency } from '@babylon/shared/client';
 
 type LeaderboardTab = 'all' | 'earned' | 'referral';
 

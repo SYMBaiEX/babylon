@@ -10,10 +10,10 @@ import {
   CHAIN,
   getIdentityRegistryAddress,
   identityRegistryAbi,
-} from '@babylon/shared';
+} from '@babylon/shared/client';
 import { useSmartWallet } from '@/hooks/useSmartWallet';
-import type { OnboardingProfilePayload } from '@babylon/shared';
-import { WALLET_ERROR_MESSAGES } from '@babylon/shared';
+import type { OnboardingProfilePayload } from '@babylon/shared/client';
+import { WALLET_ERROR_MESSAGES } from '@babylon/shared/client';
 
 /**
  * Hook for registering an agent on-chain via the identity registry.

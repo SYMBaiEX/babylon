@@ -29,7 +29,7 @@
 
 import { Target, TrendingUp, Trophy } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { cn } from '@babylon/shared';
+import { cn } from '@babylon/shared/client';
 
 /**
  * Leaderboard entry structure for reputation leaderboard.

@@ -28,7 +28,7 @@ import {
   type PredictionMarket,
 } from '@/stores/predictionMarketsStore';
 import { getContractAddresses } from '@babylon/contracts';
-import { cn } from '@babylon/shared';
+import { cn } from '@babylon/shared/client';
 
 export default function OnChainBettingPage() {
   const router = useRouter();

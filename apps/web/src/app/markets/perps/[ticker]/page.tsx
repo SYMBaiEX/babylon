@@ -31,7 +31,7 @@ import { useUserPositions } from '@/hooks/useUserPositions';
 import { useWalletBalance } from '@/hooks/useWalletBalance';
 import { usePerpMarket } from '@/stores/perpMarketsStore';
 import { FEE_CONFIG } from '@babylon/engine/client';
-import { cn } from '@babylon/shared';
+import { cn } from '@babylon/shared/client';
 
 interface PricePoint {
   time: number;

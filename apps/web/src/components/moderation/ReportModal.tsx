@@ -36,7 +36,7 @@ import { AlertCircle, Flag, X } from 'lucide-react';
 import { useState, useTransition } from 'react';
 import { toast } from 'sonner';
 import { Avatar } from '@/components/shared/Avatar';
-import { logger } from '@babylon/shared';
+import { logger } from '@babylon/shared/client';
 
 interface ReportModalProps {
   isOpen: boolean;

@@ -14,13 +14,13 @@ import type { Address } from 'viem';
 import { formatEther } from 'viem';
 
 import { Skeleton } from '@/components/shared/Skeleton';
-import { CHAIN } from '@babylon/shared';
+import { CHAIN } from '@babylon/shared/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useBuyPointsTx } from '@/hooks/useBuyPointsTx';
 import { useSmartWalletBalance } from '@/hooks/useSmartWalletBalance';
-import { logger } from '@babylon/shared';
-import { cn } from '@babylon/shared';
-import { WALLET_ERROR_MESSAGES } from '@babylon/shared';
+import { logger } from '@babylon/shared/client';
+import { cn } from '@babylon/shared/client';
+import { WALLET_ERROR_MESSAGES } from '@babylon/shared/client';
 
 /**
  * Buy points modal component for purchasing points with ETH.

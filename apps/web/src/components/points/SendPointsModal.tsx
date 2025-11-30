@@ -3,7 +3,7 @@
 import { Check, Loader2, Send, X } from 'lucide-react';
 import { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
-import { cn } from '@babylon/shared';
+import { cn } from '@babylon/shared/client';
 
 /**
  * Send points modal component for transferring points to other users.

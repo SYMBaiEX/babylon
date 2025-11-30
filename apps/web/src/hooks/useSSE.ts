@@ -1,7 +1,7 @@
 import { usePrivy } from '@privy-io/react-auth';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { logger } from '@babylon/shared';
+import { logger } from '@babylon/shared/client';
 
 /**
  * Static SSE channel names for standard event types.

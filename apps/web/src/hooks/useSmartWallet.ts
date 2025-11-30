@@ -4,11 +4,11 @@ import type { SmartWalletClientType } from '@privy-io/react-auth/smart-wallets';
 import { useSmartWallets } from '@privy-io/react-auth/smart-wallets';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import type { Hex } from 'viem';
-import { logger } from '@babylon/shared';
+import { logger } from '@babylon/shared/client';
 import {
   getWalletErrorMessage,
   WALLET_ERROR_MESSAGES,
-} from '@babylon/shared';
+} from '@babylon/shared/client';
 
 type SmartWalletTxInput = Parameters<
   SmartWalletClientType['sendTransaction']

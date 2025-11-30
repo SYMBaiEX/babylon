@@ -34,7 +34,7 @@ import {
   calculateExpectedPayout,
   PredictionPricing,
 } from '@babylon/engine/client';
-import { cn } from '@babylon/shared';
+import { cn } from '@babylon/shared/client';
 
 interface PredictionPosition {
   id: string;

@@ -6,11 +6,11 @@ import { Avatar } from '@/components/shared/Avatar';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { useAuth } from '@/hooks/useAuth';
 import { useLoginModal } from '@/hooks/useLoginModal';
-import { cn } from '@babylon/shared';
-import type { FeedPost } from '@babylon/shared';
+import { cn } from '@babylon/shared/client';
+import type { FeedPost } from '@babylon/shared/client';
 import { useFeedStore } from '@/stores/feedStore';
 import { useInteractionStore } from '@/stores/interactionStore';
-import type { RepostButtonProps } from '@babylon/shared';
+import type { RepostButtonProps } from '@babylon/shared/client';
 
 // // import { toast } from 'sonner');
 

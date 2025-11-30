@@ -24,8 +24,8 @@ import { Avatar } from '@/components/shared/Avatar';
 import { Separator } from '@/components/shared/Separator';
 import { useAuth } from '@/hooks/useAuth';
 import { useUnreadMessages } from '@/hooks/useUnreadMessages';
-import { getReferralUrl } from '@babylon/shared';
-import { cn } from '@babylon/shared';
+import { getReferralUrl } from '@babylon/shared/client';
+import { cn } from '@babylon/shared/client';
 
 /**
  * Main sidebar content component with navigation and user menu.

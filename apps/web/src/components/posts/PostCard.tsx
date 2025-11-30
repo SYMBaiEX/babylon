@@ -20,9 +20,9 @@ import {
 } from '@/components/shared/VerifiedBadge';
 import { useFontSize } from '@/contexts/FontSizeContext';
 import { useAuth } from '@/hooks/useAuth';
-import { getProfileUrl } from '@babylon/shared';
-import { cn } from '@babylon/shared';
-import type { PostInteraction } from '@babylon/shared';
+import { getProfileUrl } from '@babylon/shared/client';
+import { cn } from '@babylon/shared/client';
+import type { PostInteraction } from '@babylon/shared/client';
 
 /**
  * Post card component for displaying feed posts.

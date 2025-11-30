@@ -25,7 +25,7 @@
  * ```
  */
 import React, { Component, type ReactNode } from 'react';
-import { logger } from '@babylon/shared';
+import { logger } from '@babylon/shared/client';
 import { posthog } from '@/lib/posthog';
 
 interface Props {

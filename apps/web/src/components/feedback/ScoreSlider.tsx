@@ -30,7 +30,7 @@
 
 import { Minus, TrendingDown, TrendingUp } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { cn } from '@babylon/shared';
+import { cn } from '@babylon/shared/client';
 
 interface ScoreSliderProps {
   value?: number; // 0-100

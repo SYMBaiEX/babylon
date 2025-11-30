@@ -3,8 +3,8 @@
 import { Check, ExternalLink, Shield, X as XIcon } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
-import { signInWithFarcaster } from '@babylon/shared';
-import { cn } from '@babylon/shared';
+import { signInWithFarcaster } from '@babylon/shared/client';
+import { cn } from '@babylon/shared/client';
 import { useAuthStore } from '@/stores/authStore';
 
 /**

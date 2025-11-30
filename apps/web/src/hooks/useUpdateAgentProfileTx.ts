@@ -6,9 +6,9 @@ import {
   CHAIN,
   getIdentityRegistryAddress,
   identityRegistryAbi,
-} from '@babylon/shared';
+} from '@babylon/shared/client';
 import { useSmartWallet } from '@/hooks/useSmartWallet';
-import { WALLET_ERROR_MESSAGES } from '@babylon/shared';
+import { WALLET_ERROR_MESSAGES } from '@babylon/shared/client';
 
 /**
  * Metadata for updating an agent profile on-chain.

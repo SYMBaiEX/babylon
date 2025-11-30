@@ -11,7 +11,7 @@ import { PageContainer } from '@/components/shared/PageContainer';
 import { PullToRefreshIndicator } from '@/components/shared/PullToRefreshIndicator';
 import { useAuth } from '@/hooks/useAuth';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
-import { cn } from '@babylon/shared';
+import { cn } from '@babylon/shared/client';
 
 interface Notification {
   id: string;

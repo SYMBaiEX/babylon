@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 
 import type { Address } from 'viem';
 import { createPublicClient, http } from 'viem';
-import { CHAIN, RPC_URL } from '@babylon/shared';
+import { CHAIN, RPC_URL } from '@babylon/shared/client';
 import { useSmartWallet } from '@/hooks/useSmartWallet';
 
 const publicClient = createPublicClient({

@@ -12,7 +12,7 @@ import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { toast } from 'sonner';
 
 import { apiFetch } from '@/utils/api-fetch';
-import { logger } from '@babylon/shared';
+import { logger } from '@babylon/shared/client';
 
 import { type User, useAuthStore } from '@/stores/authStore';
 

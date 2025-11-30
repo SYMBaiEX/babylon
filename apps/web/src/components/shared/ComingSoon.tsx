@@ -22,10 +22,10 @@ import { LinkSocialAccountsModal } from '@/components/profile/LinkSocialAccounts
 import { Avatar } from '@/components/shared/Avatar';
 import { PlayerStatsModal } from '@/components/shared/PlayerStatsModal';
 import { useAuth } from '@/hooks/useAuth';
-import { POINTS } from '@babylon/shared';
-import { signInWithFarcaster } from '@babylon/shared';
-import { logger } from '@babylon/shared';
-import { getReferralUrl } from '@babylon/shared';
+import { POINTS } from '@babylon/shared/client';
+import { signInWithFarcaster } from '@babylon/shared/client';
+import { logger } from '@babylon/shared/client';
+import { getReferralUrl } from '@babylon/shared/client';
 
 /**
  * Waitlist data structure containing user position and points information.

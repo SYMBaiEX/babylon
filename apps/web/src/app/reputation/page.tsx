@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 
 import { PageContainer } from '@/components/shared/PageContainer';
 import { useAuth } from '@/hooks/useAuth';
-import { IDENTITY_REGISTRY_BASE_SEPOLIA } from '@babylon/shared';
+import { IDENTITY_REGISTRY_BASE_SEPOLIA } from '@babylon/shared/client';
 
 interface ReputationStats {
   currentReputation: number;

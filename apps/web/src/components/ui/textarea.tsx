@@ -1,5 +1,5 @@
 import type React from 'react';
-import { cn } from '@babylon/shared';
+import { cn } from '@babylon/shared/client';
 
 /**
  * Textarea component for multi-line text input.

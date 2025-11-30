@@ -5,14 +5,14 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { useAuth } from '@/hooks/useAuth';
-import { cn } from '@babylon/shared';
+import { cn } from '@babylon/shared/client';
 import { useWidgetCacheStore } from '@/stores/widgetCacheStore';
 import type {
   PerpPositionFromAPI,
   PredictionPosition,
   UserBalanceData,
   UserProfileStats,
-} from '@babylon/shared';
+} from '@babylon/shared/client';
 import { PositionDetailModal } from './PositionDetailModal';
 
 /**

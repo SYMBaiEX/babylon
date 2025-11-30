@@ -1,7 +1,7 @@
 'use client';
 
 import { Activity, DollarSign, TrendingDown, TrendingUp } from 'lucide-react';
-import { cn } from '@babylon/shared';
+import { cn } from '@babylon/shared/client';
 
 /**
  * Agent performance component for displaying agent trading performance metrics.

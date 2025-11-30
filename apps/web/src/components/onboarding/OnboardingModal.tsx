@@ -14,9 +14,9 @@ import Image from 'next/image';
 import { useEffect, useMemo, useState } from 'react';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { apiFetch } from '@/utils/api-fetch';
-import { logger } from '@babylon/shared';
-import type { OnboardingProfilePayload } from '@babylon/shared';
-import { cn } from '@babylon/shared';
+import { logger } from '@babylon/shared/client';
+import type { OnboardingProfilePayload } from '@babylon/shared/client';
+import { cn } from '@babylon/shared/client';
 
 /**
  * Imported profile data structure from social platforms.

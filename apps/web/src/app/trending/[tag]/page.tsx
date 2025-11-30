@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import { PostCard } from '@/components/posts/PostCard';
 import { PageContainer } from '@/components/shared/PageContainer';
-import { logger } from '@babylon/shared';
+import { logger } from '@babylon/shared/client';
 
 interface PostData {
   id: string;

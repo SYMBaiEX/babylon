@@ -11,8 +11,8 @@ import { ApiKeysTab } from '@/components/settings/ApiKeysTab';
 import { PageContainer } from '@/components/shared/PageContainer';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { useAuth } from '@/hooks/useAuth';
-import { logger } from '@babylon/shared';
-import { cn } from '@babylon/shared';
+import { logger } from '@babylon/shared/client';
+import { cn } from '@babylon/shared/client';
 import { useAuthStore } from '@/stores/authStore';
 
 export default function SettingsPage() {

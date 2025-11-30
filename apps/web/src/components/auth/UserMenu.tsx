@@ -9,7 +9,7 @@ import { useAuth } from '@/hooks/useAuth';
 import {
   getDisplayReferralUrl,
   getReferralUrl,
-} from '@babylon/shared';
+} from '@babylon/shared/client';
 import { useAuthStore } from '@/stores/authStore';
 
 /**
