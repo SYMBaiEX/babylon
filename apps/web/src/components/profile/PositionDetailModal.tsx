@@ -20,7 +20,7 @@ import { usePerpMarketsStore } from '@/stores/perpMarketsStore';
 import {
   calculateExpectedPayout,
   PredictionPricing,
-} from '@babylon/engine';
+} from '@babylon/engine/client';
 import { cn } from '@babylon/shared';
 
 import type { PerpPositionFromAPI, PredictionPosition } from '@babylon/shared';
