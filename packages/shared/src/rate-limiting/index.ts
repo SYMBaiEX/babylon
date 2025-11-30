@@ -1,7 +1,10 @@
 /**
  * Rate Limiting Module
  *
- * User-level rate limiting and duplicate content detection utilities.
+ * User-level rate limiting utilities.
+ *
+ * NOTE: Duplicate detection (which uses crypto) is in @babylon/api:
+ * import { checkDuplicate, DUPLICATE_DETECTION_CONFIGS } from '@babylon/api'
  */
 
 export {
@@ -12,13 +15,3 @@ export {
   RATE_LIMIT_CONFIGS,
   resetRateLimit,
 } from './user-rate-limiter';
-
-export {
-  checkDuplicate,
-  cleanupDuplicates,
-  clearAllDuplicates,
-  clearDuplicates,
-  DUPLICATE_DETECTION_CONFIGS,
-  getDuplicateStats,
-} from './duplicate-detector';
-

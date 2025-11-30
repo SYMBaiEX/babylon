@@ -6,7 +6,7 @@
  */
 
 import { ethers } from 'ethers';
-import { getContractAddresses, getRpcUrl } from '@babylon/contracts/deployment';
+import { getContractAddresses, getRpcUrl } from '@babylon/contracts';
 import { logger, getCurrentChainId } from '@babylon/shared';
 import BabylonGameOracleABI from './abi/BabylonGameOracle.json';
 import { CommitmentStore } from '../oracle-commitment-store';

@@ -5,15 +5,15 @@
  */
 
 import { NextResponse } from 'next/server';
-import { logger } from '@babylon/shared';
+import {
+  checkRateLimit,
+  logger,
+  type RATE_LIMIT_CONFIGS,
+} from '@babylon/shared';
 import {
   checkDuplicate,
   type DUPLICATE_DETECTION_CONFIGS,
-} from '@babylon/shared/src/rate-limiting/duplicate-detector';
-import {
-  checkRateLimit,
-  type RATE_LIMIT_CONFIGS,
-} from '@babylon/shared/src/rate-limiting/user-rate-limiter';
+} from '../utils/duplicate-detector';
 
 /**
  * Error response for rate limit exceeded

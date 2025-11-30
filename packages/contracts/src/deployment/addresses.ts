@@ -10,8 +10,8 @@
  * @remarks Base mainnet support will be added when contracts are deployed.
  */
 
-import baseSepoliaDeployment from '@babylon/contracts/deployments/base-sepolia';
-import localDeployment from '@babylon/contracts/deployments/local';
+import baseSepoliaDeployment from '../../deployments/base-sepolia';
+import localDeployment from '../../deployments/local';
 import type { Address } from 'viem';
 import { getCurrentChainId, getCurrentRpcUrl } from '@babylon/shared';
 

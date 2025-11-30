@@ -103,7 +103,7 @@ import { notifyNewAccount } from '@babylon/api';
 import { PointsService } from '@babylon/api';
 import { getOrCreateReferralCode } from '@babylon/api';
 import { generateSnowflakeId } from '@babylon/shared';
-import { getHashedClientIp } from '@babylon/shared/src/utils/ip-utils';
+import { getHashedClientIp } from '@babylon/api';
 import { OnboardingProfileSchema } from '@babylon/shared';
 import type { JsonValue } from '@babylon/api';
 

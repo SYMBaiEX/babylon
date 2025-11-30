@@ -30,7 +30,7 @@ import {
   users,
 } from '@babylon/db';
 import { logger } from '@babylon/shared';
-import { verifyApiKey } from '@babylon/shared/src/utils/api-keys';
+import { verifyApiKey } from '@babylon/api';
 import type {
   AgentCapabilities,
   AgentDiscoveryFilter,

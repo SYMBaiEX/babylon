@@ -91,15 +91,15 @@ export async function loadDeployment(
 ): Promise<DeploymentInfo | null> {
   try {
     if (env === 'localnet') {
-      const deployment = await import('@babylon/contracts/deployments/local');
+      const deployment = await import('../../deployments/local');
       return deployment.default as DeploymentInfo;
     }
     if (env === 'testnet') {
-      const deployment = await import('@babylon/contracts/deployments/base-sepolia');
+      const deployment = await import('../../deployments/base-sepolia');
       return deployment.default as DeploymentInfo;
     }
     if (env === 'mainnet') {
-      const deployment = await import('@babylon/contracts/deployments/base');
+      const deployment = await import('../../deployments/base');
       return deployment.default as DeploymentInfo;
     }
   } catch {

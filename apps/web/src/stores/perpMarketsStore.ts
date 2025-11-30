@@ -19,7 +19,8 @@
  */
 
 import { create } from 'zustand';
-import { useEffect, useCallback, useRef } from 'react';
+import { useEffect, useCallback, useMemo, useRef } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { logger } from '@babylon/shared';
 
 /**
@@ -55,17 +56,11 @@ interface PerpMarketsState {
   // Internal state for request deduplication
   fetchPromise: Promise<void> | null;
   pollingInterval: ReturnType<typeof setInterval> | null;
-  pollingRefCount: number;
+  subscriberCount: number;
 
   // Actions
-  setMarkets: (markets: PerpMarket[]) => void;
-  setLoading: (loading: boolean) => void;
-  setError: (error: string | null) => void;
   fetchMarkets: (force?: boolean) => Promise<void>;
-  startPolling: (intervalMs: number) => void;
-  stopPolling: () => void;
-  incrementPollingRef: () => void;
-  decrementPollingRef: () => void;
+  subscribe: (intervalMs: number) => () => void;
 }
 
 // Cache TTL in milliseconds (10 seconds)
@@ -78,11 +73,7 @@ export const usePerpMarketsStore = create<PerpMarketsState>((set, get) => ({
   lastFetchedAt: null,
   fetchPromise: null,
   pollingInterval: null,
-  pollingRefCount: 0,
-
-  setMarkets: (markets) => set({ markets }),
-  setLoading: (loading) => set({ loading }),
-  setError: (error) => set({ error }),
+  subscriberCount: 0,
 
   fetchMarkets: async (force = false) => {
     const state = get();
@@ -104,7 +95,11 @@ export const usePerpMarketsStore = create<PerpMarketsState>((set, get) => ({
 
     // Create and store the fetch promise
     const fetchPromise = (async () => {
-      set({ loading: state.markets.length === 0, error: null });
+      // Only show loading on initial fetch (not background refreshes)
+      if (state.markets.length === 0) {
+        set({ loading: true });
+      }
+      set({ error: null });
 
       try {
         const response = await fetch('/api/markets/perps');
@@ -123,7 +118,11 @@ export const usePerpMarketsStore = create<PerpMarketsState>((set, get) => ({
       } catch (err) {
         const errorMessage =
           err instanceof Error ? err.message : 'Failed to fetch markets';
-        logger.error('Failed to fetch perp markets', { error: err }, 'perpMarketsStore');
+        logger.error(
+          'Failed to fetch perp markets',
+          { error: err },
+          'perpMarketsStore'
+        );
         set({ error: errorMessage });
       } finally {
         set({ loading: false, fetchPromise: null });
@@ -134,52 +133,56 @@ export const usePerpMarketsStore = create<PerpMarketsState>((set, get) => ({
     return fetchPromise;
   },
 
-  startPolling: (intervalMs: number) => {
+  // Combined subscribe/unsubscribe that handles polling lifecycle
+  subscribe: (intervalMs: number) => {
     const state = get();
+    const newCount = state.subscriberCount + 1;
+    set({ subscriberCount: newCount });
 
-    // Already polling
-    if (state.pollingInterval) {
-      return;
+    // Start polling on first subscriber
+    if (newCount === 1) {
+      // Initial fetch
+      get().fetchMarkets();
+
+      // Set up interval
+      const interval = setInterval(() => {
+        get().fetchMarkets(true);
+      }, intervalMs);
+
+      set({ pollingInterval: interval });
     }
 
-    // Initial fetch
-    get().fetchMarkets();
+    // Return unsubscribe function
+    return () => {
+      const currentState = get();
+      const updatedCount = currentState.subscriberCount - 1;
+      set({ subscriberCount: updatedCount });
 
-    // Set up interval
-    const interval = setInterval(() => {
-      get().fetchMarkets(true); // Force refresh on poll
-    }, intervalMs);
-
-    set({ pollingInterval: interval });
-  },
-
-  stopPolling: () => {
-    const state = get();
-    if (state.pollingInterval) {
-      clearInterval(state.pollingInterval);
-      set({ pollingInterval: null });
-    }
-  },
-
-  incrementPollingRef: () => {
-    set((state) => ({ pollingRefCount: state.pollingRefCount + 1 }));
-  },
-
-  decrementPollingRef: () => {
-    set((state) => ({
-      pollingRefCount: Math.max(0, state.pollingRefCount - 1),
-    }));
+      // Stop polling when last subscriber leaves
+      if (updatedCount === 0 && currentState.pollingInterval) {
+        clearInterval(currentState.pollingInterval);
+        set({ pollingInterval: null });
+      }
+    };
   },
 }));
+
+// Selector for data (memoized by zustand)
+const dataSelector = (state: PerpMarketsState) => ({
+  markets: state.markets,
+  loading: state.loading,
+  error: state.error,
+});
 
 /**
  * Hook for consuming perp markets data
  * Automatically fetches data on mount if not cached
  */
 export function usePerpMarkets() {
-  const markets = usePerpMarketsStore((state) => state.markets);
-  const loading = usePerpMarketsStore((state) => state.loading);
-  const error = usePerpMarketsStore((state) => state.error);
+  // Single subscription with shallow comparison for the object
+  const { markets, loading, error } = usePerpMarketsStore(
+    useShallow(dataSelector)
+  );
   const fetchMarkets = usePerpMarketsStore((state) => state.fetchMarkets);
 
   // Fetch on mount if needed
@@ -202,73 +205,48 @@ export function usePerpMarkets() {
  * @param intervalMs - Polling interval in milliseconds (default: 30000)
  */
 export function usePerpMarketsPolling(intervalMs = 30000) {
-  const incrementPollingRef = usePerpMarketsStore(
-    (state) => state.incrementPollingRef
-  );
-  const decrementPollingRef = usePerpMarketsStore(
-    (state) => state.decrementPollingRef
-  );
-  const startPolling = usePerpMarketsStore((state) => state.startPolling);
-  const stopPolling = usePerpMarketsStore((state) => state.stopPolling);
-  const pollingRefCount = usePerpMarketsStore((state) => state.pollingRefCount);
+  const subscribe = usePerpMarketsStore((state) => state.subscribe);
 
+  // Store interval in ref so it doesn't cause re-subscriptions
   const intervalRef = useRef(intervalMs);
-  intervalRef.current = intervalMs;
 
   useEffect(() => {
-    incrementPollingRef();
-
-    // Start polling if we're the first subscriber
-    if (pollingRefCount === 0) {
-      startPolling(intervalRef.current);
-    }
-
-    return () => {
-      decrementPollingRef();
-
-      // Stop polling if we're the last subscriber
-      // Use setTimeout to let the state update first
-      setTimeout(() => {
-        const currentCount = usePerpMarketsStore.getState().pollingRefCount;
-        if (currentCount === 0) {
-          stopPolling();
-        }
-      }, 0);
-    };
-  }, [
-    incrementPollingRef,
-    decrementPollingRef,
-    startPolling,
-    stopPolling,
-    pollingRefCount,
-  ]);
+    // Subscribe returns the unsubscribe function
+    const unsubscribe = subscribe(intervalRef.current);
+    return unsubscribe;
+  }, [subscribe]);
 }
 
 /**
- * Get a specific market by ticker
+ * Get a specific market by ticker (memoized)
  */
 export function usePerpMarket(ticker: string) {
   const { markets, loading, error, refetch } = usePerpMarkets();
 
-  const market = markets.find(
-    (m) => m.ticker.toLowerCase() === ticker.toLowerCase()
+  const market = useMemo(
+    () =>
+      markets.find((m) => m.ticker.toLowerCase() === ticker.toLowerCase()),
+    [markets, ticker]
   );
 
   return { market, loading, error, refetch };
 }
 
 /**
- * Get top movers (gainers and losers)
+ * Get top movers (gainers and losers) - memoized
  */
 export function usePerpTopMovers(count = 4) {
   const { markets, loading, error, refetch } = usePerpMarkets();
 
-  const sorted = [...markets].sort(
-    (a, b) => b.changePercent24h - a.changePercent24h
-  );
-
-  const topGainers = sorted.slice(0, count);
-  const topLosers = sorted.slice(-count).reverse();
+  const { topGainers, topLosers } = useMemo(() => {
+    const sorted = [...markets].sort(
+      (a, b) => b.changePercent24h - a.changePercent24h
+    );
+    return {
+      topGainers: sorted.slice(0, count),
+      topLosers: sorted.slice(-count).reverse(),
+    };
+  }, [markets, count]);
 
   return { topGainers, topLosers, loading, error, refetch };
 }

@@ -5,7 +5,7 @@
  */
 
 import Anthropic from '@anthropic-ai/sdk';
-import { logger } from '../../utils/logger';
+import { logger } from '@babylon/shared';
 
 export async function callClaudeDirect(params: {
   prompt: string;
@@ -59,4 +59,3 @@ export async function callClaudeDirect(params: {
 
   return firstContent.text;
 }
-

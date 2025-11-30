@@ -13,6 +13,7 @@
     "typecheck": "tsc -b ."
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.68.0",
     "@babylon/contracts": "workspace:*",
     "@babylon/shared": "workspace:*",
     "@privy-io/server-auth": "^1.18.4",

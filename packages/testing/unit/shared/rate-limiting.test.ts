@@ -5,17 +5,17 @@
 
 import { beforeEach, describe, expect, it } from 'bun:test';
 import {
-  checkDuplicate,
-  clearAllDuplicates,
-  DUPLICATE_DETECTION_CONFIGS,
-  getDuplicateStats,
-} from '@babylon/shared/src/rate-limiting/duplicate-detector';
-import {
   checkRateLimit,
   clearAllRateLimits,
   getRateLimitStatus,
   RATE_LIMIT_CONFIGS,
-} from '@babylon/shared/src/rate-limiting/user-rate-limiter';
+} from '@babylon/shared';
+import {
+  checkDuplicate,
+  clearAllDuplicates,
+  DUPLICATE_DETECTION_CONFIGS,
+  getDuplicateStats,
+} from '@babylon/api';
 
 describe('Rate Limiting (Shared)', () => {
   beforeEach(() => {

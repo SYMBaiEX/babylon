@@ -4,15 +4,7 @@
  * Centralized exports for rate limiting functionality
  */
 
-export {
-  checkDuplicate,
-  cleanupDuplicates,
-  clearAllDuplicates,
-  clearDuplicates,
-  DUPLICATE_DETECTION_CONFIGS,
-  getDuplicateStats,
-} from '@babylon/shared/src/rate-limiting/duplicate-detector';
-
+// Rate limiting (doesn't use crypto, can stay in shared)
 export {
   checkRateLimit,
   cleanupRateLimits,
@@ -20,7 +12,19 @@ export {
   getRateLimitStatus,
   RATE_LIMIT_CONFIGS,
   resetRateLimit,
-} from '@babylon/shared/src/rate-limiting/user-rate-limiter';
+} from '@babylon/shared';
+
+// Duplicate detection (uses crypto, moved to api)
+export {
+  checkDuplicate,
+  cleanupDuplicates,
+  clearAllDuplicates,
+  clearDuplicates,
+  DUPLICATE_DETECTION_CONFIGS,
+  getDuplicateStats,
+} from '../utils/duplicate-detector';
+
+// Middleware
 export {
   addRateLimitHeaders,
   applyDuplicateDetection,
@@ -29,4 +33,3 @@ export {
   duplicateContentError,
   rateLimitError,
 } from './middleware';
-

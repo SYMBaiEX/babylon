@@ -33,9 +33,6 @@ export type { PostInteraction, CommentInteraction, CommentData, CommentWithRepli
 // Perps Types
 export * from './perps-types';
 
-// Perp Mode Configuration
-export * from './perp-modes';
-
 // Utilities
 export * from './utils';
 
@@ -57,13 +54,8 @@ export * from './validation';
 // Storage utilities
 export * from './storage';
 
-// Services
-export * from './services';
-
-// Rate limiting utilities - Server-only (uses Node.js crypto)
-// Import directly in server code:
-//   import { checkRateLimit, RATE_LIMIT_CONFIGS } from '@babylon/shared/src/rate-limiting';
-// export * from './rate-limiting';
+// Rate limiting utilities
+export * from './rate-limiting';
 
 // Referral utilities
 export * from './referral';

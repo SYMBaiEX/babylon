@@ -10,26 +10,6 @@
       "types": "./src/index.ts",
       "import": "./src/index.ts",
       "require": "./src/index.ts"
-    },
-    "./src/rate-limiting/user-rate-limiter": {
-      "types": "./src/rate-limiting/user-rate-limiter.ts",
-      "import": "./src/rate-limiting/user-rate-limiter.ts",
-      "require": "./src/rate-limiting/user-rate-limiter.ts"
-    },
-    "./src/rate-limiting/duplicate-detector": {
-      "types": "./src/rate-limiting/duplicate-detector.ts",
-      "import": "./src/rate-limiting/duplicate-detector.ts",
-      "require": "./src/rate-limiting/duplicate-detector.ts"
-    },
-    "./src/utils/api-keys": {
-      "types": "./src/utils/api-keys.ts",
-      "import": "./src/utils/api-keys.ts",
-      "require": "./src/utils/api-keys.ts"
-    },
-    "./src/utils/ip-utils": {
-      "types": "./src/utils/ip-utils.ts",
-      "import": "./src/utils/ip-utils.ts",
-      "require": "./src/utils/ip-utils.ts"
     }
   },
   "scripts": {
@@ -37,7 +17,6 @@
     "typecheck": "tsc -b ."
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.68.0",
     "@aws-sdk/client-s3": "^3.928.0",
     "@aws-sdk/lib-storage": "^3.928.0",
     "@vercel/blob": "^2.0.0",
@@ -47,9 +26,7 @@
     "zod": "^4.1.12"
   },
   "peerDependencies": {
-    "@privy-io/react-auth": "^3.7.0",
-    "posthog-js": "^1.290.0",
-    "posthog-node": "^5.11.2"
+    "@privy-io/react-auth": "^3.7.0"
   },
   "devDependencies": {
     "@types/node": "^24.10.0",

@@ -19,7 +19,8 @@
  */
 
 import { create } from 'zustand';
-import { useEffect, useCallback, useRef } from 'react';
+import { useEffect, useCallback, useMemo, useRef } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { logger } from '@babylon/shared';
 
 /**
@@ -50,17 +51,11 @@ interface PredictionMarketsState {
   // Internal state for request deduplication
   fetchPromise: Promise<void> | null;
   pollingInterval: ReturnType<typeof setInterval> | null;
-  pollingRefCount: number;
+  subscriberCount: number;
 
   // Actions
-  setMarkets: (markets: PredictionMarket[]) => void;
-  setLoading: (loading: boolean) => void;
-  setError: (error: string | null) => void;
   fetchMarkets: (force?: boolean, userId?: string) => Promise<void>;
-  startPolling: (intervalMs: number, userId?: string) => void;
-  stopPolling: () => void;
-  incrementPollingRef: () => void;
-  decrementPollingRef: () => void;
+  subscribe: (intervalMs: number, userId?: string) => () => void;
 }
 
 // Cache TTL in milliseconds (10 seconds)
@@ -74,11 +69,7 @@ export const usePredictionMarketsStore = create<PredictionMarketsState>(
     lastFetchedAt: null,
     fetchPromise: null,
     pollingInterval: null,
-    pollingRefCount: 0,
-
-    setMarkets: (markets) => set({ markets }),
-    setLoading: (loading) => set({ loading }),
-    setError: (error) => set({ error }),
+    subscriberCount: 0,
 
     fetchMarkets: async (force = false, userId?: string) => {
       const state = get();
@@ -100,7 +91,11 @@ export const usePredictionMarketsStore = create<PredictionMarketsState>(
 
       // Create and store the fetch promise
       const fetchPromise = (async () => {
-        set({ loading: state.markets.length === 0, error: null });
+        // Only show loading on initial fetch (not background refreshes)
+        if (state.markets.length === 0) {
+          set({ loading: true });
+        }
+        set({ error: null });
 
         try {
           const url = userId
@@ -139,53 +134,57 @@ export const usePredictionMarketsStore = create<PredictionMarketsState>(
       return fetchPromise;
     },
 
-    startPolling: (intervalMs: number, userId?: string) => {
+    // Combined subscribe/unsubscribe that handles polling lifecycle
+    subscribe: (intervalMs: number, userId?: string) => {
       const state = get();
+      const newCount = state.subscriberCount + 1;
+      set({ subscriberCount: newCount });
 
-      // Already polling
-      if (state.pollingInterval) {
-        return;
+      // Start polling on first subscriber
+      if (newCount === 1) {
+        // Initial fetch
+        get().fetchMarkets(false, userId);
+
+        // Set up interval
+        const interval = setInterval(() => {
+          get().fetchMarkets(true, userId);
+        }, intervalMs);
+
+        set({ pollingInterval: interval });
       }
 
-      // Initial fetch
-      get().fetchMarkets(false, userId);
+      // Return unsubscribe function
+      return () => {
+        const currentState = get();
+        const updatedCount = currentState.subscriberCount - 1;
+        set({ subscriberCount: updatedCount });
 
-      // Set up interval
-      const interval = setInterval(() => {
-        get().fetchMarkets(true, userId); // Force refresh on poll
-      }, intervalMs);
-
-      set({ pollingInterval: interval });
-    },
-
-    stopPolling: () => {
-      const state = get();
-      if (state.pollingInterval) {
-        clearInterval(state.pollingInterval);
-        set({ pollingInterval: null });
-      }
-    },
-
-    incrementPollingRef: () => {
-      set((state) => ({ pollingRefCount: state.pollingRefCount + 1 }));
-    },
-
-    decrementPollingRef: () => {
-      set((state) => ({
-        pollingRefCount: Math.max(0, state.pollingRefCount - 1),
-      }));
+        // Stop polling when last subscriber leaves
+        if (updatedCount === 0 && currentState.pollingInterval) {
+          clearInterval(currentState.pollingInterval);
+          set({ pollingInterval: null });
+        }
+      };
     },
   })
 );
+
+// Selector for data (memoized by zustand)
+const dataSelector = (state: PredictionMarketsState) => ({
+  markets: state.markets,
+  loading: state.loading,
+  error: state.error,
+});
 
 /**
  * Hook for consuming prediction markets data
  * Automatically fetches data on mount if not cached
  */
 export function usePredictionMarkets(userId?: string) {
-  const markets = usePredictionMarketsStore((state) => state.markets);
-  const loading = usePredictionMarketsStore((state) => state.loading);
-  const error = usePredictionMarketsStore((state) => state.error);
+  // Single subscription with shallow comparison for the object
+  const { markets, loading, error } = usePredictionMarketsStore(
+    useShallow(dataSelector)
+  );
   const fetchMarkets = usePredictionMarketsStore((state) => state.fetchMarkets);
 
   // Fetch on mount if needed
@@ -212,92 +211,65 @@ export function usePredictionMarketsPolling(
   intervalMs = 30000,
   userId?: string
 ) {
-  const incrementPollingRef = usePredictionMarketsStore(
-    (state) => state.incrementPollingRef
-  );
-  const decrementPollingRef = usePredictionMarketsStore(
-    (state) => state.decrementPollingRef
-  );
-  const startPolling = usePredictionMarketsStore((state) => state.startPolling);
-  const stopPolling = usePredictionMarketsStore((state) => state.stopPolling);
-  const pollingRefCount = usePredictionMarketsStore(
-    (state) => state.pollingRefCount
-  );
+  const subscribe = usePredictionMarketsStore((state) => state.subscribe);
 
+  // Store params in refs so they don't cause re-subscriptions
   const intervalRef = useRef(intervalMs);
   const userIdRef = useRef(userId);
-  intervalRef.current = intervalMs;
-  userIdRef.current = userId;
 
   useEffect(() => {
-    incrementPollingRef();
-
-    // Start polling if we're the first subscriber
-    if (pollingRefCount === 0) {
-      startPolling(intervalRef.current, userIdRef.current);
-    }
-
-    return () => {
-      decrementPollingRef();
-
-      // Stop polling if we're the last subscriber
-      // Use setTimeout to let the state update first
-      setTimeout(() => {
-        const currentCount =
-          usePredictionMarketsStore.getState().pollingRefCount;
-        if (currentCount === 0) {
-          stopPolling();
-        }
-      }, 0);
-    };
-  }, [
-    incrementPollingRef,
-    decrementPollingRef,
-    startPolling,
-    stopPolling,
-    pollingRefCount,
-  ]);
+    // Subscribe returns the unsubscribe function
+    const unsubscribe = subscribe(intervalRef.current, userIdRef.current);
+    return unsubscribe;
+  }, [subscribe]);
 }
 
 /**
- * Get a specific market by ID
+ * Get a specific market by ID (memoized)
  */
 export function usePredictionMarket(marketId: string | number) {
   const { markets, loading, error, refetch } = usePredictionMarkets();
 
-  const market = markets.find(
-    (m) => m.id.toString() === marketId.toString()
+  const market = useMemo(
+    () => markets.find((m) => m.id.toString() === marketId.toString()),
+    [markets, marketId]
   );
 
   return { market, loading, error, refetch };
 }
 
 /**
- * Get active markets only
+ * Get active markets only (memoized)
  */
 export function useActivePredictionMarkets() {
   const { markets, loading, error, refetch } = usePredictionMarkets();
 
-  const activeMarkets = markets.filter((m) => m.status === 'active');
+  const activeMarkets = useMemo(
+    () => markets.filter((m) => m.status === 'active'),
+    [markets]
+  );
 
   return { markets: activeMarkets, loading, error, refetch };
 }
 
 /**
- * Get market statistics
+ * Get market statistics (memoized)
  */
 export function usePredictionMarketsStats() {
   const { markets, loading } = usePredictionMarkets();
 
-  const stats = {
-    total: markets.length,
-    active: markets.filter((m) => m.status === 'active').length,
-    resolved: markets.filter((m) => m.status === 'resolved').length,
-    totalVolume: markets.reduce(
-      (sum, m) => sum + (m.yesShares || 0) + (m.noShares || 0),
-      0
-    ),
-  };
+  const stats = useMemo(
+    () => ({
+      total: markets.length,
+      active: markets.filter((m) => m.status === 'active').length,
+      resolved: markets.filter((m) => m.status === 'resolved').length,
+      totalVolume: markets.reduce(
+        (sum, m) => sum + (m.yesShares || 0) + (m.noShares || 0),
+        0
+      ),
+    }),
+    [markets]
+  );
 
   return { stats, loading };
 }

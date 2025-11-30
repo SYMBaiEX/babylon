@@ -13,21 +13,23 @@
     },
     "./deployments/local": {
       "types": "./deployments/local/index.ts",
-      "import": "./deployments/local/index.ts"
+      "import": "./deployments/local/index.ts",
+      "require": "./deployments/local/index.ts"
     },
     "./deployments/base-sepolia": {
       "types": "./deployments/base-sepolia/index.ts",
-      "import": "./deployments/base-sepolia/index.ts"
+      "import": "./deployments/base-sepolia/index.ts",
+      "require": "./deployments/base-sepolia/index.ts"
     },
     "./deployments/base": {
       "types": "./deployments/base/index.ts",
-      "import": "./deployments/base/index.ts"
+      "import": "./deployments/base/index.ts",
+      "require": "./deployments/base/index.ts"
     }
   },
   "files": [
     "src",
-    "deployments",
-    "deployments.d.ts"
+    "deployments"
   ],
   "scripts": {
     "lint": "biome lint src/",

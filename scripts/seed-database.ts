@@ -422,7 +422,8 @@ async function seedCharacterMappings(): Promise<number> {
 
   const actorsData = loadActorsData();
   const drizzle = getRawDrizzle();
-  let seeded = 0;
+  let created = 0;
+  let updated = 0;
 
   for (const actor of actorsData.actors) {
     // Skip if actor doesn't have realName (required for mapping)
@@ -434,25 +435,23 @@ async function seedCharacterMappings(): Promise<number> {
     const priority = mapTierToPriority(actor.tier);
     const aliases = generateAliases(actor);
 
-    // Check if mapping exists
+    // Check if mapping exists by realName (unique constraint)
     const existing = await drizzle.select()
       .from(schema.characterMappings)
       .where(eq(schema.characterMappings.realName, actor.realName))
       .limit(1);
 
-    if (existing.length > 0) {
-      const existingMapping = existing[0];
-      if (existingMapping) {
-        await drizzle.update(schema.characterMappings)
-          .set({
-            parodyName: actor.name,
-            category,
-            aliases,
-            priority,
-            updatedAt: new Date(),
-          })
-          .where(eq(schema.characterMappings.id, existingMapping.id));
-      }
+    if (existing.length > 0 && existing[0]) {
+      await drizzle.update(schema.characterMappings)
+        .set({
+          parodyName: actor.name,
+          category,
+          aliases,
+          priority,
+          updatedAt: new Date(),
+        })
+        .where(eq(schema.characterMappings.id, existing[0].id));
+      updated++;
     } else {
       await drizzle.insert(schema.characterMappings).values({
         id: await generateSnowflakeId(),
@@ -463,12 +462,12 @@ async function seedCharacterMappings(): Promise<number> {
         priority,
         updatedAt: new Date(),
       });
-      seeded++;
+      created++;
     }
   }
 
-  logger.info(`Character mappings: ${seeded} created`, undefined, 'SeedDatabase');
-  return seeded;
+  logger.info(`Character mappings: ${created} created, ${updated} updated`, undefined, 'SeedDatabase');
+  return created;
 }
 
 async function seedOrganizationMappings(): Promise<number> {
@@ -476,59 +475,62 @@ async function seedOrganizationMappings(): Promise<number> {
 
   const actorsData = loadActorsData();
   const drizzle = getRawDrizzle();
-  let seeded = 0;
+  let created = 0;
+  let updated = 0;
 
   for (const org of actorsData.organizations) {
+    // Organizations may have originalName for mapping real names to parody names
+    // This is stored in the data files but not in the base Organization type
+    const originalName = (org as OrgData & { originalName?: string }).originalName;
+    const originalHandle = (org as OrgData & { originalHandle?: string }).originalHandle;
+    
     // Skip if organization doesn't have originalName (required for mapping)
-    const orgWithOriginal = org as OrgData & { originalName?: string; originalHandle?: string };
-    if (!orgWithOriginal.originalName) {
+    if (!originalName) {
       continue;
     }
 
     const category = mapOrgTypeToCategory(org.type);
-    const priority = getOrganizationPriority(orgWithOriginal.originalName, org.type);
+    const priority = getOrganizationPriority(originalName, org.type);
     const aliases: string[] = [];
 
     // Add originalHandle as alias if it exists and is different from name
-    if (orgWithOriginal.originalHandle && orgWithOriginal.originalHandle !== org.name.toLowerCase()) {
-      aliases.push(orgWithOriginal.originalHandle);
+    if (originalHandle && originalHandle !== org.name.toLowerCase()) {
+      aliases.push(originalHandle);
     }
 
-    // Check if mapping exists
+    // Check if mapping exists by realName (unique constraint)
     const existing = await drizzle.select()
       .from(schema.organizationMappings)
-      .where(eq(schema.organizationMappings.realName, orgWithOriginal.originalName))
+      .where(eq(schema.organizationMappings.realName, originalName))
       .limit(1);
 
-    if (existing.length > 0) {
-      const existingMapping = existing[0];
-      if (existingMapping) {
-        await drizzle.update(schema.organizationMappings)
-          .set({
-            parodyName: org.name,
-            category,
-            aliases,
-            priority,
-            updatedAt: new Date(),
-          })
-          .where(eq(schema.organizationMappings.id, existingMapping.id));
-      }
+    if (existing.length > 0 && existing[0]) {
+      await drizzle.update(schema.organizationMappings)
+        .set({
+          parodyName: org.name,
+          category,
+          aliases,
+          priority,
+          updatedAt: new Date(),
+        })
+        .where(eq(schema.organizationMappings.id, existing[0].id));
+      updated++;
     } else {
       await drizzle.insert(schema.organizationMappings).values({
         id: await generateSnowflakeId(),
-        realName: orgWithOriginal.originalName,
+        realName: originalName,
         parodyName: org.name,
         category,
         aliases,
         priority,
         updatedAt: new Date(),
       });
-      seeded++;
+      created++;
     }
   }
 
-  logger.info(`Organization mappings: ${seeded} created`, undefined, 'SeedDatabase');
-  return seeded;
+  logger.info(`Organization mappings: ${created} created, ${updated} updated`, undefined, 'SeedDatabase');
+  return created;
 }
 
 async function seedDemoUsers(): Promise<number> {

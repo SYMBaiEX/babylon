@@ -6,7 +6,7 @@
  */
 
 import crypto from 'crypto';
-import { logger } from '../utils/logger';
+import { logger } from '@babylon/shared';
 
 interface DuplicateRecord {
   contentHash: string;
@@ -185,4 +185,3 @@ export function getDuplicateStats(): {
 if (typeof setInterval !== 'undefined') {
   setInterval(cleanupDuplicates, 5 * 60 * 1000);
 }
-

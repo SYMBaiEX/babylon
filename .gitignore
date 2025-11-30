@@ -97,3 +97,4 @@ _docs/
 
 # Claude Code
 .claude/
+migration-data/

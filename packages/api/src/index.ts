@@ -180,3 +180,14 @@ export * from './services';
 
 // Swagger
 export * from './swagger';
+
+// Server-side utilities (require Node.js crypto)
+export {
+  generateApiKey,
+  generateTestApiKey,
+  hashApiKey,
+  verifyApiKey,
+  getClientIp,
+  getHashedClientIp,
+  hashIpAddress,
+} from './utils';

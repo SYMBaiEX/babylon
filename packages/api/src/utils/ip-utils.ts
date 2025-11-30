@@ -78,4 +78,3 @@ export function getHashedClientIp(headers: Headers | Map<string, string> | Recor
   if (!ip) return null;
   return hashIpAddress(ip);
 }
-
