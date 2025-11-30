@@ -375,12 +375,13 @@ export async function processOnchainRegistration({
   let isRegistered = false;
   let tokenId: number | null = dbUser.nftTokenId;
 
-  if (user.isAgent || chainId === 31337) {
-    // Agents use database state; local development skips blockchain calls
+  if (user.isAgent) {
+    // Agents use database state
     isRegistered = dbUser.onChainRegistered && dbUser.nftTokenId !== null;
   } else {
     const address = walletAddress! as Address;
 
+    // Always check blockchain before registration to avoid re-registration errors
     isRegistered = await publicClient.readContract({
       address: IDENTITY_REGISTRY,
       abi: identityRegistryAbi,
