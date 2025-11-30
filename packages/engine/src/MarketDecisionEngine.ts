@@ -1303,6 +1303,13 @@ ${prompt}`
         );
       }
 
+      // Add the parody name itself as a variation (cleaned, lowercase)
+      // e.g., "AInduril" -> LLM might generate "AINDRUIL", map to "AINDRL"
+      const parodyNameCleaned = org.name.replace(/[^a-z]/gi, '').toLowerCase();
+      if (parodyNameCleaned) {
+        variations.push(parodyNameCleaned); // ainduril
+      }
+
       // Add current ticker as variation too (lowercase)
       if (org.ticker) {
         variations.push(org.ticker.toLowerCase()); // opnai
