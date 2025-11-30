@@ -47,7 +47,7 @@ Will MetAI's new VR headset permanently stick to a reviewer's face (requiring su
 Will GoogAI launch a messaging app and kill it within the same 48-hour window by {resolutionDate}?
 Will TeslAI Cybertrucks start honking the national anthem uncontrollably due to a software bug by {resolutionDate}?
 Will AImazon announce a "Pre-Crime" shipping feature that sends you items before you want them by {resolutionDate}?
-Will AIndruil reveal a defense drone that plays "Flight of the Valkyries" via loud speakers by {resolutionDate}?
+Will AInduril reveal a defense drone that plays "Flight of the Valkyries" via loud speakers by {resolutionDate}?
 Will ColAIssal Sciences accidentally resurrect a Dodo bird instead of a Woolly Mammoth by {resolutionDate}?
 Will NVIDAI announce a graphics card that requires a dedicated nuclear reactor to run by {resolutionDate}?
 Will AIlon Musk successfully land a SpAIceX rocket on the roof of the MetAI headquarters as a "friendly prank" by {resolutionDate}?Will Mark Zuckerborg's challenge to a "Metaverse Deathmatch" actually be accepted by Sim Cook by {resolutionDate}?

@@ -10,30 +10,12 @@ import {
 import { useEffect, useMemo, useState } from 'react';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { usePredictionMarketsSubscription } from '@/hooks/usePredictionMarketStream';
+import {
+  usePerpMarkets,
+  usePerpMarketsPolling,
+  type PerpMarket,
+} from '@/stores/perpMarketsStore';
 import { cn } from '@babylon/shared';
-
-/**
- * Perpetual market structure for market overview.
- */
-interface PerpMarket {
-  ticker: string;
-  organizationId: string;
-  name: string;
-  currentPrice: number;
-  change24h: number;
-  changePercent24h: number;
-  high24h: number;
-  low24h: number;
-  volume24h: number;
-  openInterest: number;
-  fundingRate: {
-    rate: number;
-    nextFundingTime: string;
-    predictedRate: number;
-  };
-  maxLeverage: number;
-  minOrderSize: number;
-}
 
 /**
  * Market overview statistics structure.
@@ -83,79 +65,82 @@ interface PredictionQuestionSummary {
  * @returns Market overview panel element
  */
 export function MarketOverviewPanel() {
-  const [overview, setOverview] = useState<MarketOverview | null>(null);
+  // Use shared perp markets store
+  const { markets: perpMarkets, loading: perpLoading } = usePerpMarkets();
+  usePerpMarketsPolling(30000); // Enable 30s polling
+
   const [predictionStats, setPredictionStats] = useState<
     Record<string, PredictionStat>
   >({});
-  const [loading, setLoading] = useState(true);
+  const [predictionsLoading, setPredictionsLoading] = useState(true);
 
+  // Calculate overview from perp markets
+  const overview = useMemo<MarketOverview | null>(() => {
+    if (perpMarkets.length === 0) return null;
+
+    const totalVolume = perpMarkets.reduce(
+      (sum: number, m: PerpMarket) => sum + (m.volume24h || 0),
+      0
+    );
+    const totalOI = perpMarkets.reduce(
+      (sum: number, m: PerpMarket) => sum + (m.openInterest || 0),
+      0
+    );
+    const avgChange =
+      perpMarkets.length > 0
+        ? perpMarkets.reduce(
+            (sum: number, m: PerpMarket) => sum + (m.changePercent24h || 0),
+            0
+          ) / perpMarkets.length
+        : 0;
+    const marketsUp = perpMarkets.filter(
+      (m: PerpMarket) => (m.changePercent24h || 0) > 0
+    ).length;
+    const marketsDown = perpMarkets.filter(
+      (m: PerpMarket) => (m.changePercent24h || 0) < 0
+    ).length;
+
+    return {
+      totalMarkets: perpMarkets.length,
+      totalVolume24h: totalVolume,
+      totalOpenInterest: totalOI,
+      avgChange24h: avgChange,
+      marketsUp,
+      marketsDown,
+    };
+  }, [perpMarkets]);
+
+  // Fetch predictions separately (can be moved to a shared store later)
   useEffect(() => {
-    const fetchOverview = async () => {
-      const [perpsResponse, predictionsResponse] = await Promise.all([
-        fetch('/api/markets/perps'),
-        fetch('/api/markets/predictions'),
-      ]);
+    const fetchPredictions = async () => {
+      try {
+        const response = await fetch('/api/markets/predictions');
+        const data = await response.json();
 
-      const data = await perpsResponse.json();
-      const predictionsData = await predictionsResponse.json();
-
-      if (data.markets && Array.isArray(data.markets)) {
-        const markets = data.markets as PerpMarket[];
-        const totalVolume = markets.reduce(
-          (sum: number, m: PerpMarket) => sum + (m.volume24h || 0),
-          0
-        );
-        const totalOI = markets.reduce(
-          (sum: number, m: PerpMarket) => sum + (m.openInterest || 0),
-          0
-        );
-        const avgChange =
-          markets.length > 0
-            ? markets.reduce(
-                (sum: number, m: PerpMarket) => sum + (m.changePercent24h || 0),
-                0
-              ) / markets.length
-            : 0;
-        const marketsUp = markets.filter(
-          (m: PerpMarket) => (m.changePercent24h || 0) > 0
-        ).length;
-        const marketsDown = markets.filter(
-          (m: PerpMarket) => (m.changePercent24h || 0) < 0
-        ).length;
-
-        setOverview({
-          totalMarkets: markets.length,
-          totalVolume24h: totalVolume,
-          totalOpenInterest: totalOI,
-          avgChange24h: avgChange,
-          marketsUp,
-          marketsDown,
-        });
+        if (data.questions && Array.isArray(data.questions)) {
+          const stats: Record<string, PredictionStat> = {};
+          (data.questions as PredictionQuestionSummary[]).forEach(
+            (question) => {
+              stats[question.id.toString()] = {
+                yesShares: Number(question.yesShares ?? 0),
+                noShares: Number(question.noShares ?? 0),
+                resolved: question.status === 'resolved',
+              };
+            }
+          );
+          setPredictionStats(stats);
+        }
+      } finally {
+        setPredictionsLoading(false);
       }
-
-      if (
-        predictionsData.questions &&
-        Array.isArray(predictionsData.questions)
-      ) {
-        const stats: Record<string, PredictionStat> = {};
-        (predictionsData.questions as PredictionQuestionSummary[]).forEach(
-          (question) => {
-            stats[question.id.toString()] = {
-              yesShares: Number(question.yesShares ?? 0),
-              noShares: Number(question.noShares ?? 0),
-              resolved: question.status === 'resolved',
-            };
-          }
-        );
-        setPredictionStats(stats);
-      }
-      setLoading(false);
     };
 
-    fetchOverview();
-    const interval = setInterval(fetchOverview, 30000); // Refresh every 30 seconds
+    fetchPredictions();
+    const interval = setInterval(fetchPredictions, 30000);
     return () => clearInterval(interval);
   }, []);
+
+  const loading = perpLoading && predictionsLoading;
 
   usePredictionMarketsSubscription({
     onTrade: (event) => {

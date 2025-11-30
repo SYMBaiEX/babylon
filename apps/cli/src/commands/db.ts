@@ -312,7 +312,8 @@ async function seedDatabase(): Promise<void> {
   }
 
   logger.step('Running seed script...');
-  await $`bun run db:seed`;
+  const rootDir = import.meta.dirname.replace('/apps/cli/src/commands', '');
+  await $`bun run ${rootDir}/scripts/seed-database.ts`;
   logger.success('Database seeded');
 }
 

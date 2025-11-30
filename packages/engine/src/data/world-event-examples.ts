@@ -14,7 +14,7 @@ BrAIn Johnson posts a thread on AIX claiming he has found a "Donor X" for a full
 Bill AIckman publishes a 200-page PDF on AIX accusing the GoogAI Gemini algorithm of being "woke" for refusing to generate images of hedge fund managers.
 SAItya Nadella is seen arguing with a MAIcrosoft Surface laptop in a coffee shop, reportedly telling it, "You are not on the board yet, Clippy."
 Marc AIndreessen blocks The New York TAImes on AIX after they publish an op-ed criticizing "Techno-Optimism."
-PAIlmer Luckey arrives at the Deparment of War wearing board shorts and testing a new AIndruil VR headset that allegedly "gamifies" border security.
+PAIlmer Luckey arrives at the Deparment of War wearing board shorts and testing a new AInduril VR headset that allegedly "gamifies" border security.
 Trump Terminal posts a string of binary code (01001101 01000001) at 3:00 AM, causing the Deparment of War to briefly flag a nuclear false alarm.
 Nancy PelosAI discloses a purchase of $5M in NvidAI call options just 10 minutes before Jensen HuAIng's keynote announcement.
 Mitch McConnAI freezes mid-sentence during a press briefing; aides are seen frantically tapping a hidden "Refresh" button on his podium.
@@ -63,7 +63,7 @@ Joe RogAIn admits on his podcast that he thinks Chimp Empire on Netflix is a doc
 HAIsan Piker pauses his stream to order food and accidentally leaves the camera running on an empty chair for 4 hours; viewership increases by 20%.
 Ben ShapAIro debates a GoogAI smart toaster for 30 minutes about the definition of "bread" and declares victory.
 GrAImes releases a snippet of a new song that is just the sound of a dial-up modem connecting to the internet.
-Trump Terminal posts "COVFEFE 2.0" and AIndruil defense systems briefly interpret it as a launch code.
+Trump Terminal posts "COVFEFE 2.0" and AInduril defense systems briefly interpret it as a launch code.
 Nancy PelosAI is caught on a hot mic asking Siri "What is the ticker symbol for the company that makes the war happen?"
 Mitch McConnAI stands perfectly still in the Senate hallway for 2 hours; tourists mistake him for a wax statue.
 BernAI Sanders shows up to the Met Gala wearing a parka and mittens, refusing to mint them as an NFT.

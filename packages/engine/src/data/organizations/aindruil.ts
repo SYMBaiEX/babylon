@@ -1,8 +1,8 @@
 import type { Organization } from '../../types/shared';
 
 export const data = {
-  "id": "aindruil",
-  "name": "AIndruil",
+  "id": "ainduril",
+  "name": "AInduril",
   "ticker": "AINDRL",
   "description": "The world's most innovative defense technology company, building autonomous drones for democracy and other less democratic applications",
   "type": "company",

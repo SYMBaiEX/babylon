@@ -13,42 +13,83 @@ import { loadDeployment } from '@babylon/contracts'
 
 const HARDHAT_RPC_URL = 'http://localhost:8545'
 
-async function main() {
+/**
+ * Check if a contract is deployed at the given address using direct JSON-RPC
+ * This is more reliable than using cast which can have issues with hardhat
+ */
+async function isContractDeployed(address: string): Promise<boolean> {
+  const response = await fetch(HARDHAT_RPC_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      jsonrpc: '2.0',
+      method: 'eth_getCode',
+      params: [address, 'latest'],
+      id: 1,
+    }),
+  }).catch(() => null)
+
+  if (!response) return false
+
+  const data = await response.json().catch(() => null) as { result?: string } | null
+  const code = data?.result ?? '0x'
+  
+  // Contract is deployed if code is not empty
+  return code !== '0x' && code !== '0x0' && code.length > 2
+}
+
+/**
+ * Wait for Hardhat node to be ready
+ */
+async function waitForHardhat(): Promise<boolean> {
   console.info('Waiting for Hardhat node to be ready...', undefined, 'Script')
   
-  // Wait up to 30 seconds for Hardhat to start
-  let attempts = 0
-  while (attempts < 30) {
-    try {
-      await $`cast block-number --rpc-url ${HARDHAT_RPC_URL}`.quiet()
+  for (let attempts = 0; attempts < 30; attempts++) {
+    const response = await fetch(HARDHAT_RPC_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        method: 'eth_blockNumber',
+        params: [],
+        id: 1,
+      }),
+    }).catch(() => null)
+
+    if (response?.ok) {
       console.info('✅ Hardhat node is ready', undefined, 'Script')
-      break
-    } catch {
-      if (attempts === 0) {
-        console.info('Waiting for Hardhat node to start...', undefined, 'Script')
-      }
-      await new Promise(resolve => setTimeout(resolve, 1000))
-      attempts++
+      return true
     }
+
+    if (attempts === 0) {
+      console.info('Waiting for Hardhat node to start...', undefined, 'Script')
+    }
+    await new Promise(resolve => setTimeout(resolve, 1000))
   }
-  
-  if (attempts === 30) {
+
+  return false
+}
+
+async function main() {
+  // Wait for Hardhat to be ready
+  const hardhatReady = await waitForHardhat()
+  if (!hardhatReady) {
     console.error('❌ Hardhat node failed to start within 30 seconds', undefined, 'Script')
     process.exit(1)
   }
   
-  // Check if contracts are already deployed
+  // Check if contracts are already deployed on-chain
   const deployment = await loadDeployment('localnet')
   if (deployment?.contracts.diamond) {
-    // Verify contract is still deployed
-    const code = await $`cast code ${deployment.contracts.diamond} --rpc-url ${HARDHAT_RPC_URL}`.quiet().text().catch(() => '0x')
-    if (code.trim() !== '0x' && code.trim() !== '0x0') {
+    const deployed = await isContractDeployed(deployment.contracts.diamond)
+    if (deployed) {
       console.info('✅ Contracts already deployed', undefined, 'Script')
       console.info('Contract deployment monitor running...', undefined, 'Script')
       // Keep the process running to maintain concurrently
       await new Promise(() => {}) // Never resolves
       return
     }
+    console.info('Contracts not found on-chain, deploying...', undefined, 'Script')
   }
   
   // Deploy contracts

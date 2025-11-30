@@ -292,31 +292,6 @@ export async function isContractDeployed(
 }
 
 /**
- * Get contract addresses from canonical config
- * 
- * @deprecated Use @babylon/shared/config instead
- */
-export function getContractAddressesFromEnv(): Partial<ContractAddresses> {
-  // Import dynamically to avoid circular dependencies
-  // This function is deprecated - use @babylon/shared/config directly
-  return {
-    diamond: process.env.NEXT_PUBLIC_DIAMOND_ADDRESS,
-    identityRegistry: process.env.NEXT_PUBLIC_IDENTITY_REGISTRY,
-    reputationSystem: process.env.NEXT_PUBLIC_REPUTATION_SYSTEM,
-    babylonOracle: process.env.NEXT_PUBLIC_BABYLON_ORACLE,
-    predimarket: process.env.NEXT_PUBLIC_PREDIMARKET,
-    marketFactory: process.env.NEXT_PUBLIC_MARKET_FACTORY,
-    contestOracle: process.env.NEXT_PUBLIC_CONTEST_ORACLE,
-    banManager: process.env.NEXT_PUBLIC_BAN_MANAGER,
-    reportingSystem: process.env.NEXT_PUBLIC_REPORTING_SYSTEM,
-    labelManager: process.env.NEXT_PUBLIC_LABEL_MANAGER,
-    chainlinkOracle: process.env.NEXT_PUBLIC_CHAINLINK_ORACLE,
-    umaOracle: process.env.NEXT_PUBLIC_UMA_ORACLE,
-    testToken: process.env.NEXT_PUBLIC_TEST_TOKEN,
-  };
-}
-
-/**
  * Update environment file with contract addresses
  * 
  * NOTE: This function uses Node.js file system APIs and is not compatible with edge runtime.

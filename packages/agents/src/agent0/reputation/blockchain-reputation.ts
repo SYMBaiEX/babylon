@@ -18,6 +18,7 @@ import { logger } from '../../shared/logger';
 import {
   REPUTATION_SYSTEM_ABI,
   REPUTATION_SYSTEM_BASE_SEPOLIA,
+  getCurrentRpcUrl,
 } from '@babylon/shared';
 
 // Contract addresses from canonical config
@@ -25,7 +26,7 @@ const REPUTATION_SYSTEM_ADDRESS = REPUTATION_SYSTEM_BASE_SEPOLIA as Address;
 
 const publicClient = createPublicClient({
   chain: baseSepolia,
-  transport: http(process.env.NEXT_PUBLIC_RPC_URL),
+  transport: http(getCurrentRpcUrl()),
 });
 
 interface OnChainReputation {

@@ -1,405 +1,166 @@
 /**
  * Canonical Public Configuration for Babylon
  *
- * This module provides typed access to all public configuration values
- * including contract addresses, API endpoints, and game settings.
+ * Environment-aware configuration for contract addresses and endpoints.
+ * Import this instead of reading from environment variables.
  *
- * Configuration is environment-aware:
- * - development: Uses local Hardhat network (chainId: 31337)
- * - staging: Uses Base Sepolia testnet (chainId: 84532)
- * - production: Uses Base Mainnet (chainId: 8453)
- *
- * Environment is detected from:
+ * Environment detection:
  * 1. NEXT_PUBLIC_CHAIN_ID (explicit chain selection)
  * 2. NODE_ENV (development/staging/production)
- *
- * Import this instead of reading from environment variables.
  */
 
 import type { Address } from 'viem';
-import configData from './public-config.json';
+import {
+  getConfig,
+  getDefaultConfig,
+  resetConfig,
+  type CoreContractAddresses,
+  type DefaultConfig,
+  type EndpointsConfig,
+  type LocalContractAddresses,
+  type NetworkConfig,
+  type PerpSettings,
+  type GameSpeedSettings,
+  type OracleSettings,
+  type RLTrainingSettings,
+  type AgentSettings,
+} from './default-config';
 
 // =============================================================================
-// Types
+// Re-export types
 // =============================================================================
 
-/** Core ERC-8004 contract addresses */
-export interface CoreContractAddresses {
-  diamond: Address;
-  identityRegistry: Address;
-  reputationSystem: Address;
-  predictionMarketFacet: Address;
-  oracleFacet: Address;
-}
+export type {
+  CoreContractAddresses,
+  LocalContractAddresses,
+  NetworkConfig,
+  EndpointsConfig,
+  PerpSettings,
+  GameSpeedSettings,
+  OracleSettings,
+  RLTrainingSettings,
+  AgentSettings,
+  DefaultConfig as PublicConfig,
+};
 
-/** Extended contract addresses for local development */
-export interface LocalContractAddresses extends CoreContractAddresses {
-  liquidityPoolFacet: Address;
-  perpetualMarketFacet: Address;
-  referralSystemFacet: Address;
-  banManager: Address;
-  reportingSystem: Address;
-  labelManager: Address;
-  babylonOracle: Address;
-  predimarket: Address;
-  marketFactory: Address;
-  contestOracle: Address;
-  testToken: Address;
-}
-
-/** Network configuration */
-export interface NetworkConfig {
-  chainId: number;
-  name: string;
-  rpcUrl: string;
-  contracts: CoreContractAddresses;
-}
-
-/** Local network configuration with extended contracts */
-export interface LocalNetworkConfig extends Omit<NetworkConfig, 'contracts'> {
-  contracts: LocalContractAddresses;
-}
-
-/** API endpoints configuration */
-export interface EndpointsConfig {
-  apiBaseUrl: string;
-  a2aEndpoint: string;
-  mcpEndpoint: string;
-}
-
-/** Environment configuration */
-export interface EnvironmentConfig {
-  network: string;
-  endpoints: EndpointsConfig;
-}
-
-/** Game speed settings */
-export interface GameSpeedSettings {
-  /** Default game speed in milliseconds (time between events) */
-  default: number;
-  /** Minimum allowed game speed (fastest) - 1 second */
-  min: number;
-  /** Maximum allowed game speed (slowest) - 60 seconds */
-  max: number;
-}
-
-/** Complete public configuration */
-export interface PublicConfig {
-  version: string;
-  networks: {
-    local: LocalNetworkConfig;
-    baseSepolia: NetworkConfig;
-    base: NetworkConfig;
-    sepolia: NetworkConfig;
-    mainnet: NetworkConfig;
-  };
-  environments: {
-    development: EnvironmentConfig;
-    staging: EnvironmentConfig;
-    production: EnvironmentConfig;
-  };
-  gameSettings: {
-    speed: GameSpeedSettings;
-  };
-}
+// Re-export config functions
+export { getConfig, getDefaultConfig, resetConfig };
 
 // =============================================================================
-// Configuration Access
+// Configuration Access (legacy alias)
 // =============================================================================
 
-/** The complete public configuration */
-export const PUBLIC_CONFIG = configData as PublicConfig;
+export const PUBLIC_CONFIG = getConfig();
 
 // =============================================================================
 // Environment Detection
 // =============================================================================
 
-export type EnvironmentName = 'development' | 'staging' | 'production';
-export type NetworkId = keyof typeof PUBLIC_CONFIG.networks;
+type NetworkId = 'local' | 'baseSepolia' | 'base';
+type EnvironmentName = 'development' | 'staging' | 'production';
 
-/**
- * Chain ID to network ID mapping
- */
 const CHAIN_ID_TO_NETWORK: Record<number, NetworkId> = {
   31337: 'local',
   84532: 'baseSepolia',
   8453: 'base',
-  11155111: 'sepolia',
-  1: 'mainnet',
 };
 
-/**
- * Network ID to environment mapping
- */
 const NETWORK_TO_ENVIRONMENT: Record<NetworkId, EnvironmentName> = {
   local: 'development',
   baseSepolia: 'staging',
   base: 'production',
-  sepolia: 'staging',
-  mainnet: 'production',
 };
 
 /**
- * Detect current chain ID from environment
- *
- * Priority:
- * 1. NEXT_PUBLIC_CHAIN_ID env var
- * 2. Infer from NODE_ENV
+ * Get current chain ID from environment
  */
 export function getCurrentChainId(): number {
-  // Explicit chain ID takes priority
   const envChainId = process.env.NEXT_PUBLIC_CHAIN_ID;
   if (envChainId) {
     return Number.parseInt(envChainId, 10);
   }
 
-  // Infer from NODE_ENV
   const nodeEnv = process.env.NODE_ENV;
   switch (nodeEnv) {
     case 'production':
-      return 8453; // Base Mainnet
+      return 8453;
     case 'staging':
     case 'test':
-      return 84532; // Base Sepolia
+      return 84532;
     default:
-      return 31337; // Local Hardhat
+      return 31337;
   }
 }
 
-/**
- * Detect current environment name
- */
-export function getCurrentEnvironment(): EnvironmentName {
+function getCurrentEnvironment(): EnvironmentName {
   const chainId = getCurrentChainId();
   const networkId = CHAIN_ID_TO_NETWORK[chainId];
   return networkId ? NETWORK_TO_ENVIRONMENT[networkId] : 'development';
 }
 
-/**
- * Get current network ID
- */
-export function getCurrentNetworkId(): NetworkId {
+function getCurrentNetwork(): NetworkConfig {
   const chainId = getCurrentChainId();
-  return CHAIN_ID_TO_NETWORK[chainId] || 'local';
-}
-
-// =============================================================================
-// Network Helpers
-// =============================================================================
-
-/**
- * Get network configuration by chain ID
- */
-export function getNetworkByChainId(chainId: number): NetworkConfig {
-  const networkId = CHAIN_ID_TO_NETWORK[chainId];
-  if (!networkId) {
-    // Default to local for unknown chains in development
-    return PUBLIC_CONFIG.networks.local;
-  }
+  const networkId = CHAIN_ID_TO_NETWORK[chainId] || 'local';
   return PUBLIC_CONFIG.networks[networkId];
 }
 
-/**
- * Get network configuration by network ID
- */
-export function getNetwork(networkId: NetworkId): NetworkConfig {
-  return PUBLIC_CONFIG.networks[networkId];
+function getCurrentEndpoints(): EndpointsConfig {
+  return PUBLIC_CONFIG.environments[getCurrentEnvironment()].endpoints;
 }
 
-/**
- * Get current network configuration based on environment
- */
-export function getCurrentNetwork(): NetworkConfig {
-  return getNetworkByChainId(getCurrentChainId());
-}
-
-/**
- * Get contract addresses for a chain ID
- */
-export function getContractAddresses(
-  chainId: number
-): CoreContractAddresses | LocalContractAddresses {
-  return getNetworkByChainId(chainId).contracts;
-}
+// =============================================================================
+// Contract Addresses
+// =============================================================================
 
 /**
  * Get contract addresses for current environment
  */
 export function getCurrentContractAddresses(): CoreContractAddresses | LocalContractAddresses {
-  return getContractAddresses(getCurrentChainId());
+  return getCurrentNetwork().contracts;
 }
 
 /**
- * Check if contracts are deployed on the given chain
+ * Check if contracts are deployed (not zero address)
  */
 export function areContractsDeployed(chainId: number): boolean {
-  const contracts = getContractAddresses(chainId);
-  const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
-  return contracts.identityRegistry !== ZERO_ADDRESS;
+  const networkId = CHAIN_ID_TO_NETWORK[chainId] || 'local';
+  const contracts = PUBLIC_CONFIG.networks[networkId].contracts;
+  return contracts.identityRegistry !== '0x0000000000000000000000000000000000000000';
 }
 
+/** Local contract addresses */
+export const LOCAL_CONTRACT_ADDRESSES = PUBLIC_CONFIG.networks.local
+  .contracts as LocalContractAddresses;
+
+/** Diamond address (local default) */
+export const DIAMOND_ADDRESS = LOCAL_CONTRACT_ADDRESSES.diamond;
+
+/** Base Sepolia reputation system */
+export const REPUTATION_SYSTEM_BASE_SEPOLIA =
+  PUBLIC_CONFIG.networks.baseSepolia.contracts.reputationSystem as Address;
+
+/** Base Sepolia identity registry */
+export const IDENTITY_REGISTRY_BASE_SEPOLIA =
+  PUBLIC_CONFIG.networks.baseSepolia.contracts.identityRegistry as Address;
+
+// =============================================================================
+// RPC & Endpoints
+// =============================================================================
+
 /**
- * Get RPC URL for current environment
+ * Get RPC URL for current environment (with env var override)
  */
 export function getCurrentRpcUrl(): string {
-  // Allow override via env var
   if (process.env.NEXT_PUBLIC_RPC_URL) {
     return process.env.NEXT_PUBLIC_RPC_URL;
   }
   return getCurrentNetwork().rpcUrl;
 }
 
-// =============================================================================
-// Environment Configuration
-// =============================================================================
-
-/**
- * Get environment configuration
- */
-export function getEnvironmentConfig(env?: EnvironmentName): EnvironmentConfig {
-  const envName = env || getCurrentEnvironment();
-  return PUBLIC_CONFIG.environments[envName];
+/** Get API base URL for current environment */
+export function getAPIBaseUrl(): string {
+  return getCurrentEndpoints().apiBaseUrl;
 }
-
-/**
- * Get endpoints for current environment
- */
-export function getCurrentEndpoints(): EndpointsConfig {
-  return getEnvironmentConfig().endpoints;
-}
-
-// =============================================================================
-// Static Network Exports (for specific network access)
-// =============================================================================
-
-/** Local development contract addresses - use when chainId is 31337 */
-export const LOCAL_CONTRACT_ADDRESSES = PUBLIC_CONFIG.networks.local
-  .contracts as LocalContractAddresses;
-
-/** Base Sepolia contract addresses - use when chainId is 84532 */
-export const BASE_SEPOLIA_CONTRACT_ADDRESSES = PUBLIC_CONFIG.networks.baseSepolia
-  .contracts as CoreContractAddresses;
-
-/** Base Mainnet contract addresses - use when chainId is 8453 */
-export const BASE_CONTRACT_ADDRESSES = PUBLIC_CONFIG.networks.base
-  .contracts as CoreContractAddresses;
-
-/** Ethereum Sepolia contract addresses - use when chainId is 11155111 */
-export const SEPOLIA_CONTRACT_ADDRESSES = PUBLIC_CONFIG.networks.sepolia
-  .contracts as CoreContractAddresses;
-
-/** Ethereum Mainnet contract addresses - use when chainId is 1 */
-export const MAINNET_CONTRACT_ADDRESSES = PUBLIC_CONFIG.networks.mainnet
-  .contracts as CoreContractAddresses;
-
-// =============================================================================
-// Game Settings
-// =============================================================================
-
-/** Game speed settings */
-export const GAME_SPEED = PUBLIC_CONFIG.gameSettings.speed;
-
-/**
- * Validate game speed is within allowed range
- */
-export function clampGameSpeed(speed: number): number {
-  return Math.max(GAME_SPEED.min, Math.min(GAME_SPEED.max, speed));
-}
-
-/**
- * Check if game speed is valid
- */
-export function isValidGameSpeed(speed: number): boolean {
-  return speed >= GAME_SPEED.min && speed <= GAME_SPEED.max;
-}
-
-// =============================================================================
-// Environment-Aware Contract Address Exports
-// =============================================================================
-
-// These are computed at runtime based on the current environment
-
-/** Get diamond address for current environment */
-export function getDiamondAddress(): Address {
-  return getCurrentContractAddresses().diamond;
-}
-
-/** Get identity registry address for current environment */
-export function getIdentityRegistry(): Address {
-  return getCurrentContractAddresses().identityRegistry;
-}
-
-/** Get reputation system address for current environment */
-export function getReputationSystem(): Address {
-  return getCurrentContractAddresses().reputationSystem;
-}
-
-// =============================================================================
-// Legacy Convenience Exports (for backward compatibility)
-// =============================================================================
-
-// These use LOCAL addresses by default for backward compatibility
-// New code should use getCurrentContractAddresses() or the getter functions
-
-/** Diamond proxy contract address (local/dev default) */
-export const DIAMOND_ADDRESS = LOCAL_CONTRACT_ADDRESSES.diamond;
-
-/** Identity registry contract address (local/dev default) */
-export const IDENTITY_REGISTRY = LOCAL_CONTRACT_ADDRESSES.identityRegistry;
-
-/** Reputation system contract address (local/dev default) */
-export const REPUTATION_SYSTEM = LOCAL_CONTRACT_ADDRESSES.reputationSystem;
-
-/** Ban manager contract address (local only) */
-export const BAN_MANAGER = LOCAL_CONTRACT_ADDRESSES.banManager;
-
-/** Reporting system contract address (local only) */
-export const REPORTING_SYSTEM = LOCAL_CONTRACT_ADDRESSES.reportingSystem;
-
-/** Label manager contract address (local only) */
-export const LABEL_MANAGER = LOCAL_CONTRACT_ADDRESSES.labelManager;
-
-/** Babylon oracle contract address (local only) */
-export const BABYLON_ORACLE = LOCAL_CONTRACT_ADDRESSES.babylonOracle;
-
-/** Predimarket contract address (local only) */
-export const PREDIMARKET = LOCAL_CONTRACT_ADDRESSES.predimarket;
-
-/** Market factory contract address (local only) */
-export const MARKET_FACTORY = LOCAL_CONTRACT_ADDRESSES.marketFactory;
-
-/** Contest oracle contract address (local only) */
-export const CONTEST_ORACLE = LOCAL_CONTRACT_ADDRESSES.contestOracle;
-
-/** Test token contract address (local only) */
-export const TEST_TOKEN = LOCAL_CONTRACT_ADDRESSES.testToken;
-
-/** Prediction market facet address (local/dev default) */
-export const PREDICTION_MARKET_FACET = LOCAL_CONTRACT_ADDRESSES.predictionMarketFacet;
-
-/** Oracle facet address (local/dev default) */
-export const ORACLE_FACET = LOCAL_CONTRACT_ADDRESSES.oracleFacet;
-
-/** Liquidity pool facet address (local only) */
-export const LIQUIDITY_POOL_FACET = LOCAL_CONTRACT_ADDRESSES.liquidityPoolFacet;
-
-/** Perpetual market facet address (local only) */
-export const PERPETUAL_MARKET_FACET = LOCAL_CONTRACT_ADDRESSES.perpetualMarketFacet;
-
-/** Referral system facet address (local only) */
-export const REFERRAL_SYSTEM_FACET = LOCAL_CONTRACT_ADDRESSES.referralSystemFacet;
-
-/** Base Sepolia reputation system address */
-export const REPUTATION_SYSTEM_BASE_SEPOLIA =
-  PUBLIC_CONFIG.networks.baseSepolia.contracts.reputationSystem;
-
-/** Base Sepolia identity registry address */
-export const IDENTITY_REGISTRY_BASE_SEPOLIA =
-  PUBLIC_CONFIG.networks.baseSepolia.contracts.identityRegistry;
-
-// =============================================================================
-// Environment-Aware Endpoint Exports
-// =============================================================================
 
 /** Get A2A endpoint for current environment */
 export function getA2AEndpoint(): string {
@@ -411,79 +172,177 @@ export function getMCPEndpoint(): string {
   return getCurrentEndpoints().mcpEndpoint;
 }
 
-/** Get API base URL for current environment */
-export function getAPIBaseUrl(): string {
-  return getCurrentEndpoints().apiBaseUrl;
-}
-
-// Legacy static exports (use production values for backward compatibility)
-/** A2A WebSocket endpoint (production default) */
-export const A2A_ENDPOINT = PUBLIC_CONFIG.environments.production.endpoints.a2aEndpoint;
-
-/** MCP endpoint (production default) */
-export const MCP_ENDPOINT = PUBLIC_CONFIG.environments.production.endpoints.mcpEndpoint;
-
-/** API base URL (production default) */
-export const API_BASE_URL = PUBLIC_CONFIG.environments.production.endpoints.apiBaseUrl;
-
 // =============================================================================
-// Development Helpers
+// Perp Settings
 // =============================================================================
 
-/**
- * Check if running in local development mode
- */
-export function isLocalDevelopment(): boolean {
-  return getCurrentChainId() === 31337;
+/** Get settlement mode */
+export function getSettlementMode(): 'offchain' | 'onchain' | 'hybrid' {
+  const envMode = process.env.NEXT_PUBLIC_PERP_SETTLEMENT_MODE;
+  if (envMode === 'offchain' || envMode === 'onchain' || envMode === 'hybrid') {
+    return envMode;
+  }
+  return PUBLIC_CONFIG.perpSettings.settlementMode;
 }
 
-/**
- * Check if running in staging mode (Base Sepolia or Ethereum Sepolia)
- */
-export function isStaging(): boolean {
-  const chainId = getCurrentChainId();
-  return chainId === 84532 || chainId === 11155111;
+/** Get hybrid batch interval in ms */
+export function getHybridBatchInterval(): number {
+  const envValue = process.env.NEXT_PUBLIC_HYBRID_BATCH_INTERVAL;
+  if (envValue) return Number.parseInt(envValue, 10);
+  return PUBLIC_CONFIG.perpSettings.hybridBatchInterval;
 }
 
-/**
- * Check if running in production mode (Base Mainnet or Ethereum Mainnet)
- */
-export function isProduction(): boolean {
-  const chainId = getCurrentChainId();
-  return chainId === 8453 || chainId === 1;
+/** Get hybrid batch size */
+export function getHybridBatchSize(): number {
+  const envValue = process.env.NEXT_PUBLIC_HYBRID_BATCH_SIZE;
+  if (envValue) return Number.parseInt(envValue, 10);
+  return PUBLIC_CONFIG.perpSettings.hybridBatchSize;
 }
 
-/**
- * Check if on Base chain (Sepolia or Mainnet)
- */
-export function isBaseChain(): boolean {
-  const chainId = getCurrentChainId();
-  return chainId === 84532 || chainId === 8453;
+// =============================================================================
+// Game Speed Settings
+// =============================================================================
+
+/** Get default game speed in ms */
+export function getGameSpeedDefault(): number {
+  const envValue = process.env.GAME_SPEED_DEFAULT;
+  if (envValue) return Number.parseInt(envValue, 10);
+  return PUBLIC_CONFIG.gameSpeed.default;
 }
 
-/**
- * Check if on Ethereum chain (Sepolia or Mainnet)
- */
-export function isEthereumChain(): boolean {
-  const chainId = getCurrentChainId();
-  return chainId === 11155111 || chainId === 1;
+/** Get minimum game speed in ms */
+export function getGameSpeedMin(): number {
+  const envValue = process.env.GAME_SPEED_MIN;
+  if (envValue) return Number.parseInt(envValue, 10);
+  return PUBLIC_CONFIG.gameSpeed.min;
 }
 
-/**
- * Log current environment configuration (for debugging)
- */
-export function logEnvironmentConfig(): void {
-  const env = getCurrentEnvironment();
-  const network = getCurrentNetwork();
-  const endpoints = getCurrentEndpoints();
+/** Get maximum game speed in ms */
+export function getGameSpeedMax(): number {
+  const envValue = process.env.GAME_SPEED_MAX;
+  if (envValue) return Number.parseInt(envValue, 10);
+  return PUBLIC_CONFIG.gameSpeed.max;
+}
 
-  console.log('=== Babylon Environment Configuration ===');
-  console.log(`Environment: ${env}`);
-  console.log(`Network: ${network.name} (chainId: ${network.chainId})`);
-  console.log(`RPC URL: ${getCurrentRpcUrl()}`);
-  console.log(`API Base: ${endpoints.apiBaseUrl}`);
-  console.log(`A2A: ${endpoints.a2aEndpoint}`);
-  console.log(`MCP: ${endpoints.mcpEndpoint}`);
-  console.log(`Diamond: ${getCurrentContractAddresses().diamond}`);
-  console.log('==========================================');
+// =============================================================================
+// Oracle Settings
+// =============================================================================
+
+/** Get oracle gas multiplier */
+export function getOracleGasMultiplier(): number {
+  const envValue = process.env.ORACLE_GAS_MULTIPLIER;
+  if (envValue) return Number.parseFloat(envValue);
+  return PUBLIC_CONFIG.oracle.gasMultiplier;
+}
+
+/** Get oracle max gas price in gwei */
+export function getOracleMaxGasPrice(): number {
+  const envValue = process.env.ORACLE_MAX_GAS_PRICE;
+  if (envValue) return Number.parseInt(envValue, 10);
+  return PUBLIC_CONFIG.oracle.maxGasPrice;
+}
+
+/** Get oracle confirmations */
+export function getOracleConfirmations(): number {
+  const envValue = process.env.ORACLE_CONFIRMATIONS;
+  if (envValue) return Number.parseInt(envValue, 10);
+  return PUBLIC_CONFIG.oracle.confirmations;
+}
+
+// =============================================================================
+// RL Training Settings
+// =============================================================================
+
+/** Get minimum trajectories for training */
+export function getTrainingMinTrajectories(): number {
+  const envValue = process.env.TRAINING_MIN_TRAJECTORIES;
+  if (envValue) return Number.parseInt(envValue, 10);
+  return PUBLIC_CONFIG.rlTraining.minTrajectories;
+}
+
+/** Get minimum group size for GRPO */
+export function getTrainingMinGroupSize(): number {
+  const envValue = process.env.TRAINING_MIN_GROUP_SIZE;
+  if (envValue) return Number.parseInt(envValue, 10);
+  return PUBLIC_CONFIG.rlTraining.minGroupSize;
+}
+
+/** Get game tick budget in ms */
+export function getGameTickBudgetMs(): number {
+  const envValue = process.env.GAME_TICK_BUDGET_MS;
+  if (envValue) return Number.parseInt(envValue, 10);
+  return PUBLIC_CONFIG.rlTraining.gameTickBudgetMs;
+}
+
+/** Get base model for RL */
+export function getBaseModel(): string {
+  const envValue = process.env.BASE_MODEL;
+  if (envValue) return envValue;
+  return PUBLIC_CONFIG.rlTraining.baseModel;
+}
+
+/** Check if RL model is enabled */
+export function isRLModelEnabled(): boolean {
+  const envValue = process.env.USE_RL_MODEL;
+  if (envValue !== undefined) return envValue === 'true';
+  return PUBLIC_CONFIG.rlTraining.useRLModel;
+}
+
+/** Check if fallback to base is enabled */
+export function isRLFallbackEnabled(): boolean {
+  const envValue = process.env.RL_FALLBACK_TO_BASE;
+  if (envValue !== undefined) return envValue === 'true';
+  return PUBLIC_CONFIG.rlTraining.fallbackToBase;
+}
+
+/** Check if trajectory recording is enabled */
+export function isTrajectoryRecordingEnabled(): boolean {
+  const envValue = process.env.RECORD_AGENT_TRAJECTORIES;
+  if (envValue !== undefined) return envValue === 'true';
+  return PUBLIC_CONFIG.rlTraining.recordTrajectories;
+}
+
+// =============================================================================
+// Agent Settings
+// =============================================================================
+
+/** Check if agent auto trade is enabled */
+export function isAgentAutoTradeEnabled(): boolean {
+  const envValue = process.env.AGENT_AUTO_TRADE;
+  if (envValue !== undefined) return envValue === 'true';
+  return PUBLIC_CONFIG.agent.autoTrade;
+}
+
+/** Check if auto wallet creation is enabled */
+export function isAutoCreateAgentWalletsEnabled(): boolean {
+  const envValue = process.env.AUTO_CREATE_AGENT_WALLETS;
+  if (envValue !== undefined) return envValue === 'true';
+  return PUBLIC_CONFIG.agent.autoCreateWallets;
+}
+
+/** Check if Agent0 is enabled */
+export function isAgent0Enabled(): boolean {
+  const envValue = process.env.AGENT0_ENABLED;
+  if (envValue !== undefined) return envValue === 'true';
+  return PUBLIC_CONFIG.agent.agent0Enabled;
+}
+
+/** Get Agent0 network */
+export function getAgent0Network(): string {
+  const envValue = process.env.AGENT0_NETWORK;
+  if (envValue) return envValue;
+  return PUBLIC_CONFIG.agent.agent0Network;
+}
+
+// =============================================================================
+// Logging
+// =============================================================================
+
+/** Get log level */
+export function getLogLevel(): 'debug' | 'info' | 'warn' | 'error' {
+  const envValue = process.env.LOG_LEVEL;
+  if (envValue === 'debug' || envValue === 'info' || envValue === 'warn' || envValue === 'error') {
+    return envValue;
+  }
+  return PUBLIC_CONFIG.logging.defaultLevel;
 }

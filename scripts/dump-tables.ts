@@ -1,16 +1,17 @@
 #!/usr/bin/env bun
 /**
- * Fast Table Dump - Downloads all data from source DB to local JSON files
+ * Fast Table Dump - Streams data from source DB to local JSONL files
  * 
  * Usage:
  *   bun run scripts/dump-tables.ts --tables=User,Referral,...
  * 
  * Output:
- *   ./migration-data/{TableName}.json
+ *   ./migration-data/{TableName}.jsonl (one JSON object per line)
+ *   ./migration-data/{TableName}.meta.json (columns, pk, count)
  */
 
 import postgres from 'postgres';
-import { mkdirSync, writeFileSync, existsSync } from 'fs';
+import { mkdirSync, existsSync, createWriteStream, writeFileSync } from 'fs';
 
 const SOURCE_URL = process.env.SOURCE_DIRECT_DATABASE_URL || process.env.SOURCE_DATABASE_URL;
 const OUTPUT_DIR = './migration-data';
@@ -18,7 +19,7 @@ const OUTPUT_DIR = './migration-data';
 const args = process.argv.slice(2);
 const tablesArg = args.find((a) => a.startsWith('--tables='));
 const TABLES = tablesArg ? tablesArg.replace('--tables=', '').split(',') : [];
-const BATCH_SIZE = 10000;
+const BATCH_SIZE = 5000;
 
 function log(msg: string): void {
   console.log(`[${new Date().toISOString().slice(11, 19)}] ${msg}`);
@@ -48,14 +49,21 @@ async function dumpTable(db: postgres.Sql, table: string): Promise<number> {
   
   log(`${table}: ${totalCount} rows, ${columns.length} columns`);
   
+  // Write metadata
+  const metaPath = `${OUTPUT_DIR}/${table}.meta.json`;
+  writeFileSync(metaPath, JSON.stringify({ table, columns, pk, totalCount }));
+  
   if (totalCount === 0) {
-    writeFileSync(`${OUTPUT_DIR}/${table}.json`, JSON.stringify({ columns, pk, rows: [] }));
+    writeFileSync(`${OUTPUT_DIR}/${table}.jsonl`, '');
     return 0;
   }
   
-  // Stream all data
-  const allRows: Record<string, unknown>[] = [];
+  // Stream to JSONL file
+  const dataPath = `${OUTPUT_DIR}/${table}.jsonl`;
+  const stream = createWriteStream(dataPath);
+  
   let offset = 0;
+  let rowsWritten = 0;
   
   while (offset < totalCount) {
     const batchStart = Date.now();
@@ -63,33 +71,35 @@ async function dumpTable(db: postgres.Sql, table: string): Promise<number> {
       `SELECT ${colList} FROM "${table}" ORDER BY "${pk}" LIMIT ${BATCH_SIZE} OFFSET ${offset}`
     );
     
-    allRows.push(...rows);
+    if (rows.length === 0) break;
+    
+    // Write each row as a JSON line
+    for (const row of rows) {
+      stream.write(JSON.stringify(row) + '\n');
+      rowsWritten++;
+    }
+    
     offset += rows.length;
     
     const batchMs = Date.now() - batchStart;
     const pct = Math.round((offset / totalCount) * 100);
     const rate = Math.round((rows.length / (batchMs / 1000)));
     log(`  ${table}: ${pct}% (${offset}/${totalCount}) - ${batchMs}ms, ${rate}/s`);
-    
-    if (rows.length === 0) break;
   }
   
-  // Write to file
-  const output = { columns, pk, rows: allRows };
-  const filePath = `${OUTPUT_DIR}/${table}.json`;
-  writeFileSync(filePath, JSON.stringify(output));
+  // Close stream
+  await new Promise<void>((resolve) => stream.end(resolve));
   
-  const fileSize = (Buffer.byteLength(JSON.stringify(output)) / 1024 / 1024).toFixed(1);
   const totalMs = Date.now() - start;
-  log(`✓ ${table}: ${allRows.length} rows saved to ${filePath} (${fileSize}MB) in ${(totalMs / 1000).toFixed(1)}s`);
+  log(`✓ ${table}: ${rowsWritten} rows saved in ${(totalMs / 1000).toFixed(1)}s`);
   
-  return allRows.length;
+  return rowsWritten;
 }
 
 async function main(): Promise<void> {
   console.log('\n');
   log('═══════════════════════════════════════════════════════════');
-  log('TABLE DUMP - Download Source Data');
+  log('TABLE DUMP - Stream to JSONL');
   log('═══════════════════════════════════════════════════════════');
 
   if (!SOURCE_URL) {
@@ -109,13 +119,11 @@ async function main(): Promise<void> {
 
   log(`Tables: ${TABLES.join(', ')}`);
   log(`Output: ${OUTPUT_DIR}/`);
-  log(`Batch size: ${BATCH_SIZE}`);
 
-  // Connect with high connection limit for parallel reads
   const db = postgres(SOURCE_URL, { 
-    max: 4,
+    max: 2,
     ssl: SOURCE_URL.includes('localhost') ? false : 'require',
-    idle_timeout: 120,
+    idle_timeout: 300,
   });
 
   await db`SELECT 1`;
@@ -124,11 +132,10 @@ async function main(): Promise<void> {
   const overallStart = Date.now();
   let totalRows = 0;
 
-  // Dump tables in parallel (2 at a time)
-  for (let i = 0; i < TABLES.length; i += 2) {
-    const batch = TABLES.slice(i, i + 2);
-    const results = await Promise.all(batch.map((t) => dumpTable(db, t)));
-    totalRows += results.reduce((a, b) => a + b, 0);
+  // Dump tables one at a time to avoid memory issues
+  for (const table of TABLES) {
+    const count = await dumpTable(db, table);
+    totalRows += count;
   }
 
   await db.end();
@@ -144,4 +151,3 @@ main().catch((err) => {
   console.error('Dump failed:', err);
   process.exit(1);
 });
-

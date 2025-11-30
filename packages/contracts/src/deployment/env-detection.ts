@@ -217,9 +217,9 @@ function validateLocalnet(_errors: string[], warnings: string[]): void {
 }
 
 function validateTestnet(errors: string[], warnings: string[]): void {
-  // Contract addresses are now in canonical config (packages/shared/src/config/public-config.json)
+  // Contract addresses are now in canonical config (packages/shared/src/config/default-config.ts)
   // Only warn if config has zero addresses (not deployed yet)
-  warnings.push('Ensure Base Sepolia contracts are deployed. Check packages/shared/src/config/public-config.json');
+  warnings.push('Ensure Base Sepolia contracts are deployed. Check packages/shared/src/config/default-config.ts');
 
   if (!process.env.DEPLOYER_PRIVATE_KEY) {
     warnings.push(
@@ -258,7 +258,7 @@ function validateMainnet(errors: string[], warnings: string[]): void {
     );
   }
 
-  // Contract addresses are now in canonical config (packages/shared/src/config/public-config.json)
+  // Contract addresses are now in canonical config (packages/shared/src/config/default-config.ts)
   // Only secrets should be validated from env vars
   if (!process.env.DEPLOYER_PRIVATE_KEY) {
     errors.push('DEPLOYER_PRIVATE_KEY is required for mainnet deployment');
@@ -304,7 +304,7 @@ function validateMainnet(errors: string[], warnings: string[]): void {
 /**
  * Get required environment variables for an environment
  * 
- * Note: Contract addresses are now in canonical config (packages/shared/src/config/public-config.json)
+ * Note: Contract addresses are now in canonical config (packages/shared/src/config/default-config.ts)
  * Only secrets and runtime configuration should be in env vars.
  */
 export function getRequiredEnvVars(env: DeploymentEnv): string[] {

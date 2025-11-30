@@ -22,6 +22,7 @@ import { Skeleton } from '@/components/shared/Skeleton';
 import { useAuth } from '@/hooks/useAuth';
 import { useOnChainBetting } from '@/hooks/useOnChainBetting';
 import { useSmartWallet } from '@/hooks/useSmartWallet';
+import { usePerpMarkets } from '@/stores/perpMarketsStore';
 import { getContractAddresses } from '@babylon/contracts';
 import { cn } from '@babylon/shared';
 
@@ -36,26 +37,22 @@ interface Question {
   oracleRevealTxHash?: string | null;
 }
 
-interface PerpMarket {
-  ticker: string;
-  name: string;
-  currentPrice: number;
-  change24h: number;
-  changePercent24h: number;
-}
-
 export default function OnChainBettingPage() {
   const router = useRouter();
   const { authenticated, login } = useAuth();
   const { smartWalletReady, smartWalletAddress } = useSmartWallet();
   const { buyShares, loading: txLoading } = useOnChainBetting();
 
+  // Use shared perp markets store
+  const { markets: perpMarkets, loading: perpLoading } = usePerpMarkets();
+
   const [questions, setQuestions] = useState<Question[]>([]);
-  const [perpMarkets, setPerpMarkets] = useState<PerpMarket[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [questionsLoading, setQuestionsLoading] = useState(true);
   const [selectedMarket, setSelectedMarket] = useState<Question | null>(null);
   const [betAmount, setBetAmount] = useState('');
   const [betSide, setBetSide] = useState<'YES' | 'NO'>('YES');
+
+  const loading = perpLoading && questionsLoading;
 
   // Get network info
   const { network, diamond, chainId } = getContractAddresses();
@@ -67,30 +64,22 @@ export default function OnChainBettingPage() {
       : 'https://basescan.org';
 
   useEffect(() => {
-    async function fetchData() {
+    async function fetchQuestions() {
       try {
-        const [questionsRes, perpsRes] = await Promise.all([
-          fetch('/api/markets/predictions'),
-          fetch('/api/markets/perps'),
-        ]);
+        const questionsRes = await fetch('/api/markets/predictions');
 
         if (questionsRes.ok) {
           const data = await questionsRes.json();
           setQuestions(data.questions || []);
         }
-
-        if (perpsRes.ok) {
-          const data = await perpsRes.json();
-          setPerpMarkets(data.markets || []);
-        }
       } catch (error) {
-        console.error('Failed to fetch betting data:', error);
+        console.error('Failed to fetch questions:', error);
       } finally {
-        setLoading(false);
+        setQuestionsLoading(false);
       }
     }
 
-    fetchData();
+    fetchQuestions();
   }, []);
 
   const handleBet = async () => {
