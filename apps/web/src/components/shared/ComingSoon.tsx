@@ -2404,12 +2404,20 @@ export function ComingSoon() {
               <div className="rounded-xl border border-border/50 bg-background/30 p-5 backdrop-blur-sm sm:p-6">
                 <h3 className="mb-3 font-bold text-xl">Invite Friends</h3>
                 <p className="mb-4 text-muted-foreground text-sm leading-relaxed">
-                  <span className="font-bold text-primary">100 points</span> per
-                  friend
+                  <span className="font-bold text-primary">You earn:</span>
                   <br />
-                  <span className="text-primary">+100 extra</span> when they
-                  complete profile
+                  • 100 points per friend who signs up
+                  <br />
+                  • +100 extra when they complete profile
                 </p>
+                <div className="mb-4 rounded-lg border border-primary/20 bg-primary/10 p-3">
+                  <p className="text-foreground text-sm leading-relaxed">
+                    <span className="font-semibold">🎁 Friend bonus:</span> Your
+                    friends get an additional{' '}
+                    <span className="font-bold text-primary">100 points</span> when
+                    they join through your referral link!
+                  </p>
+                </div>
                 {waitlistData.inviteCode ? (
                   <div className="flex flex-col gap-2 sm:flex-row">
                     <div className="flex-1 break-all rounded-lg border border-border bg-background/50 px-3 py-2 font-mono text-xs sm:text-sm">
