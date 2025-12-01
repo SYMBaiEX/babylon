@@ -505,7 +505,7 @@ export function ComingSoon() {
     // Open Discord invite in new tab
     const discordInviteUrl =
       process.env.NEXT_PUBLIC_DISCORD_INVITE_URL ||
-      'https://discord.gg/babylon';
+      'https://discord.gg/4DYsFgyp';
     window.open(discordInviteUrl, '_blank');
 
     // Show verify button
