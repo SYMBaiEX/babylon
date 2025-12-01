@@ -1,42 +1,41 @@
 # Repository Guidelines (Codex/Claude)
 
+## State (target vs current)
+- Target (in-progress): Elysia host in `apps/server`, background workers in `apps/daemon`, dedicated `apps/agents`, domain split into `packages/core/*` with `shared/infra` wiring.
+- Current code: Next.js app `apps/web` hosts UI + API routes/SSE/A2A; CLI tooling in `apps/cli`; docs site in `apps/docs`. Domain/engine lives in `packages/engine` and `packages/agents` (+ `a2a`, `mcp`); infra/util in `packages/api`, `packages/shared`, `packages/db`; on-chain in `packages/contracts`; tests in `packages/testing`.
+- Migration intent: new work should be portable to the target Elysia/core layout; keep app-layer thin and framework-agnostic where possible.
+
 ## Structure & Boundaries
-- `apps/server`: Elysia API host (wiring only; no business logic).
-- `apps/web`: Next.js UI; consumes API via Eden client; no direct DB/Redis.
-- `apps/daemon`: background loops/workers (game/markets/NPCs), no HTTP surface.
-- `apps/agents`: agent runners/integrations, consume API/core services.
-- `packages/core/*`: domain modules (identity, social, markets, reputation, game, agents, contracts); framework-free.
-- `packages/api`: Elysia routes/types used by `apps/server` and clients.
-- `packages/shared/infra`: Drizzle/Redis/logger/config/resilience; no domain rules.
-- `packages/shared/utils`: generic helpers/types/Zod; `packages/shared/ui`: design primitives.
-- `packages/db`: Drizzle schema/client.
-- `docs/`: architecture overview and design notes.
+- Apps (current): `apps/web` (Next 16 UI + API routes/SSE/A2A), `apps/cli` (deploy/seed/game/agent ops), `apps/docs` (Nextra docs). Apps should stay wiring-only.
+- Apps (target/planned): `apps/server` (Elysia host, thin routes), `apps/daemon` (loops/workers), `apps/agents` (runners/integrations) — keep portability in mind when adding API endpoints.
+- Packages (current): `packages/engine` (game/perps generation & loop), `packages/agents` (agent runtime + Agent0/A2A/MCP), `packages/a2a`, `packages/mcp`, `packages/api` (auth/rate-limit/redis/sse/token counting), `packages/shared` (client-safe types/utils/config), `packages/db` (Drizzle schema/client), `packages/contracts`, `packages/testing`, `packages/training`, `packages/examples`.
+- Packages (target/planned): `packages/core/*` for domain logic, `packages/shared/infra` for infra wiring; keep new domain code framework-free so it can move there cleanly.
+- Docs: `apps/docs` is the docs site; `docs/vendors/*` is generated vendor docs.
 
 ## Commands
 - Install: `bun install`
-- Dev: `bun run dev` (server 3000, web 3001); or `bun run dev:server`, `bun run dev:web`
+- Dev: `bun run dev` (runs local Hardhat, deploys, Turbo dev, cron sim); UI-only variants `bun run dev:web` or `bun run dev:next-only`.
 - Build: `bun run build`
-- Types: `bun run check-types`
-- DB: `bun run db:generate` / `db:migrate` (Drizzle)
-- Lint/format: `bun run check` (Biome; used in pre-commit)
-- Docs: `bun run docs:generate` (populate `docs/vendors/*` from upstream docs)
+- Types: `bun run typecheck`
+- Lint/format: `bun run lint` (Turbo) or `bun run check` (Biome write)
+- Tests: `bun run test` (unit+integration), `bun run test:e2e`; suite lives under `packages/testing`
+- DB (Drizzle via `packages/db`): `bun run db:generate` / `db:migrate` / `db:push` / `db:pull` / `db:studio`
+- Docs vendors: `bun run docs:generate` (fills `docs/vendors/*`)
 - Runtime is Bun; prefer Bun tooling/commands (and Bun APIs like `Bun.file` when appropriate).
 
 ## Style & Conventions
 - TypeScript ESM, 2-space indent. PascalCase components; camelCase hooks/vars; kebab-case packages.
-- Apps never contain domain logic; go through `core-*` + `packages/api`.
-- Keep core packages free of Next/React/Elysia.
-- Aim for clean, efficient, DRY code that follows best practices; prefer clarity and maintainability with good DX and performance in mind.
-- Env: use a single root `.env` (see `.env.example`); keep it updated with comments/defaults/optional vs required. Avoid per-app env files unless explicitly needed.
-- When using a library/framework (Elysia, Drizzle, Bun, Privy, etc.), first consult the local docs under `docs/vendors/{vendor}` if available; if not, suggest running `bun run docs:generate` rather than hallucinating behavior or APIs.
+- App layers stay thin: validate → call service → map errors. Current handlers are Next.js; write them to be movable to Elysia without Next-specific assumptions.
+- Domain logic lives in packages (`engine`/`agents` now; `core-*` later). Avoid putting domain rules in React components or API handlers.
+- Keep core/package code free of Next/React/Elysia dependencies so migration is easy.
+- Env: single root `.env` (see `.env.example`). `scripts/pre-dev/pre-dev-local.ts` will generate/update `.env` for localnet defaults; `.env.local` can override for Next when needed. Keep `.env.example` accurate (defaults, optional vs required).
+- When using a library (Elysia, Drizzle, Bun, Privy, etc.), prefer local docs in `docs/vendors/{vendor}`; if missing, suggest `bun run docs:generate` before guessing APIs.
 
 ## Testing
-- Place tests next to code (`*.test.ts` / `*.spec.ts`).
-- Unit tests in `core-*` for domain rules; integration tests in `apps/server` for routes.
-- Use fakes/stubs via `shared-infra`; keep tests deterministic.
+- Tests live under `packages/testing` (unit/integration/e2e); use preload files there. API integration is currently in `apps/web`; keep them portable to Elysia when it lands.
+- Use fakes/stubs; keep tests deterministic.
 
 ## Commits/PRs
-- Commits: concise, imperative, use prefixes (`feat: ...`, `fix: ...`, `chore: ...`).
+- Commits: concise, imperative, prefixed (`feat: ...`, `fix: ...`, `chore: ...`).
 - PRs: motivation + solution; commands run (`bun run check`, tests); screenshots for UI changes.
-- Respect boundaries: feature → `core-*` → expose via `packages/api` → consume in `apps/web`.
-- Keep `.env.example` up to date: add new envs with comments/defaults, note optional vs required, keep it organized.
+- Respect boundaries: feature → package service (`engine`/`agents` → `api`/`db`) → consume in `apps/web`. Keep `.env.example` up to date with comments/defaults/optionals.
