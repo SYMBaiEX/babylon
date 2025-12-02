@@ -14,6 +14,7 @@ import { Providers } from '@/components/providers/Providers';
 import { BottomNav } from '@/components/shared/BottomNav';
 import { MobileHeader } from '@/components/shared/MobileHeader';
 import { Sidebar } from '@/components/shared/Sidebar';
+import { WaitlistWrapper } from '@/components/shared/WaitlistWrapper';
 
 export const metadata: Metadata = {
   title: 'Babylon',
@@ -78,17 +79,6 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
-  // Waitlist mode hides navigation UI - components check NEXT_PUBLIC_WAITLIST_MODE
-  // and support ?dev=true bypass for staging testing
-  const waitlistModeEnabled =
-    (process.env.WAITLIST_MODE ?? process.env.NEXT_PUBLIC_WAITLIST_MODE) ===
-    'true';
-
-  // Log for debugging in development
-  if (process.env.NODE_ENV === 'development') {
-    console.log('[Layout] waitlistModeEnabled:', waitlistModeEnabled);
-  }
-
   return (
     <html lang="en" suppressHydrationWarning className="overscroll-none">
       <body
@@ -101,32 +91,34 @@ export default function RootLayout({
             <GlobalLoginModal />
           </Suspense>
 
-          {/* Mobile Header - Fixed, not affected by pull-to-refresh */}
-          <Suspense fallback={null}>
-            <MobileHeader />
-          </Suspense>
-
-          <div className="mx-auto flex min-h-screen max-w-screen-xl bg-sidebar">
-            {/* Desktop Sidebar - Sticky, not affected by pull-to-refresh */}
+          <WaitlistWrapper>
+            {/* Mobile Header - Fixed, not affected by pull-to-refresh */}
             <Suspense fallback={null}>
-              <Sidebar />
+              <MobileHeader />
             </Suspense>
 
-            {/* Main Content Area - Scrollable content with pull-to-refresh */}
-            <main className="min-h-screen w-full flex-1 bg-background pt-14 pb-14 md:pt-0 md:pb-0">
-              {children}
-            </main>
+            <div className="mx-auto flex min-h-screen max-w-screen-xl bg-sidebar">
+              {/* Desktop Sidebar - Sticky, not affected by pull-to-refresh */}
+              <Suspense fallback={null}>
+                <Sidebar />
+              </Suspense>
 
-            {/* Mobile Bottom Navigation - Fixed, not affected by pull-to-refresh */}
+              {/* Main Content Area - Scrollable content with pull-to-refresh */}
+              <main className="min-h-screen w-full flex-1 bg-background pt-14 pb-14 md:pt-0 md:pb-0">
+                {children}
+              </main>
+
+              {/* Mobile Bottom Navigation - Fixed, not affected by pull-to-refresh */}
+              <Suspense fallback={null}>
+                <BottomNav />
+              </Suspense>
+            </div>
+
+            {/* Auth Banner - shows on all pages when not authenticated */}
             <Suspense fallback={null}>
-              <BottomNav />
+              <FeedAuthBanner />
             </Suspense>
-          </div>
-
-          {/* Auth Banner - shows on all pages when not authenticated */}
-          <Suspense fallback={null}>
-            <FeedAuthBanner />
-          </Suspense>
+          </WaitlistWrapper>
         </Providers>
         <Analytics />
         <SpeedInsights />

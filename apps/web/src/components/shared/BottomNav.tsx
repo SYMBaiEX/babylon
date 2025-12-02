@@ -24,17 +24,13 @@ function BottomNavContent() {
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const { totalUnread: unreadMessages } = useUnreadMessages();
 
-  // Check if dev mode is enabled via URL parameter (for staging testing)
-  const isDevMode = searchParams.get('dev') === 'true';
-
-   // Hide bottom nav on production (babylon.market) on home page unless ?dev=true
-   const isProduction =
-   typeof window !== 'undefined' &&
-   window.location.hostname === 'babylon.market';
-  // Hide bottom nav when WAITLIST_MODE is enabled on home page (unless ?dev=true)
-  const isWaitlistMode = process.env.NEXT_PUBLIC_WAITLIST_MODE === 'true';
-  const isHomePage = pathname === '/';
-  const shouldHide = isWaitlistMode && isProduction && isHomePage && !isDevMode;
+  // Hide bottom nav when WAITLIST_MODE is enabled in production OR ?comingsoon=true
+  const forceComingSoon = searchParams.get('comingsoon') === 'true';
+  const waitlistMode =
+    (process.env.WAITLIST_MODE ?? process.env.NEXT_PUBLIC_WAITLIST_MODE) ===
+    'true';
+  const isProduction = process.env.NODE_ENV === 'production';
+  const shouldHide = (waitlistMode && isProduction) || forceComingSoon;
 
   // Poll for unread notifications
   useEffect(() => {
