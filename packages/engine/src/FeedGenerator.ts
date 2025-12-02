@@ -90,6 +90,7 @@ import {
   dayTransition,
   generateWorldContext,
   getPromptParams,
+  getTimeOfDayEnergy,
   governmentPost,
   minuteAmbient,
   newsPosts,
@@ -2616,11 +2617,15 @@ export class FeedGenerator extends EventEmitter {
       })
       .join('\n');
 
+    // Random hour for time-of-day energy variety in posts
+    const hour = Math.floor(Math.random() * 24);
+
     const prompt = renderPrompt(ambientPosts, {
       day: day.toString(),
       progressContext,
       atmosphereContext,
       trendContext: this.trendContext || '',
+      timeEnergy: getTimeOfDayEnergy(hour),
       actorCount: actors.length.toString(),
       actorsList,
       ...(this.worldContext || {}),
@@ -2848,10 +2853,10 @@ export class FeedGenerator extends EventEmitter {
 
     if (existingPosts.length === 0) return thread;
 
-    // Pick a post to reply to (prefer controversial or from main actors)
+    // Pick a random post to reply to
     const originalPost =
       existingPosts[Math.floor(Math.random() * existingPosts.length)];
-    if (!originalPost) return thread; // Skip if no post exists
+    if (!originalPost) return thread;
 
     // 1-3 people reply
     const postingActors = allActors.filter((a) => a.id !== originalPost.author);

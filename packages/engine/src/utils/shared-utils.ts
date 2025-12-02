@@ -53,12 +53,32 @@ export function formatActorVoiceContext(actor: {
   if (actor.postExample && actor.postExample.length > 0) {
     const shuffledExamples = shuffleArray(actor.postExample);
     const examples = shuffledExamples.slice(0, 3);
-    parts.push(`   EXAMPLE POSTS (MATCH THIS TONE AND STYLE):`);
+
+    // Analyze example patterns for guidance
+    const avgLength = Math.round(
+      examples.reduce((sum, ex) => sum + ex.length, 0) / examples.length
+    );
+    const hasLowercase = examples.some((ex) => ex === ex.toLowerCase());
+    const hasAllCaps = examples.some((ex) => ex === ex.toUpperCase() && ex.length > 3);
+
+    parts.push(`   EXAMPLE POSTS (YOUR OUTPUT MUST MATCH THIS STYLE):`);
     examples.forEach((ex, i) => {
       parts.push(`     ${i + 1}. "${ex}"`);
     });
+
+    // Add derived voice hints
+    const hints: string[] = [];
+    if (avgLength < 50) hints.push('ultra-short');
+    else if (avgLength < 100) hints.push('short');
+    if (hasLowercase) hints.push('lowercase');
+    if (hasAllCaps) hints.push('ALL CAPS');
+
+    if (hints.length > 0) {
+      parts.push(`   VOICE PATTERN: ${hints.join(', ')}`);
+    }
+
     parts.push(
-      `   CRITICAL: Your post MUST sound like these examples. Match tone, length, and quirks.`
+      `   YOUR POST MUST: Match tone, length (~${avgLength} chars), and quirks from examples above.`
     );
   }
 

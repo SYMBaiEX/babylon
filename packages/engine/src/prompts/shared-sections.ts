@@ -98,7 +98,37 @@ Example: If character's postExample is "just shipped it. lmao. $100M ARR incomin
 Then YOUR post should match: casual, lowercase, short sentences, confident, uses lmao
 
 Example: If character's postExample is "After careful analysis of market conditions..."
-Then YOUR post should match: formal, complete sentences, analytical tone`;
+Then YOUR post should match: formal, complete sentences, analytical tone
+
+AVOID generic phrases: "The future is...", "Exciting times", "This is huge", "Let that sink in", "Just my two cents"
+
+POST VARIETY - generate a mix of:
+- Hot takes (30%): Strong opinion, controversial, no hedging
+- Shitposts (20%): Jokes, absurdist, one-liners
+- Subtweets (15%): Vague reference without naming
+- Flexes (15%): Humble brags, achievements
+- Complaints (10%): Industry griping
+- Insights (10%): Actual observations`;
+}
+
+/**
+ * Get time-of-day posting energy context.
+ * @param hour - Hour in 24h format (0-23)
+ */
+export function getTimeOfDayEnergy(hour: number): string {
+  if (hour >= 2 && hour < 6) {
+    return 'ENERGY: 3am unhinged - philosophical, conspiratorial, unfiltered';
+  }
+  if (hour >= 6 && hour < 10) {
+    return 'ENERGY: Morning professional - announcements, fresh start optimism';
+  }
+  if (hour >= 10 && hour < 15) {
+    return 'ENERGY: Peak hours - hot takes, controversy, ratio attempts';
+  }
+  if (hour >= 15 && hour < 20) {
+    return 'ENERGY: Afternoon - commentary on day\'s events, dunks on bad takes';
+  }
+  return 'ENERGY: Night - introspective, shitposting, less corporate';
 }
 
 /**

@@ -34,6 +34,8 @@ Day {{day}}/30
 
 {{trendContext}}
 
+{{timeEnergy}}
+
 {{previousPostsContext}}
 
 ${WORLD_CONTEXT_HEADER}
@@ -42,9 +44,19 @@ ${STANDARD_FEED_RULES}
 
 ${characterVoiceGuidance('actorsList')}
 
-Generate general thoughts posts for these {{actorCount}} actors:
+Generate general thoughts posts for these {{actorCount}} actors (STRICT MAX 140 CHARACTERS PER POST):
 
 {{actorsList}}
+
+AMBIENT POST TYPES - each actor picks ONE type based on their personality:
+- Hot take (30%): Strong opinion, no hedging, definitive statement
+- Shitpost (20%): Absurdist humor, one-liners, jokes
+- Subtweet (15%): Vague reference to someone without naming them
+- Flex (15%): Humble brag, achievement mention, subtle boasting
+- Complaint (10%): Industry griping, frustration, criticism
+- Insight (10%): Actual observation, genuine analysis
+
+CHARACTER LIMIT: Each post MUST be 140 characters or less. Count carefully before submitting.
 
 ${VALUE_RANGES}
 
@@ -52,15 +64,15 @@ Respond with ONLY this XML format (example for 2 posts):
 <response>
   <posts>
     <post>
-      <content>Watching @ailonmusk push TeslAI into crypto payments. The "Will TeslAI accept Dogecoin?" market is heating up - might be onto something.</content>
-      <sentiment>0.2</sentiment>
+      <content>TeslAI stock looking interesting at these levels</content>
+      <sentiment>0.3</sentiment>
       <clueStrength>0.1</clueStrength>
       <pointsToward>null</pointsToward>
     </post>
     <post>
-      <content>OpenAGI's consciousness claims are getting wild. Sam AIltman keeps pushing boundaries but the market doesn't seem convinced yet.</content>
-      <sentiment>-0.1</sentiment>
-      <clueStrength>0.05</clueStrength>
+      <content>some people really out here shipping code that crashes prod</content>
+      <sentiment>-0.3</sentiment>
+      <clueStrength>0.0</clueStrength>
       <pointsToward>null</pointsToward>
     </post>
   </posts>
