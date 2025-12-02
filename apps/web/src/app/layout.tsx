@@ -79,6 +79,12 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
+  // Read WAITLIST_MODE from server-side environment (set on Vercel)
+  // Fallback to NEXT_PUBLIC_WAITLIST_MODE for compatibility
+  const waitlistMode =
+    (process.env.WAITLIST_MODE ?? process.env.NEXT_PUBLIC_WAITLIST_MODE) ===
+    'true';
+
   return (
     <html lang="en" suppressHydrationWarning className="overscroll-none">
       <body
@@ -91,7 +97,7 @@ export default function RootLayout({
             <GlobalLoginModal />
           </Suspense>
 
-          <WaitlistWrapper>
+          <WaitlistWrapper waitlistMode={waitlistMode}>
             {/* Mobile Header - Fixed, not affected by pull-to-refresh */}
             <Suspense fallback={null}>
               <MobileHeader />

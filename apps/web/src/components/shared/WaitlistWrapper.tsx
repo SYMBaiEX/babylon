@@ -6,14 +6,15 @@ import { ComingSoon } from '@/components/shared/ComingSoon';
 
 interface WaitlistWrapperProps {
   children: React.ReactNode;
+  waitlistMode: boolean;
 }
 
-function WaitlistWrapperContent({ children }: WaitlistWrapperProps) {
+function WaitlistWrapperContent({
+  children,
+  waitlistMode,
+}: WaitlistWrapperProps) {
   const searchParams = useSearchParams();
   const forceComingSoon = searchParams.get('comingsoon') === 'true';
-  const waitlistMode =
-    (process.env.WAITLIST_MODE ?? process.env.NEXT_PUBLIC_WAITLIST_MODE) ===
-    'true';
   const isProduction = process.env.NODE_ENV === 'production';
 
   // Show ComingSoon if WAITLIST_MODE is enabled in production OR ?comingsoon=true
@@ -24,10 +25,15 @@ function WaitlistWrapperContent({ children }: WaitlistWrapperProps) {
   return <>{children}</>;
 }
 
-export function WaitlistWrapper({ children }: WaitlistWrapperProps) {
+export function WaitlistWrapper({
+  children,
+  waitlistMode,
+}: WaitlistWrapperProps) {
   return (
     <Suspense fallback={null}>
-      <WaitlistWrapperContent>{children}</WaitlistWrapperContent>
+      <WaitlistWrapperContent waitlistMode={waitlistMode}>
+        {children}
+      </WaitlistWrapperContent>
     </Suspense>
   );
 }
