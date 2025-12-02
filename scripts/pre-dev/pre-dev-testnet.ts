@@ -140,27 +140,27 @@ import { actors, checkDatabaseHealth, closeDatabase, count, db } from '../../pac
 
 const isConnected = await checkDatabaseHealth().catch(() => false)
 if (!isConnected) {
-  console.info('Database not ready, running migrations...', undefined, 'Script')
-  await $`bunx drizzle-kit push`.quiet().catch(async () => {
-    await $`bunx drizzle-kit push --force`.quiet()
+  console.info('Database not ready, running migrations...')
+  await $`bunx drizzle-kit push --config=packages/db/drizzle.config.ts`.quiet().catch(async () => {
+    await $`bunx drizzle-kit push --force --config=packages/db/drizzle.config.ts`.quiet()
   })
 }
 
-console.info('✅ Database connected', undefined, 'Script')
+console.info('✅ Database connected')
 
 const actorCountResult = await db.select({ count: count() })
   .from(actors)
   .catch(async (error: Error) => {
     const errorMessage = error.message
     if (errorMessage.includes('does not exist') || errorMessage.includes('relation')) {
-      console.info('Running database migrations...', undefined, 'Script')
-      await $`bunx drizzle-kit push`.quiet().catch(async () => {
-        await $`bunx drizzle-kit push --force`.quiet()
+      console.info('Running database migrations...')
+      await $`bunx drizzle-kit push --config=packages/db/drizzle.config.ts`.quiet().catch(async () => {
+        await $`bunx drizzle-kit push --force --config=packages/db/drizzle.config.ts`.quiet()
       })
 
-      console.info('Running database seed...', undefined, 'Script')
+      console.info('Running database seed...')
       await $`bun run db:seed`
-      console.info('✅ Database ready', undefined, 'Script')
+      console.info('✅ Database ready')
       return [{ count: 0 }]
     }
     throw error
