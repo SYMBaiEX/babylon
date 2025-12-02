@@ -800,7 +800,8 @@ export default function ProfilePage() {
   // Render posts content
   const renderContent = () => {
     if (tab === 'trades') {
-      return <TradingProfile userId={user?.id} isOwner={true} />;
+      if (!user) return null;
+      return <TradingProfile userId={user.id} isOwner={true} />;
     }
 
     if (loadingPosts) {
