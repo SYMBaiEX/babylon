@@ -47,7 +47,6 @@ interface ExtendedAgentRuntime extends AgentRuntime {
   currentModelVersion?: string;
   currentModel?: string;
   trajectoryLogger?: TrajectoryLoggerService;
-  modelDelegates?: Record<string, unknown>;
 }
 
 /** Global runtime cache for warm container reuse */
@@ -558,11 +557,32 @@ export class AgentRuntimeManager {
     }
     runtime.currentModel = 'groq';
 
+    // Override adapter.log to prevent undefined logger errors
+    runtime.adapter = {
+      ...runtime.adapter,
+      log: async (_params: {
+        body: { [key: string]: unknown };
+        entityId: string;
+        roomId: string;
+        type: string;
+      }): Promise<void> => {
+        // No-op to prevent errors
+      },
+    } as typeof runtime.adapter;
+
     // Configure logger
     this.configureLogger(runtime, character.name);
 
     // Register Groq model handlers
-    this.registerModelHandlers(runtime, agentId);
+    const pluginRegistrationPromises: Promise<void>[] = [];
+    const pluginsToLoad = plugins;
+
+    for (const plugin of pluginsToLoad) {
+      if (plugin) {
+        pluginRegistrationPromises.push(runtime.registerPlugin(plugin));
+      }
+    }
+    await Promise.all(pluginRegistrationPromises);
 
     // Wrap and enhance with Babylon plugin
     await this.enhanceWithBabylon(runtime, agentId, trajectoryLogger);
@@ -618,28 +638,6 @@ export class AgentRuntimeManager {
         child: () => customLogger,
       } as typeof runtime.logger;
       runtime.logger = customLogger;
-    }
-  }
-
-  /**
-   * Register Groq model handlers on runtime
-   */
-  private registerModelHandlers(runtime: AgentRuntime, agentId: string): void {
-    const extendedRuntime = runtime as ExtendedAgentRuntime;
-    if (groqPlugin.models) {
-      const modelDelegates = extendedRuntime.modelDelegates || {};
-      for (const [type, handler] of Object.entries(groqPlugin.models)) {
-        modelDelegates[type] = handler;
-      }
-      extendedRuntime.modelDelegates = modelDelegates;
-      logger.info(
-        `Registered ${Object.keys(modelDelegates).length} Groq model handlers`,
-        {
-          agentId,
-          types: Object.keys(modelDelegates),
-        },
-        'AgentRuntimeManager'
-      );
     }
   }
 
