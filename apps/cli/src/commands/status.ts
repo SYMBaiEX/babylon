@@ -12,7 +12,7 @@
 
 import { execSync } from 'child_process';
 import { ethers } from 'ethers';
-import { db, closeDatabase, actors, questions, posts, games, gameConfigs, worldEvents, organizations, eq, and, gte, isNotNull, count as drizzleCount } from '@babylon/db';
+import { db, closeDatabase, checkDatabaseHealth, actors, questions, posts, games, gameConfigs, worldEvents, organizations, eq, and, gte, isNotNull, count as drizzleCount } from '@babylon/db';
 import { getAgentLLMStatus } from '@babylon/agents/llm';
 import { parseArgs, wantsHelp } from '../lib/args.js';
 import { logger } from '../lib/logger.js';
@@ -41,10 +41,10 @@ EXAMPLES:
 async function checkGameStatus(): Promise<void> {
   logger.header('🎮 Game Status');
 
-  try {
-    await db.$connect();
+  const isHealthy = await checkDatabaseHealth();
+  if (isHealthy) {
     logger.success('Database connected');
-  } catch {
+  } else {
     logger.fail('Database connection failed');
     process.exit(1);
   }
