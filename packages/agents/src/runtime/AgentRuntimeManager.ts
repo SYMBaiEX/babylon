@@ -355,6 +355,7 @@ export class AgentRuntimeManager {
       'AgentRuntimeManager'
     );
     
+    // Register plugins
     const pluginRegistrationPromises: Promise<void>[] = [];
     const pluginsToLoad = plugins;
 
@@ -573,7 +574,7 @@ export class AgentRuntimeManager {
     // Configure logger
     this.configureLogger(runtime, character.name);
 
-    // Register Groq model handlers
+    // Register plugins
     const pluginRegistrationPromises: Promise<void>[] = [];
     const pluginsToLoad = plugins;
 
