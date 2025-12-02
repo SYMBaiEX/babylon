@@ -46,15 +46,17 @@ function SidebarContent() {
   const { ready, authenticated, user, logout } = useAuth();
   const { totalUnread: unreadMessages } = useUnreadMessages();
 
-  // Check if dev mode is enabled via URL parameter
+  // Check if dev mode is enabled via URL parameter (for staging testing)
   const isDevMode = searchParams.get('dev') === 'true';
 
   // Hide sidebar on production (babylon.market) on home page unless ?dev=true
   const isProduction =
     typeof window !== 'undefined' &&
     window.location.hostname === 'babylon.market';
+  // Hide sidebar when WAITLIST_MODE is enabled on home page (unless ?dev=true)
+  const isWaitlistMode = process.env.NEXT_PUBLIC_WAITLIST_MODE === 'true';
   const isHomePage = pathname === '/';
-  const shouldHideSidebar = isProduction && isHomePage && !isDevMode;
+  const shouldHideSidebar = isWaitlistMode && isProduction && isHomePage && !isDevMode;
 
   // Check if user is admin from the user object
   const isAdmin = user?.isAdmin ?? false;

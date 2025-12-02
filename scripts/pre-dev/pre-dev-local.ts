@@ -192,6 +192,7 @@ if (minioRunning.trim() !== MINIO_CONTAINER) {
 // Force local database URL for local development (overrides .env.local if present)
 const LOCAL_DATABASE_URL = 'postgresql://babylon:babylon_dev_password@localhost:5433/babylon'
 process.env.DATABASE_URL = LOCAL_DATABASE_URL
+process.env.DIRECT_DATABASE_URL = LOCAL_DATABASE_URL // Also override DIRECT_DATABASE_URL to prevent Neon connection
 
 /**
  * Run drizzle-kit push with timeout and proper error handling
@@ -206,9 +207,10 @@ async function runMigrations(): Promise<void> {
   const migrationPromise = (async () => {
     // Run with --force to skip interactive prompts (safe for development)
     // The --force flag auto-accepts all changes without confirmation
-    // Explicitly set DATABASE_URL to local for the subprocess
+    // Explicitly set DATABASE_URL and DIRECT_DATABASE_URL to local for the subprocess
+    // Run from packages/db directory so relative schema path works correctly
     // Using yes | ... as a fallback for any remaining prompts
-    const result = await $`yes | DATABASE_URL=${LOCAL_DATABASE_URL} bunx drizzle-kit push --force`.nothrow()
+    const result = await $`yes | DATABASE_URL=${LOCAL_DATABASE_URL} DIRECT_DATABASE_URL=${LOCAL_DATABASE_URL} DEPLOYMENT_ENV=localnet bunx drizzle-kit push --force`.cwd('packages/db').nothrow()
     if (result.exitCode !== 0 && result.exitCode !== 141) {
       // Exit code 141 is SIGPIPE from yes being closed, which is expected
       throw new Error(`drizzle-kit push failed with exit code ${result.exitCode}`)
@@ -255,8 +257,8 @@ if (needsMigrations) {
 
 if (needsSeed || actorCount === 0) {
   console.info('Running database seed...', undefined, 'Script')
-  // Explicitly set DATABASE_URL to local for the seed subprocess
-  await $`DATABASE_URL=${LOCAL_DATABASE_URL} bun run db:seed`
+  // Explicitly set DATABASE_URL and DIRECT_DATABASE_URL to local for the seed subprocess
+  await $`DATABASE_URL=${LOCAL_DATABASE_URL} DIRECT_DATABASE_URL=${LOCAL_DATABASE_URL} DEPLOYMENT_ENV=localnet bun run db:seed`
   console.info('✅ Database seeded', undefined, 'Script')
 }
 

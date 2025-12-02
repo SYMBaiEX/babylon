@@ -65,6 +65,12 @@ const SAMPLE_SIZE = sampleSizeArg
 // Types
 // ============================================================================
 
+/** Valid database column value types that postgres can return */
+type DatabaseValue = string | number | boolean | null | Date | DatabaseValue[];
+
+/** A database row with string keys and typed values */
+type DatabaseRow = Record<string, DatabaseValue>;
+
 interface MigrationStats {
   table: string;
   sourceCount: number;
@@ -83,9 +89,9 @@ interface TableMigrationConfig {
   // Columns to exclude from migration (auto-generated, etc.)
   excludeColumns?: string[];
   // Default values for new columns not in source
-  defaultValues?: Record<string, unknown>;
+  defaultValues?: DatabaseRow;
   // Transform function for complex data transformations
-  transform?: (row: Record<string, unknown>) => Record<string, unknown>;
+  transform?: (row: DatabaseRow) => DatabaseRow;
   // Dependencies (tables that must be migrated first)
   dependencies?: string[];
 }
@@ -98,13 +104,13 @@ interface DryRunTablePreview {
   commonColumns: string[];
   sourceOnlyColumns: string[];
   targetOnlyColumns: string[];
-  defaultsApplied: Record<string, unknown>;
+  defaultsApplied: DatabaseRow;
   sourceRecordCount: number;
   targetRecordCountBefore: number;
   recordsToMigrate: number;
   recordsToSkip: number;
-  sampleSourceRecords: Record<string, unknown>[];
-  sampleTransformedRecords: Record<string, unknown>[];
+  sampleSourceRecords: DatabaseRow[];
+  sampleTransformedRecords: DatabaseRow[];
   sampleSqlStatements: string[];
 }
 
@@ -604,7 +610,7 @@ function sanitizeForJson(value: unknown): unknown {
 function generateInsertSql(
   tableName: string,
   primaryKey: string,
-  record: Record<string, unknown>
+  record: DatabaseRow
 ): string {
   const columns = Object.keys(record);
   const columnNames = columns.map((c) => `"${c}"`).join(', ');
@@ -739,7 +745,9 @@ async function getRecordCount(
   tableName: string
 ): Promise<number> {
   const result = await db.unsafe(`SELECT COUNT(*) as count FROM "${tableName}"`);
-  return parseInt(result[0].count as string, 10);
+  const firstRow = result[0];
+  if (!firstRow) return 0;
+  return parseInt(firstRow.count as string, 10);
 }
 
 async function getExistingIds(
@@ -835,6 +843,7 @@ async function migrateTable(
 
   if (sourceCount === 0) {
     log(`No records to migrate in ${tableName}`, 'info');
+    const noDefaults: DatabaseRow = {};
     const emptyPreview: DryRunTablePreview = {
       tableName,
       sourceColumns,
@@ -842,7 +851,7 @@ async function migrateTable(
       commonColumns,
       sourceOnlyColumns,
       targetOnlyColumns,
-      defaultsApplied: defaultValues ?? {},
+      defaultsApplied: defaultValues ?? noDefaults,
       sourceRecordCount: 0,
       targetRecordCountBefore: targetCountBefore,
       recordsToMigrate: 0,
@@ -884,8 +893,8 @@ async function migrateTable(
   let batchNumber = 0;
 
   // For dry-run: collect sample records
-  const sampleSourceRecords: Record<string, unknown>[] = [];
-  const sampleTransformedRecords: Record<string, unknown>[] = [];
+  const sampleSourceRecords: DatabaseRow[] = [];
+  const sampleTransformedRecords: DatabaseRow[] = [];
   const sampleSqlStatements: string[] = [];
 
   // Process in batches - each batch is a separate transaction
@@ -914,7 +923,7 @@ async function migrateTable(
     if (newRecords.length > 0) {
       // Apply transformations and defaults
       const recordsToInsert = newRecords.map((row) => {
-        let record = { ...row };
+        let record: DatabaseRow = { ...row };
 
         // Apply transform function if provided
         if (transform) {
@@ -936,23 +945,28 @@ async function migrateTable(
       if (isDryRun) {
         // Collect samples for preview
         for (let i = 0; i < Math.min(recordsToInsert.length, SAMPLE_SIZE - sampleSourceRecords.length); i++) {
-          if (sampleSourceRecords.length < SAMPLE_SIZE) {
-            sampleSourceRecords.push({ ...newRecords[i] });
-            sampleTransformedRecords.push({ ...recordsToInsert[i] });
-            sampleSqlStatements.push(generateInsertSql(tableName, primaryKey, recordsToInsert[i]));
+          const sourceRecord = newRecords[i];
+          const transformedRecord = recordsToInsert[i];
+          if (sampleSourceRecords.length < SAMPLE_SIZE && sourceRecord && transformedRecord) {
+            sampleSourceRecords.push({ ...sourceRecord });
+            sampleTransformedRecords.push({ ...transformedRecord });
+            sampleSqlStatements.push(generateInsertSql(tableName, primaryKey, transformedRecord));
           }
         }
         migratedCount += newRecords.length;
       } else {
         // Actually insert records - EACH BATCH IN ITS OWN TRANSACTION
-        const columns = Object.keys(recordsToInsert[0]);
+        const firstRecord = recordsToInsert[0];
+        if (!firstRecord) continue;
+        
+        const columns = Object.keys(firstRecord);
         const columnNames = columns.map((c) => `"${c}"`).join(', ');
 
         // Use transaction for this batch
         await targetDb.unsafe('BEGIN');
         
         for (const record of recordsToInsert) {
-          const values = columns.map((col) => record[col]);
+          const values = columns.map((col) => record[col] ?? null);
           const placeholders = columns.map((_, i) => `$${i + 1}`).join(', ');
 
           // Use simple INSERT for empty target (faster), ON CONFLICT for incremental
@@ -996,7 +1010,8 @@ async function migrateTable(
     log(`\n  Sample records (${sampleSourceRecords.length} of ${migratedCount}):`);
     for (let i = 0; i < sampleSourceRecords.length; i++) {
       const source = sampleSourceRecords[i];
-      const transformed = sampleTransformedRecords[i];
+      if (!source) continue;
+      
       log(`\n  --- Record ${i + 1} ---`);
       log(`  ID: ${source[primaryKey]}`);
 
@@ -1016,12 +1031,14 @@ async function migrateTable(
       }
 
       // Show SQL if requested
-      if (showSql) {
-        log(`  SQL: ${sampleSqlStatements[i].substring(0, 200)}${sampleSqlStatements[i].length > 200 ? '...' : ''}`);
+      const sqlStatement = sampleSqlStatements[i];
+      if (showSql && sqlStatement) {
+        log(`  SQL: ${sqlStatement.substring(0, 200)}${sqlStatement.length > 200 ? '...' : ''}`);
       }
     }
   }
 
+  const emptyDefaults: DatabaseRow = {};
   const preview: DryRunTablePreview = {
     tableName,
     sourceColumns,
@@ -1029,7 +1046,7 @@ async function migrateTable(
     commonColumns,
     sourceOnlyColumns,
     targetOnlyColumns,
-    defaultsApplied: defaultValues ?? {},
+    defaultsApplied: defaultValues ?? emptyDefaults,
     sourceRecordCount: sourceCount,
     targetRecordCountBefore: targetCountBefore,
     recordsToMigrate: migratedCount,

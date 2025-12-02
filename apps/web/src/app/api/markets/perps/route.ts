@@ -164,7 +164,11 @@ interface RecentPositionData {
 
 export const GET = withErrorHandling(async (_request: NextRequest) => {
   // Get ONLY companies (not media, government, think tanks)
-  const companies = await getDbInstance().getCompanies();
+  // Filter to only include companies with a valid price (currentPrice OR initialPrice),
+  // which matches the PerpetualsEngine.initializeMarkets() filter.
+  // Without this, the UI would show markets that users can't actually trade.
+  const allCompanies = await getDbInstance().getCompanies();
+  const companies = allCompanies.filter((c) => c.currentPrice !== null || c.initialPrice !== null);
   
   if (companies.length === 0) {
     return successResponse({

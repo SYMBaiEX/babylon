@@ -78,9 +78,16 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
+  // Waitlist mode hides navigation UI - components check NEXT_PUBLIC_WAITLIST_MODE
+  // and support ?dev=true bypass for staging testing
   const waitlistModeEnabled =
     (process.env.WAITLIST_MODE ?? process.env.NEXT_PUBLIC_WAITLIST_MODE) ===
     'true';
+
+  // Log for debugging in development
+  if (process.env.NODE_ENV === 'development') {
+    console.log('[Layout] waitlistModeEnabled:', waitlistModeEnabled);
+  }
 
   return (
     <html lang="en" suppressHydrationWarning className="overscroll-none">
@@ -95,19 +102,15 @@ export default function RootLayout({
           </Suspense>
 
           {/* Mobile Header - Fixed, not affected by pull-to-refresh */}
-          {!waitlistModeEnabled && (
-            <Suspense fallback={null}>
-              <MobileHeader />
-            </Suspense>
-          )}
+          <Suspense fallback={null}>
+            <MobileHeader />
+          </Suspense>
 
           <div className="mx-auto flex min-h-screen max-w-screen-xl bg-sidebar">
             {/* Desktop Sidebar - Sticky, not affected by pull-to-refresh */}
-            {!waitlistModeEnabled && (
-              <Suspense fallback={null}>
-                <Sidebar />
-              </Suspense>
-            )}
+            <Suspense fallback={null}>
+              <Sidebar />
+            </Suspense>
 
             {/* Main Content Area - Scrollable content with pull-to-refresh */}
             <main className="min-h-screen w-full flex-1 bg-background pt-14 pb-14 md:pt-0 md:pb-0">
@@ -115,19 +118,15 @@ export default function RootLayout({
             </main>
 
             {/* Mobile Bottom Navigation - Fixed, not affected by pull-to-refresh */}
-            {!waitlistModeEnabled && (
-              <Suspense fallback={null}>
-                <BottomNav />
-              </Suspense>
-            )}
+            <Suspense fallback={null}>
+              <BottomNav />
+            </Suspense>
           </div>
 
           {/* Auth Banner - shows on all pages when not authenticated */}
-          {!waitlistModeEnabled && (
-            <Suspense fallback={null}>
-              <FeedAuthBanner />
-            </Suspense>
-          )}
+          <Suspense fallback={null}>
+            <FeedAuthBanner />
+          </Suspense>
         </Providers>
         <Analytics />
         <SpeedInsights />

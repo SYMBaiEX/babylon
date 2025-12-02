@@ -88,23 +88,38 @@ const extractPayload = (fields: unknown[]): Record<string, unknown> | null => {
  *
  * @param {string[]} streams - Stream names to read from
  * @param {string[]} ids - Starting IDs for each stream
- * @param {{ count?: number }} opts - Options (count for limiting results)
+ * @param {{ count?: number; block?: number }} opts - Options (count for limiting results, block for blocking read in ms)
  * @returns {Promise<StreamMessage[]>} Array of stream messages
  */
 export async function streamRead(
   streams: string[],
   ids: string[],
-  opts?: { count?: number }
+  opts?: { count?: number; block?: number }
 ): Promise<StreamMessage[]> {
   const client = getRedisClient();
   if (!client || streams.length === 0 || ids.length === 0) return [];
 
   const streamArgs = [...streams, ...ids] as string[];
 
-  // Call appropriate overload based on whether COUNT is specified
-  const res = opts?.count
-    ? await client.xread('COUNT', opts.count, 'STREAMS', ...streamArgs)
-    : await client.xread('STREAMS', ...streamArgs);
+  // Build XREAD command with optional BLOCK and COUNT
+  // XREAD [COUNT count] [BLOCK milliseconds] STREAMS key [key ...] id [id ...]
+  let res: unknown;
+  if (opts?.block !== undefined && opts?.count !== undefined) {
+    res = await client.xread(
+      'COUNT',
+      opts.count,
+      'BLOCK',
+      opts.block,
+      'STREAMS',
+      ...streamArgs
+    );
+  } else if (opts?.block !== undefined) {
+    res = await client.xread('BLOCK', opts.block, 'STREAMS', ...streamArgs);
+  } else if (opts?.count !== undefined) {
+    res = await client.xread('COUNT', opts.count, 'STREAMS', ...streamArgs);
+  } else {
+    res = await client.xread('STREAMS', ...streamArgs);
+  }
 
   const parsed: StreamMessage[] = [];
   if (Array.isArray(res)) {
