@@ -1,6 +1,7 @@
 import { definePrompt } from '../define-prompt';
 import {
   characterVoiceGuidance,
+  FINAL_REMINDERS,
   STANDARD_FEED_RULES,
   VALUE_RANGES,
   WORLD_CONTEXT_HEADER,
@@ -39,9 +40,11 @@ ${STANDARD_FEED_RULES}
 
 ${characterVoiceGuidance('repliersList')}
 
-Generate reply posts from these {{replierCount}} actors:
+Generate reply posts from these {{replierCount}} actors (STRICT MAX 140 CHARACTERS PER POST):
 
 {{repliersList}}
+
+CHARACTER LIMIT: Each reply MUST be 140 characters or less. Count carefully before submitting.
 
 ${VALUE_RANGES}
 
@@ -64,5 +67,7 @@ Respond with ONLY this XML format (example for 2 replies):
 </response>
 
 CRITICAL: Return EXACTLY {{replierCount}} replies. Each must have post, sentiment, clueStrength, pointsToward elements.
+
+${FINAL_REMINDERS}
 `.trim(),
 });

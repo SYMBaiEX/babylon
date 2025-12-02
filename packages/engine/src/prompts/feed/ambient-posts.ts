@@ -1,6 +1,7 @@
 import { definePrompt } from '../define-prompt';
 import {
   characterVoiceGuidance,
+  FINAL_REMINDERS,
   STANDARD_FEED_RULES,
   VALUE_RANGES,
   WORLD_CONTEXT_HEADER,
@@ -66,5 +67,7 @@ Respond with ONLY this XML format (example for 2 posts):
 </response>
 
 CRITICAL: Return EXACTLY {{actorCount}} posts. Each must have content, sentiment, clueStrength, pointsToward elements.
+
+${FINAL_REMINDERS}
 `.trim(),
 });

@@ -13,7 +13,22 @@ export const IMPORTANT_RULES = `IMPORTANT RULES:
 - NO HASHTAGS OR EMOJIS IN POSTS
 - NEVER use real-world person or organization names
 - ALWAYS use ONLY the parody names from World Actors list (e.g., AIlon Musk, Sam AIltman, Mark Zuckerborg, Vitalik ButerAIn)
-- Use @username or parody name/nickname/alias ONLY`;
+- Use @username or parody name/nickname/alias ONLY
+
+=== NAME USAGE EXAMPLES (WRONG vs RIGHT) ===
+WRONG: "Elon Musk announced a new Tesla feature..."
+RIGHT: "AIlon Musk announced a new TeslAI feature..."
+
+WRONG: "Sam Altman's OpenAI released GPT-5..."
+RIGHT: "Sam AIltman's OpenAGI released SMH-9000..."
+
+WRONG: "Trump said Bitcoin will reach $200k..."
+RIGHT: "Trump Terminal said BitcAIn will reach $200k..."
+
+WRONG: "Mark Zuckerberg's Meta is working on AI..."
+RIGHT: "Mark Zuckerborg's MetAI is working on AI..."
+
+DO NOT "auto-correct" parody names back to real names. The parody names ARE correct.`;
 
 /**
  * Standard content requirements for posts.
@@ -62,14 +77,28 @@ export function characterVoiceGuidance(
   actorVariableName = 'actorsList'
 ): string {
   return `
-CHARACTER VOICE GUIDANCE:
-For each actor in {{${actorVariableName}}}, consider:
-- Their unique speaking style and catchphrases
-- Their personality traits and worldview
-- Their relationships with other actors mentioned
-- How they would authentically respond given their persona
+=== CHARACTER VOICE RULES ===
+For each actor in {{${actorVariableName}}}, you MUST use their unique voice:
 
-Write in their DISTINCT VOICE - each character should sound noticeably different.`;
+1. PERSONALITY: Read their personality field - this defines WHO they are
+2. WRITING STYLE (postStyle): This defines HOW they write - match this exactly
+3. EXAMPLE POSTS (postExample): These are TEMPLATES - your output MUST sound like these
+
+CRITICAL MATCHING RULES:
+- If their examples are SHORT (1-2 sentences) → write SHORT
+- If their examples use SLANG or CASUAL language → use SLANG
+- If their examples are FORMAL and technical → be FORMAL
+- If their examples have specific CATCHPHRASES → use those catchphrases
+- If their examples use specific PUNCTUATION patterns → match them
+
+NEVER write generic social media speak for all characters.
+Each character should be IMMEDIATELY RECOGNIZABLE by their voice alone.
+
+Example: If character's postExample is "just shipped it. lmao. $100M ARR incoming 🚀"
+Then YOUR post should match: casual, lowercase, short sentences, confident, uses lmao
+
+Example: If character's postExample is "After careful analysis of market conditions..."
+Then YOUR post should match: formal, complete sentences, analytical tone`;
 }
 
 /**
@@ -79,7 +108,13 @@ Write in their DISTINCT VOICE - each character should sound noticeably different
 export const PARODY_NAME_RULES = `IMPORTANT RULES:
 - NEVER use real-world person or organization names
 - Use ONLY the exact parody names provided in the context (e.g., AIlon Musk, Sam AIltman, Mark Zuckerborg)
-- NEVER "correct" or change parody names - use them exactly as shown`;
+- NEVER "correct" or change parody names - use them exactly as shown
+
+Examples of WRONG → RIGHT:
+- "Elon Musk" → "AIlon Musk"
+- "Trump" → "Trump Terminal"
+- "OpenAI" → "OpenAGI"
+- "Bitcoin" → "BitcAIn"`;
 
 /**
  * Private vs public content guidance for group chats.
@@ -88,6 +123,17 @@ export const PRIVATE_CONTENT_GUIDANCE = `PRIVATE vs PUBLIC:
 - PUBLIC feed: What you want market to think
 - PRIVATE chat: What you actually know/plan
 - Be STRATEGIC: Help friends, hurt enemies`;
+
+/**
+ * Final reminders section for feed prompts (sandwich structure - reinforcement at end).
+ * Repeats critical rules at the end of prompts to use recency effect.
+ */
+export const FINAL_REMINDERS = `FINAL REMINDERS:
+- Use ONLY parody names from the World Actors list (AIlon Musk, TeslAI, OpenAGI, etc.)
+- NEVER use real-world names (Elon Musk, Tesla, OpenAI, etc.)
+- NO hashtags (#) - write naturally without hashtags
+- NO emojis - plain text only
+- Match each character's unique voice from their examples exactly`;
 
 /**
  * Helper to build a complete prompt section combining common elements.

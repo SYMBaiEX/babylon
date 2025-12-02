@@ -13,8 +13,11 @@ export { shuffleArray };
  * Format actor voice context with postStyle and randomized postExample
  *
  * Used for LLM prompt generation to maintain actor voice consistency.
+ * Enhanced to make personality/postStyle/postExample more prominent
+ * and provide clear matching instructions.
  */
 export function formatActorVoiceContext(actor: {
+  name?: string;
   postStyle?: string;
   postExample?: string[];
   voice?: string;
@@ -29,30 +32,37 @@ export function formatActorVoiceContext(actor: {
     return '';
   }
 
-  let context = '';
+  const parts: string[] = [];
+  const actorName = actor.name || 'this character';
+
+  // Header with clear instruction
+  parts.push(`\n   === VOICE FOR ${actorName.toUpperCase()} ===`);
 
   if (actor.personality) {
-    context += `\n   Personality: ${actor.personality}`;
+    parts.push(`   PERSONALITY: ${actor.personality}`);
   }
 
   if (actor.voice) {
-    context += `\n   Voice: ${actor.voice}`;
+    parts.push(`   VOICE TONE: ${actor.voice}`);
   }
 
   if (actor.postStyle) {
-    context += `\n   Writing Style: ${actor.postStyle}`;
+    parts.push(`   WRITING STYLE: ${actor.postStyle}`);
   }
 
   if (actor.postExample && actor.postExample.length > 0) {
     const shuffledExamples = shuffleArray(actor.postExample);
-    const examples = shuffledExamples
-      .slice(0, 3)
-      .map((ex) => `"${ex}"`)
-      .join(', ');
-    context += `\n   Example Posts: ${examples}`;
+    const examples = shuffledExamples.slice(0, 3);
+    parts.push(`   EXAMPLE POSTS (MATCH THIS TONE AND STYLE):`);
+    examples.forEach((ex, i) => {
+      parts.push(`     ${i + 1}. "${ex}"`);
+    });
+    parts.push(
+      `   CRITICAL: Your post MUST sound like these examples. Match tone, length, and quirks.`
+    );
   }
 
-  return context;
+  return parts.join('\n');
 }
 
 /**
