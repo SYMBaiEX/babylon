@@ -88,7 +88,7 @@
 import { EventEmitter } from 'events';
 import type { PerpPosition as DbPerpPosition } from '@babylon/db';
 import { db, eq, perpPositions } from '@babylon/db';
-import { logger } from '@babylon/shared';
+import { logger, NotFoundError, BusinessLogicError } from '@babylon/shared';
 
 import type {
   DailyPriceSnapshot,
@@ -267,8 +267,10 @@ export class PerpetualsEngine extends EventEmitter {
    * ```
    */
   initializeMarkets(organizations: Organization[]): void {
+    // Accept companies with either currentPrice OR initialPrice
+    // A market is tradeable if it has any valid price
     const companies = organizations.filter(
-      (o) => o.type === 'company' && o.initialPrice
+      (o) => o.type === 'company' && (o.currentPrice || o.initialPrice)
     );
 
     for (const company of companies) {
@@ -318,15 +320,23 @@ export class PerpetualsEngine extends EventEmitter {
   openPosition(userId: string, order: OrderRequest): PerpPosition {
     const market = this.markets.get(order.ticker);
     if (!market) {
-      throw new Error(`Market ${order.ticker} not found`);
+      throw new NotFoundError('Market', order.ticker);
     }
 
     if (order.size < market.minOrderSize) {
-      throw new Error(`Order size below minimum (${market.minOrderSize} USD)`);
+      throw new BusinessLogicError(
+        `Order size below minimum (${market.minOrderSize} USD)`,
+        'ORDER_SIZE_TOO_SMALL',
+        { min: market.minOrderSize, requested: order.size }
+      );
     }
 
     if (order.leverage > market.maxLeverage || order.leverage < 1) {
-      throw new Error(`Invalid leverage (1-${market.maxLeverage}x)`);
+      throw new BusinessLogicError(
+        `Invalid leverage (1-${market.maxLeverage}x)`,
+        'INVALID_LEVERAGE',
+        { min: 1, max: market.maxLeverage, requested: order.leverage }
+      );
     }
 
     const entryPrice =
@@ -389,12 +399,12 @@ export class PerpetualsEngine extends EventEmitter {
   } {
     const position = this.positions.get(positionId);
     if (!position) {
-      throw new Error(`Position ${positionId} not found`);
+      throw new NotFoundError('Position', positionId);
     }
 
     const market = this.markets.get(position.ticker);
     if (!market) {
-      throw new Error(`Market ${position.ticker} not found`);
+      throw new NotFoundError('Market', position.ticker);
     }
 
     if (exitPriceOverride !== undefined) {
