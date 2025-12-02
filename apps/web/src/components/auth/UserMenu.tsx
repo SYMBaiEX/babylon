@@ -1,6 +1,6 @@
 'use client';
 
-import { Check, Copy, Key, LogOut } from 'lucide-react';
+import { Check, Copy, Key, LogOut, Settings } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Avatar } from '@/components/shared/Avatar';
@@ -275,6 +275,13 @@ export function UserMenu() {
           </div>
         </DropdownItem>
       )}
+
+      <DropdownItem onClick={() => router.push('/settings')}>
+        <div className="flex items-center gap-3 py-2">
+          <Settings className="h-5 w-5" style={{ color: '#0066FF' }} />
+          <span className="font-semibold text-foreground text-sm">Settings</span>
+        </div>
+      </DropdownItem>
 
       <DropdownItem onClick={() => router.push('/settings?tab=api')}>
         <div className="flex items-center gap-3 py-2">

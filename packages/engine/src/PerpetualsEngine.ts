@@ -103,6 +103,7 @@ import {
   calculateFundingPayment,
   calculateLiquidationPrice,
   calculateMarkPrice,
+  calculateMaxPositionSize,
   calculateUnrealizedPnL,
   shouldLiquidate,
 } from './types/perps';
@@ -280,6 +281,7 @@ export class PerpetualsEngine extends EventEmitter {
           ? company.ticker
           : this.generateTicker(company.id);
 
+      const initialOpenInterest = 0;
       const market: PerpMarket = {
         ticker,
         organizationId: company.id,
@@ -290,7 +292,7 @@ export class PerpetualsEngine extends EventEmitter {
         high24h: company.currentPrice || company.initialPrice || 100,
         low24h: company.currentPrice || company.initialPrice || 100,
         volume24h: 0,
-        openInterest: 0,
+        openInterest: initialOpenInterest,
         fundingRate: {
           ticker,
           rate: 0.01, // 1% annual default
@@ -299,6 +301,7 @@ export class PerpetualsEngine extends EventEmitter {
         },
         maxLeverage: 100,
         minOrderSize: 10,
+        maxPositionSize: calculateMaxPositionSize(initialOpenInterest),
         markPrice: company.currentPrice || company.initialPrice || 100,
         indexPrice: company.currentPrice || company.initialPrice || 100,
       };
@@ -379,8 +382,9 @@ export class PerpetualsEngine extends EventEmitter {
       timestamp,
     });
 
-    // Update market open interest
+    // Update market open interest and recalculate max position size
     market.openInterest += order.size * order.leverage;
+    market.maxPositionSize = calculateMaxPositionSize(market.openInterest);
     market.volume24h += order.size;
 
     this.emit('position:opened', position);
@@ -454,8 +458,9 @@ export class PerpetualsEngine extends EventEmitter {
       timestamp,
     });
 
-    // Update market
+    // Update market and recalculate max position size
     market.openInterest -= position.size * position.leverage;
+    market.maxPositionSize = calculateMaxPositionSize(market.openInterest);
     market.volume24h += position.size;
 
     // Remove position
@@ -560,6 +565,11 @@ export class PerpetualsEngine extends EventEmitter {
       if (market) {
         market.openInterest += position.size * position.leverage;
       }
+    }
+
+    // Recalculate maxPositionSize for all markets after hydration
+    for (const market of this.markets.values()) {
+      market.maxPositionSize = calculateMaxPositionSize(market.openInterest);
     }
 
     if (positions.length > 0) {
@@ -695,8 +705,9 @@ export class PerpetualsEngine extends EventEmitter {
       timestamp,
     });
 
-    // Update market
+    // Update market and recalculate max position size
     market.openInterest -= position.size * position.leverage;
+    market.maxPositionSize = calculateMaxPositionSize(market.openInterest);
 
     // Remove position
     this.positions.delete(positionId);
