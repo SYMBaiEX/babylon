@@ -289,7 +289,7 @@ export class AgentRuntimeManager {
         roomId: string;
         type: string;
       }): Promise<void> => {
-        // No-op to prevent errors - we use runtime.logger instead
+        // No-op to prevent errors
       },
     } as typeof runtime.adapter;
 
