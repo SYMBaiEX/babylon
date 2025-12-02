@@ -98,3 +98,5 @@ _docs/
 # Claude Code
 .claude/
 migration-data/
+# Vendor docs (generated)
+docs/vendors/
