@@ -280,6 +280,19 @@ export class AgentRuntimeManager {
 
     runtime.currentModel = 'groq';
 
+    // Override adapter.log to prevent undefined logger errors
+    runtime.adapter = {
+      ...runtime.adapter,
+      log: async (_params: {
+        body: { [key: string]: unknown };
+        entityId: string;
+        roomId: string;
+        type: string;
+      }): Promise<void> => {
+        // No-op to prevent errors - we use runtime.logger instead
+      },
+    } as typeof runtime.adapter;
+
     // Configure logger
     if (!runtime.logger || !runtime.logger.log) {
       const customLogger = {
@@ -311,23 +324,24 @@ export class AgentRuntimeManager {
       runtime.logger = customLogger as typeof runtime.logger;
     }
 
-    // Cannot call initialize() without SQL plugin - manually register models instead
-    // CRITICAL: Must set modelDelegates, not models Map
-    // This is what runtime.initialize() does internally
-    if (groqPlugin.models) {
-      const modelDelegates = runtime.modelDelegates || {};
-      for (const [type, handler] of Object.entries(groqPlugin.models)) {
-        modelDelegates[type] = handler;
-      }
-      runtime.modelDelegates = modelDelegates;
-      logger.info(
-        `Registered ${Object.keys(modelDelegates).length} Groq model handlers`,
-        {
-          agentUserId,
-          types: Object.keys(modelDelegates),
-        }
-      );
-    }
+    // // Cannot call initialize() without SQL plugin - manually register models instead
+    // // CRITICAL: Must set modelDelegates, not models Map
+    // // This is what runtime.initialize() does internally
+    // if (groqPlugin.models) {
+    //   const modelDelegates = runtime.modelDelegates || {};
+    //   for (const [type, handler] of Object.entries(groqPlugin.models)) {
+    //     modelDelegates[type] = handler;
+    //   }
+    //   runtime.modelDelegates = modelDelegates;
+    //   logger.info(
+    //     `Registered ${Object.keys(modelDelegates).length} Groq model handlers`,
+    //     {
+    //       agentUserId,
+    //       types: Object.keys(modelDelegates),
+    //     }
+    //   );
+    // }
+    // runtime.registerPlugin(groqPlugin);
 
     // Wrap Babylon plugin BEFORE registering (so wrapped version is used)
     // This ensures all actions and provider accesses are logged when executed
@@ -360,6 +374,16 @@ export class AgentRuntimeManager {
       undefined,
       'AgentRuntimeManager'
     );
+    
+    const pluginRegistrationPromises: Promise<void>[] = [];
+    const pluginsToLoad = plugins;
+
+    for (const plugin of pluginsToLoad) {
+      if (plugin) {
+        pluginRegistrationPromises.push(runtime.registerPlugin(plugin));
+      }
+    }
+    await Promise.all(pluginRegistrationPromises);
 
     return runtime;
   }
