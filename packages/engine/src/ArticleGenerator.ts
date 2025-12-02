@@ -58,8 +58,9 @@
  */
 
 import { generateSnowflakeId, logger } from '@babylon/shared';
+import { characterMappingService } from './services/character-mapping-service';
 import { shuffleArray } from './utils/randomization';
-import { biasedArticle, renderPrompt } from './prompts';
+import { biasedArticle, renderPrompt, validateArticle } from './prompts';
 import type { Actor, Organization, Question, WorldEvent } from './types/shared';
 import type { BabylonLLMClient } from './llm/openai-client';
 
@@ -550,12 +551,52 @@ export class ArticleGenerator {
       slantString = undefined;
     }
 
+    // Apply character mapping to prevent real name leakage
+    const titleTransformed = await characterMappingService.transformText(title);
+    const summaryTransformed =
+      await characterMappingService.transformText(summary);
+    const contentTransformed =
+      await characterMappingService.transformText(content);
+
+    if (
+      titleTransformed.replacementCount > 0 ||
+      summaryTransformed.replacementCount > 0 ||
+      contentTransformed.replacementCount > 0
+    ) {
+      logger.warn(
+        `[ArticleGenerator] Character mapping applied: ` +
+          `title=${titleTransformed.replacementCount}, ` +
+          `summary=${summaryTransformed.replacementCount}, ` +
+          `content=${contentTransformed.replacementCount} replacements`
+      );
+    }
+
+    // Validate article content after transformation
+    const validation = validateArticle({
+      title: titleTransformed.transformedText,
+      summary: summaryTransformed.transformedText,
+      content: contentTransformed.transformedText,
+    });
+
+    if (!validation.isValid) {
+      logger.error(
+        `[ArticleGenerator] Article validation failed for event ${event.id}`,
+        { violations: validation.violations }
+      );
+    }
+
+    if (validation.warnings.length > 0) {
+      logger.warn(`[ArticleGenerator] Article validation warnings`, {
+        warnings: validation.warnings,
+      });
+    }
+
     // Create article object
     const article: Article = {
       id: await generateSnowflakeId(),
-      title,
-      summary,
-      content,
+      title: titleTransformed.transformedText,
+      summary: summaryTransformed.transformedText,
+      content: contentTransformed.transformedText,
       authorOrgId: organization.id,
       authorOrgName: organization.name,
       byline: journalist?.name,

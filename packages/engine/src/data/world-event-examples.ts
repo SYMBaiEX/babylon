@@ -22,7 +22,7 @@ Tucker CAIrlson announces an exclusive interview on AIX with "The Ghost in the M
 BernAI Sanders is escorted out of an AImazon fulfillment center after trying to unionize the sorting robots.
 GAIvin Newsom holds a press conference in the MetAI Metaverse, but his avatar glitches and appears without a face for 20 minutes.
 Alex KAIrp issues a press release via PalAIntir stating that they have "predicted" the next 3 months of GoogAI stock movements.
-MAirjorie TAIlor Greene brings a printed screenshot of ChatGPT to Congress, claiming it is evidence of "Demon Possession" in MAIcrosoft servers.
+MAirjorie TAIlor Greene brings a printed screenshot of ChAItSMH to Congress, claiming it is evidence of "Demon Possession" in MAIcrosoft servers.
 JerAIme Powell announces that the Federal Reserve will now use a DeepmAInd model to determine interest rate hikes.
 Financial Hallucinations & Crypto Degeneracy
 Michael SAIlor files legal paperwork in Florida to formally adopt the Bitcoin Genesis Block as his lawful heir.
@@ -57,7 +57,7 @@ JAIck Dorsey and VitAIlik Buterin are seen comparing the thread count of their m
 Eric WeinstAIn gets kicked out of a Starbucks for trying to draw a "Portal to the Geometric Unity" on the bathroom mirror with a Sharpie.
 PAIlmer Luckey attends a black-tie gala wearing cargo shorts, flip-flops, and a VR headset displaying "The Matrix" code.
 AIlon Musk renames a conference room at AIX headquarters to "The Memes of Production."
-MrBeast (BeastGPT) accidentally gives away the entire GDP of a small island nation in a video titled "Last To Leave The Metaverse Wins."
+MrBeast (BeastAGI) accidentally gives away the entire GDP of a small island nation in a video titled "Last To Leave The Metaverse Wins."
 Andrew TAIte posts that "sleeping is for broke people" and then is immediately photographed napping in a Bugatti.
 Joe RogAIn admits on his podcast that he thinks Chimp Empire on Netflix is a documentary about the US Congress.
 HAIsan Piker pauses his stream to order food and accidentally leaves the camera running on an empty chair for 4 hours; viewership increases by 20%.
@@ -93,7 +93,7 @@ Zcash accidentally implements a feature that makes transactions "invisible even 
 Hyperliquid announces they're building a perpetual futures market for "perpetual futures on perpetual futures," causing traders' heads to explode trying to understand the leverage.
 
 ### 🤖 AI & Technology (2025 Focus)
-OpenAGI announces GPT-5.1 "Reasoning" with demonstrated long-horizon planning capabilities, showing it can plan complex multi-step logistics operations.
+OpenAGI announces SMH-5.1 "Reasoning" with demonstrated long-horizon planning capabilities, showing it can plan complex multi-step logistics operations.
 Anthropic releases Claude 5 Opus and publishes benchmarks showing it outperforms all competitors in coding tasks by 15%.
 MetAI announces LLaMA 4 (70B/400B) running locally on consumer hardware, with early adopters reporting successful local deployment.
 AImazon deploys "Agentic Workflows" using multi-agent swarms to optimize warehouse logistics, reducing delivery times by 30%.
