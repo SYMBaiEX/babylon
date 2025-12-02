@@ -324,25 +324,6 @@ export class AgentRuntimeManager {
       runtime.logger = customLogger as typeof runtime.logger;
     }
 
-    // // Cannot call initialize() without SQL plugin - manually register models instead
-    // // CRITICAL: Must set modelDelegates, not models Map
-    // // This is what runtime.initialize() does internally
-    // if (groqPlugin.models) {
-    //   const modelDelegates = runtime.modelDelegates || {};
-    //   for (const [type, handler] of Object.entries(groqPlugin.models)) {
-    //     modelDelegates[type] = handler;
-    //   }
-    //   runtime.modelDelegates = modelDelegates;
-    //   logger.info(
-    //     `Registered ${Object.keys(modelDelegates).length} Groq model handlers`,
-    //     {
-    //       agentUserId,
-    //       types: Object.keys(modelDelegates),
-    //     }
-    //   );
-    // }
-    // runtime.registerPlugin(groqPlugin);
-
     // Wrap Babylon plugin BEFORE registering (so wrapped version is used)
     // This ensures all actions and provider accesses are logged when executed
     let wrappedBabylonPlugin = babylonPlugin;
