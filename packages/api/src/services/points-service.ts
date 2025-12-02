@@ -1008,62 +1008,41 @@ export class PointsService {
   ) {
     const skip = (page - 1) * pageSize;
 
+    // Common user select fields for leaderboard
+    const userSelectFields = {
+      id: users.id,
+      username: users.username,
+      displayName: users.displayName,
+      profileImageUrl: users.profileImageUrl,
+      reputationPoints: users.reputationPoints,
+      invitePoints: users.invitePoints,
+      earnedPoints: users.earnedPoints,
+      bonusPoints: users.bonusPoints,
+      referralCount: users.referralCount,
+      virtualBalance: users.virtualBalance,
+      lifetimePnL: users.lifetimePnL,
+      createdAt: users.createdAt,
+      onChainRegistered: users.onChainRegistered,
+      nftTokenId: users.nftTokenId,
+    };
+
     // Build users query based on category
     let usersResult;
     if (pointsCategory === 'all') {
       usersResult = await db
-        .select({
-          id: users.id,
-          username: users.username,
-          displayName: users.displayName,
-          profileImageUrl: users.profileImageUrl,
-          reputationPoints: users.reputationPoints,
-          invitePoints: users.invitePoints,
-          earnedPoints: users.earnedPoints,
-          bonusPoints: users.bonusPoints,
-          referralCount: users.referralCount,
-          virtualBalance: users.virtualBalance,
-          lifetimePnL: users.lifetimePnL,
-          createdAt: users.createdAt,
-        })
+        .select(userSelectFields)
         .from(users)
         .where(
           and(eq(users.isActor, false), gte(users.reputationPoints, minPoints))
         );
     } else if (pointsCategory === 'earned') {
       usersResult = await db
-        .select({
-          id: users.id,
-          username: users.username,
-          displayName: users.displayName,
-          profileImageUrl: users.profileImageUrl,
-          reputationPoints: users.reputationPoints,
-          invitePoints: users.invitePoints,
-          earnedPoints: users.earnedPoints,
-          bonusPoints: users.bonusPoints,
-          referralCount: users.referralCount,
-          virtualBalance: users.virtualBalance,
-          lifetimePnL: users.lifetimePnL,
-          createdAt: users.createdAt,
-        })
+        .select(userSelectFields)
         .from(users)
         .where(and(eq(users.isActor, false), ne(users.earnedPoints, 0)));
     } else {
       usersResult = await db
-        .select({
-          id: users.id,
-          username: users.username,
-          displayName: users.displayName,
-          profileImageUrl: users.profileImageUrl,
-          reputationPoints: users.reputationPoints,
-          invitePoints: users.invitePoints,
-          earnedPoints: users.earnedPoints,
-          bonusPoints: users.bonusPoints,
-          referralCount: users.referralCount,
-          virtualBalance: users.virtualBalance,
-          lifetimePnL: users.lifetimePnL,
-          createdAt: users.createdAt,
-        })
+        .select(userSelectFields)
         .from(users)
         .where(and(eq(users.isActor, false), gt(users.invitePoints, 0)));
     }
@@ -1084,6 +1063,8 @@ export class PointsService {
         createdAt: user.createdAt,
         isActor: false,
         tier: null as string | null,
+        onChainRegistered: user.onChainRegistered,
+        nftTokenId: user.nftTokenId,
       })),
     ];
 
@@ -1117,6 +1098,8 @@ export class PointsService {
           createdAt: actor.createdAt,
           isActor: true,
           tier: actor.tier,
+          onChainRegistered: false,
+          nftTokenId: null as number | null,
         }))
       );
     }
