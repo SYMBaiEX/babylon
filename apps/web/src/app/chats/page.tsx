@@ -16,6 +16,7 @@ import {
   Users,
   X,
 } from 'lucide-react';
+import Link from 'next/link';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { LoginButton } from '@/components/auth/LoginButton';
 import { CreateGroupModal } from '@/components/groups/CreateGroupModal';
@@ -148,6 +149,7 @@ export default function ChatsPage() {
     isLoadingMore,
     hasMore,
     loadMore,
+    addMessage,
   } = useChatMessages(selectedChatId);
 
   // Pull-to-refresh state
@@ -704,7 +706,21 @@ export default function ChatsPage() {
     setSendSuccess(true);
     setTimeout(() => setSendSuccess(false), 2000);
 
-    // SSE will handle adding the message in real-time
+    // Add the message optimistically to show it immediately
+    // This ensures the sender sees their message right away without waiting for SSE
+    if (data.message) {
+      addMessage({
+        id: data.message.id,
+        content: data.message.content,
+        chatId: data.message.chatId,
+        senderId: data.message.senderId,
+        createdAt:
+          typeof data.message.createdAt === 'string'
+            ? data.message.createdAt
+            : new Date(data.message.createdAt).toISOString(),
+      });
+    }
+
     setMessageInput('');
     void loadChats(); // Refresh chat list to update last message
 
@@ -1027,35 +1043,47 @@ export default function ChatsPage() {
                             />
                           </div>
                         ) : (
-                          <Avatar
-                            id={
-                              chatDetails.participants.find(
-                                (p) => p.id !== user?.id
-                              )?.id || ''
-                            }
-                            name={
-                              chatDetails.participants.find(
-                                (p) => p.id !== user?.id
-                              )?.displayName || 'User'
-                            }
-                            type="user"
-                            size="md"
-                            imageUrl={
-                              chatDetails.participants.find(
-                                (p) => p.id !== user?.id
-                              )?.profileImageUrl
-                            }
-                          />
+                          <Link
+                            href={`/profile/${chatDetails.participants.find((p) => p.id !== user?.id)?.id}`}
+                            className="transition-opacity hover:opacity-80"
+                          >
+                            <Avatar
+                              id={
+                                chatDetails.participants.find(
+                                  (p) => p.id !== user?.id
+                                )?.id || ''
+                              }
+                              name={
+                                chatDetails.participants.find(
+                                  (p) => p.id !== user?.id
+                                )?.displayName || 'User'
+                              }
+                              type="user"
+                              size="md"
+                              imageUrl={
+                                chatDetails.participants.find(
+                                  (p) => p.id !== user?.id
+                                )?.profileImageUrl
+                              }
+                            />
+                          </Link>
                         )}
                         <div>
                           <div className="flex items-center gap-2">
-                            <h3 className="font-bold text-foreground text-lg">
-                              {chatDetails.chat.name ||
-                                chatDetails.participants.find(
+                            {chatDetails.chat.isGroup ? (
+                              <h3 className="font-bold text-foreground text-lg">
+                                {chatDetails.chat.name || 'Chat'}
+                              </h3>
+                            ) : (
+                              <Link
+                                href={`/profile/${chatDetails.participants.find((p) => p.id !== user?.id)?.id}`}
+                                className="font-bold text-foreground text-lg transition-colors hover:text-primary"
+                              >
+                                {chatDetails.participants.find(
                                   (p) => p.id !== user?.id
-                                )?.displayName ||
-                                'Chat'}
-                            </h3>
+                                )?.displayName || 'Chat'}
+                              </Link>
+                            )}
                             {/* Show chat-specific SSE connection status */}
                             {sseConnected ? (
                               <span
@@ -1210,13 +1238,18 @@ export default function ChatsPage() {
                               )}
                             >
                               {!isCurrentUser && (
-                                <Avatar
-                                  id={msg.senderId}
-                                  name={senderName}
-                                  type="user"
-                                  size="md"
-                                  imageUrl={sender?.profileImageUrl}
-                                />
+                                <Link
+                                  href={`/profile/${msg.senderId}`}
+                                  className="transition-opacity hover:opacity-80"
+                                >
+                                  <Avatar
+                                    id={msg.senderId}
+                                    name={senderName}
+                                    type="user"
+                                    size="md"
+                                    imageUrl={sender?.profileImageUrl}
+                                  />
+                                </Link>
                               )}
                               <div
                                 className={cn(
@@ -1226,9 +1259,12 @@ export default function ChatsPage() {
                               >
                                 <div className="mb-1 flex flex-wrap items-center gap-3">
                                   {!isCurrentUser && (
-                                    <span className="font-bold text-foreground text-sm">
+                                    <Link
+                                      href={`/profile/${msg.senderId}`}
+                                      className="font-bold text-foreground text-sm transition-colors hover:text-primary"
+                                    >
                                       {senderName}
-                                    </span>
+                                    </Link>
                                   )}
                                   {!isCurrentUser && (
                                     <span className="text-muted-foreground">
@@ -1647,35 +1683,47 @@ export default function ChatsPage() {
                           />
                         </div>
                       ) : (
-                        <Avatar
-                          id={
-                            chatDetails.participants.find(
-                              (p) => p.id !== user?.id
-                            )?.id || ''
-                          }
-                          name={
-                            chatDetails.participants.find(
-                              (p) => p.id !== user?.id
-                            )?.displayName || 'User'
-                          }
-                          type="user"
-                          size="md"
-                          imageUrl={
-                            chatDetails.participants.find(
-                              (p) => p.id !== user?.id
-                            )?.profileImageUrl
-                          }
-                        />
+                        <Link
+                          href={`/profile/${chatDetails.participants.find((p) => p.id !== user?.id)?.id}`}
+                          className="transition-opacity hover:opacity-80"
+                        >
+                          <Avatar
+                            id={
+                              chatDetails.participants.find(
+                                (p) => p.id !== user?.id
+                              )?.id || ''
+                            }
+                            name={
+                              chatDetails.participants.find(
+                                (p) => p.id !== user?.id
+                              )?.displayName || 'User'
+                            }
+                            type="user"
+                            size="md"
+                            imageUrl={
+                              chatDetails.participants.find(
+                                (p) => p.id !== user?.id
+                              )?.profileImageUrl
+                            }
+                          />
+                        </Link>
                       )}
                       <div className="flex-1">
                         <div className="flex items-center gap-2">
-                          <h3 className="font-bold text-foreground text-lg">
-                            {chatDetails.chat.name ||
-                              chatDetails.participants.find(
+                          {chatDetails.chat.isGroup ? (
+                            <h3 className="font-bold text-foreground text-lg">
+                              {chatDetails.chat.name || 'Chat'}
+                            </h3>
+                          ) : (
+                            <Link
+                              href={`/profile/${chatDetails.participants.find((p) => p.id !== user?.id)?.id}`}
+                              className="font-bold text-foreground text-lg transition-colors hover:text-primary"
+                            >
+                              {chatDetails.participants.find(
                                 (p) => p.id !== user?.id
-                              )?.displayName ||
-                              'Chat'}
-                          </h3>
+                              )?.displayName || 'Chat'}
+                            </Link>
+                          )}
                           {/* Show chat-specific SSE connection status */}
                           {sseConnected ? (
                             <span
@@ -1792,13 +1840,18 @@ export default function ChatsPage() {
                             )}
                           >
                             {!isCurrentUser && (
-                              <Avatar
-                                id={msg.senderId}
-                                name={senderName}
-                                type="user"
-                                size="md"
-                                imageUrl={sender?.profileImageUrl}
-                              />
+                              <Link
+                                href={`/profile/${msg.senderId}`}
+                                className="transition-opacity hover:opacity-80"
+                              >
+                                <Avatar
+                                  id={msg.senderId}
+                                  name={senderName}
+                                  type="user"
+                                  size="md"
+                                  imageUrl={sender?.profileImageUrl}
+                                />
+                              </Link>
                             )}
                             <div
                               className={cn(
@@ -1808,9 +1861,12 @@ export default function ChatsPage() {
                             >
                               <div className="mb-1 flex flex-wrap items-center gap-2">
                                 {!isCurrentUser && (
-                                  <span className="font-bold text-foreground text-sm">
+                                  <Link
+                                    href={`/profile/${msg.senderId}`}
+                                    className="font-bold text-foreground text-sm transition-colors hover:text-primary"
+                                  >
                                     {senderName}
-                                  </span>
+                                  </Link>
                                 )}
                                 {!isCurrentUser && (
                                   <span className="text-muted-foreground">
