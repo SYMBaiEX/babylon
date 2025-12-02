@@ -1,0 +1,88 @@
+# Babylon RL Training - Atropos Framework
+# Supports: CUDA (GPU), MLX (Apple Silicon), CPU, and distributed training
+
+# ===========================================
+# Core Atropos Framework (replaces openpipe-art)
+# ===========================================
+atroposlib>=0.3.0
+
+# ===========================================
+# Database
+# ===========================================
+asyncpg>=0.29.0
+psycopg2-binary>=2.9.9
+
+# ===========================================
+# HTTP/API
+# ===========================================
+httpx>=0.26.0
+aiohttp>=3.9.0
+requests>=2.31.0
+
+# ===========================================
+# OpenAI-compatible client (for inference)
+# ===========================================
+openai>=1.0.0
+
+# ===========================================
+# Training Framework
+# ===========================================
+torch>=2.1.0
+transformers>=4.36.0
+peft>=0.8.0
+
+# ===========================================
+# Inference Server
+# ===========================================
+vllm>=0.3.0
+
+# ===========================================
+# Monitoring (optional - logs to file by default)
+# ===========================================
+# tensorboard>=2.15.0  # Optional: for local visualization
+
+# ===========================================
+# Configuration
+# ===========================================
+pyyaml>=6.0.1
+python-dotenv>=1.0.0
+pydantic>=2.5.0
+pydantic-cli>=3.0.0
+
+# ===========================================
+# Testing
+# ===========================================
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+
+# ===========================================
+# Utilities
+# ===========================================
+tqdm>=4.66.0
+psutil>=5.9.0
+numpy>=1.24.0
+tenacity>=8.2.0
+rich>=13.0.0
+jsonlines>=4.0.0
+
+# ============================================
+# OPTIONAL: MLX Backend (Apple Silicon only)
+# ============================================
+# Install on Mac with Apple Silicon:
+#   pip install mlx mlx-lm
+#
+# For fine-tuning support:
+#   pip install mlx-lm[finetuning]
+#
+# Recommended models for MLX:
+#   - mlx-community/Qwen2.5-3B-Instruct-4bit
+#   - mlx-community/Qwen2.5-7B-Instruct-4bit
+#   - mlx-community/Qwen3-4B-4bit
+
+# ============================================
+# OPTIONAL: CPU Backend (transformers/peft)
+# ============================================
+# Already included above for GPU training
+# For CPU-only, use smaller models:
+#   - Qwen/Qwen2.5-0.5B-Instruct
+#   - Qwen/Qwen2.5-1.5B-Instruct

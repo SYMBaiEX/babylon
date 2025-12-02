@@ -4,50 +4,61 @@
  *
  * Sets up complete local development environment:
  * - Kills any processes on port 3000
- * - Starts Anvil (local blockchain)
+ * - Checks for Hardhat node
  * - Deploys contracts
  * - Starts PostgreSQL, Redis, MinIO
  * - Runs database migrations
  * - Seeds data
  */
 
+
 // @ts-ignore - bun global is available in bun runtime
 import { $ } from 'bun'
-import { existsSync, writeFileSync, unlinkSync } from 'fs'
+import { existsSync, writeFileSync, unlinkSync, readFileSync } from 'fs'
 import { join } from 'path'
-import { logger } from '../../src/lib/logger'
-import { validateEnvironment, printValidationResult } from '../../src/lib/deployment/env-detection'
-import { loadDeployment } from '../../src/lib/deployment/validation'
-import { killPort } from '../utils/kill-port'
-import '../utils/ensure-foundry-path' // Ensure Foundry tools are in PATH
+import { validateEnvironment, printValidationResult } from '../../packages/contracts/src/deployment/env-detection'
 
-const ANVIL_CONTAINER = 'babylon-anvil'
 const POSTGRES_CONTAINER = 'babylon-postgres'
 const REDIS_CONTAINER = 'babylon-redis'
 const MINIO_CONTAINER = 'babylon-minio'
 
-logger.info('Setting up localnet development environment...', undefined, 'Script')
-logger.info('='.repeat(60), undefined, 'Script')
+async function killPort(port: number): Promise<number> {
+  const pids = await $`lsof -t -i:${port}`.quiet().nothrow().text()
+  const pidList = pids.trim().split('\n').filter(Boolean)
+  
+  if (pidList.length === 0) {
+    return 0
+  }
+  
+  for (const pid of pidList) {
+    await $`kill -9 ${pid}`.quiet().nothrow()
+  }
+  
+  return pidList.length
+}
+
+console.info('[Script] Setting up localnet development environment...')
+console.info('='.repeat(60))
 
 // 0. Kill any processes on port 3000 to prevent port conflicts
-logger.info('Checking for processes on port 3000...', undefined, 'Script')
-const killedCount = await killPort(3000, process.pid)
+console.info('[Script] Checking for processes on port 3000...')
+const killedCount = await killPort(3000)
 if (killedCount > 0) {
-  logger.info(`✅ Killed ${killedCount} process(es) on port 3000`, undefined, 'Script')
+  console.info(`[Script] ✅ Killed ${killedCount} process(es) on port 3000`)
 } else {
-  logger.info('✅ Port 3000 is free', undefined, 'Script')
+  console.info('[Script] ✅ Port 3000 is free')
 }
 
 // 0.5. Clean up Next.js lock file if it exists
 const nextLockPath = join(process.cwd(), '.next', 'dev', 'lock')
 try {
   if (existsSync(nextLockPath)) {
-    logger.info('Cleaning up Next.js lock file...', undefined, 'Script')
+    console.info('Cleaning up Next.js lock file...')
     unlinkSync(nextLockPath)
-    logger.info('✅ Next.js lock file removed', undefined, 'Script')
+    console.info('✅ Next.js lock file removed')
   }
 } catch (error) {
-  logger.warn('Could not remove Next.js lock file (may not exist)', undefined, 'Script')
+  console.warn('Could not remove Next.js lock file (may not exist)')
 }
 
 // Set environment for localnet
@@ -58,135 +69,80 @@ process.env.NEXT_PUBLIC_RPC_URL = 'http://localhost:8545'
 // 1. Check Docker
 await $`docker --version`.quiet()
 await $`docker info`.quiet().catch(() => {
-  logger.error('❌ Docker is not running', undefined, 'Script')
-  logger.info('Please start Docker Desktop or Docker daemon', undefined, 'Script')
+  console.error('❌ Docker is not running')
+  console.info('Please start Docker Desktop or Docker daemon')
   process.exit(1)
 })
-logger.info('✅ Docker is running', undefined, 'Script')
+console.info('✅ Docker is running')
 
 // 2. Check/create .env file
 const envPath = join(process.cwd(), '.env')
 if (!existsSync(envPath)) {
-  logger.info('Creating .env file...', undefined, 'Script')
-  const envTemplate = `DATABASE_URL="postgresql://babylon:babylon_dev_password@localhost:5433/babylon"
+  console.info('Creating .env file...')
+  // If .env.example exists, use it as a base but override localnet values
+  const envExamplePath = join(process.cwd(), '.env.example')
+  let envContent = ''
+  
+  if (existsSync(envExamplePath)) {
+    envContent = readFileSync(envExamplePath, 'utf-8')
+    // Replace placeholder values with localnet defaults
+    envContent = envContent.replace(/DATABASE_URL=.*/, 'DATABASE_URL="postgresql://babylon:babylon_dev_password@localhost:5433/babylon"')
+    envContent = envContent.replace(/REDIS_URL=.*/, 'REDIS_URL="redis://localhost:6380"')
+    envContent = envContent.replace(/NEXT_PUBLIC_CHAIN_ID=.*/, 'NEXT_PUBLIC_CHAIN_ID=31337')
+    envContent = envContent.replace(/NEXT_PUBLIC_RPC_URL=.*/, 'NEXT_PUBLIC_RPC_URL=http://localhost:8545')
+    envContent = envContent.replace(/DEPLOYER_PRIVATE_KEY=.*/, 'DEPLOYER_PRIVATE_KEY=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80')
+  } else {
+    // Fallback to minimal template if .env.example is missing
+    envContent = `DATABASE_URL="postgresql://babylon:babylon_dev_password@localhost:5433/babylon"
 REDIS_URL="redis://localhost:6380"
 DEPLOYMENT_ENV=localnet
 NEXT_PUBLIC_CHAIN_ID=31337
 NEXT_PUBLIC_RPC_URL=http://localhost:8545
+DEPLOYER_PRIVATE_KEY=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
 NEXT_PUBLIC_PRIVY_APP_ID=""
 `
-  writeFileSync(envPath, envTemplate)
-  logger.info('✅ .env created', undefined, 'Script')
-}
-
-// 3. Start Anvil
-const anvilRunning = await $`docker ps --filter name=${ANVIL_CONTAINER} --format "{{.Names}}"`.quiet().text()
-
-if (anvilRunning.trim() !== ANVIL_CONTAINER) {
-  logger.info('Starting Anvil...', undefined, 'Script')
-  await $`docker-compose up -d anvil`
-
-  // Wait for health check
-  let attempts = 0
-  while (attempts < 30) {
-    const health = await $`docker inspect --format='{{.State.Health.Status}}' ${ANVIL_CONTAINER}`.quiet().text().catch(() => '')
-    if (health.trim() === 'healthy') {
-      logger.info('✅ Anvil is ready', undefined, 'Script')
-      break
-    }
-
-    await new Promise(resolve => setTimeout(resolve, 1000))
-    attempts++
-  }
-
-  if (attempts === 30) {
-    logger.error('❌ Anvil health check timeout', undefined, 'Script')
-    process.exit(1)
   }
   
-  // Add a small delay to allow the RPC server to stabilize after the health check passes
-  await new Promise(resolve => setTimeout(resolve, 2000))
-} else {
-  logger.info('✅ Anvil is running', undefined, 'Script')
-}
-
-// Verify RPC endpoint is accessible
-logger.info('Verifying Anvil RPC endpoint...', undefined, 'Script')
-let rpcAttempts = 0
-while (rpcAttempts < 30) {
-  const rpcSuccess = await $`cast block-number --rpc-url http://localhost:8545`.text().then(() => true).catch((error: Error & { stderr?: Buffer }) => {
-    // Not ready yet
-    if (rpcAttempts === 0) { // Log the error only on the first attempt
-      const stderr = error.stderr ? error.stderr.toString() : 'No stderr output'
-      logger.error(`Initial RPC connection error: ${error.message}`, undefined, 'Script')
-      logger.error(`Stderr: ${stderr}`, undefined, 'Script')
-    }
-    return false
-  })
-  
-  if (rpcSuccess) {
-    logger.info('✅ Anvil RPC is ready', undefined, 'Script')
-    break
-  }
-  
-  await new Promise(resolve => setTimeout(resolve, 1000))
-  rpcAttempts++
-}
-
-if (rpcAttempts === 30) {
-  logger.error('❌ Anvil RPC endpoint timeout', undefined, 'Script')
-  process.exit(1)
-}
-
-// 4. Check if contracts are deployed
-let needsDeployment = false
-const deployment = await loadDeployment('localnet')
-
-if (!deployment || !deployment.contracts.diamond) {
-  needsDeployment = true
-  logger.info('No contracts deployed yet', undefined, 'Script')
-} else {
-  // Verify contracts are still there
-  const code = await $`cast code ${deployment.contracts.diamond} --rpc-url http://localhost:8545`.quiet().text().catch(() => '0x')
-  if (code.trim() === '0x' || code.trim() === '0x0') {
-    needsDeployment = true
-    logger.warn('⚠️  Contracts not found (Anvil may have been reset)', undefined, 'Script')
+  // Ensure DEPLOYMENT_ENV is set to localnet
+  if (!envContent.includes('DEPLOYMENT_ENV=')) {
+    envContent += '\nDEPLOYMENT_ENV=localnet'
   } else {
-    logger.info('✅ Contracts are deployed', undefined, 'Script')
+    envContent = envContent.replace(/DEPLOYMENT_ENV=.*/, 'DEPLOYMENT_ENV=localnet')
   }
-}
-
-// 5. Deploy contracts if needed
-if (needsDeployment) {
-  logger.info('Deploying contracts to Anvil...', undefined, 'Script')
-  logger.info('  - Diamond system', undefined, 'Script')
-  logger.info('  - Oracle system (BabylonGameOracle, Predimarket)', undefined, 'Script')
-  logger.info('  - Moderation system', undefined, 'Script')
-  await $`bun run deploy:local`
-  logger.info('✅ Contracts deployed', undefined, 'Script')
   
-  // Verify oracle contracts deployed
-  const updatedDeployment = await loadDeployment('localnet')
-  if (updatedDeployment?.contracts.babylonOracle) {
-    logger.info('✅ Oracle contracts deployed:', undefined, 'Script')
-    logger.info(`   BabylonOracle: ${updatedDeployment.contracts.babylonOracle}`, undefined, 'Script')
-    logger.info(`   Predimarket:   ${updatedDeployment.contracts.predimarket}`, undefined, 'Script')
-    logger.info(`   TestToken:     ${updatedDeployment.contracts.testToken}`, undefined, 'Script')
-  }
+  writeFileSync(envPath, envContent)
+  console.info('✅ .env created from template')
 }
 
-// 6. Start PostgreSQL
+// 3. Start Hardhat Node (background process managed by concurrently in dev script)
+// The pre-dev script just checks if port 8545 is available
+console.info('Checking port 8545 for Hardhat node...')
+
+// Kill any process on port 8545 to ensure clean start
+const killed8545 = await killPort(8545)
+if (killed8545 > 0) {
+  console.info(`✅ Killed ${killed8545} process(es) on port 8545`)
+  // Wait a moment for port to be fully released
+  await new Promise(resolve => setTimeout(resolve, 1000))
+} else {
+  console.info('✅ Port 8545 is free')
+}
+
+console.info('Note: Hardhat node will be started automatically by the dev script')
+console.info('      Contracts will be deployed once Hardhat is ready')
+
+// 4. Start PostgreSQL
 const postgresRunning = await $`docker ps --filter name=${POSTGRES_CONTAINER} --format "{{.Names}}"`.quiet().text()
 
 if (postgresRunning.trim() !== POSTGRES_CONTAINER) {
-  logger.info('Starting PostgreSQL...', undefined, 'Script')
+  console.info('Starting PostgreSQL...')
   await $`docker-compose up -d postgres`
 
   let attempts = 0
   while (attempts < 30) {
     const health = await $`docker inspect --format='{{.State.Health.Status}}' ${POSTGRES_CONTAINER}`.quiet().text().catch(() => '')
     if (health.trim() === 'healthy') {
-      logger.info('✅ PostgreSQL is ready', undefined, 'Script')
+      console.info('✅ PostgreSQL is ready')
       break
     }
 
@@ -195,95 +151,135 @@ if (postgresRunning.trim() !== POSTGRES_CONTAINER) {
   }
 
   if (attempts === 30) {
-    logger.error('❌ PostgreSQL health check timeout', undefined, 'Script')
+    console.error('❌ PostgreSQL health check timeout')
     process.exit(1)
   }
 } else {
-  logger.info('✅ PostgreSQL is running', undefined, 'Script')
+  console.info('✅ PostgreSQL is running')
 }
 
 // 7. Start Redis (optional)
 const redisRunning = await $`docker ps --filter name=${REDIS_CONTAINER} --format "{{.Names}}"`.quiet().text()
 
 if (redisRunning.trim() !== REDIS_CONTAINER) {
-  logger.info('Starting Redis...', undefined, 'Script')
+  console.info('Starting Redis...')
   await $`docker-compose up -d redis`.then(async () => {
     await new Promise(resolve => setTimeout(resolve, 2000))
-    logger.info('✅ Redis started', undefined, 'Script')
+    console.info('✅ Redis started')
   }).catch(() => {
-    logger.warn('⚠️  Redis start failed (optional, continuing)', undefined, 'Script')
+    console.warn('⚠️  Redis start failed (optional, continuing)')
   })
 } else {
-  logger.info('✅ Redis is running', undefined, 'Script')
+  console.info('✅ Redis is running')
 }
 
 // 8. Start MinIO (optional)
 const minioRunning = await $`docker ps --filter name=${MINIO_CONTAINER} --format "{{.Names}}"`.quiet().text()
 
 if (minioRunning.trim() !== MINIO_CONTAINER) {
-  logger.info('Starting MinIO...', undefined, 'Script')
+  console.info('Starting MinIO...')
   await $`docker-compose up -d minio`.then(async () => {
     await new Promise(resolve => setTimeout(resolve, 2000))
-    logger.info('✅ MinIO started', undefined, 'Script')
+    console.info('✅ MinIO started')
   }).catch(() => {
-    logger.warn('⚠️  MinIO start failed (optional, continuing)', undefined, 'Script')
+    console.warn('⚠️  MinIO start failed (optional, continuing)')
   })
 } else {
-  logger.info('✅ MinIO is running', undefined, 'Script')
+  console.info('✅ MinIO is running')
 }
 
 // 9. Run database migrations and seed
-const { PrismaClient } = await import('@prisma/client')
-const prisma = new PrismaClient()
+// Force local database URL for local development (overrides .env.local if present)
+const LOCAL_DATABASE_URL = 'postgresql://babylon:babylon_dev_password@localhost:5433/babylon'
+process.env.DATABASE_URL = LOCAL_DATABASE_URL
+process.env.DIRECT_DATABASE_URL = LOCAL_DATABASE_URL // Also override DIRECT_DATABASE_URL to prevent Neon connection
 
-await prisma.$connect()
-logger.info('✅ Database connected', undefined, 'Script')
-
-const actorCount = await prisma.actor.count().catch(async (error: Error) => {
-  const errorMessage = error.message
-  if (errorMessage.includes('does not exist') || errorMessage.includes('P2021')) {
-    logger.info('Running database migrations...', undefined, 'Script')
-    await $`bunx prisma migrate deploy`.quiet().catch(async () => {
-      await $`bunx prisma db push --skip-generate`.quiet()
-    })
-
-    logger.info('Running database seed...', undefined, 'Script')
-    await $`bun run db:seed`
-    logger.info('✅ Database ready', undefined, 'Script')
-    return 0
-  }
-  throw error
-})
-
-if (actorCount === 0) {
-  logger.info('Running database seed...', undefined, 'Script')
-  await $`bun run db:seed`
-  logger.info('✅ Database seeded', undefined, 'Script')
-} else if (actorCount > 0) {
-  logger.info(`✅ Database has ${actorCount} actors`, undefined, 'Script')
+/**
+ * Run drizzle-kit push with timeout and proper error handling
+ * Uses --force flag to skip interactive confirmations
+ * This prevents prompts from blocking the script in development
+ */
+async function runMigrations(): Promise<void> {
+  const MIGRATION_TIMEOUT_MS = 120_000 // 120 seconds (schema pull can be slow)
+  
+  console.info('Running database migrations (drizzle-kit push --force)...')
+  
+  const migrationPromise = (async () => {
+    // Run with --force to skip interactive prompts (safe for development)
+    // The --force flag auto-accepts all changes without confirmation
+    // Explicitly set DATABASE_URL and DIRECT_DATABASE_URL to local for the subprocess
+    // Using yes | ... as a fallback for any remaining prompts
+    const result = await $`yes | DATABASE_URL=${LOCAL_DATABASE_URL} DIRECT_DATABASE_URL=${LOCAL_DATABASE_URL} DEPLOYMENT_ENV=localnet bunx drizzle-kit push --force --config=packages/db/drizzle.config.ts`.nothrow()
+    if (result.exitCode !== 0 && result.exitCode !== 141) {
+      // Exit code 141 is SIGPIPE from yes being closed, which is expected
+      throw new Error(`drizzle-kit push failed with exit code ${result.exitCode}`)
+    }
+    console.info('✅ Migrations completed')
+  })()
+  
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    setTimeout(() => {
+      reject(new Error(`Migration timed out after ${MIGRATION_TIMEOUT_MS / 1000} seconds`))
+    }, MIGRATION_TIMEOUT_MS)
+  })
+  
+  await Promise.race([migrationPromise, timeoutPromise])
 }
 
-await prisma.$disconnect()
+// Query actors table directly to check if database is ready
+// This avoids potential issues with the health check returning false incorrectly
+let actorCount = 0
+let needsMigrations = false
+let needsSeed = false
+
+try {
+  // Use a simple query via bun shell to avoid connection state issues
+  const countResult = await $`docker exec babylon-postgres psql -U babylon -d babylon -t -c "SELECT count(*) FROM \"Actor\";"`.quiet()
+  actorCount = parseInt(countResult.text().trim(), 10)
+  if (isNaN(actorCount)) actorCount = 0
+  console.info(`✅ Database connected (${actorCount} actors)`)
+} catch (error: unknown) {
+  const errorMessage = error instanceof Error ? error.message : String(error)
+  if (errorMessage.includes('does not exist') || errorMessage.includes('relation')) {
+    console.info('Database tables not found, running migrations...')
+    needsMigrations = true
+    needsSeed = true
+  } else {
+    console.info('Database not ready, running migrations...')
+    needsMigrations = true
+  }
+}
+
+if (needsMigrations) {
+  await runMigrations()
+}
+
+if (needsSeed || actorCount === 0) {
+  console.info('Running database seed...')
+  // Explicitly set DATABASE_URL and DIRECT_DATABASE_URL to local for the seed subprocess
+  await $`DATABASE_URL=${LOCAL_DATABASE_URL} DIRECT_DATABASE_URL=${LOCAL_DATABASE_URL} DEPLOYMENT_ENV=localnet bun run db:seed`
+  console.info('✅ Database seeded')
+}
+
 
 // 10. Validate environment
-logger.info('', undefined, 'Script')
+console.info('')
 const validation = validateEnvironment('localnet')
 printValidationResult(validation)
 
-logger.info('', undefined, 'Script')
-logger.info('='.repeat(60), undefined, 'Script')
-logger.info('✅ Localnet environment ready!', undefined, 'Script')
-logger.info('', undefined, 'Script')
-logger.info('Services:', undefined, 'Script')
-logger.info('  Anvil:      http://localhost:8545', undefined, 'Script')
-logger.info('  PostgreSQL: localhost:5433', undefined, 'Script')
-logger.info('  Redis:      localhost:6380', undefined, 'Script')
-logger.info('  MinIO:      http://localhost:9000 (console: :9001)', undefined, 'Script')
-logger.info('', undefined, 'Script')
-logger.info('App Routes:', undefined, 'Script')
-logger.info('  Main:       http://localhost:3000', undefined, 'Script')
-logger.info('  Betting:    http://localhost:3000/betting (Oracle-powered markets)', undefined, 'Script')
-logger.info('', undefined, 'Script')
-logger.info('Starting Next.js...', undefined, 'Script')
-logger.info('='.repeat(60), undefined, 'Script')
-
+console.info('')
+console.info('='.repeat(60))
+console.info('✅ Localnet environment ready!')
+console.info('')
+console.info('Services:')
+console.info('  Hardhat:    http://localhost:8545 (will be started automatically)')
+console.info('  PostgreSQL: localhost:5433')
+console.info('  Redis:      localhost:6380')
+console.info('  MinIO:      http://localhost:9000 (console: :9001)')
+console.info('')
+console.info('App Routes:')
+console.info('  Main:       http://localhost:3000')
+console.info('  Betting:    http://localhost:3000/betting (Oracle-powered markets)')
+console.info('')
+console.info('Starting services (Hardhat, Next.js, Cron)...')
+console.info('='.repeat(60))

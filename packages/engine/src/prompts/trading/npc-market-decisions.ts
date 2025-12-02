@@ -1,0 +1,230 @@
+/**
+ * NPC Market Decisions Prompt
+ *
+ * Batch generation of trading decisions for multiple NPCs based on:
+ * - Feed posts they've seen
+ * - Group chat messages (insider info)
+ * - Recent events
+ * - Current market conditions
+ * - Their personality and tier
+ */
+
+import { definePrompt } from '../define-prompt';
+
+/**
+ * Example trading decisions for the prompt.
+ * These are shuffled at render time to add entropy and prevent the model
+ * from over-fitting to a fixed order.
+ */
+interface TradingExample {
+  title: string;
+  npcId: string;
+  npcName: string;
+  reasoning: string;
+  action: string;
+  marketType: string;
+  ticker: string;
+  marketId: string;
+  positionId: string;
+  amount: number;
+  confidence: number;
+}
+
+const TRADING_EXAMPLES: TradingExample[] = [
+  {
+    title: 'NPC decides to HOLD',
+    npcId: 'npc-a',
+    npcName: 'NPC_A',
+    reasoning: 'No clear trading opportunities based on available information',
+    action: 'hold',
+    marketType: 'null',
+    ticker: 'null',
+    marketId: 'null',
+    positionId: 'null',
+    amount: 0,
+    confidence: 0.5,
+  },
+  {
+    title: 'NPC opens a LONG position (Perp)',
+    npcId: 'npc-b',
+    npcName: 'NPC_B',
+    reasoning:
+      'Positive insider info suggests COMPANY_A will announce positive news',
+    action: 'open_long',
+    marketType: 'perp',
+    ticker: 'TICKER_A',
+    marketId: 'null',
+    positionId: 'null',
+    amount: 5000,
+    confidence: 0.75,
+  },
+  {
+    title: 'NPC buys YES (Prediction)',
+    npcId: 'npc-c',
+    npcName: 'NPC_C',
+    reasoning: 'Recent events favor outcome occurring based on product launch',
+    action: 'buy_yes',
+    marketType: 'prediction',
+    ticker: 'null',
+    marketId: '123456789',
+    positionId: 'null',
+    amount: 3000,
+    confidence: 0.65,
+  },
+  {
+    title: 'NPC closes position',
+    npcId: 'npc-d',
+    npcName: 'NPC_D',
+    reasoning: 'Taking profits on TICKER_B position after gain',
+    action: 'close_position',
+    marketType: 'perp',
+    ticker: 'TICKER_B',
+    marketId: 'null',
+    positionId: 'uuid-1234-5678',
+    amount: 0,
+    confidence: 0.8,
+  },
+  {
+    title: 'NPC opens a SHORT position (Perp)',
+    npcId: 'npc-e',
+    npcName: 'NPC_E',
+    reasoning:
+      'Negative sentiment from feed posts suggests COMPANY_B will miss targets',
+    action: 'open_short',
+    marketType: 'perp',
+    ticker: 'TICKER_B',
+    marketId: 'null',
+    positionId: 'null',
+    amount: 4000,
+    confidence: 0.7,
+  },
+  {
+    title: 'NPC buys NO (Prediction)',
+    npcId: 'npc-f',
+    npcName: 'NPC_F',
+    reasoning: 'Group chat insider info indicates event unlikely to occur',
+    action: 'buy_no',
+    marketType: 'prediction',
+    ticker: 'null',
+    marketId: '987654321',
+    positionId: 'null',
+    amount: 2500,
+    confidence: 0.6,
+  },
+];
+
+/**
+ * Fisher-Yates shuffle algorithm for randomizing array order.
+ * Creates a new array to avoid mutating the original.
+ */
+function shuffleArray<T>(array: T[]): T[] {
+  const shuffled = [...array];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]] as [T, T];
+  }
+  return shuffled;
+}
+
+/**
+ * Formats a single trading example into XML format for the prompt.
+ */
+function formatExample(example: TradingExample, index: number): string {
+  return `Example ${index + 1}: ${example.title}
+<decisions>
+  <decision>
+    <npcId>${example.npcId}</npcId>
+    <npcName>${example.npcName}</npcName>
+    <reasoning>${example.reasoning}</reasoning>
+    <action>${example.action}</action>
+    <marketType>${example.marketType}</marketType>
+    <ticker>${example.ticker}</ticker>
+    <marketId>${example.marketId}</marketId>
+    <positionId>${example.positionId}</positionId>
+    <amount>${example.amount}</amount>
+    <confidence>${example.confidence}</confidence>
+  </decision>
+</decisions>`;
+}
+
+/**
+ * Returns shuffled examples text for the NPC market decisions prompt.
+ * Call this each time you render the prompt to get a random order.
+ *
+ * @example
+ * ```ts
+ * const prompt = renderPrompt(npcMarketDecisions, {
+ *   examples: getShuffledExamplesText(),
+ *   npcCount: 10,
+ *   ...
+ * });
+ * ```
+ */
+export function getShuffledExamplesText(): string {
+  const shuffled = shuffleArray(TRADING_EXAMPLES);
+  return shuffled.map((ex, i) => formatExample(ex, i)).join('\n\n');
+}
+
+/**
+ * Prompt for generating context-aware trading decisions for NPCs.
+ *
+ * Simulates trading decisions for multiple NPCs based on their information
+ * access (feed posts, group chats), personality, tier, and current market
+ * conditions. Considers active questions, events, and narratives when
+ * determining positions.
+ *
+ * Returns XML with trading decisions for each NPC including market type,
+ * ticker, side, size, and reasoning.
+ *
+ * @example
+ * ```ts
+ * const prompt = renderPrompt(npcMarketDecisions, {
+ *   examples: getShuffledExamplesText(),
+ *   npcCount: 10,
+ *   realityGrounding: '...',
+ *   activeQuestions: '...',
+ *   npcContexts: '...'
+ * });
+ * ```
+ */
+export const npcMarketDecisions = definePrompt({
+  id: 'npc-market-decisions',
+  version: '4.0.0',
+  category: 'trading',
+  description: 'Generate context-aware trading decisions for NPCs',
+  temperature: 0.8,
+  maxTokens: 8000,
+
+  template: `{{realityGrounding}}
+
+EXAMPLES:
+{{examples}}
+
+RULES:
+- Output ONLY XML: <decisions>..{{npcCount}}x <decision>..</decisions>
+- Use EXACT npcId from list (valid: {{validNpcIds}})
+- Use EXACT ticker from list (valid: {{validTickers}})
+- amount <= MAX shown in BALANCES table (or REJECTED)
+- Perp actions (open_long/open_short): marketType=perp, ticker required
+- Prediction actions (buy_yes/buy_no): marketType=prediction, marketId required
+- close_position: positionId required (exact UUID), amount=0
+- hold: all fields null, amount=0
+
+DECISION FACTORS:
+- Posts/insider info/events inform trades
+- Rivals(sentiment<-0.5)=trade opposite, Allies(>0.5)=trade same
+- Aggressive=larger trades, Conservative=smaller/hold
+
+FIELDS: npcId, npcName, action, marketType(perp|prediction|null), ticker, marketId, positionId, amount, confidence(0-1), reasoning
+
+QUESTIONS:
+{{activeQuestions}}
+
+EVENTS:
+{{recentEvents}}
+
+TRADERS:
+{{npcsList}}
+
+Generate {{npcCount}} decisions as XML:`,
+});

@@ -25,3 +25,5 @@ You don't need to write markdown files every time you finish something. Instead,
 Don't pipe your commands. Just print them out when you run them in the console. Then I can see the errors and help you.
 
 There are other agents working on stuff. If you see things change or linter issues, it's probably work in progress. don't revert. try to ignore it unless you're sure it's just an issue that needs to be fixed.
+
+IMPORTANT: DON'T PIPE YOUR COMMANDS. Don't | to tail, head, grep, etc. I want to see the outputs. Otherwise very hard to tell if you are stuck on something.

@@ -1,0 +1,104 @@
+# MCP Authentication
+
+Simple API key authentication for Babylon's MCP server.
+
+## Overview
+
+MCP uses **per-user API keys** for authentication. Each user generates their own API key in Settings, which provides full access to their account via MCP.
+
+## Getting Your API Key
+
+1. Go to **Settings** → **API Keys** tab
+2. Click **"Generate New Key"**
+3. Copy and save your API key immediately (it's only shown once)
+
+## Using Your API Key
+
+Include your API key in the `X-Babylon-Api-Key` header for all MCP requests:
+
+```http
+POST /mcp HTTP/1.1
+Content-Type: application/json
+X-Babylon-Api-Key: bab_live_your_api_key_here
+```
+
+## Configuration Examples
+
+### Cursor
+
+Add to `.cursor/mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "babylon": {
+      "url": "https://babylon.market/mcp",
+      "transport": "http",
+      "headers": {
+        "X-Babylon-Api-Key": "bab_live_your_api_key_here"
+      }
+    }
+  }
+}
+```
+
+### Claude Desktop
+
+Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS):
+
+```json
+{
+  "mcpServers": {
+    "babylon": {
+      "url": "https://babylon.market/mcp",
+      "transport": "http",
+      "headers": {
+        "X-Babylon-Api-Key": "bab_live_your_api_key_here"
+      }
+    }
+  }
+}
+```
+
+### OpenAI Assistants
+
+```typescript
+const assistant = await openai.beta.assistants.create({
+  tools: [{
+    type: "mcp",
+    mcp: {
+      server: "https://babylon.market/mcp",
+      headers: {
+        "X-Babylon-Api-Key": process.env.BABYLON_API_KEY
+      }
+    }
+  }]
+});
+```
+
+## Discovery Endpoint
+
+The GET endpoint doesn't require authentication:
+
+```bash
+curl https://babylon.market/mcp
+```
+
+Returns server info and available tools.
+
+## Security
+
+- **Never share your API key** - It provides full account access
+- **Revoke compromised keys** - Go to Settings → API Keys to revoke
+- **Use HTTPS** - Always connect over HTTPS in production
+- **Store securely** - Use environment variables, never commit to version control
+
+## Errors
+
+**Authentication Required (-32001)**
+- Missing or invalid `X-Babylon-Api-Key` header
+- Generate a new key in Settings if needed
+
+**Authentication Failed (-32001)**
+- API key is revoked or expired
+- Generate a new key in Settings

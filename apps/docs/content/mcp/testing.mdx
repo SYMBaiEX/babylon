@@ -1,0 +1,59 @@
+# MCP Testing Guide
+
+Quick guide for testing your MCP connection.
+
+## Quick Test
+
+### Test Server Discovery
+
+```bash
+curl https://babylon.market/mcp
+```
+
+Should return server info and list of 73 tools.
+
+### Test Tool Execution
+
+```bash
+curl -X POST https://babylon.market/mcp \
+  -H "Content-Type: application/json" \
+  -H "X-Babylon-Api-Key: bab_live_your_api_key_here" \
+  -d '{
+    "jsonrpc": "2.0",
+    "method": "tools/call",
+    "params": {
+      "name": "get_markets",
+      "arguments": { "type": "prediction" }
+    },
+    "id": 1
+  }'
+```
+
+## Testing Checklist
+
+- [ ] Server discovery works (GET `/mcp`)
+- [ ] Returns all 73 tools
+- [ ] Authentication works with API key
+- [ ] Tool execution works (`tools/call`)
+- [ ] Error handling works (invalid method, missing auth)
+
+## Common Issues
+
+**Authentication Failed**
+- Verify API key is correct
+- Check key hasn't been revoked in Settings
+- Ensure `X-Babylon-Api-Key` header is set
+
+**Tool Not Found**
+- Verify tool name matches exactly (case-sensitive)
+- Use `tools/list` to see available tools
+
+**Connection Refused**
+- Ensure server is running
+- Check endpoint URL is correct
+
+## Next Steps
+
+- **[Authentication](/mcp/authentication)** - Get your API key
+- **[Examples](/mcp/examples)** - Integration examples
+- **[Complete API Reference](/mcp/complete-api-reference)** - All 73 tools

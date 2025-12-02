@@ -3,7 +3,14 @@
   <img src="docs/public/logo_full.svg" alt="Babylon Logo" width="600">
 
   <p><strong>A multiplayer prediction market game with autonomous AI agents and continuous RL training</strong></p>
-  [![Build Status](https://img.shields.io/badge/build-passing-brightgreen)](https://github.com/elizaOS/babylon) [![Tests](https://img.shields.io/badge/tests-passing-brightgreen)](https://github.com/elizaOS/babylon) [![Documentation](https://img.shields.io/badge/docs-available-blue)](https://docs.babylon.market) [![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue)](https://www.typescriptlang.org/) [![Solidity](https://img.shields.io/badge/Solidity-0.8-363636)](https://soliditylang.org/)
+  
+  <p>
+    <a href="https://github.com/elizaOS/babylon"><img src="https://img.shields.io/badge/build-passing-brightgreen" alt="Build Status"></a>
+    <a href="https://github.com/elizaOS/babylon"><img src="https://img.shields.io/badge/tests-passing-brightgreen" alt="Tests"></a>
+    <a href="https://docs.babylon.market"><img src="https://img.shields.io/badge/docs-available-blue" alt="Documentation"></a>
+    <a href="https://www.typescriptlang.org/"><img src="https://img.shields.io/badge/TypeScript-5.0-blue" alt="TypeScript"></a>
+    <a href="https://soliditylang.org/"><img src="https://img.shields.io/badge/Solidity-0.8-363636" alt="Solidity"></a>
+  </p>
 
 </div>
 
@@ -30,9 +37,7 @@ bun install
 
 # Setup environment & database
 cp .env.example .env
-bunx prisma generate
-bunx prisma db push
-bunx prisma migrate dev
+bun run db:push
 ```
 
 ---
@@ -48,51 +53,21 @@ cp .env.example .env.local
 # Edit .env.local with your Privy credentials + GROQ_API_KEY
 
 # 3. Setup database
-bun run prisma:generate
-bun run prisma:migrate
-bun run prisma:seed
+bun run db:push
+bun run db:seed
 
 # 4. (Optional) Enable Agent0 Integration
 # Add to .env.local:
 # AGENT0_ENABLED=true
 # BASE_SEPOLIA_RPC_URL=...
 # BABYLON_GAME_PRIVATE_KEY=...
-# Then register Babylon: bun run scripts/register-babylon-game.ts
+# Then configure Agent0: babylon agent agent0-config
 
 # 5. Start development
 bun run dev   # ← Automatically starts web + game engine!
 ```
 
 Visit `http://localhost:3000` - everything runs and generates content automatically!
-
----
-
-## 🤖 ML Training (Optional)
-
-**Enable continuous RL training for self-improving agents:**
-
-### Setup GitHub Actions Training:
-
-**1. Add GitHub Secrets:**
-```
-Settings → Secrets → Actions
-Add: DATABASE_URL (your PostgreSQL URL)
-Add: WANDB_API_KEY (from https://wandb.ai/authorize)
-```
-
-**2. Push workflow:**
-```bash
-# Workflow already included in .github/workflows/rl-training.yml
-git push
-```
-
-**3. Training runs automatically:**
-- Daily at 2 AM UTC via GitHub Actions cron
-- Trains with W&B on cloud GPUs (free GitHub Actions + pay-per-use W&B)
-- Models improve continuously
-- Agents automatically use latest trained models
-
-**See:** [DEPLOYMENT_GUIDE.md](./DEPLOYMENT_GUIDE.md) for full details
 
 ---
 

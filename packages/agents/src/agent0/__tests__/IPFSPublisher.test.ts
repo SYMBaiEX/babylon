@@ -1,0 +1,65 @@
+/**
+ * Unit Tests for IPFSPublisher
+ */
+
+import { beforeEach, describe, expect, test } from 'bun:test';
+import {
+  type AgentMetadata,
+  AgentMetadataSchema,
+  IPFSPublisher,
+} from '../IPFSPublisher';
+
+describe('IPFSPublisher', () => {
+  let publisher: IPFSPublisher;
+
+  beforeEach(() => {
+    publisher = new IPFSPublisher();
+  });
+
+  test('can be instantiated', () => {
+    expect(publisher).toBeDefined();
+  });
+
+  test('isAvailable returns boolean', () => {
+    const available = publisher.isAvailable();
+    expect(typeof available).toBe('boolean');
+  });
+
+  test('getGatewayUrl returns valid URL', () => {
+    const cid = 'QmTest123';
+    const url = publisher.getGatewayUrl(cid);
+
+    expect(url).toContain(cid);
+    expect(url.startsWith('http')).toBe(true);
+  });
+
+  test('can create valid agent metadata structure', () => {
+    const metadata: AgentMetadata = {
+      name: 'Test Agent',
+      description: 'Test description',
+      version: '1.0.0',
+      type: 'agent',
+      endpoints: {
+        a2a: 'wss://test.com/ws',
+        api: 'https://test.com/api',
+      },
+      capabilities: {
+        markets: ['prediction'],
+        actions: ['trade'],
+      },
+    };
+
+    expect(metadata.name).toBe('Test Agent');
+    expect(metadata.endpoints.a2a).toBe('wss://test.com/ws');
+    expect(metadata.capabilities.markets).toContain('prediction');
+
+    // Check against Zod schema to ensure it's valid
+    const validation = AgentMetadataSchema.safeParse(metadata);
+    expect(validation.success).toBe(true);
+  });
+
+  test('isAvailable always returns true (gateway-only mode)', () => {
+    // In gateway-only mode, we're always "available" since we use public gateway
+    expect(publisher.isAvailable()).toBe(true);
+  });
+});

@@ -1,0 +1,644 @@
+/**
+ * Group Chat Service
+ *
+ * Manages group chat invitations and membership lifecycle:
+ * - Inviting players to NPC group chats based on engagement
+ * - Removing players for inactivity, spam, or low quality
+ * - Tracking membership quality scores
+ *
+ * Invites based on:
+ * - Being followed by the NPC
+ * - High quality interactions
+ * - Consistent engagement
+ *
+ * Sweeps (removals) based on:
+ * - Inactivity (not posting for extended periods)
+ * - Over-posting (spam behavior)
+ * - Low quality (average quality below threshold)
+ */
+
+import {
+  and,
+  chatParticipants,
+  chats,
+  db,
+  desc,
+  eq,
+  followStatuses,
+  groupChatMemberships,
+  gte,
+  messages,
+  userInteractions,
+} from '@babylon/db';
+import { generateSnowflakeId, logger } from '@babylon/shared';
+import type { GroupChat } from '@babylon/shared';
+
+// =============================================================================
+// Types
+// =============================================================================
+
+/**
+ * Group chat data (without messages for list views)
+ */
+type GroupChatData = Omit<GroupChat, 'messages'> & {
+  messageCount?: number;
+};
+
+/**
+ * Invite chance calculation result
+ */
+export interface InviteChance {
+  willInvite: boolean;
+  probability: number;
+  chatId?: string;
+  chatName?: string;
+  isOwned: boolean;
+  reasons: string[];
+}
+
+/**
+ * Sweep decision for a user in a chat
+ */
+export interface SweepDecision {
+  kickChance: number;
+  reason?: string;
+  stats: {
+    hoursSinceLastMessage: number;
+    messagesLast24h: number;
+    averageQuality: number;
+    totalMessages: number;
+  };
+}
+
+// =============================================================================
+// Group Chat Service
+// =============================================================================
+
+export class GroupChatService {
+  // ---------------------------------------------------------------------------
+  // Invite Constants
+  // ---------------------------------------------------------------------------
+  private static readonly MIN_FOLLOW_DURATION_HOURS = 24;
+  private static readonly MIN_QUALITY_SCORE = 0.75;
+  private static readonly MIN_REPLIES_SINCE_FOLLOW = 5;
+  private static readonly BASE_INVITE_PROBABILITY = 0.1;
+  private static readonly MAX_INVITE_PROBABILITY = 0.6;
+  private static readonly OWNED_CHAT_WEIGHT = 0.7;
+  private static readonly MEMBER_CHAT_WEIGHT = 0.3;
+
+  // ---------------------------------------------------------------------------
+  // Sweep Constants
+  // ---------------------------------------------------------------------------
+  private static readonly BASE_KICK_PROBABILITY = 0.00007;
+  private static readonly INACTIVITY_GRACE_PERIOD_TICKS = 1440; // 1 day
+  private static readonly INACTIVITY_MAX_TICKS = 7200; // 5 days
+  private static readonly ACTIVITY_SWEET_SPOT_MIN = 1;
+  private static readonly ACTIVITY_SWEET_SPOT_MAX = 3;
+  private static readonly ACTIVITY_HARD_CAP = 10;
+
+  // ---------------------------------------------------------------------------
+  // Invite Methods
+  // ---------------------------------------------------------------------------
+
+  private static calculateChatTypeWeight(isOwned: boolean): number {
+    return isOwned
+      ? GroupChatService.OWNED_CHAT_WEIGHT
+      : GroupChatService.MEMBER_CHAT_WEIGHT;
+  }
+
+  private static calculateInviteProbability(
+    baseProb: number,
+    isOwned: boolean
+  ): number {
+    const weight = GroupChatService.calculateChatTypeWeight(isOwned);
+    return Math.min(baseProb * weight, GroupChatService.MAX_INVITE_PROBABILITY);
+  }
+
+  /**
+   * Calculate if player should be invited to a group chat
+   */
+  static async calculateInviteChance(
+    userId: string,
+    npcId: string
+  ): Promise<InviteChance> {
+    // Must be followed first
+    const [followStatus] = await db
+      .select()
+      .from(followStatuses)
+      .where(
+        and(eq(followStatuses.userId, userId), eq(followStatuses.npcId, npcId))
+      )
+      .limit(1);
+
+    if (!followStatus || !followStatus.isActive) {
+      return {
+        willInvite: false,
+        probability: 0,
+        isOwned: false,
+        reasons: ['Must be followed by NPC first'],
+      };
+    }
+
+    // Check follow duration
+    const hoursSinceFollow =
+      (Date.now() - followStatus.followedAt.getTime()) / (1000 * 60 * 60);
+
+    if (hoursSinceFollow < GroupChatService.MIN_FOLLOW_DURATION_HOURS) {
+      return {
+        willInvite: false,
+        probability: 0,
+        isOwned: false,
+        reasons: [
+          `Need ${Math.ceil(GroupChatService.MIN_FOLLOW_DURATION_HOURS - hoursSinceFollow)} more hours of being followed`,
+        ],
+      };
+    }
+
+    // Check if already in a chat with this NPC
+    const [existingMembership] = await db
+      .select()
+      .from(groupChatMemberships)
+      .where(
+        and(
+          eq(groupChatMemberships.userId, userId),
+          eq(groupChatMemberships.npcAdminId, npcId),
+          eq(groupChatMemberships.isActive, true)
+        )
+      )
+      .limit(1);
+
+    if (existingMembership) {
+      return {
+        willInvite: false,
+        probability: 0,
+        isOwned: false,
+        reasons: ['Already in a group chat with this NPC'],
+      };
+    }
+
+    // Get interactions since follow
+    const interactionsSinceFollow = await db
+      .select()
+      .from(userInteractions)
+      .where(
+        and(
+          eq(userInteractions.userId, userId),
+          eq(userInteractions.npcId, npcId),
+          gte(userInteractions.timestamp, followStatus.followedAt)
+        )
+      );
+
+    if (
+      interactionsSinceFollow.length < GroupChatService.MIN_REPLIES_SINCE_FOLLOW
+    ) {
+      return {
+        willInvite: false,
+        probability: 0,
+        isOwned: false,
+        reasons: [
+          `Need ${GroupChatService.MIN_REPLIES_SINCE_FOLLOW - interactionsSinceFollow.length} more quality replies since being followed`,
+        ],
+      };
+    }
+
+    // Calculate average quality since follow
+    const avgQuality =
+      interactionsSinceFollow.reduce((sum, i) => sum + i.qualityScore, 0) /
+      interactionsSinceFollow.length;
+
+    if (avgQuality < GroupChatService.MIN_QUALITY_SCORE) {
+      return {
+        willInvite: false,
+        probability: 0,
+        isOwned: false,
+        reasons: [
+          `Quality score ${(avgQuality * 100).toFixed(0)}% is below ${(GroupChatService.MIN_QUALITY_SCORE * 100).toFixed(0)}% threshold`,
+        ],
+      };
+    }
+
+    // Get available chats
+    const ownedChatId = `${npcId}-owned-chat`;
+    const ownedChatName = `${npcId}'s Inner Circle`;
+
+    // Determine which chat type
+    const isOwned = Math.random() < GroupChatService.OWNED_CHAT_WEIGHT;
+
+    // Calculate probability based on quality and engagement
+    const qualityFactor = avgQuality / GroupChatService.MIN_QUALITY_SCORE;
+    const engagementFactor = Math.min(
+      interactionsSinceFollow.length / GroupChatService.MIN_REPLIES_SINCE_FOLLOW,
+      1.5
+    );
+
+    const baseProbability =
+      GroupChatService.BASE_INVITE_PROBABILITY +
+      (GroupChatService.MAX_INVITE_PROBABILITY -
+        GroupChatService.BASE_INVITE_PROBABILITY) *
+        (qualityFactor * 0.6 + engagementFactor * 0.4);
+
+    const probability = GroupChatService.calculateInviteProbability(
+      baseProbability,
+      isOwned
+    );
+
+    const willInvite = Math.random() < probability;
+
+    return {
+      willInvite,
+      probability,
+      chatId: ownedChatId,
+      chatName: ownedChatName,
+      isOwned,
+      reasons: [
+        `High quality: ${(avgQuality * 100).toFixed(0)}%`,
+        `${interactionsSinceFollow.length} quality replies since follow`,
+        `${isOwned ? 'Invited to owned chat' : 'Invited to member chat'}`,
+      ],
+    };
+  }
+
+  /**
+   * Record a group chat invite
+   */
+  static async recordInvite(
+    userId: string,
+    npcId: string,
+    chatId: string,
+    chatName: string
+  ): Promise<void> {
+    // Check if chat exists
+    const [existingChat] = await db
+      .select()
+      .from(chats)
+      .where(eq(chats.id, chatId))
+      .limit(1);
+
+    if (!existingChat) {
+      await db.insert(chats).values({
+        id: chatId,
+        name: chatName,
+        isGroup: true,
+        gameId: 'realtime',
+        updatedAt: new Date(),
+      });
+    }
+
+    // Check if participant exists
+    const [existingParticipant] = await db
+      .select()
+      .from(chatParticipants)
+      .where(
+        and(
+          eq(chatParticipants.chatId, chatId),
+          eq(chatParticipants.userId, userId)
+        )
+      )
+      .limit(1);
+
+    if (!existingParticipant) {
+      await db.insert(chatParticipants).values({
+        id: await generateSnowflakeId(),
+        chatId,
+        userId,
+      });
+    }
+
+    // Record membership
+    await db.insert(groupChatMemberships).values({
+      id: await generateSnowflakeId(),
+      userId,
+      chatId,
+      npcAdminId: npcId,
+    });
+
+    // Mark interaction as leading to invite
+    await db
+      .update(userInteractions)
+      .set({ wasInvitedToChat: true })
+      .where(
+        and(
+          eq(userInteractions.userId, userId),
+          eq(userInteractions.npcId, npcId)
+        )
+      );
+
+    // Send notification to user about the invite
+    try {
+      const { notifyGroupChatInvite } = await import('@babylon/api');
+      await notifyGroupChatInvite(userId, npcId, chatId, chatName);
+    } catch (error) {
+      logger.debug(
+        'Group chat invite notification skipped (API layer handles notifications)',
+        { userId, npcId, chatId, error },
+        'GroupChatService'
+      );
+    }
+  }
+
+  /**
+   * Get all group chats a user is in
+   */
+  static async getUserGroupChats(userId: string): Promise<GroupChatData[]> {
+    const memberships = await db
+      .select()
+      .from(groupChatMemberships)
+      .where(
+        and(
+          eq(groupChatMemberships.userId, userId),
+          eq(groupChatMemberships.isActive, true)
+        )
+      )
+      .orderBy(groupChatMemberships.joinedAt);
+
+    return memberships.map((m) => ({
+      id: m.chatId,
+      name: `${m.npcAdminId}'s Chat`,
+      admin: m.npcAdminId,
+      members: [userId],
+      theme: 'default',
+      messageCount: 0,
+    }));
+  }
+
+  /**
+   * Check if user is in a specific chat
+   */
+  static async isInChat(userId: string, chatId: string): Promise<boolean> {
+    const [membership] = await db
+      .select()
+      .from(groupChatMemberships)
+      .where(
+        and(
+          eq(groupChatMemberships.userId, userId),
+          eq(groupChatMemberships.chatId, chatId)
+        )
+      )
+      .limit(1);
+
+    return membership?.isActive ?? false;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Sweep Methods
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Calculate the probability that a user should be removed from a group chat
+   */
+  static async calculateKickChance(
+    userId: string,
+    chatId: string
+  ): Promise<SweepDecision> {
+    const [membership] = await db
+      .select()
+      .from(groupChatMemberships)
+      .where(
+        and(
+          eq(groupChatMemberships.userId, userId),
+          eq(groupChatMemberships.chatId, chatId)
+        )
+      )
+      .limit(1);
+
+    const baseStats = {
+      hoursSinceLastMessage: 0,
+      messagesLast24h: 0,
+      averageQuality: 0,
+      totalMessages: 0,
+    };
+
+    if (!membership || !membership.isActive) {
+      return {
+        kickChance: 0,
+        reason: 'Not an active member',
+        stats: baseStats,
+      };
+    }
+
+    const allMessages = await db
+      .select()
+      .from(messages)
+      .where(and(eq(messages.chatId, chatId), eq(messages.senderId, userId)))
+      .orderBy(desc(messages.createdAt));
+
+    const totalMessages = allMessages.length;
+    const ticksSinceJoin =
+      (Date.now() - membership.joinedAt.getTime()) / (1000 * 60);
+
+    if (totalMessages === 0) {
+      if (ticksSinceJoin > GroupChatService.INACTIVITY_GRACE_PERIOD_TICKS) {
+        return {
+          kickChance: GroupChatService.BASE_KICK_PROBABILITY * 100,
+          reason: `Never posted after joining (${Math.floor(ticksSinceJoin / 60)} hours ago)`,
+          stats: { ...baseStats, hoursSinceLastMessage: ticksSinceJoin / 60 },
+        };
+      }
+      return {
+        kickChance: 0,
+        stats: { ...baseStats, hoursSinceLastMessage: ticksSinceJoin / 60 },
+      };
+    }
+
+    const lastMessage = allMessages[0];
+    if (!lastMessage) {
+      return {
+        kickChance: 0,
+        reason: 'No messages found',
+        stats: baseStats,
+      };
+    }
+
+    const ticksSinceLastMessage =
+      (Date.now() - lastMessage.createdAt.getTime()) / (1000 * 60);
+
+    let inactivityMultiplier = 1;
+    let reason = '';
+
+    if (ticksSinceLastMessage > GroupChatService.INACTIVITY_GRACE_PERIOD_TICKS) {
+      const excessTicks =
+        ticksSinceLastMessage - GroupChatService.INACTIVITY_GRACE_PERIOD_TICKS;
+      const range =
+        GroupChatService.INACTIVITY_MAX_TICKS -
+        GroupChatService.INACTIVITY_GRACE_PERIOD_TICKS;
+      inactivityMultiplier = 1 + Math.min(excessTicks / range, 1) * 9;
+      reason = `Inactive for ${Math.floor(ticksSinceLastMessage / 60)} hours`;
+    }
+
+    let overactivityMultiplier = 1;
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const messagesLast24h = allMessages.filter(
+      (m) => m.createdAt >= oneDayAgo
+    ).length;
+
+    if (messagesLast24h > GroupChatService.ACTIVITY_HARD_CAP) {
+      overactivityMultiplier = 20;
+      reason = `Spamming: ${messagesLast24h} messages in 24h`;
+    } else if (messagesLast24h > GroupChatService.ACTIVITY_SWEET_SPOT_MAX) {
+      const excess = messagesLast24h - GroupChatService.ACTIVITY_SWEET_SPOT_MAX;
+      const range =
+        GroupChatService.ACTIVITY_HARD_CAP -
+        GroupChatService.ACTIVITY_SWEET_SPOT_MAX;
+      overactivityMultiplier = 2 + (excess / range) * 3;
+      reason = `Over-active: ${messagesLast24h} messages in 24h`;
+    } else if (messagesLast24h < GroupChatService.ACTIVITY_SWEET_SPOT_MIN) {
+      overactivityMultiplier = 3;
+      reason = `Low participation: ${messagesLast24h} messages in 24h`;
+    }
+
+    const finalMultiplier = Math.max(inactivityMultiplier, overactivityMultiplier);
+    const kickChance = Math.min(
+      1,
+      GroupChatService.BASE_KICK_PROBABILITY * finalMultiplier
+    );
+
+    return {
+      kickChance,
+      reason: kickChance > GroupChatService.BASE_KICK_PROBABILITY ? reason : undefined,
+      stats: {
+        hoursSinceLastMessage: ticksSinceLastMessage / 60,
+        messagesLast24h,
+        averageQuality: membership.qualityScore,
+        totalMessages,
+      },
+    };
+  }
+
+  /**
+   * Remove a user from a group chat
+   */
+  static async removeFromChat(
+    userId: string,
+    chatId: string,
+    reason: string
+  ): Promise<void> {
+    await db
+      .update(groupChatMemberships)
+      .set({
+        isActive: false,
+        sweepReason: reason,
+        removedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(groupChatMemberships.userId, userId),
+          eq(groupChatMemberships.chatId, chatId),
+          eq(groupChatMemberships.isActive, true)
+        )
+      );
+  }
+
+  /**
+   * Run sweep on all members of a chat
+   */
+  static async sweepChat(chatId: string): Promise<{
+    checked: number;
+    removed: number;
+    reasons: Record<string, number>;
+  }> {
+    const memberships = await db
+      .select()
+      .from(groupChatMemberships)
+      .where(
+        and(
+          eq(groupChatMemberships.chatId, chatId),
+          eq(groupChatMemberships.isActive, true)
+        )
+      );
+
+    let removed = 0;
+    const reasons: Record<string, number> = {};
+
+    for (const membership of memberships) {
+      const decision = await GroupChatService.calculateKickChance(
+        membership.userId,
+        chatId
+      );
+
+      if (Math.random() < decision.kickChance && decision.reason) {
+        await GroupChatService.removeFromChat(
+          membership.userId,
+          chatId,
+          decision.reason
+        );
+        removed++;
+
+        const genericReason = decision.reason.split(':')[0] || 'Unknown';
+        reasons[genericReason] = (reasons[genericReason] || 0) + 1;
+      }
+    }
+
+    return { checked: memberships.length, removed, reasons };
+  }
+
+  /**
+   * Run sweep on all group chats
+   */
+  static async sweepAllChats(): Promise<{
+    chatsChecked: number;
+    totalRemoved: number;
+    reasonsSummary: Record<string, number>;
+  }> {
+    const groupChats = await db
+      .select({ id: chats.id })
+      .from(chats)
+      .where(eq(chats.isGroup, true));
+
+    let totalRemoved = 0;
+    const reasonsSummary: Record<string, number> = {};
+
+    for (const chat of groupChats) {
+      const result = await GroupChatService.sweepChat(chat.id);
+      totalRemoved += result.removed;
+
+      for (const [reason, count] of Object.entries(result.reasons)) {
+        reasonsSummary[reason] = (reasonsSummary[reason] || 0) + count;
+      }
+    }
+
+    return { chatsChecked: groupChats.length, totalRemoved, reasonsSummary };
+  }
+
+  /**
+   * Update user's quality score in chat
+   */
+  static async updateQualityScore(
+    userId: string,
+    chatId: string,
+    newMessageQuality: number
+  ): Promise<void> {
+    const [membership] = await db
+      .select()
+      .from(groupChatMemberships)
+      .where(
+        and(
+          eq(groupChatMemberships.userId, userId),
+          eq(groupChatMemberships.chatId, chatId)
+        )
+      )
+      .limit(1);
+
+    if (!membership) return;
+
+    const totalMessages = membership.messageCount + 1;
+    const newAvgQuality =
+      (membership.qualityScore * membership.messageCount + newMessageQuality) /
+      totalMessages;
+
+    await db
+      .update(groupChatMemberships)
+      .set({
+        messageCount: totalMessages,
+        qualityScore: newAvgQuality,
+        lastMessageAt: new Date(),
+      })
+      .where(
+        and(
+          eq(groupChatMemberships.userId, userId),
+          eq(groupChatMemberships.chatId, chatId)
+        )
+      );
+  }
+}
+
+

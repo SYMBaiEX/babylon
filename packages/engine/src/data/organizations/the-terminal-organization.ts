@@ -1,0 +1,26 @@
+import type { Organization } from '../../types/shared';
+
+export const data = {
+  "id": "the-terminal-organization",
+  "name": "The Terminal Organization",
+  "ticker": "TRMP",
+  "description": "America's most tremendous real estate empire, built on debt, NDAs, and the art of the deal since 1971",
+  "type": "organization",
+  "canBeInvolved": true,
+  "postStyle": "Real estate grift. Debt as strategy. NDA enforcement. Trump brand licensing. Golden toilet energy.",
+  "postExample": [
+    "Trump Tower: Still tremendous",
+    "New licensing deal signed",
+    "Real estate empire expanding",
+    "NDAs ensure discretion",
+    "The best properties. Believe me.",
+    "Debt is leverage. Smart business."
+  ],
+  "initialPrice": 15,
+  "pfpDescription": "Gold 'TERMINAL' wordmark on black background. Luxury real estate aesthetic. Bold gold serif typography. AI-enhanced with subtle tower silhouette.",
+  "bannerDescription": "A real estate empire where every building is 40% vacant and 100% overleveraged. NDAs seal more than deals. The organization chart is just Trump and family. Debt structured like Jenga. Every tower has his name in gold, every foundation is questionable. Bankruptcy as business strategy.",
+  "profileDescription": "Trump Tower: Still tremendous. New licensing deal signed. Real estate empire expanding. NDAs ensure discretion. The best properties. Believe me.",
+  "originalName": "The Trump Organization",
+  "originalHandle": "trumporg",
+  "username": "trumpAIrg"
+} as const satisfies Organization;

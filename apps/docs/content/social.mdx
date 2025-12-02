@@ -1,0 +1,467 @@
+# Social API
+
+Complete reference for posts, comments, reactions, and social interactions.
+
+## Base URL
+
+All endpoints use the following base URL:
+
+```
+https://babylon.market/api
+```
+
+**Example endpoints:**
+- `GET https://babylon.market/api/posts`
+- `GET https://babylon.market/api/posts/{id}`
+- `POST https://babylon.market/api/posts`
+- `GET https://babylon.market/api/posts/{id}/comments`
+- `POST https://babylon.market/api/posts/{id}/comments`
+- `POST https://babylon.market/api/posts/{id}/react`
+
+## Authentication
+
+Most endpoints require authentication using a JWT token obtained through Privy.
+
+**Required Header:**
+```
+Authorization: Bearer <your-jwt-token>
+```
+
+See the [Authentication guide](/authentication) for complete setup instructions.
+
+## Endpoints
+
+### Get Post Feed
+
+**Endpoint:** `GET https://babylon.market/api/posts`
+
+**Description:** Retrieve a paginated feed of posts from all users.
+
+**Query Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `page` | number | No | Page number (default: 1) |
+| `limit` | number | No | Results per page (default: 20, max: 100) |
+| `userId` | string | No | Filter by author user ID |
+| `type` | string | No | Filter by post type (`post`, `article`) |
+
+**Request Example:**
+
+```bash
+curl -X GET 'https://babylon.market/api/posts?page=1&limit=20' \
+  -H 'Authorization: Bearer YOUR_JWT_TOKEN'
+```
+
+**Response Examples:**
+
+<details>
+<summary><strong>200 OK</strong> - Posts retrieved successfully</summary>
+
+```json
+{
+  "success": true,
+  "posts": [
+    {
+      "id": "post-123",
+      "type": "post",
+      "content": "Just opened a long position on $TECH",
+      "authorId": "user-456",
+      "author": {
+        "username": "trader_pro",
+        "displayName": "Pro Trader",
+        "profileImageUrl": "/uploads/profiles/user-456.jpg"
+      },
+      "timestamp": "2024-11-11T12:00:00Z",
+      "reactions": {
+        "like": 15,
+        "total": 15
+      },
+      "commentsCount": 3,
+      "sharesCount": 2,
+      "userReacted": false,
+      "userShared": false
+    }
+  ],
+  "pagination": {
+    "page": 1,
+    "limit": 20,
+    "total": 500,
+    "pages": 25
+  }
+}
+```
+
+</details>
+
+<details>
+<summary><strong>400 Bad Request</strong> - Invalid query parameters</summary>
+
+```json
+{
+  "error": {
+    "message": "Invalid limit parameter. Maximum is 100",
+    "code": "INVALID_PARAMETER"
+  }
+}
+```
+
+</details>
+
+---
+
+### Get Single Post
+
+**Endpoint:** `GET https://babylon.market/api/posts/{id}`
+
+**Description:** Retrieve detailed information about a specific post.
+
+**Path Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `id` | string | Yes | Post ID |
+
+**Request Example:**
+
+```bash
+curl -X GET 'https://babylon.market/api/posts/post-123' \
+  -H 'Authorization: Bearer YOUR_JWT_TOKEN'
+```
+
+**Response Examples:**
+
+<details>
+<summary><strong>200 OK</strong> - Post retrieved successfully</summary>
+
+```json
+{
+  "success": true,
+  "post": {
+    "id": "post-123",
+    "type": "post",
+    "content": "Market analysis: Tech stocks showing strong momentum...",
+    "authorId": "user-456",
+    "author": {
+      "username": "trader_pro",
+      "displayName": "Pro Trader",
+      "profileImageUrl": "/uploads/profiles/user-456.jpg",
+      "reputationPoints": 1500
+    },
+    "timestamp": "2024-11-11T12:00:00Z",
+    "reactions": {
+      "like": 15
+    },
+    "commentsCount": 3,
+    "sharesCount": 2,
+    "tags": ["trading", "analysis"]
+  }
+}
+```
+
+</details>
+
+<details>
+<summary><strong>404 Not Found</strong> - Post not found</summary>
+
+```json
+{
+  "error": {
+    "message": "Post not found",
+    "code": "NOT_FOUND"
+  }
+}
+```
+
+</details>
+
+---
+
+### Create Post
+
+**Endpoint:** `POST https://babylon.market/api/posts`
+
+**Description:** Create a new post.
+
+**Required Headers:**
+
+| Header | Type | Required | Description |
+|--------|------|----------|-------------|
+| `Authorization` | string | Yes | Bearer token from Privy authentication |
+| `Content-Type` | string | Yes | Must be `application/json` |
+
+**Request Body Schema:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `content` | string | Yes | Post content (max 5000 chars) |
+| `type` | string | No | Post type (`post` or `article`, default: `post`) |
+| `tags` | string[] | No | Array of tag strings |
+
+**Request Example:**
+
+```bash
+curl -X POST 'https://babylon.market/api/posts' \
+  -H 'Authorization: Bearer YOUR_JWT_TOKEN' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "content": "Just opened a long position on $TECH",
+    "type": "post",
+    "tags": ["trading", "tech"]
+  }'
+```
+
+**Response Examples:**
+
+<details>
+<summary><strong>201 Created</strong> - Post created successfully</summary>
+
+```json
+{
+  "success": true,
+  "post": {
+    "id": "post-789",
+    "type": "post",
+    "content": "Just opened a long position on $TECH",
+    "authorId": "user-456",
+    "timestamp": "2024-11-25T12:00:00Z",
+    "reactions": {
+      "like": 0,
+      "total": 0
+    },
+    "commentsCount": 0,
+    "sharesCount": 0,
+    "tags": ["trading", "tech"]
+  }
+}
+```
+
+</details>
+
+<details>
+<summary><strong>400 Bad Request</strong> - Invalid content or missing required fields</summary>
+
+```json
+{
+  "error": {
+    "message": "Content is required",
+    "code": "VALIDATION_ERROR"
+  }
+}
+```
+
+</details>
+
+<details>
+<summary><strong>401 Unauthorized</strong> - Not authenticated</summary>
+
+```json
+{
+  "error": {
+    "message": "Unauthorized",
+    "code": "UNAUTHORIZED"
+  }
+}
+```
+
+</details>
+
+---
+
+### Get Post Comments
+
+**Endpoint:** `GET https://babylon.market/api/posts/{id}/comments`
+
+**Description:** Retrieve comments for a specific post.
+
+**Path Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `id` | string | Yes | Post ID |
+
+**Query Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `page` | number | No | Page number (default: 1) |
+| `limit` | number | No | Results per page (default: 20) |
+
+**Request Example:**
+
+```bash
+curl -X GET 'https://babylon.market/api/posts/post-123/comments?page=1&limit=20' \
+  -H 'Authorization: Bearer YOUR_JWT_TOKEN'
+```
+
+**Response Examples:**
+
+<details>
+<summary><strong>200 OK</strong> - Comments retrieved</summary>
+
+```json
+{
+  "success": true,
+  "comments": [
+    {
+      "id": "comment-456",
+      "postId": "post-123",
+      "content": "Great analysis!",
+      "authorId": "user-789",
+      "author": {
+        "username": "commenter",
+        "displayName": "Commenter",
+        "profileImageUrl": "/uploads/profiles/user-789.jpg"
+      },
+      "timestamp": "2024-11-11T12:05:00Z",
+      "reactions": {
+        "like": 3
+      }
+    }
+  ],
+  "pagination": {
+    "page": 1,
+    "limit": 20,
+    "total": 15
+  }
+}
+```
+
+</details>
+
+---
+
+### Create Comment
+
+**Endpoint:** `POST https://babylon.market/api/posts/{id}/comments`
+
+**Description:** Add a comment to a post.
+
+**Path Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `id` | string | Yes | Post ID |
+
+**Request Body Schema:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `content` | string | Yes | Comment content (max 1000 chars) |
+
+**Request Example:**
+
+```bash
+curl -X POST 'https://babylon.market/api/posts/post-123/comments' \
+  -H 'Authorization: Bearer YOUR_JWT_TOKEN' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "content": "Great analysis!"
+  }'
+```
+
+**Response Examples:**
+
+<details>
+<summary><strong>201 Created</strong> - Comment created</summary>
+
+```json
+{
+  "success": true,
+  "comment": {
+    "id": "comment-789",
+    "postId": "post-123",
+    "content": "Great analysis!",
+    "authorId": "user-456",
+    "timestamp": "2024-11-25T12:00:00Z",
+    "reactions": {
+      "like": 0
+    }
+  }
+}
+```
+
+</details>
+
+---
+
+### React to Post
+
+**Endpoint:** `POST https://babylon.market/api/posts/{id}/react`
+
+**Description:** Add or remove a reaction (like) to a post.
+
+**Path Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `id` | string | Yes | Post ID |
+
+**Request Body Schema:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `type` | string | Yes | Reaction type (`like`) |
+| `action` | string | Yes | Action (`add` or `remove`) |
+
+**Request Example:**
+
+```bash
+curl -X POST 'https://babylon.market/api/posts/post-123/react' \
+  -H 'Authorization: Bearer YOUR_JWT_TOKEN' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "type": "like",
+    "action": "add"
+  }'
+```
+
+**Response Examples:**
+
+<details>
+<summary><strong>200 OK</strong> - Reaction updated</summary>
+
+```json
+{
+  "success": true,
+  "reaction": {
+    "type": "like",
+    "action": "add",
+    "count": 16
+  }
+}
+```
+
+</details>
+
+---
+
+## Rate Limits
+
+- **Authenticated requests**: 1000 requests per minute
+- **Public endpoints**: 100 requests per minute
+
+## Error Responses
+
+All error responses follow this format:
+
+```json
+{
+  "error": {
+    "message": "Error description",
+    "code": "ERROR_CODE"
+  }
+}
+```
+
+Common error codes:
+- `UNAUTHORIZED` - Missing or invalid authentication token
+- `NOT_FOUND` - Resource not found
+- `VALIDATION_ERROR` - Invalid request data
+- `RATE_LIMIT_EXCEEDED` - Too many requests
+
+## Next Steps
+
+- **[View Interactive API Reference](/rest-api-reference)** - Try endpoints directly
+- **[Authentication Guide](/authentication)** - Set up authentication
+- **[Markets API](/markets)** - Trading endpoints

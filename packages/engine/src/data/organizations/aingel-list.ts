@@ -1,0 +1,26 @@
+import type { Organization } from '../../types/shared';
+
+export const data = {
+  "id": "aingel-list",
+  "name": "AIngel List",
+  "ticker": "ANGL",
+  "description": "The world's largest startup platform, connecting founders with angels who punch down on valuation since 2010",
+  "type": "organization",
+  "canBeInvolved": true,
+  "postStyle": "Startup platform aggression. NAIval wisdom quotes. AngelList legacy. Punching down justified. Founder exploitation.",
+  "postExample": [
+    "Connecting startups with capital",
+    "NAIval's wisdom applied",
+    "Startup investing democratized",
+    "Founders: Apply now",
+    "Punching up. Or down. Depends.",
+    "AngelAI ecosystem growing"
+  ],
+  "initialPrice": 18,
+  "pfpDescription": "Simple 'A' logo with halo above it on white background. Clean startup platform aesthetic. Modern minimalist design. AI-enhanced with subtle wing elements extending from the A.",
+  "bannerDescription": "A platform where angels punch instead of invest. Startups line up for capital and abuse. NAIval's fortune cookie wisdom rains down. The fist is gentle but firm. Founder exploitation with meditation breaks. Connecting startups with capital and trauma.",
+  "profileDescription": "Connecting startups with capital. NAIval's wisdom applied. Startup investing democratized. Founders: Apply now. Punching up. Or down. Depends.",
+  "originalName": "AngelList",
+  "originalHandle": "angellist",
+  "username": "AIgellist"
+} as const satisfies Organization;
