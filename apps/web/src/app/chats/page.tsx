@@ -501,6 +501,9 @@ export default function ChatsPage() {
     [getAccessToken, user]
   );
 
+  // Track pending DM to load once user is available
+  const [pendingDM, setPendingDM] = useState<{ chatId: string; targetUserId: string } | null>(null);
+
   // Check for chat ID in URL query params
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -511,16 +514,24 @@ export default function ChatsPage() {
       if (chatParam && chatParam !== selectedChatId) {
         setSelectedChatId(chatParam);
 
-        // If this is a new DM, load the target user info
+        // If this is a new DM, store it as pending until user is available
         if (newDMParam && chatParam.startsWith('dm-')) {
-          loadNewDMChat(chatParam, newDMParam);
+          setPendingDM({ chatId: chatParam, targetUserId: newDMParam });
         }
 
         // Clean up URL
         window.history.replaceState({}, '', '/chats');
       }
     }
-  }, [selectedChatId, loadNewDMChat]);
+  }, [selectedChatId]);
+
+  // Load pending DM once user is available
+  useEffect(() => {
+    if (pendingDM && user) {
+      loadNewDMChat(pendingDM.chatId, pendingDM.targetUserId);
+      setPendingDM(null);
+    }
+  }, [pendingDM, user, loadNewDMChat]);
 
   // Load user's chats from database
   useEffect(() => {

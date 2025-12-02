@@ -208,7 +208,7 @@ async function runMigrations(): Promise<void> {
     // The --force flag auto-accepts all changes without confirmation
     // Explicitly set DATABASE_URL to local for the subprocess
     // Using yes | ... as a fallback for any remaining prompts
-    const result = await $`yes | DATABASE_URL=${LOCAL_DATABASE_URL} bunx drizzle-kit push --force`.nothrow()
+    const result = await $`yes | DATABASE_URL=${LOCAL_DATABASE_URL} bunx drizzle-kit push --config packages/db/drizzle.config.ts --force`.nothrow()
     if (result.exitCode !== 0 && result.exitCode !== 141) {
       // Exit code 141 is SIGPIPE from yes being closed, which is expected
       throw new Error(`drizzle-kit push failed with exit code ${result.exitCode}`)

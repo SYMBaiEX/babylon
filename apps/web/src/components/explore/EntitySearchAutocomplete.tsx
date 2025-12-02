@@ -147,7 +147,7 @@ export function EntitySearchAutocomplete({
 
     const timer = setTimeout(fetchSuggestions, 250);
     return () => clearTimeout(timer);
-  }, [value]);
+  }, [value, searchType]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {

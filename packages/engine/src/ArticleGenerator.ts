@@ -510,6 +510,44 @@ export class ArticleGenerator {
     const summary = extractString(articleData.summary);
     const content = extractString(articleData.content);
 
+    // Validate extracted content meets minimum requirements
+    if (!title || title.trim().length === 0) {
+      logger.error(
+        'Article generation failed: empty title',
+        { eventId: event.id, organizationId: organization.id },
+        'ArticleGenerator'
+      );
+      throw new Error(
+        `Generated article has empty title for event ${event.id} by ${organization.name}`
+      );
+    }
+    if (!summary || summary.trim().length === 0) {
+      logger.error(
+        'Article generation failed: empty summary',
+        { eventId: event.id, organizationId: organization.id },
+        'ArticleGenerator'
+      );
+      throw new Error(
+        `Generated article has empty summary for event ${event.id} by ${organization.name}`
+      );
+    }
+    // Content should be a full article (800-1500 words = ~4000-7500 chars)
+    // Minimum 500 chars to ensure it's not just a summary
+    if (!content || content.trim().length < 500) {
+      logger.error(
+        'Article generation failed: content too short',
+        {
+          eventId: event.id,
+          organizationId: organization.id,
+          contentLength: content?.length || 0,
+        },
+        'ArticleGenerator'
+      );
+      throw new Error(
+        `Generated article content too short (${content?.length || 0} chars, min 500) for event ${event.id} by ${organization.name}`
+      );
+    }
+
     // Handle tags (could be array or {tag: [...]} from XML)
     let tagsArray: string[];
     if (Array.isArray(articleData.tags)) {
