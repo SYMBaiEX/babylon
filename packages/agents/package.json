@@ -33,6 +33,8 @@
     "@babylon/shared": "workspace:*",
     "@babylon/training": "workspace:*",
     "@elizaos/core": "^1.6.4",
+    "@elizaos/plugin-anthropic": "^1.5.12",
+    "@elizaos/plugin-openai": "^1.5.18",
     "@huggingface/hub": "^2.6.12",
     "@privy-io/server-auth": "^1.32.5",
     "agent0-sdk": "^0.31.0",
