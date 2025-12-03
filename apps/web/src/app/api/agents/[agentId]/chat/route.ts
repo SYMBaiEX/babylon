@@ -238,7 +238,7 @@ export const POST = withErrorHandling(
     const modelType = ModelType.TEXT_LARGE;
     const MAX_TOKENS = 300;
 
-    const prompt = `CRITICAL: You have only ${MAX_TOKENS} tokens. Your response MUST start with <response> immediately. No <think> tags. No reasoning before.
+    const prompt = `CRITICAL: You have only ${MAX_TOKENS} tokens. Your response MUST start with <response> immediately. No <think> tags. No reasoning.
 
 # System
 ${agent.agentSystem}
@@ -247,15 +247,12 @@ ${agent.agentSystem}
 ${conversationHistory}
 
 # Task
-Generate ${agent.displayName}'s response. Stay in character.
+Generate ${agent.displayName}'s response. Stay in character. 1-3 sentences.
 
-# Required Output Format (use exactly this structure)
+# Required Output Format
 <response>
-<thought>one line reasoning</thought>
 <text>your message to user</text>
-</response>
-
-Your response starts NOW with <response>:`;
+</response>`;
 
     // Generate response with retry loop (max 3 attempts)
     const MAX_ATTEMPTS = 3;
@@ -282,7 +279,7 @@ Your response starts NOW with <response>:`;
         }
 
         // Parse the extracted XML response
-        const parsed = parseKeyValueXml(responseMatch[0]) as { thought?: string; text?: string } | null;
+        const parsed = parseKeyValueXml(responseMatch[0]) as { text?: string } | null;
 
         // Check if we got valid text
         if (!parsed?.text || parsed.text.trim().length === 0) {
