@@ -327,8 +327,11 @@ Generate ${agent.displayName}'s response. Stay in character.
     }
 
     // Success: save both messages now
+    // Use explicit timestamps to ensure correct ordering (user message before assistant)
     const userMessageId = uuidv4();
     const assistantMessageId = uuidv4();
+    const userMessageTime = new Date();
+    const assistantMessageTime = new Date(userMessageTime.getTime() + 1); // 1ms later
 
     await db.agentMessage.createMany({
       data: [
@@ -339,6 +342,7 @@ Generate ${agent.displayName}'s response. Stay in character.
           content: message,
           pointsCost: 0,
           metadata: {},
+          createdAt: userMessageTime,
         },
         {
           id: assistantMessageId,
@@ -347,6 +351,7 @@ Generate ${agent.displayName}'s response. Stay in character.
           content: response,
           modelUsed: usePro ? 'groq-70b' : 'groq-8b',
           pointsCost,
+          createdAt: assistantMessageTime,
           metadata: {},
         },
       ],
