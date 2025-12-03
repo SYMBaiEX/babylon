@@ -247,7 +247,7 @@ ${agent.agentSystem}
 ${conversationHistory}
 
 # Task
-Generate ${agent.displayName}'s response. Stay in character. 1-3 sentences.
+Generate ${agent.displayName}'s response. Stay in character.
 
 # Required Output Format (use exactly this structure)
 <response>
