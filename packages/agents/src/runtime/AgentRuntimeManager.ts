@@ -38,6 +38,8 @@ import {
   wrapPluginProviders,
 } from '../plugins/plugin-trajectory-logger/src/action-interceptor';
 import { TrajectoryLoggerService } from '../plugins/plugin-trajectory-logger/src/TrajectoryLoggerService';
+import { openaiPlugin } from '@elizaos/plugin-openai';
+import { anthropicPlugin } from '@elizaos/plugin-anthropic';
 
 /**
  * Extended AgentRuntime with Babylon-specific properties
@@ -260,9 +262,12 @@ export class AgentRuntimeManager {
     // Create runtime with groq, experience, and trajectory logger plugins
     // Type cast plugins to ensure compatibility across different @elizaos/core versions
     const plugins: Plugin[] = [
-      groqPlugin as Plugin,
       experiencePlugin as Plugin,
       trajectoryLoggerPlugin as Plugin,
+      // Conditionally add LLM plugins based on available API keys
+      ...(process.env.GROQ_API_KEY ? [groqPlugin as Plugin] : []),
+      ...(process.env.ANTHROPIC_API_KEY ? [anthropicPlugin as Plugin] : []),
+      ...(process.env.OPENAI_API_KEY ? [openaiPlugin as Plugin] : []),
     ];
 
     const runtimeConfig = {
@@ -535,9 +540,12 @@ export class AgentRuntimeManager {
 
     // Create runtime with standard plugins
     const plugins: Plugin[] = [
-      groqPlugin as Plugin,
       experiencePlugin as Plugin,
       trajectoryLoggerPlugin as Plugin,
+      // Conditionally add LLM plugins based on available API keys
+      ...(process.env.GROQ_API_KEY ? [groqPlugin as Plugin] : []),
+      ...(process.env.ANTHROPIC_API_KEY ? [anthropicPlugin as Plugin] : []),
+      ...(process.env.OPENAI_API_KEY ? [openaiPlugin as Plugin] : []),
     ];
 
     const runtimeConfig = {
