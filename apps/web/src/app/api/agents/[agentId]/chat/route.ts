@@ -236,7 +236,7 @@ export const POST = withErrorHandling(
 
     // Always use qwen 32b (TEXT_LARGE) - free chat, 1pt per tick
     const modelType = ModelType.TEXT_LARGE;
-    const MAX_TOKENS = 300;
+    const MAX_TOKENS = 200;
 
     const prompt = `CRITICAL: You have only ${MAX_TOKENS} tokens. Your response MUST start with <response> immediately. No <think> tags. No reasoning.
 
@@ -262,7 +262,7 @@ Generate ${agent.displayName}'s response. Stay in character.
       try {
         const isRetry = attempt > 1;
         const currentPrompt = isRetry
-          ? `${prompt}\n\nREMINDER: You MUST output valid XML. Start with <response> and include <text> with your message.`
+          ? `${prompt}\n\nIMPORTANT: Keep your response professional, helpful, and appropriate. No profanity or inappropriate content.\n\nREMINDER: You MUST output valid XML. Start with <response> and include <text> with your message.`
           : prompt;
 
         const generated = await runtime.useModel(modelType, {
