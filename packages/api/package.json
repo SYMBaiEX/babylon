@@ -13,21 +13,21 @@
     "typecheck": "tsc -b ."
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.68.0",
-    "@aws-sdk/client-s3": "^3.928.0",
-    "@aws-sdk/lib-storage": "^3.928.0",
+    "@anthropic-ai/sdk": "^0.71.0",
+    "@aws-sdk/client-s3": "^3.943.0",
+    "@aws-sdk/lib-storage": "^3.943.0",
     "@babylon/contracts": "workspace:*",
     "@babylon/shared": "workspace:*",
     "@privy-io/server-auth": "^1.18.4",
     "@vercel/blob": "^2.0.0",
     "ioredis": "^5.6.1",
     "nanoid": "^5.1.6",
-    "viem": "^2.40.3"
+    "viem": "^2.41.2"
   },
   "peerDependencies": {
     "@babylon/db": "workspace:*",
     "@babylon/engine": "workspace:*",
-    "next": "^16.0.5"
+    "next": "^16.0.7"
   },
   "devDependencies": {
     "@types/node": "^24.10.0",
