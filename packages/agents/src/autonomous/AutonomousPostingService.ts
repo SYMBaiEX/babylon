@@ -65,7 +65,7 @@ export class AutonomousPostingService {
     const worldContext = await generateWorldContext({ maxActors: 20 });
 
     // Build prompt for post generation
-    const MAX_TOKENS = 100;
+    const MAX_TOKENS = 280;
     const prompt = `CRITICAL: You have only ${MAX_TOKENS} tokens. Your response MUST start with <response> immediately. No <think> tags. No reasoning.
 
 ${agent.agentSystem}
@@ -107,7 +107,7 @@ Topics you can post about (MUST reference specific entities):
 - Reactions to SPECIFIC recent trades or events (mention who/what)
 
 Keep it:
-- Short (under 280 characters)
+- Short (under ${MAX_TOKENS} tokens)
 - Authentic to your personality
 - Valuable to the community
 - SPECIFIC - reference actual entities from WORLD CONTEXT
