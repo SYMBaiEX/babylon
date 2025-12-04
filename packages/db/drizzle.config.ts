@@ -16,8 +16,8 @@ const databaseUrl = isLocalDev
   : (process.env.DIRECT_DATABASE_URL ?? process.env.DATABASE_URL ?? LOCAL_DATABASE_URL);
 
 export default defineConfig({
-  schema: './packages/db/src/schema/index.ts',
-  out: './packages/db/drizzle/migrations',
+  schema: './src/schema/index.ts',
+  out: './drizzle/migrations',
   dialect: 'postgresql',
   dbCredentials: {
     url: databaseUrl,

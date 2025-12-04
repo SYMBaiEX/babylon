@@ -100,3 +100,4 @@ _docs/
 migration-data/
 # Vendor docs (generated)
 docs/vendors/
+local_db.bak
