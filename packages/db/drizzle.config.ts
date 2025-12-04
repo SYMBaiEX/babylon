@@ -1,6 +1,10 @@
 import { defineConfig } from 'drizzle-kit';
+import { existsSync } from 'node:fs';
 import dotenv from 'dotenv';
-dotenv.config({ path: '../../.env' });
+
+// Load env from root .env file, trying both possible locations
+const rootEnvPath = existsSync('../../.env') ? '../../.env' : '.env';
+dotenv.config({ path: rootEnvPath });
 
 // Determine if we're in local development mode
 const isLocalDev = process.env.DEPLOYMENT_ENV === 'localnet' || 
@@ -15,9 +19,18 @@ const databaseUrl = isLocalDev
   ? (process.env.DATABASE_URL ?? LOCAL_DATABASE_URL)
   : (process.env.DIRECT_DATABASE_URL ?? process.env.DATABASE_URL ?? LOCAL_DATABASE_URL);
 
+// Detect if we're running from packages/db or from project root
+const isInPackageDir = existsSync('./src/schema/index.ts');
+const schemaPath = isInPackageDir 
+  ? './src/schema/index.ts'
+  : 'packages/db/src/schema/index.ts';
+const outPath = isInPackageDir
+  ? './drizzle/migrations'
+  : 'packages/db/drizzle/migrations';
+
 export default defineConfig({
-  schema: './src/schema/index.ts',
-  out: './drizzle/migrations',
+  schema: schemaPath,
+  out: outPath,
   dialect: 'postgresql',
   dbCredentials: {
     url: databaseUrl,
