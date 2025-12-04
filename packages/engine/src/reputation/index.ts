@@ -6,32 +6,32 @@
 
 // PNL Normalization utilities
 export {
-  normalizePnL,
-  denormalizePnL,
-  calculateWinRate,
   calculateAverageROI,
-  calculateSharpeRatio,
-  getTrustLevel,
   calculateConfidenceScore,
+  calculateSharpeRatio,
+  calculateWinRate,
+  denormalizePnL,
+  getTrustLevel,
+  normalizePnL,
 } from './pnl-normalizer';
 
 // Reputation Calculation Service
 export {
-  calculateReputationScore,
-  updateGameMetrics,
-  updateTradingMetrics,
-  updateFeedbackMetrics,
-  recalculateReputation,
-  getReputationBreakdown,
-  getReputationLeaderboard,
   calculateGameScore,
+  calculateReputationScore,
   calculateTradeScore,
+  type GameMetrics,
+  generateBatchGameFeedback,
   generateGameCompletionFeedback,
   generateTradeCompletionFeedback,
-  generateBatchGameFeedback,
+  getReputationBreakdown,
+  getReputationLeaderboard,
   type ReputationScoreBreakdown,
-  type GameMetrics,
+  recalculateReputation,
   type TradeMetrics,
+  updateFeedbackMetrics,
+  updateGameMetrics,
+  updateTradingMetrics,
 } from './reputation-calculation-service';
 
 // Trade Feedback Calculator
@@ -42,4 +42,3 @@ export {
   calculateTradeMetrics,
   getTradeFeedbackSummary,
 } from './trade-feedback-calculator';
-

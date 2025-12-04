@@ -231,13 +231,17 @@ async function main() {
       logger.info(`${prefix}${emoji} ${post.author}: ${post.content}`);
 
       if (post.clueStrength > 0.5) {
-        logger.debug(`${prefix}   [Strong clue: ${post.clueStrength.toFixed(1)}]`);
+        logger.debug(
+          `${prefix}   [Strong clue: ${post.clueStrength.toFixed(1)}]`
+        );
       }
     });
 
     world.on('outcome:revealed', (event) => {
       logger.info('='.repeat(50));
-      logger.info(`FINAL OUTCOME: ${event.data.outcome ? 'SUCCESS' : 'FAILURE'}`);
+      logger.info(
+        `FINAL OUTCOME: ${event.data.outcome ? 'SUCCESS' : 'FAILURE'}`
+      );
       logger.info('='.repeat(50));
     });
   }

@@ -10,6 +10,7 @@
  * @packageDocumentation
  */
 
+import { logger } from '@babylon/shared';
 import type {
   AgentSummary,
   RegistrationFile,
@@ -19,7 +20,6 @@ import type {
 // Import SDK and types from agent0-sdk
 import { SDK } from 'agent0-sdk';
 import { Wallet } from 'ethers';
-import { logger } from '@babylon/shared';
 import type { JsonValue } from '../types/common';
 
 /**
@@ -63,6 +63,7 @@ function getContractAddresses(): ContractAddresses {
     network: 'localnet',
   };
 }
+
 import { parseCapabilities } from './capabilities-schema';
 import type {
   Agent0AgentProfile,

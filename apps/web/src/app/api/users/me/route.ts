@@ -141,12 +141,16 @@
  * @see {@link /src/contexts/AuthContext.tsx} Auth context consumer
  */
 
-import type { NextRequest } from 'next/server';
+import {
+  authenticate,
+  cachedDb,
+  getPrivyClient,
+  successResponse,
+  withErrorHandling,
+} from '@babylon/api';
 import { db, eq, users } from '@babylon/db';
-import { authenticate, getPrivyClient } from '@babylon/api';
-import { cachedDb } from '@babylon/api';
-import { successResponse, withErrorHandling } from '@babylon/api';
 import { logger } from '@babylon/shared';
+import type { NextRequest } from 'next/server';
 
 const userSelectFields = {
   id: users.id,

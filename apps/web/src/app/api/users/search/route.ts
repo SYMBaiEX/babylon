@@ -94,16 +94,15 @@
  * @see {@link /src/components/MentionAutocomplete} Autocomplete UI
  */
 
-import type { NextRequest } from 'next/server';
-import { authenticate } from '@babylon/api';
-import { asUser } from '@babylon/db';
-import { successResponse, withErrorHandling } from '@babylon/api';
-import { logger } from '@babylon/shared';
+import { authenticate, successResponse, withErrorHandling } from '@babylon/api';
 import {
+  asUser,
   getBlockedByUserIds,
   getBlockedUserIds,
   getMutedUserIds,
 } from '@babylon/db';
+import { logger } from '@babylon/shared';
+import type { NextRequest } from 'next/server';
 
 /**
  * GET /api/users/search

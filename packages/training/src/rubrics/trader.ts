@@ -65,4 +65,3 @@ export const TRADER_PRIORITY_METRICS = [
   'trading.marketsTraded',
   'behavior.socialToTradeRatio',
 ];
-

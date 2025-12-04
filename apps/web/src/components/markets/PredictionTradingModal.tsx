@@ -1,14 +1,14 @@
 'use client';
 
-import { CheckCircle, Clock, X, XCircle } from 'lucide-react';
-import { useEffect, useState } from 'react';
-import { toast } from 'sonner';
-import { useAuth } from '@/hooks/useAuth';
 import {
   calculateExpectedPayout,
   PredictionPricing,
 } from '@babylon/engine/client';
 import { cn } from '@babylon/shared';
+import { CheckCircle, Clock, X, XCircle } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { toast } from 'sonner';
+import { useAuth } from '@/hooks/useAuth';
 
 /**
  * Represents a prediction market question.

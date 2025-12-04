@@ -88,16 +88,20 @@
  * @see {@link /lib/reputation/erc8004-sync} ERC-8004 sync
  */
 
-import type { NextRequest } from 'next/server';
-import { z } from 'zod';
-import { db } from '@babylon/db';
-import { requireAdmin } from '@babylon/api';
-import { BusinessLogicError, NotFoundError } from '@babylon/api';
-import { successResponse, withErrorHandling } from '@babylon/api';
-import { logger } from '@babylon/shared';
-import { distributePointsToReporters } from '@babylon/api';
 import { syncReputationToERC8004 } from '@babylon/agents';
 import { invalidateReputationCache } from '@babylon/agents/agent0/reputation/agent0-reputation-cache';
+import {
+  BusinessLogicError,
+  distributePointsToReporters,
+  NotFoundError,
+  requireAdmin,
+  successResponse,
+  withErrorHandling,
+} from '@babylon/api';
+import { db } from '@babylon/db';
+import { logger } from '@babylon/shared';
+import type { NextRequest } from 'next/server';
+import { z } from 'zod';
 
 const BanUserSchema = z.object({
   action: z.enum(['ban', 'unban']),

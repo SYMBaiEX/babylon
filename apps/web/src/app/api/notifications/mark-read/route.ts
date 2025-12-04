@@ -52,11 +52,10 @@
  * ```
  */
 
+import { authenticate, successResponse, withErrorHandling } from '@babylon/api';
+import { and, db, eq, inArray, notifications } from '@babylon/db';
 import type { NextRequest } from 'next/server';
 import { z } from 'zod';
-import { and, db, eq, inArray, notifications } from '@babylon/db';
-import { authenticate } from '@babylon/api';
-import { successResponse, withErrorHandling } from '@babylon/api';
 
 const markReadSchema = z.object({
   notificationIds: z.array(z.string()).optional(),

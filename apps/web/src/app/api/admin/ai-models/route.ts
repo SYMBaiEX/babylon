@@ -41,9 +41,9 @@
  * ```
  */
 
+import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { logger } from '@babylon/shared';
 
 /**
  * GET /api/admin/ai-models
@@ -75,7 +75,8 @@ export async function GET(_req: NextRequest) {
           {
             id: 'qwen/qwen3-32b',
             name: 'Qwen 3 32B (Groq)',
-            description: '⭐ Best for quality content: events, articles, posts, decisions',
+            description:
+              '⭐ Best for quality content: events, articles, posts, decisions',
           },
           {
             id: 'llama-3.1-8b-instant',

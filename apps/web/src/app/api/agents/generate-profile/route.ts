@@ -86,15 +86,15 @@
  * ```
  */
 
-import type { NextRequest } from 'next/server';
-import { NextResponse } from 'next/server';
 import { callGroqDirect } from '@babylon/agents';
-import { logger } from '@babylon/shared';
 import {
+  authenticateUser,
   checkRateLimitAndDuplicates,
   RATE_LIMIT_CONFIGS,
 } from '@babylon/api';
-import { authenticateUser } from '@babylon/api';
+import { logger } from '@babylon/shared';
+import type { NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
 
 export const maxDuration = 30;
 

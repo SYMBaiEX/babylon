@@ -9,11 +9,11 @@
  * @module cli/commands/agent
  */
 
+import { createTestAgent } from '@babylon/agents';
+import { and, closeDatabase, db, desc, eq, or, users } from '@babylon/db';
 import { existsSync, readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
-import { db, closeDatabase, users, eq, desc, or, and } from '@babylon/db';
-import { createTestAgent } from '@babylon/agents';
-import { parseArgs, wantsHelp, getOption, getFlag } from '../lib/args.js';
+import { getFlag, getOption, parseArgs, wantsHelp } from '../lib/args.js';
 import { logger } from '../lib/logger.js';
 
 function printHelp(): void {
@@ -85,9 +85,13 @@ async function spawnAgents(args: ReturnType<typeof parseArgs>): Promise<void> {
         username: result.agent.username,
         id: result.agent.id,
       });
-      console.log(`  ✅ Created: ${result.agent.username} (${result.agent.id})`);
+      console.log(
+        `  ✅ Created: ${result.agent.username} (${result.agent.id})`
+      );
     } catch (error) {
-      console.log(`  ❌ Error: ${error instanceof Error ? error.message : String(error)}`);
+      console.log(
+        `  ❌ Error: ${error instanceof Error ? error.message : String(error)}`
+      );
     }
   }
 
@@ -161,7 +165,9 @@ async function listAgents(args: ReturnType<typeof parseArgs>): Promise<void> {
     console.log(`Username:   ${agent.username || 'N/A'}`);
     console.log(`ID:         ${agent.id}`);
     console.log(`Points:     ${agent.agentPointsBalance || 0}`);
-    console.log(`Features:   ${features.length > 0 ? features.join(', ') : 'none'}`);
+    console.log(
+      `Features:   ${features.length > 0 ? features.join(', ') : 'none'}`
+    );
     console.log(`Created:    ${agent.createdAt.toISOString()}`);
   }
   console.log(`${'─'.repeat(60)}`);
@@ -196,12 +202,24 @@ async function configureAgent0(): Promise<void> {
     pinataJwt: getEnvValue(envContent, 'PINATA_JWT'),
   };
 
-  console.log(`  AGENT0_ENABLED:         ${currentConfig.enabled || 'not set'}`);
-  console.log(`  AGENT0_NETWORK:         ${currentConfig.network || 'not set'}`);
-  console.log(`  BASE_SEPOLIA_RPC_URL:   ${currentConfig.rpcUrl ? '✅ set' : '❌ not set'}`);
-  console.log(`  BABYLON_GAME_PRIVATE_KEY: ${currentConfig.privateKey ? '✅ set' : '❌ not set'}`);
-  console.log(`  AGENT0_SUBGRAPH_URL:    ${currentConfig.subgraphUrl || 'not set'}`);
-  console.log(`  AGENT0_IPFS_PROVIDER:   ${currentConfig.ipfsProvider || 'node'}`);
+  console.log(
+    `  AGENT0_ENABLED:         ${currentConfig.enabled || 'not set'}`
+  );
+  console.log(
+    `  AGENT0_NETWORK:         ${currentConfig.network || 'not set'}`
+  );
+  console.log(
+    `  BASE_SEPOLIA_RPC_URL:   ${currentConfig.rpcUrl ? '✅ set' : '❌ not set'}`
+  );
+  console.log(
+    `  BABYLON_GAME_PRIVATE_KEY: ${currentConfig.privateKey ? '✅ set' : '❌ not set'}`
+  );
+  console.log(
+    `  AGENT0_SUBGRAPH_URL:    ${currentConfig.subgraphUrl || 'not set'}`
+  );
+  console.log(
+    `  AGENT0_IPFS_PROVIDER:   ${currentConfig.ipfsProvider || 'node'}`
+  );
 
   // Update configuration
   const updates: Record<string, string> = {};
@@ -216,11 +234,13 @@ async function configureAgent0(): Promise<void> {
 
   if (!currentConfig.rpcUrl) {
     updates['AGENT0_RPC_URL'] = 'https://ethereum-sepolia-rpc.publicnode.com';
-    updates['ETHEREUM_SEPOLIA_RPC_URL'] = 'https://ethereum-sepolia-rpc.publicnode.com';
+    updates['ETHEREUM_SEPOLIA_RPC_URL'] =
+      'https://ethereum-sepolia-rpc.publicnode.com';
   }
 
   if (!currentConfig.subgraphUrl) {
-    updates['AGENT0_SUBGRAPH_URL'] = 'https://api.studio.thegraph.com/query/your-subgraph-id/agent0/version/latest';
+    updates['AGENT0_SUBGRAPH_URL'] =
+      'https://api.studio.thegraph.com/query/your-subgraph-id/agent0/version/latest';
   }
 
   if (!currentConfig.ipfsProvider) {
@@ -255,7 +275,10 @@ async function configureAgent0(): Promise<void> {
     console.log('   (Private key for game agent, needs ETH for registration)');
   }
 
-  if (!currentConfig.subgraphUrl || currentConfig.subgraphUrl.includes('your-subgraph-id')) {
+  if (
+    !currentConfig.subgraphUrl ||
+    currentConfig.subgraphUrl.includes('your-subgraph-id')
+  ) {
     console.log('2. Update AGENT0_SUBGRAPH_URL in .env.testnet');
     console.log('   (Get from The Graph Studio)');
   }
@@ -320,10 +343,7 @@ async function toggleAgentFeatures(
     process.exit(1);
   }
 
-  await db
-    .update(users)
-    .set(updates)
-    .where(eq(users.id, agentId));
+  await db.update(users).set(updates).where(eq(users.id, agentId));
 
   const action = enable ? 'Enabled' : 'Disabled';
   logger.success(`${action} features for ${agent.username || agentId}`);

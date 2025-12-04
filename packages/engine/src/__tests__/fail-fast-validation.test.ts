@@ -6,7 +6,7 @@
  * propagating bad state. Critical for data integrity.
  */
 
-import { describe, expect, test, mock } from 'bun:test';
+import { describe, expect, mock, test } from 'bun:test';
 import { FeedGenerator } from '../FeedGenerator';
 import type { BabylonLLMClient } from '../llm/openai-client';
 
@@ -16,7 +16,12 @@ function createMockLLMClient(): BabylonLLMClient {
     generateText: mock(() => Promise.resolve('')),
     generateJSON: mock(() => Promise.resolve({})),
     getProvider: () => 'groq',
-    getStats: () => ({ provider: 'groq' as const, model: 'test', totalTokens: 0, totalCost: 0 }),
+    getStats: () => ({
+      provider: 'groq' as const,
+      model: 'test',
+      totalTokens: 0,
+      totalCost: 0,
+    }),
   } as unknown as BabylonLLMClient;
 }
 

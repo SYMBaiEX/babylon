@@ -18,11 +18,7 @@ import {
   inArray,
   or,
 } from '@babylon/db';
-import type {
-  Actor,
-  ActorRelationship,
-  ActorTier,
-} from '@babylon/shared';
+import type { Actor, ActorRelationship, ActorTier } from '@babylon/shared';
 import { RELATIONSHIP_TYPES } from '@babylon/shared';
 
 /**

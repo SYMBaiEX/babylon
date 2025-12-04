@@ -109,10 +109,10 @@
  * @see {@link /lib/feedback/bias-engine} Bias engine
  */
 
+import { biasEngine } from '@babylon/engine';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { biasEngine } from '@babylon/engine';
 
 const SetBiasSchema = z.object({
   action: z.literal('set'),

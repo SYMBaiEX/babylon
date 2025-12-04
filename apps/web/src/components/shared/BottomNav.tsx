@@ -1,12 +1,12 @@
 'use client';
 
+import { cn } from '@babylon/shared';
 import { Bell, Bot, Home, MessageCircle, TrendingUp } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useUnreadMessages } from '@/hooks/useUnreadMessages';
-import { cn } from '@babylon/shared';
 
 /**
  * Bottom navigation content component for mobile devices.
@@ -27,10 +27,10 @@ function BottomNavContent() {
   // Check if dev mode is enabled via URL parameter (for staging testing)
   const isDevMode = searchParams.get('dev') === 'true';
 
-   // Hide bottom nav on production (babylon.market) on home page unless ?dev=true
-   const isProduction =
-   typeof window !== 'undefined' &&
-   window.location.hostname === 'babylon.market';
+  // Hide bottom nav on production (babylon.market) on home page unless ?dev=true
+  const isProduction =
+    typeof window !== 'undefined' &&
+    window.location.hostname === 'babylon.market';
   // Hide bottom nav when WAITLIST_MODE is enabled on home page (unless ?dev=true)
   const isWaitlistMode = process.env.NEXT_PUBLIC_WAITLIST_MODE === 'true';
   const isHomePage = pathname === '/';

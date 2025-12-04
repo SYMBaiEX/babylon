@@ -7,6 +7,7 @@
  */
 
 import {
+  asUser,
   balanceTransactions,
   db,
   eq,
@@ -14,20 +15,18 @@ import {
   perpPositions,
   users,
 } from '@babylon/db';
+import { FEE_CONFIG, getReadyPerpsEngine } from '@babylon/engine';
+import type { PerpPosition } from '@babylon/shared';
 import {
   type AuthenticatedUser,
-  InsufficientFundsError,
-  logger,
   AuthorizationError,
   BusinessLogicError,
-  InternalServerError,
-  NotFoundError,
   generateSnowflakeId,
+  InsufficientFundsError,
+  InternalServerError,
+  logger,
+  NotFoundError,
 } from '@babylon/shared';
-import type { PerpPosition } from '@babylon/shared';
-import { FEE_CONFIG } from '@babylon/engine';
-import { asUser } from '@babylon/db';
-import { getReadyPerpsEngine } from '@babylon/engine';
 import { FeeService } from './fee-service';
 import type { TradeImpactInput } from './market-impact-service';
 import { WalletService } from './wallet-service';
@@ -42,7 +41,9 @@ import { WalletService } from './wallet-service';
  *
  * @param _trades - Trade impact inputs (unused, as this is a no-op)
  */
-async function applyPerpTradeImpacts(_trades: TradeImpactInput[]): Promise<void> {
+async function applyPerpTradeImpacts(
+  _trades: TradeImpactInput[]
+): Promise<void> {
   logger.debug(
     'Perpetual trade impacts are synthetic and do not affect spot prices',
     undefined,
@@ -192,7 +193,11 @@ export class PerpTradeService {
       throw new BusinessLogicError(
         `Position size exceeds market limit. Maximum: $${maxPositionSize.toLocaleString()} (based on market liquidity)`,
         'POSITION_SIZE_TOO_LARGE',
-        { max: maxPositionSize, requested: size, openInterest: market.openInterest }
+        {
+          max: maxPositionSize,
+          requested: size,
+          openInterest: market.openInterest,
+        }
       );
     }
 

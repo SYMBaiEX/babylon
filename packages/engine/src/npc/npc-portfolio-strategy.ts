@@ -442,5 +442,3 @@ export class NPCPortfolioStrategy {
     };
   }
 }
-
-

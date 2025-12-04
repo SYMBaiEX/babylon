@@ -265,4 +265,3 @@ export class ServiceUnavailableError extends BabylonError {
     super(message, 'SERVICE_UNAVAILABLE', 503, true, { retryAfter });
   }
 }
-

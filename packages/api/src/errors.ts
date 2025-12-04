@@ -54,7 +54,10 @@ export abstract class BabylonError extends Error {
  * Authentication error
  */
 export class AuthenticationError extends BabylonError {
-  constructor(message = 'Authentication required', context?: Record<string, JsonValue>) {
+  constructor(
+    message = 'Authentication required',
+    context?: Record<string, JsonValue>
+  ) {
     super(message, 'AUTH_FAILED', 401, true, context);
   }
 }
@@ -81,14 +84,18 @@ export class AuthorizationError extends BabylonError {
 /**
  * Type guard to check if an error is an authentication error
  */
-export function isAuthenticationError(error: unknown): error is AuthenticationError {
+export function isAuthenticationError(
+  error: unknown
+): error is AuthenticationError {
   return error instanceof AuthenticationError;
 }
 
 /**
  * Type guard to check if an error is an authorization error
  */
-export function isAuthorizationError(error: unknown): error is AuthorizationError {
+export function isAuthorizationError(
+  error: unknown
+): error is AuthorizationError {
   return error instanceof AuthorizationError;
 }
 
@@ -96,7 +103,11 @@ export function isAuthorizationError(error: unknown): error is AuthorizationErro
  * Bad Request Error (400)
  */
 export class BadRequestError extends BabylonError {
-  constructor(message: string, code?: string, context?: Record<string, JsonValue>) {
+  constructor(
+    message: string,
+    code?: string,
+    context?: Record<string, JsonValue>
+  ) {
     super(message, code || 'BAD_REQUEST', 400, true, context);
   }
 }
@@ -105,7 +116,11 @@ export class BadRequestError extends BabylonError {
  * Unauthorized Error (401)
  */
 export class UnauthorizedError extends BabylonError {
-  constructor(message = 'Unauthorized', code?: string, context?: Record<string, JsonValue>) {
+  constructor(
+    message = 'Unauthorized',
+    code?: string,
+    context?: Record<string, JsonValue>
+  ) {
     super(message, code || 'UNAUTHORIZED', 401, true, context);
   }
 }
@@ -114,7 +129,11 @@ export class UnauthorizedError extends BabylonError {
  * Forbidden Error (403)
  */
 export class ForbiddenError extends BabylonError {
-  constructor(message = 'Forbidden', code?: string, context?: Record<string, JsonValue>) {
+  constructor(
+    message = 'Forbidden',
+    code?: string,
+    context?: Record<string, JsonValue>
+  ) {
     super(message, code || 'FORBIDDEN', 403, true, context);
   }
 }
@@ -123,7 +142,11 @@ export class ForbiddenError extends BabylonError {
  * Not Found Error (404)
  */
 export class NotFoundError extends BabylonError {
-  constructor(resource = 'Resource', code?: string, context?: Record<string, JsonValue>) {
+  constructor(
+    resource = 'Resource',
+    code?: string,
+    context?: Record<string, JsonValue>
+  ) {
     super(`${resource} not found`, code || 'NOT_FOUND', 404, true, context);
   }
 }
@@ -132,7 +155,11 @@ export class NotFoundError extends BabylonError {
  * Conflict Error (409)
  */
 export class ConflictError extends BabylonError {
-  constructor(message: string, code?: string, context?: Record<string, JsonValue>) {
+  constructor(
+    message: string,
+    code?: string,
+    context?: Record<string, JsonValue>
+  ) {
     super(message, code || 'CONFLICT', 409, true, context);
   }
 }
@@ -175,7 +202,11 @@ export class RateLimitError extends BabylonError {
  * Internal Server Error (500)
  */
 export class InternalServerError extends BabylonError {
-  constructor(message = 'Internal server error', code?: string, context?: Record<string, JsonValue>) {
+  constructor(
+    message = 'Internal server error',
+    code?: string,
+    context?: Record<string, JsonValue>
+  ) {
     super(message, code || 'INTERNAL_ERROR', 500, false, context);
   }
 }
@@ -319,8 +350,9 @@ export function createErrorResponse(error: BabylonError): ErrorResponse {
       code: error.code,
       ...(error instanceof ValidationError &&
         error.errors && {
-          violations: Object.entries(error.errors).flatMap(([field, messages]) =>
-            messages.map((message) => ({ field, message }))
+          violations: Object.entries(error.errors).flatMap(
+            ([field, messages]) =>
+              messages.map((message) => ({ field, message }))
           ),
         }),
       ...(process.env.NODE_ENV === 'development' &&
@@ -330,5 +362,3 @@ export function createErrorResponse(error: BabylonError): ErrorResponse {
     },
   };
 }
-
-

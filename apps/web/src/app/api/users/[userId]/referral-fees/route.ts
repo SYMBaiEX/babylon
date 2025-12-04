@@ -55,12 +55,15 @@
  * @see {@link /lib/services/fee-service} Fee service
  */
 
-import type { NextRequest } from 'next/server';
-import { authenticate } from '@babylon/api';
-import { successResponse, withErrorHandling } from '@babylon/api';
-import { logger } from '@babylon/shared';
+import {
+  authenticate,
+  requireUserByIdentifier,
+  successResponse,
+  withErrorHandling,
+} from '@babylon/api';
 import { FeeService } from '@babylon/engine';
-import { requireUserByIdentifier } from '@babylon/api';
+import { logger } from '@babylon/shared';
+import type { NextRequest } from 'next/server';
 
 export const GET = withErrorHandling(
   async (

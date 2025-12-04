@@ -217,6 +217,3 @@ export class PredictionMarketService {
       .limit(limit);
   }
 }
-
-
-

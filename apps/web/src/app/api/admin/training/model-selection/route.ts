@@ -43,9 +43,9 @@
  * ```
  */
 
-import { NextResponse } from 'next/server';
 import { logger } from '@babylon/shared';
 import { modelSelectionService } from '@babylon/training';
+import { NextResponse } from 'next/server';
 
 export async function GET(): Promise<NextResponse> {
   try {

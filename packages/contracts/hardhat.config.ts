@@ -10,16 +10,18 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 function getRemappings(): Array<[string, string]> {
   const remappingsPath = join(__dirname, 'remappings.txt');
   const content = readFileSync(remappingsPath, 'utf8');
-  return content
-    .split('\n')
-    .filter((line) => line.trim().length > 0)
-    .map((line) => {
-      const [from, to] = line.trim().split('=');
-      return [from, to] as [string, string];
-    })
-    // Only apply remappings that point to local dependencies folder
-    // Hardhat can resolve node_modules packages directly
-    .filter(([, to]) => to.startsWith('dependencies/'));
+  return (
+    content
+      .split('\n')
+      .filter((line) => line.trim().length > 0)
+      .map((line) => {
+        const [from, to] = line.trim().split('=');
+        return [from, to] as [string, string];
+      })
+      // Only apply remappings that point to local dependencies folder
+      // Hardhat can resolve node_modules packages directly
+      .filter(([, to]) => to.startsWith('dependencies/'))
+  );
 }
 
 const config: HardhatUserConfig = {

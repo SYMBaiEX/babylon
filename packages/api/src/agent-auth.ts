@@ -173,5 +173,3 @@ export async function verifyAgentSession(
 export function getSessionDuration(): number {
   return SESSION_DURATION;
 }
-
-

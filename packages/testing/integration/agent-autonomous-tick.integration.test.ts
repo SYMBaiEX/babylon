@@ -11,9 +11,8 @@
  */
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
-import { db } from '@babylon/db';
 import { createTestAgent } from '@babylon/agents';
-import { asSystem } from '@babylon/db';
+import { asSystem, db } from '@babylon/db';
 import { generateSnowflakeId } from '@babylon/shared';
 
 const BASE_URL =
@@ -144,9 +143,7 @@ describe('Agent Autonomous Tick Integration', () => {
       const { agentRegistry } = await import(
         '@babylon/agents/services/agent-registry.service'
       );
-      const { AgentType, AgentStatus } = await import(
-        '@babylon/agents'
-      );
+      const { AgentType, AgentStatus } = await import('@babylon/agents');
       const found = await agentRegistry.discoverAgents({
         types: [AgentType.USER_CONTROLLED],
         statuses: [AgentStatus.ACTIVE],

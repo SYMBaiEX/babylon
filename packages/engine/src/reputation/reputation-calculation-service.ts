@@ -14,8 +14,7 @@ import {
   gte,
   users,
 } from '@babylon/db';
-import { logger } from '@babylon/shared';
-import { generateSnowflakeId } from '@babylon/shared';
+import { generateSnowflakeId, logger } from '@babylon/shared';
 import {
   calculateConfidenceScore,
   calculateWinRate,
@@ -842,7 +841,9 @@ export async function generateBatchGameFeedback(
   );
 
   // Process sequentially to avoid overwhelming the database
-  const results: PromiseSettledResult<Awaited<ReturnType<typeof generateGameCompletionFeedback>>>[] = [];
+  const results: PromiseSettledResult<
+    Awaited<ReturnType<typeof generateGameCompletionFeedback>>
+  >[] = [];
 
   for (const completion of completions) {
     try {
@@ -876,4 +877,3 @@ export async function generateBatchGameFeedback(
     )
     .map((r) => r.value);
 }
-

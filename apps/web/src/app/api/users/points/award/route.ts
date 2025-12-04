@@ -68,15 +68,28 @@
  * @see {@link /lib/services/points-service} Points service
  */
 
+import {
+  BusinessLogicError,
+  requireUserByIdentifier,
+  successResponse,
+  withErrorHandling,
+} from '@babylon/api';
+import {
+  balanceTransactions,
+  Decimal,
+  db,
+  desc,
+  eq,
+  sql,
+  users,
+} from '@babylon/db';
+import {
+  AwardPointsSchema,
+  generateSnowflakeId,
+  logger,
+  UserIdParamSchema,
+} from '@babylon/shared';
 import type { NextRequest } from 'next/server';
-import { balanceTransactions, Decimal, db, desc, eq, sql, users } from '@babylon/db';
-import { successResponse } from '@babylon/api';
-import { BusinessLogicError } from '@babylon/api';
-import { withErrorHandling } from '@babylon/api';
-import { logger } from '@babylon/shared';
-import { generateSnowflakeId } from '@babylon/shared';
-import { requireUserByIdentifier } from '@babylon/api';
-import { AwardPointsSchema, UserIdParamSchema } from '@babylon/shared';
 
 /**
  * POST /api/users/points/award

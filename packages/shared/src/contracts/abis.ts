@@ -1,6 +1,6 @@
 /**
  * Contract ABIs for ERC-8004 and Prediction Market interactions
- * 
+ *
  * These ABIs are shared across the Babylon codebase for interacting with
  * on-chain contracts. ERC-8004 operations should primarily use the Agent0 SDK
  * (@babylon/agents/agent0), but these ABIs are available for direct contract
@@ -153,4 +153,3 @@ export const PRICE_STORAGE_FACET_ABI = [
   'event PriceBatchSubmitted(bytes32 indexed marketId, uint256 startTick, uint256 endTick, bytes32 merkleRoot)',
   'event AuthorizedUpdaterSet(bytes32 indexed marketId, address indexed updater, bool authorized)',
 ] as const;
-

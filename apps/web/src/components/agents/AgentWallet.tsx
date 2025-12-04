@@ -1,12 +1,11 @@
 'use client';
 
+import { cn, logger } from '@babylon/shared';
 import { ArrowDownToLine, ArrowUpFromLine, History } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { Input } from '@/components/ui/input';
 import { useAuth } from '@/hooks/useAuth';
-import { logger } from '@babylon/shared';
-import { cn } from '@babylon/shared';
 
 /**
  * Transaction structure for agent wallet.

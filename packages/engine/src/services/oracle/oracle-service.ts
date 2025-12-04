@@ -5,11 +5,11 @@
  * Handles commit-reveal pattern for publishing game results on-chain
  */
 
-import { ethers } from 'ethers';
 import { getContractAddresses, getRpcUrl } from '@babylon/contracts';
-import { logger, getCurrentChainId } from '@babylon/shared';
-import BabylonGameOracleABI from './abi/BabylonGameOracle.json';
+import { getCurrentChainId, logger } from '@babylon/shared';
+import { ethers } from 'ethers';
 import { CommitmentStore } from '../oracle-commitment-store';
+import BabylonGameOracleABI from './abi/BabylonGameOracle.json';
 import type {
   BatchCommitResult,
   BatchRevealResult,
@@ -424,7 +424,9 @@ export class OracleService {
       logger.info(
         `Found ${allPending.length} pending commitments before update`,
         {
-          questionIds: allPending.map((c: { questionId: string }) => c.questionId).slice(0, 10),
+          questionIds: allPending
+            .map((c: { questionId: string }) => c.questionId)
+            .slice(0, 10),
         },
         'OracleService'
       );

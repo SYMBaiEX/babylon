@@ -65,8 +65,8 @@
  * ```
  */
 
-import { NextResponse } from 'next/server';
 import { automationPipeline } from '@babylon/training';
+import { NextResponse } from 'next/server';
 
 export async function POST(request: Request) {
   const body = await request.json();

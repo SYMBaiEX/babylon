@@ -6,9 +6,9 @@
  * Supports automatic stale lock recovery.
  */
 
-import { randomBytes } from 'crypto';
 import { db, eq, generationLocks } from '@babylon/db';
 import { logger } from '@babylon/shared';
+import { randomBytes } from 'crypto';
 
 export interface LockOptions {
   lockId: string;
@@ -251,4 +251,3 @@ export class DistributedLockService {
     return lock;
   }
 }
-

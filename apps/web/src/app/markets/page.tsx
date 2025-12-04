@@ -1,5 +1,6 @@
 'use client';
 
+import { cn } from '@babylon/shared';
 import {
   ArrowUpDown,
   Clock,
@@ -8,10 +9,8 @@ import {
   TrendingDown,
   TrendingUp,
 } from 'lucide-react';
-
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-
 import { CategoryPnLCard } from '@/components/markets/CategoryPnLCard';
 import { CategoryPnLShareModal } from '@/components/markets/CategoryPnLShareModal';
 import { MarketsWidgetSidebar } from '@/components/markets/MarketsWidgetSidebar';
@@ -25,8 +24,7 @@ import { Skeleton, WidgetPanelSkeleton } from '@/components/shared/Skeleton';
 import { useAuth } from '@/hooks/useAuth';
 import { usePortfolioPnL } from '@/hooks/usePortfolioPnL';
 import { useUserPositions } from '@/hooks/useUserPositions';
-import { usePerpMarkets, type PerpMarket } from '@/stores/perpMarketsStore';
-import { cn } from '@babylon/shared';
+import { type PerpMarket, usePerpMarkets } from '@/stores/perpMarketsStore';
 
 interface PredictionUserPosition {
   id: string;
@@ -78,7 +76,11 @@ export default function MarketsPage() {
   >(null);
 
   // Use shared perp markets store
-  const { markets: perpMarkets, loading: perpLoading, refetch: refetchPerps } = usePerpMarkets();
+  const {
+    markets: perpMarkets,
+    loading: perpLoading,
+    refetch: refetchPerps,
+  } = usePerpMarkets();
 
   // Data
   const [predictions, setPredictions] = useState<PredictionMarket[]>([]);
@@ -206,17 +208,26 @@ export default function MarketsPage() {
 
   // Note: Real-time updates via SSE removed - using periodic polling instead
 
-  const filteredPerpMarkets = perpMarkets.filter(
-    (m) =>
-      !searchQuery.trim() ||
-      m.ticker.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      m.name.toLowerCase().includes(searchQuery.toLowerCase())
+  // Memoize filtered markets
+  const filteredPerpMarkets = useMemo(
+    () =>
+      perpMarkets.filter(
+        (m) =>
+          !searchQuery.trim() ||
+          m.ticker.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          m.name.toLowerCase().includes(searchQuery.toLowerCase())
+      ),
+    [perpMarkets, searchQuery]
   );
 
-  const filteredPredictions = predictions.filter(
-    (p) =>
-      !searchQuery.trim() ||
-      p.text.toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredPredictions = useMemo(
+    () =>
+      predictions.filter(
+        (p) =>
+          !searchQuery.trim() ||
+          p.text.toLowerCase().includes(searchQuery.toLowerCase())
+      ),
+    [predictions, searchQuery]
   );
 
   // Sort predictions based on selected option
@@ -265,8 +276,9 @@ export default function MarketsPage() {
   }, [filteredPredictions, predictionSort]);
 
   const activePredictions = sortedPredictions;
-  const resolvedPredictions = filteredPredictions.filter(
-    (p) => p.status === 'resolved'
+  const resolvedPredictions = useMemo(
+    () => filteredPredictions.filter((p) => p.status === 'resolved'),
+    [filteredPredictions]
   );
 
   // Calculate trending tokens (mix of % gain and volume) - memoized

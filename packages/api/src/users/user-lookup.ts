@@ -4,9 +4,9 @@
  * @description Utilities for finding users by various identifiers (ID, privyId, username).
  */
 
+import { db, eq, or, users } from '@babylon/db';
 import type { InferSelectModel } from 'drizzle-orm';
 import type { SelectedFields } from 'drizzle-orm/pg-core';
-import { db, eq, or, users } from '@babylon/db';
 import { NotFoundError } from '../errors';
 
 type User = InferSelectModel<typeof users>;
@@ -116,4 +116,3 @@ export async function requireUserByIdentifier(
   }
   return user;
 }
-

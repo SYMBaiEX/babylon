@@ -1,9 +1,9 @@
 'use client';
 
+import { getReferralUrl } from '@babylon/shared';
 import { Check, Copy, ExternalLink, Trophy, X } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { getReferralUrl } from '@babylon/shared';
 import { useAuthStore } from '@/stores/authStore';
 
 /**

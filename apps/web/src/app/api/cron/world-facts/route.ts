@@ -47,12 +47,14 @@
  * @see {@link /lib/services/parody-headline-generator} Parody headline generator
  */
 
-import type { NextRequest } from 'next/server';
-import { AuthorizationError } from '@babylon/api';
-import { successResponse, withErrorHandling } from '@babylon/api';
+import {
+  AuthorizationError,
+  successResponse,
+  withErrorHandling,
+} from '@babylon/api';
+import { createParodyHeadlineGenerator, rssFeedService } from '@babylon/engine';
 import { logger } from '@babylon/shared';
-import { createParodyHeadlineGenerator } from '@babylon/engine';
-import { rssFeedService } from '@babylon/engine';
+import type { NextRequest } from 'next/server';
 
 // Vercel function configuration
 export const maxDuration = 300; // 5 minutes max

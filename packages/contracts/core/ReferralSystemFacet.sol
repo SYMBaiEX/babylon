@@ -108,9 +108,6 @@ contract ReferralSystemFacet is ReentrancyGuard {
 
     /// @notice Claim accumulated referral earnings
     function claimReferralEarnings() external nonReentrant {
-        ReferralStorage storage rs = referralStorage();
-        ReferralData storage referrerData = rs.referrals[msg.sender];
-
         uint256 balance = LibMarket.getBalance(msg.sender);
         require(balance > 0, "No earnings to claim");
 

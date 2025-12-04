@@ -1,11 +1,11 @@
 'use client';
 
+import { cn } from '@babylon/shared';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { memo } from 'react';
 import { z } from 'zod';
 import { Avatar } from '@/components/shared/Avatar';
-import { cn } from '@babylon/shared';
 
 /**
  * Article card post schema for validation.

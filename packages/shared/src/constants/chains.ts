@@ -37,11 +37,7 @@ function getChainIdFromEnv(): number {
  * Get RPC URL from environment, supporting both NEXT_PUBLIC_ and plain env vars
  */
 function getRpcUrlFromEnv(): string {
-  return (
-    process.env.NEXT_PUBLIC_RPC_URL ||
-    process.env.RPC_URL ||
-    ''
-  ).trim();
+  return (process.env.NEXT_PUBLIC_RPC_URL || process.env.RPC_URL || '').trim();
 }
 
 const rawChainId = getChainIdFromEnv();
@@ -69,4 +65,3 @@ export const RPC_URL = getRpcUrlFromEnv() || DEFAULT_RPC;
 
 // Re-export chain definitions for direct use
 export { hardhat, base, baseSepolia, mainnet, sepolia };
-

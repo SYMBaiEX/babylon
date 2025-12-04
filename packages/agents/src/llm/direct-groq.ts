@@ -13,9 +13,9 @@
 import { createGroq } from '@ai-sdk/groq';
 import type { IAgentRuntime } from '@elizaos/core';
 import { generateText } from 'ai';
-import { isPromptLoggingEnabled, logPrompt } from '../utils/prompt-logger';
-import type { TrajectoryLoggerService } from '../plugins/plugin-trajectory-logger/src/TrajectoryLoggerService';
 import { getTrajectoryContext } from '../plugins/plugin-trajectory-logger/src/action-interceptor';
+import type { TrajectoryLoggerService } from '../plugins/plugin-trajectory-logger/src/TrajectoryLoggerService';
+import { isPromptLoggingEnabled, logPrompt } from '../utils/prompt-logger';
 
 export async function callGroqDirect(params: {
   prompt: string;

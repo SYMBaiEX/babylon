@@ -1,5 +1,6 @@
 'use client';
 
+import { cn } from '@babylon/shared';
 import {
   Activity,
   BarChart3,
@@ -10,15 +11,14 @@ import {
 import { useMemo } from 'react';
 import { Skeleton } from '@/components/shared/Skeleton';
 import {
+  type PerpMarket,
   usePerpMarkets,
   usePerpMarketsPolling,
-  type PerpMarket,
 } from '@/stores/perpMarketsStore';
 import {
   usePredictionMarkets,
   usePredictionMarketsPolling,
 } from '@/stores/predictionMarketsStore';
-import { cn } from '@babylon/shared';
 
 /**
  * Market overview statistics structure.
@@ -94,11 +94,16 @@ export function MarketOverviewPanel() {
     };
   }, [perpMarkets]);
 
-  const loading = perpLoading && predictionsLoading;
+  // Show loading only on initial fetch (when we have no data yet)
+  const loading =
+    (perpLoading && perpMarkets.length === 0) ||
+    (predictionsLoading && predictionMarkets.length === 0);
 
   // Calculate prediction overview from store data
   const predictionOverview = useMemo(() => {
-    const activeMarkets = predictionMarkets.filter((m) => m.status === 'active');
+    const activeMarkets = predictionMarkets.filter(
+      (m) => m.status === 'active'
+    );
     const totalVolume = activeMarkets.reduce(
       (sum, m) => sum + (m.yesShares || 0) + (m.noShares || 0),
       0

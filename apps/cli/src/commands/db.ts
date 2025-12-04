@@ -98,10 +98,11 @@ function checkComposeFile(): void {
  * @internal
  */
 async function isContainerRunning(): Promise<boolean> {
-  const result = await $`docker ps --filter name=${CONTAINER_NAME} --format "{{.Names}}"`
-    .quiet()
-    .text()
-    .catch(() => '');
+  const result =
+    await $`docker ps --filter name=${CONTAINER_NAME} --format "{{.Names}}"`
+      .quiet()
+      .text()
+      .catch(() => '');
   return result.trim() === CONTAINER_NAME;
 }
 
@@ -112,10 +113,11 @@ async function isContainerRunning(): Promise<boolean> {
  * @internal
  */
 async function doesContainerExist(): Promise<boolean> {
-  const result = await $`docker ps -a --filter name=${CONTAINER_NAME} --format "{{.Names}}"`
-    .quiet()
-    .text()
-    .catch(() => '');
+  const result =
+    await $`docker ps -a --filter name=${CONTAINER_NAME} --format "{{.Names}}"`
+      .quiet()
+      .text()
+      .catch(() => '');
   return result.trim() === CONTAINER_NAME;
 }
 
@@ -148,10 +150,11 @@ async function startDatabase(): Promise<void> {
   const maxAttempts = 30;
 
   while (attempts < maxAttempts) {
-    const health = await $`docker inspect --format='{{.State.Health.Status}}' ${CONTAINER_NAME}`
-      .quiet()
-      .text()
-      .catch(() => '');
+    const health =
+      await $`docker inspect --format='{{.State.Health.Status}}' ${CONTAINER_NAME}`
+        .quiet()
+        .text()
+        .catch(() => '');
 
     if (health.trim() === 'healthy') {
       logger.success('PostgreSQL is ready');
@@ -229,18 +232,20 @@ async function showStatus(): Promise<void> {
   if (isRunning) {
     console.log('Status: ✅ Running');
 
-    const uptime = await $`docker inspect --format='{{.State.StartedAt}}' ${CONTAINER_NAME}`
-      .quiet()
-      .text()
-      .catch(() => '');
+    const uptime =
+      await $`docker inspect --format='{{.State.StartedAt}}' ${CONTAINER_NAME}`
+        .quiet()
+        .text()
+        .catch(() => '');
     if (uptime) {
       console.log(`Started: ${uptime.trim()}`);
     }
 
-    const health = await $`docker inspect --format='{{.State.Health.Status}}' ${CONTAINER_NAME}`
-      .quiet()
-      .text()
-      .catch(() => '');
+    const health =
+      await $`docker inspect --format='{{.State.Health.Status}}' ${CONTAINER_NAME}`
+        .quiet()
+        .text()
+        .catch(() => '');
     if (health) {
       console.log(`Health: ${health.trim()}`);
     }
@@ -267,7 +272,9 @@ async function showConnectionInfo(): Promise<void> {
   console.log('  Database: babylon');
   console.log('  User:     babylon');
   console.log('  Password: babylon_dev_password');
-  console.log('\n  URL: postgresql://babylon:babylon_dev_password@localhost:5432/babylon');
+  console.log(
+    '\n  URL: postgresql://babylon:babylon_dev_password@localhost:5432/babylon'
+  );
 }
 
 /**
@@ -284,7 +291,7 @@ async function runMigrations(): Promise<void> {
 
   if (!(await isContainerRunning())) {
     logger.fail('PostgreSQL is not running!');
-    console.log("Start it first with: babylon db start");
+    console.log('Start it first with: babylon db start');
     process.exit(1);
   }
 
@@ -307,7 +314,7 @@ async function seedDatabase(): Promise<void> {
 
   if (!(await isContainerRunning())) {
     logger.fail('PostgreSQL is not running!');
-    console.log("Start it first with: babylon db start");
+    console.log('Start it first with: babylon db start');
     process.exit(1);
   }
 
@@ -333,7 +340,7 @@ async function resetDatabase(): Promise<void> {
 
   if (!(await isContainerRunning())) {
     logger.fail('PostgreSQL is not running!');
-    console.log("Start it first with: babylon db start");
+    console.log('Start it first with: babylon db start');
     process.exit(1);
   }
 
@@ -404,4 +411,3 @@ export async function runDbCommand(args: string[]): Promise<void> {
       process.exit(parsed.command ? 1 : 0);
   }
 }
-

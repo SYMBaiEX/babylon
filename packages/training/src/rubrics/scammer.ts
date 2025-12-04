@@ -80,4 +80,3 @@ export const SCAMMER_PRIORITY_METRICS = [
   'influence.informationSpread',
   'social.groupMessagesSent',
 ];
-

@@ -4,11 +4,7 @@
  */
 
 import { describe, expect, it } from 'bun:test';
-import {
-  getClientIp,
-  getHashedClientIp,
-  hashIpAddress,
-} from '@babylon/api';
+import { getClientIp, getHashedClientIp, hashIpAddress } from '@babylon/api';
 
 describe('IP Utils', () => {
   describe('hashIpAddress', () => {
@@ -123,5 +119,3 @@ describe('IP Utils', () => {
     });
   });
 });
-
-

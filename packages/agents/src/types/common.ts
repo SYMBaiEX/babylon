@@ -137,4 +137,3 @@ export interface QueryParams extends PaginationParams {
   sort?: SortParams;
   filters?: FilterParams;
 }
-

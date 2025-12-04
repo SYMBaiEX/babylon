@@ -120,16 +120,14 @@
  * ```
  */
 
+import { agentRuntimeManager, agentService } from '@babylon/agents';
+import { authenticateUser, withErrorHandling } from '@babylon/api';
+import { db } from '@babylon/db';
+import { checkAgentOutput, checkUserInput, logger } from '@babylon/shared';
 import { ModelType } from '@elizaos/core';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
-import { db } from '@babylon/db';
-import { agentRuntimeManager, agentService } from '@babylon/agents';
-import { withErrorHandling } from '@babylon/api';
-import { logger } from '@babylon/shared';
-import { authenticateUser } from '@babylon/api';
-import { checkAgentOutput, checkUserInput } from '@babylon/shared';
 
 /**
  * POST /api/agents/[agentId]/chat

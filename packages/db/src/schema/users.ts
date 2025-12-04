@@ -397,7 +397,9 @@ export const referrals = pgTable(
     createdAt: timestamp('createdAt', { mode: 'date' }).notNull().defaultNow(),
     completedAt: timestamp('completedAt', { mode: 'date' }),
     qualifiedAt: timestamp('qualifiedAt', { mode: 'date' }),
-    signupPointsAwarded: boolean('signupPointsAwarded').notNull().default(false),
+    signupPointsAwarded: boolean('signupPointsAwarded')
+      .notNull()
+      .default(false),
     suspiciousReferralFlags: json('suspiciousReferralFlags').$type<JsonValue>(),
   },
   (table) => [
@@ -717,7 +719,3 @@ export type UserInteraction = typeof userInteractions.$inferSelect;
 export type NewUserInteraction = typeof userInteractions.$inferInsert;
 export type UserApiKey = typeof userApiKeys.$inferSelect;
 export type NewUserApiKey = typeof userApiKeys.$inferInsert;
-
-
-
-

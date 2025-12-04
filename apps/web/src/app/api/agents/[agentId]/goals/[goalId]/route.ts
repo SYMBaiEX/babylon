@@ -121,11 +121,11 @@
  * ```
  */
 
+import { authenticate } from '@babylon/api';
+import { db } from '@babylon/db';
+import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { db } from '@babylon/db';
-import { authenticate } from '@babylon/api';
-import { logger } from '@babylon/shared';
 
 /**
  * GET - Get single goal

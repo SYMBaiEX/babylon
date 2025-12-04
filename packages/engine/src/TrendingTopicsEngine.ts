@@ -37,9 +37,9 @@
  */
 
 import { logger } from '@babylon/shared';
+import type { BabylonLLMClient } from './llm/openai-client';
 import { getPromptParams, renderPrompt, trendingTopics } from './prompts';
 import type { FeedPost } from './types/shared';
-import type { BabylonLLMClient } from './llm/openai-client';
 
 /**
  * A trending topic with LLM-generated description

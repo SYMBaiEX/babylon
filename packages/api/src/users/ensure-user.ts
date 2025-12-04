@@ -176,4 +176,3 @@ export function getCanonicalUserId(
 ): string {
   return user.dbUserId ?? user.userId;
 }
-

@@ -1,10 +1,10 @@
 'use client';
 
+import { cn } from '@babylon/shared';
 import { TrendingDown, TrendingUp, Wallet } from 'lucide-react';
 import { useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useWalletBalance } from '@/hooks/useWalletBalance';
-import { cn } from '@babylon/shared';
 
 /**
  * Wallet balance component displaying user balance and lifetime PnL.

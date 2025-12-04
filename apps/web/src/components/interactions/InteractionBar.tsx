@@ -1,13 +1,13 @@
 'use client';
 
+import type { InteractionBarProps } from '@babylon/shared';
+import { cn } from '@babylon/shared';
 import { MessageCircle } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { FeedCommentSection } from '@/components/feed/FeedCommentSection';
 import { useAuth } from '@/hooks/useAuth';
 import { useLoginModal } from '@/hooks/useLoginModal';
-import { cn } from '@babylon/shared';
 import { useInteractionStore } from '@/stores/interactionStore';
-import type { InteractionBarProps } from '@babylon/shared';
 import { DeleteButton } from './DeleteButton';
 import { LikeButton } from './LikeButton';
 import { RepostButton } from './RepostButton';
@@ -83,18 +83,18 @@ export function InteractionBar({
     if (initialInteractions) {
       const store = useInteractionStore.getState();
       const currentStoreData = store.postInteractions.get(interactionPostId);
-      
+
       // Check if values have actually changed to prevent unnecessary updates
       const newLikeCount = initialInteractions.likeCount ?? 0;
       const newCommentCount = initialInteractions.commentCount ?? 0;
       const newShareCount = initialInteractions.shareCount ?? 0;
-      
+
       const hasChanged =
         !currentStoreData ||
         currentStoreData.likeCount !== newLikeCount ||
         currentStoreData.commentCount !== newCommentCount ||
         currentStoreData.shareCount !== newShareCount;
-      
+
       // Only update if values have changed
       if (hasChanged) {
         const updatedInteractions = new Map(store.postInteractions);

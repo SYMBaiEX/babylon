@@ -1,6 +1,12 @@
 'use client';
 
 import {
+  getProfileUrl,
+  getReferralShareText,
+  getReferralUrl,
+  POINTS,
+} from '@babylon/shared';
+import {
   Award,
   Check,
   Copy,
@@ -26,12 +32,6 @@ import { PageContainer } from '@/components/shared/PageContainer';
 import { Separator } from '@/components/shared/Separator';
 import { ShareEarnModal } from '@/components/shared/ShareEarnModal';
 import { useAuth } from '@/hooks/useAuth';
-import { POINTS } from '@babylon/shared';
-import { getProfileUrl } from '@babylon/shared';
-import {
-  getReferralShareText,
-  getReferralUrl,
-} from '@babylon/shared';
 import { useAuthStore } from '@/stores/authStore';
 
 interface ReferredUser {
@@ -110,13 +110,17 @@ export default function RewardsPage() {
       window.history.replaceState({}, '', '/rewards');
     } else if (errorParam) {
       const errorMessages: Record<string, string> = {
-        twitter_already_linked: 'This X account is already linked to another user',
-        discord_already_linked: 'This Discord account is already linked to another user',
+        twitter_already_linked:
+          'This X account is already linked to another user',
+        discord_already_linked:
+          'This Discord account is already linked to another user',
         token_exchange_failed: 'Failed to authenticate. Please try again.',
         invalid_state: 'Session expired. Please try again.',
         state_expired: 'Session expired. Please try again.',
       };
-      toast.error(errorMessages[errorParam] || 'An error occurred. Please try again.');
+      toast.error(
+        errorMessages[errorParam] || 'An error occurred. Please try again.'
+      );
       window.history.replaceState({}, '', '/rewards');
     }
   }, [searchParams, refresh]);

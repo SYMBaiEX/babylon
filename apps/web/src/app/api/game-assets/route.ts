@@ -83,11 +83,10 @@
  * @see {@link /api/games} Games listing endpoint
  */
 
-import type { NextRequest } from 'next/server';
-import { optionalAuth } from '@babylon/api';
+import { optionalAuth, successResponse, withErrorHandling } from '@babylon/api';
 import { asPublic, asUser } from '@babylon/db';
-import { successResponse, withErrorHandling } from '@babylon/api';
 import { logger } from '@babylon/shared';
+import type { NextRequest } from 'next/server';
 
 export const GET = withErrorHandling(async (_request: NextRequest) => {
   // Optional auth - game assets are public but RLS still applies

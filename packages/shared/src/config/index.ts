@@ -100,20 +100,27 @@ function getCurrentEndpoints(): EndpointsConfig {
 // Contract Addresses
 // =============================================================================
 
-export function getCurrentContractAddresses(): CoreContractAddresses | LocalContractAddresses {
+export function getCurrentContractAddresses():
+  | CoreContractAddresses
+  | LocalContractAddresses {
   return getCurrentNetwork().contracts;
 }
 
 export function areContractsDeployed(chainId: number): boolean {
   const networkId = CHAIN_ID_TO_NETWORK[chainId] || 'local';
   const contracts = PUBLIC_CONFIG.networks[networkId].contracts;
-  return contracts.identityRegistry !== '0x0000000000000000000000000000000000000000';
+  return (
+    contracts.identityRegistry !== '0x0000000000000000000000000000000000000000'
+  );
 }
 
-export const LOCAL_CONTRACT_ADDRESSES = PUBLIC_CONFIG.networks.local.contracts as LocalContractAddresses;
+export const LOCAL_CONTRACT_ADDRESSES = PUBLIC_CONFIG.networks.local
+  .contracts as LocalContractAddresses;
 export const DIAMOND_ADDRESS = LOCAL_CONTRACT_ADDRESSES.diamond;
-export const REPUTATION_SYSTEM_BASE_SEPOLIA = PUBLIC_CONFIG.networks.baseSepolia.contracts.reputationSystem as Address;
-export const IDENTITY_REGISTRY_BASE_SEPOLIA = PUBLIC_CONFIG.networks.baseSepolia.contracts.identityRegistry as Address;
+export const REPUTATION_SYSTEM_BASE_SEPOLIA = PUBLIC_CONFIG.networks.baseSepolia
+  .contracts.reputationSystem as Address;
+export const IDENTITY_REGISTRY_BASE_SEPOLIA = PUBLIC_CONFIG.networks.baseSepolia
+  .contracts.identityRegistry as Address;
 
 // =============================================================================
 // RPC & Endpoints

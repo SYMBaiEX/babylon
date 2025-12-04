@@ -50,10 +50,10 @@
  * ```
  */
 
-import { NextResponse } from 'next/server';
+import { requireUserByIdentifier } from '@babylon/api';
 import { db } from '@babylon/db';
 import { NPCInvestmentManager } from '@babylon/engine';
-import { requireUserByIdentifier } from '@babylon/api';
+import { NextResponse } from 'next/server';
 
 interface RouteParams {
   params: Promise<{

@@ -1,5 +1,11 @@
 'use client';
 
+import type {
+  CommentCardProps,
+  CommentData,
+  CommentWithReplies,
+} from '@babylon/shared';
+import { cn } from '@babylon/shared';
 import { formatDistanceToNow } from 'date-fns';
 import { Edit2, MoreVertical, Reply, Trash2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
@@ -10,12 +16,6 @@ import {
   isNpcIdentifier,
   VerifiedBadge,
 } from '@/components/shared/VerifiedBadge';
-import { cn } from '@babylon/shared';
-import type {
-  CommentCardProps,
-  CommentData,
-  CommentWithReplies,
-} from '@babylon/shared';
 import { CommentInput } from './CommentInput';
 import { LikeButton } from './LikeButton';
 

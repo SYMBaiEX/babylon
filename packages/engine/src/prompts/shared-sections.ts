@@ -126,7 +126,7 @@ export function getTimeOfDayEnergy(hour: number): string {
     return 'ENERGY: Peak hours - hot takes, controversy, ratio attempts';
   }
   if (hour >= 15 && hour < 20) {
-    return 'ENERGY: Afternoon - commentary on day\'s events, dunks on bad takes';
+    return "ENERGY: Afternoon - commentary on day's events, dunks on bad takes";
   }
   return 'ENERGY: Night - introspective, shitposting, less corporate';
 }

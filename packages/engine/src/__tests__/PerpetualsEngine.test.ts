@@ -38,7 +38,7 @@
  * @see {@link /shared/perps-types.ts} - Calculation functions tested
  */
 import { describe, expect, test } from 'bun:test';
-
+import { PerpetualsEngine } from '../PerpetualsEngine';
 import {
   calculateFundingPayment,
   calculateLiquidationPrice,
@@ -46,8 +46,6 @@ import {
   shouldLiquidate,
 } from '../types/perps';
 import type { Organization } from '../types/shared';
-
-import { PerpetualsEngine } from '../PerpetualsEngine';
 
 describe('PerpetualsEngine', () => {
   test('initializes markets from organizations', () => {

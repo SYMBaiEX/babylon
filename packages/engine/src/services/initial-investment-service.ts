@@ -8,10 +8,8 @@
  */
 
 import { actors, db, eq, sql } from '@babylon/db';
-import { BabylonLLMClient } from '@babylon/engine';
-import { loadActorById } from '@babylon/engine';
-import { logger } from '@babylon/shared';
-import { generateSnowflakeId } from '@babylon/shared';
+import { BabylonLLMClient, loadActorById } from '@babylon/engine';
+import { generateSnowflakeId, logger } from '@babylon/shared';
 
 /**
  * Initial investment specification

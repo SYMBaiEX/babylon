@@ -1,10 +1,9 @@
 'use client';
 
+import { cn, logger } from '@babylon/shared';
 import { FileText, Filter } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
-import { logger } from '@babylon/shared';
-import { cn } from '@babylon/shared';
 
 /**
  * Log structure for agent logs.

@@ -111,16 +111,16 @@
  * @see {@link /lib/onboarding/onchain-service} On-chain service
  */
 
-import type { NextRequest } from 'next/server';
-import { authenticate } from '@babylon/api';
-import { successResponse, withErrorHandling } from '@babylon/api';
-import { logger } from '@babylon/shared';
 import {
+  authenticate,
   getOnchainRegistrationStatus,
   processOnchainRegistration,
+  successResponse,
+  withErrorHandling,
 } from '@babylon/api';
+import { logger, OnChainRegistrationSchema } from '@babylon/shared';
+import type { NextRequest } from 'next/server';
 import { trackServerEvent } from '@/lib/posthog/server';
-import { OnChainRegistrationSchema } from '@babylon/shared';
 
 export const GET = withErrorHandling(async (request: NextRequest) => {
   const user = await authenticate(request);

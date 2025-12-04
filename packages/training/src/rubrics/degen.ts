@@ -78,4 +78,3 @@ export const DEGEN_PRIORITY_METRICS = [
   'trading.marketsTraded',
   'behavior.actionsPerTick',
 ];
-

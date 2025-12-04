@@ -1,5 +1,6 @@
 'use client';
 
+import { formatCurrency } from '@babylon/shared';
 import {
   ChevronLeft,
   ChevronRight,
@@ -16,7 +17,6 @@ import { RankBadge, RankNumber } from '@/components/shared/RankBadge';
 import { LeaderboardSkeleton } from '@/components/shared/Skeleton';
 import { VerifiedBadge } from '@/components/shared/VerifiedBadge';
 import { useAuth } from '@/hooks/useAuth';
-import { formatCurrency } from '@babylon/shared';
 
 type LeaderboardTab = 'all' | 'earned' | 'referral';
 
@@ -340,7 +340,9 @@ export default function LeaderboardPage() {
                                 <VerifiedBadge size="sm" />
                               ) : (
                                 <OnChainBadge
-                                  isRegistered={player.onChainRegistered ?? false}
+                                  isRegistered={
+                                    player.onChainRegistered ?? false
+                                  }
                                   nftTokenId={player.nftTokenId ?? null}
                                   size="sm"
                                 />
@@ -669,7 +671,9 @@ export default function LeaderboardPage() {
                                 <VerifiedBadge size="sm" />
                               ) : (
                                 <OnChainBadge
-                                  isRegistered={player.onChainRegistered ?? false}
+                                  isRegistered={
+                                    player.onChainRegistered ?? false
+                                  }
                                   nftTokenId={player.nftTokenId ?? null}
                                   size="sm"
                                 />

@@ -1,5 +1,7 @@
 'use client';
 
+import type { PostInteraction } from '@babylon/shared';
+import { cn, getProfileUrl } from '@babylon/shared';
 import { Repeat2 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -20,9 +22,6 @@ import {
 } from '@/components/shared/VerifiedBadge';
 import { useFontSize } from '@/contexts/FontSizeContext';
 import { useAuth } from '@/hooks/useAuth';
-import { getProfileUrl } from '@babylon/shared';
-import { cn } from '@babylon/shared';
-import type { PostInteraction } from '@babylon/shared';
 
 /**
  * Post card component for displaying feed posts.
@@ -476,7 +475,9 @@ export const PostCard = memo(function PostCard({
                     onTagClick={(tag) => {
                       // Extract tag name (remove # prefix) and convert to slug
                       const tagName = tag.startsWith('#') ? tag.slice(1) : tag;
-                      const tagSlug = tagName.toLowerCase().replace(/\s+/g, '-');
+                      const tagSlug = tagName
+                        .toLowerCase()
+                        .replace(/\s+/g, '-');
                       router.push(`/trending/${encodeURIComponent(tagSlug)}`);
                     }}
                   />

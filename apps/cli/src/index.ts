@@ -13,18 +13,19 @@
 // Load environment variables from project root before any other imports
 import { config } from 'dotenv';
 import { resolve } from 'path';
+
 config({ path: resolve(process.cwd(), '.env') });
 config({ path: resolve(process.cwd(), '.env.local') });
 
-import { runDbCommand } from './commands/db.js';
 import { runAdminCommand } from './commands/admin.js';
-import { runStatusCommand } from './commands/status.js';
-import { runTrainCommand } from './commands/train.js';
-import { runModelCommand } from './commands/model.js';
-import { runGameCommand } from './commands/game.js';
 import { runAgentCommand } from './commands/agent.js';
+import { runDbCommand } from './commands/db.js';
 import { runDeployCommand } from './commands/deploy.js';
+import { runGameCommand } from './commands/game.js';
+import { runModelCommand } from './commands/model.js';
+import { runStatusCommand } from './commands/status.js';
 import { runTestCommand } from './commands/test.js';
+import { runTrainCommand } from './commands/train.js';
 
 const VERSION = '0.2.0';
 
@@ -164,4 +165,3 @@ if (import.meta.main) {
 }
 
 export { main };
-

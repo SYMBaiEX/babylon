@@ -76,7 +76,8 @@ describe('Content Safety', () => {
     });
 
     it('should detect potential system prompt leakage', () => {
-      const leakage = 'You are a helpful assistant. The system told me to help you.';
+      const leakage =
+        'You are a helpful assistant. The system told me to help you.';
       const result = checkAgentOutput(leakage);
       expect(result.safe).toBe(false);
       expect(result.category).toBe('injection');
@@ -109,4 +110,3 @@ describe('Content Safety', () => {
     });
   });
 });
-

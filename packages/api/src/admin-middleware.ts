@@ -2,41 +2,49 @@
  * Admin Authentication Middleware
  *
  * @description Middleware for verifying admin privileges. Authenticates the user
- * and checks if they have admin access. Allows localhost bypass for development.
- * Throws AuthorizationError if user is not authenticated or not an admin.
+ * and checks if they have admin access. On localhost, ALL users get admin access
+ * without requiring authentication (for development/debugging).
+ * Throws AuthorizationError if user is not authenticated or not an admin (in production).
  */
 
-import type { NextRequest } from 'next/server';
 import { db, eq, users } from '@babylon/db';
+import { logger } from '@babylon/shared';
+import type { NextRequest } from 'next/server';
 import type { AuthenticatedUser } from './auth-middleware';
 import { authenticate } from './auth-middleware';
 import { AuthorizationError } from './errors';
-import { logger } from '@babylon/shared';
 
 /**
- * Authenticate request and verify admin privileges
+ * Check if request is from localhost
+ */
+function isLocalhostRequest(request: NextRequest): boolean {
+  const host = request.headers.get('host') || '';
+  return host.includes('localhost') || host.includes('127.0.0.1');
+}
+
+/**
+ * Authenticate request and verify admin privileges.
+ * On localhost, skips authentication entirely and grants admin access.
  */
 export async function requireAdmin(
   request: NextRequest
 ): Promise<AuthenticatedUser> {
-  // First authenticate the user
-  const user = await authenticate(request);
-
-  // In localhost, allow any authenticated user to access admin
-  const isLocalhost =
-    request.headers.get('host')?.includes('localhost') ||
-    request.headers.get('host')?.includes('127.0.0.1');
-
-  if (isLocalhost) {
+  // On localhost, skip authentication entirely for easier debugging
+  if (isLocalhostRequest(request)) {
     logger.info(
-      'Admin access granted (localhost bypass)',
-      {
-        userId: user.userId,
-      },
+      'Admin access granted (localhost bypass - no auth required)',
+      { host: request.headers.get('host') },
       'requireAdmin'
     );
-    return user;
+    // Return a mock admin user for localhost
+    return {
+      userId: 'localhost-admin',
+      dbUserId: 'localhost-admin',
+    };
   }
+
+  // For non-localhost, require proper authentication
+  const user = await authenticate(request);
 
   // Check if user is an admin in the database
   const [dbUser] = await db

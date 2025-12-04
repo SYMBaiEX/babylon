@@ -1,25 +1,57 @@
 # Babylon RL Training
 
-Complete RL training pipeline for Babylon trading agents using **Atropos** (RLAIF framework by Nous Research).
+Complete RL training pipeline for Babylon trading agents using **Tinker** (cloud-based training by Thinking Machines) or **Atropos** (local training by Nous Research).
 
 ---
 
-## Quick Start
+## Quick Start (Tinker - Recommended)
+
+Tinker provides cloud-based training with no local GPU required:
 
 ```bash
 # Install dependencies
 pip install -r requirements.txt
 
+# Configure (get Tinker API key from Thinking Machines)
+export TINKER_API_KEY=your_tinker_api_key
+export DATABASE_URL=postgresql://your-db-url
+export OPENAI_API_KEY=sk-...  # For RLAIF judge
+
+# Run training
+python scripts/run_tinker_training.py --steps 100
+```
+
+### Tinker Benefits
+
+| Feature | Local (Atropos) | Cloud (Tinker) |
+|---------|-----------------|----------------|
+| GPU Required | Yes (vLLM) | No |
+| Model Access | Local only | Up to Qwen3-235B |
+| Setup Complexity | High | Low |
+| Weight Sync | vLLM restart | Instant |
+| Cost Model | GPU time | API calls |
+
+---
+
+## Quick Start (Local Atropos - Fallback)
+
+For local GPU training:
+
+```bash
+# Install with local training deps
+pip install -r requirements.txt
+pip install torch transformers peft vllm
+
 # Configure
 export DATABASE_URL=postgresql://your-db-url
 
-# Start the Atropos API server (in terminal 1)
+# Start the Atropos API server (terminal 1)
 run-api
 
-# Start the Babylon RLAIF environment (in terminal 2)
+# Start the Babylon RLAIF environment (terminal 2)
 python -m src.training.babylon_env serve --slurm false
 
-# Start the trainer (in terminal 3)
+# Start the trainer (terminal 3)
 python -m src.training.atropos_trainer --model Qwen/Qwen2.5-3B-Instruct --steps 100
 ```
 
@@ -27,11 +59,23 @@ python -m src.training.atropos_trainer --model Qwen/Qwen2.5-3B-Instruct --steps 
 
 ## Architecture
 
-The training pipeline uses three components:
+### Tinker Architecture (Cloud)
 
-1. **Atropos API Server** (`run-api`): Coordinates batches between environment and trainer
-2. **Babylon RLAIF Environment** (`babylon_env.py`): Loads trajectories, scores with LLM judge
-3. **GRPO Trainer** (`atropos_trainer.py`): Trains the model using Group Relative Policy Optimization
+```
+┌─────────────────┐     ┌──────────────────┐     ┌─────────────────┐
+│   PostgreSQL    │────▶│  Tinker Trainer  │────▶│   Tinker API    │
+│   Trajectories  │     │   (Local CPU)    │     │    (Cloud)      │
+└─────────────────┘     └──────────────────┘     └────────┬────────┘
+                               │                          │
+                               │ RLAIF Judge              │ Training
+                               ▼                          ▼
+                        ┌──────────────┐          ┌─────────────────┐
+                        │  GPT-4o-mini │          │  Qwen3-30B+     │
+                        │    (OpenAI)  │          │   (Tinker)      │
+                        └──────────────┘          └─────────────────┘
+```
+
+### Atropos Architecture (Local)
 
 ```
 ┌─────────────────┐     ┌──────────────────┐     ┌─────────────────┐
@@ -49,40 +93,60 @@ The training pipeline uses three components:
 
 ---
 
-## Environment Configuration
+## Tinker Training Configuration
+
+### Using CLI
+
+```bash
+python scripts/run_tinker_training.py \
+  --model Qwen/Qwen3-30B-A3B-Instruct \
+  --steps 100 \
+  --group-size 4 \
+  --lr 4e-5 \
+  --lora-rank 32 \
+  --weight-sync-interval 5
+```
+
+### Using Python API
+
+```python
+from src.training import BabylonTinkerTrainer, TinkerTrainingConfig
+
+config = TinkerTrainingConfig(
+    base_model="Qwen/Qwen3-30B-A3B-Instruct",
+    training_steps=100,
+    learning_rate=4e-5,
+    group_size=4,
+    lora_rank=32,
+)
+
+trainer = BabylonTinkerTrainer(config)
+result = await trainer.train()
+```
 
 ### Using YAML Config
 
 ```bash
-python -m src.training.babylon_env serve --config config/babylon_atropos.yaml
+# Edit config/tinker_training.yaml, then:
+python scripts/run_tinker_training.py --config config/tinker_training.yaml
 ```
 
-### Using CLI Arguments
-
-```bash
-python -m src.training.babylon_env serve \
-  --env--tokenizer_name Qwen/Qwen2.5-3B-Instruct \
-  --env--group_size 4 \
-  --env--max_token_length 4096 \
-  --env--database_url $DATABASE_URL \
-  --openai--model_name Qwen/Qwen2.5-3B-Instruct \
-  --openai--base_url http://localhost:9001/v1 \
-  --slurm false
-```
-
-### Key Configuration Options
+### Tinker Configuration Options
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `group_size` | 4 | Trajectories compared per GRPO group |
-| `max_token_length` | 4096 | Maximum sequence length |
-| `lookback_hours` | 72 | Hours to look back for trajectories |
-| `min_agents_per_window` | 2 | Minimum agents required per window |
-| `judge_model` | gpt-4o-mini | LLM model for RLAIF scoring |
+| `base_model` | Qwen/Qwen3-30B-A3B-Instruct | Model to fine-tune |
+| `lora_rank` | 32 | LoRA rank (higher = more capacity) |
+| `learning_rate` | 4e-5 | Learning rate |
+| `training_steps` | 100 | Number of training steps |
+| `group_size` | 4 | Trajectories per GRPO comparison |
+| `weight_sync_interval` | 5 | Steps between weight syncs |
 
 ---
 
-## Trainer Configuration
+## Atropos Training Configuration (Local)
+
+### Using CLI
 
 ```bash
 python -m src.training.atropos_trainer \
@@ -94,6 +158,8 @@ python -m src.training.atropos_trainer \
   --api-url http://localhost:8000 \
   --vllm-port 9001
 ```
+
+### Atropos Configuration Options
 
 | Option | Default | Description |
 |--------|---------|-------------|
@@ -107,16 +173,24 @@ python -m src.training.atropos_trainer \
 
 ## Supported Models
 
-### Recommended for Training
+### Tinker (Cloud)
+
+| Model | Notes |
+|-------|-------|
+| `Qwen/Qwen3-30B-A3B-Instruct` | **Recommended** - Good balance |
+| `Qwen/Qwen3-235B-A22B-Instruct` | Largest, best quality |
+| `meta-llama/Llama-3.1-70B` | Alternative |
+| `meta-llama/Llama-3.1-8B-Instruct` | Smaller, faster |
+
+### Local (Atropos)
 
 | Model | VRAM | Notes |
 |-------|------|-------|
-| `unsloth/Qwen3-4B-128K` | ~10GB | **Default** - 4B params, 128K context, ideal for fine-tuning |
+| `unsloth/Qwen3-4B-128K` | ~10GB | Default - 128K context |
 | `Qwen/Qwen2.5-3B-Instruct` | ~8GB | Fast, good quality |
 | `Qwen/Qwen2.5-7B-Instruct` | ~16GB | Better quality |
-| `Qwen/Qwen2.5-14B-Instruct` | ~32GB | Best quality |
 
-### For Apple Silicon (MLX)
+### Apple Silicon (MLX)
 
 | Model | RAM | Notes |
 |-------|-----|-------|
@@ -127,46 +201,62 @@ python -m src.training.atropos_trainer \
 
 ## Files
 
-### Core Training Files
+### Tinker Training (Recommended)
 
-- `src/training/babylon_env.py` - RLAIF environment for Atropos
-- `src/training/atropos_trainer.py` - GRPO trainer
+- `src/training/tinker_client.py` - Tinker API wrapper
+- `src/training/tinker_trainer.py` - GRPO trainer using Tinker
+- `scripts/run_tinker_training.py` - CLI training script
+- `config/tinker_training.yaml` - Training configuration
+
+### Atropos Training (Local)
+
+- `src/training/babylon_env.py` - RLAIF environment
+- `src/training/atropos_trainer.py` - Local GRPO trainer
+- `config/babylon_atropos.yaml` - Local configuration
+
+### Shared
+
 - `src/training/rewards.py` - Reward functions
-- `config/babylon_atropos.yaml` - Default configuration
-
-### Data Bridge
-
+- `src/training/quality_utils.py` - Quality scoring
 - `src/data_bridge/reader.py` - PostgreSQL trajectory reader
 - `src/data_bridge/converter.py` - Trajectory format conversion
 
 ---
 
-## Monitoring
+## Environment Variables
 
-Training metrics can be logged to any monitoring service:
-
-- `train/loss` - GRPO loss
-- `train/pos_logp` - Log probability of positive examples
-- `train/neg_logp` - Log probability of negative examples
-- `train/judgement_samples` - Sample LLM judge outputs
-
-### Local Debugging
+### Required
 
 ```bash
-# View rollouts in browser
-view-run
+# For RLAIF scoring (both Tinker and Atropos)
+export OPENAI_API_KEY=sk-...
 
-# Generate offline data
-python -m src.training.babylon_env process \
-  --env--data_path_to_save_groups output/rollouts.jsonl \
-  --env--total_steps 10
+# Database connection
+export DATABASE_URL=postgresql://...
+```
+
+### Tinker-Specific
+
+```bash
+# Tinker API key (get from Thinking Machines)
+export TINKER_API_KEY=your_key_here
+```
+
+### Atropos-Specific
+
+```bash
+# Atropos API server URL
+export ATROPOS_API_URL=http://localhost:8000
+
+# vLLM inference port
+export VLLM_PORT=9001
 ```
 
 ---
 
 ## RLAIF Scoring
 
-The environment uses an LLM judge to score trajectories:
+Both trainers use an LLM judge to score trajectories:
 
 1. **Group Formation**: Trajectories grouped by window/scenario
 2. **Context Injection**: P&L, episode length, actions provided to judge
@@ -175,14 +265,12 @@ The environment uses an LLM judge to score trajectories:
 
 ### Custom Scoring Rubric
 
-Edit the `scoring_rubric` in your config:
+Edit `scoring_rubric` in your config:
 
 ```yaml
-env:
-  scoring_rubric: |
-    You are evaluating trading agent performance.
-    
-    Score from 0.0 to 1.0 based on:
+judge:
+  rubric: |
+    Score each trading trajectory from 0.0 to 1.0 based on:
     - Profitability (50%)
     - Risk management (30%)  
     - Decision quality (20%)
@@ -194,35 +282,52 @@ env:
 
 ## Troubleshooting
 
-### No trajectories found
+### Tinker Issues
 
 ```bash
-# Check database connection
+# Check Tinker API key
+python -c "import os; print('TINKER_API_KEY' in os.environ)"
+
+# Test Tinker connection
+python -c "from src.training.tinker_client import TINKER_AVAILABLE; print(f'Tinker: {TINKER_AVAILABLE}')"
+
+# Dry run (check env without training)
+python scripts/run_tinker_training.py --dry-run
+```
+
+### Atropos Issues
+
+```bash
+# Check vLLM
+python -c "import torch; print(torch.cuda.is_available())"
+python -c "import vllm; print(vllm.__version__)"
+
+# Verify API server
+curl http://localhost:8000/
+```
+
+### Database Issues
+
+```bash
+# Check connection
 python -c "import asyncpg; print('asyncpg OK')"
 
 # Verify trajectories exist
 psql $DATABASE_URL -c "SELECT COUNT(*) FROM trajectories WHERE \"stepsJson\" IS NOT NULL"
 ```
 
-### vLLM not starting
+---
 
-```bash
-# Check GPU availability
-python -c "import torch; print(torch.cuda.is_available())"
+## Monitoring
 
-# Check vLLM installation
-python -c "import vllm; print(vllm.__version__)"
-```
+Training metrics logged to `logs/tinker_training_metrics.jsonl`:
 
-### Environment not connecting to API
-
-```bash
-# Verify API server is running
-curl http://localhost:8000/
-
-# Check registration
-curl http://localhost:8000/status
-```
+- `loss` - GRPO loss
+- `num_samples` - Samples per step
+- `logprobs_mean` - Average log probability
+- `pos_advantage_mean` - Positive advantage mean
+- `neg_advantage_mean` - Negative advantage mean
+- `avg_score` - Average RLAIF score
 
 ---
 

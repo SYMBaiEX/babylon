@@ -69,13 +69,16 @@
  *                   type: array
  */
 
+import type { JsonRpcRequest, MCPAuthContext } from '@babylon/mcp';
+import {
+  getAvailableTools,
+  getMCPServerInfo,
+  MCPRequestHandler,
+} from '@babylon/mcp';
+import type { JsonValue } from '@babylon/shared';
+import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { MCPRequestHandler } from '@babylon/mcp';
-import { getMCPServerInfo, getAvailableTools } from '@babylon/mcp';
-import { logger } from '@babylon/shared';
-import type { JsonRpcRequest, MCPAuthContext } from '@babylon/mcp';
-import type { JsonValue } from '@babylon/shared';
 
 export const dynamic = 'force-dynamic';
 
@@ -195,7 +198,8 @@ export async function POST(request: NextRequest) {
           id: jsonRpcRequest.id,
           error: {
             code: -32001,
-            message: 'Authentication required: X-Babylon-Api-Key header is required',
+            message:
+              'Authentication required: X-Babylon-Api-Key header is required',
           },
         },
         { status: 401 }

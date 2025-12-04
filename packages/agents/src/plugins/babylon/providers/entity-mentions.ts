@@ -14,7 +14,11 @@ import type {
 import { logger } from '../../../shared/logger';
 import type { JsonValue } from '../../../types/common';
 import type { EntityMention } from '../../../types/entities';
-import { isActorEntity, isCompanyEntity, isUserEntity } from '../../../types/entities';
+import {
+  isActorEntity,
+  isCompanyEntity,
+  isUserEntity,
+} from '../../../types/entities';
 import type { BabylonRuntime } from '../types';
 
 /**

@@ -1,13 +1,13 @@
 import { actors, db, desc } from '@babylon/db';
 import { logger } from '@babylon/shared';
-import { TradeExecutionService } from './services/trade-execution-service';
-import type { Actor, ActorTier, FeedPost } from './types/shared';
 import type { FeedGenerator } from './FeedGenerator';
 import type { GameWorld, WorldEvent } from './GameWorld';
 import type { MarketDecisionEngine } from './MarketDecisionEngine';
 import type { NewsArticlePacingEngine } from './NewsArticlePacingEngine';
 import type { PerpetualsEngine } from './PerpetualsEngine';
 import type { RelationshipEvolutionEngine } from './RelationshipEvolutionEngine';
+import { TradeExecutionService } from './services/trade-execution-service';
+import type { Actor, ActorTier, FeedPost } from './types/shared';
 
 /**
  * Result of a single game tick execution

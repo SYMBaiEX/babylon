@@ -89,27 +89,28 @@
  *
  */
 
-import type { NextRequest } from 'next/server';
-import type { Address } from 'viem';
-import { and, db, eq, ne, users } from '@babylon/db';
-import { authenticate, successResponse } from '@babylon/api';
-import { AuthorizationError, BusinessLogicError } from '@babylon/api';
-import { withErrorHandling } from '@babylon/api';
-import { logger } from '@babylon/shared';
-import { confirmOnchainProfileUpdate } from '@babylon/api';
-import { trackServerEvent } from '@/lib/posthog/server';
+import type { JsonValue } from '@babylon/api';
 import {
+  AuthorizationError,
+  authenticate,
+  BusinessLogicError,
   checkProfileUpdateRateLimit,
+  confirmOnchainProfileUpdate,
   isBackendSigningEnabled,
   logProfileUpdate,
+  notifyProfileComplete,
+  PointsService,
+  requireUserByIdentifier,
+  successResponse,
   updateProfileBackendSigned,
+  withErrorHandling,
 } from '@babylon/api';
-import { notifyProfileComplete } from '@babylon/api';
-import { PointsService } from '@babylon/api';
-import { requireUserByIdentifier } from '@babylon/api';
-import { UpdateUserSchema, UserIdParamSchema } from '@babylon/shared';
-import type { JsonValue } from '@babylon/api';
+import { and, db, eq, ne, users } from '@babylon/db';
 import type { StringRecord } from '@babylon/shared';
+import { logger, UpdateUserSchema, UserIdParamSchema } from '@babylon/shared';
+import type { NextRequest } from 'next/server';
+import type { Address } from 'viem';
+import { trackServerEvent } from '@/lib/posthog/server';
 
 /**
  * POST /api/users/[userId]/update-profile

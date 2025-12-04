@@ -9,18 +9,22 @@
  * Awards points if verification succeeds (trusted reward system).
  */
 
-import type { NextRequest } from 'next/server';
+import {
+  AuthorizationError,
+  authenticate,
+  BusinessLogicError,
+  PointsService,
+  requireUserByIdentifier,
+  successResponse,
+  withErrorHandling,
+} from '@babylon/api';
 import { db, eq, users } from '@babylon/db';
-import { authenticate, successResponse } from '@babylon/api';
-import { AuthorizationError, BusinessLogicError } from '@babylon/api';
-import { withErrorHandling } from '@babylon/api';
-import { logger } from '@babylon/shared';
-import { PointsService } from '@babylon/api';
-import { requireUserByIdentifier } from '@babylon/api';
-import { UserIdParamSchema } from '@babylon/shared';
+import { logger, UserIdParamSchema } from '@babylon/shared';
+import type { NextRequest } from 'next/server';
 
 // Babylon Discord Guild ID
-const BABYLON_DISCORD_GUILD_ID = process.env.DISCORD_GUILD_ID || '1438561373012627456';
+const BABYLON_DISCORD_GUILD_ID =
+  process.env.DISCORD_GUILD_ID || '1438561373012627456';
 
 /**
  * POST /api/users/[userId]/verify-discord-join

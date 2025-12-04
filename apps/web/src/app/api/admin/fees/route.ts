@@ -70,7 +70,12 @@
  * @see {@link /lib/services/fee-service} Fee service
  */
 
-import type { NextRequest } from 'next/server';
+import {
+  errorResponse,
+  requireAdmin,
+  successResponse,
+  withErrorHandling,
+} from '@babylon/api';
 import type { WhereInput } from '@babylon/db';
 import {
   and,
@@ -84,13 +89,8 @@ import {
   sum,
   tradingFees,
 } from '@babylon/db';
-import { requireAdmin } from '@babylon/api';
-import {
-  errorResponse,
-  successResponse,
-  withErrorHandling,
-} from '@babylon/api';
 import { FeeService } from '@babylon/engine';
+import type { NextRequest } from 'next/server';
 
 // Infer the TradingFee type from the schema
 type TradingFee = typeof tradingFees.$inferSelect;

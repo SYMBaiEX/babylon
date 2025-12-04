@@ -92,16 +92,13 @@
  * @see {@link /lib/reputation/agent0-reputation-sync} Agent0 sync service
  */
 
+import { periodicReputationSync, syncUserReputationNow } from '@babylon/agents';
+import { requireUserByIdentifier } from '@babylon/api';
+import { db } from '@babylon/db';
+import { getReputationBreakdown } from '@babylon/engine';
+import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { db } from '@babylon/db';
-import { logger } from '@babylon/shared';
-import {
-  periodicReputationSync,
-  syncUserReputationNow,
-} from '@babylon/agents';
-import { getReputationBreakdown } from '@babylon/engine';
-import { requireUserByIdentifier } from '@babylon/api';
 
 interface SyncRequest {
   userId?: string;

@@ -26,16 +26,21 @@ import {
   users,
   withTransaction,
 } from '@babylon/db';
-import { agentRuntimeManager } from '../runtime/AgentRuntimeManager';
-import { AuthorizationError } from '../errors';
-import { logger } from '../shared/logger';
-import { getService } from './interfaces';
-import { generateSnowflakeId } from '../shared/snowflake';
 import type { AgentCapabilities } from '@babylon/shared';
+import {
+  getCurrentChainId,
+  IDENTITY_REGISTRY_BASE_SEPOLIA,
+  REPUTATION_SYSTEM_BASE_SEPOLIA,
+} from '@babylon/shared';
+import { AuthorizationError } from '../errors';
+import { agentIdentityService } from '../identity/AgentIdentityService';
+import { agentRuntimeManager } from '../runtime/AgentRuntimeManager';
+import { logger } from '../shared/logger';
+import { generateSnowflakeId } from '../shared/snowflake';
+import type { AgentPerformance, CreateAgentParams } from '../types';
 import { AgentType } from '../types/agent-registry';
 import type { JsonValue } from '../types/common';
-import { agentIdentityService } from '../identity/AgentIdentityService';
-import type { AgentPerformance, CreateAgentParams } from '../types';
+import { getService } from './interfaces';
 
 /**
  * Service for agent lifecycle management
@@ -216,14 +221,9 @@ export class AgentServiceV2 {
           platform: 'babylon',
           userType: 'user_controlled',
           gameNetwork: {
-            chainId: Number.parseInt(
-              process.env.NEXT_PUBLIC_CHAIN_ID || '84532'
-            ), // Base Sepolia default
-            registryAddress:
-              process.env.NEXT_PUBLIC_IDENTITY_REGISTRY_BASE_SEPOLIA ||
-              '0x0000000000000000000000000000000000000000',
-            reputationAddress:
-              process.env.NEXT_PUBLIC_REPUTATION_SYSTEM_BASE_SEPOLIA,
+            chainId: getCurrentChainId(),
+            registryAddress: IDENTITY_REGISTRY_BASE_SEPOLIA,
+            reputationAddress: REPUTATION_SYSTEM_BASE_SEPOLIA,
           },
           skills: [],
           domains: [],

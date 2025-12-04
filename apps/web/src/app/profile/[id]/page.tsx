@@ -1,5 +1,16 @@
 'use client';
 
+import type { ProfileInfo } from '@babylon/shared';
+import {
+  type Actor,
+  cn,
+  extractUsername,
+  type FeedPost,
+  getBannerImageUrl,
+  isUsername,
+  type Organization,
+  POST_TYPES,
+} from '@babylon/shared';
 import { ArrowLeft, Coins, MessageCircle, Search } from 'lucide-react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
@@ -27,12 +38,7 @@ import { VerifiedBadge } from '@/components/shared/VerifiedBadge';
 import { TradesFeed } from '@/components/trades/TradesFeed';
 import { useAuth } from '@/hooks/useAuth';
 import { useErrorToasts } from '@/hooks/useErrorToasts';
-import { getBannerImageUrl } from '@babylon/shared';
-import { extractUsername, isUsername } from '@babylon/shared';
-import { cn } from '@babylon/shared';
-import { POST_TYPES, type Actor, type FeedPost, type Organization } from '@babylon/shared';
 import { useGameStore } from '@/stores/gameStore';
-import type { ProfileInfo } from '@babylon/shared';
 
 export default function ActorProfilePage() {
   const params = useParams();

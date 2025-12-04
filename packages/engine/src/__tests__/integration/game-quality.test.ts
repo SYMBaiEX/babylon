@@ -21,9 +21,9 @@
  */
 
 import { beforeAll, describe, expect, setDefaultTimeout, test } from 'bun:test';
+import { logger } from '@babylon/shared';
 import { existsSync, readFileSync } from 'fs';
 import { GameGenerator } from '../../GameGenerator';
-import { logger } from '@babylon/shared';
 import type { GeneratedGame } from '../../types/shared';
 
 // Set timeout to 10 minutes for LLM-based generation

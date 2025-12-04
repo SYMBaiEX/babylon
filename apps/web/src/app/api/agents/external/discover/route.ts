@@ -9,14 +9,13 @@
  * @see src/lib/services/agent-registry.service.ts
  */
 
-import type { NextRequest } from 'next/server';
-import { NextResponse } from 'next/server';
-import { z } from 'zod';
-import { agentRegistry } from '@babylon/agents';
 import type { TrustLevel } from '@babylon/agents';
 // import { verifyApiKey } from '@babylon/shared'
 // import { db } from '@babylon/db'
-import { AgentStatus, AgentType } from '@babylon/agents';
+import { AgentStatus, AgentType, agentRegistry } from '@babylon/agents';
+import type { NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
 
 // Discovery filter type
 interface DiscoveryFilter {

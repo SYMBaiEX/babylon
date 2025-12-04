@@ -332,4 +332,3 @@ export async function createFarcasterAuthChannel(userId: string): Promise<{
  * Use with createFarcasterAuthChannel for custom UIs
  */
 export { pollChannelStatus };
-

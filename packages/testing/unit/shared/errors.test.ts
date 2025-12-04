@@ -55,7 +55,11 @@ describe('Error Classes', () => {
         { field: 'email', message: 'Invalid email format' },
         { field: 'password', message: 'Too short' },
       ];
-      const error = new ValidationError('Validation failed', undefined, violations);
+      const error = new ValidationError(
+        'Validation failed',
+        undefined,
+        violations
+      );
       expect(error.violations).toEqual(violations);
     });
   });
@@ -69,7 +73,12 @@ describe('Error Classes', () => {
     });
 
     it('should support all reason types', () => {
-      const reasons = ['NO_TOKEN', 'INVALID_TOKEN', 'EXPIRED_TOKEN', 'INVALID_CREDENTIALS'] as const;
+      const reasons = [
+        'NO_TOKEN',
+        'INVALID_TOKEN',
+        'EXPIRED_TOKEN',
+        'INVALID_CREDENTIALS',
+      ] as const;
       for (const reason of reasons) {
         const error = new AuthenticationError('Test', reason);
         expect(error.reason).toBe(reason);
@@ -93,7 +102,11 @@ describe('Error Classes', () => {
     });
 
     it('should support custom message', () => {
-      const error = new NotFoundError('User', '123', 'Custom not found message');
+      const error = new NotFoundError(
+        'User',
+        '123',
+        'Custom not found message'
+      );
       expect(error.message).toBe('Custom not found message');
     });
 
@@ -164,7 +177,11 @@ describe('Error Classes', () => {
     });
 
     it('TradingError should include market info', () => {
-      const error = new TradingError('Market closed', 'BTC-USD', 'MARKET_CLOSED');
+      const error = new TradingError(
+        'Market closed',
+        'BTC-USD',
+        'MARKET_CLOSED'
+      );
       expect(error.marketId).toBe('BTC-USD');
       expect(error.reason).toBe('MARKET_CLOSED');
       expect(error.code).toBe('TRADING_MARKET_CLOSED');
@@ -190,5 +207,3 @@ describe('Error Classes', () => {
     });
   });
 });
-
-

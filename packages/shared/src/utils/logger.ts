@@ -241,4 +241,3 @@ export class Logger {
  * in development and 'info' in production.
  */
 export const logger = new Logger();
-

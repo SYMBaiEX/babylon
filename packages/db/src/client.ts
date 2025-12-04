@@ -1113,7 +1113,6 @@ type InferSelect<T extends PgTable> = T['$inferSelect'];
  */
 type InferInsert<T extends PgTable> = T['$inferInsert'];
 
-
 /**
  * Drizzle database client interface providing ORM-style API and direct Drizzle access.
  * Includes table repositories for all database models and core Drizzle query methods.
@@ -1941,6 +1940,3 @@ export function createDrizzleClient(drizzle: SchemaDatabase): DrizzleClient {
     ),
   };
 }
-
-
-

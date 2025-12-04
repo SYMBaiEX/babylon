@@ -7,7 +7,6 @@
  * @public
  */
 
-import { z } from 'zod';
 import type {
   AgentCapabilities,
   GameNetworkInfo,
@@ -19,6 +18,7 @@ import {
   GameNetworkInfoSchema,
   JsonValueSchema,
 } from '@babylon/shared';
+import { z } from 'zod';
 
 /**
  * Result type for JSON-RPC responses
@@ -343,4 +343,3 @@ export interface MarketSubscription {
   agentId: string;
   subscribedAt: number;
 }
-

@@ -186,4 +186,3 @@ export function calculateConfidenceScore(sampleSize: number): number {
 
   return Math.max(0, Math.min(1, confidence));
 }
-

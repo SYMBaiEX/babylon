@@ -239,4 +239,3 @@ export function sanitizeId(id: string | undefined | null): string {
 export function formatNumber(num: number): string {
   return formatCompactNumber(num);
 }
-

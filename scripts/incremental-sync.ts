@@ -1,18 +1,20 @@
 #!/usr/bin/env bun
 /**
  * Efficient Incremental Sync - Only syncs new rows from source to target
- * 
+ *
  * Gets the max ID from target, then only pulls rows where ID > max from source.
  * Streams directly from source to target without intermediate files.
- * 
+ *
  * Usage:
  *   bun run scripts/incremental-sync.ts --tables=User,Referral,...
  */
 
 import postgres from 'postgres';
 
-const SOURCE_URL = process.env.SOURCE_DIRECT_DATABASE_URL || process.env.SOURCE_DATABASE_URL;
-const TARGET_URL = process.env.TARGET_DIRECT_DATABASE_URL || process.env.TARGET_DATABASE_URL;
+const SOURCE_URL =
+  process.env.SOURCE_DIRECT_DATABASE_URL || process.env.SOURCE_DATABASE_URL;
+const TARGET_URL =
+  process.env.TARGET_DIRECT_DATABASE_URL || process.env.TARGET_DATABASE_URL;
 
 const args = process.argv.slice(2);
 const tablesArg = args.find((a) => a.startsWith('--tables='));
@@ -60,7 +62,9 @@ async function syncTable(
   const colList = commonCols.map((c) => `"${c}"`).join(', ');
 
   // Get max ID from target (this is the key optimization)
-  const maxIdResult = await targetDb.unsafe(`SELECT MAX("${pk}") as max_id FROM "${table}"`);
+  const maxIdResult = await targetDb.unsafe(
+    `SELECT MAX("${pk}") as max_id FROM "${table}"`
+  );
   const maxId = maxIdResult[0].max_id;
 
   // Get count of new rows in source
@@ -78,10 +82,15 @@ async function syncTable(
     return { table, newRows: 0, ms: Date.now() - start };
   }
 
-  log(`${table}: ${newRowCount} new rows to sync (after ID: ${maxId || 'none'})`);
+  log(
+    `${table}: ${newRowCount} new rows to sync (after ID: ${maxId || 'none'})`
+  );
 
   const defaults = DEFAULTS[table] || {};
-  const maxWriteBatch = Math.min(WRITE_BATCH, Math.floor(65000 / commonCols.length));
+  const maxWriteBatch = Math.min(
+    WRITE_BATCH,
+    Math.floor(65000 / commonCols.length)
+  );
   let totalSynced = 0;
   let offset = 0;
 
@@ -96,7 +105,7 @@ async function syncTable(
     } else {
       selectQuery = `SELECT ${colList} FROM "${table}" WHERE "${pk}" > '${maxId}' ORDER BY "${pk}" LIMIT ${BATCH_SIZE} OFFSET ${offset}`;
     }
-    
+
     const rows: Record<string, unknown>[] = await sourceDb.unsafe(selectQuery);
     if (rows.length === 0) break;
 
@@ -114,7 +123,7 @@ async function syncTable(
       const batch = processed.slice(i, i + maxWriteBatch);
       const values: unknown[] = [];
       let idx = 1;
-      
+
       const valueRows = batch.map((row) => {
         const placeholders = commonCols.map((col) => {
           values.push(row[col]);
@@ -132,12 +141,16 @@ async function syncTable(
 
     const batchMs = Date.now() - batchStart;
     const pct = Math.round((offset / newRowCount) * 100);
-    const rate = Math.round((rows.length / (batchMs / 1000)));
-    log(`  ${table}: ${pct}% (${totalSynced}/${newRowCount}) - ${batchMs}ms, ${rate}/s`);
+    const rate = Math.round(rows.length / (batchMs / 1000));
+    log(
+      `  ${table}: ${pct}% (${totalSynced}/${newRowCount}) - ${batchMs}ms, ${rate}/s`
+    );
   }
 
   const ms = Date.now() - start;
-  log(`✓ ${table}: ${totalSynced} new rows synced in ${(ms / 1000).toFixed(1)}s`);
+  log(
+    `✓ ${table}: ${totalSynced} new rows synced in ${(ms / 1000).toFixed(1)}s`
+  );
 
   return { table, newRows: totalSynced, ms };
 }
@@ -160,13 +173,13 @@ async function main(): Promise<void> {
 
   log(`Tables: ${TABLES.join(', ')}`);
 
-  const sourceDb = postgres(SOURCE_URL, { 
+  const sourceDb = postgres(SOURCE_URL, {
     max: 2,
     ssl: SOURCE_URL.includes('localhost') ? false : 'require',
     idle_timeout: 60,
   });
-  
-  const targetDb = postgres(TARGET_URL, { 
+
+  const targetDb = postgres(TARGET_URL, {
     max: 8,
     ssl: TARGET_URL.includes('localhost') ? false : 'require',
     idle_timeout: 60,
@@ -202,11 +215,12 @@ async function main(): Promise<void> {
     }
   }
 
-  log(`\nTotal: ${totalRows} new rows synced in ${(totalMs / 1000).toFixed(1)}s`);
+  log(
+    `\nTotal: ${totalRows} new rows synced in ${(totalMs / 1000).toFixed(1)}s`
+  );
 }
 
 main().catch((err) => {
   console.error('Sync failed:', err);
   process.exit(1);
 });
-

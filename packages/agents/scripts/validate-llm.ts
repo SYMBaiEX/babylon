@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 /**
  * Validation script for Agent LLM providers
- * 
+ *
  * Run with: bun packages/agents/scripts/validate-llm.ts
  */
 
@@ -29,9 +29,13 @@ async function main() {
 
   // 2. Check exports
   console.log('2. Exports:');
-  const { callAgentLLM: fn1, getAgentLLMStatus: fn2 } = await import('../src/llm/agent-llm');
+  const { callAgentLLM: fn1, getAgentLLMStatus: fn2 } = await import(
+    '../src/llm/agent-llm'
+  );
   console.log(`   callAgentLLM: ${typeof fn1 === 'function' ? '✅' : '❌'}`);
-  console.log(`   getAgentLLMStatus: ${typeof fn2 === 'function' ? '✅' : '❌'}`);
+  console.log(
+    `   getAgentLLMStatus: ${typeof fn2 === 'function' ? '✅' : '❌'}`
+  );
   console.log('');
 
   // 3. Check Ollama availability
@@ -42,11 +46,18 @@ async function main() {
       signal: AbortSignal.timeout(3000),
     });
     if (response.ok) {
-      const data = await response.json() as { models?: Array<{ name: string }> };
+      const data = (await response.json()) as {
+        models?: Array<{ name: string }>;
+      };
       console.log(`   ✅ Ollama running at ${ollamaUrl}`);
       console.log(`   Models available: ${data.models?.length || 0}`);
       if (data.models && data.models.length > 0) {
-        console.log(`   Models: ${data.models.map(m => m.name).slice(0, 5).join(', ')}${data.models.length > 5 ? '...' : ''}`);
+        console.log(
+          `   Models: ${data.models
+            .map((m) => m.name)
+            .slice(0, 5)
+            .join(', ')}${data.models.length > 5 ? '...' : ''}`
+        );
       }
     } else {
       console.log(`   ⚠️ Ollama returned ${response.status}`);
@@ -107,4 +118,3 @@ main().catch((error) => {
   console.error('Validation failed:', error);
   process.exit(1);
 });
-

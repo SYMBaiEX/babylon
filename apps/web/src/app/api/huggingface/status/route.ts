@@ -35,9 +35,9 @@
  * ```
  */
 
-import { NextResponse } from 'next/server';
-import { huggingFaceIntegration } from '@babylon/training';
 import { logger } from '@babylon/shared';
+import { huggingFaceIntegration } from '@babylon/training';
+import { NextResponse } from 'next/server';
 
 export async function GET() {
   try {

@@ -75,11 +75,14 @@
  * @see {@link @babylon/api} Error handling utilities
  */
 
-import type { NextRequest } from 'next/server';
+import {
+  BusinessLogicError,
+  successResponse,
+  withErrorHandling,
+} from '@babylon/api';
 import { db } from '@babylon/db';
-import { BusinessLogicError } from '@babylon/api';
-import { successResponse, withErrorHandling } from '@babylon/api';
 import { logger } from '@babylon/shared';
+import type { NextRequest } from 'next/server';
 
 /**
  * GET /api/actors/[actorId]/stats

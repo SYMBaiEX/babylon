@@ -1,5 +1,6 @@
 'use client';
 
+import { logger, privyConfig } from '@babylon/shared';
 import { type PrivyClientConfig, PrivyProvider } from '@privy-io/react-auth';
 import { SmartWalletsProvider } from '@privy-io/react-auth/smart-wallets';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -9,8 +10,6 @@ import { PostHogIdentifier } from '@/components/analytics/PostHogIdentifier';
 import { ThemeProvider } from '@/components/shared/ThemeProvider';
 import { FontSizeProvider } from '@/contexts/FontSizeContext';
 import { WidgetRefreshProvider } from '@/contexts/WidgetRefreshContext';
-import { logger } from '@babylon/shared';
-import { privyConfig } from '@babylon/shared';
 import { FarcasterMiniAppProvider } from './FarcasterMiniAppProvider';
 import { GamePlaybackManager } from './GamePlaybackManager';
 import { OnboardingProvider } from './OnboardingProvider';

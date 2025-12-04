@@ -112,13 +112,15 @@
  *               $ref: '#/components/schemas/Error'
  */
 
+import {
+  cachedDb,
+  findUserByIdentifier,
+  optionalAuth,
+  successResponse,
+  withErrorHandling,
+} from '@babylon/api';
+import { logger, UserIdParamSchema } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
-import { optionalAuth } from '@babylon/api';
-import { cachedDb } from '@babylon/api';
-import { successResponse, withErrorHandling } from '@babylon/api';
-import { logger } from '@babylon/shared';
-import { findUserByIdentifier } from '@babylon/api';
-import { UserIdParamSchema } from '@babylon/shared';
 
 /**
  * GET Handler for User Profile

@@ -219,7 +219,9 @@ function validateLocalnet(_errors: string[], warnings: string[]): void {
 function validateTestnet(errors: string[], warnings: string[]): void {
   // Contract addresses are now in canonical config (packages/shared/src/config/default-config.ts)
   // Only warn if config has zero addresses (not deployed yet)
-  warnings.push('Ensure Base Sepolia contracts are deployed. Check packages/shared/src/config/default-config.ts');
+  warnings.push(
+    'Ensure Base Sepolia contracts are deployed. Check packages/shared/src/config/default-config.ts'
+  );
 
   if (!process.env.DEPLOYER_PRIVATE_KEY) {
     warnings.push(
@@ -303,7 +305,7 @@ function validateMainnet(errors: string[], warnings: string[]): void {
 
 /**
  * Get required environment variables for an environment
- * 
+ *
  * Note: Contract addresses are now in canonical config (packages/shared/src/config/default-config.ts)
  * Only secrets and runtime configuration should be in env vars.
  */
@@ -379,7 +381,7 @@ export function loadEnvFile(env: DeploymentEnv): void {
 
 /**
  * Get deployment info for display
- * 
+ *
  * Note: Contract deployment status is now checked via canonical config
  */
 export function getDeploymentInfo(): {
@@ -408,4 +410,3 @@ export function getDeploymentInfo(): {
     agent0Enabled: process.env.AGENT0_ENABLED === 'true',
   };
 }
-

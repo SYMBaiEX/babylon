@@ -1,11 +1,10 @@
 'use client';
 
+import { cn, logger } from '@babylon/shared';
 import { Send, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
-import { logger } from '@babylon/shared';
-import { cn } from '@babylon/shared';
 
 /**
  * Create post modal component for composing new posts.

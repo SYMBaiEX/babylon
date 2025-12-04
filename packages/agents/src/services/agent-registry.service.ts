@@ -8,7 +8,7 @@
  * @packageDocumentation
  */
 
-import { createCipheriv, createDecipheriv, randomBytes } from 'crypto';
+import { verifyApiKey } from '@babylon/api';
 import type { JsonValue } from '@babylon/db';
 import {
   type Actor,
@@ -30,7 +30,7 @@ import {
   users,
 } from '@babylon/db';
 import { logger } from '@babylon/shared';
-import { verifyApiKey } from '@babylon/api';
+import { createCipheriv, createDecipheriv, randomBytes } from 'crypto';
 import type {
   AgentCapabilities,
   AgentDiscoveryFilter,
@@ -723,9 +723,7 @@ export class AgentRegistryService {
         credentials?.apiKeyHash &&
         verifyApiKey(apiKey, credentials.apiKeyHash)
       ) {
-        const registry = await this.getRegistryWithRelations(
-          agent.externalId
-        );
+        const registry = await this.getRegistryWithRelations(agent.externalId);
         if (!registry) {
           logger.warn(
             `Valid key for external agent ${agent.externalId} but missing AgentRegistry link`,
@@ -932,4 +930,3 @@ export class AgentRegistryService {
 
 // Export singleton instance
 export const agentRegistry = new AgentRegistryService();
-

@@ -4,9 +4,9 @@
  * Validates user API keys for MCP authentication
  */
 
-import { userApiKeys, eq, asSystem } from '@babylon/db';
-import { logger } from '@babylon/shared';
 import { hashApiKey } from '@babylon/api';
+import { asSystem, eq, userApiKeys } from '@babylon/db';
+import { logger } from '@babylon/shared';
 
 /**
  * Validate user API key and return userId
@@ -28,14 +28,14 @@ export async function validateUserApiKey(
     // Use asSystem for key lookup since we're authenticating based on the key itself
     const keyRecord = await asSystem(async (dbClient) => {
       return await dbClient.query.userApiKeys.findFirst({
-        where: (keys, { eq, and: andFn, isNull: isNullFn, or: orFn, gt: gtFn }) =>
+        where: (
+          keys,
+          { eq, and: andFn, isNull: isNullFn, or: orFn, gt: gtFn }
+        ) =>
           andFn(
             eq(keys.keyHash, keyHash),
             isNullFn(keys.revokedAt),
-            orFn(
-              isNullFn(keys.expiresAt),
-              gtFn(keys.expiresAt, new Date())
-            )
+            orFn(isNullFn(keys.expiresAt), gtFn(keys.expiresAt, new Date()))
           ),
       });
     });
@@ -61,4 +61,3 @@ export async function validateUserApiKey(
     return null;
   }
 }
-

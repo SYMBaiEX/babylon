@@ -132,4 +132,3 @@ export function convertBalanceToStrings(balanceData: {
     lifetimePnL: toSafeString(balanceData.lifetimePnL),
   };
 }
-

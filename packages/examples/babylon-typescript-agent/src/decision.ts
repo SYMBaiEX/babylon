@@ -8,12 +8,14 @@
 import { createAnthropic } from '@ai-sdk/anthropic';
 import { createGroq } from '@ai-sdk/groq';
 import { createOpenAI } from '@ai-sdk/openai';
+
 // Use unknown for model type since AI SDK types vary by version
 // The actual type is LanguageModelV2 from @ai-sdk/provider but it's not exported in all versions
 type LanguageModelType = unknown;
-import { generateText } from 'ai';
+
 import type { A2APerpPosition } from '@babylon/a2a';
 import type { JsonValue } from '@babylon/shared';
+import { generateText } from 'ai';
 import type { MemoryEntry } from './memory';
 
 export interface PredictionMarket {

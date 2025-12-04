@@ -105,18 +105,18 @@
  * @see {@link /lib/validation/schemas} Upload validation
  */
 
+import {
+  authenticate,
+  checkRateLimitAndDuplicates,
+  getStorageClient,
+  RATE_LIMIT_CONFIGS,
+  successResponse,
+  withErrorHandling,
+} from '@babylon/api';
+import { ImageUploadSchema, logger } from '@babylon/shared';
 import { mkdir, writeFile } from 'fs/promises';
 import type { NextRequest } from 'next/server';
 import { join } from 'path';
-import { authenticate } from '@babylon/api';
-import { successResponse, withErrorHandling } from '@babylon/api';
-import { logger } from '@babylon/shared';
-import {
-  checkRateLimitAndDuplicates,
-  RATE_LIMIT_CONFIGS,
-} from '@babylon/api';
-import { getStorageClient } from '@babylon/api';
-import { ImageUploadSchema } from '@babylon/shared';
 
 // Map MIME types to file extensions
 const MIME_TO_EXT: Record<string, string> = {

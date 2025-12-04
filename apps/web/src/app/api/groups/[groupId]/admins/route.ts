@@ -86,14 +86,17 @@
  * ```
  */
 
+import {
+  ApiError,
+  authenticate,
+  successResponse,
+  withErrorHandling,
+} from '@babylon/api';
+import { asUser } from '@babylon/db';
+import { logger } from '@babylon/shared';
 import { nanoid } from 'nanoid';
 import type { NextRequest } from 'next/server';
 import { z } from 'zod';
-import { authenticate } from '@babylon/api';
-import { asUser } from '@babylon/db';
-import { ApiError } from '@babylon/api';
-import { successResponse, withErrorHandling } from '@babylon/api';
-import { logger } from '@babylon/shared';
 
 const PromoteAdminSchema = z.object({
   userId: z.string(),

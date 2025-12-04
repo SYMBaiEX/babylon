@@ -6,6 +6,12 @@
  */
 
 import {
+  type JsonValue,
+  logger,
+  type PaymentVerificationParams,
+  type PaymentVerificationResult,
+} from '@babylon/shared';
+import {
   formatEther,
   hexlify,
   JsonRpcProvider,
@@ -14,12 +20,6 @@ import {
   randomBytes,
 } from 'ethers';
 import { z } from 'zod';
-import {
-  logger,
-  type JsonValue,
-  type PaymentVerificationParams,
-  type PaymentVerificationResult,
-} from '@babylon/shared';
 import type { PaymentRequest } from '../types/a2a';
 import { PaymentRequestSchema } from '../types/a2a';
 
@@ -94,10 +94,13 @@ export class X402Manager {
           ttl: ttlSeconds,
         });
       } catch (error) {
-        logger.warn('[X402Manager] Failed to store in Redis, using memory only', {
-          requestId,
-          error,
-        });
+        logger.warn(
+          '[X402Manager] Failed to store in Redis, using memory only',
+          {
+            requestId,
+            error,
+          }
+        );
       }
     } else {
       logger.debug('[X402Manager] Redis not configured, using memory storage', {
@@ -158,7 +161,10 @@ export class X402Manager {
       this.inMemoryStore.set(requestId, payment);
       return payment;
     } catch (error) {
-      logger.error('[X402Manager] Error retrieving payment', { requestId, error });
+      logger.error('[X402Manager] Error retrieving payment', {
+        requestId,
+        error,
+      });
       return null;
     }
   }
@@ -184,7 +190,10 @@ export class X402Manager {
         await this.config.redis.set(key, serialized, { ex: ttlSeconds });
         logger.debug('[X402Manager] Updated payment', { requestId });
       } catch (error) {
-        logger.warn('[X402Manager] Failed to update in Redis', { requestId, error });
+        logger.warn('[X402Manager] Failed to update in Redis', {
+          requestId,
+          error,
+        });
       }
     }
   }
@@ -204,7 +213,10 @@ export class X402Manager {
         await this.config.redis.del(key);
         logger.debug('[X402Manager] Deleted payment', { requestId });
       } catch (error) {
-        logger.warn('[X402Manager] Failed to delete from Redis', { requestId, error });
+        logger.warn('[X402Manager] Failed to delete from Redis', {
+          requestId,
+          error,
+        });
       }
     }
   }

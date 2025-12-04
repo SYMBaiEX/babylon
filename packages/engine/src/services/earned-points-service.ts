@@ -6,9 +6,14 @@
  * points for trades.
  */
 
-import { db, eq, pointsTransactions, type Transaction, users } from '@babylon/db';
-import { logger } from '@babylon/shared';
-import { generateSnowflakeId } from '@babylon/shared';
+import {
+  db,
+  eq,
+  pointsTransactions,
+  type Transaction,
+  users,
+} from '@babylon/db';
+import { generateSnowflakeId, logger } from '@babylon/shared';
 
 /**
  * Earned Points Service Class
@@ -277,4 +282,3 @@ export class EarnedPointsService {
     return { success: successCount, errors: errorCount };
   }
 }
-

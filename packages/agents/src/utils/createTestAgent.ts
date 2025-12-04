@@ -8,10 +8,10 @@
 
 import { db, eq, like, users } from '@babylon/db';
 import { ethers } from 'ethers';
+import { agentRegistry } from '../services/agent-registry.service';
 import { logger } from '../shared/logger';
 import { generateSnowflakeId } from '../shared/snowflake';
 import { AgentStatus } from '../types/agent-registry';
-import { agentRegistry } from '../services/agent-registry.service';
 
 export interface TestAgentConfig {
   username?: string;

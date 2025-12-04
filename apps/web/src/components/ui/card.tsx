@@ -1,5 +1,5 @@
-import type React from 'react';
 import { cn } from '@babylon/shared';
+import type React from 'react';
 
 /**
  * Card component for displaying content in a contained card layout.

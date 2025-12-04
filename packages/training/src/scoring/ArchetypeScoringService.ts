@@ -5,21 +5,16 @@
  * This is the main entry point for multi-criteria evaluation.
  */
 
-import {
-  and,
-  db,
-  eq,
-  inArray,
-  isNull,
-  not,
-  trajectories,
-} from '@babylon/db';
+import { and, db, eq, inArray, isNull, not, trajectories } from '@babylon/db';
 import { getLLMCaller } from '../dependencies';
-import { logger } from '../utils/logger';
-import { trajectoryMetricsExtractor, type BehavioralMetrics } from '../metrics';
-import { judgePromptBuilder, type TrajectoryContext } from './JudgePromptBuilder';
+import { type BehavioralMetrics, trajectoryMetricsExtractor } from '../metrics';
 import { hasCustomRubric } from '../rubrics';
 import type { TrajectoryStep } from '../training/types';
+import { logger } from '../utils/logger';
+import {
+  judgePromptBuilder,
+  type TrajectoryContext,
+} from './JudgePromptBuilder';
 
 export interface ArchetypeScore {
   trajectoryId: string;
@@ -114,7 +109,10 @@ export class ArchetypeScoringService {
     } catch (error) {
       logger.error(
         'Failed to parse trajectory steps',
-        { trajectoryId, error: error instanceof Error ? error.message : String(error) },
+        {
+          trajectoryId,
+          error: error instanceof Error ? error.message : String(error),
+        },
         'ArchetypeScoring'
       );
       return null;
@@ -129,7 +127,11 @@ export class ArchetypeScoringService {
     });
 
     if (!metrics) {
-      logger.error('Failed to extract metrics', { trajectoryId }, 'ArchetypeScoring');
+      logger.error(
+        'Failed to extract metrics',
+        { trajectoryId },
+        'ArchetypeScoring'
+      );
       return null;
     }
 
@@ -153,7 +155,11 @@ export class ArchetypeScoringService {
     const response = await this.callSingleJudge(system, user);
 
     if (!response) {
-      logger.error('Judge returned no response', { trajectoryId }, 'ArchetypeScoring');
+      logger.error(
+        'Judge returned no response',
+        { trajectoryId },
+        'ArchetypeScoring'
+      );
       return null;
     }
 
@@ -245,7 +251,11 @@ export class ArchetypeScoringService {
       try {
         steps = JSON.parse(traj.stepsJson) as TrajectoryStep[];
       } catch {
-        logger.warn('Skipping trajectory with invalid steps', { trajectoryId: traj.trajectoryId }, 'ArchetypeScoring');
+        logger.warn(
+          'Skipping trajectory with invalid steps',
+          { trajectoryId: traj.trajectoryId },
+          'ArchetypeScoring'
+        );
         continue;
       }
 
@@ -258,7 +268,11 @@ export class ArchetypeScoringService {
       });
 
       if (!metrics) {
-        logger.warn('Skipping trajectory with failed metrics extraction', { trajectoryId: traj.trajectoryId }, 'ArchetypeScoring');
+        logger.warn(
+          'Skipping trajectory with failed metrics extraction',
+          { trajectoryId: traj.trajectoryId },
+          'ArchetypeScoring'
+        );
         continue;
       }
 
@@ -275,7 +289,11 @@ export class ArchetypeScoringService {
     }
 
     if (contexts.length < this.minGroupSize) {
-      logger.warn('Not enough valid contexts for scoring', { count: contexts.length }, 'ArchetypeScoring');
+      logger.warn(
+        'Not enough valid contexts for scoring',
+        { count: contexts.length },
+        'ArchetypeScoring'
+      );
       return [];
     }
 
@@ -285,12 +303,19 @@ export class ArchetypeScoringService {
 
     for (const batch of batches) {
       const scenarioId = batch[0]?.archetype || 'unknown';
-      const { system, user } = judgePromptBuilder.buildComparisonPrompt(batch, scenarioId);
+      const { system, user } = judgePromptBuilder.buildComparisonPrompt(
+        batch,
+        scenarioId
+      );
 
       const response = await this.callComparisonJudge(system, user);
 
       if (!response) {
-        logger.error('Judge returned no response for batch', {}, 'ArchetypeScoring');
+        logger.error(
+          'Judge returned no response for batch',
+          {},
+          'ArchetypeScoring'
+        );
         continue;
       }
 
@@ -298,12 +323,18 @@ export class ArchetypeScoringService {
       for (let i = 0; i < batch.length; i++) {
         const ctx = batch[i];
         if (!ctx) continue;
-        
+
         const expectedId = `trajectory-${i + 1}`;
-        const scoreData = response.scores.find((s) => s.trajectory_id === expectedId);
+        const scoreData = response.scores.find(
+          (s) => s.trajectory_id === expectedId
+        );
 
         if (!scoreData) {
-          logger.warn('Missing score for trajectory', { expectedId }, 'ArchetypeScoring');
+          logger.warn(
+            'Missing score for trajectory',
+            { expectedId },
+            'ArchetypeScoring'
+          );
           continue;
         }
 
@@ -350,7 +381,7 @@ export class ArchetypeScoringService {
    */
   async scoreByArchetype(
     archetype: string,
-    trajectoryIds: string[],
+    trajectoryIds: string[]
   ): Promise<{ scored: number; errors: number }> {
     if (!hasCustomRubric(archetype)) {
       logger.warn(
@@ -361,11 +392,18 @@ export class ArchetypeScoringService {
     }
 
     if (trajectoryIds.length === 0) {
-      logger.info('No trajectories provided for archetype scoring', { archetype }, 'ArchetypeScoring');
+      logger.info(
+        'No trajectories provided for archetype scoring',
+        { archetype },
+        'ArchetypeScoring'
+      );
       return { scored: 0, errors: 0 };
     }
 
-    const scores = await this.scoreTrajectoryGroup(trajectoryIds, { archetype, saveToDatabase: true });
+    const scores = await this.scoreTrajectoryGroup(trajectoryIds, {
+      archetype,
+      saveToDatabase: true,
+    });
 
     return {
       scored: scores.length,
@@ -458,14 +496,23 @@ Return ONLY valid JSON, no other text.`;
   /**
    * Parse single trajectory score response
    */
-  private parseSingleResponse(response: string): TrajectoryScoreResponse | null {
+  private parseSingleResponse(
+    response: string
+  ): TrajectoryScoreResponse | null {
     try {
       let jsonText = response.trim();
-      jsonText = jsonText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+      jsonText = jsonText
+        .replace(/```json\n?/g, '')
+        .replace(/```\n?/g, '')
+        .trim();
 
       const jsonMatch = jsonText.match(/\{[\s\S]*\}/);
       if (!jsonMatch) {
-        logger.error('No JSON found in response', { response: response.substring(0, 200) }, 'ArchetypeScoring');
+        logger.error(
+          'No JSON found in response',
+          { response: response.substring(0, 200) },
+          'ArchetypeScoring'
+        );
         return null;
       }
 
@@ -493,11 +540,18 @@ Return ONLY valid JSON, no other text.`;
   private parseComparisonResponse(response: string): RulerScoreResponse | null {
     try {
       let jsonText = response.trim();
-      jsonText = jsonText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+      jsonText = jsonText
+        .replace(/```json\n?/g, '')
+        .replace(/```\n?/g, '')
+        .trim();
 
       const jsonMatch = jsonText.match(/\{[\s\S]*\}/);
       if (!jsonMatch) {
-        logger.error('No JSON found in response', { response: response.substring(0, 200) }, 'ArchetypeScoring');
+        logger.error(
+          'No JSON found in response',
+          { response: response.substring(0, 200) },
+          'ArchetypeScoring'
+        );
         return null;
       }
 

@@ -1,7 +1,7 @@
 import { db, eq, getDbInstance, organizations } from '@babylon/db';
-import { logger } from '@babylon/shared';
 import { getReadyPerpsEngine } from '@babylon/engine';
 import type { JsonValue } from '@babylon/shared';
+import { logger } from '@babylon/shared';
 
 export type PriceUpdateSource = 'user_trade' | 'npc_trade' | 'event' | 'system';
 

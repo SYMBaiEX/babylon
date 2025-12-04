@@ -1,11 +1,11 @@
 'use client';
 
+import { cn } from '@babylon/shared';
 import { Activity, Plus, RefreshCw, X } from 'lucide-react';
 import { useCallback, useEffect, useState, useTransition } from 'react';
 import { z } from 'zod';
 import { Avatar } from '@/components/shared/Avatar';
 import { Skeleton } from '@/components/shared/Skeleton';
-import { cn } from '@babylon/shared';
 
 /**
  * Trade type schema for validation.
@@ -185,15 +185,18 @@ export function TradingFeedTab() {
     setLoading(false);
   }, [filter]);
 
-  const fetchTrades = useCallback((showRefreshing = false) => {
-    if (showRefreshing) {
-      startRefresh(async () => {
-        await fetchAndSetTrades();
-      });
-    } else {
-      fetchAndSetTrades();
-    }
-  }, [fetchAndSetTrades]);
+  const fetchTrades = useCallback(
+    (showRefreshing = false) => {
+      if (showRefreshing) {
+        startRefresh(async () => {
+          await fetchAndSetTrades();
+        });
+      } else {
+        fetchAndSetTrades();
+      }
+    },
+    [fetchAndSetTrades]
+  );
 
   useEffect(() => {
     fetchTrades();

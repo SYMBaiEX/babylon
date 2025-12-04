@@ -11,8 +11,8 @@ import {
   eq,
   gte,
   lte,
-  markets,
   marketOutcomes,
+  markets,
   perpPositions,
 } from '@babylon/db';
 import { logger } from '../utils/logger';

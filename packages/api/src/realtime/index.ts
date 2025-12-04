@@ -1,6 +1,5 @@
-import { createHmac, randomBytes, timingSafeEqual } from 'crypto';
-
 import { logger } from '@babylon/shared';
+import { createHmac, randomBytes, timingSafeEqual } from 'crypto';
 import { streamAdd } from '../redis';
 import type { JsonValue } from '../types';
 import { enqueueOutbox } from './outbox';
@@ -171,4 +170,3 @@ export function issueRealtimeToken(params: {
 }
 
 export const generateConnectionId = () => randomBytes(12).toString('hex');
-

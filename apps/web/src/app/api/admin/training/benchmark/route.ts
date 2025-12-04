@@ -63,10 +63,10 @@
  * ```
  */
 
-import type { NextRequest } from 'next/server';
-import { NextResponse } from 'next/server';
 import { logger } from '@babylon/shared';
 import { benchmarkService } from '@babylon/training';
+import type { NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
 
 export const maxDuration = 300; // 5 minutes for benchmarking
 

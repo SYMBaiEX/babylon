@@ -7,8 +7,8 @@
  * @see agent-patch-plan.md Phase 3.1
  */
 
-import { NextResponse } from 'next/server';
 import { babylonAgentCard } from '@babylon/a2a';
+import { NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 

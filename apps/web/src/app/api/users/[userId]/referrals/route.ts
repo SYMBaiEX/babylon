@@ -58,7 +58,14 @@
  * ```
  */
 
-import type { NextRequest } from 'next/server';
+import {
+  AuthorizationError,
+  authenticate,
+  NotFoundError,
+  requireUserByIdentifier,
+  successResponse,
+  withErrorHandling,
+} from '@babylon/api';
 import {
   and,
   count,
@@ -73,15 +80,12 @@ import {
   tradingFees,
   users,
 } from '@babylon/db';
-import { authenticate, successResponse } from '@babylon/api';
-import { AuthorizationError, NotFoundError } from '@babylon/api';
-import { withErrorHandling } from '@babylon/api';
-import { logger } from '@babylon/shared';
-import { requireUserByIdentifier } from '@babylon/api';
 import {
+  logger,
   ReferralQuerySchema,
   UserIdParamSchema,
 } from '@babylon/shared';
+import type { NextRequest } from 'next/server';
 
 /**
  * GET /api/users/[userId]/referrals

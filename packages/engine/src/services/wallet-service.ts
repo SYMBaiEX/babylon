@@ -79,7 +79,8 @@ export class WalletService {
   /**
    * Optional cache invalidation callback
    */
-  private static cacheInvalidationCallback: CacheInvalidationCallback | null = null;
+  private static cacheInvalidationCallback: CacheInvalidationCallback | null =
+    null;
 
   /**
    * Set the cache invalidation callback
@@ -88,7 +89,9 @@ export class WalletService {
    *
    * @param {CacheInvalidationCallback} callback - Cache invalidation function
    */
-  static setCacheInvalidationCallback(callback: CacheInvalidationCallback): void {
+  static setCacheInvalidationCallback(
+    callback: CacheInvalidationCallback
+  ): void {
     WalletService.cacheInvalidationCallback = callback;
   }
 
@@ -444,4 +447,3 @@ export class WalletService {
     }
   }
 }
-

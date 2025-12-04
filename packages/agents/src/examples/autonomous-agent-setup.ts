@@ -8,10 +8,10 @@
 import { db } from '@babylon/db';
 import type { Character } from '@elizaos/core';
 import { AgentRuntime, ModelType } from '@elizaos/core';
-import { logger } from '../shared/logger';
 import { autonomousCoordinator } from '../autonomous';
 import { babylonPlugin } from '../plugins/babylon';
 import { groqPlugin } from '../plugins/groq';
+import { logger } from '../shared/logger';
 
 /**
  * Example 1: Basic Autonomous Agent Setup

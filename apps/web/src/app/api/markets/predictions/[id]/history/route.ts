@@ -74,12 +74,11 @@
  * @see {@link /lib/services/prediction-market-service} Prediction market service
  */
 
-import type { NextRequest } from 'next/server';
-import { z } from 'zod';
-
 import { successResponse, withErrorHandling } from '@babylon/api';
 import { PredictionMarketService } from '@babylon/engine';
 import { PredictionMarketIdSchema } from '@babylon/shared';
+import type { NextRequest } from 'next/server';
+import { z } from 'zod';
 
 const QuerySchema = z.object({
   limit: z
@@ -102,10 +101,7 @@ export const GET = withErrorHandling(
     const { searchParams } = new URL(request.url);
     const { limit } = QuerySchema.parse({ limit: searchParams.get('limit') });
 
-    const history = await PredictionMarketService.getHistory(
-      marketId,
-      limit
-    );
+    const history = await PredictionMarketService.getHistory(marketId, limit);
 
     return successResponse({
       marketId,

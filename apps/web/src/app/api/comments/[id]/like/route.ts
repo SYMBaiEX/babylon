@@ -106,20 +106,20 @@
  * @see {@link /lib/services/notification-service} Notification service
  */
 
-import type { NextRequest } from 'next/server';
-import { and, comments, count, db, eq, reactions } from '@babylon/db';
-import { authenticate } from '@babylon/api';
-import { BusinessLogicError, NotFoundError } from '@babylon/api';
-import { successResponse, withErrorHandling } from '@babylon/api';
-import { logger } from '@babylon/shared';
 import {
+  authenticate,
+  BusinessLogicError,
   checkRateLimitAndDuplicates,
+  ensureUserForAuth,
+  NotFoundError,
+  notifyReactionOnComment,
   RATE_LIMIT_CONFIGS,
+  successResponse,
+  withErrorHandling,
 } from '@babylon/api';
-import { notifyReactionOnComment } from '@babylon/api';
-import { generateSnowflakeId } from '@babylon/shared';
-import { ensureUserForAuth } from '@babylon/api';
-import { IdParamSchema } from '@babylon/shared';
+import { and, comments, count, db, eq, reactions } from '@babylon/db';
+import { generateSnowflakeId, IdParamSchema, logger } from '@babylon/shared';
+import type { NextRequest } from 'next/server';
 
 /**
  * POST /api/comments/[id]/like

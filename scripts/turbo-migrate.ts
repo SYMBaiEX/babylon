@@ -1,21 +1,23 @@
 #!/usr/bin/env bun
 /**
  * TURBO Prisma to Drizzle Migration
- * 
+ *
  * Optimized for maximum speed using:
  * - Parallel read/write workers
  * - Large batch sizes with chunked parameters
  * - Concurrent table migrations
  * - Connection pooling
- * 
+ *
  * Usage:
  *   bun run scripts/turbo-migrate.ts --tables=User,Referral,...
  */
 
 import postgres from 'postgres';
 
-const SOURCE_URL = process.env.SOURCE_DIRECT_DATABASE_URL || process.env.SOURCE_DATABASE_URL;
-const TARGET_URL = process.env.TARGET_DIRECT_DATABASE_URL || process.env.TARGET_DATABASE_URL;
+const SOURCE_URL =
+  process.env.SOURCE_DIRECT_DATABASE_URL || process.env.SOURCE_DATABASE_URL;
+const TARGET_URL =
+  process.env.TARGET_DIRECT_DATABASE_URL || process.env.TARGET_DATABASE_URL;
 
 const args = process.argv.slice(2);
 const tablesArg = args.find((a) => a.startsWith('--tables='));
@@ -43,7 +45,12 @@ async function getTableInfo(
   sourceDb: postgres.Sql,
   targetDb: postgres.Sql,
   table: string
-): Promise<{ columns: string[]; pk: string; sourceCount: number; targetCount: number } | null> {
+): Promise<{
+  columns: string[];
+  pk: string;
+  sourceCount: number;
+  targetCount: number;
+} | null> {
   const [srcCols, tgtCols, srcCount, tgtCount] = await Promise.all([
     sourceDb`SELECT column_name FROM information_schema.columns WHERE table_name = ${table} ORDER BY ordinal_position`,
     targetDb`SELECT column_name FROM information_schema.columns WHERE table_name = ${table} ORDER BY ordinal_position`,
@@ -57,7 +64,9 @@ async function getTableInfo(
   }
 
   const targetSet = new Set(tgtCols.map((r) => r.column_name as string));
-  const columns = (srcCols.map((r) => r.column_name as string)).filter((c) => targetSet.has(c));
+  const columns = srcCols
+    .map((r) => r.column_name as string)
+    .filter((c) => targetSet.has(c));
   const pk = columns.includes('id') ? 'id' : columns[0];
 
   return {
@@ -68,9 +77,11 @@ async function getTableInfo(
   };
 }
 
-async function migrateTableParallel(table: string): Promise<{ table: string; migrated: number; ms: number }> {
+async function migrateTableParallel(
+  table: string
+): Promise<{ table: string; migrated: number; ms: number }> {
   const start = Date.now();
-  
+
   // Create dedicated connections for this table
   const sourceDb = postgres(SOURCE_URL!, { max: 2, ssl: 'require' });
   const targetDb = postgres(TARGET_URL!, { max: WORKERS + 1, ssl: 'require' });
@@ -83,7 +94,9 @@ async function migrateTableParallel(table: string): Promise<{ table: string; mig
   }
 
   const { columns, pk, sourceCount, targetCount } = info;
-  log(`${table}: ${sourceCount} source, ${targetCount} target, ${columns.length} cols`);
+  log(
+    `${table}: ${sourceCount} source, ${targetCount} target, ${columns.length} cols`
+  );
 
   if (sourceCount === 0) {
     await sourceDb.end();
@@ -92,7 +105,10 @@ async function migrateTableParallel(table: string): Promise<{ table: string; mig
   }
 
   // Calculate safe write batch size (65000 params max)
-  const maxWriteBatch = Math.min(WRITE_BATCH, Math.floor(65000 / columns.length));
+  const maxWriteBatch = Math.min(
+    WRITE_BATCH,
+    Math.floor(65000 / columns.length)
+  );
   const defaults = DEFAULTS[table] || {};
   const colList = columns.map((c) => `"${c}"`).join(', ');
 
@@ -102,14 +118,14 @@ async function migrateTableParallel(table: string): Promise<{ table: string; mig
   // Process in large read batches, then parallelize writes
   while (offset < sourceCount) {
     const readStart = Date.now();
-    
+
     // Fetch a large batch
     const rows: Record<string, unknown>[] = await sourceDb.unsafe(
       `SELECT ${colList} FROM "${table}" ORDER BY "${pk}" LIMIT ${READ_BATCH} OFFSET ${offset}`
     );
-    
+
     if (rows.length === 0) break;
-    
+
     const readMs = Date.now() - readStart;
 
     // Apply defaults
@@ -128,7 +144,7 @@ async function migrateTableParallel(table: string): Promise<{ table: string; mig
     }
 
     const writeStart = Date.now();
-    
+
     // Process chunks in parallel batches of WORKERS
     for (let i = 0; i < writeChunks.length; i += WORKERS) {
       const batch = writeChunks.slice(i, i + WORKERS);
@@ -143,7 +159,7 @@ async function migrateTableParallel(table: string): Promise<{ table: string; mig
             });
             return `(${placeholders.join(',')})`;
           });
-          
+
           const sql = `INSERT INTO "${table}" (${colList}) VALUES ${valueRows.join(',')} ON CONFLICT ("${pk}") DO NOTHING`;
           await targetDb.unsafe(sql, values);
         })
@@ -152,11 +168,13 @@ async function migrateTableParallel(table: string): Promise<{ table: string; mig
 
     const writeMs = Date.now() - writeStart;
     totalMigrated += rows.length;
-    
+
     const pct = Math.round((offset / sourceCount) * 100);
-    const rate = Math.round((rows.length / ((readMs + writeMs) / 1000)));
-    log(`  ${table}: ${pct}% (${totalMigrated}/${sourceCount}) - read ${readMs}ms, write ${writeMs}ms, ${rate}/s`);
-    
+    const rate = Math.round(rows.length / ((readMs + writeMs) / 1000));
+    log(
+      `  ${table}: ${pct}% (${totalMigrated}/${sourceCount}) - read ${readMs}ms, write ${writeMs}ms, ${rate}/s`
+    );
+
     offset += READ_BATCH;
   }
 
@@ -164,8 +182,10 @@ async function migrateTableParallel(table: string): Promise<{ table: string; mig
   await targetDb.end();
 
   const ms = Date.now() - start;
-  const rate = Math.round((totalMigrated / (ms / 1000)));
-  log(`✓ ${table}: ${totalMigrated} rows in ${(ms / 1000).toFixed(1)}s (${rate}/s)`);
+  const rate = Math.round(totalMigrated / (ms / 1000));
+  log(
+    `✓ ${table}: ${totalMigrated} rows in ${(ms / 1000).toFixed(1)}s (${rate}/s)`
+  );
 
   return { table, migrated: totalMigrated, ms };
 }
@@ -187,7 +207,9 @@ async function main(): Promise<void> {
   }
 
   log(`Tables: ${TABLES.join(', ')}`);
-  log(`Workers: ${WORKERS}, Read batch: ${READ_BATCH}, Write batch: ${WRITE_BATCH}`);
+  log(
+    `Workers: ${WORKERS}, Read batch: ${READ_BATCH}, Write batch: ${WRITE_BATCH}`
+  );
 
   const overallStart = Date.now();
   const results: { table: string; migrated: number; ms: number }[] = [];
@@ -206,17 +228,20 @@ async function main(): Promise<void> {
   log('\n═══════════════════════════════════════════════════════════');
   log('SUMMARY');
   log('═══════════════════════════════════════════════════════════');
-  
+
   for (const r of results) {
-    const rate = r.ms > 0 ? Math.round((r.migrated / (r.ms / 1000))) : 0;
-    log(`  ${r.table.padEnd(25)} ${String(r.migrated).padStart(8)} rows  ${(r.ms / 1000).toFixed(1).padStart(6)}s  ${String(rate).padStart(5)}/s`);
+    const rate = r.ms > 0 ? Math.round(r.migrated / (r.ms / 1000)) : 0;
+    log(
+      `  ${r.table.padEnd(25)} ${String(r.migrated).padStart(8)} rows  ${(r.ms / 1000).toFixed(1).padStart(6)}s  ${String(rate).padStart(5)}/s`
+    );
   }
-  
-  log(`\nTotal: ${totalRows} rows in ${(totalMs / 1000).toFixed(1)}s (${Math.round(totalRows / (totalMs / 1000))}/s)`);
+
+  log(
+    `\nTotal: ${totalRows} rows in ${(totalMs / 1000).toFixed(1)}s (${Math.round(totalRows / (totalMs / 1000))}/s)`
+  );
 }
 
 main().catch((err) => {
   console.error('Migration failed:', err);
   process.exit(1);
 });
-

@@ -22,10 +22,10 @@
  */
 
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
-import dotenv from 'dotenv';
-import { db, eq, users, markets, organizations, posts } from '@babylon/db';
-import { generateSnowflakeId } from '@babylon/shared';
 import type { A2AMarketPosition } from '@babylon/a2a';
+import { db, eq, markets, organizations, posts, users } from '@babylon/db';
+import { generateSnowflakeId } from '@babylon/shared';
+import dotenv from 'dotenv';
 import { BabylonA2AClient } from '../src/a2a-client';
 
 dotenv.config({ path: '.env.local' });
@@ -269,7 +269,8 @@ describe('Autonomous Agent - Complete E2E Test', () => {
       expect(result.success).toBe(true);
       expect(result.positionId).toBeDefined();
       expect(result.entryPrice).toBeGreaterThan(0);
-      createdPositionId = typeof result.positionId === 'string' ? result.positionId : null;
+      createdPositionId =
+        typeof result.positionId === 'string' ? result.positionId : null;
       console.log(
         `   ✅ Opened LONG position: ${result.positionId} at $${result.entryPrice}`
       );
@@ -374,7 +375,10 @@ describe('Autonomous Agent - Complete E2E Test', () => {
     });
 
     it('should get leaderboard', async () => {
-      const result = await a2aClient.getLeaderboard({ pointsType: 'all', limit: 10 });
+      const result = await a2aClient.getLeaderboard({
+        pointsType: 'all',
+        limit: 10,
+      });
       expect(result).toBeDefined();
       expect(result.leaderboard).toBeInstanceOf(Array);
       console.log(`   ✅ Leaderboard: ${result.leaderboard.length} entries`);

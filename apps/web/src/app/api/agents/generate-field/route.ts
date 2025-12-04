@@ -97,16 +97,16 @@
 
 import { createGroq } from '@ai-sdk/groq';
 import Anthropic from '@anthropic-ai/sdk';
-import { generateText } from 'ai';
-import type { NextRequest } from 'next/server';
-import { NextResponse } from 'next/server';
-import { isPromptLoggingEnabled, logPrompt } from '@babylon/engine';
-import { logger } from '@babylon/shared';
 import {
+  authenticateUser,
   checkRateLimitAndDuplicates,
   RATE_LIMIT_CONFIGS,
 } from '@babylon/api';
-import { authenticateUser } from '@babylon/api';
+import { isPromptLoggingEnabled, logPrompt } from '@babylon/engine';
+import { logger } from '@babylon/shared';
+import { generateText } from 'ai';
+import type { NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
 
 export async function POST(req: NextRequest) {
   try {

@@ -65,13 +65,15 @@
  * @see {@link /lib/api/admin-middleware} Admin middleware
  */
 
+import {
+  AgentType,
+  agentRegistry,
+  getExternalAgentAdapter,
+} from '@babylon/agents';
+import { agentLogs, and, count, db, eq, gte } from '@babylon/db';
+import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { agentLogs, and, count, db, eq, gte } from '@babylon/db';
-import { getExternalAgentAdapter } from '@babylon/agents';
-import { logger } from '@babylon/shared';
-import { agentRegistry } from '@babylon/agents';
-import { AgentType } from '@babylon/agents';
 
 /**
  * GET /api/admin/agents

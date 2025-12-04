@@ -3,9 +3,6 @@
  * Handles: likes, comments, shares, and favorites with real-time polling
  */
 
-import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
-import { retryIfRetryable } from '@babylon/shared';
 import type {
   CommentData,
   CommentInteraction,
@@ -15,6 +12,9 @@ import type {
   PendingInteraction,
   PostInteraction,
 } from '@babylon/shared';
+import { retryIfRetryable } from '@babylon/shared';
+import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 
 interface RepostPost {
   id: string;

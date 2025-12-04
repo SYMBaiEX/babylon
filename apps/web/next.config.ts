@@ -1,6 +1,6 @@
+import { config } from 'dotenv';
 import type { NextConfig } from 'next';
 import * as path from 'path';
-import { config } from 'dotenv';
 
 // Use process.cwd() which works reliably in Next.js config context
 // This is the app directory (apps/web), so go up two levels to get monorepo root
@@ -160,7 +160,10 @@ const nextConfig: NextConfig = {
 
     // Alias electron to stub module to prevent webpack from trying to resolve it
     // electron-fetch checks process.versions.electron at runtime, so the stub is safe
-    const electronStubPath = path.join(process.cwd(), 'webpack-electron-stub.js');
+    const electronStubPath = path.join(
+      process.cwd(),
+      'webpack-electron-stub.js'
+    );
     config.resolve.alias = {
       ...config.resolve.alias,
       electron: electronStubPath,
@@ -197,7 +200,8 @@ const nextConfig: NextConfig = {
         }),
         // Ignore server-only npm packages
         new webpack.IgnorePlugin({
-          resourceRegExp: /^(ioredis|postgres|electron-fetch|agent0-sdk|ipfs-http-client)$/,
+          resourceRegExp:
+            /^(ioredis|postgres|electron-fetch|agent0-sdk|ipfs-http-client)$/,
         }),
         // Ignore @elizaos/core for client builds (it imports node:fs)
         new webpack.IgnorePlugin({
@@ -225,12 +229,14 @@ const nextConfig: NextConfig = {
       }),
       // Ignore postgres package for client-side builds only
       // postgres requires Node.js built-ins (net, tls, crypto, stream) not available in browser
-      ...(isServer ? [] : [
-        new webpack.IgnorePlugin({
-          resourceRegExp: /^postgres$/,
-          contextRegExp: /node_modules/,
-        })
-      ])
+      ...(isServer
+        ? []
+        : [
+            new webpack.IgnorePlugin({
+              resourceRegExp: /^postgres$/,
+              contextRegExp: /node_modules/,
+            }),
+          ])
     );
 
     // Configure externals for optional dependencies and server-only packages
@@ -249,7 +255,7 @@ const nextConfig: NextConfig = {
         'ioredis',
         'swagger-jsdoc',
       ];
-      
+
       if (!Array.isArray(config.externals)) {
         if (typeof config.externals === 'function') {
           const originalExternals = config.externals;
@@ -261,12 +267,14 @@ const nextConfig: NextConfig = {
               }: {
                 request: string | undefined;
               },
-              callback: (
-                error?: Error | null,
-                result?: string
-              ) => void
+              callback: (error?: Error | null, result?: string) => void
             ) => {
-              if (request && serverExternalPackagesList.some(pkg => request === pkg || request.startsWith(pkg + '/'))) {
+              if (
+                request &&
+                serverExternalPackagesList.some(
+                  (pkg) => request === pkg || request.startsWith(pkg + '/')
+                )
+              ) {
                 // Externalize server-only packages - resolve at runtime
                 return callback(null, 'commonjs ' + request);
               }
@@ -285,12 +293,14 @@ const nextConfig: NextConfig = {
             }: {
               request: string | undefined;
             },
-            callback: (
-              error?: Error | null,
-              result?: string
-            ) => void
+            callback: (error?: Error | null, result?: string) => void
           ) => {
-            if (request && serverExternalPackagesList.some(pkg => request === pkg || request.startsWith(pkg + '/'))) {
+            if (
+              request &&
+              serverExternalPackagesList.some(
+                (pkg) => request === pkg || request.startsWith(pkg + '/')
+              )
+            ) {
               // Externalize server-only packages - resolve at runtime
               return callback(null, 'commonjs ' + request);
             }
@@ -347,10 +357,7 @@ const nextConfig: NextConfig = {
       // Webpack externals function signature: ({context, request}, callback)
       const externalizeServerOnly = (
         { request }: { context?: string; request?: string },
-        callback: (
-          error?: Error | null,
-          result?: string
-        ) => void
+        callback: (error?: Error | null, result?: string) => void
       ) => {
         // Externalize server-only packages (exact match or subpath)
         if (
@@ -458,4 +465,3 @@ async function getConfig(): Promise<NextConfig> {
 }
 
 export default getConfig();
-

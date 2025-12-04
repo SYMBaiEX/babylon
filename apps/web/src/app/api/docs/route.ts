@@ -40,8 +40,8 @@
  *                   type: string
  */
 
-import { NextResponse } from 'next/server';
 import { generateAutoSpec } from '@babylon/api';
+import { NextResponse } from 'next/server';
 
 /**
  * GET /api/docs

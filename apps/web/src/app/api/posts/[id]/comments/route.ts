@@ -72,7 +72,22 @@
  *         description: Post not found
  */
 
-import type { NextRequest } from 'next/server';
+import {
+  authenticate,
+  BusinessLogicError,
+  checkRateLimitAndDuplicates,
+  DUPLICATE_DETECTION_CONFIGS,
+  ensureUserForAuth,
+  getCanonicalUserId,
+  NotFoundError,
+  notifyCommentOnPost,
+  notifyMention,
+  notifyReplyToComment,
+  optionalAuth,
+  RATE_LIMIT_CONFIGS,
+  successResponse,
+  withErrorHandling,
+} from '@babylon/api';
 import {
   and,
   asc,
@@ -80,32 +95,19 @@ import {
   count,
   db,
   eq,
+  hasBlocked,
   inArray,
   posts,
   reactions,
   users,
 } from '@babylon/db';
-import { authenticate, optionalAuth } from '@babylon/api';
-import { BusinessLogicError, NotFoundError } from '@babylon/api';
-import { successResponse, withErrorHandling } from '@babylon/api';
-import { logger } from '@babylon/shared';
-import { hasBlocked } from '@babylon/db';
-import {
-  checkRateLimitAndDuplicates,
-  DUPLICATE_DETECTION_CONFIGS,
-  RATE_LIMIT_CONFIGS,
-} from '@babylon/api';
-import {
-  notifyCommentOnPost,
-  notifyMention,
-  notifyReplyToComment,
-} from '@babylon/api';
-import { generateSnowflakeId } from '@babylon/shared';
-import { ensureUserForAuth, getCanonicalUserId } from '@babylon/api';
 import {
   CreateCommentSchema,
+  generateSnowflakeId,
+  logger,
   PostIdParamSchema,
 } from '@babylon/shared';
+import type { NextRequest } from 'next/server';
 
 /**
  * Build threaded comment structure recursively

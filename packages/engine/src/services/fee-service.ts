@@ -6,7 +6,6 @@
  * Handles both platform fees and referrer share distribution.
  */
 
-import type { SQL } from 'drizzle-orm';
 import {
   and,
   balanceTransactions,
@@ -23,9 +22,9 @@ import {
   users,
   withTransaction,
 } from '@babylon/db';
+import { generateSnowflakeId, logger } from '@babylon/shared';
+import type { SQL } from 'drizzle-orm';
 import { FEE_CONFIG, type FeeType } from '../config/fees';
-import { logger } from '@babylon/shared';
-import { generateSnowflakeId } from '@babylon/shared';
 
 /**
  * Fee calculation result
@@ -493,4 +492,3 @@ export class FeeService {
     };
   }
 }
-

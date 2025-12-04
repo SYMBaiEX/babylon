@@ -32,8 +32,7 @@ function calculateDynamicThresholds(
   windowDays = 7
 ): KickThresholds {
   // Fair share = total messages / participants (what each would have if equal)
-  const fairShare =
-    participantCount > 0 ? totalMessages / participantCount : 0;
+  const fairShare = participantCount > 0 ? totalMessages / participantCount : 0;
 
   // Ideal participation: between 50% and 150% of fair share
   // But with minimum floors to handle low-activity groups
@@ -145,5 +144,3 @@ export class NPCGroupDynamicsService {
     };
   }
 }
-
-

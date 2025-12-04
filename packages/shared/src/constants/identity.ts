@@ -7,13 +7,12 @@
 
 import type { Address } from 'viem';
 import { parseAbi, zeroAddress } from 'viem';
-
-import { CHAIN_ID } from './chains';
 import {
   IDENTITY_REGISTRY_ABI,
   REPUTATION_SYSTEM_ABI,
 } from '../contracts/abis';
 import { getERC8004ContractAddresses } from '../contracts/addresses';
+import { CHAIN_ID } from './chains';
 
 /**
  * Capabilities hash constant for ERC-8004 identity registry

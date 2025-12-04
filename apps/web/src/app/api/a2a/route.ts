@@ -77,16 +77,16 @@ import {
   DefaultRequestHandler,
   JsonRpcTransportHandler,
 } from '@a2a-js/sdk/server';
-import type { NextRequest } from 'next/server';
-import { NextResponse } from 'next/server';
 import {
-  babylonAgentCard,
   BabylonAgentExecutor,
+  babylonAgentCard,
   ExtendedTaskStore,
-  validateApiKey,
   getRequiredApiKey,
+  validateApiKey,
 } from '@babylon/a2a';
 import { logger } from '@babylon/shared';
+import type { NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
 
 // Initialize A2A protocol components
 const taskStore = new ExtendedTaskStore();
@@ -124,9 +124,13 @@ function checkApiKey(request: NextRequest): NextResponse | null {
       { error: authResult.error },
       {
         status: authResult.statusCode || 401,
-        headers: authResult.statusCode === 401
-          ? { 'WWW-Authenticate': 'ApiKey realm="Babylon", header="X-Babylon-Api-Key"' }
-          : undefined,
+        headers:
+          authResult.statusCode === 401
+            ? {
+                'WWW-Authenticate':
+                  'ApiKey realm="Babylon", header="X-Babylon-Api-Key"',
+              }
+            : undefined,
       }
     );
   }

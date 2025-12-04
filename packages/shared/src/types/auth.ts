@@ -18,4 +18,3 @@ export interface AuthenticatedUser {
   email?: string;
   isAgent?: boolean;
 }
-

@@ -28,6 +28,7 @@
  */
 'use client';
 
+import { cn } from '@babylon/shared';
 import {
   Activity,
   AlertCircle,
@@ -37,7 +38,6 @@ import {
   Wallet,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { cn } from '@babylon/shared';
 
 /**
  * Position structure for NPC portfolio.

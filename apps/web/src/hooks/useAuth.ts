@@ -1,5 +1,6 @@
 'use client';
 
+import { logger } from '@babylon/shared';
 import {
   type ConnectedWallet,
   type User as PrivyUser,
@@ -8,13 +9,9 @@ import {
 } from '@privy-io/react-auth';
 import { useSmartWallets } from '@privy-io/react-auth/smart-wallets';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
-
 import { toast } from 'sonner';
-
-import { apiFetch } from '@/utils/api-fetch';
-import { logger } from '@babylon/shared';
-
 import { type User, useAuthStore } from '@/stores/authStore';
+import { apiFetch } from '@/utils/api-fetch';
 
 /**
  * Return type for the useAuth hook.

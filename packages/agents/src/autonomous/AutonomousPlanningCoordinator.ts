@@ -7,11 +7,11 @@
 
 import type { JsonValue } from '@babylon/db';
 import { db } from '@babylon/db';
+import { countTokensSync, truncateToTokenLimitSync } from '@babylon/engine';
 import type { IAgentRuntime } from '@elizaos/core';
+import { callGroqDirect } from '../llm/direct-groq';
 import { logger } from '../shared/logger';
 import { generateSnowflakeId } from '../shared/snowflake';
-import { countTokensSync, truncateToTokenLimitSync } from '@babylon/engine';
-import { callGroqDirect } from '../llm/direct-groq';
 import type {
   AgentConstraints,
   AgentDirective,
@@ -542,15 +542,15 @@ Your action plan (JSON only):`;
 
     const parsed = JSON.parse(jsonMatch[0]) as {
       reasoning: string;
-    actions: Array<{
-      type: string;
-      priority: number;
-      goalId?: string;
-      reasoning: string;
-      estimatedImpact: number;
-      params?: Record<string, JsonValue>;
-    }>;
-  };
+      actions: Array<{
+        type: string;
+        priority: number;
+        goalId?: string;
+        reasoning: string;
+        estimatedImpact: number;
+        params?: Record<string, JsonValue>;
+      }>;
+    };
 
     const actions: PlannedAction[] = parsed.actions.map((a) => ({
       type: a.type as PlannedAction['type'],

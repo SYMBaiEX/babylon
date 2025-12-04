@@ -68,17 +68,21 @@
  * ```
  */
 
+import {
+  AuthorizationError,
+  authenticate,
+  ConflictError,
+  NotFoundError,
+  PointsService,
+  requireUserByIdentifier,
+  successResponse,
+  withErrorHandling,
+} from '@babylon/api';
+import { and, db, eq, ne, users } from '@babylon/db';
+import { logger, UserIdParamSchema } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { z } from 'zod';
-import { and, db, eq, ne, users } from '@babylon/db';
-import { authenticate, successResponse } from '@babylon/api';
-import { AuthorizationError, ConflictError, NotFoundError } from '@babylon/api';
-import { withErrorHandling } from '@babylon/api';
-import { logger } from '@babylon/shared';
 import { trackServerEvent } from '@/lib/posthog/server';
-import { PointsService } from '@babylon/api';
-import { requireUserByIdentifier } from '@babylon/api';
-import { UserIdParamSchema } from '@babylon/shared';
 
 const LinkSocialRequestSchema = z.object({
   platform: z.enum(['farcaster', 'twitter', 'wallet']),

@@ -3,8 +3,8 @@
  * Standard location: /.well-known/agent-card.json
  */
 
-import { NextResponse } from 'next/server';
 import { babylonAgentCard } from '@babylon/a2a';
+import { NextResponse } from 'next/server';
 
 export async function GET() {
   return NextResponse.json(babylonAgentCard, {

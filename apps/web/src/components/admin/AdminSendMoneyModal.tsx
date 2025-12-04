@@ -1,5 +1,6 @@
 'use client';
 
+import { CHAIN, cn, logger, WALLET_ERROR_MESSAGES } from '@babylon/shared';
 import { useFundWallet, usePrivy } from '@privy-io/react-auth';
 import {
   AlertCircle,
@@ -12,12 +13,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import type { Address } from 'viem';
 import { formatEther } from 'viem';
-import { CHAIN } from '@babylon/shared';
 import { useSmartWallet } from '@/hooks/useSmartWallet';
 import { useSmartWalletBalance } from '@/hooks/useSmartWalletBalance';
-import { logger } from '@babylon/shared';
-import { cn } from '@babylon/shared';
-import { WALLET_ERROR_MESSAGES } from '@babylon/shared';
 
 /**
  * Admin send money modal component for sending ETH to users.

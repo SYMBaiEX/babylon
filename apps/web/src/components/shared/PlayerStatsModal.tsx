@@ -1,5 +1,6 @@
 'use client';
 
+import { logger } from '@babylon/shared';
 import {
   Calendar,
   FileText,
@@ -15,7 +16,6 @@ import {
 import Image from 'next/image';
 import { useEffect, useState } from 'react';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
-import { logger } from '@babylon/shared';
 
 interface UserProfile {
   id: string;

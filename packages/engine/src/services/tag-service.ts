@@ -7,7 +7,6 @@
  * - Manages tag statistics and trending calculations
  */
 
-import OpenAI from 'openai';
 import {
   and,
   asc,
@@ -25,6 +24,7 @@ import {
 } from '@babylon/db';
 import { isPromptLoggingEnabled, logPrompt } from '@babylon/engine';
 import { generateSnowflakeId, logger } from '@babylon/shared';
+import OpenAI from 'openai';
 
 // =============================================================================
 // Types
@@ -188,7 +188,11 @@ If no good tags, return: <response><tags></tags></response>`;
   }
 
   if (!contentText) {
-    logger.warn('No content in tag generation response', { content }, 'TagService');
+    logger.warn(
+      'No content in tag generation response',
+      { content },
+      'TagService'
+    );
     return [];
   }
 
@@ -680,5 +684,3 @@ export async function getRelatedTags(
     .map((id) => tagMap.get(id))
     .filter((name): name is string => name !== undefined);
 }
-
-

@@ -401,4 +401,3 @@ export function calculateExpectedPayout(
 ): number {
   return PredictionPricing.calculateExpectedPayout(shares, avgPrice);
 }
-

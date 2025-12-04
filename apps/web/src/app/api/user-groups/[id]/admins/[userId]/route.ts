@@ -60,11 +60,10 @@
  * ```
  */
 
+import { authenticate, withErrorHandling } from '@babylon/api';
+import { db } from '@babylon/db';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { db } from '@babylon/db';
-import { authenticate } from '@babylon/api';
-import { withErrorHandling } from '@babylon/api';
 
 /**
  * DELETE /api/user-groups/[id]/admins/[userId]

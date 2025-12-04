@@ -6,12 +6,16 @@
  * @access Authenticated (own keys only)
  */
 
-import type { NextRequest } from 'next/server';
-import { authenticate } from '@babylon/api';
+import {
+  authenticate,
+  generateApiKey,
+  hashApiKey,
+  successResponse,
+  withErrorHandling,
+} from '@babylon/api';
+import { asUser, generateSnowflakeId, userApiKeys } from '@babylon/db';
 import { logger } from '@babylon/shared';
-import { generateApiKey, hashApiKey } from '@babylon/api';
-import { userApiKeys, asUser, generateSnowflakeId } from '@babylon/db';
-import { successResponse, withErrorHandling } from '@babylon/api';
+import type { NextRequest } from 'next/server';
 import { z } from 'zod';
 
 const CreateApiKeySchema = z.object({
@@ -104,4 +108,3 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       'API key created successfully. Save this key - it will not be shown again.',
   });
 });
-

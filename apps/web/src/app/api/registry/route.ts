@@ -140,14 +140,16 @@
  * @see {@link /lib/db/context} RLS context
  */
 
-import type { NextRequest } from 'next/server';
+import {
+  optionalAuth,
+  ReputationService,
+  successResponse,
+  withErrorHandling,
+} from '@babylon/api';
 import type { DrizzleClient } from '@babylon/db';
-import { optionalAuth } from '@babylon/api';
 import { asPublic, asUser } from '@babylon/db';
-import { successResponse, withErrorHandling } from '@babylon/api';
-import { logger } from '@babylon/shared';
-import { ReputationService } from '@babylon/api';
-import { RegistryQuerySchema } from '@babylon/shared';
+import { logger, RegistryQuerySchema } from '@babylon/shared';
+import type { NextRequest } from 'next/server';
 /**
  * GET /api/registry
  * Fetch all registered users with optional filtering

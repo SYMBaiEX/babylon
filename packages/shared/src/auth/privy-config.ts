@@ -9,7 +9,13 @@
 
 import type { PrivyClientConfig } from '@privy-io/react-auth';
 
-import { base, baseSepolia, CHAIN, mainnet, sepolia } from '../constants/chains';
+import {
+  base,
+  baseSepolia,
+  CHAIN,
+  mainnet,
+  sepolia,
+} from '../constants/chains';
 
 /**
  * Extended Privy appearance config with system theme support
@@ -104,4 +110,3 @@ export const privyConfig: {
     }),
   },
 };
-

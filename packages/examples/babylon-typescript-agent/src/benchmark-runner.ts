@@ -81,7 +81,7 @@ async function runBenchmark(
     'Benchmark runner requires simulation modules that are not yet available as packages. ' +
       'Please use the main app benchmark runner instead.'
   );
-  
+
   // Placeholder types for when modules are available
   // const { SimulationEngine } = await import('@babylon/testing/benchmark/SimulationEngine');
   // const { SimulationA2AInterface } = await import('@babylon/testing/benchmark/SimulationA2AInterface');
@@ -302,7 +302,7 @@ async function runBenchmark(
 
   return result;
   */
-  
+
   // Unreachable - return placeholder to satisfy type checker
   return {
     id: 'disabled',
@@ -327,7 +327,7 @@ async function runMultiple(
   throw new Error(
     'Benchmark runner requires simulation modules that are not yet available as packages.'
   );
-  
+
   // Unreachable code kept for reference
   /*
   log(`🔄 Running ${runs} benchmark iterations`);
@@ -392,7 +392,7 @@ async function runMultiple(
   log('');
   log(`Results: ${outputDir}`);
   */
-  
+
   // Unreachable - return placeholder to satisfy type checker
   return {
     runs: [],

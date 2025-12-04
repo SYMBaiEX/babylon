@@ -470,4 +470,3 @@ function escapeRegex(str: string): string {
 
 // Singleton instance
 export const characterMappingService = new CharacterMappingService();
-

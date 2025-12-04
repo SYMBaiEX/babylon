@@ -57,9 +57,9 @@
  * ```
  */
 
+import { modelDeployer } from '@babylon/training';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { modelDeployer } from '@babylon/training';
 
 export async function POST(request: NextRequest) {
   try {

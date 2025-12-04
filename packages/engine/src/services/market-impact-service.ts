@@ -92,4 +92,3 @@ export function aggregateTradeImpacts(
 
   return impacts;
 }
-

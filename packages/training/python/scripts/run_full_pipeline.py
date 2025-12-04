@@ -156,9 +156,9 @@ class FullPipeline:
         
         try:
             async with PostgresTrajectoryReader(self.database_url) as reader:
-                # Get recent windows
+                # Get all recent windows (with min_agents=1 to find all)
                 windows = await reader.get_window_ids(
-                    min_agents=2,
+                    min_agents=1,
                     lookback_hours=72
                 )
                 
@@ -167,20 +167,33 @@ class FullPipeline:
                     await self._generate_synthetic_data()
                     return
                 
-                # Load trajectories from most recent window
-                window_id = windows[0]
-                logger.info(f"Loading from window: {window_id}")
+                logger.info(f"Found {len(windows)} trajectory windows")
                 
-                trajectories = await reader.get_trajectories_by_window(
-                    window_id,
-                    min_actions=3
-                )
+                # Load trajectories from multiple windows (up to 50)
+                all_trajectories = []
+                for window_id in windows[:50]:
+                    trajectories = await reader.get_trajectories_by_window(
+                        window_id,
+                        min_actions=1  # Lowered to capture more data
+                    )
+                    all_trajectories.extend(trajectories)
+                    
+                    # Stop if we have enough
+                    if len(all_trajectories) >= self.num_agents * 2:
+                        break
                 
-                self.generated_trajectories = trajectories
-                logger.info(f"Loaded {len(trajectories)} trajectories")
+                if not all_trajectories:
+                    logger.warning("No valid trajectories found - using synthetic data")
+                    await self._generate_synthetic_data()
+                    return
+                
+                self.generated_trajectories = all_trajectories
+                logger.info(f"Loaded {len(all_trajectories)} trajectories from database")
                 
         except Exception as e:
             logger.error(f"Failed to load from database: {e}")
+            import traceback
+            traceback.print_exc()
             logger.warning("Falling back to synthetic data")
             await self._generate_synthetic_data()
     
@@ -352,19 +365,74 @@ class FullPipeline:
             logger.info(f"  {traj.agent_id}: P&L=${traj.final_pnl:.2f}, Score={score:.3f}")
     
     async def train_model(self):
-        """Train model using GRPO from scored trajectories"""
-        from src.training import AtroposTrainingConfig, BabylonAtroposTrainer
-        from src.data_bridge import BabylonToAtroposConverter
-        from src.training import MultiPromptDatasetBuilder, prepare_multi_prompt_training_data
-        
+        """Train model using Tinker (cloud) or GRPO (local) from scored trajectories"""
         if not self.generated_trajectories or not self.scores:
             logger.warning("No scored trajectories for training")
             return
         
         logger.info("Preparing training data...")
         
-        # Convert to training format
-        converter = BabylonToAtroposConverter()
+        # Check if Tinker is available
+        tinker_api_key = os.getenv("TINKER_API_KEY")
+        
+        if tinker_api_key:
+            # Use Tinker for cloud-based training
+            await self._train_with_tinker()
+        else:
+            # Fall back to local training data preparation
+            await self._prepare_local_training_data()
+    
+    async def _train_with_tinker(self):
+        """Train using Tinker cloud API"""
+        from src.training.tinker_trainer import BabylonTinkerTrainer, TinkerTrainingConfig
+        from src.training.tinker_client import TINKER_AVAILABLE
+        
+        if not TINKER_AVAILABLE:
+            logger.warning("Tinker not installed. Install with: pip install tinker")
+            logger.info("Falling back to local training data preparation")
+            await self._prepare_local_training_data()
+            return
+        
+        logger.info("Using Tinker for cloud-based training")
+        
+        config = TinkerTrainingConfig(
+            base_model=self.model_name,
+            training_steps=min(100, len(self.generated_trajectories) * 2),
+            group_size=4,
+            learning_rate=4e-5,
+            lora_rank=32,
+            database_url=self.database_url,
+            log_file=str(self.output_dir / "tinker_training_metrics.jsonl"),
+        )
+        
+        trainer = BabylonTinkerTrainer(config)
+        
+        try:
+            result = await trainer.train()
+            
+            if result.get("success"):
+                self.trained_model_path = self.output_dir / "tinker_trained"
+                self.trained_model_path.mkdir(parents=True, exist_ok=True)
+                
+                # Save training result
+                with open(self.trained_model_path / "training_result.json", "w") as f:
+                    json.dump(result, f, indent=2, default=str)
+                
+                logger.info(f"Tinker training complete!")
+                logger.info(f"  Run ID: {result.get('run_id')}")
+                logger.info(f"  Steps: {result.get('steps')}")
+                logger.info(f"  Final weights: {result.get('final_weights')}")
+            else:
+                logger.error("Tinker training failed")
+                
+        except Exception as e:
+            logger.error(f"Tinker training error: {e}")
+            logger.info("Falling back to local training data preparation")
+            await self._prepare_local_training_data()
+    
+    async def _prepare_local_training_data(self):
+        """Prepare training data for local training (Atropos/vLLM)"""
+        from src.training import MultiPromptDatasetBuilder
         
         # Use multi-prompt dataset builder for comprehensive training
         builder = MultiPromptDatasetBuilder()
@@ -387,15 +455,14 @@ class FullPipeline:
         builder.save_dataset(str(training_data_path))
         logger.info(f"Training data saved to: {training_data_path}")
         
-        # For actual training, we would use the AtroposTrainer
-        # This requires the Atropos API server and vLLM running
-        logger.info("\nNote: Full training requires:")
+        # Note about requirements
+        logger.info("\nTo train locally, you need:")
         logger.info("  1. Atropos API server running (run-api)")
         logger.info("  2. vLLM server with base model")
-        logger.info("  3. DATABASE_URL and OPENAI_API_KEY configured")
+        logger.info("  3. Or set TINKER_API_KEY for cloud training")
         
         # Save model path
-        self.trained_model_path = self.output_dir / "trained_model"
+        self.trained_model_path = self.output_dir / "training_data"
         self.trained_model_path.mkdir(parents=True, exist_ok=True)
         
         # Save training config for reference
@@ -404,6 +471,7 @@ class FullPipeline:
             "num_trajectories": len(self.generated_trajectories),
             "num_samples": stats['total_samples'],
             "timestamp": datetime.now(timezone.utc).isoformat(),
+            "training_method": "prepared_data",
         }
         with open(self.trained_model_path / "training_config.json", "w") as f:
             json.dump(config, f, indent=2)

@@ -656,7 +656,9 @@ describeTests('AutomationPipeline - Unit Tests', () => {
 
       // Access private method for testing - call it directly on the pipeline instance
       // Using type assertion to access private method
-      const runHealthChecks = (pipeline as never as { runHealthChecks: () => Promise<void> }).runHealthChecks;
+      const runHealthChecks = (
+        pipeline as never as { runHealthChecks: () => Promise<void> }
+      ).runHealthChecks;
       await runHealthChecks.call(pipeline);
 
       expect(mockLogger.error).toHaveBeenCalled();
@@ -665,7 +667,7 @@ describeTests('AutomationPipeline - Unit Tests', () => {
     test('should warn on low data collection rate', async () => {
       // Clear previous calls
       mockLogger.warn.mockClear();
-      
+
       mockSelectResultsQueue = [
         [{ count: 1 }], // users count (db connectivity check)
         [{ count: 0 }], // trajectories last hour (low rate)
@@ -673,7 +675,9 @@ describeTests('AutomationPipeline - Unit Tests', () => {
 
       // Access private method for testing - call it directly on the pipeline instance
       // Using type assertion to access private method
-      const runHealthChecks = (pipeline as never as { runHealthChecks: () => Promise<void> }).runHealthChecks;
+      const runHealthChecks = (
+        pipeline as never as { runHealthChecks: () => Promise<void> }
+      ).runHealthChecks;
       await runHealthChecks.call(pipeline);
 
       // The warning should be logged when trajectoriesLastHour < 1

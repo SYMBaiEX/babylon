@@ -53,7 +53,6 @@
  * ```
  */
 
-import { NextResponse } from 'next/server';
 import {
   actors,
   and,
@@ -66,6 +65,7 @@ import {
   poolPositions,
   pools,
 } from '@babylon/db';
+import { NextResponse } from 'next/server';
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);

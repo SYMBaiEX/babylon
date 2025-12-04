@@ -7,6 +7,8 @@
  * Transactions execute on blockchain via smart wallet
  */
 
+import { getContractAddresses } from '@babylon/contracts';
+import { cn } from '@babylon/shared';
 import {
   Clock,
   ExternalLink,
@@ -15,7 +17,7 @@ import {
   Wallet,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { PageContainer } from '@/components/shared/PageContainer';
 import { Skeleton } from '@/components/shared/Skeleton';
@@ -24,11 +26,9 @@ import { useOnChainBetting } from '@/hooks/useOnChainBetting';
 import { useSmartWallet } from '@/hooks/useSmartWallet';
 import { usePerpMarkets } from '@/stores/perpMarketsStore';
 import {
-  usePredictionMarkets,
   type PredictionMarket,
+  usePredictionMarkets,
 } from '@/stores/predictionMarketsStore';
-import { getContractAddresses } from '@babylon/contracts';
-import { cn } from '@babylon/shared';
 
 export default function OnChainBettingPage() {
   const router = useRouter();
@@ -47,7 +47,16 @@ export default function OnChainBettingPage() {
   const [betAmount, setBetAmount] = useState('');
   const [betSide, setBetSide] = useState<'YES' | 'NO'>('YES');
 
-  const loading = perpLoading && questionsLoading;
+  // Show loading only on initial fetch
+  const loading =
+    (perpLoading && perpMarkets.length === 0) ||
+    (questionsLoading && questions.length === 0);
+
+  // Memoize active questions
+  const activeQuestions = useMemo(
+    () => questions.filter((q) => q.status === 'active'),
+    [questions]
+  );
 
   // Get network info
   const { network, diamond, chainId } = getContractAddresses();
@@ -214,90 +223,86 @@ export default function OnChainBettingPage() {
             Prediction Markets - On-Chain
           </h2>
           <div className="space-y-3">
-            {questions
-              .filter((q) => q.status === 'active')
-              .map((question) => {
-                const yesShares = question.yesShares ?? 0;
-                const noShares = question.noShares ?? 0;
-                const totalShares = yesShares + noShares;
-                const yesPercent =
-                  totalShares > 0
-                    ? ((yesShares / totalShares) * 100).toFixed(1)
-                    : '50.0';
-                const noPercent =
-                  totalShares > 0
-                    ? ((noShares / totalShares) * 100).toFixed(1)
-                    : '50.0';
-                const daysLeft = getDaysLeft(question.resolutionDate);
+            {activeQuestions.map((question) => {
+              const yesShares = question.yesShares ?? 0;
+              const noShares = question.noShares ?? 0;
+              const totalShares = yesShares + noShares;
+              const yesPercent =
+                totalShares > 0
+                  ? ((yesShares / totalShares) * 100).toFixed(1)
+                  : '50.0';
+              const noPercent =
+                totalShares > 0
+                  ? ((noShares / totalShares) * 100).toFixed(1)
+                  : '50.0';
+              const daysLeft = getDaysLeft(question.resolutionDate);
 
-                return (
-                  <div
-                    key={question.id}
-                    className="rounded-lg border border-border bg-card p-4 transition-colors hover:border-[#0066FF]/50"
-                  >
-                    <div className="mb-3">
-                      <h3 className="mb-1 font-medium text-base">
-                        {question.text}
-                      </h3>
-                      <div className="flex items-center gap-2 text-xs">
-                        {question.oracleCommitTxHash && (
-                          <span className="flex items-center gap-1 text-green-600">
-                            ✓ Committed On-Chain
-                          </span>
-                        )}
-                        {daysLeft !== null && (
-                          <span className="flex items-center gap-1 text-muted-foreground">
-                            <Clock className="h-3 w-3" />
-                            {daysLeft}d left
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="mb-3 flex items-center justify-between">
-                      <div className="flex gap-4">
-                        <div className="text-sm">
-                          <span className="font-bold text-green-600">
-                            {yesPercent}%
-                          </span>
-                          <span className="ml-1 text-muted-foreground">
-                            YES
-                          </span>
-                        </div>
-                        <div className="text-sm">
-                          <span className="font-bold text-red-600">
-                            {noPercent}%
-                          </span>
-                          <span className="ml-1 text-muted-foreground">NO</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => {
-                          setSelectedMarket(question);
-                          setBetSide('YES');
-                        }}
-                        className="flex-1 rounded-lg bg-green-600/20 px-4 py-2 font-medium text-green-600 transition-colors hover:bg-green-600/30"
-                      >
-                        Bet YES On-Chain
-                      </button>
-                      <button
-                        onClick={() => {
-                          setSelectedMarket(question);
-                          setBetSide('NO');
-                        }}
-                        className="flex-1 rounded-lg bg-red-600/20 px-4 py-2 font-medium text-red-600 transition-colors hover:bg-red-600/30"
-                      >
-                        Bet NO On-Chain
-                      </button>
+              return (
+                <div
+                  key={question.id}
+                  className="rounded-lg border border-border bg-card p-4 transition-colors hover:border-[#0066FF]/50"
+                >
+                  <div className="mb-3">
+                    <h3 className="mb-1 font-medium text-base">
+                      {question.text}
+                    </h3>
+                    <div className="flex items-center gap-2 text-xs">
+                      {question.oracleCommitTxHash && (
+                        <span className="flex items-center gap-1 text-green-600">
+                          ✓ Committed On-Chain
+                        </span>
+                      )}
+                      {daysLeft !== null && (
+                        <span className="flex items-center gap-1 text-muted-foreground">
+                          <Clock className="h-3 w-3" />
+                          {daysLeft}d left
+                        </span>
+                      )}
                     </div>
                   </div>
-                );
-              })}
 
-            {questions.filter((q) => q.status === 'active').length === 0 && (
+                  <div className="mb-3 flex items-center justify-between">
+                    <div className="flex gap-4">
+                      <div className="text-sm">
+                        <span className="font-bold text-green-600">
+                          {yesPercent}%
+                        </span>
+                        <span className="ml-1 text-muted-foreground">YES</span>
+                      </div>
+                      <div className="text-sm">
+                        <span className="font-bold text-red-600">
+                          {noPercent}%
+                        </span>
+                        <span className="ml-1 text-muted-foreground">NO</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => {
+                        setSelectedMarket(question);
+                        setBetSide('YES');
+                      }}
+                      className="flex-1 rounded-lg bg-green-600/20 px-4 py-2 font-medium text-green-600 transition-colors hover:bg-green-600/30"
+                    >
+                      Bet YES On-Chain
+                    </button>
+                    <button
+                      onClick={() => {
+                        setSelectedMarket(question);
+                        setBetSide('NO');
+                      }}
+                      className="flex-1 rounded-lg bg-red-600/20 px-4 py-2 font-medium text-red-600 transition-colors hover:bg-red-600/30"
+                    >
+                      Bet NO On-Chain
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+
+            {activeQuestions.length === 0 && (
               <div className="rounded-lg bg-muted/30 p-6 text-center">
                 <p className="text-muted-foreground">
                   No active prediction markets

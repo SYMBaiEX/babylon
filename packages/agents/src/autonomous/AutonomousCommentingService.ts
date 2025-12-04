@@ -18,9 +18,9 @@ import {
   users,
 } from '@babylon/db';
 import type { IAgentRuntime } from '@elizaos/core';
+import { callGroqDirect } from '../llm/direct-groq';
 import { logger } from '../shared/logger';
 import { generateSnowflakeId } from '../shared/snowflake';
-import { callGroqDirect } from '../llm/direct-groq';
 
 export class AutonomousCommentingService {
   /**

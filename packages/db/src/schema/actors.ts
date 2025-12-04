@@ -236,7 +236,3 @@ export type NPCInteraction = typeof npcInteractions.$inferSelect;
 export type NewNPCInteraction = typeof npcInteractions.$inferInsert;
 export type NPCTrade = typeof npcTrades.$inferSelect;
 export type NewNPCTrade = typeof npcTrades.$inferInsert;
-
-
-
-

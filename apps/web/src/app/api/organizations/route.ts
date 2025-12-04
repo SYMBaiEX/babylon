@@ -60,10 +60,10 @@
  * @see {@link /lib/db/context} RLS context
  */
 
-import type { NextRequest } from 'next/server';
-import { NextResponse } from 'next/server';
 import { optionalAuth } from '@babylon/api';
 import { asPublic, asUser } from '@babylon/db';
+import type { NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
 
 /**
  * GET /api/organizations

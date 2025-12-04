@@ -181,7 +181,10 @@ const CRITICAL_TABLES: TableSyncConfig[] = [
 // Utility Functions
 // ============================================================================
 
-function log(message: string, level: 'info' | 'warn' | 'error' | 'success' = 'info'): void {
+function log(
+  message: string,
+  level: 'info' | 'warn' | 'error' | 'success' = 'info'
+): void {
   const timestamp = new Date().toISOString();
   const prefix = {
     info: '\x1b[36m[INFO]\x1b[0m',
@@ -202,9 +205,12 @@ function formatDuration(ms: number): string {
 // Database Connection
 // ============================================================================
 
-function createDbClient(url: string, name: string): ReturnType<typeof postgres> {
+function createDbClient(
+  url: string,
+  name: string
+): ReturnType<typeof postgres> {
   const isLocalhost = url.includes('localhost') || url.includes('127.0.0.1');
-  const ssl = isLocalhost ? false : 'require' as const;
+  const ssl = isLocalhost ? false : ('require' as const);
 
   log(`Connecting to ${name} database...`);
 
@@ -292,7 +298,10 @@ async function syncTable(
 
   // Check if timestamp column exists
   if (!sourceColumns.includes(timestampColumn)) {
-    log(`Timestamp column "${timestampColumn}" not found in ${tableName}`, 'warn');
+    log(
+      `Timestamp column "${timestampColumn}" not found in ${tableName}`,
+      'warn'
+    );
     return {
       table: tableName,
       newRecords: 0,
@@ -327,10 +336,19 @@ async function syncTable(
 
   // Check which records already exist in target
   const recordIds = records.map((r) => String(r[primaryKey]));
-  const existingIds = await getExistingIds(targetDb, tableName, primaryKey, recordIds);
+  const existingIds = await getExistingIds(
+    targetDb,
+    tableName,
+    primaryKey,
+    recordIds
+  );
 
-  const newRecords = records.filter((r) => !existingIds.has(String(r[primaryKey])));
-  const updatedRecords = records.filter((r) => existingIds.has(String(r[primaryKey])));
+  const newRecords = records.filter(
+    (r) => !existingIds.has(String(r[primaryKey]))
+  );
+  const updatedRecords = records.filter((r) =>
+    existingIds.has(String(r[primaryKey]))
+  );
 
   log(`New: ${newRecords.length}, Updates: ${updatedRecords.length}`);
 
@@ -472,7 +490,10 @@ async function main(): Promise<void> {
   log('\nIncremental sync complete!', 'success');
 
   if (isDryRun) {
-    log('\nThis was a DRY RUN. Run without --dry-run to perform actual sync.', 'warn');
+    log(
+      '\nThis was a DRY RUN. Run without --dry-run to perform actual sync.',
+      'warn'
+    );
   }
 
   // Output the timestamp to use for next sync
@@ -486,4 +507,3 @@ main().catch((error) => {
   console.error(error);
   process.exit(1);
 });
-

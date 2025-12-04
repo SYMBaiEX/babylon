@@ -77,8 +77,7 @@
  * @see GDPR Article 17 - Right to erasure
  */
 
-import type { NextRequest } from 'next/server';
-import { z } from 'zod';
+import { authenticate, successResponse, withErrorHandling } from '@babylon/api';
 import {
   db,
   eq,
@@ -94,9 +93,9 @@ import {
   users,
   withTransaction,
 } from '@babylon/db';
-import { authenticate } from '@babylon/api';
-import { successResponse, withErrorHandling } from '@babylon/api';
 import { logger } from '@babylon/shared';
+import type { NextRequest } from 'next/server';
+import { z } from 'zod';
 
 const DeleteAccountSchema = z.object({
   confirmation: z.literal('DELETE MY ACCOUNT'),

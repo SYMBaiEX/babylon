@@ -1,18 +1,17 @@
 'use client';
 
+import { cn, logger } from '@babylon/shared';
 import { ArrowLeft, Key, Palette, Save, Shield, User } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useTheme } from 'next-themes';
 import { useEffect, useState } from 'react';
 import { LoginButton } from '@/components/auth/LoginButton';
+import { ApiKeysTab } from '@/components/settings/ApiKeysTab';
 import { PrivacyTab } from '@/components/settings/PrivacyTab';
 import { SecurityTab } from '@/components/settings/SecurityTab';
-import { ApiKeysTab } from '@/components/settings/ApiKeysTab';
 import { PageContainer } from '@/components/shared/PageContainer';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { useAuth } from '@/hooks/useAuth';
-import { logger } from '@babylon/shared';
-import { cn } from '@babylon/shared';
 import { useAuthStore } from '@/stores/authStore';
 
 export default function SettingsPage() {

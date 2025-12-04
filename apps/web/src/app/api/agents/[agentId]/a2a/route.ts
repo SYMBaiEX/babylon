@@ -73,19 +73,19 @@ import {
   DefaultRequestHandler,
   JsonRpcTransportHandler,
 } from '@a2a-js/sdk/server';
-import type { NextRequest } from 'next/server';
-import { NextResponse } from 'next/server';
-import { db } from '@babylon/db';
 import {
   BabylonAgentExecutor,
-  ExtendedTaskStore,
-  type ListTasksParams,
-  generateAgentCardSync,
-  RateLimiter,
-  type JsonRpcRequest,
   ErrorCode,
+  ExtendedTaskStore,
+  generateAgentCardSync,
+  type JsonRpcRequest,
+  type ListTasksParams,
+  RateLimiter,
 } from '@babylon/a2a';
+import { db } from '@babylon/db';
 import { logger } from '@babylon/shared';
+import type { NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
 
 // Type assertions are used instead of type guards due to intersection type issues
 
@@ -278,7 +278,7 @@ export async function POST(
       // Handle tasks/list manually
       if (body.method === 'tasks/list') {
         const jsonRpcHandler = await getAgentJsonRpcHandler(agentId);
-        
+
         // Use type assertions to access internal SDK structure
         // These properties exist at runtime but aren't in the public types
         const handlerWithRequestHandler = jsonRpcHandler as unknown as {

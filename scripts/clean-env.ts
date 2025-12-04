@@ -88,16 +88,37 @@ function parseEnvLine(line: string): EnvEntry {
   const trimmed = line.trim();
 
   if (trimmed === '') {
-    return { key: '', value: '', line, isComment: false, isEmpty: true, isVariable: false };
+    return {
+      key: '',
+      value: '',
+      line,
+      isComment: false,
+      isEmpty: true,
+      isVariable: false,
+    };
   }
 
   if (trimmed.startsWith('#')) {
-    return { key: '', value: '', line, isComment: true, isEmpty: false, isVariable: false };
+    return {
+      key: '',
+      value: '',
+      line,
+      isComment: true,
+      isEmpty: false,
+      isVariable: false,
+    };
   }
 
   const eqIndex = line.indexOf('=');
   if (eqIndex === -1) {
-    return { key: '', value: '', line, isComment: false, isEmpty: false, isVariable: false };
+    return {
+      key: '',
+      value: '',
+      line,
+      isComment: false,
+      isEmpty: false,
+      isVariable: false,
+    };
   }
 
   const key = line.substring(0, eqIndex).trim();
@@ -111,7 +132,14 @@ function parseEnvLine(line: string): EnvEntry {
     value = value.slice(1, -1);
   }
 
-  return { key, value, line, isComment: false, isEmpty: false, isVariable: true };
+  return {
+    key,
+    value,
+    line,
+    isComment: false,
+    isEmpty: false,
+    isVariable: true,
+  };
 }
 
 // =============================================================================
@@ -124,7 +152,10 @@ interface CleanResult {
   duplicates: { key: string; kept: string; removed: string[] }[];
 }
 
-function cleanEnv(content: string, options: { removeOptional: boolean }): CleanResult {
+function cleanEnv(
+  content: string,
+  options: { removeOptional: boolean }
+): CleanResult {
   const lines = content.split('\n');
   const entries = lines.map(parseEnvLine);
   const removed: { key: string; reason: string }[] = [];
@@ -195,7 +226,9 @@ function cleanEnv(content: string, options: { removeOptional: boolean }): CleanR
     if (entry.isComment) {
       const trimmed = entry.line.trim();
       const isSectionHeader =
-        trimmed.includes('===') || trimmed.includes('---') || trimmed.includes('Configuration');
+        trimmed.includes('===') ||
+        trimmed.includes('---') ||
+        trimmed.includes('Configuration');
 
       // Look ahead for kept variables
       let hasKeptVar = false;
@@ -277,7 +310,10 @@ function cleanEnv(content: string, options: { removeOptional: boolean }): CleanR
   }
 
   // Remove trailing empty lines
-  while (outputLines.length > 0 && outputLines[outputLines.length - 1].trim() === '') {
+  while (
+    outputLines.length > 0 &&
+    outputLines[outputLines.length - 1].trim() === ''
+  ) {
     outputLines.pop();
   }
 
@@ -338,7 +374,9 @@ Examples:
       console.log('📋 DUPLICATES (keeping last value):');
       for (const dup of result.duplicates) {
         console.log(`  ${dup.key}:`);
-        console.log(`    Kept: ${dup.kept.substring(0, 50)}${dup.kept.length > 50 ? '...' : ''}`);
+        console.log(
+          `    Kept: ${dup.kept.substring(0, 50)}${dup.kept.length > 50 ? '...' : ''}`
+        );
         console.log(`    Removed ${dup.removed.length} duplicate(s)`);
       }
       console.log();

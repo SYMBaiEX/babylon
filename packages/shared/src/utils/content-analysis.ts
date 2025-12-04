@@ -355,4 +355,3 @@ export function detectPrediction(content: string): {
     confidence: 0,
   };
 }
-

@@ -3,8 +3,8 @@
  */
 
 import { z } from 'zod';
-import { isValidSnowflakeId } from '../../utils/snowflake';
 import { JsonValueSchema } from '../../types/common';
+import { isValidSnowflakeId } from '../../utils/snowflake';
 
 /**
  * Snowflake ID validation schema

@@ -9,9 +9,9 @@
  * - DEBUG_PROMPTS=true
  */
 
+import { logger } from '@babylon/shared';
 import * as fs from 'fs';
 import * as path from 'path';
-import { logger } from '@babylon/shared';
 
 export interface PromptLogEntry {
   promptType: string;
@@ -142,7 +142,3 @@ export async function logPrompt(entry: PromptLogEntry): Promise<void> {
     );
   }
 }
-
-
-
-

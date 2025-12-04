@@ -8,9 +8,9 @@
 
 import { and, db, desc, eq, gte, messages, users } from '@babylon/db';
 import type { IAgentRuntime } from '@elizaos/core';
+import { callGroqDirect } from '../llm/direct-groq';
 import { logger } from '../shared/logger';
 import { generateSnowflakeId } from '../shared/snowflake';
-import { callGroqDirect } from '../llm/direct-groq';
 
 /**
  * Service for autonomous group chat participation

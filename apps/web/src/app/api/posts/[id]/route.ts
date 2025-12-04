@@ -63,7 +63,15 @@
  *         description: Post not found
  */
 
-import type { NextRequest } from 'next/server';
+import type { JsonValue } from '@babylon/api';
+import {
+  authenticate,
+  BusinessLogicError,
+  NotFoundError,
+  optionalAuth,
+  successResponse,
+  withErrorHandling,
+} from '@babylon/api';
 import {
   actors,
   and,
@@ -79,13 +87,9 @@ import {
   shares,
   users,
 } from '@babylon/db';
-import { authenticate, optionalAuth } from '@babylon/api';
-import { BusinessLogicError, NotFoundError } from '@babylon/api';
-import { successResponse, withErrorHandling } from '@babylon/api';
 import { gameService } from '@babylon/engine';
-import { logger } from '@babylon/shared';
-import { PostIdParamSchema } from '@babylon/shared';
-import type { JsonValue } from '@babylon/api';
+import { logger, PostIdParamSchema } from '@babylon/shared';
+import type { NextRequest } from 'next/server';
 
 /**
  * GET /api/posts/[id]

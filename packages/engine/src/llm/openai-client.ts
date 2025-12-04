@@ -10,13 +10,13 @@ import OpenAI from 'openai';
 import 'dotenv/config';
 import { logger } from '@babylon/shared';
 import type { JsonValue } from '../types/common';
+import { isPromptLoggingEnabled, logPrompt } from '../utils/prompt-logger';
 import {
   cleanMarkdownCodeBlocks,
   extractJsonFromText,
   parseContinuationContent,
 } from './json-continuation-parser';
 import { parseXML } from './xml-parser';
-import { isPromptLoggingEnabled, logPrompt } from '../utils/prompt-logger';
 
 type LLMProvider = 'groq' | 'claude' | 'openai';
 

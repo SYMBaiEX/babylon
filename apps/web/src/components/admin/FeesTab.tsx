@@ -1,5 +1,6 @@
 'use client';
 
+import { cn } from '@babylon/shared';
 import { Award, DollarSign, RefreshCw, TrendingUp, Users } from 'lucide-react';
 import { useCallback, useEffect, useState, useTransition } from 'react';
 import {
@@ -14,7 +15,6 @@ import {
 import { z } from 'zod';
 import { Avatar } from '@/components/shared/Avatar';
 import { Skeleton } from '@/components/shared/Skeleton';
-import { cn } from '@babylon/shared';
 
 /**
  * Fee statistics schema for validation.

@@ -8,6 +8,13 @@
       "when": 1764237293545,
       "tag": "0000_demonic_ego",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1764609327597,
+      "tag": "0001_wonderful_omega_sentinel",
+      "breakpoints": true
     }
   ]
 }

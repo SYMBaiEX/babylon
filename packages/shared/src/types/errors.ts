@@ -5,13 +5,13 @@
  * Error classes are exported from ./errors/index.ts
  */
 
-import type { JsonValue } from './common';
 import {
   AuthenticationError,
   DatabaseError,
   LLMError,
   ValidationError,
 } from '../errors';
+import type { JsonValue } from './common';
 
 /**
  * Base error interface for all application errors
@@ -91,4 +91,3 @@ export function extractErrorMessage(
   }
   return 'An unknown error occurred';
 }
-

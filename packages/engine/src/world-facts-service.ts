@@ -9,8 +9,7 @@
 
 import type { WorldFact } from '@babylon/db';
 import { and, db, desc, eq, worldFacts } from '@babylon/db';
-import { logger } from '@babylon/shared';
-import { generateSnowflakeId } from '@babylon/shared';
+import { generateSnowflakeId, logger } from '@babylon/shared';
 import { createParodyHeadlineGenerator } from './services/parody-headline-generator';
 
 export interface WorldFactsContext {

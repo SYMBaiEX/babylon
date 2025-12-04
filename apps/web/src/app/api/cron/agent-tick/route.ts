@@ -50,23 +50,22 @@
  * @see {@link /lib/agents/services/AgentService} Agent service
  */
 
-import type { NextRequest } from 'next/server';
-import { NextResponse } from 'next/server';
-import type { User } from '@babylon/db';
-import { db } from '@babylon/db';
 import {
+  AgentStatus,
+  AgentType,
+  acquireAgentLock,
+  agentRegistry,
   agentRuntimeManager,
   agentService,
   autonomousCoordinator,
-} from '@babylon/agents';
-import { logger } from '@babylon/shared';
-import {
-  acquireAgentLock,
   releaseAgentLock,
 } from '@babylon/agents';
-import { agentRegistry } from '@babylon/agents';
 import { relayCronToStaging } from '@babylon/api';
-import { AgentStatus, AgentType } from '@babylon/agents';
+import type { User } from '@babylon/db';
+import { db } from '@babylon/db';
+import { logger } from '@babylon/shared';
+import type { NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
 
 // Vercel function configuration
 // Note: vercel.json overrides this with 800 seconds (13.3 minutes)
@@ -369,15 +368,11 @@ export async function POST(_req: NextRequest) {
         );
       }
 
-      // Enable trajectory recording for RL training data collection
-      // Can be toggled via environment variable
-      const recordTrajectories =
-        process.env.RECORD_AGENT_TRAJECTORIES === 'true';
-
+      // Always record trajectories for RL training data collection
       const tickResult = await autonomousCoordinator.executeAutonomousTick(
         eligibleAgent.agentId,
         runtime,
-        recordTrajectories
+        true // Always record trajectories
       );
 
       // Validation: Verify tick executed successfully

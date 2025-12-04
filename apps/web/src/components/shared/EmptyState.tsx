@@ -1,7 +1,7 @@
 'use client';
 
-import type { LucideIcon } from 'lucide-react';
 import { cn } from '@babylon/shared';
+import type { LucideIcon } from 'lucide-react';
 
 /**
  * Props for the EmptyState component.

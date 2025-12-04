@@ -103,8 +103,13 @@
  * @see {@link /lib/moderation/filters} Moderation filters
  */
 
-import type { NextRequest } from 'next/server';
-import { NextResponse } from 'next/server';
+import {
+  authenticate,
+  BusinessLogicError,
+  NotFoundError,
+  successResponse,
+  withErrorHandling,
+} from '@babylon/api';
 import {
   and,
   db,
@@ -114,12 +119,9 @@ import {
   userMutes,
   users,
 } from '@babylon/db';
-import { authenticate } from '@babylon/api';
-import { BusinessLogicError, NotFoundError } from '@babylon/api';
-import { successResponse, withErrorHandling } from '@babylon/api';
-import { logger } from '@babylon/shared';
-import { generateSnowflakeId } from '@babylon/shared';
-import { MuteUserSchema } from '@babylon/shared';
+import { generateSnowflakeId, logger, MuteUserSchema } from '@babylon/shared';
+import type { NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
 
 export const POST = withErrorHandling(
   async (

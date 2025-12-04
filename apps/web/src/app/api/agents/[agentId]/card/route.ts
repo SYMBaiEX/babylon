@@ -61,11 +61,11 @@
  * @see {@link https://sdk.ag0.xyz/} Agent0 SDK documentation
  */
 
+import type { AgentCard } from '@babylon/agents';
+import { agentRegistry } from '@babylon/agents';
+import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { logger } from '@babylon/shared';
-import { agentRegistry } from '@babylon/agents';
-import type { AgentCard } from '@babylon/agents';
 
 export const dynamic = 'force-dynamic';
 

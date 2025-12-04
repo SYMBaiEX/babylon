@@ -49,9 +49,9 @@
  * ```
  */
 
-import { NextResponse } from 'next/server';
 import { db } from '@babylon/db';
 import { modelStorage } from '@babylon/training';
+import { NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 

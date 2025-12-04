@@ -76,9 +76,9 @@
  * @see {@link https://miniapps.farcaster.xyz/docs/guides/sharing} Farcaster embed docs
  */
 
-import { type NextRequest, NextResponse } from 'next/server';
 import { db } from '@babylon/db';
 import { PostIdParamSchema } from '@babylon/shared';
+import { type NextRequest, NextResponse } from 'next/server';
 
 export async function GET(
   _request: NextRequest,

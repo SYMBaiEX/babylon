@@ -49,9 +49,9 @@
  * @see {@link /lib/training/AutomationPipeline} Automation pipeline
  */
 
-import { NextResponse } from 'next/server';
 import { logger } from '@babylon/shared';
 import { automationPipeline } from '@babylon/training';
+import { NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60; // 1 minute

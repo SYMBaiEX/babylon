@@ -115,4 +115,3 @@ export interface MarketSnapshots {
   predictions: PredictionMarketSnapshot[];
   timestamp: string;
 }
-

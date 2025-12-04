@@ -10,20 +10,19 @@
  * - FIFO queue for pending referrals when slots open
  */
 
-import { describe, it, expect, afterAll, beforeEach } from 'bun:test';
+import { afterAll, beforeEach, describe, expect, it } from 'bun:test';
+import { getOrCreateReferralCode, PointsService } from '@babylon/api';
 import {
-  db,
-  users,
-  referrals,
-  pointsTransactions,
-  eq,
   and,
-  isNull,
   count,
+  db,
+  eq,
+  isNull,
+  pointsTransactions,
+  referrals,
+  users,
 } from '@babylon/db';
-import { PointsService } from '@babylon/api';
-import { getOrCreateReferralCode } from '@babylon/api';
-import { POINTS, generateSnowflakeId } from '@babylon/shared';
+import { generateSnowflakeId, POINTS } from '@babylon/shared';
 
 // Test user IDs that we'll clean up
 const testUserIds: string[] = [];
@@ -385,7 +384,8 @@ describe('Referral Points Integration Tests', () => {
       const pointsBefore = referrerBefore?.reputationPoints ?? 0;
 
       // Check and qualify the referral
-      const result = await PointsService.checkAndQualifyReferral(referredUserId);
+      const result =
+        await PointsService.checkAndQualifyReferral(referredUserId);
 
       expect(result).not.toBeNull();
       expect(result?.success).toBe(true);
@@ -436,7 +436,8 @@ describe('Referral Points Integration Tests', () => {
       testReferralIds.push(referralId);
 
       // Try to qualify again
-      const result = await PointsService.checkAndQualifyReferral(referredUserId);
+      const result =
+        await PointsService.checkAndQualifyReferral(referredUserId);
 
       // Should return null (already qualified)
       expect(result).toBeNull();

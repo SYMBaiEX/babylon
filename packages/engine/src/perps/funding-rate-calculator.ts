@@ -305,4 +305,3 @@ export function estimateFundingCost(
 
   return totalCost;
 }
-

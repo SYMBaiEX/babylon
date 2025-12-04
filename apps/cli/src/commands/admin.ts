@@ -9,7 +9,7 @@
  * @module cli/commands/admin
  */
 
-import { asc, db, eq, or, sql, users, closeDatabase } from '@babylon/db';
+import { asc, closeDatabase, db, eq, or, sql, users } from '@babylon/db';
 import { parseArgs, wantsHelp } from '../lib/args.js';
 import { logger } from '../lib/logger.js';
 
@@ -78,7 +78,9 @@ async function checkAdmin(identifier: string): Promise<void> {
 
     console.log('\nRecent users:');
     for (const user of allUsers) {
-      console.log(`  ${user.username || user.id} (${user.displayName || 'N/A'})`);
+      console.log(
+        `  ${user.username || user.id} (${user.displayName || 'N/A'})`
+      );
     }
     process.exit(1);
   }
@@ -141,7 +143,9 @@ async function grantAdmin(identifier: string): Promise<void> {
 
   await db.update(users).set({ isAdmin: true }).where(eq(users.id, user.id));
 
-  logger.success(`Granted admin privileges to ${user.username || user.displayName || user.id}`);
+  logger.success(
+    `Granted admin privileges to ${user.username || user.displayName || user.id}`
+  );
   console.log(`  User ID: ${user.id}`);
 
   // Verify
@@ -190,13 +194,17 @@ async function revokeAdmin(identifier: string): Promise<void> {
   const user = result[0]!;
 
   if (!user.isAdmin) {
-    console.log(`${user.username || user.walletAddress || user.id} is not an admin`);
+    console.log(
+      `${user.username || user.walletAddress || user.id} is not an admin`
+    );
     return;
   }
 
   await db.update(users).set({ isAdmin: false }).where(eq(users.id, user.id));
 
-  logger.success(`Revoked admin privileges from ${user.username || user.walletAddress || user.id}`);
+  logger.success(
+    `Revoked admin privileges from ${user.username || user.walletAddress || user.id}`
+  );
 }
 
 /**
@@ -306,4 +314,3 @@ export async function runAdminCommand(args: string[]): Promise<void> {
     await closeDatabase();
   }
 }
-

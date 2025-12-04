@@ -6,6 +6,7 @@
 
 import {
   and,
+  asUser,
   db,
   desc,
   eq,
@@ -19,20 +20,20 @@ import {
   users,
 } from '@babylon/db';
 import {
+  countTokensSync,
   formatRandomContext,
   generateRandomMarketContext,
   PerpTradeService,
   PredictionPricing,
+  shuffleArray,
+  truncateToTokenLimitSync,
   WalletService,
 } from '@babylon/engine';
 import type { IAgentRuntime } from '@elizaos/core';
-import { asUser } from '@babylon/db';
-import { logger } from '../shared/logger';
-import { generateSnowflakeId } from '../shared/snowflake';
-import { countTokensSync, truncateToTokenLimitSync } from '@babylon/engine';
-import { shuffleArray } from '@babylon/engine';
 import { callGroqDirect } from '../llm/direct-groq';
 import { agentPnLService } from '../services/AgentPnLService';
+import { logger } from '../shared/logger';
+import { generateSnowflakeId } from '../shared/snowflake';
 
 export class AutonomousTradingService {
   /**

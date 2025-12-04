@@ -60,11 +60,11 @@
  * ```
  */
 
-import type { NextRequest } from 'next/server';
-import { NextResponse } from 'next/server';
+import { requireAdmin, withErrorHandling } from '@babylon/api';
 import {
   actors,
   asc,
+  asSystem,
   chatParticipants,
   chats,
   desc,
@@ -74,17 +74,16 @@ import {
   userGroups,
   users,
 } from '@babylon/db';
-import { requireAdmin } from '@babylon/api';
-import { asSystem } from '@babylon/db';
-import { withErrorHandling } from '@babylon/api';
+import type { NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
 
 /**
  * GET /api/admin/groups
  * Get all group chats with filtering and sorting
- * Admin only
+ * Admin only (localhost bypass handled by requireAdmin)
  */
 export const GET = withErrorHandling(async (request: NextRequest) => {
-  // Require admin authentication (includes localhost bypass)
+  // Require admin (automatically bypassed on localhost)
   await requireAdmin(request);
 
   // Get query parameters

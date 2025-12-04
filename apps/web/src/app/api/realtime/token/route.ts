@@ -1,10 +1,13 @@
+import {
+  authenticate,
+  issueRealtimeToken,
+  type RealtimeChannel,
+} from '@babylon/api';
+import { db } from '@babylon/db';
+import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { db } from '@babylon/db';
-import { authenticate } from '@babylon/api';
-import { logger } from '@babylon/shared';
-import { issueRealtimeToken, type RealtimeChannel } from '@babylon/api';
 
 const BodySchema = z.object({
   channels: z.array(z.string()).optional(),

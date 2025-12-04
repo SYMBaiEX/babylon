@@ -174,11 +174,11 @@
  * @see {@link /src/app/agents/[agentId]/page.tsx} Agent detail page
  */
 
+import { agentService } from '@babylon/agents';
+import { authenticateUser } from '@babylon/api';
+import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { agentService } from '@babylon/agents';
-import { logger } from '@babylon/shared';
-import { authenticateUser } from '@babylon/api';
 
 export async function GET(
   req: NextRequest,

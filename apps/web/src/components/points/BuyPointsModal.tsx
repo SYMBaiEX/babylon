@@ -1,5 +1,6 @@
 'use client';
 
+import { CHAIN, cn, logger, WALLET_ERROR_MESSAGES } from '@babylon/shared';
 import { useFundWallet, usePrivy } from '@privy-io/react-auth';
 import {
   AlertCircle,
@@ -12,15 +13,10 @@ import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import type { Address } from 'viem';
 import { formatEther } from 'viem';
-
 import { Skeleton } from '@/components/shared/Skeleton';
-import { CHAIN } from '@babylon/shared';
 import { useAuth } from '@/hooks/useAuth';
 import { useBuyPointsTx } from '@/hooks/useBuyPointsTx';
 import { useSmartWalletBalance } from '@/hooks/useSmartWalletBalance';
-import { logger } from '@babylon/shared';
-import { cn } from '@babylon/shared';
-import { WALLET_ERROR_MESSAGES } from '@babylon/shared';
 
 /**
  * Buy points modal component for purchasing points with ETH.

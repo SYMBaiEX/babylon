@@ -24,22 +24,23 @@ import {
   eq,
   followStatuses,
   follows,
+  getDbInstance,
   inArray,
   isNull,
   lt,
   lte,
   markets,
   organizations,
+  type Post,
   positions,
   posts,
   reactions,
-  userActorFollows,
   tags,
   trendingTags,
+  userActorFollows,
   users,
-  type Post,
 } from '@babylon/db';
-import { getDbInstance } from '@babylon/db';
+import { logger } from '@babylon/shared';
 import {
   CACHE_KEYS,
   DEFAULT_TTLS,
@@ -47,7 +48,6 @@ import {
   invalidateCache,
   invalidateCachePattern,
 } from './cache-service';
-import { logger } from '@babylon/shared';
 
 /**
  * Cached Database Service Class
@@ -521,4 +521,3 @@ class CachedDatabaseService {
 }
 
 export const cachedDb = new CachedDatabaseService();
-

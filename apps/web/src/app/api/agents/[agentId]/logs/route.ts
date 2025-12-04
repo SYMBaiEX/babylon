@@ -104,10 +104,10 @@
  * @see {@link /src/app/agents/[agentId]/page.tsx} Logs UI
  */
 
-import type { NextRequest } from 'next/server';
-import { NextResponse } from 'next/server';
 import { agentService } from '@babylon/agents';
 import { authenticateUser } from '@babylon/api';
+import type { NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
 
 export async function GET(
   req: NextRequest,

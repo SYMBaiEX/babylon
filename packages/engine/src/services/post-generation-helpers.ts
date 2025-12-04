@@ -5,14 +5,14 @@
  */
 
 import {
+  type Actor,
   generateSnowflakeId,
   getDbInstance,
-  type Actor,
   type Organization,
   type Question,
 } from '@babylon/db';
-import type { BabylonLLMClient } from '../llm/openai-client';
 import { logger } from '@babylon/shared';
+import type { BabylonLLMClient } from '../llm/openai-client';
 import { characterMappingService } from './character-mapping-service';
 
 // Minimal question type for post generation (only fields actually used)

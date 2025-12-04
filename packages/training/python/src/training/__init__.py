@@ -134,6 +134,37 @@ def __getattr__(name: str):
         )
         return locals()[name]
     
+    # Tinker integration (lazy - requires tinker package)
+    if name in (
+        "BabylonTinkerClient",
+        "TinkerConfig",
+        "TinkerDatum",
+        "TrainStepResult",
+        "SampleResult",
+        "TINKER_AVAILABLE",
+    ):
+        from .tinker_client import (  # noqa: F401
+            BabylonTinkerClient,
+            TinkerConfig,
+            TinkerDatum,
+            TrainStepResult,
+            SampleResult,
+            TINKER_AVAILABLE,
+        )
+        return locals()[name]
+    
+    if name in (
+        "BabylonTinkerTrainer",
+        "TinkerTrainingConfig",
+        "TrainingMetrics",
+    ):
+        from .tinker_trainer import (  # noqa: F401
+            BabylonTinkerTrainer,
+            TinkerTrainingConfig,
+            TrainingMetrics,
+        )
+        return locals()[name]
+    
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
@@ -143,6 +174,16 @@ __all__ = [
     "AtroposTrainingConfig",
     "BabylonRLAIFEnv",
     "BabylonEnvConfig",
+    # Tinker trainer (lazy - requires tinker)
+    "BabylonTinkerClient",
+    "TinkerConfig",
+    "TinkerDatum",
+    "TrainStepResult",
+    "SampleResult",
+    "TINKER_AVAILABLE",
+    "BabylonTinkerTrainer",
+    "TinkerTrainingConfig",
+    "TrainingMetrics",
     # Reward functions
     "pnl_reward",
     "risk_adjusted_reward",

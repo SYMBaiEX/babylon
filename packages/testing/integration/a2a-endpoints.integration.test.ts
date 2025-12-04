@@ -4,14 +4,14 @@
  */
 
 import { beforeAll, describe, expect, it } from 'bun:test';
-import { db } from '@babylon/db';
+import { AgentStatus, AgentType } from '@babylon/agents';
 import { agentRegistry } from '@babylon/agents/services/agent-registry.service';
+import { db } from '@babylon/db';
 import {
+  type AgentCapabilities,
   OASFDomainCategories,
   OASFSkillCategories,
-  type AgentCapabilities,
 } from '@babylon/shared';
-import { AgentStatus, AgentType } from '@babylon/agents';
 
 describe('A2A Endpoints Integration Tests', () => {
   // Test agent IDs

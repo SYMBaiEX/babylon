@@ -1,6 +1,6 @@
+import { cn } from '@babylon/shared';
 import type { ReactNode } from 'react';
 import { forwardRef } from 'react';
-import { cn } from '@babylon/shared';
 
 /**
  * Page container component for consistent page layout.

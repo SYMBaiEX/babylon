@@ -42,7 +42,9 @@ export async function setupTestEnvironment(options?: {
 
   // Ensure DATABASE_URL is available
   if (!process.env.DATABASE_URL) {
-    console.warn('⚠️  DATABASE_URL not set - database-dependent tests will be skipped');
+    console.warn(
+      '⚠️  DATABASE_URL not set - database-dependent tests will be skipped'
+    );
     return;
   }
 

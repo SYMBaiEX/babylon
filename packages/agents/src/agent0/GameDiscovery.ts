@@ -5,8 +5,8 @@
  * through the Agent0 registry.
  */
 
-import { z } from 'zod';
 import { db } from '@babylon/db';
+import { z } from 'zod';
 import { logger } from '../shared/logger';
 import { IPFSPublisher } from './IPFSPublisher';
 import { SubgraphClient } from './SubgraphClient';

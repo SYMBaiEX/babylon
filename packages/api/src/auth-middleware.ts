@@ -6,13 +6,13 @@
  * helper functions for authentication, optional authentication, and error responses.
  */
 
+import { db, eq, users } from '@babylon/db';
+import type { AuthenticatedUser } from '@babylon/shared';
+import { extractErrorMessage, logger } from '@babylon/shared';
 import { PrivyClient } from '@privy-io/server-auth';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { db, eq, users } from '@babylon/db';
 import { verifyAgentSession } from './agent-auth';
-import { logger, extractErrorMessage } from '@babylon/shared';
-import type { AuthenticatedUser } from '@babylon/shared';
 import { AuthenticationError, isAuthenticationError } from './errors';
 
 // Re-export types from shared for backwards compatibility
@@ -74,7 +74,9 @@ export async function authenticate(
   }
 
   if (!token) {
-    throw new AuthenticationError('Missing or invalid authorization header or cookie');
+    throw new AuthenticationError(
+      'Missing or invalid authorization header or cookie'
+    );
   }
 
   // Try agent session authentication first (faster)
@@ -136,7 +138,9 @@ export async function authenticate(
           : { message: String(error) }
     );
     if (errorMessage.includes('expired') || errorMessage.includes('exp')) {
-      throw new AuthenticationError('Authentication token has expired. Please refresh your session.');
+      throw new AuthenticationError(
+        'Authentication token has expired. Please refresh your session.'
+      );
     }
 
     // Privy token verification failed
@@ -153,7 +157,9 @@ export async function authenticateWithDbUser(
   const authUser = await authenticate(request);
 
   if (!authUser.dbUserId) {
-    throw new AuthenticationError('User profile not found. Please complete onboarding first.');
+    throw new AuthenticationError(
+      'User profile not found. Please complete onboarding first.'
+    );
   }
 
   return authUser as AuthenticatedUser & { dbUserId: string };

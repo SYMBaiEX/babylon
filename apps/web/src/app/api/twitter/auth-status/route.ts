@@ -50,10 +50,9 @@
  * ```
  */
 
+import { authenticate, requireUserByIdentifier } from '@babylon/api';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { authenticate } from '@babylon/api';
-import { requireUserByIdentifier } from '@babylon/api';
 
 export async function GET(request: NextRequest) {
   const authUser = await authenticate(request);

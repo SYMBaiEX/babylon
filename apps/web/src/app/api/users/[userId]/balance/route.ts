@@ -63,16 +63,22 @@
  * @see {@link /lib/cached-database-service} Cached database service
  */
 
-import type { NextRequest } from 'next/server';
+import {
+  AuthorizationError,
+  BusinessLogicError,
+  cachedDb,
+  findUserByIdentifier,
+  optionalAuth,
+  successResponse,
+  withErrorHandling,
+} from '@babylon/api';
 import { db, users } from '@babylon/db';
-import { optionalAuth } from '@babylon/api';
-import { cachedDb } from '@babylon/api';
-import { AuthorizationError, BusinessLogicError } from '@babylon/api';
-import { successResponse, withErrorHandling } from '@babylon/api';
-import { logger } from '@babylon/shared';
-import { findUserByIdentifier } from '@babylon/api';
-import { convertBalanceToStrings } from '@babylon/shared';
-import { UserIdParamSchema } from '@babylon/shared';
+import {
+  convertBalanceToStrings,
+  logger,
+  UserIdParamSchema,
+} from '@babylon/shared';
+import type { NextRequest } from 'next/server';
 
 /**
  * GET Handler for User Balance

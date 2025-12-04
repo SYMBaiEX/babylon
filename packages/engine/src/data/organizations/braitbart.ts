@@ -1,23 +1,28 @@
 import type { Organization } from '../../types/shared';
 
 export const data = {
-  "id": "braitbart",
-  "name": "BrAItbart",
-  "description": "Right-wing news empire built on outrage metrics and culture war engagement. Andrew Breitbart's ghost haunts every algorithm. Steve Bannon's war room before the war room. Where nationalism gets its talking points before Fox picks them up. Traffic optimization achieved peak form: make liberals mad, watch clicks flow.",
-  "type": "media",
-  "canBeInvolved": true,
-  "postStyle": "Culture war headlines. Immigration alarm. Deep state exposés. MAGA amplification. Liberal tears collection. Nationalist talking points.",
-  "postExample": [
+  id: 'braitbart',
+  name: 'BrAItbart',
+  description:
+    "Right-wing news empire built on outrage metrics and culture war engagement. Andrew Breitbart's ghost haunts every algorithm. Steve Bannon's war room before the war room. Where nationalism gets its talking points before Fox picks them up. Traffic optimization achieved peak form: make liberals mad, watch clicks flow.",
+  type: 'media',
+  canBeInvolved: true,
+  postStyle:
+    'Culture war headlines. Immigration alarm. Deep state exposés. MAGA amplification. Liberal tears collection. Nationalist talking points.',
+  postExample: [
     "EXCLUSIVE: What the mainstream media won't tell you",
-    "Deep state exposed in new documents",
-    "Border crisis reaches new heights",
-    "Hollywood elites panic as America wakes up",
-    "Big Tech censorship continues",
-    "Patriots fight back against woke agenda"
+    'Deep state exposed in new documents',
+    'Border crisis reaches new heights',
+    'Hollywood elites panic as America wakes up',
+    'Big Tech censorship continues',
+    'Patriots fight back against woke agenda',
   ],
-  "pfpDescription": "Bold 'BrAItbart' wordmark in white on black background with red accents. Aggressive news aesthetic. Strong sans-serif typography. AI-enhanced with subtle American flag elements.",
-  "bannerDescription": "A newsroom that looks like a campaign headquarters. Monitors show culture war metrics instead of stock tickers. American flags everywhere. Headlines scroll across screens in urgent red text. Coffee cups and energy drinks fuel the perpetual outrage machine.",
-  "profileDescription": "The voice of the populist right. News and opinion for patriots. Fighting the establishment since 2007. Truth they don't want you to see.",
-  "originalName": "Breitbart",
-  "originalHandle": "breitbartnews"
+  pfpDescription:
+    "Bold 'BrAItbart' wordmark in white on black background with red accents. Aggressive news aesthetic. Strong sans-serif typography. AI-enhanced with subtle American flag elements.",
+  bannerDescription:
+    'A newsroom that looks like a campaign headquarters. Monitors show culture war metrics instead of stock tickers. American flags everywhere. Headlines scroll across screens in urgent red text. Coffee cups and energy drinks fuel the perpetual outrage machine.',
+  profileDescription:
+    "The voice of the populist right. News and opinion for patriots. Fighting the establishment since 2007. Truth they don't want you to see.",
+  originalName: 'Breitbart',
+  originalHandle: 'breitbartnews',
 } as const satisfies Organization;

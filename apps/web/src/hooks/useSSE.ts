@@ -1,7 +1,6 @@
+import { logger } from '@babylon/shared';
 import { usePrivy } from '@privy-io/react-auth';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-
-import { logger } from '@babylon/shared';
 
 /**
  * Static SSE channel names for standard event types.
@@ -15,9 +14,7 @@ export type StaticChannel =
 /**
  * Dynamic SSE channel names that include user-specific identifiers.
  */
-export type DynamicChannel =
-  | `chat:${string}`
-  | `notifications:${string}`;
+export type DynamicChannel = `chat:${string}` | `notifications:${string}`;
 
 /**
  * SSE channel names for different event types.
@@ -642,9 +639,10 @@ export function useSSE(options: SSEHookOptions = {}): SSEHookReturn {
   // not just when the array reference changes.
   const initialChannelsKey = initialChannels.join(',');
   // biome-ignore lint/correctness/useExhaustiveDependencies: intentionally using string key for stable reference instead of array
-  const memoizedInitialChannels = useMemo(() => initialChannels, [
-    initialChannelsKey,
-  ]);
+  const memoizedInitialChannels = useMemo(
+    () => initialChannels,
+    [initialChannelsKey]
+  );
 
   // Track subscriptions made by the initial channels effect so we can clean them up
   const initialChannelCallbacksRef = useRef<Map<Channel, SSECallback>>(

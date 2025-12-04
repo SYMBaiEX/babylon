@@ -10,10 +10,26 @@
  *   all     - Show all status (default)
  */
 
+import { getAgentLLMStatus } from '@babylon/agents/llm';
+import {
+  actors,
+  and,
+  checkDatabaseHealth,
+  closeDatabase,
+  db,
+  count as drizzleCount,
+  eq,
+  gameConfigs,
+  games,
+  gte,
+  isNotNull,
+  organizations,
+  posts,
+  questions,
+  worldEvents,
+} from '@babylon/db';
 import { execSync } from 'child_process';
 import { ethers } from 'ethers';
-import { db, closeDatabase, checkDatabaseHealth, actors, questions, posts, games, gameConfigs, worldEvents, organizations, eq, and, gte, isNotNull, count as drizzleCount } from '@babylon/db';
-import { getAgentLLMStatus } from '@babylon/agents/llm';
 import { parseArgs, wantsHelp } from '../lib/args.js';
 import { logger } from '../lib/logger.js';
 
@@ -102,7 +118,9 @@ async function checkGameStatus(): Promise<void> {
     console.log(`  Current Date: ${game.currentDate.toLocaleString()}`);
     console.log(`  Active Questions: ${game.activeQuestions}`);
     console.log(`  Speed: ${game.speed}ms between ticks`);
-    console.log(`  Last Tick: ${game.lastTickAt ? game.lastTickAt.toLocaleString() : 'Never'}`);
+    console.log(
+      `  Last Tick: ${game.lastTickAt ? game.lastTickAt.toLocaleString() : 'Never'}`
+    );
 
     if (!game.isRunning) {
       console.log('\n💡 To start: bun run game:start');
@@ -121,7 +139,9 @@ async function checkGameStatus(): Promise<void> {
     .from(worldEvents)
     .where(gte(worldEvents.createdAt, new Date(Date.now() - 5 * 60 * 1000)));
   const recentEvents = Number(recentEventsResult[0]?.count || 0);
-  console.log(`\nEvents: ${eventCount} total, ${recentEvents} in last 5 minutes`);
+  console.log(
+    `\nEvents: ${eventCount} total, ${recentEvents} in last 5 minutes`
+  );
 
   const orgCountResult = await db
     .select({ count: drizzleCount() })
@@ -131,19 +151,29 @@ async function checkGameStatus(): Promise<void> {
   const companiesWithPricesResult = await db
     .select({ count: drizzleCount() })
     .from(organizations)
-    .where(and(eq(organizations.type, 'company'), isNotNull(organizations.currentPrice)));
+    .where(
+      and(
+        eq(organizations.type, 'company'),
+        isNotNull(organizations.currentPrice)
+      )
+    );
   const companiesWithPrices = Number(companiesWithPricesResult[0]?.count || 0);
-  console.log(`Organizations: ${orgCount} total, ${companiesWithPrices} companies with prices`);
+  console.log(
+    `Organizations: ${orgCount} total, ${companiesWithPrices} companies with prices`
+  );
 }
 
 async function checkWalletStatus(): Promise<void> {
   logger.header('💳 Wallet Status');
 
-  const gamePrivateKey = process.env.BABYLON_GAME_PRIVATE_KEY || process.env.DEPLOYER_PRIVATE_KEY;
+  const gamePrivateKey =
+    process.env.BABYLON_GAME_PRIVATE_KEY || process.env.DEPLOYER_PRIVATE_KEY;
   const gameWalletAddress = process.env.BABYLON_GAME_WALLET_ADDRESS;
 
   if (!gamePrivateKey || !gameWalletAddress) {
-    logger.fail('Missing BABYLON_GAME_PRIVATE_KEY or BABYLON_GAME_WALLET_ADDRESS');
+    logger.fail(
+      'Missing BABYLON_GAME_PRIVATE_KEY or BABYLON_GAME_WALLET_ADDRESS'
+    );
     return;
   }
 
@@ -162,7 +192,10 @@ async function checkWalletStatus(): Promise<void> {
   console.log(`\n💰 Balance: ${ethers.formatEther(balance)} ETH`);
 
   const nonce = await provider.getTransactionCount(wallet.address, 'latest');
-  const pendingNonce = await provider.getTransactionCount(wallet.address, 'pending');
+  const pendingNonce = await provider.getTransactionCount(
+    wallet.address,
+    'pending'
+  );
 
   console.log(`📊 Nonce (confirmed): ${nonce}`);
   console.log(`📊 Nonce (pending): ${pendingNonce}`);
@@ -175,39 +208,55 @@ async function checkWalletStatus(): Promise<void> {
 
   const feeData = await provider.getFeeData();
   console.log('\n⛽ Current Gas Price:');
-  console.log(`   Max Fee: ${feeData.maxFeePerGas ? ethers.formatUnits(feeData.maxFeePerGas, 'gwei') : 'N/A'} gwei`);
-  console.log(`   Max Priority Fee: ${feeData.maxPriorityFeePerGas ? ethers.formatUnits(feeData.maxPriorityFeePerGas, 'gwei') : 'N/A'} gwei`);
+  console.log(
+    `   Max Fee: ${feeData.maxFeePerGas ? ethers.formatUnits(feeData.maxFeePerGas, 'gwei') : 'N/A'} gwei`
+  );
+  console.log(
+    `   Max Priority Fee: ${feeData.maxPriorityFeePerGas ? ethers.formatUnits(feeData.maxPriorityFeePerGas, 'gwei') : 'N/A'} gwei`
+  );
 
   const blockNumber = await provider.getBlockNumber();
   const block = await provider.getBlock(blockNumber);
   console.log('\n🌐 Network Status:');
   console.log(`   Latest Block: ${blockNumber}`);
-  console.log(`   Block Time: ${new Date(block!.timestamp * 1000).toISOString()}`);
-  console.log(`   Base Fee: ${block!.baseFeePerGas ? ethers.formatUnits(block!.baseFeePerGas, 'gwei') : 'N/A'} gwei`);
+  console.log(
+    `   Block Time: ${new Date(block!.timestamp * 1000).toISOString()}`
+  );
+  console.log(
+    `   Base Fee: ${block!.baseFeePerGas ? ethers.formatUnits(block!.baseFeePerGas, 'gwei') : 'N/A'} gwei`
+  );
 }
 
 async function checkLLMStatus(): Promise<void> {
   logger.header('🧠 Agent LLM Status');
 
   const status = await getAgentLLMStatus();
-  
+
   console.log(`Provider: ${status.provider}`);
   console.log(`Available: ${status.available ? '✅ Yes' : '❌ No'}`);
-  
+
   if (status.model) {
     console.log(`Model: ${status.model}`);
   }
-  
+
   if (status.error) {
     logger.warn(`Error: ${status.error}`);
   }
-  
+
   console.log('\nEnvironment:');
-  console.log(`  AGENT_LLM_PROVIDER: ${process.env.AGENT_LLM_PROVIDER || 'groq (default)'}`);
-  console.log(`  OLLAMA_HOST: ${process.env.OLLAMA_HOST || 'http://localhost:11434'}`);
-  console.log(`  HUGGINGFACE_API_KEY: ${process.env.HUGGINGFACE_API_KEY ? '✅ Set' : '❌ Not set'}`);
-  console.log(`  GROQ_API_KEY: ${process.env.GROQ_API_KEY ? '✅ Set' : '❌ Not set'}`);
-  
+  console.log(
+    `  AGENT_LLM_PROVIDER: ${process.env.AGENT_LLM_PROVIDER || 'groq (default)'}`
+  );
+  console.log(
+    `  OLLAMA_HOST: ${process.env.OLLAMA_HOST || 'http://localhost:11434'}`
+  );
+  console.log(
+    `  HUGGINGFACE_API_KEY: ${process.env.HUGGINGFACE_API_KEY ? '✅ Set' : '❌ Not set'}`
+  );
+  console.log(
+    `  GROQ_API_KEY: ${process.env.GROQ_API_KEY ? '✅ Set' : '❌ Not set'}`
+  );
+
   if (status.available) {
     logger.success('LLM provider is ready');
   } else {
@@ -221,9 +270,15 @@ async function checkAgent0Status(): Promise<void> {
   console.log('Environment Variables:');
   console.log(`  AGENT0_ENABLED: ${process.env.AGENT0_ENABLED || 'not set'}`);
   console.log(`  AGENT0_NETWORK: ${process.env.AGENT0_NETWORK || 'not set'}`);
-  console.log(`  BABYLON_REGISTRY_REGISTERED: ${process.env.BABYLON_REGISTRY_REGISTERED || 'not set'}`);
-  console.log(`  BABYLON_GAME_WALLET_ADDRESS: ${process.env.BABYLON_GAME_WALLET_ADDRESS || 'not set'}`);
-  console.log(`  PINATA_JWT: ${process.env.PINATA_JWT ? '✅ Set' : '❌ Not set'}`);
+  console.log(
+    `  BABYLON_REGISTRY_REGISTERED: ${process.env.BABYLON_REGISTRY_REGISTERED || 'not set'}`
+  );
+  console.log(
+    `  BABYLON_GAME_WALLET_ADDRESS: ${process.env.BABYLON_GAME_WALLET_ADDRESS || 'not set'}`
+  );
+  console.log(
+    `  PINATA_JWT: ${process.env.PINATA_JWT ? '✅ Set' : '❌ Not set'}`
+  );
 
   try {
     const configResult = await db
@@ -233,7 +288,11 @@ async function checkAgent0Status(): Promise<void> {
       .limit(1);
     const config = configResult[0] || null;
 
-    if (config?.value && typeof config.value === 'object' && 'tokenId' in config.value) {
+    if (
+      config?.value &&
+      typeof config.value === 'object' &&
+      'tokenId' in config.value
+    ) {
       const regValue = config.value as {
         tokenId: unknown;
         metadataCID?: unknown;
@@ -265,7 +324,10 @@ async function checkAgent0Status(): Promise<void> {
         logger.success('On-chain registration confirmed');
         console.log(`   Owner: ${owner}`);
 
-        if (owner.toLowerCase() === process.env.BABYLON_GAME_WALLET_ADDRESS?.toLowerCase()) {
+        if (
+          owner.toLowerCase() ===
+          process.env.BABYLON_GAME_WALLET_ADDRESS?.toLowerCase()
+        ) {
           logger.success('Owner matches BABYLON_GAME_WALLET_ADDRESS');
         } else {
           logger.warn('Owner does NOT match BABYLON_GAME_WALLET_ADDRESS');
@@ -274,7 +336,9 @@ async function checkAgent0Status(): Promise<void> {
         const tokenURI = execSync(
           `cast call ${registryAddress} "tokenURI(uint256)(string)" ${tokenId} --rpc-url ${rpcUrl}`,
           { encoding: 'utf-8' }
-        ).trim().replace(/"/g, '');
+        )
+          .trim()
+          .replace(/"/g, '');
 
         console.log('\n📄 Token URI:');
         console.log(`   ${tokenURI}`);
@@ -287,7 +351,7 @@ async function checkAgent0Status(): Promise<void> {
       }
     } else {
       logger.warn('No registration found in database');
-      console.log("   Run: bun run agent0:setup");
+      console.log('   Run: bun run agent0:setup');
     }
   } catch {
     logger.warn('Database not available');
@@ -347,4 +411,3 @@ export async function runStatusCommand(args: string[]): Promise<void> {
     await closeDatabase();
   }
 }
-

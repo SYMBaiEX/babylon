@@ -21,9 +21,9 @@ export type {
   IAutonomousCoordinator,
   ILLMCaller,
   ToTrainingMessagesFn,
+  TrainingMessage,
   TrajectoryForTraining,
   TrajectoryStepForTraining,
-  TrainingMessage,
 } from './dependencies';
 // Dependencies configuration
 export {
@@ -38,25 +38,25 @@ export {
   getToTrainingMessages,
 } from './dependencies';
 export * from './huggingface';
-export * from './training';
+export {
+  TrajectoryMetricsExtractor,
+  trajectoryMetricsExtractor,
+} from './metrics/TrajectoryMetricsExtractor';
 
 // Multi-criteria evaluation - export metrics types and extractor explicitly
 export type {
   BehavioralMetrics,
   BehaviorMetrics,
-  InformationMetrics,
   InfluenceMetrics,
+  InformationMetrics,
+  MetricsSummary,
   SocialMetrics,
   TradingMetrics,
-  MetricsSummary,
 } from './metrics/types';
 export { getMetricsSummary } from './metrics/types';
-export {
-  TrajectoryMetricsExtractor,
-  trajectoryMetricsExtractor,
-} from './metrics/TrajectoryMetricsExtractor';
 export * from './rubrics';
 export * from './scoring';
+export * from './training';
 
 // Utilities
 export { logger } from './utils/logger';

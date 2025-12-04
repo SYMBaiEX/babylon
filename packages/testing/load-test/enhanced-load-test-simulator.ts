@@ -10,12 +10,9 @@
  * - Comprehensive reporting
  */
 
-import { logger } from '@babylon/shared';
 import { performanceMonitor } from '@babylon/api';
-import type {
-  LoadTestConfig,
-  LoadTestResult,
-} from './load-test-simulator';
+import { logger } from '@babylon/shared';
+import type { LoadTestConfig, LoadTestResult } from './load-test-simulator';
 import { ResourceLimiter, type ResourceLimits } from './resource-limiter';
 
 export interface EnhancedLoadTestConfig extends LoadTestConfig {

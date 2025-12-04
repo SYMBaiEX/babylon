@@ -574,7 +574,10 @@ const TABLE_CONFIGS: TableMigrationConfig[] = [
 // Utility Functions
 // ============================================================================
 
-function log(message: string, level: 'info' | 'warn' | 'error' | 'success' = 'info'): void {
+function log(
+  message: string,
+  level: 'info' | 'warn' | 'error' | 'success' = 'info'
+): void {
   const timestamp = new Date().toISOString();
   const prefix = {
     info: '\x1b[36m[INFO]\x1b[0m',
@@ -614,15 +617,18 @@ function generateInsertSql(
 ): string {
   const columns = Object.keys(record);
   const columnNames = columns.map((c) => `"${c}"`).join(', ');
-  const values = columns.map((col) => {
-    const val = record[col];
-    if (val === null || val === undefined) return 'NULL';
-    if (typeof val === 'string') return `'${val.replace(/'/g, "''")}'`;
-    if (typeof val === 'boolean') return val ? 'TRUE' : 'FALSE';
-    if (val instanceof Date) return `'${val.toISOString()}'`;
-    if (typeof val === 'object') return `'${JSON.stringify(val).replace(/'/g, "''")}'`;
-    return String(val);
-  }).join(', ');
+  const values = columns
+    .map((col) => {
+      const val = record[col];
+      if (val === null || val === undefined) return 'NULL';
+      if (typeof val === 'string') return `'${val.replace(/'/g, "''")}'`;
+      if (typeof val === 'boolean') return val ? 'TRUE' : 'FALSE';
+      if (val instanceof Date) return `'${val.toISOString()}'`;
+      if (typeof val === 'object')
+        return `'${JSON.stringify(val).replace(/'/g, "''")}'`;
+      return String(val);
+    })
+    .join(', ');
 
   return `INSERT INTO "${tableName}" (${columnNames}) VALUES (${values}) ON CONFLICT ("${primaryKey}") DO NOTHING;`;
 }
@@ -647,10 +653,7 @@ function writePreviewFile(preview: DryRunPreview): void {
   // Write per-table files for easier inspection
   for (const table of preview.tables) {
     const tablePath = join(DRY_RUN_OUTPUT_DIR, `${table.tableName}.json`);
-    writeFileSync(
-      tablePath,
-      JSON.stringify(sanitizeForJson(table), null, 2)
-    );
+    writeFileSync(tablePath, JSON.stringify(sanitizeForJson(table), null, 2));
   }
   log(`Per-table previews written to: ${DRY_RUN_OUTPUT_DIR}/`);
 
@@ -708,9 +711,12 @@ function writePreviewFile(preview: DryRunPreview): void {
 // Database Connection
 // ============================================================================
 
-function createDbClient(url: string, name: string): ReturnType<typeof postgres> {
+function createDbClient(
+  url: string,
+  name: string
+): ReturnType<typeof postgres> {
   const isLocalhost = url.includes('localhost') || url.includes('127.0.0.1');
-  const ssl = isLocalhost ? false : 'require' as const;
+  const ssl = isLocalhost ? false : ('require' as const);
 
   log(`Connecting to ${name} database...`);
 
@@ -744,7 +750,9 @@ async function getRecordCount(
   db: ReturnType<typeof postgres>,
   tableName: string
 ): Promise<number> {
-  const result = await db.unsafe(`SELECT COUNT(*) as count FROM "${tableName}"`);
+  const result = await db.unsafe(
+    `SELECT COUNT(*) as count FROM "${tableName}"`
+  );
   const firstRow = result[0];
   if (!firstRow) return 0;
   return parseInt(firstRow.count as string, 10);
@@ -755,9 +763,7 @@ async function getExistingIds(
   tableName: string,
   primaryKey: string
 ): Promise<Set<string>> {
-  const result = await db.unsafe(
-    `SELECT "${primaryKey}" FROM "${tableName}"`
-  );
+  const result = await db.unsafe(`SELECT "${primaryKey}" FROM "${tableName}"`);
   return new Set(result.map((row) => String(row[primaryKey])));
 }
 
@@ -823,8 +829,12 @@ async function migrateTable(
   const sourceColumnSet = new Set(sourceColumns);
   const targetColumnSet = new Set(targetColumns);
   const commonColumns = sourceColumns.filter((col) => targetColumnSet.has(col));
-  const sourceOnlyColumns = sourceColumns.filter((col) => !targetColumnSet.has(col));
-  const targetOnlyColumns = targetColumns.filter((col) => !sourceColumnSet.has(col));
+  const sourceOnlyColumns = sourceColumns.filter(
+    (col) => !targetColumnSet.has(col)
+  );
+  const targetOnlyColumns = targetColumns.filter(
+    (col) => !sourceColumnSet.has(col)
+  );
 
   if (isDryRun) {
     log(`\nColumn Analysis for ${tableName}:`);
@@ -832,13 +842,21 @@ async function migrateTable(
     log(`  Target columns: ${targetColumns.length}`);
     log(`  Common columns: ${commonColumns.length}`);
     if (sourceOnlyColumns.length > 0) {
-      log(`  Source-only columns (will be ignored): ${sourceOnlyColumns.join(', ')}`, 'warn');
+      log(
+        `  Source-only columns (will be ignored): ${sourceOnlyColumns.join(', ')}`,
+        'warn'
+      );
     }
     if (targetOnlyColumns.length > 0) {
-      log(`  Target-only columns (will use defaults): ${targetOnlyColumns.join(', ')}`, 'warn');
+      log(
+        `  Target-only columns (will use defaults): ${targetOnlyColumns.join(', ')}`,
+        'warn'
+      );
     }
   } else if (targetOnlyColumns.length > 0) {
-    log(`Target-only columns (will use defaults): ${targetOnlyColumns.join(', ')}`);
+    log(
+      `Target-only columns (will use defaults): ${targetOnlyColumns.join(', ')}`
+    );
   }
 
   if (sourceCount === 0) {
@@ -877,9 +895,12 @@ async function migrateTable(
   // OPTIMIZATION: If target is empty, skip duplicate checking for faster bulk insert
   const isTargetEmpty = targetCountBefore === 0;
   let existingIds: Set<string> = new Set();
-  
+
   if (isTargetEmpty) {
-    log(`Target table is EMPTY - using fast bulk insert mode (no duplicate checking)`, 'success');
+    log(
+      `Target table is EMPTY - using fast bulk insert mode (no duplicate checking)`,
+      'success'
+    );
   } else {
     // Get existing IDs in target to skip duplicates (idempotency)
     log(`Target has existing data - checking for duplicates...`);
@@ -901,7 +922,7 @@ async function migrateTable(
   while (offset < sourceCount) {
     batchNumber++;
     const batchStart = Date.now();
-    
+
     // Fetch batch from source
     const columnList = commonColumns.map((c) => `"${c}"`).join(', ');
     const batch = await sourceDb.unsafe(
@@ -911,14 +932,16 @@ async function migrateTable(
     if (batch.length === 0) break;
 
     // Filter out records that already exist in target (skip if target is empty)
-    const newRecords = isTargetEmpty ? batch : batch.filter((row) => {
-      const id = String(row[primaryKey]);
-      if (existingIds.has(id)) {
-        skippedCount++;
-        return false;
-      }
-      return true;
-    });
+    const newRecords = isTargetEmpty
+      ? batch
+      : batch.filter((row) => {
+          const id = String(row[primaryKey]);
+          if (existingIds.has(id)) {
+            skippedCount++;
+            return false;
+          }
+          return true;
+        });
 
     if (newRecords.length > 0) {
       // Apply transformations and defaults
@@ -944,13 +967,27 @@ async function migrateTable(
 
       if (isDryRun) {
         // Collect samples for preview
-        for (let i = 0; i < Math.min(recordsToInsert.length, SAMPLE_SIZE - sampleSourceRecords.length); i++) {
+        for (
+          let i = 0;
+          i <
+          Math.min(
+            recordsToInsert.length,
+            SAMPLE_SIZE - sampleSourceRecords.length
+          );
+          i++
+        ) {
           const sourceRecord = newRecords[i];
           const transformedRecord = recordsToInsert[i];
-          if (sampleSourceRecords.length < SAMPLE_SIZE && sourceRecord && transformedRecord) {
+          if (
+            sampleSourceRecords.length < SAMPLE_SIZE &&
+            sourceRecord &&
+            transformedRecord
+          ) {
             sampleSourceRecords.push({ ...sourceRecord });
             sampleTransformedRecords.push({ ...transformedRecord });
-            sampleSqlStatements.push(generateInsertSql(tableName, primaryKey, transformedRecord));
+            sampleSqlStatements.push(
+              generateInsertSql(tableName, primaryKey, transformedRecord)
+            );
           }
         }
         migratedCount += newRecords.length;
@@ -958,13 +995,13 @@ async function migrateTable(
         // Actually insert records - EACH BATCH IN ITS OWN TRANSACTION
         const firstRecord = recordsToInsert[0];
         if (!firstRecord) continue;
-        
+
         const columns = Object.keys(firstRecord);
         const columnNames = columns.map((c) => `"${c}"`).join(', ');
 
         // Use transaction for this batch
         await targetDb.unsafe('BEGIN');
-        
+
         for (const record of recordsToInsert) {
           const values = columns.map((col) => record[col] ?? null);
           const placeholders = columns.map((_, i) => `$${i + 1}`).join(', ');
@@ -977,11 +1014,13 @@ async function migrateTable(
           await targetDb.unsafe(insertSql, values);
           migratedCount++;
         }
-        
+
         await targetDb.unsafe('COMMIT');
-        
+
         const batchDuration = Date.now() - batchStart;
-        log(`  Batch ${batchNumber}: Committed ${recordsToInsert.length} records in ${batchDuration}ms`);
+        log(
+          `  Batch ${batchNumber}: Committed ${recordsToInsert.length} records in ${batchDuration}ms`
+        );
       }
     }
 
@@ -990,7 +1029,9 @@ async function migrateTable(
     // Progress log
     const progress = Math.min(100, Math.round((offset / sourceCount) * 100));
     const totalMigrated = migratedCount;
-    log(`Progress: ${progress}% (${offset}/${sourceCount} processed, ${totalMigrated} migrated, ${skippedCount} skipped)`);
+    log(
+      `Progress: ${progress}% (${offset}/${sourceCount} processed, ${totalMigrated} migrated, ${skippedCount} skipped)`
+    );
   }
 
   const targetCountAfter = isDryRun
@@ -999,7 +1040,10 @@ async function migrateTable(
 
   const durationMs = Date.now() - startTime;
 
-  log(`${isDryRun ? 'Analysis' : 'Migration'} complete for ${tableName}`, 'success');
+  log(
+    `${isDryRun ? 'Analysis' : 'Migration'} complete for ${tableName}`,
+    'success'
+  );
   log(`  ${isDryRun ? 'Would migrate' : 'Migrated'}: ${migratedCount}`);
   log(`  ${isDryRun ? 'Would skip' : 'Skipped'} (duplicates): ${skippedCount}`);
   log(`  Target count ${isDryRun ? 'would be' : 'after'}: ${targetCountAfter}`);
@@ -1007,21 +1051,26 @@ async function migrateTable(
 
   // Display samples in console during dry-run
   if (isDryRun && sampleSourceRecords.length > 0) {
-    log(`\n  Sample records (${sampleSourceRecords.length} of ${migratedCount}):`);
+    log(
+      `\n  Sample records (${sampleSourceRecords.length} of ${migratedCount}):`
+    );
     for (let i = 0; i < sampleSourceRecords.length; i++) {
       const source = sampleSourceRecords[i];
       if (!source) continue;
-      
+
       log(`\n  --- Record ${i + 1} ---`);
       log(`  ID: ${source[primaryKey]}`);
 
       // Show key fields (first 5 non-id fields)
-      const keyFields = Object.keys(source).filter((k) => k !== primaryKey).slice(0, 5);
+      const keyFields = Object.keys(source)
+        .filter((k) => k !== primaryKey)
+        .slice(0, 5);
       for (const field of keyFields) {
         const val = source[field];
-        const displayVal = typeof val === 'string' && val.length > 50
-          ? val.substring(0, 50) + '...'
-          : val;
+        const displayVal =
+          typeof val === 'string' && val.length > 50
+            ? val.substring(0, 50) + '...'
+            : val;
         log(`  ${field}: ${displayVal}`);
       }
 
@@ -1033,7 +1082,9 @@ async function migrateTable(
       // Show SQL if requested
       const sqlStatement = sampleSqlStatements[i];
       if (showSql && sqlStatement) {
-        log(`  SQL: ${sqlStatement.substring(0, 200)}${sqlStatement.length > 200 ? '...' : ''}`);
+        log(
+          `  SQL: ${sqlStatement.substring(0, 200)}${sqlStatement.length > 200 ? '...' : ''}`
+        );
       }
     }
   }
@@ -1097,7 +1148,10 @@ async function verifyMigration(
   }
 
   if (hasDiscrepancies) {
-    log('\nSome tables have count discrepancies. This may be expected if:', 'warn');
+    log(
+      '\nSome tables have count discrepancies. This may be expected if:',
+      'warn'
+    );
     log('  - Migration is still in progress');
     log('  - New data was added to source during migration');
     log('  - Some records were filtered due to constraints');
@@ -1118,13 +1172,17 @@ async function main(): Promise<void> {
 
   if (!SOURCE_DATABASE_URL) {
     log('SOURCE_DATABASE_URL environment variable is required', 'error');
-    log('Usage: SOURCE_DATABASE_URL=<url> TARGET_DATABASE_URL=<url> bun run scripts/migrate-prisma-to-drizzle.ts');
+    log(
+      'Usage: SOURCE_DATABASE_URL=<url> TARGET_DATABASE_URL=<url> bun run scripts/migrate-prisma-to-drizzle.ts'
+    );
     process.exit(1);
   }
 
   if (!TARGET_DATABASE_URL) {
     log('TARGET_DATABASE_URL environment variable is required', 'error');
-    log('Usage: SOURCE_DATABASE_URL=<url> TARGET_DATABASE_URL=<url> bun run scripts/migrate-prisma-to-drizzle.ts');
+    log(
+      'Usage: SOURCE_DATABASE_URL=<url> TARGET_DATABASE_URL=<url> bun run scripts/migrate-prisma-to-drizzle.ts'
+    );
     process.exit(1);
   }
 
@@ -1147,8 +1205,10 @@ async function main(): Promise<void> {
   const targetDb = createDbClient(TARGET_DATABASE_URL, 'target (Drizzle)');
 
   // Extract database names for display (hide credentials)
-  const sourceDbName = SOURCE_DATABASE_URL.split('@')[1]?.split('/')[0] || 'source';
-  const targetDbName = TARGET_DATABASE_URL.split('@')[1]?.split('/')[0] || 'target';
+  const sourceDbName =
+    SOURCE_DATABASE_URL.split('@')[1]?.split('/')[0] || 'source';
+  const targetDbName =
+    TARGET_DATABASE_URL.split('@')[1]?.split('/')[0] || 'target';
 
   // Filter tables if specific ones requested
   let tablesToMigrate = TABLE_CONFIGS;
@@ -1174,7 +1234,9 @@ async function main(): Promise<void> {
     }
   }
 
-  log(`\nTables to ${isDryRun ? 'analyze' : 'migrate'}: ${tablesToMigrate.length}`);
+  log(
+    `\nTables to ${isDryRun ? 'analyze' : 'migrate'}: ${tablesToMigrate.length}`
+  );
   tablesToMigrate.forEach((t) => log(`  - ${t.name}`));
 
   const allStats: MigrationStats[] = [];
@@ -1201,7 +1263,11 @@ async function main(): Promise<void> {
 
   console.log('\n');
   console.log(
-    '| Table | Source | Before | ' + (isDryRun ? 'Would Migrate' : 'Migrated') + ' | ' + (isDryRun ? 'Would Skip' : 'Skipped') + ' | After | Duration |'
+    '| Table | Source | Before | ' +
+      (isDryRun ? 'Would Migrate' : 'Migrated') +
+      ' | ' +
+      (isDryRun ? 'Would Skip' : 'Skipped') +
+      ' | After | Duration |'
   );
   console.log(
     '|-------|--------|--------|----------|---------|-------|----------|'
@@ -1216,7 +1282,9 @@ async function main(): Promise<void> {
   }
 
   console.log('\n');
-  log(`Total records ${isDryRun ? 'to migrate' : 'migrated'}: ${totalMigrated}`);
+  log(
+    `Total records ${isDryRun ? 'to migrate' : 'migrated'}: ${totalMigrated}`
+  );
   log(`Total records ${isDryRun ? 'to skip' : 'skipped'}: ${totalSkipped}`);
   log(`Total duration: ${formatDuration(totalDuration)}`);
 
@@ -1283,4 +1351,3 @@ main().catch((error) => {
   console.error(error);
   process.exit(1);
 });
-

@@ -482,7 +482,3 @@ export type ExternalAgentConnection =
   typeof externalAgentConnections.$inferSelect;
 export type NewExternalAgentConnection =
   typeof externalAgentConnections.$inferInsert;
-
-
-
-

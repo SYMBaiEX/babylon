@@ -1,5 +1,6 @@
 'use client';
 
+import { cn, getReferralUrl } from '@babylon/shared';
 import {
   Bell,
   Bot,
@@ -24,8 +25,6 @@ import { Avatar } from '@/components/shared/Avatar';
 import { Separator } from '@/components/shared/Separator';
 import { useAuth } from '@/hooks/useAuth';
 import { useUnreadMessages } from '@/hooks/useUnreadMessages';
-import { getReferralUrl } from '@babylon/shared';
-import { cn } from '@babylon/shared';
 
 /**
  * Main sidebar content component with navigation and user menu.
@@ -56,7 +55,8 @@ function SidebarContent() {
   // Hide sidebar when WAITLIST_MODE is enabled on home page (unless ?dev=true)
   const isWaitlistMode = process.env.NEXT_PUBLIC_WAITLIST_MODE === 'true';
   const isHomePage = pathname === '/';
-  const shouldHideSidebar = isWaitlistMode && isProduction && isHomePage && !isDevMode;
+  const shouldHideSidebar =
+    isWaitlistMode && isProduction && isHomePage && !isDevMode;
 
   // Check if user is admin from the user object
   const isAdmin = user?.isAdmin ?? false;

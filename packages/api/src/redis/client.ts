@@ -14,8 +14,8 @@
  * Falls back gracefully if Redis is not configured.
  */
 
-import type IORedis from 'ioredis';
 import { logger } from '@babylon/shared';
+import type IORedis from 'ioredis';
 
 // Type for ioredis instance
 export type RedisInstance = IORedis;
@@ -44,7 +44,8 @@ async function initializeRedis(): Promise<void> {
   isInitialized = true;
 
   // Use REDIS_URL from env, or default to local Docker Redis in development
-  const redisUrl = process.env.REDIS_URL || (isDev ? DEFAULT_DEV_REDIS_URL : undefined);
+  const redisUrl =
+    process.env.REDIS_URL || (isDev ? DEFAULT_DEV_REDIS_URL : undefined);
   if (!redisUrl) {
     logger.info(
       'Redis not configured - caching will use in-memory fallback',

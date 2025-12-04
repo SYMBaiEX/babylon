@@ -164,7 +164,9 @@ async function main() {
   logger.info('Starting image migration to Vercel Blob...');
 
   if (!BLOB_TOKEN) {
-    logger.error('Error: BLOB_READ_WRITE_TOKEN not found in environment variables');
+    logger.error(
+      'Error: BLOB_READ_WRITE_TOKEN not found in environment variables'
+    );
     process.exit(1);
   }
 

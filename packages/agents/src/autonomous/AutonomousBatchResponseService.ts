@@ -29,11 +29,11 @@ import {
   posts,
   users,
 } from '@babylon/db';
+import { countTokensSync, truncateToTokenLimitSync } from '@babylon/engine';
 import type { IAgentRuntime } from '@elizaos/core';
+import { callGroqDirect } from '../llm/direct-groq';
 import { logger } from '../shared/logger';
 import { generateSnowflakeId } from '../shared/snowflake';
-import { countTokensSync, truncateToTokenLimitSync } from '@babylon/engine';
-import { callGroqDirect } from '../llm/direct-groq';
 
 interface PendingInteraction {
   type: 'comment_on_post' | 'comment_on_comment' | 'chat_message';

@@ -5,15 +5,12 @@
  * for integration tests
  */
 
+import { isContractDeployed, loadDeployment } from '@babylon/contracts';
+import { LOCAL_CONTRACT_ADDRESSES } from '@babylon/shared';
 import { $ } from 'bun';
 import { execSync } from 'child_process';
 import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
-import {
-  isContractDeployed,
-  loadDeployment,
-} from '@babylon/contracts';
-import { LOCAL_CONTRACT_ADDRESSES } from '@babylon/shared';
 
 const HARDHAT_RPC_URL = process.env.HARDHAT_RPC_URL || 'http://localhost:8545';
 
@@ -64,7 +61,8 @@ export async function ensureHardhatRunning(): Promise<boolean> {
  */
 export async function areContractsDeployed(): Promise<boolean> {
   // Use canonical config addresses for local development
-  let oracleAddress: string | undefined = LOCAL_CONTRACT_ADDRESSES.babylonOracle;
+  let oracleAddress: string | undefined =
+    LOCAL_CONTRACT_ADDRESSES.babylonOracle;
   let diamondAddress: string | undefined = LOCAL_CONTRACT_ADDRESSES.diamond;
 
   // Try to load from deployment file to check for fresh deployments

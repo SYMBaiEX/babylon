@@ -40,18 +40,15 @@ import {
   userInteractions,
   users,
 } from '@babylon/db';
-import { BabylonLLMClient } from '@babylon/engine';
-import { logger } from '@babylon/shared';
 import {
+  BabylonLLMClient,
+  generateWorldContext,
   validateNoEmojis,
   validateNoHashtags,
   validateNoRealNames,
 } from '@babylon/engine';
-import { generateSnowflakeId } from '@babylon/shared';
-import { generateWorldContext } from '@babylon/engine';
-import {
-  NPCGroupDynamicsService as NPCGroupDynamicsCalculations,
-} from './npc-group-dynamics-calculations';
+import { generateSnowflakeId, logger } from '@babylon/shared';
+import { NPCGroupDynamicsService as NPCGroupDynamicsCalculations } from './npc-group-dynamics-calculations';
 
 export interface GroupDynamicsResult {
   groupsCreated: number;

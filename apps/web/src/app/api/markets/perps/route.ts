@@ -133,11 +133,21 @@
  * @see {@link /src/app/markets/perps/page.tsx} Perps trading UI
  */
 
-import type { NextRequest } from 'next/server';
-import type { Organization, StockPrice } from '@babylon/db';
-import { db, getDbInstance, stockPrices, perpPositions, inArray, desc, isNull, gte, and } from '@babylon/db';
 import { successResponse, withErrorHandling } from '@babylon/api';
+import type { Organization, StockPrice } from '@babylon/db';
+import {
+  and,
+  db,
+  desc,
+  getDbInstance,
+  gte,
+  inArray,
+  isNull,
+  perpPositions,
+  stockPrices,
+} from '@babylon/db';
 import { logger } from '@babylon/shared';
+import type { NextRequest } from 'next/server';
 
 /**
  * Position data structure for internal processing
@@ -168,8 +178,10 @@ export const GET = withErrorHandling(async (_request: NextRequest) => {
   // which matches the PerpetualsEngine.initializeMarkets() filter.
   // Without this, the UI would show markets that users can't actually trade.
   const allCompanies = await getDbInstance().getCompanies();
-  const companies = allCompanies.filter((c) => c.currentPrice !== null || c.initialPrice !== null);
-  
+  const companies = allCompanies.filter(
+    (c) => c.currentPrice !== null || c.initialPrice !== null
+  );
+
   if (companies.length === 0) {
     return successResponse({
       success: true,

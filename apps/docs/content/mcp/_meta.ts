@@ -6,4 +6,3 @@ export default {
   examples: 'Code Examples',
   testing: 'Testing Guide',
 };
-

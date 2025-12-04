@@ -1,5 +1,6 @@
 'use client';
 
+import { cn } from '@babylon/shared';
 import { usePrivy } from '@privy-io/react-auth';
 import {
   Crown,
@@ -16,7 +17,6 @@ import {
 import { useCallback, useEffect, useState } from 'react';
 import { Avatar } from '@/components/shared/Avatar';
 import { Button } from '@/components/ui/button';
-import { cn } from '@babylon/shared';
 
 /**
  * Group member structure for group settings modal.

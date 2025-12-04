@@ -16,7 +16,8 @@ import {
 describe('Content Analysis', () => {
   describe('analyzeCertainty', () => {
     it('should detect high certainty in content', () => {
-      const certainContent = 'This is definitely going to happen. It is certain.';
+      const certainContent =
+        'This is definitely going to happen. It is certain.';
       const certainty = analyzeCertainty(certainContent);
       expect(certainty).toBeGreaterThan(0.5);
     });
@@ -180,4 +181,3 @@ describe('Content Analysis', () => {
     });
   });
 });
-

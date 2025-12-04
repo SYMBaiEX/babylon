@@ -25,9 +25,7 @@ contract OracleTest is DiamondTestSetup {
         oracle.requestChainlinkResolution{value: oracleFee}(marketId);
 
         // Simulate oracle fulfillment
-        bytes32 requestId = bytes32(uint256(1)); // Mock request ID
-
-        // Find the actual request ID by checking the oracle
+        // Note: Mock request ID would be bytes32(uint256(1))
         // In a real test, we'd capture this from events
     }
 
@@ -195,7 +193,7 @@ contract OracleTest is DiamondTestSetup {
     }
 
     /// @notice Test oracle address getters
-    function testGetOracleAddresses() public {
+    function testGetOracleAddresses() public view {
         (address chainlink, address uma) = oracle.getOracleAddresses();
 
         assertEq(chainlink, address(chainlinkOracle), "Chainlink address should match");
