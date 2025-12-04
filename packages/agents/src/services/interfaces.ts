@@ -11,7 +11,6 @@ import type { JsonValue } from '../types/common';
 import type {
   AgentCapabilities,
   UnifiedAgentRegistration,
-  AgentType,
   AgentStatus,
   TrustLevel,
   AgentDiscoveryFilter,
