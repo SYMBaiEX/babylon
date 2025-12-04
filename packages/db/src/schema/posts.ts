@@ -337,3 +337,5 @@ export type PostTag = typeof postTags.$inferSelect;
 export type NewPostTag = typeof postTags.$inferInsert;
 export type TrendingTag = typeof trendingTags.$inferSelect;
 export type NewTrendingTag = typeof trendingTags.$inferInsert;
+
+

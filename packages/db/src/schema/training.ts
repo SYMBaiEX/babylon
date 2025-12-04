@@ -289,3 +289,5 @@ export type LlmCallLog = typeof llmCallLogs.$inferSelect;
 export type NewLlmCallLog = typeof llmCallLogs.$inferInsert;
 export type MarketOutcome = typeof marketOutcomes.$inferSelect;
 export type NewMarketOutcome = typeof marketOutcomes.$inferInsert;
+
+

@@ -162,3 +162,5 @@ export type PoolDeposit = typeof poolDeposits.$inferSelect;
 export type NewPoolDeposit = typeof poolDeposits.$inferInsert;
 export type PoolPosition = typeof poolPositions.$inferSelect;
 export type NewPoolPosition = typeof poolPositions.$inferInsert;
+
+
