@@ -248,7 +248,6 @@ async function runMigrations(): Promise<void> {
     // Run with --force to skip interactive prompts (safe for development)
     // The --force flag auto-accepts all changes without confirmation
     // Explicitly set DATABASE_URL and DIRECT_DATABASE_URL to local for the subprocess
-    // Run from packages/db directory so relative schema path works correctly
     // Using yes | ... as a fallback for any remaining prompts
     const result =
       await $`yes | DATABASE_URL=${LOCAL_DATABASE_URL} DIRECT_DATABASE_URL=${LOCAL_DATABASE_URL} DEPLOYMENT_ENV=localnet bunx drizzle-kit push --force --config=drizzle.config.ts`

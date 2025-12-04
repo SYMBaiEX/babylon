@@ -46,6 +46,8 @@ function MobileHeaderContent() {
 
   // Check if dev mode is enabled via URL parameter (for staging testing)
   const isDevMode = searchParams.get('dev') === 'true';
+  // Force coming soon mode via URL parameter (for testing)
+  const forceComingSoon = searchParams.get('comingsoon') === 'true';
 
   // Hide mobile header on production (babylon.market) on home page unless ?dev=true
   const isProduction =
@@ -54,7 +56,9 @@ function MobileHeaderContent() {
   // Hide mobile header when WAITLIST_MODE is enabled on home page (unless ?dev=true)
   const isWaitlistMode = process.env.NEXT_PUBLIC_WAITLIST_MODE === 'true';
   const isHomePage = pathname === '/';
-  const shouldHide = isWaitlistMode && isProduction && isHomePage && !isDevMode;
+  const shouldHide =
+    (isWaitlistMode && isProduction && isHomePage && !isDevMode) ||
+    forceComingSoon;
 
   // All hooks must be called before any conditional returns
   useEffect(() => {

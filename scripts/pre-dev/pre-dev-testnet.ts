@@ -186,9 +186,14 @@ if (!isConnected) {
     undefined,
     'Script'
   );
-  await $`bunx drizzle-kit push`.quiet().catch(async () => {
-    await $`bunx drizzle-kit push --force`.quiet();
-  });
+  await $`bunx drizzle-kit push --config=drizzle.config.ts`
+    .cwd('packages/db')
+    .quiet()
+    .catch(async () => {
+      await $`bunx drizzle-kit push --force --config=drizzle.config.ts`
+        .cwd('packages/db')
+        .quiet();
+    });
 }
 
 console.info('✅ Database connected', undefined, 'Script');
@@ -203,9 +208,14 @@ const actorCountResult = await db
       errorMessage.includes('relation')
     ) {
       console.info('Running database migrations...', undefined, 'Script');
-      await $`bunx drizzle-kit push`.quiet().catch(async () => {
-        await $`bunx drizzle-kit push --force`.quiet();
-      });
+      await $`bunx drizzle-kit push --config=drizzle.config.ts`
+        .cwd('packages/db')
+        .quiet()
+        .catch(async () => {
+          await $`bunx drizzle-kit push --force --config=drizzle.config.ts`
+            .cwd('packages/db')
+            .quiet();
+        });
 
       console.info('Running database seed...', undefined, 'Script');
       await $`bun run db:seed`;

@@ -43,7 +43,7 @@ interface Message {
  * ```tsx
  * <AgentChat
  *   agent={agentData}
- *   onUpdate={() => refreshAgent()}
+ *   onBalanceUpdate={(newBalance) => setAgent(prev => ({ ...prev, pointsBalance: newBalance }))}
  * />
  * ```
  */
@@ -55,10 +55,10 @@ interface AgentChatProps {
     pointsBalance: number;
     modelTier: 'free' | 'pro';
   };
-  onUpdate: () => void;
+  onBalanceUpdate?: (newBalance: number) => void;
 }
 
-export function AgentChat({ agent, onUpdate }: AgentChatProps) {
+export function AgentChat({ agent, onBalanceUpdate }: AgentChatProps) {
   const { user, getAccessToken } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -165,6 +165,7 @@ export function AgentChat({ agent, onUpdate }: AgentChatProps) {
         response: string;
         modelUsed: string;
         pointsCost: number;
+        balanceAfter: number;
       };
 
       if (!data.response || !data.messageId) {
@@ -182,9 +183,8 @@ export function AgentChat({ agent, onUpdate }: AgentChatProps) {
       };
       setMessages((prev) => [...prev, assistantMessage]);
 
-      // Update agent balance
-      onUpdate();
-
+      // Update agent balance without full page refresh
+      onBalanceUpdate?.(data.balanceAfter);
       toast.success(`Message sent (-${data.pointsCost} points)`);
     } catch (error) {
       // Remove optimistic message on error

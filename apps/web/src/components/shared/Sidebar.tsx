@@ -47,6 +47,8 @@ function SidebarContent() {
 
   // Check if dev mode is enabled via URL parameter (for staging testing)
   const isDevMode = searchParams.get('dev') === 'true';
+  // Force coming soon mode via URL parameter (for testing)
+  const forceComingSoon = searchParams.get('comingsoon') === 'true';
 
   // Hide sidebar on production (babylon.market) on home page unless ?dev=true
   const isProduction =
@@ -56,7 +58,8 @@ function SidebarContent() {
   const isWaitlistMode = process.env.NEXT_PUBLIC_WAITLIST_MODE === 'true';
   const isHomePage = pathname === '/';
   const shouldHideSidebar =
-    isWaitlistMode && isProduction && isHomePage && !isDevMode;
+    (isWaitlistMode && isProduction && isHomePage && !isDevMode) ||
+    forceComingSoon;
 
   // Check if user is admin from the user object
   const isAdmin = user?.isAdmin ?? false;
