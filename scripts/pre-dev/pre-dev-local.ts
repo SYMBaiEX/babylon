@@ -1,11 +1,10 @@
 #!/usr/bin/env bun
 /**
- * Pre-Development Setup for Localnet
+ * Pre-Development Setup
  *
- * Sets up complete local development environment:
- * - Kills any processes on port 3000
- * - Checks for Hardhat node
- * - Deploys contracts
+ * Sets up complete development environment:
+ * - Detects environment from .env (localnet/testnet/mainnet)
+ * - For localnet: Kills any processes on port 3000, checks for Hardhat node
  * - Starts PostgreSQL, Redis, MinIO
  * - Runs database migrations
  * - Seeds data
@@ -16,7 +15,7 @@
 import { $ } from 'bun'
 import { existsSync, writeFileSync, unlinkSync, readFileSync } from 'fs'
 import { join } from 'path'
-import { validateEnvironment, printValidationResult } from '../../packages/contracts/src/deployment/env-detection'
+import { detectEnvironment, validateEnvironment, printValidationResult, type DeploymentEnv } from '../../packages/contracts/src/deployment/env-detection'
 
 const POSTGRES_CONTAINER = 'babylon-postgres'
 const REDIS_CONTAINER = 'babylon-redis'
@@ -37,7 +36,30 @@ async function killPort(port: number): Promise<number> {
   return pidList.length
 }
 
-console.info('[Script] Setting up localnet development environment...')
+// Load .env file to detect environment
+const envPath = join(process.cwd(), '.env')
+if (existsSync(envPath)) {
+  const envContent = readFileSync(envPath, 'utf-8')
+  // Parse .env file and set environment variables
+  for (const line of envContent.split('\n')) {
+    const trimmed = line.trim()
+    if (trimmed && !trimmed.startsWith('#')) {
+      const [key, ...valueParts] = trimmed.split('=')
+      if (key && valueParts.length > 0) {
+        const value = valueParts.join('=').replace(/^["']|["']$/g, '')
+        if (!process.env[key]) {
+          process.env[key] = value
+        }
+      }
+    }
+  }
+}
+
+// Detect environment from .env or default to localnet
+const detectedEnv = detectEnvironment()
+const isLocalnet = detectedEnv === 'localnet'
+
+console.info(`[Script] Setting up ${detectedEnv} development environment...`)
 console.info('='.repeat(60))
 
 // 0. Kill any processes on port 3000 to prevent port conflicts
@@ -61,10 +83,10 @@ try {
   console.warn('Could not remove Next.js lock file (may not exist)')
 }
 
-// Set environment for localnet
-process.env.DEPLOYMENT_ENV = 'localnet'
-process.env.NEXT_PUBLIC_CHAIN_ID = '31337'
-process.env.NEXT_PUBLIC_RPC_URL = 'http://localhost:8545'
+// Set environment based on detection (don't override if already set in .env)
+if (!process.env.DEPLOYMENT_ENV) {
+  process.env.DEPLOYMENT_ENV = detectedEnv
+}
 
 // 1. Check Docker
 await $`docker --version`.quiet()
@@ -75,9 +97,8 @@ await $`docker info`.quiet().catch(() => {
 })
 console.info('✅ Docker is running')
 
-// 2. Check/create .env file
-const envPath = join(process.cwd(), '.env')
-if (!existsSync(envPath)) {
+// 2. Check/create .env file (only for localnet)
+if (!existsSync(envPath) && isLocalnet) {
   console.info('Creating .env file...')
   // If .env.example exists, use it as a base but override localnet values
   const envExamplePath = join(process.cwd(), '.env.example')
@@ -114,22 +135,26 @@ NEXT_PUBLIC_PRIVY_APP_ID=""
   console.info('✅ .env created from template')
 }
 
-// 3. Start Hardhat Node (background process managed by concurrently in dev script)
-// The pre-dev script just checks if port 8545 is available
-console.info('Checking port 8545 for Hardhat node...')
+// 3. Start Hardhat Node (only for localnet)
+if (isLocalnet) {
+  // The pre-dev script just checks if port 8545 is available
+  console.info('Checking port 8545 for Hardhat node...')
 
-// Kill any process on port 8545 to ensure clean start
-const killed8545 = await killPort(8545)
-if (killed8545 > 0) {
-  console.info(`✅ Killed ${killed8545} process(es) on port 8545`)
-  // Wait a moment for port to be fully released
-  await new Promise(resolve => setTimeout(resolve, 1000))
+  // Kill any process on port 8545 to ensure clean start
+  const killed8545 = await killPort(8545)
+  if (killed8545 > 0) {
+    console.info(`✅ Killed ${killed8545} process(es) on port 8545`)
+    // Wait a moment for port to be fully released
+    await new Promise(resolve => setTimeout(resolve, 1000))
+  } else {
+    console.info('✅ Port 8545 is free')
+  }
+
+  console.info('Note: Hardhat node will be started automatically by the dev script')
+  console.info('      Contracts will be deployed once Hardhat is ready')
 } else {
-  console.info('✅ Port 8545 is free')
+  console.info(`✅ Using ${detectedEnv} network (skipping Hardhat setup)`)
 }
-
-console.info('Note: Hardhat node will be started automatically by the dev script')
-console.info('      Contracts will be deployed once Hardhat is ready')
 
 // 4. Start PostgreSQL
 const postgresRunning = await $`docker ps --filter name=${POSTGRES_CONTAINER} --format "{{.Names}}"`.quiet().text()
@@ -264,15 +289,17 @@ if (needsSeed || actorCount === 0) {
 
 // 10. Validate environment
 console.info('')
-const validation = validateEnvironment('localnet')
+const validation = validateEnvironment(detectedEnv)
 printValidationResult(validation)
 
 console.info('')
 console.info('='.repeat(60))
-console.info('✅ Localnet environment ready!')
+console.info(`✅ ${detectedEnv === 'localnet' ? 'Localnet' : detectedEnv === 'testnet' ? 'Testnet' : 'Mainnet'} environment ready!`)
 console.info('')
 console.info('Services:')
-console.info('  Hardhat:    http://localhost:8545 (will be started automatically)')
+if (isLocalnet) {
+  console.info('  Hardhat:    http://localhost:8545 (will be started automatically)')
+}
 console.info('  PostgreSQL: localhost:5433')
 console.info('  Redis:      localhost:6380')
 console.info('  MinIO:      http://localhost:9000 (console: :9001)')
@@ -281,5 +308,9 @@ console.info('App Routes:')
 console.info('  Main:       http://localhost:3000')
 console.info('  Betting:    http://localhost:3000/betting (Oracle-powered markets)')
 console.info('')
-console.info('Starting services (Hardhat, Next.js, Cron)...')
+if (isLocalnet) {
+  console.info('Starting services (Hardhat, Next.js, Cron)...')
+} else {
+  console.info('Starting services (Next.js, Cron)...')
+}
 console.info('='.repeat(60))
