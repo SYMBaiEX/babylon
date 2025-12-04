@@ -163,7 +163,7 @@ async function deployToNetwork(
 
   // Compile contracts (run from contracts directory where foundry.toml is)
   logger.step('Compiling contracts...');
-  await $`cd ${CONTRACTS_DIR} && forge build`.quiet();
+  await $`cd ${CONTRACTS_DIR} && bunx hardhat compile`.quiet();
   logger.success('Contracts compiled');
 
   // Clean previous artifacts for local

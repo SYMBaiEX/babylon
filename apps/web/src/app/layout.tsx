@@ -53,11 +53,20 @@ export const metadata: Metadata = {
   other: {
     // Farcaster Mini App metadata
     // Reference: https://miniapps.farcaster.xyz/
-    'fc:frame': 'vNext',
-    'fc:frame:image': 'https://babylon.market/assets/images/og-image.png',
-    'fc:frame:button:1': 'Launch Babylon',
-    'fc:frame:button:1:action': 'link',
-    'fc:frame:button:1:target': 'https://babylon.market',
+    'fc:frame': JSON.stringify({
+      version: '1',
+      imageUrl: 'https://babylon.market/assets/images/og-image.png',
+      button: {
+        title: 'Launch Babylon',
+        action: {
+          type: 'launch_frame',
+          name: 'Babylon',
+          url: 'https://babylon.market',
+          splashImageUrl: 'https://babylon.market/assets/images/og-image.png',
+          splashBackgroundColor: '#0a0a0a',
+        },
+      },
+    }),
   },
 };
 
