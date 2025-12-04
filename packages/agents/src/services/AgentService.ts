@@ -229,9 +229,7 @@ export class AgentServiceV2 {
           domains: [],
         };
 
-        await agentRegistry.register({
-          agentId: agentUserId,
-          type: AgentType.USER_CONTROLLED,
+        await agentRegistry.registerUserAgent({
           userId: agentUserId,
           name: name,
           systemPrompt:
