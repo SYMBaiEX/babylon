@@ -150,7 +150,72 @@ import {
 } from '@babylon/api';
 import { db, eq, users } from '@babylon/db';
 import { logger } from '@babylon/shared';
-import type { NextRequest } from 'next/server';
+import type { User as PrivyUser } from '@privy-io/server-auth';
+
+type PrivyWalletLite = {
+  id?: string | null;
+  address?: string;
+  chainType?: string;
+  walletClientType?: string | null;
+};
+
+type PrivyUserWithSmartWallet = PrivyUser & {
+  smartWallet?: { address?: string | null };
+  wallet?: PrivyWalletLite;
+  linkedAccounts?: Array<
+    PrivyWalletLite & {
+      type?: string;
+    }
+  >;
+};
+
+function pickEmbeddedEvmWallet(user: PrivyUserWithSmartWallet): PrivyWalletLite | null {
+  const candidates: PrivyWalletLite[] = [];
+  if (user.wallet) candidates.push(user.wallet);
+  if (Array.isArray(user.linkedAccounts)) {
+    for (const acc of user.linkedAccounts) {
+      if (acc?.type === 'wallet') candidates.push(acc);
+    }
+  }
+  return (
+    candidates.find(
+      (w) =>
+        (w.walletClientType === 'privy' || Boolean(w.id)) &&
+        (!w.chainType || w.chainType === 'ethereum') &&
+        typeof w.address === 'string'
+    ) ?? null
+  );
+}
+
+async function ensureSmartWalletAddress(
+  privyId: string
+): Promise<{ smartWalletAddress: string | null; embeddedWalletAddress: string | null }> {
+  try {
+    const privyClient = getPrivyClient();
+    const user = (await privyClient.getUser(privyId)) as PrivyUserWithSmartWallet;
+    let smartWalletAddress = user.smartWallet?.address?.toLowerCase() ?? null;
+    let embeddedWallet = pickEmbeddedEvmWallet(user);
+
+    if (!smartWalletAddress) {
+      const updated = (await privyClient.createWallets({
+        userId: privyId,
+        createEthereumSmartWallet: true,
+        createEthereumWallet: !embeddedWallet,
+      })) as PrivyUserWithSmartWallet;
+
+      smartWalletAddress = updated.smartWallet?.address?.toLowerCase() ?? null;
+      embeddedWallet = embeddedWallet ?? pickEmbeddedEvmWallet(updated);
+    }
+
+    return {
+      smartWalletAddress,
+      embeddedWalletAddress: embeddedWallet?.address?.toLowerCase() ?? null,
+    };
+  } catch (error) {
+    logger.warn('Failed to ensure smart wallet for user (me route)', { privyId, error });
+    return { smartWalletAddress: null, embeddedWalletAddress: null };
+  }
+}
 
 const userSelectFields = {
   id: users.id,
@@ -219,6 +284,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     let farcasterFid: string | null = null;
     let twitterUsername: string | null = null;
     let twitterId: string | null = null;
+    let smartWalletAddress: string | null = null;
 
     try {
       const privyClient = getPrivyClient();
@@ -243,6 +309,12 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         twitterId = privyUser.twitter.subject ?? null;
       }
 
+      // Prefer Privy smart wallet over linked/embedded wallet for DB storage
+      smartWalletAddress = privyUser.smartWallet?.address?.toLowerCase() ?? null;
+      if (smartWalletAddress) {
+        authUser.walletAddress = smartWalletAddress;
+      }
+
       logger.info(
         'Fetched Privy user data for new user',
         {
@@ -250,6 +322,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
           hasEmail: !!email,
           hasFarcaster: !!farcasterUsername,
           hasTwitter: !!twitterUsername,
+          hasSmartWallet: !!smartWalletAddress,
         },
         'GET /api/users/me'
       );
@@ -344,12 +417,20 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       'GET /api/users/me'
     );
 
+    const { smartWalletAddress: ensuredSmart, embeddedWalletAddress } =
+      await ensureSmartWalletAddress(privyId);
+    const dbWalletAddress =
+      ensuredSmart ??
+      embeddedWalletAddress ??
+      authUser.walletAddress?.toLowerCase() ??
+      null;
+
     const [newUser] = await db
       .insert(users)
       .values({
         id: canonicalUserId,
         privyId,
-        walletAddress: authUser.walletAddress?.toLowerCase() ?? null,
+        walletAddress: dbWalletAddress,
         referredBy: resolvedReferrerId,
         email,
         farcasterUsername,
