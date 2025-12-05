@@ -137,52 +137,7 @@ export interface ITrajectoryRecorder {
   ): Promise<void>;
 }
 
-/**
- * Perp Trade Service Interface
- */
-export interface IPerpTradeService {
-  /**
-   * Open a perpetual position
-   */
-  openPosition(params: {
-    userId: string;
-    ticker: string;
-    side: 'long' | 'short';
-    size: number;
-    leverage: number;
-  }): Promise<{
-    positionId: string;
-    entryPrice: number;
-  }>;
-
-  /**
-   * Close a perpetual position
-   */
-  closePosition(params: {
-    userId: string;
-    positionId: string;
-  }): Promise<{
-    pnl: number;
-    exitPrice: number;
-  }>;
-
-  /**
-   * Get open positions for user
-   */
-  getPositions(userId: string): Promise<
-    Array<{
-      id: string;
-      ticker: string;
-      side: 'long' | 'short';
-      size: number;
-      entryPrice: number;
-      currentPrice: number;
-      unrealizedPnL: number;
-    }>
-  >;
-}
-
-/**
+/** 
  * Prediction Pricing Interface
  */
 export interface IPredictionPricing {
@@ -295,7 +250,6 @@ export interface IServiceContainer {
   walletService?: IWalletService;
   characterMappingService?: ICharacterMappingService;
   trajectoryRecorder?: ITrajectoryRecorder;
-  perpTradeService?: IPerpTradeService;
   predictionPricing?: IPredictionPricing;
   agent0Client?: IAgent0Client;
   dbContext?: IDbContext;
@@ -336,4 +290,3 @@ export function getService<K extends keyof IServiceContainer>(
 ): IServiceContainer[K] {
   return globalThis.__babylon_agents_services__?.[key];
 }
-

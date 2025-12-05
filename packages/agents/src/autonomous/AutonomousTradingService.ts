@@ -21,10 +21,14 @@ import {
 import {
   formatRandomContext,
   generateRandomMarketContext,
-  PerpTradeService,
   PredictionPricing,
   WalletService,
 } from '@babylon/engine';
+import {
+  PerpMarketService,
+  PerpDbAdapter,
+} from '@babylon/core/markets/perps';
+import { WalletPortAdapter } from '@babylon/core/markets/shared';
 import type { IAgentRuntime } from '@elizaos/core';
 import { asUser } from '@babylon/db';
 import { logger } from '../shared/logger';
@@ -392,15 +396,24 @@ ${contextString}`;
           const ticker = org.name;
 
           await asUser({ userId: agentUserId }, async () => {
-            await PerpTradeService.openPosition(
-              { userId: agentUserId },
-              {
-                ticker,
-                side,
-                size: trade.amount,
-                leverage: 1,
-              }
-            );
+            const service = new PerpMarketService({
+              db: new PerpDbAdapter(),
+              wallet: WalletPortAdapter,
+              fees: {
+                tradingFeeRate: 0.001,
+                platformShare: 0.5,
+                referrerShare: 0.5,
+                minFeeAmount: 0.01,
+              },
+            });
+
+            await service.openPosition({
+              userId: agentUserId,
+              ticker,
+              side,
+              size: trade.amount,
+              leverage: 1,
+            });
           });
 
           await agentPnLService.recordTrade({

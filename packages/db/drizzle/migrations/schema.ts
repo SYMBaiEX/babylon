@@ -1,6 +1,4 @@
 import { pgTable, index, text, integer, timestamp, boolean, numeric, doublePrecision, unique, json, varchar, bigint, pgEnum } from "drizzle-orm/pg-core"
-import { sql } from "drizzle-orm"
-
 export const agentStatus = pgEnum("AgentStatus", ['REGISTERED', 'INITIALIZED', 'ACTIVE', 'PAUSED', 'TERMINATED'])
 export const agentType = pgEnum("AgentType", ['USER_CONTROLLED', 'NPC', 'EXTERNAL'])
 export const onboardingStatus = pgEnum("OnboardingStatus", ['PENDING_PROFILE', 'PENDING_ONCHAIN', 'ONCHAIN_IN_PROGRESS', 'ONCHAIN_FAILED', 'COMPLETED'])

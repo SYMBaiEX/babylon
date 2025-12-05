@@ -13,7 +13,6 @@ export {
   type IWalletService,
   type ICharacterMappingService,
   type ITrajectoryRecorder,
-  type IPerpTradeService,
   type IPredictionPricing,
   type IDbContext,
   type IRedisClient,
