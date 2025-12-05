@@ -17,5 +17,3 @@ export * from './market-context';
 export * from './market-decisions';
 
 // Perpetual futures types
-export * from './perps';
-

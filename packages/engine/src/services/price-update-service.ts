@@ -1,7 +1,9 @@
 import { db, eq, getDbInstance, organizations } from '@babylon/db';
 import { logger } from '@babylon/shared';
-import { getReadyPerpsEngine } from '@babylon/engine';
 import type { JsonValue } from '@babylon/shared';
+import { PerpMarketService, PerpDbAdapter } from '@babylon/core/markets/perps';
+import { WalletPortAdapter } from '@babylon/core/markets/shared';
+import { FEE_CONFIG } from '@babylon/engine';
 
 export type PriceUpdateSource = 'user_trade' | 'npc_trade' | 'event' | 'system';
 
@@ -34,7 +36,16 @@ export class PriceUpdateService {
   ): Promise<AppliedPriceUpdate[]> {
     if (updates.length === 0) return [];
 
-    const perpsEngine = await getReadyPerpsEngine();
+    const perpService = new PerpMarketService({
+      db: new PerpDbAdapter(),
+      wallet: WalletPortAdapter,
+      fees: {
+        tradingFeeRate: FEE_CONFIG.TRADING_FEE_RATE,
+        platformShare: FEE_CONFIG.PLATFORM_SHARE,
+        referrerShare: FEE_CONFIG.REFERRER_SHARE,
+        minFeeAmount: FEE_CONFIG.MIN_FEE_AMOUNT,
+      },
+    });
     const appliedUpdates: AppliedPriceUpdate[] = [];
     const priceMap = new Map<string, number>();
 
@@ -98,7 +109,7 @@ export class PriceUpdateService {
     }
 
     if (priceMap.size > 0) {
-      perpsEngine.updatePositions(priceMap);
+      await perpService.applyPriceUpdates(priceMap);
 
       // Broadcast price updates (handled by API layer if available)
       try {

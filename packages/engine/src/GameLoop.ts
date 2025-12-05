@@ -6,7 +6,6 @@ import type { FeedGenerator } from './FeedGenerator';
 import type { GameWorld, WorldEvent } from './GameWorld';
 import type { MarketDecisionEngine } from './MarketDecisionEngine';
 import type { NewsArticlePacingEngine } from './NewsArticlePacingEngine';
-import type { PerpetualsEngine } from './PerpetualsEngine';
 import type { RelationshipEvolutionEngine } from './RelationshipEvolutionEngine';
 
 /**
@@ -40,7 +39,6 @@ export class GameLoop {
     private world: GameWorld,
     private feed: FeedGenerator,
     private marketDecisions: MarketDecisionEngine,
-    private perps: PerpetualsEngine,
     private relationships: RelationshipEvolutionEngine,
     /**
      * News article pacing engine for article generation.
@@ -74,12 +72,8 @@ export class GameLoop {
     );
 
     // 1. Market Maintenance (Financial Layer)
-    // Funding rates run every 8 hours
+    // Funding is now handled outside GameLoop via core services/jobs
     let marketUpdated = false;
-    if (hour % 8 === 0) {
-      this.perps.processFunding();
-      marketUpdated = true;
-    }
 
     // 2. Market Decisions (Financial Layer)
     // Generate trading activity based on current state

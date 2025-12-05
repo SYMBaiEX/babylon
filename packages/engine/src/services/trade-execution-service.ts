@@ -18,7 +18,6 @@ import {
 } from '@babylon/db';
 
 import { logger } from '@babylon/shared';
-import { getReadyPerpsEngine } from '../perps-service';
 import { PredictionPricing } from '../prediction-pricing';
 import { generateSnowflakeId } from '@babylon/shared';
 import type {
@@ -273,13 +272,6 @@ export class TradeExecutionService {
     const leverage = 5; // Standard leverage
     const side = decision.action === 'open_long' ? 'long' : 'short';
 
-    // Generate transformed ticker for PerpsEngine (matches PerpetualsEngine.generateTicker)
-    // This removes dashes and uppercases the org ID, truncated to 12 chars
-    let engineTicker = org.id.toUpperCase().replace(/-/g, '');
-    if (engineTicker.length > 12) {
-      engineTicker = engineTicker.substring(0, 12);
-    }
-
     // Calculate trading fee (0.1% on position size)
     const positionSize = decision.amount * leverage;
     const feeCalc = FeeService.calculateFee(positionSize);
@@ -387,32 +379,6 @@ export class TradeExecutionService {
         .limit(1);
 
       return pos!;
-    });
-
-    // Add position to perpetuals engine for real-time tracking
-    // Use the transformed ticker that matches PerpsEngine's market indexing
-    const engine = await getReadyPerpsEngine();
-    engine.hydratePosition({
-      id: position.id,
-      userId: actorId,
-      ticker: engineTicker, // Use transformed ticker for engine
-      organizationId: org.id,
-      side,
-      entryPrice: currentPrice,
-      currentPrice,
-      size: positionSize,
-      leverage,
-      liquidationPrice,
-      unrealizedPnL: 0,
-      unrealizedPnLPercent: 0,
-      fundingPaid: 0,
-      openedAt: position.updatedAt,
-      lastUpdated: position.updatedAt,
-    });
-    logger.info('Added NPC position to perpetuals engine', {
-      positionId: position.id,
-      ticker: decision.ticker,
-      actorId,
     });
 
     return {
@@ -939,19 +905,6 @@ export class TradeExecutionService {
       });
     });
 
-    // Remove position from perpetuals engine if it's a perp position
-    if (position.marketType === 'perp') {
-      const engine = await getReadyPerpsEngine();
-      if (engine.hasPosition(position.id)) {
-        engine.closePosition(position.id);
-        logger.info('Removed NPC position from perpetuals engine', {
-          positionId: position.id,
-          ticker: position.ticker,
-          actorId,
-        });
-      }
-    }
-
     return {
       npcId: decision.npcId,
       npcName: decision.npcName,
@@ -991,4 +944,3 @@ export class TradeExecutionService {
     return aggregateTradeImpacts(inputs);
   }
 }
-

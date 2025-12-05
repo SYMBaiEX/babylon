@@ -53,9 +53,6 @@ export {
   type ArticleStage,
 } from './NewsArticlePacingEngine';
 
-// Perpetuals Engine
-export { PerpetualsEngine } from './PerpetualsEngine';
-
 // Question Manager
 export {
   QuestionManager,
@@ -374,16 +371,7 @@ export {
   type RemovePositionResult,
 } from './prediction-concentrated-liquidity';
 
-// Perps Service
-export {
-  ensurePerpsEngineReady,
-  getPerpsEngine,
-  getReadyPerpsEngine,
-  withPerpsEngine,
-} from './perps-service';
-
-// Perps Utilities (funding rate calculator, etc.)
-export * from './perps';
+// Perps Service (legacy engine) removed in favor of @babylon/core markets perps
 
 // Reputation Module
 export {
@@ -510,4 +498,3 @@ export {
 
 // All Services (exported from services/index.ts)
 export * from './services';
-
