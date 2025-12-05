@@ -35,7 +35,9 @@
     "lint": "biome lint src/",
     "typecheck": "tsc -b ."
   },
-  "dependencies": {},
+  "dependencies": {
+    "@babylon/shared": "workspace:*"
+  },
   "peerDependencies": {
     "ethers": "^6.16.0",
     "viem": "^2.41.2"
