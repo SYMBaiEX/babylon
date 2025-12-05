@@ -28,7 +28,9 @@ export interface WalletPort {
     reason: string;
     relatedId?: string;
   }): Promise<void>;
-  getBalance(userId: string): Promise<{ balance: number; lifetimePnL?: number }>;
+  getBalance(
+    userId: string
+  ): Promise<{ balance: number; lifetimePnL?: number }>;
 }
 
 export interface BroadcastPort {

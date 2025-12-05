@@ -1,4 +1,10 @@
-import type { FeeConfig, WalletPort, BroadcastPort, CachePort, ClockPort } from '../shared/common';
+import type {
+  BroadcastPort,
+  CachePort,
+  ClockPort,
+  FeeConfig,
+  WalletPort,
+} from '../shared/common';
 
 export type PredictionSide = 'yes' | 'no';
 

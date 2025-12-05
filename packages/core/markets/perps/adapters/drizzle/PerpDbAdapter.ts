@@ -1,13 +1,13 @@
-import type { InferInsertModel } from 'drizzle-orm';
-import { and, eq, inArray, isNull } from 'drizzle-orm';
 import {
+  type PerpPosition as DbPerpPosition,
   db,
   organizations,
   perpMarketSnapshots,
   perpPositions,
-  type PerpPosition as DbPerpPosition,
 } from '@babylon/db';
 import { generateSnowflakeId } from '@babylon/shared';
+import type { InferInsertModel } from 'drizzle-orm';
+import { and, eq, inArray, isNull } from 'drizzle-orm';
 import type {
   PerpDbPort,
   PerpMarketRecord,
@@ -149,7 +149,9 @@ export class PerpDbAdapter implements PerpDbPort {
         liquidationPrice: updates.liquidationPrice,
         lastUpdated: updates.lastUpdated ?? new Date(),
       })
-      .where(and(eq(perpPositions.id, positionId), isNull(perpPositions.closedAt)));
+      .where(
+        and(eq(perpPositions.id, positionId), isNull(perpPositions.closedAt))
+      );
   }
 
   async closePosition(
@@ -157,7 +159,11 @@ export class PerpDbAdapter implements PerpDbPort {
     updates: Partial<
       Pick<
         PerpPositionRecord,
-        'currentPrice' | 'closedAt' | 'realizedPnL' | 'unrealizedPnL' | 'unrealizedPnLPercent'
+        | 'currentPrice'
+        | 'closedAt'
+        | 'realizedPnL'
+        | 'unrealizedPnL'
+        | 'unrealizedPnLPercent'
       >
     >
   ): Promise<void> {
@@ -225,8 +231,8 @@ export class PerpDbAdapter implements PerpDbPort {
         currentPrice: updates.currentPrice ?? 0,
         change24h: updates.change24h ?? 0,
         changePercent24h: updates.changePercent24h ?? 0,
-        high24h: updates.high24h ?? (updates.currentPrice ?? 0),
-        low24h: updates.low24h ?? (updates.currentPrice ?? 0),
+        high24h: updates.high24h ?? updates.currentPrice ?? 0,
+        low24h: updates.low24h ?? updates.currentPrice ?? 0,
         volume24h: updates.volume24h ?? 0,
         openInterest: updates.openInterest ?? 0,
         fundingRate: updates.fundingRate ?? {
@@ -252,8 +258,7 @@ export class PerpDbAdapter implements PerpDbPort {
       .set({
         currentPrice: updates.currentPrice ?? current.currentPrice,
         change24h: updates.change24h ?? current.change24h,
-        changePercent24h:
-          updates.changePercent24h ?? current.changePercent24h,
+        changePercent24h: updates.changePercent24h ?? current.changePercent24h,
         high24h: updates.high24h ?? current.high24h,
         low24h: updates.low24h ?? current.low24h,
         volume24h: updates.volume24h ?? current.volume24h,

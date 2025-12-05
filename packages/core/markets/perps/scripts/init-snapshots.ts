@@ -41,7 +41,9 @@ async function main() {
     openInterest: 0,
     fundingRate: {
       rate: 0,
-      nextFundingTime: new Date(now.getTime() + 8 * 60 * 60 * 1000).toISOString(),
+      nextFundingTime: new Date(
+        now.getTime() + 8 * 60 * 60 * 1000
+      ).toISOString(),
       predictedRate: 0,
     },
     maxLeverage: 100,

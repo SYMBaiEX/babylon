@@ -3,10 +3,10 @@ import type {
   PerpDbPort,
   PerpMarketRecord,
   PerpOpenInput,
-  PerpServiceDeps,
-  PerpTradeResult,
-  PerpSide,
   PerpPositionRecord,
+  PerpServiceDeps,
+  PerpSide,
+  PerpTradeResult,
 } from './types';
 
 const DEFAULT_MAX_LEVERAGE = 100;
@@ -70,7 +70,11 @@ export class PerpMarketService {
     }
 
     const entryPrice = market.currentPrice;
-    const liquidationPrice = calculateLiquidationPrice(entryPrice, side, leverage);
+    const liquidationPrice = calculateLiquidationPrice(
+      entryPrice,
+      side,
+      leverage
+    );
     const marginRequired = size / leverage;
     const fee = this.calculateFee(size);
     const totalCost = marginRequired + fee;
@@ -139,7 +143,9 @@ export class PerpMarketService {
     const markets = await this.db.listMarkets();
     const market = markets.find((m) => m.ticker === position.ticker);
     if (!market) {
-      throw new Error(`Market not found for position ticker ${position.ticker}`);
+      throw new Error(
+        `Market not found for position ticker ${position.ticker}`
+      );
     }
 
     const exitPrice = input.exitPriceOverride ?? market.currentPrice;
@@ -295,9 +301,7 @@ export class PerpMarketService {
 
       const change24h = price - market.currentPrice;
       const changePercent24h =
-        market.currentPrice === 0
-          ? 0
-          : (change24h / market.currentPrice) * 100;
+        market.currentPrice === 0 ? 0 : (change24h / market.currentPrice) * 100;
 
       await this.db.updateMarketStats(market.ticker, {
         currentPrice: price,
@@ -435,10 +439,7 @@ function calculateUnrealizedPnL(
 }
 
 function normalizePriceMap(
-  input:
-    | Map<string, number>
-    | Record<string, number>
-    | Array<[string, number]>
+  input: Map<string, number> | Record<string, number> | Array<[string, number]>
 ): Map<string, number> {
   if (input instanceof Map) return input;
   if (Array.isArray(input)) return new Map(input);
@@ -514,7 +515,8 @@ function calculateDynamicFundingRate(params: {
   }
 
   const absImbalance = Math.abs(imbalance);
-  const scaleFactor = (maxFundingRate - baseFundingRate) / 1 ** imbalanceExponent;
+  const scaleFactor =
+    (maxFundingRate - baseFundingRate) / 1 ** imbalanceExponent;
   const rateMultiplier = absImbalance ** imbalanceExponent * scaleFactor;
 
   let annualRate: number;
@@ -523,7 +525,10 @@ function calculateDynamicFundingRate(params: {
   } else {
     const signedRate =
       (baseFundingRate + rateMultiplier) * Math.sign(imbalance);
-    annualRate = Math.max(-maxFundingRate, Math.min(maxFundingRate, signedRate));
+    annualRate = Math.max(
+      -maxFundingRate,
+      Math.min(maxFundingRate, signedRate)
+    );
   }
 
   const periodRate = annualRate / periodsPerYear();
@@ -545,3 +550,5 @@ function calculateFundingPayment(size: number, fundingRate: number): number {
 function periodsPerYear(): number {
   return (365.25 * 24) / FUNDING_PERIOD_HOURS;
 }
+
+import { shouldLiquidate } from './utils';

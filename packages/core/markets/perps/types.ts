@@ -1,4 +1,10 @@
-import type { FeeConfig, WalletPort, BroadcastPort, CachePort, ClockPort } from '../shared/common';
+import type {
+  BroadcastPort,
+  CachePort,
+  ClockPort,
+  FeeConfig,
+  WalletPort,
+} from '../shared/common';
 
 export type PerpSide = 'long' | 'short';
 
@@ -48,17 +54,36 @@ export interface PerpDbPort {
   listMarkets(): Promise<PerpMarketRecord[]>;
   listOpenPositions(): Promise<PerpPositionRecord[]>;
   getPositionById(id: string): Promise<PerpPositionRecord | null>;
-  upsertPosition(position: Omit<PerpPositionRecord, 'id'> & { id?: string }): Promise<PerpPositionRecord>;
+  upsertPosition(
+    position: Omit<PerpPositionRecord, 'id'> & { id?: string }
+  ): Promise<PerpPositionRecord>;
   updateOpenPosition(
     positionId: string,
     updates: Partial<
       Pick<
         PerpPositionRecord,
-        'currentPrice' | 'unrealizedPnL' | 'unrealizedPnLPercent' | 'fundingPaid' | 'liquidationPrice' | 'lastUpdated'
+        | 'currentPrice'
+        | 'unrealizedPnL'
+        | 'unrealizedPnLPercent'
+        | 'fundingPaid'
+        | 'liquidationPrice'
+        | 'lastUpdated'
       >
     >
   ): Promise<void>;
-  closePosition(positionId: string, updates: Partial<Pick<PerpPositionRecord, 'currentPrice' | 'closedAt' | 'realizedPnL' | 'unrealizedPnL' | 'unrealizedPnLPercent'>>): Promise<void>;
+  closePosition(
+    positionId: string,
+    updates: Partial<
+      Pick<
+        PerpPositionRecord,
+        | 'currentPrice'
+        | 'closedAt'
+        | 'realizedPnL'
+        | 'unrealizedPnL'
+        | 'unrealizedPnLPercent'
+      >
+    >
+  ): Promise<void>;
   updateMarketStats(
     ticker: string,
     updates: Partial<
