@@ -3,10 +3,9 @@ import { z } from 'zod';
 import { authenticate } from '@babylon/api';
 import { successResponse, withErrorHandling } from '@babylon/api';
 import { trackServerEvent } from '@/lib/posthog/server';
-import { FEE_CONFIG } from '@babylon/engine';
+import { FEE_CONFIG, WalletService } from '@babylon/engine';
 import { ClosePerpPositionSchema } from '@babylon/shared';
 import { PerpMarketService, PerpDbAdapter } from '@babylon/core/markets/perps';
-import { WalletPortAdapter } from '@babylon/core/markets/shared';
 
 const IdParamSchema = z.object({
   id: z.string(),
@@ -37,7 +36,15 @@ export const POST = withErrorHandling(
 
     const service = new PerpMarketService({
       db: new PerpDbAdapter(),
-      wallet: WalletPortAdapter,
+      wallet: {
+        debit: ({ userId, amount, reason, description, relatedId }) =>
+          WalletService.debit(userId, amount, reason, description ?? '', relatedId),
+        credit: ({ userId, amount, reason, description, relatedId }) =>
+          WalletService.credit(userId, amount, reason, description ?? '', relatedId),
+        recordPnL: ({ userId, pnl, reason, relatedId }) =>
+          WalletService.recordPnL(userId, pnl, reason, relatedId),
+        getBalance: (userId: string) => WalletService.getBalance(userId),
+      },
       fees: {
         tradingFeeRate: FEE_CONFIG.TRADING_FEE_RATE,
         platformShare: FEE_CONFIG.PLATFORM_SHARE,

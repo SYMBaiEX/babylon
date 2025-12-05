@@ -28,7 +28,6 @@ import {
   PerpMarketService,
   PerpDbAdapter,
 } from '@babylon/core/markets/perps';
-import { WalletPortAdapter } from '@babylon/core/markets/shared';
 import type { IAgentRuntime } from '@elizaos/core';
 import { asUser } from '@babylon/db';
 import { logger } from '../shared/logger';
@@ -398,7 +397,27 @@ ${contextString}`;
           await asUser({ userId: agentUserId }, async () => {
             const service = new PerpMarketService({
               db: new PerpDbAdapter(),
-              wallet: WalletPortAdapter,
+              wallet: {
+                debit: ({ userId, amount, reason, description, relatedId }) =>
+                  WalletService.debit(
+                    userId,
+                    amount,
+                    reason,
+                    description ?? '',
+                    relatedId
+                  ),
+                credit: ({ userId, amount, reason, description, relatedId }) =>
+                  WalletService.credit(
+                    userId,
+                    amount,
+                    reason,
+                    description ?? '',
+                    relatedId
+                  ),
+                recordPnL: ({ userId, pnl, reason, relatedId }) =>
+                  WalletService.recordPnL(userId, pnl, reason, relatedId),
+                getBalance: (userId: string) => WalletService.getBalance(userId),
+              },
               fees: {
                 tradingFeeRate: 0.001,
                 platformShare: 0.5,

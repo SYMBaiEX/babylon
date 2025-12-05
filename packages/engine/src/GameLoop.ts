@@ -73,7 +73,7 @@ export class GameLoop {
 
     // 1. Market Maintenance (Financial Layer)
     // Funding is now handled outside GameLoop via core services/jobs
-    let marketUpdated = false;
+    const marketUpdated = false;
 
     // 2. Market Decisions (Financial Layer)
     // Generate trading activity based on current state

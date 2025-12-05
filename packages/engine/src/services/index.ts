@@ -41,7 +41,6 @@ export {
   type EventArcValidationResult,
 } from './event-arc-validator';
 export * from './onchain-market-service';
-export * from './perp-trade-service';
 export * from './price-update-service';
 export * from './signal-extraction-service';
 export * from './trajectory-market-engine';

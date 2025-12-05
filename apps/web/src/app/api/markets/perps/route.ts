@@ -1,9 +1,8 @@
 import type { NextRequest } from 'next/server';
 import { successResponse, withErrorHandling } from '@babylon/api';
 import { PerpMarketService, PerpDbAdapter } from '@babylon/core/markets/perps';
-import { FEE_CONFIG } from '@babylon/engine';
+import { FEE_CONFIG, WalletService } from '@babylon/engine';
 import { logger } from '@babylon/shared';
-import { WalletPortAdapter } from '@babylon/core/markets/shared';
 
 /**
  * GET /api/markets/perps
@@ -13,7 +12,15 @@ export const GET = withErrorHandling(async (_request: NextRequest) => {
   const dbAdapter = new PerpDbAdapter();
   const service = new PerpMarketService({
     db: dbAdapter,
-    wallet: WalletPortAdapter,
+    wallet: {
+      debit: ({ userId, amount, reason, description, relatedId }) =>
+        WalletService.debit(userId, amount, reason, description ?? '', relatedId),
+      credit: ({ userId, amount, reason, description, relatedId }) =>
+        WalletService.credit(userId, amount, reason, description ?? '', relatedId),
+      recordPnL: ({ userId, pnl, reason, relatedId }) =>
+        WalletService.recordPnL(userId, pnl, reason, relatedId),
+      getBalance: (userId: string) => WalletService.getBalance(userId),
+    },
     fees: {
       tradingFeeRate: FEE_CONFIG.TRADING_FEE_RATE,
       platformShare: FEE_CONFIG.PLATFORM_SHARE,
