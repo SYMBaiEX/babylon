@@ -7,7 +7,6 @@
  * @module services/rss-feed-service
  */
 
-import { parseStringPromise } from 'xml2js';
 import type { RSSHeadline } from '@babylon/db';
 import {
   and,
@@ -21,8 +20,8 @@ import {
   rssHeadlines,
   sql,
 } from '@babylon/db';
-import { logger } from '@babylon/shared';
-import { generateSnowflakeId } from '@babylon/shared';
+import { generateSnowflakeId, logger } from '@babylon/shared';
+import { parseStringPromise } from 'xml2js';
 
 type JsonValue =
   | string
@@ -380,4 +379,3 @@ export class RSSFeedService {
 
 // Singleton instance
 export const rssFeedService = new RSSFeedService();
-

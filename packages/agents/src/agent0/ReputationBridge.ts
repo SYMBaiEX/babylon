@@ -5,7 +5,7 @@
  * to provide reputation scores.
  */
 
-import { type RegistryClient, type AgentReputation } from '@babylon/a2a';
+import { type AgentReputation, type RegistryClient } from '@babylon/a2a';
 import { logger } from '../shared/logger';
 import { SubgraphClient } from './SubgraphClient';
 import type { AggregatedReputation, IReputationBridge } from './types';

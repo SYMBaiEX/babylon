@@ -102,4 +102,3 @@ export const LIAR_PRIORITY_METRICS = [
   'social.groupMessagesSent',
   'social.dmsInitiated',
 ];
-

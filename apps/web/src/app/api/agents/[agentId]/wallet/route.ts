@@ -141,12 +141,12 @@
  * @see {@link /src/app/agents/[agentId]/page.tsx} Wallet UI
  */
 
+import { agentService } from '@babylon/agents';
+import { authenticateUser } from '@babylon/api';
+import { db } from '@babylon/db';
+import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { db } from '@babylon/db';
-import { agentService } from '@babylon/agents';
-import { logger } from '@babylon/shared';
-import { authenticateUser } from '@babylon/api';
 
 export async function GET(
   req: NextRequest,

@@ -52,32 +52,47 @@
  * ```
  */
 
-import type { NextRequest } from 'next/server';
-import { NextResponse } from 'next/server';
+import {
+  getClientIp,
+  logAdminModify,
+  requireAdmin,
+  withErrorHandling,
+} from '@babylon/api';
 import { BabylonLLMClient } from '@babylon/engine';
 import { logger } from '@babylon/shared';
+import type { NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
 
 /**
  * POST /api/admin/ai-models/test
  * Tests the current AI model configuration with a simple completion
  */
-export async function POST(_req: NextRequest) {
-  try {
-    // Initialize client (uses Groq by default for game tick operations)
-    const client = BabylonLLMClient.forGameTick();
-    const stats = client.getStats();
+export const POST = withErrorHandling(async (req: NextRequest) => {
+  const admin = await requireAdmin(req);
 
-    logger.info(
-      'Testing AI model',
-      {
-        provider: stats.provider,
-        model: stats.model,
-      },
-      'AIModelsTest'
-    );
+  // Initialize client (uses Groq by default for game tick operations)
+  const client = BabylonLLMClient.forGameTick();
+  const stats = client.getStats();
 
-    // Simple test prompt
-    const testPrompt = `Generate a brief test response (max 50 chars) confirming you're working.
+  // Audit log the test
+  logAdminModify({
+    adminId: admin.userId,
+    ipAddress: getClientIp(req.headers) ?? undefined,
+    resourceType: 'ai_models',
+    metadata: { action: 'test_model', provider: stats.provider, model: stats.model },
+  });
+
+  logger.info(
+    'Testing AI model',
+    {
+      provider: stats.provider,
+      model: stats.model,
+    },
+    'AIModelsTest'
+  );
+
+  // Simple test prompt
+  const testPrompt = `Generate a brief test response (max 50 chars) confirming you're working.
 
 Return your response as XML in this exact format:
 <response>
@@ -85,68 +100,56 @@ Return your response as XML in this exact format:
   <status>ok</status>
 </response>`;
 
-    const startTime = Date.now();
+  const startTime = Date.now();
 
-    // Make test call
-    const rawResponse = await client.generateJSON<
-      | { message: string; status: string }
-      | { response: { message: string; status: string } }
-    >(
-      testPrompt,
-      {
-        properties: {
-          message: { type: 'string' },
-          status: { type: 'string' },
-        },
-        required: ['message', 'status'],
+  // Make test call
+  const rawResponse = await client.generateJSON<
+    | { message: string; status: string }
+    | { response: { message: string; status: string } }
+  >(
+    testPrompt,
+    {
+      properties: {
+        message: { type: 'string' },
+        status: { type: 'string' },
       },
-      {
-        temperature: 0.7,
-        maxTokens: 100,
-        promptType: 'admin_test_ai_model',
-      }
-    );
+      required: ['message', 'status'],
+    },
+    {
+      temperature: 0.7,
+      maxTokens: 100,
+      promptType: 'admin_test_ai_model',
+    }
+  );
 
-    // Handle XML structure
-    const response =
-      'response' in rawResponse && rawResponse.response
-        ? rawResponse.response
-        : (rawResponse as { message: string; status: string });
+  // Handle XML structure
+  const response =
+    'response' in rawResponse && rawResponse.response
+      ? rawResponse.response
+      : (rawResponse as { message: string; status: string });
 
-    const latency = Date.now() - startTime;
+  const latency = Date.now() - startTime;
 
-    logger.info(
-      'AI model test successful',
-      {
-        provider: stats.provider,
-        model: stats.model,
-        latency,
-        response,
-      },
-      'AIModelsTest'
-    );
+  logger.info(
+    'AI model test successful',
+    {
+      provider: stats.provider,
+      model: stats.model,
+      latency,
+      response,
+    },
+    'AIModelsTest'
+  );
 
-    return NextResponse.json({
-      success: true,
-      data: {
-        provider: stats.provider,
-        model: stats.model,
-        response: response,
-        latency,
-        timestamp: new Date().toISOString(),
-      },
-      message: `Successfully tested ${stats.provider} (model: ${stats.model})`,
-    });
-  } catch (error) {
-    logger.error('AI model test failed', { error }, 'AIModelsTest');
-
-    return NextResponse.json(
-      {
-        success: false,
-        error: error instanceof Error ? error.message : 'Test failed',
-        details: error instanceof Error ? error.stack : String(error),
-      },
-      { status: 500 }
-    );
-  }
-}
+  return NextResponse.json({
+    success: true,
+    data: {
+      provider: stats.provider,
+      model: stats.model,
+      response: response,
+      latency,
+      timestamp: new Date().toISOString(),
+    },
+    message: `Successfully tested ${stats.provider} (model: ${stats.model})`,
+  });
+});

@@ -7,9 +7,9 @@
 
 import { promises as fs } from 'fs';
 import * as path from 'path';
-import { HuggingFaceUploadUtil } from './shared/HuggingFaceUploadUtil';
 import type { SimulationMetrics } from '../benchmark/SimulationEngine';
 import { logger } from '../utils/logger';
+import { HuggingFaceUploadUtil } from './shared/HuggingFaceUploadUtil';
 
 export interface BenchmarkRecord {
   benchmarkId: string;
@@ -579,7 +579,6 @@ For questions or issues, please open an issue on the Babylon repository.
     if (!this.huggingFaceToken) {
       throw new Error('HuggingFace token not configured');
     }
-
 
     await HuggingFaceUploadUtil.ensureRepository(
       datasetName,

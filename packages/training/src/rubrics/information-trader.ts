@@ -82,4 +82,3 @@ export const INFORMATION_TRADER_PRIORITY_METRICS = [
   'information.infoRequestsSent',
   'trading.winRate',
 ];
-

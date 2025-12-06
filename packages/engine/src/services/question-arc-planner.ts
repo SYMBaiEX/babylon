@@ -42,8 +42,8 @@
  */
 
 import { logger } from '@babylon/shared';
-import { shuffleArray } from '../utils/randomization';
 import type { Actor, Organization, Question } from '../types';
+import { shuffleArray } from '../utils/randomization';
 
 /**
  * Phase-specific event distribution targets
@@ -406,4 +406,3 @@ export class QuestionArcPlanner {
     return phaseData.targetCorrectSignals / totalSignals;
   }
 }
-

@@ -27,8 +27,8 @@
  * ```
  */
 
-import { randomBytes } from 'crypto';
 import { DistributedLockService } from '@babylon/api';
+import { randomBytes } from 'crypto';
 
 const LOCK_ID = 'game-tick-lock';
 const LOCK_DURATION_MS = 15 * 60 * 1000; // 15 minutes
@@ -60,4 +60,3 @@ export async function releaseGenerationLock(processId?: string): Promise<void> {
 export async function checkGenerationLock() {
   return DistributedLockService.checkLock(LOCK_ID);
 }
-

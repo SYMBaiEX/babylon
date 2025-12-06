@@ -75,13 +75,12 @@
  * @see {@link /lib/services/perp-trade-service} Perp trade service
  */
 
-import type { NextRequest } from 'next/server';
-import { z } from 'zod';
-import { authenticate } from '@babylon/api';
-import { successResponse, withErrorHandling } from '@babylon/api';
-import { trackServerEvent } from '@/lib/posthog/server';
+import { authenticate, successResponse, withErrorHandling } from '@babylon/api';
 import { PerpTradeService } from '@babylon/engine';
 import { ClosePerpPositionSchema } from '@babylon/shared';
+import type { NextRequest } from 'next/server';
+import { z } from 'zod';
+import { trackServerEvent } from '@/lib/posthog/server';
 
 const IdParamSchema = z.object({
   id: z.string(),

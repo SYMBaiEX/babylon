@@ -22,8 +22,12 @@ import {
   sql,
   users,
 } from '@babylon/db';
-import { POINTS, type PointsReason, logger } from '@babylon/shared';
-import { generateSnowflakeId } from '@babylon/shared';
+import {
+  generateSnowflakeId,
+  logger,
+  POINTS,
+  type PointsReason,
+} from '@babylon/shared';
 
 import type { JsonValue } from '../types';
 

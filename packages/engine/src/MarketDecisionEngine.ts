@@ -67,6 +67,11 @@
  */
 
 import {
+  countTokensSync,
+  getSafeContextLimit,
+  truncateToTokenLimitSync,
+} from '@babylon/api';
+import {
   actors,
   and,
   db,
@@ -79,22 +84,17 @@ import {
   posts,
   questions,
 } from '@babylon/db';
-import type { BabylonLLMClient } from './llm/openai-client';
-import { loadActorById } from './actors-loader';
 import { logger } from '@babylon/shared';
+import { loadActorById } from './actors-loader';
+import type { BabylonLLMClient } from './llm/openai-client';
 import { parseXML } from './llm/xml-parser';
-import type { MarketContextService } from './services/market-context-service';
-import {
-  countTokensSync,
-  getSafeContextLimit,
-  truncateToTokenLimitSync,
-} from '@babylon/api';
 import {
   generateWorldContext,
   getShuffledExamplesText,
   npcMarketDecisions,
   renderPrompt,
 } from './prompts';
+import type { MarketContextService } from './services/market-context-service';
 import type { JsonValue } from './types/common';
 import type { NPCMarketContext } from './types/market-context';
 import type { TradingDecision } from './types/market-decisions';

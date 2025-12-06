@@ -291,5 +291,3 @@ export type MarketOutcome = typeof marketOutcomes.$inferSelect;
 export type NewMarketOutcome = typeof marketOutcomes.$inferInsert;
 
 
-
-

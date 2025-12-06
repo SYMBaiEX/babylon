@@ -41,8 +41,8 @@
  * ```
  */
 
-import { NextResponse } from 'next/server';
 import { logger } from '@babylon/shared';
+import { NextResponse } from 'next/server';
 
 export async function GET() {
   logger.info('Training cron endpoint called (currently disabled)');

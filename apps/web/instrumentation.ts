@@ -23,7 +23,12 @@ export async function register() {
   if (process.env.NEXT_RUNTIME === 'nodejs') {
     // Dynamically import Node.js-only modules to avoid Edge Runtime errors
     // Import from main package entry point
-    const { setPointsService, setNotificationService, PointsService, createNotification } = await import('@babylon/api');
+    const {
+      setPointsService,
+      setNotificationService,
+      PointsService,
+      createNotification,
+    } = await import('@babylon/api');
 
     // Initialize agent service container with required services
     // Uses globalThis to persist across module instances
@@ -58,7 +63,9 @@ export async function register() {
       createNotification: async (params) => {
         // Cast params to match CreateNotificationParams type
         // setNotificationService interface uses string for type, but createNotification expects NotificationType
-        return await createNotification(params as Parameters<typeof createNotification>[0]);
+        return await createNotification(
+          params as Parameters<typeof createNotification>[0]
+        );
       },
     });
   }
@@ -75,7 +82,10 @@ export async function register() {
   // Register reputation sync service if agents package is available
   // This breaks the circular dependency between engine and agents packages
   // Only load agent0 code server-side to avoid bundling electron-fetch in client
-  if (process.env.AGENT0_ENABLED === 'true' && process.env.NEXT_RUNTIME === 'nodejs') {
+  if (
+    process.env.AGENT0_ENABLED === 'true' &&
+    process.env.NEXT_RUNTIME === 'nodejs'
+  ) {
     try {
       const { setReputationSyncService } = await import('@babylon/engine');
       const { createReputationSyncAdapter } = await import('@babylon/agents');

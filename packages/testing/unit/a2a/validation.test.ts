@@ -368,4 +368,3 @@ describe('A2A Validation Schemas', () => {
     });
   });
 });
-

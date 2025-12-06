@@ -15,16 +15,18 @@
  * @packageDocumentation
  */
 
-import { type Actor, actors, asc, db, eq } from '@babylon/db';
 import { agentRuntimeManager } from '@babylon/agents';
+import { type Actor, actors, asc, db, eq } from '@babylon/db';
 import { loadActorById } from '@babylon/engine';
-import { logger } from '@babylon/shared';
+import type { ActorData, AgentCapabilities } from '@babylon/shared';
 import {
+  getCurrentChainId,
+  IDENTITY_REGISTRY_BASE_SEPOLIA,
+  logger,
   mapActorToOASFDomains,
   mapActorToOASFSkills,
+  REPUTATION_SYSTEM_BASE_SEPOLIA,
 } from '@babylon/shared';
-import type { ActorData } from '@babylon/shared';
-import type { AgentCapabilities } from '@babylon/shared';
 import { AgentStatus, AgentType } from '../types/agent-registry';
 import { agentRegistry } from './agent-registry.service';
 
@@ -305,14 +307,11 @@ export class NPCBootstrapService {
       platform: 'babylon',
       userType: 'npc',
 
-      // Game network configuration
+      // Game network configuration (from canonical config)
       gameNetwork: {
-        chainId: Number.parseInt(process.env.NEXT_PUBLIC_CHAIN_ID || '84532'), // Base Sepolia default
-        registryAddress:
-          process.env.NEXT_PUBLIC_IDENTITY_REGISTRY_BASE_SEPOLIA ||
-          '0x0000000000000000000000000000000000000000',
-        reputationAddress:
-          process.env.NEXT_PUBLIC_REPUTATION_SYSTEM_BASE_SEPOLIA,
+        chainId: getCurrentChainId(),
+        registryAddress: IDENTITY_REGISTRY_BASE_SEPOLIA,
+        reputationAddress: REPUTATION_SYSTEM_BASE_SEPOLIA,
       },
 
       // OASF Taxonomy Support (Agent0 SDK v0.31.0)

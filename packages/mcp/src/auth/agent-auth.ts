@@ -4,9 +4,9 @@
  * Handles authentication for MCP requests using per-user API keys
  */
 
-import { validateUserApiKey } from './api-key-auth';
 import { logger } from '@babylon/shared';
 import type { AuthenticatedAgent } from '../types/mcp';
+import { validateUserApiKey } from './api-key-auth';
 
 export interface MCPAuth {
   apiKey?: string;
@@ -35,4 +35,3 @@ export async function authenticateAgent(
     agentId: validationResult.userId, // Use userId as agentId for consistency
   };
 }
-

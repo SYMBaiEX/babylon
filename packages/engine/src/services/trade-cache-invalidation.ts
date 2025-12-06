@@ -82,7 +82,11 @@ export async function invalidatePredictionTradesCache(
       'TradeCache'
     );
   } catch (error) {
-    logger.error(`Failed to invalidate prediction trades cache`, error, 'TradeCache');
+    logger.error(
+      `Failed to invalidate prediction trades cache`,
+      error,
+      'TradeCache'
+    );
   }
 }
 
@@ -146,4 +150,3 @@ export async function invalidateAfterPredictionTrade(
 export async function invalidateAfterPerpTrade(ticker: string): Promise<void> {
   await invalidatePerpTradesCache(ticker);
 }
-

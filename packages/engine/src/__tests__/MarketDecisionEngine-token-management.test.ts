@@ -133,9 +133,9 @@ mock.module('@babylon/db', () => ({
 }));
 
 import type { BabylonLLMClient } from '../llm/openai-client';
+import { MarketDecisionEngine } from '../MarketDecisionEngine';
 import { MarketContextService } from '../services/market-context-service';
 import type { NPCMarketContext } from '../types/market-context';
-import { MarketDecisionEngine } from '../MarketDecisionEngine';
 
 interface JSONSchemaProperty {
   type?: 'string' | 'number' | 'boolean' | 'object' | 'array';

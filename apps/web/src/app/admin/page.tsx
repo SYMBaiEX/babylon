@@ -30,6 +30,7 @@
 
 'use client';
 
+import { cn } from '@babylon/shared';
 import {
   Activity,
   BarChart,
@@ -67,7 +68,6 @@ import { UserManagementTab } from '@/components/admin/UserManagementTab';
 import { PageContainer } from '@/components/shared/PageContainer';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { useAuth } from '@/hooks/useAuth';
-import { cn } from '@babylon/shared';
 
 /**
  * Available admin dashboard tabs

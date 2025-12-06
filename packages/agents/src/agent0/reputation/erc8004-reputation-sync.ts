@@ -15,20 +15,17 @@
  * - Continuous reputation tracking
  */
 
-import { getAgent0Client } from '../Agent0Client';
+import { and, db, desc, eq, gte, isNotNull } from '@babylon/db';
 import {
-  and,
-  db,
-  desc,
-  eq,
-  gte,
-  isNotNull,
-} from '@babylon/db';
-import { agentPerformanceMetrics, gameConfigs, users } from '@babylon/db/schema';
+  agentPerformanceMetrics,
+  gameConfigs,
+  users,
+} from '@babylon/db/schema';
+import { recalculateReputation } from '@babylon/engine';
 import { logger } from '@babylon/shared';
 import { generateSnowflakeId } from '../../shared/snowflake';
+import { getAgent0Client } from '../Agent0Client';
 import { getCachedAgent0ReputationScore } from './agent0-reputation-cache';
-import { recalculateReputation } from '@babylon/engine';
 
 interface ReputationSyncResult {
   userId: string;
@@ -603,5 +600,3 @@ export async function syncAllReputationsToERC8004(): Promise<BatchSyncResult> {
     results: allResults,
   };
 }
-
-

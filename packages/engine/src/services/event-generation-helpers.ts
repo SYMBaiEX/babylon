@@ -52,4 +52,3 @@ export async function generateEvents(
 
   return eventsCreated;
 }
-

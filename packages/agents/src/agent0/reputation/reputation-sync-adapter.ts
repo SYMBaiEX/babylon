@@ -42,4 +42,3 @@ class ReputationSyncAdapter implements ReputationSyncService {
 export function createReputationSyncAdapter(): ReputationSyncService {
   return new ReputationSyncAdapter();
 }
-

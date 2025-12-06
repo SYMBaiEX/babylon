@@ -7,7 +7,13 @@ import 'server-only';
 
 import { PostHog } from 'posthog-node';
 
-type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
+type JsonValue =
+  | string
+  | number
+  | boolean
+  | null
+  | JsonValue[]
+  | { [key: string]: JsonValue };
 type StringRecord<T> = Record<string, T>;
 
 let posthogClient: PostHog | null = null;

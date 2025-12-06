@@ -150,4 +150,3 @@ export const RELATIONSHIP_TYPES = {
   ACQUAINTANCES: 'acquaintances',
   FORMER_COLLEAGUES: 'former-colleagues',
 } as const;
-

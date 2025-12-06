@@ -106,14 +106,12 @@
  * ```
  */
 
+import { authenticate, PointsService, withErrorHandling } from '@babylon/api';
+import { db } from '@babylon/db';
+import { generateSnowflakeId } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { db } from '@babylon/db';
-import { authenticate } from '@babylon/api';
-import { withErrorHandling } from '@babylon/api';
-import { PointsService } from '@babylon/api';
-import { generateSnowflakeId } from '@babylon/shared';
 
 const createGroupSchema = z.object({
   name: z.string().min(1).max(100),

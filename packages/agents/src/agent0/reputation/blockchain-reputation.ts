@@ -5,6 +5,12 @@
  * Handles feedback submission, reputation queries, and sync with local database.
  */
 
+import { agentPerformanceMetrics, db, eq } from '@babylon/db';
+import {
+  getCurrentRpcUrl,
+  REPUTATION_SYSTEM_ABI,
+  REPUTATION_SYSTEM_BASE_SEPOLIA,
+} from '@babylon/shared';
 import {
   type Address,
   createPublicClient,
@@ -13,13 +19,7 @@ import {
   type WalletClient,
 } from 'viem';
 import { baseSepolia } from 'viem/chains';
-import { agentPerformanceMetrics, db, eq } from '@babylon/db';
 import { logger } from '../../shared/logger';
-import {
-  REPUTATION_SYSTEM_ABI,
-  REPUTATION_SYSTEM_BASE_SEPOLIA,
-  getCurrentRpcUrl,
-} from '@babylon/shared';
 
 // Contract addresses from canonical config
 const REPUTATION_SYSTEM_ADDRESS = REPUTATION_SYSTEM_BASE_SEPOLIA as Address;
@@ -281,7 +281,3 @@ export async function getOnChainFeedback(
     timestamp: feedback[3],
   };
 }
-
-
-
-

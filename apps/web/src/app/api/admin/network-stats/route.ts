@@ -44,11 +44,10 @@
  * ```
  */
 
-import type { NextRequest } from 'next/server';
-import { requireAdmin } from '@babylon/api';
+import { requireAdmin, successResponse, withErrorHandling } from '@babylon/api';
 import { queryMonitor } from '@babylon/db';
-import { successResponse, withErrorHandling } from '@babylon/api';
 import { logger } from '@babylon/shared';
+import type { NextRequest } from 'next/server';
 
 /**
  * GET /api/admin/network-stats

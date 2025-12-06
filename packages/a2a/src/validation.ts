@@ -7,8 +7,8 @@
  * @public
  */
 
-import { z } from 'zod';
 import { JsonValueSchema } from '@babylon/shared';
+import { z } from 'zod';
 
 /**
  * Parameters for agent discovery requests

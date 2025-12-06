@@ -68,11 +68,10 @@
  * ```
  */
 
+import { authenticate, requireUserByIdentifier } from '@babylon/api';
+import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { authenticate } from '@babylon/api';
-import { logger } from '@babylon/shared';
-import { requireUserByIdentifier } from '@babylon/api';
 
 export async function POST(request: NextRequest) {
   const authUser = await authenticate(request);

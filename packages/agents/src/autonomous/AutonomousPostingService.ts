@@ -7,16 +7,17 @@
 import { agentTrades, db, desc, eq, posts, users } from '@babylon/db';
 import {
   characterMappingService,
+  countTokensSync,
   formatRandomContext,
   generateRandomMarketContext,
   generateWorldContext,
+  truncateToTokenLimitSync,
 } from '@babylon/engine';
 import type { IAgentRuntime } from '@elizaos/core';
 import { parseKeyValueXml } from '@elizaos/core';
+import { callGroqDirect } from '../llm/direct-groq';
 import { logger } from '../shared/logger';
 import { generateSnowflakeId } from '../shared/snowflake';
-import { countTokensSync, truncateToTokenLimitSync } from '@babylon/engine';
-import { callGroqDirect } from '../llm/direct-groq';
 
 export class AutonomousPostingService {
   /**

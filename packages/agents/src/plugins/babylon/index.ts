@@ -59,8 +59,8 @@ import {
 
 // Export integration services
 export * from './integration';
-export * from './services';
 export { initializeAgentA2AClient } from './integration-a2a-sdk';
+export * from './services';
 // Export types for external use
 export type { BabylonRuntime } from './types';
 

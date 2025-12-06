@@ -58,11 +58,11 @@
  */
 
 import { generateSnowflakeId, logger } from '@babylon/shared';
-import { characterMappingService } from './services/character-mapping-service';
-import { shuffleArray } from './utils/randomization';
-import { biasedArticle, renderPrompt, validateArticle } from './prompts';
-import type { Actor, Organization, Question, WorldEvent } from './types/shared';
 import type { BabylonLLMClient } from './llm/openai-client';
+import { biasedArticle, renderPrompt, validateArticle } from './prompts';
+import { characterMappingService } from './services/character-mapping-service';
+import type { Actor, Organization, Question, WorldEvent } from './types/shared';
+import { shuffleArray } from './utils/randomization';
 
 type ArticleStage = 'breaking' | 'commentary' | 'resolution';
 

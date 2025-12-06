@@ -30,6 +30,7 @@
  */
 'use client';
 
+import { getProfileUrl } from '@babylon/shared';
 import { formatDistanceToNow } from 'date-fns';
 import {
   AlertCircle,
@@ -40,7 +41,6 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { getProfileUrl } from '@babylon/shared';
 
 /**
  * Feedback item structure for feedback history.

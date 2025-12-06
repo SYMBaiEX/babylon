@@ -4,13 +4,13 @@
  * Validates that all metrics are properly extracted and never null/undefined/NaN.
  */
 
-import { describe, it, expect, beforeEach } from 'bun:test';
+import { beforeEach, describe, expect, it } from 'bun:test';
+import type { TrajectoryStep } from '../../training/types';
 import {
   TrajectoryMetricsExtractor,
   trajectoryMetricsExtractor,
 } from '../TrajectoryMetricsExtractor';
 import type { BehavioralMetrics } from '../types';
-import type { TrajectoryStep } from '../../training/types';
 
 describe('TrajectoryMetricsExtractor', () => {
   let extractor: TrajectoryMetricsExtractor;
@@ -249,7 +249,11 @@ describe('TrajectoryMetricsExtractor', () => {
         {
           stepNumber: 0,
           timestamp: Date.now(),
-          environmentState: { agentBalance: 1000, agentPnL: 0, openPositions: 0 },
+          environmentState: {
+            agentBalance: 1000,
+            agentPnL: 0,
+            openPositions: 0,
+          },
           providerAccesses: [],
           llmCalls: [],
           action: {
@@ -573,7 +577,11 @@ describe('TrajectoryMetricsExtractor', () => {
         {
           stepNumber: 0,
           timestamp: Date.now(),
-          environmentState: { agentBalance: 1000, agentPnL: 0, openPositions: 0 },
+          environmentState: {
+            agentBalance: 1000,
+            agentPnL: 0,
+            openPositions: 0,
+          },
           providerAccesses: [],
           llmCalls: [],
           action: { actionType: 'idle', parameters: {}, success: true },
@@ -597,7 +605,9 @@ describe('TrajectoryMetricsExtractor', () => {
 
   describe('singleton instance', () => {
     it('should export a singleton instance', () => {
-      expect(trajectoryMetricsExtractor).toBeInstanceOf(TrajectoryMetricsExtractor);
+      expect(trajectoryMetricsExtractor).toBeInstanceOf(
+        TrajectoryMetricsExtractor
+      );
     });
   });
 
@@ -607,7 +617,11 @@ describe('TrajectoryMetricsExtractor', () => {
         {
           stepNumber: 0,
           timestamp: Date.now(),
-          environmentState: { agentBalance: 1000, agentPnL: 0, openPositions: 0 },
+          environmentState: {
+            agentBalance: 1000,
+            agentPnL: 0,
+            openPositions: 0,
+          },
           providerAccesses: [],
           llmCalls: [],
           action: {
@@ -720,11 +734,18 @@ function createStep(options: {
   };
 }
 
-function createStepWithEnvState(envState: Record<string, number>): TrajectoryStep {
+function createStepWithEnvState(
+  envState: Record<string, number>
+): TrajectoryStep {
   return {
     stepNumber: 0,
     timestamp: Date.now(),
-    environmentState: { agentBalance: 1000, agentPnL: 0, openPositions: 0, ...envState },
+    environmentState: {
+      agentBalance: 1000,
+      agentPnL: 0,
+      openPositions: 0,
+      ...envState,
+    },
     providerAccesses: [],
     llmCalls: [],
     action: {
@@ -735,4 +756,3 @@ function createStepWithEnvState(envState: Record<string, number>): TrajectorySte
     reward: 0,
   };
 }
-

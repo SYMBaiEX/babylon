@@ -97,14 +97,13 @@
  * @see {@link https://docs.neynar.com} Neynar API documentation
  */
 
+import { PointsService, withErrorHandling } from '@babylon/api';
+import { db } from '@babylon/db';
+import { logger } from '@babylon/shared';
 import { createAppClient, viemConnector } from '@farcaster/auth-client';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { db } from '@babylon/db';
-import { withErrorHandling } from '@babylon/api';
-import { logger } from '@babylon/shared';
-import { PointsService } from '@babylon/api';
 
 const FarcasterCallbackBodySchema = z.object({
   message: z.string(),

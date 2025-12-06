@@ -1,5 +1,5 @@
-import type React from 'react';
 import { cn } from '@babylon/shared';
+import type React from 'react';
 
 /**
  * Badge component for displaying labels and status indicators.

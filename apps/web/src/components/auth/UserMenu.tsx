@@ -1,15 +1,12 @@
 'use client';
 
+import { getDisplayReferralUrl, getReferralUrl } from '@babylon/shared';
 import { Check, Copy, Key, LogOut, Settings } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useEffect, useRef, useState } from 'react';
 import { Avatar } from '@/components/shared/Avatar';
 import { Dropdown, DropdownItem } from '@/components/shared/Dropdown';
 import { useAuth } from '@/hooks/useAuth';
-import {
-  getDisplayReferralUrl,
-  getReferralUrl,
-} from '@babylon/shared';
 import { useAuthStore } from '@/stores/authStore';
 
 /**
@@ -56,7 +53,11 @@ export function UserMenu() {
 
       // Skip if we fetched recently (within 5 seconds) unless force refresh
       const now = Date.now();
-      if (!forceRefresh && now - lastFetchTimeRef.current < 5000 && lastFetchedUserIdRef.current === user.id) {
+      if (
+        !forceRefresh &&
+        now - lastFetchTimeRef.current < 5000 &&
+        lastFetchedUserIdRef.current === user.id
+      ) {
         return;
       }
 
@@ -109,10 +110,17 @@ export function UserMenu() {
         // Update reputation points from profile
         if (profileResponse.ok) {
           const profileData = await profileResponse.json();
-          if (isMounted && !fetchController.signal.aborted && profileData.user) {
+          if (
+            isMounted &&
+            !fetchController.signal.aborted &&
+            profileData.user
+          ) {
             const newReputationPoints = profileData.user.reputationPoints;
             // Only update if reputation points changed
-            if (newReputationPoints !== undefined && newReputationPoints !== user.reputationPoints) {
+            if (
+              newReputationPoints !== undefined &&
+              newReputationPoints !== user.reputationPoints
+            ) {
               setUser({
                 ...user,
                 reputationPoints: newReputationPoints,
@@ -279,14 +287,18 @@ export function UserMenu() {
       <DropdownItem onClick={() => router.push('/settings')}>
         <div className="flex items-center gap-3 py-2">
           <Settings className="h-5 w-5" style={{ color: '#0066FF' }} />
-          <span className="font-semibold text-foreground text-sm">Settings</span>
+          <span className="font-semibold text-foreground text-sm">
+            Settings
+          </span>
         </div>
       </DropdownItem>
 
       <DropdownItem onClick={() => router.push('/settings?tab=api')}>
         <div className="flex items-center gap-3 py-2">
           <Key className="h-5 w-5" style={{ color: '#0066FF' }} />
-          <span className="font-semibold text-foreground text-sm">API Keys</span>
+          <span className="font-semibold text-foreground text-sm">
+            API Keys
+          </span>
         </div>
       </DropdownItem>
 

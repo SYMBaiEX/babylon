@@ -18,11 +18,10 @@ import type {
   ExecutionEventBus,
   RequestContext,
 } from '@a2a-js/sdk/server';
-import { v4 as uuidv4 } from 'uuid';
 import { db } from '@babylon/db';
-import { generateSnowflakeId, logger } from '@babylon/shared';
 import type { JsonValue } from '@babylon/shared';
-import type { JsonRpcRequest } from '../types/a2a';
+import { generateSnowflakeId, logger } from '@babylon/shared';
+import { v4 as uuidv4 } from 'uuid';
 import {
   handleAppealBanWithEscrow,
   handleCreateEscrowPayment,
@@ -30,6 +29,7 @@ import {
   handleRefundEscrowPayment,
   handleVerifyEscrowPayment,
 } from '../handlers/escrow-handlers';
+import type { JsonRpcRequest } from '../types/a2a';
 
 /**
  * Main executor implementing all Babylon game operations

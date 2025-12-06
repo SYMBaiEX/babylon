@@ -11,8 +11,8 @@
  * @returns {Promise<NextResponse>} JSON response with templates data
  */
 
-import { NextResponse } from 'next/server';
 import { getAllTemplates, getTemplateIds } from '@babylon/agents';
+import { NextResponse } from 'next/server';
 
 /**
  * GET /api/agent-templates
@@ -25,7 +25,7 @@ export async function GET() {
   try {
     const templates = getAllTemplates();
     const templateIds = getTemplateIds();
-    
+
     return NextResponse.json({
       templates: Array.from(templateIds),
       templatesData: templates,
@@ -38,4 +38,3 @@ export async function GET() {
     );
   }
 }
-

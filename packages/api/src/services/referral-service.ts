@@ -8,7 +8,7 @@
 
 import { and, db, eq, ne, users } from '@babylon/db';
 import { logger } from '@babylon/shared';
-import { NotFoundError, ConflictError, BadRequestError } from '../errors';
+import { BadRequestError, ConflictError, NotFoundError } from '../errors';
 
 /**
  * Get or create a referral code for a user

@@ -1,13 +1,13 @@
 /**
  * Tests for Perpetuals trading calculation utilities
  */
-import { describe, it, expect } from 'bun:test';
+import { describe, expect, it } from 'bun:test';
 import {
-  calculateLiquidationPrice,
-  calculateUnrealizedPnL,
   calculateFundingPayment,
-  shouldLiquidate,
+  calculateLiquidationPrice,
   calculateMarkPrice,
+  calculateUnrealizedPnL,
+  shouldLiquidate,
 } from '@babylon/shared/perps-types';
 
 describe('Perpetuals Calculation Utilities', () => {
@@ -32,13 +32,13 @@ describe('Perpetuals Calculation Utilities', () => {
       // Higher leverage = tighter liquidation
       const liq5x = calculateLiquidationPrice(100, 'long', 5);
       const liq20x = calculateLiquidationPrice(100, 'long', 20);
-      
+
       // 5x: 100 * (1 - 0.9/5) = 100 * 0.82 = 82
       expect(liq5x).toBe(82);
-      
+
       // 20x: 100 * (1 - 0.9/20) = 100 * 0.955 = 95.5
       expect(liq20x).toBe(95.5);
-      
+
       // Higher leverage = closer to entry
       expect(liq20x).toBeGreaterThan(liq5x);
     });
@@ -86,7 +86,7 @@ describe('Perpetuals Calculation Utilities', () => {
     it('should return zero when price unchanged', () => {
       const resultLong = calculateUnrealizedPnL(100, 100, 'long', 1000);
       const resultShort = calculateUnrealizedPnL(100, 100, 'short', 1000);
-      
+
       expect(resultLong.pnl).toBe(0);
       expect(resultLong.pnlPercent).toBe(0);
       expect(resultShort.pnl).toBe(0);
@@ -173,4 +173,3 @@ describe('Perpetuals Calculation Utilities', () => {
     });
   });
 });
-

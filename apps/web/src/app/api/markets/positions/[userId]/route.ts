@@ -75,17 +75,15 @@
  * @see {@link /lib/db/context} RLS context
  */
 
-import type { NextRequest } from 'next/server';
-
-import { optionalAuth } from '@babylon/api';
+import { optionalAuth, successResponse, withErrorHandling } from '@babylon/api';
 import { asPublic, asUser } from '@babylon/db';
-import { successResponse, withErrorHandling } from '@babylon/api';
-import { logger } from '@babylon/shared';
 import { PredictionPricing } from '@babylon/engine';
 import {
+  logger,
   UserIdParamSchema,
   UserPositionsQuerySchema,
 } from '@babylon/shared';
+import type { NextRequest } from 'next/server';
 
 /**
  * GET /api/markets/positions/[userId]

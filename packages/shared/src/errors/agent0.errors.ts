@@ -224,4 +224,3 @@ export class Agent0RateLimitError extends RateLimitError {
     super(10, 60000, retryAfter); // 10 requests per minute default
   }
 }
-

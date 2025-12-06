@@ -164,5 +164,3 @@ export type PoolPosition = typeof poolPositions.$inferSelect;
 export type NewPoolPosition = typeof poolPositions.$inferInsert;
 
 
-
-

@@ -17,10 +17,10 @@
  *   bun run scripts/seed-test-data.ts all           # Create all test data
  */
 
-import { ethers } from 'ethers';
-import { nanoid } from 'nanoid';
 import { db, generateSnowflakeId } from '@babylon/db';
 import { logger } from '@babylon/engine';
+import { ethers } from 'ethers';
+import { nanoid } from 'nanoid';
 
 // ============================================================================
 // AUTONOMOUS TRADING AGENTS

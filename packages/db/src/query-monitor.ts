@@ -275,5 +275,3 @@ if (
     queryMonitor.logSummary();
   }, 60000);
 }
-
-

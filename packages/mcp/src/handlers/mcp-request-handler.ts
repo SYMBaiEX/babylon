@@ -5,26 +5,22 @@
  * Similar to A2A's JsonRpcTransportHandler
  */
 
+import type { JsonValue, StringRecord } from '@babylon/shared';
+import { logger } from '@babylon/shared';
+import { authenticateAgent } from '../auth/agent-auth';
+import { getAvailableTools, getInitializeResult } from '../server/mcp-server';
 import type {
+  InitializeParams,
+  JsonRpcError,
   JsonRpcRequest,
   JsonRpcResponse,
-  JsonRpcError,
-  InitializeParams,
-  ToolsListResult,
+  MCPAuthContext,
   ToolCallParams,
   ToolCallResult,
-  MCPAuthContext,
+  ToolsListResult,
 } from '../types/mcp';
 import { MCPMethod } from '../types/mcp';
-import {
-  getInitializeResult,
-  getAvailableTools,
-} from '../server/mcp-server';
 import { executeTool } from './tool-handlers';
-import { authenticateAgent } from '../auth/agent-auth';
-import { logger } from '@babylon/shared';
-import type { StringRecord } from '@babylon/shared';
-import type { JsonValue } from '@babylon/shared';
 
 /**
  * MCP Request Handler
@@ -111,9 +107,7 @@ export class MCPRequestHandler {
   /**
    * Handle ping request
    */
-  private async handlePing(
-    request: JsonRpcRequest
-  ): Promise<JsonRpcResponse> {
+  private async handlePing(request: JsonRpcRequest): Promise<JsonRpcResponse> {
     return {
       jsonrpc: '2.0',
       id: request.id,
@@ -279,4 +273,3 @@ export class MCPRequestHandler {
     };
   }
 }
-

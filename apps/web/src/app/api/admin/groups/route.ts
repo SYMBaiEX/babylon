@@ -37,6 +37,18 @@
  *           enum: [asc, desc]
  *           default: desc
  *         description: Sort order
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 50
+ *         description: Maximum groups to return (default 50, max 200)
+ *       - in: query
+ *         name: offset
+ *         schema:
+ *           type: integer
+ *           default: 0
+ *         description: Pagination offset
  *     responses:
  *       200:
  *         description: Groups retrieved successfully
@@ -60,11 +72,16 @@
  * ```
  */
 
-import type { NextRequest } from 'next/server';
-import { NextResponse } from 'next/server';
+import {
+  getClientIp,
+  logAdminView,
+  requireAdmin,
+  withErrorHandling,
+} from '@babylon/api';
 import {
   actors,
   asc,
+  asSystem,
   chatParticipants,
   chats,
   desc,
@@ -74,24 +91,36 @@ import {
   userGroups,
   users,
 } from '@babylon/db';
-import { requireAdmin } from '@babylon/api';
-import { asSystem } from '@babylon/db';
-import { withErrorHandling } from '@babylon/api';
+import type { NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
 
 /**
  * GET /api/admin/groups
  * Get all group chats with filtering and sorting
- * Admin only
+ * Admin only (localhost bypass handled by requireAdmin)
  */
 export const GET = withErrorHandling(async (request: NextRequest) => {
-  // Require admin authentication (includes localhost bypass)
-  await requireAdmin(request);
+  // Require admin (automatically bypassed on localhost)
+  const admin = await requireAdmin(request);
+
+  // Audit log the admin access
+  logAdminView({
+    adminId: admin.userId,
+    ipAddress: getClientIp(request.headers) ?? undefined,
+    resourceType: 'groups',
+    metadata: { action: 'list_all_groups' },
+  });
 
   // Get query parameters
   const { searchParams } = new URL(request.url);
   const creatorFilter = searchParams.get('creator'); // Filter by creator name
   const sortBy = searchParams.get('sortBy') || 'createdAt'; // createdAt, memberCount, messageCount
   const sortOrder = searchParams.get('sortOrder') || 'desc';
+  const limit = Math.min(
+    Math.max(1, parseInt(searchParams.get('limit') || '50', 10) || 50),
+    200
+  );
+  const offset = Math.max(0, parseInt(searchParams.get('offset') || '0', 10) || 0);
 
   // Get all data using asSystem in a single call to avoid nested async issues
   const { chatsList, allUsers, allActors, allUserGroups } = await asSystem(
@@ -351,11 +380,18 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     });
   }
 
+  // Apply pagination
+  const total = filteredChats.length;
+  const paginatedChats = filteredChats.slice(offset, offset + limit);
+
   return NextResponse.json({
     success: true,
     data: {
-      groups: filteredChats,
-      total: filteredChats.length,
+      groups: paginatedChats,
+      total,
+      limit,
+      offset,
+      hasMore: offset + limit < total,
     },
   });
 });

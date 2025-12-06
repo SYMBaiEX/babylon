@@ -80,7 +80,12 @@
  * @see {@link /lib/db/context} RLS context
  */
 
-import type { NextRequest } from 'next/server';
+import {
+  findUserByIdentifier,
+  optionalAuth,
+  successResponse,
+  withErrorHandling,
+} from '@babylon/api';
 import {
   actors,
   and,
@@ -98,14 +103,12 @@ import {
   shares,
   users,
 } from '@babylon/db';
-import { optionalAuth } from '@babylon/api';
-import { successResponse, withErrorHandling } from '@babylon/api';
-import { logger } from '@babylon/shared';
-import { findUserByIdentifier } from '@babylon/api';
 import {
+  logger,
   UserIdParamSchema,
   UserPostsQuerySchema,
 } from '@babylon/shared';
+import type { NextRequest } from 'next/server';
 
 /**
  * GET /api/users/[userId]/posts

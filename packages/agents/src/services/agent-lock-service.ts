@@ -29,8 +29,8 @@
  * @packageDocumentation
  */
 
-import { randomBytes } from 'crypto';
 import { DistributedLockService } from '@babylon/api';
+import { randomBytes } from 'crypto';
 
 const LOCK_DURATION_MS = 15 * 60 * 1000; // 15 minutes
 
@@ -66,4 +66,3 @@ export async function checkAgentLock(agentId: string) {
   const lockId = getAgentLockId(agentId);
   return DistributedLockService.checkLock(lockId);
 }
-

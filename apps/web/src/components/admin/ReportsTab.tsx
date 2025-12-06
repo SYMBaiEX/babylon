@@ -20,12 +20,12 @@
  */
 'use client';
 
+import { cn } from '@babylon/shared';
 import { AlertCircle, CheckCircle, Clock, Flag, XCircle } from 'lucide-react';
 import { useCallback, useEffect, useState, useTransition } from 'react';
 import { toast } from 'sonner';
 import { Avatar } from '@/components/shared/Avatar';
 import { Skeleton } from '@/components/shared/Skeleton';
-import { cn } from '@babylon/shared';
 
 /**
  * Report evaluation structure from AI.
@@ -119,28 +119,31 @@ export function ReportsTab() {
   );
   const [, startRefresh] = useTransition();
 
-  const fetchReports = useCallback(async (showRefreshing = false) => {
-    const fetchLogic = async () => {
-      const params = new URLSearchParams({
-        limit: '100',
-      });
-      if (statusFilter !== 'all') params.set('status', statusFilter);
-      if (priorityFilter !== 'all') params.set('priority', priorityFilter);
+  const fetchReports = useCallback(
+    async (showRefreshing = false) => {
+      const fetchLogic = async () => {
+        const params = new URLSearchParams({
+          limit: '100',
+        });
+        if (statusFilter !== 'all') params.set('status', statusFilter);
+        if (priorityFilter !== 'all') params.set('priority', priorityFilter);
 
-      const response = await fetch(`/api/admin/reports?${params}`);
-      if (!response.ok) throw new Error('Failed to fetch reports');
+        const response = await fetch(`/api/admin/reports?${params}`);
+        if (!response.ok) throw new Error('Failed to fetch reports');
 
-      const data = await response.json();
-      setReports(data.reports || []);
-      setLoading(false);
-    };
+        const data = await response.json();
+        setReports(data.reports || []);
+        setLoading(false);
+      };
 
-    if (showRefreshing) {
-      startRefresh(fetchLogic);
-    } else {
-      await fetchLogic();
-    }
-  }, [statusFilter, priorityFilter]);
+      if (showRefreshing) {
+        startRefresh(fetchLogic);
+      } else {
+        await fetchLogic();
+      }
+    },
+    [statusFilter, priorityFilter]
+  );
 
   const fetchStats = useCallback(async () => {
     const response = await fetch('/api/admin/reports/stats');

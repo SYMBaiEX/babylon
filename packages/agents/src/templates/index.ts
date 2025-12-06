@@ -21,7 +21,7 @@ export const templates = [
   scammer,
   social_butterfly,
   super_predictor,
-  trader
+  trader,
 ] as const;
 
 export const templateIds = [
@@ -35,5 +35,5 @@ export const templateIds = [
   'scammer',
   'social-butterfly',
   'super-predictor',
-  'trader'
+  'trader',
 ] as const;

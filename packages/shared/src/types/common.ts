@@ -179,7 +179,9 @@ export interface PostHogClient {
       persistence?: string;
       enable_recording_console_log?: boolean;
       capture_exceptions?: boolean;
-      sanitize_properties?: (properties: StringRecord<JsonValue>) => StringRecord<JsonValue>;
+      sanitize_properties?: (
+        properties: StringRecord<JsonValue>
+      ) => StringRecord<JsonValue>;
     }
   ): void;
   capture(event: string, properties?: StringRecord<JsonValue>): void;

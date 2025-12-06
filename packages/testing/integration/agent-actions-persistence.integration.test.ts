@@ -11,15 +11,15 @@
  */
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
-import { existsSync, readFileSync } from 'fs';
-import { db } from '@babylon/db';
 import {
   agentRuntimeManager,
   autonomousCoordinator,
   createTestAgent,
 } from '@babylon/agents';
+import { db } from '@babylon/db';
 import { WalletService } from '@babylon/engine';
 import { generateSnowflakeId } from '@babylon/shared';
+import { existsSync, readFileSync } from 'fs';
 
 // Load environment variables from .env files if they exist (for CI and local environments)
 // Priority: process.env > .env.test > .env.local

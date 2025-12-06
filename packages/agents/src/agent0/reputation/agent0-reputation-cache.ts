@@ -312,4 +312,3 @@ async function calculateOverspendingRatio(userId: string): Promise<number> {
 
   return Math.min(1, totalSent / totalEarned);
 }
-

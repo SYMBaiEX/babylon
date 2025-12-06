@@ -20,9 +20,9 @@ import {
 } from '@babylon/db';
 import { getAgent0Client } from '../agent0/Agent0Client';
 import { syncAfterAgent0Registration } from '../agent0/reputation/agent0-reputation-sync';
-import { agentWalletService } from './AgentWalletService';
 import { logger } from '../shared/logger';
 import { generateSnowflakeId } from '../shared/snowflake';
+import { agentWalletService } from './AgentWalletService';
 
 /**
  * Service for agent identity management

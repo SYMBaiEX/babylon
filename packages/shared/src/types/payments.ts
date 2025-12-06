@@ -72,4 +72,3 @@ export interface PaymentReceiptInfo {
   verifiedAt?: number;
   error?: string;
 }
-

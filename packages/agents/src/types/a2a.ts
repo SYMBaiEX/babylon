@@ -300,4 +300,3 @@ export enum A2AEventType {
   MARKET_UPDATE = 'market.update',
   PAYMENT_RECEIVED = 'payment.received',
 }
-

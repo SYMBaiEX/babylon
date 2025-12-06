@@ -178,7 +178,11 @@ export class BabylonA2AClient {
     const result = response.result;
     if (result && typeof result === 'object') {
       // Check if it's a Task (has 'status' property)
-      if ('status' in result && 'id' in result && typeof result.id === 'string') {
+      if (
+        'status' in result &&
+        'id' in result &&
+        typeof result.id === 'string'
+      ) {
         return result as Task;
       }
       // Check if it's a Message (has 'kind' === 'message' or 'parts' property)
@@ -189,10 +193,20 @@ export class BabylonA2AClient {
         return result as Message;
       }
       // Check if it's wrapped in a result object
-      if ('task' in result && result.task && typeof result.task === 'object' && 'id' in result.task) {
+      if (
+        'task' in result &&
+        result.task &&
+        typeof result.task === 'object' &&
+        'id' in result.task
+      ) {
         return result.task as Task;
       }
-      if ('message' in result && result.message && typeof result.message === 'object' && 'parts' in result.message) {
+      if (
+        'message' in result &&
+        result.message &&
+        typeof result.message === 'object' &&
+        'parts' in result.message
+      ) {
         return result.message as Message;
       }
     }
@@ -602,17 +616,21 @@ export class BabylonA2AClient {
       const task = await this.waitForTask(response.id);
       const result = this.extractResult(task);
       return {
-        predictions: Array.isArray(result.predictions) && this.isArrayOf(result.predictions, this.isA2APredictionMarket)
-          ? result.predictions
-          : [],
+        predictions:
+          Array.isArray(result.predictions) &&
+          this.isArrayOf(result.predictions, this.isA2APredictionMarket)
+            ? result.predictions
+            : [],
       };
     }
 
     const result = this.extractResult(response);
     return {
-      predictions: Array.isArray(result.predictions) && this.isArrayOf(result.predictions, this.isA2APredictionMarket)
-        ? result.predictions
-        : [],
+      predictions:
+        Array.isArray(result.predictions) &&
+        this.isArrayOf(result.predictions, this.isA2APredictionMarket)
+          ? result.predictions
+          : [],
     };
   }
 
@@ -632,17 +650,21 @@ export class BabylonA2AClient {
       const task = await this.waitForTask(response.id);
       const result = this.extractResult(task);
       return {
-        perpetuals: Array.isArray(result.perpetuals) && this.isArrayOf(result.perpetuals, this.isA2APerpetualMarket)
-          ? result.perpetuals
-          : [],
+        perpetuals:
+          Array.isArray(result.perpetuals) &&
+          this.isArrayOf(result.perpetuals, this.isA2APerpetualMarket)
+            ? result.perpetuals
+            : [],
       };
     }
 
     const result = this.extractResult(response);
     return {
-      perpetuals: Array.isArray(result.perpetuals) && this.isArrayOf(result.perpetuals, this.isA2APerpetualMarket)
-        ? result.perpetuals
-        : [],
+      perpetuals:
+        Array.isArray(result.perpetuals) &&
+        this.isArrayOf(result.perpetuals, this.isA2APerpetualMarket)
+          ? result.perpetuals
+          : [],
     };
   }
 
@@ -675,7 +697,9 @@ export class BabylonA2AClient {
     if ('status' in response) {
       const task = await this.waitForTask(response.id);
       const result = this.extractResult(task);
-      return { balance: typeof result.balance === 'number' ? result.balance : 0 };
+      return {
+        balance: typeof result.balance === 'number' ? result.balance : 0,
+      };
     }
 
     const result = this.extractResult(response);
@@ -685,9 +709,7 @@ export class BabylonA2AClient {
   /**
    * Get positions (query skill)
    */
-  async getPositions(
-    userId?: string
-  ): Promise<{
+  async getPositions(userId?: string): Promise<{
     marketPositions: A2AMarketPosition[];
     perpPositions: A2APerpPosition[];
     totalPnL: number;
@@ -706,24 +728,32 @@ export class BabylonA2AClient {
       const task = await this.waitForTask(response.id);
       const result = this.extractResult(task);
       return {
-        marketPositions: Array.isArray(result.marketPositions) && this.isArrayOf(result.marketPositions, this.isA2AMarketPosition)
-          ? result.marketPositions
-          : [],
-        perpPositions: Array.isArray(result.perpPositions) && this.isArrayOf(result.perpPositions, this.isA2APerpPosition)
-          ? result.perpPositions
-          : [],
+        marketPositions:
+          Array.isArray(result.marketPositions) &&
+          this.isArrayOf(result.marketPositions, this.isA2AMarketPosition)
+            ? result.marketPositions
+            : [],
+        perpPositions:
+          Array.isArray(result.perpPositions) &&
+          this.isArrayOf(result.perpPositions, this.isA2APerpPosition)
+            ? result.perpPositions
+            : [],
         totalPnL: typeof result.totalPnL === 'number' ? result.totalPnL : 0,
       };
     }
 
     const result = this.extractResult(response);
     return {
-      marketPositions: Array.isArray(result.marketPositions) && this.isArrayOf(result.marketPositions, this.isA2AMarketPosition)
-        ? result.marketPositions
-        : [],
-      perpPositions: Array.isArray(result.perpPositions) && this.isArrayOf(result.perpPositions, this.isA2APerpPosition)
-        ? result.perpPositions
-        : [],
+      marketPositions:
+        Array.isArray(result.marketPositions) &&
+        this.isArrayOf(result.marketPositions, this.isA2AMarketPosition)
+          ? result.marketPositions
+          : [],
+      perpPositions:
+        Array.isArray(result.perpPositions) &&
+        this.isArrayOf(result.perpPositions, this.isA2APerpPosition)
+          ? result.perpPositions
+          : [],
       totalPnL: typeof result.totalPnL === 'number' ? result.totalPnL : 0,
     };
   }
@@ -743,7 +773,10 @@ export class BabylonA2AClient {
 
     return {
       balance: balance.balance,
-      positions: [...(positions.marketPositions || []), ...(positions.perpPositions || [])],
+      positions: [
+        ...(positions.marketPositions || []),
+        ...(positions.perpPositions || []),
+      ],
       pnl: positions.totalPnL || 0,
     };
   }
@@ -770,17 +803,21 @@ export class BabylonA2AClient {
       const task = await this.waitForTask(response.id);
       const result = this.extractResult(task);
       return {
-        posts: Array.isArray(result.posts) && this.isArrayOf(result.posts, this.isA2AFeedPost)
-          ? result.posts
-          : [],
+        posts:
+          Array.isArray(result.posts) &&
+          this.isArrayOf(result.posts, this.isA2AFeedPost)
+            ? result.posts
+            : [],
       };
     }
 
     const result = this.extractResult(response);
     return {
-      posts: Array.isArray(result.posts) && this.isArrayOf(result.posts, this.isA2AFeedPost)
-        ? result.posts
-        : [],
+      posts:
+        Array.isArray(result.posts) &&
+        this.isArrayOf(result.posts, this.isA2AFeedPost)
+          ? result.posts
+          : [],
     };
   }
 
@@ -926,17 +963,21 @@ export class BabylonA2AClient {
       const task = await this.waitForTask(response.id);
       const result = this.extractResult(task);
       return {
-        chats: Array.isArray(result.chats) && this.isArrayOf(result.chats, this.isA2AChat)
-          ? result.chats
-          : [],
+        chats:
+          Array.isArray(result.chats) &&
+          this.isArrayOf(result.chats, this.isA2AChat)
+            ? result.chats
+            : [],
       };
     }
 
     const result = this.extractResult(response);
     return {
-      chats: Array.isArray(result.chats) && this.isArrayOf(result.chats, this.isA2AChat)
-        ? result.chats
-        : [],
+      chats:
+        Array.isArray(result.chats) &&
+        this.isArrayOf(result.chats, this.isA2AChat)
+          ? result.chats
+          : [],
     };
   }
 
@@ -955,17 +996,21 @@ export class BabylonA2AClient {
       const task = await this.waitForTask(response.id);
       const result = this.extractResult(task);
       return {
-        notifications: Array.isArray(result.notifications) && this.isArrayOf(result.notifications, this.isA2ANotification)
-          ? result.notifications
-          : [],
+        notifications:
+          Array.isArray(result.notifications) &&
+          this.isArrayOf(result.notifications, this.isA2ANotification)
+            ? result.notifications
+            : [],
       };
     }
 
     const result = this.extractResult(response);
     return {
-      notifications: Array.isArray(result.notifications) && this.isArrayOf(result.notifications, this.isA2ANotification)
-        ? result.notifications
-        : [],
+      notifications:
+        Array.isArray(result.notifications) &&
+        this.isArrayOf(result.notifications, this.isA2ANotification)
+          ? result.notifications
+          : [],
     };
   }
 
@@ -989,17 +1034,21 @@ export class BabylonA2AClient {
       const task = await this.waitForTask(response.id);
       const result = this.extractResult(task);
       return {
-        leaderboard: Array.isArray(result.leaderboard) && this.isArrayOf(result.leaderboard, this.isA2ALeaderboardEntry)
-          ? result.leaderboard
-          : [],
+        leaderboard:
+          Array.isArray(result.leaderboard) &&
+          this.isArrayOf(result.leaderboard, this.isA2ALeaderboardEntry)
+            ? result.leaderboard
+            : [],
       };
     }
 
     const result = this.extractResult(response);
     return {
-      leaderboard: Array.isArray(result.leaderboard) && this.isArrayOf(result.leaderboard, this.isA2ALeaderboardEntry)
-        ? result.leaderboard
-        : [],
+      leaderboard:
+        Array.isArray(result.leaderboard) &&
+        this.isArrayOf(result.leaderboard, this.isA2ALeaderboardEntry)
+          ? result.leaderboard
+          : [],
     };
   }
 
@@ -1102,17 +1151,21 @@ export class BabylonA2AClient {
       const task = await this.waitForTask(response.id);
       const result = this.extractResult(task);
       return {
-        tags: Array.isArray(result.tags) && this.isArrayOf(result.tags, this.isA2ATrendingTag)
-          ? result.tags
-          : [],
+        tags:
+          Array.isArray(result.tags) &&
+          this.isArrayOf(result.tags, this.isA2ATrendingTag)
+            ? result.tags
+            : [],
       };
     }
 
     const result = this.extractResult(response);
     return {
-      tags: Array.isArray(result.tags) && this.isArrayOf(result.tags, this.isA2ATrendingTag)
-        ? result.tags
-        : [],
+      tags:
+        Array.isArray(result.tags) &&
+        this.isArrayOf(result.tags, this.isA2ATrendingTag)
+          ? result.tags
+          : [],
     };
   }
 
@@ -1134,17 +1187,21 @@ export class BabylonA2AClient {
       const task = await this.waitForTask(response.id);
       const result = this.extractResult(task);
       return {
-        organizations: Array.isArray(result.organizations) && this.isArrayOf(result.organizations, this.isA2AOrganization)
-          ? result.organizations
-          : [],
+        organizations:
+          Array.isArray(result.organizations) &&
+          this.isArrayOf(result.organizations, this.isA2AOrganization)
+            ? result.organizations
+            : [],
       };
     }
 
     const result = this.extractResult(response);
     return {
-      organizations: Array.isArray(result.organizations) && this.isArrayOf(result.organizations, this.isA2AOrganization)
-        ? result.organizations
-        : [],
+      organizations:
+        Array.isArray(result.organizations) &&
+        this.isArrayOf(result.organizations, this.isA2AOrganization)
+          ? result.organizations
+          : [],
     };
   }
 
@@ -1168,17 +1225,21 @@ export class BabylonA2AClient {
       const task = await this.waitForTask(response.id);
       const result = this.extractResult(task);
       return {
-        users: Array.isArray(result.users) && this.isArrayOf(result.users, this.isA2AUserSearchResult)
-          ? result.users
-          : [],
+        users:
+          Array.isArray(result.users) &&
+          this.isArrayOf(result.users, this.isA2AUserSearchResult)
+            ? result.users
+            : [],
       };
     }
 
     const result = this.extractResult(response);
     return {
-      users: Array.isArray(result.users) && this.isArrayOf(result.users, this.isA2AUserSearchResult)
-        ? result.users
-        : [],
+      users:
+        Array.isArray(result.users) &&
+        this.isArrayOf(result.users, this.isA2AUserSearchResult)
+          ? result.users
+          : [],
     };
   }
 

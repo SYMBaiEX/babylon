@@ -64,14 +64,16 @@
  * ```
  */
 
-import type { NextRequest } from 'next/server';
-import { authenticate, successResponse } from '@babylon/api';
+import {
+  authenticate,
+  BusinessLogicError,
+  NotFoundError,
+  successResponse,
+  withErrorHandling,
+} from '@babylon/api';
 import { asUser } from '@babylon/db';
-import { BusinessLogicError, NotFoundError } from '@babylon/api';
-import { withErrorHandling } from '@babylon/api';
-import { logger } from '@babylon/shared';
-import { generateSnowflakeId } from '@babylon/shared';
-import { IdParamSchema } from '@babylon/shared';
+import { generateSnowflakeId, IdParamSchema, logger } from '@babylon/shared';
+import type { NextRequest } from 'next/server';
 
 /**
  * POST /api/profiles/[id]/favorite

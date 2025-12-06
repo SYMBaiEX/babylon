@@ -5,8 +5,8 @@
  * Uses content hashing to detect exact and near-duplicate content.
  */
 
-import crypto from 'crypto';
 import { logger } from '@babylon/shared';
+import crypto from 'crypto';
 
 interface DuplicateRecord {
   contentHash: string;

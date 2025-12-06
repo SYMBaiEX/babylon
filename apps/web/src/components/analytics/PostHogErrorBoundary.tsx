@@ -1,5 +1,6 @@
 'use client';
 
+import { logger } from '@babylon/shared';
 /**
  * PostHog error boundary component for catching and tracking React errors.
  *
@@ -25,7 +26,6 @@
  * ```
  */
 import React, { Component, type ReactNode } from 'react';
-import { logger } from '@babylon/shared';
 import { posthog } from '@/lib/posthog';
 
 interface Props {
@@ -57,15 +57,15 @@ export class PostHogErrorBoundary extends Component<Props, State> {
         errorBoundary: true,
         timestamp: new Date().toISOString(),
       };
-      
+
       if (error.stack) {
         properties.$exception_stack = error.stack;
       }
-      
+
       if (errorInfo.componentStack) {
         properties.componentStack = errorInfo.componentStack;
       }
-      
+
       posthog.capture('$exception', properties);
     }
 

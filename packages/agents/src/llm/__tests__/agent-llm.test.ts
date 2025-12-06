@@ -8,7 +8,7 @@
  * - Groq (default)
  */
 
-import { describe, it, expect, beforeEach, afterEach, mock } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test';
 import type { TrajectoryLoggerService } from '../../plugins/plugin-trajectory-logger/src/TrajectoryLoggerService';
 
 // Mock fetch globally
@@ -38,7 +38,7 @@ describe('Agent LLM Provider', () => {
     it('returns groq as default provider', async () => {
       const { getAgentLLMStatus } = await import('../agent-llm');
       const status = await getAgentLLMStatus();
-      
+
       expect(status.provider).toBe('groq');
     });
 
@@ -50,7 +50,7 @@ describe('Agent LLM Provider', () => {
       // Re-import to pick up new env vars
       const { getAgentLLMStatus } = await import('../agent-llm');
       const status = await getAgentLLMStatus();
-      
+
       expect(status.provider).toBe('huggingface');
       expect(status.configured).toBe(true);
       expect(status.details.hasApiKey).toBe(true);
@@ -61,7 +61,7 @@ describe('Agent LLM Provider', () => {
 
       const { getAgentLLMStatus } = await import('../agent-llm');
       const status = await getAgentLLMStatus();
-      
+
       expect(status.provider).toBe('ollama');
       expect(status.configured).toBe(true);
       expect(status.details.endpoint).toBe('http://localhost:11434');
@@ -72,7 +72,7 @@ describe('Agent LLM Provider', () => {
 
       const { getAgentLLMStatus } = await import('../agent-llm');
       const status = await getAgentLLMStatus();
-      
+
       expect(status.provider).toBe('ollama');
     });
 
@@ -81,7 +81,7 @@ describe('Agent LLM Provider', () => {
 
       const { getAgentLLMStatus } = await import('../agent-llm');
       const status = await getAgentLLMStatus();
-      
+
       expect(status.provider).toBe('huggingface');
     });
   });
@@ -101,7 +101,7 @@ describe('Agent LLM Provider', () => {
       globalThis.fetch = mock(async (url: string, options: RequestInit) => {
         expect(url).toBe('http://localhost:11434/api/chat');
         expect(options.method).toBe('POST');
-        
+
         const body = JSON.parse(options.body as string);
         expect(body.model).toBe('qwen2.5:7b-instruct');
         expect(body.stream).toBe(false);
@@ -131,20 +131,26 @@ describe('Agent LLM Provider', () => {
       globalThis.fetch = mock(async (url: string, options: RequestInit) => {
         if (url.includes('/api/tags')) {
           // Return available models including the archetype model
-          return new Response(JSON.stringify({
-            models: [
-              { name: 'babylon-trader:latest', size: 1000000 },
-              { name: 'qwen2.5:7b-instruct', size: 2000000 },
-            ],
-          }), { status: 200 });
+          return new Response(
+            JSON.stringify({
+              models: [
+                { name: 'babylon-trader:latest', size: 1000000 },
+                { name: 'qwen2.5:7b-instruct', size: 2000000 },
+              ],
+            }),
+            { status: 200 }
+          );
         }
-        
+
         if (url.includes('/api/chat')) {
           const body = JSON.parse(options.body as string);
           expect(body.model).toBe('babylon-trader:latest');
-          return new Response(JSON.stringify({
-            message: { content: 'Trader response' },
-          }), { status: 200 });
+          return new Response(
+            JSON.stringify({
+              message: { content: 'Trader response' },
+            }),
+            { status: 200 }
+          );
         }
 
         return new Response('Not found', { status: 404 });
@@ -167,20 +173,24 @@ describe('Agent LLM Provider', () => {
       globalThis.fetch = mock(async (url: string, options: RequestInit) => {
         if (url.includes('/api/tags')) {
           // Return only base model (no archetype-specific model)
-          return new Response(JSON.stringify({
-            models: [
-              { name: 'qwen2.5:7b-instruct', size: 2000000 },
-            ],
-          }), { status: 200 });
+          return new Response(
+            JSON.stringify({
+              models: [{ name: 'qwen2.5:7b-instruct', size: 2000000 }],
+            }),
+            { status: 200 }
+          );
         }
-        
+
         if (url.includes('/api/chat')) {
           const body = JSON.parse(options.body as string);
           // Should fall back to base model
           expect(body.model).toBe('qwen2.5:7b-instruct');
-          return new Response(JSON.stringify({
-            message: { content: 'Fallback response' },
-          }), { status: 200 });
+          return new Response(
+            JSON.stringify({
+              message: { content: 'Fallback response' },
+            }),
+            { status: 200 }
+          );
         }
 
         return new Response('Not found', { status: 404 });
@@ -200,25 +210,27 @@ describe('Agent LLM Provider', () => {
     it('calls HuggingFace Inference API correctly', async () => {
       process.env.AGENT_LLM_PROVIDER = 'huggingface';
       process.env.HUGGINGFACE_API_KEY = 'test-api-key';
-      process.env.HUGGINGFACE_MODEL_ENDPOINT = 'https://api.huggingface.co/models/test';
+      process.env.HUGGINGFACE_MODEL_ENDPOINT =
+        'https://api.huggingface.co/models/test';
       process.env.HUGGINGFACE_API_FORMAT = 'inference';
 
       globalThis.fetch = mock(async (url: string, options: RequestInit) => {
         expect(url).toBe('https://api.huggingface.co/models/test');
         expect(options.method).toBe('POST');
         expect(options.headers).toEqual({
-          'Authorization': 'Bearer test-api-key',
+          Authorization: 'Bearer test-api-key',
           'Content-Type': 'application/json',
         });
-        
+
         const body = JSON.parse(options.body as string);
         expect(body.inputs).toHaveLength(2);
         expect(body.parameters.temperature).toBe(0.7);
         expect(body.parameters.max_new_tokens).toBe(1000);
 
-        return new Response(JSON.stringify([
-          { generated_text: 'HuggingFace response' }
-        ]), { status: 200 });
+        return new Response(
+          JSON.stringify([{ generated_text: 'HuggingFace response' }]),
+          { status: 200 }
+        );
       });
 
       const { callAgentLLM } = await import('../agent-llm');
@@ -240,16 +252,19 @@ describe('Agent LLM Provider', () => {
 
       globalThis.fetch = mock(async (url: string, options: RequestInit) => {
         expect(url).toBe('https://my-model.hf.space/v1/chat/completions');
-        
+
         const body = JSON.parse(options.body as string);
         expect(body.model).toBe('babylon-trader');
         expect(body.messages).toHaveLength(2);
         expect(body.temperature).toBe(0.7);
         expect(body.max_tokens).toBe(1000);
 
-        return new Response(JSON.stringify({
-          choices: [{ message: { content: 'OpenAI-format response' } }]
-        }), { status: 200 });
+        return new Response(
+          JSON.stringify({
+            choices: [{ message: { content: 'OpenAI-format response' } }],
+          }),
+          { status: 200 }
+        );
       });
 
       const { callAgentLLM } = await import('../agent-llm');
@@ -271,9 +286,12 @@ describe('Agent LLM Provider', () => {
       delete process.env.HUGGINGFACE_API_FORMAT;
 
       globalThis.fetch = mock(async () => {
-        return new Response(JSON.stringify({
-          generated_text: 'Single object response'
-        }), { status: 200 });
+        return new Response(
+          JSON.stringify({
+            generated_text: 'Single object response',
+          }),
+          { status: 200 }
+        );
       });
 
       const { callAgentLLM } = await import('../agent-llm');
@@ -289,8 +307,10 @@ describe('Agent LLM Provider', () => {
       delete process.env.HUGGINGFACE_API_KEY;
 
       const { callAgentLLM } = await import('../agent-llm');
-      
-      await expect(callAgentLLM({ prompt: 'Test' })).rejects.toThrow('HUGGINGFACE_API_KEY not set');
+
+      await expect(callAgentLLM({ prompt: 'Test' })).rejects.toThrow(
+        'HUGGINGFACE_API_KEY not set'
+      );
     });
 
     it('throws error if endpoint not set', async () => {
@@ -299,8 +319,10 @@ describe('Agent LLM Provider', () => {
       delete process.env.HUGGINGFACE_MODEL_ENDPOINT;
 
       const { callAgentLLM } = await import('../agent-llm');
-      
-      await expect(callAgentLLM({ prompt: 'Test' })).rejects.toThrow('HUGGINGFACE_MODEL_ENDPOINT not set');
+
+      await expect(callAgentLLM({ prompt: 'Test' })).rejects.toThrow(
+        'HUGGINGFACE_MODEL_ENDPOINT not set'
+      );
     });
 
     it('handles HuggingFace API errors', async () => {
@@ -313,8 +335,10 @@ describe('Agent LLM Provider', () => {
       });
 
       const { callAgentLLM } = await import('../agent-llm');
-      
-      await expect(callAgentLLM({ prompt: 'Test' })).rejects.toThrow('HuggingFace API error: 429');
+
+      await expect(callAgentLLM({ prompt: 'Test' })).rejects.toThrow(
+        'HuggingFace API error: 429'
+      );
     });
   });
 
@@ -326,15 +350,18 @@ describe('Agent LLM Provider', () => {
       globalThis.fetch = mock(async (url: string, options: RequestInit) => {
         expect(url).toBe('https://phala.test/v1/chat');
         expect(options.method).toBe('POST');
-        
+
         const body = JSON.parse(options.body as string);
         expect(body.model).toBe('babylon-trader');
         expect(body.messages).toHaveLength(2);
         expect(body.temperature).toBe(0.8);
 
-        return new Response(JSON.stringify({
-          choices: [{ message: { content: 'Phala TEE response' } }]
-        }), { status: 200 });
+        return new Response(
+          JSON.stringify({
+            choices: [{ message: { content: 'Phala TEE response' } }],
+          }),
+          { status: 200 }
+        );
       });
 
       const { callAgentLLM } = await import('../agent-llm');
@@ -352,8 +379,10 @@ describe('Agent LLM Provider', () => {
       process.env.AGENT_LLM_PROVIDER = 'phala';
 
       const { callAgentLLM } = await import('../agent-llm');
-      
-      await expect(callAgentLLM({ prompt: 'Test' })).rejects.toThrow('PHALA_ENDPOINT not set');
+
+      await expect(callAgentLLM({ prompt: 'Test' })).rejects.toThrow(
+        'PHALA_ENDPOINT not set'
+      );
     });
   });
 
@@ -364,7 +393,7 @@ describe('Agent LLM Provider', () => {
 
       const { getAgentLLMStatus } = await import('../agent-llm');
       const status = await getAgentLLMStatus();
-      
+
       expect(status.provider).toBe('groq');
       expect(status.configured).toBe(true);
     });
@@ -380,11 +409,14 @@ describe('Agent LLM Provider', () => {
       };
 
       globalThis.fetch = mock(async () => {
-        return new Response(JSON.stringify({
-          message: { content: 'Response' },
-          prompt_eval_count: 50,
-          eval_count: 100,
-        }), { status: 200 });
+        return new Response(
+          JSON.stringify({
+            message: { content: 'Response' },
+            prompt_eval_count: 50,
+            eval_count: 100,
+          }),
+          { status: 200 }
+        );
       });
 
       const { callAgentLLM } = await import('../agent-llm');
@@ -398,17 +430,19 @@ describe('Agent LLM Provider', () => {
       });
 
       expect(mockLogger.getCurrentStepId).toHaveBeenCalledWith('traj-456');
-      expect(mockLogger.logLLMCall).toHaveBeenCalledWith('step-123', expect.objectContaining({
-        model: 'qwen2.5:7b-instruct',
-        systemPrompt: 'Test system',
-        userPrompt: 'Test prompt',
-        response: 'Response',
-        purpose: 'action',
-        actionType: 'trade',
-        promptTokens: 50,
-        completionTokens: 100,
-      }));
+      expect(mockLogger.logLLMCall).toHaveBeenCalledWith(
+        'step-123',
+        expect.objectContaining({
+          model: 'qwen2.5:7b-instruct',
+          systemPrompt: 'Test system',
+          userPrompt: 'Test prompt',
+          response: 'Response',
+          purpose: 'action',
+          actionType: 'trade',
+          promptTokens: 50,
+          completionTokens: 100,
+        })
+      );
     });
   });
 });
-

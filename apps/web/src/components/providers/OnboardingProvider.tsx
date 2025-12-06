@@ -1,8 +1,15 @@
 'use client';
 
+import type { OnboardingProfilePayload } from '@babylon/shared';
+import {
+  CHAIN,
+  getWalletErrorMessage,
+  logger,
+  POINTS,
+  WALLET_ERROR_MESSAGES,
+} from '@babylon/shared';
 import { useIdentityToken, usePrivy } from '@privy-io/react-auth';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-
 import {
   type ImportedProfileData,
   OnboardingModal,
@@ -10,13 +17,6 @@ import {
 import { useAuth } from '@/hooks/useAuth';
 import { useRegisterAgentTx } from '@/hooks/useRegisterAgentTx';
 import { apiFetch } from '@/utils/api-fetch';
-import { CHAIN, POINTS } from '@babylon/shared';
-import { logger } from '@babylon/shared';
-import type { OnboardingProfilePayload } from '@babylon/shared';
-import {
-  getWalletErrorMessage,
-  WALLET_ERROR_MESSAGES,
-} from '@babylon/shared';
 
 /**
  * Check if we're on a local network where smart wallets aren't supported.
@@ -25,8 +25,8 @@ import {
  */
 const isLocalNetwork = CHAIN.id === 31337;
 
-import { type User as StoreUser, useAuthStore } from '@/stores/authStore';
 import type { JsonValue } from '@babylon/shared';
+import { type User as StoreUser, useAuthStore } from '@/stores/authStore';
 
 import { clearReferralCode, getReferralCode } from './ReferralCaptureProvider';
 
@@ -571,8 +571,9 @@ export function OnboardingProvider({
 
   useEffect(() => {
     // On local networks, we use backend signing so smart wallet isn't required
-    const walletReady = isLocalNetwork || (smartWalletReady && smartWalletAddress);
-    
+    const walletReady =
+      isLocalNetwork || (smartWalletReady && smartWalletAddress);
+
     if (
       stage !== 'ONCHAIN' ||
       !pendingOnchainSubmission ||

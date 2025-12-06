@@ -26,13 +26,14 @@ import {
   count,
   Decimal,
   db,
+  getDbInstance as dbService,
   desc,
   eq,
   games,
   gte,
   inArray,
-  isNull,
   isNotNull,
+  isNull,
   type JsonValue,
   lte,
   markets as marketsSchema,
@@ -50,13 +51,46 @@ import {
   widgetCaches,
   worldEvents,
 } from '@babylon/db';
+import {
+  DIAMOND_ADDRESS,
+  generateSnowflakeId,
+  getCurrentRpcUrl,
+  logger,
+  PREDICTION_MARKET_ABI,
+  REPUTATION_SYSTEM_BASE_SEPOLIA,
+} from '@babylon/shared';
 import { ArticleGenerator } from './ArticleGenerator';
+import { loadActorsData } from './actors-loader';
 import { BabylonLLMClient } from './llm/openai-client';
 import { MarketDecisionEngine } from './MarketDecisionEngine';
+import { NPCInvestmentManager } from './npc/npc-investment-manager';
+import { PredictionPricing } from './prediction-pricing';
+import { generateWorldContext } from './prompts';
 import { QuestionManager } from './QuestionManager';
 import { RelationshipEvolutionEngine } from './RelationshipEvolutionEngine';
-import { loadActorsData } from './actors-loader';
-import { PredictionPricing } from './prediction-pricing';
+import { AlphaGroupInviteService } from './services/alpha-group-invite-service';
+import { characterMappingService } from './services/character-mapping-service';
+import { MarketContextService } from './services/market-context-service';
+import { NPCGroupDynamicsService } from './services/npc-group-dynamics-service';
+import { getOracleService } from './services/oracle/oracle-service';
+import { createParodyHeadlineGenerator } from './services/parody-headline-generator';
+import { PredictionMarketService } from './services/prediction-market-service';
+import { PriceUpdateService } from './services/price-update-service';
+import {
+  ReputationService,
+  syncReputationIfAvailable,
+} from './services/reputation-service';
+import { rssFeedService } from './services/rss-feed-service';
+
+// Migrated services - local imports
+import { invalidateAfterPredictionTrade } from './services/trade-cache-invalidation';
+import { TradeExecutionService } from './services/trade-execution-service';
+import {
+  calculateTrendingIfNeeded,
+  calculateTrendingTags,
+} from './services/trending-calculation-service';
+import { WalletService } from './services/wallet-service';
+import type { TradingExecutionResult } from './types/market-decisions';
 import type {
   ActorTier,
   DayTimeline,
@@ -65,32 +99,15 @@ import type {
   SelectedActor,
   WorldEvent,
 } from './types/shared';
-import type { TradingExecutionResult } from './types/market-decisions';
-import { getDbInstance as dbService } from '@babylon/db';
-import { logger, generateSnowflakeId, PREDICTION_MARKET_ABI } from '@babylon/shared';
-import { characterMappingService } from './services/character-mapping-service';
-import { MarketContextService } from './services/market-context-service';
-import { PredictionMarketService } from './services/prediction-market-service';
 import { worldFactsService } from './world-facts-service';
-import { AlphaGroupInviteService } from './services/alpha-group-invite-service';
-import { NPCGroupDynamicsService } from './services/npc-group-dynamics-service';
-import { PriceUpdateService } from './services/price-update-service';
-import { syncReputationIfAvailable } from './services/reputation-service';
-import { generateWorldContext } from './prompts';
-import { ReputationService } from './services/reputation-service';
-import { getOracleService } from './services/oracle/oracle-service';
 
-// Migrated services - local imports
-import { invalidateAfterPredictionTrade } from './services/trade-cache-invalidation';
-import { NPCInvestmentManager } from './npc/npc-investment-manager';
-import { createParodyHeadlineGenerator } from './services/parody-headline-generator';
-import { rssFeedService } from './services/rss-feed-service';
-import { TradeExecutionService } from './services/trade-execution-service';
+// Content generation helpers
+import { generateEvents } from './services/event-generation-helpers';
 import {
-  calculateTrendingIfNeeded,
-  calculateTrendingTags,
-} from './services/trending-calculation-service';
-import { WalletService } from './services/wallet-service';
+  generateNPCPost,
+  generateOrgArticle,
+  generateOrgPost,
+} from './services/post-generation-helpers';
 
 // Services that are still in the web app (Web3/Oracle specific - use dynamic imports)
 
@@ -839,28 +856,22 @@ export async function executeGameTick(
 
 /**
  * Bootstrap content on first game tick
- * Ensures trending and news are initialized automatically
+ * Ensures trending and relationships are initialized automatically
+ * Note: News articles are NOT pre-populated - they come from actual questions/events
  */
-async function bootstrapContentIfNeeded(timestamp: Date): Promise<void> {
+async function bootstrapContentIfNeeded(_timestamp: Date): Promise<void> {
   // Check if we need to bootstrap
-  const [trendingResult, newsResult, relationshipResult] = await Promise.all([
+  const [trendingResult, relationshipResult] = await Promise.all([
     db.select({ count: count() }).from(trendingTags),
-    db.select({ count: count() }).from(posts).where(eq(posts.type, 'article')),
     db.select({ count: count() }).from(actorRelationships),
   ]);
   const trendingCount = Number(trendingResult[0]?.count ?? 0);
-  const newsCount = Number(newsResult[0]?.count ?? 0);
   const relationshipCount = Number(relationshipResult[0]?.count ?? 0);
 
   const MIN_TRENDING = 5;
-  const MIN_NEWS = 5;
 
   // If we have enough of everything, nothing to do
-  if (
-    trendingCount >= MIN_TRENDING &&
-    newsCount >= MIN_NEWS &&
-    relationshipCount > 0
-  ) {
+  if (trendingCount >= MIN_TRENDING && relationshipCount > 0) {
     return;
   }
 
@@ -868,10 +879,8 @@ async function bootstrapContentIfNeeded(timestamp: Date): Promise<void> {
     'Bootstrapping initial content...',
     {
       currentTrending: trendingCount,
-      currentNews: newsCount,
       currentRelationships: relationshipCount,
       needTrending: trendingCount < MIN_TRENDING,
-      needNews: newsCount < MIN_NEWS,
       needRelationships: relationshipCount === 0,
     },
     'GameTick'
@@ -882,26 +891,19 @@ async function bootstrapContentIfNeeded(timestamp: Date): Promise<void> {
     await bootstrapInitialRelationships();
   }
 
-  // Bootstrap news articles if needed
-  if (newsCount < MIN_NEWS) {
-    await bootstrapNewsArticles(timestamp, MIN_NEWS - newsCount);
-  }
-
   // Bootstrap trending if needed (requires posts and tags)
   if (trendingCount < MIN_TRENDING) {
     await bootstrapTrending();
   }
 
-  const [finalTrending, finalNews, finalRelationships] = await Promise.all([
+  const [finalTrending, finalRelationships] = await Promise.all([
     db.select({ count: count() }).from(trendingTags),
-    db.select({ count: count() }).from(posts).where(eq(posts.type, 'article')),
     db.select({ count: count() }).from(actorRelationships),
   ]);
   logger.info(
     'Bootstrap complete',
     {
       trendingCount: Number(finalTrending[0]?.count ?? 0),
-      newsCount: Number(finalNews[0]?.count ?? 0),
       relationshipCount: Number(finalRelationships[0]?.count ?? 0),
     },
     'GameTick'
@@ -947,150 +949,6 @@ async function bootstrapInitialRelationships(): Promise<void> {
     { count: created },
     'GameTick'
   );
-}
-
-/**
- * Create initial news articles
- */
-async function bootstrapNewsArticles(
-  timestamp: Date,
-  count: number
-): Promise<void> {
-  logger.info(
-    `Creating ${count} initial news articles...`,
-    undefined,
-    'GameTick'
-  );
-
-  // Get media organizations
-  const newsOrgs = await db
-    .select()
-    .from(organizations)
-    .where(eq(organizations.type, 'media'))
-    .limit(5);
-
-  if (newsOrgs.length === 0) {
-    logger.warn(
-      'No media organizations found, skipping news bootstrap',
-      undefined,
-      'GameTick'
-    );
-    return;
-  }
-
-  // Sample news topics (realistic, varied)
-  const sampleArticles = [
-    {
-      title: 'Markets Show Mixed Signals Amid Economic Uncertainty',
-      summary:
-        'Investors navigate volatile conditions as key indicators point to divergent trends across major sectors and asset classes.',
-      category: 'Finance',
-      sentiment: 'neutral',
-      biasScore: 0.0,
-    },
-    {
-      title: 'Tech Industry Faces New Regulatory Scrutiny',
-      summary:
-        'Government agencies announce enhanced oversight measures targeting major technology companies and their market practices.',
-      category: 'Tech',
-      sentiment: 'negative',
-      biasScore: -0.3,
-    },
-    {
-      title: 'Innovation in Clean Energy Accelerates',
-      summary:
-        'Breakthrough developments in renewable energy technology promise significant advances toward sustainability goals.',
-      category: 'Tech',
-      sentiment: 'positive',
-      biasScore: 0.5,
-    },
-    {
-      title: 'Global Markets Digest Policy Changes',
-      summary:
-        'Financial markets adjust to new policy frameworks as central banks signal potential shifts in monetary strategy.',
-      category: 'Finance',
-      sentiment: 'neutral',
-      biasScore: 0.1,
-    },
-    {
-      title: 'Corporate Investment Trends Shift',
-      summary:
-        'Major corporations redirect capital allocation strategies in response to evolving market dynamics and opportunities.',
-      category: 'Finance',
-      sentiment: 'neutral',
-      biasScore: 0.0,
-    },
-    {
-      title: 'Technology Adoption Reaches New Milestone',
-      summary:
-        'Enterprise software and cloud services see record adoption rates as digital transformation accelerates across industries.',
-      category: 'Tech',
-      sentiment: 'positive',
-      biasScore: 0.4,
-    },
-    {
-      title: 'Economic Indicators Point to Continued Growth',
-      summary:
-        'Latest data releases suggest sustained expansion despite headwinds from global trade tensions and policy uncertainty.',
-      category: 'Finance',
-      sentiment: 'positive',
-      biasScore: 0.3,
-    },
-    {
-      title: 'Industry Leaders Navigate Changing Landscape',
-      summary:
-        'Executives across sectors adapt strategies to address emerging challenges and capitalize on new market opportunities.',
-      category: 'Business',
-      sentiment: 'neutral',
-      biasScore: 0.0,
-    },
-  ];
-
-  // Create articles spread over last 24 hours
-  for (let i = 0; i < count && i < sampleArticles.length; i++) {
-    const article = sampleArticles[i];
-    if (!article) continue;
-
-    const org = newsOrgs[i % newsOrgs.length];
-    if (!org) continue;
-
-    const hoursAgo = Math.floor((i / count) * 24);
-    const articleTimestamp = new Date(
-      timestamp.getTime() - hoursAgo * 60 * 60 * 1000
-    );
-
-    // Transform content to replace real names with parody names
-    const transformedSummary = await characterMappingService.transformText(
-      article.summary
-    );
-    if (transformedSummary.replacementCount > 0) {
-      logger.warn(
-        `Fixed ${transformedSummary.replacementCount} real name(s) in bootstrap article`,
-        {
-          org: org.name,
-          title: article.title,
-        },
-        'GameTick'
-      );
-    }
-
-    await dbService().createPostWithAllFields({
-      id: await generateSnowflakeId(),
-      type: 'article',
-      content: transformedSummary.transformedText,
-      fullContent: transformedSummary.transformedText, // Bootstrap articles use summary as full content
-      articleTitle: article.title,
-      category: article.category,
-      sentiment: article.sentiment,
-      biasScore: article.biasScore,
-      authorId: org.id,
-      gameId: 'continuous',
-      dayNumber: Math.floor(Date.now() / (1000 * 60 * 60 * 24)),
-      timestamp: articleTimestamp,
-    });
-  }
-
-  logger.info(`Created ${count} initial news articles`, undefined, 'GameTick');
 }
 
 /**
@@ -1229,9 +1087,6 @@ async function bootstrapTrending(): Promise<void> {
     'GameTick'
   );
 }
-
-import { generateEvents } from './services/event-generation-helpers';
-import { generateNPCPost, generateOrgArticle, generateOrgPost } from './services/post-generation-helpers';
 
 /**
  * Generate mixed posts from both NPCs and organizations (parallelized version)
@@ -2029,65 +1884,48 @@ async function generateBaselineArticlesParallel(
   deadlineMs: number
 ): Promise<number> {
   // Gather game context for relevant articles
-  const [
-    activeQuestionsList,
-    actorsList,
-    companiesList,
-    worldFactsContext,
-    worldContext,
-  ] = await Promise.all([
-    db
-      .select()
-      .from(questionsSchema)
-      .where(eq(questionsSchema.status, 'active'))
-      .orderBy(desc(questionsSchema.createdAt))
-      .limit(5),
-    db
-      .select({
-        id: actors.id,
-        name: actors.name,
-        description: actors.description,
-        domain: actors.domain,
-        tier: actors.tier,
-      })
-      .from(actors)
-      .where(inArray(actors.role, ['main', 'supporting']))
-      .limit(10),
-    db
-      .select({
-        id: organizations.id,
-        name: organizations.name,
-        description: organizations.description,
-        currentPrice: organizations.currentPrice,
-        initialPrice: organizations.initialPrice,
-      })
-      .from(organizations)
-      .where(eq(organizations.type, 'company'))
-      .limit(10),
-    worldFactsService.generatePromptContext(),
-    (async () => {
-      return generateWorldContext({
-        maxActors: 30,
-        realityGroundingLevel: 'concise',
-      });
-    })(),
-  ]);
+  // NOTE: Question articles are handled by generateArticlesForActiveQuestions()
+  const [actorsList, companiesList, worldFactsContext, worldContext] =
+    await Promise.all([
+      db
+        .select({
+          id: actors.id,
+          name: actors.name,
+          description: actors.description,
+          domain: actors.domain,
+          tier: actors.tier,
+        })
+        .from(actors)
+        .where(inArray(actors.role, ['main', 'supporting']))
+        .limit(10),
+      db
+        .select({
+          id: organizations.id,
+          name: organizations.name,
+          description: organizations.description,
+          currentPrice: organizations.currentPrice,
+          initialPrice: organizations.initialPrice,
+        })
+        .from(organizations)
+        .where(eq(organizations.type, 'company'))
+        .limit(10),
+      worldFactsService.generatePromptContext(),
+      (async () => {
+        return generateWorldContext({
+          maxActors: 30,
+          realityGroundingLevel: 'concise',
+        });
+      })(),
+    ]);
 
   // Build article topics from game context
+  // NOTE: Questions are already covered by generateArticlesForActiveQuestions()
+  // This function focuses on actors and companies for variety
   const articleTopics: Array<{
     topic: string;
     category: string;
     context: string;
   }> = [];
-
-  // Add topics about active questions
-  for (const question of activeQuestionsList.slice(0, 3)) {
-    articleTopics.push({
-      topic: question.text,
-      category: 'finance',
-      context: `prediction market question: "${question.text}"`,
-    });
-  }
 
   // Add topics about high-tier actors
   for (const actor of actorsList
@@ -2137,7 +1975,6 @@ async function generateBaselineArticlesParallel(
   logger.info(
     `Generating ${articlesToGenerate} baseline articles with game context`,
     {
-      topicsFromQuestions: activeQuestionsList.length,
       topicsFromActors: actorsList.length,
       topicsFromCompanies: companiesList.length,
     },
@@ -2657,18 +2494,15 @@ export async function resolveQuestionPayouts(
   }
 
   try {
-    if (
-      process.env.NEXT_PUBLIC_REPUTATION_SYSTEM_BASE_SEPOLIA &&
-      process.env.DEPLOYER_PRIVATE_KEY &&
-      process.env.NEXT_PUBLIC_RPC_URL
-    ) {
+    // Check if on-chain reputation updates are configured (requires deployer key)
+    if (process.env.DEPLOYER_PRIVATE_KEY && REPUTATION_SYSTEM_BASE_SEPOLIA) {
       await ReputationService.updateReputationForResolvedMarket({
         marketId: marketId,
         outcome: winningSide,
       });
     } else {
       logger.debug(
-        'Skipping reputation update due to missing configuration',
+        'Skipping reputation update - DEPLOYER_PRIVATE_KEY not configured',
         { marketId: marketId },
         'GameTick'
       );
@@ -2804,12 +2638,13 @@ async function resolveMarketOnChain(
   onChainMarketId: string,
   winningOutcome: number
 ): Promise<string> {
-  const diamondAddress = process.env.NEXT_PUBLIC_DIAMOND_ADDRESS;
   const deployerPrivateKey = process.env.DEPLOYER_PRIVATE_KEY as `0x${string}`;
-  const rpcUrl = process.env.NEXT_PUBLIC_RPC_URL;
+  const rpcUrl = getCurrentRpcUrl();
 
-  if (!diamondAddress || !deployerPrivateKey || !rpcUrl) {
-    throw new Error('Missing blockchain configuration');
+  if (!DIAMOND_ADDRESS || !deployerPrivateKey) {
+    throw new Error(
+      'Missing blockchain configuration - DEPLOYER_PRIVATE_KEY required'
+    );
   }
 
   const { createPublicClient, createWalletClient, http, parseAbi } =
@@ -2832,7 +2667,7 @@ async function resolveMarketOnChain(
   // Resolve market on-chain
   // winningOutcome must be uint8 (0 or 1 for binary markets)
   const txHash = await walletClient.writeContract({
-    address: diamondAddress as `0x${string}`,
+    address: DIAMOND_ADDRESS as `0x${string}`,
     abi: parseAbi(PREDICTION_MARKET_ABI),
     functionName: 'resolveMarket',
     args: [onChainMarketId as `0x${string}`, winningOutcome as number],

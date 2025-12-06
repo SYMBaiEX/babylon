@@ -48,15 +48,18 @@
  * @see {@link /lib/reputation/erc8004-reputation-sync} ERC-8004 sync service
  */
 
-import type { NextRequest } from 'next/server';
-import { AuthorizationError } from '@babylon/api';
-import { successResponse, withErrorHandling } from '@babylon/api';
-import { logger } from '@babylon/shared';
 import {
   batchSyncReputationsToERC8004,
   syncAllReputationsToERC8004,
 } from '@babylon/agents';
-import { relayCronToStaging } from '@babylon/api';
+import {
+  AuthorizationError,
+  relayCronToStaging,
+  successResponse,
+  withErrorHandling,
+} from '@babylon/api';
+import { logger } from '@babylon/shared';
+import type { NextRequest } from 'next/server';
 
 // Vercel function configuration
 export const maxDuration = 300; // 5 minutes max

@@ -1,12 +1,12 @@
 'use client';
 
+import type { LikeButtonProps } from '@babylon/shared';
+import { cn } from '@babylon/shared';
 import { Frown, Heart, Laugh } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { useSocialTracking } from '@/hooks/usePostHog';
-import { cn } from '@babylon/shared';
 import { useInteractionStore } from '@/stores/interactionStore';
-import type { LikeButtonProps } from '@babylon/shared';
 
 /**
  * Reaction configuration type for like button reactions.

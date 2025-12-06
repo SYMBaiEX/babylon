@@ -89,31 +89,32 @@
  *
  */
 
-import type { NextRequest } from 'next/server';
-import { authenticate } from '@babylon/api';
-import { asUser } from '@babylon/db';
-import { AuthorizationError, BusinessLogicError } from '@babylon/api';
-import { successResponse, withErrorHandling } from '@babylon/api';
-import { logger } from '@babylon/shared';
-import { hasBlocked } from '@babylon/db';
-import { trackServerEvent } from '@/lib/posthog/server';
 import {
+  AuthorizationError,
+  authenticate,
+  BusinessLogicError,
+  broadcastChatMessage,
   checkRateLimitAndDuplicates,
   DUPLICATE_DETECTION_CONFIGS,
-  RATE_LIMIT_CONFIGS,
-} from '@babylon/api';
-import {
-  GroupChatService,
-  type SweepDecision,
-  MessageQualityChecker,
-} from '@babylon/engine';
-import {
   notifyDMMessage,
   notifyGroupChatMessage,
+  RATE_LIMIT_CONFIGS,
+  successResponse,
+  withErrorHandling,
 } from '@babylon/api';
-import { generateSnowflakeId } from '@babylon/shared';
-import { broadcastChatMessage } from '@babylon/api';
-import { ChatMessageCreateSchema } from '@babylon/shared';
+import { asUser, hasBlocked } from '@babylon/db';
+import {
+  GroupChatService,
+  MessageQualityChecker,
+  type SweepDecision,
+} from '@babylon/engine';
+import {
+  ChatMessageCreateSchema,
+  generateSnowflakeId,
+  logger,
+} from '@babylon/shared';
+import type { NextRequest } from 'next/server';
+import { trackServerEvent } from '@/lib/posthog/server';
 
 /**
  * POST /api/chats/[id]/message

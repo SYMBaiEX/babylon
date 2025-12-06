@@ -88,23 +88,29 @@
  * @see {@link /lib/services/wallet-service} Wallet service
  */
 
-import type { NextRequest } from 'next/server';
-import { authenticate } from '@babylon/api';
-import { invalidateAfterPredictionTrade } from '@babylon/engine';
-import { FEE_CONFIG } from '@babylon/engine';
-import { asUser } from '@babylon/db';
-import { BusinessLogicError, NotFoundError } from '@babylon/api';
-import { successResponse, withErrorHandling } from '@babylon/api';
-import { logger } from '@babylon/shared';
-import { trackServerEvent } from '@/lib/posthog/server';
-import { PredictionPricing } from '@babylon/engine';
-import { FeeService } from '@babylon/engine';
 import {
+  authenticate,
+  BusinessLogicError,
+  NotFoundError,
+  successResponse,
+  withErrorHandling,
+} from '@babylon/api';
+import { asUser } from '@babylon/db';
+import {
+  FEE_CONFIG,
+  FeeService,
+  invalidateAfterPredictionTrade,
   PredictionMarketService,
+  PredictionPricing,
+  WalletService,
 } from '@babylon/engine';
-import { WalletService } from '@babylon/engine';
-import { PredictionMarketIdSchema } from '@babylon/shared';
-import { PredictionMarketSellSchema } from '@babylon/shared';
+import {
+  logger,
+  PredictionMarketIdSchema,
+  PredictionMarketSellSchema,
+} from '@babylon/shared';
+import type { NextRequest } from 'next/server';
+import { trackServerEvent } from '@/lib/posthog/server';
 /**
  * POST /api/markets/predictions/[id]/sell
  *

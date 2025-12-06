@@ -19,20 +19,19 @@
  *   bun run scripts/seed-database.ts mappings # Seed character/org mappings only
  */
 
-import { existsSync } from 'fs';
-import { join } from 'path';
 import {
+  closeDatabase,
   db,
-  generateSnowflakeId,
   eq,
+  generateSnowflakeId,
+  getRawDrizzle,
   schema,
   sql,
-  getRawDrizzle,
-  closeDatabase,
 } from '@babylon/db';
-import { loadActorsData } from '@babylon/engine';
-import { logger } from '@babylon/engine';
+import { loadActorsData, logger } from '@babylon/engine';
 import type { ActorData, Organization as OrgData } from '@babylon/shared';
+import { existsSync } from 'fs';
+import { join } from 'path';
 
 // ============================================================================
 // HELPER FUNCTIONS
@@ -53,7 +52,11 @@ function mapDomainToCategory(domains: string[] | undefined): string {
   if (domains.includes('politics') || domains.includes('government')) {
     return 'politics';
   }
-  if (domains.includes('tech') || domains.includes('ai') || domains.includes('technology')) {
+  if (
+    domains.includes('tech') ||
+    domains.includes('ai') ||
+    domains.includes('technology')
+  ) {
     return 'tech';
   }
 
@@ -117,22 +120,55 @@ function mapOrgTypeToCategory(orgType: string | undefined): string {
 /**
  * Determine organization priority based on name/importance
  */
-function getOrganizationPriority(orgName: string, orgType: string | undefined): number {
+function getOrganizationPriority(
+  orgName: string,
+  orgType: string | undefined
+): number {
   // Major tech companies get higher priority
-  const majorTechOrgs = ['OpenAGI', 'Meta', 'Google', 'Microsoft', 'Apple', 'Amazon', 'Tesla', 'Twitter', 'Anthropic', 'NVIDIA'];
-  if (majorTechOrgs.some(name => orgName.toLowerCase().includes(name.toLowerCase()))) {
+  const majorTechOrgs = [
+    'OpenAGI',
+    'Meta',
+    'Google',
+    'Microsoft',
+    'Apple',
+    'Amazon',
+    'Tesla',
+    'Twitter',
+    'Anthropic',
+    'NVIDIA',
+  ];
+  if (
+    majorTechOrgs.some((name) =>
+      orgName.toLowerCase().includes(name.toLowerCase())
+    )
+  ) {
     return 100;
   }
 
   // Major crypto orgs
   const majorCryptoOrgs = ['Binance', 'Coinbase', 'Ethereum'];
-  if (majorCryptoOrgs.some(name => orgName.toLowerCase().includes(name.toLowerCase()))) {
+  if (
+    majorCryptoOrgs.some((name) =>
+      orgName.toLowerCase().includes(name.toLowerCase())
+    )
+  ) {
     return 90;
   }
 
   // Major media
-  const majorMedia = ['New York Times', 'Washington Post', 'Wall Street Journal', 'CNN', 'Fox News', 'Bloomberg'];
-  if (majorMedia.some(name => orgName.toLowerCase().includes(name.toLowerCase()))) {
+  const majorMedia = [
+    'New York Times',
+    'Washington Post',
+    'Wall Street Journal',
+    'CNN',
+    'Fox News',
+    'Bloomberg',
+  ];
+  if (
+    majorMedia.some((name) =>
+      orgName.toLowerCase().includes(name.toLowerCase())
+    )
+  ) {
     return 85;
   }
 
@@ -158,8 +194,16 @@ async function seedActors(): Promise<number> {
 
   for (const actor of actorsData.actors) {
     // Check if actor image exists
-    const imagePath = join(process.cwd(), 'public', 'images', 'actors', `${actor.id}.jpg`);
-    const profileImageUrl = existsSync(imagePath) ? `/images/actors/${actor.id}.jpg` : null;
+    const imagePath = join(
+      process.cwd(),
+      'public',
+      'images',
+      'actors',
+      `${actor.id}.jpg`
+    );
+    const profileImageUrl = existsSync(imagePath)
+      ? `/images/actors/${actor.id}.jpg`
+      : null;
 
     // Randomize trading balance based on tier
     let minBalance = 100000;
@@ -176,7 +220,9 @@ async function seedActors(): Promise<number> {
       maxBalance = 250000;
     }
 
-    const tradingBalance = Math.floor(Math.random() * (maxBalance - minBalance) + minBalance);
+    const tradingBalance = Math.floor(
+      Math.random() * (maxBalance - minBalance) + minBalance
+    );
 
     // Check if actor exists
     const existing = await db.actor.findUnique({ where: { id: actor.id } });
@@ -220,7 +266,11 @@ async function seedActors(): Promise<number> {
     }
   }
 
-  logger.info(`Actors: ${seeded} created, ${updated} updated`, undefined, 'SeedDatabase');
+  logger.info(
+    `Actors: ${seeded} created, ${updated} updated`,
+    undefined,
+    'SeedDatabase'
+  );
   return seeded;
 }
 
@@ -234,16 +284,30 @@ async function seedOrganizations(): Promise<number> {
   for (const org of actorsData.organizations) {
     // Skip if missing required fields
     if (!org.id || !org.name || !org.type) {
-      logger.warn(`Skipping org "${org.id || 'unknown'}" - missing required fields`, undefined, 'SeedDatabase');
+      logger.warn(
+        `Skipping org "${org.id || 'unknown'}" - missing required fields`,
+        undefined,
+        'SeedDatabase'
+      );
       continue;
     }
 
     // Check if organization image exists
-    const orgImagePath = join(process.cwd(), 'public', 'images', 'organizations', `${org.id}.jpg`);
-    const imageUrl = existsSync(orgImagePath) ? `/images/organizations/${org.id}.jpg` : null;
+    const orgImagePath = join(
+      process.cwd(),
+      'public',
+      'images',
+      'organizations',
+      `${org.id}.jpg`
+    );
+    const imageUrl = existsSync(orgImagePath)
+      ? `/images/organizations/${org.id}.jpg`
+      : null;
 
     // Check if org exists
-    const existing = await db.organization.findUnique({ where: { id: org.id } });
+    const existing = await db.organization.findUnique({
+      where: { id: org.id },
+    });
 
     if (existing) {
       await db.organization.update({
@@ -280,7 +344,11 @@ async function seedOrganizations(): Promise<number> {
     }
   }
 
-  logger.info(`Organizations: ${seeded} created, ${updated} updated`, undefined, 'SeedDatabase');
+  logger.info(
+    `Organizations: ${seeded} created, ${updated} updated`,
+    undefined,
+    'SeedDatabase'
+  );
   return seeded;
 }
 
@@ -288,7 +356,11 @@ async function seedGameState(): Promise<void> {
   logger.info('Initializing game state...', undefined, 'SeedDatabase');
 
   const drizzle = getRawDrizzle();
-  const existingGame = await drizzle.select().from(schema.games).where(eq(schema.games.isContinuous, true)).limit(1);
+  const existingGame = await drizzle
+    .select()
+    .from(schema.games)
+    .where(eq(schema.games.isContinuous, true))
+    .limit(1);
 
   if (existingGame.length === 0) {
     const now = new Date();
@@ -309,12 +381,17 @@ async function seedGameState(): Promise<void> {
   } else {
     const game = existingGame[0];
     if (!game) {
-      logger.warn('Game state check returned empty array', undefined, 'SeedDatabase');
+      logger.warn(
+        'Game state check returned empty array',
+        undefined,
+        'SeedDatabase'
+      );
       return;
     }
-    
+
     if (!game.isRunning) {
-      await drizzle.update(schema.games)
+      await drizzle
+        .update(schema.games)
         .set({
           isRunning: true,
           startedAt: game.startedAt || new Date(),
@@ -323,7 +400,11 @@ async function seedGameState(): Promise<void> {
         .where(eq(schema.games.id, game.id));
       logger.info('Game state updated to RUNNING', undefined, 'SeedDatabase');
     } else {
-      logger.info('Game state already exists and is RUNNING', undefined, 'SeedDatabase');
+      logger.info(
+        'Game state already exists and is RUNNING',
+        undefined,
+        'SeedDatabase'
+      );
     }
   }
 }
@@ -389,7 +470,8 @@ async function seedRSSFeeds(): Promise<number> {
 
   for (const feed of rssFeeds) {
     // Check if feed already exists by URL
-    const existing = await drizzle.select()
+    const existing = await drizzle
+      .select()
       .from(schema.rssFeedSources)
       .where(eq(schema.rssFeedSources.feedUrl, feed.feedUrl))
       .limit(1);
@@ -397,8 +479,13 @@ async function seedRSSFeeds(): Promise<number> {
     if (existing.length > 0) {
       const existingFeed = existing[0];
       if (existingFeed) {
-        await drizzle.update(schema.rssFeedSources)
-          .set({ name: feed.name, category: feed.category, updatedAt: new Date() })
+        await drizzle
+          .update(schema.rssFeedSources)
+          .set({
+            name: feed.name,
+            category: feed.category,
+            updatedAt: new Date(),
+          })
           .where(eq(schema.rssFeedSources.id, existingFeed.id));
       }
     } else {
@@ -413,7 +500,11 @@ async function seedRSSFeeds(): Promise<number> {
     }
   }
 
-  logger.info(`RSS feeds: ${seeded} created, ${rssFeeds.length - seeded} updated`, undefined, 'SeedDatabase');
+  logger.info(
+    `RSS feeds: ${seeded} created, ${rssFeeds.length - seeded} updated`,
+    undefined,
+    'SeedDatabase'
+  );
   return seeded;
 }
 
@@ -436,13 +527,15 @@ async function seedCharacterMappings(): Promise<number> {
     const aliases = generateAliases(actor);
 
     // Check if mapping exists by realName (unique constraint)
-    const existing = await drizzle.select()
+    const existing = await drizzle
+      .select()
       .from(schema.characterMappings)
       .where(eq(schema.characterMappings.realName, actor.realName))
       .limit(1);
 
     if (existing.length > 0 && existing[0]) {
-      await drizzle.update(schema.characterMappings)
+      await drizzle
+        .update(schema.characterMappings)
         .set({
           parodyName: actor.name,
           category,
@@ -466,7 +559,11 @@ async function seedCharacterMappings(): Promise<number> {
     }
   }
 
-  logger.info(`Character mappings: ${created} created, ${updated} updated`, undefined, 'SeedDatabase');
+  logger.info(
+    `Character mappings: ${created} created, ${updated} updated`,
+    undefined,
+    'SeedDatabase'
+  );
   return created;
 }
 
@@ -481,9 +578,11 @@ async function seedOrganizationMappings(): Promise<number> {
   for (const org of actorsData.organizations) {
     // Organizations may have originalName for mapping real names to parody names
     // This is stored in the data files but not in the base Organization type
-    const originalName = (org as OrgData & { originalName?: string }).originalName;
-    const originalHandle = (org as OrgData & { originalHandle?: string }).originalHandle;
-    
+    const originalName = (org as OrgData & { originalName?: string })
+      .originalName;
+    const originalHandle = (org as OrgData & { originalHandle?: string })
+      .originalHandle;
+
     // Skip if organization doesn't have originalName (required for mapping)
     if (!originalName) {
       continue;
@@ -499,13 +598,15 @@ async function seedOrganizationMappings(): Promise<number> {
     }
 
     // Check if mapping exists by realName (unique constraint)
-    const existing = await drizzle.select()
+    const existing = await drizzle
+      .select()
       .from(schema.organizationMappings)
       .where(eq(schema.organizationMappings.realName, originalName))
       .limit(1);
 
     if (existing.length > 0 && existing[0]) {
-      await drizzle.update(schema.organizationMappings)
+      await drizzle
+        .update(schema.organizationMappings)
         .set({
           parodyName: org.name,
           category,
@@ -529,7 +630,11 @@ async function seedOrganizationMappings(): Promise<number> {
     }
   }
 
-  logger.info(`Organization mappings: ${created} created, ${updated} updated`, undefined, 'SeedDatabase');
+  logger.info(
+    `Organization mappings: ${created} created, ${updated} updated`,
+    undefined,
+    'SeedDatabase'
+  );
   return created;
 }
 
@@ -599,7 +704,11 @@ async function seedDemoUsers(): Promise<number> {
     }
   }
 
-  logger.info(`Demo users: ${created} created, ${defaultUsers.length - created} updated`, undefined, 'SeedDatabase');
+  logger.info(
+    `Demo users: ${created} created, ${defaultUsers.length - created} updated`,
+    undefined,
+    'SeedDatabase'
+  );
   return created;
 }
 
@@ -610,9 +719,17 @@ async function seedDemoUsers(): Promise<number> {
 async function main(): Promise<void> {
   const command = process.argv[2] || 'all';
 
-  logger.info('════════════════════════════════════════════════════════════', undefined, 'SeedDatabase');
+  logger.info(
+    '════════════════════════════════════════════════════════════',
+    undefined,
+    'SeedDatabase'
+  );
   logger.info('Babylon Database Seeder', { command }, 'SeedDatabase');
-  logger.info('════════════════════════════════════════════════════════════', undefined, 'SeedDatabase');
+  logger.info(
+    '════════════════════════════════════════════════════════════',
+    undefined,
+    'SeedDatabase'
+  );
 
   try {
     switch (command) {
@@ -655,17 +772,55 @@ async function main(): Promise<void> {
         // Print summary
         const drizzle = getRawDrizzle();
         const stats = {
-          actors: (await drizzle.select({ count: sql<number>`count(*)` }).from(schema.actors))[0]?.count ?? 0,
-          organizations: (await drizzle.select({ count: sql<number>`count(*)` }).from(schema.organizations))[0]?.count ?? 0,
-          rssFeedSources: (await drizzle.select({ count: sql<number>`count(*)` }).from(schema.rssFeedSources))[0]?.count ?? 0,
-          characterMappings: (await drizzle.select({ count: sql<number>`count(*)` }).from(schema.characterMappings))[0]?.count ?? 0,
-          organizationMappings: (await drizzle.select({ count: sql<number>`count(*)` }).from(schema.organizationMappings))[0]?.count ?? 0,
-          users: (await drizzle.select({ count: sql<number>`count(*)` }).from(schema.users))[0]?.count ?? 0,
+          actors:
+            (
+              await drizzle
+                .select({ count: sql<number>`count(*)` })
+                .from(schema.actors)
+            )[0]?.count ?? 0,
+          organizations:
+            (
+              await drizzle
+                .select({ count: sql<number>`count(*)` })
+                .from(schema.organizations)
+            )[0]?.count ?? 0,
+          rssFeedSources:
+            (
+              await drizzle
+                .select({ count: sql<number>`count(*)` })
+                .from(schema.rssFeedSources)
+            )[0]?.count ?? 0,
+          characterMappings:
+            (
+              await drizzle
+                .select({ count: sql<number>`count(*)` })
+                .from(schema.characterMappings)
+            )[0]?.count ?? 0,
+          organizationMappings:
+            (
+              await drizzle
+                .select({ count: sql<number>`count(*)` })
+                .from(schema.organizationMappings)
+            )[0]?.count ?? 0,
+          users:
+            (
+              await drizzle
+                .select({ count: sql<number>`count(*)` })
+                .from(schema.users)
+            )[0]?.count ?? 0,
         };
 
-        logger.info('════════════════════════════════════════════════════════════', undefined, 'SeedDatabase');
+        logger.info(
+          '════════════════════════════════════════════════════════════',
+          undefined,
+          'SeedDatabase'
+        );
         logger.info('Database Summary', stats, 'SeedDatabase');
-        logger.info('════════════════════════════════════════════════════════════', undefined, 'SeedDatabase');
+        logger.info(
+          '════════════════════════════════════════════════════════════',
+          undefined,
+          'SeedDatabase'
+        );
         break;
       }
     }

@@ -1,5 +1,5 @@
-import type { NextRequest } from 'next/server';
 import { logger } from '@babylon/shared';
+import type { NextRequest } from 'next/server';
 
 interface RelayResult {
   forwarded: boolean;
@@ -10,7 +10,7 @@ interface RelayResult {
 /**
  * Conditionally relay cron execution to staging environment.
  * Enabled when REDIRECT_CRON_STAGING=true and host is not already staging.
- * 
+ *
  * Note: Accepts NextRequest-compatible objects to handle version mismatches
  * between different Next.js versions in the monorepo.
  */
@@ -26,7 +26,9 @@ export async function relayCronToStaging(
     process.env.CRON_STAGING_URL || 'https://staging.babylon.market';
   const stagingHost = stagingBaseUrl.replace(/^https?:\/\//, '');
   // Access headers safely - handle both NextRequest and plain Headers objects
-  const headers = request.headers as Headers | { get: (key: string) => string | null };
+  const headers = request.headers as
+    | Headers
+    | { get: (key: string) => string | null };
   const requestHost = headers?.get('host') || '';
 
   // Avoid infinite loops when request already targets staging

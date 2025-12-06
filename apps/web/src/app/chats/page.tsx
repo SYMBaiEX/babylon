@@ -1,5 +1,6 @@
 'use client';
 
+import { cn } from '@babylon/shared';
 import { usePrivy } from '@privy-io/react-auth';
 import {
   AlertCircle,
@@ -49,7 +50,6 @@ import { useChatMessages } from '@/hooks/useChatMessages';
 import { useChatParam } from '@/hooks/useChatParam';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { useSSE } from '@/hooks/useSSE';
-import { cn } from '@babylon/shared';
 import { useAuthStore } from '@/stores/authStore';
 
 type ChatFilter = 'all' | 'dms' | 'groups';
@@ -517,7 +517,10 @@ export default function ChatsPage() {
   );
 
   // Track pending DM to load once user is available
-  const [pendingDM, setPendingDM] = useState<{ chatId: string; targetUserId: string } | null>(null);
+  const [pendingDM, setPendingDM] = useState<{
+    chatId: string;
+    targetUserId: string;
+  } | null>(null);
 
   // Check for chat ID in URL query params
   useEffect(() => {
@@ -1062,19 +1065,19 @@ export default function ChatsPage() {
                           >
                             <Avatar
                               id={chatDetails.chat.otherUser.id}
-                              name={chatDetails.chat.otherUser.displayName || 'User'}
+                              name={
+                                chatDetails.chat.otherUser.displayName || 'User'
+                              }
                               type="user"
                               size="md"
-                              imageUrl={chatDetails.chat.otherUser.profileImageUrl || undefined}
+                              imageUrl={
+                                chatDetails.chat.otherUser.profileImageUrl ||
+                                undefined
+                              }
                             />
                           </Link>
                         ) : (
-                          <Avatar
-                            id=""
-                            name="User"
-                            type="user"
-                            size="md"
-                          />
+                          <Avatar id="" name="User" type="user" size="md" />
                         )}
                         <div>
                           <div className="flex items-center gap-2">
@@ -1084,10 +1087,13 @@ export default function ChatsPage() {
                               </h3>
                             ) : chatDetails.chat.otherUser ? (
                               <Link
-                                href={getProfilePath(chatDetails.chat.otherUser)}
+                                href={getProfilePath(
+                                  chatDetails.chat.otherUser
+                                )}
                                 className="font-bold text-foreground text-lg transition-colors hover:text-primary"
                               >
-                                {chatDetails.chat.otherUser.displayName || 'Chat'}
+                                {chatDetails.chat.otherUser.displayName ||
+                                  'Chat'}
                               </Link>
                             ) : (
                               <h3 className="font-bold text-foreground text-lg">
@@ -1712,19 +1718,19 @@ export default function ChatsPage() {
                         >
                           <Avatar
                             id={chatDetails.chat.otherUser.id}
-                            name={chatDetails.chat.otherUser.displayName || 'User'}
+                            name={
+                              chatDetails.chat.otherUser.displayName || 'User'
+                            }
                             type="user"
                             size="md"
-                            imageUrl={chatDetails.chat.otherUser.profileImageUrl || undefined}
+                            imageUrl={
+                              chatDetails.chat.otherUser.profileImageUrl ||
+                              undefined
+                            }
                           />
                         </Link>
                       ) : (
-                        <Avatar
-                          id=""
-                          name="User"
-                          type="user"
-                          size="md"
-                        />
+                        <Avatar id="" name="User" type="user" size="md" />
                       )}
                       <div className="flex-1">
                         <div className="flex items-center gap-2">

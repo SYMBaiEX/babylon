@@ -100,25 +100,22 @@
  * @see {@link /src/lib/agents/autonomous/AutonomousCoordinator.ts} Autonomous coordinator
  */
 
-import { promises as fs } from 'fs';
-import type { NextRequest } from 'next/server';
-import { NextResponse } from 'next/server';
-import * as path from 'path';
+import { AutonomousCoordinator, agentRuntimeManager } from '@babylon/agents';
+import { authenticateUser } from '@babylon/api';
 import { db, type JsonValue } from '@babylon/db';
-import {
-  agentRuntimeManager,
-  AutonomousCoordinator,
-} from '@babylon/agents';
+import { logger } from '@babylon/shared';
 import type { BenchmarkGameSnapshot } from '@babylon/training';
-import { MetricsVisualizer } from '@babylon/training';
-import { SimulationA2AInterface } from '@babylon/training';
 import {
+  MetricsVisualizer,
+  SimulationA2AInterface,
   type SimulationConfig,
   SimulationEngine,
   type SimulationResult,
 } from '@babylon/training';
-import { logger } from '@babylon/shared';
-import { authenticateUser } from '@babylon/api';
+import { promises as fs } from 'fs';
+import type { NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
+import * as path from 'path';
 
 export async function POST(
   req: NextRequest,
@@ -202,7 +199,8 @@ export async function POST(
         return NextResponse.json(
           {
             success: false,
-            error: 'File system access not available in edge runtime. Use benchmarkData instead.',
+            error:
+              'File system access not available in edge runtime. Use benchmarkData instead.',
           },
           { status: 400 }
         );

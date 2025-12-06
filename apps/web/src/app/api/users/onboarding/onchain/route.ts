@@ -55,14 +55,18 @@
  * ```
  */
 
-import type { NextRequest } from 'next/server';
-import { db, eq, users } from '@babylon/db';
-import { authenticate } from '@babylon/api';
-import { BusinessLogicError, ConflictError } from '@babylon/api';
-import { successResponse, withErrorHandling } from '@babylon/api';
-import { logger } from '@babylon/shared';
-import { processOnchainRegistration } from '@babylon/api';
 import type { JsonValue } from '@babylon/api';
+import {
+  authenticate,
+  BusinessLogicError,
+  ConflictError,
+  processOnchainRegistration,
+  successResponse,
+  withErrorHandling,
+} from '@babylon/api';
+import { db, eq, users } from '@babylon/db';
+import { logger } from '@babylon/shared';
+import type { NextRequest } from 'next/server';
 
 interface OnchainRequestBody {
   walletAddress?: string | null;

@@ -1,12 +1,12 @@
 'use client';
 
+import { cn } from '@babylon/shared';
 import { Bell, Bot, Home, MessageCircle, TrendingUp } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useUnreadMessages } from '@/hooks/useUnreadMessages';
-import { cn } from '@babylon/shared';
 
 /**
  * Bottom navigation content component for mobile devices.
@@ -24,11 +24,21 @@ function BottomNavContent() {
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const { totalUnread: unreadMessages } = useUnreadMessages();
 
-  // Hide bottom nav when WAITLIST_MODE is enabled in production OR ?comingsoon=true
+  // Check if dev mode is enabled via URL parameter (for staging testing)
+  const isDevMode = searchParams.get('dev') === 'true';
+  // Force coming soon mode via URL parameter (for testing)
   const forceComingSoon = searchParams.get('comingsoon') === 'true';
-  const waitlistMode = process.env.NEXT_PUBLIC_WAITLIST_MODE === 'true';
-  const isProduction = process.env.NODE_ENV === 'production';
-  const shouldHide = (waitlistMode && isProduction) || forceComingSoon;
+
+  // Hide bottom nav on production (babylon.market) on home page unless ?dev=true
+  const isProduction =
+    typeof window !== 'undefined' &&
+    window.location.hostname === 'babylon.market';
+  // Hide bottom nav when WAITLIST_MODE is enabled on home page (unless ?dev=true)
+  const isWaitlistMode = process.env.NEXT_PUBLIC_WAITLIST_MODE === 'true';
+  const isHomePage = pathname === '/';
+  const shouldHide =
+    (isWaitlistMode && isProduction && isHomePage && !isDevMode) ||
+    forceComingSoon;
 
   // Poll for unread notifications
   useEffect(() => {

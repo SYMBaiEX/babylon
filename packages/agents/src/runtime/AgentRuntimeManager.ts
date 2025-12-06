@@ -13,21 +13,13 @@
  */
 
 import { actors, db, eq, users } from '@babylon/db';
+import { type ActorData, loadActorById } from '@babylon/engine';
 import {
   AgentRuntime,
   type Character,
   type Plugin,
   type UUID,
 } from '@elizaos/core';
-import { loadActorById, type ActorData } from '@babylon/engine';
-import { logger } from '../shared/logger';
-import { generateSnowflakeId } from '../shared/snowflake';
-import {
-  AgentType,
-  type UnifiedAgentRegistration,
-} from '../types/agent-registry';
-import { agentRegistry } from '../services/agent-registry.service';
-import type { JsonValue } from '../types/common';
 import { babylonPlugin } from '../plugins/babylon';
 import { enhanceRuntimeWithBabylon } from '../plugins/babylon/integration';
 import { groqPlugin } from '../plugins/groq';
@@ -38,8 +30,16 @@ import {
   wrapPluginProviders,
 } from '../plugins/plugin-trajectory-logger/src/action-interceptor';
 import { TrajectoryLoggerService } from '../plugins/plugin-trajectory-logger/src/TrajectoryLoggerService';
-import { openaiPlugin } from '@elizaos/plugin-openai';
 import { anthropicPlugin } from '@elizaos/plugin-anthropic';
+import { openaiPlugin } from '@elizaos/plugin-openai';
+import { agentRegistry } from '../services/agent-registry.service';
+import { logger } from '../shared/logger';
+import { generateSnowflakeId } from '../shared/snowflake';
+import {
+  AgentType,
+  type UnifiedAgentRegistration,
+} from '../types/agent-registry';
+import type { JsonValue } from '../types/common';
 
 /**
  * Extended AgentRuntime with Babylon-specific properties

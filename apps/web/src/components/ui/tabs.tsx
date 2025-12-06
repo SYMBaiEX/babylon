@@ -1,6 +1,6 @@
+import { cn } from '@babylon/shared';
 import * as TabsPrimitive from '@radix-ui/react-tabs';
 import * as React from 'react';
-import { cn } from '@babylon/shared';
 
 /**
  * Tabs component root from Radix UI.

@@ -69,22 +69,21 @@
  * @see {@link /lib/services/trending-grouping-service} Trending grouping service
  */
 
-import type { NextRequest } from 'next/server';
-import { NextResponse } from 'next/server';
-import { desc, eq, posts, postTags } from '@babylon/db';
 import {
   type AuthenticatedUser,
   optionalAuth,
+  withErrorHandling,
 } from '@babylon/api';
-import { asPublic, asUser } from '@babylon/db';
-import { withErrorHandling } from '@babylon/api';
-import { logger } from '@babylon/shared';
-import { getCurrentTrendingTags } from '@babylon/engine';
+import { asPublic, asUser, desc, eq, posts, postTags } from '@babylon/db';
 import {
   generateTrendingSummary,
+  getCurrentTrendingTags,
   groupTrendingTags,
   type TrendingTag,
 } from '@babylon/engine';
+import { logger } from '@babylon/shared';
+import type { NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
 
 // Server-side cache with longer TTL
 interface CachedTrendingData {

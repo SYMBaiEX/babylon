@@ -1,5 +1,6 @@
 'use client';
 
+import { cn } from '@babylon/shared';
 import {
   Ban,
   CheckCircle,
@@ -18,7 +19,6 @@ import { BlockUserModal } from '@/components/moderation/BlockUserModal';
 import { MuteUserModal } from '@/components/moderation/MuteUserModal';
 import { Avatar } from '@/components/shared/Avatar';
 import { Skeleton } from '@/components/shared/Skeleton';
-import { cn } from '@babylon/shared';
 
 /**
  * User schema for validation.
@@ -133,33 +133,36 @@ export function UserManagementTab() {
   const [isCSAM, setIsCSAM] = useState(false);
   const [isBanning, startBanning] = useTransition();
 
-  const fetchUsers = useCallback((showRefreshing = false) => {
-    const fetchLogic = async () => {
-      const params = new URLSearchParams({
-        limit: '50',
-        filter,
-        sortBy,
-        sortOrder: 'desc',
-      });
-      if (searchQuery) params.set('search', searchQuery);
+  const fetchUsers = useCallback(
+    (showRefreshing = false) => {
+      const fetchLogic = async () => {
+        const params = new URLSearchParams({
+          limit: '50',
+          filter,
+          sortBy,
+          sortOrder: 'desc',
+        });
+        if (searchQuery) params.set('search', searchQuery);
 
-      const response = await fetch(`/api/admin/users?${params}`);
-      if (!response.ok) throw new Error('Failed to fetch users');
-      const data = await response.json();
-      const validation = z.array(UserSchema).safeParse(data.users);
-      if (!validation.success) {
-        throw new Error('Invalid user data structure');
+        const response = await fetch(`/api/admin/users?${params}`);
+        if (!response.ok) throw new Error('Failed to fetch users');
+        const data = await response.json();
+        const validation = z.array(UserSchema).safeParse(data.users);
+        if (!validation.success) {
+          throw new Error('Invalid user data structure');
+        }
+        setUsers(validation.data || []);
+        setLoading(false);
+      };
+
+      if (showRefreshing) {
+        startRefresh(fetchLogic);
+      } else {
+        fetchLogic();
       }
-      setUsers(validation.data || []);
-      setLoading(false);
-    };
-
-    if (showRefreshing) {
-      startRefresh(fetchLogic);
-    } else {
-      fetchLogic();
-    }
-  }, [filter, sortBy, searchQuery]);
+    },
+    [filter, sortBy, searchQuery]
+  );
 
   useEffect(() => {
     fetchUsers();

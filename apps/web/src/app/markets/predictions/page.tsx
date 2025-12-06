@@ -1,10 +1,9 @@
 'use client';
 
+import { cn } from '@babylon/shared';
 import { ArrowLeft, ArrowUpDown, Clock, Flame, Search } from 'lucide-react';
-
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-
 import { CategoryPnLCard } from '@/components/markets/CategoryPnLCard';
 import { CategoryPnLShareModal } from '@/components/markets/CategoryPnLShareModal';
 import { PredictionPositionsList } from '@/components/markets/PredictionPositionsList';
@@ -15,7 +14,6 @@ import { useAuth } from '@/hooks/useAuth';
 import { usePortfolioPnL } from '@/hooks/usePortfolioPnL';
 import { usePredictionMarketsSubscription } from '@/hooks/usePredictionMarketStream';
 import { useUserPositions } from '@/hooks/useUserPositions';
-import { cn } from '@babylon/shared';
 
 interface PredictionUserPosition {
   id: string;

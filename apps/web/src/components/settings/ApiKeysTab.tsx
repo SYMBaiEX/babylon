@@ -1,17 +1,17 @@
 'use client';
 
+import { logger } from '@babylon/shared';
 import {
+  AlertTriangle,
   CheckCircle2,
   Copy,
   Key,
   Plus,
   Trash2,
-  AlertTriangle,
 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
-import { logger } from '@babylon/shared';
 
 interface ApiKey {
   id: string;
@@ -317,16 +317,17 @@ export function ApiKeysTab() {
       <div className="rounded-lg border border-border bg-muted/30 p-4">
         <h3 className="mb-2 font-semibold text-sm">How to Use API Keys</h3>
         <div className="space-y-2 text-muted-foreground text-sm">
+          <p>1. Generate an API key and copy it to a secure location</p>
           <p>
-            1. Generate an API key and copy it to a secure location
+            2. Add the key to your AI agent configuration (Cursor, Claude
+            Desktop, etc.)
           </p>
           <p>
-            2. Add the key to your AI agent configuration (Cursor, Claude Desktop,
-            etc.)
-          </p>
-          <p>
-            3. Use the key in the <code className="rounded bg-background px-1">X-Babylon-Api-Key</code> header
-            when making MCP requests
+            3. Use the key in the{' '}
+            <code className="rounded bg-background px-1">
+              X-Babylon-Api-Key
+            </code>{' '}
+            header when making MCP requests
           </p>
           <p>
             4. Your agent will be able to control your account and create/manage
@@ -337,4 +338,3 @@ export function ApiKeysTab() {
     </div>
   );
 }
-

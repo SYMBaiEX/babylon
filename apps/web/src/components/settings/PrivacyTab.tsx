@@ -1,5 +1,6 @@
 'use client';
 
+import { logger } from '@babylon/shared';
 import {
   AlertCircle,
   Download,
@@ -11,7 +12,6 @@ import { useState } from 'react';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
 import { apiFetch } from '@/utils/api-fetch';
-import { logger } from '@babylon/shared';
 
 /**
  * Privacy tab component for managing user privacy and data rights.

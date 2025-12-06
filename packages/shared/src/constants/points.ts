@@ -61,4 +61,3 @@ export type PointsReason =
   | 'transfer_sent'
   | 'transfer_received'
   | 'report_reward'; // Reward for successful reporting of CSAM/scammer
-

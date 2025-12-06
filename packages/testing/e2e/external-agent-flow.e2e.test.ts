@@ -8,8 +8,8 @@
  * 4. Verify trust scoring → Trust level progression
  */
 
-import { expect, test } from '@playwright/test';
 import type { AgentCapabilities } from '@babylon/agents';
+import { expect, test } from '@playwright/test';
 import type { DiscoveredAgent } from '../types/test-types';
 
 // Base URL for API calls

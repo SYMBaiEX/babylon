@@ -1,5 +1,5 @@
-import { type UUID } from '@elizaos/core';
 import type { JsonValue } from '@babylon/shared';
+import { type UUID } from '@elizaos/core';
 
 /**
  * Enhanced Trajectory Types for RULER/OpenPipe ART Training

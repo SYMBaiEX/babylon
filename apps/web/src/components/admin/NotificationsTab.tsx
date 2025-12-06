@@ -1,10 +1,9 @@
 'use client';
 
+import { cn, logger } from '@babylon/shared';
 import { Bell, MessageCircle, Send, User, UserPlus, Users } from 'lucide-react';
 import { useCallback, useEffect, useState, useTransition } from 'react';
 import { toast } from 'sonner';
-import { logger } from '@babylon/shared';
-import { cn } from '@babylon/shared';
 
 /**
  * Notification type for admin notifications tab.

@@ -332,9 +332,7 @@ class PerformanceMonitor {
         },
       },
       system: {
-        cpuUsagePercent: hasCpuUsage
-          ? process.cpuUsage().user / 1000000
-          : 0, // Convert to percentage, default to 0 in browser
+        cpuUsagePercent: hasCpuUsage ? process.cpuUsage().user / 1000000 : 0, // Convert to percentage, default to 0 in browser
         memoryUsageMB: memUsage.heapUsed / 1024 / 1024,
         memoryUsagePercent:
           memUsage.heapTotal > 0
@@ -657,4 +655,3 @@ if (typeof setInterval !== 'undefined') {
     performanceMonitor.takeSnapshot();
   }, 60000);
 }
-

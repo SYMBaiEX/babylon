@@ -11,11 +11,11 @@
  *   ollama         - Manage Ollama local models (list, pull, delete)
  */
 
+import { closeDatabase, db } from '@babylon/db';
+import { HuggingFaceModelUploader } from '@babylon/training';
 import { promises as fs } from 'fs';
 import * as path from 'path';
-import { db, closeDatabase } from '@babylon/db';
-import { HuggingFaceModelUploader } from '@babylon/training';
-import { parseArgs, wantsHelp, getOption, getFlag } from '../lib/args.js';
+import { getFlag, getOption, parseArgs, wantsHelp } from '../lib/args.js';
 import { logger } from '../lib/logger.js';
 
 function printHelp(): void {
@@ -121,7 +121,9 @@ async function listModels(): Promise<void> {
  * @param args - Parsed command-line arguments
  * @internal
  */
-async function collectGameData(args: ReturnType<typeof parseArgs>): Promise<void> {
+async function collectGameData(
+  args: ReturnType<typeof parseArgs>
+): Promise<void> {
   const outputDir = getOption(args, 'output') || 'data/huggingface';
   const daysParam = getOption(args, 'days');
   const days = daysParam ? parseInt(daysParam, 10) : 30;
@@ -168,7 +170,10 @@ async function collectGameData(args: ReturnType<typeof parseArgs>): Promise<void
 
   logger.step('Writing data files...');
 
-  const trajectoriesPath = path.join(outputDir, `trajectories-${timestamp}.json`);
+  const trajectoriesPath = path.join(
+    outputDir,
+    `trajectories-${timestamp}.json`
+  );
   await fs.writeFile(trajectoriesPath, JSON.stringify(trajectories, null, 2));
   console.log(`  Wrote ${trajectoriesPath}`);
 
@@ -195,9 +200,13 @@ async function collectGameData(args: ReturnType<typeof parseArgs>): Promise<void
 
   logger.success('Data collection complete!');
   console.log(`\nTotal files: 4`);
-  console.log(`Total records: ${trajectories.length + benchmarks.length + models.length}`);
+  console.log(
+    `Total records: ${trajectories.length + benchmarks.length + models.length}`
+  );
   console.log(`\nTo upload to HuggingFace:`);
-  console.log(`  babylon model upload-dataset --source=${outputDir} --repo=<your-repo>`);
+  console.log(
+    `  babylon model upload-dataset --source=${outputDir} --repo=<your-repo>`
+  );
 }
 
 /**
@@ -210,7 +219,9 @@ async function collectGameData(args: ReturnType<typeof parseArgs>): Promise<void
  * @throws Exits process with code 1 if token missing, source invalid, or upload fails
  * @internal
  */
-async function uploadDataset(args: ReturnType<typeof parseArgs>): Promise<void> {
+async function uploadDataset(
+  args: ReturnType<typeof parseArgs>
+): Promise<void> {
   const sourceDir = getOption(args, 'source') || 'data/huggingface';
   const repoName = getOption(args, 'repo');
   const isPrivate = getFlag(args, 'private');
@@ -227,7 +238,9 @@ async function uploadDataset(args: ReturnType<typeof parseArgs>): Promise<void> 
     logger.fail('HUGGING_FACE_TOKEN or HF_TOKEN environment variable required');
     console.log('\nSet your token:');
     console.log('  export HUGGING_FACE_TOKEN=your_token_here');
-    console.log('\nOr get a token from: https://huggingface.co/settings/tokens');
+    console.log(
+      '\nOr get a token from: https://huggingface.co/settings/tokens'
+    );
     process.exit(1);
   }
 
@@ -248,7 +261,7 @@ async function uploadDataset(args: ReturnType<typeof parseArgs>): Promise<void> 
 
   // Get all JSON files in source directory
   const files = await fs.readdir(sourceDir);
-  const jsonFiles = files.filter(f => f.endsWith('.json'));
+  const jsonFiles = files.filter((f) => f.endsWith('.json'));
 
   if (jsonFiles.length === 0) {
     logger.fail('No JSON files found in source directory');
@@ -350,7 +363,9 @@ async function uploadModel(args: ReturnType<typeof parseArgs>): Promise<void> {
     logger.fail('HUGGING_FACE_TOKEN or HF_TOKEN environment variable required');
     console.log('\nSet your token:');
     console.log('  export HUGGING_FACE_TOKEN=your_token_here');
-    console.log('\nOr get a token from: https://huggingface.co/settings/tokens');
+    console.log(
+      '\nOr get a token from: https://huggingface.co/settings/tokens'
+    );
     process.exit(1);
   }
 
@@ -449,7 +464,7 @@ async function ollamaList(): Promise<void> {
       process.exit(1);
     }
 
-    const data = await response.json() as { models?: OllamaModel[] };
+    const data = (await response.json()) as { models?: OllamaModel[] };
     const models = data.models || [];
 
     if (models.length === 0) {
@@ -482,11 +497,13 @@ async function ollamaList(): Promise<void> {
     console.log(`${'─'.repeat(60)}`);
 
     // Show archetype-specific models
-    const archetypeModels = models.filter(m => m.name.startsWith('babylon-'));
+    const archetypeModels = models.filter((m) => m.name.startsWith('babylon-'));
     if (archetypeModels.length > 0) {
       console.log('\n🎯 Babylon Trained Models:');
       for (const model of archetypeModels) {
-        const archetype = model.name.replace('babylon-', '').replace(':latest', '');
+        const archetype = model.name
+          .replace('babylon-', '')
+          .replace(':latest', '');
         console.log(`  - ${archetype}: ${model.name}`);
       }
     }
@@ -513,7 +530,9 @@ async function ollamaPull(args: ReturnType<typeof parseArgs>): Promise<void> {
 
   if (!modelName) {
     logger.fail('--name is required');
-    console.log('\nExample: babylon model ollama pull --name=qwen2.5:7b-instruct');
+    console.log(
+      '\nExample: babylon model ollama pull --name=qwen2.5:7b-instruct'
+    );
     process.exit(1);
   }
 
@@ -534,7 +553,7 @@ async function ollamaPull(args: ReturnType<typeof parseArgs>): Promise<void> {
       process.exit(1);
     }
 
-    const result = await response.json() as { status?: string };
+    const result = (await response.json()) as { status?: string };
     logger.success(`Model ${modelName} pulled successfully`);
     console.log(`Status: ${result.status || 'completed'}`);
 
@@ -560,7 +579,9 @@ async function ollamaDelete(args: ReturnType<typeof parseArgs>): Promise<void> {
 
   if (!modelName) {
     logger.fail('--name is required');
-    console.log('\nExample: babylon model ollama delete --name=qwen2.5:7b-instruct');
+    console.log(
+      '\nExample: babylon model ollama delete --name=qwen2.5:7b-instruct'
+    );
     process.exit(1);
   }
 
@@ -602,7 +623,7 @@ async function ollamaStatus(): Promise<void> {
     });
 
     if (response.ok) {
-      const data = await response.json() as { models?: OllamaModel[] };
+      const data = (await response.json()) as { models?: OllamaModel[] };
       const modelCount = data.models?.length || 0;
 
       logger.success('Ollama is running');
@@ -615,10 +636,12 @@ async function ollamaStatus(): Promise<void> {
         'mistral:7b',
       ];
 
-      const modelNames = data.models?.map(m => m.name) || [];
+      const modelNames = data.models?.map((m) => m.name) || [];
       console.log('\n  Recommended models:');
       for (const model of recommendedModels) {
-        const installed = modelNames.some(m => m.includes(model.split(':')[0] ?? ''));
+        const installed = modelNames.some((m) =>
+          m.includes(model.split(':')[0] ?? '')
+        );
         console.log(`    ${installed ? '✅' : '❌'} ${model}`);
       }
 
@@ -644,7 +667,9 @@ async function ollamaStatus(): Promise<void> {
  * @param args - Parsed command-line arguments
  * @internal
  */
-async function runOllamaCommand(args: ReturnType<typeof parseArgs>): Promise<void> {
+async function runOllamaCommand(
+  args: ReturnType<typeof parseArgs>
+): Promise<void> {
   const subCommand = args.positional[0] || 'status';
 
   switch (subCommand) {

@@ -119,5 +119,5 @@ export const organizations = [
   ubair,
   waired,
   wall_street_journai,
-  zcaish
+  zcaish,
 ] as const;

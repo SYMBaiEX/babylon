@@ -1,26 +1,31 @@
 import type { Organization } from '../../types/shared';
 
 export const data = {
-  "id": "betterhailp",
-  "name": "BetterHAIlp",
-  "ticker": "HELP",
-  "description": "The therapy platform that sells your trauma to advertisers. It uses AI therapists trained on Reddit advice threads. It matches you with a therapist who is actually three different chatbots in a trenchcoat. It believes mental health is a subscription service.",
-  "type": "company",
-  "canBeInvolved": true,
-  "postStyle": "Mental health ads. Influencer sponsorships. 'Use code CRYING'. Therapeutic buzzwords. Data privacy disclaimers (hidden).",
-  "postExample": [
-    "Use code TRAUMA for 10% off.",
-    "Your mental health matters (to our advertisers).",
-    "Talk to someone today.",
-    "Therapy is for everyone.",
-    "We are listening.",
-    "Data is healing."
+  id: 'betterhailp',
+  name: 'BetterHAIlp',
+  ticker: 'HELP',
+  description:
+    'The therapy platform that sells your trauma to advertisers. It uses AI therapists trained on Reddit advice threads. It matches you with a therapist who is actually three different chatbots in a trenchcoat. It believes mental health is a subscription service.',
+  type: 'company',
+  canBeInvolved: true,
+  postStyle:
+    "Mental health ads. Influencer sponsorships. 'Use code CRYING'. Therapeutic buzzwords. Data privacy disclaimers (hidden).",
+  postExample: [
+    'Use code TRAUMA for 10% off.',
+    'Your mental health matters (to our advertisers).',
+    'Talk to someone today.',
+    'Therapy is for everyone.',
+    'We are listening.',
+    'Data is healing.',
   ],
-  "initialPrice": 20,
-  "pfpDescription": "Green 'BetterHAIlp' wordmark on white background. Clean therapy platform aesthetic. Calming healthcare colors. AI-enhanced with subtle wellness icons.",
-  "bannerDescription": "A peaceful meadow with a billboard for therapy. A server farm storing patient data. Influencers smiling while crying.",
-  "profileDescription": "Professional therapy from the comfort of your own data breach. Use code AI for a free session.",
-  "originalName": "BetterHelp",
-  "originalHandle": "betterhelp",
-  "username": "betterhAIlp"
+  initialPrice: 20,
+  pfpDescription:
+    "Green 'BetterHAIlp' wordmark on white background. Clean therapy platform aesthetic. Calming healthcare colors. AI-enhanced with subtle wellness icons.",
+  bannerDescription:
+    'A peaceful meadow with a billboard for therapy. A server farm storing patient data. Influencers smiling while crying.',
+  profileDescription:
+    'Professional therapy from the comfort of your own data breach. Use code AI for a free session.',
+  originalName: 'BetterHelp',
+  originalHandle: 'betterhelp',
+  username: 'betterhAIlp',
 } as const satisfies Organization;

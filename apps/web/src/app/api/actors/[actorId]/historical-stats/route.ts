@@ -78,10 +78,10 @@
  * @see {@link /lib/logger} Logging utilities
  */
 
-import type { NextRequest } from 'next/server';
-import { NextResponse } from 'next/server';
 import { db } from '@babylon/db';
 import { logger } from '@babylon/shared';
+import type { NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
 
 /**
  * GET /api/actors/[actorId]/historical-stats

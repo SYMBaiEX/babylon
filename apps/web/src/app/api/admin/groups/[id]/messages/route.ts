@@ -48,6 +48,8 @@
  *         description: Unauthorized
  *       403:
  *         description: Admin access required
+ *       400:
+ *         description: Chat is not a group (DM messages not accessible via this endpoint)
  *       404:
  *         description: Group not found
  *
@@ -59,11 +61,15 @@
  * ```
  */
 
+import {
+  getClientIp,
+  logAdminView,
+  requireAdmin,
+  withErrorHandling,
+} from '@babylon/api';
+import { db } from '@babylon/db';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { db } from '@babylon/db';
-import { authenticate } from '@babylon/api';
-import { withErrorHandling } from '@babylon/api';
 
 /**
  * GET /api/admin/groups/[id]/messages
@@ -75,22 +81,17 @@ export const GET = withErrorHandling(
     request: NextRequest,
     context: { params: Promise<{ id: string }> }
   ) => {
-    const user = await authenticate(request);
-
-    // Check admin permissions
-    const dbUser = await db.user.findUnique({
-      where: { id: user.userId },
-      select: { isAdmin: true },
-    });
-
-    if (!dbUser?.isAdmin) {
-      return NextResponse.json(
-        { error: 'Admin access required' },
-        { status: 403 }
-      );
-    }
-
+    const admin = await requireAdmin(request);
     const { id: chatId } = await context.params;
+
+    // Audit log the admin access
+    logAdminView({
+      adminId: admin.userId,
+      ipAddress: getClientIp(request.headers) ?? undefined,
+      resourceType: 'group_messages',
+      resourceId: chatId,
+      metadata: { action: 'view_group_messages' },
+    });
 
     // Get query parameters
     const { searchParams } = new URL(request.url);
@@ -110,6 +111,14 @@ export const GET = withErrorHandling(
 
     if (!chat) {
       return NextResponse.json({ error: 'Chat not found' }, { status: 404 });
+    }
+
+    // Ensure this is a group chat, not a DM
+    if (!chat.isGroup) {
+      return NextResponse.json(
+        { error: 'This endpoint is only for group chats' },
+        { status: 400 }
+      );
     }
 
     // Get total message count

@@ -8,9 +8,8 @@
 
 import type { ParodyHeadline, RSSHeadline } from '@babylon/db';
 import { db, desc, gte, inArray, parodyHeadlines } from '@babylon/db';
+import { generateSnowflakeId, logger } from '@babylon/shared';
 import { BabylonLLMClient } from '../llm/openai-client';
-import { logger } from '@babylon/shared';
-import { generateSnowflakeId } from '@babylon/shared';
 import { characterMappingService } from './character-mapping-service';
 
 /**
@@ -336,4 +335,3 @@ export function createParodyHeadlineGenerator(): ParodyHeadlineGenerator {
   const llm = BabylonLLMClient.forGameTick();
   return new ParodyHeadlineGenerator(llm);
 }
-

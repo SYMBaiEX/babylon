@@ -12,16 +12,16 @@
  */
 
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
-import { nanoid } from 'nanoid';
 import type { User } from '@babylon/db';
-import { db } from '@babylon/db';
 import {
+  db,
   getBlockedByUserIds,
   getBlockedUserIds,
   getMutedUserIds,
   hasBlocked,
   hasMuted,
 } from '@babylon/db';
+import { nanoid } from 'nanoid';
 
 let testUser1: User;
 let testUser2: User;

@@ -1,11 +1,10 @@
 'use client';
 
+import { IDENTITY_REGISTRY_BASE_SEPOLIA } from '@babylon/shared';
 import { Award, Medal, Target, Trophy } from 'lucide-react';
 import { useEffect, useState } from 'react';
-
 import { PageContainer } from '@/components/shared/PageContainer';
 import { useAuth } from '@/hooks/useAuth';
-import { IDENTITY_REGISTRY_BASE_SEPOLIA } from '@babylon/shared';
 
 interface ReputationStats {
   currentReputation: number;

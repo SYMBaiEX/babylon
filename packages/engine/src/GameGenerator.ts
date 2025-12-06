@@ -30,8 +30,9 @@
  */
 
 import { logger } from '@babylon/shared';
-import { NPCPersonaGenerator } from './services/npc-persona-generator';
-import { QuestionArcPlanner } from './services/question-arc-planner';
+import { generateActorContext } from './EmotionSystem';
+import { FeedGenerator } from './FeedGenerator';
+import { BabylonLLMClient } from './llm/openai-client';
 import {
   baselineEvent,
   dayEvents,
@@ -44,6 +45,8 @@ import {
   renderPrompt,
   scenarios as scenariosPrompt,
 } from './prompts';
+import { NPCPersonaGenerator } from './services/npc-persona-generator';
+import { QuestionArcPlanner } from './services/question-arc-planner';
 import type {
   Actor,
   ActorConnection,
@@ -69,9 +72,6 @@ import type {
   WorldEvent,
 } from './types/shared';
 import { shuffleArray, toQuestionIdNumberOrNull } from './utils/shared-utils';
-import { generateActorContext } from './EmotionSystem';
-import { FeedGenerator } from './FeedGenerator';
-import { BabylonLLMClient } from './llm/openai-client';
 
 /**
  * Structure for actors selected for a game

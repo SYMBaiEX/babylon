@@ -6,21 +6,18 @@
  */
 
 // Rate limiting (moved to @babylon/api)
-export {
-  checkRateLimit,
-  cleanupRateLimits,
-  clearAllRateLimits,
-  getRateLimitStatus,
-  RATE_LIMIT_CONFIGS,
-  resetRateLimit,
-} from '@babylon/api';
-
 // Duplicate detection (in @babylon/api)
 export {
   checkDuplicate,
+  checkRateLimit,
   cleanupDuplicates,
+  cleanupRateLimits,
   clearAllDuplicates,
+  clearAllRateLimits,
   clearDuplicates,
   DUPLICATE_DETECTION_CONFIGS,
   getDuplicateStats,
+  getRateLimitStatus,
+  RATE_LIMIT_CONFIGS,
+  resetRateLimit,
 } from '@babylon/api';

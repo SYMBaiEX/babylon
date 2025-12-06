@@ -6,16 +6,11 @@
 
 // Common types (JsonValue, LogData, etc.)
 export * from './common';
-
-// Shared game types (Actor, Organization, FeedPost, etc.)
-export * from './shared';
-
 // Market context types
 export * from './market-context';
-
 // Market decision types
 export * from './market-decisions';
-
 // Perpetual futures types
 export * from './perps';
-
+// Shared game types (Actor, Organization, FeedPost, etc.)
+export * from './shared';

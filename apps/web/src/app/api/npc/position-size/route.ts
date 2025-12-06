@@ -61,11 +61,10 @@
  * ```
  */
 
+import { getReputationBreakdown, NPCInvestmentManager } from '@babylon/engine';
+import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { logger } from '@babylon/shared';
-import { NPCInvestmentManager } from '@babylon/engine';
-import { getReputationBreakdown } from '@babylon/engine';
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);

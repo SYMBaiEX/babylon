@@ -1,13 +1,12 @@
 'use client';
 
+import { cn, logger } from '@babylon/shared';
 import { Send, Sparkles } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { Avatar } from '@/components/shared/Avatar';
 import { Input } from '@/components/ui/input';
 import { useAuth } from '@/hooks/useAuth';
-import { logger } from '@babylon/shared';
-import { cn } from '@babylon/shared';
 
 /**
  * Chat message structure for agent chat.

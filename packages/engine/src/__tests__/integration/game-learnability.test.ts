@@ -38,8 +38,8 @@ import {
   setDefaultTimeout,
   test,
 } from 'bun:test';
-import { existsSync, readFileSync } from 'fs';
 import { logger } from '@babylon/shared';
+import { existsSync, readFileSync } from 'fs';
 // import { GameGenerator } from '@/engine/GameGenerator'; // Removed static import
 import type { FeedPost, GeneratedGame, WorldEvent } from '../../types/shared';
 

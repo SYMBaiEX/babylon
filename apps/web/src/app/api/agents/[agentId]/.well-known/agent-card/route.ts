@@ -52,10 +52,10 @@
  * ```
  */
 
-import { NextResponse } from 'next/server';
-import { db } from '@babylon/db';
 import { generateAgentCardSync } from '@babylon/a2a';
+import { db } from '@babylon/db';
 import { logger } from '@babylon/shared';
+import { NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 

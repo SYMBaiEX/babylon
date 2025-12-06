@@ -389,5 +389,3 @@ export type UserGroupMember = typeof userGroupMembers.$inferSelect;
 export type NewUserGroupMember = typeof userGroupMembers.$inferInsert;
 
 
-
-

@@ -51,10 +51,18 @@
  *         description: Chat not found
  */
 
-import type { NextRequest } from 'next/server';
+import {
+  AuthorizationError,
+  authenticate,
+  NotFoundError,
+  successResponse,
+  withErrorHandling,
+} from '@babylon/api';
 import {
   actors,
   and,
+  asSystem,
+  asUser,
   chatParticipants,
   chats,
   desc,
@@ -64,12 +72,8 @@ import {
   messages,
   users,
 } from '@babylon/db';
-import { authenticate } from '@babylon/api';
-import { asSystem, asUser } from '@babylon/db';
-import { AuthorizationError, NotFoundError } from '@babylon/api';
-import { successResponse, withErrorHandling } from '@babylon/api';
-import { logger } from '@babylon/shared';
-import { ChatQuerySchema } from '@babylon/shared';
+import { ChatQuerySchema, logger } from '@babylon/shared';
+import type { NextRequest } from 'next/server';
 
 /**
  * GET /api/chats/[id]

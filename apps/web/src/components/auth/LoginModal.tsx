@@ -1,8 +1,8 @@
 'use client';
 
+import { logger } from '@babylon/shared';
 import { usePrivy } from '@privy-io/react-auth';
 import { useEffect, useRef } from 'react';
-import { logger } from '@babylon/shared';
 
 /**
  * Login modal component that triggers Privy's native login modal.

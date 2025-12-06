@@ -1,5 +1,6 @@
 'use client';
 
+import { cn } from '@babylon/shared';
 import {
   Calendar,
   MessageCircle,
@@ -11,7 +12,6 @@ import {
 import { useCallback, useEffect, useState, useTransition } from 'react';
 // import { toast } from 'sonner'
 import { z } from 'zod';
-import { cn } from '@babylon/shared';
 
 /**
  * Participant schema for validation.

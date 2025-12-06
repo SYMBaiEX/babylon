@@ -393,4 +393,3 @@ export class BiasEngine {
  * Export singleton instance
  */
 export const biasEngine = BiasEngine.getInstance();
-

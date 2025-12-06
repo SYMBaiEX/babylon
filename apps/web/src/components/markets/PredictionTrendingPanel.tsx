@@ -1,5 +1,6 @@
 'use client';
 
+import { cn } from '@babylon/shared';
 import { Flame } from 'lucide-react';
 import { useMemo } from 'react';
 import { Skeleton } from '@/components/shared/Skeleton';
@@ -7,7 +8,6 @@ import {
   usePredictionMarkets,
   usePredictionMarketsPolling,
 } from '@/stores/predictionMarketsStore';
-import { cn } from '@babylon/shared';
 
 /**
  * Prediction market summary structure for trending panel.
@@ -47,25 +47,20 @@ export function PredictionTrendingPanel({
   const { markets: rawMarkets, loading } = usePredictionMarkets();
   usePredictionMarketsPolling(60000); // Enable 60s polling
 
-  // Transform markets to summary format
-  const markets = useMemo(
-    () =>
-      rawMarkets.map((m) => ({
+  // Transform and sort markets in one pass
+  const sortedMarkets = useMemo(() => {
+    return rawMarkets
+      .map((m) => ({
         id: m.id.toString(),
         text: m.text,
         yesShares: Number(m.yesShares ?? 0),
         noShares: Number(m.noShares ?? 0),
         resolutionDate: m.resolutionDate ?? undefined,
-      })),
-    [rawMarkets]
-  );
-
-  const sortedMarkets = useMemo(() => {
-    return [...markets]
+      }))
       .filter((m) => m.yesShares + m.noShares > 0)
       .sort((a, b) => b.yesShares + b.noShares - (a.yesShares + a.noShares))
       .slice(0, 4);
-  }, [markets]);
+  }, [rawMarkets]);
 
   const renderProbability = (market: PredictionSummary) => {
     const total = market.yesShares + market.noShares;

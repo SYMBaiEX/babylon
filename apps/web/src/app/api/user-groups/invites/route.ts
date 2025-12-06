@@ -51,10 +51,9 @@
  * ```
  */
 
-import type { NextRequest } from 'next/server';
+import { authenticate, successResponse, withErrorHandling } from '@babylon/api';
 import { db } from '@babylon/db';
-import { authenticate } from '@babylon/api';
-import { successResponse, withErrorHandling } from '@babylon/api';
+import type { NextRequest } from 'next/server';
 
 /**
  * GET /api/user-groups/invites

@@ -8,7 +8,6 @@
  * - Performance tracking
  */
 
-import { desc, eq, inArray, or } from 'drizzle-orm';
 import { db } from '@babylon/db';
 import {
   actorRelationships,
@@ -18,10 +17,10 @@ import {
   poolPositions,
   pools,
 } from '@babylon/db/schema';
-import { logger } from '@babylon/shared';
+import { generateSnowflakeId, logger } from '@babylon/shared';
+import { desc, eq, inArray, or } from 'drizzle-orm';
 import { getReputationBreakdown } from '../reputation';
 import { TradeExecutionService } from '../services/trade-execution-service';
-import { generateSnowflakeId } from '@babylon/shared';
 import type {
   TradingDecision,
   TradingExecutionResult,
@@ -869,4 +868,3 @@ export class NPCInvestmentManager {
     return positionSize;
   }
 }
-

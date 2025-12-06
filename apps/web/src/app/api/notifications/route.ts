@@ -167,27 +167,35 @@
  * @see {@link /src/components/NotificationBell.tsx} Notification UI
  */
 
-import type { NextRequest } from 'next/server';
-import { NextResponse } from 'next/server';
-import { and, count, db, desc, eq, inArray, notifications, users } from '@babylon/db';
-import { authenticate } from '@babylon/api';
 import {
+  authenticate,
   CACHE_KEYS,
   getCacheOrFetch,
+  InternalServerError,
   invalidateCachePattern,
+  successResponse,
+  withErrorHandling,
 } from '@babylon/api';
-import { InternalServerError } from '@babylon/api';
-import { successResponse, withErrorHandling } from '@babylon/api';
-import { logger } from '@babylon/shared';
 import {
+  and,
+  count,
+  db,
+  desc,
+  eq,
   getBlockedByUserIds,
   getBlockedUserIds,
   getMutedUserIds,
+  inArray,
+  notifications,
+  users,
 } from '@babylon/db';
 import {
+  logger,
   MarkNotificationsReadSchema,
   NotificationsQuerySchema,
 } from '@babylon/shared';
+import type { NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
 
 /**
  * GET /api/notifications - Get user notifications

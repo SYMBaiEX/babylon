@@ -42,11 +42,11 @@
  * ```
  */
 
+import { requireAdmin } from '@babylon/api';
+import { db } from '@babylon/db';
+import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { db } from '@babylon/db';
-import { requireAdmin } from '@babylon/api';
-import { logger } from '@babylon/shared';
 
 export async function POST(req: NextRequest) {
   try {

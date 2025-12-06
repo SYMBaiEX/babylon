@@ -54,10 +54,10 @@
  * @see {@link /lib/game-service} Game service implementation
  */
 
-import type { NextRequest } from 'next/server';
 import { successResponse, withErrorHandling } from '@babylon/api';
 import { gameService } from '@babylon/engine';
 import { logger } from '@babylon/shared';
+import type { NextRequest } from 'next/server';
 
 export const GET = withErrorHandling(async (_request: NextRequest) => {
   const stats = await gameService.getStats();

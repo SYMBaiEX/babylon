@@ -78,8 +78,7 @@ export class ModelStorageService {
       modelId: `babylon-agent-${options.version}`,
       version: options.version,
       baseModel:
-        (options.metadata?.baseModel as string) ||
-        'unsloth/Qwen3-4B-128K',
+        (options.metadata?.baseModel as string) || 'unsloth/Qwen3-4B-128K',
       storagePath: blob.url,
       accuracy: (options.metadata?.accuracy as number) || null,
       avgReward: (options.metadata?.avgReward as number) || null,
@@ -91,8 +90,7 @@ export class ModelStorageService {
     return {
       version: options.version,
       baseModel:
-        (options.metadata?.baseModel as string) ||
-        'unsloth/Qwen3-4B-128K',
+        (options.metadata?.baseModel as string) || 'unsloth/Qwen3-4B-128K',
       blobUrl: blob.url,
       size: (blob as { size?: number }).size || 0,
       uploadedAt: new Date(),

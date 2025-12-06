@@ -3,10 +3,10 @@
  * Shareable referral page with OG meta tags
  */
 
+import { getOrCreateReferralCode } from '@babylon/api';
+import { db } from '@babylon/db';
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
-import { db } from '@babylon/db';
-import { getOrCreateReferralCode } from '@babylon/api';
 
 // Use Node.js runtime for database access
 export const runtime = 'nodejs';

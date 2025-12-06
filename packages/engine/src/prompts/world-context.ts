@@ -26,9 +26,9 @@ import {
   users,
 } from '@babylon/db';
 import { loadActorsData } from '../actors-loader';
-import { worldFactsService } from '../world-facts-service';
-import { shuffleArray } from '../utils/randomization';
 import type { ActorData } from '../types/shared';
+import { shuffleArray } from '../utils/randomization';
+import { worldFactsService } from '../world-facts-service';
 import {
   getCurrentDateContext,
   getFullRealityGrounding,

@@ -4,8 +4,8 @@
 
 import { beforeEach, describe, expect, it, mock } from 'bun:test';
 import type { BabylonLLMClient } from '../llm/openai-client';
-import type { FeedPost } from '../types/shared';
 import { TrendingTopicsEngine } from '../TrendingTopicsEngine';
+import type { FeedPost } from '../types/shared';
 
 /**
  * Mock LLM client interface for testing

@@ -18,13 +18,13 @@ import {
   expect,
   test,
 } from 'bun:test';
-import { db } from '@babylon/db';
 import { createTestAgent } from '@babylon/agents';
 import {
   acquireAgentLock,
   checkAgentLock,
   releaseAgentLock,
 } from '@babylon/agents/services/agent-lock-service';
+import { db } from '@babylon/db';
 import type {
   AgentTickResponse,
   AgentTickResultItem,

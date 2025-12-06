@@ -2,6 +2,8 @@
  * Service for creating and managing prediction markets on-chain
  */
 
+import { db, eq, markets } from '@babylon/db';
+import { DIAMOND_ADDRESS, getCurrentRpcUrl, logger } from '@babylon/shared';
 import {
   type Address,
   createPublicClient,
@@ -12,8 +14,6 @@ import {
 } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { baseSepolia } from 'viem/chains';
-import { db, eq, markets } from '@babylon/db';
-import { logger, DIAMOND_ADDRESS, getCurrentRpcUrl } from '@babylon/shared';
 
 /**
  * Create a prediction market on-chain

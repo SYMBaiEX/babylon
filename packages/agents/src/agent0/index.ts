@@ -7,34 +7,31 @@
  * @packageDocumentation
  */
 
+export { getAgent0Client, setContractAddressesProvider } from './Agent0Client';
+
+export {
+  type BabylonRegistrationResult,
+  registerBabylonGame,
+} from './babylon-registry-init';
 export {
   Agent0FeedbackService,
   type FeedbackParams,
   getAgent0FeedbackService,
   type ReputationSummary,
 } from './feedback-service';
+// Reputation utilities
+export * from './reputation';
 
-export {
-  registerBabylonGame,
-  type BabylonRegistrationResult,
-} from './babylon-registry-init';
-
-export { getAgent0Client, setContractAddressesProvider } from './Agent0Client';
+// Resilience utilities
+export * from './resilience';
+// Subgraph Client
+export { type SubgraphAgent, SubgraphClient } from './SubgraphClient';
 export type {
-  IAgent0Client,
+  Agent0AgentProfile,
+  Agent0FeedbackParams,
   Agent0RegistrationParams,
   Agent0RegistrationResult,
   Agent0SearchFilters,
   Agent0SearchResult,
-  Agent0AgentProfile,
-  Agent0FeedbackParams,
+  IAgent0Client,
 } from './types';
-
-// Resilience utilities
-export * from './resilience';
-
-// Reputation utilities
-export * from './reputation';
-
-// Subgraph Client
-export { SubgraphClient, type SubgraphAgent } from './SubgraphClient';

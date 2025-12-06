@@ -1,6 +1,6 @@
-import { randomUUID } from 'crypto';
 import { and, db, eq, lt, or, realtimeOutboxes, sql } from '@babylon/db';
 import { logger } from '@babylon/shared';
+import { randomUUID } from 'crypto';
 import { streamAdd } from '../redis';
 import type { JsonValue } from '../types';
 import type { RealtimeChannel, RealtimeEventEnvelope } from './index';
@@ -140,4 +140,3 @@ export async function drainOutboxBatch(limit: number = BATCH_SIZE): Promise<{
 
   return { processed: rows.length, sent, failed };
 }
-

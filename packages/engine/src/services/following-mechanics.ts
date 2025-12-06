@@ -12,9 +12,15 @@
  * - More total interactions (10+ quality replies)
  */
 
-import { and, db, desc, eq, followStatuses, userInteractions } from '@babylon/db';
-import { logger } from '@babylon/shared';
-import { generateSnowflakeId } from '@babylon/shared';
+import {
+  and,
+  db,
+  desc,
+  eq,
+  followStatuses,
+  userInteractions,
+} from '@babylon/db';
+import { generateSnowflakeId, logger } from '@babylon/shared';
 // Notification handled by API layer - engine doesn't depend on api
 
 export interface FollowingChance {

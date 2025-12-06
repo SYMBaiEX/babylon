@@ -186,7 +186,7 @@ export function calculateMarkPrice(
  * Based on configured ratio of open interest with a minimum floor
  */
 export function calculateMaxPositionSize(openInterest: number): number {
-  const openInterestLimit = openInterest * MARKET_CONFIG.OPEN_INTEREST_LIMIT_RATIO;
+  const openInterestLimit =
+    openInterest * MARKET_CONFIG.OPEN_INTEREST_LIMIT_RATIO;
   return Math.max(openInterestLimit, MARKET_CONFIG.MIN_MAX_POSITION_SIZE);
 }
-

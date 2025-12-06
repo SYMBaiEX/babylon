@@ -166,10 +166,17 @@
  * @see {@link /src/app/chats/page.tsx} Chat list UI
  */
 
-import type { NextRequest } from 'next/server';
+import {
+  authenticate,
+  PointsService,
+  successResponse,
+  withErrorHandling,
+} from '@babylon/api';
 // Import from new Drizzle client
 import {
   and,
+  asSystem,
+  asUser,
   chatParticipants,
   chats,
   count,
@@ -180,13 +187,13 @@ import {
   messages,
   users,
 } from '@babylon/db';
-import { authenticate } from '@babylon/api';
-import { asSystem, asUser } from '@babylon/db';
-import { successResponse, withErrorHandling } from '@babylon/api';
-import { logger } from '@babylon/shared';
-import { PointsService } from '@babylon/api';
-import { generateSnowflakeId } from '@babylon/shared';
-import { ChatCreateSchema, ChatQuerySchema } from '@babylon/shared';
+import {
+  ChatCreateSchema,
+  ChatQuerySchema,
+  generateSnowflakeId,
+  logger,
+} from '@babylon/shared';
+import type { NextRequest } from 'next/server';
 
 /**
  * GET /api/chats

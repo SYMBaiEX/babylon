@@ -84,7 +84,19 @@
  *                   description: Whether user is following the target
  */
 
-import type { NextRequest } from 'next/server';
+import {
+  authenticate,
+  BusinessLogicError,
+  cachedDb,
+  checkRateLimitAndDuplicates,
+  findUserByIdentifier,
+  InternalServerError,
+  NotFoundError,
+  notifyFollow,
+  RATE_LIMIT_CONFIGS,
+  successResponse,
+  withErrorHandling,
+} from '@babylon/api';
 import {
   actors,
   and,
@@ -96,24 +108,13 @@ import {
   users,
   withTransaction,
 } from '@babylon/db';
-import { authenticate } from '@babylon/api';
-import { cachedDb } from '@babylon/api';
 import {
-  BusinessLogicError,
-  InternalServerError,
-  NotFoundError,
-} from '@babylon/api';
-import { successResponse, withErrorHandling } from '@babylon/api';
-import { logger } from '@babylon/shared';
+  generateSnowflakeId,
+  logger,
+  UserIdParamSchema,
+} from '@babylon/shared';
+import type { NextRequest } from 'next/server';
 import { trackServerEvent } from '@/lib/posthog/server';
-import {
-  checkRateLimitAndDuplicates,
-  RATE_LIMIT_CONFIGS,
-} from '@babylon/api';
-import { notifyFollow } from '@babylon/api';
-import { generateSnowflakeId } from '@babylon/shared';
-import { findUserByIdentifier } from '@babylon/api';
-import { UserIdParamSchema } from '@babylon/shared';
 
 /**
  * POST /api/users/[userId]/follow
@@ -256,7 +257,9 @@ export const POST = withErrorHandling(
       trackServerEvent(user.userId, 'user_followed', {
         targetUserId: targetId,
         targetType: 'user',
-        ...(targetUserDetails?.username && { targetUsername: targetUserDetails.username }),
+        ...(targetUserDetails?.username && {
+          targetUsername: targetUserDetails.username,
+        }),
       }).catch((error) => {
         logger.warn('Failed to track user_followed event', { error });
       });

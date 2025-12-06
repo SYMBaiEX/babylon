@@ -16,11 +16,9 @@ import {
   pools,
   type Transaction,
 } from '@babylon/db';
-
-import { logger } from '@babylon/shared';
+import { generateSnowflakeId, logger } from '@babylon/shared';
 import { getReadyPerpsEngine } from '../perps-service';
 import { PredictionPricing } from '../prediction-pricing';
-import { generateSnowflakeId } from '@babylon/shared';
 import type {
   ExecutedTrade,
   TradingDecision,
@@ -28,13 +26,11 @@ import type {
 } from '../types/market-decisions';
 import { FeeService } from './fee-service';
 import {
-  aggregateTradeImpacts,
   type AggregatedImpact,
+  aggregateTradeImpacts,
   type TradeImpactInput,
 } from './market-impact-service';
-import {
-  PredictionMarketService,
-} from './prediction-market-service';
+import { PredictionMarketService } from './prediction-market-service';
 import { invalidateAfterPredictionTrade } from './trade-cache-invalidation';
 
 export class TradeExecutionService {
@@ -991,4 +987,3 @@ export class TradeExecutionService {
     return aggregateTradeImpacts(inputs);
   }
 }
-

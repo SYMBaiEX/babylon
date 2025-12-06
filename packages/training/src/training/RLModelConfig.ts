@@ -96,10 +96,17 @@ const archetypeModelRegistry: Map<string, ArchetypeModelConfig> = new Map();
  */
 export function registerArchetypeModel(config: ArchetypeModelConfig): void {
   const existing = archetypeModelRegistry.get(config.archetype);
-  
-  if (!existing || (config.benchmarkScore && (!existing.benchmarkScore || config.benchmarkScore > existing.benchmarkScore))) {
+
+  if (
+    !existing ||
+    (config.benchmarkScore &&
+      (!existing.benchmarkScore ||
+        config.benchmarkScore > existing.benchmarkScore))
+  ) {
     archetypeModelRegistry.set(config.archetype, config);
-    console.log(`📦 Registered model for archetype '${config.archetype}': ${config.modelId}`);
+    console.log(
+      `📦 Registered model for archetype '${config.archetype}': ${config.modelId}`
+    );
   }
 }
 
@@ -107,7 +114,9 @@ export function registerArchetypeModel(config: ArchetypeModelConfig): void {
  * Get the best model for a specific archetype
  * Falls back to base model if no archetype-specific model exists
  */
-export function getModelForArchetype(archetype: string): ArchetypeModelConfig | null {
+export function getModelForArchetype(
+  archetype: string
+): ArchetypeModelConfig | null {
   const normalized = archetype.toLowerCase().trim().replace(/_/g, '-');
   return archetypeModelRegistry.get(normalized) || null;
 }
@@ -181,8 +190,7 @@ export function getRLModelConfig(): RLModelConfig {
   }
 
   // Use explicit BASE_MODEL if set, otherwise use tier-based model
-  const baseModel =
-    process.env.BASE_MODEL || getModelForTier(modelTier);
+  const baseModel = process.env.BASE_MODEL || getModelForTier(modelTier);
 
   return {
     enabled,

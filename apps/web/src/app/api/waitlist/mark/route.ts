@@ -60,14 +60,17 @@
  * @see {@link /lib/services/waitlist-service} Waitlist service
  */
 
+import {
+  authenticate,
+  ensureUserForAuth,
+  successResponse,
+  WaitlistService,
+  withErrorHandling,
+} from '@babylon/api';
+import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { authenticate } from '@babylon/api';
-import { successResponse, withErrorHandling } from '@babylon/api';
-import { logger } from '@babylon/shared';
-import { WaitlistService } from '@babylon/api';
-import { ensureUserForAuth } from '@babylon/api';
 
 const MarkSchema = z.object({
   referralCode: z.string().optional(),

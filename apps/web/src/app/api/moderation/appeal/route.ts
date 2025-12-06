@@ -70,18 +70,21 @@
  * ```
  */
 
+import {
+  authenticate,
+  callClaudeDirect,
+  createNotification,
+  successResponse,
+  withErrorHandling,
+} from '@babylon/api';
+import type { JsonValue } from '@babylon/db';
+import { db } from '@babylon/db';
+import { WalletService } from '@babylon/engine';
+import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { type Address, createPublicClient, http } from 'viem';
 import { baseSepolia } from 'viem/chains';
 import { z } from 'zod';
-import type { JsonValue } from '@babylon/db';
-import { db } from '@babylon/db';
-import { callClaudeDirect } from '@babylon/api';
-import { authenticate } from '@babylon/api';
-import { successResponse, withErrorHandling } from '@babylon/api';
-import { logger } from '@babylon/shared';
-import { createNotification } from '@babylon/api';
-import { WalletService } from '@babylon/engine';
 
 const AppealSchema = z.object({
   reason: z.string().min(10).max(2000),

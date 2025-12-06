@@ -1,10 +1,10 @@
 'use client';
 
+import { cn } from '@babylon/shared';
 import { ArrowRight, Search, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Avatar } from '@/components/shared/Avatar';
-import { cn } from '@babylon/shared';
 
 /**
  * API user structure from registry API.
@@ -164,16 +164,19 @@ export function EntitySearchAutocomplete({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const navigateToEntity = useCallback((entity: RegistryEntity) => {
-    // For users, use username if available, otherwise use ID
-    // For actors, always use ID
-    const identifier = entity.username || entity.id;
-    router.push(`/profile/${identifier}`);
-    onNavigate?.();
-    setIsOpen(false);
-    setSelectedIndex(-1);
-    onChange('');
-  }, [router, onNavigate, onChange]);
+  const navigateToEntity = useCallback(
+    (entity: RegistryEntity) => {
+      // For users, use username if available, otherwise use ID
+      // For actors, always use ID
+      const identifier = entity.username || entity.id;
+      router.push(`/profile/${identifier}`);
+      onNavigate?.();
+      setIsOpen(false);
+      setSelectedIndex(-1);
+      onChange('');
+    },
+    [router, onNavigate, onChange]
+  );
 
   const handleKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLInputElement>) => {

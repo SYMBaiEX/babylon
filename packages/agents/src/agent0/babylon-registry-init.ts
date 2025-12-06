@@ -6,12 +6,12 @@
  * Publishes game metadata, capabilities, and endpoints for agent discovery.
  */
 
-import { getAgent0Client } from './index';
 import { db } from '@babylon/db';
+import { getA2AEndpoint, getMCPEndpoint } from '@babylon/shared';
 import { logger } from '../shared/logger';
 import { generateSnowflakeId } from '../shared/snowflake';
 import type { JsonValue } from '../types/common';
-import { getMCPEndpoint, getA2AEndpoint } from '@babylon/shared';
+import { getAgent0Client } from './index';
 
 /**
  * Babylon registration result
@@ -227,4 +227,3 @@ export async function registerBabylonGame(): Promise<BabylonRegistrationResult |
     registeredAt: new Date().toISOString(),
   };
 }
-

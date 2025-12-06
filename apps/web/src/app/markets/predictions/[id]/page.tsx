@@ -1,6 +1,11 @@
 'use client';
 
 import {
+  calculateExpectedPayout,
+  PredictionPricing,
+} from '@babylon/engine/client';
+import { cn } from '@babylon/shared';
+import {
   ArrowLeft,
   CheckCircle,
   Clock,
@@ -30,11 +35,6 @@ import type {
   PredictionTradeSSE,
 } from '@/hooks/usePredictionMarketStream';
 import { usePredictionMarketStream } from '@/hooks/usePredictionMarketStream';
-import {
-  calculateExpectedPayout,
-  PredictionPricing,
-} from '@babylon/engine/client';
-import { cn } from '@babylon/shared';
 
 interface PredictionPosition {
   id: string;

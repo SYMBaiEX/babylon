@@ -1,5 +1,6 @@
 'use client';
 
+import { cn } from '@babylon/shared';
 import { usePrivy } from '@privy-io/react-auth';
 import {
   Crown,
@@ -15,7 +16,6 @@ import {
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Avatar } from '@/components/shared/Avatar';
-import { cn } from '@babylon/shared';
 import { useAuthStore } from '@/stores/authStore';
 
 /**

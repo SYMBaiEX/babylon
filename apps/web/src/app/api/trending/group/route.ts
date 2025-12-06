@@ -63,10 +63,15 @@
  * ```
  */
 
-import type { NextRequest } from 'next/server';
-import { NextResponse } from 'next/server';
+import {
+  type AuthenticatedUser,
+  optionalAuth,
+  withErrorHandling,
+} from '@babylon/api';
 import {
   actors,
+  asPublic,
+  asUser,
   comments,
   count,
   desc,
@@ -80,13 +85,9 @@ import {
   tags,
   users,
 } from '@babylon/db';
-import {
-  type AuthenticatedUser,
-  optionalAuth,
-} from '@babylon/api';
-import { asPublic, asUser } from '@babylon/db';
-import { withErrorHandling } from '@babylon/api';
 import { logger } from '@babylon/shared';
+import type { NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
 
 export const GET = withErrorHandling(async (request: NextRequest) => {
   const { searchParams } = new URL(request.url);

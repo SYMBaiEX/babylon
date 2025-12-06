@@ -206,4 +206,3 @@ export interface FeedbackSubmittedEvent {
   /** Rating value (typically -1 to 1) */
   rating: number;
 }
-

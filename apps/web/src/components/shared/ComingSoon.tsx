@@ -1,5 +1,11 @@
 'use client';
 
+import {
+  getReferralUrl,
+  logger,
+  POINTS,
+  signInWithFarcaster,
+} from '@babylon/shared';
 import { usePrivy } from '@privy-io/react-auth';
 import {
   Check,
@@ -23,10 +29,6 @@ import { LinkSocialAccountsModal } from '@/components/profile/LinkSocialAccounts
 import { Avatar } from '@/components/shared/Avatar';
 import { PlayerStatsModal } from '@/components/shared/PlayerStatsModal';
 import { useAuth } from '@/hooks/useAuth';
-import { POINTS } from '@babylon/shared';
-import { signInWithFarcaster } from '@babylon/shared';
-import { logger } from '@babylon/shared';
-import { getReferralUrl } from '@babylon/shared';
 
 /**
  * Waitlist data structure containing user position and points information.
@@ -158,11 +160,13 @@ export function ComingSoon() {
   });
   const [profilePictureIndex, setProfilePictureIndex] = useState(1);
   const [bannerIndex, setBannerIndex] = useState(1);
-  const [uploadedProfileImage, setUploadedProfileImage] = useState<string | null>(null);
+  const [uploadedProfileImage, setUploadedProfileImage] = useState<
+    string | null
+  >(null);
   const [uploadedBanner, setUploadedBanner] = useState<string | null>(null);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const prevShowProfileModalRef = useRef(false);
-  
+
   // Username validation state
   const [isCheckingUsername, setIsCheckingUsername] = useState(false);
   const [usernameStatus, setUsernameStatus] = useState<
@@ -634,237 +638,256 @@ export function ComingSoon() {
         document.removeEventListener('mousedown', handleClickOutside);
       };
     }
-    
+
     return undefined;
   }, [showProfileDropdown]);
 
-  const getPointsTypeForTab = useCallback((tab: 'leaderboard' | 'inviters') =>
-    tab === 'leaderboard' ? 'total' : 'invite', []);
+  const getPointsTypeForTab = useCallback(
+    (tab: 'leaderboard' | 'inviters') =>
+      tab === 'leaderboard' ? 'total' : 'invite',
+    []
+  );
 
-  const fetchWaitlistPosition = useCallback(async (
-    userId: string,
-    skipLeaderboard = false
-  ): Promise<boolean> => {
-    try {
-      // Only fetch leaderboard if not skipped AND (never fetched OR stale > 5 minutes)
-      const now = Date.now();
-      const shouldFetchLeaderboard =
-        !skipLeaderboard && now - leaderboardLastFetched > 5 * 60 * 1000;
-      const pointsType = getPointsTypeForTab(leaderboardTab);
+  const fetchWaitlistPosition = useCallback(
+    async (userId: string, skipLeaderboard = false): Promise<boolean> => {
+      try {
+        // Only fetch leaderboard if not skipped AND (never fetched OR stale > 5 minutes)
+        const now = Date.now();
+        const shouldFetchLeaderboard =
+          !skipLeaderboard && now - leaderboardLastFetched > 5 * 60 * 1000;
+        const pointsType = getPointsTypeForTab(leaderboardTab);
 
-      // Get auth token for authenticated position endpoint
-      const token = await getAccessToken();
+        // Get auth token for authenticated position endpoint
+        const token = await getAccessToken();
 
-      const requests = [
-        fetch('/api/waitlist/position', {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        }),
-      ];
-      if (shouldFetchLeaderboard) {
-        // Fetch first page of leaderboard with pagination
-        requests.push(
-          fetch(
-            `/api/waitlist/leaderboard?page=1&limit=10&pointsType=${pointsType}`
-          )
-        );
-      }
+        const requests = [
+          fetch('/api/waitlist/position', {
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+          }),
+        ];
+        if (shouldFetchLeaderboard) {
+          // Fetch first page of leaderboard with pagination
+          requests.push(
+            fetch(
+              `/api/waitlist/leaderboard?page=1&limit=10&pointsType=${pointsType}`
+            )
+          );
+        }
 
-      const results = await Promise.allSettled(requests);
-      const positionResult = results[0];
-      const leaderboardResult = shouldFetchLeaderboard ? results[1] : null;
+        const results = await Promise.allSettled(requests);
+        const positionResult = results[0];
+        const leaderboardResult = shouldFetchLeaderboard ? results[1] : null;
 
-      // Handle position response
-      if (!positionResult) {
-        logger.error('Position result is undefined', { userId }, 'ComingSoon');
-        return false;
-      }
-
-      if (positionResult.status === 'fulfilled') {
-        const positionResponse = positionResult.value;
-        if (!positionResponse.ok) {
-          const errorText = await positionResponse.text();
+        // Handle position response
+        if (!positionResult) {
           logger.error(
-            'Failed to fetch waitlist position',
-            {
-              userId,
-              status: positionResponse.status,
-              errorText,
-            },
-            'ComingSoon'
-          );
-          // User might not be on waitlist yet
-          return false;
-        }
-
-        const data = await positionResponse.json();
-
-        // Check if user is actually on waitlist (API returns { position: null } if not)
-        if (data.position === null) {
-          return false;
-        }
-
-        // Verify points calculation consistency
-        const calculatedTotal =
-          (data.pointsBreakdown?.base || 0) +
-          (data.pointsBreakdown?.invite || 0) +
-          (data.pointsBreakdown?.earned || 0) +
-          (data.pointsBreakdown?.bonus || 0);
-        const reportedTotal = data.points || 0;
-
-        // Log warning if points don't match (but don't block - might be base points)
-        if (Math.abs(calculatedTotal - reportedTotal) > 100) {
-          logger.warn(
-            'Points calculation mismatch detected',
-            {
-              userId,
-              calculatedTotal,
-              reportedTotal,
-              breakdown: data.pointsBreakdown,
-            },
-            'ComingSoon'
-          );
-        }
-
-        // Log if invite code is missing for debugging
-        if (!data.inviteCode) {
-          logger.warn(
-            'Invite code missing in waitlist data',
+            'Position result is undefined',
             { userId },
             'ComingSoon'
           );
+          return false;
         }
 
-        // Check if rank improved
-        if (previousRank !== null && data.leaderboardRank < previousRank) {
-          setShowRankImprovement(true);
-          setTimeout(() => setShowRankImprovement(false), 5000);
-        }
-        setPreviousRank(data.leaderboardRank);
-
-        setWaitlistData(data);
-      } else {
-        logger.error(
-          'Failed to fetch waitlist position (network error)',
-          {
-            userId,
-            error:
-              positionResult.reason instanceof Error
-                ? positionResult.reason.message
-                : String(positionResult.reason),
-          },
-          'ComingSoon'
-        );
-        return false;
-      }
-
-      // Handle leaderboard response (non-blocking - don't fail if this fails)
-      if (leaderboardResult && leaderboardResult.status === 'fulfilled') {
-        const leaderboardResponse = leaderboardResult.value;
-        if (leaderboardResponse.ok) {
-          try {
-            const leaderboardData = await leaderboardResponse.json();
-            setTopUsers(leaderboardData.leaderboard || []);
-            setLeaderboardTotalPages(leaderboardData.totalPages || 10);
-            setLeaderboardLastFetched(now);
-            // Reset to first page when leaderboard updates
-            setLeaderboardPage(1);
-          } catch (parseError) {
-            logger.warn(
-              'Failed to parse leaderboard response',
+        if (positionResult.status === 'fulfilled') {
+          const positionResponse = positionResult.value;
+          if (!positionResponse.ok) {
+            const errorText = await positionResponse.text();
+            logger.error(
+              'Failed to fetch waitlist position',
               {
-                error:
-                  parseError instanceof Error
-                    ? parseError.message
-                    : String(parseError),
+                userId,
+                status: positionResponse.status,
+                errorText,
+              },
+              'ComingSoon'
+            );
+            // User might not be on waitlist yet
+            return false;
+          }
+
+          const data = await positionResponse.json();
+
+          // Check if user is actually on waitlist (API returns { position: null } if not)
+          if (data.position === null) {
+            return false;
+          }
+
+          // Verify points calculation consistency
+          const calculatedTotal =
+            (data.pointsBreakdown?.base || 0) +
+            (data.pointsBreakdown?.invite || 0) +
+            (data.pointsBreakdown?.earned || 0) +
+            (data.pointsBreakdown?.bonus || 0);
+          const reportedTotal = data.points || 0;
+
+          // Log warning if points don't match (but don't block - might be base points)
+          if (Math.abs(calculatedTotal - reportedTotal) > 100) {
+            logger.warn(
+              'Points calculation mismatch detected',
+              {
+                userId,
+                calculatedTotal,
+                reportedTotal,
+                breakdown: data.pointsBreakdown,
               },
               'ComingSoon'
             );
           }
+
+          // Log if invite code is missing for debugging
+          if (!data.inviteCode) {
+            logger.warn(
+              'Invite code missing in waitlist data',
+              { userId },
+              'ComingSoon'
+            );
+          }
+
+          // Check if rank improved
+          if (previousRank !== null && data.leaderboardRank < previousRank) {
+            setShowRankImprovement(true);
+            setTimeout(() => setShowRankImprovement(false), 5000);
+          }
+          setPreviousRank(data.leaderboardRank);
+
+          setWaitlistData(data);
         } else {
-          logger.warn(
-            'Failed to fetch leaderboard',
+          logger.error(
+            'Failed to fetch waitlist position (network error)',
             {
-              status: leaderboardResponse.status,
+              userId,
+              error:
+                positionResult.reason instanceof Error
+                  ? positionResult.reason.message
+                  : String(positionResult.reason),
+            },
+            'ComingSoon'
+          );
+          return false;
+        }
+
+        // Handle leaderboard response (non-blocking - don't fail if this fails)
+        if (leaderboardResult && leaderboardResult.status === 'fulfilled') {
+          const leaderboardResponse = leaderboardResult.value;
+          if (leaderboardResponse.ok) {
+            try {
+              const leaderboardData = await leaderboardResponse.json();
+              setTopUsers(leaderboardData.leaderboard || []);
+              setLeaderboardTotalPages(leaderboardData.totalPages || 10);
+              setLeaderboardLastFetched(now);
+              // Reset to first page when leaderboard updates
+              setLeaderboardPage(1);
+            } catch (parseError) {
+              logger.warn(
+                'Failed to parse leaderboard response',
+                {
+                  error:
+                    parseError instanceof Error
+                      ? parseError.message
+                      : String(parseError),
+                },
+                'ComingSoon'
+              );
+            }
+          } else {
+            logger.warn(
+              'Failed to fetch leaderboard',
+              {
+                status: leaderboardResponse.status,
+              },
+              'ComingSoon'
+            );
+          }
+        } else if (
+          leaderboardResult &&
+          leaderboardResult.status === 'rejected'
+        ) {
+          // Leaderboard fetch failed - log but don't block
+          logger.warn(
+            'Failed to fetch leaderboard (network error)',
+            {
+              error:
+                leaderboardResult.reason instanceof Error
+                  ? leaderboardResult.reason.message
+                  : String(leaderboardResult.reason),
             },
             'ComingSoon'
           );
         }
-      } else if (leaderboardResult && leaderboardResult.status === 'rejected') {
-        // Leaderboard fetch failed - log but don't block
-        logger.warn(
-          'Failed to fetch leaderboard (network error)',
+
+        return true;
+      } catch (error) {
+        logger.error(
+          'Error fetching waitlist position',
           {
-            error:
-              leaderboardResult.reason instanceof Error
-                ? leaderboardResult.reason.message
-                : String(leaderboardResult.reason),
+            userId,
+            error: error instanceof Error ? error.message : String(error),
           },
           'ComingSoon'
         );
+        return false;
       }
+    },
+    [
+      leaderboardLastFetched,
+      leaderboardTab,
+      getAccessToken,
+      previousRank,
+      getPointsTypeForTab,
+    ]
+  );
 
-      return true;
-    } catch (error) {
-      logger.error(
-        'Error fetching waitlist position',
-        {
-          userId,
-          error: error instanceof Error ? error.message : String(error),
-        },
-        'ComingSoon'
-      );
-      return false;
-    }
-  }, [leaderboardLastFetched, leaderboardTab, getAccessToken, previousRank, getPointsTypeForTab]);
+  const awardWalletBonus = useCallback(
+    async (userId: string, walletAddress: string) => {
+      try {
+        const response = await fetch('/api/waitlist/bonus/wallet', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId, walletAddress }),
+        });
 
-  const awardWalletBonus = useCallback(async (userId: string, walletAddress: string) => {
-    try {
-      const response = await fetch('/api/waitlist/bonus/wallet', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, walletAddress }),
-      });
+        if (!response.ok) {
+          const errorText = await response.text();
+          logger.error(
+            'Failed to award wallet bonus',
+            {
+              userId,
+              walletAddress,
+              status: response.status,
+              errorText,
+            },
+            'ComingSoon'
+          );
+          return;
+        }
 
-      if (!response.ok) {
-        const errorText = await response.text();
+        const result = await response.json();
+        logger.info(
+          'Wallet bonus awarded',
+          {
+            userId,
+            awarded: result.awarded,
+            bonusAmount: result.bonusAmount,
+          },
+          'ComingSoon'
+        );
+
+        // Refresh position to show updated points
+        await fetchWaitlistPosition(userId);
+      } catch (error) {
         logger.error(
-          'Failed to award wallet bonus',
+          'Error awarding wallet bonus',
           {
             userId,
             walletAddress,
-            status: response.status,
-            errorText,
+            error: error instanceof Error ? error.message : String(error),
           },
           'ComingSoon'
         );
-        return;
       }
-
-      const result = await response.json();
-      logger.info(
-        'Wallet bonus awarded',
-        {
-          userId,
-          awarded: result.awarded,
-          bonusAmount: result.bonusAmount,
-        },
-        'ComingSoon'
-      );
-
-      // Refresh position to show updated points
-      await fetchWaitlistPosition(userId);
-    } catch (error) {
-      logger.error(
-        'Error awarding wallet bonus',
-        {
-          userId,
-          walletAddress,
-          error: error instanceof Error ? error.message : String(error),
-        },
-        'ComingSoon'
-      );
-    }
-  }, [fetchWaitlistPosition]);
+    },
+    [fetchWaitlistPosition]
+  );
 
   // If user completes onboarding, mark as waitlisted and fetch position
   useEffect(() => {
@@ -1091,20 +1114,19 @@ export function ComingSoon() {
     const trimmedUsername = profileForm.username?.trim();
     const trimmedDisplayName = profileForm.displayName?.trim();
     const trimmedBio = profileForm.bio?.trim();
-    
+
     // Use uploaded image or current form value
-    const profileImageUrl = uploadedProfileImage || profileForm.profileImageUrl?.trim() || 
+    const profileImageUrl =
+      uploadedProfileImage ||
+      profileForm.profileImageUrl?.trim() ||
       `/assets/user-profiles/profile-${profilePictureIndex}.jpg`;
-    const coverImageUrl = uploadedBanner || profileForm.coverImageUrl?.trim() ||
+    const coverImageUrl =
+      uploadedBanner ||
+      profileForm.coverImageUrl?.trim() ||
       `/assets/user-banners/banner-${bannerIndex}.jpg`;
 
-    if (
-      !trimmedUsername ||
-      !trimmedDisplayName
-    ) {
-      toast.error(
-        'Please fill in all required fields.'
-      );
+    if (!trimmedUsername || !trimmedDisplayName) {
+      toast.error('Please fill in all required fields.');
       return;
     }
 
@@ -1138,7 +1160,9 @@ export function ComingSoon() {
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         throw new Error(
-          errorData?.error?.message || errorData?.message || 'Failed to update profile'
+          errorData?.error?.message ||
+            errorData?.message ||
+            'Failed to update profile'
         );
       }
 
@@ -1191,16 +1215,16 @@ export function ComingSoon() {
   // Real-time username validation
   useEffect(() => {
     if (!showProfileModal) return;
-    
+
     const username = profileForm.username?.trim();
-    
+
     // Don't check if username is empty or too short
     if (!username || username.length < 3) {
       setUsernameStatus(null);
       setUsernameSuggestion(null);
       return;
     }
-    
+
     // Don't check if username hasn't changed from original
     if (username === dbUser?.username) {
       setUsernameStatus('available');
@@ -1212,16 +1236,18 @@ export function ComingSoon() {
 
     const checkUsername = async () => {
       setIsCheckingUsername(true);
-      
+
       try {
         const response = await fetch(
           `/api/onboarding/check-username?username=${encodeURIComponent(username)}`
         );
-        
+
         if (!cancelled && response.ok) {
           const result = await response.json();
           setUsernameStatus(result.available ? 'available' : 'taken');
-          setUsernameSuggestion(result.available ? null : (result.suggestion || null));
+          setUsernameSuggestion(
+            result.available ? null : result.suggestion || null
+          );
         }
       } catch (error) {
         logger.warn(
@@ -1275,7 +1301,7 @@ export function ComingSoon() {
     const reader = new FileReader();
     reader.onloadend = () => {
       setUploadedProfileImage(reader.result as string);
-      setProfileForm(prev => ({ ...prev, profileImageUrl: '' }));
+      setProfileForm((prev) => ({ ...prev, profileImageUrl: '' }));
     };
     reader.readAsDataURL(file);
   };
@@ -1286,7 +1312,7 @@ export function ComingSoon() {
     const reader = new FileReader();
     reader.onloadend = () => {
       setUploadedBanner(reader.result as string);
-      setProfileForm(prev => ({ ...prev, coverImageUrl: '' }));
+      setProfileForm((prev) => ({ ...prev, coverImageUrl: '' }));
     };
     reader.readAsDataURL(file);
   };
@@ -2290,7 +2316,7 @@ export function ComingSoon() {
                     alt={dbUser.displayName || dbUser.username || 'User'}
                     size="sm"
                   />
-                  
+
                   {/* User Info - Hidden on mobile */}
                   <div className="hidden min-w-0 text-left sm:block">
                     <div className="truncate font-semibold text-foreground text-sm">
@@ -2638,17 +2664,15 @@ export function ComingSoon() {
                 <h3 className="mb-3 font-bold text-xl">Invite Friends</h3>
                 <p className="mb-4 text-muted-foreground text-sm leading-relaxed">
                   <span className="font-bold text-primary">You earn:</span>
-                  <br />
-                  • 100 points per friend who signs up
-                  <br />
-                  • +100 extra when they complete profile
+                  <br />• 100 points per friend who signs up
+                  <br />• +100 extra when they complete profile
                 </p>
                 <div className="mb-4 rounded-lg border border-primary/20 bg-primary/10 p-3">
                   <p className="text-foreground text-sm leading-relaxed">
                     <span className="font-semibold">🎁 Friend bonus:</span> Your
                     friends get an additional{' '}
-                    <span className="font-bold text-primary">100 points</span> when
-                    they join through your referral link!
+                    <span className="font-bold text-primary">100 points</span>{' '}
+                    when they join through your referral link!
                   </p>
                 </div>
                 {waitlistData.inviteCode ? (
@@ -3379,7 +3403,9 @@ export function ComingSoon() {
                   </div>
                   <div>
                     <h2 className="font-bold text-2xl">
-                      {dbUser?.profileComplete ? 'Edit Profile' : 'Complete Profile'}
+                      {dbUser?.profileComplete
+                        ? 'Edit Profile'
+                        : 'Complete Profile'}
                     </h2>
                     {!dbUser?.profileComplete ? (
                       <p className="text-muted-foreground text-sm">
@@ -3417,9 +3443,12 @@ export function ComingSoon() {
                 {!dbUser?.profileComplete && (
                   <div className="rounded-lg border border-primary/20 bg-primary/10 p-4">
                     <p className="text-foreground text-sm leading-relaxed">
-                      <span className="font-semibold">💡 Pro Tip:</span> Complete all fields below to earn{' '}
-                      <span className="font-bold text-primary">{POINTS.PROFILE_COMPLETION} points</span> and
-                      personalize your Babylon experience!
+                      <span className="font-semibold">💡 Pro Tip:</span>{' '}
+                      Complete all fields below to earn{' '}
+                      <span className="font-bold text-primary">
+                        {POINTS.PROFILE_COMPLETION} points
+                      </span>{' '}
+                      and personalize your Babylon experience!
                     </p>
                   </div>
                 )}
@@ -3431,7 +3460,11 @@ export function ComingSoon() {
                   </label>
                   <div className="group relative h-40 overflow-hidden rounded-lg bg-muted">
                     <Image
-                      src={uploadedBanner || profileForm.coverImageUrl || `/assets/user-banners/banner-${bannerIndex}.jpg`}
+                      src={
+                        uploadedBanner ||
+                        profileForm.coverImageUrl ||
+                        `/assets/user-banners/banner-${bannerIndex}.jpg`
+                      }
                       alt="Profile banner"
                       fill
                       className="object-cover"
@@ -3446,7 +3479,10 @@ export function ComingSoon() {
                       >
                         <ChevronLeft className="h-5 w-5" />
                       </button>
-                      <label className="cursor-pointer rounded-lg bg-background/80 p-2 transition-colors hover:bg-background" title="Upload banner">
+                      <label
+                        className="cursor-pointer rounded-lg bg-background/80 p-2 transition-colors hover:bg-background"
+                        title="Upload banner"
+                      >
                         <Upload className="h-5 w-5" />
                         <input
                           type="file"
@@ -3475,7 +3511,11 @@ export function ComingSoon() {
                 <div className="flex items-start gap-4">
                   <div className="group relative h-24 w-24 shrink-0 overflow-hidden rounded-full bg-muted">
                     <Image
-                      src={uploadedProfileImage || profileForm.profileImageUrl || `/assets/user-profiles/profile-${profilePictureIndex}.jpg`}
+                      src={
+                        uploadedProfileImage ||
+                        profileForm.profileImageUrl ||
+                        `/assets/user-profiles/profile-${profilePictureIndex}.jpg`
+                      }
                       alt="Profile picture"
                       fill
                       className="object-cover"
@@ -3490,7 +3530,10 @@ export function ComingSoon() {
                       >
                         <ChevronLeft className="h-4 w-4" />
                       </button>
-                      <label className="cursor-pointer rounded-lg bg-background/80 p-1.5 transition-colors hover:bg-background" title="Upload picture">
+                      <label
+                        className="cursor-pointer rounded-lg bg-background/80 p-1.5 transition-colors hover:bg-background"
+                        title="Upload picture"
+                      >
                         <Upload className="h-4 w-4" />
                         <input
                           type="file"
@@ -3561,9 +3604,10 @@ export function ComingSoon() {
                             <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
                           </div>
                         )}
-                        {usernameStatus === 'available' && !isCheckingUsername && (
-                          <Check className="-translate-y-1/2 absolute top-1/2 right-3 h-4 w-4 text-green-500" />
-                        )}
+                        {usernameStatus === 'available' &&
+                          !isCheckingUsername && (
+                            <Check className="-translate-y-1/2 absolute top-1/2 right-3 h-4 w-4 text-green-500" />
+                          )}
                         {usernameStatus === 'taken' && !isCheckingUsername && (
                           <X className="-translate-y-1/2 absolute top-1/2 right-3 h-4 w-4 text-red-500" />
                         )}
@@ -3591,9 +3635,7 @@ export function ComingSoon() {
 
                 {/* Bio */}
                 <div className="space-y-2">
-                  <label className="block font-medium text-sm">
-                    Bio
-                  </label>
+                  <label className="block font-medium text-sm">Bio</label>
                   <textarea
                     value={profileForm.bio}
                     onChange={(e) =>
@@ -3628,15 +3670,15 @@ export function ComingSoon() {
                     disabled={(() => {
                       const username = profileForm.username?.trim() || '';
                       const displayName = profileForm.displayName?.trim() || '';
-                      return (
-                        isSavingProfile ||
-                        !username ||
-                        !displayName
-                      );
+                      return isSavingProfile || !username || !displayName;
                     })()}
                     className="min-h-[44px] flex-1 rounded-lg bg-primary px-4 py-2 font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    {isSavingProfile ? 'Saving...' : dbUser?.profileComplete ? 'Save Changes' : 'Save & Earn Points'}
+                    {isSavingProfile
+                      ? 'Saving...'
+                      : dbUser?.profileComplete
+                        ? 'Save Changes'
+                        : 'Save & Earn Points'}
                   </button>
                 </div>
               </form>

@@ -14,6 +14,9 @@ export { initializeTrainingSystem } from './init';
 export { MarketOutcomesTracker } from './MarketOutcomesTracker';
 export type { DeploymentOptions, DeploymentResult } from './ModelDeployer';
 export { ModelDeployer, modelDeployer } from './ModelDeployer';
+export type { ModelArtifact } from './ModelFetcher';
+// Model fetching
+export { getLatestRLModel } from './ModelFetcher';
 export {
   ModelSelectionService,
   modelSelectionService,
@@ -23,27 +26,27 @@ export {
   RewardBackpropagationService,
   rewardBackpropagationService,
 } from './RewardBackpropagationService';
-export {
-  isRLModelAvailable,
-  logRLModelConfig,
-  getRLModelConfig,
-  getModelTierForVram,
-  getModelForTier,
-  getAvailableModelTiers,
-  isTierAvailable,
-  // Archetype model management
-  registerArchetypeModel,
-  getModelForArchetype,
-  getAllArchetypeModels,
-  hasArchetypeModel,
-  clearArchetypeModels,
-  MODEL_TIERS,
-} from './RLModelConfig';
 export type {
+  ArchetypeModelConfig,
   ModelTier,
   ModelTierConfig,
   RLModelConfig,
-  ArchetypeModelConfig,
+} from './RLModelConfig';
+export {
+  clearArchetypeModels,
+  getAllArchetypeModels,
+  getAvailableModelTiers,
+  getModelForArchetype,
+  getModelForTier,
+  getModelTierForVram,
+  getRLModelConfig,
+  hasArchetypeModel,
+  isRLModelAvailable,
+  isTierAvailable,
+  logRLModelConfig,
+  MODEL_TIERS,
+  // Archetype model management
+  registerArchetypeModel,
 } from './RLModelConfig';
 export type { MarketOutcomes, RulerScore } from './RulerScoringService';
 export {
@@ -61,10 +64,6 @@ export {
 } from './storage/TrainingDataArchiver';
 export { TrainingMonitor, trainingMonitor } from './TrainingMonitor';
 export { TrajectoryRecorder, trajectoryRecorder } from './TrajectoryRecorder';
-
-// Model fetching
-export { getLatestRLModel } from './ModelFetcher';
-export type { ModelArtifact } from './ModelFetcher';
 
 // Types
 export * from './types';

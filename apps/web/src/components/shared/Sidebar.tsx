@@ -1,5 +1,6 @@
 'use client';
 
+import { cn, getReferralUrl } from '@babylon/shared';
 import {
   Bell,
   Bot,
@@ -24,8 +25,6 @@ import { Avatar } from '@/components/shared/Avatar';
 import { Separator } from '@/components/shared/Separator';
 import { useAuth } from '@/hooks/useAuth';
 import { useUnreadMessages } from '@/hooks/useUnreadMessages';
-import { getReferralUrl } from '@babylon/shared';
-import { cn } from '@babylon/shared';
 
 /**
  * Main sidebar content component with navigation and user menu.
@@ -46,11 +45,21 @@ function SidebarContent() {
   const { ready, authenticated, user, logout } = useAuth();
   const { totalUnread: unreadMessages } = useUnreadMessages();
 
-  // Hide sidebar when WAITLIST_MODE is enabled in production OR ?comingsoon=true
+  // Check if dev mode is enabled via URL parameter (for staging testing)
+  const isDevMode = searchParams.get('dev') === 'true';
+  // Force coming soon mode via URL parameter (for testing)
   const forceComingSoon = searchParams.get('comingsoon') === 'true';
-  const waitlistMode = process.env.NEXT_PUBLIC_WAITLIST_MODE === 'true';
-  const isProduction = process.env.NODE_ENV === 'production';
-  const shouldHideSidebar = (waitlistMode && isProduction) || forceComingSoon;
+
+  // Hide sidebar on production (babylon.market) on home page unless ?dev=true
+  const isProduction =
+    typeof window !== 'undefined' &&
+    window.location.hostname === 'babylon.market';
+  // Hide sidebar when WAITLIST_MODE is enabled on home page (unless ?dev=true)
+  const isWaitlistMode = process.env.NEXT_PUBLIC_WAITLIST_MODE === 'true';
+  const isHomePage = pathname === '/';
+  const shouldHideSidebar =
+    (isWaitlistMode && isProduction && isHomePage && !isDevMode) ||
+    forceComingSoon;
 
   // Check if user is admin from the user object
   const isAdmin = user?.isAdmin ?? false;

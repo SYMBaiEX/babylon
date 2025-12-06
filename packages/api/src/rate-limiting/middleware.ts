@@ -4,16 +4,13 @@
  * Provides helpers to apply rate limiting and duplicate detection to API routes
  */
 
-import { NextResponse } from 'next/server';
 import { logger } from '@babylon/shared';
-import {
-  checkRateLimit,
-  type RATE_LIMIT_CONFIGS,
-} from './user-rate-limiter';
+import { NextResponse } from 'next/server';
 import {
   checkDuplicate,
   type DUPLICATE_DETECTION_CONFIGS,
 } from '../utils/duplicate-detector';
+import { checkRateLimit, type RATE_LIMIT_CONFIGS } from './user-rate-limiter';
 
 /**
  * Error response for rate limit exceeded
@@ -176,4 +173,3 @@ export function addRateLimitHeaders(
   response.headers.set('X-RateLimit-Reset', resetAt.toISOString());
   return response;
 }
-

@@ -28,6 +28,7 @@
  */
 'use client';
 
+import { cn } from '@babylon/shared';
 import {
   Activity,
   DollarSign,
@@ -36,7 +37,6 @@ import {
   Trophy,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { cn } from '@babylon/shared';
 
 /**
  * Performance metrics structure for NPC leaderboard.

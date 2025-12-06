@@ -1,3 +1,32 @@
+import { getContractAddresses, getRpcUrl } from '@babylon/contracts';
+import {
+  and,
+  balanceTransactions,
+  Decimal,
+  db,
+  eq,
+  follows,
+  referrals,
+  users,
+} from '@babylon/db';
+import type {
+  AgentCapabilities,
+  AuthenticatedUser,
+  JsonValue,
+  StringRecord,
+} from '@babylon/shared';
+import {
+  BusinessLogicError,
+  extractErrorMessage,
+  generateSnowflakeId,
+  IDENTITY_REGISTRY_ABI,
+  InternalServerError,
+  identityRegistryAbi,
+  logger,
+  POINTS,
+  reputationSystemAbi,
+  ValidationError,
+} from '@babylon/shared';
 import {
   type Account,
   type Address,
@@ -10,35 +39,6 @@ import {
 } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { baseSepolia, foundry } from 'viem/chains';
-import type {
-  JsonValue,
-  StringRecord,
-  AuthenticatedUser,
-  AgentCapabilities,
-} from '@babylon/shared';
-import {
-  and,
-  balanceTransactions,
-  Decimal,
-  db,
-  eq,
-  follows,
-  referrals,
-  users,
-} from '@babylon/db';
-import {
-  extractErrorMessage,
-  POINTS,
-  BusinessLogicError,
-  InternalServerError,
-  ValidationError,
-  logger,
-  generateSnowflakeId,
-  IDENTITY_REGISTRY_ABI,
-  identityRegistryAbi,
-  reputationSystemAbi,
-} from '@babylon/shared';
-import { getContractAddresses, getRpcUrl } from '@babylon/contracts';
 
 /**
  * Agent0Client interface for dependency injection
@@ -65,15 +65,26 @@ type Agent0Client = {
  */
 type OnboardingServices = {
   getAgent0Client: () => Agent0Client;
-  syncAfterAgent0Registration: (userId: string, tokenId: number) => Promise<void>;
+  syncAfterAgent0Registration: (
+    userId: string,
+    tokenId: number
+  ) => Promise<void>;
   notifyNewAccount: (userId: string) => Promise<void>;
   pointsService: {
-    awardReferralSignup: (referrerId: string, referredUserId: string) => Promise<{
+    awardReferralSignup: (
+      referrerId: string,
+      referredUserId: string
+    ) => Promise<{
       success: boolean;
       pointsAwarded: number;
       error?: string;
     }>;
-    awardPoints: (userId: string, amount: number, reason: string, metadata?: StringRecord<JsonValue>) => Promise<{
+    awardPoints: (
+      userId: string,
+      amount: number,
+      reason: string,
+      metadata?: StringRecord<JsonValue>
+    ) => Promise<{
       success: boolean;
       pointsAwarded: number;
       newTotal: number;
@@ -383,8 +394,11 @@ export async function processOnchainRegistration({
 
     // In local dev, contracts may not be deployed yet during startup
     // Check if contract exists before calling it
-    const contractCode = await publicClient.getCode({ address: IDENTITY_REGISTRY });
-    const contractExists = contractCode && contractCode !== '0x' && contractCode.length > 2;
+    const contractCode = await publicClient.getCode({
+      address: IDENTITY_REGISTRY,
+    });
+    const contractExists =
+      contractCode && contractCode !== '0x' && contractCode.length > 2;
 
     if (!contractExists) {
       // Contract not deployed yet - use database state
@@ -737,7 +751,9 @@ export async function processOnchainRegistration({
         txHash: registrationTxHash ?? submittedTxHash,
         totalLogs: finalizedReceipt.logs.length,
         contractLogs: contractLogs.length,
-        allLogAddresses: finalizedReceipt.logs.map((l: Log) => l.address.toLowerCase()),
+        allLogAddresses: finalizedReceipt.logs.map((l: Log) =>
+          l.address.toLowerCase()
+        ),
         expectedAddress: IDENTITY_REGISTRY.toLowerCase(),
       }
     );
@@ -1314,4 +1330,3 @@ export async function getOnchainRegistrationStatus(
     dbRegistered: userRecord.onChainRegistered,
   };
 }
-

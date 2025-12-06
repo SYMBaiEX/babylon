@@ -1,10 +1,10 @@
 'use client';
 
+import type { CommentInputProps } from '@babylon/shared';
+import { cn } from '@babylon/shared';
 import { Send, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
-import { cn } from '@babylon/shared';
 import { useInteractionStore } from '@/stores/interactionStore';
-import type { CommentInputProps } from '@babylon/shared';
 
 /**
  * Maximum allowed length for comment content.

@@ -2,6 +2,8 @@
 
 // @ts-nocheck
 
+import { FEE_CONFIG } from '@babylon/engine/client';
+import { cn } from '@babylon/shared';
 import {
   AlertTriangle,
   ArrowLeft,
@@ -10,7 +12,6 @@ import {
   TrendingUp,
   Wallet,
 } from 'lucide-react';
-
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
@@ -30,8 +31,6 @@ import { useMarketTracking } from '@/hooks/usePostHog';
 import { useUserPositions } from '@/hooks/useUserPositions';
 import { useWalletBalance } from '@/hooks/useWalletBalance';
 import { usePerpMarket } from '@/stores/perpMarketsStore';
-import { FEE_CONFIG } from '@babylon/engine/client';
-import { cn } from '@babylon/shared';
 
 interface PricePoint {
   time: number;
@@ -110,9 +109,7 @@ export default function PerpDetailPage() {
       const time = now - i * 15 * 60 * 1000; // 15 min intervals for last ~25 hours
       const randomChange = (Math.random() - 0.5) * volatility;
       const price =
-        basePrice +
-        randomChange +
-        ((market.change24h / 100) * (100 - i)) / 100;
+        basePrice + randomChange + ((market.change24h / 100) * (100 - i)) / 100;
       history.push({ time, price });
     }
 
@@ -120,7 +117,11 @@ export default function PerpDetailPage() {
   }, [market]);
 
   const handlePositionClosed = useCallback(async () => {
-    await Promise.all([refreshUserPositions(), refreshWalletBalance(), refetch()]);
+    await Promise.all([
+      refreshUserPositions(),
+      refreshWalletBalance(),
+      refetch(),
+    ]);
   }, [refreshUserPositions, refreshWalletBalance, refetch]);
 
   const handleSubmit = () => {

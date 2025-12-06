@@ -4,18 +4,33 @@
  * LLM judge rubrics for each agent archetype defining what "success" means.
  */
 
-import { TRADER_RUBRIC, TRADER_PRIORITY_METRICS } from './trader';
-import { SOCIAL_BUTTERFLY_RUBRIC, SOCIAL_BUTTERFLY_PRIORITY_METRICS } from './social-butterfly';
-import { SCAMMER_RUBRIC, SCAMMER_PRIORITY_METRICS } from './scammer';
-import { DEGEN_RUBRIC, DEGEN_PRIORITY_METRICS } from './degen';
-import { RESEARCHER_RUBRIC, RESEARCHER_PRIORITY_METRICS } from './researcher';
-import { INFORMATION_TRADER_RUBRIC, INFORMATION_TRADER_PRIORITY_METRICS } from './information-trader';
-import { GOODY_TWOSHOES_RUBRIC, GOODY_TWOSHOES_PRIORITY_METRICS } from './goody-twoshoes';
-import { ASS_KISSER_RUBRIC, ASS_KISSER_PRIORITY_METRICS } from './ass-kisser';
-import { PERPS_TRADER_RUBRIC, PERPS_TRADER_PRIORITY_METRICS } from './perps-trader';
-import { SUPER_PREDICTOR_RUBRIC, SUPER_PREDICTOR_PRIORITY_METRICS } from './super-predictor';
-import { INFOSEC_RUBRIC, INFOSEC_PRIORITY_METRICS } from './infosec';
-import { LIAR_RUBRIC, LIAR_PRIORITY_METRICS } from './liar';
+import { ASS_KISSER_PRIORITY_METRICS, ASS_KISSER_RUBRIC } from './ass-kisser';
+import { DEGEN_PRIORITY_METRICS, DEGEN_RUBRIC } from './degen';
+import {
+  GOODY_TWOSHOES_PRIORITY_METRICS,
+  GOODY_TWOSHOES_RUBRIC,
+} from './goody-twoshoes';
+import {
+  INFORMATION_TRADER_PRIORITY_METRICS,
+  INFORMATION_TRADER_RUBRIC,
+} from './information-trader';
+import { INFOSEC_PRIORITY_METRICS, INFOSEC_RUBRIC } from './infosec';
+import { LIAR_PRIORITY_METRICS, LIAR_RUBRIC } from './liar';
+import {
+  PERPS_TRADER_PRIORITY_METRICS,
+  PERPS_TRADER_RUBRIC,
+} from './perps-trader';
+import { RESEARCHER_PRIORITY_METRICS, RESEARCHER_RUBRIC } from './researcher';
+import { SCAMMER_PRIORITY_METRICS, SCAMMER_RUBRIC } from './scammer';
+import {
+  SOCIAL_BUTTERFLY_PRIORITY_METRICS,
+  SOCIAL_BUTTERFLY_RUBRIC,
+} from './social-butterfly';
+import {
+  SUPER_PREDICTOR_PRIORITY_METRICS,
+  SUPER_PREDICTOR_RUBRIC,
+} from './super-predictor';
+import { TRADER_PRIORITY_METRICS, TRADER_RUBRIC } from './trader';
 
 /**
  * Default rubric for unknown archetypes
@@ -53,43 +68,43 @@ export const DEFAULT_PRIORITY_METRICS = [
  * Registry of all archetype rubrics
  */
 export const RUBRICS: Record<string, string> = {
-  'trader': TRADER_RUBRIC,
+  trader: TRADER_RUBRIC,
   'social-butterfly': SOCIAL_BUTTERFLY_RUBRIC,
-  'scammer': SCAMMER_RUBRIC,
-  'degen': DEGEN_RUBRIC,
-  'researcher': RESEARCHER_RUBRIC,
+  scammer: SCAMMER_RUBRIC,
+  degen: DEGEN_RUBRIC,
+  researcher: RESEARCHER_RUBRIC,
   'information-trader': INFORMATION_TRADER_RUBRIC,
   'goody-twoshoes': GOODY_TWOSHOES_RUBRIC,
   'ass-kisser': ASS_KISSER_RUBRIC,
   'perps-trader': PERPS_TRADER_RUBRIC,
   'super-predictor': SUPER_PREDICTOR_RUBRIC,
-  'infosec': INFOSEC_RUBRIC,
-  'liar': LIAR_RUBRIC,
+  infosec: INFOSEC_RUBRIC,
+  liar: LIAR_RUBRIC,
   // Aliases
-  'socialbutterfly': SOCIAL_BUTTERFLY_RUBRIC,
-  'goodytwoshoes': GOODY_TWOSHOES_RUBRIC,
-  'asskisser': ASS_KISSER_RUBRIC,
-  'perpstrader': PERPS_TRADER_RUBRIC,
-  'superpredictor': SUPER_PREDICTOR_RUBRIC,
-  'informationtrader': INFORMATION_TRADER_RUBRIC,
+  socialbutterfly: SOCIAL_BUTTERFLY_RUBRIC,
+  goodytwoshoes: GOODY_TWOSHOES_RUBRIC,
+  asskisser: ASS_KISSER_RUBRIC,
+  perpstrader: PERPS_TRADER_RUBRIC,
+  superpredictor: SUPER_PREDICTOR_RUBRIC,
+  informationtrader: INFORMATION_TRADER_RUBRIC,
 };
 
 /**
  * Priority metrics for each archetype
  */
 export const PRIORITY_METRICS: Record<string, string[]> = {
-  'trader': TRADER_PRIORITY_METRICS,
+  trader: TRADER_PRIORITY_METRICS,
   'social-butterfly': SOCIAL_BUTTERFLY_PRIORITY_METRICS,
-  'scammer': SCAMMER_PRIORITY_METRICS,
-  'degen': DEGEN_PRIORITY_METRICS,
-  'researcher': RESEARCHER_PRIORITY_METRICS,
+  scammer: SCAMMER_PRIORITY_METRICS,
+  degen: DEGEN_PRIORITY_METRICS,
+  researcher: RESEARCHER_PRIORITY_METRICS,
   'information-trader': INFORMATION_TRADER_PRIORITY_METRICS,
   'goody-twoshoes': GOODY_TWOSHOES_PRIORITY_METRICS,
   'ass-kisser': ASS_KISSER_PRIORITY_METRICS,
   'perps-trader': PERPS_TRADER_PRIORITY_METRICS,
   'super-predictor': SUPER_PREDICTOR_PRIORITY_METRICS,
-  'infosec': INFOSEC_PRIORITY_METRICS,
-  'liar': LIAR_PRIORITY_METRICS,
+  infosec: INFOSEC_PRIORITY_METRICS,
+  liar: LIAR_PRIORITY_METRICS,
 };
 
 /**
@@ -151,4 +166,3 @@ export {
   INFOSEC_RUBRIC,
   LIAR_RUBRIC,
 };
-

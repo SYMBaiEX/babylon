@@ -4,9 +4,9 @@
  */
 
 import type {
-  JsonValue,
   JsonRpcParams,
   JsonRpcResult,
+  JsonValue,
   StringRecord,
 } from '@babylon/shared';
 
@@ -66,8 +66,7 @@ export const MCP_PROTOCOL_VERSIONS = [
   '2025-06-18',
 ] as const;
 
-export type MCPProtocolVersion =
-  (typeof MCP_PROTOCOL_VERSIONS)[number];
+export type MCPProtocolVersion = (typeof MCP_PROTOCOL_VERSIONS)[number];
 
 // Client Capabilities
 export interface ClientCapabilities {

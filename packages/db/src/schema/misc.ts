@@ -401,5 +401,3 @@ export type CharacterMapping = typeof characterMappings.$inferSelect;
 export type NewCharacterMapping = typeof characterMappings.$inferInsert;
 export type OrganizationMapping = typeof organizationMappings.$inferSelect;
 export type NewOrganizationMapping = typeof organizationMappings.$inferInsert;
-
-

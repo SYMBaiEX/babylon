@@ -86,26 +86,42 @@
  * @see {@link /lib/onboarding/types} Onboarding types
  */
 
+import type { JsonValue } from '@babylon/api';
+import {
+  authenticate,
+  ConflictError,
+  getHashedClientIp,
+  getOrCreateReferralCode,
+  getPrivyClient,
+  InternalServerError,
+  notifyNewAccount,
+  PointsService,
+  successResponse,
+  withErrorHandling,
+} from '@babylon/api';
+import {
+  and,
+  db,
+  eq,
+  follows,
+  isRetryableError,
+  referrals,
+  toDatabaseErrorType,
+  users,
+  withRetry,
+  withTransaction,
+} from '@babylon/db';
+import type { OnboardingProfilePayload } from '@babylon/shared';
+import {
+  generateSnowflakeId,
+  logger,
+  OnboardingProfileSchema,
+  POINTS,
+} from '@babylon/shared';
 import type { User as PrivyUser } from '@privy-io/server-auth';
 import type { NextRequest } from 'next/server';
 import { z } from 'zod';
-import { and, db, eq, follows, referrals, users, withTransaction } from '@babylon/db';
-import { isRetryableError, withRetry } from '@babylon/db';
-import { toDatabaseErrorType } from '@babylon/db';
-import { authenticate, getPrivyClient } from '@babylon/api';
-import { POINTS } from '@babylon/shared';
-import { ConflictError, InternalServerError } from '@babylon/api';
-import { successResponse, withErrorHandling } from '@babylon/api';
-import { logger } from '@babylon/shared';
-import type { OnboardingProfilePayload } from '@babylon/shared';
 import { trackServerEvent } from '@/lib/posthog/server';
-import { notifyNewAccount } from '@babylon/api';
-import { PointsService } from '@babylon/api';
-import { getOrCreateReferralCode } from '@babylon/api';
-import { generateSnowflakeId } from '@babylon/shared';
-import { getHashedClientIp } from '@babylon/api';
-import { OnboardingProfileSchema } from '@babylon/shared';
-import type { JsonValue } from '@babylon/api';
 
 interface SignupRequestBody {
   username: string;

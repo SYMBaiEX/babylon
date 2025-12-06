@@ -93,7 +93,7 @@ contract BabylonGameOracleTest is Test {
         assertEq(storedQuestionId, questionId, "Question ID should match");
         
         // Verify outcome not finalized yet
-        (bool outcomeResult, bool finalized) = oracle.getOutcome(sessionId);
+        (, bool finalized) = oracle.getOutcome(sessionId);
         assertFalse(finalized, "Should not be finalized");
         
         // Verify statistics

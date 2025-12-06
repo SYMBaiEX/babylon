@@ -10,10 +10,10 @@
  * @remarks Base mainnet support will be added when contracts are deployed.
  */
 
+import { getCurrentChainId, getCurrentRpcUrl } from '@babylon/shared';
+import type { Address } from 'viem';
 import baseSepoliaDeployment from '../../deployments/base-sepolia';
 import localDeployment from '../../deployments/local';
-import type { Address } from 'viem';
-import { getCurrentChainId, getCurrentRpcUrl } from '@babylon/shared';
 
 /**
  * Deployed contract addresses for the current network.
@@ -131,4 +131,3 @@ export function isLocalnet(): boolean {
 export function getRpcUrl(): string {
   return getCurrentRpcUrl();
 }
-

@@ -6,6 +6,7 @@
 
 'use client';
 
+import { cn } from '@babylon/shared';
 import { Ban, Trash2, UserX, VolumeX } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
@@ -13,7 +14,6 @@ import { Avatar } from '@/components/shared/Avatar';
 import { PageContainer } from '@/components/shared/PageContainer';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { useAuth } from '@/hooks/useAuth';
-import { cn } from '@babylon/shared';
 
 interface BlockedUser {
   id: string;

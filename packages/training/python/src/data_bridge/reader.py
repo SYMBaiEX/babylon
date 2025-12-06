@@ -186,8 +186,8 @@ class PostgresTrajectoryReader:
                     total_reward=float(row['totalReward'] or 0),
                     final_pnl=float(row['finalPnL'] or 0),
                     final_balance=float(row['finalBalance']) if row['finalBalance'] else None,
-                    trades_executed=row['tradesExecuted'],
-                    posts_created=row['postsCreated'],
+                    trades_executed=row['tradesExecuted'] or 0,
+                    posts_created=row['postsCreated'] or 0,
                     episode_length=row['episodeLength'] or len(steps),
                     final_status=row['finalStatus'] or 'unknown'
                 ))

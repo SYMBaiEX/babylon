@@ -44,17 +44,32 @@
  * ```
  */
 
+import {
+  getClientIp,
+  logAdminView,
+  requireAdmin,
+  withErrorHandling,
+} from '@babylon/api';
+import { db } from '@babylon/db';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { db } from '@babylon/db';
-import { logger } from '@babylon/shared';
+
+export const dynamic = 'force-dynamic';
 
 /**
  * GET /api/admin/training-data
  * Returns training data statistics and ready windows
  */
-export async function GET(_req: NextRequest) {
-  try {
+export const GET = withErrorHandling(async (req: NextRequest) => {
+  const admin = await requireAdmin(req);
+
+  // Audit log the view
+  logAdminView({
+    adminId: admin.userId,
+    ipAddress: getClientIp(req.headers) ?? undefined,
+    resourceType: 'training_data',
+    metadata: { action: 'view_training_data_status' },
+  });
     // Get total trajectory count
     const totalTrajectories = await db.trajectory.count();
 
@@ -143,18 +158,4 @@ export async function GET(_req: NextRequest) {
         qualityMetrics,
       },
     });
-  } catch (error) {
-    logger.error(
-      'Failed to get training data stats',
-      { error },
-      'TrainingDataAPI'
-    );
-    return NextResponse.json(
-      {
-        success: false,
-        error: 'Failed to get training data statistics',
-      },
-      { status: 500 }
-    );
-  }
-}
+});

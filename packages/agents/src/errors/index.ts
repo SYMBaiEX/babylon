@@ -445,9 +445,7 @@ export class Agent0DuplicateFeedbackError extends Agent0FeedbackError {
     });
   }
 
-  static isInstance(
-    error: unknown
-  ): error is Agent0DuplicateFeedbackError {
+  static isInstance(error: unknown): error is Agent0DuplicateFeedbackError {
     return error instanceof Agent0DuplicateFeedbackError;
   }
 }
@@ -464,4 +462,3 @@ export class Agent0RateLimitError extends RateLimitError {
     return error instanceof Agent0RateLimitError;
   }
 }
-

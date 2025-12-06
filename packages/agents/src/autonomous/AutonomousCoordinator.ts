@@ -13,13 +13,13 @@
  */
 
 import { db } from '@babylon/db';
-import type { IAgentRuntime } from '@elizaos/core';
 import { WalletService } from '@babylon/engine';
 import { trajectoryRecorder } from '@babylon/training';
+import type { IAgentRuntime } from '@elizaos/core';
+import type { BabylonRuntime } from '../plugins/babylon/types';
 import { setTrajectoryContext } from '../plugins/plugin-trajectory-logger/src/action-interceptor';
 import { agentRuntimeManager } from '../runtime/AgentRuntimeManager';
 import { logger } from '../shared/logger';
-import type { BabylonRuntime } from '../plugins/babylon/types';
 
 // Import services
 import { autonomousA2AService } from './AutonomousA2AService';

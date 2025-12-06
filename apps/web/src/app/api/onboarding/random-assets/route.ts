@@ -39,9 +39,9 @@
  * ```
  */
 
-import type { NextRequest } from 'next/server';
 import { successResponse } from '@babylon/api';
 import { logger } from '@babylon/shared';
+import type { NextRequest } from 'next/server';
 
 const TOTAL_PROFILE_PICTURES = 100;
 const TOTAL_BANNERS = 100;

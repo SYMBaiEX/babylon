@@ -73,4 +73,3 @@ export function getReferralShareText(
   const url = getReferralUrl(usernameOrCode);
   return `${message}\n\n${url}`;
 }
-

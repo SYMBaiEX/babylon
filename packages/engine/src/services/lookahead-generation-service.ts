@@ -35,13 +35,13 @@ import {
 } from '@babylon/db';
 import type { BabylonLLMClient } from '@babylon/engine';
 import { logger } from '@babylon/shared';
+import { worldFactsService } from '../world-facts-service';
 import { generateEvents } from './event-generation-helpers';
 import {
   generateNPCPost,
   generateOrgArticle,
   generateOrgPost,
 } from './post-generation-helpers';
-import { worldFactsService } from '../world-facts-service';
 
 const LOOKAHEAD_MINUTES = 15; // Generate 15 minutes ahead
 const GENERATION_BATCH_MINUTES = 5; // Generate in 5-minute batches

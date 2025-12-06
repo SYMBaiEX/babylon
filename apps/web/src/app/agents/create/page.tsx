@@ -28,6 +28,8 @@
 
 'use client';
 
+import type { AgentTemplate } from '@babylon/agents/client';
+import { cn } from '@babylon/shared';
 import {
   ArrowLeft,
   Bot,
@@ -48,9 +50,7 @@ import { PageContainer } from '@/components/shared/PageContainer';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import type { AgentTemplate } from '@babylon/agents/client';
 import { useAuth } from '@/hooks/useAuth';
-import { cn } from '@babylon/shared';
 
 /**
  * Local storage key for saving agent drafts
@@ -67,46 +67,147 @@ const TOTAL_PROFILE_PICTURES = 100;
  */
 const NAME_PREFIXES = [
   // Greek letters
-  'Alpha', 'Beta', 'Gamma', 'Delta', 'Epsilon', 'Zeta', 'Eta', 'Theta',
-  'Iota', 'Kappa', 'Lambda', 'Mu', 'Nu', 'Xi', 'Omicron', 'Pi', 'Rho',
-  'Sigma', 'Tau', 'Upsilon', 'Phi', 'Chi', 'Psi', 'Omega',
+  'Alpha',
+  'Beta',
+  'Gamma',
+  'Delta',
+  'Epsilon',
+  'Zeta',
+  'Eta',
+  'Theta',
+  'Iota',
+  'Kappa',
+  'Lambda',
+  'Mu',
+  'Nu',
+  'Xi',
+  'Omicron',
+  'Pi',
+  'Rho',
+  'Sigma',
+  'Tau',
+  'Upsilon',
+  'Phi',
+  'Chi',
+  'Psi',
+  'Omega',
   // Tech/Cyber
-  'Quantum', 'Neo', 'Cyber', 'Nexus', 'Apex', 'Vertex', 'Pulse', 'Flux',
-  'Vector', 'Helix', 'Prism', 'Matrix', 'Cipher', 'Binary', 'Neural',
+  'Quantum',
+  'Neo',
+  'Cyber',
+  'Nexus',
+  'Apex',
+  'Vertex',
+  'Pulse',
+  'Flux',
+  'Vector',
+  'Helix',
+  'Prism',
+  'Matrix',
+  'Cipher',
+  'Binary',
+  'Neural',
   // Nature/Elements
-  'Nova', 'Solar', 'Lunar', 'Stellar', 'Cosmic', 'Astral', 'Phoenix',
-  'Storm', 'Thunder', 'Frost', 'Ember', 'Shadow', 'Dawn', 'Dusk',
+  'Nova',
+  'Solar',
+  'Lunar',
+  'Stellar',
+  'Cosmic',
+  'Astral',
+  'Phoenix',
+  'Storm',
+  'Thunder',
+  'Frost',
+  'Ember',
+  'Shadow',
+  'Dawn',
+  'Dusk',
   // Power/Status
-  'Iron', 'Steel', 'Titan', 'Atlas', 'Orion', 'Vortex', 'Blaze', 'Spark',
-  'Echo', 'Phantom', 'Specter', 'Raven', 'Falcon', 'Hawk', 'Eagle',
+  'Iron',
+  'Steel',
+  'Titan',
+  'Atlas',
+  'Orion',
+  'Vortex',
+  'Blaze',
+  'Spark',
+  'Echo',
+  'Phantom',
+  'Specter',
+  'Raven',
+  'Falcon',
+  'Hawk',
+  'Eagle',
   // Abstract
-  'Zen', 'Aura', 'Axiom', 'Lumen', 'Photon', 'Quark', 'Volt', 'Arc',
+  'Zen',
+  'Aura',
+  'Axiom',
+  'Lumen',
+  'Photon',
+  'Quark',
+  'Volt',
+  'Arc',
 ];
 
 const NAME_SUFFIXES = [
   // Role-based
-  'Trader', 'Agent', 'Bot', 'AI', 'Mind', 'Brain', 'Sage', 'Oracle',
+  'Trader',
+  'Agent',
+  'Bot',
+  'AI',
+  'Mind',
+  'Brain',
+  'Sage',
+  'Oracle',
   // Technical
-  'Core', 'Node', 'Edge', 'Prime', 'Pro', 'Max', 'Ultra', 'Plus',
-  'X', 'Zero', 'One', 'Protocol', 'System', 'Engine', 'Logic',
+  'Core',
+  'Node',
+  'Edge',
+  'Prime',
+  'Pro',
+  'Max',
+  'Ultra',
+  'Plus',
+  'X',
+  'Zero',
+  'One',
+  'Protocol',
+  'System',
+  'Engine',
+  'Logic',
   // Abstract
-  'Flow', 'Wave', 'Sync', 'Link', 'Net', 'Hub', 'Lab', 'Works',
-  'Force', 'Drive', 'Pulse', 'Signal', 'Stream', 'Grid', 'Mesh',
+  'Flow',
+  'Wave',
+  'Sync',
+  'Link',
+  'Net',
+  'Hub',
+  'Lab',
+  'Works',
+  'Force',
+  'Drive',
+  'Pulse',
+  'Signal',
+  'Stream',
+  'Grid',
+  'Mesh',
 ];
 
 /**
  * Generate a unique random agent name
  * Combines prefix + suffix + numeric identifier for uniqueness
- * 
+ *
  * Total combinations: 65 prefixes × 35 suffixes × 9000 numbers = 20,475,000+
  */
 const generateAgentName = (): string => {
-  const prefix = NAME_PREFIXES[Math.floor(Math.random() * NAME_PREFIXES.length)]!;
-  const suffix = NAME_SUFFIXES[Math.floor(Math.random() * NAME_SUFFIXES.length)]!;
-  
+  const prefix =
+    NAME_PREFIXES[Math.floor(Math.random() * NAME_PREFIXES.length)]!;
+  const suffix =
+    NAME_SUFFIXES[Math.floor(Math.random() * NAME_SUFFIXES.length)]!;
+
   // Always add a unique 4-digit identifier (1000-9999) for guaranteed uniqueness
   const number = Math.floor(Math.random() * 9000) + 1000;
-  
+
   return `${prefix}${suffix}-${number}`;
 };
 
@@ -266,8 +367,14 @@ export default function CreateAgentPage() {
           ...template,
           name: template.name.replace('{{agentName}}', agentName),
           system: template.system.replace(/{{agentName}}/g, agentName),
-          personality: template.personality.replace(/{{agentName}}/g, agentName),
-          tradingStrategy: template.tradingStrategy.replace(/{{agentName}}/g, agentName),
+          personality: template.personality.replace(
+            /{{agentName}}/g,
+            agentName
+          ),
+          tradingStrategy: template.tradingStrategy.replace(
+            /{{agentName}}/g,
+            agentName
+          ),
         };
 
         // Set random images
@@ -314,8 +421,10 @@ export default function CreateAgentPage() {
 
         setAgentData({
           system: `You are ${agentName}, an AI trading agent. You analyze market data, identify opportunities, and make informed trading decisions. You communicate clearly and provide reasoning for your trades.`,
-          personality: 'Analytical and precise. Communicates with confidence while acknowledging uncertainty. Focuses on data-driven insights.',
-          tradingStrategy: 'Combines technical and fundamental analysis. Uses risk management with position sizing. Monitors key indicators and market sentiment.',
+          personality:
+            'Analytical and precise. Communicates with confidence while acknowledging uncertainty. Focuses on data-driven insights.',
+          tradingStrategy:
+            'Combines technical and fundamental analysis. Uses risk management with position sizing. Monitors key indicators and market sentiment.',
           initialDeposit: 100,
         });
 

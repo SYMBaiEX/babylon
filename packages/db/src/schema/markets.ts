@@ -290,5 +290,3 @@ export type PerpPosition = typeof perpPositions.$inferSelect;
 export type NewPerpPosition = typeof perpPositions.$inferInsert;
 
 
-
-

@@ -275,4 +275,3 @@ export interface ExternalAgentConnectionParams {
   /** Agent Card metadata */
   agentCard?: AgentCard;
 }
-

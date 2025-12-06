@@ -28,9 +28,9 @@
  */
 'use client';
 
+import { cn } from '@babylon/shared';
 import { Minus, TrendingDown, TrendingUp } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { cn } from '@babylon/shared';
 
 interface ScoreSliderProps {
   value?: number; // 0-100
@@ -79,18 +79,21 @@ export function ScoreSlider({
     return { label: 'Poor', Icon: TrendingDown };
   };
 
-  const updateValue = useCallback((clientX: number) => {
-    if (!sliderRef.current || readonly || !onChange) return;
+  const updateValue = useCallback(
+    (clientX: number) => {
+      if (!sliderRef.current || readonly || !onChange) return;
 
-    const rect = sliderRef.current.getBoundingClientRect();
-    const offsetX = clientX - rect.left;
-    const percentage = Math.max(0, Math.min(1, offsetX / rect.width));
-    const rawValue = min + percentage * (max - min);
-    const steppedValue = Math.round(rawValue / step) * step;
-    const newValue = Math.max(min, Math.min(max, steppedValue));
+      const rect = sliderRef.current.getBoundingClientRect();
+      const offsetX = clientX - rect.left;
+      const percentage = Math.max(0, Math.min(1, offsetX / rect.width));
+      const rawValue = min + percentage * (max - min);
+      const steppedValue = Math.round(rawValue / step) * step;
+      const newValue = Math.max(min, Math.min(max, steppedValue));
 
-    onChange(newValue);
-  }, [readonly, onChange, min, max, step]);
+      onChange(newValue);
+    },
+    [readonly, onChange, min, max, step]
+  );
 
   const handleMouseDown = (e: React.MouseEvent) => {
     if (readonly) return;
@@ -98,10 +101,13 @@ export function ScoreSlider({
     updateValue(e.clientX);
   };
 
-  const handleMouseMove = useCallback((e: MouseEvent) => {
-    if (!isDragging) return;
-    updateValue(e.clientX);
-  }, [isDragging, updateValue]);
+  const handleMouseMove = useCallback(
+    (e: MouseEvent) => {
+      if (!isDragging) return;
+      updateValue(e.clientX);
+    },
+    [isDragging, updateValue]
+  );
 
   const handleMouseUp = useCallback(() => {
     setIsDragging(false);

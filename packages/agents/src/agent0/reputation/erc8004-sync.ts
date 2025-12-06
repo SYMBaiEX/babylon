@@ -179,4 +179,3 @@ export async function syncAllReputationsToERC8004Simple(): Promise<void> {
     }
   }
 }
-

@@ -1,5 +1,6 @@
 'use client';
 
+import { logger } from '@babylon/shared';
 import { usePrivy, useWallets } from '@privy-io/react-auth';
 import {
   AlertCircle,
@@ -13,7 +14,6 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
-import { logger } from '@babylon/shared';
 
 /**
  * Security tab component for managing account security settings.

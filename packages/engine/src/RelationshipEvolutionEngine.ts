@@ -23,9 +23,8 @@ import {
   npcInteractions,
   or,
 } from '@babylon/db';
+import { generateSnowflakeId, logger } from '@babylon/shared';
 import type { BabylonLLMClient } from './llm/openai-client';
-import { logger } from '@babylon/shared';
-import { generateSnowflakeId } from '@babylon/shared';
 import type { Actor, Organization } from './types/shared';
 
 export interface RelationshipChange {

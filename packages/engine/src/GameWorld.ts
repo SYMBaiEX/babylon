@@ -55,9 +55,10 @@
  * ```
  */
 
-import { EventEmitter } from 'events';
-import { characterMappingService } from './services/character-mapping-service';
 import { generateSnowflakeId } from '@babylon/shared';
+import { EventEmitter } from 'events';
+import { type FeedEvent, FeedGenerator } from './FeedGenerator';
+import type { BabylonLLMClient } from './llm/openai-client';
 import {
   daySummary,
   expertAnalysis,
@@ -66,10 +67,9 @@ import {
   renderPrompt,
   rumor,
 } from './prompts';
-import type { PerpMarket } from './types/perps';
+import { characterMappingService } from './services/character-mapping-service';
 import type { JsonValue } from './types/common';
-import { type FeedEvent, FeedGenerator } from './FeedGenerator';
-import type { BabylonLLMClient } from './llm/openai-client';
+import type { PerpMarket } from './types/perps';
 
 export interface MarketContext {
   markets: PerpMarket[];

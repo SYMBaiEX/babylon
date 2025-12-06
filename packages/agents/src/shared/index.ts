@@ -4,6 +4,5 @@
  * @packageDocumentation
  */
 
-export * from './types';
 export * from './snowflake';
-
+export * from './types';

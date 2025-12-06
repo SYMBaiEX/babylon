@@ -354,4 +354,3 @@ export class NPCPersonaGenerator {
     return Array.from(personas.values()).filter((p) => p.willingToLie).length;
   }
 }
-

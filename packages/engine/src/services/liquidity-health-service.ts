@@ -31,13 +31,13 @@ import {
   organizations,
   perpPositions,
 } from '@babylon/db';
-import { logger } from '@babylon/shared';
 import {
   calculateDynamicFundingRate,
   type FundingRateResult,
   getFundingRateTier,
+  PredictionPricing,
 } from '@babylon/engine';
-import { PredictionPricing } from '@babylon/engine';
+import { logger } from '@babylon/shared';
 
 /**
  * Health assessment for a prediction market

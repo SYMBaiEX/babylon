@@ -37,16 +37,17 @@
  * ```
  */
 
-import type { NextRequest } from 'next/server';
-import { NextResponse } from 'next/server';
 import {
   type AuthenticatedUser,
+  CACHE_KEYS,
+  DEFAULT_TTLS,
+  getCacheOrFetch,
   optionalAuth,
 } from '@babylon/api';
-import { getDbInstance } from '@babylon/db';
-import { CACHE_KEYS, DEFAULT_TTLS, getCacheOrFetch } from '@babylon/api';
-import { asPublic, asUser } from '@babylon/db';
+import { asPublic, asUser, getDbInstance } from '@babylon/db';
 import { logger } from '@babylon/shared';
+import type { NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
 
 // Disable static generation for this route - it requires database access
 export const dynamic = 'force-dynamic';

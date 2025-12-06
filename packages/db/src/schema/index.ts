@@ -16,5 +16,3 @@ export * from './training';
 export * from './users';
 
 
-
-

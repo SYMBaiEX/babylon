@@ -121,11 +121,13 @@
  * @see {@link /src/app/leaderboard/page.tsx} Leaderboard UI
  */
 
+import {
+  PointsService,
+  successResponse,
+  withErrorHandling,
+} from '@babylon/api';
+import { LeaderboardQuerySchema, logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
-import { successResponse, withErrorHandling } from '@babylon/api';
-import { logger } from '@babylon/shared';
-import { PointsService } from '@babylon/api';
-import { LeaderboardQuerySchema } from '@babylon/shared';
 
 /**
  * GET /api/leaderboard

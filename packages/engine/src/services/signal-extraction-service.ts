@@ -177,7 +177,7 @@ export class SignalExtractionService {
     let signalPosts = 0;
 
     // Process each post
-      // Posts do not currently store pointsToward metadata in the database
+    // Posts do not currently store pointsToward metadata in the database
     // We use sentiment analysis as a proxy for signal
     for (const post of postsList) {
       // Skip non-NPC posts (only NPCs provide signal)

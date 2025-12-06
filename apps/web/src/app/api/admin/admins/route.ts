@@ -9,11 +9,10 @@
  * Admin only endpoint.
  */
 
-import type { NextRequest } from 'next/server';
+import { requireAdmin, successResponse, withErrorHandling } from '@babylon/api';
 import { and, db, eq, users } from '@babylon/db';
-import { requireAdmin } from '@babylon/api';
-import { successResponse, withErrorHandling } from '@babylon/api';
 import { logger } from '@babylon/shared';
+import type { NextRequest } from 'next/server';
 
 export const GET = withErrorHandling(async (request: NextRequest) => {
   // Require admin authentication

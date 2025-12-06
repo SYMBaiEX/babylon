@@ -4,10 +4,10 @@
  * Creates test user and generates auth tokens for load testing
  */
 
-import { inArray } from 'drizzle-orm';
 import { db } from '@babylon/db';
 import { users } from '@babylon/db/schema';
 import { generateSnowflakeId } from '@babylon/shared';
+import { inArray } from 'drizzle-orm';
 
 export interface TestUser {
   userId: string;

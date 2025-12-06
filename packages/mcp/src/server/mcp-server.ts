@@ -5,11 +5,11 @@
  */
 
 import type {
-  ServerCapabilities,
   Implementation,
-  MCPTool,
-  MCPProtocolVersion,
   InitializeResult,
+  MCPProtocolVersion,
+  MCPTool,
+  ServerCapabilities,
 } from '../types/mcp';
 import { MCP_PROTOCOL_VERSIONS } from '../types/mcp';
 
@@ -58,9 +58,7 @@ export function getInitializeResult(
   const capabilities = getServerCapabilities();
 
   // Negotiate protocol version (use requested if supported, otherwise default)
-  const protocolVersion = MCP_PROTOCOL_VERSIONS.includes(
-    requestedVersion
-  )
+  const protocolVersion = MCP_PROTOCOL_VERSIONS.includes(requestedVersion)
     ? requestedVersion
     : DEFAULT_MCP_PROTOCOL_VERSION;
 
@@ -344,7 +342,10 @@ export function getAvailableTools(): MCPTool[] {
         type: 'object',
         properties: {
           postId: { type: 'string', description: 'Post ID' },
-          limit: { type: 'number', description: 'Number of comments to return' },
+          limit: {
+            type: 'number',
+            description: 'Number of comments to return',
+          },
         },
         required: ['postId'],
       },
@@ -453,7 +454,10 @@ export function getAvailableTools(): MCPTool[] {
         type: 'object',
         properties: {
           userId: { type: 'string', description: 'User ID' },
-          limit: { type: 'number', description: 'Number of followers to return' },
+          limit: {
+            type: 'number',
+            description: 'Number of followers to return',
+          },
         },
         required: ['userId'],
       },
@@ -526,7 +530,10 @@ export function getAvailableTools(): MCPTool[] {
         type: 'object',
         properties: {
           chatId: { type: 'string', description: 'Chat ID' },
-          limit: { type: 'number', description: 'Number of messages to return' },
+          limit: {
+            type: 'number',
+            description: 'Number of messages to return',
+          },
           offset: { type: 'number', description: 'Pagination offset' },
         },
         required: ['chatId'],
@@ -596,7 +603,10 @@ export function getAvailableTools(): MCPTool[] {
       inputSchema: {
         type: 'object',
         properties: {
-          limit: { type: 'number', description: 'Number of notifications to return' },
+          limit: {
+            type: 'number',
+            description: 'Number of notifications to return',
+          },
         },
       },
     },
@@ -703,7 +713,10 @@ export function getAvailableTools(): MCPTool[] {
       inputSchema: {
         type: 'object',
         properties: {
-          userId: { type: 'string', description: 'User ID (optional, defaults to self)' },
+          userId: {
+            type: 'string',
+            description: 'User ID (optional, defaults to self)',
+          },
         },
       },
     },
@@ -736,7 +749,10 @@ export function getAvailableTools(): MCPTool[] {
       inputSchema: {
         type: 'object',
         properties: {
-          limit: { type: 'number', description: 'Number of organizations to return' },
+          limit: {
+            type: 'number',
+            description: 'Number of organizations to return',
+          },
         },
       },
     },
@@ -915,7 +931,10 @@ export function getAvailableTools(): MCPTool[] {
         type: 'object',
         properties: {
           escrowId: { type: 'string', description: 'Escrow ID' },
-          refundTxHash: { type: 'string', description: 'Refund transaction hash' },
+          refundTxHash: {
+            type: 'string',
+            description: 'Refund transaction hash',
+          },
           reason: { type: 'string', description: 'Refund reason' },
         },
         required: ['escrowId', 'refundTxHash'],
@@ -927,7 +946,10 @@ export function getAvailableTools(): MCPTool[] {
       inputSchema: {
         type: 'object',
         properties: {
-          recipientId: { type: 'string', description: 'Filter by recipient ID' },
+          recipientId: {
+            type: 'string',
+            description: 'Filter by recipient ID',
+          },
           adminId: { type: 'string', description: 'Filter by admin ID' },
           status: {
             type: 'string',
@@ -1001,7 +1023,10 @@ export function getAvailableTools(): MCPTool[] {
       inputSchema: {
         type: 'object',
         properties: {
-          limit: { type: 'number', description: 'Number of favorites to return' },
+          limit: {
+            type: 'number',
+            description: 'Number of favorites to return',
+          },
           offset: { type: 'number', description: 'Pagination offset' },
         },
       },
@@ -1026,7 +1051,10 @@ export function getAvailableTools(): MCPTool[] {
         properties: {
           recipientId: { type: 'string', description: 'Recipient user ID' },
           amount: { type: 'number', description: 'Amount to transfer' },
-          message: { type: 'string', description: 'Optional message (max 200 characters)' },
+          message: {
+            type: 'string',
+            description: 'Optional message (max 200 characters)',
+          },
         },
         required: ['recipientId', 'amount'],
       },

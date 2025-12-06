@@ -9,13 +9,12 @@
  * @see src/lib/services/agent-registry.service.ts
  */
 
+import type { ExternalAgentConnectionParams } from '@babylon/agents';
+import { agentRegistry } from '@babylon/agents';
+import { authenticate, generateApiKey, hashApiKey } from '@babylon/api';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { authenticate } from '@babylon/api';
-import { generateApiKey, hashApiKey } from '@babylon/api';
-import { agentRegistry } from '@babylon/agents';
-import type { ExternalAgentConnectionParams } from '@babylon/agents';
 
 // Validation schema for external agent registration
 const ExternalAgentRegisterSchema = z.object({

@@ -1,5 +1,6 @@
 'use client';
 
+import { cn, logger } from '@babylon/shared';
 import {
   AlertCircle,
   ArrowLeftRight,
@@ -14,8 +15,6 @@ import { toast } from 'sonner';
 import { z } from 'zod';
 import { Avatar } from '@/components/shared/Avatar';
 import { Skeleton } from '@/components/shared/Skeleton';
-import { logger } from '@babylon/shared';
-import { cn } from '@babylon/shared';
 
 /**
  * Get authentication token from window if available.
@@ -108,45 +107,48 @@ export function EscrowManagementTab() {
   const [refundReason, setRefundReason] = useState('');
   const [isRefunding, setIsRefunding] = useState(false);
 
-  const fetchEscrows = useCallback((showRefreshing = false) => {
-    const fetchLogic = async () => {
-      const token = getAuthToken();
-      const params = new URLSearchParams({
-        limit: '100',
-      });
-      if (statusFilter !== 'all') {
-        params.set('status', statusFilter);
-      }
-
-      const headers: HeadersInit = {
-        'Content-Type': 'application/json',
-      };
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
-
-      const response = await fetch(
-        `/api/admin/moderation-escrow/list?${params}`,
-        {
-          headers,
+  const fetchEscrows = useCallback(
+    (showRefreshing = false) => {
+      const fetchLogic = async () => {
+        const token = getAuthToken();
+        const params = new URLSearchParams({
+          limit: '100',
+        });
+        if (statusFilter !== 'all') {
+          params.set('status', statusFilter);
         }
-      );
-      if (!response.ok) throw new Error('Failed to fetch escrows');
-      const data = await response.json();
-      const validation = z.array(EscrowSchema).safeParse(data.escrows);
-      if (!validation.success) {
-        throw new Error('Invalid escrow data structure');
-      }
-      setEscrows(validation.data || []);
-      setLoading(false);
-    };
 
-    if (showRefreshing) {
-      startRefresh(fetchLogic);
-    } else {
-      fetchLogic();
-    }
-  }, [statusFilter]);
+        const headers: HeadersInit = {
+          'Content-Type': 'application/json',
+        };
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`;
+        }
+
+        const response = await fetch(
+          `/api/admin/moderation-escrow/list?${params}`,
+          {
+            headers,
+          }
+        );
+        if (!response.ok) throw new Error('Failed to fetch escrows');
+        const data = await response.json();
+        const validation = z.array(EscrowSchema).safeParse(data.escrows);
+        if (!validation.success) {
+          throw new Error('Invalid escrow data structure');
+        }
+        setEscrows(validation.data || []);
+        setLoading(false);
+      };
+
+      if (showRefreshing) {
+        startRefresh(fetchLogic);
+      } else {
+        fetchLogic();
+      }
+    },
+    [statusFilter]
+  );
 
   useEffect(() => {
     fetchEscrows();

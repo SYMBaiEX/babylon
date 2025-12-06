@@ -121,12 +121,15 @@
  * @see {@link /api/cron/game-tick} Game tick cron job
  */
 
-import type { NextRequest } from 'next/server';
+import {
+  AuthorizationError,
+  BadRequestError,
+  successResponse,
+  withErrorHandling,
+} from '@babylon/api';
 import { asSystem } from '@babylon/db';
-import { AuthorizationError, BadRequestError } from '@babylon/api';
-import { successResponse, withErrorHandling } from '@babylon/api';
-import { logger } from '@babylon/shared';
-import { generateSnowflakeId } from '@babylon/shared';
+import { generateSnowflakeId, logger } from '@babylon/shared';
+import type { NextRequest } from 'next/server';
 
 interface ControlRequest {
   action: 'start' | 'pause';

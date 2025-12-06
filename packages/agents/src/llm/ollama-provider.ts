@@ -16,9 +16,9 @@
  */
 
 import type { IAgentRuntime } from '@elizaos/core';
-import { logger } from '../shared/logger';
-import type { TrajectoryLoggerService } from '../plugins/plugin-trajectory-logger/src/TrajectoryLoggerService';
 import { getTrajectoryContext } from '../plugins/plugin-trajectory-logger/src/action-interceptor';
+import type { TrajectoryLoggerService } from '../plugins/plugin-trajectory-logger/src/TrajectoryLoggerService';
+import { logger } from '../shared/logger';
 
 /**
  * Ollama model metadata from API
@@ -131,7 +131,8 @@ export async function listOllamaModels(): Promise<OllamaModelInfo[]> {
 export async function isModelAvailable(modelName: string): Promise<boolean> {
   const models = await listOllamaModels();
   return models.some(
-    (m) => m.name === modelName || m.name.startsWith(modelName.split(':')[0] ?? '')
+    (m) =>
+      m.name === modelName || m.name.startsWith(modelName.split(':')[0] ?? '')
   );
 }
 
@@ -357,4 +358,3 @@ PARAMETER num_predict 8192
     return false;
   }
 }
-

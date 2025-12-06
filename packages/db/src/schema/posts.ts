@@ -339,5 +339,3 @@ export type TrendingTag = typeof trendingTags.$inferSelect;
 export type NewTrendingTag = typeof trendingTags.$inferInsert;
 
 
-
-

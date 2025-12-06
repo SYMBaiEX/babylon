@@ -75,11 +75,11 @@
  * ```
  */
 
+import { ContentValidator, logger } from '@babylon/shared';
 import { EventEmitter } from 'events';
-import { logger } from '@babylon/shared';
-import { characterMappingService } from './services/character-mapping-service';
-import { shuffleArray } from './utils/randomization';
-import { ContentValidator } from '@babylon/shared';
+import { generateActorContext } from './EmotionSystem';
+import type { WorldEvent } from './GameWorld';
+import type { BabylonLLMClient } from './llm/openai-client';
 import {
   ambientPosts,
   analystReaction,
@@ -104,6 +104,9 @@ import {
   validateFeedPost,
   type WorldContext,
 } from './prompts';
+import { RelationshipEvolutionEngine } from './RelationshipEvolutionEngine';
+import { characterMappingService } from './services/character-mapping-service';
+import type { TrendingTopicsEngine } from './TrendingTopicsEngine';
 import type {
   Actor,
   ActorConnection,
@@ -115,12 +118,11 @@ import type {
   PriceUpdate,
   Question,
 } from './types/shared';
-import { buildPhaseContext, formatActorVoiceContext } from './utils/shared-utils';
-import { generateActorContext } from './EmotionSystem';
-import { RelationshipEvolutionEngine } from './RelationshipEvolutionEngine';
-import type { WorldEvent } from './GameWorld';
-import type { BabylonLLMClient } from './llm/openai-client';
-import type { TrendingTopicsEngine } from './TrendingTopicsEngine';
+import { shuffleArray } from './utils/randomization';
+import {
+  buildPhaseContext,
+  formatActorVoiceContext,
+} from './utils/shared-utils';
 
 // Re-export types for backwards compatibility with external consumers
 export type {
@@ -1191,7 +1193,10 @@ export class FeedGenerator extends EventEmitter {
       const processedPosts = await Promise.all(
         validPosts.map(async (p) => {
           const processedPost = await this.postProcessContent(p.post);
-          const validation = this.validatePostContent(processedPost, 'JOURNALIST');
+          const validation = this.validatePostContent(
+            processedPost,
+            'JOURNALIST'
+          );
           return {
             post: validation.cleanContent,
             sentiment: p.sentiment,
@@ -1445,7 +1450,10 @@ export class FeedGenerator extends EventEmitter {
       const processedReactions = await Promise.all(
         filteredReactions.map(async (r) => {
           const processedPost = await this.postProcessContent(r.post);
-          const validation = this.validatePostContent(processedPost, 'REACTION');
+          const validation = this.validatePostContent(
+            processedPost,
+            'REACTION'
+          );
           return {
             post: validation.cleanContent,
             sentiment: r.sentiment,
@@ -1668,7 +1676,10 @@ export class FeedGenerator extends EventEmitter {
       const processedCommentary = await Promise.all(
         filteredCommentary.map(async (c) => {
           const processedPost = await this.postProcessContent(c.post);
-          const validation = this.validatePostContent(processedPost, 'COMMENTARY');
+          const validation = this.validatePostContent(
+            processedPost,
+            'COMMENTARY'
+          );
           return {
             post: validation.cleanContent,
             sentiment: c.sentiment,
@@ -1942,7 +1953,10 @@ export class FeedGenerator extends EventEmitter {
       const processedConspiracy = await Promise.all(
         filteredConspiracy.map(async (c) => {
           const processedPost = await this.postProcessContent(c.post);
-          const validation = this.validatePostContent(processedPost, 'CONSPIRACY');
+          const validation = this.validatePostContent(
+            processedPost,
+            'CONSPIRACY'
+          );
           return {
             post: validation.cleanContent,
             sentiment: c.sentiment,

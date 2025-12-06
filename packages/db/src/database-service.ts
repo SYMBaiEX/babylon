@@ -13,6 +13,7 @@
  * ```
  */
 
+import { generateSnowflakeId } from '@babylon/shared';
 import {
   actors,
   and,
@@ -36,7 +37,6 @@ import {
 } from './index';
 import { logger } from './logger';
 import type { Actor, Organization, Question } from './model-types';
-import { generateSnowflakeId } from '@babylon/shared';
 
 /**
  * FeedPost type representing a post in the feed.

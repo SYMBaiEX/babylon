@@ -51,12 +51,18 @@
  * ```
  */
 
-import type { NextRequest } from 'next/server';
-import { chatParticipants, chats, db, desc, inArray, messages } from '@babylon/db';
-import { requireAdmin } from '@babylon/api';
-import { asSystem } from '@babylon/db';
-import { successResponse, withErrorHandling } from '@babylon/api';
+import { requireAdmin, successResponse, withErrorHandling } from '@babylon/api';
+import {
+  asSystem,
+  chatParticipants,
+  chats,
+  db,
+  desc,
+  inArray,
+  messages,
+} from '@babylon/db';
 import { logger } from '@babylon/shared';
+import type { NextRequest } from 'next/server';
 
 export const GET = withErrorHandling(async (request: NextRequest) => {
   // Require admin authentication

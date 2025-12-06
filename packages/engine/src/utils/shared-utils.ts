@@ -4,8 +4,8 @@
  * Consolidated utility functions used across the engine
  */
 
-import { shuffleArray } from './randomization';
 import type { Actor, ActorRelationship } from '../types/shared';
+import { shuffleArray } from './randomization';
 
 export { shuffleArray };
 
@@ -59,7 +59,9 @@ export function formatActorVoiceContext(actor: {
       examples.reduce((sum, ex) => sum + ex.length, 0) / examples.length
     );
     const hasLowercase = examples.some((ex) => ex === ex.toLowerCase());
-    const hasAllCaps = examples.some((ex) => ex === ex.toUpperCase() && ex.length > 3);
+    const hasAllCaps = examples.some(
+      (ex) => ex === ex.toUpperCase() && ex.length > 3
+    );
 
     parts.push(`   EXAMPLE POSTS (YOUR OUTPUT MUST MATCH THIS STYLE):`);
     examples.forEach((ex, i) => {
@@ -222,4 +224,3 @@ export function toQuestionIdNumberOrNull(
   const parsed = parseInt(id, 10);
   return isNaN(parsed) ? null : parsed;
 }
-

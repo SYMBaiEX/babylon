@@ -65,20 +65,37 @@
  * @see {@link /lib/api/admin-middleware} Admin middleware
  */
 
+import {
+  getClientIp,
+  logAdminView,
+  requireAdmin,
+  withErrorHandling,
+} from '@babylon/api';
+import {
+  AgentType,
+  agentRegistry,
+  getExternalAgentAdapter,
+} from '@babylon/agents';
+import { agentLogs, and, count, db, eq, gte } from '@babylon/db';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { agentLogs, and, count, db, eq, gte } from '@babylon/db';
-import { getExternalAgentAdapter } from '@babylon/agents';
-import { logger } from '@babylon/shared';
-import { agentRegistry } from '@babylon/agents';
-import { AgentType } from '@babylon/agents';
+
+export const dynamic = 'force-dynamic';
 
 /**
  * GET /api/admin/agents
  * Returns all autonomous agents with stats
  */
-export async function GET(_req: NextRequest) {
-  try {
+export const GET = withErrorHandling(async (req: NextRequest) => {
+  const admin = await requireAdmin(req);
+
+  // Audit log the view
+  logAdminView({
+    adminId: admin.userId,
+    ipAddress: getClientIp(req.headers) ?? undefined,
+    resourceType: 'agents',
+    metadata: { action: 'view_all_agents' },
+  });
     // Get all agents
     const agents = await db.user.findMany({
       where: {
@@ -290,14 +307,4 @@ export async function GET(_req: NextRequest) {
         stats,
       },
     });
-  } catch (error) {
-    logger.error('Failed to get agents', { error }, 'AdminAgentsAPI');
-    return NextResponse.json(
-      {
-        success: false,
-        error: 'Failed to get agents',
-      },
-      { status: 500 }
-    );
-  }
-}
+});

@@ -1,3 +1,11 @@
+import type { OnboardingProfilePayload } from '@babylon/shared';
+import {
+  CAPABILITIES_HASH,
+  CHAIN,
+  getIdentityRegistryAddress,
+  identityRegistryAbi,
+  WALLET_ERROR_MESSAGES,
+} from '@babylon/shared';
 import { useCallback } from 'react';
 import {
   type Address,
@@ -5,15 +13,7 @@ import {
   encodeFunctionData,
   http,
 } from 'viem';
-import {
-  CAPABILITIES_HASH,
-  CHAIN,
-  getIdentityRegistryAddress,
-  identityRegistryAbi,
-} from '@babylon/shared';
 import { useSmartWallet } from '@/hooks/useSmartWallet';
-import type { OnboardingProfilePayload } from '@babylon/shared';
-import { WALLET_ERROR_MESSAGES } from '@babylon/shared';
 
 /**
  * Hook for registering an agent on-chain via the identity registry.

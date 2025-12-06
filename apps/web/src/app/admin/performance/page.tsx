@@ -6,8 +6,8 @@
 
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
 import { logger } from '@babylon/shared';
+import { useCallback, useEffect, useState } from 'react';
 
 // Simple replacement components
 const Card = ({

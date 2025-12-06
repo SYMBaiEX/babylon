@@ -18,10 +18,10 @@
  * ```
  */
 
-import { create } from 'zustand';
-import { useEffect, useCallback, useMemo, useRef } from 'react';
-import { useShallow } from 'zustand/react/shallow';
 import { logger } from '@babylon/shared';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { create } from 'zustand';
+import { useShallow } from 'zustand/react/shallow';
 
 /**
  * Perp market data structure from API
@@ -224,8 +224,7 @@ export function usePerpMarket(ticker: string) {
   const { markets, loading, error, refetch } = usePerpMarkets();
 
   const market = useMemo(
-    () =>
-      markets.find((m) => m.ticker.toLowerCase() === ticker.toLowerCase()),
+    () => markets.find((m) => m.ticker.toLowerCase() === ticker.toLowerCase()),
     [markets, ticker]
   );
 

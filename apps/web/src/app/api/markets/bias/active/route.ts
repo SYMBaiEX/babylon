@@ -63,9 +63,9 @@
  * @see {@link /lib/feedback/bias-engine} Bias engine
  */
 
-import { NextResponse } from 'next/server';
 import { withErrorHandling } from '@babylon/api';
 import { biasEngine } from '@babylon/engine';
+import { NextResponse } from 'next/server';
 
 export const GET = withErrorHandling(async function GET() {
   // Get all active biases from the singleton engine

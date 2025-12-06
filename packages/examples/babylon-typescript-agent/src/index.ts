@@ -13,8 +13,8 @@ import dotenv from 'dotenv';
 
 dotenv.config({ path: '.env.local' });
 
-import fs from 'fs';
 import type { A2APerpPosition } from '@babylon/a2a';
+import fs from 'fs';
 import { BabylonA2AClient } from './a2a-client';
 import { executeAction } from './actions';
 import {
@@ -122,24 +122,33 @@ async function main() {
     const decision = await decisionMaker.decide({
       portfolio: {
         balance: portfolio.balance,
-        positions: portfolio.positions.filter((p): p is A2APerpPosition => 'ticker' in p),
+        positions: portfolio.positions.filter(
+          (p): p is A2APerpPosition => 'ticker' in p
+        ),
         pnl: portfolio.pnl,
       },
       markets: {
-        predictions: markets.predictions.map((m): PredictionMarket => ({
-          question: m.question || '',
-          yesShares: typeof m.yesShares === 'number' ? m.yesShares : 0,
-          noShares: typeof m.noShares === 'number' ? m.noShares : 0,
-        })),
-        perps: markets.perps.map((p): PerpMarket => ({
-          name: p.ticker || '',
-          currentPrice: typeof p.currentPrice === 'number' ? p.currentPrice : 0,
-        })),
+        predictions: markets.predictions.map(
+          (m): PredictionMarket => ({
+            question: m.question || '',
+            yesShares: typeof m.yesShares === 'number' ? m.yesShares : 0,
+            noShares: typeof m.noShares === 'number' ? m.noShares : 0,
+          })
+        ),
+        perps: markets.perps.map(
+          (p): PerpMarket => ({
+            name: p.ticker || '',
+            currentPrice:
+              typeof p.currentPrice === 'number' ? p.currentPrice : 0,
+          })
+        ),
       },
       feed: {
-        posts: feed.posts.map((p): FeedPost => ({
-          content: p.content || '',
-        })),
+        posts: feed.posts.map(
+          (p): FeedPost => ({
+            content: p.content || '',
+          })
+        ),
       },
       memory: recentMemory,
     });

@@ -45,10 +45,10 @@
  * ```
  */
 
+import { logger } from '@babylon/shared';
+import { huggingFaceIntegration } from '@babylon/training';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { huggingFaceIntegration } from '@babylon/training';
-import { logger } from '@babylon/shared';
 
 function verifyCronRequest(request: NextRequest): boolean {
   const authHeader = request.headers.get('authorization');

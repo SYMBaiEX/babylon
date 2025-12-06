@@ -829,12 +829,17 @@ describe('ART Format Validation', () => {
           purpose: 'action',
         });
 
-        logger.completeStep(trajId, stepId, {
-          actionType: 'TRADE',
-          actionName: 'BUY',
-          parameters: { amount: 100 + i * 10 },
-          success: true,
-        }, { reward: i * 0.5 });
+        logger.completeStep(
+          trajId,
+          stepId,
+          {
+            actionType: 'TRADE',
+            actionName: 'BUY',
+            parameters: { amount: 100 + i * 10 },
+            success: true,
+          },
+          { reward: i * 0.5 }
+        );
 
         const traj = logger.getActiveTrajectory(trajId);
         if (traj) trajectories.push(traj);

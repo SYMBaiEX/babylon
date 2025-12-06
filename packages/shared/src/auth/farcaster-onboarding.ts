@@ -4,8 +4,8 @@
  * Uses the proper Sign In with Farcaster (SIWF) protocol via relay.farcaster.xyz
  */
 
-import { signInWithFarcaster } from './farcaster-auth-client';
 import { logger } from '../utils/logger';
+import { signInWithFarcaster } from './farcaster-auth-client';
 
 export interface FarcasterOnboardingProfile {
   fid: number;
@@ -53,8 +53,12 @@ export async function openFarcasterOnboardingPopup(
     });
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({})) as { error?: string };
-      throw new Error(errorData.error || 'Failed to verify Farcaster authentication');
+      const errorData = (await response.json().catch(() => ({}))) as {
+        error?: string;
+      };
+      throw new Error(
+        errorData.error || 'Failed to verify Farcaster authentication'
+      );
     }
 
     return {
@@ -104,4 +108,3 @@ export async function fetchFarcasterProfile(
   };
   return data.profile ?? null;
 }
-

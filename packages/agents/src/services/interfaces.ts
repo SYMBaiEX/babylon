@@ -7,14 +7,14 @@
  * @packageDocumentation
  */
 
-import type { JsonValue } from '../types/common';
 import type {
   AgentCapabilities,
-  UnifiedAgentRegistration,
+  AgentDiscoveryFilter,
   AgentStatus,
   TrustLevel,
-  AgentDiscoveryFilter,
+  UnifiedAgentRegistration
 } from '../types/agent-registry';
+import type { JsonValue } from '../types/common';
 
 /**
  * Agent Registry Service Interface
@@ -158,10 +158,7 @@ export interface IPerpTradeService {
   /**
    * Close a perpetual position
    */
-  closePosition(params: {
-    userId: string;
-    positionId: string;
-  }): Promise<{
+  closePosition(params: { userId: string; positionId: string }): Promise<{
     pnl: number;
     exitPrice: number;
   }>;
@@ -336,4 +333,3 @@ export function getService<K extends keyof IServiceContainer>(
 ): IServiceContainer[K] {
   return globalThis.__babylon_agents_services__?.[key];
 }
-

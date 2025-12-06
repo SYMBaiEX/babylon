@@ -4,11 +4,11 @@
  * Validate that contracts are deployed and working correctly.
  */
 
+import { ethers } from 'ethers';
 import * as fs from 'fs';
 import * as path from 'path';
-import { ethers } from 'ethers';
-import { logger } from './logger';
 import type { DeploymentEnv } from './env-detection';
+import { logger } from './logger';
 
 /**
  * Contract addresses for a deployment.
@@ -293,7 +293,7 @@ export async function isContractDeployed(
 
 /**
  * Update environment file with contract addresses
- * 
+ *
  * NOTE: This function uses Node.js file system APIs and is not compatible with edge runtime.
  * Only use this in Node.js environments (scripts, build-time, etc.).
  */
@@ -484,4 +484,3 @@ export async function waitForTransaction(
 
   throw new Error('Transaction confirmation timeout');
 }
-

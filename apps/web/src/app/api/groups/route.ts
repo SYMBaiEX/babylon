@@ -146,13 +146,12 @@
  * @see {@link /src/app/groups/page.tsx} Groups UI
  */
 
+import { authenticate, successResponse, withErrorHandling } from '@babylon/api';
+import { asUser } from '@babylon/db';
+import { logger } from '@babylon/shared';
 import { nanoid } from 'nanoid';
 import type { NextRequest } from 'next/server';
 import { z } from 'zod';
-import { authenticate } from '@babylon/api';
-import { asUser } from '@babylon/db';
-import { successResponse, withErrorHandling } from '@babylon/api';
-import { logger } from '@babylon/shared';
 
 const CreateGroupSchema = z.object({
   name: z.string().min(1).max(100),

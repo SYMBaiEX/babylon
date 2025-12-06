@@ -7,9 +7,18 @@
  * for each evaluation.
  */
 
-import { count, db, desc, eq, messages, posts, reports, users } from '@babylon/db';
-import { callClaudeDirect } from '../claude-service';
+import {
+  count,
+  db,
+  desc,
+  eq,
+  messages,
+  posts,
+  reports,
+  users,
+} from '@babylon/db';
 import { logger } from '@babylon/shared';
+import { callClaudeDirect } from '../claude-service';
 
 /**
  * NotificationService interface for dependency injection
@@ -499,4 +508,3 @@ export async function storeEvaluationResult(
     })
     .where(eq(reports.id, reportId));
 }
-

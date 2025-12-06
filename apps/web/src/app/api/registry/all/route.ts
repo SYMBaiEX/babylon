@@ -43,13 +43,12 @@
  * ```
  */
 
-import type { NextRequest } from 'next/server';
 import { SubgraphClient } from '@babylon/agents';
+import { optionalAuth, successResponse, withErrorHandling } from '@babylon/api';
 import type { DrizzleClient } from '@babylon/db';
-import { optionalAuth } from '@babylon/api';
 import { asPublic } from '@babylon/db';
-import { successResponse, withErrorHandling } from '@babylon/api';
 import { logger } from '@babylon/shared';
+import type { NextRequest } from 'next/server';
 
 /**
  * GET /api/registry/all
@@ -69,16 +68,18 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     try {
       const dbOperation = async (db: DrizzleClient) => {
         const conditions: Record<string, unknown>[] = [];
-        
+
         if (onChainOnly) {
           conditions.push({ onChainRegistered: true });
         }
-        
+
         if (search) {
           conditions.push({
             OR: [
               { username: { contains: search, mode: 'insensitive' as const } },
-              { displayName: { contains: search, mode: 'insensitive' as const } },
+              {
+                displayName: { contains: search, mode: 'insensitive' as const },
+              },
               { bio: { contains: search, mode: 'insensitive' as const } },
             ],
           });
@@ -187,7 +188,12 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
           ? {
               OR: [
                 { name: { contains: search, mode: 'insensitive' as const } },
-                { description: { contains: search, mode: 'insensitive' as const } },
+                {
+                  description: {
+                    contains: search,
+                    mode: 'insensitive' as const,
+                  },
+                },
                 { role: { contains: search, mode: 'insensitive' as const } },
               ],
             }

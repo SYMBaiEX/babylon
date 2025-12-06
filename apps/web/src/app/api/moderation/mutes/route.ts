@@ -53,11 +53,10 @@
  * ```
  */
 
-import type { NextRequest } from 'next/server';
+import { authenticate, successResponse, withErrorHandling } from '@babylon/api';
 import { db } from '@babylon/db';
-import { authenticate } from '@babylon/api';
-import { successResponse, withErrorHandling } from '@babylon/api';
 import { GetMutesSchema } from '@babylon/shared';
+import type { NextRequest } from 'next/server';
 
 export const GET = withErrorHandling(async (request: NextRequest) => {
   const authUser = await authenticate(request);

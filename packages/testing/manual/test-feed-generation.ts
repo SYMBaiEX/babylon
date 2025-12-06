@@ -8,17 +8,17 @@
  * Run: bun packages/testing/manual/test-feed-generation.ts
  */
 
-import { writeFile, mkdir } from 'fs/promises';
-import { join } from 'path';
-import { FeedGenerator, BabylonLLMClient } from '@babylon/engine';
+import { BabylonLLMClient, FeedGenerator } from '@babylon/engine';
 import type {
   Actor,
-  WorldEvent,
-  Organization,
-  ActorState,
   ActorRelationship,
+  ActorState,
   FeedPost,
+  Organization,
+  WorldEvent,
 } from '@babylon/shared';
+import { mkdir, writeFile } from 'fs/promises';
+import { join } from 'path';
 
 // ============================================================================
 // Test Data Setup (Minimal for fast execution)
@@ -213,9 +213,7 @@ function createTestOrganizations(): Organization[] {
 /**
  * Create actor states
  */
-function createActorStates(
-  actors: Actor[]
-): Map<string, ActorState> {
+function createActorStates(actors: Actor[]): Map<string, ActorState> {
   const states = new Map<string, ActorState>();
   for (const actor of actors) {
     states.set(actor.id, {
@@ -375,14 +373,23 @@ async function writeOutputFiles(
 
       const details: string[] = [];
       if (post.sentiment !== undefined) {
-        const sentimentNum = typeof post.sentiment === 'string' ? parseFloat(post.sentiment) : post.sentiment;
+        const sentimentNum =
+          typeof post.sentiment === 'string'
+            ? parseFloat(post.sentiment)
+            : post.sentiment;
         if (!isNaN(sentimentNum)) {
-          const sentimentEmoji = sentimentNum > 0.3 ? '😊' : sentimentNum < -0.3 ? '😠' : '😐';
-          details.push(`Sentiment: ${sentimentNum.toFixed(2)} ${sentimentEmoji}`);
+          const sentimentEmoji =
+            sentimentNum > 0.3 ? '😊' : sentimentNum < -0.3 ? '😠' : '😐';
+          details.push(
+            `Sentiment: ${sentimentNum.toFixed(2)} ${sentimentEmoji}`
+          );
         }
       }
       if (post.clueStrength !== undefined) {
-        const clueNum = typeof post.clueStrength === 'string' ? parseFloat(post.clueStrength) : post.clueStrength;
+        const clueNum =
+          typeof post.clueStrength === 'string'
+            ? parseFloat(post.clueStrength)
+            : post.clueStrength;
         if (!isNaN(clueNum) && clueNum > 0) {
           details.push(`Clue Strength: ${clueNum.toFixed(2)}`);
         }
@@ -409,7 +416,7 @@ async function writeOutputFiles(
 
   mdContent += `\n### Authors\n\n`;
   for (const author of data.output.metadata.uniqueAuthors) {
-    const authorPosts = data.output.posts.filter(p => p.author === author);
+    const authorPosts = data.output.posts.filter((p) => p.author === author);
     mdContent += `- **${author}** (${authorPosts.length} posts)\n`;
   }
 
@@ -580,7 +587,12 @@ async function testMinuteAmbientPost(
   const startTime = Date.now();
   let success = true;
   let error: string | undefined;
-  const posts: Array<{ post: string; author: string; type?: string; sentiment?: number }> = [];
+  const posts: Array<{
+    post: string;
+    author: string;
+    type?: string;
+    sentiment?: number;
+  }> = [];
 
   try {
     // generateMinuteAmbientPost takes (actor, timestamp) and returns { content, sentiment, energy }

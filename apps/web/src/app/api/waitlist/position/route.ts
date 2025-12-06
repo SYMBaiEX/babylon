@@ -64,13 +64,17 @@
  * @see {@link /lib/services/waitlist-service} Waitlist service
  */
 
-import type { NextRequest } from 'next/server';
-import { authenticate } from '@babylon/api';
-import { getCache, setCache } from '@babylon/api';
-import { successResponse, withErrorHandling } from '@babylon/api';
+import {
+  authenticate,
+  getCache,
+  setCache,
+  successResponse,
+  WaitlistService,
+  withErrorHandling,
+} from '@babylon/api';
+import { and, db, desc, eq, referrals, users } from '@babylon/db';
 import { logger } from '@babylon/shared';
-import { WaitlistService } from '@babylon/api';
-import { db, users, referrals, eq, and, desc } from '@babylon/db';
+import type { NextRequest } from 'next/server';
 
 type PositionResponse = {
   position: number | null;

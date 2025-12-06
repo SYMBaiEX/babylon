@@ -65,8 +65,8 @@
  * @see {@link @babylon/engine#loadActorsData} Actors data loader (TypeScript imports)
  */
 
-import { NextResponse } from 'next/server';
 import { loadActorsData } from '@babylon/engine';
+import { NextResponse } from 'next/server';
 
 /**
  * GET /api/actors

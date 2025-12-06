@@ -1,5 +1,6 @@
 'use client';
 
+import { getReferralUrl, trackExternalShare } from '@babylon/shared';
 import { Download, LogOut, Twitter, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
@@ -7,8 +8,6 @@ import { CategoryPnLShareCard } from '@/components/markets/CategoryPnLShareCard'
 import { PortfolioPnLShareCard } from '@/components/markets/PortfolioPnLShareCard';
 import type { PortfolioPnLSnapshot } from '@/hooks/usePortfolioPnL';
 import { useTwitterAuth } from '@/hooks/useTwitterAuth';
-import { getReferralUrl } from '@babylon/shared';
-import { trackExternalShare } from '@babylon/shared';
 import type { User } from '@/stores/authStore';
 
 /**

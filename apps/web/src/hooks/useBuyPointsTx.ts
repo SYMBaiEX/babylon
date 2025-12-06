@@ -1,7 +1,6 @@
-import { useCallback } from 'react';
-
-import type { Address } from 'viem';
 import { CHAIN } from '@babylon/shared';
+import { useCallback } from 'react';
+import type { Address } from 'viem';
 import { useSmartWallet } from '@/hooks/useSmartWallet';
 
 /**

@@ -88,11 +88,15 @@
  * @see {@link /lib/services/waitlist-service} Waitlist service
  */
 
-import type { NextRequest } from 'next/server';
-import { getCache, setCache } from '@babylon/api';
-import { successResponse, withErrorHandling } from '@babylon/api';
+import {
+  getCache,
+  setCache,
+  successResponse,
+  WaitlistService,
+  withErrorHandling,
+} from '@babylon/api';
 import { logger } from '@babylon/shared';
-import { WaitlistService } from '@babylon/api';
+import type { NextRequest } from 'next/server';
 
 type LeaderboardResponse = {
   leaderboard: Awaited<ReturnType<typeof WaitlistService.getTopWaitlistUsers>>;

@@ -8,8 +8,8 @@
 /// <reference path="./swagger-jsdoc.d.ts" />
 
 import path from 'path';
-import { generateOpenApiSpec } from './generator';
 import { swaggerDefinition } from './config';
+import { generateOpenApiSpec } from './generator';
 
 // swagger-jsdoc is an optional dev dependency for docs generation
 // Use dynamic import to handle cases where it's not installed
@@ -18,7 +18,9 @@ type SwaggerJsdocOptions = {
   apis: string[];
 };
 
-type SwaggerJsdocFunction = (options: SwaggerJsdocOptions) => Record<string, unknown>;
+type SwaggerJsdocFunction = (
+  options: SwaggerJsdocOptions
+) => Record<string, unknown>;
 
 /**
  * OpenAPI specification type
@@ -81,7 +83,10 @@ export async function generateAutoSpec() {
   // Generate auto spec if swagger-jsdoc is available, otherwise use base spec
   const autoSpec: OpenAPISpec = swaggerJsdoc
     ? (swaggerJsdoc(options) as OpenAPISpec)
-    : { openapi: swaggerDefinition.openapi || '3.0.0', info: swaggerDefinition.info };
+    : {
+        openapi: swaggerDefinition.openapi || '3.0.0',
+        info: swaggerDefinition.info,
+      };
 
   // Ensure openapi version field is present (required by Swagger UI)
   if (!autoSpec.openapi && !autoSpec.swagger) {

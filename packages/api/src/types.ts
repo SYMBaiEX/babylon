@@ -30,5 +30,3 @@ export interface ErrorLike {
  * Generic key-value record with string keys
  */
 export type StringRecord<T = JsonValue> = Record<string, T>;
-
-

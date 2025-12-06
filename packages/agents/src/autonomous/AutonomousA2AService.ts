@@ -9,9 +9,9 @@
 
 import { db } from '@babylon/db';
 import type { IAgentRuntime } from '@elizaos/core';
+import type { BabylonRuntime } from '../plugins/babylon/types';
 import { logger } from '../shared/logger';
 import { generateSnowflakeId } from '../shared/snowflake';
-import type { BabylonRuntime } from '../plugins/babylon/types';
 
 /**
  * Type guard to check if runtime has A2A client
@@ -149,7 +149,10 @@ export class AutonomousA2AService {
     }
 
     // Get portfolio for context
-    const portfolio = (await a2aClient.sendRequest('a2a.getPortfolio', {})) as unknown as {
+    const portfolio = (await a2aClient.sendRequest(
+      'a2a.getPortfolio',
+      {}
+    )) as unknown as {
       balance: number;
       positions: Array<PortfolioPosition>;
       pnl: number;

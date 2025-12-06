@@ -80,13 +80,11 @@
  * @see {@link /lib/services/perp-trade-service} Perp trade service
  */
 
-import type { NextRequest } from 'next/server';
-
-import { authenticate } from '@babylon/api';
-import { successResponse, withErrorHandling } from '@babylon/api';
-import { trackServerEvent } from '@/lib/posthog/server';
+import { authenticate, successResponse, withErrorHandling } from '@babylon/api';
 import { PerpTradeService } from '@babylon/engine';
 import { PerpOpenPositionSchema } from '@babylon/shared';
+import type { NextRequest } from 'next/server';
+import { trackServerEvent } from '@/lib/posthog/server';
 
 /**
  * POST /api/markets/perps/open

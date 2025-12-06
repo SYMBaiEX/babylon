@@ -74,16 +74,12 @@ import {
   trendingTags,
   worldEvents,
 } from '@babylon/db';
+import { generateSnowflakeId, logger } from '@babylon/shared';
 import { type Article, ArticleGenerator } from './ArticleGenerator';
+import type { BabylonLLMClient } from './llm/openai-client';
+import { BabylonLLMClient as BabylonLLMClientValue } from './llm/openai-client';
 import { MarketDecisionEngine } from './MarketDecisionEngine';
-import { logger } from '@babylon/shared';
 import { PredictionPricing } from './prediction-pricing';
-import { MarketContextService } from './services/market-context-service';
-import { TradeExecutionService } from './services/trade-execution-service';
-import { ensureMarketOnChain } from './services/onchain-market-service';
-import { worldFactsService } from './world-facts-service';
-import { generateSnowflakeId } from '@babylon/shared';
-import { shuffleArray } from './utils/randomization';
 import {
   generateWorldContext,
   questionGeneration,
@@ -91,6 +87,9 @@ import {
   renderPrompt,
   worldImpactAssessment,
 } from './prompts';
+import { MarketContextService } from './services/market-context-service';
+import { ensureMarketOnChain } from './services/onchain-market-service';
+import { TradeExecutionService } from './services/trade-execution-service';
 import type {
   DayTimeline,
   Organization,
@@ -99,8 +98,8 @@ import type {
   SelectedActor,
   WorldEvent,
 } from './types/shared';
-import type { BabylonLLMClient } from './llm/openai-client';
-import { BabylonLLMClient as BabylonLLMClientValue } from './llm/openai-client';
+import { shuffleArray } from './utils/randomization';
+import { worldFactsService } from './world-facts-service';
 
 /**
  * Parameters for question generation

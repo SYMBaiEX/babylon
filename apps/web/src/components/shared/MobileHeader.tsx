@@ -1,5 +1,6 @@
 'use client';
 
+import { cn, getDisplayReferralUrl, getReferralUrl } from '@babylon/shared';
 import {
   Bell,
   Check,
@@ -18,11 +19,6 @@ import { usePathname, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useState } from 'react';
 import { Avatar } from '@/components/shared/Avatar';
 import { useAuth } from '@/hooks/useAuth';
-import {
-  getDisplayReferralUrl,
-  getReferralUrl,
-} from '@babylon/shared';
-import { cn } from '@babylon/shared';
 import { useAuthStore } from '@/stores/authStore';
 
 /**
@@ -48,11 +44,21 @@ function MobileHeaderContent() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  // Hide mobile header when WAITLIST_MODE is enabled in production OR ?comingsoon=true
+  // Check if dev mode is enabled via URL parameter (for staging testing)
+  const isDevMode = searchParams.get('dev') === 'true';
+  // Force coming soon mode via URL parameter (for testing)
   const forceComingSoon = searchParams.get('comingsoon') === 'true';
-  const waitlistMode = process.env.NEXT_PUBLIC_WAITLIST_MODE === 'true';
-  const isProduction = process.env.NODE_ENV === 'production';
-  const shouldHide = (waitlistMode && isProduction) || forceComingSoon;
+
+  // Hide mobile header on production (babylon.market) on home page unless ?dev=true
+  const isProduction =
+    typeof window !== 'undefined' &&
+    window.location.hostname === 'babylon.market';
+  // Hide mobile header when WAITLIST_MODE is enabled on home page (unless ?dev=true)
+  const isWaitlistMode = process.env.NEXT_PUBLIC_WAITLIST_MODE === 'true';
+  const isHomePage = pathname === '/';
+  const shouldHide =
+    (isWaitlistMode && isProduction && isHomePage && !isDevMode) ||
+    forceComingSoon;
 
   // All hooks must be called before any conditional returns
   useEffect(() => {
@@ -134,17 +140,23 @@ function MobileHeaderContent() {
       // Update reputation points from profile if changed
       if (profileResponse.ok) {
         const profileData = await profileResponse.json();
-        if (profileData.user?.reputationPoints !== undefined && 
-            profileData.user.reputationPoints !== user.reputationPoints) {
+        if (
+          profileData.user?.reputationPoints !== undefined &&
+          profileData.user.reputationPoints !== user.reputationPoints
+        ) {
           setUser({
             ...user,
             reputationPoints: profileData.user.reputationPoints,
           });
           // Update local state with new reputation points
-          setPointsData((prev) => prev ? {
-            ...prev,
-            total: profileData.user.reputationPoints,
-          } : null);
+          setPointsData((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  total: profileData.user.reputationPoints,
+                }
+              : null
+          );
         }
       }
     };

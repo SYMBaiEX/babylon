@@ -5,17 +5,11 @@
  * Provides bidirectional sync between local database and blockchain.
  */
 
-import {
-  and,
-  db,
-  desc,
-  eq,
-  isNotNull,
-} from '@babylon/db';
+import { and, db, desc, eq, isNotNull } from '@babylon/db';
 import { agentPerformanceMetrics, feedbacks, users } from '@babylon/db/schema';
-import { generateSnowflakeId } from '../../shared/snowflake';
-import { recalculateReputation, getReputationBreakdown } from '@babylon/engine';
+import { getReputationBreakdown, recalculateReputation } from '@babylon/engine';
 import { logger } from '../../shared/logger';
+import { generateSnowflakeId } from '../../shared/snowflake';
 import { getAgent0Client } from '../Agent0Client';
 
 /**
@@ -500,4 +494,3 @@ export async function periodicReputationSyncIfNeeded() {
     failed: results.results.filter((r) => !r.success).length,
   };
 }
-

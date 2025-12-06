@@ -78,16 +78,29 @@
  * @see {@link /lib/cache-service} Caching service
  */
 
-import type { NextRequest } from 'next/server';
-import { and, comments, count, db, eq, posts, reactions, shares } from '@babylon/db';
-import { optionalAuth } from '@babylon/api';
-import { CACHE_KEYS, getCacheOrFetch } from '@babylon/api';
-import { successResponse, withErrorHandling } from '@babylon/api';
-import { logger } from '@babylon/shared';
 import {
+  CACHE_KEYS,
+  getCacheOrFetch,
+  optionalAuth,
+  successResponse,
+  withErrorHandling,
+} from '@babylon/api';
+import {
+  and,
+  comments,
+  count,
+  db,
+  eq,
+  posts,
+  reactions,
+  shares,
+} from '@babylon/db';
+import {
+  logger,
   PostIdParamSchema,
   PostInteractionsQuerySchema,
 } from '@babylon/shared';
+import type { NextRequest } from 'next/server';
 
 /**
  * GET /api/posts/[id]/interactions

@@ -94,15 +94,11 @@
  * @see {@link /lib/db/context} RLS context
  */
 
-import type { NextRequest } from 'next/server';
+import { errorResponse, optionalAuth, successResponse } from '@babylon/api';
 import type { DrizzleClient } from '@babylon/db';
-import {
-  errorResponse,
-  optionalAuth,
-  successResponse,
-} from '@babylon/api';
 import { asPublic, asUser } from '@babylon/db';
 import { logger } from '@babylon/shared';
+import type { NextRequest } from 'next/server';
 
 interface UsernameCheckResult {
   available: boolean;
@@ -185,11 +181,19 @@ export async function GET(request: NextRequest) {
   }
 
   if (username.length < 3) {
-    return errorResponse('Username must be at least 3 characters', 'VALIDATION_ERROR', 400);
+    return errorResponse(
+      'Username must be at least 3 characters',
+      'VALIDATION_ERROR',
+      400
+    );
   }
 
   if (username.length > 20) {
-    return errorResponse('Username must be 20 characters or less', 'VALIDATION_ERROR', 400);
+    return errorResponse(
+      'Username must be 20 characters or less',
+      'VALIDATION_ERROR',
+      400
+    );
   }
 
   try {
@@ -220,6 +224,10 @@ export async function GET(request: NextRequest) {
       { error, username },
       'GET /api/onboarding/check-username'
     );
-    return errorResponse('Failed to check username availability', 'INTERNAL_ERROR', 500);
+    return errorResponse(
+      'Failed to check username availability',
+      'INTERNAL_ERROR',
+      500
+    );
   }
 }

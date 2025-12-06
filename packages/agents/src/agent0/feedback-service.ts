@@ -5,14 +5,7 @@
  * Allows users to rate agents and tracks Babylon's own reputation
  */
 
-import {
-  db,
-  eq,
-  gameConfigs,
-  like,
-  type JsonValue,
-  users,
-} from '@babylon/db';
+import { db, eq, gameConfigs, type JsonValue, like, users } from '@babylon/db';
 import { SDK } from 'agent0-sdk';
 import { logger } from '../shared/logger';
 import { generateSnowflakeId } from '../shared/snowflake';

@@ -3,7 +3,7 @@
  * Verifies all autonomous services work together properly with mocked dependencies
  */
 
-import { describe, expect, mock, test, beforeEach } from 'bun:test';
+import { beforeEach, describe, expect, mock, test } from 'bun:test';
 import type { IAgentRuntime, ModelType } from '@elizaos/core';
 import { ethers } from 'ethers';
 
@@ -214,7 +214,13 @@ describe('Autonomous Coordinator', () => {
     } as unknown as IAgentRuntime;
 
     expect(runtimeWithA2A.a2aClient).toBeDefined();
-    expect((runtimeWithA2A as unknown as { a2aClient: { isConnected: () => boolean } }).a2aClient.isConnected()).toBe(true);
+    expect(
+      (
+        runtimeWithA2A as unknown as {
+          a2aClient: { isConnected: () => boolean };
+        }
+      ).a2aClient.isConnected()
+    ).toBe(true);
   });
 
   test('execution duration is tracked', () => {

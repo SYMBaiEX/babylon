@@ -7,9 +7,9 @@
  * is unavailable.
  */
 
-import OpenAI from 'openai';
 import { isPromptLoggingEnabled, logPrompt } from '@babylon/engine';
 import { logger } from '@babylon/shared';
+import OpenAI from 'openai';
 
 // Configuration
 const LLM_TIMEOUT_MS = 15000; // 15 seconds
@@ -75,7 +75,6 @@ export interface GroupedTrend {
   summary: string;
   rank: number;
 }
-
 
 /**
  * Calculate estimated cost for LLM call (rough estimates)
@@ -433,7 +432,6 @@ Return ONLY valid XML. No markdown, no explanations.`;
     return { tagToGroup: fallbackGrouping(tags), groupSummaries: new Map() };
   }
 }
-
 
 /**
  * Generate a one-sentence summary for a single trending tag based on recent posts

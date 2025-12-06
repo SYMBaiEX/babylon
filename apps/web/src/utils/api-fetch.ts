@@ -120,4 +120,3 @@ export async function apiFetch(
 
   return response;
 }
-

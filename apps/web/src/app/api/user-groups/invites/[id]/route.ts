@@ -119,8 +119,7 @@
  * ```
  */
 
-import type { NextRequest } from 'next/server';
-import { NextResponse } from 'next/server';
+import { authenticate, successResponse, withErrorHandling } from '@babylon/api';
 import {
   and,
   chatParticipants,
@@ -133,9 +132,9 @@ import {
   userGroups,
   users,
 } from '@babylon/db';
-import { authenticate } from '@babylon/api';
-import { successResponse, withErrorHandling } from '@babylon/api';
 import { generateSnowflakeId } from '@babylon/shared';
+import type { NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
 
 /**
  * POST /api/user-groups/invites/[id]

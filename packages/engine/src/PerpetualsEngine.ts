@@ -85,10 +85,11 @@
  * const { realizedPnL } = perps.closePosition(position.id);
  * ```
  */
-import { EventEmitter } from 'events';
+
 import type { PerpPosition as DbPerpPosition } from '@babylon/db';
 import { db, eq, perpPositions } from '@babylon/db';
-import { logger, NotFoundError, BusinessLogicError } from '@babylon/shared';
+import { BusinessLogicError, logger, NotFoundError } from '@babylon/shared';
+import { EventEmitter } from 'events';
 
 import type {
   DailyPriceSnapshot,
