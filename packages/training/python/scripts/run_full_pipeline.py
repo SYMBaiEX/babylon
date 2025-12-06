@@ -146,9 +146,10 @@ class FullPipeline:
         For now, this loads existing data from the database.
         """
         if not self.database_url:
-            logger.warning("No DATABASE_URL - using synthetic data")
-            await self._generate_synthetic_data()
-            return
+            logger.error("No DATABASE_URL configured!")
+            logger.error("Set DATABASE_URL environment variable to connect to the database.")
+            logger.error("Cannot proceed without real trajectory data.")
+            raise ValueError("DATABASE_URL required for training - no synthetic fallback")
         
         from src.data_bridge import PostgresTrajectoryReader
         
@@ -163,9 +164,11 @@ class FullPipeline:
                 )
                 
                 if not windows:
-                    logger.warning("No windows found in database - using synthetic data")
-                    await self._generate_synthetic_data()
-                    return
+                    logger.error("No trajectory windows found in database!")
+                    logger.error("Generate real trajectories first:")
+                    logger.error("  1. Start server: bun run dev")
+                    logger.error("  2. Run: babylon train parallel --archetypes trader --num-agents 2 --ticks 10")
+                    raise ValueError("No trajectory data in database - generate real data first")
                 
                 logger.info(f"Found {len(windows)} trajectory windows")
                 
@@ -183,9 +186,10 @@ class FullPipeline:
                         break
                 
                 if not all_trajectories:
-                    logger.warning("No valid trajectories found - using synthetic data")
-                    await self._generate_synthetic_data()
-                    return
+                    logger.error("No valid trajectories found in database!")
+                    logger.error("The trajectories may be corrupted or missing required fields.")
+                    logger.error("Generate new real trajectories with: babylon train parallel")
+                    raise ValueError("No valid trajectory data - generate real data first")
                 
                 self.generated_trajectories = all_trajectories
                 logger.info(f"Loaded {len(all_trajectories)} trajectories from database")
@@ -194,136 +198,14 @@ class FullPipeline:
             logger.error(f"Failed to load from database: {e}")
             import traceback
             traceback.print_exc()
-            logger.warning("Falling back to synthetic data")
-            await self._generate_synthetic_data()
+            raise ValueError(f"Database connection failed: {e}")
     
-    async def _generate_synthetic_data(self):
-        """
-        Generate realistic synthetic data for testing.
-        
-        Creates trajectories with:
-        - Multiple LLM calls per step (reasoning + action)
-        - Proper action_type fields for reward attribution
-        - Varied outcomes (some successful, some not)
-        - Realistic prompt structures
-        """
-        from datetime import datetime
-        import random
-        from src.models import (
-            BabylonTrajectory, TrajectoryStep, EnvironmentState,
-            Action, LLMCall
-        )
-        
-        logger.info(f"Generating {self.num_agents} synthetic trajectories...")
-        
-        # Agent strategies for variety
-        strategies = [
-            "momentum trading - buy when price is rising",
-            "contrarian - buy when others are selling",
-            "fundamental analysis - focus on value",
-            "technical analysis - use chart patterns",
-            "risk-averse - small positions only",
-        ]
-        
-        trajectories = []
-        for agent_idx in range(self.num_agents):
-            steps = []
-            balance = 10000.0
-            pnl = 0.0
-            strategy = strategies[agent_idx % len(strategies)]
-            
-            # Agent skill level affects success rate
-            skill = 0.3 + (agent_idx / self.num_agents) * 0.5  # 0.3 to 0.8
-            
-            for tick in range(self.ticks_per_agent):
-                # Simulate P&L changes based on agent skill
-                base_change = random.gauss(0, 50)  # Random market move
-                skill_bonus = (skill - 0.5) * 100  # Skill affects avg outcome
-                pnl_change = base_change + skill_bonus
-                pnl += pnl_change
-                balance += pnl_change
-                
-                env = EnvironmentState(
-                    agent_balance=balance,
-                    agent_pnl=pnl,
-                    open_positions=tick % 5
-                )
-                
-                # Decide action based on tick and skill
-                is_trade_tick = tick % 3 == 0
-                action_success = random.random() < skill  # Skill determines success
-                
-                # Build realistic LLM calls
-                llm_calls = []
-                
-                # Reasoning call (sometimes)
-                if tick % 2 == 0:
-                    llm_calls.append(LLMCall(
-                        model=self.model_name,
-                        system_prompt=f"You are a trading agent focused on {strategy}. Analyze markets carefully.",
-                        user_prompt=f"Current state: Balance ${balance:.2f}, P&L ${pnl:.2f}, Positions: {tick % 5}. Analyze the market.",
-                        response=f"Looking at the market conditions, I see {'bullish' if pnl > 0 else 'bearish'} momentum. "
-                                 f"Based on my {strategy} approach, I {'should consider entering' if is_trade_tick else 'will wait for better opportunity'}.",
-                        temperature=0.7,
-                        max_tokens=500,
-                        purpose='reasoning',
-                        action_type='market_analysis',
-                    ))
-                
-                # Action call
-                action_type = 'buy' if is_trade_tick else 'wait'
-                llm_calls.append(LLMCall(
-                    model=self.model_name,
-                    system_prompt=f"You are a trading agent. Strategy: {strategy}",
-                    user_prompt=f"Balance: ${balance:.2f}, P&L: ${pnl:.2f}. Decide your action. Respond in JSON format.",
-                    response='{"action": "' + ('trade' if is_trade_tick else 'hold') + '"' + 
-                             (', "trade": {"type": "prediction", "market": "btc", "action": "buy_yes", "amount": 100}' if is_trade_tick else '') + '}',
-                    temperature=0.7,
-                    max_tokens=300,
-                    purpose='action',
-                    action_type='evaluate_trading_opportunity',
-                ))
-                
-                # Step reward based on P&L change and action success
-                step_reward = pnl_change / 500  # Normalize
-                if is_trade_tick and action_success:
-                    step_reward += 0.1
-                elif is_trade_tick and not action_success:
-                    step_reward -= 0.05
-                
-                steps.append(TrajectoryStep(
-                    step_number=tick,
-                    timestamp=int(time.time() * 1000) + tick * 1000,
-                    environment_state=env,
-                    provider_accesses=[],
-                    llm_calls=llm_calls,
-                    action=Action(
-                        action_type=action_type,
-                        parameters={'amount': 100} if is_trade_tick else {},
-                        success=action_success if is_trade_tick else True,
-                        reasoning=f"Executing {action_type} based on {strategy}"
-                    ),
-                    reward=step_reward
-                ))
-            
-            traj = BabylonTrajectory(
-                id=f"synthetic-{agent_idx}",
-                trajectory_id=f"synthetic-{agent_idx}",
-                agent_id=f"agent-{agent_idx}",
-                window_id=datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:00"),
-                start_time=datetime.now(timezone.utc),
-                end_time=datetime.now(timezone.utc),
-                duration_ms=self.ticks_per_agent * 1000,
-                steps=steps,
-                total_reward=sum(s.reward for s in steps),
-                final_pnl=pnl,
-                episode_length=len(steps),
-                final_status='completed'
-            )
-            trajectories.append(traj)
-        
-        self.generated_trajectories = trajectories
-        logger.info(f"Generated {len(trajectories)} synthetic trajectories")
+    # REMOVED: _generate_synthetic_data method
+    # Synthetic data generation has been removed to prevent training on fake data.
+    # All training must use real trajectory data from the database.
+    # To generate real trajectories:
+    #   1. Start the server: bun run dev
+    #   2. Run: babylon train parallel --archetypes trader --num-agents 2 --ticks 10
     
     async def score_trajectories(self):
         """Score trajectories using heuristics and relative comparison"""

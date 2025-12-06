@@ -20,7 +20,6 @@ import { IPFSSimulator } from '../storage/ipfs-simulator.js';
 import { StateManager } from '../storage/state-manager.js';
 import { TEEEnclave } from '../tee/enclave.js';
 import { BlockchainClient } from './blockchain-client.js';
-import { createIPFSClient, type IPFSClient } from './ipfs-client.js';
 
 export interface BootstrapConfig {
   // Required: wallet that will operate the game
@@ -33,10 +32,7 @@ export interface BootstrapConfig {
   chainId?: 'mainnet' | 'sepolia' | 'localhost';
   rpcUrl?: string;
 
-  // IPFS configuration
-  ipfsProvider?: 'local' | 'infura' | 'pinata';
-  ipfsProjectId?: string;
-  ipfsProjectSecret?: string;
+  // Storage: Use RealStateManager with FileStorage or ArweaveStorage for production
 
   // Game configuration
   gameCodeHash?: Hex;
@@ -48,15 +44,12 @@ export interface BootstrapConfig {
 
   // Heartbeat interval (ms)
   heartbeatIntervalMs?: number;
-
-  // Use simulated IPFS (for testing)
-  useSimulatedIPFS?: boolean;
 }
 
 export interface BootstrappedGame {
   // Clients
   blockchain: BlockchainClient;
-  ipfs: IPFSClient | IPFSSimulator;
+  ipfs: IPFSSimulator;
 
   // TEE
   enclave: TEEEnclave;
@@ -121,30 +114,12 @@ export async function bootstrap(
   console.log(`  Operator wallet: ${blockchain.getAddress()}`);
 
   // =========================================================================
-  // Step 2: Initialize IPFS client
+  // Step 2: Initialize storage (simulated IPFS for now)
   // =========================================================================
-  console.log('\n[2/6] Connecting to IPFS...');
+  console.log('\n[2/6] Initializing storage...');
 
-  let ipfs: IPFSClient | IPFSSimulator;
-
-  if (config.useSimulatedIPFS) {
-    console.log('  Using simulated IPFS');
-    ipfs = new IPFSSimulator();
-  } else {
-    ipfs = createIPFSClient(config.ipfsProvider ?? 'local', {
-      projectId: config.ipfsProjectId,
-      projectSecret: config.ipfsProjectSecret,
-    });
-
-    // Test connection
-    try {
-      const testResult = await ipfs.upload('test');
-      console.log(`  IPFS connected (test CID: ${testResult.cid})`);
-    } catch {
-      console.warn('  Warning: IPFS connection failed, using simulated IPFS');
-      ipfs = new IPFSSimulator();
-    }
-  }
+  const ipfs = new IPFSSimulator();
+  console.log('  Storage initialized (simulated IPFS)');
 
   // =========================================================================
   // Step 3: Boot TEE enclave
@@ -413,7 +388,6 @@ if (import.meta.main) {
     contractAddress,
     chainId,
     rpcUrl,
-    ipfsProvider: 'local',
   })
     .then(async (game) => {
       await game.start();

@@ -204,15 +204,21 @@ export class BenchmarkRunner {
         config.agentRuntime
       );
 
-      if (
-        tickResult.success &&
-        tickResult.actionsExecuted &&
-        tickResult.actionsExecuted.length > 0
-      ) {
-        logger.debug('Agent took actions', {
-          tick: currentTick,
-          actions: tickResult.actionsExecuted,
-        });
+      if (tickResult.success && tickResult.actionsExecuted) {
+        const totalActions =
+          tickResult.actionsExecuted.trades +
+          tickResult.actionsExecuted.posts +
+          tickResult.actionsExecuted.comments +
+          tickResult.actionsExecuted.messages +
+          tickResult.actionsExecuted.groupMessages +
+          tickResult.actionsExecuted.engagements;
+
+        if (totalActions > 0) {
+          logger.debug('Agent took actions', {
+            tick: currentTick,
+            actions: tickResult.actionsExecuted,
+          });
+        }
       }
 
       // Advance simulation tick

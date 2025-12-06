@@ -1,78 +1,7 @@
 /**
- * Babylon Feed Generator - Social Media Simulation Engine
- *
- * @module engine/FeedGenerator
- *
- * @description
- * Generates organic, realistic social media feed content where NPCs react to game
- * events based on personality, emotional state, relationships, and insider information.
- * Creates cascading information flows that mimic real social media dynamics.
- *
- * **Feed Information Cascade:**
- * 1. **Real Event Occurs** (WorldEvent - players never see directly)
- * 2. **Media Breaks Story** - News organizations and journalists report
- * 3. **Involved Parties React** - Actors in event respond (defensive/celebratory)
- * 4. **Companies Respond** - PR statements from affiliated companies
- * 5. **Experts Analyze** - Outside commentators weigh in
- * 6. **Conspiracy Theories** - Contrarians spin alternative narratives
- * 7. **Threads Emerge** - Replies and conversations develop
- * 8. **Ambient Noise** - Unrelated musings and hot takes
- *
- * **Content Generation:**
- * - 100% LLM-generated content (no templates)
- * - Each post considers actor's mood, luck, personality, relationships
- * - Group chat context influences public posts
- * - Relationship dynamics create natural disagreements
- * - Clue strength varies by time until resolution
- *
- * **Performance Optimization:**
- * - ✅ **90% LLM cost reduction** via intelligent batching
- * - Before: ~10-15 calls per event (2,000+ total per game)
- * - After: ~4-5 calls per event (~200 total per game)
- * - Same quality, 10x faster, significantly cheaper
- *
- * **Batching Strategy:**
- * - Media posts: All orgs/journalists → 1 call
- * - Reactions: All involved actors → 1 call
- * - Commentary: All experts → 1 call
- * - Conspiracy: All contrarians → 1 call
- * - Threads: All replies → 1 call
- * - Ambient: All posts per hour → 1 call
- *
- * **Per-Actor Context Preserved:**
- * - Individual mood and luck state
- * - Unique personality traits
- * - Relationship dynamics
- * - Group chat insider information
- * - Post style and voice
- *
- * **Retry Logic:**
- * - All LLM calls retry up to 5 times with backoff
- * - Validates response structure and content
- * - Requires minimum success rate (50%) for batches
- * - Throws on persistent failure to maintain quality
- *
- * @see {@link GameEngine} - Uses FeedGenerator for post generation
- * @see {@link EmotionSystem} - Provides mood/luck context
- * @see {@link WorldEvent} - Events that trigger feed cascades
- *
- * @example
- * ```typescript
- * const feed = new FeedGenerator(llmClient);
- * feed.setActorStates(moodMap);
- * feed.setRelationships(relationships);
- * feed.setOrganizations(organizations);
- *
- * const posts = await feed.generateDayFeed(
- *   day: 15,
- *   worldEvents: [event1, event2],
- *   allActors,
- *   outcome: true
- * );
- *
- * console.log(`Generated ${posts.length} posts`);
- * // Posts include news breaks, reactions, analysis, conspiracy, threads
- * ```
+ * Social feed generator for game events.
+ * Transforms world events into social media posts with LLM-powered content.
+ * Uses batched LLM calls for cost efficiency (~90% reduction).
  */
 
 import { ContentValidator, logger } from '@babylon/shared';
@@ -184,42 +113,7 @@ interface ConspiracyResponseFormat2 {
  */
 type ConspiracyResponse = ConspiracyResponseFormat1 | ConspiracyResponseFormat2;
 
-/**
- * Feed Generator
- *
- * @class FeedGenerator
- * @extends EventEmitter
- *
- * @description
- * Transforms world events into organic social media discourse using LLM-powered
- * content generation. Creates realistic feed cascades where different actors react
- * to events based on their personality, emotional state, and relationships.
- *
- * **Architecture:**
- * - Stateful: Maintains actor moods, relationships, organizations
- * - Batched LLM calls for 90% cost reduction
- * - Retry logic for reliability
- * - Validation for content quality
- *
- * **State Management:**
- * - Actor emotional states (mood, luck)
- * - Relationship graph (allies, rivals, etc.)
- * - Organization affiliations
- * - Group chat context for insider perspectives
- *
- * **Content Types Generated:**
- * - News breaking (media orgs, journalists)
- * - Direct reactions (involved parties)
- * - Company PR (corporate responses)
- * - Government statements (regulatory responses)
- * - Expert commentary (outside analysis)
- * - Conspiracy theories (contrarian takes)
- * - Thread replies (conversations)
- * - Ambient posts (general musings)
- *
- * @usage
- * Instantiated by GameEngine and GameWorld for feed generation.
- */
+/** Generates social media posts from world events using LLM-powered content. */
 export class FeedGenerator extends EventEmitter {
   private llm?: BabylonLLMClient;
   private actorStates: Map<string, ActorState> = new Map();
@@ -240,25 +134,10 @@ export class FeedGenerator extends EventEmitter {
   private trendingTopics?: TrendingTopicsEngine;
   private trendContext = '';
 
-  /**
-   * Emoji regex pattern for stripping emojis from content.
-   * Covers most common emoji Unicode ranges.
-   */
   private static readonly EMOJI_REGEX =
     /[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F900}-\u{1F9FF}\u{1FA70}-\u{1FAFF}]/gu;
 
-  /**
-   * Apply post-processing to generated content.
-   *
-   * Performs multiple cleanup operations:
-   * 1. Strips hashtags (LLMs tend to add them despite instructions)
-   * 2. Strips emojis (same issue)
-   * 3. Normalizes whitespace (multiple spaces → single space)
-   * 4. Replaces real names with parody names via character mapping
-   *
-   * @param content - Generated content to process
-   * @returns Cleaned content with hashtags/emojis removed and names fixed
-   */
+  /** Strips hashtags/emojis, normalizes whitespace, replaces real names with parody names. */
   private async postProcessContent(content: string): Promise<string> {
     let processed = content;
 
@@ -303,16 +182,6 @@ export class FeedGenerator extends EventEmitter {
     return transformed.transformedText;
   }
 
-  /**
-   * Validate post content and return validation result.
-   *
-   * Used to check if generated content passes all validation rules
-   * before accepting it. Logs violations for monitoring.
-   *
-   * @param content - Post content to validate
-   * @param postType - Type of post (determines character limit)
-   * @returns Validation result with isValid flag and cleanContent
-   */
   private validatePostContent(
     content: string,
     postType: keyof typeof CHARACTER_LIMITS
@@ -999,30 +868,41 @@ export class FeedGenerator extends EventEmitter {
         if (!isOrg && 'id' in entity) {
           const state = this.actorStates.get(entity.id);
           emotionalContext = state
-            ? '\n   ' +
-              generateActorContext(
+            ? generateActorContext(
                 state.mood,
                 state.luck,
                 undefined,
                 this.relationships,
                 entity.id
-              ).replace(/\n/g, '\n   ')
+              )
             : '';
 
           const persona = this._npcPersonas.get(entity.id);
           if (persona) {
-            personaContext = `\n   Reliability: ${(persona.reliability * 100).toFixed(0)}%`;
+            personaContext = `Reliability: ${(persona.reliability * 100).toFixed(0)}%`;
             if (persona.insiderOrgs.length > 0) {
               personaContext += ` | Insider at: ${persona.insiderOrgs.join(', ')}`;
             }
           }
         }
 
-        return `${i + 1}. ${entity.name}
-   About: ${entity.description}
-   ${isOrg ? 'Style: Media organization - use "Breaking:", "Exclusive:", "Sources say:"' : 'Style: Journalist - more objective reporting'}${voiceContext}${emotionalContext}${personaContext}
-   Max 280 chars, provocative and attention-grabbing. Match your writing style.
-   NO hashtags or emojis.`;
+        const roleStyle = isOrg
+          ? 'Role: Media organization - can use "Breaking:", "Exclusive:", "Sources say:"'
+          : 'Role: Journalist - objective reporting with personal flair';
+
+        return `
+╔══════════════════════════════════════════════════════════════════╗
+║ MEDIA ${i + 1}: ${entity.name.toUpperCase()}
+╚══════════════════════════════════════════════════════════════════╝
+   Identity: ${entity.description}
+   ${roleStyle}
+   ${personaContext ? `${personaContext}` : ''}
+   ${emotionalContext ? `${emotionalContext}` : ''}
+${voiceContext}
+
+   YOUR TASK: Write a news post AS ${entity.name}.
+   RULES: Max 280 chars. Provocative. NO hashtags. NO emojis.
+   VOICE: Match the style above. Sound like ${entity.name}.`;
       })
       .join('\n');
 
@@ -1334,7 +1214,7 @@ export class FeedGenerator extends EventEmitter {
         let personaContext = '';
         if (persona) {
           const reliabilityPct = (persona.reliability * 100).toFixed(0);
-          personaContext = `\n   PERSONA: Reliability ${reliabilityPct}%`;
+          personaContext = `PERSONA: Reliability ${reliabilityPct}%`;
 
           if (persona.insiderOrgs.length > 0) {
             personaContext += ` | Insider at: ${persona.insiderOrgs.join(', ')}`;
@@ -1345,15 +1225,24 @@ export class FeedGenerator extends EventEmitter {
           }
         }
 
-        return `${i + 1}. You are ${ctx.actor.name}: ${ctx.actor.description}
-   Affiliated: ${ctx.actor.affiliations?.join(', ') || 'independent'}
-   ${ctx.emotionalContext}${formatActorVoiceContext(ctx.actor)}
-   ${personaContext}
-   ${this.actorGroupContexts.get(ctx.actor.id) || ''}
+        // Build a clear, isolated character block
+        const voiceContext = formatActorVoiceContext(ctx.actor);
+        const groupContext = this.actorGroupContexts.get(ctx.actor.id) || '';
 
-   React to event. Your private group chats inform your perspective.
-   ${persona?.willingToLie ? 'You may lie or mislead if it benefits your ' + persona.selfInterest + '.' : ''}
-   Write as YOURSELF (first person). Max 280 chars. No hashtags/emojis.`;
+        return `
+╔══════════════════════════════════════════════════════════════════╗
+║ CHARACTER ${i + 1}: ${ctx.actor.name.toUpperCase()}
+╚══════════════════════════════════════════════════════════════════╝
+   Identity: ${ctx.actor.description}
+   Affiliations: ${ctx.actor.affiliations?.join(', ') || 'independent'}
+   ${personaContext ? `${personaContext}` : ''}
+   ${ctx.emotionalContext}
+${voiceContext}
+   ${groupContext ? `Private Intel: ${groupContext}` : ''}
+
+   YOUR TASK: React to this event AS ${ctx.actor.name}.
+   ${persona?.willingToLie ? 'You may lie/mislead for ' + persona.selfInterest + '.' : ''}
+   RULES: First person. Max 280 chars. NO hashtags. NO emojis.`;
       })
       .join('\n');
 
@@ -1578,22 +1467,29 @@ export class FeedGenerator extends EventEmitter {
 
         let personaContext = '';
         if (persona) {
-          personaContext = `\n   Reliability: ${(persona.reliability * 100).toFixed(0)}%`;
+          personaContext = `Reliability: ${(persona.reliability * 100).toFixed(0)}%`;
           const expertise = (persona as { expertise?: string[] }).expertise;
           if (expertise && expertise.length > 0) {
             personaContext += ` | Expert in: ${expertise.join(', ')}`;
           }
         }
 
-        return `${i + 1}. ${ctx.actor.name}
-   About: ${ctx.actor.description}
-   Domain: ${ctx.actor.domain?.join(', ')}
-   ${ctx.emotionalContext}${formatActorVoiceContext(ctx.actor)}${personaContext}
+        const voiceContext = formatActorVoiceContext(ctx.actor);
 
-   Write analysis as outside observer (max 140 chars).
+        return `
+╔══════════════════════════════════════════════════════════════════╗
+║ COMMENTATOR ${i + 1}: ${ctx.actor.name.toUpperCase()}
+╚══════════════════════════════════════════════════════════════════╝
+   Identity: ${ctx.actor.description}
+   Domain: ${ctx.actor.domain?.join(', ')}
+   ${personaContext ? `${personaContext}` : ''}
+   ${ctx.emotionalContext}
+${voiceContext}
+
+   YOUR TASK: Write commentary AS ${ctx.actor.name}.
    ${eventGuidance}
-   Let mood subtly influence tone. Match your writing style.
-   NO hashtags or emojis.`;
+   RULES: Max 140 chars. NO hashtags. NO emojis.
+   VOICE: Match the examples above. Sound like ${ctx.actor.name}, not generic.`;
       })
       .join('\n');
 
@@ -1789,20 +1685,27 @@ export class FeedGenerator extends EventEmitter {
 
         let personaContext = '';
         if (persona) {
-          personaContext = `\n   Reliability: ${(persona.reliability * 100).toFixed(0)}% (low - you spread misinformation)`;
+          personaContext = `Reliability: ${(persona.reliability * 100).toFixed(0)}% (low - spreads misinformation)`;
           if (persona.willingToLie) {
             personaContext += ` | Motivated by: ${persona.selfInterest}`;
           }
         }
 
-        return `${i + 1}. ${actor.name}
-   About: ${actor.description}${formatActorVoiceContext(actor)}${personaContext}
+        const voiceContext = formatActorVoiceContext(actor);
 
+        return `
+╔══════════════════════════════════════════════════════════════════╗
+║ CONSPIRACIST ${i + 1}: ${actor.name.toUpperCase()}
+╚══════════════════════════════════════════════════════════════════╝
+   Identity: ${actor.description}
+   ${personaContext ? `${personaContext}` : ''}
+${voiceContext}
+
+   YOUR TASK: Write a conspiracy post AS ${actor.name}.
    You don't believe the mainstream narrative.
-   Write conspiracy post (max 140 chars).
-   Be dramatic, suspicious. Match your writing style.
-   NO hashtags or emojis.
-   ${conspiracyGuidance}`;
+   ${conspiracyGuidance}
+   RULES: Max 140 chars. Be dramatic, suspicious. NO hashtags. NO emojis.
+   VOICE: Match the style above. Sound paranoid and unique.`;
       })
       .join('\n');
 
@@ -2614,20 +2517,30 @@ export class FeedGenerator extends EventEmitter {
 
         let personaContext = '';
         if (persona) {
-          personaContext = `\n   Reliability: ${(persona.reliability * 100).toFixed(0)}%`;
+          personaContext = `Reliability: ${(persona.reliability * 100).toFixed(0)}%`;
           if (persona.insiderOrgs.length > 0 && Math.random() > 0.7) {
-            personaContext += ` | You may hint at insider knowledge from: ${persona.insiderOrgs.slice(0, 2).join(', ')}`;
+            personaContext += ` | Insider at: ${persona.insiderOrgs.slice(0, 2).join(', ')}`;
           }
         }
 
-        return `${i + 1}. You are ${ctx.actor.name}: ${ctx.actor.description}
-   Affiliated: ${ctx.actor.domain?.join(', ')}
-   ${ctx.emotionalContext}${formatActorVoiceContext(ctx.actor)}${personaContext}
-   ${this.actorGroupContexts.get(ctx.actor.id) || ''}
+        const voiceContext = formatActorVoiceContext(ctx.actor);
+        const groupContext = this.actorGroupContexts.get(ctx.actor.id) || '';
 
-   Write general thoughts. Your private group chats inform your perspective.
-   You can reference trending topics if relevant.
-   Write as YOURSELF (first person). Max 280 chars. No hashtags/emojis.`;
+        return `
+╔══════════════════════════════════════════════════════════════════╗
+║ CHARACTER ${i + 1}: ${ctx.actor.name.toUpperCase()}
+╚══════════════════════════════════════════════════════════════════╝
+   Identity: ${ctx.actor.description}
+   Domain: ${ctx.actor.domain?.join(', ')}
+   ${personaContext ? `${personaContext}` : ''}
+   ${ctx.emotionalContext}
+${voiceContext}
+   ${groupContext ? `Private Intel: ${groupContext}` : ''}
+
+   YOUR TASK: Write a post AS ${ctx.actor.name}.
+   You may reference trending topics.
+   RULES: First person. Max 280 chars. NO hashtags. NO emojis.
+   VOICE: Match the examples above EXACTLY.`;
       })
       .join('\n');
 
@@ -2943,16 +2856,25 @@ export class FeedGenerator extends EventEmitter {
     });
 
     const repliersList = contexts
-      .map(
-        (ctx, i) => `${i + 1}. ${ctx.actor.name}
-   About: ${ctx.actor.description}
-   ${ctx.emotionalContext}${formatActorVoiceContext(ctx.actor)}
-   
-   Write reply (max 140 chars).
-   ${ctx.actor.personality?.includes('contrarian') ? 'Disagree or challenge' : 'Consider your relationship and mood when responding'}
-   Let emotional state and any relationship with ${originalPost.authorName} influence tone. Match their writing style.
-`
-      )
+      .map((ctx, i) => {
+        const voiceContext = formatActorVoiceContext(ctx.actor);
+        const replyBehavior = ctx.actor.personality?.includes('contrarian')
+          ? 'Disagree or challenge the original post'
+          : 'Consider your relationship with author when replying';
+
+        return `
+╔══════════════════════════════════════════════════════════════════╗
+║ REPLIER ${i + 1}: ${ctx.actor.name.toUpperCase()}
+╚══════════════════════════════════════════════════════════════════╝
+   Identity: ${ctx.actor.description}
+   ${ctx.emotionalContext}
+${voiceContext}
+
+   YOUR TASK: Reply to ${originalPost.authorName}'s post AS ${ctx.actor.name}.
+   ${replyBehavior}
+   RULES: Max 140 chars. NO hashtags. NO emojis.
+   VOICE: Match the examples above. Sound like ${ctx.actor.name}.`;
+      })
       .join('\n');
 
     const prompt = renderPrompt(replies, {

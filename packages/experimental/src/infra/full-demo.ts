@@ -152,11 +152,23 @@ async function main() {
   console.log(`${CONFIG.DIM}  9. Shutdown all resources${CONFIG.RESET}`);
   console.log();
 
-  // Initialize state
+  // Validate required environment
+  const privateKey = process.env.PRIVATE_KEY as Hex | undefined;
+  if (!privateKey) {
+    error('PRIVATE_KEY environment variable not set');
+    console.log(`\n${CONFIG.YELLOW}Usage:${CONFIG.RESET}`);
+    console.log('  PRIVATE_KEY=0x... bun run src/infra/full-demo.ts');
+    process.exit(1);
+  }
+
+  const account = privateKeyToAccount(privateKey);
+  const rpcUrl = process.env.RPC_URL ?? 'https://rpc.sepolia.org';
+
+  // Initialize state with validated values
   const state: DemoState = {
-    privateKey: '' as Hex,
-    account: null as unknown as ReturnType<typeof privateKeyToAccount>,
-    rpcUrl: '',
+    privateKey,
+    account,
+    rpcUrl,
     contractAddress: null,
     enclave1: null,
     enclave2: null,
@@ -172,17 +184,6 @@ async function main() {
     // PHASE 1: WALLET CHECK
     // ═══════════════════════════════════════════════════════════════════════
     phase(1, 9, 'CHECKING WALLET');
-
-    state.privateKey = process.env.PRIVATE_KEY as Hex;
-    if (!state.privateKey) {
-      error('PRIVATE_KEY environment variable not set');
-      console.log(`\n${CONFIG.YELLOW}Usage:${CONFIG.RESET}`);
-      console.log('  PRIVATE_KEY=0x... bun run src/infra/full-demo.ts');
-      process.exit(1);
-    }
-
-    state.account = privateKeyToAccount(state.privateKey);
-    state.rpcUrl = process.env.RPC_URL ?? 'https://rpc.sepolia.org';
 
     info(`Wallet: ${state.account.address}`);
     info(`RPC: ${state.rpcUrl}`);

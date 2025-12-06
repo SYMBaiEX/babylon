@@ -160,14 +160,8 @@ function calculateCertaintyFromPosts(
   return correctPosts.length / relevantPosts.length;
 }
 
-// Skip this test suite unless:
-// 1. RUN_LLM_TESTS=true is set (explicit opt-in), or
-// 2. Running in CI WITH LLM keys available
-// This is a long-running test (10+ minutes) that requires real LLM API calls
-const shouldSkipSuite =
-  !process.env.RUN_LLM_TESTS && !(process.env.CI === 'true' && hasLLMKey);
-
-describe.skipIf(shouldSkipSuite)('Game Learnability Integration Tests', () => {
+// Always run LLM tests - fail if no API key rather than skip
+describe('Game Learnability Integration Tests', () => {
   // Shared game instance - generated once before all tests
   let game: GeneratedGame | null = null;
   let skipped = false;

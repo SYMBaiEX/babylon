@@ -270,18 +270,30 @@ Generate ${agent.displayName}'s response. Stay in character.
         });
 
         // Extract <response>...</response> block before parsing
-        const responseMatch = generated.match(/<response>([\s\S]*?)<\/response>/i);
+        const responseMatch = generated.match(
+          /<response>([\s\S]*?)<\/response>/i
+        );
         if (!responseMatch) {
-          logger.warn('No <response> block found', { agentId, attempt, raw: generated.substring(0, 300) }, 'AgentChat');
+          logger.warn(
+            'No <response> block found',
+            { agentId, attempt, raw: generated.substring(0, 300) },
+            'AgentChat'
+          );
           continue;
         }
 
         // Parse the extracted XML response
-        const parsed = parseKeyValueXml(responseMatch[0]) as { text?: string } | null;
+        const parsed = parseKeyValueXml(responseMatch[0]) as {
+          text?: string;
+        } | null;
 
         // Check if we got valid text
         if (!parsed?.text || parsed.text.trim().length === 0) {
-          logger.warn('Failed to parse XML response', { agentId, attempt, raw: generated.substring(0, 300) }, 'AgentChat');
+          logger.warn(
+            'Failed to parse XML response',
+            { agentId, attempt, raw: generated.substring(0, 300) },
+            'AgentChat'
+          );
           continue;
         }
 
@@ -292,7 +304,12 @@ Generate ${agent.displayName}'s response. Stay in character.
         if (!safetyCheck.safe) {
           logger.warn(
             'Unsafe response generated',
-            { agentId, attempt, reason: safetyCheck.reason, preview: extractedText.substring(0, 100) },
+            {
+              agentId,
+              attempt,
+              reason: safetyCheck.reason,
+              preview: extractedText.substring(0, 100),
+            },
             'AgentChat'
           );
           continue;
@@ -302,7 +319,8 @@ Generate ${agent.displayName}'s response. Stay in character.
         response = extractedText;
         break;
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
         logger.error(
           'Failed to generate response',
           { error: errorMessage, agentId, attempt },
@@ -318,7 +336,8 @@ Generate ${agent.displayName}'s response. Stay in character.
       return NextResponse.json(
         {
           success: false,
-          error: 'Failed to generate a valid response after multiple attempts. Points have been refunded.',
+          error:
+            'Failed to generate a valid response after multiple attempts. Points have been refunded.',
         },
         { status: 500 }
       );

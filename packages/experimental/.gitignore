@@ -1,0 +1,16 @@
+# Foundry artifacts
+/out
+/cache
+/lib
+
+# Build output
+/dist
+
+# TypeScript cache
+*.tsbuildinfo
+
+# Environment (contains private keys!)
+.env
+.env.local
+.env.*.local
+

@@ -1,9 +1,13 @@
 """
 PostgreSQL Trajectory Reader
 Strong types, async, no error hiding
+
+IMPORTANT: This reader rejects synthetic/fake data.
+Only real agent trajectories from production are loaded.
 """
 
 import asyncpg
+import re
 from typing import List
 import logging
 import json
@@ -12,6 +16,42 @@ from datetime import datetime, timedelta
 from ..models import BabylonTrajectory, MarketOutcomes, WindowStatistics, StockOutcome, TrajectoryStep, EnvironmentState, LLMCall, Action, ProviderAccess
 
 logger = logging.getLogger(__name__)
+
+
+# Patterns that indicate synthetic/fake data - REJECT THESE
+SYNTHETIC_PATTERNS = [
+    re.compile(r'^agent-[a-z]+-\d+$'),           # agent-trader-123
+    re.compile(r'^synthetic-\d+$'),               # synthetic-0, synthetic-1
+    re.compile(r'^fake-'),                        # fake-anything
+    re.compile(r'^test-agent-'),                  # test-agent-*
+]
+
+SYNTHETIC_SCENARIO_PATTERNS = [
+    re.compile(r'^multi-archetype'),              # multi-archetype scenarios
+    re.compile(r'^synthetic-'),                   # synthetic scenarios
+    re.compile(r'^test-'),                        # test scenarios
+]
+
+
+def is_synthetic_trajectory(agent_id: str, scenario_id: str | None) -> bool:
+    """
+    Check if a trajectory is synthetic/fake data.
+    
+    Returns True if the trajectory appears to be synthetic and should be REJECTED.
+    We only want real agent data for training.
+    """
+    # Check agent ID patterns
+    for pattern in SYNTHETIC_PATTERNS:
+        if pattern.match(agent_id):
+            return True
+    
+    # Check scenario ID patterns
+    if scenario_id:
+        for pattern in SYNTHETIC_SCENARIO_PATTERNS:
+            if pattern.match(scenario_id):
+                return True
+    
+    return False
 
 
 class PostgresTrajectoryReader:
@@ -105,7 +145,18 @@ class PostgresTrajectoryReader:
             )
         
         trajectories = []
+        synthetic_rejected = 0
+        
         for row in rows:
+            agent_id = row['agentId']
+            scenario_id = row.get('scenarioId')
+            
+            # REJECT synthetic/fake data - only real agents allowed for training
+            if is_synthetic_trajectory(agent_id, scenario_id):
+                synthetic_rejected += 1
+                logger.debug(f"Rejecting synthetic trajectory: agent={agent_id}, scenario={scenario_id}")
+                continue
+            
             # Parse steps JSON
             steps_data = json.loads(row['stepsJson'] or '[]')
             
@@ -192,6 +243,10 @@ class PostgresTrajectoryReader:
                     final_status=row['finalStatus'] or 'unknown'
                 ))
         
+        if synthetic_rejected > 0:
+            logger.warning(f"Rejected {synthetic_rejected} synthetic trajectories from window {window_id}")
+        
+        logger.info(f"Loaded {len(trajectories)} real trajectories from window {window_id}")
         return trajectories
     
     async def get_market_outcomes(self, window_id: str) -> MarketOutcomes | None:

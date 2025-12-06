@@ -300,7 +300,7 @@ CMD ["node", "dist/infra/production-entrypoint.js"]
 export const PRODUCTION_ENTRYPOINT = `
 import { ProductionTEEEnclave } from './dstack-integration.js';
 import { BlockchainClient } from './blockchain-client.js';
-import { PermissionlessStorage } from './arweave-client.js';
+import { ArweaveStorage } from '../storage/arweave-storage.js';
 
 async function main() {
   console.log('=== PERMISSIONLESS AI GAME ===');

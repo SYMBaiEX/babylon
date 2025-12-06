@@ -59,45 +59,6 @@ build/
 training_data/trajectories/
 training_data/datasets/
 training_recording/
+training-data/
+packages/training/data/**/*.jsonl
 /storage/
-
-# Test results
-test-results/
-playwright-report/
-.playwright/
-
-# Debug stuff
-debug/
-
-# Generated actor images (stored in Vercel Blob instead)
-public/images/actors/
-public/images/actor-banners/
-public/images/organizations/
-public/images/org-banners/
-
-# User uploads (stored in Vercel Blob in production)
-public/uploads/profiles/*
-public/uploads/covers/*
-public/uploads/posts/*
-!public/uploads/.gitkeep
-!public/uploads/*/.gitkeep
-
-python/trained_models
-**/.turbo
-**/.next
-**/node_modules
-
-# Soldeer (Solidity package manager)
-packages/contracts/dependencies/
-packages/training/python/trained_models
-_docs/
-
-# Serena
-.serena/
-
-# Claude Code
-.claude/
-migration-data/
-# Vendor docs (generated)
-docs/vendors/
-local_db.bak

@@ -257,24 +257,34 @@ ${BOLD}${CYAN}╔═════════════════════
   const operatorInfo = await blockchain.getOperatorInfo();
   const walletAddress = blockchain.getAddress();
 
-  if (operatorInfo.address === walletAddress || !operatorInfo.active) {
-    // We can try to become operator or already are
-    if (!operatorInfo.active) {
-      results.push(
-        await runTest('Register as operator', async () => {
-          const attestation = enclave!.getAttestation();
-          const attestationHex = toHex(
-            new TextEncoder().encode(JSON.stringify(attestation))
-          );
-          await blockchain.registerOperator(
-            enclave!.getOperatorAddress(),
-            attestationHex
-          );
-          info(`  Registered: ${enclave!.getOperatorAddress()}`);
-        })
-      );
-    }
+  // Check if we can register an operator (no active operator)
+  if (!operatorInfo.active) {
+    results.push(
+      await runTest('Register as operator', async () => {
+        const attestation = enclave!.getAttestation();
+        const attestationHex = toHex(
+          new TextEncoder().encode(JSON.stringify(attestation))
+        );
+        // Register the ENCLAVE's address as operator (not our wallet)
+        await blockchain.registerOperator(
+          enclave!.getOperatorAddress(),
+          attestationHex
+        );
+        info(`  Registered: ${enclave!.getOperatorAddress()}`);
+      })
+    );
 
+    // Note: The following tests would need to be signed by the TEE's wallet,
+    // not our wallet. In production, the TEE handles all operator transactions.
+    info(
+      'Note: Heartbeat/state updates require TEE wallet signature (expected behavior)'
+    );
+    info(`  TEE operator: ${enclave!.getOperatorAddress()}`);
+    info(`  Our wallet: ${walletAddress}`);
+  }
+
+  // Only run these if OUR wallet is the operator (not the TEE's derived wallet)
+  if (operatorInfo.address === walletAddress && operatorInfo.active) {
     results.push(
       await runTest('Send heartbeat', async () => {
         await blockchain.heartbeat();
@@ -289,25 +299,33 @@ ${BOLD}${CYAN}╔═════════════════════
       await runTest('Update state on-chain', async () => {
         const checkpoint = stateManager.getLatestCheckpoint();
         if (!checkpoint) throw new Error('No checkpoint');
-        await blockchain.updateState(checkpoint.cid, checkpoint.hash);
+        // Ensure we have a proper bytes32 hash
+        const stateHash =
+          checkpoint.hash.length === 66
+            ? checkpoint.hash
+            : keccak256(toBytes(checkpoint.cid));
+        await blockchain.updateState(checkpoint.cid, stateHash);
         info(`  State updated to version ${checkpoint.version}`);
       })
     );
 
     results.push(
       await runTest('Record training', async () => {
+        // Use proper bytes32 hashes
+        const modelHashBefore = keccak256(toBytes('model-before'));
+        const modelHashAfter = keccak256(toBytes('model-after'));
         const dataset = stateManager.saveTrainingData(
           [{ input: [1], target: [2], timestamp: Date.now() }],
-          '0x1234' as Hex,
-          '0x5678' as Hex
+          modelHashBefore,
+          modelHashAfter
         );
-        await blockchain.recordTraining(dataset.cid, '0x5678' as Hex);
+        await blockchain.recordTraining(dataset.cid, modelHashAfter);
         info(`  Training recorded, dataset: ${dataset.cid}`);
       })
     );
-  } else {
+  } else if (operatorInfo.active) {
     warn(`Another operator is active: ${operatorInfo.address}`);
-    warn('Skipping on-chain write tests');
+    warn('Skipping on-chain write tests (only operator can call these)');
   }
 
   // =========================================================================

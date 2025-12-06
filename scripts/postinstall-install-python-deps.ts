@@ -72,7 +72,9 @@ async function installProjectDeps(
   if (project.useUv) {
     if (!hasUv) {
       console.log(`   ⚠️  ${project.name}: uv not found, skipping`);
-      console.log(`   💡 Install uv (https://github.com/astral-sh/uv) to use this project`);
+      console.log(
+        `   💡 Install uv (https://github.com/astral-sh/uv) to use this project`
+      );
       return;
     }
 
@@ -85,20 +87,28 @@ async function installProjectDeps(
       console.log(`   ✅ ${project.name}: Dependencies installed`);
     } catch (error) {
       console.log(`   ⚠️  ${project.name}: Failed to install dependencies`);
-      console.log(`   💡 Run manually: cd ${project.path} && uv sync --prerelease=allow`);
+      console.log(
+        `   💡 Run manually: cd ${project.path} && uv sync --prerelease=allow`
+      );
     }
   } else {
     // Check if venv already exists
     const venvPath = join(project.path, 'venv');
     if (existsSync(venvPath)) {
-      console.log(`   ✅ ${project.name}: venv already exists, skipping install`);
-      console.log(`   💡 To reinstall: cd ${project.path} && pip install -r requirements.txt`);
+      console.log(
+        `   ✅ ${project.name}: venv already exists, skipping install`
+      );
+      console.log(
+        `   💡 To reinstall: cd ${project.path} && pip install -r requirements.txt`
+      );
       return;
     }
 
     // No venv - guide user to set up
     console.log(`   ⏭️  ${project.name}: No venv found`);
-    console.log(`   💡 To set up: cd ${project.path} && python3 -m venv venv && source venv/bin/activate && pip install -r requirements.txt`);
+    console.log(
+      `   💡 To set up: cd ${project.path} && python3 -m venv venv && source venv/bin/activate && pip install -r requirements.txt`
+    );
   }
 }
 
@@ -107,7 +117,9 @@ async function installPythonDeps(): Promise<void> {
 
   const hasPython = await checkPythonInstalled();
   if (!hasPython) {
-    console.log('   ⚠️  Python not found, skipping Python dependency installation');
+    console.log(
+      '   ⚠️  Python not found, skipping Python dependency installation'
+    );
     console.log('   💡 Install Python 3.11+ to use Python projects');
     return;
   }

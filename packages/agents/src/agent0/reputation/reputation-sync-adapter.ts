@@ -9,7 +9,7 @@
 import type {
   ReputationSyncOptions,
   ReputationSyncResult,
-  ReputationSyncService,
+  ReputationSyncServiceInterface as ReputationSyncService,
 } from '@babylon/engine';
 import { batchSyncReputationsToERC8004 } from './erc8004-reputation-sync';
 

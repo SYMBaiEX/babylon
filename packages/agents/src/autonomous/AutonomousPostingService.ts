@@ -5,13 +5,12 @@
  */
 
 import { agentTrades, db, desc, eq, posts, users } from '@babylon/db';
+import { countTokensSync, truncateToTokenLimitSync } from '@babylon/api';
 import {
   characterMappingService,
-  countTokensSync,
   formatRandomContext,
   generateRandomMarketContext,
   generateWorldContext,
-  truncateToTokenLimitSync,
 } from '@babylon/engine';
 import type { IAgentRuntime } from '@elizaos/core';
 import { parseKeyValueXml } from '@elizaos/core';

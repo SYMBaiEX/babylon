@@ -22,6 +22,16 @@ export {
   modelSelectionService,
 } from './ModelSelectionService';
 export { ModelUsageVerifier } from './ModelUsageVerifier';
+// Multi-model orchestration for efficient archetype model management
+export type {
+  ModelInferenceRequest,
+  ModelInferenceResult,
+  OrchestratorConfig,
+} from './MultiModelOrchestrator';
+export {
+  createMultiModelOrchestrator,
+  MultiModelOrchestrator,
+} from './MultiModelOrchestrator';
 export {
   RewardBackpropagationService,
   rewardBackpropagationService,
@@ -30,6 +40,8 @@ export type {
   ArchetypeModelConfig,
   ModelTier,
   ModelTierConfig,
+  MultiModelConfig,
+  QuantizationMode,
   RLModelConfig,
 } from './RLModelConfig';
 export {
@@ -39,7 +51,10 @@ export {
   getModelForArchetype,
   getModelForTier,
   getModelTierForVram,
+  getMultiModelConfig,
+  getQuantizedModelName,
   getRLModelConfig,
+  getVramRequirement,
   hasArchetypeModel,
   isRLModelAvailable,
   isTierAvailable,

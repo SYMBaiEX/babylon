@@ -13,6 +13,7 @@ import {
 } from '@babylon/db';
 import { logger } from '@babylon/shared';
 import type { BabylonLLMClient } from '../llm/openai-client';
+import { stripHashtagsAndEmojis } from '../utils/shared-utils';
 import { characterMappingService } from './character-mapping-service';
 
 // Minimal question type for post generation (only fields actually used)
@@ -31,7 +32,37 @@ export async function generateNPCPost(
   worldFactsContext: string,
   timestamp: Date
 ): Promise<boolean> {
-  const prompt = `You are ${actor.name}. Write a brief social media post (max 280 chars) about this prediction market question: "${question.text}". Be opinionated and entertaining.
+  // Build personality context
+  const personalityContext = actor.personality
+    ? `Personality: ${actor.personality}`
+    : '';
+  const voiceContext = actor.postStyle
+    ? `Writing Style: ${actor.postStyle}`
+    : '';
+  const examplesContext =
+    actor.postExample && actor.postExample.length > 0
+      ? `Example posts (MATCH THIS STYLE):\n${actor.postExample
+          .slice(0, 3)
+          .map((ex, i) => `  ${i + 1}. "${ex}"`)
+          .join('\n')}`
+      : '';
+
+  const prompt = `You ARE ${actor.name}. Fully embody this character.
+
+=== YOUR CHARACTER ===
+${actor.description || ''}
+${personalityContext}
+${voiceContext}
+${examplesContext}
+
+=== TASK ===
+Write a social media post (max 280 chars) about: "${question.text}"
+
+=== CRITICAL RULES ===
+- ABSOLUTELY NO HASHTAGS (no #crypto, #AI, #news, NOTHING with #)
+- NO EMOJIS
+- Match YOUR character's voice exactly - sound like the examples above
+- Be opinionated and entertaining in YOUR unique style
 
 ${worldFactsContext}
 
@@ -74,9 +105,11 @@ Return your response as XML in this exact format:
     return false;
   }
 
-  const transformed = await characterMappingService.transformText(
-    postContent.trim()
-  );
+  // Strip hashtags and emojis first
+  const cleaned = stripHashtagsAndEmojis(postContent.trim());
+
+  // Then replace real names with parody names
+  const transformed = await characterMappingService.transformText(cleaned);
   if (transformed.replacementCount > 0) {
     logger.warn(
       `Fixed ${transformed.replacementCount} real name(s) in NPC post`,
@@ -110,7 +143,22 @@ export async function generateOrgPost(
   worldFactsContext: string,
   timestamp: Date
 ): Promise<boolean> {
-  const prompt = `You are ${org.name || 'Unknown Org'}, a media organization. Write a brief news-style post (max 280 chars) about this prediction market question: "${question.text}". Be informative and engaging.
+  const orgName = org.name || 'Unknown Org';
+
+  const prompt = `You are ${orgName}, a media organization.
+
+=== YOUR IDENTITY ===
+${org.description || 'A news and media organization'}
+Style: Professional news organization
+
+=== TASK ===
+Write a brief news-style post (max 280 chars) about: "${question.text}"
+
+=== CRITICAL RULES ===
+- ABSOLUTELY NO HASHTAGS (no #crypto, #AI, #news, #breaking, NOTHING with #)
+- NO EMOJIS
+- Be informative and engaging
+- Sound like a real news outlet, not a marketing bot
 
 ${worldFactsContext}
 
@@ -153,9 +201,11 @@ Return your response as XML in this exact format:
     return false;
   }
 
-  const transformed = await characterMappingService.transformText(
-    postContent.trim()
-  );
+  // Strip hashtags and emojis first
+  const cleaned = stripHashtagsAndEmojis(postContent.trim());
+
+  // Then replace real names with parody names
+  const transformed = await characterMappingService.transformText(cleaned);
   if (transformed.replacementCount > 0) {
     logger.warn(
       `Fixed ${transformed.replacementCount} real name(s) in org post`,
@@ -190,11 +240,24 @@ export async function generateOrgArticle(
   worldFactsContext: string,
   timestamp: Date
 ): Promise<boolean> {
-  const prompt = `You are ${org.name}, a news organization. Write a comprehensive news article about this prediction market: "${question.text}".
+  const orgName = org.name || 'Unknown Org';
+
+  const prompt = `You are ${orgName}, a news organization writing a comprehensive article.
+
+=== YOUR IDENTITY ===
+${org.description || 'A major news publication'}
+
+=== TOPIC ===
+"${question.text}"
+
+=== CRITICAL RULES ===
+- ABSOLUTELY NO HASHTAGS anywhere in the article (no #crypto, #AI, NOTHING with #)
+- NO EMOJIS
+- Use ONLY parody names (AIlon Musk, TeslAI, OpenAGI, etc.) - NEVER real names
 
 ${worldFactsContext}
 
-Provide:
+=== REQUIRED OUTPUT ===
 - "title": a compelling headline (max 100 characters)
 - "summary": a succinct 2-3 sentence summary for social feeds (max 400 characters)
 - "article": a FULL-LENGTH article body (800-1200 words, at least 4 paragraphs). Include:

@@ -28,8 +28,24 @@ export {
 } from './GameGenerator';
 // GameHistory, GeneratedGame types are re-exported from ./types/shared
 
-// Game Loop
-export { GameLoop, type TickResult } from './GameLoop';
+// Game Clock (injectable time abstraction)
+export { GameClock, type GameClockConfig, type GameTime } from './GameClock';
+
+// Game Tick (canonical tick executor)
+export {
+  GameTick,
+  type ActiveMarket,
+  type ActiveQuestion,
+  type GameActor,
+  type GameOrganization,
+  type GameStateStore,
+  type TickConfig,
+  type TickResult,
+  type TickServices,
+} from './GameTick';
+
+// State Store Adapters
+export { DbStateStore, InMemoryStateStore } from './adapters';
 
 // Game World
 export {
@@ -43,9 +59,7 @@ export {
   type WorldState,
 } from './GameWorld';
 
-// WorldEvent type is re-exported from ./types/shared
-
-// Token Counter (now in @babylon/api)
+// Token Counter (re-exported from @babylon/api for convenience)
 export {
   budgetTokens,
   countTokens,
@@ -56,29 +70,7 @@ export {
   truncateToTokenLimit,
   truncateToTokenLimitSync,
 } from '@babylon/api';
-// Logger
-// Snowflake ID Generator
-// Utils - Content Analysis
-// Utils - Content Safety
-export {
-  analyzeCertainty,
-  analyzeSentiment,
-  type ContentCheckResult,
-  calculateContentQuality,
-  calculateFreshness,
-  checkAgentOutput,
-  checkUserInput,
-  detectPrediction,
-  generateSnowflakeId,
-  hasInsiderLanguage,
-  isValidSnowflakeId,
-  Logger,
-  type LogLevel,
-  logger,
-  parseSnowflakeId,
-  SnowflakeGenerator,
-  sanitizeContent,
-} from '@babylon/shared';
+
 // Actors Data Loader
 export {
   clearDataCache,
@@ -110,6 +102,12 @@ export {
 } from './feedback/bias-engine';
 // Game Service
 export { gameService } from './game-service';
+// Game Tick (realtime/cron execution)
+export {
+  executeGameTick,
+  type GameTickResult as ExecuteGameTickResult,
+  resolveQuestionPayouts,
+} from './game-tick';
 export {
   cleanMarkdownCodeBlocks,
   extractJsonFromText,
@@ -235,120 +233,8 @@ export {
   updateGameMetrics,
   updateTradingMetrics,
 } from './reputation';
-// Serverless Game Tick
-export {
-  executeGameTick,
-  type GameTickResult,
-  resolveQuestionPayouts,
-} from './serverless-game-tick';
-// All Services (exported from services/index.ts)
+// Services (all exported from services/index.ts)
 export * from './services';
-// Services
-export {
-  CharacterMappingService,
-  characterMappingService,
-  type TextReplacementResult,
-} from './services/character-mapping-service';
-export { EarnedPointsService } from './services/earned-points-service';
-// Event Generation Helpers
-export { generateEvents } from './services/event-generation-helpers';
-export {
-  type FeeCalculation,
-  type FeeDistributionResult,
-  FeeService,
-  type ReferralEarnings,
-} from './services/fee-service';
-export { MarketContextService } from './services/market-context-service';
-export {
-  type AggregatedImpact,
-  aggregateTradeImpacts,
-  type TradeImpactInput,
-} from './services/market-impact-service';
-export {
-  type KickProbabilityResult,
-  type KickThresholds,
-  NPCGroupDynamicsService as NPCGroupDynamicsCalculations,
-} from './services/npc-group-dynamics-calculations';
-// NPC Persona Generator
-export {
-  NPCPersonaGenerator,
-  type PersonaAssignment,
-} from './services/npc-persona-generator';
-// Parody Headline Generator
-export {
-  createParodyHeadlineGenerator,
-  type GeneratedParody,
-  ParodyHeadlineGenerator,
-} from './services/parody-headline-generator';
-// Post Generation Helpers
-export {
-  generateNPCPost,
-  generateOrgArticle,
-  generateOrgPost,
-} from './services/post-generation-helpers';
-export {
-  type BroadcasterFn,
-  type PredictionHistoryEventType,
-  type PredictionHistorySource,
-  PredictionMarketService,
-  type PredictionPriceSnapshot,
-  type PredictionResolutionEvent,
-  type PredictionTradeEvent,
-} from './services/prediction-market-service';
-// Question Arc Planner
-export {
-  type PhaseTargets,
-  type QuestionArcPlan,
-  QuestionArcPlanner,
-} from './services/question-arc-planner';
-// Reputation Sync Interface (for optional integration with agents package)
-export {
-  getReputationSyncService,
-  type ReputationSyncOptions,
-  type ReputationSyncResult,
-  type ReputationSyncServiceInterface as ReputationSyncService,
-  setReputationSyncService,
-  syncReputationIfAvailable,
-} from './services/reputation-service';
-export {
-  type ParsedFeed,
-  type RSSFeedItem,
-  RSSFeedService,
-  rssFeedService,
-} from './services/rss-feed-service';
-// Tag Services
-export {
-  getCurrentTrendingTags,
-  getPostsByTag,
-  getRelatedTags,
-  getTagStatistics,
-  getTagsForPost,
-  storeTagsForPost,
-  storeTrendingTags,
-} from './services/tag-service';
-// Trade Cache Invalidation
-export {
-  type CacheInvalidationClient,
-  invalidateAfterPerpTrade,
-  invalidateAfterPredictionTrade,
-  invalidatePerpTradesCache,
-  invalidatePredictionTradesCache,
-  setCacheInvalidationClient,
-} from './services/trade-cache-invalidation';
-// Trade Execution Service
-export { TradeExecutionService } from './services/trade-execution-service';
-export {
-  calculateTrendingIfNeeded,
-  calculateTrendingTags,
-  shouldRecalculateTrending,
-} from './services/trending-calculation-service';
-
-// Wallet Service
-export {
-  type BalanceInfo,
-  type TransactionHistoryItem,
-  WalletService,
-} from './services/wallet-service';
 // Trending Topics Engine
 export {
   type TrendingTopic,

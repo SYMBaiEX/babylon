@@ -1,7 +1,11 @@
 /**
  * Integration Tests
  *
- * End-to-end tests of the full system.
+ * End-to-end tests verifying the full system:
+ * - TEE + Storage integration
+ * - TEE + Blockchain integration
+ * - Full game flow (play → train → checkpoint → on-chain)
+ * - Security properties (no plaintext leaks, unique ciphertext)
  */
 
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
@@ -32,7 +36,7 @@ describe('TEE + Storage Integration', () => {
     await enclave.shutdown();
   });
 
-  it('should save and load encrypted state', async () => {
+  it('saves and loads encrypted state', async () => {
     const gameState = {
       players: ['alice', 'bob'],
       scores: { alice: 100, bob: 50 },
@@ -40,31 +44,27 @@ describe('TEE + Storage Integration', () => {
     };
 
     const checkpoint = await stateManager.saveState(gameState);
-
     expect(checkpoint.cid).toBeDefined();
     expect(checkpoint.version).toBe(1);
 
-    // Load it back
     const loaded = await stateManager.loadState(checkpoint.cid);
     expect(loaded).toEqual(gameState);
   });
 
-  it('should handle key rotation with state', async () => {
-    const initialState = { secret: 'data', version: 1 };
-    await stateManager.saveState(initialState);
+  it('handles key rotation with state', async () => {
+    await stateManager.saveState({ secret: 'data', version: 1 });
+    const rotated = await stateManager.rotateKey();
 
-    // Rotate key
-    const rotatedCheckpoint = await stateManager.rotateKey();
-    expect(rotatedCheckpoint.keyVersion).toBe(2);
+    expect(rotated.keyVersion).toBe(2);
 
-    // Save new state with rotated key
-    const newState = { secret: 'data', version: 2 };
-    const newCheckpoint = await stateManager.saveState(newState);
-
+    const newCheckpoint = await stateManager.saveState({
+      secret: 'data',
+      version: 2,
+    });
     expect(newCheckpoint.keyVersion).toBe(2);
   });
 
-  it('should store training data publicly', () => {
+  it('stores training data publicly (not encrypted)', () => {
     const trainingData = [
       { input: [1, 2, 3], output: 6 },
       { input: [4, 5, 6], output: 15 },
@@ -79,7 +79,6 @@ describe('TEE + Storage Integration', () => {
     expect(dataset.epoch).toBe(1);
     expect(dataset.sampleCount).toBe(2);
 
-    // Should be retrievable
     const loaded = stateManager.loadTrainingData(dataset.cid);
     expect(loaded.samples).toEqual(trainingData);
   });
@@ -101,7 +100,7 @@ describe('TEE + Blockchain Integration', () => {
     await enclave.shutdown();
   });
 
-  it('should register enclave as operator', () => {
+  it('registers enclave as operator', () => {
     const operatorAddress = enclave.getOperatorAddress();
     const attestation = enclave.getAttestation();
 
@@ -109,24 +108,18 @@ describe('TEE + Blockchain Integration', () => {
       operatorAddress,
       attestation.cpuSignature
     );
-
     expect(result.success).toBe(true);
-
-    const state = blockchain.getGameState();
-    expect(state.operatorAddress).toBe(operatorAddress);
+    expect(blockchain.getGameState().operatorAddress).toBe(operatorAddress);
   });
 
-  it('should update state on-chain from enclave', async () => {
+  it('updates state on-chain from enclave', async () => {
     const operatorAddress = enclave.getOperatorAddress();
     blockchain.registerOperator(
       operatorAddress,
       enclave.getAttestation().cpuSignature
     );
 
-    // Encrypt some state
     const { cid, hash } = await enclave.encryptState({ game: 'data' });
-
-    // Update on-chain
     const result = blockchain.updateState(operatorAddress, cid, hash);
 
     expect(result.success).toBe(true);
@@ -136,7 +129,7 @@ describe('TEE + Blockchain Integration', () => {
     expect(gameState.stateHash).toBe(hash);
   });
 
-  it('should handle heartbeats', () => {
+  it('generates valid heartbeats', () => {
     const operatorAddress = enclave.getOperatorAddress();
     blockchain.registerOperator(
       operatorAddress,
@@ -151,7 +144,7 @@ describe('TEE + Blockchain Integration', () => {
   });
 });
 
-describe('Full Game Flow Integration', () => {
+describe('Full Game Flow', () => {
   let enclave: TEEEnclave;
   let blockchain: MockBlockchain;
   let ipfs: IPFSSimulator;
@@ -161,7 +154,6 @@ describe('Full Game Flow Integration', () => {
   let trainer: AITrainer;
 
   beforeEach(async () => {
-    // Setup infrastructure
     enclave = await TEEEnclave.create({
       codeHash: keccak256(toBytes('full-game-test')) as `0x${string}`,
       instanceId: 'game-1',
@@ -170,7 +162,6 @@ describe('Full Game Flow Integration', () => {
     ipfs = new IPFSSimulator();
     stateManager = new StateManager(enclave, ipfs);
 
-    // Setup game components
     agent = new AIAgent({
       inputSize: 5,
       hiddenSize: 8,
@@ -190,7 +181,6 @@ describe('Full Game Flow Integration', () => {
       environment
     );
 
-    // Register operator
     blockchain.registerOperator(
       enclave.getOperatorAddress(),
       enclave.getAttestation().cpuSignature
@@ -201,8 +191,8 @@ describe('Full Game Flow Integration', () => {
     await enclave.shutdown();
   });
 
-  it('should complete full game cycle', async () => {
-    // 1. Play some games
+  it('completes full game cycle: play → train → checkpoint → on-chain', async () => {
+    // 1. Play games
     for (let i = 0; i < 3; i++) {
       environment.startSession();
       const sequence = environment.getVisibleSequence();
@@ -216,10 +206,9 @@ describe('Full Game Flow Integration', () => {
       environment.submitGuesses(playerGuess, agentGuess);
     }
 
-    const stats = environment.getStats();
-    expect(stats.totalSessions).toBe(3);
+    expect(environment.getStats().totalSessions).toBe(3);
 
-    // 2. Run training
+    // 2. Train
     const trainingResult = trainer.runTrainingCycle();
     expect(trainingResult.cycleNumber).toBe(1);
     expect(trainingResult.samples.length).toBeGreaterThan(0);
@@ -247,7 +236,6 @@ describe('Full Game Flow Integration', () => {
       gameStats: environment.getStats(),
       trainingStats: trainer.getStats(),
     };
-
     const checkpoint = await stateManager.saveState(gameState);
     expect(checkpoint.cid).toBeDefined();
 
@@ -259,20 +247,18 @@ describe('Full Game Flow Integration', () => {
     );
     expect(updateResult.success).toBe(true);
 
-    // 7. Verify everything is in sync
-    const onChainState = blockchain.getGameState();
-    expect(onChainState.currentStateCID).toBe(checkpoint.cid);
+    // 7. Verify everything in sync
+    expect(blockchain.getGameState().currentStateCID).toBe(checkpoint.cid);
 
     const storageStats = stateManager.getStats();
     expect(storageStats.checkpoints).toBe(1);
     expect(storageStats.trainingDatasets).toBe(1);
   });
 
-  it('should handle key rotation in game flow', async () => {
-    // Save initial state
+  it('handles key rotation in game flow', async () => {
     await stateManager.saveState({ initial: true });
 
-    // Request and approve key rotation
+    // Setup security council
     const councilMembers = [
       '0x1111111111111111111111111111111111111111',
       '0x2222222222222222222222222222222222222222',
@@ -287,22 +273,17 @@ describe('Full Game Flow Integration', () => {
     blockchain.approveKeyRotation(councilMembers[1]!, requestId!);
     blockchain.approveKeyRotation(councilMembers[2]!, requestId!);
 
-    // Perform rotation
     const rotatedCheckpoint = await stateManager.rotateKey();
     expect(rotatedCheckpoint.keyVersion).toBe(2);
-
-    // Verify council state
-    const councilState = blockchain.getSecurityCouncilState();
-    expect(councilState.currentKeyVersion).toBe(2);
+    expect(blockchain.getSecurityCouncilState().currentKeyVersion).toBe(2);
   });
 
-  it('should handle operator failover', async () => {
-    // Save state with original enclave
+  it('handles operator failover', async () => {
     const originalState = { version: 1, data: 'original' };
     const checkpoint = await stateManager.saveState(originalState);
     const originalAddress = enclave.getOperatorAddress();
 
-    // Simulate timeout and mark inactive
+    // Simulate timeout
     const config = blockchain.getGameConfig();
     const blocksToSkip = Math.ceil(config.heartbeatTimeout / 12000) + 1;
     for (let i = 0; i < blocksToSkip; i++) {
@@ -310,22 +291,19 @@ describe('Full Game Flow Integration', () => {
     }
     blockchain.markOperatorInactive();
 
-    // Create recovery enclave with SAME code hash (required for key derivation)
-    // but different instance ID (different physical machine)
+    // Create recovery enclave (same code hash + instance ID = same keys)
     const recoveryEnclave = await TEEEnclave.create({
       codeHash: keccak256(toBytes('full-game-test')) as `0x${string}`,
-      instanceId: 'game-1', // Same instance ID = same keys (simulates key migration)
+      instanceId: 'game-1',
     });
 
-    // Register new operator
     blockchain.registerOperator(
       recoveryEnclave.getOperatorAddress(),
       recoveryEnclave.getAttestation().cpuSignature
     );
 
-    // Load state into new enclave
+    // Copy IPFS data and load state
     const recoveryIpfs = new IPFSSimulator();
-    // Copy data from original IPFS
     for (const obj of ipfs.list()) {
       recoveryIpfs.store(obj.content, {
         encrypted: obj.encrypted,
@@ -340,8 +318,6 @@ describe('Full Game Flow Integration', () => {
     const loadedState = await recoveryStateManager.loadState(checkpoint.cid);
 
     expect(loadedState).toEqual(originalState);
-
-    // Same measurement + instance = same address (key continuity)
     expect(recoveryEnclave.getOperatorAddress()).toBe(originalAddress);
 
     await recoveryEnclave.shutdown();
@@ -349,7 +325,7 @@ describe('Full Game Flow Integration', () => {
 });
 
 describe('Security Properties', () => {
-  it('should not leak plaintext to IPFS', async () => {
+  it('never leaks plaintext to IPFS', async () => {
     const enclave = await TEEEnclave.create({
       codeHash: keccak256(toBytes('security-test')) as `0x${string}`,
       instanceId: 'security-1',
@@ -364,16 +340,12 @@ describe('Security Properties', () => {
 
     await stateManager.saveState(secretData);
 
-    // Check IPFS content
-    const storedObjects = ipfs.list();
-    for (const obj of storedObjects) {
-      // Content should be JSON with encrypted payload
+    // Verify no secrets in IPFS content
+    for (const obj of ipfs.list()) {
       expect(obj.content).not.toContain('super_secret_password');
       expect(obj.content).not.toContain('sk-1234567890');
 
-      // Should contain encrypted payload structure
       const parsed = JSON.parse(obj.content);
-      expect(parsed.payload).toBeDefined();
       expect(parsed.payload.ciphertext).toBeDefined();
       expect(parsed.payload.iv).toBeDefined();
     }
@@ -381,7 +353,7 @@ describe('Security Properties', () => {
     await enclave.shutdown();
   });
 
-  it('should produce different ciphertext for same plaintext', async () => {
+  it('produces unique ciphertext for same plaintext (random IV)', async () => {
     const enclave = await TEEEnclave.create({
       codeHash: keccak256(toBytes('randomness-test')) as `0x${string}`,
       instanceId: 'randomness-1',
@@ -394,12 +366,10 @@ describe('Security Properties', () => {
     await stateManager.saveState(data);
     const first = ipfs.list()[0];
 
-    // Clear and save again
     ipfs.clear();
     await stateManager.saveState(data);
     const second = ipfs.list()[0];
 
-    // Ciphertext should be different due to random IV
     expect(first?.content).not.toBe(second?.content);
 
     await enclave.shutdown();

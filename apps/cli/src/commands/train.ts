@@ -108,7 +108,8 @@ COMMANDS:
   archetype   Score & export trajectories for archetype
   collect     Collect trajectories for training
   score       Score collected trajectories
-  generate    Generate multi-archetype trajectories
+  generate    ⚠️ DEPRECATED: Generate SYNTHETIC/FAKE trajectories (testing only)
+  parallel    Generate REAL trajectories with parallel agents (requires server)
 
 PIPELINE OPTIONS:
   -a, --archetype=NAME     Train specific archetype (or 'all')
@@ -541,7 +542,13 @@ async function scoreTrajectories(): Promise<void> {
     return;
   }
 
+  // Configure LLM for scoring
+  console.log('Configuring LLM for scoring...');
+  await configureLLMCaller();
+
   const { archetypeScoringService } = await getTrainingImports();
+  console.log('Scoring trajectories with AI judge...');
+
   const result = await archetypeScoringService.scoreUnscoredTrajectories(
     'default',
     100
@@ -1345,6 +1352,13 @@ async function generateTrajectories(
   logger.header('Multi-Archetype Trajectory Generator');
 
   console.log();
+  console.log('⚠️  WARNING: This generates SYNTHETIC/FAKE data!');
+  console.log('   - Agent IDs are fake (agent-trader-12345)');
+  console.log('   - Decisions use Math.random(), not real LLM calls');
+  console.log('   - This is for TESTING ONLY, not real training');
+  console.log();
+  console.log('   For REAL data, use: babylon train parallel');
+  console.log();
   console.log('Configuration:');
   console.log(`  Episodes: ${episodes}`);
   console.log(`  Ticks per episode: ${ticksPerEpisode}`);
@@ -1647,6 +1661,10 @@ async function runPipeline(args: ReturnType<typeof parseArgs>): Promise<void> {
  *
  * @param args - Raw command-line arguments for the training domain
  */
+
+// Import parallel generation command
+import { runParallelGeneration } from './train-parallel.js';
+
 export async function runTrainCommand(args: string[]): Promise<void> {
   const parsed = parseArgs(args);
 
@@ -1684,6 +1702,10 @@ export async function runTrainCommand(args: string[]): Promise<void> {
 
       case 'generate':
         await generateTrajectories(parsed);
+        break;
+
+      case 'parallel':
+        await runParallelGeneration(parsed);
         break;
 
       default:

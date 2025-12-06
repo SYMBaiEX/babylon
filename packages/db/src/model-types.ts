@@ -372,5 +372,3 @@ export type ExternalAgentConnectionWithRegistry = ExternalAgentConnection & {
 export type AgentGoalWithActions = AgentGoal & {
   actions?: AgentGoalAction[];
 };
-
-

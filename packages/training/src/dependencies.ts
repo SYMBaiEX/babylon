@@ -8,7 +8,32 @@
  * maintain clean package boundaries.
  */
 
+import type { User } from '@babylon/db';
 import type { IAgentRuntime } from '@elizaos/core';
+
+/**
+ * Parameters for creating an agent
+ */
+export interface CreateAgentParams {
+  userId: string;
+  name: string;
+  description?: string;
+  profileImageUrl?: string;
+  coverImageUrl?: string;
+  system: string;
+  bio?: string[];
+  personality?: string;
+  tradingStrategy?: string;
+  initialDeposit?: number;
+  modelTier?: 'lite' | 'standard' | 'pro';
+}
+
+/**
+ * Interface for agent creation service
+ */
+export interface IAgentService {
+  createAgent(params: CreateAgentParams): Promise<User>;
+}
 
 /**
  * Interface for managing agent runtimes
@@ -145,7 +170,9 @@ export interface TrainingMessage {
  * Global configuration for external dependencies
  * This should be initialized before using the training package
  */
+let _agentService: IAgentService | null = null;
 let _agentRuntimeManager: IAgentRuntimeManager | null = null;
+let _autonomousCoordinator: IAutonomousCoordinator | null = null;
 let _llmCaller: ILLMCaller | null = null;
 let _exportGroupedForGRPO: ExportGroupedForGRPOFn | null = null;
 let _exportToHuggingFace: ExportToHuggingFaceFn | null = null;
@@ -155,14 +182,22 @@ let _toTrainingMessages: ToTrainingMessagesFn | null = null;
  * Configure external dependencies
  */
 export function configureTrainingDependencies(config: {
+  agentService?: IAgentService;
   agentRuntimeManager?: IAgentRuntimeManager;
+  autonomousCoordinator?: IAutonomousCoordinator;
   llmCaller?: ILLMCaller;
   exportGroupedForGRPO?: ExportGroupedForGRPOFn;
   exportToHuggingFace?: ExportToHuggingFaceFn;
   toTrainingMessages?: ToTrainingMessagesFn;
 }): void {
+  if (config.agentService) {
+    _agentService = config.agentService;
+  }
   if (config.agentRuntimeManager) {
     _agentRuntimeManager = config.agentRuntimeManager;
+  }
+  if (config.autonomousCoordinator) {
+    _autonomousCoordinator = config.autonomousCoordinator;
   }
   if (config.llmCaller) {
     _llmCaller = config.llmCaller;
@@ -179,6 +214,19 @@ export function configureTrainingDependencies(config: {
 }
 
 /**
+ * Get the agent service
+ * @throws Error if not configured
+ */
+export function getAgentService(): IAgentService {
+  if (!_agentService) {
+    throw new Error(
+      'AgentService not configured. Call configureTrainingDependencies() first.'
+    );
+  }
+  return _agentService;
+}
+
+/**
  * Get the agent runtime manager
  * @throws Error if not configured
  */
@@ -189,6 +237,19 @@ export function getAgentRuntimeManager(): IAgentRuntimeManager {
     );
   }
   return _agentRuntimeManager;
+}
+
+/**
+ * Get the autonomous coordinator
+ * @throws Error if not configured
+ */
+export function getAutonomousCoordinator(): IAutonomousCoordinator {
+  if (!_autonomousCoordinator) {
+    throw new Error(
+      'AutonomousCoordinator not configured. Call configureTrainingDependencies() first.'
+    );
+  }
+  return _autonomousCoordinator;
 }
 
 /**
@@ -246,7 +307,22 @@ export function getToTrainingMessages(): ToTrainingMessagesFn {
  * Check if dependencies are configured
  */
 export function areDependenciesConfigured(): boolean {
-  return _agentRuntimeManager !== null;
+  return (
+    _agentService !== null &&
+    _agentRuntimeManager !== null &&
+    _autonomousCoordinator !== null
+  );
+}
+
+/**
+ * Check if specific agent dependencies are configured for parallel generation
+ */
+export function areAgentDependenciesConfigured(): boolean {
+  return (
+    _agentService !== null &&
+    _agentRuntimeManager !== null &&
+    _autonomousCoordinator !== null
+  );
 }
 
 /**
@@ -255,15 +331,25 @@ export function areDependenciesConfigured(): boolean {
 export interface IAutonomousCoordinator {
   executeAutonomousTick(
     agentUserId: string,
-    agentRuntime: IAgentRuntime
+    agentRuntime: IAgentRuntime,
+    recordTrajectories?: boolean
   ): Promise<{
     success: boolean;
-    actionsExecuted?: Array<{ actionType: string }>;
+    actionsExecuted?: {
+      trades: number;
+      posts: number;
+      comments: number;
+      messages: number;
+      groupMessages: number;
+      engagements: number;
+    };
+    trajectoryId?: string;
     error?: string;
   }>;
 }
 
 /**
+ * @deprecated Use configureTrainingDependencies({ autonomousCoordinator }) instead
  * Factory function type for creating autonomous coordinators
  */
 export type CreateAutonomousCoordinatorFn = () => IAutonomousCoordinator;
@@ -271,15 +357,19 @@ export type CreateAutonomousCoordinatorFn = () => IAutonomousCoordinator;
 let _createAutonomousCoordinator: CreateAutonomousCoordinatorFn | null = null;
 
 /**
+ * @deprecated Use configureTrainingDependencies({ autonomousCoordinator }) instead
  * Configure the autonomous coordinator factory
  */
 export function configureAutonomousCoordinator(
   factory: CreateAutonomousCoordinatorFn
 ): void {
   _createAutonomousCoordinator = factory;
+  // Also set the direct reference for backwards compatibility
+  _autonomousCoordinator = factory();
 }
 
 /**
+ * @deprecated Use getAutonomousCoordinator() instead
  * Create an autonomous coordinator instance
  * @throws Error if not configured
  */

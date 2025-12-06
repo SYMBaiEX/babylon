@@ -1,0 +1,12 @@
+{
+  "id": "acb07f8848d6c213c06f82d1",
+  "encrypted": true,
+  "tags": {
+    "Content-Type": "application/json",
+    "Data-Type": "encrypted-game-state",
+    "Key-Version": "1",
+    "State-Hash": "0xacb07f8848d6c213c06f82d1a498835256b9bc55356a15632d6f8a933689ebd9"
+  },
+  "timestamp": 1764982956256,
+  "size": 250
+}

@@ -19,14 +19,13 @@ import {
   sql,
   users,
 } from '@babylon/db';
+import { countTokensSync, truncateToTokenLimitSync } from '@babylon/api';
 import {
-  countTokensSync,
   formatRandomContext,
   generateRandomMarketContext,
   PerpTradeService,
   PredictionPricing,
   shuffleArray,
-  truncateToTokenLimitSync,
   WalletService,
 } from '@babylon/engine';
 import type { IAgentRuntime } from '@elizaos/core';

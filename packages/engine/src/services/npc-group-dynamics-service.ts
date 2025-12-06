@@ -48,7 +48,7 @@ import {
   validateNoRealNames,
 } from '@babylon/engine';
 import { generateSnowflakeId, logger } from '@babylon/shared';
-import { NPCGroupDynamicsService as NPCGroupDynamicsCalculations } from './npc-group-dynamics-calculations';
+import { NPCGroupDynamicsCalculations } from './npc-group-dynamics-calculations';
 
 export interface GroupDynamicsResult {
   groupsCreated: number;

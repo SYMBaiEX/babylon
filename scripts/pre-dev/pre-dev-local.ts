@@ -15,10 +15,10 @@ import { $ } from 'bun';
 import { existsSync, readFileSync, unlinkSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import {
+  type DeploymentEnv,
   detectEnvironment,
   printValidationResult,
   validateEnvironment,
-  type DeploymentEnv,
 } from '../../packages/contracts/src/deployment/env-detection';
 
 const POSTGRES_CONTAINER = 'babylon-postgres';

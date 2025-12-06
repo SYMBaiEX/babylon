@@ -10,7 +10,7 @@
  */
 
 import { describe, expect, it } from 'bun:test';
-import { getModelTokenLimit, truncateToTokenLimitSync } from '@babylon/engine';
+import { getModelTokenLimit, truncateToTokenLimitSync } from '@babylon/api';
 import { getRLModelConfig } from '@babylon/training';
 
 describe('RL Training System', () => {

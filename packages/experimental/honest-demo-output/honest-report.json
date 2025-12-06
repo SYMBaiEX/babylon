@@ -1,0 +1,68 @@
+{
+  "timestamp": "2025-12-06T01:02:36.259Z",
+  "enclave": {
+    "address": "0x87097C62365BF2ffe2158fcF9C9fdc9C894826f0",
+    "codeHash": "0xe2dee2bcd7217c7dd3d726a7da6d3bff79dc7a319f08046bf967b173cecb18f0",
+    "isSimulated": true
+  },
+  "attestation": {
+    "isSimulated": true,
+    "hardwareAuthentic": false,
+    "warnings": [
+      "SIMULATION MODE: Attestation is not from real Intel/NVIDIA hardware",
+      "For production, deploy to Phala CVM and use ProductionTEEEnclave"
+    ]
+  },
+  "checks": [
+    {
+      "name": "Wallet can sign real transactions",
+      "real": true,
+      "reason": "secp256k1 via viem"
+    },
+    {
+      "name": "Encryption is production-quality",
+      "real": true,
+      "reason": "AES-256-GCM via WebCrypto"
+    },
+    {
+      "name": "Tamper detection works",
+      "real": true,
+      "reason": "GCM authentication tag"
+    },
+    {
+      "name": "Storage is permanent",
+      "real": false,
+      "reason": "File storage, not Arweave (Irys SDK has Bun issues)"
+    },
+    {
+      "name": "Keys are hardware-derived",
+      "real": false,
+      "reason": "Simulated - need real Phala CVM"
+    },
+    {
+      "name": "Attestation is verifiable",
+      "real": false,
+      "reason": "Simulated - not from Intel/NVIDIA PKI"
+    },
+    {
+      "name": "Code runs in isolated enclave",
+      "real": false,
+      "reason": "Simulated - runs in normal process"
+    },
+    {
+      "name": "Anyone can verify the code",
+      "real": true,
+      "reason": "Open source, deterministic build"
+    },
+    {
+      "name": "No API keys required",
+      "real": true,
+      "reason": "Wallet-only authentication"
+    }
+  ],
+  "verdict": {
+    "cryptoReal": true,
+    "hardwareSecurityReal": false,
+    "requiresPhalaForProduction": true
+  }
+}

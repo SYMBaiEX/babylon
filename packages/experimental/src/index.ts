@@ -1,11 +1,11 @@
 /**
- * Experimental Package - Permissionless AI Game Demonstration
+ * Experimental Package - Permissionless AI Game
  *
- * Self-contained toy implementation of a decentralized AI game
- * running on simulated TEE infrastructure.
+ * A self-contained implementation of a decentralized AI game
+ * with real cryptography and simulated TEE infrastructure.
  */
 
-// Smart contract simulation
+// Contracts
 export {
   type ContractEvent,
   type ContractEventType,
@@ -18,9 +18,11 @@ export {
   type StakingState,
   type TransactionResult,
 } from './contracts/index.js';
-// Core crypto primitives
+
+// Cryptography (real, not simulated)
 export * from './crypto/index.js';
-// Game components
+
+// Game
 export {
   type AgentConfig,
   type AgentState,
@@ -36,20 +38,49 @@ export {
   type TrainingCycleResult,
   type TrainingSample,
 } from './game/index.js';
-
-// Storage simulation
+// Orchestrator
 export {
-  IPFSSimulator,
+  GameOrchestrator,
+  type GameState,
+  type OrchestratorConfig,
+  type OrchestratorPhase,
+} from './orchestrator/index.js';
+// Protocol (PBTS-aligned)
+export {
+  type AggregatedReceipts,
+  aggregateReceipts,
+  type Commitment,
+  // Commit-Reveal
+  CommitRevealManager,
+  createReceipt,
+  type DHTAnnouncement,
+  // DHT Fallback (PBTS Section 4.3)
+  DHTFallbackManager,
+  MockOnChainRegistry,
+  type OnChainRegistry,
+  type PeerInfo,
+  // Peer Attestation (PBTS Section 4.2)
+  ReceiptManager,
+  type Reveal,
+  type TransferReceipt,
+  type VerificationReport,
+  VerifierClient,
+  verifyReceipt,
+} from './protocol/index.js';
+// Storage (real implementations available)
+export {
+  ArweaveStorage,
+  DecentralizedStorage,
+  FileStorage,
+  RealStateManager,
   type StateCheckpoint,
-  StateManager,
-  type StateManagerConfig,
+  type Storage,
   type StorageStats,
-  type StoredObject,
-  type StoreOptions,
   type TrainingDataset,
-  type VerificationResult as StorageVerificationResult,
+  type UploadOptions,
+  type UploadResult,
 } from './storage/index.js';
-// TEE simulation
+// TEE (simulated - use ProductionTEEEnclave for real TEE)
 export {
   type AttestationQuote,
   type EnclaveConfig,

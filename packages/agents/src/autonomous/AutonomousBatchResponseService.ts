@@ -29,7 +29,7 @@ import {
   posts,
   users,
 } from '@babylon/db';
-import { countTokensSync, truncateToTokenLimitSync } from '@babylon/engine';
+import { countTokensSync, truncateToTokenLimitSync } from '@babylon/api';
 import type { IAgentRuntime } from '@elizaos/core';
 import { callGroqDirect } from '../llm/direct-groq';
 import { logger } from '../shared/logger';

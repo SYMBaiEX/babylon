@@ -1,0 +1,27 @@
+{
+  "timestamp": "2025-12-04T23:26:21.038Z",
+  "trajectoryCount": 3,
+  "trajectories": [
+    {
+      "id": "traj-1764890776895-0",
+      "archetype": "trader",
+      "agentType": "archetype-agent",
+      "steps": 3,
+      "reward": 5.9
+    },
+    {
+      "id": "traj-1764890776910-1",
+      "archetype": "degen",
+      "agentType": "archetype-agent",
+      "steps": 3,
+      "reward": 4.9
+    },
+    {
+      "id": "traj-1764890776913-2",
+      "archetype": "scammer",
+      "agentType": "archetype-agent",
+      "steps": 3,
+      "reward": 4.6
+    }
+  ]
+}
