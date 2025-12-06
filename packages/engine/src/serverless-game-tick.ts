@@ -70,10 +70,17 @@ import { QuestionManager } from './QuestionManager';
 import { RelationshipEvolutionEngine } from './RelationshipEvolutionEngine';
 import { AlphaGroupInviteService } from './services/alpha-group-invite-service';
 import { characterMappingService } from './services/character-mapping-service';
+// Content generation helpers
+import { generateEvents } from './services/event-generation-helpers';
 import { MarketContextService } from './services/market-context-service';
 import { NPCGroupDynamicsService } from './services/npc-group-dynamics-service';
 import { getOracleService } from './services/oracle/oracle-service';
 import { createParodyHeadlineGenerator } from './services/parody-headline-generator';
+import {
+  generateNPCPost,
+  generateOrgArticle,
+  generateOrgPost,
+} from './services/post-generation-helpers';
 import { PredictionMarketService } from './services/prediction-market-service';
 import { PriceUpdateService } from './services/price-update-service';
 import {
@@ -81,7 +88,6 @@ import {
   syncReputationIfAvailable,
 } from './services/reputation-service';
 import { rssFeedService } from './services/rss-feed-service';
-
 // Migrated services - local imports
 import { invalidateAfterPredictionTrade } from './services/trade-cache-invalidation';
 import { TradeExecutionService } from './services/trade-execution-service';
@@ -100,14 +106,6 @@ import type {
   WorldEvent,
 } from './types/shared';
 import { worldFactsService } from './world-facts-service';
-
-// Content generation helpers
-import { generateEvents } from './services/event-generation-helpers';
-import {
-  generateNPCPost,
-  generateOrgArticle,
-  generateOrgPost,
-} from './services/post-generation-helpers';
 
 // Services that are still in the web app (Web3/Oracle specific - use dynamic imports)
 

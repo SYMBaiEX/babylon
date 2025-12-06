@@ -120,7 +120,10 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     Math.max(1, parseInt(searchParams.get('limit') || '50', 10) || 50),
     200
   );
-  const offset = Math.max(0, parseInt(searchParams.get('offset') || '0', 10) || 0);
+  const offset = Math.max(
+    0,
+    parseInt(searchParams.get('offset') || '0', 10) || 0
+  );
 
   // Get all data using asSystem in a single call to avoid nested async issues
   const { chatsList, allUsers, allActors, allUserGroups } = await asSystem(

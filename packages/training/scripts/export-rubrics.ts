@@ -29,20 +29,7 @@ const exportData = {
     rubric: DEFAULT_RUBRIC,
     priorityMetrics: DEFAULT_PRIORITY_METRICS,
   },
-  availableArchetypes: [
-    'trader',
-    'social-butterfly',
-    'scammer',
-    'degen',
-    'researcher',
-    'information-trader',
-    'goody-twoshoes',
-    'ass-kisser',
-    'perps-trader',
-    'super-predictor',
-    'infosec',
-    'liar',
-  ],
+  availableArchetypes: uniqueArchetypes,
 };
 
 // Ensure config directory exists
@@ -54,4 +41,4 @@ if (!fs.existsSync(configDir)) {
 fs.writeFileSync(outputPath, JSON.stringify(exportData, null, 2));
 console.log(`✓ Exported rubrics to ${outputPath}`);
 console.log(`  - ${Object.keys(RUBRICS).length} rubric entries`);
-console.log(`  - ${exportData.availableArchetypes.length} unique archetypes`);
+console.log(`  - ${uniqueArchetypes.length} unique archetypes`);

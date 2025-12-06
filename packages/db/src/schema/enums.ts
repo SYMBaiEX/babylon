@@ -31,5 +31,3 @@ export const agentStatusEnum = pgEnum('AgentStatus', [
   'PAUSED',
   'TERMINATED',
 ]);
-
-

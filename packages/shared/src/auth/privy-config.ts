@@ -6,7 +6,10 @@ type SolanaConnectors = ReturnType<
   typeof import('@privy-io/react-auth/solana')['toSolanaWalletConnectors']
 >;
 
-type Appearance = Omit<NonNullable<PrivyClientConfig['appearance']>, 'theme'> & {
+type Appearance = Omit<
+  NonNullable<PrivyClientConfig['appearance']>,
+  'theme'
+> & {
   theme?: 'light' | 'dark' | `#${string}` | 'system';
 };
 
@@ -16,7 +19,9 @@ type BabylonPrivyConfig = Omit<
 > & {
   appearance?: Appearance;
   embeddedWallets?: {
-    ethereum?: { createOnLogin?: 'all-users' | 'users-without-wallets' | 'off' };
+    ethereum?: {
+      createOnLogin?: 'all-users' | 'users-without-wallets' | 'off';
+    };
   };
   externalWallets?: {
     solana?: { connectors?: SolanaConnectors };
@@ -29,9 +34,10 @@ function getSolanaConnectors(): SolanaConnectors | undefined {
 
   try {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const { toSolanaWalletConnectors } = require('@privy-io/react-auth/solana') as {
-      toSolanaWalletConnectors: () => SolanaConnectors;
-    };
+    const { toSolanaWalletConnectors } =
+      require('@privy-io/react-auth/solana') as {
+        toSolanaWalletConnectors: () => SolanaConnectors;
+      };
     return toSolanaWalletConnectors();
   } catch (error) {
     console.warn('Failed to load Solana connectors', error);
@@ -45,21 +51,22 @@ const appearance: Appearance = {
   logo: '/assets/logos/logo.svg',
 };
 
-const loginMethodsAndOrder: NonNullable<BabylonPrivyConfig['loginMethodsAndOrder']> =
-  {
-    primary: ['farcaster', 'email'],
-    overflow: [
-      'metamask',
-      'twitter',
-      'discord',
-      'telegram',
-      'phantom',
-      'rabby_wallet',
-      'coinbase_wallet',
-      'rainbow',
-      'backpack',
-    ],
-  };
+const loginMethodsAndOrder: NonNullable<
+  BabylonPrivyConfig['loginMethodsAndOrder']
+> = {
+  primary: ['farcaster', 'email'],
+  overflow: [
+    'metamask',
+    'twitter',
+    'discord',
+    'telegram',
+    'phantom',
+    'rabby_wallet',
+    'coinbase_wallet',
+    'rainbow',
+    'backpack',
+  ],
+};
 
 const embeddedWallets: NonNullable<BabylonPrivyConfig['embeddedWallets']> = {
   ethereum: { createOnLogin: 'off' },
@@ -67,7 +74,9 @@ const embeddedWallets: NonNullable<BabylonPrivyConfig['embeddedWallets']> = {
 
 const externalWallets: BabylonPrivyConfig['externalWallets'] = (() => {
   const solanaConnectors = getSolanaConnectors();
-  return solanaConnectors ? { solana: { connectors: solanaConnectors } } : undefined;
+  return solanaConnectors
+    ? { solana: { connectors: solanaConnectors } }
+    : undefined;
 })();
 
 // @NOTE: Do not update this config without making sure it won't break anything

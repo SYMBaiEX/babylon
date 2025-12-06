@@ -33,7 +33,9 @@ export async function register() {
     // Initialize agent service container with required services
     // Uses globalThis to persist across module instances
     try {
-      const { setServiceContainer, agentRegistry } = await import('@babylon/agents');
+      const { setServiceContainer, agentRegistry } = await import(
+        '@babylon/agents'
+      );
       setServiceContainer({
         agentRegistry,
       });
@@ -43,7 +45,7 @@ export async function register() {
         error instanceof Error ? error.message : String(error)
       );
     }
-    
+
     // Initialize shared moderation services with web app implementations
     setPointsService({
       awardPoints: async (userId, amount, reason, metadata) => {

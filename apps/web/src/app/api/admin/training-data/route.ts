@@ -70,16 +70,16 @@ export const GET = withErrorHandling(async (req: NextRequest) => {
     resourceType: 'training_data',
     metadata: { action: 'view_training_data_status' },
   });
-    // Get total trajectory count
-    const totalTrajectories = await db.trajectory.count();
+  // Get total trajectory count
+  const totalTrajectories = await db.trajectory.count();
 
-    // Get trajectories by window
-    const windowStatsRaw = await db.$queryRaw<{
-      windowId: string;
-      count: bigint;
-      avgSteps: number;
-      avgPnl: number;
-    }>`
+  // Get trajectories by window
+  const windowStatsRaw = await db.$queryRaw<{
+    windowId: string;
+    count: bigint;
+    avgSteps: number;
+    avgPnl: number;
+  }>`
       SELECT 
         "windowId",
         COUNT(*)::bigint as count,
@@ -94,68 +94,68 @@ export const GET = withErrorHandling(async (req: NextRequest) => {
       LIMIT 50
     `;
 
-    // Convert to serializable format
-    const windows = windowStatsRaw.map((w) => ({
-      windowId: w.windowId,
-      trajectoryCount: Number(w.count),
-      avgSteps: w.avgSteps || 0,
-      avgPnl: w.avgPnl || 0,
-    }));
+  // Convert to serializable format
+  const windows = windowStatsRaw.map((w) => ({
+    windowId: w.windowId,
+    trajectoryCount: Number(w.count),
+    avgSteps: w.avgSteps || 0,
+    avgPnl: w.avgPnl || 0,
+  }));
 
-    // Find ready windows (>= 3 agents minimum for GRPO)
-    const MIN_AGENTS_FOR_TRAINING = 3;
-    const readyWindows = windows.filter(
-      (w) => w.trajectoryCount >= MIN_AGENTS_FOR_TRAINING
-    );
+  // Find ready windows (>= 3 agents minimum for GRPO)
+  const MIN_AGENTS_FOR_TRAINING = 3;
+  const readyWindows = windows.filter(
+    (w) => w.trajectoryCount >= MIN_AGENTS_FOR_TRAINING
+  );
 
-    // Get recent trajectories for preview
-    const recentTrajectories = await db.trajectory.findMany({
-      where: {
-        isTrainingData: true,
-      },
-      select: {
-        id: true,
-        trajectoryId: true,
-        agentId: true,
-        windowId: true,
-        episodeLength: true,
-        finalPnL: true,
-        tradesExecuted: true,
-        createdAt: true,
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
-      take: 10,
-    });
+  // Get recent trajectories for preview
+  const recentTrajectories = await db.trajectory.findMany({
+    where: {
+      isTrainingData: true,
+    },
+    select: {
+      id: true,
+      trajectoryId: true,
+      agentId: true,
+      windowId: true,
+      episodeLength: true,
+      finalPnL: true,
+      tradesExecuted: true,
+      createdAt: true,
+    },
+    orderBy: {
+      createdAt: 'desc',
+    },
+    take: 10,
+  });
 
-    // Calculate quality metrics
-    const qualityMetrics = {
-      avgEpisodeLength:
-        windows.reduce((sum, w) => sum + w.avgSteps, 0) / (windows.length || 1),
-      avgPnl:
-        windows.reduce((sum, w) => sum + w.avgPnl, 0) / (windows.length || 1),
-      trainingDataQuality:
-        totalTrajectories > 100
-          ? 'good'
-          : totalTrajectories > 20
-            ? 'fair'
-            : 'low',
-    };
+  // Calculate quality metrics
+  const qualityMetrics = {
+    avgEpisodeLength:
+      windows.reduce((sum, w) => sum + w.avgSteps, 0) / (windows.length || 1),
+    avgPnl:
+      windows.reduce((sum, w) => sum + w.avgPnl, 0) / (windows.length || 1),
+    trainingDataQuality:
+      totalTrajectories > 100
+        ? 'good'
+        : totalTrajectories > 20
+          ? 'fair'
+          : 'low',
+  };
 
-    return NextResponse.json({
-      success: true,
-      data: {
-        summary: {
-          totalTrajectories,
-          totalWindows: windows.length,
-          readyWindows: readyWindows.length,
-          minAgentsRequired: MIN_AGENTS_FOR_TRAINING,
-        },
-        windows,
-        readyWindows,
-        recentTrajectories,
-        qualityMetrics,
+  return NextResponse.json({
+    success: true,
+    data: {
+      summary: {
+        totalTrajectories,
+        totalWindows: windows.length,
+        readyWindows: readyWindows.length,
+        minAgentsRequired: MIN_AGENTS_FOR_TRAINING,
       },
-    });
+      windows,
+      readyWindows,
+      recentTrajectories,
+      qualityMetrics,
+    },
+  });
 });

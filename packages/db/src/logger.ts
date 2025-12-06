@@ -66,5 +66,3 @@ export const logger = {
   error: (message: string, meta?: Record<string, unknown>) =>
     currentLogger.error(message, meta),
 };
-
-

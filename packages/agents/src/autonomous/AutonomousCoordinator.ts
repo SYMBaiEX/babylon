@@ -323,7 +323,10 @@ export class AutonomousCoordinator {
         } catch (a2aError) {
           logger.warn(
             'A2A trending engagement failed, continuing with direct posting',
-            { error: a2aError instanceof Error ? a2aError.message : String(a2aError) },
+            {
+              error:
+                a2aError instanceof Error ? a2aError.message : String(a2aError),
+            },
             'AutonomousCoordinator'
           );
         }
