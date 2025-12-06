@@ -1,18 +1,15 @@
 /**
- * Phala DStack Integration
+ * DStack Integration (Phala TEE SDK)
  *
- * THIS IS THE MISSING PIECE FOR TRUE PERMISSIONLESSNESS.
+ * NOTE: Phala Cloud requires API key login for deployment management.
+ * For 100% permissionless TEE, use Marlin Oyster instead.
  *
- * DStack provides:
- * 1. Hardware-derived keys (never leave the TEE)
- * 2. Real Intel TDX attestation
- * 3. Wallet-based deployment (no API keys)
+ * @see src/infra/marlin-oyster.ts - Wallet-only TEE deployment
  *
- * Installation:
- *   bun add @phala/dstack-sdk
- *
- * Deployment:
- *   Deploy to Phala Cloud via wallet signature
+ * This file is kept for:
+ * 1. Running inside existing Phala TEE deployments
+ * 2. Reference implementation of hardware-derived keys
+ * 3. Production enclave abstraction
  */
 
 // NOTE: These imports will work when running inside Phala TEE
@@ -300,7 +297,7 @@ CMD ["node", "dist/infra/production-entrypoint.js"]
 export const PRODUCTION_ENTRYPOINT = `
 import { ProductionTEEEnclave } from './dstack-integration.js';
 import { BlockchainClient } from './blockchain-client.js';
-import { PermissionlessStorage } from './arweave-client.js';
+import { ArweaveStorage } from '../storage/arweave-storage.js';
 
 async function main() {
   console.log('=== PERMISSIONLESS AI GAME ===');

@@ -10,7 +10,7 @@ import { getLLMCaller } from '../dependencies';
 import { type BehavioralMetrics, trajectoryMetricsExtractor } from '../metrics';
 import { hasCustomRubric } from '../rubrics';
 import type { TrajectoryStep } from '../training/types';
-import { logger } from '../utils/logger';
+import { logger, splitIntoBatches } from '../utils';
 import {
   judgePromptBuilder,
   type TrajectoryContext,
@@ -298,7 +298,7 @@ export class ArchetypeScoringService {
     }
 
     // Split into batches and score
-    const batches = this.splitIntoBatches(contexts, this.maxGroupSize);
+    const batches = splitIntoBatches(contexts, this.maxGroupSize);
     const scores: ArchetypeScore[] = [];
 
     for (const batch of batches) {
@@ -576,17 +576,6 @@ Return ONLY valid JSON, no other text.`;
       );
       return null;
     }
-  }
-
-  /**
-   * Split items into batches
-   */
-  private splitIntoBatches<T>(items: T[], batchSize: number): T[][] {
-    const batches: T[][] = [];
-    for (let i = 0; i < items.length; i += batchSize) {
-      batches.push(items.slice(i, i + batchSize));
-    }
-    return batches;
   }
 }
 

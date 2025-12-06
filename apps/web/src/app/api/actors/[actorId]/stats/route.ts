@@ -129,7 +129,6 @@ export const GET = withErrorHandling(
     const [
       actorFollowerCount,
       userActorFollowerCount,
-      legacyUserFollowerCount,
       followingCount,
       postCount,
     ] = await Promise.all([
@@ -143,14 +142,6 @@ export const GET = withErrorHandling(
           actorId: actualActorId,
         },
       }),
-      // Legacy FollowStatus entries created before migration
-      db.followStatus.count({
-        where: {
-          npcId: actualActorId,
-          isActive: true,
-          followReason: 'user_followed',
-        },
-      }),
       // This actor following others (only NPC-to-NPC follows via ActorFollow)
       db.actorFollow.count({
         where: { followerId: actualActorId },
@@ -161,8 +152,7 @@ export const GET = withErrorHandling(
       }),
     ]);
 
-    const totalUserFollowers = userActorFollowerCount + legacyUserFollowerCount;
-    const totalFollowers = actorFollowerCount + totalUserFollowers;
+    const totalFollowers = actorFollowerCount + userActorFollowerCount;
 
     logger.info(
       'Actor stats fetched successfully',
@@ -172,7 +162,6 @@ export const GET = withErrorHandling(
         totalFollowers,
         actorFollowerCount,
         userActorFollowerCount,
-        legacyUserFollowerCount,
         followingCount,
       },
       'GET /api/actors/[actorId]/stats'
@@ -184,7 +173,7 @@ export const GET = withErrorHandling(
         following: followingCount,
         posts: postCount,
         actorFollowers: actorFollowerCount,
-        userFollowers: totalUserFollowers,
+        userFollowers: userActorFollowerCount,
       },
     });
   }

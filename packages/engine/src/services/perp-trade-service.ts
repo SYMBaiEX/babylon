@@ -226,70 +226,65 @@ export class PerpTradeService {
       orderType: 'market',
     });
 
-    try {
-      await asUser(authUser.userId, async (txDb) => {
-        const [dbUser] = await txDb
-          .select({ id: users.id, virtualBalance: users.virtualBalance })
-          .from(users)
-          .where(eq(users.id, authUser.userId))
-          .limit(1);
+    await asUser(authUser.userId, async (txDb) => {
+      const [dbUser] = await txDb
+        .select({ id: users.id, virtualBalance: users.virtualBalance })
+        .from(users)
+        .where(eq(users.id, authUser.userId))
+        .limit(1);
 
-        if (!dbUser) {
-          throw new NotFoundError('User', authUser.userId);
-        }
+      if (!dbUser) {
+        throw new NotFoundError('User', authUser.userId);
+      }
 
-        if (dbUser.virtualBalance === null) {
-          throw new InternalServerError('User balance not initialized', {
-            userId: authUser.userId,
-          });
-        }
-
-        const currentBalance = Number(dbUser.virtualBalance);
-        if (currentBalance < totalCost) {
-          throw new InsufficientFundsError(totalCost, currentBalance, 'USD');
-        }
-
-        const newBalance = currentBalance - totalCost;
-
-        await txDb
-          .update(users)
-          .set({
-            virtualBalance: newBalance.toString(),
-          })
-          .where(eq(users.id, authUser.userId));
-
-        await txDb.insert(balanceTransactions).values({
-          id: await generateSnowflakeId(),
+      if (dbUser.virtualBalance === null) {
+        throw new InternalServerError('User balance not initialized', {
           userId: authUser.userId,
-          type: 'perp_open',
-          amount: (-totalCost).toString(),
-          balanceBefore: currentBalance.toString(),
-          balanceAfter: newBalance.toString(),
-          relatedId: position.id,
-          description: `Opened ${input.leverage}x ${input.side} position on ${input.ticker} (incl. $${feeCalc.feeAmount.toFixed(2)} fee)`,
         });
+      }
 
-        await txDb.insert(perpPositions).values({
-          id: position.id,
-          userId: authUser.userId,
-          ticker: position.ticker,
-          organizationId: position.organizationId,
-          side: position.side,
-          entryPrice: position.entryPrice,
-          currentPrice: position.currentPrice,
-          size: position.size,
-          leverage: position.leverage,
-          liquidationPrice: position.liquidationPrice,
-          unrealizedPnL: position.unrealizedPnL,
-          unrealizedPnLPercent: position.unrealizedPnLPercent,
-          fundingPaid: position.fundingPaid,
-          lastUpdated: new Date(),
-        });
+      const currentBalance = Number(dbUser.virtualBalance);
+      if (currentBalance < totalCost) {
+        throw new InsufficientFundsError(totalCost, currentBalance, 'USD');
+      }
+
+      const newBalance = currentBalance - totalCost;
+
+      await txDb
+        .update(users)
+        .set({
+          virtualBalance: newBalance.toString(),
+        })
+        .where(eq(users.id, authUser.userId));
+
+      await txDb.insert(balanceTransactions).values({
+        id: await generateSnowflakeId(),
+        userId: authUser.userId,
+        type: 'perp_open',
+        amount: (-totalCost).toString(),
+        balanceBefore: currentBalance.toString(),
+        balanceAfter: newBalance.toString(),
+        relatedId: position.id,
+        description: `Opened ${input.leverage}x ${input.side} position on ${input.ticker} (incl. $${feeCalc.feeAmount.toFixed(2)} fee)`,
       });
-    } catch (error) {
-      perpsEngine.closePosition(position.id);
-      throw error;
-    }
+
+      await txDb.insert(perpPositions).values({
+        id: position.id,
+        userId: authUser.userId,
+        ticker: position.ticker,
+        organizationId: position.organizationId,
+        side: position.side,
+        entryPrice: position.entryPrice,
+        currentPrice: position.currentPrice,
+        size: position.size,
+        leverage: position.leverage,
+        liquidationPrice: position.liquidationPrice,
+        unrealizedPnL: position.unrealizedPnL,
+        unrealizedPnLPercent: position.unrealizedPnLPercent,
+        fundingPaid: position.fundingPaid,
+        lastUpdated: new Date(),
+      });
+    });
 
     const feeResult = await FeeService.processTradingFee(
       authUser.userId,
@@ -477,33 +472,29 @@ export class PerpTradeService {
     );
 
     await asUser(authUser.userId, async (txDb) => {
-      try {
-        const result = await txDb
-          .update(perpPositions)
-          .set({
-            closedAt: new Date(),
-            realizedPnL: realizedPnL,
-            currentPrice: position.currentPrice,
-            unrealizedPnL: 0,
-            unrealizedPnLPercent: 0,
-            lastUpdated: new Date(),
-          })
-          .where(eq(perpPositions.id, positionId))
-          .returning({ id: perpPositions.id });
+      const result = await txDb
+        .update(perpPositions)
+        .set({
+          closedAt: new Date(),
+          realizedPnL: realizedPnL,
+          currentPrice: position.currentPrice,
+          unrealizedPnL: 0,
+          unrealizedPnLPercent: 0,
+          lastUpdated: new Date(),
+        })
+        .where(eq(perpPositions.id, positionId))
+        .returning({ id: perpPositions.id });
 
-        // Check if position was found
-        if (result.length === 0) {
-          logger.warn(
-            'Position not found during update (may have been deleted)',
-            { positionId, userId: authUser.userId },
-            'PerpTradeService.closePosition'
-          );
-          // Position doesn't exist - this is okay, it may have been deleted
-          // The position was already closed in the engine, so we can continue
-          return;
-        }
-      } catch (error) {
-        throw error;
+      // Check if position was found
+      if (result.length === 0) {
+        logger.warn(
+          'Position not found during update (may have been deleted)',
+          { positionId, userId: authUser.userId },
+          'PerpTradeService.closePosition'
+        );
+        // Position doesn't exist - this is okay, it may have been deleted
+        // The position was already closed in the engine, so we can continue
+        return;
       }
     });
 

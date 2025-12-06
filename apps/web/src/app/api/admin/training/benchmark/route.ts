@@ -71,75 +71,42 @@ import { NextResponse } from 'next/server';
 export const maxDuration = 300; // 5 minutes for benchmarking
 
 export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json();
-    const { modelId, compare = true, threshold = 0.95 } = body;
+  const body = await request.json();
+  const { modelId, compare = true, threshold = 0.95 } = body;
 
-    if (!modelId) {
-      return NextResponse.json({ error: 'Model ID required' }, { status: 400 });
-    }
-
-    logger.info('Starting model benchmark', { modelId }, 'BenchmarkAPI');
-
-    // Run benchmark
-    const benchmarkResults = await benchmarkService.benchmarkModel(modelId);
-
-    // Compare if requested
-    let comparison = null;
-    if (compare) {
-      try {
-        comparison = await benchmarkService.compareModels(modelId, threshold);
-      } catch (error) {
-        logger.warn(
-          'Model comparison failed',
-          { error, modelId },
-          'BenchmarkAPI'
-        );
-      }
-    }
-
-    logger.info(
-      'Benchmark complete',
-      { modelId, score: benchmarkResults.benchmarkScore },
-      'BenchmarkAPI'
-    );
-
-    return NextResponse.json({
-      success: true,
-      benchmark: benchmarkResults,
-      comparison,
-    });
-  } catch (error) {
-    logger.error('Benchmark failed', error, 'BenchmarkAPI');
-
-    return NextResponse.json(
-      {
-        success: false,
-        error: error instanceof Error ? error.message : 'Benchmark failed',
-      },
-      { status: 500 }
-    );
+  if (!modelId) {
+    return NextResponse.json({ error: 'Model ID required' }, { status: 400 });
   }
+
+  logger.info('Starting model benchmark', { modelId }, 'BenchmarkAPI');
+
+  // Run benchmark
+  const benchmarkResults = await benchmarkService.benchmarkModel(modelId);
+
+  // Compare if requested
+  const comparison = compare
+    ? await benchmarkService.compareModels(modelId, threshold)
+    : null;
+
+  logger.info(
+    'Benchmark complete',
+    { modelId, score: benchmarkResults.benchmarkScore },
+    'BenchmarkAPI'
+  );
+
+  return NextResponse.json({
+    success: true,
+    benchmark: benchmarkResults,
+    comparison,
+  });
 }
 
 export async function GET(_request: NextRequest) {
-  try {
-    // Get benchmark summary
-    const summary = await benchmarkService.getBenchmarkSummary();
+  // Get benchmark summary
+  const summary = await benchmarkService.getBenchmarkSummary();
 
-    return NextResponse.json({
-      success: true,
-      summary,
-    });
-  } catch (error) {
-    logger.error('Failed to get benchmark summary', error, 'BenchmarkAPI');
-
-    return NextResponse.json(
-      {
-        success: false,
-        error: error instanceof Error ? error.message : 'Failed to get summary',
-      },
-      { status: 500 }
-    );
-  }
+  return NextResponse.json({
+    success: true,
+    summary,
+  });
 }

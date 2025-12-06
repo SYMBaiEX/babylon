@@ -103,7 +103,7 @@ export const POST = withErrorHandling(
     try {
       body = await request.json();
     } catch {
-      // Body is optional for this endpoint
+      // Body is optional for this endpoint - if parsing fails, body remains empty
     }
     if (Object.keys(body).length > 0) {
       ClosePerpPositionSchema.parse(body);

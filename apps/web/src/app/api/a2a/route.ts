@@ -159,40 +159,24 @@ function checkApiKey(request: NextRequest): NextResponse | null {
  * @throws {401} Invalid or missing API key
  */
 export async function POST(request: NextRequest) {
-  try {
-    const authError = checkApiKey(request);
-    if (authError) return authError;
+  const authError = checkApiKey(request);
+  if (authError) return authError;
 
-    const body = await request.json();
+  const body = await request.json();
 
-    logger.info('Official A2A request', {
-      method: body.method,
-      taskId: body.params?.message?.taskId,
-    });
+  logger.info('Official A2A request', {
+    method: body.method,
+    taskId: body.params?.message?.taskId,
+  });
 
-    // Use the JSON-RPC transport handler
-    const response = await jsonRpcHandler.handle(body);
+  // Use the JSON-RPC transport handler
+  const response = await jsonRpcHandler.handle(body);
 
-    return NextResponse.json(response, {
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-  } catch (error) {
-    logger.error('Official A2A error', error);
-
-    return NextResponse.json(
-      {
-        jsonrpc: '2.0',
-        error: {
-          code: -32603,
-          message: (error as Error).message || 'Internal server error',
-        },
-        id: null,
-      },
-      { status: 500 }
-    );
-  }
+  return NextResponse.json(response, {
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  });
 }
 
 /**

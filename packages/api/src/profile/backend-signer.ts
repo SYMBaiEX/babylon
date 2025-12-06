@@ -143,7 +143,7 @@ export async function updateProfileBackendSigned({
 
   logger.info(
     'Profile update confirmed on-chain',
-    { txHash, blockNumber: receipt.blockNumber },
+    { txHash, blockNumber: receipt.blockNumber.toString() },
     'BackendSigner'
   );
 

@@ -52,13 +52,9 @@ interface OpenAPISpec {
 export async function generateAutoSpec() {
   // Dynamically import swagger-jsdoc if available (optional dev dependency)
   let swaggerJsdoc: SwaggerJsdocFunction | null = null;
-  try {
-    const swaggerModule = await import('swagger-jsdoc');
-    // Handle type mismatch between swagger-jsdoc types and our interface
-    swaggerJsdoc = swaggerModule.default as unknown as SwaggerJsdocFunction;
-  } catch {
-    // swagger-jsdoc not installed - fall back to manual spec only
-  }
+  const swaggerModule = await import('swagger-jsdoc');
+  // Handle type mismatch between swagger-jsdoc types and our interface
+  swaggerJsdoc = swaggerModule.default as unknown as SwaggerJsdocFunction;
 
   // Check if we're in a Node.js environment with file system access
   if (typeof process === 'undefined' || typeof process.cwd !== 'function') {

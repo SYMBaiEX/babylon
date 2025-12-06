@@ -196,38 +196,25 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  try {
-    // Optional auth - username checks are public but RLS still applies
-    const authUser = await optionalAuth(request).catch(() => null);
+  // Optional auth - username checks are public but RLS still applies
+  const authUser = await optionalAuth(request).catch(() => null);
 
-    // Check username availability with RLS (public or user context)
-    // Verify authUser has userId before using asUser()
-    const result =
-      authUser && authUser.userId
-        ? await asUser(authUser, async (db) => {
-            return await checkUsernameAvailability(username, db);
-          })
-        : await asPublic(async (db) => {
-            return await checkUsernameAvailability(username, db);
-          });
+  // Check username availability with RLS (public or user context)
+  // Verify authUser has userId before using asUser()
+  const result =
+    authUser && authUser.userId
+      ? await asUser(authUser, async (db) => {
+          return await checkUsernameAvailability(username, db);
+        })
+      : await asPublic(async (db) => {
+          return await checkUsernameAvailability(username, db);
+        });
 
-    logger.info(
-      'Username check result',
-      result,
-      'GET /api/onboarding/check-username'
-    );
+  logger.info(
+    'Username check result',
+    result,
+    'GET /api/onboarding/check-username'
+  );
 
-    return successResponse(result);
-  } catch (error) {
-    logger.error(
-      'Error checking username availability',
-      { error, username },
-      'GET /api/onboarding/check-username'
-    );
-    return errorResponse(
-      'Failed to check username availability',
-      'INTERNAL_ERROR',
-      500
-    );
-  }
+  return successResponse(result);
 }

@@ -1,7 +1,7 @@
 /**
  * Agent LLM Provider
  *
- * Unified LLM interface for autonomous agents supporting multiple inference backends:
+ * LLM interface for autonomous agents supporting multiple inference backends:
  * - HuggingFace: Cloud inference endpoints for trained models
  * - Phala: Trusted execution environment for secure inference
  * - Ollama: Local inference for development and fine-tuned models
@@ -390,21 +390,14 @@ export async function getAgentLLMStatus(): Promise<{
       details.hasApiKey = !!process.env.HUGGINGFACE_API_KEY;
       details.endpoint = process.env.HUGGINGFACE_MODEL_ENDPOINT || 'not set';
       if (configured) {
-        try {
-          const response = await fetch(
-            process.env.HUGGINGFACE_MODEL_ENDPOINT!,
-            {
-              method: 'HEAD',
-              headers: {
-                Authorization: `Bearer ${process.env.HUGGINGFACE_API_KEY}`,
-              },
-              signal: AbortSignal.timeout(5000),
-            }
-          );
-          available = response.ok || response.status === 405;
-        } catch {
-          available = false;
-        }
+        const response = await fetch(process.env.HUGGINGFACE_MODEL_ENDPOINT!, {
+          method: 'HEAD',
+          headers: {
+            Authorization: `Bearer ${process.env.HUGGINGFACE_API_KEY}`,
+          },
+          signal: AbortSignal.timeout(5000),
+        });
+        available = response.ok || response.status === 405;
       }
       break;
 
@@ -412,14 +405,10 @@ export async function getAgentLLMStatus(): Promise<{
       configured = !!process.env.PHALA_ENDPOINT;
       details.endpoint = process.env.PHALA_ENDPOINT || 'not set';
       if (configured) {
-        try {
-          const response = await fetch(`${process.env.PHALA_ENDPOINT}/health`, {
-            signal: AbortSignal.timeout(5000),
-          });
-          available = response.ok;
-        } catch {
-          available = false;
-        }
+        const response = await fetch(`${process.env.PHALA_ENDPOINT}/health`, {
+          signal: AbortSignal.timeout(5000),
+        });
+        available = response.ok;
       }
       break;
 

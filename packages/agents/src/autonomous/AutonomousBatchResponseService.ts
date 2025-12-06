@@ -13,6 +13,7 @@
  * 4. Executes responses for approved interactions
  */
 
+import { countTokensSync, truncateToTokenLimitSync } from '@babylon/api';
 import {
   and,
   chatParticipants,
@@ -29,7 +30,6 @@ import {
   posts,
   users,
 } from '@babylon/db';
-import { countTokensSync, truncateToTokenLimitSync } from '@babylon/engine';
 import type { IAgentRuntime } from '@elizaos/core';
 import { callGroqDirect } from '../llm/direct-groq';
 import { logger } from '../shared/logger';
@@ -400,14 +400,7 @@ Array:`;
       );
     }
 
-    let decisions: boolean[];
-    try {
-      decisions = JSON.parse(jsonMatch[0]) as boolean[];
-    } catch (parseError) {
-      throw new Error(
-        `Failed to parse JSON decision array: ${parseError instanceof Error ? parseError.message : String(parseError)}. Response: ${decisionText.substring(0, 200)}`
-      );
-    }
+    const decisions = JSON.parse(jsonMatch[0]) as boolean[];
 
     // Ensure we have the right number of decisions (for capped interactions)
     if (decisions.length !== evaluateInteractions.length) {

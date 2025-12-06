@@ -145,7 +145,7 @@ export function checkRateLimitAndDuplicates(
       logger.warn('Duplicate content detected', {
         userId,
         actionType: duplicateConfig.actionType,
-        lastPostedAt: duplicateResult.lastPostedAt,
+        lastPostedAt: duplicateResult.lastPostedAt?.toISOString(),
       });
       return duplicateContentError(duplicateResult.lastPostedAt);
     }

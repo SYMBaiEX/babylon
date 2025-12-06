@@ -25,6 +25,7 @@ export * from './InteractionTracker';
 export * from './initial-investment-service';
 export * from './lookahead-generation-service';
 export * from './message-quality-checker';
+export * from './npc-group-dynamics-calculations';
 export * from './npc-group-dynamics-service';
 export * from './npc-interaction-tracker';
 export * from './npc-persona-generator';

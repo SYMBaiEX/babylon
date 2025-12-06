@@ -480,7 +480,7 @@ export async function POST(_req: NextRequest) {
       errors++;
       logger.error(
         `Failed to process agent ${eligibleAgent.name} (${eligibleAgent.type})`,
-        error,
+        { error: String(error) },
         'AgentTick'
       );
 

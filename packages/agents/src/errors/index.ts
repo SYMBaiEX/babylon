@@ -14,16 +14,18 @@
  * Provides structured error handling with timestamps, context, and proper
  * error codes for API responses.
  */
+import type { JsonValue } from '../types/common';
+
 export abstract class BabylonError extends Error {
   public readonly timestamp: Date;
-  public readonly context?: Record<string, unknown>;
+  public readonly context?: Record<string, JsonValue>;
 
   constructor(
     message: string,
     public readonly code: string,
     public readonly statusCode: number = 500,
     public readonly isOperational: boolean = true,
-    context?: Record<string, unknown>
+    context?: Record<string, JsonValue>
   ) {
     super(message);
     this.name = this.constructor.name;
@@ -59,7 +61,11 @@ export class ValidationError extends BabylonError {
     public readonly fields?: string[],
     public readonly violations?: Array<{ field: string; message: string }>
   ) {
-    super(message, 'VALIDATION_ERROR', 400, true, { fields, violations });
+    const context: Record<string, JsonValue> = {};
+    if (fields !== undefined) context.fields = fields as JsonValue;
+    if (violations !== undefined)
+      context.violations = violations as unknown as JsonValue;
+    super(message, 'VALIDATION_ERROR', 400, true, context);
   }
 }
 
@@ -113,7 +119,9 @@ export class NotFoundError extends BabylonError {
         ? `${resource} not found: ${identifier}`
         : `${resource} not found`);
 
-    super(message, 'NOT_FOUND', 404, true, { resource, identifier });
+    const context: Record<string, JsonValue> = { resource };
+    if (identifier !== undefined) context.identifier = identifier as JsonValue;
+    super(message, 'NOT_FOUND', 404, true, context);
   }
 }
 
@@ -127,7 +135,10 @@ export class ConflictError extends BabylonError {
     message: string,
     public readonly conflictingResource?: string
   ) {
-    super(message, 'CONFLICT', 409, true, { conflictingResource });
+    const context: Record<string, JsonValue> = {};
+    if (conflictingResource !== undefined)
+      context.conflictingResource = conflictingResource as JsonValue;
+    super(message, 'CONFLICT', 409, true, context);
   }
 }
 
@@ -142,14 +153,13 @@ export class DatabaseError extends BabylonError {
     public readonly operation: string,
     originalError?: Error
   ) {
-    super(message, 'DATABASE_ERROR', 500, true, {
-      operation,
-      originalError: originalError?.message,
-      originalStack:
-        process.env.NODE_ENV === 'development'
-          ? originalError?.stack
-          : undefined,
-    });
+    const context: Record<string, JsonValue> = { operation };
+    if (originalError?.message)
+      context.originalError = originalError.message as JsonValue;
+    if (process.env.NODE_ENV === 'development' && originalError?.stack) {
+      context.originalStack = originalError.stack as JsonValue;
+    }
+    super(message, 'DATABASE_ERROR', 500, true, context);
   }
 }
 
@@ -164,10 +174,10 @@ export class ExternalServiceError extends BabylonError {
     message: string,
     public readonly originalStatusCode?: number
   ) {
-    super(`${service}: ${message}`, 'EXTERNAL_SERVICE_ERROR', 502, true, {
-      service,
-      originalStatusCode,
-    });
+    const context: Record<string, JsonValue> = { service };
+    if (originalStatusCode !== undefined)
+      context.originalStatusCode = originalStatusCode as JsonValue;
+    super(`${service}: ${message}`, 'EXTERNAL_SERVICE_ERROR', 502, true, context);
   }
 }
 
@@ -180,12 +190,14 @@ export class RateLimitError extends BabylonError {
     public readonly windowMs: number,
     public readonly retryAfter?: number
   ) {
+    const context: Record<string, JsonValue> = { limit, windowMs };
+    if (retryAfter !== undefined) context.retryAfter = retryAfter as JsonValue;
     super(
       `Rate limit exceeded: ${limit} requests per ${windowMs}ms`,
       'RATE_LIMIT',
       429,
       true,
-      { limit, windowMs, retryAfter }
+      context
     );
   }
 }
@@ -197,7 +209,7 @@ export class BusinessLogicError extends BabylonError {
   constructor(
     message: string,
     code: string,
-    context?: Record<string, unknown>
+    context?: Record<string, JsonValue>
   ) {
     super(message, code, 400, true, context);
   }
@@ -207,7 +219,7 @@ export class BusinessLogicError extends BabylonError {
  * Bad request error for malformed requests
  */
 export class BadRequestError extends BabylonError {
-  constructor(message: string, details?: Record<string, unknown>) {
+  constructor(message: string, details?: Record<string, JsonValue>) {
     super(message, 'BAD_REQUEST', 400, true, details);
   }
 }
@@ -218,7 +230,7 @@ export class BadRequestError extends BabylonError {
 export class InternalServerError extends BabylonError {
   constructor(
     message = 'An unexpected error occurred',
-    details?: Record<string, unknown>
+    details?: Record<string, JsonValue>
   ) {
     super(message, 'INTERNAL_ERROR', 500, false, details);
   }
@@ -232,7 +244,9 @@ export class ServiceUnavailableError extends BabylonError {
     message = 'Service temporarily unavailable',
     public readonly retryAfter?: number
   ) {
-    super(message, 'SERVICE_UNAVAILABLE', 503, true, { retryAfter });
+    const context: Record<string, JsonValue> = {};
+    if (retryAfter !== undefined) context.retryAfter = retryAfter;
+    super(message, 'SERVICE_UNAVAILABLE', 503, true, context);
   }
 }
 
@@ -401,11 +415,11 @@ export class Agent0ReputationError extends Agent0Error {
  * Error for Agent0 search/discovery failures
  */
 export class Agent0SearchError extends Agent0Error {
-  public readonly filters?: Record<string, unknown>;
+  public readonly filters?: Record<string, JsonValue>;
 
   constructor(
     message: string,
-    filters?: Record<string, unknown>,
+    filters?: Record<string, JsonValue>,
     agent0Code?: string,
     originalError?: Error,
     originalStatusCode?: number

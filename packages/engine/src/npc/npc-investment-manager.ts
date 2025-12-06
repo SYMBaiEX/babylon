@@ -622,35 +622,30 @@ export class NPCInvestmentManager {
       'NPCInvestmentManager'
     );
 
-    try {
-      if (action.type === 'close' && action.positionId) {
-        // Close position
-        await db
-          .update(poolPositions)
-          .set({ closedAt: new Date() })
-          .where(eq(poolPositions.id, action.positionId));
+    if (action.type === 'close' && action.positionId) {
+      // Close position
+      await db
+        .update(poolPositions)
+        .set({ closedAt: new Date() })
+        .where(eq(poolPositions.id, action.positionId));
 
-        // Record the rebalance trade
-        await db.insert(npcTrades).values({
-          id: await generateSnowflakeId(),
-          npcActorId: npcUserId,
-          poolId,
-          marketType: action.marketType,
-          ticker: action.ticker ?? null,
-          marketId: action.marketId ?? null,
-          action: 'close',
-          side: action.side,
-          amount: 0,
-          price: 0,
-          sentiment: 0,
-          reason: action.reason,
-        });
-      }
-      // Add other action types (open, resize) as needed
-    } catch (error) {
-      logger.error('Error executing NPC action', { error, action });
-      throw error;
+      // Record the rebalance trade
+      await db.insert(npcTrades).values({
+        id: await generateSnowflakeId(),
+        npcActorId: npcUserId,
+        poolId,
+        marketType: action.marketType,
+        ticker: action.ticker ?? null,
+        marketId: action.marketId ?? null,
+        action: 'close',
+        side: action.side,
+        amount: 0,
+        price: 0,
+        sentiment: 0,
+        reason: action.reason,
+      });
     }
+    // Add other action types (open, resize) as needed
   }
 
   /**

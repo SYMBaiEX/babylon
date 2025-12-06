@@ -142,11 +142,7 @@ import {
   successResponse,
   withErrorHandling,
 } from '@babylon/api';
-import {
-  asUser,
-  isUniqueConstraintError,
-  toDatabaseErrorType,
-} from '@babylon/db';
+import { asUser } from '@babylon/db';
 import { logger } from '@babylon/shared';
 import { nanoid } from 'nanoid';
 import type { NextRequest } from 'next/server';
@@ -220,59 +216,16 @@ export const POST = withErrorHandling(
 
       // Create invite - handle unique constraint race condition
       inviteId = nanoid();
-      try {
-        await db.userGroupInvite.create({
-          data: {
-            id: inviteId,
-            groupId,
-            invitedUserId: data.userId,
-            invitedBy: user.userId,
-            status: 'pending',
-            invitedAt: new Date(),
-          },
-        });
-      } catch (error: unknown) {
-        // Handle unique constraint violation (race condition)
-        if (isUniqueConstraintError(toDatabaseErrorType(error))) {
-          // Check if the error is related to the groupId_invitedUserId constraint
-          // PostgreSQL errors include constraint name in the error message
-          const errorMessage =
-            error instanceof Error ? error.message : String(error);
-          const errorObj =
-            typeof error === 'object' && error !== null
-              ? (error as { constraint?: string; message?: string })
-              : null;
-
-          // Check if this is the unique constraint on (groupId, invitedUserId)
-          if (
-            errorMessage.includes('groupId') ||
-            errorMessage.includes('invitedUserId') ||
-            errorMessage.includes(
-              'UserGroupInvite_groupId_invitedUserId_key'
-            ) ||
-            errorObj?.constraint?.includes('groupId') ||
-            errorObj?.constraint?.includes('invitedUserId')
-          ) {
-            // Check if there's now a pending invite (another request created it)
-            const raceConditionInvite = await db.userGroupInvite.findFirst({
-              where: {
-                groupId,
-                invitedUserId: data.userId,
-              },
-            });
-            if (raceConditionInvite?.status === 'pending') {
-              inviteId = raceConditionInvite.id;
-              throw new ApiError('User already has a pending invite', 400);
-            }
-            // If it's not pending, we can retry or handle differently
-            throw new ApiError(
-              'Failed to create invite due to existing record',
-              400
-            );
-          }
-        }
-        throw error;
-      }
+      await db.userGroupInvite.create({
+        data: {
+          id: inviteId,
+          groupId,
+          invitedUserId: data.userId,
+          invitedBy: user.userId,
+          status: 'pending',
+          invitedAt: new Date(),
+        },
+      });
     });
 
     // Send notification to the invited user (outside of asUser context)

@@ -1,7 +1,6 @@
 import { db, eq, getDbInstance, organizations } from '@babylon/db';
 import { getReadyPerpsEngine } from '@babylon/engine';
-import type { JsonValue } from '@babylon/shared';
-import { logger } from '@babylon/shared';
+import { logger, type JsonValue } from '@babylon/shared';
 
 export type PriceUpdateSource = 'user_trade' | 'npc_trade' | 'event' | 'system';
 
@@ -101,15 +100,19 @@ export class PriceUpdateService {
       perpsEngine.updatePositions(priceMap);
 
       // Broadcast price updates (handled by API layer if available)
-      try {
-        const { broadcastToChannel } = await import('@babylon/api');
-        await broadcastToChannel('markets', {
-          type: 'price_update',
-          updates: JSON.parse(JSON.stringify(appliedUpdates)) as JsonValue,
-        });
-      } catch {
-        // Broadcast is optional - engine can work without it
-      }
+      const api = await import('@babylon/api');
+      // JSON.parse/stringify ensures clean JSON-serializable data
+      // Using Record<string, unknown> for JSON-parsed data since the exact shape varies
+      const serializedUpdates = JSON.parse(
+        JSON.stringify(appliedUpdates)
+      ) as Record<string, unknown>[];
+      await api.broadcastToChannel(
+        'markets',
+        { type: 'price_update', updates: serializedUpdates } as Record<
+          string,
+          unknown
+        > as Parameters<typeof api.broadcastToChannel>[1]
+      );
 
       logger.info(
         `Applied ${appliedUpdates.length} organization price updates`,

@@ -125,23 +125,17 @@ export class OracleService {
     }
 
     // Encode the function call to verify it works
-    try {
-      const iface = this.contract.interface;
-      const data = iface.encodeFunctionData('commitBabylonGame', [
-        questionId,
-        questionNumber,
-        question,
-        commitment,
-        category,
-      ]);
-      if (!data || data === '0x') {
-        throw new Error(
-          'Failed to encode function call - method may not exist in contract ABI'
-        );
-      }
-    } catch (encodeError) {
+    const iface = this.contract.interface;
+    const data = iface.encodeFunctionData('commitBabylonGame', [
+      questionId,
+      questionNumber,
+      question,
+      commitment,
+      category,
+    ]);
+    if (!data || data === '0x') {
       throw new Error(
-        `Failed to encode commitBabylonGame call: ${encodeError instanceof Error ? encodeError.message : String(encodeError)}`
+        'Failed to encode function call - method may not exist in contract ABI'
       );
     }
 
@@ -168,14 +162,10 @@ export class OracleService {
     // Parse event to get sessionId
     const event = receipt.logs
       .map((log: ethers.Log | ethers.EventLog) => {
-        try {
-          return this.contract.interface.parseLog({
-            topics: log.topics,
-            data: log.data,
-          });
-        } catch {
-          return null;
-        }
+        return this.contract.interface.parseLog({
+          topics: log.topics,
+          data: log.data,
+        });
       })
       .find(
         (e: ethers.LogDescription | null) =>
@@ -322,170 +312,137 @@ export class OracleService {
     const salts: string[] = [];
 
     for (const game of games) {
-      try {
-        const salt = CommitmentStore.generateSalt();
-        const commitment = this.generateCommitment(game.outcome, salt);
+      const salt = CommitmentStore.generateSalt();
+      const commitment = this.generateCommitment(game.outcome, salt);
 
-        questionIds.push(game.questionId);
-        questionNumbers.push(game.questionNumber);
-        questions.push(game.question);
-        commitments.push(commitment);
-        categories.push(game.category);
-        salts.push(salt);
+      questionIds.push(game.questionId);
+      questionNumbers.push(game.questionNumber);
+      questions.push(game.question);
+      commitments.push(commitment);
+      categories.push(game.category);
+      salts.push(salt);
 
-        // Store commitment
-        await CommitmentStore.store({
-          questionId: game.questionId,
-          sessionId: '', // Set after transaction completes
-          salt,
-          commitment,
-          createdAt: new Date(),
-        });
-      } catch (error) {
-        failed.push({
-          questionId: game.questionId,
-          error: error instanceof Error ? error.message : String(error),
-        });
-      }
+      // Store commitment
+      await CommitmentStore.store({
+        questionId: game.questionId,
+        sessionId: '', // Set after transaction completes
+        salt,
+        commitment,
+        createdAt: new Date(),
+      });
     }
 
     if (questionIds.length === 0) {
       return { successful, failed };
     }
 
-    try {
-      // Call batch contract method - verify method exists
-      if (!this.contract?.batchCommitBabylonGames) {
-        throw new Error('batchCommitBabylonGames not available on contract');
-      }
-
-      // Verify contract has code at address
-      const code = await this.provider.getCode(this.config.oracleAddress);
-      if (!code || code === '0x' || code === '0x0') {
-        throw new Error(
-          `No contract code found at address ${this.config.oracleAddress}`
-        );
-      }
-
-      // Encode the function call to verify it works
-      try {
-        const iface = this.contract.interface;
-        const data = iface.encodeFunctionData('batchCommitBabylonGames', [
-          questionIds,
-          questionNumbers,
-          questions,
-          commitments,
-          categories,
-        ]);
-        if (!data || data === '0x') {
-          throw new Error(
-            'Failed to encode function call - method may not exist in contract ABI'
-          );
-        }
-      } catch (encodeError) {
-        throw new Error(
-          `Failed to encode batchCommitBabylonGames call: ${encodeError instanceof Error ? encodeError.message : String(encodeError)}`
-        );
-      }
-
-      const tx = await this.contract.batchCommitBabylonGames(
-        questionIds,
-        questionNumbers,
-        questions,
-        commitments,
-        categories,
-        {
-          gasLimit: 500000 * questionIds.length, // Scale with batch size
-        }
-      );
-
-      const receipt = await tx.wait(this.config.confirmations);
-
-      // Parse events to get session IDs
-      const events = receipt.logs
-        .map((log: ethers.Log | ethers.EventLog) => {
-          try {
-            return this.contract.interface.parseLog({
-              topics: log.topics,
-              data: log.data,
-            });
-          } catch {
-            return null;
-          }
-        })
-        .filter(
-          (e: ethers.LogDescription | null) =>
-            e && e.name === 'BabylonGameCommitted'
-        );
-
-      // Update stored commitments and build results
-      // List all pending commitments before retrieval for monitoring
-      const allPending = await CommitmentStore.listPending();
-      logger.info(
-        `Found ${allPending.length} pending commitments before update`,
-        {
-          questionIds: allPending
-            .map((c: { questionId: string }) => c.questionId)
-            .slice(0, 10),
-        },
-        'OracleService'
-      );
-
-      for (let i = 0; i < questionIds.length; i++) {
-        const event = events[i];
-        const sessionId = event?.args?.sessionId?.toString() || ethers.ZeroHash;
-
-        const stored = await CommitmentStore.retrieve(questionIds[i]!);
-        if (stored) {
-          await CommitmentStore.store({
-            ...stored,
-            sessionId,
-          });
-        } else {
-          logger.warn(
-            `Could not find commitment for questionId ${questionIds[i]} after batch commit`,
-            {
-              questionId: questionIds[i],
-              allPendingCount: allPending.length,
-              searchedFor: questionIds[i],
-            },
-            'OracleService'
-          );
-        }
-
-        successful.push({
-          sessionId,
-          questionId: questionIds[i]!,
-          commitment: commitments[i]!,
-          txHash: receipt.hash,
-          blockNumber: receipt.blockNumber,
-          gasUsed: (receipt.gasUsed / BigInt(questionIds.length)).toString(),
-        });
-      }
-
-      logger.info(
-        `Batch commit successful: ${successful.length} games`,
-        {
-          txHash: receipt.hash,
-          gasUsed: receipt.gasUsed.toString(),
-        },
-        'OracleService'
-      );
-    } catch (error) {
-      logger.error(
-        'Batch commit failed',
-        { error, count: questionIds.length },
-        'OracleService'
-      );
-
-      // Mark all as failed
-      for (const questionId of questionIds) {
-        failed.push({
-          questionId,
-          error: error instanceof Error ? error.message : String(error),
-        });
-      }
+    // Call batch contract method - verify method exists
+    if (!this.contract?.batchCommitBabylonGames) {
+      throw new Error('batchCommitBabylonGames not available on contract');
     }
+
+    // Verify contract has code at address
+    const code = await this.provider.getCode(this.config.oracleAddress);
+    if (!code || code === '0x' || code === '0x0') {
+      throw new Error(
+        `No contract code found at address ${this.config.oracleAddress}`
+      );
+    }
+
+    // Encode the function call to verify it works
+    const iface = this.contract.interface;
+    const data = iface.encodeFunctionData('batchCommitBabylonGames', [
+      questionIds,
+      questionNumbers,
+      questions,
+      commitments,
+      categories,
+    ]);
+    if (!data || data === '0x') {
+      throw new Error(
+        'Failed to encode function call - method may not exist in contract ABI'
+      );
+    }
+
+    const tx = await this.contract.batchCommitBabylonGames(
+      questionIds,
+      questionNumbers,
+      questions,
+      commitments,
+      categories,
+      {
+        gasLimit: 500000 * questionIds.length, // Scale with batch size
+      }
+    );
+
+    const receipt = await tx.wait(this.config.confirmations);
+
+    // Parse events to get session IDs
+    const events = receipt.logs
+      .map((log: ethers.Log | ethers.EventLog) => {
+        return this.contract.interface.parseLog({
+          topics: log.topics,
+          data: log.data,
+        });
+      })
+      .filter(
+        (e: ethers.LogDescription | null) =>
+          e && e.name === 'BabylonGameCommitted'
+      );
+
+    // Update stored commitments and build results
+    // List all pending commitments before retrieval for monitoring
+    const allPending = await CommitmentStore.listPending();
+    logger.info(
+      `Found ${allPending.length} pending commitments before update`,
+      {
+        questionIds: allPending
+          .map((c: { questionId: string }) => c.questionId)
+          .slice(0, 10),
+      },
+      'OracleService'
+    );
+
+    for (let i = 0; i < questionIds.length; i++) {
+      const event = events[i];
+      const sessionId = event?.args?.sessionId?.toString() || ethers.ZeroHash;
+
+      const stored = await CommitmentStore.retrieve(questionIds[i]!);
+      if (stored) {
+        await CommitmentStore.store({
+          ...stored,
+          sessionId,
+        });
+      } else {
+        logger.warn(
+          `Could not find commitment for questionId ${questionIds[i]} after batch commit`,
+          {
+            questionId: questionIds[i],
+            allPendingCount: allPending.length,
+            searchedFor: questionIds[i],
+          },
+          'OracleService'
+        );
+      }
+
+      successful.push({
+        sessionId,
+        questionId: questionIds[i]!,
+        commitment: commitments[i]!,
+        txHash: receipt.hash,
+        blockNumber: receipt.blockNumber,
+        gasUsed: (receipt.gasUsed / BigInt(questionIds.length)).toString(),
+      });
+    }
+
+    logger.info(
+      `Batch commit successful: ${successful.length} games`,
+      {
+        txHash: receipt.hash,
+        gasUsed: receipt.gasUsed.toString(),
+      },
+      'OracleService'
+    );
 
     return { successful, failed };
   }
@@ -520,132 +477,103 @@ export class OracleService {
     const questionIds: string[] = [];
 
     for (const reveal of reveals) {
-      try {
-        const stored = await CommitmentStore.retrieve(reveal.questionId);
-        if (!stored) {
-          throw new Error(
-            `No commitment found for question ${reveal.questionId}`
-          );
-        }
-
-        sessionIds.push(stored.sessionId);
-        outcomes.push(reveal.outcome);
-        salts.push(stored.salt);
-        teeQuotes.push('0x');
-        winnersArrays.push(reveal.winners || []);
-        totalPayouts.push(reveal.totalPayout || BigInt(0));
-        questionIds.push(reveal.questionId);
-      } catch (error) {
-        failed.push({
-          questionId: reveal.questionId,
-          error: error instanceof Error ? error.message : String(error),
-        });
+      const stored = await CommitmentStore.retrieve(reveal.questionId);
+      if (!stored) {
+        throw new Error(
+          `No commitment found for question ${reveal.questionId}`
+        );
       }
+
+      sessionIds.push(stored.sessionId);
+      outcomes.push(reveal.outcome);
+      salts.push(stored.salt);
+      teeQuotes.push('0x');
+      winnersArrays.push(reveal.winners || []);
+      totalPayouts.push(reveal.totalPayout || BigInt(0));
+      questionIds.push(reveal.questionId);
     }
 
     if (sessionIds.length === 0) {
       return { successful, failed };
     }
 
-    try {
-      // Call batch contract method - verify method exists
-      if (!this.contract?.batchRevealBabylonGames) {
-        throw new Error('batchRevealBabylonGames not available on contract');
-      }
-
-      // Verify contract has code at address
-      const code = await this.provider.getCode(this.config.oracleAddress);
-      if (!code || code === '0x' || code === '0x0') {
-        throw new Error(
-          `No contract code found at address ${this.config.oracleAddress}`
-        );
-      }
-
-      // Validate teeQuotes - ensure they're valid bytes
-      const validTeeQuotes = teeQuotes.map((quote) => {
-        if (!quote || quote === '') {
-          return '0x'; // Empty bytes
-        }
-        // Ensure it's a valid hex string
-        if (!quote.startsWith('0x')) {
-          return `0x${quote}`;
-        }
-        return quote;
-      });
-
-      // Encode the function call to verify it works
-      try {
-        const iface = this.contract.interface;
-        const data = iface.encodeFunctionData('batchRevealBabylonGames', [
-          sessionIds,
-          outcomes,
-          salts,
-          validTeeQuotes,
-          winnersArrays,
-          totalPayouts,
-        ]);
-        if (!data || data === '0x') {
-          throw new Error(
-            'Failed to encode function call - method may not exist in contract ABI'
-          );
-        }
-      } catch (encodeError) {
-        throw new Error(
-          `Failed to encode batchRevealBabylonGames call: ${encodeError instanceof Error ? encodeError.message : String(encodeError)}`
-        );
-      }
-
-      const tx = await this.contract.batchRevealBabylonGames(
-        sessionIds,
-        outcomes,
-        salts,
-        validTeeQuotes,
-        winnersArrays,
-        totalPayouts,
-        {
-          gasLimit: 800000 * sessionIds.length, // Scale with batch size
-        }
-      );
-
-      const receipt = await tx.wait(this.config.confirmations);
-
-      // Build results and cleanup
-      for (let i = 0; i < questionIds.length; i++) {
-        await CommitmentStore.delete(questionIds[i]!);
-
-        successful.push({
-          sessionId: sessionIds[i]!,
-          questionId: questionIds[i]!,
-          outcome: outcomes[i]!,
-          txHash: receipt.hash,
-          blockNumber: receipt.blockNumber,
-          gasUsed: (receipt.gasUsed / BigInt(sessionIds.length)).toString(),
-        });
-      }
-
-      logger.info(
-        `Batch reveal successful: ${successful.length} games`,
-        {
-          txHash: receipt.hash,
-          gasUsed: receipt.gasUsed.toString(),
-        },
-        'OracleService'
-      );
-    } catch (error) {
-      logger.error(
-        'Batch reveal failed',
-        { error, count: sessionIds.length },
-        'OracleService'
-      );
-
-      // Mark all as failed
-      for (const questionId of questionIds) {
-        failed.push({
-          questionId,
-          error: error instanceof Error ? error.message : String(error),
-        });
-      }
+    // Call batch contract method - verify method exists
+    if (!this.contract?.batchRevealBabylonGames) {
+      throw new Error('batchRevealBabylonGames not available on contract');
     }
+
+    // Verify contract has code at address
+    const code = await this.provider.getCode(this.config.oracleAddress);
+    if (!code || code === '0x' || code === '0x0') {
+      throw new Error(
+        `No contract code found at address ${this.config.oracleAddress}`
+      );
+    }
+
+    // Validate teeQuotes - ensure they're valid bytes
+    const validTeeQuotes = teeQuotes.map((quote) => {
+      if (!quote || quote === '') {
+        return '0x'; // Empty bytes
+      }
+      // Ensure it's a valid hex string
+      if (!quote.startsWith('0x')) {
+        return `0x${quote}`;
+      }
+      return quote;
+    });
+
+    // Encode the function call to verify it works
+    const iface = this.contract.interface;
+    const data = iface.encodeFunctionData('batchRevealBabylonGames', [
+      sessionIds,
+      outcomes,
+      salts,
+      validTeeQuotes,
+      winnersArrays,
+      totalPayouts,
+    ]);
+    if (!data || data === '0x') {
+      throw new Error(
+        'Failed to encode function call - method may not exist in contract ABI'
+      );
+    }
+
+    const tx = await this.contract.batchRevealBabylonGames(
+      sessionIds,
+      outcomes,
+      salts,
+      validTeeQuotes,
+      winnersArrays,
+      totalPayouts,
+      {
+        gasLimit: 800000 * sessionIds.length, // Scale with batch size
+      }
+    );
+
+    const receipt = await tx.wait(this.config.confirmations);
+
+    // Build results and cleanup
+    for (let i = 0; i < questionIds.length; i++) {
+      await CommitmentStore.delete(questionIds[i]!);
+
+      successful.push({
+        sessionId: sessionIds[i]!,
+        questionId: questionIds[i]!,
+        outcome: outcomes[i]!,
+        txHash: receipt.hash,
+        blockNumber: receipt.blockNumber,
+        gasUsed: (receipt.gasUsed / BigInt(sessionIds.length)).toString(),
+      });
+    }
+
+    logger.info(
+      `Batch reveal successful: ${successful.length} games`,
+      {
+        txHash: receipt.hash,
+        gasUsed: receipt.gasUsed.toString(),
+      },
+      'OracleService'
+    );
 
     return { successful, failed };
   }
@@ -654,77 +582,56 @@ export class OracleService {
    * Get game info from oracle
    */
   async getGameInfo(sessionId: string) {
-    try {
-      if (!this.contract?.getCompleteGameInfo) {
-        throw new Error('getCompleteGameInfo not available on contract');
-      }
-      const info = await this.contract.getCompleteGameInfo(sessionId);
-      return info;
-    } catch (error) {
-      logger.error(
-        'Failed to get game info',
-        { error, sessionId },
-        'OracleService'
-      );
-      throw error;
+    if (!this.contract?.getCompleteGameInfo) {
+      throw new Error('getCompleteGameInfo not available on contract');
     }
+    const info = await this.contract.getCompleteGameInfo(sessionId);
+    return info;
   }
 
   /**
    * Get oracle statistics
    */
   async getStatistics() {
-    try {
-      if (!this.contract?.getStatistics) {
-        throw new Error('getStatistics not available on contract');
-      }
-      const stats = await this.contract.getStatistics();
-      return {
-        committed: stats.committed.toString(),
-        revealed: stats.revealed.toString(),
-        pending: stats.pending.toString(),
-      };
-    } catch (error) {
-      logger.error('Failed to get statistics', { error }, 'OracleService');
-      throw error;
+    if (!this.contract?.getStatistics) {
+      throw new Error('getStatistics not available on contract');
     }
+    const stats = await this.contract.getStatistics();
+    return {
+      committed: stats.committed.toString(),
+      revealed: stats.revealed.toString(),
+      pending: stats.pending.toString(),
+    };
   }
 
   /**
    * Health check - verify oracle is accessible and properly configured
    */
   async healthCheck(): Promise<{ healthy: boolean; error?: string }> {
-    try {
-      // Check contract is deployed
-      const code = await this.provider.getCode(this.config.oracleAddress);
-      if (code === '0x' || code === '0x0') {
-        return {
-          healthy: false,
-          error: 'Oracle contract not deployed',
-        };
-      }
-
-      // Check wallet has balance
-      const balance = await this.provider.getBalance(this.wallet.address);
-      if (balance === BigInt(0)) {
-        return {
-          healthy: false,
-          error: 'Wallet has no balance for gas',
-        };
-      }
-
-      // Try to read from contract
-      if (this.contract?.version) {
-        await this.contract.version();
-      }
-
-      return { healthy: true };
-    } catch (error) {
+    // Check contract is deployed
+    const code = await this.provider.getCode(this.config.oracleAddress);
+    if (code === '0x' || code === '0x0') {
       return {
         healthy: false,
-        error: error instanceof Error ? error.message : String(error),
+        error: 'Oracle contract not deployed',
       };
     }
+
+    // Check wallet has balance
+    const balance = await this.provider.getBalance(this.wallet.address);
+    if (balance === BigInt(0)) {
+      return {
+        healthy: false,
+        error: 'Wallet has no balance for gas',
+      };
+    }
+
+    // Try to read from contract
+    if (this.contract?.version) {
+      await this.contract.version();
+    }
+
+    return { healthy: true };
   }
 }
 

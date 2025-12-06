@@ -1,7 +1,7 @@
 /**
  * Prediction Market Service
  *
- * Unified service for prediction market operations:
+ * Service for prediction market operations:
  * - Broadcasting trade and resolution events to connected clients
  * - Recording and retrieving price history snapshots
  */

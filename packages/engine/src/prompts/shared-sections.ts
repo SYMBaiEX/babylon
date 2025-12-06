@@ -10,7 +10,16 @@
  * Enforces parody name usage and formatting guidelines.
  */
 export const IMPORTANT_RULES = `IMPORTANT RULES:
-- NO HASHTAGS OR EMOJIS IN POSTS
+
+=== ABSOLUTELY NO HASHTAGS ===
+NEVER use hashtags (#). Not even one. No #crypto, #AI, #breaking, #news, or any other hashtag.
+Write naturally like real social media - real influencers don't spam hashtags.
+If you include a single hashtag, your output is INVALID and will be rejected.
+
+=== NO EMOJIS ===
+Do not include any emoji characters. Plain text only.
+
+=== PARODY NAMES ONLY ===
 - NEVER use real-world person or organization names
 - ALWAYS use ONLY the parody names from World Actors list (e.g., AIlon Musk, Sam AIltman, Mark Zuckerborg, Vitalik ButerAIn)
 - Use @username or parody name/nickname/alias ONLY
@@ -77,38 +86,47 @@ export function characterVoiceGuidance(
   actorVariableName = 'actorsList'
 ): string {
   return `
-=== CHARACTER VOICE RULES ===
-For each actor in {{${actorVariableName}}}, you MUST use their unique voice:
+=== CRITICAL: UNIQUE VOICES FOR EACH CHARACTER ===
 
-1. PERSONALITY: Read their personality field - this defines WHO they are
-2. WRITING STYLE (postStyle): This defines HOW they write - match this exactly
-3. EXAMPLE POSTS (postExample): These are TEMPLATES - your output MUST sound like these
+**THE PROBLEM WE'RE SOLVING**: All characters sound the same when generated together.
+**YOUR TASK**: Make each character IMMEDIATELY RECOGNIZABLE by voice alone.
 
-CRITICAL MATCHING RULES:
-- If their examples are SHORT (1-2 sentences) → write SHORT
-- If their examples use SLANG or CASUAL language → use SLANG
-- If their examples are FORMAL and technical → be FORMAL
-- If their examples have specific CATCHPHRASES → use those catchphrases
-- If their examples use specific PUNCTUATION patterns → match them
+For each actor in {{${actorVariableName}}}:
 
-NEVER write generic social media speak for all characters.
-Each character should be IMMEDIATELY RECOGNIZABLE by their voice alone.
+1. **BECOME that character** - Mentally shift into their persona before writing their post
+2. **MATCH their examples EXACTLY** - Their postExample IS their voice. Copy the style, not the words.
+3. **VARY length and tone** - If their examples are terse, be terse. If verbose, be verbose.
 
-Example: If character's postExample is "just shipped it. lmao. $100M ARR incoming 🚀"
-Then YOUR post should match: casual, lowercase, short sentences, confident, uses lmao
+=== VOICE MATCHING CHECKLIST ===
+Before writing each post, check the character's examples and ask:
+□ Length: Are their examples SHORT (under 50 chars) or LONG (100+ chars)?
+□ Case: Do they use lowercase, CAPS, or Normal Case?
+□ Punctuation: Do they use periods? Ellipses? No punctuation at all?
+□ Tone: Sarcastic? Earnest? Cryptic? Professional?
+□ Vocabulary: Technical jargon? Slang? Formal? Memetic?
+□ Structure: Complete sentences? Fragments? Lists?
 
-Example: If character's postExample is "After careful analysis of market conditions..."
-Then YOUR post should match: formal, complete sentences, analytical tone
+=== ANTI-PATTERNS TO AVOID ===
+These phrases make all characters sound the same. NEVER USE THEM:
+- "The future is..."
+- "Exciting times ahead"
+- "This is huge"
+- "Let that sink in"
+- "Just my two cents"
+- "Interesting development"
+- "Here's my take"
+- "Can't believe this"
+- "This is wild"
 
-AVOID generic phrases: "The future is...", "Exciting times", "This is huge", "Let that sink in", "Just my two cents"
-
-POST VARIETY - generate a mix of:
+=== POST TYPE VARIETY ===
 - Hot takes (30%): Strong opinion, controversial, no hedging
 - Shitposts (20%): Jokes, absurdist, one-liners
 - Subtweets (15%): Vague reference without naming
 - Flexes (15%): Humble brags, achievements
 - Complaints (10%): Industry griping
-- Insights (10%): Actual observations`;
+- Insights (10%): Actual observations
+
+REMEMBER: A reader should be able to guess WHO wrote each post without seeing the name.`;
 }
 
 /**
@@ -161,9 +179,10 @@ export const PRIVATE_CONTENT_GUIDANCE = `PRIVATE vs PUBLIC:
 export const FINAL_REMINDERS = `FINAL REMINDERS:
 - Use ONLY parody names from the World Actors list (AIlon Musk, TeslAI, OpenAGI, etc.)
 - NEVER use real-world names (Elon Musk, Tesla, OpenAI, etc.)
-- NO hashtags (#) - write naturally without hashtags
+- ABSOLUTELY NO HASHTAGS - not #crypto, #AI, #news, or ANY hashtag whatsoever
 - NO emojis - plain text only
-- Match each character's unique voice from their examples exactly`;
+- Match each character's unique voice from their examples EXACTLY
+- Each character must sound DISTINCT - a blind reader should identify who wrote each post`;
 
 /**
  * Helper to build a complete prompt section combining common elements.

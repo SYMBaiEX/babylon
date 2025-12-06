@@ -8,8 +8,12 @@
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import type { SimulationMetrics } from '../benchmark/SimulationEngine';
-import { logger } from '../utils/logger';
-import { HuggingFaceUploadUtil } from './shared/HuggingFaceUploadUtil';
+import { calculateArrayStats, logger } from '../utils';
+import {
+  getHuggingFaceToken,
+  HuggingFaceUploadUtil,
+  requireHuggingFaceToken,
+} from './shared/HuggingFaceUploadUtil';
 
 export interface BenchmarkRecord {
   benchmarkId: string;
@@ -59,10 +63,7 @@ export class HuggingFaceDatasetUploader {
   private huggingFaceToken: string | undefined;
 
   constructor(huggingFaceToken?: string) {
-    this.huggingFaceToken =
-      huggingFaceToken ||
-      process.env.HUGGING_FACE_TOKEN ||
-      process.env.HF_TOKEN;
+    this.huggingFaceToken = huggingFaceToken || getHuggingFaceToken();
   }
 
   /**
@@ -74,12 +75,9 @@ export class HuggingFaceDatasetUploader {
         datasetName: options.datasetName,
       });
 
-      // Validate token
-      if (!this.huggingFaceToken) {
-        throw new Error(
-          'HuggingFace token not configured. Set HUGGING_FACE_TOKEN or HF_TOKEN environment variable.'
-        );
-      }
+      // Validate token (throws if not set)
+      const token = this.huggingFaceToken || requireHuggingFaceToken();
+      this.huggingFaceToken = token;
 
       // Set defaults
       const version = options.version || this.generateVersion();
@@ -537,35 +535,10 @@ For questions or issues, please open an issue on the Babylon repository.
       .sort((a, b) => a - b);
 
     return {
-      pnl: this.calculateStats(pnls),
-      accuracy: this.calculateStats(accuracies),
-      optimality: this.calculateStats(optimalities),
+      pnl: calculateArrayStats(pnls),
+      accuracy: calculateArrayStats(accuracies),
+      optimality: calculateArrayStats(optimalities),
     };
-  }
-
-  /**
-   * Calculate statistics for an array of numbers
-   */
-  private calculateStats(values: number[]): {
-    mean: number;
-    median: number;
-    std: number;
-    min: number;
-    max: number;
-  } {
-    if (values.length === 0) {
-      return { mean: 0, median: 0, std: 0, min: 0, max: 0 };
-    }
-
-    const mean = values.reduce((a, b) => a + b, 0) / values.length;
-    const median = values[Math.floor(values.length / 2)] || 0;
-    const variance =
-      values.reduce((sum, val) => sum + (val - mean) ** 2, 0) / values.length;
-    const std = Math.sqrt(variance);
-    const min = Math.min(...values);
-    const max = Math.max(...values);
-
-    return { mean, median, std, min, max };
   }
 
   /**

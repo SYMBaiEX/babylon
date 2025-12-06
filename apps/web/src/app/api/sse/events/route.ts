@@ -31,13 +31,9 @@ interface CursorMap {
 
 const parseCursor = (raw: string | null): CursorMap => {
   if (!raw) return {};
-  try {
-    const decoded = decodeURIComponent(raw);
-    const parsed = JSON.parse(decoded) as CursorMap;
-    return parsed && typeof parsed === 'object' ? parsed : {};
-  } catch {
-    return {};
-  }
+  const decoded = decodeURIComponent(raw);
+  const parsed = JSON.parse(decoded) as CursorMap;
+  return parsed && typeof parsed === 'object' ? parsed : {};
 };
 
 export async function GET(request: NextRequest) {
@@ -174,22 +170,10 @@ export async function GET(request: NextRequest) {
 
         // Use blocking read - waits up to BLOCK_TIMEOUT_MS for new messages
         // This is more efficient than polling as it doesn't waste CPU cycles
-        let messages;
-        try {
-          messages = await streamRead(streamKeys, ids, {
-            count: MAX_MESSAGES_PER_READ,
-            block: BLOCK_TIMEOUT_MS,
-          });
-        } catch (error) {
-          logger.warn(
-            'Redis stream read error',
-            { connectionId, error },
-            'SSE'
-          );
-          // On Redis error, wait briefly before retrying
-          await new Promise((resolve) => setTimeout(resolve, 1000));
-          continue;
-        }
+        const messages = await streamRead(streamKeys, ids, {
+          count: MAX_MESSAGES_PER_READ,
+          block: BLOCK_TIMEOUT_MS,
+        });
 
         // No messages received (timeout), loop continues for heartbeat
         if (!messages || messages.length === 0) {

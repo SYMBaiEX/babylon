@@ -92,43 +92,25 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  try {
-    // Quick database health check
-    await db.$queryRaw`SELECT 1`;
+  // Quick database health check
+  await db.$queryRaw`SELECT 1`;
 
-    const duration = Date.now() - startTime;
+  const duration = Date.now() - startTime;
 
-    logger.info(
-      'Health check passed',
-      {
-        duration,
-        timestamp: new Date().toISOString(),
-      },
-      'HealthCheck'
-    );
-
-    return NextResponse.json({
-      success: true,
-      status: 'healthy',
-      database: 'connected',
+  logger.info(
+    'Health check passed',
+    {
       duration,
       timestamp: new Date().toISOString(),
-    });
-  } catch (error) {
-    const duration = Date.now() - startTime;
+    },
+    'HealthCheck'
+  );
 
-    logger.error('Health check failed', error, 'HealthCheck');
-
-    return NextResponse.json(
-      {
-        success: false,
-        status: 'unhealthy',
-        database: 'error',
-        duration,
-        error: error instanceof Error ? error.message : 'Unknown error',
-        timestamp: new Date().toISOString(),
-      },
-      { status: 500 }
-    );
-  }
+  return NextResponse.json({
+    success: true,
+    status: 'healthy',
+    database: 'connected',
+    duration,
+    timestamp: new Date().toISOString(),
+  });
 }

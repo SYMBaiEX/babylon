@@ -14,9 +14,14 @@ export {
   huggingFaceIntegration,
 } from './HuggingFaceIntegrationService';
 export type {
+  ModelCardBenchmarkResult,
   ModelUploadOptions,
   ModelUploadResult,
 } from './HuggingFaceModelUploader';
 export { HuggingFaceModelUploader } from './HuggingFaceModelUploader';
 
-export { HuggingFaceUploadUtil } from './shared/HuggingFaceUploadUtil';
+export {
+  getHuggingFaceToken,
+  HuggingFaceUploadUtil,
+  requireHuggingFaceToken,
+} from './shared/HuggingFaceUploadUtil';

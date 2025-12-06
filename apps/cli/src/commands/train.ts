@@ -108,7 +108,8 @@ COMMANDS:
   archetype   Score & export trajectories for archetype
   collect     Collect trajectories for training
   score       Score collected trajectories
-  generate    Generate multi-archetype trajectories
+  generate    ⚠️ DEPRECATED: Generate SYNTHETIC/FAKE trajectories (testing only)
+  parallel    Generate REAL trajectories with parallel agents (requires server)
 
 PIPELINE OPTIONS:
   -a, --archetype=NAME     Train specific archetype (or 'all')
@@ -208,25 +209,20 @@ async function scoreArchetypeTrajectories(
 
   logger.step(`Scoring trajectories with ${archetype} rubric...`);
 
-  try {
-    // Configure LLM for scoring
-    await configureLLMCaller();
+  // Configure LLM for scoring
+  await configureLLMCaller();
 
-    const { archetypeScoringService } = await getTrainingImports();
-    console.log('   Calling scoring service...');
-    const result = await archetypeScoringService.scoreUnscoredTrajectories(
-      archetype,
-      100
-    );
-    console.log(`  ✅ Scored: ${result.scored}`);
-    if (result.errors > 0) {
-      console.log(`  ⚠️  Errors: ${result.errors}`);
-    }
-    return result;
-  } catch (error) {
-    console.error('   ❌ Scoring error:', error);
-    return { scored: 0, errors: 1 };
+  const { archetypeScoringService } = await getTrainingImports();
+  console.log('   Calling scoring service...');
+  const result = await archetypeScoringService.scoreUnscoredTrajectories(
+    archetype,
+    100
+  );
+  console.log(`  ✅ Scored: ${result.scored}`);
+  if (result.errors > 0) {
+    console.log(`  ⚠️  Errors: ${result.errors}`);
   }
+  return result;
 }
 
 async function exportForTraining(
@@ -477,29 +473,22 @@ async function collectTrajectories(
       `[${i + 1}/${countArg}] Running agent: ${agent.username || agent.id}`
     );
 
-    try {
-      const runtime = await agentRuntimeManager.getRuntime(agent.id);
-      const result = await autonomousCoordinator.executeAutonomousTick(
-        agent.id,
-        runtime,
-        true // Always record trajectories
-      );
+    const runtime = await agentRuntimeManager.getRuntime(agent.id);
+    const result = await autonomousCoordinator.executeAutonomousTick(
+      agent.id,
+      runtime,
+      true // Always record trajectories
+    );
 
-      if (result.success) {
-        console.log(
-          `  ✅ Success - Actions: ${JSON.stringify(result.actionsExecuted)}`
-        );
-        if (result.trajectoryId) {
-          console.log(`  📊 Trajectory ID: ${result.trajectoryId}`);
-        }
-      } else {
-        console.log('  ⚠️  Completed but not successful');
-      }
-    } catch (error) {
+    if (result.success) {
       console.log(
-        `  ❌ Error: ${error instanceof Error ? error.message : String(error)}`
+        `  ✅ Success - Actions: ${JSON.stringify(result.actionsExecuted)}`
       );
-      errors++;
+      if (result.trajectoryId) {
+        console.log(`  📊 Trajectory ID: ${result.trajectoryId}`);
+      }
+    } else {
+      console.log('  ⚠️  Completed but not successful');
     }
 
     // Small delay between runs
@@ -541,7 +530,13 @@ async function scoreTrajectories(): Promise<void> {
     return;
   }
 
+  // Configure LLM for scoring
+  console.log('Configuring LLM for scoring...');
+  await configureLLMCaller();
+
   const { archetypeScoringService } = await getTrainingImports();
+  console.log('Scoring trajectories with AI judge...');
+
   const result = await archetypeScoringService.scoreUnscoredTrajectories(
     'default',
     100
@@ -1345,6 +1340,13 @@ async function generateTrajectories(
   logger.header('Multi-Archetype Trajectory Generator');
 
   console.log();
+  console.log('⚠️  WARNING: This generates SYNTHETIC/FAKE data!');
+  console.log('   - Agent IDs are fake (agent-trader-12345)');
+  console.log('   - Decisions use Math.random(), not real LLM calls');
+  console.log('   - This is for TESTING ONLY, not real training');
+  console.log();
+  console.log('   For REAL data, use: babylon train parallel');
+  console.log();
   console.log('Configuration:');
   console.log(`  Episodes: ${episodes}`);
   console.log(`  Ticks per episode: ${ticksPerEpisode}`);
@@ -1428,44 +1430,37 @@ async function generateTrajectories(
       const trajectoryId = await generateSnowflakeId();
       const windowId = `episode-${episode}-${Date.now()}`;
 
-      try {
-        await db.insert(trajectories).values({
-          id: trajectoryId,
-          trajectoryId,
-          agentId,
-          windowId,
-          scenarioId: `multi-archetype-${archetype}`,
-          startTime: new Date(rewardedSteps[0]?.timestamp || Date.now()),
-          endTime: new Date(
-            rewardedSteps[rewardedSteps.length - 1]?.timestamp || Date.now()
-          ),
-          durationMs: ticksPerEpisode * 1000,
-          stepsJson: JSON.stringify(rewardedSteps),
-          rewardComponentsJson: JSON.stringify({}),
-          metricsJson: JSON.stringify({}),
-          metadataJson: JSON.stringify({ archetype, episode }),
-          totalReward: rewardedSteps.reduce((sum, s) => sum + s.reward, 0),
-          finalPnL,
-          finalBalance,
-          tradesExecuted: steps.filter((s) =>
-            ['buy_prediction', 'open_perp', 'close_perp'].includes(
-              s.action.actionType
-            )
-          ).length,
-          episodeLength: steps.length,
-          finalStatus: 'completed',
-          isTrainingData: true,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        });
+      await db.insert(trajectories).values({
+        id: trajectoryId,
+        trajectoryId,
+        agentId,
+        windowId,
+        scenarioId: `multi-archetype-${archetype}`,
+        startTime: new Date(rewardedSteps[0]?.timestamp || Date.now()),
+        endTime: new Date(
+          rewardedSteps[rewardedSteps.length - 1]?.timestamp || Date.now()
+        ),
+        durationMs: ticksPerEpisode * 1000,
+        stepsJson: JSON.stringify(rewardedSteps),
+        rewardComponentsJson: JSON.stringify({}),
+        metricsJson: JSON.stringify({}),
+        metadataJson: JSON.stringify({ archetype, episode }),
+        totalReward: rewardedSteps.reduce((sum, s) => sum + s.reward, 0),
+        finalPnL,
+        finalBalance,
+        tradesExecuted: steps.filter((s) =>
+          ['buy_prediction', 'open_perp', 'close_perp'].includes(
+            s.action.actionType
+          )
+        ).length,
+        episodeLength: steps.length,
+        finalStatus: 'completed',
+        isTrainingData: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
 
-        totalTrajectories++;
-      } catch (error) {
-        console.error(
-          `   ❌ Failed to save trajectory for ${archetype}:`,
-          error
-        );
-      }
+      totalTrajectories++;
     }
 
     console.log('   📊 Episode Summary:');
@@ -1647,6 +1642,10 @@ async function runPipeline(args: ReturnType<typeof parseArgs>): Promise<void> {
  *
  * @param args - Raw command-line arguments for the training domain
  */
+
+// Import parallel generation command
+import { runParallelGeneration } from './train-parallel.js';
+
 export async function runTrainCommand(args: string[]): Promise<void> {
   const parsed = parseArgs(args);
 
@@ -1659,46 +1658,48 @@ export async function runTrainCommand(args: string[]): Promise<void> {
   const noDatabaseCommands = ['list', 'pipeline', 'run'];
   const needsDatabase = !noDatabaseCommands.includes(parsed.command || '');
 
-  try {
-    switch (parsed.command) {
-      case 'list':
-        await listArchetypes(parsed);
-        break;
+  switch (parsed.command) {
+    case 'list':
+      await listArchetypes(parsed);
+      break;
 
-      case 'pipeline':
-      case 'run':
-        await runPipeline(parsed);
-        break;
+    case 'pipeline':
+    case 'run':
+      await runPipeline(parsed);
+      break;
 
-      case 'archetype':
-        await trainArchetype(parsed);
-        break;
+    case 'archetype':
+      await trainArchetype(parsed);
+      break;
 
-      case 'collect':
-        await collectTrajectories(parsed);
-        break;
+    case 'collect':
+      await collectTrajectories(parsed);
+      break;
 
-      case 'score':
-        await scoreTrajectories();
-        break;
+    case 'score':
+      await scoreTrajectories();
+      break;
 
-      case 'generate':
-        await generateTrajectories(parsed);
-        break;
+    case 'generate':
+      await generateTrajectories(parsed);
+      break;
 
-      default:
-        if (parsed.command) {
-          logger.fail(`Unknown command: ${parsed.command}`);
-        }
-        printHelp();
-        process.exit(parsed.command ? 1 : 0);
-    }
-  } finally {
-    if (needsDatabase) {
-      const { closeDatabase } = await getDbImports();
-      await closeDatabase();
-    }
-    // Always exit cleanly
-    process.exit(0);
+    case 'parallel':
+      await runParallelGeneration(parsed);
+      break;
+
+    default:
+      if (parsed.command) {
+        logger.fail(`Unknown command: ${parsed.command}`);
+      }
+      printHelp();
+      process.exit(parsed.command ? 1 : 0);
   }
+
+  if (needsDatabase) {
+    const { closeDatabase } = await getDbImports();
+    await closeDatabase();
+  }
+  // Always exit cleanly
+  process.exit(0);
 }

@@ -4,6 +4,18 @@
  * Tools for evaluating agent performance through simulation.
  */
 
+// Multi-archetype matchup benchmarking
+export type {
+  ArchetypeVsResult,
+  MatchupAgent,
+  MatchupAgentResult,
+  MatchupBenchmarkConfig,
+  MatchupBenchmarkResult,
+} from './ArchetypeMatchupBenchmark';
+export {
+  ArchetypeMatchupBenchmark,
+  runQuickMatchupBenchmark,
+} from './ArchetypeMatchupBenchmark';
 export type {
   BenchmarkHistoryEntry,
   ModelComparisonData,
@@ -49,6 +61,11 @@ export {
   MODEL_REGISTRY,
   validateModelId,
 } from './ModelRegistry';
+// Shared utilities
+export {
+  type JsonValue,
+  parseSimulationMetrics,
+} from './parseSimulationMetrics';
 export {
   createRulerContext,
   extractMarketOutcomesFromBenchmark,

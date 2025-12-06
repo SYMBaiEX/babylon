@@ -246,90 +246,78 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
 
   // Automatically evaluate and process the report
   // This ensures fully automated moderation - no human review needed unless user stakes $10 for appeal
-  try {
-    const evaluation = await evaluateReport(report.id);
-    await storeEvaluationResult(report.id, evaluation);
+  const evaluation = await evaluateReport(report.id);
+  await storeEvaluationResult(report.id, evaluation);
 
-    // If evaluation indicates valid scammer/CSAM report with high confidence, automatically ban
-    // Check if recommendedActions suggest banning or if reasoning indicates scamming/CSAM
-    const shouldAutoBan =
-      evaluation.outcome === 'valid_report' &&
-      evaluation.confidence >= 0.8 &&
-      report.reportedUserId !== null &&
-      (evaluation.recommendedActions.includes('ban_user') ||
-        evaluation.recommendedActions.includes('ban') ||
-        evaluation.recommendedActions.includes('mark_scammer') ||
-        evaluation.recommendedActions.includes('mark_csam') ||
-        evaluation.reasoning.toLowerCase().includes('scam') ||
-        evaluation.reasoning.toLowerCase().includes('csam') ||
-        evaluation.reasoning.toLowerCase().includes('child sexual abuse'));
+  // If evaluation indicates valid scammer/CSAM report with high confidence, automatically ban
+  // Check if recommendedActions suggest banning or if reasoning indicates scamming/CSAM
+  const shouldAutoBan =
+    evaluation.outcome === 'valid_report' &&
+    evaluation.confidence >= 0.8 &&
+    report.reportedUserId !== null &&
+    (evaluation.recommendedActions.includes('ban_user') ||
+      evaluation.recommendedActions.includes('ban') ||
+      evaluation.recommendedActions.includes('mark_scammer') ||
+      evaluation.recommendedActions.includes('mark_csam') ||
+      evaluation.reasoning.toLowerCase().includes('scam') ||
+      evaluation.reasoning.toLowerCase().includes('csam') ||
+      evaluation.reasoning.toLowerCase().includes('child sexual abuse'));
 
-    if (shouldAutoBan && report.reportedUserId) {
-      // Determine if scammer or CSAM based on evaluation
-      const isScammer =
-        evaluation.recommendedActions.includes('mark_scammer') ||
-        evaluation.reasoning.toLowerCase().includes('scam');
-      const isCSAM =
-        evaluation.recommendedActions.includes('mark_csam') ||
-        evaluation.reasoning.toLowerCase().includes('csam') ||
-        evaluation.reasoning.toLowerCase().includes('child sexual abuse');
+  if (shouldAutoBan && report.reportedUserId) {
+    // Determine if scammer or CSAM based on evaluation
+    const isScammer =
+      evaluation.recommendedActions.includes('mark_scammer') ||
+      evaluation.reasoning.toLowerCase().includes('scam');
+    const isCSAM =
+      evaluation.recommendedActions.includes('mark_csam') ||
+      evaluation.reasoning.toLowerCase().includes('csam') ||
+      evaluation.reasoning.toLowerCase().includes('child sexual abuse');
 
-      // Automatically ban the reported user
-      if (report.reportedUserId) {
-        await db.user.update({
-          where: { id: report.reportedUserId },
-          data: {
-            isBanned: true,
-            bannedAt: new Date(),
-            bannedReason: `Automated ban from report #${report.id}: ${evaluation.reasoning.substring(0, 200)}`,
-            bannedBy: undefined, // System ban - no specific admin
-            isScammer: isScammer,
-            isCSAM: isCSAM,
-          },
-        });
-      }
-
-      // Update report status
-      await db.report.update({
-        where: { id: report.id },
+    // Automatically ban the reported user
+    if (report.reportedUserId) {
+      await db.user.update({
+        where: { id: report.reportedUserId },
         data: {
-          status: 'resolved',
-          resolution: `User automatically banned: ${evaluation.reasoning.substring(0, 200)}`,
-          resolvedBy: null, // System resolution - no specific admin
-          resolvedAt: new Date(),
-        },
-      });
-
-      logger.info(
-        'User automatically banned from report',
-        {
-          reportId: report.id,
-          reportedUserId: report.reportedUserId,
-          evaluationOutcome: evaluation.outcome,
-          confidence: evaluation.confidence,
-        },
-        'POST /api/moderation/reports'
-      );
-    } else {
-      // Store evaluation but don't auto-ban (low confidence or not scammer/CSAM)
-      await db.report.update({
-        where: { id: report.id },
-        data: {
-          status: 'reviewing',
-          resolution: JSON.stringify(evaluation),
+          isBanned: true,
+          bannedAt: new Date(),
+          bannedReason: `Automated ban from report #${report.id}: ${evaluation.reasoning.substring(0, 200)}`,
+          bannedBy: undefined, // System ban - no specific admin
+          isScammer: isScammer,
+          isCSAM: isCSAM,
         },
       });
     }
-  } catch (error) {
-    // Don't fail report creation if evaluation fails - log and continue
-    logger.error(
-      'Failed to automatically evaluate report',
+
+    // Update report status
+    await db.report.update({
+      where: { id: report.id },
+      data: {
+        status: 'resolved',
+        resolution: `User automatically banned: ${evaluation.reasoning.substring(0, 200)}`,
+        resolvedBy: null, // System resolution - no specific admin
+        resolvedAt: new Date(),
+      },
+    });
+
+    logger.info(
+      'User automatically banned from report',
       {
         reportId: report.id,
-        error: error instanceof Error ? error.message : String(error),
+        reportedUserId: report.reportedUserId,
+        evaluationOutcome: evaluation.outcome,
+        confidence: evaluation.confidence,
       },
       'POST /api/moderation/reports'
     );
+  } else {
+    // Store evaluation but don't auto-ban (low confidence or not scammer/CSAM)
+    await db.report.update({
+      where: { id: report.id },
+      data: {
+        status: 'reviewing',
+        resolution: JSON.stringify(evaluation),
+      },
+    });
   }
 
   return successResponse({

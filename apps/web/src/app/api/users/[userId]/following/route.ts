@@ -102,9 +102,7 @@ import {
   db,
   desc,
   eq,
-  followStatuses,
   follows,
-  inArray,
   userActorFollows,
   users,
 } from '@babylon/db';
@@ -217,7 +215,7 @@ export const GET = withErrorHandling(
         .where(eq(follows.followerId, targetId))
         .orderBy(desc(follows.createdAt));
 
-      // Get actors being followed (UserActorFollow model with legacy support)
+      // Get actors being followed (UserActorFollow model)
       const actorFollowsList = await db
         .select({
           id: userActorFollows.id,
@@ -232,42 +230,6 @@ export const GET = withErrorHandling(
         .leftJoin(actors, eq(userActorFollows.actorId, actors.id))
         .where(eq(userActorFollows.userId, targetId))
         .orderBy(desc(userActorFollows.createdAt));
-
-      const migratedActorIds = new Set(actorFollowsList.map((f) => f.actorId));
-
-      const legacyActorFollows = await db
-        .select()
-        .from(followStatuses)
-        .where(
-          and(
-            eq(followStatuses.userId, targetId),
-            eq(followStatuses.isActive, true),
-            eq(followStatuses.followReason, 'user_followed')
-          )
-        )
-        .orderBy(desc(followStatuses.followedAt));
-
-      const legacyActorIds = legacyActorFollows
-        .map((f) => f.npcId)
-        .filter((id) => !migratedActorIds.has(id));
-
-      const legacyActors =
-        legacyActorIds.length > 0
-          ? await db
-              .select({
-                id: actors.id,
-                name: actors.name,
-                description: actors.description,
-                profileImageUrl: actors.profileImageUrl,
-                tier: actors.tier,
-              })
-              .from(actors)
-              .where(inArray(actors.id, legacyActorIds))
-          : [];
-
-      const legacyActorMap = new Map(
-        legacyActors.map((actor) => [actor.id, actor])
-      );
 
       // Check mutual follows if authenticated user is viewing their own following list
       const mutualFollowChecks =
@@ -333,22 +295,6 @@ export const GET = withErrorHandling(
             tier: f.actorTier || null,
           };
         }),
-        ...legacyActorFollows
-          .filter((f) => !migratedActorIds.has(f.npcId))
-          .map((f) => {
-            const actor = legacyActorMap.get(f.npcId);
-            return {
-              id: f.npcId,
-              displayName: actor?.name || f.npcId,
-              username: null,
-              profileImageUrl: actor?.profileImageUrl || null,
-              bio: actor?.description || null,
-              isActor: true,
-              followedAt: f.followedAt.toISOString(),
-              type: 'actor' as const,
-              tier: actor?.tier || null,
-            };
-          }),
       ].sort(
         (a, b) =>
           new Date(b.followedAt).getTime() - new Date(a.followedAt).getTime()

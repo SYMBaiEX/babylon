@@ -11,9 +11,6 @@ import { beforeAll, describe, expect, setDefaultTimeout, test } from 'bun:test';
 import type { GeneratedGame } from '../GameGenerator';
 import { GameGenerator } from '../GameGenerator';
 
-// Set timeout to 10 minutes for LLM-based generation
-// Retry loops when LLM returns invalid JSON can cause 6-7 minute runs
-// This test validates game structure, not performance - timeout is acceptable
 setDefaultTimeout(600000);
 
 describe('Game Output Validation', () => {
@@ -29,7 +26,6 @@ describe('Game Output Validation', () => {
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
-      // Check if it's a rate limit, API availability, or generation failure error
       if (
         errorMessage.includes('429') ||
         errorMessage.includes('rate_limit') ||
@@ -74,7 +70,6 @@ describe('Game Output Validation', () => {
       }
       expect(game.timeline.length).toBe(30);
 
-      // Verify days are 1-30
       game.timeline.forEach((day, i) => {
         expect(day.day).toBe(i + 1);
       });
@@ -264,7 +259,6 @@ describe('Game Output Validation', () => {
         .slice(20, 25)
         .reduce((sum, d) => sum + d.events.length, 0);
 
-      // Generally true, but not strict requirement
       expect(earlyEvents).toBeGreaterThan(0);
       expect(lateEvents).toBeGreaterThan(0);
     });

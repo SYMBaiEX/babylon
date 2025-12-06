@@ -5,7 +5,8 @@
  * Provides consistent logging format across all training services.
  */
 
-type LogData = string | Error | Record<string, unknown> | unknown[] | unknown;
+// biome-ignore lint/suspicious/noExplicitAny: LogData must accept arbitrary objects for logging
+type LogData = Record<string, any> | string | Error | undefined;
 
 function formatData(data: LogData): string {
   if (data instanceof Error) {

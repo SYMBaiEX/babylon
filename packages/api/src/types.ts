@@ -6,6 +6,7 @@
 
 /**
  * JSON-serializable value types
+ * Note: undefined is included for optional properties - it's omitted during JSON serialization
  */
 export type JsonValue =
   | string

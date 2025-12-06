@@ -401,14 +401,10 @@ export async function asPublic<T>(
 
 /** Health check */
 export async function checkDatabaseHealth(): Promise<boolean> {
-  try {
-    const instance = getDrizzleInstance();
-    if (!instance) return false;
-    await instance.execute(sql`SELECT 1`);
-    return true;
-  } catch {
-    return false;
-  }
+  const instance = getDrizzleInstance();
+  if (!instance) return false;
+  await instance.execute(sql`SELECT 1`);
+  return true;
 }
 
 /** Graceful shutdown */

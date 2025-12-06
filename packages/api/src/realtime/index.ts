@@ -2,7 +2,7 @@ import { logger } from '@babylon/shared';
 import { createHmac, randomBytes, timingSafeEqual } from 'crypto';
 import { streamAdd } from '../redis';
 import type { JsonValue } from '../types';
-import { enqueueOutbox } from './outbox';
+// import { enqueueOutbox } from './outbox'; // Uncomment when needed
 
 /**
  * Supported realtime channels.
@@ -75,30 +75,22 @@ export function signRealtimeToken(payload: RealtimeTokenPayload): string {
 export function verifyRealtimeToken(
   token: string
 ): RealtimeTokenPayload | null {
-  try {
-    const [h, p, s] = token.split('.');
-    if (!h || !p || !s) return null;
-    const signingInput = `${h}.${p}`;
-    const expected = createHmac('sha256', getSecret())
-      .update(signingInput)
-      .digest();
-    const actual = decodeBase64url(s);
-    if (
-      expected.length !== actual.length ||
-      !timingSafeEqual(expected, actual)
-    ) {
-      return null;
-    }
-    const payload = JSON.parse(
-      decodeBase64url(p).toString()
-    ) as RealtimeTokenPayload;
-    const now = Math.floor(Date.now() / 1000);
-    if (payload.exp <= now) return null;
-    return payload;
-  } catch (error) {
-    logger.warn('Failed to verify realtime token', { error }, 'Realtime');
+  const [h, p, s] = token.split('.');
+  if (!h || !p || !s) return null;
+  const signingInput = `${h}.${p}`;
+  const expected = createHmac('sha256', getSecret())
+    .update(signingInput)
+    .digest();
+  const actual = decodeBase64url(s);
+  if (expected.length !== actual.length || !timingSafeEqual(expected, actual)) {
     return null;
   }
+  const payload = JSON.parse(
+    decodeBase64url(p).toString()
+  ) as RealtimeTokenPayload;
+  const now = Math.floor(Date.now() / 1000);
+  if (payload.exp <= now) return null;
+  return payload;
 }
 
 /**
@@ -113,38 +105,22 @@ export async function publishEvent(
   event: RealtimeEventEnvelope,
   opts?: { maxlen?: number }
 ): Promise<void> {
-  try {
-    const streamKey = toStreamKey(event.channel);
-    const res = await streamAdd(
-      streamKey,
-      { ...event, version: event.version ?? 'v1' } as Record<string, JsonValue>,
-      {
-        maxlen: opts?.maxlen ?? 10_000,
-      }
-    );
-    if (!res) {
-      throw new Error('streamAdd returned null (Redis not available)');
+  const streamKey = toStreamKey(event.channel);
+  const res = await streamAdd(
+    streamKey,
+    { ...event, version: event.version ?? 'v1' } as Record<string, JsonValue>,
+    {
+      maxlen: opts?.maxlen ?? 10_000,
     }
-    logger.info(
-      'Realtime event published',
-      { channel: event.channel, type: event.type, streamId: res },
-      'Realtime'
-    );
-  } catch (error) {
-    logger.warn(
-      'Failed to publish realtime event (queued for retry)',
-      {
-        channel: event.channel,
-        type: event.type,
-        error,
-      },
-      'Realtime'
-    );
-    await enqueueOutbox({
-      ...event,
-      version: event.version ?? 'v1',
-    });
+  );
+  if (!res) {
+    throw new Error('streamAdd returned null (Redis not available)');
   }
+  logger.info(
+    'Realtime event published',
+    { channel: event.channel, type: event.type, streamId: res },
+    'Realtime'
+  );
 }
 
 export const toStreamKey = (channel: RealtimeChannel) => `realtime:${channel}`;

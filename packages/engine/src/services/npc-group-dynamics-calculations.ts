@@ -50,11 +50,12 @@ function calculateDynamicThresholds(
 }
 
 /**
- * NPCGroupDynamicsService calculation methods
+ * NPCGroupDynamicsCalculations
  *
  * Static class containing pure calculation methods for group dynamics.
+ * Separate from NPCGroupDynamicsService to allow testing without database dependencies.
  */
-export class NPCGroupDynamicsService {
+export class NPCGroupDynamicsCalculations {
   /**
    * Calculate kick probability with exponential scaling for over-posting
    *

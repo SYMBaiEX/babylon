@@ -150,6 +150,7 @@ import {
 } from '@babylon/api';
 import { db, eq, users } from '@babylon/db';
 import { logger } from '@babylon/shared';
+import type { NextRequest } from 'next/server';
 import type { User as PrivyUser } from '@privy-io/server-auth';
 
 type PrivyWalletLite = {
@@ -193,36 +194,26 @@ async function ensureSmartWalletAddress(privyId: string): Promise<{
   smartWalletAddress: string | null;
   embeddedWalletAddress: string | null;
 }> {
-  try {
-    const privyClient = getPrivyClient();
-    const user = (await privyClient.getUser(
-      privyId
-    )) as PrivyUserWithSmartWallet;
-    let smartWalletAddress = user.smartWallet?.address?.toLowerCase() ?? null;
-    let embeddedWallet = pickEmbeddedEvmWallet(user);
+  const privyClient = getPrivyClient();
+  const user = (await privyClient.getUser(privyId)) as PrivyUserWithSmartWallet;
+  let smartWalletAddress = user.smartWallet?.address?.toLowerCase() ?? null;
+  let embeddedWallet = pickEmbeddedEvmWallet(user);
 
-    if (!smartWalletAddress) {
-      const updated = (await privyClient.createWallets({
-        userId: privyId,
-        createEthereumSmartWallet: true,
-        createEthereumWallet: !embeddedWallet,
-      })) as PrivyUserWithSmartWallet;
+  if (!smartWalletAddress) {
+    const updated = (await privyClient.createWallets({
+      userId: privyId,
+      createEthereumSmartWallet: true,
+      createEthereumWallet: !embeddedWallet,
+    })) as PrivyUserWithSmartWallet;
 
-      smartWalletAddress = updated.smartWallet?.address?.toLowerCase() ?? null;
-      embeddedWallet = embeddedWallet ?? pickEmbeddedEvmWallet(updated);
-    }
-
-    return {
-      smartWalletAddress,
-      embeddedWalletAddress: embeddedWallet?.address?.toLowerCase() ?? null,
-    };
-  } catch (error) {
-    logger.warn('Failed to ensure smart wallet for user (me route)', {
-      privyId,
-      error,
-    });
-    return { smartWalletAddress: null, embeddedWalletAddress: null };
+    smartWalletAddress = updated.smartWallet?.address?.toLowerCase() ?? null;
+    embeddedWallet = embeddedWallet ?? pickEmbeddedEvmWallet(updated);
   }
+
+  return {
+    smartWalletAddress,
+    embeddedWalletAddress: embeddedWallet?.address?.toLowerCase() ?? null,
+  };
 }
 
 const userSelectFields = {
@@ -294,55 +285,45 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     let twitterId: string | null = null;
     let smartWalletAddress: string | null = null;
 
-    try {
-      const privyClient = getPrivyClient();
-      const privyUser = await privyClient.getUser(privyId);
+    const privyClient = getPrivyClient();
+    const privyUser = await privyClient.getUser(privyId);
 
-      // Extract email from linked accounts
-      if (privyUser.email?.address) {
-        email = privyUser.email.address;
-      }
-
-      // Extract Farcaster info
-      if (privyUser.farcaster) {
-        farcasterUsername = privyUser.farcaster.username ?? null;
-        farcasterFid = privyUser.farcaster.fid
-          ? String(privyUser.farcaster.fid)
-          : null;
-      }
-
-      // Extract Twitter info
-      if (privyUser.twitter) {
-        twitterUsername = privyUser.twitter.username ?? null;
-        twitterId = privyUser.twitter.subject ?? null;
-      }
-
-      // Prefer Privy smart wallet over linked/embedded wallet for DB storage
-      smartWalletAddress =
-        privyUser.smartWallet?.address?.toLowerCase() ?? null;
-      if (smartWalletAddress) {
-        authUser.walletAddress = smartWalletAddress;
-      }
-
-      logger.info(
-        'Fetched Privy user data for new user',
-        {
-          privyId,
-          hasEmail: !!email,
-          hasFarcaster: !!farcasterUsername,
-          hasTwitter: !!twitterUsername,
-          hasSmartWallet: !!smartWalletAddress,
-        },
-        'GET /api/users/me'
-      );
-    } catch (error) {
-      logger.warn(
-        'Failed to fetch Privy user data',
-        { privyId, error },
-        'GET /api/users/me'
-      );
-      // Continue with user creation even if Privy fetch fails
+    // Extract email from linked accounts
+    if (privyUser.email?.address) {
+      email = privyUser.email.address;
     }
+
+    // Extract Farcaster info
+    if (privyUser.farcaster) {
+      farcasterUsername = privyUser.farcaster.username ?? null;
+      farcasterFid = privyUser.farcaster.fid
+        ? String(privyUser.farcaster.fid)
+        : null;
+    }
+
+    // Extract Twitter info
+    if (privyUser.twitter) {
+      twitterUsername = privyUser.twitter.username ?? null;
+      twitterId = privyUser.twitter.subject ?? null;
+    }
+
+    // Prefer Privy smart wallet over linked/embedded wallet for DB storage
+    smartWalletAddress = privyUser.smartWallet?.address?.toLowerCase() ?? null;
+    if (smartWalletAddress) {
+      authUser.walletAddress = smartWalletAddress;
+    }
+
+    logger.info(
+      'Fetched Privy user data for new user',
+      {
+        privyId,
+        hasEmail: !!email,
+        hasFarcaster: !!farcasterUsername,
+        hasTwitter: !!twitterUsername,
+        hasSmartWallet: !!smartWalletAddress,
+      },
+      'GET /api/users/me'
+    );
 
     // Resolve referrer if referralCode provided
     let resolvedReferrerId: string | null = null;

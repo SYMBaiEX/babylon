@@ -310,25 +310,12 @@ async function generateContentWindow(
     const randomOffset = Math.random() * windowDuration;
     const eventTimestamp = new Date(windowStart.getTime() + randomOffset);
 
-    try {
-      const eventsCreated = await generateEvents(
-        activeQuestions,
-        eventTimestamp
-      );
-      if (eventsCreated > 0) {
-        logger.info(
-          `Generated ${eventsCreated} events in lookahead window`,
-          {
-            timestamp: eventTimestamp.toISOString(),
-          },
-          'LookaheadGeneration'
-        );
-      }
-    } catch (error) {
-      logger.warn(
-        'Failed to generate events in lookahead',
+    const eventsCreated = await generateEvents(activeQuestions, eventTimestamp);
+    if (eventsCreated > 0) {
+      logger.info(
+        `Generated ${eventsCreated} events in lookahead window`,
         {
-          error: error instanceof Error ? error.message : String(error),
+          timestamp: eventTimestamp.toISOString(),
         },
         'LookaheadGeneration'
       );
@@ -359,109 +346,95 @@ async function generateContentWindow(
 
   // Generate posts in parallel for better performance
   const postPromises = Array.from({ length: numPosts }, async (_, i) => {
-    try {
-      // Distribute timestamps naturally across window
-      const randomOffset = Math.random() * windowDuration;
-      const postTimestamp = new Date(windowStart.getTime() + randomOffset);
+    // Distribute timestamps naturally across window
+    const randomOffset = Math.random() * windowDuration;
+    const postTimestamp = new Date(windowStart.getTime() + randomOffset);
 
-      // Alternate between actors and organizations
-      const useActor = i % 2 === 0 && actorsList.length > 0;
-      const creator = useActor
-        ? actorsList[i % actorsList.length]
-        : orgsList[i % orgsList.length];
+    // Alternate between actors and organizations
+    const useActor = i % 2 === 0 && actorsList.length > 0;
+    const creator = useActor
+      ? actorsList[i % actorsList.length]
+      : orgsList[i % orgsList.length];
 
-      if (!creator) {
-        return 0;
-      }
-
-      const question = activeQuestions[i % activeQuestions.length];
-      if (!question || !question.text) {
-        return 0;
-      }
-
-      // Generate post content using LLM
-      if (useActor) {
-        const actor = creator as (typeof actorsList)[number];
-        const success = await generateNPCPost(
-          llmClient,
-          actor,
-          question,
-          worldFactsContext,
-          postTimestamp
-        );
-        if (success) {
-          logger.debug(
-            'Created lookahead NPC post',
-            {
-              actor: actor.name,
-              timestamp: postTimestamp.toISOString(),
-              questionId: question.id,
-            },
-            'LookaheadGeneration'
-          );
-        }
-        return success ? 1 : 0;
-      }
-      const org = creator as (typeof orgsList)[number];
-
-      // 10% chance to generate a full article instead of a short post
-      const shouldCreateArticle = Math.random() < 0.1;
-      let success = false;
-
-      if (shouldCreateArticle) {
-        success = await generateOrgArticle(
-          llmClient,
-          org,
-          question,
-          worldFactsContext,
-          postTimestamp
-        );
-        if (success) {
-          logger.debug(
-            'Created lookahead org article',
-            {
-              org: org.name,
-              timestamp: postTimestamp.toISOString(),
-              questionId: question.id,
-            },
-            'LookaheadGeneration'
-          );
-        }
-      } else {
-        success = await generateOrgPost(
-          llmClient,
-          org,
-          question,
-          worldFactsContext,
-          postTimestamp
-        );
-        if (success) {
-          logger.debug(
-            'Created lookahead org post',
-            {
-              org: org.name,
-              timestamp: postTimestamp.toISOString(),
-              questionId: question.id,
-            },
-            'LookaheadGeneration'
-          );
-        }
-      }
-
-      return success ? 1 : 0;
-    } catch (error) {
-      logger.warn(
-        'Failed to generate post in lookahead window',
-        {
-          error: error instanceof Error ? error.message : String(error),
-          windowStart: windowStart.toISOString(),
-          windowEnd: windowEnd.toISOString(),
-          postIndex: i,
-        },
-        'LookaheadGeneration'
-      );
+    if (!creator) {
       return 0;
     }
+
+    const question = activeQuestions[i % activeQuestions.length];
+    if (!question || !question.text) {
+      return 0;
+    }
+
+    // Generate post content using LLM
+    if (useActor) {
+      const actor = creator as (typeof actorsList)[number];
+      const success = await generateNPCPost(
+        llmClient,
+        actor,
+        question,
+        worldFactsContext,
+        postTimestamp
+      );
+      if (success) {
+        logger.debug(
+          'Created lookahead NPC post',
+          {
+            actor: actor.name,
+            timestamp: postTimestamp.toISOString(),
+            questionId: question.id,
+          },
+          'LookaheadGeneration'
+        );
+      }
+      return success ? 1 : 0;
+    }
+    const org = creator as (typeof orgsList)[number];
+
+    // 10% chance to generate a full article instead of a short post
+    const shouldCreateArticle = Math.random() < 0.1;
+    let success = false;
+
+    if (shouldCreateArticle) {
+      success = await generateOrgArticle(
+        llmClient,
+        org,
+        question,
+        worldFactsContext,
+        postTimestamp
+      );
+      if (success) {
+        logger.debug(
+          'Created lookahead org article',
+          {
+            org: org.name,
+            timestamp: postTimestamp.toISOString(),
+            questionId: question.id,
+          },
+          'LookaheadGeneration'
+        );
+      }
+    } else {
+      success = await generateOrgPost(
+        llmClient,
+        org,
+        question,
+        worldFactsContext,
+        postTimestamp
+      );
+      if (success) {
+        logger.debug(
+          'Created lookahead org post',
+          {
+            org: org.name,
+            timestamp: postTimestamp.toISOString(),
+            questionId: question.id,
+          },
+          'LookaheadGeneration'
+        );
+      }
+    }
+
+    return success ? 1 : 0;
   });
 
   // Wait for all posts to complete

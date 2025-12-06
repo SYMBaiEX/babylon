@@ -198,22 +198,7 @@ export async function POST(
     );
   }
 
-  let body: JsonRpcRequest;
-  try {
-    body = (await req.json()) as JsonRpcRequest;
-  } catch {
-    return NextResponse.json(
-      {
-        jsonrpc: '2.0',
-        id: null,
-        error: {
-          code: ErrorCode.INVALID_REQUEST,
-          message: 'Invalid JSON-RPC request',
-        },
-      },
-      { status: 400 }
-    );
-  }
+  const body = (await req.json()) as JsonRpcRequest;
 
   const requestingAgentId =
     req.headers.get('x-agent-id') ||
@@ -274,130 +259,110 @@ export async function POST(
   ];
 
   if (officialMethods.includes(body.method)) {
-    try {
-      // Handle tasks/list manually
-      if (body.method === 'tasks/list') {
-        const jsonRpcHandler = await getAgentJsonRpcHandler(agentId);
+    // Handle tasks/list manually
+    if (body.method === 'tasks/list') {
+      const jsonRpcHandler = await getAgentJsonRpcHandler(agentId);
 
-        // Use type assertions to access internal SDK structure
-        // These properties exist at runtime but aren't in the public types
-        const handlerWithRequestHandler = jsonRpcHandler as unknown as {
-          requestHandler: {
-            taskStore: ExtendedTaskStore;
-          };
+      // Use type assertions to access internal SDK structure
+      // These properties exist at runtime but aren't in the public types
+      const handlerWithRequestHandler = jsonRpcHandler as unknown as {
+        requestHandler: {
+          taskStore: ExtendedTaskStore;
         };
-        const taskStore = handlerWithRequestHandler.requestHandler.taskStore;
+      };
+      const taskStore = handlerWithRequestHandler.requestHandler.taskStore;
 
-        const params = (body.params || {}) as {
-          contextId?: string;
-          status?: string;
-          pageSize?: number;
-          pageToken?: string;
-          historyLength?: number;
-          includeArtifacts?: boolean;
-          lastUpdatedAfter?: number;
-        };
+      const params = (body.params || {}) as {
+        contextId?: string;
+        status?: string;
+        pageSize?: number;
+        pageToken?: string;
+        historyLength?: number;
+        includeArtifacts?: boolean;
+        lastUpdatedAfter?: number;
+      };
 
-        if (
-          params.pageSize !== undefined &&
-          (params.pageSize < 1 || params.pageSize > 100)
-        ) {
-          return NextResponse.json(
-            {
-              jsonrpc: '2.0',
-              id: body.id ?? null,
-              error: {
-                code: -32602,
-                message: 'Invalid params: pageSize must be between 1 and 100',
-                data: { pageSize: params.pageSize },
-              },
+      if (
+        params.pageSize !== undefined &&
+        (params.pageSize < 1 || params.pageSize > 100)
+      ) {
+        return NextResponse.json(
+          {
+            jsonrpc: '2.0',
+            id: body.id ?? null,
+            error: {
+              code: -32602,
+              message: 'Invalid params: pageSize must be between 1 and 100',
+              data: { pageSize: params.pageSize },
             },
-            { status: 400 }
-          );
-        }
-
-        if (params.historyLength !== undefined && params.historyLength < 0) {
-          return NextResponse.json(
-            {
-              jsonrpc: '2.0',
-              id: body.id ?? null,
-              error: {
-                code: -32602,
-                message: 'Invalid params: historyLength must be non-negative',
-                data: { historyLength: params.historyLength },
-              },
-            },
-            { status: 400 }
-          );
-        }
-
-        const listParams: ListTasksParams = {
-          contextId: params.contextId,
-          status:
-            params.status === 'pending'
-              ? 'submitted'
-              : params.status === 'running'
-                ? 'working'
-                : params.status === 'cancelled'
-                  ? 'canceled'
-                  : (params.status as
-                      | 'submitted'
-                      | 'working'
-                      | 'completed'
-                      | 'failed'
-                      | 'canceled'
-                      | undefined),
-          pageSize: params.pageSize || 20,
-          pageToken: params.pageToken,
-          historyLength: params.historyLength,
-          includeArtifacts: params.includeArtifacts || false,
-          lastUpdatedAfter: params.lastUpdatedAfter,
-        };
-
-        const tasks = await taskStore.list(listParams);
-
-        return NextResponse.json({
-          jsonrpc: '2.0',
-          id: body.id ?? null,
-          result: {
-            tasks: tasks.tasks,
-            nextPageToken: tasks.nextPageToken,
           },
-        });
+          { status: 400 }
+        );
       }
 
-      // Handle other official methods via SDK handler
-      const jsonRpcHandler = await getAgentJsonRpcHandler(agentId);
-      const response = await jsonRpcHandler.handle(body);
-
-      return NextResponse.json(response, {
-        headers: {
-          'Content-Type': 'application/json',
-          'X-RateLimit-Limit': '100',
-          'X-RateLimit-Remaining': limiter
-            .getTokens(requestingAgentId)
-            .toString(),
-        },
-      });
-    } catch (error) {
-      logger.error('Per-agent A2A handler error', {
-        error,
-        method: body.method,
-        agentId,
-        requestingAgentId,
-      });
-      return NextResponse.json(
-        {
-          jsonrpc: '2.0',
-          id: body.id ?? null,
-          error: {
-            code: ErrorCode.INTERNAL_ERROR,
-            message: error instanceof Error ? error.message : 'Internal error',
+      if (params.historyLength !== undefined && params.historyLength < 0) {
+        return NextResponse.json(
+          {
+            jsonrpc: '2.0',
+            id: body.id ?? null,
+            error: {
+              code: -32602,
+              message: 'Invalid params: historyLength must be non-negative',
+              data: { historyLength: params.historyLength },
+            },
           },
+          { status: 400 }
+        );
+      }
+
+      const listParams: ListTasksParams = {
+        contextId: params.contextId,
+        status:
+          params.status === 'pending'
+            ? 'submitted'
+            : params.status === 'running'
+              ? 'working'
+              : params.status === 'cancelled'
+                ? 'canceled'
+                : (params.status as
+                    | 'submitted'
+                    | 'working'
+                    | 'completed'
+                    | 'failed'
+                    | 'canceled'
+                    | undefined),
+        pageSize: params.pageSize || 20,
+        pageToken: params.pageToken,
+        historyLength: params.historyLength,
+        includeArtifacts: params.includeArtifacts || false,
+        lastUpdatedAfter: params.lastUpdatedAfter,
+      };
+
+      const tasks = await taskStore.list(listParams);
+
+      return NextResponse.json({
+        jsonrpc: '2.0',
+        id: body.id ?? null,
+        result: {
+          tasks: tasks.tasks,
+          nextPageToken: tasks.nextPageToken,
         },
-        { status: 500 }
-      );
+      });
     }
+
+    // Handle other official methods via SDK handler
+    const jsonRpcHandler = await getAgentJsonRpcHandler(agentId);
+    const response = await jsonRpcHandler.handle(body);
+
+    return NextResponse.json(response, {
+      headers: {
+        'Content-Type': 'application/json',
+        'X-RateLimit-Limit': '100',
+        'X-RateLimit-Remaining': limiter
+          .getTokens(requestingAgentId)
+          .toString(),
+      },
+    });
   }
 
   // All methods should be handled above via official A2A protocol

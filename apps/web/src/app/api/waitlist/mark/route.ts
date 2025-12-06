@@ -69,7 +69,6 @@ import {
 } from '@babylon/api';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
-import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
 const MarkSchema = z.object({
@@ -87,23 +86,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       : 'User',
   });
 
-  let body: { referralCode?: string };
-  try {
-    body = (await request.json()) as { referralCode?: string };
-  } catch (error) {
-    logger.error(
-      'Failed to parse request body',
-      { error, userId: dbUser.id },
-      'POST /api/waitlist/mark'
-    );
-    return NextResponse.json(
-      {
-        success: false,
-        error: 'Invalid request body',
-      },
-      { status: 400 }
-    );
-  }
+  const body = (await request.json()) as { referralCode?: string };
   const { referralCode } = MarkSchema.parse(body);
 
   logger.info(

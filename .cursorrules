@@ -27,3 +27,5 @@ Don't pipe your commands. Just print them out when you run them in the console. 
 There are other agents working on stuff. If you see things change or linter issues, it's probably work in progress. don't revert. try to ignore it unless you're sure it's just an issue that needs to be fixed.
 
 IMPORTANT: DON'T PIPE YOUR COMMANDS. Don't | to tail, head, grep, etc. I want to see the outputs. Otherwise very hard to tell if you are stuck on something.
+
+NEVER generate fake data. Never use synthetic data. Never fake anything. ALWAYS use the real thing, bulid the real thing. Be willing to error or fail building the real thing. Success on fake data is a worse failure.

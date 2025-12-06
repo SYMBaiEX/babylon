@@ -1,12 +1,18 @@
 /**
- * Simulated TEE Attestation
+ * TEE Attestation
  *
- * In a real Phala TEE with Intel TDX + NVIDIA H200:
- * - CPU produces a TDX quote (signed measurement of enclave code)
- * - GPU produces a CC attestation (proves GPU memory is encrypted)
- * - Combined quote proves both CPU and GPU are genuine and running expected code
+ * ⚠️ SIMULATION MODE ⚠️
  *
- * This simulation demonstrates the concept.
+ * This module SIMULATES TEE attestation for demonstration purposes.
+ * Real attestation requires:
+ * - Intel TDX hardware (for CPU attestation)
+ * - NVIDIA H200 with Confidential Computing (for GPU attestation)
+ * - Running inside Phala CVM (DStack)
+ *
+ * The simulation demonstrates the DATA STRUCTURES and VERIFICATION LOGIC
+ * but the signatures are NOT from real Intel/NVIDIA PKI.
+ *
+ * For production: Use ProductionTEEEnclave from dstack-integration.ts
  */
 
 import { type Address, type Hex, keccak256, toBytes } from 'viem';
@@ -18,8 +24,10 @@ export interface AttestationQuote {
   // Report data (can include operator address, git commit, etc.)
   reportData: Hex;
 
-  // Simulated signature from "Intel" + "NVIDIA"
+  // Signature from CPU attestation (simulated in demo mode)
   cpuSignature: Hex;
+
+  // Signature from GPU attestation (simulated in demo mode)
   gpuSignature: Hex;
 
   // Timestamp when quote was generated
@@ -27,6 +35,9 @@ export interface AttestationQuote {
 
   // TEE operator's Ethereum address (embedded in quote)
   operatorAddress: Address;
+
+  // Flag indicating this is a simulation
+  isSimulated: boolean;
 }
 
 export interface VerificationResult {
@@ -35,13 +46,13 @@ export interface VerificationResult {
   hardwareAuthentic: boolean;
   operatorAddress: Address;
   errors: string[];
+  warnings: string[];
 }
 
-// Simulated "Intel" signing key (in reality, this is Intel's PKI)
-const INTEL_ROOT_KEY = keccak256(toBytes('INTEL_TDX_ROOT_KEY_SIMULATED'));
-
-// Simulated "NVIDIA" signing key
-const NVIDIA_ROOT_KEY = keccak256(toBytes('NVIDIA_CC_ROOT_KEY_SIMULATED'));
+// Simulated signing keys - NOT real Intel/NVIDIA PKI!
+// These are used to make the simulation internally consistent
+const SIMULATED_INTEL_KEY = keccak256(toBytes('SIMULATION:INTEL:TDX'));
+const SIMULATED_NVIDIA_KEY = keccak256(toBytes('SIMULATION:NVIDIA:CC'));
 
 // Expected code measurement (hash of the game code)
 let EXPECTED_MEASUREMENT: Hex | null = null;
@@ -58,8 +69,10 @@ export function setExpectedMeasurement(measurement: Hex): void {
 }
 
 /**
- * Generate an attestation quote
- * In real TEE: this calls Intel's attestation API and NVIDIA's CC attestation
+ * Generate an attestation quote (SIMULATION)
+ *
+ * ⚠️ This is a SIMULATION - signatures are not from real hardware.
+ * Use this for testing and demonstration only.
  */
 export function generateQuote(
   codeHash: Hex,
@@ -72,19 +85,19 @@ export function generateQuote(
   const reportData =
     customReportData ?? keccak256(toBytes(`${operatorAddress}:${timestamp}`));
 
-  // Generate CPU signature (simulated Intel TDX quote)
+  // Generate SIMULATED CPU signature
   const cpuQuoteMaterial = new Uint8Array([
     ...toBytes(codeHash),
     ...toBytes(reportData),
-    ...toBytes(INTEL_ROOT_KEY),
+    ...toBytes(SIMULATED_INTEL_KEY),
   ]);
   const cpuSignature = keccak256(cpuQuoteMaterial);
 
-  // Generate GPU signature (simulated NVIDIA CC attestation)
+  // Generate SIMULATED GPU signature
   const gpuQuoteMaterial = new Uint8Array([
     ...toBytes(codeHash),
     ...toBytes(reportData),
-    ...toBytes(NVIDIA_ROOT_KEY),
+    ...toBytes(SIMULATED_NVIDIA_KEY),
   ]);
   const gpuSignature = keccak256(gpuQuoteMaterial);
 
@@ -95,6 +108,7 @@ export function generateQuote(
     gpuSignature,
     timestamp,
     operatorAddress,
+    isSimulated: true, // Honest flag!
   };
 
   console.log(`[Attestation] Generated quote for ${operatorAddress}`);
@@ -103,35 +117,48 @@ export function generateQuote(
 
 /**
  * Verify an attestation quote
- * In real system: verifies against Intel/NVIDIA PKI roots
+ *
+ * For SIMULATED quotes: Verifies internal consistency
+ * For REAL quotes: Would verify against Intel/NVIDIA PKI (not implemented)
  */
 export function verifyQuote(quote: AttestationQuote): VerificationResult {
   const errors: string[] = [];
+  const warnings: string[] = [];
 
-  // Verify CPU signature
+  // Warn about simulation mode
+  if (quote.isSimulated) {
+    warnings.push(
+      'SIMULATION MODE: Attestation is not from real Intel/NVIDIA hardware'
+    );
+    warnings.push(
+      'For production, deploy to Phala CVM and use ProductionTEEEnclave'
+    );
+  }
+
+  // Verify CPU signature (checks internal consistency)
   const expectedCpuSig = keccak256(
     new Uint8Array([
       ...toBytes(quote.mrEnclave),
       ...toBytes(quote.reportData),
-      ...toBytes(INTEL_ROOT_KEY),
+      ...toBytes(SIMULATED_INTEL_KEY),
     ])
   );
   const cpuValid = expectedCpuSig === quote.cpuSignature;
   if (!cpuValid) {
-    errors.push('Invalid CPU/TDX signature');
+    errors.push('Invalid CPU/TDX signature (internal consistency check)');
   }
 
-  // Verify GPU signature
+  // Verify GPU signature (checks internal consistency)
   const expectedGpuSig = keccak256(
     new Uint8Array([
       ...toBytes(quote.mrEnclave),
       ...toBytes(quote.reportData),
-      ...toBytes(NVIDIA_ROOT_KEY),
+      ...toBytes(SIMULATED_NVIDIA_KEY),
     ])
   );
   const gpuValid = expectedGpuSig === quote.gpuSignature;
   if (!gpuValid) {
-    errors.push('Invalid GPU/CC signature');
+    errors.push('Invalid GPU/CC signature (internal consistency check)');
   }
 
   // Check code integrity against expected measurement
@@ -152,35 +179,43 @@ export function verifyQuote(quote: AttestationQuote): VerificationResult {
   return {
     valid: cpuValid && gpuValid && codeIntegrity && errors.length === 0,
     codeIntegrity,
-    hardwareAuthentic: cpuValid && gpuValid,
+    // Hardware authenticity is only true for non-simulated quotes
+    hardwareAuthentic: !quote.isSimulated && cpuValid && gpuValid,
     operatorAddress: quote.operatorAddress,
     errors,
+    warnings,
   };
 }
 
 /**
- * Format quote for display (e.g., Trust Center page)
+ * Format quote for display
  */
 export function formatQuoteForDisplay(quote: AttestationQuote): string {
+  const modeWarning = quote.isSimulated
+    ? `
+║  ⚠️ SIMULATION MODE - NOT REAL HARDWARE ATTESTATION ⚠️            ║
+║                                                                   ║`
+    : '';
+
   return `
-╔══════════════════════════════════════════════════════════════╗
-║                    TEE ATTESTATION REPORT                      ║
-╠══════════════════════════════════════════════════════════════╣
-║ Code Measurement (mrEnclave):                                  ║
+╔═══════════════════════════════════════════════════════════════════╗
+║                    TEE ATTESTATION REPORT                         ║
+╠═══════════════════════════════════════════════════════════════════╣${modeWarning}
+║ Code Measurement (mrEnclave):                                     ║
 ║   ${quote.mrEnclave}
-║                                                                ║
-║ Operator Address:                                              ║
+║                                                                   ║
+║ Operator Address:                                                 ║
 ║   ${quote.operatorAddress}
-║                                                                ║
-║ Report Data:                                                   ║
+║                                                                   ║
+║ Report Data:                                                      ║
 ║   ${quote.reportData}
-║                                                                ║
-║ CPU (Intel TDX) Signature:                                     ║
+║                                                                   ║
+║ CPU (Intel TDX) Signature:                                        ║
 ║   ${quote.cpuSignature}
-║                                                                ║
-║ GPU (NVIDIA CC) Signature:                                     ║
+║                                                                   ║
+║ GPU (NVIDIA CC) Signature:                                        ║
 ║   ${quote.gpuSignature}
-║                                                                ║
+║                                                                   ║
 ║ Timestamp: ${new Date(quote.timestamp).toISOString()}
-╚══════════════════════════════════════════════════════════════╝`;
+╚═══════════════════════════════════════════════════════════════════╝`;
 }

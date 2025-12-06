@@ -5,9 +5,9 @@
  * Considers goals, constraints, and opportunities to generate comprehensive action plans.
  */
 
+import { countTokensSync, truncateToTokenLimitSync } from '@babylon/api';
 import type { JsonValue } from '@babylon/db';
 import { db } from '@babylon/db';
-import { countTokensSync, truncateToTokenLimitSync } from '@babylon/engine';
 import type { IAgentRuntime } from '@elizaos/core';
 import { callGroqDirect } from '../llm/direct-groq';
 import { logger } from '../shared/logger';

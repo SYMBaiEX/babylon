@@ -103,61 +103,49 @@ async function main(): Promise<void> {
     process.exit(0);
   }
 
-  try {
-    switch (domain) {
-      case 'db':
-        await runDbCommand(commandArgs);
-        break;
+  switch (domain) {
+    case 'db':
+      await runDbCommand(commandArgs);
+      break;
 
-      case 'admin':
-        await runAdminCommand(commandArgs);
-        break;
+    case 'admin':
+      await runAdminCommand(commandArgs);
+      break;
 
-      case 'status':
-        await runStatusCommand(commandArgs);
-        break;
+    case 'status':
+      await runStatusCommand(commandArgs);
+      break;
 
-      case 'train':
-        await runTrainCommand(commandArgs);
-        break;
+    case 'train':
+      await runTrainCommand(commandArgs);
+      break;
 
-      case 'model':
-        await runModelCommand(commandArgs);
-        break;
+    case 'model':
+      await runModelCommand(commandArgs);
+      break;
 
-      case 'game':
-        await runGameCommand(commandArgs);
-        break;
+    case 'game':
+      await runGameCommand(commandArgs);
+      break;
 
-      case 'agent':
-        await runAgentCommand(commandArgs);
-        break;
+    case 'agent':
+      await runAgentCommand(commandArgs);
+      break;
 
-      case 'deploy':
-        await runDeployCommand(commandArgs);
-        break;
+    case 'deploy':
+      await runDeployCommand(commandArgs);
+      break;
 
-      case 'test':
-        await runTestCommand(commandArgs);
-        break;
+    case 'test':
+      await runTestCommand(commandArgs);
+      break;
 
-      default:
-        console.error(`Unknown domain: ${domain}`);
-        console.log("\nRun 'babylon --help' for usage information.");
-        process.exit(1);
-    }
-    process.exit(0);
-  } catch (error) {
-    if (error instanceof Error) {
-      console.error(`\n❌ Error: ${error.message}`);
-      if (process.env.DEBUG) {
-        console.error(error.stack);
-      }
-    } else {
-      console.error('\n❌ An unexpected error occurred');
-    }
-    process.exit(1);
+    default:
+      console.error(`Unknown domain: ${domain}`);
+      console.log("\nRun 'babylon --help' for usage information.");
+      process.exit(1);
   }
+  process.exit(0);
 }
 
 if (import.meta.main) {

@@ -69,7 +69,6 @@ export interface Agent0SearchFilters {
   minReputation?: number;
   active?: boolean; // Filter by active status
   x402Support?: boolean;
-  hasX402?: boolean; // Legacy, use x402Support instead
   type?: string;
 }
 

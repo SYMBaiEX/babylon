@@ -98,126 +98,117 @@ import { NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
-  try {
-    const { searchParams } = new URL(req.url);
+  const { searchParams } = new URL(req.url);
 
-    // Parse query parameters
-    const typesParam = searchParams.get('types');
-    const skillsParam = searchParams.get('skills');
-    const domainsParam = searchParams.get('domains');
-    const matchMode = (searchParams.get('matchMode') as 'any' | 'all') || 'all';
-    const search = searchParams.get('search') || undefined;
-    const limit = Number.parseInt(searchParams.get('limit') || '50');
-    const offset = Number.parseInt(searchParams.get('offset') || '0');
+  // Parse query parameters
+  const typesParam = searchParams.get('types');
+  const skillsParam = searchParams.get('skills');
+  const domainsParam = searchParams.get('domains');
+  const matchMode = (searchParams.get('matchMode') as 'any' | 'all') || 'all';
+  const search = searchParams.get('search') || undefined;
+  const limit = Number.parseInt(searchParams.get('limit') || '50');
+  const offset = Number.parseInt(searchParams.get('offset') || '0');
 
-    // Build discovery filter
-    const filter: AgentDiscoveryFilter = {
-      // Parse types (comma-separated string to enum array)
-      types: typesParam
-        ? (typesParam
-            .split(',')
-            .filter((t) =>
-              Object.values(AgentType).includes(t as AgentType)
-            ) as AgentType[])
-        : undefined,
+  // Build discovery filter
+  const filter: AgentDiscoveryFilter = {
+    // Parse types (comma-separated string to enum array)
+    types: typesParam
+      ? (typesParam
+          .split(',')
+          .filter((t) =>
+            Object.values(AgentType).includes(t as AgentType)
+          ) as AgentType[])
+      : undefined,
 
-      // Only discover active and initialized agents
-      statuses: [AgentStatus.ACTIVE, AgentStatus.INITIALIZED],
+    // Only discover active and initialized agents
+    statuses: [AgentStatus.ACTIVE, AgentStatus.INITIALIZED],
 
-      // Parse OASF skills (comma-separated)
-      requiredSkills: skillsParam
-        ? skillsParam
-            .split(',')
-            .map((s) => s.trim())
-            .filter(Boolean)
-        : undefined,
+    // Parse OASF skills (comma-separated)
+    requiredSkills: skillsParam
+      ? skillsParam
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean)
+      : undefined,
 
-      // Parse OASF domains (comma-separated)
-      requiredDomains: domainsParam
-        ? domainsParam
-            .split(',')
-            .map((d) => d.trim())
-            .filter(Boolean)
-        : undefined,
+    // Parse OASF domains (comma-separated)
+    requiredDomains: domainsParam
+      ? domainsParam
+          .split(',')
+          .map((d) => d.trim())
+          .filter(Boolean)
+      : undefined,
 
-      matchMode,
-      search,
-      limit,
-      offset,
-    };
+    matchMode,
+    search,
+    limit,
+    offset,
+  };
 
-    logger.info(
-      'Agent discovery request',
-      {
-        filter: {
-          ...filter,
-          types: filter.types?.join(','),
-          requiredSkills: filter.requiredSkills?.join(','),
-          requiredDomains: filter.requiredDomains?.join(','),
-        },
+  logger.info(
+    'Agent discovery request',
+    {
+      filter: {
+        ...filter,
+        types: filter.types?.join(','),
+        requiredSkills: filter.requiredSkills?.join(','),
+        requiredDomains: filter.requiredDomains?.join(','),
       },
-      'AgentDiscovery'
-    );
+    },
+    'AgentDiscovery'
+  );
 
-    // Discover agents
-    const agents = await agentRegistry.discoverAgents(filter);
+  // Discover agents
+  const agents = await agentRegistry.discoverAgents(filter);
 
-    // Build agent cards for discovered agents
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
+  // Build agent cards for discovered agents
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
 
-    const agentCards = agents.map((agent) => ({
-      version: '1.0' as const,
-      agentId: agent.agentId,
-      name: agent.name,
-      description: agent.systemPrompt,
-      type: agent.type,
-      status: agent.status,
-      trustLevel: agent.trustLevel,
-      endpoints: {
-        a2a:
-          agent.capabilities.a2aEndpoint ||
-          `${baseUrl}/api/agents/${agent.agentId}/a2a`,
-        mcp:
-          agent.capabilities.mcpEndpoint ||
-          `${baseUrl}/api/agents/${agent.agentId}/mcp`,
-        card: `${baseUrl}/api/agents/${agent.agentId}/card`,
+  const agentCards = agents.map((agent) => ({
+    version: '1.0' as const,
+    agentId: agent.agentId,
+    name: agent.name,
+    description: agent.systemPrompt,
+    type: agent.type,
+    status: agent.status,
+    trustLevel: agent.trustLevel,
+    endpoints: {
+      a2a:
+        agent.capabilities.a2aEndpoint ||
+        `${baseUrl}/api/agents/${agent.agentId}/a2a`,
+      mcp:
+        agent.capabilities.mcpEndpoint ||
+        `${baseUrl}/api/agents/${agent.agentId}/mcp`,
+      card: `${baseUrl}/api/agents/${agent.agentId}/card`,
+    },
+    capabilities: agent.capabilities,
+    authentication: {
+      required: false,
+      methods: [],
+    },
+  }));
+
+  logger.info(
+    `Discovered ${agentCards.length} agents`,
+    {
+      totalFound: agentCards.length,
+      skillsCount: filter.requiredSkills?.length || 0,
+      domainsCount: filter.requiredDomains?.length || 0,
+    },
+    'AgentDiscovery'
+  );
+
+  return NextResponse.json(
+    {
+      agents: agentCards,
+      total: agentCards.length,
+      filter: {
+        types: filter.types,
+        skills: filter.requiredSkills,
+        domains: filter.requiredDomains,
+        matchMode: filter.matchMode,
       },
-      capabilities: agent.capabilities,
-      authentication: {
-        required: false,
-        methods: [],
-      },
-    }));
-
-    logger.info(
-      `Discovered ${agentCards.length} agents`,
-      {
-        totalFound: agentCards.length,
-        skillsCount: filter.requiredSkills?.length || 0,
-        domainsCount: filter.requiredDomains?.length || 0,
-      },
-      'AgentDiscovery'
-    );
-
-    return NextResponse.json(
-      {
-        agents: agentCards,
-        total: agentCards.length,
-        filter: {
-          types: filter.types,
-          skills: filter.requiredSkills,
-          domains: filter.requiredDomains,
-          matchMode: filter.matchMode,
-        },
-      },
-      { status: 200 }
-    );
-  } catch (error) {
-    logger.error('Agent discovery failed', error, 'AgentDiscovery');
-
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
-  }
+    },
+    { status: 200 }
+  );
 }

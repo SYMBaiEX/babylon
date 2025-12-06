@@ -4,6 +4,7 @@
  * LLM judge rubrics for each agent archetype defining what "success" means.
  */
 
+import { createHash } from 'crypto';
 import { ASS_KISSER_PRIORITY_METRICS, ASS_KISSER_RUBRIC } from './ass-kisser';
 import { DEGEN_PRIORITY_METRICS, DEGEN_RUBRIC } from './degen';
 import {
@@ -132,9 +133,11 @@ export function hasCustomRubric(archetype: string): boolean {
 }
 
 /**
- * Get all available archetype names
+ * Get all available archetype names (canonical names only, no aliases)
  */
 export function getAvailableArchetypes(): string[] {
+  // Return only canonical archetype names (with hyphens)
+  // Excludes aliases like 'socialbutterfly', 'goodytwoshoes', etc.
   return [
     'trader',
     'social-butterfly',
@@ -166,3 +169,27 @@ export {
   INFOSEC_RUBRIC,
   LIAR_RUBRIC,
 };
+
+/**
+ * Rubrics version - increment when rubrics change significantly
+ * Used for cache invalidation
+ */
+export const RUBRICS_VERSION = '1.0.0';
+
+/**
+ * Get a hash of the rubric for an archetype
+ * Used for cache invalidation when specific rubrics change
+ */
+export function getRubricHash(archetype: string): string {
+  const rubric = getRubric(archetype);
+  return createHash('sha256').update(rubric).digest('hex').substring(0, 16);
+}
+
+/**
+ * Get the hash of all rubrics combined
+ * Used for detecting any rubric changes
+ */
+export function getAllRubricsHash(): string {
+  const allRubrics = Object.values(RUBRICS).join('::') + DEFAULT_RUBRIC;
+  return createHash('sha256').update(allRubrics).digest('hex').substring(0, 16);
+}

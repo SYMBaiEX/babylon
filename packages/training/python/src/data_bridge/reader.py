@@ -1,6 +1,9 @@
 """
 PostgreSQL Trajectory Reader
 Strong types, async, no error hiding
+
+Loads real agent trajectories from the database.
+Validates that LLM calls exist (no mocked/skipped calls).
 """
 
 import asyncpg
@@ -12,6 +15,59 @@ from datetime import datetime, timedelta
 from ..models import BabylonTrajectory, MarketOutcomes, WindowStatistics, StockOutcome, TrajectoryStep, EnvironmentState, LLMCall, Action, ProviderAccess
 
 logger = logging.getLogger(__name__)
+
+
+def validate_llm_calls(steps: list, min_steps_with_llm: int = 3) -> tuple[bool, list[str]]:
+    """
+    Validate that trajectory steps contain real LLM calls.
+    
+    Training data MUST have actual LLM calls with real prompts and responses.
+    
+    Args:
+        steps: List of step dictionaries
+        min_steps_with_llm: Minimum number of steps that must have LLM calls
+        
+    Returns:
+        Tuple of (is_valid, issues_list)
+    """
+    issues: list[str] = []
+    steps_with_llm = 0
+    total_llm_calls = 0
+    
+    for i, step in enumerate(steps):
+        llm_calls = step.get('llmCalls', step.get('llm_calls', []))
+        
+        if not llm_calls:
+            continue
+            
+        steps_with_llm += 1
+        
+        for j, call in enumerate(llm_calls):
+            total_llm_calls += 1
+            
+            # Get prompts and response with both key formats
+            system_prompt = call.get('systemPrompt', call.get('system_prompt', ''))
+            user_prompt = call.get('userPrompt', call.get('user_prompt', ''))
+            response = call.get('response', '')
+            
+            # Validate content exists
+            if len(system_prompt) < 10:
+                issues.append(f"Step {i}, call {j}: Missing/empty system prompt")
+                
+            if len(user_prompt) < 10:
+                issues.append(f"Step {i}, call {j}: Missing/empty user prompt")
+                
+            if len(response) < 5:
+                issues.append(f"Step {i}, call {j}: Missing/empty response")
+    
+    # Check minimum LLM coverage
+    if steps_with_llm < min_steps_with_llm:
+        issues.append(
+            f"Only {steps_with_llm}/{len(steps)} steps have LLM calls "
+            f"(minimum: {min_steps_with_llm})"
+        )
+    
+    return len(issues) == 0, issues
 
 
 class PostgresTrajectoryReader:
@@ -105,11 +161,21 @@ class PostgresTrajectoryReader:
             )
         
         trajectories = []
+        
         for row in rows:
             # Parse steps JSON
             steps_data = json.loads(row['stepsJson'] or '[]')
             
             if not steps_data:
+                continue
+            
+            # Validate LLM calls exist (training data MUST have real LLM calls)
+            llm_valid, llm_issues = validate_llm_calls(steps_data, min_steps_with_llm=3)
+            if not llm_valid:
+                logger.debug(
+                    f"Skipping trajectory {row['trajectoryId']} - missing LLM calls: "
+                    f"{llm_issues[:2]}"
+                )
                 continue
             
             # Validate and convert steps
@@ -192,6 +258,7 @@ class PostgresTrajectoryReader:
                     final_status=row['finalStatus'] or 'unknown'
                 ))
         
+        logger.info(f"Loaded {len(trajectories)} real trajectories from window {window_id}")
         return trajectories
     
     async def get_market_outcomes(self, window_id: str) -> MarketOutcomes | None:
@@ -282,6 +349,3 @@ class PostgresTrajectoryReader:
     
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         await self.close()
-
-
-

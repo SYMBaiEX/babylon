@@ -72,27 +72,21 @@ async function spawnAgents(args: ReturnType<typeof parseArgs>): Promise<void> {
   const createdAgents: Array<{ username: string; id: string }> = [];
 
   for (let i = 0; i < count; i++) {
-    try {
-      const result = await createTestAgent(`${prefix}-${i}`, {
-        autonomousTrading: enableTrading || enableAll,
-        autonomousPosting: enablePosting || enableAll,
-        autonomousCommenting: enableAll,
-        autonomousDMs: enableAll,
-        autonomousGroupChats: enableAll,
-      });
+    const result = await createTestAgent(`${prefix}-${i}`, {
+      autonomousTrading: enableTrading || enableAll,
+      autonomousPosting: enablePosting || enableAll,
+      autonomousCommenting: enableAll,
+      autonomousDMs: enableAll,
+      autonomousGroupChats: enableAll,
+    });
 
-      createdAgents.push({
-        username: result.agent.username,
-        id: result.agent.id,
-      });
-      console.log(
-        `  ✅ Created: ${result.agent.username} (${result.agent.id})`
-      );
-    } catch (error) {
-      console.log(
-        `  ❌ Error: ${error instanceof Error ? error.message : String(error)}`
-      );
-    }
+    createdAgents.push({
+      username: result.agent.username,
+      id: result.agent.id,
+    });
+    console.log(
+      `  ✅ Created: ${result.agent.username} (${result.agent.id})`
+    );
   }
 
   logger.header('Summary');
@@ -368,36 +362,34 @@ export async function runAgentCommand(args: string[]): Promise<void> {
     process.exit(0);
   }
 
-  try {
-    switch (parsed.command) {
-      case 'spawn':
-        await spawnAgents(parsed);
-        break;
+  switch (parsed.command) {
+    case 'spawn':
+      await spawnAgents(parsed);
+      break;
 
-      case 'list':
-        await listAgents(parsed);
-        break;
+    case 'list':
+      await listAgents(parsed);
+      break;
 
-      case 'enable':
-        await toggleAgentFeatures(parsed, true);
-        break;
+    case 'enable':
+      await toggleAgentFeatures(parsed, true);
+      break;
 
-      case 'disable':
-        await toggleAgentFeatures(parsed, false);
-        break;
+    case 'disable':
+      await toggleAgentFeatures(parsed, false);
+      break;
 
-      case 'agent0-config':
-        await configureAgent0();
-        break;
+    case 'agent0-config':
+      await configureAgent0();
+      break;
 
-      default:
-        if (parsed.command) {
-          logger.fail(`Unknown command: ${parsed.command}`);
-        }
-        printHelp();
-        process.exit(parsed.command ? 1 : 0);
-    }
-  } finally {
-    await closeDatabase();
+    default:
+      if (parsed.command) {
+        logger.fail(`Unknown command: ${parsed.command}`);
+      }
+      printHelp();
+      process.exit(parsed.command ? 1 : 0);
   }
+
+  await closeDatabase();
 }

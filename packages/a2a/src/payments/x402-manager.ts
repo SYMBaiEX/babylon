@@ -87,21 +87,11 @@ export class X402Manager {
 
     // Also store in Redis if available
     if (this.config.redis) {
-      try {
-        await this.config.redis.set(key, serialized, { ex: ttlSeconds });
-        logger.debug('[X402Manager] Stored payment in Redis', {
-          requestId,
-          ttl: ttlSeconds,
-        });
-      } catch (error) {
-        logger.warn(
-          '[X402Manager] Failed to store in Redis, using memory only',
-          {
-            requestId,
-            error,
-          }
-        );
-      }
+      await this.config.redis.set(key, serialized, { ex: ttlSeconds });
+      logger.debug('[X402Manager] Stored payment in Redis', {
+        requestId,
+        ttl: ttlSeconds,
+      });
     } else {
       logger.debug('[X402Manager] Redis not configured, using memory storage', {
         requestId,
@@ -126,47 +116,39 @@ export class X402Manager {
 
     const key = `${REDIS_PREFIX}${requestId}`;
 
-    try {
-      const cached = await this.config.redis.get(key);
+    const cached = await this.config.redis.get(key);
 
-      if (!cached) {
-        logger.debug('[X402Manager] Payment not found', { requestId });
-        return null;
-      }
-
-      const paymentData = JSON.parse(cached);
-      const validation = PendingPaymentSchema.safeParse(paymentData);
-
-      if (!validation.success) {
-        logger.error('[X402Manager] Invalid payment data', {
-          requestId,
-          error: validation.error,
-        });
-        await this.deletePayment(requestId);
-        return null;
-      }
-
-      const payment: PendingPayment = {
-        ...validation.data,
-        request: {
-          ...validation.data.request,
-          metadata: validation.data.request.metadata as Record<
-            string,
-            string | number | boolean | null
-          >,
-        },
-      };
-
-      // Cache in memory
-      this.inMemoryStore.set(requestId, payment);
-      return payment;
-    } catch (error) {
-      logger.error('[X402Manager] Error retrieving payment', {
-        requestId,
-        error,
-      });
+    if (!cached) {
+      logger.debug('[X402Manager] Payment not found', { requestId });
       return null;
     }
+
+    const paymentData = JSON.parse(cached);
+    const validation = PendingPaymentSchema.safeParse(paymentData);
+
+    if (!validation.success) {
+      logger.error('[X402Manager] Invalid payment data', {
+        requestId,
+        error: validation.error,
+      });
+      await this.deletePayment(requestId);
+      return null;
+    }
+
+    const payment: PendingPayment = {
+      ...validation.data,
+      request: {
+        ...validation.data.request,
+        metadata: validation.data.request.metadata as Record<
+          string,
+          string | number | boolean | null
+        >,
+      },
+    };
+
+    // Cache in memory
+    this.inMemoryStore.set(requestId, payment);
+    return payment;
   }
 
   /**
@@ -186,15 +168,8 @@ export class X402Manager {
 
     // Update Redis if available
     if (this.config.redis) {
-      try {
-        await this.config.redis.set(key, serialized, { ex: ttlSeconds });
-        logger.debug('[X402Manager] Updated payment', { requestId });
-      } catch (error) {
-        logger.warn('[X402Manager] Failed to update in Redis', {
-          requestId,
-          error,
-        });
-      }
+      await this.config.redis.set(key, serialized, { ex: ttlSeconds });
+      logger.debug('[X402Manager] Updated payment', { requestId });
     }
   }
 
@@ -209,15 +184,8 @@ export class X402Manager {
 
     // Remove from Redis if available
     if (this.config.redis) {
-      try {
-        await this.config.redis.del(key);
-        logger.debug('[X402Manager] Deleted payment', { requestId });
-      } catch (error) {
-        logger.warn('[X402Manager] Failed to delete from Redis', {
-          requestId,
-          error,
-        });
-      }
+      await this.config.redis.del(key);
+      logger.debug('[X402Manager] Deleted payment', { requestId });
     }
   }
 

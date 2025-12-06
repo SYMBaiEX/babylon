@@ -46,7 +46,7 @@ import type {
   TrainingTriggerResult,
   TrajectoryStep,
 } from './types';
-import { getCurrentWindowId } from './window-utils';
+import { getCurrentWindowId, getPreviousWindowId } from './window-utils';
 
 export type { AutomationConfig };
 
@@ -479,7 +479,9 @@ export class AutomationPipeline {
         })
         .where(eq(trainingBatches.batchId, batchId))
         .catch((err: unknown) =>
-          logger.error('Failed to update batch status', { error: err })
+          logger.error('Failed to update batch status', {
+            error: err instanceof Error ? err : String(err),
+          })
         );
     });
 
@@ -709,13 +711,12 @@ export class AutomationPipeline {
 
     // Score current window and previous windows
     for (let hoursAgo = 0; hoursAgo < 24; hoursAgo++) {
-      const windowDate = new Date(Date.now() - hoursAgo * 60 * 60 * 1000);
-      const windowIdStr = windowDate.toISOString().slice(0, 13) + ':00';
+      const windowId = getPreviousWindowId(hoursAgo);
 
-      const scored = await rulerScoringService.scoreWindow(windowIdStr);
+      const scored = await rulerScoringService.scoreWindow(windowId);
       if (scored > 0) {
         logger.info('Scored trajectories with RULER', {
-          windowId: windowIdStr,
+          windowId,
           scored,
         });
       }
@@ -918,33 +919,27 @@ export class AutomationPipeline {
    * Run health checks
    */
   private async runHealthChecks(): Promise<void> {
-    try {
-      // Check database connectivity
-      await db.select({ count: count() }).from(users);
+    // Check database connectivity
+    await db.select({ count: count() }).from(users);
 
-      // Check data collection rate
-      const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
-      const last1hResult = await db
-        .select({ count: count() })
-        .from(trajectories)
-        .where(gte(trajectories.startTime, oneHourAgo));
+    // Check data collection rate
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+    const last1hResult = await db
+      .select({ count: count() })
+      .from(trajectories)
+      .where(gte(trajectories.startTime, oneHourAgo));
 
-      const last1h = last1hResult[0]?.count || 0;
+    const last1h = last1hResult[0]?.count || 0;
 
-      if (last1h < 1) {
-        logger.warn('Low data collection rate', {
-          trajectoriesLastHour: last1h,
-        });
-      }
-
-      // Check disk space for model storage
-      await fs.mkdir(this.config.modelStoragePath, { recursive: true });
-      await fs.mkdir(this.config.dataStoragePath, { recursive: true });
-    } catch (error) {
-      logger.error('Health check failed', {
-        error: error instanceof Error ? error.message : String(error),
+    if (last1h < 1) {
+      logger.warn('Low data collection rate', {
+        trajectoriesLastHour: last1h,
       });
     }
+
+    // Check disk space for model storage
+    await fs.mkdir(this.config.modelStoragePath, { recursive: true });
+    await fs.mkdir(this.config.dataStoragePath, { recursive: true });
   }
 
   /**
@@ -996,22 +991,12 @@ export class AutomationPipeline {
       .where(eq(trainingBatches.status, 'training'));
     const trainingCount = trainingCountResult[0]?.count || 0;
 
-    // Health checks
-    let dbHealthy = false;
-    try {
-      await db.select({ count: count() }).from(users);
-      dbHealthy = true;
-    } catch {
-      dbHealthy = false;
-    }
+    // Health checks - fail fast if unhealthy
+    await db.select({ count: count() }).from(users);
+    const dbHealthy = true;
 
-    let storageHealthy = false;
-    try {
-      await fs.access(this.config.modelStoragePath);
-      storageHealthy = true;
-    } catch {
-      storageHealthy = false;
-    }
+    await fs.access(this.config.modelStoragePath);
+    const storageHealthy = true;
 
     const atroposHealthy = !!this.config.atroposApiUrl;
 

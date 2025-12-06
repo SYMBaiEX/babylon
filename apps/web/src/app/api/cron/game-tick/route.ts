@@ -197,16 +197,16 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     });
   }
 
-  try {
-    logger.info(
-      '🎮 Game tick started',
-      {
-        lockId,
-        gameStartEnv: process.env.GAME_START || 'not set (defaults to true)',
-      },
-      'Cron'
-    );
+  logger.info(
+    '🎮 Game tick started',
+    {
+      lockId,
+      gameStartEnv: process.env.GAME_START || 'not set (defaults to true)',
+    },
+    'Cron'
+  );
 
+  try {
     // 4. Check if we should skip (maintenance mode, etc.) - system operation
     const gameState = await asSystem(async (db) => {
       logger.info(

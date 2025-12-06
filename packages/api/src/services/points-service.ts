@@ -16,6 +16,7 @@ import {
   gt,
   gte,
   isNull,
+  type JsonValue,
   ne,
   pointsTransactions,
   referrals,
@@ -28,8 +29,6 @@ import {
   POINTS,
   type PointsReason,
 } from '@babylon/shared';
-
-import type { JsonValue } from '../types';
 
 /**
  * Maximum number of unqualified referrals that can earn signup points at any time.

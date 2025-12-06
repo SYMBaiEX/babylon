@@ -141,66 +141,57 @@ export class AutonomousCoordinator {
         'AutonomousCoordinator'
       );
 
-      try {
-        // Generate comprehensive action plan
-        const plan = await autonomousPlanningCoordinator.generateActionPlan(
-          agentUserId,
-          runtime
-        );
+      // Generate comprehensive action plan
+      const plan = await autonomousPlanningCoordinator.generateActionPlan(
+        agentUserId,
+        runtime
+      );
 
-        // Execute the plan
-        const executionResult = await autonomousPlanningCoordinator.executePlan(
-          agentUserId,
-          runtime,
-          plan
-        );
+      // Execute the plan
+      const executionResult = await autonomousPlanningCoordinator.executePlan(
+        agentUserId,
+        runtime,
+        plan
+      );
 
-        // Map results to standard format
-        for (const actionResult of executionResult.results) {
-          if (actionResult.success) {
-            switch (actionResult.action.type) {
-              case 'trade':
-                result.actionsExecuted.trades++;
-                break;
-              case 'post':
-                result.actionsExecuted.posts++;
-                break;
-              case 'comment':
-              case 'respond':
-                result.actionsExecuted.comments++;
-                break;
-              case 'message':
-                result.actionsExecuted.messages++;
-                break;
-            }
+      // Map results to standard format
+      for (const actionResult of executionResult.results) {
+        if (actionResult.success) {
+          switch (actionResult.action.type) {
+            case 'trade':
+              result.actionsExecuted.trades++;
+              break;
+            case 'post':
+              result.actionsExecuted.posts++;
+              break;
+            case 'comment':
+            case 'respond':
+              result.actionsExecuted.comments++;
+              break;
+            case 'message':
+              result.actionsExecuted.messages++;
+              break;
           }
         }
-
-        result.success = executionResult.successful > 0;
-        result.method = 'planning_coordinator';
-        result.duration = Date.now() - startTime;
-
-        logger.info(
-          'Completed autonomous tick via planning coordinator',
-          {
-            agentId: agentUserId,
-            planned: executionResult.planned,
-            executed: executionResult.executed,
-            successful: executionResult.successful,
-            duration: result.duration,
-          },
-          'AutonomousCoordinator'
-        );
-
-        return result;
-      } catch (error) {
-        logger.error(
-          'Planning coordinator failed',
-          error,
-          'AutonomousCoordinator'
-        );
-        throw error; // Fail fast - don't fall back silently
       }
+
+      result.success = executionResult.successful > 0;
+      result.method = 'planning_coordinator';
+      result.duration = Date.now() - startTime;
+
+      logger.info(
+        'Completed autonomous tick via planning coordinator',
+        {
+          agentId: agentUserId,
+          planned: executionResult.planned,
+          executed: executionResult.executed,
+          successful: executionResult.successful,
+          duration: result.duration,
+        },
+        'AutonomousCoordinator'
+      );
+
+      return result;
     }
 
     // Check if A2A client is connected
@@ -299,10 +290,10 @@ export class AutonomousCoordinator {
               pnlChange,
               initialPnL: initialState.agentPnL,
               finalPnL: afterState.agentPnL,
-              marketId: tradeInfo.marketId,
-              ticker: tradeInfo.ticker,
-              side: tradeInfo.side,
-              marketType: tradeInfo.marketType,
+              marketId: tradeInfo.marketId ?? null,
+              ticker: tradeInfo.ticker ?? null,
+              side: tradeInfo.side ?? null,
+              marketType: tradeInfo.marketType ?? null,
             },
             success: result.actionsExecuted.trades > 0,
           },
@@ -314,22 +305,11 @@ export class AutonomousCoordinator {
     // === PRIORITY 3: SOCIAL (Posting) ===
     if (agent.autonomousPosting) {
       if (useA2A) {
-        try {
-          const trendingResult = await autonomousA2AService.engageWithTrending(
-            agentUserId,
-            runtime
-          );
-          result.actionsExecuted.engagements += trendingResult.engagements;
-        } catch (a2aError) {
-          logger.warn(
-            'A2A trending engagement failed, continuing with direct posting',
-            {
-              error:
-                a2aError instanceof Error ? a2aError.message : String(a2aError),
-            },
-            'AutonomousCoordinator'
-          );
-        }
+        const trendingResult = await autonomousA2AService.engageWithTrending(
+          agentUserId,
+          runtime
+        );
+        result.actionsExecuted.engagements += trendingResult.engagements;
       }
 
       // Capture initial state if recording trajectories

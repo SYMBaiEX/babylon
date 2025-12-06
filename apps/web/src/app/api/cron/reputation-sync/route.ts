@@ -124,72 +124,63 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
 
   await relayCronToStaging(request, 'reputation-sync');
 
-  try {
-    // Parse query parameters for batch processing
-    const { searchParams } = new URL(request.url);
-    const batchMode = searchParams.get('batch') === 'true';
-    const limit = Number.parseInt(searchParams.get('limit') || '100', 10);
-    const offset = Number.parseInt(searchParams.get('offset') || '0', 10);
-    const forceRecalculate = searchParams.get('force') === 'true';
+  // Parse query parameters for batch processing
+  const { searchParams } = new URL(request.url);
+  const batchMode = searchParams.get('batch') === 'true';
+  const limit = Number.parseInt(searchParams.get('limit') || '100', 10);
+  const offset = Number.parseInt(searchParams.get('offset') || '0', 10);
+  const forceRecalculate = searchParams.get('force') === 'true';
 
-    let result;
+  let result;
 
-    if (batchMode) {
-      // Process a specific batch (useful for large syncs)
-      logger.info(
-        `Processing batch: limit=${limit}, offset=${offset}`,
-        undefined,
-        'ReputationSyncCron'
-      );
-      result = await batchSyncReputationsToERC8004({
-        limit,
-        offset,
-        forceRecalculate,
-        prioritizeNew: offset === 0,
-      });
-    } else {
-      // Full sync (processes all users)
-      logger.info(
-        'Processing full reputation sync',
-        undefined,
-        'ReputationSyncCron'
-      );
-      result = await syncAllReputationsToERC8004();
-    }
-
-    const duration = Date.now() - startTime;
-
+  if (batchMode) {
+    // Process a specific batch (useful for large syncs)
     logger.info(
-      '✅ Reputation sync completed',
-      {
-        duration,
-        total: result.total,
-        synced: result.synced,
-        failed: result.failed,
-        skipped: result.skipped,
-      },
+      `Processing batch: limit=${limit}, offset=${offset}`,
+      undefined,
       'ReputationSyncCron'
     );
-
-    return successResponse({
-      success: true,
-      duration,
-      result: {
-        total: result.total,
-        synced: result.synced,
-        failed: result.failed,
-        skipped: result.skipped,
-      },
-      batchMode,
-      limit: batchMode ? limit : undefined,
-      offset: batchMode ? offset : undefined,
+    result = await batchSyncReputationsToERC8004({
+      limit,
+      offset,
+      forceRecalculate,
+      prioritizeNew: offset === 0,
     });
-  } catch (error) {
-    logger.error(
-      '❌ Reputation sync cron failed',
-      { error },
+  } else {
+    // Full sync (processes all users)
+    logger.info(
+      'Processing full reputation sync',
+      undefined,
       'ReputationSyncCron'
     );
-    throw error;
+    result = await syncAllReputationsToERC8004();
   }
+
+  const duration = Date.now() - startTime;
+
+  logger.info(
+    '✅ Reputation sync completed',
+    {
+      duration,
+      total: result.total,
+      synced: result.synced,
+      failed: result.failed,
+      skipped: result.skipped,
+    },
+    'ReputationSyncCron'
+  );
+
+  return successResponse({
+    success: true,
+    duration,
+    result: {
+      total: result.total,
+      synced: result.synced,
+      failed: result.failed,
+      skipped: result.skipped,
+    },
+    batchMode,
+    limit: batchMode ? limit : undefined,
+    offset: batchMode ? offset : undefined,
+  });
 });

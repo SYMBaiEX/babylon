@@ -18,7 +18,7 @@
  */
 'use client';
 
-import { cn } from '@babylon/shared';
+import { cn, type JsonValue } from '@babylon/shared';
 import { AlertCircle, DollarSign } from 'lucide-react';
 import { useCallback, useEffect, useState, useTransition } from 'react';
 import { toast } from 'sonner';
@@ -43,7 +43,7 @@ interface Appeal {
   appealStakeAmount: number | null;
   appealStakeTxHash: string | null;
   appealSubmittedAt: Date | null;
-  falsePositiveHistory: unknown;
+  falsePositiveHistory: Array<Record<string, JsonValue>> | null;
   earnedPoints: number;
   totalDeposited: number;
   totalWithdrawn: number;

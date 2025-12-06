@@ -92,28 +92,14 @@ export class Agent0FeedbackService {
     }
 
     // Initialize SDK with signer for feedback submission
-    try {
-      this.sdk = new SDK({
-        chainId: this.chainId,
-        rpcUrl,
-        signer: feedbackPrivateKey || '',
-        ipfs: ipfsProvider,
-        pinataJwt: process.env.PINATA_JWT,
-        ipfsNodeUrl: isLocalnet ? 'https://ipfs.io' : undefined,
-      });
-    } catch (error) {
-      logger.error(
-        'Failed to initialize Agent0FeedbackService SDK',
-        {
-          error: error instanceof Error ? error.message : String(error),
-          chainId: this.chainId,
-          rpcUrl,
-          ipfsProvider,
-        },
-        'Agent0FeedbackService'
-      );
-      throw error;
-    }
+    this.sdk = new SDK({
+      chainId: this.chainId,
+      rpcUrl,
+      signer: feedbackPrivateKey || '',
+      ipfs: ipfsProvider,
+      pinataJwt: process.env.PINATA_JWT,
+      ipfsNodeUrl: isLocalnet ? 'https://ipfs.io' : undefined,
+    });
   }
 
   /**
@@ -122,13 +108,13 @@ export class Agent0FeedbackService {
    * This writes feedback to Agent0's on-chain reputation system
    */
   async submitFeedback(params: FeedbackParams): Promise<void> {
-    try {
-      logger.info('Submitting feedback to Agent0', {
-        agentId: params.agentId,
-        score: params.score,
-        skill: params.skill,
-      });
+    logger.info('Submitting feedback to Agent0', {
+      agentId: params.agentId,
+      score: params.score,
+      skill: params.skill,
+    });
 
+    try {
       // Get user's wallet address for signature
       const userResult = await db
         .select({ walletAddress: users.walletAddress })
@@ -194,102 +180,89 @@ export class Agent0FeedbackService {
    * Get reputation summary for an agent
    */
   async getAgentReputation(agentId: string): Promise<ReputationSummary | null> {
-    try {
-      const reputation = await this.sdk.getReputationSummary(
-        agentId,
-        undefined // tag filter
-      );
+    const reputation = await this.sdk.getReputationSummary(
+      agentId,
+      undefined // tag filter
+    );
 
-      // Parse skill scores from feedback details if available
-      const skillScores: Record<string, { score: number; count: number }> = {};
+    // Parse skill scores from feedback details if available
+    const skillScores: Record<string, { score: number; count: number }> = {};
 
-      // Try to get detailed feedback to extract skill scores
-      try {
-        // Check if reputation object has feedback details or if we need to fetch them separately
-        // The SDK structure may vary, so we'll try multiple approaches
-        const reputationObj = reputation as Record<string, unknown>;
+    // Get detailed feedback to extract skill scores
+    // Check if reputation object has feedback details or if we need to fetch them separately
+    // The SDK structure may vary, so we'll try multiple approaches
+    const reputationObj = reputation as Record<string, unknown>;
 
-        // If feedback array is available, parse skills from it
-        if (Array.isArray(reputationObj.feedback)) {
-          const feedbacks = reputationObj.feedback as Array<{
-            skill?: string;
-            score?: number;
-          }>;
+    // If feedback array is available, parse skills from it
+    if (Array.isArray(reputationObj.feedback)) {
+      const feedbacks = reputationObj.feedback as Array<{
+        skill?: string;
+        score?: number;
+      }>;
 
-          for (const feedback of feedbacks) {
-            if (feedback.skill && typeof feedback.score === 'number') {
-              const skill = feedback.skill;
-              if (!skillScores[skill]) {
-                skillScores[skill] = { score: 0, count: 0 };
-              }
-              const skillData = skillScores[skill];
-              if (skillData) {
-                skillData.score += feedback.score;
-                skillData.count += 1;
-              }
-            }
-          }
-
-          // Calculate averages
-          for (const skill in skillScores) {
-            const skillData = skillScores[skill];
-            if (skillData && skillData.count > 0) {
-              skillData.score = skillData.score / skillData.count;
-            }
-          }
-        }
-      } catch (parseError) {
-        // If parsing fails, continue with empty skill scores
-        logger.debug('Could not parse skill scores from reputation', {
-          error: parseError,
-          agentId,
-        });
-      }
-
-      // Also check local feedback records for skill breakdown
-      const localFeedback = await db
-        .select()
-        .from(gameConfigs)
-        .where(like(gameConfigs.key, `agent0_feedback_${agentId}_%`));
-
-      for (const config of localFeedback) {
-        const feedbackData = config.value as {
-          skill?: string;
-          score?: number;
-        } | null;
-        if (feedbackData?.skill && typeof feedbackData.score === 'number') {
-          const skill = feedbackData.skill;
+      for (const feedback of feedbacks) {
+        if (feedback.skill && typeof feedback.score === 'number') {
+          const skill = feedback.skill;
           if (!skillScores[skill]) {
             skillScores[skill] = { score: 0, count: 0 };
           }
           const skillData = skillScores[skill];
           if (skillData) {
-            skillData.score += feedbackData.score;
+            skillData.score += feedback.score;
             skillData.count += 1;
           }
         }
       }
 
-      // Calculate averages for local feedback
+      // Calculate averages
       for (const skill in skillScores) {
         const skillData = skillScores[skill];
         if (skillData && skillData.count > 0) {
-          const totalScore = skillData.score;
-          const count = skillData.count;
-          skillData.score = totalScore / count;
+          skillData.score = skillData.score / skillData.count;
         }
       }
-
-      return {
-        agentId,
-        averageScore: reputation.averageScore || 0,
-        totalFeedback: reputation.count || 0,
-        skillScores,
-      };
-    } catch (error) {
-      logger.error('Failed to get reputation', { error, agentId });
-      return null;
     }
+
+    // Also check local feedback records for skill breakdown
+    const localFeedback = await db
+      .select()
+      .from(gameConfigs)
+      .where(like(gameConfigs.key, `agent0_feedback_${agentId}_%`));
+
+    for (const config of localFeedback) {
+      const feedbackData = config.value as {
+        skill?: string;
+        score?: number;
+      } | null;
+      if (feedbackData?.skill && typeof feedbackData.score === 'number') {
+        const skill = feedbackData.skill;
+        if (!skillScores[skill]) {
+          skillScores[skill] = { score: 0, count: 0 };
+        }
+        const skillData = skillScores[skill];
+        if (skillData) {
+          skillData.score += feedbackData.score;
+          skillData.count += 1;
+        }
+      }
+    }
+
+    // Calculate averages for local feedback
+    for (const skill in skillScores) {
+      const skillData = skillScores[skill];
+      if (skillData && skillData.count > 0) {
+        const totalScore = skillData.score;
+        const count = skillData.count;
+        skillData.score = totalScore / count;
+      }
+    }
+
+    return {
+      agentId,
+      averageScore: reputation.averageScore || 0,
+      totalFeedback: reputation.count || 0,
+      skillScores,
+    };
   }
 
   /**
@@ -378,11 +351,10 @@ export class Agent0FeedbackService {
           agent0AgentId,
         });
       } catch (error) {
-        logger.error('Failed to submit rating to Agent0, storing locally', {
-          error,
+        logger.warn('Failed to submit to Agent0, storing locally only', {
           agentUserId: babylonAgentUserId,
+          error: String(error),
         });
-        // Fall through to local storage
       }
     }
 

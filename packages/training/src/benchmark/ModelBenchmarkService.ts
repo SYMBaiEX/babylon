@@ -14,13 +14,7 @@
  * @see BenchmarkService - For training pipeline evaluation
  */
 
-import {
-  benchmarkResults,
-  db,
-  type JsonValue,
-  trainedModels,
-  users,
-} from '@babylon/db';
+import { benchmarkResults, db, trainedModels, users } from '@babylon/db';
 import { and, desc, eq, isNull, sql } from 'drizzle-orm';
 import { ethers } from 'ethers';
 import { promises as fs } from 'fs';
@@ -29,6 +23,10 @@ import { getAgentRuntimeManager } from '../dependencies';
 import { logger } from '../utils/logger';
 import { generateSnowflakeId } from '../utils/snowflake';
 import { BenchmarkRunner } from './BenchmarkRunner';
+import {
+  type JsonValue,
+  parseSimulationMetrics,
+} from './parseSimulationMetrics';
 import type { SimulationMetrics, SimulationResult } from './SimulationEngine';
 
 export interface ModelBenchmarkOptions {
@@ -413,7 +411,7 @@ export class ModelBenchmarkService {
       benchmarkId: r.benchmarkId,
       benchmarkPath: r.benchmarkPath,
       runAt: r.runAt,
-      metrics: this.validateSimulationMetrics(r.detailedMetrics),
+      metrics: parseSimulationMetrics(r.detailedMetrics as JsonValue),
       comparisonToBaseline:
         r.baselinePnlDelta !== null
           ? {
@@ -519,153 +517,6 @@ export class ModelBenchmarkService {
     }
 
     return this.calculateAverageMetrics(metricsArray);
-  }
-
-  /**
-   * Validate and convert JsonValue to SimulationMetrics
-   */
-  private static validateSimulationMetrics(data: JsonValue): SimulationMetrics {
-    if (typeof data !== 'object' || data === null) {
-      throw new Error('Invalid SimulationMetrics: expected object');
-    }
-
-    const metrics = data as Record<string, JsonValue>;
-
-    // Validate required fields
-    if (typeof metrics.totalPnl !== 'number') {
-      throw new Error('Invalid SimulationMetrics: totalPnl must be a number');
-    }
-
-    if (
-      typeof metrics.predictionMetrics !== 'object' ||
-      metrics.predictionMetrics === null
-    ) {
-      throw new Error(
-        'Invalid SimulationMetrics: predictionMetrics must be an object'
-      );
-    }
-
-    if (
-      typeof metrics.perpMetrics !== 'object' ||
-      metrics.perpMetrics === null
-    ) {
-      throw new Error(
-        'Invalid SimulationMetrics: perpMetrics must be an object'
-      );
-    }
-
-    if (typeof metrics.optimalityScore !== 'number') {
-      throw new Error(
-        'Invalid SimulationMetrics: optimalityScore must be a number'
-      );
-    }
-
-    if (typeof metrics.timing !== 'object' || metrics.timing === null) {
-      throw new Error('Invalid SimulationMetrics: timing must be an object');
-    }
-
-    // Validate nested structures
-    const predictionMetrics = metrics.predictionMetrics as Record<
-      string,
-      JsonValue
-    >;
-    const perpMetrics = metrics.perpMetrics as Record<string, JsonValue>;
-    const timing = metrics.timing as Record<string, JsonValue>;
-
-    // Type assertion is safe after validation - use unknown as intermediate type
-    return {
-      totalPnl: metrics.totalPnl as number,
-      predictionMetrics: {
-        totalPositions:
-          typeof predictionMetrics.totalPositions === 'number'
-            ? predictionMetrics.totalPositions
-            : 0,
-        correctPredictions:
-          typeof predictionMetrics.correctPredictions === 'number'
-            ? predictionMetrics.correctPredictions
-            : 0,
-        incorrectPredictions:
-          typeof predictionMetrics.incorrectPredictions === 'number'
-            ? predictionMetrics.incorrectPredictions
-            : 0,
-        accuracy:
-          typeof predictionMetrics.accuracy === 'number'
-            ? predictionMetrics.accuracy
-            : 0,
-        avgPnlPerPosition:
-          typeof predictionMetrics.avgPnlPerPosition === 'number'
-            ? predictionMetrics.avgPnlPerPosition
-            : 0,
-      },
-      perpMetrics: {
-        totalTrades:
-          typeof perpMetrics.totalTrades === 'number'
-            ? perpMetrics.totalTrades
-            : 0,
-        profitableTrades:
-          typeof perpMetrics.profitableTrades === 'number'
-            ? perpMetrics.profitableTrades
-            : 0,
-        winRate:
-          typeof perpMetrics.winRate === 'number' ? perpMetrics.winRate : 0,
-        avgPnlPerTrade:
-          typeof perpMetrics.avgPnlPerTrade === 'number'
-            ? perpMetrics.avgPnlPerTrade
-            : 0,
-        maxDrawdown:
-          typeof perpMetrics.maxDrawdown === 'number'
-            ? perpMetrics.maxDrawdown
-            : 0,
-      },
-      socialMetrics:
-        typeof metrics.socialMetrics === 'object' &&
-        metrics.socialMetrics !== null
-          ? {
-              postsCreated:
-                typeof (metrics.socialMetrics as Record<string, JsonValue>)
-                  .postsCreated === 'number'
-                  ? ((metrics.socialMetrics as Record<string, JsonValue>)
-                      .postsCreated as number)
-                  : 0,
-              groupsJoined:
-                typeof (metrics.socialMetrics as Record<string, JsonValue>)
-                  .groupsJoined === 'number'
-                  ? ((metrics.socialMetrics as Record<string, JsonValue>)
-                      .groupsJoined as number)
-                  : 0,
-              messagesReceived:
-                typeof (metrics.socialMetrics as Record<string, JsonValue>)
-                  .messagesReceived === 'number'
-                  ? ((metrics.socialMetrics as Record<string, JsonValue>)
-                      .messagesReceived as number)
-                  : 0,
-              reputationGained:
-                typeof (metrics.socialMetrics as Record<string, JsonValue>)
-                  .reputationGained === 'number'
-                  ? ((metrics.socialMetrics as Record<string, JsonValue>)
-                      .reputationGained as number)
-                  : 0,
-            }
-          : {
-              postsCreated: 0,
-              groupsJoined: 0,
-              messagesReceived: 0,
-              reputationGained: 0,
-            },
-      timing: {
-        avgResponseTime:
-          typeof timing.avgResponseTime === 'number'
-            ? timing.avgResponseTime
-            : 0,
-        maxResponseTime:
-          typeof timing.maxResponseTime === 'number'
-            ? timing.maxResponseTime
-            : 0,
-        totalDuration:
-          typeof timing.totalDuration === 'number' ? timing.totalDuration : 0,
-      },
-      optimalityScore: metrics.optimalityScore as number,
-    };
   }
 
   /**

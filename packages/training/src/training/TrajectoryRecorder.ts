@@ -6,6 +6,7 @@
  */
 
 import { db, llmCallLogs, trajectories } from '@babylon/db';
+import type { JsonValue } from '@babylon/shared';
 import { logger } from '../utils/logger';
 import { generateSnowflakeId } from '../utils/snowflake';
 import type {
@@ -24,10 +25,6 @@ export type {
   LLMCall,
   Action,
 };
-
-// Legacy exports for backward compatibility
-export type RecordedLLMCall = LLMCall;
-export type RecordedStep = TrajectoryStep;
 
 interface ActiveTrajectory {
   trajectoryId: string;
@@ -48,7 +45,7 @@ export class TrajectoryRecorder {
     agentId: string;
     scenarioId?: string;
     windowId?: string;
-    metadata?: Record<string, unknown>;
+    metadata?: Record<string, JsonValue>;
   }): Promise<string> {
     const trajectoryId = await generateSnowflakeId();
 
@@ -100,7 +97,7 @@ export class TrajectoryRecorder {
     trajectoryId: string,
     access: {
       providerName: string;
-      data: Record<string, unknown>;
+      data: Record<string, JsonValue>;
       purpose: string;
     }
   ): void {
@@ -119,7 +116,7 @@ export class TrajectoryRecorder {
   /**
    * Log LLM call
    */
-  logLLMCall(trajectoryId: string, llmCall: RecordedLLMCall): void {
+  logLLMCall(trajectoryId: string, llmCall: LLMCall): void {
     const traj = this.activeTrajectories.get(trajectoryId);
     if (!traj?.currentStep) {
       logger.warn('No current step for LLM call', { trajectoryId });
@@ -173,8 +170,8 @@ export class TrajectoryRecorder {
       windowId?: string;
       gameKnowledge?: {
         trueProbabilities?: Record<string, number>;
-        actualOutcomes?: Record<string, unknown>;
-        futureOutcomes?: Record<string, unknown>;
+        actualOutcomes?: Record<string, JsonValue>;
+        futureOutcomes?: Record<string, JsonValue>;
       };
     } = {}
   ): Promise<void> {

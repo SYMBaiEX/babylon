@@ -49,7 +49,6 @@ describe('Fail-Fast Validation', () => {
   });
 
   test('skips posts with empty content', () => {
-    // Verify that posts without content are skipped
     const posts = [
       { post: 'Valid content', sentiment: 0, clueStrength: 0.5 },
       { post: '', sentiment: 0, clueStrength: 0.5 }, // Empty - should skip
@@ -64,7 +63,7 @@ describe('Fail-Fast Validation', () => {
   test('validates event descriptions are not empty', () => {
     const events = [
       { event: 'Valid event' },
-      { event: '' }, // Should be rejected
+      { event: '' },
       { event: 'Another valid event' },
     ];
 

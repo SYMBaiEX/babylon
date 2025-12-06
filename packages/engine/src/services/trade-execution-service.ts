@@ -71,40 +71,20 @@ export class TradeExecutionService {
         }
       } catch (error) {
         result.failedTrades++;
-        const errorMessage =
-          error instanceof Error ? error.message : String(error);
         result.errors.push({
           npcId: decision.npcId,
           decision,
-          error: errorMessage,
+          error: error instanceof Error ? error.message : String(error),
         });
-
-        // Use warn level for expected failures (non-existent organizations, insufficient balance)
-        // Use error level for unexpected system failures
-        const isExpectedFailure =
-          errorMessage.includes('Organization not found') ||
-          errorMessage.includes('Insufficient trading balance') ||
-          errorMessage.includes('Market not found') ||
-          errorMessage.includes('Market already resolved') ||
-          errorMessage.includes('Market expired');
-        const logLevel = isExpectedFailure ? 'warn' : 'error';
-
-        logger[logLevel](
-          `Failed to execute trade for ${decision.npcName}`,
+        logger.warn(
+          `Trade execution failed for ${decision.npcId}`,
           {
-            error,
-            decision,
+            npcId: decision.npcId,
+            action: decision.action,
+            error: error instanceof Error ? error.message : String(error),
           },
           'TradeExecutionService'
         );
-
-        // FAIL FAST in development: throw on any trade execution error
-        if (process.env.NODE_ENV !== 'production' && !isExpectedFailure) {
-          throw new Error(
-            `[DEV] NPC trade execution failed for ${decision.npcName}: ${errorMessage}`,
-            { cause: error }
-          );
-        }
       }
     }
 

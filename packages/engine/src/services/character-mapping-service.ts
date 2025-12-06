@@ -59,36 +59,24 @@ export class CharacterMappingService {
       return; // Use cached data
     }
 
-    try {
-      this.characterMappingsCache = await db
-        .select()
-        .from(characterMappings)
-        .where(eq(characterMappings.isActive, true))
-        .orderBy(desc(characterMappings.priority));
+    this.characterMappingsCache = await db
+      .select()
+      .from(characterMappings)
+      .where(eq(characterMappings.isActive, true))
+      .orderBy(desc(characterMappings.priority));
 
-      this.organizationMappingsCache = await db
-        .select()
-        .from(organizationMappings)
-        .where(eq(organizationMappings.isActive, true))
-        .orderBy(desc(organizationMappings.priority));
+    this.organizationMappingsCache = await db
+      .select()
+      .from(organizationMappings)
+      .where(eq(organizationMappings.isActive, true))
+      .orderBy(desc(organizationMappings.priority));
 
-      this.lastCacheUpdate = now;
-      logger.info(
-        `Loaded ${this.characterMappingsCache.length} character mappings and ${this.organizationMappingsCache.length} organization mappings`,
-        undefined,
-        'CharacterMappingService'
-      );
-    } catch (error) {
-      // Handle database connection errors gracefully
-      logger.warn(
-        'CharacterMappingService: Failed to load mappings from database, using empty mappings',
-        { error: error instanceof Error ? error.message : String(error) },
-        'CharacterMappingService'
-      );
-      this.characterMappingsCache = [];
-      this.organizationMappingsCache = [];
-      this.lastCacheUpdate = now;
-    }
+    this.lastCacheUpdate = now;
+    logger.info(
+      `Loaded ${this.characterMappingsCache.length} character mappings and ${this.organizationMappingsCache.length} organization mappings`,
+      undefined,
+      'CharacterMappingService'
+    );
   }
 
   /**

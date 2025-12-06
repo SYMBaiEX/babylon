@@ -130,51 +130,17 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
 
   // Verify state format and get user ID
   // State format: userId|timestamp|random (using pipe because userId may contain colons like did:privy:xxx)
-  // Also support legacy colon format for backward compatibility
-  const separator = state.includes('|') ? '|' : ':';
-  const stateParts = state.split(separator);
+  const stateParts = state.split('|');
 
-  // For pipe separator: [userId, timestamp, random]
-  // For colon separator with did:privy:xxx: we need to reconstruct userId from all but last 2 parts
-  let userId: string;
-  let timestampStr: string;
-
-  if (separator === '|') {
-    // New format: userId|timestamp|random
-    if (stateParts.length < 2 || !stateParts[0] || !stateParts[1]) {
-      return NextResponse.json(
-        { error: 'Invalid state format' },
-        { status: 400 }
-      );
-    }
-    userId = stateParts[0];
-    timestampStr = stateParts[1];
-  } else {
-    // Legacy format: userId:timestamp:random
-    // Handle case where userId contains colons (e.g., did:privy:xxx)
-    if (stateParts.length < 3) {
-      return NextResponse.json(
-        { error: 'Invalid state format' },
-        { status: 400 }
-      );
-    }
-    // Last part is random, second to last is timestamp, everything before is userId
-    const timestampPart = stateParts[stateParts.length - 2];
-    if (!timestampPart) {
-      return NextResponse.json(
-        { error: 'Invalid state format' },
-        { status: 400 }
-      );
-    }
-    timestampStr = timestampPart;
-    userId = stateParts.slice(0, -2).join(':');
-  }
-  if (!userId || !timestampStr) {
+  // Format: [userId, timestamp, random]
+  if (stateParts.length < 2 || !stateParts[0] || !stateParts[1]) {
     return NextResponse.json(
       { error: 'Invalid state format' },
       { status: 400 }
     );
   }
+  const userId = stateParts[0];
+  const timestampStr = stateParts[1];
 
   const stateTimestamp = Number.parseInt(timestampStr, 10);
   if (isNaN(stateTimestamp)) {
@@ -372,65 +338,53 @@ async function verifyFarcasterSignature(
     );
   }
 
-  try {
-    // Create the Farcaster auth client with viem connector for signature verification
-    const appClient = createAppClient({
-      ethereum: viemConnector(),
-    });
+  // Create the Farcaster auth client with viem connector for signature verification
+  const appClient = createAppClient({
+    ethereum: viemConnector(),
+  });
 
-    // Verify the sign-in message using the official Farcaster auth-client
-    const verifyResult = await appClient.verifySignInMessage({
-      message,
-      signature: signature as `0x${string}`,
-      domain: siwfFields.domain || appDomain,
-      nonce: siwfFields.nonce || '',
-    });
+  // Verify the sign-in message using the official Farcaster auth-client
+  const verifyResult = await appClient.verifySignInMessage({
+    message,
+    signature: signature as `0x${string}`,
+    domain: siwfFields.domain || appDomain,
+    nonce: siwfFields.nonce || '',
+  });
 
-    if (!verifyResult.success) {
-      logger.error(
-        'SIWF signature verification failed',
-        {
-          fid,
-          providedFid: fid,
-          verifiedFid: verifyResult.fid,
-        },
-        'verifyFarcasterSignature'
-      );
-      return { valid: false, error: 'Signature verification failed' };
-    }
-
-    // Verify the FID matches (convert both to string for comparison)
-    if (verifyResult.fid.toString() !== fid.toString()) {
-      logger.error(
-        'SIWF FID mismatch',
-        {
-          providedFid: fid,
-          verifiedFid: verifyResult.fid.toString(),
-        },
-        'verifyFarcasterSignature'
-      );
-      return { valid: false, error: 'FID mismatch' };
-    }
-
-    logger.info(
-      'SIWF signature verified successfully',
-      {
-        fid,
-        domain: siwfFields.domain,
-      },
-      'verifyFarcasterSignature'
-    );
-
-    return { valid: true };
-  } catch (error) {
+  if (!verifyResult.success) {
     logger.error(
-      'SIWF verification error',
+      'SIWF signature verification failed',
       {
-        error: error instanceof Error ? error.message : String(error),
         fid,
+        providedFid: fid,
+        verifiedFid: verifyResult.fid,
       },
       'verifyFarcasterSignature'
     );
     return { valid: false, error: 'Signature verification failed' };
   }
+
+  // Verify the FID matches (convert both to string for comparison)
+  if (verifyResult.fid.toString() !== fid.toString()) {
+    logger.error(
+      'SIWF FID mismatch',
+      {
+        providedFid: fid,
+        verifiedFid: verifyResult.fid.toString(),
+      },
+      'verifyFarcasterSignature'
+    );
+    return { valid: false, error: 'FID mismatch' };
+  }
+
+  logger.info(
+    'SIWF signature verified successfully',
+    {
+      fid,
+      domain: siwfFields.domain,
+    },
+    'verifyFarcasterSignature'
+  );
+
+  return { valid: true };
 }

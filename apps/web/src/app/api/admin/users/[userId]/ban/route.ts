@@ -196,52 +196,22 @@ export const POST = withErrorHandling(
 
     // Sync with ERC-8004 reputation system via Agent0
     if (action === 'ban' && updatedUser.agent0TokenId) {
-      try {
-        await syncReputationToERC8004(userId, {
-          reputationScore: 0, // Banned users get 0 reputation
-          isBanned: true,
-          isScammer: isScammer ?? false,
-          isCSAM: isCSAM ?? false,
-        });
-      } catch (error) {
-        logger.error(
-          'Failed to sync ban to ERC-8004',
-          {
-            userId,
-            agent0TokenId: updatedUser.agent0TokenId,
-            error,
-          },
-          'POST /api/admin/users/[userId]/ban'
-        );
-        // Don't fail the ban if sync fails, just log it
-      }
+      await syncReputationToERC8004(userId, {
+        reputationScore: 0, // Banned users get 0 reputation
+        isBanned: true,
+        isScammer: isScammer ?? false,
+        isCSAM: isCSAM ?? false,
+      });
     }
 
     // Invalidate reputation cache
     if (action === 'ban') {
-      try {
-        await invalidateReputationCache(userId);
-      } catch (error) {
-        logger.error(
-          'Failed to invalidate reputation cache',
-          { userId, error },
-          'POST /api/admin/users/[userId]/ban'
-        );
-      }
+      await invalidateReputationCache(userId);
 
       // Distribute points to successful reporters if CSAM/scammer
       if ((isScammer ?? false) || (isCSAM ?? false)) {
-        try {
-          const reason = isCSAM ? 'csam' : 'scammer';
-          await distributePointsToReporters(userId, reason);
-        } catch (error) {
-          logger.error(
-            'Failed to distribute points to reporters',
-            { userId, error },
-            'POST /api/admin/users/[userId]/ban'
-          );
-          // Don't fail the ban if distribution fails
-        }
+        const reason = isCSAM ? 'csam' : 'scammer';
+        await distributePointsToReporters(userId, reason);
       }
     }
 

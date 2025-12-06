@@ -305,132 +305,123 @@ Example 3 - No groups needed:
 
 Return ONLY valid XML. No markdown, no explanations.`;
 
-  try {
-    const startTime = Date.now();
+  const startTime = Date.now();
 
-    const response = await withRetry(
-      async () =>
-        await openai!.chat.completions.create({
-          model: GROUPING_MODEL,
-          messages: [
-            {
-              role: 'system',
-              content:
-                'You are an XML-only assistant that analyzes trending topics. Respond ONLY with valid XML matching the exact format shown. No markdown, no JSON, no explanations.',
-            },
-            {
-              role: 'user',
-              content: prompt,
-            },
-          ],
-          temperature: 0.3,
-          max_tokens: 2000,
-        }),
-      LLM_MAX_RETRIES,
-      'Tag grouping and summary analysis'
-    );
-
-    const duration = Date.now() - startTime;
-    const tokensUsed = response.usage?.total_tokens || 0;
-    const estimatedCost = calculateCost(GROUPING_MODEL, tokensUsed);
-
-    logger.debug(
-      'LLM grouping call completed',
-      {
-        durationMs: duration,
+  const response = await withRetry(
+    async () =>
+      await openai!.chat.completions.create({
         model: GROUPING_MODEL,
-        tokensUsed,
-        estimatedCostUSD: estimatedCost,
+        messages: [
+          {
+            role: 'system',
+            content:
+              'You are an XML-only assistant that analyzes trending topics. Respond ONLY with valid XML matching the exact format shown. No markdown, no JSON, no explanations.',
+          },
+          {
+            role: 'user',
+            content: prompt,
+          },
+        ],
+        temperature: 0.3,
+        max_tokens: 2000,
+      }),
+    LLM_MAX_RETRIES,
+    'Tag grouping and summary analysis'
+  );
+
+  const duration = Date.now() - startTime;
+  const tokensUsed = response.usage?.total_tokens || 0;
+  const estimatedCost = calculateCost(GROUPING_MODEL, tokensUsed);
+
+  logger.debug(
+    'LLM grouping call completed',
+    {
+      durationMs: duration,
+      model: GROUPING_MODEL,
+      tokensUsed,
+      estimatedCostUSD: estimatedCost,
+    },
+    'TrendingGroupingService'
+  );
+
+  const content = response.choices[0]?.message?.content?.trim();
+  if (content && isPromptLoggingEnabled()) {
+    await logPrompt({
+      promptType: 'trending_grouping_with_summary',
+      input: `System: You are an XML-only assistant that analyzes trending topics. Respond ONLY with valid XML matching the exact format shown. No markdown, no JSON, no explanations.\n\nUser: ${prompt}`,
+      output: content,
+      metadata: {
+        provider: useGroq ? 'groq' : 'openai',
+        model: GROUPING_MODEL,
+        temperature: 0.3,
+        maxTokens: 2000,
       },
-      'TrendingGroupingService'
-    );
+    });
+  }
 
-    const content = response.choices[0]?.message?.content?.trim();
-    if (content && isPromptLoggingEnabled()) {
-      await logPrompt({
-        promptType: 'trending_grouping_with_summary',
-        input: `System: You are an XML-only assistant that analyzes trending topics. Respond ONLY with valid XML matching the exact format shown. No markdown, no JSON, no explanations.\n\nUser: ${prompt}`,
-        output: content,
-        metadata: {
-          provider: useGroq ? 'groq' : 'openai',
-          model: GROUPING_MODEL,
-          temperature: 0.3,
-          maxTokens: 2000,
-        },
-      });
-    }
-
-    if (!content) {
-      logger.warn(
-        'No content in grouping response, using fallback',
-        undefined,
-        'TrendingGroupingService'
-      );
-      return { tagToGroup: fallbackGrouping(tags), groupSummaries: new Map() };
-    }
-
-    // Parse XML response
-    const xmlContent = content
-      .replace(/```xml\n?/g, '')
-      .replace(/```\n?/g, '')
-      .trim();
-
-    const tagToGroup = new Map<string, number>();
-    const groupSummaries = new Map<number, string>();
-
-    // Extract groups from XML
-    const groupMatches = xmlContent.matchAll(/<group>([\s\S]*?)<\/group>/g);
-
-    for (const groupMatch of groupMatches) {
-      const groupContent = groupMatch[1];
-      if (!groupContent) continue;
-
-      const idMatch = groupContent.match(/<id>(\d+)<\/id>/);
-      const summaryMatch = groupContent.match(/<summary>(.*?)<\/summary>/);
-      const tagMatches = groupContent.matchAll(/<tag>(.*?)<\/tag>/g);
-
-      if (!idMatch || !idMatch[1]) continue;
-
-      const groupId = Number.parseInt(idMatch[1], 10);
-      const tagNames: string[] = [];
-
-      for (const tagMatch of tagMatches) {
-        if (tagMatch[1]) {
-          tagNames.push(tagMatch[1].trim());
-        }
-      }
-
-      // Only process groups with 2+ tags
-      if (tagNames.length < 2) continue;
-
-      for (const tagName of tagNames) {
-        tagToGroup.set(tagName, groupId);
-      }
-
-      if (summaryMatch && summaryMatch[1]) {
-        groupSummaries.set(groupId, summaryMatch[1].trim());
-      }
-    }
-
-    logger.info(
-      'LLM grouping analysis complete',
-      {
-        totalGroups: groupSummaries.size,
-        groupedTags: tagToGroup.size,
-        durationMs: duration,
-      },
-      'TrendingGroupingService'
-    );
-
-    return { tagToGroup, groupSummaries };
-  } catch (error) {
-    logger.error(
-      'Failed to analyze tag relationships, using fallback',
-      { error },
+  if (!content) {
+    logger.warn(
+      'No content in grouping response, using fallback',
+      undefined,
       'TrendingGroupingService'
     );
     return { tagToGroup: fallbackGrouping(tags), groupSummaries: new Map() };
   }
+
+  // Parse XML response
+  const xmlContent = content
+    .replace(/```xml\n?/g, '')
+    .replace(/```\n?/g, '')
+    .trim();
+
+  const tagToGroup = new Map<string, number>();
+  const groupSummaries = new Map<number, string>();
+
+  // Extract groups from XML
+  const groupMatches = xmlContent.matchAll(/<group>([\s\S]*?)<\/group>/g);
+
+  for (const groupMatch of groupMatches) {
+    const groupContent = groupMatch[1];
+    if (!groupContent) continue;
+
+    const idMatch = groupContent.match(/<id>(\d+)<\/id>/);
+    const summaryMatch = groupContent.match(/<summary>(.*?)<\/summary>/);
+    const tagMatches = groupContent.matchAll(/<tag>(.*?)<\/tag>/g);
+
+    if (!idMatch || !idMatch[1]) continue;
+
+    const groupId = Number.parseInt(idMatch[1], 10);
+    const tagNames: string[] = [];
+
+    for (const tagMatch of tagMatches) {
+      if (tagMatch[1]) {
+        tagNames.push(tagMatch[1].trim());
+      }
+    }
+
+    // Only process groups with 2+ tags
+    if (tagNames.length < 2) continue;
+
+    for (const tagName of tagNames) {
+      tagToGroup.set(tagName, groupId);
+    }
+
+    if (summaryMatch && summaryMatch[1]) {
+      groupSummaries.set(groupId, summaryMatch[1].trim());
+    }
+  }
+
+  logger.info(
+    'LLM grouping analysis complete',
+    {
+      totalGroups: groupSummaries.size,
+      groupedTags: tagToGroup.size,
+      durationMs: duration,
+    },
+    'TrendingGroupingService'
+  );
+
+  return { tagToGroup, groupSummaries };
 }
 
 /**
@@ -473,93 +464,84 @@ Examples:
 
 One sentence summary:`;
 
-  try {
-    const startTime = Date.now();
+  const startTime = Date.now();
 
-    const response = await withRetry(
-      async () =>
-        await openai!.chat.completions.create({
-          model: SUMMARY_MODEL,
-          messages: [
-            {
-              role: 'system',
-              content:
-                'You are a trending topics summarization expert. Generate concise, engaging one-sentence summaries.',
-            },
-            {
-              role: 'user',
-              content: prompt,
-            },
-          ],
-          temperature: 0.7,
-          max_tokens: 50,
-        }),
-      LLM_MAX_RETRIES,
-      'Single trend summary generation'
-    );
-
-    const duration = Date.now() - startTime;
-    const tokensUsed = response.usage?.total_tokens || 0;
-    const estimatedCost = calculateCost(SUMMARY_MODEL, tokensUsed);
-
-    logger.debug(
-      'LLM single summary call completed',
-      {
-        durationMs: duration,
+  const response = await withRetry(
+    async () =>
+      await openai!.chat.completions.create({
         model: SUMMARY_MODEL,
-        tokensUsed,
-        estimatedCostUSD: estimatedCost,
+        messages: [
+          {
+            role: 'system',
+            content:
+              'You are a trending topics summarization expert. Generate concise, engaging one-sentence summaries.',
+          },
+          {
+            role: 'user',
+            content: prompt,
+          },
+        ],
+        temperature: 0.7,
+        max_tokens: 50,
+      }),
+    LLM_MAX_RETRIES,
+    'Single trend summary generation'
+  );
+
+  const duration = Date.now() - startTime;
+  const tokensUsed = response.usage?.total_tokens || 0;
+  const estimatedCost = calculateCost(SUMMARY_MODEL, tokensUsed);
+
+  logger.debug(
+    'LLM single summary call completed',
+    {
+      durationMs: duration,
+      model: SUMMARY_MODEL,
+      tokensUsed,
+      estimatedCostUSD: estimatedCost,
+    },
+    'TrendingGroupingService'
+  );
+
+  let cleanSummary =
+    response.choices[0]?.message?.content
+      ?.trim()
+      ?.replace(/^["']|["']$/g, '')
+      ?.replace(/\.$/, '')
+      ?.trim() || '';
+
+  if (isPromptLoggingEnabled()) {
+    await logPrompt({
+      promptType: 'trending_single_summary',
+      input: `System: You are a trending topics summarization expert. Generate concise, engaging one-sentence summaries.\n\nUser: ${prompt}`,
+      output: response.choices[0]?.message?.content || '',
+      metadata: {
+        provider: useGroq ? 'groq' : 'openai',
+        model: SUMMARY_MODEL,
+        temperature: 0.7,
+        maxTokens: 50,
       },
-      'TrendingGroupingService'
-    );
+    });
+  }
 
-    let cleanSummary =
-      response.choices[0]?.message?.content
-        ?.trim()
-        ?.replace(/^["']|["']$/g, '')
-        ?.replace(/\.$/, '')
-        ?.trim() || '';
-
-    if (isPromptLoggingEnabled()) {
-      await logPrompt({
-        promptType: 'trending_single_summary',
-        input: `System: You are a trending topics summarization expert. Generate concise, engaging one-sentence summaries.\n\nUser: ${prompt}`,
-        output: response.choices[0]?.message?.content || '',
-        metadata: {
-          provider: useGroq ? 'groq' : 'openai',
-          model: SUMMARY_MODEL,
-          temperature: 0.7,
-          maxTokens: 50,
-        },
-      });
-    }
-
-    if (!cleanSummary) {
-      return `Trending topic in ${category || 'general'} discussions`;
-    }
-
-    if (
-      !cleanSummary.endsWith('.') &&
-      !cleanSummary.endsWith('!') &&
-      !cleanSummary.endsWith('?')
-    ) {
-      cleanSummary += '.';
-    }
-
-    const wordCount = cleanSummary.split(' ').length;
-    if (wordCount > 20) {
-      cleanSummary = cleanSummary.split(' ').slice(0, 12).join(' ') + '...';
-    }
-
-    return cleanSummary;
-  } catch (error) {
-    logger.error(
-      'Failed to generate single trend summary',
-      { error, tag: tagDisplayName },
-      'TrendingGroupingService'
-    );
+  if (!cleanSummary) {
     return `Trending topic in ${category || 'general'} discussions`;
   }
+
+  if (
+    !cleanSummary.endsWith('.') &&
+    !cleanSummary.endsWith('!') &&
+    !cleanSummary.endsWith('?')
+  ) {
+    cleanSummary += '.';
+  }
+
+  const wordCount = cleanSummary.split(' ').length;
+  if (wordCount > 20) {
+    cleanSummary = cleanSummary.split(' ').slice(0, 12).join(' ') + '...';
+  }
+
+  return cleanSummary;
 }
 
 /**

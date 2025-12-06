@@ -1,6 +1,7 @@
 import {
   type Evaluator,
   type HandlerCallback,
+  type HandlerOptions,
   type IAgentRuntime,
   logger,
   type Memory,
@@ -104,7 +105,7 @@ export const experienceEvaluator: Evaluator = {
     runtime: IAgentRuntime,
     _message: Memory,
     state?: State,
-    _options?: Record<string, unknown>,
+    _options?: HandlerOptions,
     _callback?: HandlerCallback,
     _responses?: Memory[]
   ): Promise<void> {

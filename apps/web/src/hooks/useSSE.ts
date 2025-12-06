@@ -130,32 +130,32 @@ const fetchRealtimeToken = async (
   });
   if (!accessToken) return null;
 
-  try {
-    const res = await fetch('/api/realtime/token', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        channels,
-        includeNotifications: true,
-      }),
-    });
+  const res = await fetch('/api/realtime/token', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      channels,
+      includeNotifications: true,
+    }),
+  });
 
-    if (!res.ok) {
-      logger.debug(
-        'Realtime token request failed',
-        { status: res.status },
-        'useSSE'
-      );
-      return null;
-    }
-    const json = (await res.json()) as {
-      token?: string;
-      expiresAt?: number;
-    };
-    if (!json?.token) return null;
+  if (!res.ok) {
+    logger.debug(
+      'Realtime token request failed',
+      { status: res.status },
+      'useSSE'
+    );
+    return null;
+  }
+  const json = (await res.json()) as {
+    token?: string;
+    expiresAt?: number;
+  };
+  if (!json?.token) return null;
+  try {
     const expiresAt =
       typeof json.expiresAt === 'number'
         ? json.expiresAt
@@ -353,60 +353,44 @@ async function ensureConnection(forceReconnect = false) {
 
   // Handle the 'connected' event from server
   eventSource.addEventListener('connected', (event) => {
-    try {
-      const data = JSON.parse(event.data);
-      if (Array.isArray(data.channels)) {
-        connectedChannels = new Set(data.channels);
-        const missing = Array.from(requestedChannels).filter(
-          (ch) => !connectedChannels.has(ch)
+    const data = JSON.parse(event.data);
+    if (Array.isArray(data.channels)) {
+      connectedChannels = new Set(data.channels);
+      const missing = Array.from(requestedChannels).filter(
+        (ch) => !connectedChannels.has(ch)
+      );
+      if (missing.length > 0) {
+        logger.warn(
+          'SSE connected without some requested channels',
+          {
+            requested: Array.from(requestedChannels),
+            granted: data.channels,
+          },
+          'useSSE'
         );
-        if (missing.length > 0) {
-          logger.warn(
-            'SSE connected without some requested channels',
-            {
-              requested: Array.from(requestedChannels),
-              granted: data.channels,
-            },
-            'useSSE'
-          );
-        }
       }
-      logger.debug(
-        'SSE connected event received',
-        { clientId: data.clientId, channels: data.channels },
-        'useSSE'
-      );
-      // Connection is confirmed, update state
-      connecting = false;
-      reconnectAttempts = 0;
-      notifyConnectionStatus(true, null);
-    } catch (error) {
-      logger.error(
-        'Failed to parse connected event',
-        { error, data: event.data },
-        'useSSE'
-      );
     }
+    logger.debug(
+      'SSE connected event received',
+      { clientId: data.clientId, channels: data.channels },
+      'useSSE'
+    );
+    // Connection is confirmed, update state
+    connecting = false;
+    reconnectAttempts = 0;
+    notifyConnectionStatus(true, null);
   });
 
   eventSource.addEventListener('message', (event) => {
-    try {
-      const message: SSEMessage = JSON.parse(event.data);
-      if (event.lastEventId) {
-        lastEventIds.set(message.channel, event.lastEventId);
-      }
-      const subs = channelSubscribers.get(message.channel);
-      if (subs && subs.size > 0) {
-        subs.forEach((callback) => {
-          callback(message);
-        });
-      }
-    } catch (error) {
-      logger.error(
-        'Failed to parse SSE message',
-        { error, data: event.data },
-        'useSSE'
-      );
+    const message: SSEMessage = JSON.parse(event.data);
+    if (event.lastEventId) {
+      lastEventIds.set(message.channel, event.lastEventId);
+    }
+    const subs = channelSubscribers.get(message.channel);
+    if (subs && subs.size > 0) {
+      subs.forEach((callback) => {
+        callback(message);
+      });
     }
   });
 

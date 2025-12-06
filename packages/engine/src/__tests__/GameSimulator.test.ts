@@ -155,7 +155,6 @@ describe('GameSimulator - Standalone Engine', () => {
 
       await simulator.runCompleteGame();
 
-      // Should have distributed clues
       expect(events.length).toBeGreaterThan(0);
     });
   });
@@ -212,10 +211,8 @@ describe('GameSimulator - Standalone Engine', () => {
       const finalMarket = result.market;
 
       if (result.outcome) {
-        // For YES outcome, YES odds should be higher
         expect(finalMarket.yesOdds).toBeGreaterThan(40);
       } else {
-        // For NO outcome, NO odds should be higher
         expect(finalMarket.noOdds).toBeGreaterThan(40);
       }
     });
@@ -233,8 +230,6 @@ describe('GameSimulator - Standalone Engine', () => {
 
       expect(result.winners).toBeDefined();
       expect(Array.isArray(result.winners)).toBe(true);
-
-      // Should have at least one winner
       expect(result.winners.length).toBeGreaterThan(0);
     });
 
@@ -244,7 +239,6 @@ describe('GameSimulator - Standalone Engine', () => {
       expect(result.reputationChanges).toBeDefined();
       expect(result.reputationChanges.length).toBe(result.agents.length);
 
-      // Winners should gain reputation
       const winnerChanges = result.reputationChanges.filter((c) =>
         result.winners.includes(c.agentId)
       );

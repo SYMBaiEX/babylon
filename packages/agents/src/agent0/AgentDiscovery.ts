@@ -7,7 +7,7 @@
 
 import type { AgentProfile } from '@babylon/a2a';
 import { AgentRegistryService } from '../services/agent-registry.service';
-import type { UnifiedAgentRegistration } from '../types/agent-registry';
+import type { AgentRegistration } from '../types/agent-registry';
 import { parseCapabilities } from './capabilities-schema';
 import { ReputationBridge } from './ReputationBridge';
 import { type SubgraphAgent, SubgraphClient } from './SubgraphClient';
@@ -42,29 +42,25 @@ export class AgentDiscoveryService implements IAgentDiscoveryService {
     // Use discoverAgents() from AgentRegistryService
     // Filter locally for strategies and reputation
     const allLocalAgents = await this.localRegistry.discoverAgents({});
-    const localAgents = allLocalAgents.filter(
-      (agent: UnifiedAgentRegistration) => {
-        if (filters.strategies && filters.strategies.length > 0) {
-          const agentStrategies = agent.capabilities?.strategies || [];
-          const hasMatchingStrategy = filters.strategies.some((s) =>
-            agentStrategies.includes(s)
-          );
-          if (!hasMatchingStrategy) return false;
-        }
-        if (filters.minReputation !== undefined) {
-          // Map trustLevel (0-4) to reputation (0-100) approximately or use onChainData
-          const score =
-            agent.onChainData?.reputationScore || agent.trustLevel * 25;
-          if (score < filters.minReputation) return false;
-        }
-        return true;
+    const localAgents = allLocalAgents.filter((agent: AgentRegistration) => {
+      if (filters.strategies && filters.strategies.length > 0) {
+        const agentStrategies = agent.capabilities?.strategies || [];
+        const hasMatchingStrategy = filters.strategies.some((s) =>
+          agentStrategies.includes(s)
+        );
+        if (!hasMatchingStrategy) return false;
       }
-    );
+      if (filters.minReputation !== undefined) {
+        // Map trustLevel (0-4) to reputation (0-100) approximately or use onChainData
+        const score =
+          agent.onChainData?.reputationScore || agent.trustLevel * 25;
+        if (score < filters.minReputation) return false;
+      }
+      return true;
+    });
 
     results.push(
-      ...localAgents.map((r: UnifiedAgentRegistration) =>
-        this.mapUnifiedToProfile(r)
-      )
+      ...localAgents.map((r: AgentRegistration) => this.mapToProfile(r))
     );
 
     if (filters.includeExternal && process.env.AGENT0_ENABLED === 'true') {
@@ -172,15 +168,15 @@ export class AgentDiscoveryService implements IAgentDiscoveryService {
     // Use discoverAgents() and find by ID
     const allAgents = await this.localRegistry.discoverAgents({});
     const localAgent = allAgents.find(
-      (a: UnifiedAgentRegistration) => a.agentId === agentId
+      (a: AgentRegistration) => a.agentId === agentId
     );
     if (!localAgent) {
       throw new Error(`Agent not found: ${agentId}`);
     }
-    return this.mapUnifiedToProfile(localAgent);
+    return this.mapToProfile(localAgent);
   }
 
-  private mapUnifiedToProfile(r: UnifiedAgentRegistration): AgentProfile {
+  private mapToProfile(r: AgentRegistration): AgentProfile {
     return {
       agentId: r.agentId,
       tokenId: r.onChainData?.tokenId || 0,

@@ -32,17 +32,12 @@ function getSolanaConnectors(): SolanaConnectors | undefined {
   // Solana connector bundle relies on React context; skip on the server.
   if (typeof window === 'undefined') return undefined;
 
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const { toSolanaWalletConnectors } =
-      require('@privy-io/react-auth/solana') as {
-        toSolanaWalletConnectors: () => SolanaConnectors;
-      };
-    return toSolanaWalletConnectors();
-  } catch (error) {
-    console.warn('Failed to load Solana connectors', error);
-    return undefined;
-  }
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const { toSolanaWalletConnectors } =
+    require('@privy-io/react-auth/solana') as {
+      toSolanaWalletConnectors: () => SolanaConnectors;
+    };
+  return toSolanaWalletConnectors();
 }
 
 const appearance: Appearance = {

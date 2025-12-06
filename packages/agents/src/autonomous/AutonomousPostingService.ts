@@ -4,14 +4,13 @@
  * Handles agents creating posts autonomously
  */
 
+import { countTokensSync, truncateToTokenLimitSync } from '@babylon/api';
 import { agentTrades, db, desc, eq, posts, users } from '@babylon/db';
 import {
   characterMappingService,
-  countTokensSync,
   formatRandomContext,
   generateRandomMarketContext,
   generateWorldContext,
-  truncateToTokenLimitSync,
 } from '@babylon/engine';
 import type { IAgentRuntime } from '@elizaos/core';
 import { parseKeyValueXml } from '@elizaos/core';
@@ -199,14 +198,10 @@ ${contextString}
         cleanContent = parsed.text.trim().replace(/^["']|["']$/g, '');
         break;
       } catch (error) {
-        const errorMessage =
-          error instanceof Error ? error.message : String(error);
-        logger.error(
-          'Failed to generate post',
-          { error: errorMessage, agentUserId, attempt },
-          'AutonomousPosting'
-        );
-        continue;
+        logger.warn(`Post generation attempt ${attempt} failed`, {
+          agentUserId,
+          error: String(error),
+        });
       }
     }
 

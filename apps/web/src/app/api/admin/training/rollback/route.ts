@@ -55,43 +55,33 @@ import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 
 export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json();
-    const { targetVersion } = body;
+  const body = await request.json();
+  const { targetVersion } = body;
 
-    if (!targetVersion) {
-      return NextResponse.json(
-        { error: 'Target version required' },
-        { status: 400 }
-      );
-    }
-
-    // Get current deployed version
-    const currentModel = await db.trainedModel.findFirst({
-      where: { status: 'deployed' },
-      orderBy: { deployedAt: 'desc' },
-    });
-
-    if (!currentModel) {
-      return NextResponse.json(
-        { error: 'No currently deployed model' },
-        { status: 400 }
-      );
-    }
-
-    const result = await modelDeployer.rollback(
-      currentModel.version,
-      targetVersion
-    );
-
-    return NextResponse.json(result);
-  } catch (error) {
+  if (!targetVersion) {
     return NextResponse.json(
-      {
-        success: false,
-        error: error instanceof Error ? error.message : 'Rollback failed',
-      },
-      { status: 500 }
+      { error: 'Target version required' },
+      { status: 400 }
     );
   }
+
+  // Get current deployed version
+  const currentModel = await db.trainedModel.findFirst({
+    where: { status: 'deployed' },
+    orderBy: { deployedAt: 'desc' },
+  });
+
+  if (!currentModel) {
+    return NextResponse.json(
+      { error: 'No currently deployed model' },
+      { status: 400 }
+    );
+  }
+
+  const result = await modelDeployer.rollback(
+    currentModel.version,
+    targetVersion
+  );
+
+  return NextResponse.json(result);
 }

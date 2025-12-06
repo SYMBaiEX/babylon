@@ -9,9 +9,10 @@ import { benchmarkResults, db, trainedModels, trajectories } from '@babylon/db';
 import { count, desc, eq, gte, isNotNull } from 'drizzle-orm';
 import { ModelBenchmarkService } from '../benchmark/ModelBenchmarkService';
 import { getExportToHuggingFace } from '../dependencies';
-import { logger } from '../utils/logger';
+import { logger } from '../utils';
 import { HuggingFaceDatasetUploader } from './HuggingFaceDatasetUploader';
 import { HuggingFaceModelUploader } from './HuggingFaceModelUploader';
+import { getHuggingFaceToken } from './shared/HuggingFaceUploadUtil';
 
 export interface WeeklyUploadResult {
   success: boolean;
@@ -349,7 +350,7 @@ export class HuggingFaceIntegrationService {
     const warnings: string[] = [];
 
     // Check HuggingFace token
-    if (!process.env.HUGGING_FACE_TOKEN && !process.env.HF_TOKEN) {
+    if (!getHuggingFaceToken()) {
       issues.push(
         'HUGGING_FACE_TOKEN or HF_TOKEN environment variable not set'
       );

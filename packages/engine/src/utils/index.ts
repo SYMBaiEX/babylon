@@ -37,9 +37,9 @@ export {
 
 // Shared utilities (formatActorVoiceContext, buildPhaseContext, etc.)
 export {
-  buildCharacterVoiceBlock,
   buildPhaseContext,
   buildRelationshipContext,
   formatActorVoiceContext,
+  stripHashtagsAndEmojis,
   toQuestionIdNumberOrNull,
 } from './shared-utils';

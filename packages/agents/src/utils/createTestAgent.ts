@@ -126,7 +126,7 @@ export async function createTestAgent(
     });
   }
 
-  // Register in Unified Agent Registry if not already registered
+  // Register in Agent Registry if not already registered
   if (agent.isAgent) {
     try {
       // Check if already registered
@@ -155,22 +155,20 @@ export async function createTestAgent(
         // Set status to ACTIVE so it's picked up by discovery
         await agentRegistry.updateAgentStatus(agent.id, AgentStatus.ACTIVE);
 
-        logger.info(
-          'Registered and activated test agent in Unified Agent Registry',
-          { agentId: agent.id }
-        );
+        logger.info('Registered and activated test agent in Agent Registry', {
+          agentId: agent.id,
+        });
       } else {
         // Ensure status is ACTIVE
         if (existingReg.status !== AgentStatus.ACTIVE) {
           await agentRegistry.updateAgentStatus(agent.id, AgentStatus.ACTIVE);
-          logger.info(
-            'Updated test agent status to ACTIVE in Unified Agent Registry',
-            { agentId: agent.id }
-          );
+          logger.info('Updated test agent status to ACTIVE in Agent Registry', {
+            agentId: agent.id,
+          });
         }
       }
     } catch (error) {
-      logger.warn('Failed to register test agent in Unified Agent Registry', {
+      logger.warn('Failed to register test agent in Agent Registry', {
         agentId: agent.id,
         error: error instanceof Error ? error.message : String(error),
       });

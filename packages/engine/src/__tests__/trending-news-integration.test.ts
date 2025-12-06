@@ -96,11 +96,9 @@ describe('Trending Topics & News Integration', () => {
   ];
 
   beforeEach(() => {
-    // Mock LLM with realistic responses
     const mockImpl: MockLLMClient = {
       getProvider: () => 'openai',
       generateJSON: mock(async (prompt: string) => {
-        // Different responses based on prompt content
         if (prompt.includes('TRENDING TOPICS')) {
           return {
             trends: [
@@ -145,13 +143,11 @@ describe('Trending Topics & News Integration', () => {
     articleGen = new ArticleGenerator(mockLLM);
     feedGen = new FeedGenerator(mockLLM);
 
-    // Connect trending to feed generator
     feedGen.setTrendingTopics(trendEngine);
   });
 
   describe('Complete Question Lifecycle', () => {
     it('should generate breaking articles when question created', async () => {
-      // Select orgs for breaking stage
       const breakingOrgs = pacingEngine.selectOrgsForStage(
         mockOrgs,
         mockQuestion.id as number,
@@ -161,7 +157,6 @@ describe('Trending Topics & News Integration', () => {
       expect(breakingOrgs.length).toBeGreaterThanOrEqual(1);
       expect(breakingOrgs.length).toBeLessThanOrEqual(2);
 
-      // Generate articles
       const articles: Article[] = [];
       for (const org of breakingOrgs) {
         const article = await articleGen.generateArticleForQuestion(
@@ -187,7 +182,6 @@ describe('Trending Topics & News Integration', () => {
         articles.push(article);
       }
 
-      // Verify pacing
       const stats = pacingEngine.getStageStats(mockQuestion.id as number);
       expect(stats.breaking).toBe(breakingOrgs.length);
       expect(stats.commentary).toBe(0);
@@ -195,7 +189,6 @@ describe('Trending Topics & News Integration', () => {
     });
 
     it('should generate commentary articles at midpoint', async () => {
-      // Select orgs for commentary stage
       const commentaryOrgs = pacingEngine.selectOrgsForStage(
         mockOrgs,
         mockQuestion.id as number,
@@ -205,7 +198,6 @@ describe('Trending Topics & News Integration', () => {
       expect(commentaryOrgs.length).toBeGreaterThanOrEqual(2);
       expect(commentaryOrgs.length).toBeLessThanOrEqual(3);
 
-      // Generate articles
       for (const org of commentaryOrgs) {
         const article = await articleGen.generateArticleForQuestion(
           mockQuestion,
@@ -230,7 +222,6 @@ describe('Trending Topics & News Integration', () => {
     });
 
     it('should generate resolution articles when question resolves', async () => {
-      // Select orgs for resolution stage
       const resolutionOrgs = pacingEngine.selectOrgsForStage(
         mockOrgs,
         mockQuestion.id as number,
@@ -240,7 +231,6 @@ describe('Trending Topics & News Integration', () => {
       expect(resolutionOrgs.length).toBeGreaterThan(0);
       expect(resolutionOrgs.length).toBeLessThanOrEqual(5);
 
-      // Generate articles
       for (const org of resolutionOrgs) {
         const article = await articleGen.generateArticleForQuestion(
           mockQuestion,
@@ -265,7 +255,6 @@ describe('Trending Topics & News Integration', () => {
     });
 
     it('should maintain total article count < 10 per question', async () => {
-      // Breaking
       const breaking = pacingEngine.selectOrgsForStage(mockOrgs, 1, 'breaking');
       breaking.forEach((org) => {
         pacingEngine.recordArticle(
@@ -277,7 +266,6 @@ describe('Trending Topics & News Integration', () => {
         );
       });
 
-      // Commentary
       const commentary = pacingEngine.selectOrgsForStage(
         mockOrgs,
         1,
@@ -293,7 +281,6 @@ describe('Trending Topics & News Integration', () => {
         );
       });
 
-      // Resolution
       const resolution = pacingEngine.selectOrgsForStage(
         mockOrgs,
         1,
@@ -309,7 +296,6 @@ describe('Trending Topics & News Integration', () => {
         );
       });
 
-      // Total should be reasonable
       const total = pacingEngine.getArticlesForQuestion(1).length;
       expect(total).toBeLessThan(11); // 2 + 3 + 5 = 10 max
     });
@@ -350,15 +336,13 @@ describe('Trending Topics & News Integration', () => {
     it('should provide trend context to feed generator', () => {
       feedGen.updateTrendContext();
 
-      // Context should never be empty
-      const context = feedGen['trendContext']; // Access private field for testing
+      const context = feedGen['trendContext'];
       expect(context).toBeDefined();
       expect(context.trim().length).toBeGreaterThan(0);
       expect(context).toContain('TRENDING TOPICS');
     });
 
     it('should include trends in ambient post prompts', async () => {
-      // Set up some trends
       const posts: FeedPost[] = [
         {
           id: 'post-1',
@@ -374,7 +358,6 @@ describe('Trending Topics & News Integration', () => {
       await trendEngine.updateTrends(posts, 10);
       feedGen.updateTrendContext();
 
-      // Verify context was set
       const context = feedGen['trendContext'];
       expect(context).toContain('AI Breakthrough Buzz');
     });
@@ -382,7 +365,6 @@ describe('Trending Topics & News Integration', () => {
 
   describe('Post Volume Balance', () => {
     it('should maintain high normal post to article ratio', async () => {
-      // Simulate 100 normal posts
       const normalPosts: FeedPost[] = Array.from({ length: 100 }, (_, i) => ({
         id: `post-${i}`,
         content: `Normal post ${i}`,
@@ -393,7 +375,6 @@ describe('Trending Topics & News Integration', () => {
         tags: ['general'],
       }));
 
-      // Generate 3 articles total (breaking)
       const breakingOrgs = pacingEngine.selectOrgsForStage(
         mockOrgs,
         1,
@@ -401,7 +382,6 @@ describe('Trending Topics & News Integration', () => {
       );
       const articleCount = breakingOrgs.length;
 
-      // Ratio should be at least 10:1 (normal posts : articles)
       const ratio = normalPosts.length / articleCount;
       expect(ratio).toBeGreaterThan(10);
     });
@@ -483,24 +463,27 @@ describe('Trending Topics & News Integration', () => {
         },
       ];
 
-      // Should not throw - keeps previous trends
       await engine.updateTrends(posts, 10);
 
-      // Should have no trends (failed to generate)
-      expect(engine.getTrends()).toEqual([]);
+      // When LLM fails, engine should still return fallback trends (not crash)
+      const trends = engine.getTrends();
+      expect(trends.length).toBeGreaterThan(0);
+      // Each trend should have fallback name and description
+      for (const trend of trends) {
+        expect(trend.trendName).toBeTruthy();
+        expect(trend.description).toBeTruthy();
+      }
     });
   });
 
   describe('Context Validation', () => {
     it('should never provide empty trend context to agents', () => {
-      // Before any updates
       feedGen.updateTrendContext();
       let context = feedGen['trendContext'];
       expect(context.trim()).not.toBe('');
       expect(context).toContain('TRENDING TOPICS');
 
-      // After trend update
-      trendEngine.updateTrends([], 10); // Empty posts
+      trendEngine.updateTrends([], 10);
       feedGen.updateTrendContext();
       context = feedGen['trendContext'];
       expect(context.trim()).not.toBe('');
@@ -508,8 +491,6 @@ describe('Trending Topics & News Integration', () => {
     });
 
     it('should throw if trending engine returns invalid context', () => {
-      // Mock trending engine that returns empty
-      // Using Pick to create a partial mock that only implements getDetailedTrendContext
       const badEngine = {
         getDetailedTrendContext: () => '',
       } as Pick<
@@ -622,7 +603,6 @@ describe('Trending Topics & News Integration', () => {
       const q1Orgs = pacingEngine.selectOrgsForStage(mockOrgs, 1, 'breaking');
       const q2Orgs = pacingEngine.selectOrgsForStage(mockOrgs, 2, 'breaking');
 
-      // Record Q1 articles
       q1Orgs.forEach((org) => {
         pacingEngine.recordArticle(
           1,
@@ -633,7 +613,6 @@ describe('Trending Topics & News Integration', () => {
         );
       });
 
-      // Record Q2 articles
       q2Orgs.forEach((org) => {
         pacingEngine.recordArticle(
           2,
@@ -644,11 +623,9 @@ describe('Trending Topics & News Integration', () => {
         );
       });
 
-      // Each question should have independent counts
       expect(pacingEngine.getArticlesForQuestion(1).length).toBe(q1Orgs.length);
       expect(pacingEngine.getArticlesForQuestion(2).length).toBe(q2Orgs.length);
 
-      // Same org can cover both questions
       const stats1 = pacingEngine.getStageStats(1);
       const stats2 = pacingEngine.getStageStats(2);
       expect(stats1.breaking + stats2.breaking).toBeLessThanOrEqual(
@@ -659,7 +636,6 @@ describe('Trending Topics & News Integration', () => {
 
   describe('Trend Evolution', () => {
     it('should evolve trends as new posts arrive', async () => {
-      // Initial posts
       const initialPosts: FeedPost[] = [
         {
           id: 'post-1',
@@ -675,7 +651,6 @@ describe('Trending Topics & News Integration', () => {
       await trendEngine.updateTrends(initialPosts, 10);
       const trends1 = trendEngine.getTrends();
 
-      // New posts with different tags
       const newPosts: FeedPost[] = [
         ...initialPosts,
         {
@@ -701,7 +676,6 @@ describe('Trending Topics & News Integration', () => {
       await trendEngine.updateTrends(newPosts, 20);
       const trends2 = trendEngine.getTrends();
 
-      // Trends should have evolved
       expect(trends2).not.toEqual(trends1);
     });
   });
@@ -722,10 +696,8 @@ describe('Trending Topics & News Integration', () => {
       await trendEngine.updateTrends(posts, 10);
       const duration = Date.now() - start;
 
-      // Should complete quickly (< 5 seconds)
       expect(duration).toBeLessThan(5000);
 
-      // Should still generate top 5
       const trends = trendEngine.getTrends();
       expect(trends.length).toBeLessThanOrEqual(5);
     });
@@ -743,7 +715,6 @@ describe('Trending Topics & News Integration', () => {
 
       await trendEngine.updateTrends(posts, 10);
 
-      // Should make only 1 LLM call (batched)
       expect(
         (mockLLM.generateJSON as ReturnType<typeof mock>).mock.calls.length
       ).toBe(1);

@@ -5,7 +5,7 @@ import {
   PredictionPricing,
 } from '@babylon/engine/client';
 import type { PerpPositionFromAPI, PredictionPosition } from '@babylon/shared';
-import { cn } from '@babylon/shared';
+import { cn, type JsonValue } from '@babylon/shared';
 import {
   AlertTriangle,
   BarChart3,
@@ -33,15 +33,20 @@ import { usePerpMarketsStore } from '@/stores/perpMarketsStore';
  * @param fallback - Fallback error message
  * @returns Formatted error message string
  */
-const formatErrorMessage = (payload: unknown, fallback: string): string => {
-  if (!payload || typeof payload !== 'object') {
+interface ErrorResponsePayload {
+  error?: string | { message?: string };
+  message?: string;
+}
+
+const formatErrorMessage = (
+  payload: ErrorResponsePayload | JsonValue,
+  fallback: string
+): string => {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
     return fallback;
   }
 
-  const data = payload as {
-    error?: string | { message?: string };
-    message?: string;
-  };
+  const data = payload as ErrorResponsePayload;
 
   if (typeof data.error === 'string') {
     return data.error;

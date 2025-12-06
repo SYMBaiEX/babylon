@@ -41,9 +41,13 @@ describe('Agent Autonomous Tick Integration', () => {
       serverAvailable = false;
     }
 
+    // Server must be available for these tests to run
     if (!serverAvailable) {
-      console.log('⏭️  Skipping agent tick test - server not available');
-      return;
+      throw new Error(
+        'AGENT TICK TESTS REQUIRE RUNNING SERVER. ' +
+          'Start the server with `bun run dev` before running these tests. ' +
+          'These tests validate actual server functionality and MUST NOT be skipped.'
+      );
     }
 
     // Check if cron endpoint is functional (may return 500 if misconfigured)
@@ -192,12 +196,9 @@ describe('Agent Autonomous Tick Integration', () => {
   });
 
   test('should call agent tick endpoint successfully', async () => {
-    if (!serverAvailable || !cronEndpointAvailable) {
-      console.log(
-        '⏭️  Skipping - server not available or cron endpoint not functional'
-      );
-      return;
-    }
+    // Server and cron endpoint must be available - fail fast if not
+    expect(serverAvailable).toBe(true);
+    expect(cronEndpointAvailable).toBe(true);
 
     const cronSecret = process.env.CRON_SECRET || 'development';
     const response = await fetch(`${BASE_URL}/api/cron/agent-tick`, {
@@ -217,12 +218,9 @@ describe('Agent Autonomous Tick Integration', () => {
   }, 30000);
 
   test('should find and process agents', async () => {
-    if (!serverAvailable || !cronEndpointAvailable) {
-      console.log(
-        '⏭️  Skipping - server not available or cron endpoint not functional'
-      );
-      return;
-    }
+    // Server and cron endpoint must be available - fail fast if not
+    expect(serverAvailable).toBe(true);
+    expect(cronEndpointAvailable).toBe(true);
 
     const cronSecret = process.env.CRON_SECRET || 'development';
     const response = await fetch(`${BASE_URL}/api/cron/agent-tick`, {
@@ -254,12 +252,9 @@ describe('Agent Autonomous Tick Integration', () => {
   }, 30000);
 
   test('should update agentLastTickAt after tick', async () => {
-    if (!serverAvailable || !cronEndpointAvailable) {
-      console.log(
-        '⏭️  Skipping - server not available or cron endpoint not functional'
-      );
-      return;
-    }
+    // Server and cron endpoint must be available - fail fast if not
+    expect(serverAvailable).toBe(true);
+    expect(cronEndpointAvailable).toBe(true);
 
     // Verify agent exists and meets criteria before tick
     const agentBefore = await db.user.findUnique({
@@ -379,12 +374,9 @@ describe('Agent Autonomous Tick Integration', () => {
   }, 30000);
 
   test('should create agent logs after tick', async () => {
-    if (!serverAvailable || !cronEndpointAvailable) {
-      console.log(
-        '⏭️  Skipping - server not available or cron endpoint not functional'
-      );
-      return;
-    }
+    // Server and cron endpoint must be available - fail fast if not
+    expect(serverAvailable).toBe(true);
+    expect(cronEndpointAvailable).toBe(true);
 
     // Verify agent exists and meets criteria before tick
     const agentBefore = await db.user.findUnique({
@@ -495,12 +487,9 @@ describe('Agent Autonomous Tick Integration', () => {
   }, 30000);
 
   test('should deduct points after tick', async () => {
-    if (!serverAvailable || !cronEndpointAvailable) {
-      console.log(
-        '⏭️  Skipping - server not available or cron endpoint not functional'
-      );
-      return;
-    }
+    // Server and cron endpoint must be available - fail fast if not
+    expect(serverAvailable).toBe(true);
+    expect(cronEndpointAvailable).toBe(true);
 
     // Ensure agent has points
     await db.user.update({

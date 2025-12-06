@@ -196,60 +196,50 @@ export class AgentServiceV2 {
     // Register agent in registry if service is available
     const agentRegistry = getService('agentRegistry');
     if (agentRegistry) {
-      try {
-        const capabilities: AgentCapabilities = {
-          strategies: [
-            'prediction_markets',
-            'social_interaction',
-            ...(tradingStrategy
-              ? [`trading_${tradingStrategy.toLowerCase()}`]
-              : []),
-          ],
-          markets: ['prediction', 'perpetual', 'spot'],
-          actions: [
-            'trade',
-            'post',
-            'comment',
-            'like',
-            'message',
-            'analyze_market',
-            'manage_portfolio',
-          ],
-          version: '1.0.0',
-          x402Support: true,
-          platform: 'babylon',
-          userType: 'user_controlled',
-          gameNetwork: {
-            chainId: getCurrentChainId(),
-            registryAddress: IDENTITY_REGISTRY_BASE_SEPOLIA,
-            reputationAddress: REPUTATION_SYSTEM_BASE_SEPOLIA,
-          },
-          skills: [],
-          domains: [],
-        };
+      const capabilities: AgentCapabilities = {
+        strategies: [
+          'prediction_markets',
+          'social_interaction',
+          ...(tradingStrategy
+            ? [`trading_${tradingStrategy.toLowerCase()}`]
+            : []),
+        ],
+        markets: ['prediction', 'perpetual', 'spot'],
+        actions: [
+          'trade',
+          'post',
+          'comment',
+          'like',
+          'message',
+          'analyze_market',
+          'manage_portfolio',
+        ],
+        version: '1.0.0',
+        x402Support: true,
+        platform: 'babylon',
+        userType: 'user_controlled',
+        gameNetwork: {
+          chainId: getCurrentChainId(),
+          registryAddress: IDENTITY_REGISTRY_BASE_SEPOLIA,
+          reputationAddress: REPUTATION_SYSTEM_BASE_SEPOLIA,
+        },
+        skills: [],
+        domains: [],
+      };
 
-        await agentRegistry.registerUserAgent({
-          userId: agentUserId,
-          name: name,
-          systemPrompt:
-            system ||
-            'You are a helpful AI agent on Babylon prediction market.',
-          capabilities,
-        });
+      await agentRegistry.registerUserAgent({
+        userId: agentUserId,
+        name: name,
+        systemPrompt:
+          system || 'You are a helpful AI agent on Babylon prediction market.',
+        capabilities,
+      });
 
-        logger.info(
-          `Agent ${agentUserId} registered in registry`,
-          undefined,
-          'AgentService'
-        );
-      } catch (error) {
-        logger.error(
-          `Failed to register agent ${agentUserId} in registry`,
-          error instanceof Error ? error : new Error(String(error)),
-          'AgentService'
-        );
-        // Don't fail the whole operation if registry fails
-      }
+      logger.info(
+        `Agent ${agentUserId} registered in registry`,
+        undefined,
+        'AgentService'
+      );
     }
 
     if (this.shouldAutoSetupAgentIdentity()) {
@@ -743,7 +733,7 @@ export class AgentServiceV2 {
         prompt: log.prompt ?? null,
         completion: log.completion ?? null,
         thinking: log.thinking ?? null,
-        metadata: log.metadata || undefined,
+        metadata: log.metadata ? JSON.parse(JSON.stringify(log.metadata)) : null,
       })
       .returning();
 
@@ -775,28 +765,20 @@ export class AgentServiceV2 {
   private async setupAgentIdentity(agentUserId: string): Promise<void> {
     const skipAgent0Registration = process.env.AGENT0_ENABLED !== 'true';
 
-    try {
-      const agent = await agentIdentityService.setupAgentIdentity(agentUserId, {
-        skipAgent0Registration,
-      });
+    const agent = await agentIdentityService.setupAgentIdentity(agentUserId, {
+      skipAgent0Registration,
+    });
 
-      logger.info(
-        'Agent identity setup complete',
-        {
-          agentUserId,
-          walletProvisioned: Boolean(agent.walletAddress),
-          agent0TokenId: agent.agent0TokenId,
-          skippedAgent0: skipAgent0Registration,
-        },
-        'AgentService'
-      );
-    } catch (error) {
-      logger.error(
-        'Agent identity setup failed',
-        { agentUserId, error },
-        'AgentService'
-      );
-    }
+    logger.info(
+      'Agent identity setup complete',
+      {
+        agentUserId,
+        walletProvisioned: Boolean(agent.walletAddress),
+        agent0TokenId: agent.agent0TokenId,
+        skippedAgent0: skipAgent0Registration,
+      },
+      'AgentService'
+    );
   }
 }
 

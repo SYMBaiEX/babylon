@@ -249,7 +249,7 @@ export interface FeedPost {
     authorProfileImageUrl: string | null;
     timestamp: string;
   } | null;
-  // Legacy fields (for backward compatibility with old posts)
+  // Flat fields for original post metadata (alternative to nested originalPost object)
   originalAuthorId?: string | null;
   originalAuthorName?: string | null;
   originalAuthorUsername?: string | null;

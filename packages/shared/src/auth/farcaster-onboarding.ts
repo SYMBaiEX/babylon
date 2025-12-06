@@ -22,63 +22,51 @@ export interface FarcasterOnboardingProfile {
 export async function openFarcasterOnboardingPopup(
   userId: string
 ): Promise<FarcasterOnboardingProfile> {
-  try {
-    const result = await signInWithFarcaster({
-      userId,
-      onStatusUpdate: (state) => {
-        logger.debug(
-          'Farcaster auth status update',
-          { state },
-          'FarcasterOnboarding'
-        );
-      },
-    });
-
-    // Call the backend to verify and store the authentication
-    const response = await fetch('/api/auth/onboarding/farcaster/callback', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        message: result.message,
-        signature: result.signature,
-        fid: result.fid,
-        username: result.username,
-        displayName: result.displayName,
-        pfpUrl: result.pfpUrl,
-        bio: result.bio,
-        state: result.state,
-      }),
-    });
-
-    if (!response.ok) {
-      const errorData = (await response.json().catch(() => ({}))) as {
-        error?: string;
-      };
-      throw new Error(
-        errorData.error || 'Failed to verify Farcaster authentication'
+  const result = await signInWithFarcaster({
+    userId,
+    onStatusUpdate: (state) => {
+      logger.debug(
+        'Farcaster auth status update',
+        { state },
+        'FarcasterOnboarding'
       );
-    }
+    },
+  });
 
-    return {
+  // Call the backend to verify and store the authentication
+  const response = await fetch('/api/auth/onboarding/farcaster/callback', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      message: result.message,
+      signature: result.signature,
       fid: result.fid,
       username: result.username,
       displayName: result.displayName,
       pfpUrl: result.pfpUrl,
       bio: result.bio,
+      state: result.state,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorData = (await response.json().catch(() => ({}))) as {
+      error?: string;
     };
-  } catch (error) {
-    logger.error(
-      'Farcaster onboarding failed',
-      {
-        error: error instanceof Error ? error.message : String(error),
-        userId,
-      },
-      'FarcasterOnboarding'
+    throw new Error(
+      errorData.error || 'Failed to verify Farcaster authentication'
     );
-    throw error;
   }
+
+  return {
+    fid: result.fid,
+    username: result.username,
+    displayName: result.displayName,
+    pfpUrl: result.pfpUrl,
+    bio: result.bio,
+  };
 }
 
 /**

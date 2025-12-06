@@ -111,109 +111,103 @@ async function initializePerpsEngine(): Promise<void> {
   if (!perpsEngineInstance) return;
 
   initializing = true;
-  try {
-    // Get organizations directly from database to avoid module initialization order issues
-    const orgs = await db
-      .select({
-        id: organizationsSchema.id,
-        name: organizationsSchema.name,
-        ticker: organizationsSchema.ticker,
-        description: organizationsSchema.description,
-        type: organizationsSchema.type,
-        canBeInvolved: organizationsSchema.canBeInvolved,
-        initialPrice: organizationsSchema.initialPrice,
-        currentPrice: organizationsSchema.currentPrice,
+  // Get organizations directly from database to avoid module initialization order issues
+  const orgs = await db
+    .select({
+      id: organizationsSchema.id,
+      name: organizationsSchema.name,
+      ticker: organizationsSchema.ticker,
+      description: organizationsSchema.description,
+      type: organizationsSchema.type,
+      canBeInvolved: organizationsSchema.canBeInvolved,
+      initialPrice: organizationsSchema.initialPrice,
+      currentPrice: organizationsSchema.currentPrice,
+    })
+    .from(organizationsSchema);
+  const organizationsList: Organization[] = orgs
+    .filter((o) => isValidOrgType(o.type))
+    .map((o: (typeof orgs)[number]) => ({
+      id: o.id,
+      name: o.name,
+      ticker: o.ticker ?? undefined,
+      description: o.description,
+      type: o.type as Organization['type'],
+      canBeInvolved: o.canBeInvolved,
+      initialPrice: o.initialPrice ?? undefined,
+      currentPrice: o.currentPrice ?? undefined,
+    }));
+  perpsEngineInstance.initializeMarkets(organizationsList);
+
+  // Hydrate user positions from perpPosition table
+  const openUserPositions = await db
+    .select()
+    .from(perpPositions)
+    .where(isNull(perpPositions.closedAt));
+
+  // Also hydrate NPC pool positions (perp positions only)
+  const openNPCPositions = await db
+    .select()
+    .from(poolPositions)
+    .where(
+      and(isNull(poolPositions.closedAt), eq(poolPositions.marketType, 'perp'))
+    );
+
+  const allPositions = [
+    ...openUserPositions.map(
+      (position: (typeof openUserPositions)[number]) => ({
+        id: position.id,
+        userId: position.userId,
+        ticker: position.ticker,
+        organizationId: position.organizationId,
+        side: position.side as 'long' | 'short',
+        entryPrice: Number(position.entryPrice),
+        currentPrice: Number(position.currentPrice),
+        size: Number(position.size),
+        leverage: Number(position.leverage),
+        liquidationPrice: Number(position.liquidationPrice),
+        unrealizedPnL: Number(position.unrealizedPnL),
+        unrealizedPnLPercent: Number(position.unrealizedPnLPercent),
+        fundingPaid: Number(position.fundingPaid),
+        openedAt: position.openedAt,
+        lastUpdated: position.lastUpdated ?? position.openedAt,
       })
-      .from(organizationsSchema);
-    const organizationsList: Organization[] = orgs
-      .filter((o) => isValidOrgType(o.type))
-      .map((o: (typeof orgs)[number]) => ({
-        id: o.id,
-        name: o.name,
-        ticker: o.ticker ?? undefined,
-        description: o.description,
-        type: o.type as Organization['type'],
-        canBeInvolved: o.canBeInvolved,
-        initialPrice: o.initialPrice ?? undefined,
-        currentPrice: o.currentPrice ?? undefined,
-      }));
-    perpsEngineInstance.initializeMarkets(organizationsList);
+    ),
+    ...openNPCPositions.map((position: (typeof openNPCPositions)[number]) => {
+      // For NPC positions, we need to find the organizationId from the ticker
+      // The ticker contains the organization ID
+      const leverage = Number(position.leverage || 5);
+      const entryPrice = Number(position.entryPrice);
+      const side = position.side as 'long' | 'short';
 
-    // Hydrate user positions from perpPosition table
-    const openUserPositions = await db
-      .select()
-      .from(perpPositions)
-      .where(isNull(perpPositions.closedAt));
+      // Calculate liquidation price if not set (for long: 80% of entry, for short: 120% of entry)
+      const liquidationPrice = position.liquidationPrice
+        ? Number(position.liquidationPrice)
+        : entryPrice * (side === 'long' ? 0.8 : 1.2);
 
-    // Also hydrate NPC pool positions (perp positions only)
-    const openNPCPositions = await db
-      .select()
-      .from(poolPositions)
-      .where(
-        and(
-          isNull(poolPositions.closedAt),
-          eq(poolPositions.marketType, 'perp')
-        )
-      );
+      return {
+        id: position.id,
+        userId: position.poolId, // Use poolId as userId for NPC positions
+        ticker: position.ticker!,
+        organizationId: position.ticker!, // For NPC positions, ticker === organizationId
+        side,
+        entryPrice,
+        currentPrice: Number(position.currentPrice),
+        size: Number(position.size),
+        leverage,
+        liquidationPrice,
+        unrealizedPnL: Number(position.unrealizedPnL),
+        unrealizedPnLPercent: 0,
+        fundingPaid: 0,
+        openedAt: position.updatedAt,
+        lastUpdated: position.updatedAt,
+      };
+    }),
+  ];
 
-    const allPositions = [
-      ...openUserPositions.map(
-        (position: (typeof openUserPositions)[number]) => ({
-          id: position.id,
-          userId: position.userId,
-          ticker: position.ticker,
-          organizationId: position.organizationId,
-          side: position.side as 'long' | 'short',
-          entryPrice: Number(position.entryPrice),
-          currentPrice: Number(position.currentPrice),
-          size: Number(position.size),
-          leverage: Number(position.leverage),
-          liquidationPrice: Number(position.liquidationPrice),
-          unrealizedPnL: Number(position.unrealizedPnL),
-          unrealizedPnLPercent: Number(position.unrealizedPnLPercent),
-          fundingPaid: Number(position.fundingPaid),
-          openedAt: position.openedAt,
-          lastUpdated: position.lastUpdated ?? position.openedAt,
-        })
-      ),
-      ...openNPCPositions.map((position: (typeof openNPCPositions)[number]) => {
-        // For NPC positions, we need to find the organizationId from the ticker
-        // The ticker contains the organization ID
-        const leverage = Number(position.leverage || 5);
-        const entryPrice = Number(position.entryPrice);
-        const side = position.side as 'long' | 'short';
-
-        // Calculate liquidation price if not set (for long: 80% of entry, for short: 120% of entry)
-        const liquidationPrice = position.liquidationPrice
-          ? Number(position.liquidationPrice)
-          : entryPrice * (side === 'long' ? 0.8 : 1.2);
-
-        return {
-          id: position.id,
-          userId: position.poolId, // Use poolId as userId for NPC positions
-          ticker: position.ticker!,
-          organizationId: position.ticker!, // For NPC positions, ticker === organizationId
-          side,
-          entryPrice,
-          currentPrice: Number(position.currentPrice),
-          size: Number(position.size),
-          leverage,
-          liquidationPrice,
-          unrealizedPnL: Number(position.unrealizedPnL),
-          unrealizedPnLPercent: 0,
-          fundingPaid: 0,
-          openedAt: position.updatedAt,
-          lastUpdated: position.updatedAt,
-        };
-      }),
-    ];
-
-    if (allPositions.length > 0) {
-      perpsEngineInstance.hydrateOpenPositions(allPositions);
-    }
-  } finally {
-    initializing = false;
+  if (allPositions.length > 0) {
+    perpsEngineInstance.hydrateOpenPositions(allPositions);
   }
+  initializing = false;
 }
 
 /**

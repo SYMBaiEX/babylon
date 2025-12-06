@@ -147,37 +147,9 @@ export class InitialInvestmentService {
     const failureReasons: Record<string, number> = {};
 
     for (const investment of allInvestments) {
-      try {
-        await InitialInvestmentService.executeInvestment(investment);
-        successfulInvestments++;
-        totalVolume += investment.amount;
-      } catch (error) {
-        const errorMessage =
-          error instanceof Error ? error.message : String(error);
-        failureReasons[errorMessage] = (failureReasons[errorMessage] || 0) + 1;
-
-        logger.warn(
-          `Failed to execute investment for ${investment.npcName}`,
-          {
-            error: errorMessage,
-            ticker: investment.ticker,
-            amount: investment.amount,
-          },
-          'InitialInvestment'
-        );
-
-        // FAIL FAST in development for first few failures
-        if (
-          process.env.NODE_ENV !== 'production' &&
-          successfulInvestments === 0 &&
-          Object.keys(failureReasons).length <= 3
-        ) {
-          throw new Error(
-            `[DEV] Initial investment execution failed: ${errorMessage}. ` +
-              `NPC: ${investment.npcName}, Ticker: ${investment.ticker}, Amount: $${investment.amount}`
-          );
-        }
-      }
+      await InitialInvestmentService.executeInvestment(investment);
+      successfulInvestments++;
+      totalVolume += investment.amount;
     }
 
     if (Object.keys(failureReasons).length > 0) {
@@ -302,84 +274,67 @@ Return ONLY valid JSON array (no explanations):
 
 Generate investments for ALL ${npcs.length} NPCs. Each NPC must have 2-5 investments totaling their target amount.`;
 
-    try {
-      const response = await llm.generateJSON<InitialInvestment[]>(
-        prompt,
-        {
-          properties: {
-            investments: {
-              type: 'array',
-              items: {
-                type: 'object',
-                properties: {
-                  npcId: { type: 'string' },
-                  npcName: { type: 'string' },
-                  ticker: { type: 'string' },
-                  orgName: { type: 'string' },
-                  amount: { type: 'number' },
-                  reasoning: { type: 'string' },
-                },
+    const response = await llm.generateJSON<InitialInvestment[]>(
+      prompt,
+      {
+        properties: {
+          investments: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                npcId: { type: 'string' },
+                npcName: { type: 'string' },
+                ticker: { type: 'string' },
+                orgName: { type: 'string' },
+                amount: { type: 'number' },
+                reasoning: { type: 'string' },
               },
             },
           },
         },
-        {
-          temperature: 0.7,
-          maxTokens: 16000,
-          format: 'json',
-          promptType: 'generate_investments_batch',
-        }
-      );
-
-      logger.debug(
-        `LLM response type: ${typeof response}, is array: ${Array.isArray(response)}`,
-        {
-          responseKeys: response ? Object.keys(response) : [],
-        },
-        'InitialInvestment'
-      );
-
-      // Validate response is array
-      const investments = Array.isArray(response) ? response : [];
-
-      if (investments.length === 0) {
-        logger.warn(
-          'LLM returned empty array, using fallback',
-          { npcCount: npcs.length },
-          'InitialInvestment'
-        );
-        return InitialInvestmentService.generateFallbackInvestments(
-          npcs,
-          companies
-        );
+      },
+      {
+        temperature: 0.7,
+        maxTokens: 16000,
+        format: 'json',
+        promptType: 'generate_investments_batch',
       }
+    );
 
-      logger.info(
-        `Generated ${investments.length} initial investments for batch`,
-        {
-          npcCount: npcs.length,
-          investmentsCount: investments.length,
-        },
+    logger.debug(
+      `LLM response type: ${typeof response}, is array: ${Array.isArray(response)}`,
+      {
+        responseKeys: response ? Object.keys(response) : [],
+      },
+      'InitialInvestment'
+    );
+
+    // Validate response is array
+    const investments = Array.isArray(response) ? response : [];
+
+    if (investments.length === 0) {
+      logger.warn(
+        'LLM returned empty array, using fallback',
+        { npcCount: npcs.length },
         'InitialInvestment'
       );
-
-      return investments;
-    } catch (error) {
-      logger.error(
-        'Failed to generate initial investments for batch',
-        {
-          error: error instanceof Error ? error.message : String(error),
-          npcCount: npcs.length,
-        },
-        'InitialInvestment'
-      );
-
-      // Fallback: generate simple investments based on affiliations
       return InitialInvestmentService.generateFallbackInvestments(
         npcs,
         companies
       );
     }
+
+    logger.info(
+      `Generated ${investments.length} initial investments for batch`,
+      {
+        npcCount: npcs.length,
+        investmentsCount: investments.length,
+      },
+      'InitialInvestment'
+    );
+
+    return investments;
   }
 
   /**

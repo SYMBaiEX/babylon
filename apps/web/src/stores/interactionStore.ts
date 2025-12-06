@@ -485,11 +485,11 @@ export const useInteractionStore = create<InteractionStore>()(
         favoritedProfiles: Array.from(state.favoritedProfiles),
       }),
       // Custom deserialization to convert arrays back to Maps and Sets
-      merge: (persistedState: unknown, currentState: InteractionStore) => {
-        const persisted = (persistedState as
-          | Partial<PersistedInteractionState>
-          | null
-          | undefined) || {
+      merge: (
+        persistedState: unknown,
+        currentState: InteractionStore
+      ) => {
+        const persisted = (persistedState as Partial<PersistedInteractionState> | null | undefined) || {
           postInteractions: undefined,
           commentInteractions: undefined,
           favoritedProfiles: undefined,

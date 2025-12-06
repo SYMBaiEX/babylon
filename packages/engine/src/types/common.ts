@@ -12,6 +12,7 @@ export type JsonValue =
   | number
   | boolean
   | null
+  | undefined
   | JsonValue[]
   | { [key: string]: JsonValue };
 

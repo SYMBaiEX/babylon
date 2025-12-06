@@ -57,7 +57,7 @@
  * ```
  */
 
-import { generateSnowflakeId, logger } from '@babylon/shared';
+import { generateSnowflakeId, type JsonValue, logger } from '@babylon/shared';
 import type { BabylonLLMClient } from './llm/openai-client';
 import { biasedArticle, renderPrompt, validateArticle } from './prompts';
 import { characterMappingService } from './services/character-mapping-service';
@@ -571,12 +571,12 @@ export class ArticleGenerator {
       // If slant is an object, try to extract the actual value or stringify it
       if (
         'response' in articleData.slant &&
-        typeof (articleData.slant as Record<string, unknown>).response ===
+        typeof (articleData.slant as Record<string, JsonValue>).response ===
           'object'
       ) {
         // If there's a nested response object, it's malformed - extract title or summary as fallback
-        const nestedResponse = (articleData.slant as Record<string, unknown>)
-          .response as Record<string, unknown>;
+        const nestedResponse = (articleData.slant as Record<string, JsonValue>)
+          .response as Record<string, JsonValue>;
         slantString =
           (nestedResponse.slant as string) ||
           (nestedResponse.title as string) ||

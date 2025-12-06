@@ -88,7 +88,6 @@ describe('NewsArticlePacingEngine', () => {
       expect(pacer.shouldGenerateArticle(1, 'org-2', 'breaking')).toBe(true);
       pacer.recordArticle(1, 'org-2', 'breaking', 'article-2', 11);
 
-      // Third org should be blocked
       expect(pacer.shouldGenerateArticle(1, 'org-3', 'breaking')).toBe(false);
     });
 
@@ -124,7 +123,6 @@ describe('NewsArticlePacingEngine', () => {
       expect(pacer.shouldGenerateArticle(1, 'org-3', 'commentary')).toBe(true);
       pacer.recordArticle(1, 'org-3', 'commentary', 'article-3', 22);
 
-      // Fourth org should be blocked
       expect(pacer.shouldGenerateArticle(1, 'org-4', 'commentary')).toBe(false);
     });
 
@@ -158,7 +156,6 @@ describe('NewsArticlePacingEngine', () => {
         );
       }
 
-      // Still allows more
       expect(pacer.shouldGenerateArticle(1, 'org-11', 'resolution')).toBe(true);
     });
 
@@ -187,29 +184,23 @@ describe('NewsArticlePacingEngine', () => {
 
   describe('Multi-Question Isolation', () => {
     it('should track different questions separately', () => {
-      // Question 1 - breaking
       expect(pacer.shouldGenerateArticle(1, 'org-1', 'breaking')).toBe(true);
       pacer.recordArticle(1, 'org-1', 'breaking', 'article-1', 10);
 
-      // Question 2 - same org, same stage, different question
       expect(pacer.shouldGenerateArticle(2, 'org-1', 'breaking')).toBe(true);
       pacer.recordArticle(2, 'org-1', 'breaking', 'article-2', 11);
 
-      // Both should be recorded
       expect(pacer.getArticlesForQuestion(1).length).toBe(1);
       expect(pacer.getArticlesForQuestion(2).length).toBe(1);
     });
 
     it('should allow same org for different stages of same question', () => {
-      // Breaking
       expect(pacer.shouldGenerateArticle(1, 'org-1', 'breaking')).toBe(true);
       pacer.recordArticle(1, 'org-1', 'breaking', 'article-1', 10);
 
-      // Commentary - same org, different stage
       expect(pacer.shouldGenerateArticle(1, 'org-1', 'commentary')).toBe(true);
       pacer.recordArticle(1, 'org-1', 'commentary', 'article-2', 20);
 
-      // Resolution - same org, different stage
       expect(pacer.shouldGenerateArticle(1, 'org-1', 'resolution')).toBe(true);
     });
   });
@@ -270,17 +261,13 @@ describe('NewsArticlePacingEngine', () => {
     });
 
     it('should reset stage limits after clear', () => {
-      // Fill up breaking stage
       pacer.recordArticle(1, 'org-1', 'breaking', 'article-1', 10);
       pacer.recordArticle(1, 'org-2', 'breaking', 'article-2', 11);
 
-      // Third org blocked
       expect(pacer.shouldGenerateArticle(1, 'org-3', 'breaking')).toBe(false);
 
-      // Clear question
       pacer.clearQuestion(1);
 
-      // Now allowed again
       expect(pacer.shouldGenerateArticle(1, 'org-3', 'breaking')).toBe(true);
     });
   });
@@ -295,7 +282,6 @@ describe('NewsArticlePacingEngine', () => {
     ];
 
     it('should return empty array if all orgs have published', () => {
-      // Mark all orgs as published
       orgs.forEach((org) => {
         pacer.recordArticle(1, org.id, 'breaking', `article-${org.id}`, 10);
       });
@@ -305,13 +291,11 @@ describe('NewsArticlePacingEngine', () => {
     });
 
     it('should only select from eligible orgs', () => {
-      // Mark some orgs as published
       pacer.recordArticle(1, 'cnn', 'breaking', 'article-1', 10);
       pacer.recordArticle(1, 'fox', 'breaking', 'article-2', 11);
 
       const selected = pacer.selectOrgsForStage(orgs, 1, 'breaking');
 
-      // Should not include CNN or Fox
       expect(
         selected.every((org) => org.id !== 'cnn' && org.id !== 'fox')
       ).toBe(true);
@@ -320,14 +304,12 @@ describe('NewsArticlePacingEngine', () => {
     it('should select different orgs each time (randomness)', () => {
       const selections = new Set<string>();
 
-      // Run selection multiple times with valid question IDs
       for (let i = 1; i <= 10; i++) {
         const freshPacer = new NewsArticlePacingEngine();
         const selected = freshPacer.selectOrgsForStage(orgs, i, 'breaking');
         selections.add(JSON.stringify(selected.map((o) => o.id).sort()));
       }
 
-      // Should have some variety (at least 3 different selections)
       expect(selections.size).toBeGreaterThanOrEqual(3);
     });
   });
@@ -352,7 +334,6 @@ describe('NewsArticlePacingEngine', () => {
     });
 
     it('should handle question ID collision for different stages', () => {
-      // Same question, different stages
       pacer.recordArticle(1, 'org-1', 'breaking', 'article-1', 10);
       pacer.recordArticle(1, 'org-1', 'commentary', 'article-2', 20);
       pacer.recordArticle(1, 'org-1', 'resolution', 'article-3', 30);

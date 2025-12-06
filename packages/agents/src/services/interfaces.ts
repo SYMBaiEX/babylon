@@ -10,9 +10,9 @@
 import type {
   AgentCapabilities,
   AgentDiscoveryFilter,
+  AgentRegistration,
   AgentStatus,
   TrustLevel,
-  UnifiedAgentRegistration,
 } from '../types/agent-registry';
 import type { JsonValue } from '../types/common';
 
@@ -29,12 +29,12 @@ export interface IAgentRegistry {
     systemPrompt: string;
     capabilities: AgentCapabilities;
     trustLevel?: TrustLevel;
-  }): Promise<UnifiedAgentRegistration>;
+  }): Promise<AgentRegistration>;
 
   /**
    * Get agent by ID
    */
-  getAgentById(agentId: string): Promise<UnifiedAgentRegistration | null>;
+  getAgentById(agentId: string): Promise<AgentRegistration | null>;
 
   /**
    * Update agent status
@@ -42,7 +42,7 @@ export interface IAgentRegistry {
   updateAgentStatus(
     agentId: string,
     status: AgentStatus
-  ): Promise<UnifiedAgentRegistration>;
+  ): Promise<AgentRegistration>;
 
   /**
    * Update agent trust level
@@ -52,9 +52,7 @@ export interface IAgentRegistry {
   /**
    * Discover agents matching filter
    */
-  discoverAgents(
-    filter: AgentDiscoveryFilter
-  ): Promise<UnifiedAgentRegistration[]>;
+  discoverAgents(filter: AgentDiscoveryFilter): Promise<AgentRegistration[]>;
 }
 
 /**

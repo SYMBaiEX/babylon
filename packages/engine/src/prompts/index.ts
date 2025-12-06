@@ -89,7 +89,6 @@ export {
   validateFeedPost,
   validateHashtags,
   validateNoEmojis,
-  validateNoHashtags,
   validateNoRealNames as validateNoRealNamesStrict,
   validatePostBatch,
 } from './validate-output';

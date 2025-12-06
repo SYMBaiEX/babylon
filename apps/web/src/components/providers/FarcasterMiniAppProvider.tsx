@@ -139,25 +139,12 @@ export function FarcasterMiniAppProvider({
 
             // Small delay to ensure DOM is ready
             setTimeout(async () => {
-              try {
-                await sdk.actions.ready();
-                logger.info(
-                  'Farcaster Mini App ready() called successfully',
-                  {},
-                  'FarcasterMiniApp'
-                );
-              } catch (readyError) {
-                logger.error(
-                  'Failed to call sdk.actions.ready()',
-                  {
-                    error:
-                      readyError instanceof Error
-                        ? readyError.message
-                        : String(readyError),
-                  },
-                  'FarcasterMiniApp'
-                );
-              }
+              await sdk.actions.ready();
+              logger.info(
+                'Farcaster Mini App ready() called successfully',
+                {},
+                'FarcasterMiniApp'
+              );
             }, 100);
           }
         } else {
@@ -360,25 +347,13 @@ export function FarcasterMiniAppProvider({
       return;
     }
 
-    try {
-      // Farcaster compose URL - uses official protocol endpoint (farcaster.xyz)
-      await sdk.actions.openUrl(
-        `https://farcaster.xyz/~/compose?text=${encodeURIComponent(options.text || '')}${
-          options.url ? `&embeds[]=${encodeURIComponent(options.url)}` : ''
-        }`
-      );
-      logger.info('Mini App share opened', options, 'FarcasterMiniApp');
-    } catch (error) {
-      logger.error(
-        'Failed to open Mini App share',
-        {
-          error: error instanceof Error ? error.message : String(error),
-          options,
-        },
-        'FarcasterMiniApp'
-      );
-      throw error;
-    }
+    // Farcaster compose URL - uses official protocol endpoint (farcaster.xyz)
+    await sdk.actions.openUrl(
+      `https://farcaster.xyz/~/compose?text=${encodeURIComponent(options.text || '')}${
+        options.url ? `&embeds[]=${encodeURIComponent(options.url)}` : ''
+      }`
+    );
+    logger.info('Mini App share opened', options, 'FarcasterMiniApp');
   };
 
   const value: FarcasterMiniAppContextType = {

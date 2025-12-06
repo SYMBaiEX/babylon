@@ -22,7 +22,6 @@ import {
   db,
   desc,
   eq,
-  followStatuses,
   follows,
   getDbInstance,
   inArray,
@@ -297,18 +296,6 @@ class CachedDatabaseService {
           .from(reactions)
           .where(eq(reactions.userId, userId));
 
-        // Count user-initiated actor follows (stored in followStatuses table)
-        const legacyActorFollowResult = await db
-          .select({ count: count() })
-          .from(followStatuses)
-          .where(
-            and(
-              eq(followStatuses.userId, userId),
-              eq(followStatuses.isActive, true),
-              eq(followStatuses.followReason, 'user_followed')
-            )
-          );
-
         // Count posts
         const postCountResult = await db
           .select({ count: count() })
@@ -318,13 +305,10 @@ class CachedDatabaseService {
         const followers = Number(followersResult[0]?.count ?? 0);
         const following = Number(followingResult[0]?.count ?? 0);
         const actorFollows = Number(actorFollowsResult[0]?.count ?? 0);
-        const userInitiatedFollows = Number(
-          legacyActorFollowResult[0]?.count ?? 0
-        );
 
         return {
           followers,
-          following: following + actorFollows + userInitiatedFollows,
+          following: following + actorFollows,
           positions: Number(positionsResult[0]?.count ?? 0),
           comments: Number(commentsResult[0]?.count ?? 0),
           reactions: Number(reactionsResult[0]?.count ?? 0),

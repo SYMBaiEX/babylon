@@ -10,14 +10,16 @@
  * @packageDocumentation
  */
 
+// Archetypes
+export * from './archetypes';
 // Re-export all sub-modules
 export * from './benchmark';
-
 export type {
-  CreateAutonomousCoordinatorFn,
+  CreateAgentParams,
   ExportGroupedForGRPOFn,
   ExportToHuggingFaceFn,
   IAgentRuntimeManager,
+  IAgentService,
   IAutonomousCoordinator,
   ILLMCaller,
   ToTrainingMessagesFn,
@@ -27,37 +29,30 @@ export type {
 } from './dependencies';
 // Dependencies configuration
 export {
+  areAgentDependenciesConfigured,
   areDependenciesConfigured,
-  configureAutonomousCoordinator,
   configureTrainingDependencies,
-  createAutonomousCoordinator,
   getAgentRuntimeManager,
+  getAgentService,
+  getAutonomousCoordinator,
   getExportGroupedForGRPO,
   getExportToHuggingFace,
   getLLMCaller,
   getToTrainingMessages,
 } from './dependencies';
+// Generation
+export * from './generation';
 export * from './huggingface';
+// Training initialization
 export {
-  TrajectoryMetricsExtractor,
-  trajectoryMetricsExtractor,
-} from './metrics/TrajectoryMetricsExtractor';
-
-// Multi-criteria evaluation - export metrics types and extractor explicitly
-export type {
-  BehavioralMetrics,
-  BehaviorMetrics,
-  InfluenceMetrics,
-  InformationMetrics,
-  MetricsSummary,
-  SocialMetrics,
-  TradingMetrics,
-} from './metrics/types';
-export { getMetricsSummary } from './metrics/types';
+  initializeTrainingPackage,
+  isTrainingInitialized,
+  resetTrainingInitialization,
+} from './init-training';
+// Metrics (re-export for backwards compatibility, prefer import from './metrics')
+export * from './metrics';
 export * from './rubrics';
 export * from './scoring';
 export * from './training';
-
 // Utilities
-export { logger } from './utils/logger';
-export { generateSnowflakeId } from './utils/snowflake';
+export * from './utils';

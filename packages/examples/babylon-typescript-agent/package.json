@@ -5,12 +5,14 @@
   "type": "module",
   "scripts": {
     "agent": "bun run src/index.ts",
+    "agent:local": "bun run src/local-agent.ts",
     "lint": "biome lint .",
     "typecheck": "tsc --noEmit",
     "test": "bun test tests/",
     "test:integration": "bun test tests/integration.test.ts",
     "test:e2e": "bun test tests/e2e.test.ts",
     "test:actions": "bun test tests/actions-comprehensive.test.ts",
+    "test:local": "bun test tests/local-e2e.test.ts",
     "register": "bun run src/registration.ts",
     "benchmark": "bun run src/benchmark-runner.ts"
   },

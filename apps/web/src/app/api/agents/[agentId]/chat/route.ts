@@ -151,21 +151,7 @@ export const POST = withErrorHandling(
     const { agentId } = await params;
     logger.info('Agent chat endpoint hit', { agentId }, 'AgentChat');
 
-    let body: { message: string; usePro: boolean };
-    try {
-      body = (await req.json()) as { message: string; usePro: boolean };
-    } catch (error) {
-      logger.error(
-        'Failed to parse request body',
-        { error, agentId },
-        'AgentChat'
-      );
-      return NextResponse.json(
-        { success: false, error: 'Invalid request body' },
-        { status: 400 }
-      );
-    }
-
+    const body = (await req.json()) as { message: string; usePro: boolean };
     const message = body.message;
     const usePro = body.usePro;
 

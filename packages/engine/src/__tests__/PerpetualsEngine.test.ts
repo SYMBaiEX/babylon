@@ -220,7 +220,6 @@ describe('PerpetualsEngine', () => {
     const priceMap = new Map([['test-company', 105]]);
     engine.updatePositions(priceMap);
 
-    // Check PnL updated
     const updatedPositions = engine.getUserPositions('user-1');
     expect(updatedPositions[0]!.currentPrice).toBe(105);
     expect(updatedPositions[0]!.unrealizedPnL).toBeGreaterThan(0);

@@ -23,13 +23,22 @@ interface OpenAPIServer {
 }
 
 // OpenAPI Spec type (simplified)
+// Using a more specific type since @babylon/shared is not available in docs app
+type OpenAPIJsonValue =
+  | string
+  | number
+  | boolean
+  | null
+  | OpenAPIJsonValue[]
+  | { [key: string]: OpenAPIJsonValue };
+
 interface OpenAPISpec {
   openapi?: string;
-  info?: Record<string, unknown>;
+  info?: Record<string, OpenAPIJsonValue>;
   servers?: OpenAPIServer[];
-  paths?: Record<string, unknown>;
-  components?: Record<string, unknown>;
-  [key: string]: unknown;
+  paths?: Record<string, OpenAPIJsonValue>;
+  components?: Record<string, OpenAPIJsonValue>;
+  [key: string]: OpenAPIJsonValue | OpenAPIServer[] | undefined;
 }
 
 interface SwaggerUIProps {
@@ -44,89 +53,87 @@ export default function SwaggerUI({ spec, url }: SwaggerUIProps) {
 
   useEffect(() => {
     const loadSpec = async () => {
-      try {
-        let data: OpenAPISpec;
+      let data: OpenAPISpec;
 
-        if (spec) {
-          data = spec as OpenAPISpec;
-        } else if (url) {
-          const response = await fetch(url);
-          if (!response.ok) {
-            throw new Error(
-              `Failed to load OpenAPI spec: ${response.statusText}`
-            );
-          }
-          data = (await response.json()) as OpenAPISpec;
-        } else {
-          // Default: try to load from public/openapi.json
-          const response = await fetch('/openapi.json');
-          if (!response.ok) {
-            throw new Error(
-              `Failed to load OpenAPI spec: ${response.statusText}`
-            );
-          }
-          data = (await response.json()) as OpenAPISpec;
-        }
-
-        // Ensure production server URL is set correctly
-        // Note: Server URL should NOT include /api because paths already include /api prefix
-        if (data.servers && Array.isArray(data.servers)) {
-          // Update or add production server (without /api since paths include it)
-          const hasProduction = data.servers.some((s) =>
-            s.url.includes('babylon.market')
+      if (spec) {
+        data = spec as OpenAPISpec;
+      } else if (url) {
+        const response = await fetch(url);
+        if (!response.ok) {
+          throw new Error(
+            `Failed to load OpenAPI spec: ${response.statusText}`
           );
-          if (!hasProduction) {
-            data.servers.push({
-              url: 'https://babylon.market',
-              description: 'Production server',
-            });
-          } else {
-            // Ensure production server doesn't have /api suffix (paths already include it)
-            data.servers = data.servers.map((s) => {
-              if (s.url.includes('babylon.market') && s.url.endsWith('/api')) {
-                return { ...s, url: 'https://babylon.market' };
-              }
-              if (s.url === 'http://localhost:3000/api') {
-                return { ...s, url: 'http://localhost:3000' };
-              }
-              return s;
-            });
-          }
-          // Set production as default if available
-          const productionIndex = data.servers.findIndex((s) =>
-            s.url.includes('babylon.market')
-          );
-          if (productionIndex > 0) {
-            // Move production to first position
-            const prod = data.servers.splice(productionIndex, 1)[0];
-            data.servers.unshift(prod);
-          }
-        } else {
-          data.servers = [
-            {
-              url: 'https://babylon.market',
-              description: 'Production server',
-            },
-            {
-              url: 'http://localhost:3000',
-              description: 'Development server',
-            },
-          ];
         }
-
-        setSwaggerSpec(data);
-        setLoading(false);
-      } catch (err) {
-        setError(
-          err instanceof Error
-            ? err.message
-            : 'Failed to load API documentation'
-        );
-        setLoading(false);
+        data = (await response.json()) as OpenAPISpec;
+      } else {
+        // Default: try to load from public/openapi.json
+        const response = await fetch('/openapi.json');
+        if (!response.ok) {
+          throw new Error(
+            `Failed to load OpenAPI spec: ${response.statusText}`
+          );
+        }
+        data = (await response.json()) as OpenAPISpec;
       }
+
+      // Ensure production server URL is set correctly
+      // Note: Server URL should NOT include /api because paths already include /api prefix
+      if (data.servers && Array.isArray(data.servers)) {
+        // Update or add production server (without /api since paths include it)
+        const hasProduction = data.servers.some((s) =>
+          s.url.includes('babylon.market')
+        );
+        if (!hasProduction) {
+          data.servers.push({
+            url: 'https://babylon.market',
+            description: 'Production server',
+          });
+        } else {
+          // Ensure production server doesn't have /api suffix (paths already include it)
+          data.servers = data.servers.map((s) => {
+            if (s.url.includes('babylon.market') && s.url.endsWith('/api')) {
+              return { ...s, url: 'https://babylon.market' };
+            }
+            if (s.url === 'http://localhost:3000/api') {
+              return { ...s, url: 'http://localhost:3000' };
+            }
+            return s;
+          });
+        }
+        // Set production as default if available
+        const productionIndex = data.servers.findIndex((s) =>
+          s.url.includes('babylon.market')
+        );
+        if (productionIndex > 0) {
+          // Move production to first position
+          const prod = data.servers.splice(productionIndex, 1)[0];
+          data.servers.unshift(prod);
+        }
+      } else {
+        data.servers = [
+          {
+            url: 'https://babylon.market',
+            description: 'Production server',
+          },
+          {
+            url: 'http://localhost:3000',
+            description: 'Development server',
+          },
+        ];
+      }
+
+      setSwaggerSpec(data);
+      setLoading(false);
     };
 
-    loadSpec();
+    loadSpec().catch((err) => {
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'Failed to load API documentation'
+      );
+      setLoading(false);
+    });
   }, [spec, url]);
 
   if (loading) {

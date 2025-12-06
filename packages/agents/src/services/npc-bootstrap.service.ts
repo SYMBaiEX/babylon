@@ -89,57 +89,32 @@ export class NPCBootstrapService {
       errors: [],
     };
 
-    try {
-      // Load all Actor records from database
-      const actorsList = await db
-        .select()
-        .from(actors)
-        .orderBy(asc(actors.name));
+    // Load all Actor records from database
+    const actorsList = await db.select().from(actors).orderBy(asc(actors.name));
 
-      result.totalNpcs = actorsList.length;
-      logger.info(
-        `Found ${actorsList.length} NPCs to bootstrap`,
-        undefined,
-        'NPCBootstrapService'
-      );
+    result.totalNpcs = actorsList.length;
+    logger.info(
+      `Found ${actorsList.length} NPCs to bootstrap`,
+      undefined,
+      'NPCBootstrapService'
+    );
 
-      // Bootstrap each actor in sequence (to avoid overwhelming database)
-      for (const actor of actorsList) {
-        try {
-          const bootstrapResult = await this.bootstrapSingleNpc(actor);
-          if (bootstrapResult.registered) {
-            result.registered++;
-          }
-          if (bootstrapResult.initialized) {
-            result.initialized++;
-          }
-        } catch (error) {
-          result.failed++;
-          result.errors.push({
-            actorId: actor.id,
-            error: error instanceof Error ? error.message : String(error),
-          });
-          logger.error(
-            `Failed to bootstrap NPC ${actor.id}`,
-            error instanceof Error ? error : new Error(String(error)),
-            'NPCBootstrapService'
-          );
-        }
+    // Bootstrap each actor in sequence (to avoid overwhelming database)
+    for (const actor of actorsList) {
+      const bootstrapResult = await this.bootstrapSingleNpc(actor);
+      if (bootstrapResult.registered) {
+        result.registered++;
       }
-
-      logger.info(
-        `NPC bootstrap complete: ${result.initialized}/${result.totalNpcs} initialized, ${result.failed} failed`,
-        { result },
-        'NPCBootstrapService'
-      );
-    } catch (error) {
-      logger.error(
-        'NPC bootstrap failed',
-        error instanceof Error ? error : new Error(String(error)),
-        'NPCBootstrapService'
-      );
-      throw error;
+      if (bootstrapResult.initialized) {
+        result.initialized++;
+      }
     }
+
+    logger.info(
+      `NPC bootstrap complete: ${result.initialized}/${result.totalNpcs} initialized, ${result.failed} failed`,
+      { result },
+      'NPCBootstrapService'
+    );
 
     return result;
   }

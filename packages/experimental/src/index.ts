@@ -1,26 +1,40 @@
 /**
- * Experimental Package - Permissionless AI Game Demonstration
+ * Experimental Package - 100% PERMISSIONLESS AI Game
  *
- * Self-contained toy implementation of a decentralized AI game
- * running on simulated TEE infrastructure.
+ * NO API KEYS. NO LOGINS. WALLET SIGNATURE ONLY.
+ *
+ * All production code uses:
+ * - Arweave for permanent storage (wallet-signed)
+ * - AES-256-GCM for encryption (Web Crypto API)
+ * - secp256k1 for signatures (Ethereum-compatible)
+ * - Marlin Oyster for TEE (wallet + USDC on Arbitrum)
+ *
+ * @see src/automated-demo.ts - Run the full demo
+ * @see src/permissionless-audit.ts - Verify everything is permissionless
  */
 
-// Smart contract simulation
-export {
-  type ContractEvent,
-  type ContractEventType,
-  type GameConfig as ContractGameConfig,
-  type GameState as ContractGameState,
-  type KeyRotationRequest,
-  MockBlockchain,
-  type SecurityCouncilState,
-  type StakeInfo,
-  type StakingState,
-  type TransactionResult,
+// ============================================================================
+// PRODUCTION EXPORTS (100% PERMISSIONLESS)
+// ============================================================================
+
+// Contract types
+export type {
+  ContractEvent,
+  ContractSystem,
+  GameConfig as ContractGameConfig,
+  GameEvent,
+  GameState as ContractGameState,
+  GovernanceState,
+  KeyRotationRequest,
+  SecurityCouncilState,
+  StakeInfo,
+  StakingState,
 } from './contracts/index.js';
-// Core crypto primitives
+
+// Cryptography (real, Web Crypto API)
 export * from './crypto/index.js';
-// Game components
+
+// Game logic
 export {
   type AgentConfig,
   type AgentState,
@@ -37,19 +51,79 @@ export {
   type TrainingSample,
 } from './game/index.js';
 
-// Storage simulation
+// Infrastructure (real blockchain clients)
 export {
-  IPFSSimulator,
+  AttestationClient,
+  BlockchainClient,
+  type BlockchainConfig,
+  type BootstrapConfig,
+  type BootstrappedGame,
+  bootstrap,
+  type ChainId,
+  DStackClient,
+  ENSDeployer,
+  ENSRegistrar,
+  type GameStatus,
+  generateBabylonWorkerCode,
+  MARLIN_CLI_COMMANDS,
+  MARLIN_CONTRACTS,
+  type MarlinDeployResult,
+  type MarlinJobResult,
+  MarlinOysterClient,
+  type MarlinSubscriptionResult,
+  OnChainAttestationClient,
+  type OperatorInfo,
+  ProductionTEEEnclave,
+  printDeploymentInstructions,
+  type RegistrationResult,
+} from './infra/index.js';
+
+// Protocol (PBTS-aligned)
+export {
+  type AggregatedReceipts,
+  aggregateReceipts,
+  type Commitment,
+  CommitRevealManager,
+  createReceipt,
+  type DHTAnnouncement,
+  DHTFallbackManager,
+  type PeerInfo,
+  ReceiptManager,
+  type Reveal,
+  type TransferReceipt,
+  type VerificationReport,
+  VerifierClient,
+  verifyReceipt,
+} from './protocol/index.js';
+
+// Storage (100% permissionless - wallet signatures only)
+export {
+  ArweaveStorage,
+  type ArweaveStorageConfig,
+  createArweaveOnlyStorage,
+  createDecentralizedStorage,
+  createDevnetStorage,
+  createHybridStorage,
+  createLocalIPFSStorage,
+  createMainnetStorage,
+  createPermissionlessStorage,
+  DecentralizedStorage,
+  type DecentralizedStorageConfig,
+  FileStorage,
+  type FileStorageConfig,
+  PermissionlessStorage,
+  type PermissionlessStorageConfig,
   type StateCheckpoint,
   StateManager,
   type StateManagerConfig,
+  type Storage,
   type StorageStats,
-  type StoredObject,
-  type StoreOptions,
   type TrainingDataset,
-  type VerificationResult as StorageVerificationResult,
+  type UploadOptions,
+  type UploadResult,
 } from './storage/index.js';
-// TEE simulation
+
+// TEE (simulated locally, real via Marlin Oyster)
 export {
   type AttestationQuote,
   type EnclaveConfig,

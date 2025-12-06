@@ -40,7 +40,6 @@ export interface ListTasksResult {
   totalSize: number;
   pageSize: number;
   nextPageToken: string;
-  [key: string]: unknown;
 }
 
 /**

@@ -17,7 +17,7 @@ import * as Sentry from '@sentry/nextjs';
 const originalConsoleLog = console.log;
 const originalConsoleError = console.error;
 
-console.log = (...args: unknown[]) => {
+console.log = (...args: Parameters<typeof console.log>) => {
   const message = args.join(' ');
   // Only filter Next.js Sentry logger messages
   if (
@@ -30,7 +30,7 @@ console.log = (...args: unknown[]) => {
   originalConsoleLog(...args);
 };
 
-console.error = (...args: unknown[]) => {
+console.error = (...args: Parameters<typeof console.error>) => {
   const message = args.join(' ');
   // Only filter Next.js Sentry "Transport disabled" error
   if (

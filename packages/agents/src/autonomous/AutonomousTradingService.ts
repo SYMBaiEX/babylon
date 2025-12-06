@@ -4,6 +4,7 @@
  * Handles agents making REAL trades on prediction markets and perps
  */
 
+import { countTokensSync, truncateToTokenLimitSync } from '@babylon/api';
 import {
   and,
   asUser,
@@ -20,13 +21,11 @@ import {
   users,
 } from '@babylon/db';
 import {
-  countTokensSync,
   formatRandomContext,
   generateRandomMarketContext,
   PerpTradeService,
   PredictionPricing,
   shuffleArray,
-  truncateToTokenLimitSync,
   WalletService,
 } from '@babylon/engine';
 import type { IAgentRuntime } from '@elizaos/core';
@@ -225,7 +224,7 @@ ${contextString}`;
       );
     }
 
-    let tradeDecision: {
+    const tradeDecision = JSON.parse(jsonMatch[0]) as {
       action: string;
       trade?: {
         type: string;
@@ -235,22 +234,6 @@ ${contextString}`;
         reasoning?: string;
       };
     };
-    try {
-      tradeDecision = JSON.parse(jsonMatch[0]) as {
-        action: string;
-        trade?: {
-          type: string;
-          market: string;
-          action: string;
-          amount: number;
-          reasoning?: string;
-        };
-      };
-    } catch (parseError) {
-      throw new Error(
-        `Failed to parse JSON trade decision: ${parseError instanceof Error ? parseError.message : String(parseError)}. Response: ${decision.substring(0, 200)}`
-      );
-    }
 
     if (tradeDecision.action !== 'trade' || !tradeDecision.trade) {
       return {

@@ -79,7 +79,6 @@
  */
 
 import { db } from '@babylon/db';
-import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 
@@ -97,78 +96,69 @@ export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ actorId: string }> }
 ) {
-  try {
-    const { actorId } = await params;
+  const { actorId } = await params;
 
-    // Get actor
-    const actor = await db.actor.findUnique({
-      where: { id: actorId },
-      select: {
-        id: true,
-        name: true,
-        role: true,
-        tier: true,
-        description: true,
-      },
-    });
+  // Get actor
+  const actor = await db.actor.findUnique({
+    where: { id: actorId },
+    select: {
+      id: true,
+      name: true,
+      role: true,
+      tier: true,
+      description: true,
+    },
+  });
 
-    if (!actor) {
-      return NextResponse.json({ error: 'Actor not found' }, { status: 404 });
-    }
-
-    // Get actor's posts from COMPLETED games only
-    // Only show posts up to current time (prevent future access)
-    const now = new Date();
-    const posts = await db.post.findMany({
-      where: {
-        authorId: actorId,
-        timestamp: { lte: now }, // ✅ No future posts
-        // Only from completed games (no oracle leakage):
-        gameId: { not: null },
-      },
-      include: {
-        // We'll need to join with resolved questions to calculate accuracy
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 100, // Last 100 posts
-    });
-
-    // Calculate stats from historical OUTCOMES (not oracle):
-    // Note: This requires post-resolution analysis to be implemented
-    // For now, return basic observable stats:
-
-    const stats = {
-      actorId: actor.id,
-      name: actor.name,
-      role: actor.role,
-      tier: actor.tier,
-      description: actor.description,
-
-      // Observable metrics:
-      totalPosts: posts.length,
-      gamesParticipated: new Set(posts.map((p) => p.gameId).filter(Boolean))
-        .size,
-
-      // Placeholder for future implementation:
-      historicalAccuracy: null, // Will calculate from resolved questions
-      totalPredictions: null, // Will calculate after post-analysis
-      correctPredictions: null, // Will calculate after post-analysis
-
-      // Recent activity:
-      recentPosts: posts.slice(0, 10).map((p) => ({
-        id: p.id,
-        content: p.content.substring(0, 100),
-        gameId: p.gameId,
-        createdAt: p.createdAt,
-      })),
-    };
-
-    return NextResponse.json(stats);
-  } catch (error) {
-    logger.error('Error fetching actor stats', error, 'ActorStatsAPI');
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+  if (!actor) {
+    return NextResponse.json({ error: 'Actor not found' }, { status: 404 });
   }
+
+  // Get actor's posts from COMPLETED games only
+  // Only show posts up to current time (prevent future access)
+  const now = new Date();
+  const posts = await db.post.findMany({
+    where: {
+      authorId: actorId,
+      timestamp: { lte: now }, // ✅ No future posts
+      // Only from completed games (no oracle leakage):
+      gameId: { not: null },
+    },
+    include: {
+      // We'll need to join with resolved questions to calculate accuracy
+    },
+    orderBy: { createdAt: 'desc' },
+    take: 100, // Last 100 posts
+  });
+
+  // Calculate stats from historical OUTCOMES (not oracle):
+  // Note: This requires post-resolution analysis to be implemented
+  // For now, return basic observable stats:
+
+  const stats = {
+    actorId: actor.id,
+    name: actor.name,
+    role: actor.role,
+    tier: actor.tier,
+    description: actor.description,
+
+    // Observable metrics:
+    totalPosts: posts.length,
+    gamesParticipated: new Set(posts.map((p) => p.gameId).filter(Boolean)).size,
+
+    // Placeholder for future implementation:
+    historicalAccuracy: null, // Will calculate from resolved questions
+    totalPredictions: null, // Will calculate after post-analysis
+    correctPredictions: null, // Will calculate after post-analysis
+
+    // Recent activity:
+    recentPosts: posts.slice(0, 10).map((p) => ({
+      id: p.id,
+      content: p.content.substring(0, 100),
+      gameId: p.gameId,
+      createdAt: p.createdAt,
+    })),
+  };
+
+  return NextResponse.json(stats);
 }

@@ -185,6 +185,9 @@ class DatabaseService {
     gameId?: string;
     dayNumber?: number;
     timestamp: Date;
+    commentOnPostId?: string;
+    parentCommentId?: string;
+    originalPostId?: string;
   }) {
     const safeDayNumber =
       typeof data.dayNumber === 'number' &&
@@ -218,6 +221,9 @@ class DatabaseService {
         gameId: data.gameId,
         dayNumber: safeDayNumber,
         timestamp: data.timestamp,
+        commentOnPostId: data.commentOnPostId,
+        parentCommentId: data.parentCommentId,
+        originalPostId: data.originalPostId,
       })
       .returning();
 

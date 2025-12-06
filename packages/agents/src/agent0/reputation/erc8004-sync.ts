@@ -151,31 +151,18 @@ export async function syncAllReputationsToERC8004Simple(): Promise<void> {
   for (const user of userList) {
     if (!user.agent0TokenId) continue;
 
-    try {
-      // Get the user's performance metrics for reputation score
-      const [metrics] = await db
-        .select()
-        .from(agentPerformanceMetrics)
-        .where(eq(agentPerformanceMetrics.userId, user.id))
-        .limit(1);
+    // Get the user's performance metrics for reputation score
+    const [metrics] = await db
+      .select()
+      .from(agentPerformanceMetrics)
+      .where(eq(agentPerformanceMetrics.userId, user.id))
+      .limit(1);
 
-      await syncReputationToERC8004(user.id, {
-        reputationScore: metrics?.reputationScore ?? 50,
-        isBanned: user.isBanned,
-        isScammer: user.isScammer,
-        isCSAM: user.isCSAM,
-      });
-    } catch (error) {
-      logger.error(
-        'Failed to sync user reputation',
-        {
-          userId: user.id,
-          agent0TokenId: user.agent0TokenId,
-          error,
-        },
-        'ERC8004Sync'
-      );
-      // Continue with next user
-    }
+    await syncReputationToERC8004(user.id, {
+      reputationScore: metrics?.reputationScore ?? 50,
+      isBanned: user.isBanned,
+      isScammer: user.isScammer,
+      isCSAM: user.isCSAM,
+    });
   }
 }

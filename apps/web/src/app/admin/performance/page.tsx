@@ -175,45 +175,27 @@ export default function AdminPerformancePage() {
 
   // Fetch network stats
   const fetchStats = useCallback(async () => {
-    try {
-      const response = await fetch('/api/admin/network-stats');
+    const response = await fetch('/api/admin/network-stats');
 
-      if (!response.ok) {
-        throw new Error('Failed to fetch stats');
-      }
-
-      const data = await response.json();
-      setStats(data);
-      setError(null);
-    } catch (err) {
-      logger.error(
-        'Failed to fetch network stats',
-        err,
-        'AdminPerformancePage'
-      );
-      setError(err instanceof Error ? err.message : 'Failed to fetch stats');
+    if (!response.ok) {
+      throw new Error('Failed to fetch stats');
     }
+
+    const data = await response.json();
+    setStats(data);
+    setError(null);
   }, []);
 
   // Fetch load test status
   const fetchLoadTestStatus = useCallback(async () => {
-    try {
-      const response = await fetch('/api/admin/load-test/status');
+    const response = await fetch('/api/admin/load-test/status');
 
-      if (!response.ok) {
-        throw new Error('Failed to fetch load test status');
-      }
-
-      const data = await response.json();
-      setLoadTestStatus(data);
-    } catch (err) {
-      logger.error(
-        'Failed to fetch load test status',
-        err,
-        'AdminPerformancePage'
-      );
-      // Fail silently - status is optional
+    if (!response.ok) {
+      throw new Error('Failed to fetch load test status');
     }
+
+    const data = await response.json();
+    setLoadTestStatus(data);
   }, []);
 
   // Start load test
@@ -221,26 +203,19 @@ export default function AdminPerformancePage() {
     setIsLoading(true);
     setError(null);
 
-    try {
-      const response = await fetch('/api/admin/load-test', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ scenario: selectedScenario }),
-      });
+    const response = await fetch('/api/admin/load-test', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ scenario: selectedScenario }),
+    });
 
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}));
-        throw new Error(data.error || 'Failed to start load test');
-      }
-
-      await fetchLoadTestStatus();
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : 'Failed to start load test'
-      );
-    } finally {
-      setIsLoading(false);
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      throw new Error(data.error || 'Failed to start load test');
     }
+
+    await fetchLoadTestStatus();
+    setIsLoading(false);
   };
 
   // Auto-refresh stats

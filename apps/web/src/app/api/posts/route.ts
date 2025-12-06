@@ -248,7 +248,6 @@ import {
   db,
   desc,
   eq,
-  followStatuses,
   follows,
   getBlockedByUserIds,
   getBlockedUserIds,
@@ -337,33 +336,20 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     const allFollowedIds = await getCacheOrFetch(
       followsCacheKey,
       async () => {
-        const [userFollowsList, actorFollowsList, npcFollowStatuses] =
-          await Promise.all([
-            db
-              .select({ followingId: follows.followingId })
-              .from(follows)
-              .where(eq(follows.followerId, userId)),
-            db
-              .select({ actorId: userActorFollows.actorId })
-              .from(userActorFollows)
-              .where(eq(userActorFollows.userId, userId)),
-            db
-              .select({ npcId: followStatuses.npcId })
-              .from(followStatuses)
-              .where(
-                and(
-                  eq(followStatuses.userId, userId),
-                  eq(followStatuses.isActive, true),
-                  eq(followStatuses.followReason, 'user_followed')
-                )
-              ),
-          ]);
+        const [userFollowsList, actorFollowsList] = await Promise.all([
+          db
+            .select({ followingId: follows.followingId })
+            .from(follows)
+            .where(eq(follows.followerId, userId)),
+          db
+            .select({ actorId: userActorFollows.actorId })
+            .from(userActorFollows)
+            .where(eq(userActorFollows.userId, userId)),
+        ]);
 
         const followedUserIds = userFollowsList.map((f) => f.followingId);
-        const followedActorIds = new Set<string>();
-        actorFollowsList.forEach((f) => followedActorIds.add(f.actorId));
-        npcFollowStatuses.forEach((f) => followedActorIds.add(f.npcId));
-        return [...followedUserIds, ...Array.from(followedActorIds)];
+        const followedActorIds = actorFollowsList.map((f) => f.actorId);
+        return [...followedUserIds, ...followedActorIds];
       },
       {
         namespace: 'user:follows',
@@ -1001,19 +987,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 export const POST = withErrorHandling(async (request: NextRequest) => {
   const authUser = await authenticate(request);
 
-  let body: { content: string };
-  try {
-    body = (await request.json()) as { content: string };
-  } catch (error) {
-    logger.error('Failed to parse request body', { error }, 'POST /api/posts');
-    return NextResponse.json(
-      {
-        success: false,
-        error: 'Invalid request body',
-      },
-      { status: 400 }
-    );
-  }
+  const body = (await request.json()) as { content: string };
   const { content } = body;
 
   checkRateLimitAndDuplicates(

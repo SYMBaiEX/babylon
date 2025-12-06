@@ -89,7 +89,7 @@ import {
   notifyUserGroupInvite,
   withErrorHandling,
 } from '@babylon/api';
-import { db, isUniqueConstraintError, toDatabaseErrorType } from '@babylon/db';
+import { db } from '@babylon/db';
 import { generateSnowflakeId } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
@@ -187,60 +187,16 @@ export const POST = withErrorHandling(
       select: { name: true },
     });
 
-    // Create invite - handle unique constraint race condition
-    let invite;
-    try {
-      invite = await db.userGroupInvite.create({
-        data: {
-          id: await generateSnowflakeId(),
-          groupId,
-          invitedUserId: inviteeId,
-          invitedBy: user.userId,
-          status: 'pending',
-        },
-      });
-    } catch (error: unknown) {
-      // Handle unique constraint violation (race condition)
-      // PostgreSQL error code 23505 is unique_violation
-      if (isUniqueConstraintError(toDatabaseErrorType(error))) {
-        // Check if the error is related to the groupId_invitedUserId constraint
-        // PostgreSQL errors include constraint name in the error message
-        const errorMessage =
-          error instanceof Error ? error.message : String(error);
-        const errorObj =
-          typeof error === 'object' && error !== null
-            ? (error as { constraint?: string; message?: string })
-            : null;
-
-        // Check if this is the unique constraint on (groupId, invitedUserId)
-        if (
-          errorMessage.includes('groupId') ||
-          errorMessage.includes('invitedUserId') ||
-          errorObj?.constraint?.includes('groupId') ||
-          errorObj?.constraint?.includes('invitedUserId')
-        ) {
-          // Check if there's now a pending invite (another request created it)
-          const raceConditionInvite = await db.userGroupInvite.findFirst({
-            where: {
-              groupId,
-              invitedUserId: inviteeId,
-            },
-          });
-          if (raceConditionInvite?.status === 'pending') {
-            return NextResponse.json(
-              { error: 'User already has a pending invite' },
-              { status: 400 }
-            );
-          }
-          // If it's not pending, we can retry or handle differently
-          return NextResponse.json(
-            { error: 'Failed to create invite due to existing record' },
-            { status: 400 }
-          );
-        }
-      }
-      throw error;
-    }
+    // Create invite
+    const invite = await db.userGroupInvite.create({
+      data: {
+        id: await generateSnowflakeId(),
+        groupId,
+        invitedUserId: inviteeId,
+        invitedBy: user.userId,
+        status: 'pending',
+      },
+    });
 
     // Send notification using service
     await notifyUserGroupInvite(

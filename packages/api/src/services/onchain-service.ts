@@ -17,7 +17,6 @@ import type {
 } from '@babylon/shared';
 import {
   BusinessLogicError,
-  extractErrorMessage,
   generateSnowflakeId,
   IDENTITY_REGISTRY_ABI,
   InternalServerError,
@@ -566,85 +565,12 @@ export async function processOnchainRegistration({
       );
     }
   } else if (walletClient) {
-    try {
-      registrationTxHash = await walletClient.writeContract({
-        address: IDENTITY_REGISTRY,
-        abi: identityRegistryAbi,
-        functionName: 'registerAgent',
-        args: [name, agentEndpoint, capabilitiesHash, metadataURI],
-      } as unknown as Parameters<typeof walletClient.writeContract>[0]);
-    } catch (registrationError) {
-      const message = extractErrorMessage(
-        registrationError as Error | { message?: string }
-      ).toLowerCase();
-      if (message.includes('already registered')) {
-        const onChainStatus = await publicClient.readContract({
-          address: IDENTITY_REGISTRY,
-          abi: identityRegistryAbi,
-          functionName: 'isRegistered',
-          args: [registrationAddress],
-        });
-
-        if (onChainStatus) {
-          const tokenOnChain = Number(
-            await publicClient.readContract({
-              address: IDENTITY_REGISTRY,
-              abi: identityRegistryAbi,
-              functionName: 'getTokenId',
-              args: [registrationAddress],
-            })
-          );
-
-          await db
-            .update(users)
-            .set({
-              onChainRegistered: true,
-              nftTokenId: tokenOnChain,
-            })
-            .where(eq(users.id, dbUser.id));
-
-          const [hasWelcomeBonusRetry] = await db
-            .select({ id: balanceTransactions.id })
-            .from(balanceTransactions)
-            .where(
-              and(
-                eq(balanceTransactions.userId, dbUser.id),
-                eq(
-                  balanceTransactions.description,
-                  'Welcome bonus - initial signup'
-                )
-              )
-            )
-            .limit(1);
-
-          logger.info(
-            'Detected prior registration for wallet during server signer attempt',
-            { address: registrationAddress, tokenId: tokenOnChain },
-            'OnboardingOnchain'
-          );
-
-          return {
-            message: 'Already registered on-chain',
-            tokenId: tokenOnChain,
-            alreadyRegistered: true,
-            userId: dbUser.id,
-            pointsAwarded: hasWelcomeBonusRetry ? 1000 : 0,
-          };
-        }
-
-        logger.warn(
-          'Server signer rejected registration due to existing owner',
-          { signer: deployerAccount?.address, registrationAddress },
-          'OnboardingOnchain'
-        );
-        throw new BusinessLogicError(
-          'SERVER_SIGNER_UNSUPPORTED',
-          'SERVER_SIGNER_UNSUPPORTED'
-        );
-      }
-
-      throw registrationError;
-    }
+    registrationTxHash = await walletClient.writeContract({
+      address: IDENTITY_REGISTRY,
+      abi: identityRegistryAbi,
+      functionName: 'registerAgent',
+      args: [name, agentEndpoint, capabilitiesHash, metadataURI],
+    } as unknown as Parameters<typeof walletClient.writeContract>[0]);
 
     logger.info(
       'Registration transaction sent',
@@ -720,28 +646,18 @@ export async function processOnchainRegistration({
     if (log.topics.length === 0) {
       return false;
     }
-    try {
-      const decodedLog = decodeEventLog({
-        abi: identityRegistryAbi,
-        data: log.data,
-        topics: log.topics,
-        strict: false,
-      });
-      logger.info(
-        'Decoded log event',
-        { eventName: decodedLog.eventName },
-        'processOnchainRegistration'
-      );
-      return decodedLog.eventName === 'AgentRegistered';
-    } catch (decodeError) {
-      // Log signature not in ABI (e.g., ERC-721 Transfer event) - skip this log
-      logger.warn(
-        'Failed to decode log',
-        { topics: log.topics, error: String(decodeError) },
-        'processOnchainRegistration'
-      );
-      return false;
-    }
+    const decodedLog = decodeEventLog({
+      abi: identityRegistryAbi,
+      data: log.data,
+      topics: log.topics,
+      strict: false,
+    });
+    logger.info(
+      'Decoded log event',
+      { eventName: decodedLog.eventName },
+      'processOnchainRegistration'
+    );
+    return decodedLog.eventName === 'AgentRegistered';
   });
 
   if (!agentRegisteredLog) {
@@ -1218,16 +1134,7 @@ export async function confirmOnchainProfileUpdate({
 
   let metadata: StringRecord<JsonValue> | null = null;
   if (typeof rawMetadata === 'string' && rawMetadata.trim().length > 0) {
-    try {
-      metadata = JSON.parse(rawMetadata) as StringRecord<JsonValue>;
-    } catch (error) {
-      logger.warn(
-        'Failed to parse on-chain metadata JSON during profile update confirmation',
-        { error, userId, txHash },
-        'OnboardingOnchain'
-      );
-      metadata = null;
-    }
+    metadata = JSON.parse(rawMetadata) as StringRecord<JsonValue>;
   }
 
   return {

@@ -213,13 +213,9 @@ export async function GET(
       bio: (() => {
         // Use agentMessageExamples (ElizaOS bio array) if available, otherwise fall back to bio string
         if (agent!.agentMessageExamples) {
-          try {
-            const parsed = JSON.parse(agent!.agentMessageExamples as string);
-            if (Array.isArray(parsed)) {
-              return parsed.filter((b: string) => b && b.trim());
-            }
-          } catch {
-            // Fall through to bio string
+          const parsed = JSON.parse(agent!.agentMessageExamples as string);
+          if (Array.isArray(parsed)) {
+            return parsed.filter((b: string) => b && b.trim());
           }
         }
         return agent!.bio ? agent!.bio.split('\n').filter((b) => b.trim()) : [];
@@ -229,13 +225,9 @@ export async function GET(
         (() => {
           // If personality is not set but bio array exists, join it for display
           if (agent!.agentMessageExamples) {
-            try {
-              const parsed = JSON.parse(agent!.agentMessageExamples as string);
-              if (Array.isArray(parsed)) {
-                return parsed.filter((b: string) => b && b.trim()).join('\n');
-              }
-            } catch {
-              // Fall through
+            const parsed = JSON.parse(agent!.agentMessageExamples as string);
+            if (Array.isArray(parsed)) {
+              return parsed.filter((b: string) => b && b.trim()).join('\n');
             }
           }
           return '';
@@ -286,23 +278,7 @@ export async function PUT(
 ) {
   const user = await authenticateUser(req);
   const { agentId } = await params;
-  let body: Record<string, unknown>;
-  try {
-    body = (await req.json()) as Record<string, unknown>;
-  } catch (error) {
-    logger.error(
-      'Failed to parse request body',
-      { error, agentId },
-      'PUT /api/agents/[agentId]'
-    );
-    return NextResponse.json(
-      {
-        success: false,
-        error: 'Invalid request body',
-      },
-      { status: 400 }
-    );
-  }
+  const body = (await req.json()) as Record<string, unknown>;
 
   const {
     name,

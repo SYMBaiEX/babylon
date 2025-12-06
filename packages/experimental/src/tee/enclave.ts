@@ -2,11 +2,16 @@
  * TEE Enclave
  *
  * Main TEE runtime that manages:
- * - Keystore and wallet
- * - Attestation quotes
- * - Encrypted state I/O
+ * - Keystore and wallet (REAL secp256k1 keys)
+ * - Attestation quotes (SIMULATED - see warnings)
+ * - Encrypted state I/O (REAL AES-256-GCM)
  *
- * In a real Phala deployment, this runs inside Intel TDX + NVIDIA CC.
+ * ⚠️ SIMULATION MODE:
+ * - Keys are derived from code hash (deterministic, but not hardware-bound)
+ * - Attestation is simulated (not from Intel/NVIDIA PKI)
+ * - Encryption is REAL (production-quality AES-256-GCM)
+ *
+ * For production: Deploy to Phala CVM and use ProductionTEEEnclave
  */
 
 import { type Address, type Hex, keccak256, toBytes } from 'viem';
@@ -41,7 +46,16 @@ export interface EnclaveState {
 const STATE_KEY_LABEL = 'game_state';
 
 /**
- * Main TEE Enclave simulation
+ * TEE Enclave (Simulation Mode)
+ *
+ * WHAT'S REAL:
+ * - secp256k1 wallet (works on-chain!)
+ * - AES-256-GCM encryption
+ * - HKDF key derivation
+ *
+ * WHAT'S SIMULATED:
+ * - Hardware isolation (keys exist in process memory)
+ * - Attestation signatures (not from Intel/NVIDIA)
  */
 export class TEEEnclave {
   private keystore: TEEKeystore | null = null;
@@ -223,11 +237,36 @@ export class TEEEnclave {
   }
 
   /**
-   * Sign a transaction for blockchain interaction
+   * Sign a transaction for blockchain interaction (deterministic)
    */
   signTransaction(to: Address, data: Hex, value = 0n) {
     this.ensureRunning();
     return this.wallet!.signTransaction(to, data, value);
+  }
+
+  /**
+   * Get the wallet account for REAL on-chain transactions
+   * This returns a viem account that can sign actual Ethereum transactions!
+   */
+  getWalletAccount() {
+    this.ensureRunning();
+    return this.wallet!.getAccount();
+  }
+
+  /**
+   * Get the wallet private key (only use inside TEE!)
+   * This is needed for creating viem wallet clients
+   */
+  getPrivateKey(): Hex {
+    this.ensureRunning();
+    return this.wallet!.getPrivateKey();
+  }
+
+  /**
+   * Check if this is running in simulation mode
+   */
+  isSimulated(): boolean {
+    return true; // This class is always simulation mode
   }
 
   /**

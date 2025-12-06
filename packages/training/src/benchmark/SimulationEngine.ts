@@ -12,6 +12,7 @@
  * - Tracks agent actions for performance evaluation
  */
 
+import type { JsonValue } from '@babylon/shared';
 import { logger } from '../utils/logger';
 import type {
   BenchmarkGameSnapshot,
@@ -38,7 +39,7 @@ export interface AgentAction {
   tick: number;
   timestamp: number;
   type: AgentActionType;
-  data: Record<string, unknown>;
+  data: Record<string, JsonValue>;
   /** How long agent took to respond in milliseconds */
   duration: number;
   correctness?: {
@@ -303,7 +304,7 @@ export class SimulationEngine {
    */
   async performAction(
     type: AgentActionType,
-    data: Record<string, unknown>
+    data: Record<string, JsonValue>
   ): Promise<{ success: boolean; result?: AgentActionResult; error?: string }> {
     const actionStart = Date.now();
 
@@ -433,7 +434,7 @@ export class SimulationEngine {
   /**
    * Handle buying prediction market shares
    */
-  private handleBuyPrediction(data: Record<string, unknown>): {
+  private handleBuyPrediction(data: Record<string, JsonValue>): {
     positionId: string;
     shares: number;
   } {
@@ -473,7 +474,7 @@ export class SimulationEngine {
   /**
    * Handle opening perpetual position
    */
-  private handleOpenPerp(data: Record<string, unknown>): {
+  private handleOpenPerp(data: Record<string, JsonValue>): {
     positionId: string;
   } {
     const { ticker, side, size, leverage } = data as {
@@ -509,7 +510,7 @@ export class SimulationEngine {
   /**
    * Handle closing perpetual position
    */
-  private handleClosePerp(data: Record<string, unknown>): { pnl: number } {
+  private handleClosePerp(data: Record<string, JsonValue>): { pnl: number } {
     const { positionId } = data as { positionId: string };
 
     const position = this.perpPositions.get(positionId);
@@ -542,7 +543,7 @@ export class SimulationEngine {
   /**
    * Handle joining group chat
    */
-  private handleJoinGroup(_data: Record<string, unknown>): {
+  private handleJoinGroup(_data: Record<string, JsonValue>): {
     success: boolean;
   } {
     this.socialStats.groupsJoined++;
@@ -552,7 +553,9 @@ export class SimulationEngine {
   /**
    * Handle creating post
    */
-  private handleCreatePost(_data: Record<string, unknown>): { postId: string } {
+  private handleCreatePost(_data: Record<string, JsonValue>): {
+    postId: string;
+  } {
     this.socialStats.postsCreated++;
     return { postId: `post-${Date.now()}` };
   }
