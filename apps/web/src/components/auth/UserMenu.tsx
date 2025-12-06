@@ -103,7 +103,12 @@ export function UserMenu() {
         return [null, null];
       });
 
-      if (!isMounted || fetchController.signal.aborted || !balanceResponse || !profileResponse) {
+      if (
+        !isMounted ||
+        fetchController.signal.aborted ||
+        !balanceResponse ||
+        !profileResponse
+      ) {
         if (isMounted) {
           userMenuFetchInFlight = false;
         }
@@ -122,11 +127,7 @@ export function UserMenu() {
       // Update reputation points from profile
       if (profileResponse.ok) {
         const profileData = await profileResponse.json();
-        if (
-          isMounted &&
-          !fetchController.signal.aborted &&
-          profileData.user
-        ) {
+        if (isMounted && !fetchController.signal.aborted && profileData.user) {
           const newReputationPoints = profileData.user.reputationPoints;
           // Only update if reputation points changed
           if (

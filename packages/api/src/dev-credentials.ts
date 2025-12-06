@@ -12,8 +12,8 @@
  * - In production, this module is essentially a no-op
  */
 
-import { createHash } from 'crypto';
 import { logger } from '@babylon/shared';
+import { createHash } from 'crypto';
 
 const isDevelopment = process.env.NODE_ENV !== 'production';
 
@@ -218,4 +218,3 @@ export function logDevCredentials(): void {
     'DevCredentials'
   );
 }
-

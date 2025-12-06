@@ -273,9 +273,7 @@ export default function ChatsPage() {
     const token = await getAccessToken();
     console.log('[ChatsPage] Got access token:', token ? 'yes' : 'no');
     if (!token && !isDebugMode) {
-      console.warn(
-        '[ChatsPage] No access token available, skipping loadChats'
-      );
+      console.warn('[ChatsPage] No access token available, skipping loadChats');
       setLoading(false);
       return;
     }
@@ -292,7 +290,9 @@ export default function ChatsPage() {
     ]);
 
     if (!personalResponse.ok) {
-      console.error('[ChatsPage] Failed to load chats: Failed to fetch personal chats');
+      console.error(
+        '[ChatsPage] Failed to load chats: Failed to fetch personal chats'
+      );
       setLoading(false);
       return;
     }

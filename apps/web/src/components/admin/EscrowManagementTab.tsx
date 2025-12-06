@@ -183,7 +183,11 @@ export function EscrowManagementTab() {
 
     if (!response.ok || !data.success) {
       setIsRefunding(false);
-      logger.error('Failed to refund escrow', { error: data.error }, 'EscrowManagementTab');
+      logger.error(
+        'Failed to refund escrow',
+        { error: data.error },
+        'EscrowManagementTab'
+      );
       toast.error(data.error || 'Failed to refund escrow');
       return;
     }

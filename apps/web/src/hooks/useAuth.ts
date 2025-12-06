@@ -401,9 +401,7 @@ export function useAuth(): UseAuthReturn {
           );
         } else if (!response.ok) {
           // Log other errors but don't throw - we don't want to break auth flow
-          const errorText = await response
-            .text()
-            .catch(() => 'Unknown error');
+          const errorText = await response.text().catch(() => 'Unknown error');
           logger.warn(
             'Failed to link Farcaster account',
             {
@@ -452,9 +450,7 @@ export function useAuth(): UseAuthReturn {
           );
         } else if (!response.ok) {
           // Log other errors but don't throw - we don't want to break auth flow
-          const errorText = await response
-            .text()
-            .catch(() => 'Unknown error');
+          const errorText = await response.text().catch(() => 'Unknown error');
           logger.warn(
             'Failed to link Twitter account',
             {
@@ -472,8 +468,7 @@ export function useAuth(): UseAuthReturn {
     // Only link wallet if it's different from the stored wallet address
     if (
       wallet?.address &&
-      currentUser.walletAddress?.toLowerCase() !==
-        wallet.address.toLowerCase()
+      currentUser.walletAddress?.toLowerCase() !== wallet.address.toLowerCase()
     ) {
       const walletKey = `${privyUser.id}:wallet:${wallet.address.toLowerCase()}`;
 
@@ -502,9 +497,7 @@ export function useAuth(): UseAuthReturn {
             'useAuth'
           );
         } else if (!response.ok) {
-          const errorText = await response
-            .text()
-            .catch(() => 'Unknown error');
+          const errorText = await response.text().catch(() => 'Unknown error');
           logger.warn(
             'Failed to link wallet',
             {

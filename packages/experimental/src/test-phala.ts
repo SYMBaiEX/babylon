@@ -108,7 +108,7 @@ async function main() {
     try {
       const client = createClient({ apiKey: PHALA_API_KEY });
       const kmsResult = await getKmsList(client);
-      const kmsList = kmsResult.kms_list || [];
+      const kmsList = kmsResult.items || [];
 
       console.log(`   ✓ Found ${kmsList.length} KMS instances`);
       for (const kms of kmsList.slice(0, 3)) {
@@ -152,27 +152,19 @@ async function main() {
       const nodesResult = await getAvailableNodes(client);
       const nodes = nodesResult.nodes || [];
 
-      const gpuNodes = nodes.filter(
-        (n) =>
-          n.gpu_count !== null && n.gpu_count !== undefined && n.gpu_count > 0
-      );
-      const cpuOnly = nodes.filter((n) => !n.gpu_count || n.gpu_count === 0);
-
       console.log(`   ✓ Total nodes: ${nodes.length}`);
-      console.log(`   ✓ GPU nodes: ${gpuNodes.length}`);
-      console.log(`   ✓ CPU-only nodes: ${cpuOnly.length}`);
 
-      if (gpuNodes.length > 0) {
-        const gpu = gpuNodes[0];
+      const firstNode = nodes[0];
+      if (firstNode) {
         console.log(
-          `   First GPU: node_id=${gpu.node_id}, GPUs=${gpu.gpu_count}`
+          `   First: teepod_id=${firstNode.teepod_id}, vcpu=${firstNode.remaining_vcpu}`
         );
       }
 
       results.push({
         name: 'Available Nodes',
         passed: true,
-        details: `${nodes.length} nodes (${gpuNodes.length} GPU)`,
+        details: `${nodes.length} nodes`,
         requiresApiKey: true,
       });
     } catch (error) {

@@ -78,7 +78,10 @@ export function TradesFeed({ userId, containerRef }: TradesFeedProps) {
 
       const response = await fetch(`/api/trades?${params.toString()}`);
       if (!response.ok) {
-        console.error('Failed to fetch trades:', `Failed to load trades: ${response.status}`);
+        console.error(
+          'Failed to fetch trades:',
+          `Failed to load trades: ${response.status}`
+        );
         setError(`Failed to load trades: ${response.status}`);
         setLoading(false);
         setLoadingMore(false);

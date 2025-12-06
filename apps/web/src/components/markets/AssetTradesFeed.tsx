@@ -184,7 +184,10 @@ export function AssetTradesFeed({
 
       const response = await fetch(`${apiEndpoint}?${params.toString()}`);
       if (!response.ok) {
-        console.error('Failed to fetch trades:', `Failed to load trades: ${response.status}`);
+        console.error(
+          'Failed to fetch trades:',
+          `Failed to load trades: ${response.status}`
+        );
         setError(`Failed to load trades: ${response.status}`);
         setLoading(false);
         setLoadingMore(false);

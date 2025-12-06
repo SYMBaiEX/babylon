@@ -634,8 +634,13 @@ describe('Engine Integration Tests (No Mocks)', () => {
     }
 
     // Use raw Drizzle for complex queries
-    const { getRawDrizzle, and: dbAnd, gte: dbGte, isNotNull, sql: dbSql } =
-      await import('@babylon/db');
+    const {
+      getRawDrizzle,
+      and: dbAnd,
+      gte: dbGte,
+      isNotNull,
+      sql: dbSql,
+    } = await import('@babylon/db');
     const rawDbCheck = getRawDrizzle();
 
     const eventsWithActors = await rawDbCheck

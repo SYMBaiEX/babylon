@@ -60,11 +60,7 @@ import {
   autonomousCoordinator,
   releaseAgentLock,
 } from '@babylon/agents';
-import {
-  AuthorizationError,
-  isValidCronSecret,
-  relayCronToStaging,
-} from '@babylon/api';
+import { isValidCronSecret, relayCronToStaging } from '@babylon/api';
 import type { User } from '@babylon/db';
 import { db } from '@babylon/db';
 import { logger } from '@babylon/shared';
@@ -151,7 +147,11 @@ export async function GET(req: NextRequest) {
 export async function POST(_req: NextRequest) {
   // 0. Verify cron authorization - SECURITY FIX: was missing auth check
   if (!verifyCronRequest(_req)) {
-    logger.warn('Unauthorized agent-tick request attempt', undefined, 'AgentTick');
+    logger.warn(
+      'Unauthorized agent-tick request attempt',
+      undefined,
+      'AgentTick'
+    );
     return NextResponse.json(
       { error: 'Unauthorized cron request' },
       { status: 401 }
@@ -350,7 +350,7 @@ export async function POST(_req: NextRequest) {
     method?: 'database' | 'a2a' | 'planning_coordinator';
   }> = [];
   let totalActionsExecuted = 0;
-    const errors = 0;
+  const errors = 0;
   let skippedDueToLock = 0;
 
   for (const eligibleAgent of eligibleAgents) {
@@ -387,8 +387,7 @@ export async function POST(_req: NextRequest) {
     }
 
     // Always 1pt per tick for USER agents (NPCs don't use points)
-    const pointsCost =
-      eligibleAgent.type === AgentType.USER_CONTROLLED ? 1 : 0;
+    const pointsCost = eligibleAgent.type === AgentType.USER_CONTROLLED ? 1 : 0;
 
     if (
       eligibleAgent.type === AgentType.USER_CONTROLLED &&
@@ -402,9 +401,7 @@ export async function POST(_req: NextRequest) {
     }
 
     // Use agent runtime manager for both USER and NPC agents
-    const runtime = await agentRuntimeManager.getRuntime(
-      eligibleAgent.agentId
-    );
+    const runtime = await agentRuntimeManager.getRuntime(eligibleAgent.agentId);
 
     // Determine enabled features based on agent type
     const enabledFeatures: string[] = [];
@@ -412,10 +409,8 @@ export async function POST(_req: NextRequest) {
       eligibleAgent.type === AgentType.USER_CONTROLLED &&
       eligibleAgent.user
     ) {
-      if (eligibleAgent.user.autonomousTrading)
-        enabledFeatures.push('trading');
-      if (eligibleAgent.user.autonomousPosting)
-        enabledFeatures.push('posting');
+      if (eligibleAgent.user.autonomousTrading) enabledFeatures.push('trading');
+      if (eligibleAgent.user.autonomousPosting) enabledFeatures.push('posting');
       if (eligibleAgent.user.autonomousCommenting)
         enabledFeatures.push('commenting');
       if (eligibleAgent.user.autonomousDMs) enabledFeatures.push('DMs');
