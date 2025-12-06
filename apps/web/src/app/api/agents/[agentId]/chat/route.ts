@@ -243,77 +243,66 @@ Generate ${agent.displayName}'s response. Stay in character.
     let response: string | null = null;
 
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-      try {
-        const isRetry = attempt > 1;
-        const currentPrompt = isRetry
-          ? `${prompt}\n\nIMPORTANT: Keep your response professional, helpful, and appropriate. No profanity or inappropriate content.\n\nREMINDER: You MUST output valid XML. Start with <response> and include <text> with your message.`
-          : prompt;
+      const isRetry = attempt > 1;
+      const currentPrompt = isRetry
+        ? `${prompt}\n\nIMPORTANT: Keep your response professional, helpful, and appropriate. No profanity or inappropriate content.\n\nREMINDER: You MUST output valid XML. Start with <response> and include <text> with your message.`
+        : prompt;
 
-        const generated = await runtime.useModel(modelType, {
-          prompt: currentPrompt,
-          temperature: isRetry ? 0.6 : 0.8,
-          maxTokens: MAX_TOKENS,
-        });
+      const generated = await runtime.useModel(modelType, {
+        prompt: currentPrompt,
+        temperature: isRetry ? 0.6 : 0.8,
+        maxTokens: MAX_TOKENS,
+      });
 
-        // Extract <response>...</response> block before parsing
-        const responseMatch = generated.match(
-          /<response>([\s\S]*?)<\/response>/i
-        );
-        if (!responseMatch) {
-          logger.warn(
-            'No <response> block found',
-            { agentId, attempt, raw: generated.substring(0, 300) },
-            'AgentChat'
-          );
-          continue;
-        }
-
-        // Parse the extracted XML response
-        const parsed = parseKeyValueXml(responseMatch[0]) as {
-          text?: string;
-        } | null;
-
-        // Check if we got valid text
-        if (!parsed?.text || parsed.text.trim().length === 0) {
-          logger.warn(
-            'Failed to parse XML response',
-            { agentId, attempt, raw: generated.substring(0, 300) },
-            'AgentChat'
-          );
-          continue;
-        }
-
-        const extractedText = parsed.text.trim();
-
-        // Check safety
-        const safetyCheck = checkAgentOutput(extractedText);
-        if (!safetyCheck.safe) {
-          logger.warn(
-            'Unsafe response generated',
-            {
-              agentId,
-              attempt,
-              reason: safetyCheck.reason,
-              preview: extractedText.substring(0, 100),
-            },
-            'AgentChat'
-          );
-          continue;
-        }
-
-        // Success!
-        response = extractedText;
-        break;
-      } catch (error) {
-        const errorMessage =
-          error instanceof Error ? error.message : String(error);
-        logger.error(
-          'Failed to generate response',
-          { error: errorMessage, agentId, attempt },
+      // Extract <response>...</response> block before parsing
+      const responseMatch = generated.match(
+        /<response>([\s\S]*?)<\/response>/i
+      );
+      if (!responseMatch) {
+        logger.warn(
+          'No <response> block found',
+          { agentId, attempt, raw: generated.substring(0, 300) },
           'AgentChat'
         );
         continue;
       }
+
+      // Parse the extracted XML response
+      const parsed = parseKeyValueXml(responseMatch[0]) as {
+        text?: string;
+      } | null;
+
+      // Check if we got valid text
+      if (!parsed?.text || parsed.text.trim().length === 0) {
+        logger.warn(
+          'Failed to parse XML response',
+          { agentId, attempt, raw: generated.substring(0, 300) },
+          'AgentChat'
+        );
+        continue;
+      }
+
+      const extractedText = parsed.text.trim();
+
+      // Check safety
+      const safetyCheck = checkAgentOutput(extractedText);
+      if (!safetyCheck.safe) {
+        logger.warn(
+          'Unsafe response generated',
+          {
+            agentId,
+            attempt,
+            reason: safetyCheck.reason,
+            preview: extractedText.substring(0, 100),
+          },
+          'AgentChat'
+        );
+        continue;
+      }
+
+      // Success!
+      response = extractedText;
+      break;
     }
 
     // If all attempts failed, refund points and return error

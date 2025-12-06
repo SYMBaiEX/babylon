@@ -120,62 +120,49 @@ export default function SettingsPage() {
       headers['Authorization'] = `Bearer ${token}`;
     }
 
-    try {
-      const response = await fetch(
-        `/api/users/${encodeURIComponent(user.id)}/update-profile`,
-        {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({
-            displayName: trimmedDisplayName,
-            username: trimmedUsername,
-            bio: trimmedBio,
-          }),
-        }
-      );
-
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        const message = payload?.error || 'Unable to save your changes.';
-        setErrorMessage(message);
-        logger.error(
-          'Failed to save profile settings',
-          { error: message },
-          'SettingsPage'
-        );
-        return;
+    const response = await fetch(
+      `/api/users/${encodeURIComponent(user.id)}/update-profile`,
+      {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          displayName: trimmedDisplayName,
+          username: trimmedUsername,
+          bio: trimmedBio,
+        }),
       }
+    );
 
-      if (payload.user) {
-        setUser({
-          ...user,
-          username: payload.user.username,
-          displayName: payload.user.displayName,
-          bio: payload.user.bio,
-          usernameChangedAt: payload.user.usernameChangedAt,
-          referralCode: payload.user.referralCode,
-          onChainRegistered:
-            payload.user.onChainRegistered ?? user.onChainRegistered,
-        });
-      }
-
-      setSaved(true);
-      setTimeout(() => setSaved(false), 3000);
-      await refresh().catch(() => undefined);
-    } catch (error) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : 'Failed to save profile settings';
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const message = payload?.error || 'Unable to save your changes.';
       setErrorMessage(message);
       logger.error(
         'Failed to save profile settings',
-        { error },
+        { error: message },
         'SettingsPage'
       );
-    } finally {
       setSaving(false);
+      return;
     }
+
+    if (payload.user) {
+      setUser({
+        ...user,
+        username: payload.user.username,
+        displayName: payload.user.displayName,
+        bio: payload.user.bio,
+        usernameChangedAt: payload.user.usernameChangedAt,
+        referralCode: payload.user.referralCode,
+        onChainRegistered:
+          payload.user.onChainRegistered ?? user.onChainRegistered,
+      });
+    }
+
+    setSaved(true);
+    setTimeout(() => setSaved(false), 3000);
+    await refresh().catch(() => undefined);
+    setSaving(false);
   };
 
   if (!ready) {

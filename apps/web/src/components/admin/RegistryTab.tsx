@@ -637,46 +637,41 @@ export function RegistryTab() {
     }
 
     setIsBanning(true);
-    try {
-      const token =
-        typeof window !== 'undefined' ? window.__privyAccessToken : null;
-      const response = await fetch(`/api/admin/users/${entity.id}/ban`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({
-          action,
-          reason: action === 'ban' ? banReason : undefined,
-          isScammer: action === 'ban' ? isScammer : false,
-          isCSAM: action === 'ban' ? isCSAM : false,
-        }),
-      });
+    const token =
+      typeof window !== 'undefined' ? window.__privyAccessToken : null;
+    const response = await fetch(`/api/admin/users/${entity.id}/ban`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({
+        action,
+        reason: action === 'ban' ? banReason : undefined,
+        isScammer: action === 'ban' ? isScammer : false,
+        isCSAM: action === 'ban' ? isCSAM : false,
+      }),
+    });
 
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || 'Failed to update user');
-      }
-
-      toast.success(
-        action === 'ban'
-          ? 'User banned successfully'
-          : 'User unbanned successfully'
-      );
-      setShowBanModal(false);
-      setBanReason('');
-      setIsScammer(false);
-      setIsCSAM(false);
-      setSelectedEntity(null);
-      fetchRegistry();
-    } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : 'Failed to update user'
-      );
-    } finally {
+    if (!response.ok) {
+      const error = await response.json();
       setIsBanning(false);
+      toast.error(error.message || 'Failed to update user');
+      return;
     }
+
+    toast.success(
+      action === 'ban'
+        ? 'User banned successfully'
+        : 'User unbanned successfully'
+    );
+    setShowBanModal(false);
+    setBanReason('');
+    setIsScammer(false);
+    setIsCSAM(false);
+    setSelectedEntity(null);
+    fetchRegistry();
+    setIsBanning(false);
   };
 
   const allEntities = data

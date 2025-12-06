@@ -447,19 +447,8 @@ WORLD RULES:
           err?.message?.includes('rate_limit');
 
         if (isRateLimitError) {
-          // In test environments, fail fast - don't retry rate limits
-          if (isTestEnv) {
-            logger.warn(
-              'Rate limit hit (429) in test environment - failing fast',
-              {
-                error: err.message,
-              },
-              'BabylonLLMClient'
-            );
-            throw error;
-          }
-
-          // In production, retry with backoff
+          // Retry with backoff in both test and production environments
+          // Tests need to be robust to rate limits too
           if (retryCount < maxRetries) {
             retryCount++;
 
@@ -475,8 +464,9 @@ WORLD RULES:
               }
             }
 
-            // Cap at 30 seconds for rate limits
-            delay = Math.min(delay, 30000);
+            // Cap at 30 seconds for rate limits (shorter in tests for faster feedback)
+            const maxDelay = isTestEnv ? 10000 : 30000;
+            delay = Math.min(delay, maxDelay);
 
             logger.warn(
               `Rate limit hit (429), retrying in ${delay}ms...`,
@@ -485,6 +475,7 @@ WORLD RULES:
                 maxRetries,
                 retryAfterHeader: retryAfter || 'not provided',
                 delay,
+                isTestEnv,
               },
               'BabylonLLMClient'
             );

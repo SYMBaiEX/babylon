@@ -148,9 +148,7 @@ export function AgentChat({ agent, onBalanceUpdate }: AgentChatProps) {
 
     if (!res.ok) {
       const error = (await res.json()) as { error: string };
-      setMessages((prev) =>
-        prev.filter((m) => m.id !== optimisticMessage.id)
-      );
+      setMessages((prev) => prev.filter((m) => m.id !== optimisticMessage.id));
       toast.error(error.error || 'Failed to send message');
       setSending(false);
       return;

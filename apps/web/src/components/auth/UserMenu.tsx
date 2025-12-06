@@ -81,73 +81,75 @@ export function UserMenu() {
       currentFetchController = new AbortController();
       const fetchController = currentFetchController;
 
-      try {
-        // Fetch both trading balance and user profile (for latest reputation points)
-        const [balanceResponse, profileResponse] = await Promise.all([
-          fetch(`/api/users/${encodeURIComponent(user.id)}/balance`, {
-            headers,
-            signal: fetchController.signal,
-          }),
-          fetch(`/api/users/${encodeURIComponent(user.id)}/profile`, {
-            headers,
-            signal: fetchController.signal,
-          }),
-        ]);
-
-        if (!isMounted || fetchController.signal.aborted) {
-          userMenuFetchInFlight = false;
-          return;
-        }
-
-        // Update trading balance
-        if (balanceResponse.ok) {
-          const balanceData = await balanceResponse.json();
-          if (isMounted && !fetchController.signal.aborted) {
-            setTradingBalance(Number(balanceData.balance || 0));
-          }
-        }
-
-        // Update reputation points from profile
-        if (profileResponse.ok) {
-          const profileData = await profileResponse.json();
-          if (
-            isMounted &&
-            !fetchController.signal.aborted &&
-            profileData.user
-          ) {
-            const newReputationPoints = profileData.user.reputationPoints;
-            // Only update if reputation points changed
-            if (
-              newReputationPoints !== undefined &&
-              newReputationPoints !== user.reputationPoints
-            ) {
-              setUser({
-                ...user,
-                reputationPoints: newReputationPoints,
-              });
-            }
-          }
-        }
-
-        if (isMounted && !fetchController.signal.aborted) {
-          lastFetchedUserIdRef.current = user.id;
-          lastFetchTimeRef.current = now;
-        }
-      } catch (error) {
+      // Fetch both trading balance and user profile (for latest reputation points)
+      const [balanceResponse, profileResponse] = await Promise.all([
+        fetch(`/api/users/${encodeURIComponent(user.id)}/balance`, {
+          headers,
+          signal: fetchController.signal,
+        }),
+        fetch(`/api/users/${encodeURIComponent(user.id)}/profile`, {
+          headers,
+          signal: fetchController.signal,
+        }),
+      ]).catch((error) => {
         // Ignore abort errors
         if (error instanceof Error && error.name === 'AbortError') {
-          return;
+          return [null, null];
         }
         // Silently handle network errors - component will show previous state or null
         if (isMounted) {
           console.warn('Failed to fetch user menu data:', error);
         }
-      } finally {
+        return [null, null];
+      });
+
+      if (!isMounted || fetchController.signal.aborted || !balanceResponse || !profileResponse) {
         if (isMounted) {
           userMenuFetchInFlight = false;
         }
         currentFetchController = null;
+        return;
       }
+
+      // Update trading balance
+      if (balanceResponse.ok) {
+        const balanceData = await balanceResponse.json();
+        if (isMounted && !fetchController.signal.aborted) {
+          setTradingBalance(Number(balanceData.balance || 0));
+        }
+      }
+
+      // Update reputation points from profile
+      if (profileResponse.ok) {
+        const profileData = await profileResponse.json();
+        if (
+          isMounted &&
+          !fetchController.signal.aborted &&
+          profileData.user
+        ) {
+          const newReputationPoints = profileData.user.reputationPoints;
+          // Only update if reputation points changed
+          if (
+            newReputationPoints !== undefined &&
+            newReputationPoints !== user.reputationPoints
+          ) {
+            setUser({
+              ...user,
+              reputationPoints: newReputationPoints,
+            });
+          }
+        }
+      }
+
+      if (isMounted && !fetchController.signal.aborted) {
+        lastFetchedUserIdRef.current = user.id;
+        lastFetchTimeRef.current = now;
+      }
+
+      if (isMounted) {
+        userMenuFetchInFlight = false;
+      }
+      currentFetchController = null;
     };
 
     // Clear any existing interval

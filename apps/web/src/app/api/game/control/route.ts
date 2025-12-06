@@ -122,8 +122,8 @@
  */
 
 import {
-  AuthorizationError,
   BadRequestError,
+  requireAdmin,
   successResponse,
   withErrorHandling,
 } from '@babylon/api';
@@ -136,19 +136,8 @@ interface ControlRequest {
 }
 
 export const POST = withErrorHandling(async (request: NextRequest) => {
-  // Check for admin authorization
-  const adminToken = request.headers.get('x-admin-token');
-  const hasAdminSecret = !!process.env.ADMIN_TOKEN;
-  const isAdmin = hasAdminSecret && adminToken === process.env.ADMIN_TOKEN;
-  const isDev = process.env.NODE_ENV === 'development';
-
-  if (!isAdmin && !isDev) {
-    throw new AuthorizationError(
-      'Admin authorization required',
-      'game',
-      'control'
-    );
-  }
+  // Require admin authentication (uses secure dev token in dev mode)
+  await requireAdmin(request);
 
   const body = (await request.json()) as ControlRequest;
   const { action } = body;

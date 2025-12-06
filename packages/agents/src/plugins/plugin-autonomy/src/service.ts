@@ -8,8 +8,8 @@ import {
   type UUID,
 } from '@elizaos/core';
 import { v4 as uuidv4 } from 'uuid';
-import { AutonomousServiceType } from './types';
 import type { JsonValue } from '../../../types/common';
+import { AutonomousServiceType } from './types';
 
 /**
  * Simple autonomous loop service that can be toggled on/off via API

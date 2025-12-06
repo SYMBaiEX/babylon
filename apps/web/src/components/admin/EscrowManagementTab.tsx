@@ -161,45 +161,40 @@ export function EscrowManagementTab() {
     }
 
     setIsRefunding(true);
-    try {
-      const token = getAuthToken();
-      const headers: HeadersInit = {
-        'Content-Type': 'application/json',
-      };
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
-
-      const response = await fetch('/api/admin/moderation-escrow/refund', {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          escrowId: selectedEscrow.id,
-          refundTxHash: refundTxHash.trim(),
-          reason: refundReason.trim() || undefined,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok || !data.success) {
-        throw new Error(data.error || 'Failed to refund escrow');
-      }
-
-      toast.success('Escrow refunded successfully');
-      setShowRefundModal(false);
-      setSelectedEscrow(null);
-      setRefundTxHash('');
-      setRefundReason('');
-      fetchEscrows(true);
-    } catch (error) {
-      logger.error('Failed to refund escrow', { error }, 'EscrowManagementTab');
-      toast.error(
-        error instanceof Error ? error.message : 'Failed to refund escrow'
-      );
-    } finally {
-      setIsRefunding(false);
+    const token = getAuthToken();
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+    };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
     }
+
+    const response = await fetch('/api/admin/moderation-escrow/refund', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        escrowId: selectedEscrow.id,
+        refundTxHash: refundTxHash.trim(),
+        reason: refundReason.trim() || undefined,
+      }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      setIsRefunding(false);
+      logger.error('Failed to refund escrow', { error: data.error }, 'EscrowManagementTab');
+      toast.error(data.error || 'Failed to refund escrow');
+      return;
+    }
+
+    toast.success('Escrow refunded successfully');
+    setShowRefundModal(false);
+    setSelectedEscrow(null);
+    setRefundTxHash('');
+    setRefundReason('');
+    fetchEscrows(true);
+    setIsRefunding(false);
   };
 
   const formatCurrency = (value: string | number) => {

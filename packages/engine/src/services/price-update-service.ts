@@ -1,6 +1,6 @@
 import { db, eq, getDbInstance, organizations } from '@babylon/db';
 import { getReadyPerpsEngine } from '@babylon/engine';
-import { logger, type JsonValue } from '@babylon/shared';
+import { type JsonValue, logger } from '@babylon/shared';
 
 export type PriceUpdateSource = 'user_trade' | 'npc_trade' | 'event' | 'system';
 
@@ -106,13 +106,12 @@ export class PriceUpdateService {
       const serializedUpdates = JSON.parse(
         JSON.stringify(appliedUpdates)
       ) as Record<string, unknown>[];
-      await api.broadcastToChannel(
-        'markets',
-        { type: 'price_update', updates: serializedUpdates } as Record<
-          string,
-          unknown
-        > as Parameters<typeof api.broadcastToChannel>[1]
-      );
+      await api.broadcastToChannel('markets', {
+        type: 'price_update',
+        updates: serializedUpdates,
+      } as Record<string, unknown> as Parameters<
+        typeof api.broadcastToChannel
+      >[1]);
 
       logger.info(
         `Applied ${appliedUpdates.length} organization price updates`,

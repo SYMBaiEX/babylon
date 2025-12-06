@@ -15,9 +15,10 @@
     "verify:crypto": "bun run src/verify-crypto.ts",
     "verify:storage": "bun run src/verify-storage.ts",
     "verify:arweave": "bun run src/verify-arweave.ts",
-    "tee:test": "bun run src/test-marlin.ts",
-    "tee:e2e": "bun run src/test-marlin-e2e.ts",
-    "tee:deploy": "bun run src/test-marlin-e2e.ts --deploy",
+    "tee:marlin": "bun run src/test-marlin.ts",
+    "tee:marlin:e2e": "bun run src/test-marlin-e2e.ts",
+    "tee:marlin:deploy": "bun run src/test-marlin-e2e.ts --deploy",
+    "tee:phala": "bun run src/test-phala.ts",
     "deploy:ens": "bun run src/infra/ens-deployer.ts",
     "register:ens": "bun run src/infra/ens-registrar.ts",
     "storage:test": "bun run src/infra/real-storage-test.ts",
@@ -29,6 +30,7 @@
     "clean": "rm -rf dist out cache demo-output babylon-game"
   },
   "dependencies": {
+    "@phala/cloud": "^0.2.0",
     "arweave": "^1.15.7",
     "viem": "^2.21.0"
   },

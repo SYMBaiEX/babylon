@@ -142,32 +142,28 @@ export default function MarketsPage() {
     const isAuth = authenticatedRef.current;
     const userId = userIdRef.current;
 
-    try {
-      const predictionsRes = await fetch(
-        `/api/markets/predictions${isAuth && userId ? `?userId=${userId}` : ''}`
-      );
+    const predictionsRes = await fetch(
+      `/api/markets/predictions${isAuth && userId ? `?userId=${userId}` : ''}`
+    );
 
-      if (!predictionsRes.ok) {
-        throw new Error('Failed to fetch predictions');
-      }
-
-      const predictionsData = await predictionsRes.json();
-      setPredictions(predictionsData.questions || []);
-
-      if (isAuth && userId) {
-        if (refreshPositionsRef.current) {
-          await refreshPositionsRef.current();
-        }
-      }
-
-      // Trigger balance refresh after data fetch (after trades)
-      setBalanceRefreshTrigger(Date.now());
-    } catch (err) {
-      console.error('Failed to fetch predictions:', err);
-      // Keep existing data on error, just stop loading
-    } finally {
+    if (!predictionsRes.ok) {
+      console.error('Failed to fetch predictions: Failed to fetch predictions');
       setPredictionsLoading(false);
+      return;
     }
+
+    const predictionsData = await predictionsRes.json();
+    setPredictions(predictionsData.questions || []);
+
+    if (isAuth && userId) {
+      if (refreshPositionsRef.current) {
+        await refreshPositionsRef.current();
+      }
+    }
+
+    // Trigger balance refresh after data fetch (after trades)
+    setBalanceRefreshTrigger(Date.now());
+    setPredictionsLoading(false);
   }, []); // Empty dependency array - fetchData never changes
 
   // Store fetchData in ref (fetchData is stable with empty deps)

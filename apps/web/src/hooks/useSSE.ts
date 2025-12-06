@@ -120,14 +120,7 @@ const fetchRealtimeToken = async (
   channels: Channel[]
 ): Promise<string | null> => {
   if (!getAccessTokenRef) return null;
-  const accessToken = await getAccessTokenRef().catch((error) => {
-    logger.warn(
-      'Realtime token: failed to get access token',
-      { error },
-      'useSSE'
-    );
-    return null;
-  });
+  const accessToken = await getAccessTokenRef();
   if (!accessToken) return null;
 
   const res = await fetch('/api/realtime/token', {
@@ -155,21 +148,16 @@ const fetchRealtimeToken = async (
     expiresAt?: number;
   };
   if (!json?.token) return null;
-  try {
-    const expiresAt =
-      typeof json.expiresAt === 'number'
-        ? json.expiresAt
-        : Date.now() + 14 * 60 * 1000; // default ~14min
-    cachedRealtimeToken = {
-      token: json.token,
-      expiresAt,
-      channelsKey: channelsKeyFromList(channels),
-    };
-    return json.token;
-  } catch (error) {
-    logger.warn('Realtime token fetch error', { error }, 'useSSE');
-    return null;
-  }
+  const expiresAt =
+    typeof json.expiresAt === 'number'
+      ? json.expiresAt
+      : Date.now() + 14 * 60 * 1000; // default ~14min
+  cachedRealtimeToken = {
+    token: json.token,
+    expiresAt,
+    channelsKey: channelsKeyFromList(channels),
+  };
+  return json.token;
 };
 
 const getAuthToken = async (channels: Channel[]): Promise<string | null> => {

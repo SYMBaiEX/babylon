@@ -84,9 +84,7 @@ async function spawnAgents(args: ReturnType<typeof parseArgs>): Promise<void> {
       username: result.agent.username,
       id: result.agent.id,
     });
-    console.log(
-      `  ✅ Created: ${result.agent.username} (${result.agent.id})`
-    );
+    console.log(`  ✅ Created: ${result.agent.username} (${result.agent.id})`);
   }
 
   logger.header('Summary');

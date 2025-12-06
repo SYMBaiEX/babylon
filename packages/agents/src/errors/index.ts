@@ -177,7 +177,13 @@ export class ExternalServiceError extends BabylonError {
     const context: Record<string, JsonValue> = { service };
     if (originalStatusCode !== undefined)
       context.originalStatusCode = originalStatusCode as JsonValue;
-    super(`${service}: ${message}`, 'EXTERNAL_SERVICE_ERROR', 502, true, context);
+    super(
+      `${service}: ${message}`,
+      'EXTERNAL_SERVICE_ERROR',
+      502,
+      true,
+      context
+    );
   }
 }
 

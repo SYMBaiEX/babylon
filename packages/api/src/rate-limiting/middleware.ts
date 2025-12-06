@@ -119,11 +119,13 @@ export function checkRateLimitAndDuplicates(
   rateLimitConfig: (typeof RATE_LIMIT_CONFIGS)[keyof typeof RATE_LIMIT_CONFIGS],
   duplicateConfig?: (typeof DUPLICATE_DETECTION_CONFIGS)[keyof typeof DUPLICATE_DETECTION_CONFIGS]
 ): NextResponse | null {
-  // Skip rate limiting in test environment if DISABLE_RATE_LIMITING is set
-  if (
-    process.env.NODE_ENV === 'test' &&
-    process.env.DISABLE_RATE_LIMITING === 'true'
-  ) {
+  // SECURITY: Only skip rate limiting in test environment with EXPLICIT flag
+  // Additional safeguard: also require not being in production
+  const isTestEnv = process.env.NODE_ENV === 'test';
+  const isProduction = process.env.NODE_ENV === 'production';
+  const disableFlag = process.env.DISABLE_RATE_LIMITING === 'true';
+
+  if (isTestEnv && disableFlag && !isProduction) {
     return null;
   }
 

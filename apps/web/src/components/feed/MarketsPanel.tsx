@@ -54,42 +54,35 @@ export function MarketsPanel() {
   const loading = predictionsLoading && perpLoading;
 
   const fetchMarkets = useCallback(async () => {
-    try {
-      // Fetch prediction markets only - perps come from shared store
-      const response = await fetch('/api/feed/widgets/markets');
+    // Fetch prediction markets only - perps come from shared store
+    const response = await fetch('/api/feed/widgets/markets');
 
-      if (!response.ok) {
-        console.error(
-          'Failed to fetch markets:',
-          response.status,
-          response.statusText
-        );
-        setMarkets([]);
-      } else {
-        const text = await response.text();
-        if (!text) {
-          console.error('Empty response from markets API');
-          setMarkets([]);
-        } else {
-          try {
-            const data = JSON.parse(text);
-            if (data.success) {
-              setMarkets(data.markets || []);
-            } else {
-              setMarkets([]);
-            }
-          } catch (parseError) {
-            console.error('Failed to parse markets response:', parseError);
-            setMarkets([]);
-          }
-        }
-      }
-    } catch (error) {
-      console.error('Error fetching markets:', error);
+    if (!response.ok) {
+      console.error(
+        'Failed to fetch markets:',
+        response.status,
+        response.statusText
+      );
       setMarkets([]);
-    } finally {
       setPredictionsLoading(false);
+      return;
     }
+
+    const text = await response.text();
+    if (!text) {
+      console.error('Empty response from markets API');
+      setMarkets([]);
+      setPredictionsLoading(false);
+      return;
+    }
+
+    const data = JSON.parse(text);
+    if (data.success) {
+      setMarkets(data.markets || []);
+    } else {
+      setMarkets([]);
+    }
+    setPredictionsLoading(false);
   }, []);
 
   useEffect(() => {

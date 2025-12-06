@@ -70,14 +70,19 @@ export const maxDuration = 800;
 /**
  * Verifies that the request is a legitimate Vercel Cron invocation.
  *
+ * @security FAIL-CLOSED: In production, requires valid CRON_SECRET.
+ * In development, allows dev credentials or skips if not configured.
+ *
  * @param request - Next.js request object
  * @returns true if request is authenticated, false otherwise
  */
 function verifyVercelCronRequest(request: NextRequest): boolean {
   const authHeader = request.headers.get('authorization');
   const cronSecret = process.env.CRON_SECRET;
+  const isProduction = process.env.NODE_ENV === 'production';
 
-  if (process.env.NODE_ENV === 'development') {
+  // Development mode: more permissive
+  if (!isProduction) {
     if (!cronSecret) {
       logger.info(
         'Development mode - allowing cron without CRON_SECRET',
@@ -92,19 +97,29 @@ function verifyVercelCronRequest(request: NextRequest): boolean {
     ) {
       return true;
     }
+
+    // Check dev credentials
+    const { isValidCronSecret } =
+      require('@babylon/api') as typeof import('@babylon/api');
+    if (authHeader?.startsWith('Bearer ')) {
+      const token = authHeader.substring(7);
+      if (isValidCronSecret(token)) {
+        return true;
+      }
+    }
   }
 
-  if (!cronSecret) {
-    logger.warn(
-      '⚠️  CRON_SECRET not configured! Cron endpoint is accessible without authentication. ' +
-        'Set CRON_SECRET environment variable in production for security.',
+  // PRODUCTION: FAIL-CLOSED - require valid CRON_SECRET
+  if (isProduction && !cronSecret) {
+    logger.error(
+      '🚨 SECURITY: CRON_SECRET not configured in production! Denying request.',
       {
         environment: process.env.NODE_ENV,
         hasAuthHeader: !!authHeader,
       },
       'Cron'
     );
-    return true; // Allow execution but warn
+    return false; // FAIL-CLOSED in production
   }
 
   // If CRON_SECRET is set, verify it matches (fail-closed for wrong credentials)

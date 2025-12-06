@@ -33,7 +33,15 @@ import {
   setDefaultTimeout,
   test,
 } from 'bun:test';
-import { asSystem, db } from '@babylon/db';
+import {
+  asSystem,
+  count,
+  eq,
+  markets,
+  posts,
+  questions,
+  worldEvents,
+} from '@babylon/db';
 import { generateSnowflakeId } from '@babylon/shared';
 import { existsSync, readFileSync } from 'fs';
 
@@ -131,17 +139,31 @@ describe('Engine Integration Tests (No Mocks)', () => {
       trendingCalculated: false,
     };
 
-    // Get baseline counts (db is imported at top level)
-    initialQuestionCount = await db.question.count({
-      where: { status: 'active' },
-    });
+    // Get baseline counts using raw Drizzle query
+    const { getRawDrizzle } = await import('@babylon/db');
+    const rawDb = getRawDrizzle();
 
-    initialMarketCount = await db.market.count({
-      where: { resolved: false },
-    });
+    initialQuestionCount = await rawDb
+      .select({ count: count() })
+      .from(questions)
+      .where(eq(questions.status, 'active'))
+      .then((r) => Number(r[0]?.count ?? 0));
 
-    initialPostCount = await db.post.count();
-    initialEventCount = await db.worldEvent.count();
+    initialMarketCount = await rawDb
+      .select({ count: count() })
+      .from(markets)
+      .where(eq(markets.resolved, false))
+      .then((r) => Number(r[0]?.count ?? 0));
+
+    initialPostCount = await rawDb
+      .select({ count: count() })
+      .from(posts)
+      .then((r) => Number(r[0]?.count ?? 0));
+
+    initialEventCount = await rawDb
+      .select({ count: count() })
+      .from(worldEvents)
+      .then((r) => Number(r[0]?.count ?? 0));
 
     console.log(`📊 Initial State:`);
     console.log(`   - Active Questions: ${initialQuestionCount}`);
@@ -611,29 +633,47 @@ describe('Engine Integration Tests (No Mocks)', () => {
       console.log(`   - ${group.type}: ${group._count.id}`);
     }
 
-    const eventsWithActors = await db.worldEvent.count({
-      where: {
-        timestamp: { gte: testStartTime },
-        actors: { isEmpty: false },
-      },
-    });
+    // Use raw Drizzle for complex queries
+    const { getRawDrizzle, and: dbAnd, gte: dbGte, isNotNull, sql: dbSql } =
+      await import('@babylon/db');
+    const rawDbCheck = getRawDrizzle();
 
-    const totalEvents = await db.worldEvent.count({
-      where: { timestamp: { gte: testStartTime } },
-    });
+    const eventsWithActors = await rawDbCheck
+      .select({ count: count() })
+      .from(worldEvents)
+      .where(
+        dbAnd(
+          dbGte(worldEvents.timestamp, testStartTime),
+          isNotNull(worldEvents.actors),
+          dbSql`array_length(${worldEvents.actors}, 1) > 0`
+        )
+      )
+      .then((r) => Number(r[0]?.count ?? 0));
+
+    const totalEvents = await rawDbCheck
+      .select({ count: count() })
+      .from(worldEvents)
+      .where(dbGte(worldEvents.timestamp, testStartTime))
+      .then((r) => Number(r[0]?.count ?? 0));
 
     console.log(`   Events with actors: ${eventsWithActors}/${totalEvents}`);
 
-    const questionsWithDates = await db.question.count({
-      where: {
-        createdAt: { gte: testStartTime },
-        resolutionDate: { not: null },
-      },
-    });
+    const questionsWithDates = await rawDbCheck
+      .select({ count: count() })
+      .from(questions)
+      .where(
+        dbAnd(
+          dbGte(questions.createdAt, testStartTime),
+          isNotNull(questions.resolutionDate)
+        )
+      )
+      .then((r) => Number(r[0]?.count ?? 0));
 
-    const totalQuestions = await db.question.count({
-      where: { createdAt: { gte: testStartTime } },
-    });
+    const totalQuestions = await rawDbCheck
+      .select({ count: count() })
+      .from(questions)
+      .where(dbGte(questions.createdAt, testStartTime))
+      .then((r) => Number(r[0]?.count ?? 0));
 
     console.log(
       `   Questions with resolution dates: ${questionsWithDates}/${totalQuestions}`

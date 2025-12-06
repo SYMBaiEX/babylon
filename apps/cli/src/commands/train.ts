@@ -460,7 +460,7 @@ async function collectTrajectories(
   console.log(`Found ${agents.length} agents`);
   console.log(`Collecting ${countArg} trajectories...\n`);
 
-  let errors = 0;
+  const errors = 0;
 
   // Get initial count
   const initialCount = await db.trajectory.count();

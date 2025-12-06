@@ -1,6 +1,6 @@
 'use client';
 
-import { cn, logger } from '@babylon/shared';
+import { cn } from '@babylon/shared';
 import {
   AlertCircle,
   CheckCircle,
@@ -73,43 +73,29 @@ export function TrainingDataTab() {
   const [loading, setLoading] = useState(true);
 
   const fetchData = useCallback(async () => {
-    try {
-      const token =
-        typeof window !== 'undefined' ? window.__privyAccessToken : null;
-      if (!token) {
-        throw new Error('Not authenticated');
-      }
-
-      const response = await fetch('/api/admin/training-data', {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (!response.ok) throw new Error('Failed to fetch training data');
-
-      let result;
-      try {
-        result = await response.json();
-      } catch (parseError) {
-        logger.error(
-          'Failed to parse training data response',
-          { error: parseError },
-          'TrainingDataTab'
-        );
-        throw new Error('Failed to parse response');
-      }
-      setData(result.data);
+    const token =
+      typeof window !== 'undefined' ? window.__privyAccessToken : null;
+    if (!token) {
       setLoading(false);
-    } catch (error) {
-      logger.error(
-        'Failed to load training data',
-        { error },
-        'TrainingDataTab'
-      );
-      toast.error('Failed to load training data');
-      setLoading(false);
+      toast.error('Not authenticated');
+      return;
     }
+
+    const response = await fetch('/api/admin/training-data', {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      setLoading(false);
+      toast.error('Failed to load training data');
+      return;
+    }
+
+    const result = await response.json();
+    setData(result.data);
+    setLoading(false);
   }, []);
 
   useEffect(() => {

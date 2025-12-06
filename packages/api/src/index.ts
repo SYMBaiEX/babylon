@@ -178,6 +178,16 @@ export {
 export * from './swagger';
 // Types
 export type { ErrorLike, JsonValue, StringRecord } from './types';
+// Development credentials (for local testing)
+export {
+  type DevCredentials,
+  getDevAdminUser,
+  getDevCredentials,
+  isValidAgentSecret,
+  isValidCronSecret,
+  isValidDevAdminToken,
+  logDevCredentials,
+} from './dev-credentials';
 // User management utilities
 export {
   type CanonicalUser,

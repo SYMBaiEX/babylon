@@ -91,24 +91,19 @@ export default function LeaderboardPage() {
       setLoading(true);
       setError(null);
 
-      try {
-        const response = await fetch(
-          `/api/leaderboard?page=${currentPage}&pageSize=${pageSize}&minPoints=${minPoints}&pointsType=${selectedTab}`
-        );
+      const response = await fetch(
+        `/api/leaderboard?page=${currentPage}&pageSize=${pageSize}&minPoints=${minPoints}&pointsType=${selectedTab}`
+      );
 
-        if (!response.ok) {
-          throw new Error('Failed to fetch leaderboard');
-        }
-
-        const data = await response.json();
-        setLeaderboardData(data);
-      } catch (err) {
-        setError(
-          err instanceof Error ? err.message : 'Failed to fetch leaderboard'
-        );
-      } finally {
+      if (!response.ok) {
+        setError('Failed to fetch leaderboard');
         setLoading(false);
+        return;
       }
+
+      const data = await response.json();
+      setLeaderboardData(data);
+      setLoading(false);
     }
 
     fetchLeaderboard();

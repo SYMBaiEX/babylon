@@ -180,9 +180,7 @@ export async function runParallelGeneration(
       console.log(`  ${archetype}:`);
       console.log(`    Agents: ${stats.agents}`);
       console.log(`    Trajectories: ${stats.trajectories}`);
-      console.log(
-        `    Avg ticks/agent: ${stats.avgTicksPerAgent.toFixed(1)}`
-      );
+      console.log(`    Avg ticks/agent: ${stats.avgTicksPerAgent.toFixed(1)}`);
     }
     console.log();
   }
@@ -195,9 +193,7 @@ export async function runParallelGeneration(
     console.log();
   } else {
     console.log('Created agents:');
-    result.agentsCreated
-      .slice(0, 5)
-      .forEach((id) => console.log(`  - ${id}`));
+    result.agentsCreated.slice(0, 5).forEach((id) => console.log(`  - ${id}`));
     if (result.agentsCreated.length > 5) {
       console.log(`  ... and ${result.agentsCreated.length - 5} more`);
     }

@@ -188,117 +188,116 @@ export class AgentHarness {
     client: HarnessA2AClient,
     context: AgentContext
   ): Promise<ActionResult> {
-    try {
-      switch (decision.action) {
-        case 'BUY_YES':
-        case 'BUY_NO': {
-          if (context.markets.length === 0 || context.balance < 10) {
-            return {
-              success: false,
-              action: decision.action,
-              error: 'No markets or insufficient balance',
-            };
-          }
-          const market =
-            context.markets[Math.floor(Math.random() * context.markets.length)];
-          const outcome = decision.action === 'BUY_YES' ? 'YES' : 'NO';
-          const amount = Math.min(50, context.balance * 0.1);
-          const trade = await client.buyShares(market.id, outcome, amount);
-          return {
-            success: true,
-            action: decision.action,
-            data: trade as unknown as Record<string, unknown>,
-          };
-        }
-
-        case 'SELL_SHARES': {
-          if (context.positions.length === 0) {
-            return {
-              success: false,
-              action: decision.action,
-              error: 'No positions to sell',
-            };
-          }
-          const position = context.positions[0];
-          const sharesToSell = position.shares * 0.5;
-          const trade = await client.sellShares(
-            position.marketId,
-            position.outcome,
-            sharesToSell
-          );
-          return {
-            success: true,
-            action: decision.action,
-            data: trade as unknown as Record<string, unknown>,
-          };
-        }
-
-        case 'CREATE_POST': {
-          const content =
-            (decision.params.content as string) ||
-            'Automated post from training harness';
-          const post = await client.createPost(content);
-          return {
-            success: true,
-            action: decision.action,
-            data: post as unknown as Record<string, unknown>,
-          };
-        }
-
-        case 'LIKE_POST': {
-          if (context.posts.length === 0) {
-            return {
-              success: false,
-              action: decision.action,
-              error: 'No posts to like',
-            };
-          }
-          const post =
-            context.posts[Math.floor(Math.random() * context.posts.length)];
-          const result = await client.likePost(post.id);
-          return {
-            success: true,
-            action: decision.action,
-            data: result as unknown as Record<string, unknown>,
-          };
-        }
-
-        case 'COMMENT_POST': {
-          if (context.posts.length === 0) {
-            return {
-              success: false,
-              action: decision.action,
-              error: 'No posts to comment',
-            };
-          }
-          const post =
-            context.posts[Math.floor(Math.random() * context.posts.length)];
-          const content =
-            (decision.params.content as string) || 'Interesting point!';
-          const result = await client.commentPost(post.id, content);
-          return {
-            success: true,
-            action: decision.action,
-            data: result as unknown as Record<string, unknown>,
-          };
-        }
-
-        case 'VIEW_FEED':
-        case 'DISCOVER_AGENTS':
-        case 'SEARCH_USERS':
-        case 'CHECK_LEADERBOARD':
-        case 'CHECK_NOTIFICATIONS':
-        case 'VIEW_MARKET_DATA':
-        case 'HOLD':
-          return { success: true, action: decision.action };
-
-        default:
+    switch (decision.action) {
+      case 'BUY_YES':
+      case 'BUY_NO': {
+        if (context.markets.length === 0 || context.balance < 10) {
           return {
             success: false,
             action: decision.action,
-            error: `Unknown action: ${decision.action}`,
+            error: 'No markets or insufficient balance',
           };
+        }
+        const market =
+          context.markets[Math.floor(Math.random() * context.markets.length)];
+        const outcome = decision.action === 'BUY_YES' ? 'YES' : 'NO';
+        const amount = Math.min(50, context.balance * 0.1);
+        const trade = await client.buyShares(market.id, outcome, amount);
+        return {
+          success: true,
+          action: decision.action,
+          data: trade as unknown as Record<string, unknown>,
+        };
       }
+
+      case 'SELL_SHARES': {
+        if (context.positions.length === 0) {
+          return {
+            success: false,
+            action: decision.action,
+            error: 'No positions to sell',
+          };
+        }
+        const position = context.positions[0];
+        const sharesToSell = position.shares * 0.5;
+        const trade = await client.sellShares(
+          position.marketId,
+          position.outcome,
+          sharesToSell
+        );
+        return {
+          success: true,
+          action: decision.action,
+          data: trade as unknown as Record<string, unknown>,
+        };
+      }
+
+      case 'CREATE_POST': {
+        const content =
+          (decision.params.content as string) ||
+          'Automated post from training harness';
+        const post = await client.createPost(content);
+        return {
+          success: true,
+          action: decision.action,
+          data: post as unknown as Record<string, unknown>,
+        };
+      }
+
+      case 'LIKE_POST': {
+        if (context.posts.length === 0) {
+          return {
+            success: false,
+            action: decision.action,
+            error: 'No posts to like',
+          };
+        }
+        const post =
+          context.posts[Math.floor(Math.random() * context.posts.length)];
+        const result = await client.likePost(post.id);
+        return {
+          success: true,
+          action: decision.action,
+          data: result as unknown as Record<string, unknown>,
+        };
+      }
+
+      case 'COMMENT_POST': {
+        if (context.posts.length === 0) {
+          return {
+            success: false,
+            action: decision.action,
+            error: 'No posts to comment',
+          };
+        }
+        const post =
+          context.posts[Math.floor(Math.random() * context.posts.length)];
+        const content =
+          (decision.params.content as string) || 'Interesting point!';
+        const result = await client.commentPost(post.id, content);
+        return {
+          success: true,
+          action: decision.action,
+          data: result as unknown as Record<string, unknown>,
+        };
+      }
+
+      case 'VIEW_FEED':
+      case 'DISCOVER_AGENTS':
+      case 'SEARCH_USERS':
+      case 'CHECK_LEADERBOARD':
+      case 'CHECK_NOTIFICATIONS':
+      case 'VIEW_MARKET_DATA':
+      case 'HOLD':
+        return { success: true, action: decision.action };
+
+      default:
+        return {
+          success: false,
+          action: decision.action,
+          error: `Unknown action: ${decision.action}`,
+        };
+    }
   }
 
   /**

@@ -251,100 +251,64 @@ export function ComingSoon() {
       return;
     }
 
-    try {
-      // Use the proper SIWF protocol via relay.farcaster.xyz
-      const result = await signInWithFarcaster({
-        userId: dbUser.id,
-        onStatusUpdate: (status) => {
-          logger.debug('Farcaster auth status', { status }, 'ComingSoon');
-        },
-      });
+    // Use the proper SIWF protocol via relay.farcaster.xyz
+    const result = await signInWithFarcaster({
+      userId: dbUser.id,
+      onStatusUpdate: (status) => {
+        logger.debug('Farcaster auth status', { status }, 'ComingSoon');
+      },
+    });
 
-      // Send authentication data to backend for verification and linking
-      const token =
-        typeof window !== 'undefined' ? window.__privyAccessToken : null;
-      const response = await fetch('/api/auth/farcaster/callback', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({
-          message: result.message,
-          signature: result.signature,
-          fid: result.fid,
-          username: result.username,
-          displayName: result.displayName,
-          pfpUrl: result.pfpUrl,
-          state: result.state,
-        }),
-      });
+    // Send authentication data to backend for verification and linking
+    const token =
+      typeof window !== 'undefined' ? window.__privyAccessToken : null;
+    const response = await fetch('/api/auth/farcaster/callback', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({
+        message: result.message,
+        signature: result.signature,
+        fid: result.fid,
+        username: result.username,
+        displayName: result.displayName,
+        pfpUrl: result.pfpUrl,
+        state: result.state,
+      }),
+    });
 
-      const data = await response.json();
+    const data = await response.json();
 
-      if (response.ok && data.success) {
-        // Refresh user profile to reflect the linked Farcaster account
-        await refresh();
+    if (response.ok && data.success) {
+      // Refresh user profile to reflect the linked Farcaster account
+      await refresh();
 
-        // Refresh waitlist position to update points
-        if (dbUser?.id) {
-          await fetchWaitlistPosition(dbUser.id);
-        }
+      // Refresh waitlist position to update points
+      if (dbUser?.id) {
+        await fetchWaitlistPosition(dbUser.id);
+      }
 
-        if (data.pointsAwarded > 0) {
-          toast.success(
-            `Farcaster linked! +${data.pointsAwarded} points awarded`
-          );
-        } else {
-          toast.success('Farcaster account linked successfully!');
-        }
+      if (data.pointsAwarded > 0) {
+        toast.success(
+          `Farcaster linked! +${data.pointsAwarded} points awarded`
+        );
       } else {
-        // Show specific error message for 409 conflicts
-        const errorMessage = data.error || 'Failed to link Farcaster account';
-        if (response.status === 409) {
-          toast.error(
-            errorMessage.includes('already linked')
-              ? errorMessage
-              : 'This Farcaster account is already linked to another user'
-          );
-        } else {
-          toast.error(errorMessage);
-        }
+        toast.success('Farcaster account linked successfully!');
       }
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-
-      // Don't show error toast for user cancellation
-      if (errorMessage === 'Authentication cancelled') {
-        logger.info(
-          'Farcaster auth cancelled by user',
-          { userId: dbUser.id },
-          'ComingSoon'
+    } else {
+      // Show specific error message for 409 conflicts
+      const errorMessage = data.error || 'Failed to link Farcaster account';
+      if (response.status === 409) {
+        toast.error(
+          errorMessage.includes('already linked')
+            ? errorMessage
+            : 'This Farcaster account is already linked to another user'
         );
-        return;
+      } else {
+        toast.error(errorMessage);
       }
-
-      // Handle popup blocked
-      if (errorMessage.includes('popup')) {
-        toast.error('Please allow popups to connect Farcaster');
-        logger.warn(
-          'Farcaster popup blocked',
-          { userId: dbUser.id },
-          'ComingSoon'
-        );
-        return;
-      }
-
-      logger.error(
-        'Error during Farcaster authentication',
-        {
-          error: errorMessage,
-          userId: dbUser.id,
-        },
-        'ComingSoon'
-      );
-      toast.error('Failed to connect Farcaster. Please try again.');
     }
   };
 
@@ -479,9 +443,7 @@ export function ComingSoon() {
         toast.success('You already received points for this action.');
       }
     } else {
-      toast.error(
-        data.message || 'Could not claim reward. Please try again.'
-      );
+      toast.error(data.message || 'Could not claim reward. Please try again.');
     }
     setIsVerifyingTwitterFollow(false);
   };
@@ -640,11 +602,7 @@ export function ComingSoon() {
 
       // Handle position response
       if (!positionResult) {
-        logger.error(
-          'Position result is undefined',
-          { userId },
-          'ComingSoon'
-        );
+        logger.error('Position result is undefined', { userId }, 'ComingSoon');
         return false;
       }
 
@@ -745,10 +703,7 @@ export function ComingSoon() {
             'ComingSoon'
           );
         }
-      } else if (
-        leaderboardResult &&
-        leaderboardResult.status === 'rejected'
-      ) {
+      } else if (leaderboardResult && leaderboardResult.status === 'rejected') {
         // Leaderboard fetch failed - log but don't block
         logger.warn(
           'Failed to fetch leaderboard (network error)',
@@ -775,52 +730,40 @@ export function ComingSoon() {
 
   const awardWalletBonus = useCallback(
     async (userId: string, walletAddress: string) => {
-      try {
-        const response = await fetch('/api/waitlist/bonus/wallet', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId, walletAddress }),
-        });
+      const response = await fetch('/api/waitlist/bonus/wallet', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, walletAddress }),
+      });
 
-        if (!response.ok) {
-          const errorText = await response.text();
-          logger.error(
-            'Failed to award wallet bonus',
-            {
-              userId,
-              walletAddress,
-              status: response.status,
-              errorText,
-            },
-            'ComingSoon'
-          );
-          return;
-        }
-
-        const result = await response.json();
-        logger.info(
-          'Wallet bonus awarded',
-          {
-            userId,
-            awarded: result.awarded,
-            bonusAmount: result.bonusAmount,
-          },
-          'ComingSoon'
-        );
-
-        // Refresh position to show updated points
-        await fetchWaitlistPosition(userId);
-      } catch (error) {
+      if (!response.ok) {
+        const errorText = await response.text();
         logger.error(
-          'Error awarding wallet bonus',
+          'Failed to award wallet bonus',
           {
             userId,
             walletAddress,
-            error: error instanceof Error ? error.message : String(error),
+            status: response.status,
+            errorText,
           },
           'ComingSoon'
         );
+        return;
       }
+
+      const result = await response.json();
+      logger.info(
+        'Wallet bonus awarded',
+        {
+          userId,
+          awarded: result.awarded,
+          bonusAmount: result.bonusAmount,
+        },
+        'ComingSoon'
+      );
+
+      // Refresh position to show updated points
+      await fetchWaitlistPosition(userId);
     },
     [fetchWaitlistPosition]
   );
@@ -971,35 +914,23 @@ export function ComingSoon() {
     tab: 'leaderboard' | 'inviters' = leaderboardTab
   ) => {
     const pointsType = getPointsTypeForTab(tab);
-    try {
-      const response = await fetch(
-        `/api/waitlist/leaderboard?page=${page}&limit=10&pointsType=${pointsType}`
-      );
-      if (!response.ok) {
-        logger.warn(
-          'Failed to fetch leaderboard page',
-          { page, status: response.status },
-          'ComingSoon'
-        );
-        return false;
-      }
-
-      const data = await response.json();
-      setTopUsers(data.leaderboard || []);
-      setLeaderboardTotalPages(data.totalPages || 10);
-      setLeaderboardLastFetched(Date.now());
-      return true;
-    } catch (error) {
-      logger.error(
-        'Error fetching leaderboard page',
-        {
-          page,
-          error: error instanceof Error ? error.message : String(error),
-        },
+    const response = await fetch(
+      `/api/waitlist/leaderboard?page=${page}&limit=10&pointsType=${pointsType}`
+    );
+    if (!response.ok) {
+      logger.warn(
+        'Failed to fetch leaderboard page',
+        { page, status: response.status },
         'ComingSoon'
       );
       return false;
     }
+
+    const data = await response.json();
+    setTopUsers(data.leaderboard || []);
+    setLeaderboardTotalPages(data.totalPages || 10);
+    setLeaderboardLastFetched(Date.now());
+    return true;
   };
 
   const handleCopyInviteCode = useCallback(() => {
@@ -1138,28 +1069,19 @@ export function ComingSoon() {
     const checkUsername = async () => {
       setIsCheckingUsername(true);
 
-      try {
-        const response = await fetch(
-          `/api/onboarding/check-username?username=${encodeURIComponent(username)}`
-        );
+      const response = await fetch(
+        `/api/onboarding/check-username?username=${encodeURIComponent(username)}`
+      );
 
-        if (!cancelled && response.ok) {
-          const result = await response.json();
-          setUsernameStatus(result.available ? 'available' : 'taken');
-          setUsernameSuggestion(
-            result.available ? null : result.suggestion || null
-          );
-        }
-      } catch (error) {
-        logger.warn(
-          'Username availability check error',
-          { error: error instanceof Error ? error.message : String(error) },
-          'ComingSoon'
+      if (!cancelled && response.ok) {
+        const result = await response.json();
+        setUsernameStatus(result.available ? 'available' : 'taken');
+        setUsernameSuggestion(
+          result.available ? null : result.suggestion || null
         );
-      } finally {
-        if (!cancelled) {
-          setIsCheckingUsername(false);
-        }
+      }
+      if (!cancelled) {
+        setIsCheckingUsername(false);
       }
     };
 

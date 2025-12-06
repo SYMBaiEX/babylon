@@ -163,12 +163,10 @@ export function StatsTab() {
 
   useEffect(() => {
     const loadData = async () => {
-      try {
-        await fetchStats();
-      } catch (err) {
+      await fetchStats().catch((err) => {
         setError(err instanceof Error ? err.message : 'Failed to load stats');
         setLoading(false);
-      }
+      });
       fetchFeeStats(); // This one fails silently
     };
 

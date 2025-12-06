@@ -312,8 +312,10 @@ describe('Engine Components Validation', () => {
     test('generates NPC trading decisions', async () => {
       console.log('💹 Testing MarketDecisionEngine...');
 
-      const { db } = await import('@babylon/db');
-      await db.$queryRaw`SELECT 1`;
+      // Verify database connection using raw Drizzle
+      const { getRawDrizzle, sql } = await import('@babylon/db');
+      const rawDb = getRawDrizzle();
+      await rawDb.execute(sql`SELECT 1`);
 
       const { MarketDecisionEngine } = await import(
         '../../MarketDecisionEngine'

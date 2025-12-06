@@ -42,28 +42,18 @@ export function SecurityTab() {
   const { user, logout } = useAuth();
 
   const copyToClipboard = async (text: string, label: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      toast.success(`${label} copied to clipboard`);
-    } catch (error) {
-      logger.error('Failed to copy to clipboard', { error }, 'SecurityTab');
-      toast.error('Failed to copy to clipboard');
-    }
+    await navigator.clipboard.writeText(text);
+    toast.success(`${label} copied to clipboard`);
   };
 
   const handleLogout = async () => {
-    try {
-      await logout();
-      toast.success('Logged out successfully');
-      logger.info(
-        'User logged out from security settings',
-        undefined,
-        'SecurityTab'
-      );
-    } catch (error) {
-      logger.error('Failed to logout', { error }, 'SecurityTab');
-      toast.error('Failed to logout');
-    }
+    await logout();
+    toast.success('Logged out successfully');
+    logger.info(
+      'User logged out from security settings',
+      undefined,
+      'SecurityTab'
+    );
   };
 
   const getWalletTypeDisplay = (walletClientType: string) => {

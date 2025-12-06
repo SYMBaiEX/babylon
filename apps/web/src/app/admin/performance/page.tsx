@@ -6,7 +6,6 @@
 
 'use client';
 
-import { logger } from '@babylon/shared';
 import { useCallback, useEffect, useState } from 'react';
 
 // Simple replacement components

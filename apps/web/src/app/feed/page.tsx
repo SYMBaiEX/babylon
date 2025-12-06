@@ -114,22 +114,17 @@ function FeedPageContent() {
 
   useEffect(() => {
     const loadActorNames = async () => {
-      try {
-        // Use API endpoint (server loads from individual files via index)
-        const response = await fetch('/api/actors');
-        if (!response.ok) return;
-        const data = (await response.json()) as {
-          actors?: Array<{ id: string; name: string }>;
-        };
-        const nameMap = new Map<string, string>();
-        data.actors?.forEach((actor) => {
-          nameMap.set(actor.id, actor.name);
-        });
-        setActorNames(nameMap);
-      } catch (err) {
-        console.error('Failed to load actor names:', err);
-        // Fail silently - actor names are optional
-      }
+      // Use API endpoint (server loads from individual files via index)
+      const response = await fetch('/api/actors');
+      if (!response.ok) return;
+      const data = (await response.json()) as {
+        actors?: Array<{ id: string; name: string }>;
+      };
+      const nameMap = new Map<string, string>();
+      data.actors?.forEach((actor) => {
+        nameMap.set(actor.id, actor.name);
+      });
+      setActorNames(nameMap);
     };
     loadActorNames();
   }, []);
@@ -169,77 +164,74 @@ function FeedPageContent() {
         setLoading(true);
       }
 
-      try {
-        const url = requestCursor
-          ? `/api/posts?limit=${PAGE_SIZE}&cursor=${encodeURIComponent(requestCursor)}`
-          : `/api/posts?limit=${PAGE_SIZE}`;
+      const url = requestCursor
+        ? `/api/posts?limit=${PAGE_SIZE}&cursor=${encodeURIComponent(requestCursor)}`
+        : `/api/posts?limit=${PAGE_SIZE}`;
 
-        const response = await fetch(url, {
-          cache: forceNoStore ? 'no-store' : undefined,
-        });
-        if (!response.ok) {
-          if (append) setHasMore(false);
-          return;
-        }
-
-        const data = await response.json();
-        const newPosts = data.posts as FeedPost[];
-        const nextCursor = data.cursor as string | null;
-        const hasMoreFromAPI = data.hasMore as boolean;
-
-        // Simple approach: merge and deduplicate, let state handle it
-        setPosts((prev) => {
-          const combined = append ? [...prev, ...newPosts] : newPosts;
-
-          // Deduplicate by ID
-          const unique = new Map<string, FeedPost>();
-          combined.forEach((post) => unique.set(post.id, post));
-
-          // Sort by timestamp
-          const deduped = Array.from(unique.values()).sort((a, b) => {
-            const aTime = new Date(a.timestamp ?? 0).getTime();
-            const bTime = new Date(b.timestamp ?? 0).getTime();
-            return bTime - aTime;
-          });
-
-          return deduped;
-        });
-
-        // Update cursor for next page
-        setCursor(nextCursor);
-
-        // Clear local posts when refreshing (they should now be in API response)
-        if (!append) {
-          setLocalPosts((prev) => {
-            const newPostIds = new Set(newPosts.map((p) => p.id));
-            const fiveMinutesAgo = Date.now() - 5 * 60 * 1000;
-
-            return prev.filter((localPost) => {
-              if (newPostIds.has(localPost.id)) return false;
-              const postTime = new Date(localPost.timestamp).getTime();
-              if (postTime < fiveMinutesAgo) return false;
-              return true;
-            });
-          });
-        }
-
-        // Update hasMore based on API response
-        setHasMore(hasMoreFromAPI && newPosts.length > 0);
-      } catch (err) {
-        console.error('Failed to fetch latest posts:', err);
+      const response = await fetch(url, {
+        cache: forceNoStore ? 'no-store' : undefined,
+      });
+      if (!response.ok) {
         if (append) setHasMore(false);
-        if (!skipLoadingState) {
-          if (append) setLoadingMore(false);
-          else setLoading(false);
-        }
-      } finally {
-        // Always reset loading states in finally block
         if (append) {
           setLoadingMore(false);
           loadingMoreRef.current = false;
         } else if (!skipLoadingState) {
           setLoading(false);
         }
+        return;
+      }
+
+      const data = await response.json();
+      const newPosts = data.posts as FeedPost[];
+      const nextCursor = data.cursor as string | null;
+      const hasMoreFromAPI = data.hasMore as boolean;
+
+      // Simple approach: merge and deduplicate, let state handle it
+      setPosts((prev) => {
+        const combined = append ? [...prev, ...newPosts] : newPosts;
+
+        // Deduplicate by ID
+        const unique = new Map<string, FeedPost>();
+        combined.forEach((post) => unique.set(post.id, post));
+
+        // Sort by timestamp
+        const deduped = Array.from(unique.values()).sort((a, b) => {
+          const aTime = new Date(a.timestamp ?? 0).getTime();
+          const bTime = new Date(b.timestamp ?? 0).getTime();
+          return bTime - aTime;
+        });
+
+        return deduped;
+      });
+
+      // Update cursor for next page
+      setCursor(nextCursor);
+
+      // Clear local posts when refreshing (they should now be in API response)
+      if (!append) {
+        setLocalPosts((prev) => {
+          const newPostIds = new Set(newPosts.map((p) => p.id));
+          const fiveMinutesAgo = Date.now() - 5 * 60 * 1000;
+
+          return prev.filter((localPost) => {
+            if (newPostIds.has(localPost.id)) return false;
+            const postTime = new Date(localPost.timestamp).getTime();
+            if (postTime < fiveMinutesAgo) return false;
+            return true;
+          });
+        });
+      }
+
+      // Update hasMore based on API response
+      setHasMore(hasMoreFromAPI && newPosts.length > 0);
+
+      // Always reset loading states
+      if (append) {
+        setLoadingMore(false);
+        loadingMoreRef.current = false;
+      } else if (!skipLoadingState) {
+        setLoading(false);
       }
     },
     [tab]
@@ -325,34 +317,29 @@ function FeedPageContent() {
 
       setLoadingFollowing(true);
 
-      try {
-        const token = await getAccessToken();
+      const token = await getAccessToken();
 
-        const headers: HeadersInit = {
-          'Content-Type': 'application/json',
-        };
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+      };
 
-        if (token) {
-          headers['Authorization'] = `Bearer ${token}`;
-        }
-
-        const response = await fetch(
-          `/api/posts?following=true&userId=${user.id}&limit=${PAGE_SIZE}&offset=0`,
-          { headers }
-        );
-
-        if (!response.ok) {
-          throw new Error('Failed to fetch following posts');
-        }
-
-        const data = await response.json();
-        setFollowingPosts(data.posts as FeedPost[]);
-      } catch (err) {
-        console.error('Failed to fetch following posts:', err);
-        // Keep existing posts on error
-      } finally {
-        setLoadingFollowing(false);
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
       }
+
+      const response = await fetch(
+        `/api/posts?following=true&userId=${user.id}&limit=${PAGE_SIZE}&offset=0`,
+        { headers }
+      );
+
+      if (!response.ok) {
+        setLoadingFollowing(false);
+        return;
+      }
+
+      const data = await response.json();
+      setFollowingPosts(data.posts as FeedPost[]);
+      setLoadingFollowing(false);
     };
 
     fetchFollowingPosts();

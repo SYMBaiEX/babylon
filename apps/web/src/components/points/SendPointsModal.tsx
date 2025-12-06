@@ -72,39 +72,36 @@ export function SendPointsModal({
 
     setIsSubmitting(true);
 
-    try {
-      const token = await getAccessToken();
-      const response = await fetch('/api/points/transfer', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({
-          recipientId,
-          amount: numAmount,
-          message: message.trim() || undefined,
-        }),
-      });
+    const token = await getAccessToken();
+    const response = await fetch('/api/points/transfer', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({
+        recipientId,
+        amount: numAmount,
+        message: message.trim() || undefined,
+      }),
+    });
 
-      const data = await response.json();
+    const data = await response.json();
 
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to send points');
-      }
-
-      setSuccess(true);
-
-      // Wait a moment to show success state
-      setTimeout(() => {
-        onSuccess?.();
-        handleClose();
-      }, 1500);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to send points');
-    } finally {
+    if (!response.ok) {
       setIsSubmitting(false);
+      setError(data.error || 'Failed to send points');
+      return;
     }
+
+    setSuccess(true);
+    setIsSubmitting(false);
+
+    // Wait a moment to show success state
+    setTimeout(() => {
+      onSuccess?.();
+      handleClose();
+    }, 1500);
   };
 
   const handleClose = () => {

@@ -128,9 +128,7 @@ export default function SwaggerUI({ spec, url }: SwaggerUIProps) {
 
     loadSpec().catch((err) => {
       setError(
-        err instanceof Error
-          ? err.message
-          : 'Failed to load API documentation'
+        err instanceof Error ? err.message : 'Failed to load API documentation'
       );
       setLoading(false);
     });

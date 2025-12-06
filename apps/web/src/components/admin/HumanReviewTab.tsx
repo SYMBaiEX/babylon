@@ -57,18 +57,15 @@ export function HumanReviewTab() {
   const [showActionModal, setShowActionModal] = useState(false);
 
   const fetchAppeals = useCallback(async () => {
-    try {
-      const response = await fetch('/api/admin/moderation/human-review');
-      if (!response.ok) {
-        throw new Error('Failed to fetch appeals');
-      }
-      const data = await response.json();
-      setAppeals(data.appeals || []);
-    } catch {
+    const response = await fetch('/api/admin/moderation/human-review');
+    if (!response.ok) {
       toast.error('Failed to load appeals');
-    } finally {
       setLoading(false);
+      return;
     }
+    const data = await response.json();
+    setAppeals(data.appeals || []);
+    setLoading(false);
   }, []);
 
   useEffect(() => {

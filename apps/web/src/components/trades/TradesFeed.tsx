@@ -66,48 +66,45 @@ export function TradesFeed({ userId, containerRef }: TradesFeedProps) {
   // Fetch trades from API
   const fetchTrades = useCallback(
     async (requestOffset: number, append = false) => {
-      try {
-        setError(null);
-        const params = new URLSearchParams({
-          limit: PAGE_SIZE.toString(),
-          offset: requestOffset.toString(),
-        });
+      setError(null);
+      const params = new URLSearchParams({
+        limit: PAGE_SIZE.toString(),
+        offset: requestOffset.toString(),
+      });
 
-        if (userId) {
-          params.append('userId', userId);
-        }
+      if (userId) {
+        params.append('userId', userId);
+      }
 
-        const response = await fetch(`/api/trades?${params.toString()}`);
-        if (!response.ok) {
-          throw new Error(`Failed to load trades: ${response.status}`);
-        }
-
-        const data = await response.json();
-        const newTrades = data.trades || [];
-
-        if (append) {
-          setTrades((prev) => {
-            // Deduplicate trades by ID
-            const existingIds = new Set(prev.map((t) => t.id));
-            const uniqueNewTrades = newTrades.filter(
-              (t: Trade) => !existingIds.has(t.id)
-            );
-            return [...prev, ...uniqueNewTrades];
-          });
-          setLoadingMore(false);
-        } else {
-          setTrades(newTrades);
-          setLoading(false);
-        }
-
-        setHasMore(data.hasMore || false);
-        setOffset(requestOffset + newTrades.length);
-      } catch (err) {
-        console.error('Failed to fetch trades:', err);
-        setError(err instanceof Error ? err.message : 'Failed to load trades');
+      const response = await fetch(`/api/trades?${params.toString()}`);
+      if (!response.ok) {
+        console.error('Failed to fetch trades:', `Failed to load trades: ${response.status}`);
+        setError(`Failed to load trades: ${response.status}`);
         setLoading(false);
         setLoadingMore(false);
+        return;
       }
+
+      const data = await response.json();
+      const newTrades = data.trades || [];
+
+      if (append) {
+        setTrades((prev) => {
+          // Deduplicate trades by ID
+          const existingIds = new Set(prev.map((t) => t.id));
+          const uniqueNewTrades = newTrades.filter(
+            (t: Trade) => !existingIds.has(t.id)
+          );
+          return [...prev, ...uniqueNewTrades];
+        });
+        setLoadingMore(false);
+      } else {
+        setTrades(newTrades);
+        setLoading(false);
+      }
+
+      setHasMore(data.hasMore || false);
+      setOffset(requestOffset + newTrades.length);
     },
     [userId]
   );

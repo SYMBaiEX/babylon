@@ -127,21 +127,17 @@ export default function TrainingDashboard() {
   const [training, setTraining] = useState(false);
 
   const loadStatus = useCallback(async () => {
-    try {
-      const res = await fetch('/api/admin/training/status');
+    const res = await fetch('/api/admin/training/status');
 
-      if (!res.ok) {
-        throw new Error('Failed to load training status');
-      }
-
-      const data = await res.json();
-      setStatus(data);
-    } catch (error) {
-      console.error('Failed to load status:', error);
-      // Keep existing status on error
-    } finally {
+    if (!res.ok) {
+      console.error('Failed to load status: Failed to load training status');
       setLoading(false);
+      return;
     }
+
+    const data = await res.json();
+    setStatus(data);
+    setLoading(false);
   }, []);
 
   useEffect(() => {
@@ -153,33 +149,28 @@ export default function TrainingDashboard() {
   async function triggerTraining() {
     setTraining(true);
 
-    try {
-      const res = await fetch('/api/admin/training/trigger', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ force: false }),
-      });
+    const res = await fetch('/api/admin/training/trigger', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ force: false }),
+    });
 
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.error || 'Failed to trigger training');
-      }
-
-      const result = await res.json();
-
-      if (result.success) {
-        alert(`Training started! Job ID: ${result.jobId}`);
-        await loadStatus();
-      } else {
-        alert(`Failed to start training: ${result.error || 'Unknown error'}`);
-      }
-    } catch (error) {
-      alert(
-        `Error: ${error instanceof Error ? error.message : 'Failed to trigger training'}`
-      );
-    } finally {
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => ({}));
       setTraining(false);
+      alert(`Error: ${errorData.error || 'Failed to trigger training'}`);
+      return;
     }
+
+    const result = await res.json();
+
+    if (result.success) {
+      alert(`Training started! Job ID: ${result.jobId}`);
+      await loadStatus();
+    } else {
+      alert(`Failed to start training: ${result.error || 'Unknown error'}`);
+    }
+    setTraining(false);
   }
 
   if (loading) {

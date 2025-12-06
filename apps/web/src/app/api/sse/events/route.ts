@@ -107,13 +107,8 @@ export async function GET(request: NextRequest) {
 
       const send = (payload: string): boolean => {
         if (isControllerClosed) return false;
-        try {
-          controller.enqueue(encoder.encode(payload));
-          return true;
-        } catch {
-          isControllerClosed = true;
-          return false;
-        }
+        controller.enqueue(encoder.encode(payload));
+        return true;
       };
 
       // Send heartbeat to keep connection alive and detect disconnects
@@ -139,11 +134,7 @@ export async function GET(request: NextRequest) {
 
       const abortListener = () => {
         isControllerClosed = true;
-        try {
-          controller.close();
-        } catch {
-          // Already closed
-        }
+        controller.close();
       };
       request.signal.addEventListener('abort', abortListener, { once: true });
 

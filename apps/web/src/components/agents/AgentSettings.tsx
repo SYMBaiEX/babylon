@@ -1,6 +1,6 @@
 'use client';
 
-import { cn, logger } from '@babylon/shared';
+import { cn } from '@babylon/shared';
 import { Copy, ExternalLink, Save, Trash2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
@@ -90,47 +90,39 @@ export function AgentSettings({ agent, onUpdate }: AgentSettingsProps) {
 
   const handleSave = async () => {
     setSaving(true);
-    try {
-      const token = await getAccessToken();
-      if (!token) {
-        toast.error('Authentication required');
-        setSaving(false);
-        return;
-      }
-
-      const res = await fetch(`/api/agents/${agent.id}`, {
-        method: 'PUT',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          ...formData,
-          bio: formData.personality.trim() ? [formData.personality.trim()] : [], // Single array entry with entire personality
-          // Append trading strategy to system prompt
-          system: formData.tradingStrategy.trim()
-            ? `${formData.system}\n\nTrading Strategy: ${formData.tradingStrategy}`
-            : formData.system,
-        }),
-      });
-
-      if (!res.ok) {
-        const error = (await res.json()) as { error?: string };
-        toast.error(error.error || 'Failed to update agent');
-        setSaving(false);
-        return;
-      }
-
-      toast.success('Agent updated successfully');
-      onUpdate();
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : 'Failed to update agent';
-      toast.error(errorMessage);
-      logger.error('Save error', { error }, 'AgentSettings');
-    } finally {
+    const token = await getAccessToken();
+    if (!token) {
+      toast.error('Authentication required');
       setSaving(false);
+      return;
     }
+
+    const res = await fetch(`/api/agents/${agent.id}`, {
+      method: 'PUT',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        ...formData,
+        bio: formData.personality.trim() ? [formData.personality.trim()] : [], // Single array entry with entire personality
+        // Append trading strategy to system prompt
+        system: formData.tradingStrategy.trim()
+          ? `${formData.system}\n\nTrading Strategy: ${formData.tradingStrategy}`
+          : formData.system,
+      }),
+    });
+
+    if (!res.ok) {
+      const error = (await res.json()) as { error?: string };
+      toast.error(error.error || 'Failed to update agent');
+      setSaving(false);
+      return;
+    }
+
+    toast.success('Agent updated successfully');
+    onUpdate();
+    setSaving(false);
   };
 
   const handleDelete = async () => {

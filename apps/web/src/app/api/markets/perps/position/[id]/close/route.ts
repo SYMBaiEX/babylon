@@ -100,10 +100,9 @@ export const POST = withErrorHandling(
 
     // Parse and validate request body (optional for partial close)
     let body: Record<string, unknown> = {};
-    try {
-      body = await request.json();
-    } catch {
-      // Body is optional for this endpoint - if parsing fails, body remains empty
+    const bodyText = await request.text();
+    if (bodyText.trim()) {
+      body = JSON.parse(bodyText);
     }
     if (Object.keys(body).length > 0) {
       ClosePerpPositionSchema.parse(body);

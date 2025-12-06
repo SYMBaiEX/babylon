@@ -28,7 +28,12 @@ export async function register() {
       setNotificationService,
       PointsService,
       createNotification,
+      logDevCredentials,
     } = await import('@babylon/api');
+
+    // Log development credentials at startup (only in dev mode)
+    // This makes it easy for developers to authenticate with admin APIs
+    logDevCredentials();
 
     // Initialize agent service container with required services
     // Uses globalThis to persist across module instances

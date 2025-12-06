@@ -733,7 +733,9 @@ export class AgentServiceV2 {
         prompt: log.prompt ?? null,
         completion: log.completion ?? null,
         thinking: log.thinking ?? null,
-        metadata: log.metadata ? JSON.parse(JSON.stringify(log.metadata)) : null,
+        metadata: log.metadata
+          ? JSON.parse(JSON.stringify(log.metadata))
+          : null,
       })
       .returning();
 

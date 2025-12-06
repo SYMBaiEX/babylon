@@ -139,30 +139,24 @@ export default function RewardsPage() {
       return;
     }
 
-    try {
-      const response = await fetch(
-        `/api/users/${encodeURIComponent(user.id)}/referrals`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch referral data');
+    const response = await fetch(
+      `/api/users/${encodeURIComponent(user.id)}/referrals`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
       }
+    );
 
-      const data = await response.json();
-      setReferralData(data);
-    } catch (error) {
-      console.error('Failed to fetch referral data:', error);
-      setError(
-        error instanceof Error ? error.message : 'Failed to fetch referral data'
-      );
-    } finally {
+    if (!response.ok) {
       setLoading(false);
+      setError('Failed to fetch referral data');
+      return;
     }
+
+    const data = await response.json();
+    setReferralData(data);
+    setLoading(false);
   }, [user?.id, authenticated, getAccessToken]);
 
   useEffect(() => {

@@ -203,14 +203,14 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   const reportsWithEvaluation = reports.map((report) => {
     let evaluation = null;
     if (report.resolution) {
-      try {
+      // Check if it's valid JSON before parsing
+      const trimmed = report.resolution.trim();
+      if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
         const parsed = JSON.parse(report.resolution);
         // Check if it's an evaluation object (has outcome, confidence, etc.)
         if (parsed.outcome && typeof parsed.confidence === 'number') {
           evaluation = parsed;
         }
-      } catch {
-        // Not JSON, treat as plain text resolution
       }
     }
     return {
