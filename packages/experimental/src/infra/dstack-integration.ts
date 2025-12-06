@@ -9,7 +9,7 @@
  * 3. Wallet-based deployment (no API keys)
  *
  * Installation:
- *   bun add @aspect14/dstack-sdk
+ *   bun add @phala/dstack-sdk
  *
  * Deployment:
  *   Deploy to Phala Cloud via wallet signature
@@ -17,7 +17,7 @@
 
 // NOTE: These imports will work when running inside Phala TEE
 // Outside TEE, they'll fail - which is correct behavior
-// import { TappdClient } from '@aspect14/dstack-sdk';
+// import { TappdClient } from '@phala/dstack-sdk';
 
 import type { Address, Hex } from 'viem';
 import { keccak256, toBytes, toHex } from 'viem';

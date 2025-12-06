@@ -54,21 +54,37 @@
  * ```
  */
 
-// import { db } from '@babylon/db';
+import {
+  getClientIp,
+  logAdminView,
+  requireAdmin,
+  withErrorHandling,
+} from '@babylon/api';
 import { automationPipeline } from '@babylon/training';
+import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export const GET = withErrorHandling(async (request: NextRequest) => {
+  const admin = await requireAdmin(request);
+
+  // Audit log the status view
+  logAdminView({
+    adminId: admin.userId,
+    ipAddress: getClientIp(request.headers) ?? undefined,
+    resourceType: 'training',
+    metadata: { action: 'view_status' },
+  });
+
   // Get automation status
   const status = await automationPipeline.getStatus();
 
   // Get readiness check
   const readiness = await automationPipeline.checkTrainingReadiness();
 
-  // Note: Trajectory schema models require trajectory schema to be merged into main schema schema
-  // Returning stub data until then
+  // Note: Trajectory data requires trajectory schema tables
+  // These will be populated when training runs complete
   const recentJobs: Array<Record<string, unknown>> = [];
   const models: Array<Record<string, unknown>> = [];
   const trajectoryStats = {
@@ -77,12 +93,15 @@ export async function GET() {
   };
 
   return NextResponse.json({
-    status: 'healthy',
-    automation: status,
-    readiness,
-    recentJobs,
-    models,
-    trajectoryStats,
-    timestamp: new Date().toISOString(),
+    success: true,
+    data: {
+      status: 'healthy',
+      automation: status,
+      readiness,
+      recentJobs,
+      models,
+      trajectoryStats,
+      timestamp: new Date().toISOString(),
+    },
   });
-}
+});

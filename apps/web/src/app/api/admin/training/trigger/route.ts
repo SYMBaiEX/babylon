@@ -65,12 +65,29 @@
  * ```
  */
 
+import {
+  getClientIp,
+  logAdminModify,
+  logAdminView,
+  requireAdmin,
+  withErrorHandling,
+} from '@babylon/api';
 import { automationPipeline } from '@babylon/training';
+import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 
-export async function POST(request: Request) {
+export const POST = withErrorHandling(async (request: NextRequest) => {
+  const admin = await requireAdmin(request);
   const body = await request.json();
   const { force = false, batchSize } = body;
+
+  // Audit log the training trigger
+  logAdminModify({
+    adminId: admin.userId,
+    ipAddress: getClientIp(request.headers) ?? undefined,
+    resourceType: 'training',
+    metadata: { action: 'trigger_training', force, batchSize },
+  });
 
   const result = await automationPipeline.triggerTraining({
     force,
@@ -78,10 +95,20 @@ export async function POST(request: Request) {
   });
 
   return NextResponse.json(result);
-}
+});
 
-export async function GET() {
+export const GET = withErrorHandling(async (request: NextRequest) => {
+  const admin = await requireAdmin(request);
+
+  // Audit log the readiness check
+  logAdminView({
+    adminId: admin.userId,
+    ipAddress: getClientIp(request.headers) ?? undefined,
+    resourceType: 'training',
+    metadata: { action: 'check_readiness' },
+  });
+
   // Get training readiness
   const readiness = await automationPipeline.checkTrainingReadiness();
   return NextResponse.json(readiness);
-}
+});

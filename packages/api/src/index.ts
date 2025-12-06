@@ -15,6 +15,14 @@ export {
   type LogLevel,
   logger,
 } from '@babylon/shared';
+// Admin Audit Logging
+export {
+  type AdminAuditContext,
+  logAdminAction,
+  logAdminDelete,
+  logAdminModify,
+  logAdminView,
+} from './admin-audit';
 // Admin Middleware
 export { isUserAdmin, requireAdmin } from './admin-middleware';
 // Agent Authentication

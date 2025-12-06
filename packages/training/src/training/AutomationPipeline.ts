@@ -405,10 +405,16 @@ export class AutomationPipeline {
 
     const batch = batchResult[0]!;
 
-    // Trigger Python training script (Atropos trainer)
+    // Determine training mode: 'tinker' for cloud-based or 'atropos' for local vLLM
+    const trainingMode = process.env.TRAINING_MODE || 'atropos';
+    const useTinker = trainingMode.toLowerCase() === 'tinker';
+
+    // Trigger appropriate Python training script based on mode
+    // Scripts are in packages/training/python/src/training/
     const pythonScript = path.resolve(
       process.cwd(),
-      'python/src/training/atropos_trainer.py'
+      'packages/training/python/src/training',
+      useTinker ? 'tinker_trainer.py' : 'atropos_trainer.py'
     );
 
     // Set environment variables for Python script
@@ -425,14 +431,22 @@ export class AutomationPipeline {
       VLLM_PORT: String(this.config.vllmPort || 9001),
       FORCE_TRAINING: options.force ? 'true' : 'false',
       MIN_AGENTS_PER_WINDOW: '1',
+      TRAINING_MODE: trainingMode,
     };
 
     logger.info(
-      'Training will use Atropos GRPO with vLLM',
+      useTinker
+        ? 'Training will use Tinker cloud-based GRPO'
+        : 'Training will use Atropos GRPO with vLLM',
       {
-        atroposUrl: env.ATROPOS_API_URL,
-        vllmPort: env.VLLM_PORT,
-        model: env.BASE_MODEL,
+        trainingMode,
+        ...(useTinker
+          ? { model: env.BASE_MODEL }
+          : {
+              atroposUrl: env.ATROPOS_API_URL,
+              vllmPort: env.VLLM_PORT,
+              model: env.BASE_MODEL,
+            }),
       },
       'AutomationPipeline'
     );

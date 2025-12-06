@@ -41,32 +41,31 @@
  * ```
  */
 
-import { authenticate, withErrorHandling } from '@babylon/api';
-import { asSystem } from '@babylon/db';
+import {
+  getClientIp,
+  logAdminView,
+  requireAdmin,
+  withErrorHandling,
+} from '@babylon/api';
 import { SignalExtractionService } from '@babylon/engine';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 
+export const dynamic = 'force-dynamic';
+
 export const GET = withErrorHandling(async (request: NextRequest) => {
-  const user = await authenticate(request);
-
-  // Verify admin status
-  const dbUser = await asSystem(async (db) => {
-    return await db.user.findUnique({
-      where: { id: user.userId },
-      select: { isAdmin: true },
-    });
-  }, 'admin-signal-analysis');
-
-  if (!dbUser?.isAdmin) {
-    return NextResponse.json(
-      { error: 'Admin access required' },
-      { status: 403 }
-    );
-  }
+  const admin = await requireAdmin(request);
 
   const { searchParams } = new URL(request.url);
   const questionNumber = searchParams.get('questionNumber');
+
+  // Audit log the view
+  logAdminView({
+    adminId: admin.userId,
+    ipAddress: getClientIp(request.headers) ?? undefined,
+    resourceType: 'signal_analysis',
+    metadata: { action: 'view_signal_analysis', questionNumber },
+  });
 
   if (!questionNumber) {
     return NextResponse.json(

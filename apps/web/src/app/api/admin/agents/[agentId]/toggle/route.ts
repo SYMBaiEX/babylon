@@ -68,19 +68,35 @@
  * @see {@link /lib/api/admin-middleware} Admin middleware
  */
 
+import {
+  getClientIp,
+  logAdminModify,
+  requireAdmin,
+  withErrorHandling,
+} from '@babylon/api';
 import { db } from '@babylon/db';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 
-export async function POST(
-  req: NextRequest,
-  context: { params: Promise<{ agentId: string }> }
-) {
-  try {
+export const POST = withErrorHandling(
+  async (
+    req: NextRequest,
+    context: { params: Promise<{ agentId: string }> }
+  ) => {
+    const admin = await requireAdmin(req);
     const { agentId } = await context.params;
     const body = await req.json();
     const { enabled } = body;
+
+    // Audit log the admin action
+    logAdminModify({
+      adminId: admin.userId,
+      ipAddress: getClientIp(req.headers) ?? undefined,
+      resourceType: 'agent',
+      resourceId: agentId,
+      metadata: { action: 'toggle_autonomous_mode', enabled },
+    });
 
     // Toggle all autonomous features
     await db.user.update({
@@ -105,14 +121,5 @@ export async function POST(
       success: true,
       message: `Agent ${enabled ? 'enabled' : 'paused'} successfully`,
     });
-  } catch (error) {
-    logger.error('Failed to toggle agent', { error }, 'AdminAgentsAPI');
-    return NextResponse.json(
-      {
-        success: false,
-        error: 'Failed to toggle agent',
-      },
-      { status: 500 }
-    );
   }
-}
+);

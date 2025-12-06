@@ -67,8 +67,10 @@
  */
 
 import {
-  authenticate,
+  getClientIp,
+  logAdminModify,
   notifyGroupChatInvite,
+  requireAdmin,
   withErrorHandling,
 } from '@babylon/api';
 import { asSystem } from '@babylon/db';
@@ -82,50 +84,18 @@ import { NextResponse } from 'next/server';
  * Admin only
  */
 export const POST = withErrorHandling(async (request: NextRequest) => {
-  const user = await authenticate(request);
+  const admin = await requireAdmin(request);
 
   const body = await request.json();
   const { npcId, userId, chatId, chatName } = body;
 
-  // Check admin permissions using asSystem
-  const dbUser = await asSystem(async (db) => {
-    return await db.user.findUnique({
-      where: { id: user.userId },
-      select: {
-        id: true,
-        username: true,
-        isAdmin: true,
-      },
-    });
-  }, 'admin-group-invite-permission-check');
-
-  console.log(
-    '[Admin Group Invite] Auth user:',
-    user.userId,
-    'DB user:',
-    dbUser
-  );
-
-  if (!dbUser) {
-    return NextResponse.json(
-      { error: 'User not found in database' },
-      { status: 404 }
-    );
-  }
-
-  if (!dbUser.isAdmin) {
-    return NextResponse.json(
-      {
-        error: 'Admin access required',
-        debug: {
-          userId: user.userId,
-          username: dbUser.username,
-          isAdmin: dbUser.isAdmin,
-        },
-      },
-      { status: 403 }
-    );
-  }
+  // Audit log the invite
+  logAdminModify({
+    adminId: admin.userId,
+    ipAddress: getClientIp(request.headers) ?? undefined,
+    resourceType: 'group_invite',
+    metadata: { action: 'send_group_invite', npcId, userId, chatId },
+  });
 
   // Validate inputs
   if (!npcId || !userId) {
