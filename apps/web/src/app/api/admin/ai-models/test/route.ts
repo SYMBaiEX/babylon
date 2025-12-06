@@ -79,7 +79,11 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
     adminId: admin.userId,
     ipAddress: getClientIp(req.headers) ?? undefined,
     resourceType: 'ai_models',
-    metadata: { action: 'test_model', provider: stats.provider, model: stats.model },
+    metadata: {
+      action: 'test_model',
+      provider: stats.provider,
+      model: stats.model,
+    },
   });
 
   logger.info(

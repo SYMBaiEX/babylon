@@ -108,7 +108,7 @@ export default function AgentDetailPage() {
   const [loading, setLoading] = useState(true);
 
   const handleBalanceUpdate = useCallback((newBalance: number) => {
-    setAgent((prev) => prev ? { ...prev, pointsBalance: newBalance } : prev);
+    setAgent((prev) => (prev ? { ...prev, pointsBalance: newBalance } : prev));
   }, []);
 
   const fetchAgent = useCallback(async () => {

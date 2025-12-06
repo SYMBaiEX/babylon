@@ -169,7 +169,9 @@ type PrivyUserWithSmartWallet = PrivyUser & {
   >;
 };
 
-function pickEmbeddedEvmWallet(user: PrivyUserWithSmartWallet): PrivyWalletLite | null {
+function pickEmbeddedEvmWallet(
+  user: PrivyUserWithSmartWallet
+): PrivyWalletLite | null {
   const candidates: PrivyWalletLite[] = [];
   if (user.wallet) candidates.push(user.wallet);
   if (Array.isArray(user.linkedAccounts)) {
@@ -187,12 +189,15 @@ function pickEmbeddedEvmWallet(user: PrivyUserWithSmartWallet): PrivyWalletLite 
   );
 }
 
-async function ensureSmartWalletAddress(
-  privyId: string
-): Promise<{ smartWalletAddress: string | null; embeddedWalletAddress: string | null }> {
+async function ensureSmartWalletAddress(privyId: string): Promise<{
+  smartWalletAddress: string | null;
+  embeddedWalletAddress: string | null;
+}> {
   try {
     const privyClient = getPrivyClient();
-    const user = (await privyClient.getUser(privyId)) as PrivyUserWithSmartWallet;
+    const user = (await privyClient.getUser(
+      privyId
+    )) as PrivyUserWithSmartWallet;
     let smartWalletAddress = user.smartWallet?.address?.toLowerCase() ?? null;
     let embeddedWallet = pickEmbeddedEvmWallet(user);
 
@@ -212,7 +217,10 @@ async function ensureSmartWalletAddress(
       embeddedWalletAddress: embeddedWallet?.address?.toLowerCase() ?? null,
     };
   } catch (error) {
-    logger.warn('Failed to ensure smart wallet for user (me route)', { privyId, error });
+    logger.warn('Failed to ensure smart wallet for user (me route)', {
+      privyId,
+      error,
+    });
     return { smartWalletAddress: null, embeddedWalletAddress: null };
   }
 }
@@ -310,7 +318,8 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       }
 
       // Prefer Privy smart wallet over linked/embedded wallet for DB storage
-      smartWalletAddress = privyUser.smartWallet?.address?.toLowerCase() ?? null;
+      smartWalletAddress =
+        privyUser.smartWallet?.address?.toLowerCase() ?? null;
       if (smartWalletAddress) {
         authUser.walletAddress = smartWalletAddress;
       }
