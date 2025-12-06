@@ -153,7 +153,9 @@ type PrivyUserWithSmartWallet = PrivyUser & {
   >;
 };
 
-function pickEmbeddedEvmWallet(user: PrivyUserWithSmartWallet): PrivyWalletLite | null {
+function pickEmbeddedEvmWallet(
+  user: PrivyUserWithSmartWallet
+): PrivyWalletLite | null {
   const candidates: PrivyWalletLite[] = [];
   if (user.wallet) candidates.push(user.wallet);
   if (Array.isArray(user.linkedAccounts)) {
@@ -174,9 +176,14 @@ function pickEmbeddedEvmWallet(user: PrivyUserWithSmartWallet): PrivyWalletLite 
 async function ensureSmartWalletAddress(
   privyClient: ReturnType<typeof getPrivyClient>,
   privyId: string
-): Promise<{ smartWalletAddress: string | null; embeddedWalletAddress: string | null }> {
+): Promise<{
+  smartWalletAddress: string | null;
+  embeddedWalletAddress: string | null;
+}> {
   try {
-    const user = (await privyClient.getUser(privyId)) as PrivyUserWithSmartWallet;
+    const user = (await privyClient.getUser(
+      privyId
+    )) as PrivyUserWithSmartWallet;
     let smartWalletAddress = user.smartWallet?.address?.toLowerCase() ?? null;
     let embeddedWallet = pickEmbeddedEvmWallet(user);
 
@@ -272,10 +279,8 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
 
   // Ensure smart wallet exists and prefer its address for DB persistence
   const privyClient = getPrivyClient();
-  const { smartWalletAddress, embeddedWalletAddress } = await ensureSmartWalletAddress(
-    privyClient,
-    privyId
-  );
+  const { smartWalletAddress, embeddedWalletAddress } =
+    await ensureSmartWalletAddress(privyClient, privyId);
   walletAddress =
     smartWalletAddress ??
     embeddedWalletAddress ??

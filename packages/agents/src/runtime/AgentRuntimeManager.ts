@@ -20,6 +20,8 @@ import {
   type Plugin,
   type UUID,
 } from '@elizaos/core';
+import { anthropicPlugin } from '@elizaos/plugin-anthropic';
+import { openaiPlugin } from '@elizaos/plugin-openai';
 import { babylonPlugin } from '../plugins/babylon';
 import { enhanceRuntimeWithBabylon } from '../plugins/babylon/integration';
 import { groqPlugin } from '../plugins/groq';
@@ -30,8 +32,6 @@ import {
   wrapPluginProviders,
 } from '../plugins/plugin-trajectory-logger/src/action-interceptor';
 import { TrajectoryLoggerService } from '../plugins/plugin-trajectory-logger/src/TrajectoryLoggerService';
-import { anthropicPlugin } from '@elizaos/plugin-anthropic';
-import { openaiPlugin } from '@elizaos/plugin-openai';
 import { agentRegistry } from '../services/agent-registry.service';
 import { logger } from '../shared/logger';
 import { generateSnowflakeId } from '../shared/snowflake';
@@ -359,7 +359,7 @@ export class AgentRuntimeManager {
       undefined,
       'AgentRuntimeManager'
     );
-    
+
     // Register plugins
     const pluginRegistrationPromises: Promise<void>[] = [];
     const pluginsToLoad = plugins;
