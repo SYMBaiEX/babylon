@@ -43,10 +43,13 @@
  * ```
  */
 
+import { requireAdmin, successResponse, withErrorHandling } from '@babylon/api';
 import { modelSelectionService } from '@babylon/training';
-import { NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
 
-export async function GET(): Promise<NextResponse> {
+export const GET = withErrorHandling(async (request: NextRequest) => {
+  await requireAdmin(request);
+
   // Get summary
   const summary = await modelSelectionService.getSelectionSummary();
 
@@ -56,10 +59,10 @@ export async function GET(): Promise<NextResponse> {
 
   selection = await modelSelectionService.selectBaseModel();
 
-  return NextResponse.json({
+  return successResponse({
     success: true,
     summary,
     selection,
     selectionError,
   });
-}
+});

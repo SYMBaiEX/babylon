@@ -15,6 +15,7 @@
 
 import { generateSnowflakeId } from '@babylon/shared';
 import {
+  actorState,
   actors,
   and,
   asc,
@@ -36,7 +37,12 @@ import {
   worldEvents,
 } from './index';
 import { logger } from './logger';
-import type { Actor, Organization, Question } from './model-types';
+import type {
+  Actor,
+  ActorStateRow,
+  Organization,
+  Question,
+} from './model-types';
 
 /**
  * FeedPost type representing a post in the feed.
@@ -897,13 +903,14 @@ class DatabaseService {
       .orderBy(desc(worldEvents.timestamp));
   }
 
-  // ========== ACTORS ==========
+  // ========== ACTORS (DEPRECATED) ==========
+  // NOTE: The actors table is deprecated. Static actor data should be accessed
+  // via StaticDataRegistry from @babylon/engine. For dynamic state, use the
+  // actorState table and methods below.
 
   /**
+   * @deprecated Use StaticDataRegistry for static data, upsertActorState for dynamic data
    * Upsert an actor: create if it doesn't exist, update if it does.
-   *
-   * @param actor - Actor data with required id and name
-   * @returns The created or updated actor record
    */
   async upsertActor(actor: Partial<Actor> & { id: string; name: string }) {
     const existing = await db
@@ -913,7 +920,6 @@ class DatabaseService {
       .limit(1);
 
     if (existing.length > 0) {
-      // Update
       const updated = await db
         .update(actors)
         .set({
@@ -941,6 +947,7 @@ class DatabaseService {
           ...(actor.profileImageUrl !== undefined && {
             profileImageUrl: actor.profileImageUrl,
           }),
+          updatedAt: new Date(),
         })
         .where(eq(actors.id, actor.id))
         .returning();
@@ -948,7 +955,6 @@ class DatabaseService {
       return updated[0]!;
     }
 
-    // Create
     const created = await db
       .insert(actors)
       .values({
@@ -975,9 +981,8 @@ class DatabaseService {
   }
 
   /**
+   * @deprecated Use StaticDataRegistry.getAllActors() for static data
    * Get all actors ordered by tier and name.
-   *
-   * @returns Array of all actors
    */
   async getAllActors() {
     return await db
@@ -987,16 +992,95 @@ class DatabaseService {
   }
 
   /**
+   * @deprecated Use StaticDataRegistry.getActor(id) for static data
    * Get an actor by ID.
-   *
-   * @param id - Actor ID
-   * @returns The actor record or null if not found
    */
   async getActor(id: string) {
     const result = await db
       .select()
       .from(actors)
       .where(eq(actors.id, id))
+      .limit(1);
+    return result[0] ?? null;
+  }
+
+  // ========== ACTOR STATE (NEW) ==========
+  // For static actor data (name, description, tier, etc.), use StaticDataRegistry
+  // from @babylon/engine. This table only stores dynamic runtime state.
+
+  /**
+   * Upsert actor state: create if it doesn't exist, update if it does.
+   * For static actor data (name, tier, etc.), use StaticDataRegistry.getActor(id)
+   *
+   * @param state - Actor state with required id and optional dynamic fields
+   * @returns The created or updated actor state record
+   */
+  async upsertActorState(
+    state: Partial<ActorStateRow> & { id: string }
+  ): Promise<ActorStateRow> {
+    const existing = await db
+      .select({ id: actorState.id })
+      .from(actorState)
+      .where(eq(actorState.id, state.id))
+      .limit(1);
+
+    if (existing.length > 0) {
+      const updated = await db
+        .update(actorState)
+        .set({
+          ...(state.tradingBalance !== undefined && {
+            tradingBalance: String(state.tradingBalance),
+          }),
+          ...(state.reputationPoints !== undefined && {
+            reputationPoints: state.reputationPoints,
+          }),
+          ...(state.hasPool !== undefined && {
+            hasPool: state.hasPool,
+          }),
+          updatedAt: new Date(),
+        })
+        .where(eq(actorState.id, state.id))
+        .returning();
+
+      return updated[0]!;
+    }
+
+    const created = await db
+      .insert(actorState)
+      .values({
+        id: state.id,
+        tradingBalance: String(state.tradingBalance ?? 10000),
+        reputationPoints: state.reputationPoints ?? 10000,
+        hasPool: state.hasPool ?? false,
+        updatedAt: new Date(),
+      })
+      .returning();
+
+    return created[0]!;
+  }
+
+  /**
+   * Get all actor states.
+   * For static actor data, use StaticDataRegistry.getAllActors()
+   *
+   * @returns Array of all actor state records
+   */
+  async getAllActorStates(): Promise<ActorStateRow[]> {
+    return await db.select().from(actorState);
+  }
+
+  /**
+   * Get actor state by ID.
+   * For static actor data, use StaticDataRegistry.getActor(id)
+   *
+   * @param id - Actor ID
+   * @returns The actor state record or null if not found
+   */
+  async getActorState(id: string): Promise<ActorStateRow | null> {
+    const result = await db
+      .select()
+      .from(actorState)
+      .where(eq(actorState.id, id))
       .limit(1);
     return result[0] ?? null;
   }

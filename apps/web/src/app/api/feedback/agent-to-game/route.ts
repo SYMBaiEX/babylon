@@ -52,7 +52,11 @@
  *         description: Duplicate feedback for the same game
  */
 
-import { requireUserByIdentifier } from '@babylon/api';
+import {
+  requireCronAuth,
+  requireUserByIdentifier,
+  withErrorHandling,
+} from '@babylon/api';
 import type { JsonObject } from '@babylon/db';
 import { db } from '@babylon/db';
 import { generateSnowflakeId, logger } from '@babylon/shared';
@@ -69,7 +73,9 @@ const AgentToGameFeedbackSchema = z.object({
   metadata: z.record(z.string(), z.unknown()).optional(),
 });
 
-export async function POST(request: NextRequest) {
+export const POST = withErrorHandling(async (request: NextRequest) => {
+  requireCronAuth(request, { jobName: 'AgentToGameFeedback' });
+
   const payload = AgentToGameFeedbackSchema.parse(await request.json());
 
   const agent = await requireUserByIdentifier(payload.agentId, {
@@ -145,4 +151,4 @@ export async function POST(request: NextRequest) {
     },
     { status: 201 }
   );
-}
+});

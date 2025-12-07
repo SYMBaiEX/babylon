@@ -41,8 +41,10 @@
  * ```
  */
 
+import { verifyCronAuth } from '@babylon/api';
 import { logger } from '@babylon/shared';
 import { automationPipeline, rulerScoringService } from '@babylon/training';
+import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
@@ -51,7 +53,11 @@ export const maxDuration = 300; // 5 minutes
 /**
  * Hourly training check and RULER scoring
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
+  // Security: Verify cron authorization
+  if (!verifyCronAuth(request, { jobName: 'TrainingCheckCron' })) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
   const startTime = Date.now();
   logger.info('Starting training check cycle', undefined, 'TrainingCheckCron');
 

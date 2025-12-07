@@ -62,14 +62,17 @@
  * @see {@link /lib/agents/runtime/AgentRuntimeManager} Runtime manager implementation
  */
 
-import { NextResponse } from 'next/server'
-import { agentRuntimeManager } from '@babylon/agents/runtime'
-import { logger } from '@babylon/shared'
+import { requireAdmin, successResponse, withErrorHandling } from '@babylon/api';
+import { agentRuntimeManager } from '@babylon/agents/runtime';
+import { logger } from '@babylon/shared';
+import type { NextRequest } from 'next/server';
 
-export async function POST() {
-  const count = agentRuntimeManager.getRuntimeCount()
-  agentRuntimeManager.clearAllRuntimes()
-  logger.info(`Cleared ${count} cached runtimes`, undefined, 'Debug')
-  return NextResponse.json({ success: true, cleared: count })
-}
+export const POST = withErrorHandling(async (request: NextRequest) => {
+  await requireAdmin(request);
+
+  const count = agentRuntimeManager.getRuntimeCount();
+  agentRuntimeManager.clearAllRuntimes();
+  logger.info(`Cleared ${count} cached runtimes`, undefined, 'Debug');
+  return successResponse({ success: true, cleared: count });
+});
 

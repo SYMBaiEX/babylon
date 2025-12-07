@@ -243,11 +243,17 @@ mock.module('@babylon/training/utils/logger', () => ({
 
 // Mock fs module for health checks
 const mockMkdir = mock(() => Promise.resolve(undefined));
+const mockAccess = mock(() => Promise.resolve(undefined));
+const mockStat = mock(() => Promise.resolve({ size: 1000000 }));
 mock.module('node:fs/promises', () => ({
   default: {
     mkdir: mockMkdir,
+    access: mockAccess,
+    stat: mockStat,
   },
   mkdir: mockMkdir,
+  access: mockAccess,
+  stat: mockStat,
 }));
 
 describeTests('AutomationPipeline - Unit Tests', () => {
@@ -640,7 +646,8 @@ describeTests('AutomationPipeline - Unit Tests', () => {
 
       // Access private method for testing via bracket notation to bypass TypeScript's private check
       const pipelineWithPrivate = asTestAccess(pipeline);
-      const runHealthChecks = pipelineWithPrivate['runHealthChecks'];
+      const runHealthChecks =
+        pipelineWithPrivate['runHealthChecks'].bind(pipeline);
       if (runHealthChecks) {
         await runHealthChecks();
       }
@@ -655,11 +662,11 @@ describeTests('AutomationPipeline - Unit Tests', () => {
       });
 
       // Access private method for testing - call it directly on the pipeline instance
-      // Using type assertion to access private method
+      // Using type assertion to access private method and bind to pipeline
       const runHealthChecks = (
         pipeline as never as { runHealthChecks: () => Promise<void> }
-      ).runHealthChecks;
-      await runHealthChecks.call(pipeline);
+      ).runHealthChecks.bind(pipeline);
+      await runHealthChecks();
 
       expect(mockLogger.error).toHaveBeenCalled();
     });

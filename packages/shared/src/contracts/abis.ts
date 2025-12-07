@@ -105,17 +105,17 @@ export const PREDICTION_MARKET_ABI = [
 export const ORACLE_ABI = [
   // Oracle resolution requests
   'function requestChainlinkResolution(bytes32 _marketId) external payable',
-  'function requestUMAResolution(bytes32 _marketId, uint8 _proposedOutcome) external payable',
+  'function requestMockResolution(bytes32 _marketId, uint8 _proposedOutcome) external payable',
 
   // Oracle callbacks
   'function oracleCallback(bytes32 _requestId, bytes32 _marketId, uint8 _outcome) external',
-  'function umaOracleCallback(bytes32 _marketId, uint8 _outcome) external',
+  'function mockOracleCallback(bytes32 _marketId, uint8 _outcome) external',
 
   // Oracle management
   'function setChainlinkOracle(address _oracle) external',
-  'function setUMAOracle(address _oracle) external',
+  'function setMockOracle(address _oracle) external',
   'function manualResolve(bytes32 _marketId, uint8 _outcome) external',
-  'function getOracleAddresses() external view returns (address chainlinkOracle, address umaOracle)',
+  'function getOracleAddresses() external view returns (address chainlinkOracle, address mockOracle)',
 
   // Events
   'event OracleRequested(bytes32 indexed marketId, bytes32 indexed requestId, string oracleType)',

@@ -7,9 +7,22 @@
 
 import { countTokensSync, truncateToTokenLimitSync } from '@babylon/api';
 import type { JsonValue } from '@babylon/db';
-import { db } from '@babylon/db';
+import {
+  agentLogs,
+  and,
+  db,
+  desc,
+  eq,
+  inArray,
+  isNull,
+  perpPositions,
+  positions,
+  users,
+} from '@babylon/db';
 import type { IAgentRuntime } from '@elizaos/core';
+import { sql } from 'drizzle-orm';
 import { callGroqDirect } from '../llm/direct-groq';
+import { getAgentConfig } from '../shared/agent-config';
 import { logger } from '../shared/logger';
 import { generateSnowflakeId } from '../shared/snowflake';
 import type {
@@ -169,27 +182,18 @@ export class AutonomousPlanningCoordinator {
       'PlanningCoordinator'
     );
 
-    const agent = await db.user.findUnique({
-      where: { id: agentUserId },
-      select: {
-        id: true,
-        displayName: true,
-        agentSystem: true,
-        agentTradingStrategy: true,
-        agentModelTier: true,
-        agentMaxActionsPerTick: true,
-        agentRiskTolerance: true,
-        agentPlanningHorizon: true,
-        autonomousTrading: true,
-        autonomousPosting: true,
-        autonomousCommenting: true,
-        autonomousDMs: true,
-      },
-    });
+    const [agent] = await db
+      .select()
+      .from(users)
+      .where(eq(users.id, agentUserId))
+      .limit(1);
 
     if (!agent) {
       throw new Error('Agent not found');
     }
+
+    // Get agent config from separate table
+    const agentConfig = await getAgentConfig(agentUserId);
 
     // Gather full planning context
     const context = await this.getPlanningContext(agentUserId);
@@ -197,13 +201,13 @@ export class AutonomousPlanningCoordinator {
     // Convert agent to PlanningAgent (null -> undefined for optional fields)
     const planningAgent: PlanningAgent = {
       displayName: agent.displayName ?? 'Agent',
-      agentSystem: agent.agentSystem ?? undefined,
-      agentMaxActionsPerTick: agent.agentMaxActionsPerTick ?? undefined,
-      agentRiskTolerance: agent.agentRiskTolerance ?? undefined,
-      autonomousTrading: agent.autonomousTrading ?? undefined,
-      autonomousPosting: agent.autonomousPosting ?? undefined,
-      autonomousCommenting: agent.autonomousCommenting ?? undefined,
-      autonomousDMs: agent.autonomousDMs ?? undefined,
+      agentSystem: agentConfig?.systemPrompt ?? undefined,
+      agentMaxActionsPerTick: agentConfig?.maxActionsPerTick ?? undefined,
+      agentRiskTolerance: agentConfig?.riskTolerance ?? undefined,
+      autonomousTrading: agentConfig?.autonomousTrading ?? undefined,
+      autonomousPosting: agentConfig?.autonomousPosting ?? undefined,
+      autonomousCommenting: agentConfig?.autonomousCommenting ?? undefined,
+      autonomousDMs: agentConfig?.autonomousDMs ?? undefined,
     };
 
     // If no goals configured, use simplified planning
@@ -241,7 +245,7 @@ export class AutonomousPlanningCoordinator {
     // Use LARGE model (trained W&B model if available, else qwen3-32b) for complex planning
     const planResponse = await callGroqDirect({
       prompt: finalPrompt,
-      system: agent.agentSystem || undefined,
+      system: planningAgent.agentSystem ?? undefined,
       modelSize: 'large', // Uses trained W&B model if available
       runtime: _runtime, // Pass runtime to access W&B trained models AND trajectory context
       temperature: 0.7,
@@ -299,44 +303,54 @@ export class AutonomousPlanningCoordinator {
         target: g.target ? JSON.parse(JSON.stringify(g.target)) : undefined,
       })) as AgentGoal[];
 
-    // Get directives
-    const agent = await db.user.findUnique({
-      where: { id: agentUserId },
-      select: {
-        agentDirectives: true,
-        agentConstraints: true,
-        virtualBalance: true,
-        lifetimePnL: true,
-        agentMaxActionsPerTick: true,
-        agentRiskTolerance: true,
-      },
-    });
+    // Get user and agent config
+    const [user] = await db
+      .select({
+        virtualBalance: users.virtualBalance,
+        lifetimePnL: users.lifetimePnL,
+      })
+      .from(users)
+      .where(eq(users.id, agentUserId))
+      .limit(1);
 
-    const directives = agent?.agentDirectives
-      ? (JSON.parse(JSON.stringify(agent.agentDirectives)) as AgentDirective[])
+    const config = await getAgentConfig(agentUserId);
+
+    const directives = config?.directives
+      ? (JSON.parse(JSON.stringify(config.directives)) as AgentDirective[])
       : [];
 
-    const constraints = agent?.agentConstraints
-      ? (JSON.parse(JSON.stringify(agent.agentConstraints)) as AgentConstraints)
+    const constraints = config?.constraints
+      ? (JSON.parse(JSON.stringify(config.constraints)) as AgentConstraints)
       : null;
 
     // If constraints exist, merge with agent settings
-    if (constraints && agent) {
-      constraints.general.maxActionsPerTick = agent.agentMaxActionsPerTick;
-      constraints.general.riskTolerance = agent.agentRiskTolerance as
+    if (constraints && config) {
+      constraints.general.maxActionsPerTick = config.maxActionsPerTick;
+      constraints.general.riskTolerance = config.riskTolerance as
         | 'low'
         | 'medium'
         | 'high';
     }
 
     // Get portfolio info
-    const positions = await db.position.count({
-      where: { userId: agentUserId, status: 'active' },
-    });
+    const [positionCountResult] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(positions)
+      .where(
+        and(eq(positions.userId, agentUserId), eq(positions.status, 'active'))
+      );
+    const positionsCount = positionCountResult?.count ?? 0;
 
-    const perpPositions = await db.perpPosition.count({
-      where: { userId: agentUserId, closedAt: null },
-    });
+    const [perpPositionCountResult] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(perpPositions)
+      .where(
+        and(
+          eq(perpPositions.userId, agentUserId),
+          isNull(perpPositions.closedAt)
+        )
+      );
+    const perpPositionsCount = perpPositionCountResult?.count ?? 0;
 
     // Get pending interactions
     const pendingInteractions =
@@ -345,19 +359,22 @@ export class AutonomousPlanningCoordinator {
       );
 
     // Get recent actions (last 10)
-    const recentLogs = await db.agentLog.findMany({
-      where: {
-        agentUserId,
-        type: { in: ['trade', 'post', 'comment', 'dm'] },
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 10,
-    });
+    const recentLogs = await db
+      .select()
+      .from(agentLogs)
+      .where(
+        and(
+          eq(agentLogs.agentUserId, agentUserId),
+          inArray(agentLogs.type, ['trade', 'post', 'comment', 'dm'])
+        )
+      )
+      .orderBy(desc(agentLogs.createdAt))
+      .limit(10);
 
     // Detect trading opportunities
     const tradingOpportunities = await detectTradingOpportunities(
       agentUserId,
-      Number(agent?.virtualBalance || 0)
+      Number(user?.virtualBalance || 0)
     );
 
     // Detect social opportunities
@@ -379,9 +396,9 @@ export class AutonomousPlanningCoordinator {
       },
       constraints,
       portfolio: {
-        balance: Number(agent?.virtualBalance || 0),
-        pnl: Number(agent?.lifetimePnL || 0),
-        positions: positions + perpPositions,
+        balance: Number(user?.virtualBalance || 0),
+        pnl: Number(user?.lifetimePnL || 0),
+        positions: positionsCount + perpPositionsCount,
       },
       pending: pendingInteractions.slice(0, 10).map((p) => ({
         type: p.type,

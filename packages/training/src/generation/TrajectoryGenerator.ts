@@ -7,7 +7,14 @@
  * NOTE: This requires dependencies to be configured first via configureTrainingDependencies()
  */
 
-import { db, eq, trajectories, type User, users } from '@babylon/db';
+import {
+  db,
+  eq,
+  trajectories,
+  type User,
+  userAgentConfigs,
+  users,
+} from '@babylon/db';
 import { logger } from '@babylon/shared';
 import type { IAgentRuntime } from '@elizaos/core';
 import { ArchetypeConfigService } from '../archetypes/ArchetypeConfigService';
@@ -109,10 +116,10 @@ export class TrajectoryGenerator {
           initialDeposit: 100, // Small deposit for training agents
         });
 
-        // Update autonomous settings based on archetype
+        // Update autonomous settings in agent config based on archetype
         // Disable A2A to allow offline training without localhost server
         await db
-          .update(users)
+          .update(userAgentConfigs)
           .set({
             autonomousTrading: archetypeConfig.actionWeights.trade > 0.3,
             autonomousPosting: archetypeConfig.postFrequency !== 'low',
@@ -121,10 +128,11 @@ export class TrajectoryGenerator {
               archetypeConfig.engagementStyle === 'analytical',
             autonomousDMs: archetypeConfig.dmActivity,
             autonomousGroupChats: archetypeConfig.groupChatActivity,
-            agentMaxActionsPerTick: 5,
+            maxActionsPerTick: 5,
             a2aEnabled: false, // Disable A2A for training
+            updatedAt: new Date(),
           })
-          .where(eq(users.id, agent.id));
+          .where(eq(userAgentConfigs.userId, agent.id));
 
         this.agents.set(agent.id, { user: agent, archetype });
 

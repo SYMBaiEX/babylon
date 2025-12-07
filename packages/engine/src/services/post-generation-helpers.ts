@@ -2,42 +2,355 @@
  * Shared post generation helpers
  *
  * Reduces code duplication between lookahead generation and game tick post generation
+ *
+ * IMPORTANT: Each NPC generates posts INDEPENDENTLY with their own context:
+ * - Their personal events (things that happened to them)
+ * - Their recent posts (to avoid repetition)
+ * - Their relationships and positions
+ * - Current world/market state (shared context)
+ *
+ * This prevents personality leakage between NPCs since each gets their own LLM call.
+ *
+ * ARCHITECTURE NOTE: Shared data (feed posts, events) is pre-fetched ONCE in game-tick.ts
+ * and passed to these functions to avoid N+1 query problems.
  */
 
 import {
   type Actor,
+  and,
   db,
   desc,
   eq,
   generateSnowflakeId,
   getDbInstance,
+  gte,
   inArray,
+  isNull,
+  lte,
   type Organization,
+  poolPositions,
   posts,
   type Question,
   users,
+  worldEvents,
 } from '@babylon/db';
 import { logger } from '@babylon/shared';
 import type { BabylonLLMClient } from '../llm/openai-client';
+import type { EventContext, FeedPostContext } from '../types/market-context';
 import { stripHashtagsAndEmojis } from '../utils/shared-utils';
 import { characterMappingService } from './character-mapping-service';
+import { StaticDataRegistry } from './static-data-registry';
 
 // Minimal question type for post generation (only fields actually used)
 type QuestionForPost = Pick<Question, 'id' | 'text' | 'questionNumber'>;
+
+/**
+ * Shared context loaded ONCE and passed to all NPC post generators
+ * This eliminates N+1 query problems
+ */
+export interface SharedPostContext {
+  /** All recent feed posts (with author names resolved) */
+  recentFeedPosts: FeedPostContext[];
+  /** All recent events (for filtering per-NPC) */
+  recentEvents: EventContext[];
+  /** Map of author ID to recent post IDs (for filtering NPC's own posts) */
+  postsByAuthor: Map<string, FeedPostContext[]>;
+}
+
+/**
+ * NPC-specific context for content generation
+ */
+interface NPCContentContext {
+  /** Events that happened specifically to this NPC */
+  personalEvents: EventContext[];
+  /** NPC's previous posts (for memory/consistency) */
+  previousPosts: FeedPostContext[];
+  /** Recent posts from the feed (what's happening in the world) */
+  recentFeedPosts: FeedPostContext[];
+  /** NPC's current positions (for informed public discourse) */
+  positions?: { ticker: string; side: string; pnl: number }[];
+}
 
 const MAX_POST_TOKENS = 16384; // No practical limit
 const MAX_ARTICLE_TOKENS = 16384; // No practical limit
 
 /**
+ * Pre-fetch all shared context ONCE before generating posts
+ *
+ * Call this ONCE in game-tick.ts, then pass the result to generateNPCPost()
+ * This eliminates N+1 query problems where each NPC would fetch the same data
+ */
+export async function loadSharedPostContext(): Promise<SharedPostContext> {
+  const twelveHoursAgo = new Date(Date.now() - 12 * 60 * 60 * 1000);
+  const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
+  const now = new Date();
+
+  // Fetch feed posts and events in parallel - ONE query each
+  const [recentPostsRaw, recentEventsRaw] = await Promise.all([
+    db
+      .select()
+      .from(posts)
+      .where(
+        and(
+          eq(posts.type, 'post'),
+          gte(posts.createdAt, twelveHoursAgo),
+          isNull(posts.deletedAt)
+        )
+      )
+      .orderBy(desc(posts.createdAt))
+      .limit(50),
+    db
+      .select()
+      .from(worldEvents)
+      .where(
+        and(
+          gte(worldEvents.timestamp, threeDaysAgo),
+          lte(worldEvents.timestamp, now), // Don't include future events
+          eq(worldEvents.visibility, 'public')
+        )
+      )
+      .orderBy(desc(worldEvents.timestamp))
+      .limit(100),
+  ]);
+
+  // Resolve author names using StaticDataRegistry (NO DB CALL!)
+  const recentFeedPosts: FeedPostContext[] = recentPostsRaw.map((post) => {
+    const actor = StaticDataRegistry.getActor(post.authorId);
+    const org = StaticDataRegistry.getOrganization(post.authorId);
+    const authorName = actor?.name || org?.name || 'Unknown';
+
+    return {
+      author: post.authorId,
+      authorName,
+      content:
+        post.content.length > 150
+          ? post.content.slice(0, 150) + '...'
+          : post.content,
+      timestamp: post.createdAt.toISOString(),
+      articleTitle: post.articleTitle || undefined,
+    };
+  });
+
+  // Group posts by author for efficient lookup
+  const postsByAuthor = new Map<string, FeedPostContext[]>();
+  for (const post of recentFeedPosts) {
+    const existing = postsByAuthor.get(post.author) || [];
+    existing.push(post);
+    postsByAuthor.set(post.author, existing);
+  }
+
+  // Convert events to context format
+  const recentEvents: EventContext[] = recentEventsRaw.map((event) => ({
+    type: event.eventType,
+    description:
+      event.description.length > 200
+        ? event.description.slice(0, 200) + '...'
+        : event.description,
+    actors: event.actors as string[] | undefined,
+    timestamp: event.timestamp.toISOString(),
+    relatedQuestion: event.relatedQuestion || undefined,
+    pointsToward: event.pointsToward || undefined,
+  }));
+
+  logger.debug(
+    'Loaded shared post context',
+    {
+      feedPosts: recentFeedPosts.length,
+      events: recentEvents.length,
+      uniqueAuthors: postsByAuthor.size,
+    },
+    'PostGeneration'
+  );
+
+  return {
+    recentFeedPosts,
+    recentEvents,
+    postsByAuthor,
+  };
+}
+
+/**
+ * Build NPC-specific context from shared data
+ *
+ * Filters shared data to extract what's relevant to this specific NPC
+ * WITHOUT making any additional database queries
+ */
+function buildNPCContext(
+  actor: Actor,
+  sharedContext: SharedPostContext
+): NPCContentContext {
+  const npcId = actor.id;
+  const npcName = actor.name.toLowerCase();
+
+  // Filter events where this NPC is involved (word boundary matching)
+  const personalEvents = sharedContext.recentEvents
+    .filter((event) => {
+      const actorsArray = event.actors || [];
+
+      // Check if NPC ID is in actors array
+      if (actorsArray.includes(npcId)) return true;
+
+      // Check if NPC name is in actors array (exact word match)
+      const nameMatches = actorsArray.some((a) => {
+        const actorLower = a.toLowerCase();
+        // Exact match or word boundary match
+        return (
+          actorLower === npcName ||
+          new RegExp(`\\b${escapeRegex(npcName)}\\b`, 'i').test(a)
+        );
+      });
+      if (nameMatches) return true;
+
+      // Check if NPC name mentioned in description (word boundary)
+      const descMatch = new RegExp(`\\b${escapeRegex(npcName)}\\b`, 'i').test(
+        event.description
+      );
+      return descMatch;
+    })
+    .slice(0, 10);
+
+  // Get NPC's own previous posts from the shared map
+  const previousPosts = (sharedContext.postsByAuthor.get(npcId) || []).slice(
+    0,
+    5
+  );
+
+  // Get feed posts from others (exclude this NPC)
+  const recentFeedPosts = sharedContext.recentFeedPosts
+    .filter((p) => p.author !== npcId)
+    .slice(0, 15);
+
+  return {
+    personalEvents,
+    previousPosts,
+    recentFeedPosts,
+  };
+}
+
+/**
+ * Escape special regex characters in a string
+ */
+function escapeRegex(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Format NPC context into prompt sections
+ */
+function formatNPCContext(context: NPCContentContext): string {
+  const sections: string[] = [];
+
+  // Personal events - things that happened TO THIS NPC
+  if (context.personalEvents.length > 0) {
+    const eventLines = context.personalEvents
+      .slice(0, 5)
+      .map((e) => `- [${e.type}] ${e.description}`)
+      .join('\n');
+    sections.push(`=== RECENT EVENTS INVOLVING YOU ===
+These things happened to you or mentioned you - use them if relevant:
+${eventLines}`);
+  }
+
+  // Previous posts - NPC's memory of what they've said
+  if (context.previousPosts.length > 0) {
+    const postLines = context.previousPosts
+      .slice(0, 3)
+      .map((p) => `- "${p.content}"`)
+      .join('\n');
+    sections.push(`=== YOUR RECENT POSTS (don't repeat yourself) ===
+${postLines}`);
+  }
+
+  // Recent feed - what others are saying (WITH AUTHOR NAMES)
+  if (context.recentFeedPosts.length > 0) {
+    const feedLines = context.recentFeedPosts
+      .slice(0, 8)
+      .map((p) => `- @${p.authorName}: "${p.content}"`)
+      .join('\n');
+    sections.push(`=== WHAT OTHERS ARE POSTING ===
+Current discourse on the feed (react to, agree with, or challenge these):
+${feedLines}`);
+  }
+
+  // Positions context for informed public discourse
+  if (context.positions && context.positions.length > 0) {
+    const posLines = context.positions
+      .slice(0, 3)
+      .map(
+        (p) =>
+          `- ${p.ticker}: ${p.side} (${p.pnl >= 0 ? '+' : ''}$${p.pnl.toFixed(0)})`
+      )
+      .join('\n');
+    sections.push(`=== YOUR POSITIONS (influences your public takes) ===
+${posLines}`);
+  }
+
+  return sections.join('\n\n');
+}
+
+/**
+ * Get NPC's current positions for context
+ *
+ * This is a single small query per NPC - acceptable overhead
+ * since positions are dynamic and can't be pre-fetched
+ */
+async function getNPCPositions(
+  npcId: string
+): Promise<{ ticker: string; side: string; pnl: number }[]> {
+  const positions = await db
+    .select({
+      ticker: poolPositions.ticker,
+      side: poolPositions.side,
+      unrealizedPnL: poolPositions.unrealizedPnL,
+    })
+    .from(poolPositions)
+    .where(and(eq(poolPositions.poolId, npcId), isNull(poolPositions.closedAt)))
+    .limit(5);
+
+  return positions
+    .filter((p) => p.ticker)
+    .map((p) => ({
+      ticker: p.ticker || 'Unknown',
+      side: p.side,
+      pnl: Number(p.unrealizedPnL),
+    }));
+}
+
+/**
  * Generate a single NPC post using LLM
+ *
+ * IMPORTANT: This function is called INDEPENDENTLY for each NPC.
+ * Each NPC has their own context and LLM call, preventing personality leakage.
+ *
+ * @param llmClient - LLM client for generation
+ * @param actor - The NPC actor generating the post
+ * @param question - The question/topic to post about
+ * @param worldFactsContext - Shared world facts (parody names, etc)
+ * @param timestamp - Timestamp for the post
+ * @param sharedContext - Pre-loaded shared context (optional, will load if not provided)
  */
 export async function generateNPCPost(
   llmClient: BabylonLLMClient,
   actor: Actor,
   question: QuestionForPost,
   worldFactsContext: string,
-  timestamp: Date
+  timestamp: Date,
+  sharedContext?: SharedPostContext
 ): Promise<boolean> {
+  // Use provided shared context or load it (fallback for backward compatibility)
+  const context = sharedContext || (await loadSharedPostContext());
+
+  // Build NPC-specific context from shared data (NO DB CALLS)
+  const npcContext = buildNPCContext(actor, context);
+
+  // Optionally fetch positions for this NPC (single small query)
+  const positions = await getNPCPositions(actor.id);
+  if (positions.length > 0) {
+    npcContext.positions = positions;
+  }
+
+  const npcContextFormatted = formatNPCContext(npcContext);
+
   // Build personality context
   const personalityContext = actor.personality
     ? `Personality: ${actor.personality}`
@@ -61,20 +374,24 @@ ${personalityContext}
 ${voiceContext}
 ${examplesContext}
 
-=== TASK ===
-Write a social media post (max 280 chars) about: "${question.text}"
+${npcContextFormatted}
+
+=== TOPIC TO POST ABOUT ===
+"${question.text}"
 
 === CRITICAL RULES ===
 - ABSOLUTELY NO HASHTAGS (no #crypto, #AI, #news, NOTHING with #)
 - NO EMOJIS
 - Match YOUR character's voice exactly - sound like the examples above
 - Be opinionated and entertaining in YOUR unique style
+- Reference events/posts above if they're relevant to your take
+- DON'T repeat what you've already posted
 
 ${worldFactsContext}
 
 Return your response as XML in this exact format:
 <response>
-  <post>your post content here</post>
+  <post>your post content here (max 280 chars)</post>
 </response>`;
 
   const response = await llmClient.generateJSON<
@@ -321,9 +638,10 @@ Return your response as XML in this exact format:
     return false;
   }
 
-  const summary = articleData.summary.trim();
-  const articleTitle = articleData.title.trim();
-  const articleBody = articleData.article.trim();
+  // Strip hashtags and emojis first (defense-in-depth)
+  const summary = stripHashtagsAndEmojis(articleData.summary.trim());
+  const articleTitle = stripHashtagsAndEmojis(articleData.title.trim());
+  const articleBody = stripHashtagsAndEmojis(articleData.article.trim());
 
   // Content should be a full article (800-1200 words = ~4000-6000 chars)
   // Minimum 500 chars to ensure it's not just a summary

@@ -63,7 +63,11 @@
  */
 
 import { submitFeedbackToAgent0 } from '@babylon/agents';
-import { requireUserByIdentifier } from '@babylon/api';
+import {
+  requireCronAuth,
+  requireUserByIdentifier,
+  withErrorHandling,
+} from '@babylon/api';
 import type { JsonValue } from '@babylon/db';
 import { db } from '@babylon/db';
 import { updateFeedbackMetrics, updateGameMetrics } from '@babylon/engine';
@@ -81,7 +85,8 @@ const GameFeedbackSchema = z.object({
   metadata: z.record(z.string(), z.unknown()).optional(),
 });
 
-export async function POST(request: NextRequest) {
+export const POST = withErrorHandling(async (request: NextRequest) => {
+  requireCronAuth(request, { jobName: 'GameFeedback' });
   const json = await request.json();
   const parsed = GameFeedbackSchema.parse(json);
 
@@ -174,4 +179,4 @@ export async function POST(request: NextRequest) {
     },
     { status: 201 }
   );
-}
+});

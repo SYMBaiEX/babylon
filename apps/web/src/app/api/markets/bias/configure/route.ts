@@ -109,6 +109,7 @@
  * @see {@link /lib/feedback/bias-engine} Bias engine
  */
 
+import { requireAdmin, withErrorHandling } from '@babylon/api';
 import { biasEngine } from '@babylon/engine';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
@@ -151,7 +152,9 @@ const BiasConfigSchema = z.discriminatedUnion('action', [
   BulkSetBiasSchema,
 ]);
 
-export async function POST(request: NextRequest) {
+export const POST = withErrorHandling(async (request: NextRequest) => {
+  await requireAdmin(request);
+
   const json = await request.json();
   const parsed = BiasConfigSchema.parse(json);
 
@@ -204,4 +207,4 @@ export async function POST(request: NextRequest) {
     },
     { status: 201 }
   );
-}
+});

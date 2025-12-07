@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.27;
 
 import "./IPredictionOracle.sol";
 
@@ -25,11 +25,11 @@ contract PredictionOracle is IPredictionOracle {
 
     mapping(bytes32 => GameOutcome) public games;
     mapping(bytes32 => bool) public commitments;
-    mapping(bytes32 => address[]) private gameWinners;  // Separate mapping for winners array
+    mapping(bytes32 => address[]) private gameWinners;
     
     address public gameServer;
     uint256 public gameCount;
-    address public dstackVerifier; // Dstack TEE verifier contract
+    address public dstackVerifier;
 
     event GameCommitted(
         bytes32 indexed sessionId,
@@ -56,8 +56,13 @@ contract PredictionOracle is IPredictionOracle {
         dstackVerifier = address(0);
     }
 
+    event DstackVerifierUpdated(address indexed oldVerifier, address indexed newVerifier);
+
+    /// @notice Set the dstack verifier address (address(0) to disable TEE verification)
     function setDstackVerifier(address _dstackVerifier) external onlyGameServer {
+        address old = dstackVerifier;
         dstackVerifier = _dstackVerifier;
+        emit DstackVerifierUpdated(old, _dstackVerifier);
     }
 
     /**
@@ -118,7 +123,16 @@ contract PredictionOracle is IPredictionOracle {
         bytes32 expectedCommitment = keccak256(abi.encode(outcome, salt));
         require(game.commitment == expectedCommitment, "Commitment mismatch");
 
-        // Verify TEE quote if verifier is set
+        // CHECKS-EFFECTS-INTERACTIONS: Update state BEFORE external call
+        game.outcome = outcome;
+        game.salt = salt;
+        game.endTime = block.timestamp;
+        game.teeQuote = teeQuote;
+        gameWinners[sessionId] = winners;
+        game.totalPayout = totalPayout;
+        game.finalized = true;
+
+        // Verify TEE quote if verifier is set (external call AFTER state updates)
         if (dstackVerifier != address(0)) {
             (bool success, bytes memory result) = dstackVerifier.call(
                 abi.encodeWithSignature(
@@ -131,30 +145,22 @@ contract PredictionOracle is IPredictionOracle {
             require(success && abi.decode(result, (bool)), "TEE quote verification failed");
         }
 
-        // Update game state
-        game.outcome = outcome;
-        game.salt = salt;
-        game.endTime = block.timestamp;
-        game.teeQuote = teeQuote;
-        gameWinners[sessionId] = winners;  // Store winners separately
-        game.totalPayout = totalPayout;
-        game.finalized = true;
-
         emit GameRevealed(sessionId, outcome, block.timestamp, teeQuote, winners.length);
     }
     
+    // ============ IPredictionOracle Implementation ============
+
     /**
      * @notice Get winners array for a game
      * @param sessionId Game session ID
      * @return List of winner addresses
      */
-    function getWinners(bytes32 sessionId) external view virtual returns (address[] memory) {
+    function getWinners(bytes32 sessionId) external view virtual override returns (address[] memory) {
         return gameWinners[sessionId];
     }
 
     /**
      * @notice Get game outcome
-     * @dev Required by IPredictionOracle interface
      */
     function getOutcome(bytes32 sessionId) external view override returns (bool outcome, bool finalized) {
         GameOutcome storage game = games[sessionId];
@@ -163,9 +169,8 @@ contract PredictionOracle is IPredictionOracle {
 
     /**
      * @notice Check if address is a winner
-     * @dev Required by IPredictionOracle interface
      */
-    function isWinner(bytes32 sessionId, address player) external view override returns (bool) {
+    function isWinner(bytes32 sessionId, address player) external view virtual override returns (bool) {
         GameOutcome storage game = games[sessionId];
         if (!game.finalized) return false;
         
@@ -178,49 +183,8 @@ contract PredictionOracle is IPredictionOracle {
 
     /**
      * @notice Verify a commitment exists
-     * @dev Required by IPredictionOracle interface
      */
     function verifyCommitment(bytes32 commitment) external view override returns (bool) {
         return commitments[commitment];
     }
-    
-    // ============ Contest Oracle Methods (Not Supported) ============
-    // PredictionOracle doesn't support contest-specific features
-    // These return empty/default values for interface compliance
-    
-    function getContestInfo(bytes32 /* contestId */) external pure returns (
-        ContestState state,
-        ContestMode mode,
-        uint256 startTime,
-        uint256 endTime,
-        uint256 optionCount
-    ) {
-        return (ContestState.PENDING, ContestMode.SINGLE_WINNER, 0, 0, 0);
-    }
-    
-    function getOptions(bytes32 /* contestId */) external pure returns (string[] memory) {
-        return new string[](0);
-    }
-    
-    function getWinner(bytes32 /* contestId */) external pure returns (uint256, bool) {
-        return (0, false);
-    }
-    
-    function getTop3(bytes32 /* contestId */) external pure returns (uint256[3] memory, bool) {
-        return ([uint256(0), 0, 0], false);
-    }
-    
-    function getFullRanking(bytes32 /* contestId */) external pure returns (uint256[] memory, bool) {
-        return (new uint256[](0), false);
-    }
-    
-    function getBinaryOutcome(bytes32 sessionId, bytes memory /* outcomeDefinition */) external view returns (bool outcome, bool finalized) {
-        // Just delegate to getOutcome for non-contest oracles
-        return this.getOutcome(sessionId);
-    }
-    
-    function isWinningOption(bytes32 /* contestId */, uint256 /* optionIndex */) external pure returns (bool) {
-        return false;
-    }
 }
-

@@ -82,7 +82,8 @@ import {
   type ListTasksParams,
   RateLimiter,
 } from '@babylon/a2a';
-import { db } from '@babylon/db';
+import { getAgentConfig } from '@babylon/agents';
+import { db, eq, users } from '@babylon/db';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
@@ -114,25 +115,29 @@ async function getAgentJsonRpcHandler(
       const eventBusManager = new DefaultExecutionEventBusManager();
 
       // Get agent data for card generation
-      const agentData = await db.user.findUnique({
-        where: { id: agentId },
-        select: {
-          id: true,
-          displayName: true,
-          bio: true,
-          profileImageUrl: true,
-          agentSystem: true,
-          agentPersonality: true,
-          agentTradingStrategy: true,
-        },
-      });
+      const [agentUser] = await db
+        .select()
+        .from(users)
+        .where(eq(users.id, agentId))
+        .limit(1);
+      const agentConfig = await getAgentConfig(agentId);
 
-      if (!agentData) {
+      if (!agentUser) {
         throw new Error(`Agent ${agentId} not found`);
       }
 
+      const agentCardData = {
+        id: agentUser.id,
+        displayName: agentUser.displayName,
+        bio: agentUser.bio,
+        profileImageUrl: agentUser.profileImageUrl,
+        systemPrompt: agentConfig?.systemPrompt ?? null,
+        personality: agentConfig?.personality ?? null,
+        tradingStrategy: agentConfig?.tradingStrategy ?? null,
+      };
+
       const requestHandler = new DefaultRequestHandler(
-        generateAgentCardSync(agentData),
+        generateAgentCardSync(agentCardData),
         taskStore,
         executor,
         eventBusManager
@@ -155,20 +160,12 @@ export async function POST(
   const { agentId } = await params;
 
   // Verify agent exists and has A2A enabled
-  const agent = await db.user.findUnique({
-    where: { id: agentId },
-    select: {
-      id: true,
-      isAgent: true,
-      a2aEnabled: true,
-      displayName: true,
-      bio: true,
-      profileImageUrl: true,
-      agentSystem: true,
-      agentPersonality: true,
-      agentTradingStrategy: true,
-    },
-  });
+  const [agent] = await db
+    .select()
+    .from(users)
+    .where(eq(users.id, agentId))
+    .limit(1);
+  const agentConfig = await getAgentConfig(agentId);
 
   if (!agent || !agent.isAgent) {
     return NextResponse.json(
@@ -184,7 +181,7 @@ export async function POST(
     );
   }
 
-  if (!agent.a2aEnabled) {
+  if (!agentConfig?.a2aEnabled) {
     return NextResponse.json(
       {
         jsonrpc: '2.0',
@@ -387,20 +384,12 @@ export async function GET(
   const { agentId } = await params;
 
   // Verify agent exists and has A2A enabled
-  const agent = await db.user.findUnique({
-    where: { id: agentId },
-    select: {
-      id: true,
-      isAgent: true,
-      a2aEnabled: true,
-      displayName: true,
-      bio: true,
-      profileImageUrl: true,
-      agentSystem: true,
-      agentPersonality: true,
-      agentTradingStrategy: true,
-    },
-  });
+  const [agent] = await db
+    .select()
+    .from(users)
+    .where(eq(users.id, agentId))
+    .limit(1);
+  const config = await getAgentConfig(agentId);
 
   if (!agent || !agent.isAgent) {
     return NextResponse.json(
@@ -411,7 +400,7 @@ export async function GET(
     );
   }
 
-  if (!agent.a2aEnabled) {
+  if (!config?.a2aEnabled) {
     return NextResponse.json(
       {
         error: 'A2A is not enabled for this agent',
@@ -425,9 +414,9 @@ export async function GET(
     displayName: agent.displayName,
     bio: agent.bio,
     profileImageUrl: agent.profileImageUrl,
-    agentSystem: agent.agentSystem,
-    agentPersonality: agent.agentPersonality,
-    agentTradingStrategy: agent.agentTradingStrategy,
+    systemPrompt: config?.systemPrompt ?? null,
+    personality: config?.personality ?? null,
+    tradingStrategy: config?.tradingStrategy ?? null,
   });
 
   return NextResponse.json(

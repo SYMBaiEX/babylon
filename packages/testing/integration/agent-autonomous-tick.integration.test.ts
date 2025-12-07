@@ -11,8 +11,8 @@
  */
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
-import { createTestAgent } from '@babylon/agents';
-import { asSystem, db } from '@babylon/db';
+import { createTestAgent, getAgentConfig } from '@babylon/agents';
+import { asSystem, db, eq, userAgentConfigs } from '@babylon/db';
 import { generateSnowflakeId } from '@babylon/shared';
 
 const BASE_URL =
@@ -124,7 +124,7 @@ describe('Agent Autonomous Tick Integration', () => {
       autonomousTrading: true,
       autonomousPosting: true,
       autonomousCommenting: true,
-      agentPointsBalance: 100,
+      pointsBalance: 100,
       virtualBalance: 10000,
     });
     console.log('Test agent created:', agentResult.agentId);
@@ -133,12 +133,7 @@ describe('Agent Autonomous Tick Integration', () => {
 
     // Get initial state
     console.log('Getting initial state...');
-    const agent = await db.user.findUnique({
-      where: { id: testAgentId },
-      select: {
-        agentLastTickAt: true,
-      },
-    });
+    const config = await getAgentConfig(testAgentId);
     console.log('Initial state got.');
 
     // Verify agent can be found via AgentRegistry locally
@@ -162,7 +157,7 @@ describe('Agent Autonomous Tick Integration', () => {
       console.log('Local AgentRegistry discovery failed:', e);
     }
 
-    initialLastTickAt = agent?.agentLastTickAt || null;
+    initialLastTickAt = config?.lastTickAt || null;
   });
 
   afterAll(async () => {
@@ -259,23 +254,17 @@ describe('Agent Autonomous Tick Integration', () => {
     // Verify agent exists and meets criteria before tick
     const agentBefore = await db.user.findUnique({
       where: { id: testAgentId },
-      select: {
-        isAgent: true,
-        agentPointsBalance: true,
-        autonomousTrading: true,
-        autonomousPosting: true,
-        autonomousCommenting: true,
-        agentLastTickAt: true,
-      },
+      select: { isAgent: true },
     });
+    const configBefore = await getAgentConfig(testAgentId);
 
     expect(agentBefore).toBeTruthy();
     expect(agentBefore?.isAgent).toBe(true);
-    expect(agentBefore?.agentPointsBalance).toBeGreaterThanOrEqual(1);
+    expect(configBefore?.pointsBalance ?? 0).toBeGreaterThanOrEqual(1);
     expect(
-      agentBefore?.autonomousTrading ||
-        agentBefore?.autonomousPosting ||
-        agentBefore?.autonomousCommenting
+      configBefore?.autonomousTrading ||
+        configBefore?.autonomousPosting ||
+        configBefore?.autonomousCommenting
     ).toBe(true);
 
     // Wait a moment to ensure timestamp difference
@@ -304,13 +293,7 @@ describe('Agent Autonomous Tick Integration', () => {
       // Check if agent still exists and meets criteria
       const agentCheck = await db.user.findUnique({
         where: { id: testAgentId },
-        select: {
-          isAgent: true,
-          agentPointsBalance: true,
-          autonomousTrading: true,
-          autonomousPosting: true,
-          autonomousCommenting: true,
-        },
+        select: { isAgent: true },
       });
       console.log('⚠️  Agent check:', JSON.stringify(agentCheck, null, 2));
       // Skip this test if agent wasn't processed (might be a timing issue)
@@ -355,19 +338,14 @@ describe('Agent Autonomous Tick Integration', () => {
     // Wait a moment for database update to complete
     await new Promise((resolve) => setTimeout(resolve, 1000));
 
-    // Check agentLastTickAt was updated
-    const agent = await db.user.findUnique({
-      where: { id: testAgentId },
-      select: {
-        agentLastTickAt: true,
-      },
-    });
+    // Check lastTickAt was updated in config
+    const agentConfig = await getAgentConfig(testAgentId);
 
-    expect(agent).toBeTruthy();
-    expect(agent?.agentLastTickAt).toBeTruthy();
+    expect(agentConfig).toBeTruthy();
+    expect(agentConfig?.lastTickAt).toBeTruthy();
 
-    if (initialLastTickAt && agent?.agentLastTickAt) {
-      expect(new Date(agent.agentLastTickAt).getTime()).toBeGreaterThan(
+    if (initialLastTickAt && agentConfig?.lastTickAt) {
+      expect(new Date(agentConfig.lastTickAt).getTime()).toBeGreaterThan(
         initialLastTickAt.getTime()
       );
     }
@@ -381,18 +359,13 @@ describe('Agent Autonomous Tick Integration', () => {
     // Verify agent exists and meets criteria before tick
     const agentBefore = await db.user.findUnique({
       where: { id: testAgentId },
-      select: {
-        isAgent: true,
-        agentPointsBalance: true,
-        autonomousTrading: true,
-        autonomousPosting: true,
-        autonomousCommenting: true,
-      },
+      select: { isAgent: true },
     });
+    const agentConfigBefore = await getAgentConfig(testAgentId);
 
     expect(agentBefore).toBeTruthy();
     expect(agentBefore?.isAgent).toBe(true);
-    expect(agentBefore?.agentPointsBalance).toBeGreaterThanOrEqual(1);
+    expect(agentConfigBefore?.pointsBalance ?? 0).toBeGreaterThanOrEqual(1);
 
     const cronSecret = process.env.CRON_SECRET || 'development';
     const response = await fetch(`${BASE_URL}/api/cron/agent-tick`, {
@@ -417,13 +390,7 @@ describe('Agent Autonomous Tick Integration', () => {
       // Check if agent still exists and meets criteria
       const agentCheck = await db.user.findUnique({
         where: { id: testAgentId },
-        select: {
-          isAgent: true,
-          agentPointsBalance: true,
-          autonomousTrading: true,
-          autonomousPosting: true,
-          autonomousCommenting: true,
-        },
+        select: { isAgent: true },
       });
       console.log('⚠️  Agent check:', JSON.stringify(agentCheck, null, 2));
       // Skip this test if agent wasn't processed (might be a timing issue)
@@ -492,16 +459,13 @@ describe('Agent Autonomous Tick Integration', () => {
     expect(cronEndpointAvailable).toBe(true);
 
     // Ensure agent has points
-    await db.user.update({
-      where: { id: testAgentId },
-      data: { agentPointsBalance: 100 },
-    });
+    await db
+      .update(userAgentConfigs)
+      .set({ pointsBalance: 100, updatedAt: new Date() })
+      .where(eq(userAgentConfigs.userId, testAgentId));
 
-    const beforeAgent = await db.user.findUnique({
-      where: { id: testAgentId },
-      select: { agentPointsBalance: true },
-    });
-    const beforeBalance = beforeAgent?.agentPointsBalance || 0;
+    const beforeConfig = await getAgentConfig(testAgentId);
+    const beforeBalance = beforeConfig?.pointsBalance || 0;
 
     const cronSecret = process.env.CRON_SECRET || 'development';
     const response = await fetch(`${BASE_URL}/api/cron/agent-tick`, {
@@ -553,11 +517,8 @@ describe('Agent Autonomous Tick Integration', () => {
     // Wait for database update
     await new Promise((resolve) => setTimeout(resolve, 500));
 
-    const afterAgent = await db.user.findUnique({
-      where: { id: testAgentId },
-      select: { agentPointsBalance: true },
-    });
-    const afterBalance = afterAgent?.agentPointsBalance || 0;
+    const afterConfig = await getAgentConfig(testAgentId);
+    const afterBalance = afterConfig?.pointsBalance || 0;
 
     // Points should be deducted (1 point per tick) - even if processing had errors
     // Points are deducted before executeAutonomousTick, so they should always be deducted

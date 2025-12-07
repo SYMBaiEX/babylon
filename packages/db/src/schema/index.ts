@@ -2,6 +2,7 @@
 // This is the Drizzle schema
 
 // Tables and Relations
+export * from './actor-state';
 export * from './actors';
 export * from './agents';
 // Enums
@@ -13,4 +14,5 @@ export * from './pools';
 export * from './posts';
 export * from './trading';
 export * from './training';
+export * from './user-agent-configs';
 export * from './users';

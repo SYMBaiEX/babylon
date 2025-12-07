@@ -1150,10 +1150,16 @@ export interface DrizzleClient {
     InferSelect<typeof schema.users>,
     InferInsert<typeof schema.users>
   >;
+  /** @deprecated Use StaticDataRegistry for static data, actorState for dynamic data */
   actor: TableRepository<
     typeof schema.actors,
     InferSelect<typeof schema.actors>,
     InferInsert<typeof schema.actors>
+  >;
+  actorState: TableRepository<
+    typeof schema.actorState,
+    InferSelect<typeof schema.actorState>,
+    InferInsert<typeof schema.actorState>
   >;
   actorFollow: TableRepository<
     typeof schema.actorFollows,
@@ -1575,6 +1581,21 @@ export interface DrizzleClient {
     InferSelect<typeof schema.widgetCaches>,
     InferInsert<typeof schema.widgetCaches>
   >;
+  userAgentConfig: TableRepository<
+    typeof schema.userAgentConfigs,
+    InferSelect<typeof schema.userAgentConfigs>,
+    InferInsert<typeof schema.userAgentConfigs>
+  >;
+  userApiKey: TableRepository<
+    typeof schema.userApiKeys,
+    InferSelect<typeof schema.userApiKeys>,
+    InferInsert<typeof schema.userApiKeys>
+  >;
+  tickTokenStats: TableRepository<
+    typeof schema.tickTokenStats,
+    InferSelect<typeof schema.tickTokenStats>,
+    InferInsert<typeof schema.tickTokenStats>
+  >;
 }
 
 /**
@@ -1653,7 +1674,9 @@ export function createDrizzleClient(drizzle: SchemaDatabase): DrizzleClient {
 
     // Model repositories
     user: new TableRepository(drizzle, schema.users, 'users'),
+    /** @deprecated Use StaticDataRegistry for static data, actorState for dynamic data */
     actor: new TableRepository(drizzle, schema.actors, 'actors'),
+    actorState: new TableRepository(drizzle, schema.actorState, 'actorState'),
     actorFollow: new TableRepository(
       drizzle,
       schema.actorFollows,
@@ -1937,6 +1960,17 @@ export function createDrizzleClient(drizzle: SchemaDatabase): DrizzleClient {
       drizzle,
       schema.widgetCaches,
       'widgetCaches'
+    ),
+    userAgentConfig: new TableRepository(
+      drizzle,
+      schema.userAgentConfigs,
+      'userAgentConfigs'
+    ),
+    userApiKey: new TableRepository(drizzle, schema.userApiKeys, 'userApiKeys'),
+    tickTokenStats: new TableRepository(
+      drizzle,
+      schema.tickTokenStats,
+      'tickTokenStats'
     ),
   };
 }

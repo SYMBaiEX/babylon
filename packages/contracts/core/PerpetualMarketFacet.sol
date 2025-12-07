@@ -9,12 +9,22 @@ import {LibDiamond} from "../libraries/LibDiamond.sol";
 /// @notice Simple oracle interface for price feeds
 interface IPriceOracle {
     function latestAnswer() external view returns (int256);
+    function latestRoundData() external view returns (
+        uint80 roundId,
+        int256 answer,
+        uint256 startedAt,
+        uint256 updatedAt,
+        uint80 answeredInRound
+    );
 }
 
 /// @title PerpetualMarketFacet
 /// @notice Facet for perpetual futures markets
 /// @dev Implements perpetual swaps with funding rates and liquidations
 contract PerpetualMarketFacet is ReentrancyGuard {
+    /// @notice Maximum allowed oracle staleness (1 hour)
+    uint256 public constant MAX_ORACLE_STALENESS = 1 hours;
+    
     event PerpetualMarketCreated(bytes32 indexed marketId, string symbol, address indexed indexOracle);
     event PositionOpened(bytes32 indexed marketId, address indexed trader, LibPerpetual.Side side, uint256 size, uint256 collateral, uint256 entryPrice);
     event PositionClosed(bytes32 indexed marketId, address indexed trader, uint256 pnl);
@@ -42,7 +52,12 @@ contract PerpetualMarketFacet is ReentrancyGuard {
 
         LibPerpetual.PerpetualStorage storage ps = LibPerpetual.perpetualStorage();
 
-        marketId = keccak256(abi.encodePacked(_symbol, block.timestamp, block.number));
+        // Generate unique market ID including sender and counter to prevent collisions
+        marketId = keccak256(abi.encodePacked(_symbol, block.timestamp, block.number, ps.marketIds.length, msg.sender));
+        
+        // Verify market doesn't already exist (defensive check)
+        require(ps.markets[marketId].createdAt == 0, "Market ID collision");
+        
         LibPerpetual.PerpetualMarket storage market = ps.markets[marketId];
 
         market.id = marketId;
@@ -273,8 +288,11 @@ contract PerpetualMarketFacet is ReentrancyGuard {
         int256 totalShares = int256(market.totalLongShares + market.totalShortShares);
 
         if (totalShares > 0) {
-            // Funding rate = imbalance / total * base rate (0.01% per hour)
-            market.fundingRate = uint256((imbalance * 10) / totalShares); // basis points
+            // Funding rate = |imbalance| / total * base rate (0.01% per hour)
+            // Store absolute value to avoid uint256 overflow from negative values
+            int256 rateInt = (imbalance * 10) / totalShares;
+            // Clamp to positive value (funding rate is always positive, direction is implied by who pays)
+            market.fundingRate = rateInt >= 0 ? uint256(rateInt) : uint256(-rateInt);
         } else {
             market.fundingRate = 0;
         }
@@ -283,13 +301,26 @@ contract PerpetualMarketFacet is ReentrancyGuard {
         emit FundingRateUpdated(_marketId, market.fundingRate);
     }
 
-    /// @notice Get current mark price from oracle
-    /// @dev Calls oracle's latestAnswer() which returns price in 8 decimals
+    /// @notice Get current mark price from oracle with staleness check
+    /// @dev Calls oracle's latestRoundData() which returns price in 8 decimals
     /// @return price in 8 decimals (Chainlink format)
     function _getMarkPrice(address oracle) internal view returns (uint256) {
-        int256 price = IPriceOracle(oracle).latestAnswer();
-        require(price > 0, "Invalid price");
-        return uint256(price);
+        try IPriceOracle(oracle).latestRoundData() returns (
+            uint80,
+            int256 answer,
+            uint256,
+            uint256 updatedAt,
+            uint80
+        ) {
+            require(answer > 0, "Invalid price");
+            require(block.timestamp - updatedAt <= MAX_ORACLE_STALENESS, "Stale oracle data");
+            return uint256(answer);
+        } catch {
+            // Fallback for oracles that don't support latestRoundData
+            int256 price = IPriceOracle(oracle).latestAnswer();
+            require(price > 0, "Invalid price");
+            return uint256(price);
+        }
     }
 
     /// @notice Get market info

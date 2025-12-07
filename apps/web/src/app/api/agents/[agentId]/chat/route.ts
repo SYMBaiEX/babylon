@@ -122,7 +122,7 @@
 
 import { agentRuntimeManager, agentService } from '@babylon/agents';
 import { authenticateUser, withErrorHandling } from '@babylon/api';
-import { db } from '@babylon/db';
+import { db, eq, userAgentConfigs } from '@babylon/db';
 import { checkAgentOutput, checkUserInput, logger } from '@babylon/shared';
 import { ModelType, parseKeyValueXml } from '@elizaos/core';
 import type { NextRequest } from 'next/server';
@@ -172,13 +172,18 @@ export const POST = withErrorHandling(
     const user = await authenticateUser(req);
 
     // Verify user owns this agent before allowing chat
-    const agent = await agentService.getAgent(agentId, user.id);
-    if (!agent) {
+    const agentWithConfig = await agentService.getAgentWithConfig(
+      agentId,
+      user.id
+    );
+    if (!agentWithConfig) {
       return NextResponse.json(
         { success: false, error: 'Agent not found' },
         { status: 404 }
       );
     }
+    const agent = agentWithConfig;
+    const agentConfig = agentWithConfig.agentConfig;
 
     const pointsCost = usePro ? 1 : 1;
 
@@ -225,7 +230,7 @@ export const POST = withErrorHandling(
     const prompt = `CRITICAL: You have only ${MAX_TOKENS} tokens. Your response MUST start with <response> immediately. No <think> tags. No reasoning.
 
 # System
-${agent.agentSystem}
+${agentConfig?.systemPrompt ?? 'You are a helpful AI assistant.'}
 
 # Conversation
 ${conversationHistory}
@@ -349,10 +354,11 @@ Generate ${agent.displayName}'s response. Stay in character.
       ],
     });
 
-    await db.user.update({
-      where: { id: agentId },
-      data: { agentLastChatAt: new Date() },
-    });
+    // Update lastChatAt in agent config
+    await db
+      .update(userAgentConfigs)
+      .set({ lastChatAt: new Date(), updatedAt: new Date() })
+      .where(eq(userAgentConfigs.userId, agentId));
 
     await db.agentLog.create({
       data: {

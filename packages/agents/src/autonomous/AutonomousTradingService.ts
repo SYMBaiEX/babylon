@@ -31,6 +31,7 @@ import {
 import type { IAgentRuntime } from '@elizaos/core';
 import { callGroqDirect } from '../llm/direct-groq';
 import { agentPnLService } from '../services/AgentPnLService';
+import { getAgentConfig } from '../shared/agent-config';
 import { logger } from '../shared/logger';
 import { generateSnowflakeId } from '../shared/snowflake';
 
@@ -78,6 +79,8 @@ export class AutonomousTradingService {
     if (!agent?.isAgent) {
       throw new Error('Agent not found');
     }
+
+    const config = await getAgentConfig(agentUserId);
 
     // Get agent's positions separately
     const positionsResult = await db
@@ -131,11 +134,11 @@ export class AutonomousTradingService {
     // Build trading decision prompt
     // NPC trust scores are provided by experiencePlugin (marketOutcomeEvaluator)
     // and appear in agent context automatically via providers
-    const prompt = `${agent.agentSystem}
+    const prompt = `${config?.systemPrompt ?? 'You are an autonomous trading agent on Babylon.'}
 
 You are ${agent.displayName}, an autonomous trading agent.
 
-Trading Strategy: ${agent.agentTradingStrategy || 'General market analysis'}
+Trading Strategy: ${config?.tradingStrategy ?? 'General market analysis'}
 
 Current Status:
 - Balance: $${balance.balance}
@@ -197,7 +200,7 @@ ${contextString}`;
     const decision = await Promise.race([
       callGroqDirect({
         prompt: finalPrompt,
-        system: agent.agentSystem || undefined,
+        system: config?.systemPrompt ?? undefined,
         modelSize: 'large', // Uses trained W&B model if available, else qwen3-32b
         runtime: _runtime, // Pass runtime to access W&B trained models AND trajectory context
         temperature: 0.7,

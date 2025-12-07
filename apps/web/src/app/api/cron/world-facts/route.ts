@@ -48,78 +48,22 @@
  */
 
 import {
-  AuthorizationError,
+  requireCronAuth,
   successResponse,
+  verifyCronAuth,
   withErrorHandling,
 } from '@babylon/api';
 import { createParodyHeadlineGenerator, rssFeedService } from '@babylon/engine';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
 
 // Vercel function configuration
 export const maxDuration = 300; // 5 minutes max
 
-// Verify this is a legitimate cron request
-function verifyCronRequest(request: NextRequest): boolean {
-  const authHeader = request.headers.get('authorization');
-  const cronSecret = process.env.CRON_SECRET;
-
-  // In development, allow without secret for easy testing
-  if (process.env.NODE_ENV === 'development') {
-    if (!cronSecret) {
-      logger.info(
-        'Development mode - allowing cron without CRON_SECRET',
-        undefined,
-        'Cron'
-      );
-      return true;
-    }
-    // If secret is set in dev, check it (but also allow 'development' keyword)
-    if (
-      authHeader === 'Bearer development' ||
-      authHeader === `Bearer ${cronSecret}`
-    ) {
-      return true;
-    }
-  }
-
-  // If CRON_SECRET is not configured, allow but warn (fail-open for missing config)
-  if (!cronSecret) {
-    logger.warn(
-      '⚠️  CRON_SECRET not configured! Cron endpoint is accessible without authentication. ' +
-        'Set CRON_SECRET environment variable in production for security.',
-      {
-        environment: process.env.NODE_ENV,
-        hasAuthHeader: !!authHeader,
-      },
-      'Cron'
-    );
-    return true; // Allow execution but warn
-  }
-
-  // If CRON_SECRET is set, verify it matches (fail-closed for wrong credentials)
-  if (authHeader !== `Bearer ${cronSecret}`) {
-    logger.error(
-      'CRON authentication failed - invalid secret provided',
-      { hasAuthHeader: !!authHeader },
-      'Cron'
-    );
-    return false;
-  }
-
-  return true;
-}
-
 export const POST = withErrorHandling(async (request: NextRequest) => {
-  // Verify this is a legitimate cron request
-  if (!verifyCronRequest(request)) {
-    logger.warn('Unauthorized cron request attempt', undefined, 'Cron');
-    throw new AuthorizationError(
-      'Unauthorized cron request',
-      'cron',
-      'execute'
-    );
-  }
+  // Security: Verify cron authorization (fail-closed in production)
+  requireCronAuth(request, { jobName: 'WorldFactsCron' });
 
   const startTime = Date.now();
   logger.info('🌍 World facts update started', undefined, 'Cron');
@@ -182,41 +126,24 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
 
 // GET endpoint for Vercel Cron (some cron services use GET)
 export const GET = withErrorHandling(async (request: NextRequest) => {
-  // Allow Vercel Cron requests (identified by user-agent or special headers)
-  const userAgent = request.headers.get('user-agent')?.toLowerCase() || '';
-  const isVercelCron = userAgent.includes('vercel-cron');
-  const hasVercelHeader = request.headers.has('x-vercel-id');
-
-  // Also allow in development or with admin token for manual testing
-  const isDev = process.env.NODE_ENV === 'development';
-  const adminToken = request.headers.get('x-admin-token');
-  const hasAdminSecret = !!process.env.ADMIN_TOKEN;
-  const isAdmin = hasAdminSecret && adminToken === process.env.ADMIN_TOKEN;
-
-  // Allow if it's Vercel Cron, has Vercel headers, dev mode, or admin
-  if (!isVercelCron && !hasVercelHeader && !isDev && !isAdmin) {
-    logger.warn(
-      'Unauthorized GET request to cron endpoint',
+  // Security: Verify cron authorization (allows Vercel Cron user-agent)
+  if (
+    !verifyCronAuth(request, {
+      jobName: 'WorldFactsCron',
+      allowVercelCronUserAgent: true,
+    })
+  ) {
+    logger.warn('Unauthorized GET request to cron endpoint', undefined, 'Cron');
+    return NextResponse.json(
       {
-        userAgent,
-        hasVercelHeader,
-        isDev,
-        hasAdminSecret,
+        error:
+          'Use POST for cron execution. This endpoint is triggered by Vercel Cron',
       },
-      'Cron'
-    );
-    throw new AuthorizationError(
-      'Use POST for cron execution. This endpoint is triggered by Vercel Cron',
-      'cron',
-      'execute'
+      { status: 401 }
     );
   }
 
-  logger.info(
-    'GET request forwarded to POST handler',
-    { userAgent, isVercelCron, hasVercelHeader },
-    'Cron'
-  );
+  logger.info('GET request forwarded to POST handler', undefined, 'Cron');
 
   // Forward to POST handler
   return POST(request);

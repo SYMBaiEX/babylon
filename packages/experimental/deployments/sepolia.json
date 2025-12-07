@@ -1,0 +1,21 @@
+{
+  "network": "Base Sepolia",
+  "chainId": 84532,
+  "deployer": "0x748D2E8439c81bFD56756B5d4983EE4565b1E62C",
+  "contracts": {
+    "registry": "0x6663B4237F32d22BAcC27aA05560Bfaa74c83419",
+    "ledger": "0xC1232a4260B9d277421EA4781FE427586fcEfC13",
+    "inference": "0x1A300D5818ABa6A91bF06F979428328BbBd79628",
+    "staking": "0x91B5DCe804259cdC6fBceEc9852B1C4F3Df4ed52",
+    "banManager": "0x8A9bEd1c8D8D20979A106FCDA6969aaEeAe4fEAA"
+  },
+  "timestamp": "2025-12-07T07:18:55.040Z",
+  "txHashes": {
+    "registry": "0x17d707b6e8d0b44672976853479fab700716cc3b6a86c1a6f41736f901248bfe",
+    "ledger": "0xbea41b5904afed0355d9392a083d238e6f77feff73e3a5d76166545e916c8dec",
+    "inference": "0x1403b757b4b6088646d59f35a9c53d745a1bcd9bdec118bcb08695e18bfef60b",
+    "staking": "0xa35790aff689c52f0b6ab22a1e73a4bbbeafe0194adc0a896049a6e9adee794f",
+    "banManager": "0x4e594123615051c6ad100c274babaad06e7cf55b6c372dec126493e2a8be8f92",
+    "authorization": "0x466febbc47d2ed339e34b45f1bc1abb6c09982325811e1bd03f263cab2b011f8"
+  }
+}

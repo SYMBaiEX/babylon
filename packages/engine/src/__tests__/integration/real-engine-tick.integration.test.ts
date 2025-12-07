@@ -33,15 +33,7 @@ import {
   setDefaultTimeout,
   test,
 } from 'bun:test';
-import {
-  asSystem,
-  count,
-  eq,
-  markets,
-  posts,
-  questions,
-  worldEvents,
-} from '@babylon/db';
+import { asSystem, sql } from '@babylon/db';
 import { generateSnowflakeId } from '@babylon/shared';
 import { existsSync, readFileSync } from 'fs';
 
@@ -143,27 +135,37 @@ describe('Engine Integration Tests (No Mocks)', () => {
     const { getRawDrizzle } = await import('@babylon/db');
     const rawDb = getRawDrizzle();
 
-    initialQuestionCount = await rawDb
-      .select({ count: count() })
-      .from(questions)
-      .where(eq(questions.status, 'active'))
-      .then((r) => Number(r[0]?.count ?? 0));
+    // Verify database tables exist before running tests
+    try {
+      await rawDb.execute(sql`SELECT 1 FROM questions LIMIT 1`);
+    } catch (dbError) {
+      throw new Error(
+        `DATABASE NOT READY: The 'questions' table does not exist. ` +
+          `Run 'bun run db:push' or 'bun run db:migrate' to set up the schema before running integration tests. ` +
+          `Original error: ${dbError instanceof Error ? dbError.message : String(dbError)}`
+      );
+    }
 
-    initialMarketCount = await rawDb
-      .select({ count: count() })
-      .from(markets)
-      .where(eq(markets.resolved, false))
-      .then((r) => Number(r[0]?.count ?? 0));
+    // Use raw SQL count to avoid Drizzle count() compatibility issues
+    const questionCountResult = await rawDb.execute(
+      sql`SELECT COUNT(*) as count FROM questions WHERE status = 'active'`
+    );
+    initialQuestionCount = Number(questionCountResult[0]?.count ?? 0);
 
-    initialPostCount = await rawDb
-      .select({ count: count() })
-      .from(posts)
-      .then((r) => Number(r[0]?.count ?? 0));
+    const marketCountResult = await rawDb.execute(
+      sql`SELECT COUNT(*) as count FROM markets WHERE resolved = false`
+    );
+    initialMarketCount = Number(marketCountResult[0]?.count ?? 0);
 
-    initialEventCount = await rawDb
-      .select({ count: count() })
-      .from(worldEvents)
-      .then((r) => Number(r[0]?.count ?? 0));
+    const postCountResult = await rawDb.execute(
+      sql`SELECT COUNT(*) as count FROM posts`
+    );
+    initialPostCount = Number(postCountResult[0]?.count ?? 0);
+
+    const eventCountResult = await rawDb.execute(
+      sql`SELECT COUNT(*) as count FROM world_events`
+    );
+    initialEventCount = Number(eventCountResult[0]?.count ?? 0);
 
     console.log(`📊 Initial State:`);
     console.log(`   - Active Questions: ${initialQuestionCount}`);
@@ -634,51 +636,31 @@ describe('Engine Integration Tests (No Mocks)', () => {
     }
 
     // Use raw Drizzle for complex queries
-    const {
-      getRawDrizzle,
-      and: dbAnd,
-      gte: dbGte,
-      isNotNull,
-      sql: dbSql,
-    } = await import('@babylon/db');
+    const { getRawDrizzle, sql: dbSql } = await import('@babylon/db');
     const rawDbCheck = getRawDrizzle();
 
-    const eventsWithActors = await rawDbCheck
-      .select({ count: count() })
-      .from(worldEvents)
-      .where(
-        dbAnd(
-          dbGte(worldEvents.timestamp, testStartTime),
-          isNotNull(worldEvents.actors),
-          dbSql`array_length(${worldEvents.actors}, 1) > 0`
-        )
-      )
-      .then((r) => Number(r[0]?.count ?? 0));
+    // Use raw SQL to avoid Drizzle count() compatibility issues
+    const eventsWithActorsResult = await rawDbCheck.execute(
+      dbSql`SELECT COUNT(*) as count FROM world_events WHERE timestamp >= ${testStartTime} AND actors IS NOT NULL AND array_length(actors, 1) > 0`
+    );
+    const eventsWithActors = Number(eventsWithActorsResult[0]?.count ?? 0);
 
-    const totalEvents = await rawDbCheck
-      .select({ count: count() })
-      .from(worldEvents)
-      .where(dbGte(worldEvents.timestamp, testStartTime))
-      .then((r) => Number(r[0]?.count ?? 0));
+    const totalEventsResult = await rawDbCheck.execute(
+      dbSql`SELECT COUNT(*) as count FROM world_events WHERE timestamp >= ${testStartTime}`
+    );
+    const totalEvents = Number(totalEventsResult[0]?.count ?? 0);
 
     console.log(`   Events with actors: ${eventsWithActors}/${totalEvents}`);
 
-    const questionsWithDates = await rawDbCheck
-      .select({ count: count() })
-      .from(questions)
-      .where(
-        dbAnd(
-          dbGte(questions.createdAt, testStartTime),
-          isNotNull(questions.resolutionDate)
-        )
-      )
-      .then((r) => Number(r[0]?.count ?? 0));
+    const questionsWithDatesResult = await rawDbCheck.execute(
+      dbSql`SELECT COUNT(*) as count FROM questions WHERE created_at >= ${testStartTime} AND resolution_date IS NOT NULL`
+    );
+    const questionsWithDates = Number(questionsWithDatesResult[0]?.count ?? 0);
 
-    const totalQuestions = await rawDbCheck
-      .select({ count: count() })
-      .from(questions)
-      .where(dbGte(questions.createdAt, testStartTime))
-      .then((r) => Number(r[0]?.count ?? 0));
+    const totalQuestionsResult = await rawDbCheck.execute(
+      dbSql`SELECT COUNT(*) as count FROM questions WHERE created_at >= ${testStartTime}`
+    );
+    const totalQuestions = Number(totalQuestionsResult[0]?.count ?? 0);
 
     console.log(
       `   Questions with resolution dates: ${questionsWithDates}/${totalQuestions}`

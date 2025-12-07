@@ -111,7 +111,12 @@ export {
   parseContinuationContent,
 } from './llm/json-continuation-parser';
 // LLM Exports (re-exported for convenience)
-export { BabylonLLMClient } from './llm/openai-client';
+export {
+  BabylonLLMClient,
+  getTokenUsageCallback,
+  setTokenUsageCallback,
+  type TokenUsageCallback,
+} from './llm/openai-client';
 export { parseXML, type XMLParseResult } from './llm/xml-parser';
 // Market Decision Engine
 export { MarketDecisionEngine } from './MarketDecisionEngine';
@@ -320,6 +325,19 @@ export {
   POST_TYPES,
   RELATIONSHIP_TYPES,
 } from './types/shared';
+// Token Stats Types
+export type {
+  LLMCallTokenUsage,
+  ModelStats,
+  PromptTypeStats,
+  TickTokenStats,
+  TokenStatsSummary,
+  TokenUsageCollector,
+} from './types/token-stats';
+export {
+  calculateEstimatedCost,
+  TOKEN_COST_PER_MILLION,
+} from './types/token-stats';
 // Utils - Prompt Logging
 export {
   isPromptLoggingEnabled,

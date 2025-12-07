@@ -420,6 +420,7 @@ export const agentRegistriesRelations = relations(
       fields: [agentRegistries.userId],
       references: [users.id],
     }),
+    /** @deprecated Use StaticDataRegistry.getActor(actorId) for static actor data */
     actor: one(actors, {
       fields: [agentRegistries.actorId],
       references: [actors.id],

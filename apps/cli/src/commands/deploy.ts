@@ -97,12 +97,7 @@ function parseDeploymentOutput(output: string): Record<string, string> {
     ['identityRegistry', /IdentityRegistry:\s*(0x[a-fA-F0-9]{40})/],
     ['reputationSystem', /ReputationSystem:\s*(0x[a-fA-F0-9]{40})/],
     ['babylonGameOracle', /BabylonGameOracle:\s*(0x[a-fA-F0-9]{40})/],
-    ['predimarket', /Predimarket:\s*(0x[a-fA-F0-9]{40})/],
-    ['marketFactory', /MarketFactory:\s*(0x[a-fA-F0-9]{40})/],
-    ['contestOracle', /ContestOracle:\s*(0x[a-fA-F0-9]{40})/],
     ['banManager', /BanManager:\s*(0x[a-fA-F0-9]{40})/],
-    ['labelManager', /ReputationLabelManager:\s*(0x[a-fA-F0-9]{40})/],
-    ['reportingSystem', /ReportingSystem:\s*(0x[a-fA-F0-9]{40})/],
     ['testToken', /TestToken:\s*(0x[a-fA-F0-9]{40})/],
   ] as const;
 

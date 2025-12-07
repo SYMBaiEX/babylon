@@ -63,6 +63,7 @@
  * ```
  */
 
+import { requireAdmin, successResponse, withErrorHandling } from '@babylon/api';
 import { logger } from '@babylon/shared';
 import { benchmarkService } from '@babylon/training';
 import type { NextRequest } from 'next/server';
@@ -70,7 +71,9 @@ import { NextResponse } from 'next/server';
 
 export const maxDuration = 300; // 5 minutes for benchmarking
 
-export async function POST(request: NextRequest) {
+export const POST = withErrorHandling(async (request: NextRequest) => {
+  await requireAdmin(request);
+
   const body = await request.json();
   const { modelId, compare = true, threshold = 0.95 } = body;
 
@@ -94,19 +97,21 @@ export async function POST(request: NextRequest) {
     'BenchmarkAPI'
   );
 
-  return NextResponse.json({
+  return successResponse({
     success: true,
     benchmark: benchmarkResults,
     comparison,
   });
-}
+});
 
-export async function GET(_request: NextRequest) {
+export const GET = withErrorHandling(async (request: NextRequest) => {
+  await requireAdmin(request);
+
   // Get benchmark summary
   const summary = await benchmarkService.getBenchmarkSummary();
 
-  return NextResponse.json({
+  return successResponse({
     success: true,
     summary,
   });
-}
+});

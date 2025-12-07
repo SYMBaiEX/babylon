@@ -69,7 +69,9 @@
  */
 
 import {
+  authenticate,
   BusinessLogicError,
+  requireAdmin,
   requireUserByIdentifier,
   successResponse,
   withErrorHandling,
@@ -91,11 +93,9 @@ import {
 } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 
-/**
- * POST /api/users/points/award
- * Award points to a user
- */
 export const POST = withErrorHandling(async (request: NextRequest) => {
+  await requireAdmin(request);
+
   // Parse and validate request body
   const body = await request.json();
   const {
@@ -176,11 +176,9 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   });
 });
 
-/**
- * GET /api/users/points/award?userId={userId}
- * Get points award history for a user
- */
 export const GET = withErrorHandling(async (request: NextRequest) => {
+  const authUser = await authenticate(request);
+
   const { searchParams } = new URL(request.url);
   const userIdParam = searchParams.get('userId');
 
@@ -192,6 +190,13 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   const { userId } = UserIdParamSchema.parse({ userId: userIdParam });
   const targetUser = await requireUserByIdentifier(userId);
   const canonicalUserId = targetUser.id;
+
+  if (authUser.userId !== canonicalUserId) {
+    throw new BusinessLogicError(
+      'You can only view your own points history',
+      'UNAUTHORIZED_ACCESS'
+    );
+  }
 
   // Fetch deposit transactions (points awards)
   const transactions = await db

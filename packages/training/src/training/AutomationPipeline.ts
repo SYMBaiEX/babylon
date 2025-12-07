@@ -919,27 +919,33 @@ export class AutomationPipeline {
    * Run health checks
    */
   private async runHealthChecks(): Promise<void> {
-    // Check database connectivity
-    await db.select({ count: count() }).from(users);
+    try {
+      // Check database connectivity
+      await db.select({ count: count() }).from(users);
 
-    // Check data collection rate
-    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
-    const last1hResult = await db
-      .select({ count: count() })
-      .from(trajectories)
-      .where(gte(trajectories.startTime, oneHourAgo));
+      // Check data collection rate
+      const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+      const last1hResult = await db
+        .select({ count: count() })
+        .from(trajectories)
+        .where(gte(trajectories.startTime, oneHourAgo));
 
-    const last1h = last1hResult[0]?.count || 0;
+      const last1h = last1hResult[0]?.count || 0;
 
-    if (last1h < 1) {
-      logger.warn('Low data collection rate', {
-        trajectoriesLastHour: last1h,
+      if (last1h < 1) {
+        logger.warn('Low data collection rate', {
+          trajectoriesLastHour: last1h,
+        });
+      }
+
+      // Check disk space for model storage
+      await fs.mkdir(this.config.modelStoragePath, { recursive: true });
+      await fs.mkdir(this.config.dataStoragePath, { recursive: true });
+    } catch (error) {
+      logger.error('Health check failed', {
+        error: error instanceof Error ? error.message : String(error),
       });
     }
-
-    // Check disk space for model storage
-    await fs.mkdir(this.config.modelStoragePath, { recursive: true });
-    await fs.mkdir(this.config.dataStoragePath, { recursive: true });
   }
 
   /**

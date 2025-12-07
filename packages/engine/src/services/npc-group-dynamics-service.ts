@@ -41,12 +41,15 @@ import {
 import {
   BabylonLLMClient,
   generateWorldContext,
-  validateHashtags,
-  validateNoEmojis,
   validateNoRealNames,
 } from '@babylon/engine';
 import { generateSnowflakeId, logger } from '@babylon/shared';
+import { MarketContextService } from './market-context-service';
 import { NPCGroupDynamicsCalculations } from './npc-group-dynamics-calculations';
+import { StaticDataRegistry } from './static-data-registry';
+
+// Singleton for NPC context
+const marketContextService = new MarketContextService();
 
 export interface GroupDynamicsResult {
   groupsCreated: number;
@@ -499,6 +502,22 @@ export class NPCGroupDynamicsService {
         .where(eq(poolPositions.poolId, randomNpc.id))
         .limit(5);
 
+      // Get NPC-specific events (things that happened to THIS NPC)
+      const npcName = npcActor?.name || randomNpc.displayName || 'Unknown';
+      const npcEvents = await marketContextService.getEventsForNPC(
+        randomNpc.id,
+        npcName
+      );
+
+      // Build personal events context
+      const personalEventsContext =
+        npcEvents.length > 0
+          ? `RECENT EVENTS INVOLVING YOU (use as insider knowledge):\n${npcEvents
+              .slice(0, 5)
+              .map((e) => `- [${e.type}] ${e.description}`)
+              .join('\n')}`
+          : '';
+
       // Get sender details for recent messages
       const messageSenderIds = recentMsgs.slice(0, 5).map((m) => m.senderId);
       const senders =
@@ -547,8 +566,11 @@ export class NPCGroupDynamicsService {
       const worldContext = await generateWorldContext({ maxActors: 20 });
 
       // Generate INSIDER message - this is the key asymmetric information mechanic!
+      // Each NPC generates their message INDEPENDENTLY with their own personal context
       const prompt = `You are ${randomNpc.displayName} in a PRIVATE group chat with trusted insiders.
 ${affiliationContext}
+
+${personalEventsContext}
 
 ${conversationContext}
 
@@ -560,6 +582,7 @@ ${worldContext.currentMarkets}
 This is PRIVATE - share STRATEGIC insider information that you would NEVER post publicly:
 
 WHAT TO SHARE (pick one that's relevant):
+- React to events that happened to YOU (see above) with insider perspective
 - "Just loaded up on [ticker] before the announcement drops"
 - "Between us, [company] numbers look terrible this quarter"
 - "I'm hearing [rival] is in serious trouble"
@@ -575,7 +598,7 @@ PRIVATE vs PUBLIC:
 - Help friends make money, hurt enemies
 
 Write a private message (max 200 chars) with ACTIONABLE insider info.
-Be SPECIFIC with tickers, positions, or predictions.
+Be SPECIFIC with tickers, positions, or predictions. Reference your recent events if relevant.
 NO hashtags. Emojis OK (🤫 👀 🔥).
 Use parody names from World Actors (AIlon Musk, not Elon Musk).
 
@@ -611,26 +634,25 @@ Return your response as XML:
         continue;
       }
 
-      // Validate message follows rules
-      const messageContent = response.message.trim();
-      const realNameViolations = validateNoRealNames(messageContent);
-      const hashtagViolations = validateHashtags(messageContent, 0);
-      const emojiViolations = validateNoEmojis(messageContent);
+      // Process message: strip hashtags (never allowed) but keep emojis (allowed in private chats)
+      const rawContent = response.message.trim();
+      // Strip hashtags (defense-in-depth since prompt forbids them)
+      const messageContent = rawContent
+        .replace(/#\w+/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
 
-      if (
-        realNameViolations.length > 0 ||
-        hashtagViolations.length > 0 ||
-        emojiViolations.length > 0
-      ) {
+      // Validate message follows rules
+      // Note: Emojis are ALLOWED in private group chats (unlike public feed posts)
+      // This is intentional - group chats are more casual/private
+      const realNameViolations = validateNoRealNames(messageContent);
+
+      if (realNameViolations.length > 0) {
         logger.warn(
           'NPC group message validation failed, skipping',
           {
             npcId: randomNpc.id,
-            violations: [
-              ...realNameViolations,
-              ...hashtagViolations,
-              ...emojiViolations,
-            ],
+            violations: realNameViolations,
             message: messageContent,
           },
           'NPCGroupDynamicsService'
@@ -1119,12 +1141,8 @@ Return your response as XML:
       const invitingNpc = npcMemberIds[0];
       if (!invitingNpc) continue;
 
-      // Get full NPC data for logging
-      const [npcData] = await db
-        .select({ name: actors.name })
-        .from(actors)
-        .where(eq(actors.id, invitingNpc.id))
-        .limit(1);
+      // Get NPC name for logging from STATIC REGISTRY (no DB call!)
+      const npcData = StaticDataRegistry.getActor(invitingNpc.id);
 
       // Create the invitation
       await db.insert(userGroupInvites).values({

@@ -15,6 +15,13 @@
       "when": 1764609327597,
       "tag": "0001_wonderful_omega_sentinel",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1733616000000,
+      "tag": "0002_optimize_user_table",
+      "breakpoints": true
     }
   ]
 }

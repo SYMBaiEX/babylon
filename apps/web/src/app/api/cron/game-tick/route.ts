@@ -53,6 +53,7 @@ import {
   relayCronToStaging,
   releaseGenerationLock,
   successResponse,
+  verifyCronAuth,
   withErrorHandling,
 } from '@babylon/api';
 import { asSystem } from '@babylon/db';
@@ -68,74 +69,6 @@ import type { NextRequest } from 'next/server';
 export const maxDuration = 800;
 
 /**
- * Verifies that the request is a legitimate Vercel Cron invocation.
- *
- * @security FAIL-CLOSED: In production, requires valid CRON_SECRET.
- * In development, allows dev credentials or skips if not configured.
- *
- * @param request - Next.js request object
- * @returns true if request is authenticated, false otherwise
- */
-function verifyVercelCronRequest(request: NextRequest): boolean {
-  const authHeader = request.headers.get('authorization');
-  const cronSecret = process.env.CRON_SECRET;
-  const isProduction = process.env.NODE_ENV === 'production';
-
-  // Development mode: more permissive
-  if (!isProduction) {
-    if (!cronSecret) {
-      logger.info(
-        'Development mode - allowing cron without CRON_SECRET',
-        undefined,
-        'Cron'
-      );
-      return true;
-    }
-    if (
-      authHeader === 'Bearer development' ||
-      authHeader === `Bearer ${cronSecret}`
-    ) {
-      return true;
-    }
-
-    // Check dev credentials
-    const { isValidCronSecret } =
-      require('@babylon/api') as typeof import('@babylon/api');
-    if (authHeader?.startsWith('Bearer ')) {
-      const token = authHeader.substring(7);
-      if (isValidCronSecret(token)) {
-        return true;
-      }
-    }
-  }
-
-  // PRODUCTION: FAIL-CLOSED - require valid CRON_SECRET
-  if (isProduction && !cronSecret) {
-    logger.error(
-      '🚨 SECURITY: CRON_SECRET not configured in production! Denying request.',
-      {
-        environment: process.env.NODE_ENV,
-        hasAuthHeader: !!authHeader,
-      },
-      'Cron'
-    );
-    return false; // FAIL-CLOSED in production
-  }
-
-  // If CRON_SECRET is set, verify it matches (fail-closed for wrong credentials)
-  if (authHeader !== `Bearer ${cronSecret}`) {
-    logger.error(
-      'CRON authentication failed - invalid secret provided',
-      { hasAuthHeader: !!authHeader },
-      'Cron'
-    );
-    return false;
-  }
-
-  return true;
-}
-
-/**
  * POST /api/cron/game-tick
  *
  * Executes game tick, advancing the game simulation by one day. Processes world events,
@@ -149,8 +82,8 @@ function verifyVercelCronRequest(request: NextRequest): boolean {
  * @throws {409} Game tick already in progress (generation lock held)
  */
 export const POST = withErrorHandling(async (request: NextRequest) => {
-  // 1. Verify this is a legitimate cron request
-  if (!verifyVercelCronRequest(request)) {
+  // 1. Verify this is a legitimate cron request using centralized auth
+  if (!verifyCronAuth(request, { jobName: 'GameTickCron' })) {
     logger.warn('Unauthorized cron request attempt', undefined, 'Cron');
     throw new AuthorizationError(
       'Unauthorized cron request',
@@ -436,29 +369,14 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
  * @returns Game tick status and current game state information
  */
 export const GET = withErrorHandling(async (request: NextRequest) => {
-  // Allow Vercel Cron requests (identified by user-agent or special headers)
-  const userAgent = request.headers.get('user-agent')?.toLowerCase() || '';
-  const isVercelCron = userAgent.includes('vercel-cron');
-  const hasVercelHeader = request.headers.has('x-vercel-id');
-
-  // Also allow in development or with admin token for manual testing
-  const isDev = process.env.NODE_ENV === 'development';
-  const adminToken = request.headers.get('x-admin-token');
-  const hasAdminSecret = !!process.env.ADMIN_TOKEN;
-  const isAdmin = hasAdminSecret && adminToken === process.env.ADMIN_TOKEN;
-
-  // Allow if it's Vercel Cron, has Vercel headers, dev mode, or admin
-  if (!isVercelCron && !hasVercelHeader && !isDev && !isAdmin) {
-    logger.warn(
-      'Unauthorized GET request to cron endpoint',
-      {
-        userAgent,
-        hasVercelHeader,
-        isDev,
-        hasAdminSecret,
-      },
-      'Cron'
-    );
+  // Security: Verify cron authorization (allows Vercel Cron user-agent)
+  if (
+    !verifyCronAuth(request, {
+      jobName: 'GameTickCron',
+      allowVercelCronUserAgent: true,
+    })
+  ) {
+    logger.warn('Unauthorized GET request to cron endpoint', undefined, 'Cron');
     throw new AuthorizationError(
       'Use POST for cron execution. This endpoint is triggered by Vercel Cron',
       'cron',
@@ -466,11 +384,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     );
   }
 
-  logger.info(
-    'GET request forwarded to POST handler',
-    { userAgent, isVercelCron, hasVercelHeader },
-    'Cron'
-  );
+  logger.info('GET request forwarded to POST handler', undefined, 'Cron');
 
   // Forward to POST handler
   return POST(request);

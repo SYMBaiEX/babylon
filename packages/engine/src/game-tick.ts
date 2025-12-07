@@ -8,7 +8,6 @@ import {
   actorRelationships,
   actors,
   and,
-  asc,
   count,
   Decimal,
   db,
@@ -33,6 +32,7 @@ import {
   questions as questionsSchema,
   rssHeadlines,
   tags,
+  tickTokenStats,
   trendingTags,
   widgetCaches,
   worldEvents,
@@ -58,6 +58,7 @@ import { AlphaGroupInviteService } from './services/alpha-group-invite-service';
 import { characterMappingService } from './services/character-mapping-service';
 // Content generation helpers
 import { generateEvents } from './services/event-generation-helpers';
+import { bootstrapGameIfNeeded } from './services/game-bootstrap-service';
 import { MarketContextService } from './services/market-context-service';
 import { NPCGroupDynamicsService } from './services/npc-group-dynamics-service';
 import { getOracleService } from './services/oracle/oracle-service';
@@ -68,6 +69,7 @@ import {
   generateNPCRepliesFromPreviousTicks,
   generateOrgArticle,
   generateOrgPost,
+  loadSharedPostContext,
 } from './services/post-generation-helpers';
 import { PredictionMarketService } from './services/prediction-market-service';
 import { PriceUpdateService } from './services/price-update-service';
@@ -76,6 +78,8 @@ import {
   syncReputationIfAvailable,
 } from './services/reputation-service';
 import { rssFeedService } from './services/rss-feed-service';
+import { StaticDataRegistry } from './services/static-data-registry';
+import { TokenStatsService } from './services/token-stats-service';
 // Migrated services - local imports
 import { invalidateAfterPredictionTrade } from './services/trade-cache-invalidation';
 import { TradeExecutionService } from './services/trade-execution-service';
@@ -93,6 +97,7 @@ import type {
   SelectedActor,
   WorldEvent,
 } from './types/shared';
+import { calculateEstimatedCost } from './types/token-stats';
 import { worldFactsService } from './world-facts-service';
 
 // Services that are still in the web app (Web3/Oracle specific - use dynamic imports)
@@ -134,6 +139,14 @@ export interface GameTickResult {
     headlinesCleaned: number;
   };
   relationshipsUpdated?: number;
+  /** Token usage statistics for this tick */
+  tokenStats?: {
+    totalCalls: number;
+    totalInputTokens: number;
+    totalOutputTokens: number;
+    totalTokens: number;
+    estimatedCostUSD?: number;
+  };
 }
 
 /** Executes a complete game tick (content, markets, questions, system updates). */
@@ -149,9 +162,12 @@ export async function executeGameTick(
   const criticalOpsReserveMs = 60000;
   const criticalOpsDeadline = startedAt + budgetMs - criticalOpsReserveMs;
 
+  // Start token usage collection for this tick
+  const tokenStatsTickId = TokenStatsService.startTick(`tick-${startedAt}`);
+
   logger.info(
     'Executing game tick',
-    { timestamp: timestamp.toISOString() },
+    { timestamp: timestamp.toISOString(), tokenStatsTickId },
     'GameTick'
   );
 
@@ -171,6 +187,30 @@ export async function executeGameTick(
     oracleReveals: 0,
     oracleErrors: 0,
   };
+
+  // Bootstrap game data if needed (actors, organizations, mappings, pools, etc.)
+  const bootstrapResult = await bootstrapGameIfNeeded();
+  if (bootstrapResult) {
+    const hasChanges =
+      bootstrapResult.actorsCreated > 0 ||
+      bootstrapResult.actorsToppedUp > 0 ||
+      bootstrapResult.organizationsCreated > 0 ||
+      bootstrapResult.poolsCreated > 0;
+
+    if (hasChanges) {
+      logger.info(
+        'Game data bootstrapped',
+        {
+          actorsCreated: bootstrapResult.actorsCreated,
+          actorsToppedUp: bootstrapResult.actorsToppedUp,
+          organizationsCreated: bootstrapResult.organizationsCreated,
+          poolsCreated: bootstrapResult.poolsCreated,
+          characterMappings: bootstrapResult.characterMappingsCreated,
+        },
+        'GameTick'
+      );
+    }
+  }
 
   // Bootstrap initial content if this is a fresh setup
   await bootstrapContentIfNeeded(timestamp);
@@ -810,6 +850,73 @@ export async function executeGameTick(
     );
   }
 
+  // End token stats collection and store in database
+  const tickTokenStatsData = TokenStatsService.endTick();
+  if (tickTokenStatsData) {
+    // Calculate estimated cost from per-model usage
+    let estimatedCostUSD = 0;
+    for (const modelStats of tickTokenStatsData.byModel) {
+      const cost = calculateEstimatedCost(
+        modelStats.model,
+        modelStats.totalInputTokens,
+        modelStats.totalOutputTokens
+      );
+      estimatedCostUSD += cost.totalCostUSD;
+    }
+
+    // Add token stats to result
+    result.tokenStats = {
+      totalCalls: tickTokenStatsData.totalCalls,
+      totalInputTokens: tickTokenStatsData.totalInputTokens,
+      totalOutputTokens: tickTokenStatsData.totalOutputTokens,
+      totalTokens: tickTokenStatsData.totalTokens,
+      estimatedCostUSD,
+    };
+
+    // Store token stats in database (non-blocking)
+    // Serialize complex types to JSON-compatible format
+    const byPromptTypeJson = JSON.parse(
+      JSON.stringify(tickTokenStatsData.byPromptType)
+    ) as JsonValue;
+    const byModelJson = JSON.parse(
+      JSON.stringify(tickTokenStatsData.byModel)
+    ) as JsonValue;
+
+    db.insert(tickTokenStats)
+      .values({
+        id: tickTokenStatsData.tickId,
+        tickId: tickTokenStatsData.tickId,
+        tickStartedAt: tickTokenStatsData.tickStartedAt,
+        tickCompletedAt: tickTokenStatsData.tickCompletedAt,
+        tickDurationMs: tickTokenStatsData.tickDurationMs,
+        totalCalls: tickTokenStatsData.totalCalls,
+        totalInputTokens: tickTokenStatsData.totalInputTokens,
+        totalOutputTokens: tickTokenStatsData.totalOutputTokens,
+        totalTokens: tickTokenStatsData.totalTokens,
+        byPromptType: byPromptTypeJson,
+        byModel: byModelJson,
+      })
+      .catch((error: Error) => {
+        logger.warn(
+          'Failed to store token stats',
+          { error: error.message, tickId: tickTokenStatsData.tickId },
+          'GameTick'
+        );
+      });
+
+    logger.info(
+      'Token stats collected',
+      {
+        tickId: tickTokenStatsData.tickId,
+        totalCalls: tickTokenStatsData.totalCalls,
+        totalTokens: tickTokenStatsData.totalTokens,
+        inputTokens: tickTokenStatsData.totalInputTokens,
+        outputTokens: tickTokenStatsData.totalOutputTokens,
+      },
+      'GameTick'
+    );
+  }
+
   logger.info(
     'Game tick completed',
     {
@@ -886,14 +993,12 @@ async function bootstrapContentIfNeeded(_timestamp: Date): Promise<void> {
 async function bootstrapInitialRelationships(): Promise<void> {
   logger.info('Generating initial NPC relationships...', undefined, 'GameTick');
 
-  // Get all actors and organizations
-  const [actorsResult, orgsResult] = await Promise.all([
-    db.select().from(actors),
-    db.select().from(organizations),
-  ]);
+  // Get all actors and organizations from STATIC REGISTRY (no DB call!)
+  const staticActors = StaticDataRegistry.getAllActors();
+  const staticOrgs = StaticDataRegistry.getAllOrganizations();
 
   // Convert to Actor type
-  const actorData = actorsResult.map((a) => ({
+  const actorData = staticActors.map((a) => ({
     id: a.id,
     name: a.name,
     description: a.description || undefined,
@@ -902,7 +1007,7 @@ async function bootstrapInitialRelationships(): Promise<void> {
     affiliations: a.affiliations,
   }));
 
-  const orgData = orgsResult.map((o) => ({
+  const orgData = staticOrgs.map((o) => ({
     id: o.id,
     name: o.name,
     description: o.description,
@@ -1062,6 +1167,9 @@ async function bootstrapTrending(): Promise<void> {
  * Generate mixed posts from both NPCs and organizations (parallelized version)
  * This ensures posts are interleaved rather than chunked by type
  * Generates all posts in parallel for maximum throughput
+ *
+ * OPTIMIZATION: Shared context (feed posts, events) is loaded ONCE
+ * and passed to all NPC generators to eliminate N+1 queries
  */
 async function generateMixedPosts(
   questions: Array<{ id: string; text: string; questionNumber: number }>,
@@ -1076,16 +1184,19 @@ async function generateMixedPosts(
     return { posts: 0, articles: 0 };
   }
 
-  // Get actors (NPCs), organizations, and world facts in parallel
-  const [actorsList, orgsList, worldFactsContext] = await Promise.all([
-    db.select().from(actors).orderBy(desc(actors.reputationPoints)).limit(15),
-    db
-      .select()
-      .from(organizations)
-      .where(eq(organizations.type, 'media'))
-      .limit(5),
-    worldFactsService.generatePromptContext(),
-  ]);
+  // Get actors (NPCs), organizations, world facts, AND shared post context in parallel
+  // This loads ALL shared data ONCE to avoid N+1 query problems
+  const [actorsList, orgsList, worldFactsContext, sharedContext] =
+    await Promise.all([
+      db.select().from(actors).orderBy(desc(actors.reputationPoints)).limit(15),
+      db
+        .select()
+        .from(organizations)
+        .where(eq(organizations.type, 'media'))
+        .limit(5),
+      worldFactsService.generatePromptContext(),
+      loadSharedPostContext(), // Load feed posts + events ONCE
+    ]);
 
   if (actorsList.length === 0 && orgsList.length === 0) {
     logger.warn(
@@ -1176,7 +1287,8 @@ async function generateMixedPosts(
           actor,
           question,
           worldFactsContext,
-          timestampWithOffset
+          timestampWithOffset,
+          sharedContext // Pass pre-loaded context to avoid N+1 queries
         );
         return { posts: success ? 1 : 0, articles: 0 };
       }
@@ -1296,11 +1408,9 @@ async function generateArticles(
     return questionArticlesCreated + baselineArticlesCreated;
   }
 
-  // Get news organizations and actors in parallel
-  const [newsOrgs, actorsList] = await Promise.all([
-    db.select().from(organizations).where(eq(organizations.type, 'media')),
-    db.select().from(actors).orderBy(asc(actors.tier)).limit(50),
-  ]);
+  // Get news organizations and actors from STATIC REGISTRY (no DB call!)
+  const newsOrgs = StaticDataRegistry.getOrganizationsByType('media');
+  const actorsList = StaticDataRegistry.getTopActors(50);
 
   if (newsOrgs.length === 0) {
     logger.warn(
@@ -1340,7 +1450,7 @@ async function generateArticles(
       type: (org.type as 'company' | 'media' | 'government') || 'media',
       canBeInvolved: org.canBeInvolved,
       initialPrice: org.initialPrice ?? undefined,
-      currentPrice: org.currentPrice ?? undefined,
+      currentPrice: org.initialPrice ?? undefined, // Use initial price as default (static data)
     })
   );
 
@@ -1562,11 +1672,9 @@ async function generateArticlesForActiveQuestions(
     return 0;
   }
 
-  // Get news organizations and actors
-  const [newsOrgs, actorsList] = await Promise.all([
-    db.select().from(organizations).where(eq(organizations.type, 'media')),
-    db.select().from(actors).orderBy(asc(actors.tier)).limit(50),
-  ]);
+  // Get news organizations and actors from STATIC REGISTRY (no DB call!)
+  const newsOrgs = StaticDataRegistry.getOrganizationsByType('media');
+  const actorsList = StaticDataRegistry.getTopActors(50);
 
   if (newsOrgs.length === 0 || actorsList.length === 0) {
     logger.warn(
@@ -1702,7 +1810,7 @@ async function generateArticlesForActiveQuestions(
           type: (orgData.type as 'company' | 'media' | 'government') || 'media',
           canBeInvolved: orgData.canBeInvolved,
           initialPrice: orgData.initialPrice ?? undefined,
-          currentPrice: orgData.currentPrice ?? undefined,
+          currentPrice: orgData.initialPrice ?? undefined, // Use initial price as default (static data)
         };
 
         // Use 'commentary' stage for ongoing questions
@@ -2819,16 +2927,15 @@ async function updateWidgetCaches(): Promise<number> {
     .where(eq(pools.isActive, true))
     .orderBy(desc(pools.totalValue));
 
-  // Get actor names for pools
+  // Get actor names for pools from STATIC REGISTRY (no DB call!)
   const poolActorIds = poolsList.map((p) => p.npcActorId).filter(Boolean);
-  const poolActors =
-    poolActorIds.length > 0
-      ? await db
-          .select({ id: actors.id, name: actors.name })
-          .from(actors)
-          .where(inArray(actors.id, poolActorIds))
-      : [];
-  const poolActorMap = new Map(poolActors.map((a) => [a.id, a.name]));
+  const poolActorMap = new Map<string, string>();
+  for (const actorId of poolActorIds) {
+    const actor = StaticDataRegistry.getActor(actorId);
+    if (actor) {
+      poolActorMap.set(actorId, actor.name);
+    }
+  }
 
   const poolsWithReturn = poolsList
     .filter((pool: (typeof poolsList)[number]) => pool && pool.id && pool.name) // Filter out invalid pools

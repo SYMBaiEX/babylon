@@ -38,22 +38,12 @@ export interface ContractAddresses {
   reputationSystem: string;
   /** Babylon Game Oracle address (optional) */
   babylonOracle?: string;
-  /** Predimarket contract address (optional) */
-  predimarket?: string;
-  /** Market Factory address (optional) */
-  marketFactory?: string;
-  /** Contest Oracle address (optional) */
-  contestOracle?: string;
   /** Ban Manager address (optional) */
   banManager?: string;
-  /** Reporting System address (optional) */
-  reportingSystem?: string;
-  /** Reputation Label Manager address (optional) */
-  labelManager?: string;
   /** Chainlink Oracle mock address (testnet only) */
   chainlinkOracle?: string;
-  /** UMA Oracle mock address (testnet only) */
-  umaOracle?: string;
+  /** Mock Oracle address (testnet only) */
+  mockOracle?: string;
   /** Test ERC20 token address (testnet only) */
   testToken?: string;
 }
@@ -307,12 +297,7 @@ export async function updateEnvFile(
     NEXT_PUBLIC_PERPETUAL_MARKET_FACET: contracts.perpetualMarketFacet,
     NEXT_PUBLIC_REFERRAL_SYSTEM_FACET: contracts.referralSystemFacet,
     NEXT_PUBLIC_BAN_MANAGER: contracts.banManager,
-    NEXT_PUBLIC_REPORTING_SYSTEM: contracts.reportingSystem,
-    NEXT_PUBLIC_LABEL_MANAGER: contracts.labelManager,
     NEXT_PUBLIC_BABYLON_ORACLE: contracts.babylonOracle,
-    NEXT_PUBLIC_PREDIMARKET: contracts.predimarket,
-    NEXT_PUBLIC_MARKET_FACTORY: contracts.marketFactory,
-    NEXT_PUBLIC_CONTEST_ORACLE: contracts.contestOracle,
     NEXT_PUBLIC_TEST_TOKEN: contracts.testToken,
   };
 
@@ -320,8 +305,8 @@ export async function updateEnvFile(
     updates.NEXT_PUBLIC_CHAINLINK_ORACLE = contracts.chainlinkOracle;
   }
 
-  if (contracts.umaOracle) {
-    updates.NEXT_PUBLIC_UMA_ORACLE = contracts.umaOracle;
+  if (contracts.mockOracle) {
+    updates.NEXT_PUBLIC_MOCK_ORACLE = contracts.mockOracle;
   }
 
   for (const [key, value] of Object.entries(updates)) {

@@ -178,7 +178,7 @@ describe('Game Learnability Integration Tests', () => {
         undefined,
         'LearnabilityTest'
       );
-      const { GameGenerator } = await import('@/engine/GameGenerator');
+      const { GameGenerator } = await import('../../GameGenerator');
       const generator = new GameGenerator();
       game = await generator.generateCompleteGame();
       logger.info('Game generated successfully', undefined, 'LearnabilityTest');

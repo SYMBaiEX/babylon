@@ -1,206 +1,163 @@
 # @babylon/experimental
 
-**100% Permissionless AI Game Infrastructure**
+**Permissionless AI Compute Marketplace**
 
-No API keys. No logins. Wallet signature only.
+A decentralized compute marketplace built on ERC-8004 for AI inference. No API keys - only wallet signatures.
 
-## Overview
+## 🎯 Goals
 
-This package provides a fully decentralized infrastructure for running AI games:
+1. **100% Permissionless** - No API keys, no logins, only wallet signatures
+2. **Decentralized Registry** - Providers register via ERC-8004 on-chain
+3. **Hardware Attestation** - Cryptographic proof of GPU/TEE capabilities
+4. **Stake-based Security** - Users and providers stake for accountability
+5. **Open Gateway** - Any gateway can route to any provider
 
-- **Storage**: Arweave (permanent, wallet-signed via Irys)
-- **Encryption**: AES-256-GCM (Web Crypto API)
-- **Signatures**: secp256k1 (Ethereum-compatible)
-- **TEE**: Marlin Oyster (AWS Nitro Enclaves on Arbitrum)
-- **Contracts**: Solidity (Foundry)
+## 🏗️ Architecture
 
-## Quick Start
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        USER / GAME CLIENT                        │
+│                    (Wallet-based authentication)                 │
+└──────────────────────────────┬──────────────────────────────────┘
+                               │
+                               ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                           GATEWAY                                │
+│   Provider Discovery → Request Router → Response Verifier        │
+└──────────────────────────────┬──────────────────────────────────┘
+                               │
+         ┌─────────────────────┼─────────────────────┐
+         │                     │                     │
+         ▼                     ▼                     ▼
+┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐
+│   COMPUTE NODE  │  │   COMPUTE NODE  │  │   COMPUTE NODE  │
+│   (Local Demo)  │  │   (Phala TEE)   │  │   (GPU Server)  │
+└────────┬────────┘  └────────┬────────┘  └────────┬────────┘
+         │                    │                    │
+         └────────────────────┼────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                       BLOCKCHAIN LAYER                           │
+│   Provider Registry (ERC-8004) | Staking | Escrow | Reputation   │
+│                                                                  │
+│   Chains: Anvil (local) → Base Sepolia → Base Mainnet            │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+## 📦 Components
+
+### Smart Contracts
+
+- **BabylonRegistry** - ERC-8004 extension for compute providers
+- **ComputeStaking** - User and provider stake management
+- **InferenceEscrow** - Payment escrow for inference jobs
+- **ModerationMarket** - Dispute resolution and reporting
+
+### Compute Node
+
+Providers run nodes that:
+- Detect and attest hardware (GPU/TEE)
+- Serve OpenAI-compatible inference
+- Generate cryptographic attestations
+- Register on-chain via ERC-8004
+
+### Gateway
+
+Routes requests from clients to providers:
+- Discovers providers via ERC-8004
+- Routes based on requirements (model, latency, price)
+- Verifies responses and attestations
+- Reports reputation metrics
+
+## 🚀 Quick Start
 
 ### Prerequisites
 
-- [Bun](https://bun.sh/) v1.0+
-- A funded Ethereum wallet (private key)
-- For TEE: USDC on Arbitrum One
+- Bun 1.0+
+- Wallet with testnet ETH (Base Sepolia)
+- Docker (for node deployment)
 
-### 1. Install Dependencies
+### Run Demo
 
 ```bash
-cd packages/experimental
+# Install dependencies
 bun install
-```
 
-### 2. Set Environment Variables
-
-```bash
-# In the repo root .env file
-PRIVATE_KEY=0x...  # Your wallet private key
-# or
-DEPLOYER_PRIVATE_KEY=0x...
-```
-
-### 3. Run the Demo
-
-```bash
-# Source env and run demo
-source ../../.env
-PRIVATE_KEY=$DEPLOYER_PRIVATE_KEY bun run demo:bun
-```
-
-This will:
-1. ✅ Test Arweave gateway connectivity
-2. ✅ Verify wallet signatures (secp256k1)
-3. ✅ Test TEE crypto operations
-4. ✅ Verify AES-256-GCM encryption
-5. ✅ Test tamper detection
-6. ✅ Upload encrypted state to Arweave
-7. ✅ Run game loop with on-chain state
-8. ✅ Verify TEE infrastructure on Arbitrum
-
-## Available Commands
-
-```bash
-# Run the full demo
+# Run automated demo on Anvil
 bun run demo:bun
 
 # Run permissionless audit
 bun run audit
+```
 
-# Test Marlin TEE infrastructure
-bun run tee:test
-bun run tee:e2e
+### Run Tests
 
-# Check wallet balances
-bun run check:wallets
-
-# Run unit tests
+```bash
 bun run test
-
-# Type check
-bun run typecheck
-
-# Lint
-bun run lint
-
-# Build
-bun run build
 ```
 
-## TEE (Marlin Oyster)
+## 📚 Documentation
 
-Marlin Oyster provides 100% permissionless TEE on Arbitrum:
+- [Architecture Overview](./docs/PERMISSIONLESS_COMPUTE.md)
+- [Implementation Plan](./docs/IMPLEMENTATION_PLAN.md)
+- [ERC-8004 Specification](./docs/erc8004.md)
 
-### Requirements
+## 🔐 Security Model
 
-- ETH on Arbitrum (for gas) ~0.01 ETH
-- USDC on Arbitrum (for compute) ~10 USDC
+### Staking Requirements
 
-### How It Works
+| Role | Minimum Stake | Purpose |
+|------|---------------|---------|
+| Provider | 0.1 ETH | Accountable for service quality |
+| User | 0.01 ETH | Prevent spam/abuse |
 
-1. **Upload worker code to Arweave** (permanent storage)
-2. **Compute code hash** (SHA-256)
-3. **Run operator** (on TEE hardware):
-   ```bash
-   ./oyster-serverless --signer $KEY --rpc https://arb1.arbitrum.io/rpc
-   ```
-4. **Submit jobs** via contract:
-   ```typescript
-   const result = await marlinClient.startJob(codeHash, inputs);
-   ```
-5. **Execution** in AWS Nitro Enclave
-6. **Attestation** returned on-chain
+### Trust Models
 
-### Contracts (Arbitrum One)
+1. **Reputation** - ERC-8004 feedback from users
+2. **Attestation** - Hardware verification (TEE/GPU)
+3. **Staking** - Economic security via slashing
 
-| Contract | Address |
-|----------|---------|
-| Subscription Relay | `0x8Fb2C621d6E636063F0E49828f4Da7748135F3cB` |
-| Relay | `0xD28179711eeCe385bc2096c5D199E15e6415A4f5` |
-| USDC | `0xaf88d065e77c8cC2239327C5EDb3A432268e5831` |
+### Moderation
 
-## Storage (Arweave)
+- Report submission with stake
+- Guardian voting on disputes
+- Slashing for proven misbehavior
 
-All data is permanently stored on Arweave via Irys:
+## 🖥️ Supported Hardware
 
-```typescript
-import { createDevnetStorage } from '@babylon/experimental';
+| Platform | TEE Type | Status |
+|----------|----------|--------|
+| Intel TDX | Hardware | Production |
+| NVIDIA H100/H200 | GPU TEE | Production |
+| Apple MLX | Secure Enclave | Beta |
+| Simulated | None | Testing only |
 
-const storage = createDevnetStorage(privateKey);
-const result = await storage.uploadJSON({ data: 'test' });
-console.log(result.url); // https://arweave.net/...
-```
-
-- **Devnet**: Free (no tokens needed)
-- **Mainnet**: Pay with ETH (wallet signature)
-
-## Encryption
-
-AES-256-GCM with hardware-derived keys:
-
-```typescript
-import { TEEEnclave } from '@babylon/experimental';
-
-const enclave = await TEEEnclave.create({ codeHash, instanceId });
-const { hash } = await enclave.encryptState(secretData);
-const decrypted = await enclave.decryptState(sealed);
-```
-
-## Smart Contracts (Foundry)
-
-Build and test Solidity contracts:
-
-```bash
-# Build
-forge build
-
-# Test
-forge test
-
-# Deploy
-forge script script/Counter.s.sol:CounterScript \
-  --rpc-url <rpc_url> \
-  --private-key <key>
-```
-
-## Architecture
+## 📁 Project Structure
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    PERMISSIONLESS STACK                      │
-├─────────────────────────────────────────────────────────────┤
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐  │
-│  │   Arweave   │  │   Marlin    │  │      Arbitrum       │  │
-│  │  (Storage)  │  │   (TEE)     │  │    (Contracts)      │  │
-│  │             │  │             │  │                     │  │
-│  │ • Permanent │  │ • Nitro     │  │ • Subscription      │  │
-│  │ • Wallet    │  │ • Wallet    │  │ • Relay             │  │
-│  │   signed    │  │   + USDC    │  │ • USDC payments     │  │
-│  └─────────────┘  └─────────────┘  └─────────────────────┘  │
-│                         │                                    │
-│                         ▼                                    │
-│              ┌─────────────────────┐                        │
-│              │     Your Wallet     │                        │
-│              │  (Only Credential)  │                        │
-│              └─────────────────────┘                        │
-└─────────────────────────────────────────────────────────────┘
+packages/experimental/
+├── src/
+│   ├── node/           # Compute node implementation
+│   ├── gateway/        # Request routing gateway
+│   ├── attestation/    # Hardware attestation
+│   ├── storage/        # Arweave storage
+│   ├── tee/            # TEE abstractions
+│   ├── infra/          # Blockchain clients
+│   └── tests/          # Test suites
+├── docs/
+│   ├── PERMISSIONLESS_COMPUTE.md
+│   └── IMPLEMENTATION_PLAN.md
+└── docker/             # Docker containers
 ```
 
-## Verification
+## 🔗 Related Projects
 
-Run the permissionless audit:
+- [ERC-8004](https://github.com/ethereum/EIPs) - Trustless Agents standard
+- [Agent0 SDK](https://github.com/agent0lab/agent0-ts) - ERC-8004 TypeScript SDK
+- [Arweave](https://www.arweave.org/) - Permanent storage
+- [DStack](https://github.com/phala-network/dstack) - TEE framework
 
-```bash
-bun run audit
-```
-
-Expected output:
-```
-PERMISSIONLESS: 11/11 (100%)
-
-✅ 100% PERMISSIONLESS - NO BLOCKERS
-
-NO API KEYS ANYWHERE. WALLET IS YOUR ONLY CREDENTIAL.
-```
-
-## License
+## 📄 License
 
 MIT

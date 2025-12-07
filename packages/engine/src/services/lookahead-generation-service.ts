@@ -41,6 +41,7 @@ import {
   generateNPCPost,
   generateOrgArticle,
   generateOrgPost,
+  loadSharedPostContext,
 } from './post-generation-helpers';
 
 const LOOKAHEAD_MINUTES = 15; // Generate 15 minutes ahead
@@ -322,16 +323,19 @@ async function generateContentWindow(
     }
   }
 
-  // Get actors, organizations, and world facts in parallel
-  const [actorsList, orgsList, worldFactsContext] = await Promise.all([
-    db.select().from(actors).orderBy(desc(actors.reputationPoints)).limit(15),
-    db
-      .select()
-      .from(organizations)
-      .where(eq(organizations.type, 'media'))
-      .limit(5),
-    worldFactsService.generatePromptContext(),
-  ]);
+  // Get actors, organizations, world facts, AND shared post context in parallel
+  // Loading shared context ONCE eliminates N+1 queries during parallel post generation
+  const [actorsList, orgsList, worldFactsContext, sharedContext] =
+    await Promise.all([
+      db.select().from(actors).orderBy(desc(actors.reputationPoints)).limit(15),
+      db
+        .select()
+        .from(organizations)
+        .where(eq(organizations.type, 'media'))
+        .limit(5),
+      worldFactsService.generatePromptContext(),
+      loadSharedPostContext(), // Load ONCE for all NPC posts
+    ]);
 
   if (actorsList.length === 0 && orgsList.length === 0) {
     logger.warn(
@@ -373,7 +377,8 @@ async function generateContentWindow(
         actor,
         question,
         worldFactsContext,
-        postTimestamp
+        postTimestamp,
+        sharedContext // Pass pre-loaded context to avoid N+1 queries
       );
       if (success) {
         logger.debug(

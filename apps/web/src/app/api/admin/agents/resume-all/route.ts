@@ -51,7 +51,7 @@ import {
   requireAdmin,
   withErrorHandling,
 } from '@babylon/api';
-import { db } from '@babylon/db';
+import { db, gte, userAgentConfigs } from '@babylon/db';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
@@ -68,30 +68,28 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
   });
 
   // Resume all agents with sufficient points
-  const result = await db.user.updateMany({
-    where: {
-      isAgent: true,
-      agentPointsBalance: { gte: 1 }, // Only resume agents with points
-    },
-    data: {
+  await db
+    .update(userAgentConfigs)
+    .set({
       autonomousTrading: true,
       autonomousPosting: true,
       autonomousCommenting: true,
-      agentStatus: 'running',
-    },
-  });
+      status: 'running',
+      updatedAt: new Date(),
+    })
+    .where(gte(userAgentConfigs.pointsBalance, 1));
 
   logger.info(
-    `Resumed ${result.count} autonomous agents`,
+    `Resumed autonomous agents with points >= 1`,
     undefined,
     'AdminAgentsAPI'
   );
 
   return NextResponse.json({
     success: true,
-    message: `Resumed ${result.count} agents`,
+    message: 'Resumed agents with sufficient points',
     data: {
-      resumed: result.count,
+      resumed: 'all with points >= 1',
     },
   });
 });

@@ -36,11 +36,9 @@
  *                         type: string
  *                       displayName:
  *                         type: string
- *                       agentSystem:
+ *                       modelTier:
  *                         type: string
- *                       agentModelTier:
- *                         type: string
- *                       agentPointsBalance:
+ *                       pointsBalance:
  *                         type: number
  *                       autonomousTrading:
  *                         type: boolean
@@ -76,7 +74,17 @@ import {
   requireAdmin,
   withErrorHandling,
 } from '@babylon/api';
-import { agentLogs, and, count, db, eq, gte } from '@babylon/db';
+import {
+  agentLogs,
+  and,
+  count,
+  db,
+  desc,
+  eq,
+  gte,
+  userAgentConfigs,
+  users,
+} from '@babylon/db';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 
@@ -96,15 +104,21 @@ export const GET = withErrorHandling(async (req: NextRequest) => {
     resourceType: 'agents',
     metadata: { action: 'view_all_agents' },
   });
-  // Get all agents
-  const agents = await db.user.findMany({
-    where: {
-      isAgent: true,
-    },
-    orderBy: {
-      agentLastTickAt: 'desc',
-    },
-  });
+  // Get all agents with their configs
+  const agentsWithConfigs = await db
+    .select({
+      user: users,
+      config: userAgentConfigs,
+    })
+    .from(users)
+    .leftJoin(userAgentConfigs, eq(users.id, userAgentConfigs.userId))
+    .where(eq(users.isAgent, true))
+    .orderBy(desc(userAgentConfigs.lastTickAt));
+
+  const agents = agentsWithConfigs.map((a) => a.user);
+  const configMap = new Map(
+    agentsWithConfigs.filter((a) => a.config).map((a) => [a.user.id, a.config!])
+  );
 
   // Get performance metrics for all agents
   const agentIds = agents.map((a) => a.id);
@@ -154,15 +168,17 @@ export const GET = withErrorHandling(async (req: NextRequest) => {
 
   // Format agents
   const formattedAgents = agents.map((agent) => {
+    const config = configMap.get(agent.id);
     const metrics = metricsMap.get(agent.id);
     const totalTrades = metrics?.totalTrades ?? 0;
     const profitableTrades = metrics?.profitableTrades ?? 0;
     const autonomousEnabled =
-      agent.autonomousTrading ||
-      agent.autonomousPosting ||
-      agent.autonomousCommenting ||
-      agent.autonomousDMs ||
-      agent.autonomousGroupChats;
+      config?.autonomousTrading ||
+      config?.autonomousPosting ||
+      config?.autonomousCommenting ||
+      config?.autonomousDMs ||
+      config?.autonomousGroupChats ||
+      false;
 
     const winRate = totalTrades > 0 ? profitableTrades / totalTrades : 0;
 
@@ -176,16 +192,16 @@ export const GET = withErrorHandling(async (req: NextRequest) => {
       creatorName: agent.managedBy
         ? creatorMap.get(agent.managedBy) || null
         : 'System',
-      modelTier: agent.agentModelTier || 'lite',
-      pointsBalance: agent.agentPointsBalance || 0,
+      modelTier: config?.modelTier || 'lite',
+      pointsBalance: config?.pointsBalance || 0,
 
       // Autonomous status
       autonomousEnabled,
-      autonomousTrading: agent.autonomousTrading || false,
-      autonomousPosting: agent.autonomousPosting || false,
-      autonomousCommenting: agent.autonomousCommenting || false,
-      autonomousDMs: agent.autonomousDMs || false,
-      autonomousGroupChats: agent.autonomousGroupChats || false,
+      autonomousTrading: config?.autonomousTrading || false,
+      autonomousPosting: config?.autonomousPosting || false,
+      autonomousCommenting: config?.autonomousCommenting || false,
+      autonomousDMs: config?.autonomousDMs || false,
+      autonomousGroupChats: config?.autonomousGroupChats || false,
 
       // Performance
       lifetimePnL: Number(agent.lifetimePnL || 0),
@@ -196,10 +212,10 @@ export const GET = withErrorHandling(async (req: NextRequest) => {
       totalFeedbackCount: metrics?.totalFeedbackCount ?? 0,
 
       // Status
-      agentStatus: agent.agentStatus,
-      errorMessage: agent.agentErrorMessage,
-      lastTickAt: agent.agentLastTickAt,
-      lastChatAt: agent.agentLastChatAt,
+      agentStatus: config?.status,
+      errorMessage: config?.errorMessage,
+      lastTickAt: config?.lastTickAt,
+      lastChatAt: config?.lastChatAt,
 
       // Timing
       createdAt: agent.createdAt,

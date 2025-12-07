@@ -1,5 +1,5 @@
 /**
- * Experimental Package - 100% PERMISSIONLESS AI Game
+ * Experimental Package - Permissionless AI Compute Marketplace
  *
  * NO API KEYS. NO LOGINS. WALLET SIGNATURE ONLY.
  *
@@ -7,16 +7,65 @@
  * - Arweave for permanent storage (wallet-signed)
  * - AES-256-GCM for encryption (Web Crypto API)
  * - secp256k1 for signatures (Ethereum-compatible)
- * - Marlin Oyster for TEE (wallet + USDC on Arbitrum)
+ * - Babylon Compute Marketplace for TEE inference (Base)
  *
- * @see src/automated-demo.ts - Run the full demo
- * @see src/permissionless-audit.ts - Verify everything is permissionless
+ * Target chains: Anvil (local) → Base Sepolia → Base Mainnet
+ *
+ * @see src/compute/scripts/demo.ts - Run the compute marketplace demo
+ * @see src/compute/scripts/join-network.ts - Join as a provider
+ * @see docs/PERMISSIONLESS_COMPUTE.md - Architecture overview
  */
 
 // ============================================================================
 // PRODUCTION EXPORTS (100% PERMISSIONLESS)
 // ============================================================================
 
+// Compute Marketplace Types
+export type {
+  AttestationReport,
+  AuthHeaders,
+  BanRecord,
+  Capability,
+  ChatCompletionChunk,
+  ChatCompletionRequest,
+  ChatCompletionResponse,
+  ChatMessage,
+  HardwareInfo,
+  InferenceRequest,
+  InferenceResponse,
+  Ledger,
+  ModelConfig,
+  ModerationSDKConfig,
+  Provider,
+  ProviderConfig,
+  ProviderSubAccount,
+  SDKConfig,
+  Service,
+  Settlement,
+  Stake,
+} from './compute/index.js';
+// Compute Marketplace (Babylon's own, no third-party dependency)
+export {
+  // SDK
+  BabylonComputeSDK,
+  // Node
+  ComputeNodeServer,
+  countTokens,
+  createInferenceEngine,
+  createModerationSDK,
+  createSDK,
+  detectHardware,
+  generateHardwareHash,
+  generateSimulatedAttestation,
+  getAttestationHash,
+  isAttestationFresh,
+  MockInferenceEngine,
+  ModerationSDK,
+  OllamaInferenceEngine,
+  StakeType,
+  startComputeNode,
+  verifyAttestation,
+} from './compute/index.js';
 // Contract types
 export type {
   ContractEvent,
@@ -30,10 +79,8 @@ export type {
   StakeInfo,
   StakingState,
 } from './contracts/index.js';
-
 // Cryptography (real, Web Crypto API)
 export * from './crypto/index.js';
-
 // Game logic
 export {
   type AgentConfig,
@@ -50,7 +97,6 @@ export {
   type TrainingCycleResult,
   type TrainingSample,
 } from './game/index.js';
-
 // Infrastructure (real blockchain clients)
 export {
   AttestationClient,
@@ -77,7 +123,6 @@ export {
   printDeploymentInstructions,
   type RegistrationResult,
 } from './infra/index.js';
-
 // Protocol (PBTS-aligned)
 export {
   type AggregatedReceipts,
@@ -95,7 +140,6 @@ export {
   VerifierClient,
   verifyReceipt,
 } from './protocol/index.js';
-
 // Storage (100% permissionless - wallet signatures only)
 export {
   ArweaveStorage,
@@ -122,7 +166,6 @@ export {
   type UploadOptions,
   type UploadResult,
 } from './storage/index.js';
-
 // TEE (simulated locally, real via Marlin Oyster)
 export {
   type AttestationQuote,

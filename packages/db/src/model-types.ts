@@ -19,7 +19,9 @@ import type * as schema from './schema';
 // ============================================================================
 
 export type User = InferSelectModel<typeof schema.users>;
+/** @deprecated Use StaticActor from @babylon/engine for static data */
 export type Actor = InferSelectModel<typeof schema.actors>;
+export type ActorStateRow = InferSelectModel<typeof schema.actorState>;
 export type ActorFollow = InferSelectModel<typeof schema.actorFollows>;
 export type ActorRelationship = InferSelectModel<
   typeof schema.actorRelationships
@@ -136,13 +138,18 @@ export type GenerationLock = InferSelectModel<typeof schema.generationLocks>;
 export type Feedback = InferSelectModel<typeof schema.feedbacks>;
 export type Referral = InferSelectModel<typeof schema.referrals>;
 export type WidgetCache = InferSelectModel<typeof schema.widgetCaches>;
+export type UserAgentConfig = InferSelectModel<typeof schema.userAgentConfigs>;
+export type UserApiKey = InferSelectModel<typeof schema.userApiKeys>;
+export type TickTokenStats = InferSelectModel<typeof schema.tickTokenStats>;
 
 // ============================================================================
 // Insert Types (what you provide when inserting into the database)
 // ============================================================================
 
 export type NewUser = InferInsertModel<typeof schema.users>;
+/** @deprecated Use NewActorStateRow for dynamic data */
 export type NewActor = InferInsertModel<typeof schema.actors>;
+export type NewActorStateRow = InferInsertModel<typeof schema.actorState>;
 export type NewActorFollow = InferInsertModel<typeof schema.actorFollows>;
 export type NewActorRelationship = InferInsertModel<
   typeof schema.actorRelationships
@@ -277,6 +284,11 @@ export type NewGenerationLock = InferInsertModel<typeof schema.generationLocks>;
 export type NewFeedback = InferInsertModel<typeof schema.feedbacks>;
 export type NewReferral = InferInsertModel<typeof schema.referrals>;
 export type NewWidgetCache = InferInsertModel<typeof schema.widgetCaches>;
+export type NewUserAgentConfig = InferInsertModel<
+  typeof schema.userAgentConfigs
+>;
+export type NewUserApiKey = InferInsertModel<typeof schema.userApiKeys>;
+export type NewTickTokenStats = InferInsertModel<typeof schema.tickTokenStats>;
 
 // ============================================================================
 // Types with Relations (for queries using include/with)
@@ -310,7 +322,18 @@ export type UserWithAgentRelations = User & {
   AgentPerformanceMetrics?: AgentPerformanceMetrics | null;
   AgentRegistry?: AgentRegistry | null;
   AgentCapability?: AgentCapability | null;
+  agentConfig?: UserAgentConfig | null;
 };
+
+/**
+ * Static actor data reference for future migration
+ * For full actor data, use StaticDataRegistry.getActor(authorId) from @babylon/engine
+ */
+export interface ActorRef {
+  id: string;
+  name: string;
+  profileImageUrl?: string | null;
+}
 
 /** Post with author and reactions */
 export type PostWithRelations = Post & {
@@ -325,9 +348,16 @@ export type MessageWithSender = Message & {
   sender?: User | Actor | null;
 };
 
-/** Pool with actor relation */
+/** @deprecated Use PoolWithActorState for future migration */
 export type PoolWithActor = Pool & {
   Actor?: Actor | null;
+};
+
+/** Pool with actor state (new pattern)
+ * For full actor data (name, description, etc.), use StaticDataRegistry.getActor(npcActorId)
+ */
+export type PoolWithActorState = Pool & {
+  actorState?: ActorStateRow | null;
 };
 
 /** BalanceTransaction with user relation */

@@ -33,6 +33,7 @@ import {
 } from '../plugins/plugin-trajectory-logger/src/action-interceptor';
 import { TrajectoryLoggerService } from '../plugins/plugin-trajectory-logger/src/TrajectoryLoggerService';
 import { agentRegistry } from '../services/agent-registry.service';
+import { getAgentConfig } from '../shared/agent-config';
 import { logger } from '../shared/logger';
 import { generateSnowflakeId } from '../shared/snowflake';
 import { type AgentRegistration, AgentType } from '../types/agent-registry';
@@ -143,17 +144,23 @@ export class AgentRuntimeManager {
       throw new Error(`User ${agentUserId} is not an agent`);
     }
 
+    // Get agent config from separate table
+    const agentConfig = await getAgentConfig(agentUserId);
+
     const parseBio = (): string[] => {
-      if (!agentUser.agentMessageExamples) {
+      if (!agentConfig?.messageExamples) {
         return [agentUser.bio || ''];
       }
 
-      const parsed = JSON.parse(agentUser.agentMessageExamples as string);
+      const parsed =
+        typeof agentConfig.messageExamples === 'string'
+          ? JSON.parse(agentConfig.messageExamples)
+          : agentConfig.messageExamples;
       if (Array.isArray(parsed)) {
         return parsed;
       }
       logger.warn(
-        'agentMessageExamples is not an array, using bio',
+        'messageExamples is not an array, using bio',
         {
           agentId: agentUser.id,
           type: typeof parsed,
@@ -164,14 +171,15 @@ export class AgentRuntimeManager {
     };
 
     const parseStyle = (): Record<string, JsonValue> | undefined => {
-      if (!agentUser.agentStyle) {
+      if (!agentConfig?.style) {
         return undefined;
       }
 
-      return JSON.parse(agentUser.agentStyle as string) as Record<
-        string,
-        JsonValue
-      >;
+      const style =
+        typeof agentConfig.style === 'string'
+          ? JSON.parse(agentConfig.style)
+          : agentConfig.style;
+      return style as Record<string, JsonValue>;
     };
 
     logger.info(
@@ -187,7 +195,7 @@ export class AgentRuntimeManager {
     // Always use qwen 32b (TEXT_LARGE) - free chat, 1pt per tick
     const character: Character = {
       name: agentUser.displayName || agentUser.username || 'Agent',
-      system: agentUser.agentSystem || 'You are a helpful AI agent',
+      system: agentConfig?.systemPrompt || 'You are a helpful AI agent',
       bio: parseBio(),
       messageExamples: [],
       style: parseStyle(),
@@ -357,13 +365,19 @@ export class AgentRuntimeManager {
       throw new Error(`User ${registration.userId} not found`);
     }
 
-    // Parse bio from agentMessageExamples or bio field
+    // Get agent config from separate table
+    const userAgentConfig = await getAgentConfig(registration.userId);
+
+    // Parse bio from messageExamples or bio field
     const parseBio = (): string[] => {
-      if (!agentUser.agentMessageExamples) {
+      if (!userAgentConfig?.messageExamples) {
         return [agentUser.bio || ''];
       }
 
-      const parsed = JSON.parse(agentUser.agentMessageExamples as string);
+      const parsed =
+        typeof userAgentConfig.messageExamples === 'string'
+          ? JSON.parse(userAgentConfig.messageExamples)
+          : userAgentConfig.messageExamples;
       if (Array.isArray(parsed)) {
         return parsed;
       }
@@ -372,14 +386,15 @@ export class AgentRuntimeManager {
 
     // Parse style
     const parseStyle = (): Record<string, JsonValue> | undefined => {
-      if (!agentUser.agentStyle) {
+      if (!userAgentConfig?.style) {
         return undefined;
       }
 
-      return JSON.parse(agentUser.agentStyle as string) as Record<
-        string,
-        JsonValue
-      >;
+      const style =
+        typeof userAgentConfig.style === 'string'
+          ? JSON.parse(userAgentConfig.style)
+          : userAgentConfig.style;
+      return style as Record<string, JsonValue>;
     };
 
     // Build Character configuration

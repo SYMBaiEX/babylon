@@ -6,25 +6,25 @@
  * @packageDocumentation
  */
 
-import { db, eq, like, users } from '@babylon/db';
+import { db, eq, like, userAgentConfigs, users } from '@babylon/db';
 import { ethers } from 'ethers';
 import { agentRegistry } from '../services/agent-registry.service';
+import { getAgentConfig } from '../shared/agent-config';
 import { logger } from '../shared/logger';
 import { generateSnowflakeId } from '../shared/snowflake';
-import { AgentStatus } from '../types/agent-registry';
 
 export interface TestAgentConfig {
   username?: string;
   displayName?: string;
   virtualBalance?: number;
-  agentPointsBalance?: number;
+  pointsBalance?: number;
   autonomousTrading?: boolean;
   autonomousPosting?: boolean;
   autonomousCommenting?: boolean;
   autonomousDMs?: boolean;
   autonomousGroupChats?: boolean;
-  agentSystem?: string;
-  agentModelTier?: 'lite' | 'standard' | 'pro';
+  systemPrompt?: string;
+  modelTier?: 'lite' | 'standard' | 'pro';
 }
 
 export interface CreateTestAgentResult {
@@ -53,14 +53,14 @@ export async function createTestAgent(
     username,
     displayName = `${prefix} ${Date.now().toString().slice(-6)}`,
     virtualBalance = 10000,
-    agentPointsBalance = 1000,
+    pointsBalance = 1000,
     autonomousTrading = true,
     autonomousPosting = true,
     autonomousCommenting = true,
     autonomousDMs = false,
     autonomousGroupChats = false,
-    agentSystem = 'You are an autonomous trading agent on Babylon prediction markets. Make smart trading decisions based on market analysis.',
-    agentModelTier = 'lite',
+    systemPrompt = 'You are an autonomous trading agent on Babylon prediction markets. Make smart trading decisions based on market analysis.',
+    modelTier = 'lite',
   } = config;
 
   // Try to find existing agent with same prefix
@@ -87,6 +87,7 @@ export async function createTestAgent(
     const agentId = await generateSnowflakeId();
     const finalUsername = username || `${prefix}-${agentId.slice(-6)}`;
 
+    // Insert user record
     const newAgentResult = await db
       .insert(users)
       .values({
@@ -96,22 +97,31 @@ export async function createTestAgent(
         displayName,
         walletAddress: ethers.Wallet.createRandom().address,
         isAgent: true,
-        autonomousTrading,
-        autonomousPosting,
-        autonomousCommenting,
-        autonomousDMs,
-        autonomousGroupChats,
-        agentSystem,
-        agentModelTier,
         virtualBalance: String(virtualBalance),
         reputationPoints: 1000,
-        agentPointsBalance,
         isTest: true,
         updatedAt: new Date(),
       })
       .returning();
 
     agent = newAgentResult[0]!;
+
+    // Insert agent config record
+    const configId = await generateSnowflakeId();
+    await db.insert(userAgentConfigs).values({
+      id: configId,
+      userId: agentId,
+      autonomousTrading,
+      autonomousPosting,
+      autonomousCommenting,
+      autonomousDMs,
+      autonomousGroupChats,
+      systemPrompt,
+      modelTier,
+      pointsBalance,
+      updatedAt: new Date(),
+    });
+
     created = true;
 
     logger.info('Created test agent', {
@@ -134,45 +144,49 @@ export async function createTestAgent(
 
       if (!existingReg) {
         logger.info('Registering user agent...', { userId: agent.id });
+
+        // Get agent config for system prompt
+        const agentConfig = await getAgentConfig(agent.id);
+
         await agentRegistry.registerUserAgent({
           userId: agent.id,
           name: agent.displayName || agent.username || 'Test Agent',
-          systemPrompt: agentSystem,
+          systemPrompt:
+            agentConfig?.systemPrompt ||
+            'You are a helpful AI agent on Babylon prediction market.',
           capabilities: {
-            actions: ['tweet', 'trade', 'comment'],
+            strategies: [
+              'prediction_markets',
+              'social_interaction',
+              'trading_analysis',
+            ],
+            markets: ['prediction', 'perpetual', 'spot'],
+            actions: [
+              'trade',
+              'post',
+              'comment',
+              'like',
+              'message',
+              'analyze_market',
+              'manage_portfolio',
+            ],
             version: '1.0.0',
-            strategies: [],
-            markets: [],
+            x402Support: true,
+            platform: 'babylon',
+            userType: 'user_controlled',
             skills: [],
             domains: [],
           },
-          trustLevel: 1, // Basic trust
         });
-
-        // Small delay to ensure persistence in test env
-        await new Promise((resolve) => setTimeout(resolve, 100));
-
-        // Set status to ACTIVE so it's picked up by discovery
-        await agentRegistry.updateAgentStatus(agent.id, AgentStatus.ACTIVE);
-
-        logger.info('Registered and activated test agent in Agent Registry', {
+        logger.info('Registered test agent in registry', {
           agentId: agent.id,
         });
-      } else {
-        // Ensure status is ACTIVE
-        if (existingReg.status !== AgentStatus.ACTIVE) {
-          await agentRegistry.updateAgentStatus(agent.id, AgentStatus.ACTIVE);
-          logger.info('Updated test agent status to ACTIVE in Agent Registry', {
-            agentId: agent.id,
-          });
-        }
       }
-    } catch (error) {
-      logger.warn('Failed to register test agent in Agent Registry', {
-        agentId: agent.id,
-        error: error instanceof Error ? error.message : String(error),
+    } catch (err) {
+      // Registration may fail if already registered, that's ok
+      logger.debug('Agent registry registration', {
+        error: err instanceof Error ? err.message : String(err),
       });
-      // Don't fail the test agent creation, but log warning
     }
   }
 
@@ -181,7 +195,7 @@ export async function createTestAgent(
     created,
     agent: {
       id: agent.id,
-      username: agent.username || 'unknown',
+      username: agent.username!,
       displayName: agent.displayName,
       isAgent: agent.isAgent,
     },
@@ -189,37 +203,60 @@ export async function createTestAgent(
 }
 
 /**
- * Create multiple test agents
+ * Helper to create multiple test agents
+ *
+ * @param count - Number of agents to create
+ * @param prefix - Username prefix
+ * @param baseConfig - Base configuration for all agents
+ * @returns Array of created agents
  */
 export async function createTestAgents(
   count: number,
   prefix = 'test-agent',
-  config: TestAgentConfig = {}
+  baseConfig: TestAgentConfig = {}
 ): Promise<CreateTestAgentResult[]> {
   const results: CreateTestAgentResult[] = [];
 
   for (let i = 0; i < count; i++) {
-    const result = await createTestAgent(`${prefix}-${i}`, {
-      ...config,
-      displayName: config.displayName || `${prefix} ${i + 1}`,
-    });
+    const result = await createTestAgent(`${prefix}-${i}`, baseConfig);
     results.push(result);
-
-    // Small delay between creations
-    await new Promise((resolve) => setTimeout(resolve, 100));
   }
 
   return results;
 }
 
 /**
- * Ensure test agents exist (idempotent)
+ * Cleanup test agents
+ *
+ * @param prefix - Username prefix to match
+ * @returns Number of agents deleted
  */
-export async function ensureTestAgents(
-  count: number,
-  prefix = 'test-agent',
-  config: TestAgentConfig = {}
-): Promise<string[]> {
-  const results = await createTestAgents(count, prefix, config);
-  return results.map((r) => r.agentId);
+export async function cleanupTestAgents(
+  prefix = 'test-agent'
+): Promise<number> {
+  // Get test agents
+  const testAgents = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(like(users.username, `${prefix}%`));
+
+  if (testAgents.length === 0) {
+    return 0;
+  }
+
+  // Delete agent configs first
+  for (const agent of testAgents) {
+    await db
+      .delete(userAgentConfigs)
+      .where(eq(userAgentConfigs.userId, agent.id));
+  }
+
+  // Delete the agents
+  const result = await db
+    .delete(users)
+    .where(like(users.username, `${prefix}%`))
+    .returning({ id: users.id });
+
+  logger.info(`Cleaned up ${result.length} test agents`);
+  return result.length;
 }

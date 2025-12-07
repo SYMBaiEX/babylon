@@ -37,6 +37,8 @@ async function getDbImports() {
     count: dbMod.count,
     trajectories: dbMod.trajectories,
     closeDatabase: dbMod.closeDatabase,
+    users: dbMod.users,
+    userAgentConfigs: dbMod.userAgentConfigs,
   };
 }
 
@@ -424,32 +426,44 @@ async function collectTrajectories(
   logger.header('Trajectory Collection');
   logger.success('Trajectory recording is always enabled');
 
-  const { db } = await getDbImports();
+  const { db, eq, users, userAgentConfigs } = await getDbImports();
   const { agentRuntimeManager, autonomousCoordinator } =
     await getAgentImports();
 
-  // Find agents
-  const agents = await db.user.findMany({
-    where: {
-      isAgent: true,
-      agentPointsBalance: { gte: 1 },
-      OR: [
-        { autonomousTrading: true },
-        { autonomousPosting: true },
-        { autonomousCommenting: true },
-        { autonomousDMs: true },
-        { autonomousGroupChats: true },
-      ],
-    },
-    take: 10,
-  });
+  // Find agents with their configs
+  const agentResults = await db
+    .select({
+      id: users.id,
+      username: users.username,
+      pointsBalance: userAgentConfigs.pointsBalance,
+      autonomousTrading: userAgentConfigs.autonomousTrading,
+      autonomousPosting: userAgentConfigs.autonomousPosting,
+      autonomousCommenting: userAgentConfigs.autonomousCommenting,
+      autonomousDMs: userAgentConfigs.autonomousDMs,
+      autonomousGroupChats: userAgentConfigs.autonomousGroupChats,
+    })
+    .from(users)
+    .innerJoin(userAgentConfigs, eq(users.id, userAgentConfigs.userId))
+    .where(eq(users.isAgent, true))
+    .limit(10);
+
+  // Filter agents with sufficient points and at least one feature enabled
+  const agents = agentResults.filter(
+    (a) =>
+      (a.pointsBalance ?? 0) >= 1 &&
+      (a.autonomousTrading ||
+        a.autonomousPosting ||
+        a.autonomousCommenting ||
+        a.autonomousDMs ||
+        a.autonomousGroupChats)
+  );
 
   if (agents.length === 0) {
     logger.fail('No agents found!');
     console.log(`
    Agents need:
    - isAgent: true
-   - agentPointsBalance >= 1
+   - pointsBalance >= 1
    - At least one autonomous feature enabled
 
    Create agents with: babylon agent spawn

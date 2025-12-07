@@ -7,9 +7,10 @@
  * @packageDocumentation
  */
 
-import { db } from '@babylon/db';
+import { db, eq, users } from '@babylon/db';
 import type { IAgentRuntime } from '@elizaos/core';
 import type { BabylonRuntime } from '../plugins/babylon/types';
+import { getAgentConfig } from '../shared/agent-config';
 import { logger } from '../shared/logger';
 import { generateSnowflakeId } from '../shared/snowflake';
 
@@ -96,8 +97,15 @@ export class AutonomousA2AService {
       };
     }
 
-    const agent = await db.user.findUnique({ where: { id: agentUserId } });
-    if (!agent || !agent.isAgent || !agent.autonomousTrading) {
+    const agentResult = await db
+      .select()
+      .from(users)
+      .where(eq(users.id, agentUserId))
+      .limit(1);
+    const agent = agentResult[0];
+    const config = await getAgentConfig(agentUserId);
+
+    if (!agent || !agent.isAgent || !config?.autonomousTrading) {
       return {
         success: false,
         marketId: undefined,
@@ -171,7 +179,7 @@ export class AutonomousA2AService {
     const predictions = shuffledPredictions.slice(0, 5);
     const perpetuals = shuffledPerpetuals.slice(0, 5);
 
-    const prompt = `${agent.agentSystem}
+    const prompt = `${config?.systemPrompt ?? 'You are an autonomous trading agent.'}
 
 You are ${agent.displayName}, an autonomous trading agent making a prediction market trading decision.
 
@@ -256,7 +264,7 @@ Your JSON response:`;
     const { callGroqDirect } = await import('../llm/direct-groq');
     const decision = await callGroqDirect({
       prompt,
-      system: agent.agentSystem || undefined,
+      system: config?.systemPrompt ?? undefined,
       modelSize: 'large',
       runtime, // Pass runtime to access W&B trained models AND trajectory context
       temperature: 0.7,
@@ -448,8 +456,15 @@ Your JSON response:`;
       return { success: false };
     }
 
-    const agent = await db.user.findUnique({ where: { id: agentUserId } });
-    if (!agent || !agent.isAgent || !agent.autonomousPosting) {
+    const agentResult = await db
+      .select()
+      .from(users)
+      .where(eq(users.id, agentUserId))
+      .limit(1);
+    const agent = agentResult[0];
+    const postingConfig = await getAgentConfig(agentUserId);
+
+    if (!agent || !agent.isAgent || !postingConfig?.autonomousPosting) {
       return { success: false };
     }
 
@@ -482,7 +497,13 @@ Your JSON response:`;
       return { success: false, engagements: 0 };
     }
 
-    const agent = await db.user.findUnique({ where: { id: agentUserId } });
+    const agentResult = await db
+      .select()
+      .from(users)
+      .where(eq(users.id, agentUserId))
+      .limit(1);
+    const agent = agentResult[0];
+
     if (!agent || !agent.isAgent) {
       return { success: false, engagements: 0 };
     }
@@ -557,8 +578,15 @@ Your JSON response:`;
       return { success: false, actionsTaken: 0 };
     }
 
-    const agent = await db.user.findUnique({ where: { id: agentUserId } });
-    if (!agent || !agent.isAgent || !agent.autonomousTrading) {
+    const agentResult = await db
+      .select()
+      .from(users)
+      .where(eq(users.id, agentUserId))
+      .limit(1);
+    const agent = agentResult[0];
+    const tradingConfig = await getAgentConfig(agentUserId);
+
+    if (!agent || !agent.isAgent || !tradingConfig?.autonomousTrading) {
       return { success: false, actionsTaken: 0 };
     }
 

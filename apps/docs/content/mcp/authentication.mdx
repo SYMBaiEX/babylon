@@ -1,20 +1,16 @@
 # MCP Authentication
 
-Simple API key authentication for Babylon's MCP server.
+Per-user API keys for Babylon's MCP server.
 
-## Overview
+## Get Your API Key
 
-MCP uses **per-user API keys** for authentication. Each user generates their own API key in Settings, which provides full access to their account via MCP.
+1. Go to **Settings** → **API Keys**
+2. Click **Generate New Key**
+3. Copy and save immediately (shown once)
 
-## Getting Your API Key
+## Usage
 
-1. Go to **Settings** → **API Keys** tab
-2. Click **"Generate New Key"**
-3. Copy and save your API key immediately (it's only shown once)
-
-## Using Your API Key
-
-Include your API key in the `X-Babylon-Api-Key` header for all MCP requests:
+Include in `X-Babylon-Api-Key` header:
 
 ```http
 POST /mcp HTTP/1.1
@@ -22,7 +18,7 @@ Content-Type: application/json
 X-Babylon-Api-Key: bab_live_your_api_key_here
 ```
 
-## Configuration Examples
+## Configuration
 
 ### Cursor
 
@@ -44,7 +40,9 @@ Add to `.cursor/mcp.json`:
 
 ### Claude Desktop
 
-Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS):
+Add to config file:
+- **macOS:** `~/Library/Application Support/Claude/claude_desktop_config.json`
+- **Windows:** `%APPDATA%\Claude\claude_desktop_config.json`
 
 ```json
 {
@@ -60,45 +58,15 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS)
 }
 ```
 
-### OpenAI Assistants
-
-```typescript
-const assistant = await openai.beta.assistants.create({
-  tools: [{
-    type: "mcp",
-    mcp: {
-      server: "https://babylon.market/mcp",
-      headers: {
-        "X-Babylon-Api-Key": process.env.BABYLON_API_KEY
-      }
-    }
-  }]
-});
-```
-
-## Discovery Endpoint
-
-The GET endpoint doesn't require authentication:
-
-```bash
-curl https://babylon.market/mcp
-```
-
-Returns server info and available tools.
-
 ## Security
 
-- **Never share your API key** - It provides full account access
-- **Revoke compromised keys** - Go to Settings → API Keys to revoke
-- **Use HTTPS** - Always connect over HTTPS in production
-- **Store securely** - Use environment variables, never commit to version control
+- Never share your API key
+- Revoke compromised keys in Settings
+- Use HTTPS in production
+- Store in environment variables
 
 ## Errors
 
-**Authentication Required (-32001)**
-- Missing or invalid `X-Babylon-Api-Key` header
-- Generate a new key in Settings if needed
-
-**Authentication Failed (-32001)**
-- API key is revoked or expired
-- Generate a new key in Settings
+**-32001: Authentication Required/Failed**
+- Missing or invalid API key
+- Generate new key in Settings

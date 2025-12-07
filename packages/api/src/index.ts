@@ -63,6 +63,12 @@ export {
   setCache,
   warmCache,
 } from './cache';
+// Cron Authentication
+export {
+  cronUnauthorizedResponse,
+  requireCronAuth,
+  verifyCronAuth,
+} from './cron-auth';
 // Development credentials (for local testing)
 export {
   type DevCredentials,

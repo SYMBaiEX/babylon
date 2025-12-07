@@ -1,407 +1,80 @@
-# Trajectory Logging for Agent Training
+# Trajectory Logging
 
-Complete system for recording agent decisions for reinforcement learning training (Atropos/GRPO).
+Record agent decisions for reinforcement learning training.
 
-## Overview
+## What It Captures
 
-The trajectory logging system captures every decision an autonomous agent makes, enabling:
-- **Reinforcement Learning**: Train agents on successful strategies
-- **Decision Analysis**: Understand why agents make specific choices
-- **Performance Optimization**: Identify winning vs losing patterns
-- **Model Training**: Generate datasets for Atropos GRPO training
-
-**Status**: **Production Ready** - 43 automated tests
-
-## Architecture
-
-The system records three critical data points for each agent decision:
-
-```mermaid
-graph LR
- A[Agent Action] --> B[Provider Data]
- A --> C[LLM Call]
- A --> D[Action Result]
- B --> E[Trajectory Record]
- C --> E
- D --> E
- E --> F[Database]
- F --> G[Training Pipeline]
-```
-
-### Data Captured
-
-**1. Provider Data (Context)**
-- What data the agent accessed
-- Why it accessed that data
-- When it was accessed
-
-**2. LLM Call (Decision)**
-- System prompt used
-- User prompt/query
-- Model response
-- Reasoning/thinking process
-
-**3. Action Result (Outcome)**
-- What action was taken
-- Parameters used
-- Success/failure result
-- Reward signal
+For each decision:
+1. **Provider Data** - What data the agent accessed
+2. **LLM Call** - Prompt, response, reasoning
+3. **Action Result** - Outcome, success/failure, reward
 
 ## Quick Start
 
-### 1. Database Setup
-
-Add trajectory tables to your database schema:
-
-```bash
-# Tables are already included in packages/db/src/schema/training.ts
-bun run db:push
-```
-
-### 2. Wrap Your Actions
-
 ```typescript
-import {
- wrapActionWithLogging,
- logLLMCallFromAction,
- logProviderFromAction
-} from '@babylon/agents'
+import { wrapActionWithLogging, logLLMCallFromAction, logProviderFromAction } from '@babylon/agents'
 
 const BUY_SHARES = wrapActionWithLogging({
- name: 'BUY_SHARES',
- description: 'Buy prediction market shares',
- 
- handler: async (runtime, message, state, options, callback) => {
- // 1. Log data access (provider)
- const markets = await getMarkets()
- logProviderFromAction(state, {
- providerName: 'market_data',
- data: markets,
- purpose: 'Analyze available markets for trading opportunities'
- })
- 
- // 2. Log LLM decision
- const decision = await runtime.useModel({
- systemPrompt: 'You are a trading agent...',
- userPrompt: `Analyze these markets: ${JSON.stringify(markets)}`
- })
- 
- logLLMCallFromAction(state, {
- model: 'gpt-5.1',
- systemPrompt,
- userPrompt,
- response: decision,
- thinking: decision.reasoning
- })
- 
- // 3. Execute action (result logged automatically)
- const result = await executeTrade(decision.params)
- 
- return result
- }
+  name: 'BUY_SHARES',
+  handler: async (runtime, message, state, options) => {
+    // 1. Log data access
+    const markets = await getMarkets()
+    logProviderFromAction(state, {
+      providerName: 'market_data',
+      data: markets,
+      purpose: 'Analyze markets'
+    })
+    
+    // 2. Log LLM decision
+    const decision = await runtime.useModel({ systemPrompt, userPrompt })
+    logLLMCallFromAction(state, {
+      model: 'gpt-4',
+      systemPrompt,
+      userPrompt,
+      response: decision,
+      thinking: decision.reasoning
+    })
+    
+    // 3. Execute (result logged automatically)
+    return await executeTrade(decision.params)
+  }
 })
 ```
 
-### 3. Compute Rewards
-
-Define how to score agent decisions:
+## Reward Functions
 
 ```typescript
 import { defineRewardFunction } from '@babylon/agents'
 
 export const tradingReward = defineRewardFunction({
- name: 'trading_performance',
- 
- compute: (trajectory) => {
- const { result, llmCall } = trajectory
- 
- // Reward based on P&L
- if (result.realizedPnL > 0) {
- return result.realizedPnL / 100 // Scale to 0-1
- }
- 
- return -0.5 // Penalty for losses
- }
+  name: 'trading_performance',
+  compute: (trajectory) => {
+    const { result } = trajectory
+    return result.realizedPnL > 0 ? result.realizedPnL / 100 : -0.5
+  }
 })
 ```
 
-### 4. Export for Training
+## Export for Training
 
 ```typescript
-import { exportToHuggingFace } from '@babylon/agents'
-
 const dataset = await exportToHuggingFace({
- minReward: 0.5,
- maxTrajectories: 1000,
- format: 'parquet'
+  minReward: 0.5,
+  maxTrajectories: 1000,
+  format: 'parquet'
 })
 
-// Upload to HuggingFace
-await dataset.upload('your-org/babylon-trading-trajectories')
+await dataset.upload('your-org/babylon-trajectories')
 ```
 
 ## Testing
 
-### Run Comprehensive Tests
-
 ```bash
-cd packages/agents
-bun test
+bun test packages/agents/
 ```
-
-**Expected**: 43 tests passing
-
-**Test Coverage**:
-- Database schema validation
-- Provider logging
-- LLM call logging
-- Result logging
-- Reward computation
-- Export functionality
-- Data quality checks
-
-### Verify Data Quality
-
-```bash
-npx tsx scripts/verify-trajectory-data.ts
-```
-
-**Checks**:
-- All required fields present
-- Data types correct
-- Timestamps valid
-- Rewards computed
-- Export format correct
-
-## Data Requirements
-
-### Required for Each Decision
-
-**Provider Data**:
-```typescript
-{
- providerName: string // e.g., "market_data"
- data: any // The actual data accessed
- purpose: string // Why this data was needed
- timestamp: number
-}
-```
-
-**LLM Call**:
-```typescript
-{
- model: string // e.g., "gpt-5.1"
- systemPrompt: string // Agent's system instructions
- userPrompt: string // The query/request
- response: string // Model's response
- thinking?: string // Reasoning process
- timestamp: number
-}
-```
-
-**Action Result**:
-```typescript
-{
- action: string // Action name
- params: any // Action parameters
- result: any // Execution result
- success: boolean // Did it work?
- timestamp: number
-}
-```
-
-## Training Pipeline Integration
-
-### Export to HuggingFace
-
-```typescript
-// Export successful trajectories
-const dataset = await exportToHuggingFace({
- minReward: 0.7, // Only successful trades
- timeRange: '7d', // Last 7 days
- format: 'parquet', // Efficient format
- includeMetadata: true
-})
-
-// Dataset structure:
-{
- prompt: string, // System + user prompts
- response: string, // LLM response
- reward: number, // Computed reward
- context: object, // Provider data
- metadata: object // Timestamps, agent ID, etc.
-}
-```
-
-### Training with Atropos
-
-```python
-from training.atropos_trainer import BabylonAtroposTrainer, AtroposTrainingConfig
-
-config = AtroposTrainingConfig(
- model_name="Qwen/Qwen2.5-3B-Instruct",
- database_url="postgresql://user:pass@host/babylon",
- api_url="http://localhost:8000",
- vllm_port=9001,
- learning_rate=1e-5,
- judge_model="gpt-4o-mini"
-)
-
-trainer = BabylonAtroposTrainer(config)
-trainer.setup()
-trainer.train()
-```
-
-## Best Practices
-
-### 1. Log Everything
-
-```typescript
-// Good: Log all data access
-logProviderFromAction(state, {
- providerName: 'balance_check',
- data: balance,
- purpose: 'Verify sufficient funds before trading'
-})
-
-// Bad: Skip logging
-const balance = await getBalance()
-```
-
-### 2. Capture Reasoning
-
-```typescript
-// Good: Include thinking process
-logLLMCallFromAction(state, {
- model,
- systemPrompt,
- userPrompt,
- response: decision,
- thinking: decision.reasoning // Important!
-})
-
-// Bad: Skip reasoning
-logLLMCallFromAction(state, { model, systemPrompt, userPrompt, response })
-```
-
-### 3. Compute Meaningful Rewards
-
-```typescript
-// Good: Reward based on actual performance
-const reward = (pnl > 0) ? pnl / initialInvestment : -0.5
-
-// Bad: Binary rewards
-const reward = success ? 1 : 0
-```
-
-## Integration with Babylon
-
-### Example: Trading Agent
-
-```typescript
-import { wrapActionWithLogging } from '@babylon/agents'
-
-const BABYLON_TRADE = wrapActionWithLogging({
- name: 'BABYLON_TRADE',
- 
- handler: async (runtime, message, state, options) => {
- // Log market data access
- const markets = await runtime.a2aClient.getMarkets()
- logProviderFromAction(state, {
- providerName: 'babylon_markets',
- data: markets,
- purpose: 'Analyze prediction markets for trading'
- })
- 
- // Log trading decision
- const decision = await runtime.useModel({
- systemPrompt: runtime.character.system,
- userPrompt: `Analyze these markets and decide: ${JSON.stringify(markets)}`
- })
- 
- logLLMCallFromAction(state, {
- model: 'gpt-5.1',
- systemPrompt: runtime.character.system,
- userPrompt,
- response: decision,
- thinking: decision.reasoning
- })
- 
- // Execute trade
- const result = await runtime.a2aClient.buyShares({
- marketId: decision.marketId,
- outcome: decision.outcome,
- amount: decision.amount
- })
- 
- // Result logged automatically
- // Reward computed based on eventual P&L
- return result
- }
-})
-```
-
-## Advanced Features
-
-### Reward Functions
-
-Define custom reward functions:
-
-```typescript
-export const multiFactorReward = defineRewardFunction({
- name: 'multi_factor_trading',
- 
- compute: (trajectory) => {
- const { result, llmCall } = trajectory
- 
- let reward = 0
- 
- // P&L component (50%)
- if (result.pnl > 0) {
- reward += 0.5 * (result.pnl / result.investment)
- }
- 
- // Speed component (25%)
- if (result.executionTime < 1000) {
- reward += 0.25
- }
- 
- // Confidence component (25%)
- if (llmCall.thinking?.includes('high confidence')) {
- reward += 0.25
- }
- 
- return Math.min(1, Math.max(-1, reward))
- }
-})
-```
-
-### Data Quality Checks
-
-```typescript
-import { validateTrajectory } from '@babylon/agents'
-
-const isValid = validateTrajectory(trajectory)
-
-if (!isValid.valid) {
- console.error('Invalid trajectory:', isValid.errors)
- // - Missing required fields
- // - Invalid data types
- // - Timestamp issues
- // - Malformed JSON
-}
-```
-
-## Resources
-
-- **Plugin Source**: `packages/agents/src/plugins/plugin-trajectory-logger/`
-- **Trajectory Recorder**: `packages/training/src/training/TrajectoryRecorder.ts`
-- **Database Schema**: `packages/db/src/schema/training.ts`
 
 ## Next Steps
 
-- [Autonomous Agent Guide](/agents/autonomous-guide)
 - [Python RL Training](/agents/python-training)
-- [ElizaOS Plugin](/agents/eliza-plugin)
-- [Python RL Training](/agents/python-training) - Train agents with reinforcement learning
+- [Autonomous Guide](/agents/autonomous-guide)
 

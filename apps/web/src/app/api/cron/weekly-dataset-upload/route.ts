@@ -45,26 +45,15 @@
  * ```
  */
 
+import { verifyCronAuth } from '@babylon/api';
 import { logger } from '@babylon/shared';
 import { huggingFaceIntegration } from '@babylon/training';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 
-function verifyCronRequest(request: NextRequest): boolean {
-  const authHeader = request.headers.get('authorization');
-  const cronSecret = process.env.CRON_SECRET;
-
-  if (!cronSecret) {
-    logger.warn('CRON_SECRET not configured', undefined, 'WeeklyDatasetUpload');
-    return process.env.NODE_ENV === 'development'; // Allow in development
-  }
-
-  return authHeader === `Bearer ${cronSecret}`;
-}
-
 export async function POST(request: NextRequest) {
-  // Verify request
-  if (!verifyCronRequest(request)) {
+  // Security: Verify cron authorization (fail-closed in production)
+  if (!verifyCronAuth(request, { jobName: 'WeeklyDatasetUpload' })) {
     logger.warn('Unauthorized cron request', undefined, 'WeeklyDatasetUpload');
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
