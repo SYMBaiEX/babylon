@@ -18,7 +18,7 @@ import {
   navigateTo,
   waitForPageLoad,
 } from './helpers/page-helpers';
-import { getPrivyTestAccount, loginWithPrivyEmail } from './helpers/privy-auth';
+import { loginWithWallet } from './helpers/privy-auth';
 import { ROUTES, TIMEOUTS, VIEWPORTS } from './helpers/test-data';
 
 test.setTimeout(TIMEOUTS.EXTRA_LONG);
@@ -27,7 +27,7 @@ test.describe('Feed Page - Basic Functionality', () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize(VIEWPORTS.DESKTOP);
     await navigateTo(page, ROUTES.HOME);
-    await loginWithPrivyEmail(page, getPrivyTestAccount());
+    await loginWithWallet(page);
     await navigateTo(page, ROUTES.FEED);
     await waitForPageLoad(page);
     await page.waitForTimeout(2000);
@@ -128,7 +128,7 @@ test.describe('Feed Page - Post Creation', () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize(VIEWPORTS.DESKTOP);
     await navigateTo(page, ROUTES.HOME);
-    await loginWithPrivyEmail(page, getPrivyTestAccount());
+    await loginWithWallet(page);
     await navigateTo(page, ROUTES.FEED);
     await waitForPageLoad(page);
     await page.waitForTimeout(2000);
@@ -245,7 +245,7 @@ test.describe('Feed Page - Post Interactions', () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize(VIEWPORTS.DESKTOP);
     await navigateTo(page, ROUTES.HOME);
-    await loginWithPrivyEmail(page, getPrivyTestAccount());
+    await loginWithWallet(page);
     await navigateTo(page, ROUTES.FEED);
     await waitForPageLoad(page);
     await page.waitForTimeout(3000);
@@ -383,7 +383,7 @@ test.describe('Feed Page - Scrolling and Loading', () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize(VIEWPORTS.DESKTOP);
     await navigateTo(page, ROUTES.HOME);
-    await loginWithPrivyEmail(page, getPrivyTestAccount());
+    await loginWithWallet(page);
     await navigateTo(page, ROUTES.FEED);
     await waitForPageLoad(page);
     await page.waitForTimeout(2000);
@@ -440,7 +440,7 @@ test.describe('Feed Page - Mobile Interactions', () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize(VIEWPORTS.MOBILE);
     await navigateTo(page, ROUTES.HOME);
-    await loginWithPrivyEmail(page, getPrivyTestAccount());
+    await loginWithWallet(page);
     await navigateTo(page, ROUTES.FEED);
     await waitForPageLoad(page);
     await page.waitForTimeout(2000);
@@ -493,7 +493,7 @@ test.describe('Feed Page - Article Cards', () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize(VIEWPORTS.DESKTOP);
     await navigateTo(page, ROUTES.HOME);
-    await loginWithPrivyEmail(page, getPrivyTestAccount());
+    await loginWithWallet(page);
     await navigateTo(page, ROUTES.FEED);
     await waitForPageLoad(page);
     await page.waitForTimeout(2000);

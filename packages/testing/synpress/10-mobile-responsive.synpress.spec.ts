@@ -18,7 +18,7 @@ import {
   navigateTo,
   waitForPageLoad,
 } from './helpers/page-helpers';
-import { getPrivyTestAccount, loginWithPrivyEmail } from './helpers/privy-auth';
+import { loginWithWallet } from './helpers/privy-auth';
 import { ROUTES, TIMEOUTS, VIEWPORTS } from './helpers/test-data';
 
 test.setTimeout(TIMEOUTS.EXTRA_LONG);
@@ -27,7 +27,7 @@ test.describe('Mobile Responsiveness - Small Mobile (320px)', () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize(VIEWPORTS.MOBILE_SMALL);
     await navigateTo(page, ROUTES.HOME);
-    await loginWithPrivyEmail(page, getPrivyTestAccount());
+    await loginWithWallet(page);
     await page.waitForTimeout(2000);
   });
 
@@ -108,7 +108,7 @@ test.describe('Mobile Responsiveness - Standard Mobile (375px)', () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize(VIEWPORTS.MOBILE);
     await navigateTo(page, ROUTES.HOME);
-    await loginWithPrivyEmail(page, getPrivyTestAccount());
+    await loginWithWallet(page);
     await page.waitForTimeout(2000);
   });
 
@@ -204,7 +204,7 @@ test.describe('Mobile Responsiveness - Large Mobile (414px)', () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize(VIEWPORTS.MOBILE_LARGE);
     await navigateTo(page, ROUTES.HOME);
-    await loginWithPrivyEmail(page, getPrivyTestAccount());
+    await loginWithWallet(page);
     await page.waitForTimeout(2000);
   });
 
@@ -233,7 +233,7 @@ test.describe('Mobile Responsiveness - Tablet (768px)', () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize(VIEWPORTS.TABLET);
     await navigateTo(page, ROUTES.HOME);
-    await loginWithPrivyEmail(page, getPrivyTestAccount());
+    await loginWithWallet(page);
     await page.waitForTimeout(2000);
   });
 
@@ -284,7 +284,7 @@ test.describe('Mobile Responsiveness - Desktop (1280px)', () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize(VIEWPORTS.DESKTOP);
     await navigateTo(page, ROUTES.HOME);
-    await loginWithPrivyEmail(page, getPrivyTestAccount());
+    await loginWithWallet(page);
     await page.waitForTimeout(2000);
   });
 
@@ -335,7 +335,7 @@ test.describe('Mobile Responsiveness - Large Desktop (1920px)', () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize(VIEWPORTS.DESKTOP_LARGE);
     await navigateTo(page, ROUTES.HOME);
-    await loginWithPrivyEmail(page, getPrivyTestAccount());
+    await loginWithWallet(page);
     await page.waitForTimeout(2000);
   });
 
@@ -367,7 +367,7 @@ test.describe('Mobile Responsiveness - Touch Interactions', () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize(VIEWPORTS.MOBILE);
     await navigateTo(page, ROUTES.HOME);
-    await loginWithPrivyEmail(page, getPrivyTestAccount());
+    await loginWithWallet(page);
     await page.waitForTimeout(2000);
   });
 
@@ -404,7 +404,7 @@ test.describe('Mobile Responsiveness - Orientation Changes', () => {
     // Start in portrait
     await page.setViewportSize({ width: 375, height: 667 });
     await navigateTo(page, ROUTES.HOME);
-    await loginWithPrivyEmail(page, getPrivyTestAccount());
+    await loginWithWallet(page);
     await navigateTo(page, ROUTES.FEED);
     await waitForPageLoad(page);
 
@@ -422,7 +422,7 @@ test.describe('Mobile Responsiveness - Orientation Changes', () => {
     // Start in landscape
     await page.setViewportSize({ width: 667, height: 375 });
     await navigateTo(page, ROUTES.HOME);
-    await loginWithPrivyEmail(page, getPrivyTestAccount());
+    await loginWithWallet(page);
     await navigateTo(page, ROUTES.FEED);
     await waitForPageLoad(page);
 
@@ -441,7 +441,7 @@ test.describe('Mobile Responsiveness - Components', () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize(VIEWPORTS.MOBILE);
     await navigateTo(page, ROUTES.HOME);
-    await loginWithPrivyEmail(page, getPrivyTestAccount());
+    await loginWithWallet(page);
     await page.waitForTimeout(2000);
   });
 
@@ -525,7 +525,7 @@ test.describe('Mobile Responsiveness - Text Readability', () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize(VIEWPORTS.MOBILE);
     await navigateTo(page, ROUTES.HOME);
-    await loginWithPrivyEmail(page, getPrivyTestAccount());
+    await loginWithWallet(page);
     await page.waitForTimeout(2000);
   });
 

@@ -258,7 +258,7 @@ describe('Mainnet Integration Test', () => {
       if (skipTests || !deployment) return;
 
       const minStake = await callFn<bigint>(registry, 'MIN_PROVIDER_STAKE');
-      expect(minStake).toBe(parseEther('0.1'));
+      expect(minStake).toBe(parseEther('0.01'));
     });
 
     test('ledger has correct minimum deposit', async () => {

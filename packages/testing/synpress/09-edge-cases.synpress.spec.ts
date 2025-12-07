@@ -11,7 +11,7 @@ import {
   navigateTo,
   waitForPageLoad,
 } from './helpers/page-helpers';
-import { getPrivyTestAccount, loginWithPrivyEmail } from './helpers/privy-auth';
+import { loginWithWallet } from './helpers/privy-auth';
 import {
   ROUTES,
   TEST_FORM_DATA,
@@ -25,7 +25,7 @@ test.describe('Edge Cases - Security', () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize(VIEWPORTS.DESKTOP);
     await navigateTo(page, ROUTES.HOME);
-    await loginWithPrivyEmail(page, getPrivyTestAccount());
+    await loginWithWallet(page);
     await page.waitForTimeout(2000);
   });
 
@@ -106,7 +106,7 @@ test.describe('Edge Cases - Input Validation', () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize(VIEWPORTS.DESKTOP);
     await navigateTo(page, ROUTES.HOME);
-    await loginWithPrivyEmail(page, getPrivyTestAccount());
+    await loginWithWallet(page);
     await page.waitForTimeout(2000);
   });
 
@@ -235,7 +235,7 @@ test.describe('Edge Cases - Rapid Actions', () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize(VIEWPORTS.DESKTOP);
     await navigateTo(page, ROUTES.HOME);
-    await loginWithPrivyEmail(page, getPrivyTestAccount());
+    await loginWithWallet(page);
     await page.waitForTimeout(2000);
   });
 

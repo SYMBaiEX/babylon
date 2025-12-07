@@ -1,8 +1,8 @@
 /**
  * Synpress configuration for Playwright tests.
  *
- * Configures Playwright for Synpress-style tests with wallet integration.
- * Note: Wallet setup is commented out as Privy uses embedded wallets, not MetaMask extension.
+ * Configures Playwright for Synpress-style tests with MetaMask wallet integration.
+ * Uses the default Anvil test wallet for authentication via Privy.
  *
  * @module testing/synpress.config
  */
@@ -15,15 +15,20 @@ const rootDir = resolve(__dirname, '../..');
 config({ path: resolve(rootDir, '.env.local') });
 config({ path: resolve(rootDir, '.env') });
 
-const _SEED_PHRASE =
+// Wallet configuration for MetaMask/Synpress
+// Default uses Anvil's first test account which should be configured as admin
+const SEED_PHRASE =
   process.env.WALLET_SEED_PHRASE ||
   'test test test test test test test test test test test junk';
-const _PASSWORD = process.env.WALLET_PASSWORD || 'Tester@1234';
+const PASSWORD = process.env.WALLET_PASSWORD || 'Tester@1234';
 
-// Log credential status for debugging
-if (process.env.PRIVY_TEST_EMAIL) {
-  console.log('✅ Privy test credentials configured');
-}
+// Log wallet configuration status
+console.log('🔐 Wallet configuration:');
+console.log(`   Seed phrase: ${SEED_PHRASE === 'test test test test test test test test test test test junk' ? 'Default Anvil' : 'Custom'}`);
+console.log(`   Password: ${PASSWORD === 'Tester@1234' ? 'Default' : 'Custom'}`);
+
+// Export for use in tests
+export { SEED_PHRASE, PASSWORD };
 
 export default defineConfig({
   testDir: './synpress',

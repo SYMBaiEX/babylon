@@ -1,11 +1,11 @@
 /**
  * Authentication E2E Tests
  *
- * Tests authentication flow with Privy:
- * - Login/logout functionality
+ * Tests authentication flow with Privy + MetaMask:
+ * - Wallet connection via Privy
  * - Session persistence
  * - Protected route access
- * - Admin access verification
+ * - Admin access verification (Anvil test wallet is admin)
  */
 
 import { expect, test } from '@playwright/test';
@@ -15,9 +15,8 @@ import {
   waitForPageLoad,
 } from './helpers/page-helpers';
 import {
-  getPrivyTestAccount,
-  hasPrivyTestCredentials,
-  loginWithPrivyEmail,
+  hasWalletCredentials,
+  loginWithWallet,
 } from './helpers/privy-auth';
 import {
   ADMIN_ROUTES,
@@ -30,7 +29,7 @@ import {
 
 test.setTimeout(TIMEOUTS.EXTRA_LONG);
 
-test.describe('Authentication - Privy Login Flow', () => {
+test.describe('Authentication - Wallet Connection', () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize({ width: 1920, height: 1080 });
   });
@@ -39,41 +38,41 @@ test.describe('Authentication - Privy Login Flow', () => {
     await cooldownBetweenTests(page);
   });
 
-  test('should show login button when not authenticated', async ({ page }) => {
+  test('should show login/connect button when not authenticated', async ({ page }) => {
     await navigateTo(page, ROUTES.HOME);
     await waitForPageLoad(page);
 
-    // Should see a login/connect button
+    // Should see a login/connect wallet button
     const loginButton = page.locator(SELECTORS.LOGIN_BUTTON).first();
     await expect(loginButton).toBeVisible({ timeout: TIMEOUTS.MEDIUM });
 
     console.log('✅ Login button visible when not authenticated');
   });
 
-  test('should login successfully with Privy email', async ({ page }) => {
+  test('should connect wallet successfully', async ({ page }) => {
     test.skip(
-      !hasPrivyTestCredentials(),
-      'Skipped: PRIVY_TEST_EMAIL not configured'
+      !hasWalletCredentials(),
+      'Skipped: Wallet credentials not configured (using defaults for local testing)'
     );
 
     await navigateTo(page, ROUTES.HOME);
-    await loginWithPrivyEmail(page, getPrivyTestAccount());
+    await loginWithWallet(page);
 
-    // Verify user menu appears after login
+    // Verify user menu appears after connection
     const userMenu = page.locator(SELECTORS.USER_MENU).first();
     await expect(userMenu).toBeVisible({ timeout: TIMEOUTS.LONG });
 
-    console.log('✅ Login successful - user menu visible');
+    console.log('✅ Wallet connection successful - user menu visible');
   });
 
   test('should persist session across page navigation', async ({ page }) => {
     test.skip(
-      !hasPrivyTestCredentials(),
-      'Skipped: PRIVY_TEST_EMAIL not configured'
+      !hasWalletCredentials(),
+      'Skipped: Wallet credentials not configured'
     );
 
     await navigateTo(page, ROUTES.HOME);
-    await loginWithPrivyEmail(page, getPrivyTestAccount());
+    await loginWithWallet(page);
 
     // Navigate to different pages
     const pagesToCheck = [ROUTES.FEED, ROUTES.MARKETS, ROUTES.PROFILE];
@@ -93,11 +92,9 @@ test.describe('Authentication - Privy Login Flow', () => {
     }
   });
 
-  test('should access protected routes when authenticated', async ({
-    page,
-  }) => {
+  test('should access protected routes when authenticated', async ({ page }) => {
     await navigateTo(page, ROUTES.HOME);
-    await loginWithPrivyEmail(page, getPrivyTestAccount());
+    await loginWithWallet(page);
     await page.waitForTimeout(2000);
 
     // Try each authenticated route
@@ -109,7 +106,7 @@ test.describe('Authentication - Privy Login Flow', () => {
       const currentUrl = page.url();
       expect(currentUrl).toContain(route.replace(/\/$/, ''));
 
-      // Should not show "sign in" prompt prominently
+      // Should have content
       const hasContent = await page.locator('body').textContent();
       expect(hasContent).toBeTruthy();
 
@@ -124,18 +121,18 @@ test.describe('Authentication - Privy Login Flow', () => {
     await navigateTo(page, ROUTES.SETTINGS);
     await waitForPageLoad(page);
 
-    // Page should render something (either content with login option, or redirect)
+    // Page should render something
     const pageContent = await page.locator('body').textContent();
     expect(pageContent).toBeTruthy();
 
-    // Check if login button is visible anywhere (not necessarily a prompt)
+    // Check if login button is visible anywhere
     const hasLoginButton = await page
       .locator(SELECTORS.LOGIN_BUTTON)
       .first()
       .isVisible({ timeout: TIMEOUTS.SHORT })
       .catch(() => false);
 
-    // Either has login button OR was redirected (url might change)
+    // Either has login button OR was redirected
     const currentUrl = page.url();
     const wasRedirected =
       !currentUrl.includes('/settings') || currentUrl.includes('login');
@@ -150,7 +147,7 @@ test.describe('Authentication - Admin Access', () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize({ width: 1920, height: 1080 });
     await navigateTo(page, ROUTES.HOME);
-    await loginWithPrivyEmail(page, getPrivyTestAccount());
+    await loginWithWallet(page);
     await page.waitForTimeout(2000);
   });
 
@@ -158,7 +155,7 @@ test.describe('Authentication - Admin Access', () => {
     await cooldownBetweenTests(page);
   });
 
-  test('should access admin dashboard with admin account', async ({ page }) => {
+  test('should access admin dashboard with admin wallet', async ({ page }) => {
     await navigateTo(page, ROUTES.ADMIN);
     await waitForPageLoad(page);
 
@@ -174,14 +171,14 @@ test.describe('Authentication - Admin Access', () => {
     if (isVisible) {
       console.log('✅ Admin dashboard accessible');
     } else {
-      // Check if access denied (user might not be admin)
+      // Check if access denied (wallet might not be admin)
       const accessDenied = await page
         .getByText('Access Denied')
         .isVisible({ timeout: TIMEOUTS.SHORT })
         .catch(() => false);
 
       if (accessDenied) {
-        console.log('⚠️ Admin access denied - user may not have admin role');
+        console.log('⚠️ Admin access denied - wallet may not have admin role');
       } else {
         console.log('ℹ️ Admin page loaded but heading not visible');
       }
@@ -257,8 +254,8 @@ test.describe('Authentication - Session State', () => {
     page,
   }) => {
     test.skip(
-      !hasPrivyTestCredentials(),
-      'Skipped: PRIVY_TEST_EMAIL not configured'
+      !hasWalletCredentials(),
+      'Skipped: Wallet credentials not configured'
     );
 
     // Check UI before login
@@ -270,9 +267,9 @@ test.describe('Authentication - Session State', () => {
       .isVisible({ timeout: TIMEOUTS.SHORT })
       .catch(() => false);
 
-    // Login
+    // Connect wallet
     await navigateTo(page, ROUTES.HOME);
-    await loginWithPrivyEmail(page, getPrivyTestAccount());
+    await loginWithWallet(page);
 
     // Check UI after login
     await navigateTo(page, ROUTES.FEED);

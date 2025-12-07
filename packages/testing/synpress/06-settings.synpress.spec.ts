@@ -17,7 +17,7 @@ import {
   navigateTo,
   waitForPageLoad,
 } from './helpers/page-helpers';
-import { getPrivyTestAccount, loginWithPrivyEmail } from './helpers/privy-auth';
+import { loginWithWallet } from './helpers/privy-auth';
 import {
   ROUTES,
   TEST_FORM_DATA,
@@ -31,7 +31,7 @@ test.describe('Settings Page - Navigation', () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize(VIEWPORTS.DESKTOP);
     await navigateTo(page, ROUTES.HOME);
-    await loginWithPrivyEmail(page, getPrivyTestAccount());
+    await loginWithWallet(page);
     await navigateTo(page, ROUTES.SETTINGS);
     await waitForPageLoad(page);
     await page.waitForTimeout(2000);
@@ -106,7 +106,7 @@ test.describe('Settings Page - Profile Tab', () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize(VIEWPORTS.DESKTOP);
     await navigateTo(page, ROUTES.HOME);
-    await loginWithPrivyEmail(page, getPrivyTestAccount());
+    await loginWithWallet(page);
     await page.goto(
       `${process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000'}/settings?tab=profile`
     );
@@ -241,7 +241,7 @@ test.describe('Settings Page - Theme Tab', () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize(VIEWPORTS.DESKTOP);
     await navigateTo(page, ROUTES.HOME);
-    await loginWithPrivyEmail(page, getPrivyTestAccount());
+    await loginWithWallet(page);
     await page.goto(
       `${process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000'}/settings?tab=theme`
     );
@@ -322,7 +322,7 @@ test.describe('Settings Page - Security Tab', () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize(VIEWPORTS.DESKTOP);
     await navigateTo(page, ROUTES.HOME);
-    await loginWithPrivyEmail(page, getPrivyTestAccount());
+    await loginWithWallet(page);
     await page.goto(
       `${process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000'}/settings?tab=security`
     );
@@ -371,7 +371,7 @@ test.describe('Settings Page - Privacy Tab', () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize(VIEWPORTS.DESKTOP);
     await navigateTo(page, ROUTES.HOME);
-    await loginWithPrivyEmail(page, getPrivyTestAccount());
+    await loginWithWallet(page);
     await page.goto(
       `${process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000'}/settings?tab=privacy`
     );
@@ -423,7 +423,7 @@ test.describe('Settings Page - API Keys Tab', () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize(VIEWPORTS.DESKTOP);
     await navigateTo(page, ROUTES.HOME);
-    await loginWithPrivyEmail(page, getPrivyTestAccount());
+    await loginWithWallet(page);
     await page.goto(
       `${process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000'}/settings?tab=api`
     );
@@ -473,7 +473,7 @@ test.describe('Settings Page - Form Validation', () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize(VIEWPORTS.DESKTOP);
     await navigateTo(page, ROUTES.HOME);
-    await loginWithPrivyEmail(page, getPrivyTestAccount());
+    await loginWithWallet(page);
     await page.goto(
       `${process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000'}/settings?tab=profile`
     );
@@ -546,7 +546,7 @@ test.describe('Settings Page - Mobile View', () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize(VIEWPORTS.MOBILE);
     await navigateTo(page, ROUTES.HOME);
-    await loginWithPrivyEmail(page, getPrivyTestAccount());
+    await loginWithWallet(page);
     await navigateTo(page, ROUTES.SETTINGS);
     await waitForPageLoad(page);
     await page.waitForTimeout(2000);

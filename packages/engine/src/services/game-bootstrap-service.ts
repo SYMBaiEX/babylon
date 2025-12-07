@@ -1,17 +1,8 @@
 /**
  * Game Bootstrap Service
  *
- * Unified service that ensures all game data is properly seeded and synced.
- * This runs automatically at the start of each game tick to ensure:
- * - All actors from data files are in the database
- * - All organizations from data files are in the database
- * - All NPCs have minimum trading balances
- * - All NPCs have pools for trading
- * - Character/organization mappings are synced
- * - Game state is initialized
- * - RSS feeds are configured
- *
- * This replaces the need for manual seeding scripts for game data.
+ * Ensures all game data is properly seeded and synced at tick start.
+ * Replaces the need for manual seeding scripts.
  */
 
 import {
@@ -31,10 +22,6 @@ import { existsSync } from 'fs';
 import { join } from 'path';
 import { loadActorsData } from '../actors-loader';
 import { CapitalAllocationService } from './capital-allocation-service';
-
-// =============================================================================
-// CONFIGURATION
-// =============================================================================
 
 // Minimum balance thresholds by tier
 const MINIMUM_BALANCE_BY_TIER: Record<string, number> = {
@@ -96,10 +83,6 @@ const RSS_FEEDS = [
   },
 ];
 
-// =============================================================================
-// TYPES
-// =============================================================================
-
 export interface GameBootstrapResult {
   actorsCreated: number;
   actorsUpdated: number;
@@ -142,19 +125,11 @@ interface OrgDataInput {
   originalHandle?: string;
 }
 
-// =============================================================================
-// GAME BOOTSTRAP SERVICE
-// =============================================================================
-
 export class GameBootstrapService {
   private static lastBootstrapTime = 0;
-  private static BOOTSTRAP_COOLDOWN_MS = 60000; // Only check once per minute
+  private static BOOTSTRAP_COOLDOWN_MS = 60000;
   private static isBootstrapping = false;
 
-  /**
-   * Bootstrap all game data if needed
-   * Called at the start of each game tick
-   */
   static async bootstrapIfNeeded(): Promise<GameBootstrapResult | null> {
     const now = Date.now();
 
@@ -219,13 +194,10 @@ export class GameBootstrapService {
       // 4. Ensure pools exist
       result.poolsCreated = await this.ensureActorPools();
 
-      // 5. Character/organization mappings are now handled by StaticDataRegistry
-      // (no database sync needed - data is loaded from TypeScript files)
-
-      // 6. Ensure game state exists
+      // 5. Ensure game state exists
       result.gameStateInitialized = await this.ensureGameState();
 
-      // 7. Ensure RSS feeds
+      // 6. Ensure RSS feeds
       result.rssFeedsCreated = await this.ensureRSSFeeds();
 
       // Log summary if anything changed
@@ -254,9 +226,6 @@ export class GameBootstrapService {
     }
   }
 
-  /**
-   * Force a full sync of all data (for admin/testing)
-   */
   static async forceFullSync(): Promise<GameBootstrapResult> {
     this.lastBootstrapTime = 0;
     this.isBootstrapping = false;
@@ -294,23 +263,14 @@ export class GameBootstrapService {
     result.actorsToppedUp = topUpResult.count;
     result.totalTopUpAmount = topUpResult.totalAmount;
 
-    // Ensure pools
     result.poolsCreated = await this.ensureActorPools();
 
-    // Character/organization mappings are now handled by StaticDataRegistry
-    // (no database sync needed - data is loaded from TypeScript files)
-
-    // Ensure game state and RSS feeds
     result.gameStateInitialized = await this.ensureGameState();
     result.rssFeedsCreated = await this.ensureRSSFeeds();
 
     logger.info('Force full sync complete', result, 'GameBootstrapService');
     return result;
   }
-
-  // ===========================================================================
-  // ACTOR OPERATIONS
-  // ===========================================================================
 
   private static async seedActor(actor: ActorDataInput): Promise<void> {
     const profileImageUrl = this.getActorImageUrl(actor.id);
@@ -411,10 +371,6 @@ export class GameBootstrapService {
     return existsSync(imagePath) ? `/images/actors/${actorId}.jpg` : null;
   }
 
-  // ===========================================================================
-  // ORGANIZATION OPERATIONS
-  // ===========================================================================
-
   private static async seedOrganization(org: OrgDataInput): Promise<void> {
     const imageUrl = this.getOrgImageUrl(org.id);
 
@@ -489,10 +445,6 @@ export class GameBootstrapService {
     return existsSync(imagePath) ? `/images/organizations/${orgId}.jpg` : null;
   }
 
-  // ===========================================================================
-  // BALANCE MANAGEMENT
-  // ===========================================================================
-
   private static async ensureMinimumBalances(): Promise<{
     count: number;
     totalAmount: number;
@@ -541,10 +493,6 @@ export class GameBootstrapService {
 
     return { count: toppedUpCount, totalAmount: totalTopUp };
   }
-
-  // ===========================================================================
-  // POOL MANAGEMENT
-  // ===========================================================================
 
   private static async ensureActorPools(): Promise<number> {
     const actorsWithoutPools = await db
@@ -596,10 +544,6 @@ export class GameBootstrapService {
     return created;
   }
 
-  // ===========================================================================
-  // GAME STATE
-  // ===========================================================================
-
   private static async ensureGameState(): Promise<boolean> {
     const existingGame = await db
       .select()
@@ -643,10 +587,6 @@ export class GameBootstrapService {
     return false;
   }
 
-  // ===========================================================================
-  // RSS FEEDS
-  // ===========================================================================
-
   private static async ensureRSSFeeds(): Promise<number> {
     let created = 0;
 
@@ -672,20 +612,10 @@ export class GameBootstrapService {
     return created;
   }
 
-  // ===========================================================================
-  // UTILITY METHODS
-  // ===========================================================================
-
-  /**
-   * Get the minimum balance for a given tier
-   */
   static getMinimumBalance(tier: string): number {
     return MINIMUM_BALANCE_BY_TIER[tier] || DEFAULT_MINIMUM_BALANCE;
   }
 
-  /**
-   * Get database statistics
-   */
   static async getStats(): Promise<{
     actors: number;
     organizations: number;
@@ -701,7 +631,6 @@ export class GameBootstrapService {
       db.select({ count: sql<number>`count(*)` }).from(rssFeedSources),
     ]);
 
-    // Character and organization mappings are now from StaticDataRegistry
     const { StaticDataRegistry } = await import('./static-data-registry');
 
     return {

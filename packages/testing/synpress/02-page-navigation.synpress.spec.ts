@@ -14,7 +14,7 @@ import {
   navigateTo,
   waitForPageLoad,
 } from './helpers/page-helpers';
-import { getPrivyTestAccount, loginWithPrivyEmail } from './helpers/privy-auth';
+import { loginWithWallet } from './helpers/privy-auth';
 import { ROUTES, SELECTORS, TIMEOUTS, VIEWPORTS } from './helpers/test-data';
 
 test.setTimeout(TIMEOUTS.EXTRA_LONG);
@@ -23,7 +23,7 @@ test.describe('Page Navigation - Core Routes', () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize(VIEWPORTS.DESKTOP);
     await navigateTo(page, ROUTES.HOME);
-    await loginWithPrivyEmail(page, getPrivyTestAccount());
+    await loginWithWallet(page);
     await page.waitForTimeout(2000);
   });
 
@@ -165,7 +165,7 @@ test.describe('Page Navigation - Markets Sub-routes', () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize(VIEWPORTS.DESKTOP);
     await navigateTo(page, ROUTES.HOME);
-    await loginWithPrivyEmail(page, getPrivyTestAccount());
+    await loginWithWallet(page);
     await page.waitForTimeout(2000);
   });
 
@@ -204,7 +204,7 @@ test.describe('Page Navigation - Agents Routes', () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize(VIEWPORTS.DESKTOP);
     await navigateTo(page, ROUTES.HOME);
-    await loginWithPrivyEmail(page, getPrivyTestAccount());
+    await loginWithWallet(page);
     await page.waitForTimeout(2000);
   });
 
@@ -233,7 +233,7 @@ test.describe('Page Navigation - Admin Routes', () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize(VIEWPORTS.DESKTOP);
     await navigateTo(page, ROUTES.HOME);
-    await loginWithPrivyEmail(page, getPrivyTestAccount());
+    await loginWithWallet(page);
     await page.waitForTimeout(2000);
   });
 
@@ -270,7 +270,7 @@ test.describe('Page Navigation - Navigation Links', () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize(VIEWPORTS.DESKTOP);
     await navigateTo(page, ROUTES.HOME);
-    await loginWithPrivyEmail(page, getPrivyTestAccount());
+    await loginWithWallet(page);
     await page.waitForTimeout(2000);
   });
 
@@ -331,7 +331,7 @@ test.describe('Page Navigation - Mobile Navigation', () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize(VIEWPORTS.MOBILE);
     await navigateTo(page, ROUTES.HOME);
-    await loginWithPrivyEmail(page, getPrivyTestAccount());
+    await loginWithWallet(page);
     await page.waitForTimeout(2000);
   });
 
@@ -421,7 +421,7 @@ test.describe('Page Navigation - Loading States', () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize(VIEWPORTS.DESKTOP);
     await navigateTo(page, ROUTES.HOME);
-    await loginWithPrivyEmail(page, getPrivyTestAccount());
+    await loginWithWallet(page);
     await page.waitForTimeout(2000);
   });
 

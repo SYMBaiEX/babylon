@@ -18,7 +18,7 @@ import {
   navigateTo,
   waitForPageLoad,
 } from './helpers/page-helpers';
-import { getPrivyTestAccount, loginWithPrivyEmail } from './helpers/privy-auth';
+import { loginWithWallet } from './helpers/privy-auth';
 import { ROUTES, TIMEOUTS, VIEWPORTS } from './helpers/test-data';
 
 test.setTimeout(TIMEOUTS.EXTRA_LONG);
@@ -27,7 +27,7 @@ test.describe('Admin Panel - Access and Dashboard', () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize(VIEWPORTS.DESKTOP);
     await navigateTo(page, ROUTES.HOME);
-    await loginWithPrivyEmail(page, getPrivyTestAccount());
+    await loginWithWallet(page);
     await navigateTo(page, ROUTES.ADMIN);
     await waitForPageLoad(page);
     await page.waitForTimeout(2000);
@@ -113,7 +113,7 @@ test.describe('Admin Panel - Stats Tab', () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize(VIEWPORTS.DESKTOP);
     await navigateTo(page, ROUTES.HOME);
-    await loginWithPrivyEmail(page, getPrivyTestAccount());
+    await loginWithWallet(page);
     await navigateTo(page, ROUTES.ADMIN);
     await waitForPageLoad(page);
     await page.waitForTimeout(2000);
@@ -145,7 +145,7 @@ test.describe('Admin Panel - Users Tab', () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize(VIEWPORTS.DESKTOP);
     await navigateTo(page, ROUTES.HOME);
-    await loginWithPrivyEmail(page, getPrivyTestAccount());
+    await loginWithWallet(page);
     await navigateTo(page, ROUTES.ADMIN);
     await waitForPageLoad(page);
     await page.waitForTimeout(2000);
@@ -198,7 +198,7 @@ test.describe('Admin Panel - Agents Tab', () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize(VIEWPORTS.DESKTOP);
     await navigateTo(page, ROUTES.HOME);
-    await loginWithPrivyEmail(page, getPrivyTestAccount());
+    await loginWithWallet(page);
     await navigateTo(page, ROUTES.ADMIN);
     await waitForPageLoad(page);
     await page.waitForTimeout(2000);
@@ -236,7 +236,7 @@ test.describe('Admin Panel - Registry Tab', () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize(VIEWPORTS.DESKTOP);
     await navigateTo(page, ROUTES.HOME);
-    await loginWithPrivyEmail(page, getPrivyTestAccount());
+    await loginWithWallet(page);
     await navigateTo(page, ROUTES.ADMIN);
     await waitForPageLoad(page);
     await page.waitForTimeout(2000);
@@ -297,7 +297,7 @@ test.describe('Admin Panel - Reports Tab', () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize(VIEWPORTS.DESKTOP);
     await navigateTo(page, ROUTES.HOME);
-    await loginWithPrivyEmail(page, getPrivyTestAccount());
+    await loginWithWallet(page);
     await navigateTo(page, ROUTES.ADMIN);
     await waitForPageLoad(page);
     await page.waitForTimeout(2000);
@@ -337,7 +337,7 @@ test.describe('Admin Panel - Training Tab', () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize(VIEWPORTS.DESKTOP);
     await navigateTo(page, ROUTES.HOME);
-    await loginWithPrivyEmail(page, getPrivyTestAccount());
+    await loginWithWallet(page);
     await navigateTo(page, ROUTES.ADMIN);
     await waitForPageLoad(page);
     await page.waitForTimeout(2000);
@@ -367,7 +367,7 @@ test.describe('Admin Panel - Game Control', () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize(VIEWPORTS.DESKTOP);
     await navigateTo(page, ROUTES.HOME);
-    await loginWithPrivyEmail(page, getPrivyTestAccount());
+    await loginWithWallet(page);
     await navigateTo(page, ROUTES.ADMIN);
     await waitForPageLoad(page);
     await page.waitForTimeout(2000);
@@ -398,7 +398,7 @@ test.describe('Admin Panel - Fee Management', () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize(VIEWPORTS.DESKTOP);
     await navigateTo(page, ROUTES.HOME);
-    await loginWithPrivyEmail(page, getPrivyTestAccount());
+    await loginWithWallet(page);
     await navigateTo(page, ROUTES.ADMIN);
     await waitForPageLoad(page);
     await page.waitForTimeout(2000);
@@ -419,7 +419,7 @@ test.describe('Admin Panel - World Facts', () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize(VIEWPORTS.DESKTOP);
     await navigateTo(page, ROUTES.HOME);
-    await loginWithPrivyEmail(page, getPrivyTestAccount());
+    await loginWithWallet(page);
     await navigateTo(page, ROUTES.ADMIN);
     await waitForPageLoad(page);
     await page.waitForTimeout(2000);
@@ -440,7 +440,7 @@ test.describe('Admin Panel - Human Review', () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize(VIEWPORTS.DESKTOP);
     await navigateTo(page, ROUTES.HOME);
-    await loginWithPrivyEmail(page, getPrivyTestAccount());
+    await loginWithWallet(page);
     await navigateTo(page, ROUTES.ADMIN);
     await waitForPageLoad(page);
     await page.waitForTimeout(2000);
@@ -461,7 +461,7 @@ test.describe('Admin Panel - Mobile View', () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize(VIEWPORTS.MOBILE);
     await navigateTo(page, ROUTES.HOME);
-    await loginWithPrivyEmail(page, getPrivyTestAccount());
+    await loginWithWallet(page);
     await navigateTo(page, ROUTES.ADMIN);
     await waitForPageLoad(page);
     await page.waitForTimeout(2000);
