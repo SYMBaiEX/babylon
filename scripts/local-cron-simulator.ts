@@ -162,8 +162,8 @@ async function executeTick() {
 }
 
 async function waitForServer(
-  maxAttempts = 30,
-  delayMs = 2000
+  maxAttempts = 60,
+  delayMs = 3000
 ): Promise<boolean> {
   console.info(
     'Waiting for Next.js server to be ready...',

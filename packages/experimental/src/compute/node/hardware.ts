@@ -153,7 +153,7 @@ export async function detectHardware(): Promise<HardwareInfo> {
 }
 
 /**
- * Generate hardware hash for attestation
+ * Generate hardware hash for attestation (bytes32)
  */
 export function generateHardwareHash(info: HardwareInfo): string {
   const data = JSON.stringify({
@@ -165,7 +165,8 @@ export function generateHardwareHash(info: HardwareInfo): string {
     mlxVersion: info.mlxVersion,
   });
 
-  // Use Bun's built-in crypto
-  const hash = Bun.hash(data);
-  return hash.toString(16).padStart(16, '0');
+  // Use crypto hasher for proper bytes32
+  const hasher = new Bun.CryptoHasher('sha256');
+  hasher.update(data);
+  return '0x' + hasher.digest('hex');
 }

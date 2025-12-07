@@ -15,7 +15,7 @@ contract ComputeRegistry is IComputeRegistry, Ownable, ReentrancyGuard, Pausable
     
     // ============ Constants ============
     
-    uint256 public constant MIN_PROVIDER_STAKE = 0.1 ether;
+    uint256 public constant MIN_PROVIDER_STAKE = 0.01 ether;
     uint256 public constant STAKE_LOCKUP_PERIOD = 7 days;
     
     // ============ State Variables ============

@@ -293,7 +293,16 @@ export const parodyHeadlines = pgTable(
   ]
 );
 
-// CharacterMapping
+/**
+ * @deprecated MIGRATION COMPLETE
+ *
+ * The `characterMappings` table is deprecated. Character mappings are now
+ * generated automatically from static actor data in TypeScript and accessed
+ * via StaticDataRegistry.getAllCharacterMappings() from @babylon/engine.
+ *
+ * See: packages/engine/src/data/actors/*.ts for actor data
+ * See: packages/engine/src/services/static-data-registry.ts for mapping generation
+ */
 export const characterMappings = pgTable(
   'CharacterMapping',
   {
@@ -316,7 +325,16 @@ export const characterMappings = pgTable(
   ]
 );
 
-// OrganizationMapping
+/**
+ * @deprecated MIGRATION COMPLETE
+ *
+ * The `organizationMappings` table is deprecated. Organization mappings are now
+ * generated automatically from static organization data in TypeScript and accessed
+ * via StaticDataRegistry.getAllOrganizationMappings() from @babylon/engine.
+ *
+ * See: packages/engine/src/data/organizations/*.ts for organization data
+ * See: packages/engine/src/services/static-data-registry.ts for mapping generation
+ */
 export const organizationMappings = pgTable(
   'OrganizationMapping',
   {

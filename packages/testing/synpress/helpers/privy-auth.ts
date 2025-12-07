@@ -30,7 +30,9 @@ export function getPrivyTestAccount(): PrivyTestAccount {
 
   if (!email) {
     console.warn('⚠️ PRIVY_TEST_EMAIL not set - using default test credentials');
-    console.warn('   Authentication tests may fail without valid Privy credentials');
+    console.warn(
+      '   Authentication tests may fail without valid Privy credentials'
+    );
     // Return a placeholder that will likely fail auth but not crash
     return {
       email: 'test@example.com',

@@ -31,18 +31,46 @@ import { detectHardware, generateHardwareHash } from '../node/hardware';
 import { ComputeNodeServer } from '../node/server';
 import type { ProviderConfig } from '../node/types';
 
-// Contract addresses from environment (required)
-const CONTRACTS = {
-  registry: process.env.REGISTRY_ADDRESS || '',
-  ledger: process.env.LEDGER_ADDRESS || '',
-  inference: process.env.INFERENCE_ADDRESS || '',
-};
+// Load contract addresses from deployment file or environment
+async function loadContracts(): Promise<{
+  registry: string;
+  ledger: string;
+  inference: string;
+}> {
+  // First check environment
+  if (
+    process.env.REGISTRY_ADDRESS &&
+    process.env.LEDGER_ADDRESS &&
+    process.env.INFERENCE_ADDRESS
+  ) {
+    return {
+      registry: process.env.REGISTRY_ADDRESS,
+      ledger: process.env.LEDGER_ADDRESS,
+      inference: process.env.INFERENCE_ADDRESS,
+    };
+  }
+
+  // Try to load from deployment file
+  const network = process.env.NETWORK || 'sepolia';
+  const deploymentPath = `${import.meta.dir}/../../../deployments/${network}.json`;
+
+  try {
+    const deployment = await Bun.file(deploymentPath).json();
+    return {
+      registry: deployment.contracts.registry,
+      ledger: deployment.contracts.ledger,
+      inference: deployment.contracts.inference,
+    };
+  } catch {
+    return { registry: '', ledger: '', inference: '' };
+  }
+}
 
 const REGISTRY_ABI = [
-  'function register(string name, string endpoint, uint256 minStake) payable',
+  'function register(string name, string endpoint, bytes32 attestationHash) payable returns (address)',
   'function isActive(address) view returns (bool)',
-  'function getProvider(address) view returns (tuple(address, string, string, bytes32, uint256, uint256, bool))',
-  'function MIN_STAKE() view returns (uint256)',
+  'function getProvider(address) view returns (tuple(address owner, string name, string endpoint, bytes32 attestationHash, uint256 stake, uint256 registeredAt, bool active))',
+  'function MIN_PROVIDER_STAKE() view returns (uint256)',
 ];
 
 const INFERENCE_ABI = [
@@ -73,7 +101,8 @@ async function main() {
   const stakeAmount = parseEther(process.env.STAKE_AMOUNT || '0.1');
   const port = Number.parseInt(process.env.PORT || '8080', 10);
 
-  // Check contract addresses
+  // Load contract addresses
+  const CONTRACTS = await loadContracts();
   if (!CONTRACTS.registry || !CONTRACTS.ledger || !CONTRACTS.inference) {
     console.error('❌ Contract addresses not configured');
     console.log('\nSet the following environment variables:');
@@ -84,6 +113,10 @@ async function main() {
     console.log('  NETWORK=sepolia bun run compute:deploy:sepolia');
     process.exit(1);
   }
+
+  console.log(`   Registry: ${CONTRACTS.registry}`);
+  console.log(`   Ledger: ${CONTRACTS.ledger}`);
+  console.log(`   Inference: ${CONTRACTS.inference}`);
 
   // 2. Initialize wallet
   console.log('\n📋 Configuration:');
@@ -101,9 +134,9 @@ async function main() {
   const balance = await provider.getBalance(wallet.address);
   console.log(`   Balance: ${formatEther(balance)} ETH`);
 
-  if (balance < stakeAmount + parseEther('0.01')) {
+  if (balance < stakeAmount + parseEther('0.005')) {
     console.error(
-      `\n❌ Insufficient balance. Need at least ${formatEther(stakeAmount + parseEther('0.01'))} ETH`
+      `\n❌ Insufficient balance. Need at least ${formatEther(stakeAmount + parseEther('0.005'))} ETH`
     );
     console.log(`   Current balance: ${formatEther(balance)} ETH`);
     console.log('\n   Get testnet ETH from:');
@@ -142,15 +175,19 @@ async function main() {
     console.log('   Registering as provider...');
 
     const endpoint = `http://localhost:${port}`; // Will be updated after deployment
-    const minStake = await registry.MIN_STAKE();
+    const minStake = await registry.MIN_PROVIDER_STAKE();
+    console.log(`   Min stake required: ${formatEther(minStake)} ETH`);
 
     const actualStake = stakeAmount > minStake ? stakeAmount : minStake;
+
+    // Generate attestation hash from hardware
+    const attestationHash = hardwareHash;
 
     try {
       const tx = await registry.register(
         `babylon-provider-${wallet.address.slice(0, 8)}`,
         endpoint,
-        actualStake,
+        attestationHash,
         { value: actualStake }
       );
       console.log(`   Transaction: ${tx.hash}`);

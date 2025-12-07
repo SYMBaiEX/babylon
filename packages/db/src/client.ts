@@ -1221,10 +1221,16 @@ export interface DrizzleClient {
     InferSelect<typeof schema.poolDeposits>,
     InferInsert<typeof schema.poolDeposits>
   >;
+  /** @deprecated Use StaticDataRegistry for static data, organizationState for dynamic data */
   organization: TableRepository<
     typeof schema.organizations,
     InferSelect<typeof schema.organizations>,
     InferInsert<typeof schema.organizations>
+  >;
+  organizationState: TableRepository<
+    typeof schema.organizationState,
+    InferSelect<typeof schema.organizationState>,
+    InferInsert<typeof schema.organizationState>
   >;
   stockPrice: TableRepository<
     typeof schema.stockPrices,
@@ -1709,10 +1715,16 @@ export function createDrizzleClient(drizzle: SchemaDatabase): DrizzleClient {
       schema.poolDeposits,
       'poolDeposits'
     ),
+    /** @deprecated Use StaticDataRegistry for static data, organizationState for dynamic data */
     organization: new TableRepository(
       drizzle,
       schema.organizations,
       'organizations'
+    ),
+    organizationState: new TableRepository(
+      drizzle,
+      schema.organizationState,
+      'organizationState'
     ),
     stockPrice: new TableRepository(drizzle, schema.stockPrices, 'stockPrices'),
     question: new TableRepository(drizzle, schema.questions, 'questions'),

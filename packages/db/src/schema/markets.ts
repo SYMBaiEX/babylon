@@ -140,7 +140,21 @@ export const predictionPriceHistories = pgTable(
   ]
 );
 
-// Organization (companies)
+/**
+ * @deprecated MIGRATION IN PROGRESS
+ *
+ * The `organizations` table is being deprecated. Static organization data
+ * (name, ticker, description, type, initialPrice, etc.) should be accessed
+ * via StaticDataRegistry from @babylon/engine, which loads data from
+ * packages/engine/src/data/organizations/*.ts
+ *
+ * For dynamic runtime state (currentPrice), use the new `organizationState`
+ * table from ./organization-state.ts
+ *
+ * Migration path:
+ * 1. Replace static data queries with StaticDataRegistry.getOrganization(id)
+ * 2. Replace currentPrice queries with db.organizationState.findUnique({ where: { id } })
+ */
 export const organizations = pgTable(
   'Organization',
   {

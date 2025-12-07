@@ -55,8 +55,14 @@ test.describe('Settings Page - Navigation', () => {
     const expectedTabs = ['Profile', 'Theme', 'Security', 'Privacy', 'API'];
 
     for (const tabName of expectedTabs) {
-      const tab = page.locator(`button:has-text("${tabName}"), [role="tab"]:has-text("${tabName}")`).first();
-      const isVisible = await tab.isVisible({ timeout: TIMEOUTS.SHORT }).catch(() => false);
+      const tab = page
+        .locator(
+          `button:has-text("${tabName}"), [role="tab"]:has-text("${tabName}")`
+        )
+        .first();
+      const isVisible = await tab
+        .isVisible({ timeout: TIMEOUTS.SHORT })
+        .catch(() => false);
 
       if (isVisible) {
         console.log(`✅ Tab "${tabName}" visible`);
@@ -83,8 +89,12 @@ test.describe('Settings Page - Navigation', () => {
   });
 
   test('should have back button', async ({ page }) => {
-    const backButton = page.locator('button:has-text("Back"), a:has-text("Back")').first();
-    const isVisible = await backButton.isVisible({ timeout: TIMEOUTS.SHORT }).catch(() => false);
+    const backButton = page
+      .locator('button:has-text("Back"), a:has-text("Back")')
+      .first();
+    const isVisible = await backButton
+      .isVisible({ timeout: TIMEOUTS.SHORT })
+      .catch(() => false);
 
     if (isVisible) {
       console.log('✅ Back button visible');
@@ -97,7 +107,9 @@ test.describe('Settings Page - Profile Tab', () => {
     await page.setViewportSize(VIEWPORTS.DESKTOP);
     await navigateTo(page, ROUTES.HOME);
     await loginWithPrivyEmail(page, getPrivyTestAccount());
-    await page.goto(`${process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000'}/settings?tab=profile`);
+    await page.goto(
+      `${process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000'}/settings?tab=profile`
+    );
     await waitForPageLoad(page);
     await page.waitForTimeout(2000);
   });
@@ -108,14 +120,19 @@ test.describe('Settings Page - Profile Tab', () => {
 
   test('should display profile form fields', async ({ page }) => {
     const fields = [
-      { label: 'Display Name', selector: 'input#displayName, input[name="displayName"]' },
+      {
+        label: 'Display Name',
+        selector: 'input#displayName, input[name="displayName"]',
+      },
       { label: 'Username', selector: 'input#username, input[name="username"]' },
       { label: 'Bio', selector: 'textarea#bio, textarea[name="bio"]' },
     ];
 
     for (const { label, selector } of fields) {
       const field = page.locator(selector).first();
-      const isVisible = await field.isVisible({ timeout: TIMEOUTS.SHORT }).catch(() => false);
+      const isVisible = await field
+        .isVisible({ timeout: TIMEOUTS.SHORT })
+        .catch(() => false);
 
       if (isVisible) {
         console.log(`✅ ${label} field visible`);
@@ -125,8 +142,12 @@ test.describe('Settings Page - Profile Tab', () => {
     }
   });
 
-  test('should pre-fill profile fields with current values', async ({ page }) => {
-    const displayNameInput = page.locator('input#displayName, input[name="displayName"]').first();
+  test('should pre-fill profile fields with current values', async ({
+    page,
+  }) => {
+    const displayNameInput = page
+      .locator('input#displayName, input[name="displayName"]')
+      .first();
 
     if (await displayNameInput.isVisible({ timeout: TIMEOUTS.SHORT })) {
       const value = await displayNameInput.inputValue();
@@ -135,7 +156,9 @@ test.describe('Settings Page - Profile Tab', () => {
   });
 
   test('should update display name field', async ({ page }) => {
-    const displayNameInput = page.locator('input#displayName, input[name="displayName"]').first();
+    const displayNameInput = page
+      .locator('input#displayName, input[name="displayName"]')
+      .first();
 
     if (await displayNameInput.isVisible({ timeout: TIMEOUTS.SHORT })) {
       await displayNameInput.clear();
@@ -149,7 +172,9 @@ test.describe('Settings Page - Profile Tab', () => {
   });
 
   test('should update bio field', async ({ page }) => {
-    const bioTextarea = page.locator('textarea#bio, textarea[name="bio"]').first();
+    const bioTextarea = page
+      .locator('textarea#bio, textarea[name="bio"]')
+      .first();
 
     if (await bioTextarea.isVisible({ timeout: TIMEOUTS.SHORT })) {
       await bioTextarea.clear();
@@ -164,7 +189,9 @@ test.describe('Settings Page - Profile Tab', () => {
 
   test('should show username change restriction message', async ({ page }) => {
     const usernameMessage = page.locator('text=/24 hours|once every/i').first();
-    const isVisible = await usernameMessage.isVisible({ timeout: TIMEOUTS.SHORT }).catch(() => false);
+    const isVisible = await usernameMessage
+      .isVisible({ timeout: TIMEOUTS.SHORT })
+      .catch(() => false);
 
     console.log(`✅ Username restriction message: ${isVisible}`);
   });
@@ -176,7 +203,9 @@ test.describe('Settings Page - Profile Tab', () => {
   });
 
   test('should save profile changes', async ({ page }) => {
-    const displayNameInput = page.locator('input#displayName, input[name="displayName"]').first();
+    const displayNameInput = page
+      .locator('input#displayName, input[name="displayName"]')
+      .first();
     const saveButton = page.locator('button:has-text("Save")').first();
 
     if (await displayNameInput.isVisible({ timeout: TIMEOUTS.SHORT })) {
@@ -185,17 +214,24 @@ test.describe('Settings Page - Profile Tab', () => {
       await displayNameInput.fill(newName);
       await page.waitForTimeout(500);
 
-      if (await saveButton.isVisible() && !(await saveButton.isDisabled())) {
+      if ((await saveButton.isVisible()) && !(await saveButton.isDisabled())) {
         await saveButton.click();
         await page.waitForTimeout(3000);
 
         // Check for success indication
-        const savedMessage = page.getByText('Saved').or(page.getByText('Success'));
-        const hasSaved = await savedMessage.first().isVisible({ timeout: TIMEOUTS.SHORT }).catch(() => false);
+        const savedMessage = page
+          .getByText('Saved')
+          .or(page.getByText('Success'));
+        const hasSaved = await savedMessage
+          .first()
+          .isVisible({ timeout: TIMEOUTS.SHORT })
+          .catch(() => false);
 
         console.log(`✅ Save button clicked, success indicator: ${hasSaved}`);
       } else {
-        console.log('ℹ️ Save button disabled (user may not be on-chain registered)');
+        console.log(
+          'ℹ️ Save button disabled (user may not be on-chain registered)'
+        );
       }
     }
   });
@@ -206,7 +242,9 @@ test.describe('Settings Page - Theme Tab', () => {
     await page.setViewportSize(VIEWPORTS.DESKTOP);
     await navigateTo(page, ROUTES.HOME);
     await loginWithPrivyEmail(page, getPrivyTestAccount());
-    await page.goto(`${process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000'}/settings?tab=theme`);
+    await page.goto(
+      `${process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000'}/settings?tab=theme`
+    );
     await waitForPageLoad(page);
     await page.waitForTimeout(2000);
   });
@@ -219,8 +257,14 @@ test.describe('Settings Page - Theme Tab', () => {
     const themeOptions = ['Light', 'Dark', 'System'];
 
     for (const theme of themeOptions) {
-      const option = page.locator(`label:has-text("${theme}"), input[value="${theme.toLowerCase()}"]`).first();
-      const isVisible = await option.isVisible({ timeout: TIMEOUTS.SHORT }).catch(() => false);
+      const option = page
+        .locator(
+          `label:has-text("${theme}"), input[value="${theme.toLowerCase()}"]`
+        )
+        .first();
+      const isVisible = await option
+        .isVisible({ timeout: TIMEOUTS.SHORT })
+        .catch(() => false);
 
       if (isVisible) {
         console.log(`✅ Theme option "${theme}" visible`);
@@ -229,7 +273,9 @@ test.describe('Settings Page - Theme Tab', () => {
   });
 
   test('should switch to dark theme', async ({ page }) => {
-    const darkOption = page.locator('label:has-text("Dark"), input[value="dark"]').first();
+    const darkOption = page
+      .locator('label:has-text("Dark"), input[value="dark"]')
+      .first();
 
     if (await darkOption.isVisible({ timeout: TIMEOUTS.SHORT })) {
       await darkOption.click();
@@ -237,8 +283,10 @@ test.describe('Settings Page - Theme Tab', () => {
 
       // Check if theme was applied (usually adds class to html element)
       const isDark = await page.evaluate(() => {
-        return document.documentElement.classList.contains('dark') ||
-               document.documentElement.getAttribute('data-theme') === 'dark';
+        return (
+          document.documentElement.classList.contains('dark') ||
+          document.documentElement.getAttribute('data-theme') === 'dark'
+        );
       });
 
       console.log(`✅ Dark theme applied: ${isDark}`);
@@ -246,7 +294,9 @@ test.describe('Settings Page - Theme Tab', () => {
   });
 
   test('should switch to light theme', async ({ page }) => {
-    const lightOption = page.locator('label:has-text("Light"), input[value="light"]').first();
+    const lightOption = page
+      .locator('label:has-text("Light"), input[value="light"]')
+      .first();
 
     if (await lightOption.isVisible({ timeout: TIMEOUTS.SHORT })) {
       await lightOption.click();
@@ -257,8 +307,12 @@ test.describe('Settings Page - Theme Tab', () => {
   });
 
   test('should show theme auto-save message', async ({ page }) => {
-    const autoSaveMessage = page.locator('text=/saved automatically|applied immediately/i').first();
-    const isVisible = await autoSaveMessage.isVisible({ timeout: TIMEOUTS.SHORT }).catch(() => false);
+    const autoSaveMessage = page
+      .locator('text=/saved automatically|applied immediately/i')
+      .first();
+    const isVisible = await autoSaveMessage
+      .isVisible({ timeout: TIMEOUTS.SHORT })
+      .catch(() => false);
 
     console.log(`✅ Auto-save message visible: ${isVisible}`);
   });
@@ -269,7 +323,9 @@ test.describe('Settings Page - Security Tab', () => {
     await page.setViewportSize(VIEWPORTS.DESKTOP);
     await navigateTo(page, ROUTES.HOME);
     await loginWithPrivyEmail(page, getPrivyTestAccount());
-    await page.goto(`${process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000'}/settings?tab=security`);
+    await page.goto(
+      `${process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000'}/settings?tab=security`
+    );
     await waitForPageLoad(page);
     await page.waitForTimeout(2000);
   });
@@ -284,16 +340,28 @@ test.describe('Settings Page - Security Tab', () => {
     console.log('✅ Security tab content displays');
   });
 
-  test('should display connected accounts or login methods', async ({ page }) => {
-    const connectedAccounts = page.locator('text=/Connected|Linked|Email|Wallet/i').first();
-    const isVisible = await connectedAccounts.isVisible({ timeout: TIMEOUTS.SHORT }).catch(() => false);
+  test('should display connected accounts or login methods', async ({
+    page,
+  }) => {
+    const connectedAccounts = page
+      .locator('text=/Connected|Linked|Email|Wallet/i')
+      .first();
+    const isVisible = await connectedAccounts
+      .isVisible({ timeout: TIMEOUTS.SHORT })
+      .catch(() => false);
 
     console.log(`✅ Connected accounts section: ${isVisible}`);
   });
 
   test('should display logout option', async ({ page }) => {
-    const logoutButton = page.locator('button:has-text("Log out"), button:has-text("Sign out"), button:has-text("Disconnect")').first();
-    const isVisible = await logoutButton.isVisible({ timeout: TIMEOUTS.SHORT }).catch(() => false);
+    const logoutButton = page
+      .locator(
+        'button:has-text("Log out"), button:has-text("Sign out"), button:has-text("Disconnect")'
+      )
+      .first();
+    const isVisible = await logoutButton
+      .isVisible({ timeout: TIMEOUTS.SHORT })
+      .catch(() => false);
 
     console.log(`✅ Logout option visible: ${isVisible}`);
   });
@@ -304,7 +372,9 @@ test.describe('Settings Page - Privacy Tab', () => {
     await page.setViewportSize(VIEWPORTS.DESKTOP);
     await navigateTo(page, ROUTES.HOME);
     await loginWithPrivyEmail(page, getPrivyTestAccount());
-    await page.goto(`${process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000'}/settings?tab=privacy`);
+    await page.goto(
+      `${process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000'}/settings?tab=privacy`
+    );
     await waitForPageLoad(page);
     await page.waitForTimeout(2000);
   });
@@ -321,21 +391,29 @@ test.describe('Settings Page - Privacy Tab', () => {
 
   test('should display blocked users option', async ({ page }) => {
     const blockedUsers = page.locator('text=/Blocked|Block/i').first();
-    const isVisible = await blockedUsers.isVisible({ timeout: TIMEOUTS.SHORT }).catch(() => false);
+    const isVisible = await blockedUsers
+      .isVisible({ timeout: TIMEOUTS.SHORT })
+      .catch(() => false);
 
     console.log(`✅ Blocked users section: ${isVisible}`);
   });
 
   test('should display muted users option', async ({ page }) => {
     const mutedUsers = page.locator('text=/Muted|Mute/i').first();
-    const isVisible = await mutedUsers.isVisible({ timeout: TIMEOUTS.SHORT }).catch(() => false);
+    const isVisible = await mutedUsers
+      .isVisible({ timeout: TIMEOUTS.SHORT })
+      .catch(() => false);
 
     console.log(`✅ Muted users section: ${isVisible}`);
   });
 
   test('should display delete account option', async ({ page }) => {
-    const deleteAccount = page.locator('text=/Delete account|Delete my account/i').first();
-    const isVisible = await deleteAccount.isVisible({ timeout: TIMEOUTS.SHORT }).catch(() => false);
+    const deleteAccount = page
+      .locator('text=/Delete account|Delete my account/i')
+      .first();
+    const isVisible = await deleteAccount
+      .isVisible({ timeout: TIMEOUTS.SHORT })
+      .catch(() => false);
 
     console.log(`✅ Delete account option: ${isVisible}`);
   });
@@ -346,7 +424,9 @@ test.describe('Settings Page - API Keys Tab', () => {
     await page.setViewportSize(VIEWPORTS.DESKTOP);
     await navigateTo(page, ROUTES.HOME);
     await loginWithPrivyEmail(page, getPrivyTestAccount());
-    await page.goto(`${process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000'}/settings?tab=api`);
+    await page.goto(
+      `${process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000'}/settings?tab=api`
+    );
     await waitForPageLoad(page);
     await page.waitForTimeout(2000);
   });
@@ -356,22 +436,34 @@ test.describe('Settings Page - API Keys Tab', () => {
   });
 
   test('should display API keys section', async ({ page }) => {
-    const apiSection = page.locator('text=/API Key|API Keys|Access Keys/i').first();
-    const isVisible = await apiSection.isVisible({ timeout: TIMEOUTS.SHORT }).catch(() => false);
+    const apiSection = page
+      .locator('text=/API Key|API Keys|Access Keys/i')
+      .first();
+    const isVisible = await apiSection
+      .isVisible({ timeout: TIMEOUTS.SHORT })
+      .catch(() => false);
 
     console.log(`✅ API keys section: ${isVisible}`);
   });
 
   test('should have create API key button', async ({ page }) => {
-    const createButton = page.locator('button:has-text("Create"), button:has-text("Generate"), button:has-text("New Key")').first();
-    const isVisible = await createButton.isVisible({ timeout: TIMEOUTS.SHORT }).catch(() => false);
+    const createButton = page
+      .locator(
+        'button:has-text("Create"), button:has-text("Generate"), button:has-text("New Key")'
+      )
+      .first();
+    const isVisible = await createButton
+      .isVisible({ timeout: TIMEOUTS.SHORT })
+      .catch(() => false);
 
     console.log(`✅ Create API key button: ${isVisible}`);
   });
 
   test('should display existing API keys list', async ({ page }) => {
     const keysList = page.locator('text=/bab_|••••/').first();
-    const isVisible = await keysList.isVisible({ timeout: TIMEOUTS.SHORT }).catch(() => false);
+    const isVisible = await keysList
+      .isVisible({ timeout: TIMEOUTS.SHORT })
+      .catch(() => false);
 
     console.log(`ℹ️ Existing API keys displayed: ${isVisible}`);
   });
@@ -382,13 +474,17 @@ test.describe('Settings Page - Form Validation', () => {
     await page.setViewportSize(VIEWPORTS.DESKTOP);
     await navigateTo(page, ROUTES.HOME);
     await loginWithPrivyEmail(page, getPrivyTestAccount());
-    await page.goto(`${process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000'}/settings?tab=profile`);
+    await page.goto(
+      `${process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000'}/settings?tab=profile`
+    );
     await waitForPageLoad(page);
     await page.waitForTimeout(2000);
   });
 
   test('should validate empty display name', async ({ page }) => {
-    const displayNameInput = page.locator('input#displayName, input[name="displayName"]').first();
+    const displayNameInput = page
+      .locator('input#displayName, input[name="displayName"]')
+      .first();
     const saveButton = page.locator('button:has-text("Save")').first();
 
     if (await displayNameInput.isVisible({ timeout: TIMEOUTS.SHORT })) {
@@ -397,21 +493,31 @@ test.describe('Settings Page - Form Validation', () => {
 
       // Try to save - should either disable button or show error
       const isDisabled = await saveButton.isDisabled().catch(() => false);
-      console.log(`✅ Empty display name validation: button disabled=${isDisabled}`);
+      console.log(
+        `✅ Empty display name validation: button disabled=${isDisabled}`
+      );
     }
   });
 
   test('should validate special characters in username', async ({ page }) => {
-    const usernameInput = page.locator('input#username, input[name="username"]').first();
+    const usernameInput = page
+      .locator('input#username, input[name="username"]')
+      .first();
 
-    if (await usernameInput.isVisible({ timeout: TIMEOUTS.SHORT }) &&
-        !(await usernameInput.isDisabled())) {
+    if (
+      (await usernameInput.isVisible({ timeout: TIMEOUTS.SHORT })) &&
+      !(await usernameInput.isDisabled())
+    ) {
       await usernameInput.clear();
       await usernameInput.fill(TEST_FORM_DATA.SPECIAL_CHARS);
       await page.waitForTimeout(500);
 
       // Should show validation error or sanitize input
-      const hasError = await page.locator('text=/invalid|error|not allowed/i').first().isVisible({ timeout: TIMEOUTS.SHORT }).catch(() => false);
+      const hasError = await page
+        .locator('text=/invalid|error|not allowed/i')
+        .first()
+        .isVisible({ timeout: TIMEOUTS.SHORT })
+        .catch(() => false);
       console.log(`✅ Special characters validation: error shown=${hasError}`);
     } else {
       console.log('ℹ️ Username input disabled (rate limited)');
@@ -419,7 +525,9 @@ test.describe('Settings Page - Form Validation', () => {
   });
 
   test('should validate bio length', async ({ page }) => {
-    const bioTextarea = page.locator('textarea#bio, textarea[name="bio"]').first();
+    const bioTextarea = page
+      .locator('textarea#bio, textarea[name="bio"]')
+      .first();
 
     if (await bioTextarea.isVisible({ timeout: TIMEOUTS.SHORT })) {
       await bioTextarea.clear();
@@ -461,7 +569,9 @@ test.describe('Settings Page - Mobile View', () => {
 
   test('should have scrollable tabs on mobile', async ({ page }) => {
     const tabsContainer = page.locator('[class*="overflow"]').first();
-    const isPresent = await tabsContainer.isVisible({ timeout: TIMEOUTS.SHORT }).catch(() => false);
+    const isPresent = await tabsContainer
+      .isVisible({ timeout: TIMEOUTS.SHORT })
+      .catch(() => false);
     console.log(`✅ Scrollable tabs container: ${isPresent}`);
   });
 
@@ -477,4 +587,3 @@ test.describe('Settings Page - Mobile View', () => {
     }
   });
 });
-

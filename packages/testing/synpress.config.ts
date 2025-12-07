@@ -87,14 +87,16 @@ export default defineConfig({
   ],
 
   /* Run your local dev server before starting the tests */
-  webServer: process.env.CI
-    ? undefined
-    : {
-        command: `cd ${rootDir} && bunx next dev --dir apps/web`,
-        url: 'http://localhost:3000',
-        reuseExistingServer: !process.env.CI,
-        timeout: 120 * 1000,
-        stdout: 'pipe',
-        stderr: 'pipe',
-      },
+  /* Note: Set PLAYWRIGHT_SKIP_WEBSERVER=1 to use an existing server */
+  webServer:
+    process.env.CI || process.env.PLAYWRIGHT_SKIP_WEBSERVER
+      ? undefined
+      : {
+          command: `cd ${rootDir}/apps/web && bunx next dev`,
+          url: 'http://localhost:3000',
+          reuseExistingServer: true,
+          timeout: 120 * 1000,
+          stdout: 'pipe',
+          stderr: 'pipe',
+        },
 });

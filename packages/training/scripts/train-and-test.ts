@@ -21,13 +21,7 @@
  */
 
 import { type Subprocess, spawn } from 'bun';
-import {
-  existsSync,
-  mkdirSync,
-  readdirSync,
-  statSync,
-  writeFileSync,
-} from 'fs';
+import { existsSync, mkdirSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { parseArgs } from 'util';
 

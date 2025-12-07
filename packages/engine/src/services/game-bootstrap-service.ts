@@ -16,12 +16,10 @@
 
 import {
   actors,
-  characterMappings,
   db,
   eq,
   games,
   generateSnowflakeId,
-  organizationMappings,
   organizations,
   pools,
   rssFeedSources,
@@ -109,8 +107,6 @@ export interface GameBootstrapResult {
   organizationsCreated: number;
   organizationsUpdated: number;
   poolsCreated: number;
-  characterMappingsCreated: number;
-  organizationMappingsCreated: number;
   rssFeedsCreated: number;
   gameStateInitialized: boolean;
   totalTopUpAmount: number;
@@ -182,8 +178,6 @@ export class GameBootstrapService {
       organizationsCreated: 0,
       organizationsUpdated: 0,
       poolsCreated: 0,
-      characterMappingsCreated: 0,
-      organizationMappingsCreated: 0,
       rssFeedsCreated: 0,
       gameStateInitialized: false,
       totalTopUpAmount: 0,
@@ -225,20 +219,13 @@ export class GameBootstrapService {
       // 4. Ensure pools exist
       result.poolsCreated = await this.ensureActorPools();
 
-      // 5. Sync character mappings
-      result.characterMappingsCreated = await this.syncCharacterMappings(
-        actorsData.actors as ActorDataInput[]
-      );
+      // 5. Character/organization mappings are now handled by StaticDataRegistry
+      // (no database sync needed - data is loaded from TypeScript files)
 
-      // 6. Sync organization mappings
-      result.organizationMappingsCreated = await this.syncOrganizationMappings(
-        actorsData.organizations as OrgDataInput[]
-      );
-
-      // 7. Ensure game state exists
+      // 6. Ensure game state exists
       result.gameStateInitialized = await this.ensureGameState();
 
-      // 8. Ensure RSS feeds
+      // 7. Ensure RSS feeds
       result.rssFeedsCreated = await this.ensureRSSFeeds();
 
       // Log summary if anything changed
@@ -247,8 +234,6 @@ export class GameBootstrapService {
         result.actorsToppedUp > 0 ||
         result.organizationsCreated > 0 ||
         result.poolsCreated > 0 ||
-        result.characterMappingsCreated > 0 ||
-        result.organizationMappingsCreated > 0 ||
         result.rssFeedsCreated > 0 ||
         result.gameStateInitialized;
 
@@ -283,8 +268,6 @@ export class GameBootstrapService {
       organizationsCreated: 0,
       organizationsUpdated: 0,
       poolsCreated: 0,
-      characterMappingsCreated: 0,
-      organizationMappingsCreated: 0,
       rssFeedsCreated: 0,
       gameStateInitialized: false,
       totalTopUpAmount: 0,
@@ -314,13 +297,8 @@ export class GameBootstrapService {
     // Ensure pools
     result.poolsCreated = await this.ensureActorPools();
 
-    // Sync mappings
-    result.characterMappingsCreated = await this.syncCharacterMappings(
-      actorsData.actors as ActorDataInput[]
-    );
-    result.organizationMappingsCreated = await this.syncOrganizationMappings(
-      actorsData.organizations as OrgDataInput[]
-    );
+    // Character/organization mappings are now handled by StaticDataRegistry
+    // (no database sync needed - data is loaded from TypeScript files)
 
     // Ensure game state and RSS feeds
     result.gameStateInitialized = await this.ensureGameState();
@@ -619,203 +597,6 @@ export class GameBootstrapService {
   }
 
   // ===========================================================================
-  // CHARACTER MAPPINGS
-  // ===========================================================================
-
-  private static async syncCharacterMappings(
-    actorsList: ActorDataInput[]
-  ): Promise<number> {
-    let created = 0;
-
-    for (const actor of actorsList) {
-      if (!actor.realName) continue;
-
-      const category = this.mapDomainToCategory(actor.domain);
-      const priority = this.mapTierToPriority(actor.tier);
-      const aliases = this.generateActorAliases(actor);
-
-      const existing = await db
-        .select({ id: characterMappings.id })
-        .from(characterMappings)
-        .where(eq(characterMappings.realName, actor.realName))
-        .limit(1);
-
-      if (existing.length === 0) {
-        await db.insert(characterMappings).values({
-          id: await generateSnowflakeId(),
-          realName: actor.realName,
-          parodyName: actor.name,
-          category,
-          aliases,
-          priority,
-          updatedAt: new Date(),
-        });
-        created++;
-      } else if (existing[0]) {
-        await db
-          .update(characterMappings)
-          .set({
-            parodyName: actor.name,
-            category,
-            aliases,
-            priority,
-            updatedAt: new Date(),
-          })
-          .where(eq(characterMappings.id, existing[0].id));
-      }
-    }
-
-    return created;
-  }
-
-  private static mapDomainToCategory(domains: string[] | undefined): string {
-    if (!domains || domains.length === 0) return 'general';
-    if (domains.includes('crypto')) return 'crypto';
-    if (domains.includes('politics') || domains.includes('government'))
-      return 'politics';
-    if (
-      domains.includes('tech') ||
-      domains.includes('ai') ||
-      domains.includes('technology')
-    )
-      return 'tech';
-    return domains[0] || 'general';
-  }
-
-  private static mapTierToPriority(tier: string | undefined): number {
-    switch (tier) {
-      case 'S_TIER':
-        return 100;
-      case 'A_TIER':
-        return 90;
-      case 'B_TIER':
-        return 80;
-      case 'C_TIER':
-        return 70;
-      default:
-        return 50;
-    }
-  }
-
-  private static generateActorAliases(actor: ActorDataInput): string[] {
-    const aliases: string[] = [];
-    if (actor.lastName) aliases.push(actor.lastName);
-    if (actor.originalLastName && actor.originalLastName !== actor.lastName) {
-      aliases.push(actor.originalLastName);
-    }
-    return aliases;
-  }
-
-  // ===========================================================================
-  // ORGANIZATION MAPPINGS
-  // ===========================================================================
-
-  private static async syncOrganizationMappings(
-    orgsList: OrgDataInput[]
-  ): Promise<number> {
-    let created = 0;
-
-    for (const org of orgsList) {
-      if (!org.originalName) continue;
-
-      const category = this.mapOrgTypeToCategory(org.type);
-      const priority = this.getOrganizationPriority(org.originalName, org.type);
-      const aliases: string[] = [];
-
-      if (org.originalHandle && org.originalHandle !== org.name.toLowerCase()) {
-        aliases.push(org.originalHandle);
-      }
-
-      const existing = await db
-        .select({ id: organizationMappings.id })
-        .from(organizationMappings)
-        .where(eq(organizationMappings.realName, org.originalName))
-        .limit(1);
-
-      if (existing.length === 0) {
-        await db.insert(organizationMappings).values({
-          id: await generateSnowflakeId(),
-          realName: org.originalName,
-          parodyName: org.name,
-          category,
-          aliases,
-          priority,
-          updatedAt: new Date(),
-        });
-        created++;
-      } else if (existing[0]) {
-        await db
-          .update(organizationMappings)
-          .set({
-            parodyName: org.name,
-            category,
-            aliases,
-            priority,
-            updatedAt: new Date(),
-          })
-          .where(eq(organizationMappings.id, existing[0].id));
-      }
-    }
-
-    return created;
-  }
-
-  private static mapOrgTypeToCategory(orgType: string | undefined): string {
-    switch (orgType) {
-      case 'company':
-        return 'tech';
-      case 'media':
-        return 'media';
-      case 'government':
-        return 'government';
-      default:
-        return 'general';
-    }
-  }
-
-  private static getOrganizationPriority(
-    orgName: string,
-    orgType: string | undefined
-  ): number {
-    const majorTechOrgs = [
-      'OpenAI',
-      'Meta',
-      'Google',
-      'Microsoft',
-      'Apple',
-      'Amazon',
-      'Tesla',
-      'Twitter',
-      'Anthropic',
-      'NVIDIA',
-    ];
-    if (
-      majorTechOrgs.some((n) => orgName.toLowerCase().includes(n.toLowerCase()))
-    ) {
-      return 100;
-    }
-
-    const majorCryptoOrgs = ['Binance', 'Coinbase', 'Ethereum'];
-    if (
-      majorCryptoOrgs.some((n) =>
-        orgName.toLowerCase().includes(n.toLowerCase())
-      )
-    ) {
-      return 90;
-    }
-
-    const majorMedia = ['New York Times', 'Washington Post', 'CNN', 'Fox News'];
-    if (
-      majorMedia.some((n) => orgName.toLowerCase().includes(n.toLowerCase()))
-    ) {
-      return 85;
-    }
-
-    if (orgType === 'government') return 80;
-    return 70;
-  }
-
-  // ===========================================================================
   // GAME STATE
   // ===========================================================================
 
@@ -913,28 +694,23 @@ export class GameBootstrapService {
     organizationMappings: number;
     rssFeedSources: number;
   }> {
-    const [
-      actorCount,
-      orgCount,
-      poolCount,
-      charMapCount,
-      orgMapCount,
-      feedCount,
-    ] = await Promise.all([
+    const [actorCount, orgCount, poolCount, feedCount] = await Promise.all([
       db.select({ count: sql<number>`count(*)` }).from(actors),
       db.select({ count: sql<number>`count(*)` }).from(organizations),
       db.select({ count: sql<number>`count(*)` }).from(pools),
-      db.select({ count: sql<number>`count(*)` }).from(characterMappings),
-      db.select({ count: sql<number>`count(*)` }).from(organizationMappings),
       db.select({ count: sql<number>`count(*)` }).from(rssFeedSources),
     ]);
+
+    // Character and organization mappings are now from StaticDataRegistry
+    const { StaticDataRegistry } = await import('./static-data-registry');
 
     return {
       actors: Number(actorCount[0]?.count ?? 0),
       organizations: Number(orgCount[0]?.count ?? 0),
       pools: Number(poolCount[0]?.count ?? 0),
-      characterMappings: Number(charMapCount[0]?.count ?? 0),
-      organizationMappings: Number(orgMapCount[0]?.count ?? 0),
+      characterMappings: StaticDataRegistry.getAllCharacterMappings().length,
+      organizationMappings:
+        StaticDataRegistry.getAllOrganizationMappings().length,
       rssFeedSources: Number(feedCount[0]?.count ?? 0),
     };
   }

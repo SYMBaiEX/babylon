@@ -36,7 +36,11 @@ export type PerpPosition = InferSelectModel<typeof schema.perpPositions>;
 export type Pool = InferSelectModel<typeof schema.pools>;
 export type PoolPosition = InferSelectModel<typeof schema.poolPositions>;
 export type PoolDeposit = InferSelectModel<typeof schema.poolDeposits>;
+/** @deprecated Use StaticOrganization from @babylon/engine for static data */
 export type Organization = InferSelectModel<typeof schema.organizations>;
+export type OrganizationStateRow = InferSelectModel<
+  typeof schema.organizationState
+>;
 export type StockPrice = InferSelectModel<typeof schema.stockPrices>;
 export type Question = InferSelectModel<typeof schema.questions>;
 export type PredictionPriceHistory = InferSelectModel<
@@ -164,7 +168,11 @@ export type NewPerpPosition = InferInsertModel<typeof schema.perpPositions>;
 export type NewPool = InferInsertModel<typeof schema.pools>;
 export type NewPoolPosition = InferInsertModel<typeof schema.poolPositions>;
 export type NewPoolDeposit = InferInsertModel<typeof schema.poolDeposits>;
+/** @deprecated Use NewOrganizationStateRow for dynamic data */
 export type NewOrganization = InferInsertModel<typeof schema.organizations>;
+export type NewOrganizationStateRow = InferInsertModel<
+  typeof schema.organizationState
+>;
 export type NewStockPrice = InferInsertModel<typeof schema.stockPrices>;
 export type NewQuestion = InferInsertModel<typeof schema.questions>;
 export type NewPredictionPriceHistory = InferInsertModel<

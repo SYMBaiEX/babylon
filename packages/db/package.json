@@ -1,6 +1,7 @@
 {
   "name": "@babylon/db",
   "version": "0.1.0",
+  "type": "module",
   "private": true,
   "description": "Babylon Database Layer - Drizzle ORM",
   "main": "./src/index.ts",
@@ -21,12 +22,12 @@
   "scripts": {
     "lint": "biome lint .",
     "typecheck": "tsc -b .",
-    "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate",
-    "db:push": "drizzle-kit push",
-    "db:pull": "drizzle-kit pull",
-    "db:studio": "drizzle-kit studio",
-    "db:check": "drizzle-kit check"
+    "db:generate": "bun --bun drizzle-kit generate",
+    "db:migrate": "bun --bun drizzle-kit migrate",
+    "db:push": "bun --bun drizzle-kit push",
+    "db:pull": "bun --bun drizzle-kit pull",
+    "db:studio": "bun --bun drizzle-kit studio",
+    "db:check": "bun --bun drizzle-kit check"
   },
   "dependencies": {
     "@babylon/shared": "workspace:*",

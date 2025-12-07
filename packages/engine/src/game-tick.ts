@@ -205,7 +205,6 @@ export async function executeGameTick(
           actorsToppedUp: bootstrapResult.actorsToppedUp,
           organizationsCreated: bootstrapResult.organizationsCreated,
           poolsCreated: bootstrapResult.poolsCreated,
-          characterMappings: bootstrapResult.characterMappingsCreated,
         },
         'GameTick'
       );

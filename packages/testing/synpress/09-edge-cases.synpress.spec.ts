@@ -12,7 +12,12 @@ import {
   waitForPageLoad,
 } from './helpers/page-helpers';
 import { getPrivyTestAccount, loginWithPrivyEmail } from './helpers/privy-auth';
-import { ROUTES, TEST_FORM_DATA, TIMEOUTS, VIEWPORTS } from './helpers/test-data';
+import {
+  ROUTES,
+  TEST_FORM_DATA,
+  TIMEOUTS,
+  VIEWPORTS,
+} from './helpers/test-data';
 
 test.setTimeout(TIMEOUTS.EXTRA_LONG);
 
@@ -32,7 +37,9 @@ test.describe('Edge Cases - Security', () => {
     await navigateTo(page, ROUTES.SETTINGS);
     await waitForPageLoad(page);
 
-    const bioTextarea = page.locator('textarea#bio, textarea[name="bio"]').first();
+    const bioTextarea = page
+      .locator('textarea#bio, textarea[name="bio"]')
+      .first();
 
     // Skip if bio field not visible (page might be in different state)
     if (!(await bioTextarea.isVisible({ timeout: TIMEOUTS.SHORT }))) {
@@ -46,7 +53,9 @@ test.describe('Edge Cases - Security', () => {
 
     // The script should not execute
     const alertTriggered = await page.evaluate(() => {
-      return (window as Window & { xssTriggered?: boolean }).xssTriggered === true;
+      return (
+        (window as Window & { xssTriggered?: boolean }).xssTriggered === true
+      );
     });
 
     expect(alertTriggered).toBe(false);
@@ -109,7 +118,9 @@ test.describe('Edge Cases - Input Validation', () => {
     await navigateTo(page, ROUTES.FEED);
     await waitForPageLoad(page);
 
-    const createButton = page.locator('button[aria-label="Create Post"]').first();
+    const createButton = page
+      .locator('button[aria-label="Create Post"]')
+      .first();
 
     if (!(await createButton.isVisible({ timeout: TIMEOUTS.SHORT }))) {
       test.skip();
@@ -252,7 +263,11 @@ test.describe('Edge Cases - Rapid Actions', () => {
   });
 
   test('should handle rapid navigation', async ({ page }) => {
-    const routes: readonly string[] = [ROUTES.FEED, ROUTES.MARKETS, ROUTES.PROFILE];
+    const routes: readonly string[] = [
+      ROUTES.FEED,
+      ROUTES.MARKETS,
+      ROUTES.PROFILE,
+    ];
 
     for (let i = 0; i < 6; i++) {
       const routeIndex = i % routes.length;

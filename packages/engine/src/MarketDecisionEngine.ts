@@ -79,7 +79,6 @@ import {
   eq,
   gte,
   inArray,
-  organizationMappings,
   organizations,
   posts,
   questions,
@@ -95,6 +94,7 @@ import {
   renderPrompt,
 } from './prompts';
 import type { MarketContextService } from './services/market-context-service';
+import { StaticDataRegistry } from './services/static-data-registry';
 import type { JsonValue } from './types/common';
 import type { NPCMarketContext } from './types/market-context';
 import type { TradingDecision } from './types/market-decisions';
@@ -1094,15 +1094,8 @@ ${prompt}`
       .from(organizations)
       .where(eq(organizations.type, 'company'));
 
-    // Get organization mappings from database (realName -> parodyName)
-    const orgMappings = await db
-      .select({
-        realName: organizationMappings.realName,
-        parodyName: organizationMappings.parodyName,
-        aliases: organizationMappings.aliases,
-      })
-      .from(organizationMappings)
-      .where(eq(organizationMappings.isActive, true));
+    // Get organization mappings from StaticDataRegistry (no DB call!)
+    const orgMappings = StaticDataRegistry.getAllOrganizationMappings();
 
     // Build map from parody names to real names (ALL LOWERCASE)
     const parodyToRealMap = new Map<string, string>();
