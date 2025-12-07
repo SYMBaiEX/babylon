@@ -543,6 +543,113 @@ export class MarketContextService {
   }
 
   /**
+   * Get events that involve a specific NPC
+   *
+   * Retrieves events where the NPC is listed in the actors array.
+   * This is used to build personal context for NPC content generation.
+   *
+   * @param npcId - Unique identifier for the NPC
+   * @param npcName - Name of the NPC (for name-based matching)
+   * @returns Array of event contexts specific to this NPC
+   */
+  async getEventsForNPC(
+    npcId: string,
+    npcName: string
+  ): Promise<EventContext[]> {
+    const now = new Date();
+    const threeDaysAgo = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
+
+    // Get all recent events and filter by NPC involvement
+    const eventList = await db
+      .select()
+      .from(worldEvents)
+      .where(
+        and(
+          lte(worldEvents.timestamp, now),
+          gte(worldEvents.timestamp, threeDaysAgo)
+        )
+      )
+      .orderBy(desc(worldEvents.timestamp))
+      .limit(100);
+
+    // Filter events where NPC is in the actors array or mentioned in description
+    const npcEvents = eventList.filter((event) => {
+      const actorsArray = event.actors || [];
+      const isInActors =
+        actorsArray.includes(npcId) ||
+        actorsArray.some(
+          (a) =>
+            a.toLowerCase().includes(npcName.toLowerCase()) ||
+            npcName.toLowerCase().includes(a.toLowerCase())
+        );
+      const isMentioned =
+        event.description.toLowerCase().includes(npcName.toLowerCase()) ||
+        event.description.includes(npcId);
+
+      return isInActors || isMentioned;
+    });
+
+    return npcEvents.slice(0, 15).map((event) => {
+      const maxDescLength = 200;
+      const description =
+        event.description.length > maxDescLength
+          ? event.description.slice(0, maxDescLength) + '...'
+          : event.description;
+
+      return {
+        type: event.eventType,
+        description,
+        actors: event.actors as string[] | undefined,
+        timestamp: event.timestamp.toISOString(),
+        relatedQuestion: event.relatedQuestion || undefined,
+        pointsToward: event.pointsToward || undefined,
+      };
+    });
+  }
+
+  /**
+   * Get recent posts by a specific NPC
+   *
+   * Used to provide memory of what the NPC has previously posted,
+   * preventing repetition and maintaining consistency.
+   *
+   * @param npcId - Unique identifier for the NPC
+   * @returns Array of the NPC's recent posts
+   */
+  async getRecentPostsByNPC(npcId: string): Promise<FeedPostContext[]> {
+    const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
+
+    const npcPosts = await db
+      .select()
+      .from(posts)
+      .where(
+        and(
+          eq(posts.authorId, npcId),
+          gte(posts.createdAt, threeDaysAgo),
+          isNull(posts.deletedAt)
+        )
+      )
+      .orderBy(desc(posts.createdAt))
+      .limit(10);
+
+    return npcPosts.map((post) => {
+      const maxContentLength = 200;
+      const content =
+        post.content.length > maxContentLength
+          ? post.content.slice(0, maxContentLength) + '...'
+          : post.content;
+
+      return {
+        author: post.authorId,
+        authorName: post.authorId,
+        content,
+        timestamp: post.createdAt.toISOString(),
+        articleTitle: post.articleTitle || undefined,
+      };
+    });
+  }
+
+  /**
    * Get current market snapshots
    *
    * Retrieves snapshots of both perpetual and prediction markets.

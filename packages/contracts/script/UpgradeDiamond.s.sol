@@ -56,19 +56,21 @@ contract UpgradeDiamond is Script {
         IDiamondCut.FacetCut[] memory cuts = new IDiamondCut.FacetCut[](3);
 
         // 2a. LiquidityPoolFacet selectors
-        bytes4[] memory liquiditySelectors = new bytes4[](12);
+        bytes4[] memory liquiditySelectors = new bytes4[](14);
         liquiditySelectors[0] = LiquidityPoolFacet.createLiquidityPool.selector;
         liquiditySelectors[1] = LiquidityPoolFacet.addLiquidity.selector;
         liquiditySelectors[2] = LiquidityPoolFacet.removeLiquidity.selector;
         liquiditySelectors[3] = LiquidityPoolFacet.swap.selector;
-        liquiditySelectors[4] = LiquidityPoolFacet.getPool.selector;
-        liquiditySelectors[5] = LiquidityPoolFacet.getLPPosition.selector;
-        liquiditySelectors[6] = LiquidityPoolFacet.getSwapOutput.selector;
-        liquiditySelectors[7] = LiquidityPoolFacet.getUtilization.selector;
+        liquiditySelectors[4] = LiquidityPoolFacet.setPoolActive.selector;
+        liquiditySelectors[5] = LiquidityPoolFacet.claimRewards.selector;
+        liquiditySelectors[6] = LiquidityPoolFacet.getPool.selector;
+        liquiditySelectors[7] = LiquidityPoolFacet.getLPPosition.selector;
         liquiditySelectors[8] = LiquidityPoolFacet.getReserves.selector;
-        liquiditySelectors[9] = LiquidityPoolFacet.getPriceImpact.selector;
-        liquiditySelectors[10] = LiquidityPoolFacet.getPendingRewards.selector;
-        liquiditySelectors[11] = LiquidityPoolFacet.claimRewards.selector;
+        liquiditySelectors[9] = LiquidityPoolFacet.getSwapOutput.selector;
+        liquiditySelectors[10] = LiquidityPoolFacet.getPriceImpact.selector;
+        liquiditySelectors[11] = LiquidityPoolFacet.getUtilization.selector;
+        liquiditySelectors[12] = LiquidityPoolFacet.getImpermanentLoss.selector;
+        liquiditySelectors[13] = LiquidityPoolFacet.getPendingRewards.selector;
 
         cuts[0] = IDiamondCut.FacetCut({
             facetAddress: address(liquidityPoolFacet),
@@ -98,17 +100,19 @@ contract UpgradeDiamond is Script {
         console.log("PerpetualMarketFacet: %d selectors", perpetualSelectors.length);
 
         // 2c. ReferralSystemFacet selectors
-        bytes4[] memory referralSelectors = new bytes4[](10);
+        bytes4[] memory referralSelectors = new bytes4[](12);
         referralSelectors[0] = ReferralSystemFacet.registerReferral.selector;
         referralSelectors[1] = ReferralSystemFacet.payReferralCommission.selector;
         referralSelectors[2] = ReferralSystemFacet.claimReferralEarnings.selector;
-        referralSelectors[3] = ReferralSystemFacet.getReferralData.selector;
-        referralSelectors[4] = ReferralSystemFacet.getTierInfo.selector;
-        referralSelectors[5] = ReferralSystemFacet.getReferralChain.selector;
-        referralSelectors[6] = ReferralSystemFacet.getTotalReferrals.selector;
-        referralSelectors[7] = ReferralSystemFacet.getTotalCommissions.selector;
-        referralSelectors[8] = ReferralSystemFacet.isReferred.selector;
-        referralSelectors[9] = ReferralSystemFacet.calculateCommission.selector;
+        referralSelectors[3] = ReferralSystemFacet.initializeReferralSystem.selector;
+        referralSelectors[4] = ReferralSystemFacet.getReferralData.selector;
+        referralSelectors[5] = ReferralSystemFacet.getTierInfo.selector;
+        referralSelectors[6] = ReferralSystemFacet.getReferralChain.selector;
+        referralSelectors[7] = ReferralSystemFacet.getTotalStats.selector;
+        referralSelectors[8] = ReferralSystemFacet.getTotalReferrals.selector;
+        referralSelectors[9] = ReferralSystemFacet.getTotalCommissions.selector;
+        referralSelectors[10] = ReferralSystemFacet.isReferred.selector;
+        referralSelectors[11] = ReferralSystemFacet.calculateCommission.selector;
 
         cuts[2] = IDiamondCut.FacetCut({
             facetAddress: address(referralSystemFacet),

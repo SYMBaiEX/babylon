@@ -12,13 +12,13 @@
  * 5. Optional trajectory recording for RL training
  */
 
-import { db } from '@babylon/db';
-import { WalletService } from '@babylon/engine';
+import { and, db, eq, or, userAgentConfigs, users } from '@babylon/db';
 import { trajectoryRecorder } from '@babylon/training';
 import type { IAgentRuntime } from '@elizaos/core';
 import type { BabylonRuntime } from '../plugins/babylon/types';
 import { setTrajectoryContext } from '../plugins/plugin-trajectory-logger/src/action-interceptor';
 import { agentRuntimeManager } from '../runtime/AgentRuntimeManager';
+import { getAgentConfig } from '../shared/agent-config';
 import { logger } from '../shared/logger';
 
 // Import services
@@ -105,24 +105,20 @@ export class AutonomousCoordinator {
       'AutonomousCoordinator'
     );
 
-    // Get agent config
-    const agent = await db.user.findUnique({
-      where: { id: agentUserId },
-      select: {
-        isAgent: true,
-        autonomousTrading: true,
-        autonomousPosting: true,
-        autonomousCommenting: true,
-        autonomousDMs: true,
-        autonomousGroupChats: true,
-        agentPlanningHorizon: true,
-        agentGoals: true,
-      },
-    });
+    // Get agent user
+    const agentResult = await db
+      .select({ id: users.id, isAgent: users.isAgent })
+      .from(users)
+      .where(eq(users.id, agentUserId))
+      .limit(1);
 
+    const agent = agentResult[0];
     if (!agent || !agent.isAgent) {
       throw new Error('Agent not found or not an agent');
     }
+
+    // Get agent config
+    const config = await getAgentConfig(agentUserId);
 
     // Check if agent has goals configured
     const hasGoals =
@@ -134,7 +130,7 @@ export class AutonomousCoordinator {
       })) > 0;
 
     // Use planning coordinator if agent has goals and multi-action planning enabled
-    if (hasGoals && agent.agentPlanningHorizon === 'multi') {
+    if (hasGoals && config?.planningHorizon === 'multi') {
       logger.info(
         'Using goal-oriented planning coordinator',
         undefined,
@@ -214,7 +210,7 @@ export class AutonomousCoordinator {
     result.actionsExecuted.messages += responses; // Messages include DM responses
 
     // === PRIORITY 2: TRADING ===
-    if (agent.autonomousTrading) {
+    if (config?.autonomousTrading) {
       // Capture initial state if recording trajectories
       let initialState:
         | {
@@ -303,7 +299,7 @@ export class AutonomousCoordinator {
     }
 
     // === PRIORITY 3: SOCIAL (Posting) ===
-    if (agent.autonomousPosting) {
+    if (config?.autonomousPosting) {
       if (useA2A) {
         const trendingResult = await autonomousA2AService.engageWithTrending(
           agentUserId,
@@ -343,7 +339,7 @@ export class AutonomousCoordinator {
     }
 
     // === PRIORITY 4: ENGAGEMENT (Commenting) ===
-    if (agent.autonomousCommenting) {
+    if (config?.autonomousCommenting) {
       // Capture initial state if recording trajectories
       if (recordTrajectories && trajId) {
         const initialState = await this.captureEnvironmentState(agentUserId);
@@ -375,7 +371,7 @@ export class AutonomousCoordinator {
     }
 
     // === PRIORITY 5: POSITION MONITORING ===
-    if (agent.autonomousTrading && useA2A) {
+    if (config?.autonomousTrading && useA2A) {
       // Use A2A for position monitoring (better data access)
       const monitorResult = await autonomousA2AService.monitorPositions(
         agentUserId,
@@ -385,7 +381,7 @@ export class AutonomousCoordinator {
     }
 
     // === PRIORITY 6: COMMUNITY (DMs handled by batch, groups separate) ===
-    if (agent.autonomousGroupChats) {
+    if (config?.autonomousGroupChats) {
       // Group chats use direct DB (batch service doesn't handle groups yet)
       const groupMessages =
         await autonomousGroupChatService.participateInGroupChats(
@@ -439,22 +435,29 @@ export class AutonomousCoordinator {
     errors: number;
   }> {
     // Get all agents with autonomous features enabled
-    const activeAgents = await db.user.findMany({
-      where: {
-        isAgent: true,
-        OR: [
-          { autonomousTrading: true },
-          { autonomousPosting: true },
-          { autonomousCommenting: true },
-          { autonomousDMs: true },
-          { autonomousGroupChats: true },
-        ],
-      },
-      select: { id: true, displayName: true },
-    });
+    // Join users with userAgentConfigs to filter by autonomous settings
+    const activeAgentResults = await db
+      .select({
+        id: users.id,
+        displayName: users.displayName,
+      })
+      .from(users)
+      .innerJoin(userAgentConfigs, eq(users.id, userAgentConfigs.userId))
+      .where(
+        and(
+          eq(users.isAgent, true),
+          or(
+            eq(userAgentConfigs.autonomousTrading, true),
+            eq(userAgentConfigs.autonomousPosting, true),
+            eq(userAgentConfigs.autonomousCommenting, true),
+            eq(userAgentConfigs.autonomousDMs, true),
+            eq(userAgentConfigs.autonomousGroupChats, true)
+          )
+        )
+      );
 
     logger.info(
-      `Processing ${activeAgents.length} active agents`,
+      `Processing ${activeAgentResults.length} active agents`,
       undefined,
       'AutonomousCoordinator'
     );
@@ -462,18 +465,18 @@ export class AutonomousCoordinator {
     let totalActions = 0;
     let errors = 0;
 
-    for (const agent of activeAgents) {
-      const result = await this.executeAutonomousTick(agent.id, runtime);
+    for (const agent of activeAgentResults) {
+      const tickResult = await this.executeAutonomousTick(agent.id, runtime);
 
-      if (result.success) {
-        const actionCount = Object.values(result.actionsExecuted).reduce(
+      if (tickResult.success) {
+        const actionCount = Object.values(tickResult.actionsExecuted).reduce(
           (sum, count) => sum + count,
           0
         );
         totalActions += actionCount;
 
         logger.info(
-          `Agent ${agent.displayName}: ${actionCount} actions in ${result.duration}ms`,
+          `Agent ${agent.displayName}: ${actionCount} actions in ${tickResult.duration}ms`,
           undefined,
           'AutonomousCoordinator'
         );
@@ -486,7 +489,7 @@ export class AutonomousCoordinator {
     }
 
     return {
-      agentsProcessed: activeAgents.length,
+      agentsProcessed: activeAgentResults.length,
       totalActions,
       errors,
     };
@@ -496,31 +499,37 @@ export class AutonomousCoordinator {
    * Capture current environment state for trajectory recording
    */
   private async captureEnvironmentState(agentUserId: string) {
-    const agent = await db.user.findUnique({
-      where: { id: agentUserId },
-      select: {
-        virtualBalance: true,
-        lifetimePnL: true,
-        reputationPoints: true,
+    const agentResult = await db
+      .select({
+        virtualBalance: users.virtualBalance,
+        lifetimePnL: users.lifetimePnL,
+      })
+      .from(users)
+      .where(eq(users.id, agentUserId))
+      .limit(1);
+
+    const agent = agentResult[0];
+
+    // Get open positions count
+    const positionsCount = await db.perpPosition.count({
+      where: {
+        userId: agentUserId,
+        closedAt: null,
       },
     });
 
-    const balance = await WalletService.getBalance(agentUserId);
-
-    const [positions, perpPositions] = await Promise.all([
-      db.position.count({ where: { userId: agentUserId, status: 'active' } }),
-      db.perpPosition.count({ where: { userId: agentUserId, closedAt: null } }),
-    ]);
-
-    const activeMarkets = await db.market.count({
-      where: { resolved: false, endDate: { gte: new Date() } },
+    // Get active markets count
+    const marketsCount = await db.market.count({
+      where: {
+        resolved: false,
+      },
     });
 
     return {
-      agentBalance: Number(balance.balance),
-      agentPnL: Number(agent?.lifetimePnL ?? 0),
-      openPositions: positions + perpPositions,
-      activeMarkets,
+      agentBalance: agent ? Number(agent.virtualBalance) : 0,
+      agentPnL: agent ? Number(agent.lifetimePnL) : 0,
+      openPositions: positionsCount,
+      activeMarkets: marketsCount,
       timestamp: Date.now(),
     };
   }

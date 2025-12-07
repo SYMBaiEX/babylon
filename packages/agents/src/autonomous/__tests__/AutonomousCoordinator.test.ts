@@ -11,30 +11,41 @@ import { ethers } from 'ethers';
 const testAgentId = '123456789012345678';
 const testWalletAddress = ethers.Wallet.createRandom().address;
 
+// Mock user data (users table)
+const mockUser = {
+  id: testAgentId,
+  privyId: `did:privy:test-agent-${testAgentId}`,
+  username: `test_agent`,
+  displayName: 'Test Autonomous Agent',
+  walletAddress: testWalletAddress,
+  isAgent: true,
+  virtualBalance: '10000',
+  reputationPoints: 1000,
+};
+
+// Mock agent config data (userAgentConfigs table)
+const mockAgentConfig = {
+  id: 'config-123',
+  userId: testAgentId,
+  autonomousTrading: false,
+  autonomousPosting: false,
+  autonomousCommenting: false,
+  autonomousDMs: false,
+  autonomousGroupChats: false,
+  systemPrompt: 'You are a test agent',
+  modelTier: 'lite',
+  pointsBalance: 1000,
+};
+
 // Mock database
 const mockDb = {
   select: mock(() => ({
-    from: mock(() => ({
-      where: mock(async () => [
-        {
-          id: testAgentId,
-          privyId: `did:privy:test-agent-${testAgentId}`,
-          username: `test_agent`,
-          displayName: 'Test Autonomous Agent',
-          walletAddress: testWalletAddress,
-          isAgent: true,
-          autonomousTrading: false,
-          autonomousPosting: false,
-          autonomousCommenting: false,
-          autonomousDMs: false,
-          autonomousGroupChats: false,
-          agentSystem: 'You are a test agent',
-          agentModelTier: 'lite',
-          virtualBalance: 10000,
-          reputationPoints: 1000,
-          agentPointsBalance: 1000,
-        },
-      ]),
+    from: mock((table: unknown) => ({
+      where: mock(async () => {
+        // Return different data based on table being queried
+        // In the real implementation, we'd check the table name
+        return [{ ...mockUser, ...mockAgentConfig }];
+      }),
     })),
   })),
   insert: mock(() => ({

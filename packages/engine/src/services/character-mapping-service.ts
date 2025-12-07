@@ -2,20 +2,20 @@
  * Character Mapping Service
  *
  * @description Handles find/replace of real names with parody names in text.
- * Uses database-backed mappings that can be edited via admin panel. Supports
+ * Uses StaticDataRegistry for mappings (no database calls). Supports
  * both character and organization mappings with priority-based replacement.
+ *
+ * NOTE: The characterMappings and organizationMappings database tables are
+ * deprecated. All mappings are now generated from the static actor and
+ * organization data in TypeScript.
  */
 
+import { logger } from '@babylon/shared';
 import {
   type CharacterMapping,
-  characterMappings,
-  db,
-  desc,
-  eq,
   type OrganizationMapping,
-  organizationMappings,
-} from '@babylon/db';
-import { logger } from '@babylon/shared';
+  StaticDataRegistry,
+} from './static-data-registry';
 
 /**
  * Text replacement result
@@ -31,49 +31,58 @@ export interface TextReplacementResult {
 }
 
 /**
+ * Extended mapping with isActive field for compatibility
+ */
+interface ActiveCharacterMapping extends CharacterMapping {
+  isActive: boolean;
+}
+
+interface ActiveOrganizationMapping extends OrganizationMapping {
+  isActive: boolean;
+}
+
+/**
  * Character Mapping Service Class
  *
  * @description Transforms text by replacing real names with parody equivalents.
- * Uses cached mappings from database with 5-minute TTL. Supports case-insensitive
- * whole-word matching with priority-based replacement.
+ * Uses StaticDataRegistry for mappings (no database calls). All mappings are
+ * derived from the hardcoded actor and organization data in TypeScript.
  */
 export class CharacterMappingService {
-  private characterMappingsCache: CharacterMapping[] = [];
-  private organizationMappingsCache: OrganizationMapping[] = [];
-  private lastCacheUpdate = 0;
-  private readonly CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+  private characterMappingsCache: ActiveCharacterMapping[] = [];
+  private organizationMappingsCache: ActiveOrganizationMapping[] = [];
+  private initialized = false;
 
   /**
-   * Load mappings from database (with caching)
+   * Load mappings from StaticDataRegistry (no database calls)
    *
-   * @description Loads character and organization mappings from database with
-   * 5-minute cache TTL. Orders by priority (higher priority first) for proper
-   * replacement order.
+   * @description Loads character and organization mappings from StaticDataRegistry.
+   * Orders by priority (higher priority first) for proper replacement order.
    *
-   * @returns {Promise<void>}
+   * @returns {void}
    * @private
    */
-  private async loadMappings(): Promise<void> {
-    const now = Date.now();
-    if (now - this.lastCacheUpdate < this.CACHE_TTL) {
-      return; // Use cached data
+  private loadMappings(): void {
+    if (this.initialized) {
+      return;
     }
 
-    this.characterMappingsCache = await db
-      .select()
-      .from(characterMappings)
-      .where(eq(characterMappings.isActive, true))
-      .orderBy(desc(characterMappings.priority));
+    // Get mappings from StaticDataRegistry (no DB calls!)
+    const charMappings = StaticDataRegistry.getAllCharacterMappings();
+    const orgMappings = StaticDataRegistry.getAllOrganizationMappings();
 
-    this.organizationMappingsCache = await db
-      .select()
-      .from(organizationMappings)
-      .where(eq(organizationMappings.isActive, true))
-      .orderBy(desc(organizationMappings.priority));
+    // Convert to active mappings and sort by priority
+    this.characterMappingsCache = charMappings
+      .map((m) => ({ ...m, isActive: true }))
+      .sort((a, b) => b.priority - a.priority);
 
-    this.lastCacheUpdate = now;
+    this.organizationMappingsCache = orgMappings
+      .map((m) => ({ ...m, isActive: true }))
+      .sort((a, b) => b.priority - a.priority);
+
+    this.initialized = true;
     logger.info(
-      `Loaded ${this.characterMappingsCache.length} character mappings and ${this.organizationMappingsCache.length} organization mappings`,
+      `Loaded ${this.characterMappingsCache.length} character mappings and ${this.organizationMappingsCache.length} organization mappings from StaticDataRegistry`,
       undefined,
       'CharacterMappingService'
     );
@@ -220,7 +229,7 @@ export class CharacterMappingService {
    * @returns {Promise<TextReplacementResult>} Transformation result with mappings applied
    */
   async transformText(text: string): Promise<TextReplacementResult> {
-    await this.loadMappings();
+    this.loadMappings();
 
     let transformedText = text;
     const characterMappingsResult: Record<string, string> = {};
@@ -392,7 +401,7 @@ export class CharacterMappingService {
    * Useful for validation
    */
   async detectRealNames(text: string): Promise<string[]> {
-    await this.loadMappings();
+    this.loadMappings();
 
     const foundNames: string[] = [];
 
@@ -428,24 +437,25 @@ export class CharacterMappingService {
   /**
    * Get all active character mappings
    */
-  async getCharacterMappings(): Promise<CharacterMapping[]> {
-    await this.loadMappings();
+  async getCharacterMappings(): Promise<ActiveCharacterMapping[]> {
+    this.loadMappings();
     return this.characterMappingsCache;
   }
 
   /**
    * Get all active organization mappings
    */
-  async getOrganizationMappings(): Promise<OrganizationMapping[]> {
-    await this.loadMappings();
+  async getOrganizationMappings(): Promise<ActiveOrganizationMapping[]> {
+    this.loadMappings();
     return this.organizationMappingsCache;
   }
 
   /**
-   * Refresh cache (call after updating mappings)
+   * Refresh cache (call after updating static data - rare)
    */
   refreshCache(): void {
-    this.lastCacheUpdate = 0;
+    this.initialized = false;
+    StaticDataRegistry.clearCache();
   }
 }
 

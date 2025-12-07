@@ -370,7 +370,21 @@ async function ensureConnection(forceReconnect = false) {
   });
 
   eventSource.addEventListener('message', (event) => {
-    const message: SSEMessage = JSON.parse(event.data);
+    let message: SSEMessage;
+    try {
+      message = JSON.parse(event.data);
+    } catch (error) {
+      logger.error(
+        'Failed to parse SSE message',
+        {
+          error: error instanceof Error ? error.message : String(error),
+          dataPreview: event.data?.substring(0, 100),
+        },
+        'useSSE'
+      );
+      return; // Skip malformed messages
+    }
+
     if (event.lastEventId) {
       lastEventIds.set(message.channel, event.lastEventId);
     }

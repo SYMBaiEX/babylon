@@ -49,8 +49,10 @@
  * @see {@link /lib/training/AutomationPipeline} Automation pipeline
  */
 
+import { verifyCronAuth } from '@babylon/api';
 import { logger } from '@babylon/shared';
 import { automationPipeline } from '@babylon/training';
+import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
@@ -59,7 +61,11 @@ export const maxDuration = 60; // 1 minute
 /**
  * Daily training status check and reporting
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
+  // Security: Verify cron authorization
+  if (!verifyCronAuth(request, { jobName: 'TrainingStatusCron' })) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
   logger.info(
     'Checking training system status',
     undefined,

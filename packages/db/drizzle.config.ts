@@ -25,8 +25,9 @@ const databaseUrl = isLocalDev
     LOCAL_DATABASE_URL);
 
 export default defineConfig({
-  schema: resolve(__dirname, './src/schema/index.ts'),
-  out: resolve(__dirname, './drizzle/migrations'),
+  // Use relative paths - drizzle-kit has issues with absolute paths
+  schema: './src/schema/index.ts',
+  out: './drizzle/migrations',
   dialect: 'postgresql',
   dbCredentials: {
     url: databaseUrl,

@@ -49,13 +49,15 @@
  * ```
  */
 
+import { requireAdmin, successResponse, withErrorHandling } from '@babylon/api';
 import { db } from '@babylon/db';
 import { modelStorage } from '@babylon/training';
-import { NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export const GET = withErrorHandling(async (request: NextRequest) => {
+  await requireAdmin(request);
   // Get models from database
   const dbModels = await db.trainedModel.findMany({
     orderBy: { createdAt: 'desc' },
@@ -83,9 +85,9 @@ export async function GET() {
     };
   });
 
-  return NextResponse.json({
+  return successResponse({
     success: true,
     models,
     total: models.length,
   });
-}
+});

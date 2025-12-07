@@ -57,19 +57,23 @@
  * ```
  */
 
+import {
+  BadRequestError,
+  requireAdmin,
+  successResponse,
+  withErrorHandling,
+} from '@babylon/api';
 import { modelDeployer } from '@babylon/training';
 import type { NextRequest } from 'next/server';
-import { NextResponse } from 'next/server';
 
-export async function POST(request: NextRequest) {
+export const POST = withErrorHandling(async (request: NextRequest) => {
+  await requireAdmin(request);
+
   const body = await request.json();
   const { modelVersion, strategy = 'gradual', rolloutPercentage = 10 } = body;
 
   if (!modelVersion) {
-    return NextResponse.json(
-      { error: 'Model version required' },
-      { status: 400 }
-    );
+    throw new BadRequestError('Model version required');
   }
 
   const result = await modelDeployer.deploy({
@@ -78,5 +82,5 @@ export async function POST(request: NextRequest) {
     rolloutPercentage,
   });
 
-  return NextResponse.json(result);
-}
+  return successResponse(result);
+});

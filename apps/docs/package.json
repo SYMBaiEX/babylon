@@ -4,7 +4,7 @@
   "description": "Documentation for Babylon",
   "private": true,
   "scripts": {
-    "dev": "bun x next dev -p 3001",
+    "dev": "bun x next dev -p 3002",
     "build": "NODE_OPTIONS='--max-old-space-size=8192' bun x next build",
     "postbuild": "pagefind --site .next/server/app --output-path public/_pagefind --silent",
     "start": "bun x next start",

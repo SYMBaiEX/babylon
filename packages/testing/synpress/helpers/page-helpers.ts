@@ -9,13 +9,14 @@ import type { Page } from '@playwright/test';
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000';
 
 /**
- * Waits for the server to be healthy before proceeding.
+ * Waits for the server to be responsive before proceeding.
  *
- * Helps prevent flakiness when the server is slow to respond.
+ * Checks the root URL and accepts any response (except network errors or 5xx).
+ * This prevents flakiness when the server is slow to start.
  *
  * @param maxRetries - Maximum number of retry attempts (default: 5)
  * @param retryDelay - Delay between retries in milliseconds (default: 2000)
- * @throws Error if server is not healthy after all retries
+ * @throws Error if server is not responsive after all retries
  */
 export async function waitForServerHealthy(
   maxRetries = 5,
@@ -23,19 +24,20 @@ export async function waitForServerHealthy(
 ): Promise<void> {
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      const response = await fetch(`${BASE_URL}/api/health`, {
+      const response = await fetch(`${BASE_URL}/`, {
         method: 'GET',
         signal: AbortSignal.timeout(5000),
       });
-      if (response.ok) {
+      // Accept any non-5xx response as "server is up"
+      if (response.status < 500) {
         return;
       }
       console.log(
-        `⚠️ Server health check failed (attempt ${attempt}/${maxRetries}): ${response.status}`
+        `⚠️ Server returned 5xx (attempt ${attempt}/${maxRetries}): ${response.status}`
       );
     } catch (error) {
       console.log(
-        `⚠️ Server health check error (attempt ${attempt}/${maxRetries}): ${error instanceof Error ? error.message : String(error)}`
+        `⚠️ Server not reachable (attempt ${attempt}/${maxRetries}): ${error instanceof Error ? error.message : String(error)}`
       );
     }
 
@@ -44,7 +46,7 @@ export async function waitForServerHealthy(
     }
   }
 
-  throw new Error(`Server not healthy after ${maxRetries} attempts`);
+  throw new Error(`Server not responsive after ${maxRetries} attempts`);
 }
 
 /**

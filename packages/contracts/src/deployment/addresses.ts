@@ -17,14 +17,17 @@ import localDeployment from '../../deployments/local';
 
 /**
  * Deployed contract addresses for the current network.
+ *
+ * Architecture:
+ * - Diamond: Upgradeable proxy with facets for prediction markets
+ * - BabylonGameOracle: The game IS the prediction oracle (IPredictionOracle)
+ * - External contracts query: babylonOracle.getOutcome(sessionId)
  */
 export interface DeployedContracts {
   /** Diamond proxy contract address */
   diamond: Address;
-  /** Babylon Game Oracle contract address */
+  /** Babylon Game Oracle - THE GAME IS THE PREDICTION ORACLE */
   babylonOracle: Address;
-  /** Predimarket contract address */
-  predimarket: Address;
   /** Prediction Market Facet address */
   predictionMarketFacet: Address;
   /** ERC-8004 Identity Registry contract address */
@@ -59,7 +62,6 @@ export function getContractAddresses(): DeployedContracts {
     return {
       diamond: localDeployment.contracts.diamond as Address,
       babylonOracle: localDeployment.contracts.babylonOracle as Address,
-      predimarket: localDeployment.contracts.predimarket as Address,
       predictionMarketFacet: localDeployment.contracts
         .predictionMarketFacet as Address,
       identityRegistry: localDeployment.contracts.identityRegistry as Address,
@@ -70,10 +72,14 @@ export function getContractAddresses(): DeployedContracts {
   }
 
   if (chainId === 84532) {
+    // Note: BabylonGameOracle needs to be deployed to Sepolia
+    // Currently using oracleFacet as placeholder until deployed
     return {
       diamond: baseSepoliaDeployment.contracts.diamond as Address,
-      babylonOracle: baseSepoliaDeployment.contracts.oracleFacet as Address,
-      predimarket: '0x0000000000000000000000000000000000000000' as Address,
+      babylonOracle:
+        ((baseSepoliaDeployment.contracts as Record<string, string>)
+          .babylonOracle as Address) ||
+        (baseSepoliaDeployment.contracts.oracleFacet as Address),
       predictionMarketFacet: baseSepoliaDeployment.contracts
         .predictionMarketFacet as Address,
       identityRegistry: baseSepoliaDeployment.contracts
@@ -95,7 +101,6 @@ export function getContractAddresses(): DeployedContracts {
   return {
     diamond: localDeployment.contracts.diamond as Address,
     babylonOracle: localDeployment.contracts.babylonOracle as Address,
-    predimarket: localDeployment.contracts.predimarket as Address,
     predictionMarketFacet: localDeployment.contracts
       .predictionMarketFacet as Address,
     identityRegistry: localDeployment.contracts.identityRegistry as Address,

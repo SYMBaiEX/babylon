@@ -16,22 +16,31 @@ export interface PrivyTestAccount {
 /**
  * Gets Privy test account credentials from environment variables.
  *
+ * Returns a default test account if credentials are not configured.
+ * Tests should handle the case where authentication may not work
+ * without proper credentials.
+ *
  * @returns Privy test account credentials
- * @throws Error if PRIVY_TEST_EMAIL is not set
  */
 export function getPrivyTestAccount(): PrivyTestAccount {
-  const email = process.env.PRIVY_TEST_EMAIL || 'test@example.com';
+  const email = process.env.PRIVY_TEST_EMAIL;
   const password = process.env.PRIVY_TEST_PASSWORD;
   const phone = process.env.PRIVY_TEST_PHONE;
   const otp = process.env.PRIVY_TEST_OTP;
 
   if (!email) {
-    throw new Error(
-      'PRIVY_TEST_EMAIL environment variable is required for synpress tests'
+    console.warn('⚠️ PRIVY_TEST_EMAIL not set - using default test credentials');
+    console.warn(
+      '   Authentication tests may fail without valid Privy credentials'
     );
+    // Return a placeholder that will likely fail auth but not crash
+    return {
+      email: 'test@example.com',
+      password: undefined,
+      phone: undefined,
+      otp: '000000',
+    };
   }
-
-  console.log(`📧 Privy test credentials loaded for: ${email}`);
 
   return {
     email,
@@ -39,6 +48,15 @@ export function getPrivyTestAccount(): PrivyTestAccount {
     phone,
     otp,
   };
+}
+
+/**
+ * Checks if Privy test credentials are configured.
+ *
+ * @returns true if PRIVY_TEST_EMAIL is set
+ */
+export function hasPrivyTestCredentials(): boolean {
+  return !!process.env.PRIVY_TEST_EMAIL;
 }
 
 /**

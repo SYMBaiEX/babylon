@@ -82,6 +82,7 @@ export const privyConfig: { appId: string; config: BabylonPrivyConfig } = {
     loginMethodsAndOrder,
     embeddedWallets,
     defaultChain: CHAIN,
+    supportedChains: [CHAIN],
     externalWallets,
   },
 };

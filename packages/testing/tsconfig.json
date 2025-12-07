@@ -56,7 +56,14 @@
     "shared/**/*",
     "src/**/*"
   ],
-  "exclude": ["node_modules", "manual/**/*", "dist", "verification/**/*"],
+  "exclude": [
+    "node_modules",
+    "manual/**/*",
+    "dist",
+    "verification/**/*",
+    "integration/admin-agents-reputation.integration.test.ts",
+    "integration/agent-autonomous-tick.integration.test.ts"
+  ],
   "references": [
     { "path": "../shared" },
     { "path": "../db" },

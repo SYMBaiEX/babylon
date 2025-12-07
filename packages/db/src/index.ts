@@ -38,6 +38,8 @@ export { TableRepository } from './client';
  * Base types (User, Actor, etc.) are already exported from schema.
  */
 export type {
+  ActorRef,
+  ActorStateRow,
   AgentGoalWithActions,
   BalanceTransactionWithUser,
   ChatWithParticipants,
@@ -46,7 +48,9 @@ export type {
   ExternalAgentConnectionWithRegistry,
   MessageWithSender,
   ModerationEscrowWithRelations,
+  NewActorStateRow,
   PoolWithActor,
+  PoolWithActorState,
   PostWithRelations,
   TradingFeeWithUser,
   UserWithAgentRelations,

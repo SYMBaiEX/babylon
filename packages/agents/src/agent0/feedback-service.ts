@@ -5,7 +5,15 @@
  * Allows users to rate agents and tracks Babylon's own reputation
  */
 
-import { db, eq, gameConfigs, type JsonValue, like, users } from '@babylon/db';
+import {
+  db,
+  eq,
+  gameConfigs,
+  type JsonValue,
+  like,
+  userAgentConfigs,
+  users,
+} from '@babylon/db';
 import { SDK } from 'agent0-sdk';
 import { logger } from '../shared/logger';
 import { generateSnowflakeId } from '../shared/snowflake';
@@ -301,14 +309,15 @@ export class Agent0FeedbackService {
     skill: string,
     comment?: string
   ): Promise<void> {
-    // Get agent's Agent0 registration
+    // Get agent's Agent0 registration (join with userAgentConfigs for systemPrompt)
     const agentResult = await db
       .select({
         id: users.id,
         displayName: users.displayName,
-        agentSystem: users.agentSystem,
+        systemPrompt: userAgentConfigs.systemPrompt,
       })
       .from(users)
+      .leftJoin(userAgentConfigs, eq(users.id, userAgentConfigs.userId))
       .where(eq(users.id, babylonAgentUserId))
       .limit(1);
     const agent = agentResult[0];

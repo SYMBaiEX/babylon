@@ -55,6 +55,7 @@
  * ```
  */
 
+import { requireAdmin, successResponse, withErrorHandling } from '@babylon/api';
 import { logger } from '@babylon/shared';
 import { modelStorage } from '@babylon/training';
 import fs from 'fs/promises';
@@ -65,7 +66,9 @@ import path from 'path';
 
 export const maxDuration = 300; // 5 minutes for large uploads
 
-export async function POST(request: NextRequest) {
+export const POST = withErrorHandling(async (request: NextRequest) => {
+  await requireAdmin(request);
+
   const formData = await request.formData();
   const modelFile = formData.get('model') as File;
   const version = formData.get('version') as string;
@@ -107,10 +110,10 @@ export async function POST(request: NextRequest) {
     url: result.blobUrl,
   });
 
-  return NextResponse.json({
+  return successResponse({
     success: true,
     url: result.blobUrl,
     version: result.version,
     size: result.size,
   });
-}
+});

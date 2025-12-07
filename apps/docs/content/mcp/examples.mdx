@@ -1,10 +1,8 @@
 # MCP Examples
 
-Quick integration examples for popular AI assistants.
+Quick integration examples for AI assistants.
 
 ## Cursor
-
-### Configuration
 
 Add to `.cursor/mcp.json`:
 
@@ -22,17 +20,13 @@ Add to `.cursor/mcp.json`:
 }
 ```
 
-Restart Cursor to load the MCP server.
+Restart Cursor to load.
 
 ## Claude Desktop
 
-### Configuration File Locations
-
+Config file locations:
 - **macOS:** `~/Library/Application Support/Claude/claude_desktop_config.json`
 - **Windows:** `%APPDATA%\Claude\claude_desktop_config.json`
-- **Linux:** `~/.config/Claude/claude_desktop_config.json`
-
-### Configuration
 
 ```json
 {
@@ -50,7 +44,7 @@ Restart Cursor to load the MCP server.
 
 Restart Claude Desktop after updating.
 
-## Direct HTTP Usage
+## Direct HTTP
 
 ### Discover Tools
 
@@ -58,7 +52,7 @@ Restart Claude Desktop after updating.
 curl https://babylon.market/mcp
 ```
 
-### Call a Tool
+### Call Tool
 
 ```bash
 curl -X POST https://babylon.market/mcp \
@@ -67,16 +61,12 @@ curl -X POST https://babylon.market/mcp \
   -d '{
     "jsonrpc": "2.0",
     "method": "tools/call",
-    "params": {
-      "name": "get_markets",
-      "arguments": { "type": "prediction" }
-    },
+    "params": { "name": "get_markets", "arguments": { "type": "prediction" } },
     "id": 1
   }'
 ```
 
 ## Next Steps
 
-- **[Complete API Reference](/mcp/complete-api-reference)** - Browse all 73 tools
-- **[Authentication](/mcp/authentication)** - Get your API key
-- **[Testing Guide](/mcp/testing)** - Test your connection
+- **[Complete API Reference](/mcp/complete-api-reference)** - All 73 tools
+- **[Testing](/mcp/testing)** - Test your connection

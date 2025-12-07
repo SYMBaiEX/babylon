@@ -74,7 +74,7 @@ import {
   requireAdmin,
   withErrorHandling,
 } from '@babylon/api';
-import { db } from '@babylon/db';
+import { db, eq, userAgentConfigs } from '@babylon/db';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
@@ -98,18 +98,19 @@ export const POST = withErrorHandling(
       metadata: { action: 'toggle_autonomous_mode', enabled },
     });
 
-    // Toggle all autonomous features
-    await db.user.update({
-      where: { id: agentId, isAgent: true },
-      data: {
+    // Toggle all autonomous features in agent config
+    await db
+      .update(userAgentConfigs)
+      .set({
         autonomousTrading: enabled,
         autonomousPosting: enabled,
         autonomousCommenting: enabled,
         autonomousDMs: enabled,
         autonomousGroupChats: enabled,
-        agentStatus: enabled ? 'running' : 'paused',
-      },
-    });
+        status: enabled ? 'running' : 'paused',
+        updatedAt: new Date(),
+      })
+      .where(eq(userAgentConfigs.userId, agentId));
 
     logger.info(
       `Agent ${agentId} autonomous mode ${enabled ? 'enabled' : 'disabled'}`,

@@ -30,7 +30,12 @@ contract LiquidityPoolFacet is ReentrancyGuard {
 
         LibLiquidity.LiquidityStorage storage ls = LibLiquidity.liquidityStorage();
 
-        poolId = keccak256(abi.encodePacked(_marketId, block.timestamp, block.number));
+        // Generate unique pool ID including sender and counter to prevent collisions
+        poolId = keccak256(abi.encodePacked(_marketId, block.timestamp, block.number, ls.poolIds.length, msg.sender));
+        
+        // Verify pool doesn't already exist (defensive check)
+        require(ls.pools[poolId].createdAt == 0, "Pool ID collision");
+        
         LibLiquidity.LiquidityPool storage pool = ls.pools[poolId];
 
         pool.id = poolId;
@@ -121,9 +126,10 @@ contract LiquidityPoolFacet is ReentrancyGuard {
         // Calculate liquidity to return
         amount = LibLiquidity.calculateLiquidityForShares(pool, _shares);
 
-        // Update position
+        // Update position - calculate depositReduction BEFORE reducing shares
+        uint256 originalShares = position.shares;
+        uint256 depositReduction = (position.depositedLiquidity * _shares) / originalShares;
         position.shares -= _shares;
-        uint256 depositReduction = (position.depositedLiquidity * _shares) / (position.shares + _shares);
         position.depositedLiquidity -= depositReduction;
 
         // Update pool

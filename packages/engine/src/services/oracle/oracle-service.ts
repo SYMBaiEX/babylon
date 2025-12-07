@@ -9,7 +9,7 @@ import { getContractAddresses, getRpcUrl } from '@babylon/contracts';
 import { getCurrentChainId, logger } from '@babylon/shared';
 import { ethers } from 'ethers';
 import { CommitmentStore } from '../oracle-commitment-store';
-import BabylonGameOracleABI from './abi/BabylonGameOracle.json';
+import { BabylonGameOracleABI } from './abi/BabylonGameOracle';
 import type {
   BatchCommitResult,
   BatchRevealResult,

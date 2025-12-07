@@ -132,6 +132,7 @@ export const poolPositions = pgTable(
 
 // Relations
 export const poolsRelations = relations(pools, ({ one, many }) => ({
+  /** @deprecated Use StaticDataRegistry.getActor(npcActorId) for static actor data */
   Actor: one(actors, {
     fields: [pools.npcActorId],
     references: [actors.id],

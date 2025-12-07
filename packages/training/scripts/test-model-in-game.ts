@@ -12,15 +12,20 @@
  * Run: bun run packages/training/scripts/test-model-in-game.ts
  *
  * Options:
- *   --use-ollama        Use Ollama for local model inference
+ *   --no-ollama         Disable Ollama (run simulation-only tests)
+ *   --auto-start-ollama Automatically start Ollama if not running (default: true)
+ *   --stop-ollama       Stop Ollama after tests complete (if we started it)
  *   --import-mlx <path> Import MLX adapter to Ollama before test
  *   --model-name <name> Model name to test (default: babylon-trader:latest)
  *   --archetype <type>  Agent archetype to test (default: trader)
  *   --ticks <n>         Number of simulation ticks (default: 100)
  *   --verbose           Enable verbose logging
+ *
+ * By default, Ollama is auto-started if not running. Use --no-ollama to skip.
  */
 
 import { db, desc, eq, trainedModels } from '@babylon/db';
+import { type Subprocess, spawn } from 'bun';
 import { existsSync, mkdirSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { parseArgs } from 'util';
@@ -40,12 +45,18 @@ import {
 // Types
 interface TestConfig {
   useOllama: boolean;
+  autoStartOllama: boolean;
+  stopOllama: boolean;
   importMlxPath?: string;
   modelName: string;
   archetype: string;
   ticks: number;
   verbose: boolean;
 }
+
+// Track Ollama process if we started it
+let ollamaProcess: Subprocess | null = null;
+let ollamaStartedByUs = false;
 
 interface TestResult {
   name: string;
@@ -60,7 +71,10 @@ function parseConfig(): TestConfig {
   const { values } = parseArgs({
     args: process.argv.slice(2),
     options: {
-      'use-ollama': { type: 'boolean', default: false },
+      'use-ollama': { type: 'boolean', default: true }, // Default to true
+      'no-ollama': { type: 'boolean', default: false }, // Explicit disable
+      'auto-start-ollama': { type: 'boolean', default: true },
+      'stop-ollama': { type: 'boolean', default: false },
       'import-mlx': { type: 'string' },
       'model-name': { type: 'string', default: 'babylon-trader:latest' },
       archetype: { type: 'string', default: 'trader' },
@@ -69,14 +83,179 @@ function parseConfig(): TestConfig {
     },
   });
 
+  // Ollama is enabled by default, disabled with --no-ollama
+  const noOllama = values['no-ollama'] ?? false;
+  const useOllama = noOllama ? false : (values['use-ollama'] ?? true);
+
   return {
-    useOllama: values['use-ollama'] ?? false,
+    useOllama,
+    autoStartOllama: useOllama && (values['auto-start-ollama'] ?? true),
+    stopOllama: values['stop-ollama'] ?? false,
     importMlxPath: values['import-mlx'],
     modelName: values['model-name'] ?? 'babylon-trader:latest',
     archetype: values.archetype ?? 'trader',
     ticks: parseInt(values.ticks ?? '100', 10),
     verbose: values.verbose ?? false,
   };
+}
+
+/**
+ * Check if Ollama is running by hitting the API
+ */
+async function isOllamaRunning(): Promise<boolean> {
+  const ollamaUrl = process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
+  try {
+    const response = await fetch(`${ollamaUrl}/api/tags`, {
+      method: 'GET',
+      signal: AbortSignal.timeout(3000),
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Find Ollama executable path
+ */
+async function findOllamaPath(): Promise<string | null> {
+  // Common Ollama locations
+  const possiblePaths = [
+    '/usr/local/bin/ollama',
+    '/opt/homebrew/bin/ollama',
+    '/usr/bin/ollama',
+    `${process.env.HOME}/.ollama/ollama`,
+    `${process.env.HOME}/bin/ollama`,
+  ];
+
+  // First try 'which'
+  try {
+    const whichResult = spawn(['which', 'ollama']);
+    const output = await new Response(whichResult.stdout).text();
+    await whichResult.exited;
+    if (whichResult.exitCode === 0 && output.trim()) {
+      return output.trim();
+    }
+  } catch {
+    // which failed, try known paths
+  }
+
+  // Check known paths
+  for (const path of possiblePaths) {
+    if (existsSync(path)) {
+      return path;
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Start Ollama server
+ */
+async function startOllama(): Promise<boolean> {
+  console.log('🚀 Starting Ollama server...');
+
+  try {
+    // Find ollama executable
+    const ollamaPath = await findOllamaPath();
+
+    if (!ollamaPath) {
+      console.log('   ❌ Ollama not found on this system.');
+      console.log('');
+      console.log('   📦 To install Ollama:');
+      console.log('      macOS:   brew install ollama');
+      console.log(
+        '      Linux:   curl -fsSL https://ollama.ai/install.sh | sh'
+      );
+      console.log('      Windows: Download from https://ollama.ai/download');
+      console.log('');
+      console.log('   After installing, run: ollama serve');
+      console.log('');
+      console.log('   💡 Or run tests without Ollama (simulation only):');
+      console.log(
+        '      bun run packages/training/scripts/test-model-in-game.ts --no-ollama --ticks 100'
+      );
+      return false;
+    }
+
+    console.log(`   📋 Found Ollama at: ${ollamaPath}`);
+
+    // Start ollama serve in the background
+    ollamaProcess = spawn([ollamaPath, 'serve'], {
+      stdout: 'ignore',
+      stderr: 'ignore',
+    });
+
+    ollamaStartedByUs = true;
+
+    // Wait for Ollama to be ready (up to 30 seconds)
+    console.log('   ⏳ Waiting for Ollama to start...');
+    const maxAttempts = 30;
+    for (let i = 0; i < maxAttempts; i++) {
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+
+      if (await isOllamaRunning()) {
+        console.log('   ✅ Ollama started successfully');
+        return true;
+      }
+
+      if (i % 5 === 4) {
+        console.log(`   ⏳ Still waiting... (${i + 1}/${maxAttempts}s)`);
+      }
+    }
+
+    console.log('   ❌ Ollama failed to start within 30 seconds');
+    await stopOllama();
+    return false;
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    console.log(`   ❌ Failed to start Ollama: ${errorMsg}`);
+    return false;
+  }
+}
+
+/**
+ * Stop Ollama server if we started it
+ */
+async function stopOllama(): Promise<void> {
+  if (!ollamaProcess || !ollamaStartedByUs) {
+    return;
+  }
+
+  console.log('🛑 Stopping Ollama server...');
+  try {
+    ollamaProcess.kill();
+    await ollamaProcess.exited;
+    console.log('   ✅ Ollama stopped');
+  } catch {
+    // Process may already be dead
+  }
+  ollamaProcess = null;
+  ollamaStartedByUs = false;
+}
+
+/**
+ * Ensure Ollama is running, starting it if necessary
+ */
+async function ensureOllamaRunning(config: TestConfig): Promise<boolean> {
+  console.log('\n🔍 Checking Ollama status...');
+
+  const running = await isOllamaRunning();
+  if (running) {
+    console.log('   ✅ Ollama is already running');
+    return true;
+  }
+
+  console.log('   ⚠️  Ollama is not running');
+
+  if (!config.autoStartOllama) {
+    console.log('   ❌ Auto-start disabled. Please start Ollama manually:');
+    console.log('      ollama serve');
+    return false;
+  }
+
+  return await startOllama();
 }
 
 const results: TestResult[] = [];
@@ -91,20 +270,42 @@ async function runTest(
 ): Promise<void> {
   const start = Date.now();
   console.log(`\n🧪 Running: ${name}...`);
+  console.log(`   ⏳ Starting at ${new Date().toISOString()}`);
 
-  const result = await testFn();
-  const duration = Date.now() - start;
+  try {
+    const result = await testFn();
+    const duration = Date.now() - start;
 
-  results.push({
-    name,
-    ...result,
-    duration,
-  });
+    results.push({
+      name,
+      ...result,
+      duration,
+    });
 
-  if (result.passed) {
-    console.log(`   ✅ PASSED (${duration}ms): ${result.message}`);
-  } else {
-    console.log(`   ❌ FAILED (${duration}ms): ${result.message}`);
+    if (result.passed) {
+      console.log(`   ✅ PASSED (${duration}ms): ${result.message}`);
+    } else {
+      console.log(`   ❌ FAILED (${duration}ms): ${result.message}`);
+    }
+  } catch (error) {
+    const duration = Date.now() - start;
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorStack = error instanceof Error ? error.stack : undefined;
+
+    console.log(`   💥 ERROR (${duration}ms): ${errorMessage}`);
+    if (errorStack) {
+      console.log(
+        `   Stack: ${errorStack.split('\n').slice(0, 3).join('\n   ')}`
+      );
+    }
+
+    results.push({
+      name,
+      passed: false,
+      message: `Error: ${errorMessage}`,
+      duration,
+      details: { error: errorMessage, stack: errorStack },
+    });
   }
 }
 
@@ -115,6 +316,7 @@ async function testOllamaAvailability(config: TestConfig): Promise<{
   details?: Record<string, unknown>;
 }> {
   if (!config.useOllama) {
+    console.log('   📋 Skipping Ollama check (--use-ollama not specified)');
     return {
       passed: true,
       message: 'Skipped (not using Ollama)',
@@ -122,27 +324,43 @@ async function testOllamaAvailability(config: TestConfig): Promise<{
   }
 
   const ollamaUrl = process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
+  console.log(`   📋 Verifying Ollama at ${ollamaUrl}...`);
 
-  const response = await fetch(`${ollamaUrl}/api/tags`, {
-    method: 'GET',
-    signal: AbortSignal.timeout(5000),
-  }).catch(() => null);
+  try {
+    const response = await fetch(`${ollamaUrl}/api/tags`, {
+      method: 'GET',
+      signal: AbortSignal.timeout(5000),
+    });
 
-  if (!response?.ok) {
+    if (!response.ok) {
+      console.log(`   📋 Ollama responded with status ${response.status}`);
+      return {
+        passed: false,
+        message: `Ollama not available at ${ollamaUrl}`,
+      };
+    }
+
+    const data = (await response.json()) as { models: Array<{ name: string }> };
+    const models = data.models || [];
+    console.log(`   📋 Found ${models.length} models in Ollama`);
+
+    return {
+      passed: true,
+      message: `Ollama available with ${models.length} models${ollamaStartedByUs ? ' (auto-started)' : ''}`,
+      details: {
+        models: models.map((m) => m.name),
+        autoStarted: ollamaStartedByUs,
+      },
+    };
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    console.log(`   📋 Ollama connection failed: ${errorMsg}`);
     return {
       passed: false,
-      message: `Ollama not available at ${ollamaUrl}. Start Ollama first: ollama serve`,
+      message: `Ollama not available at ${ollamaUrl}`,
+      details: { error: errorMsg },
     };
   }
-
-  const data = (await response.json()) as { models: Array<{ name: string }> };
-  const models = data.models || [];
-
-  return {
-    passed: true,
-    message: `Ollama available with ${models.length} models`,
-    details: { models: models.map((m) => m.name) },
-  };
 }
 
 // Test 2: Import MLX adapter to Ollama (if specified)
@@ -207,6 +425,7 @@ async function testGenerateBenchmark(config: TestConfig): Promise<{
   message: string;
   details?: Record<string, unknown>;
 }> {
+  console.log('   📋 Setting up benchmark config...');
   const benchmarkConfig: BenchmarkConfig = {
     durationMinutes: Math.ceil(config.ticks / 60), // 1 tick per second
     tickInterval: 1,
@@ -215,16 +434,28 @@ async function testGenerateBenchmark(config: TestConfig): Promise<{
     numAgents: 10,
     seed: 12345, // Fixed seed for reproducibility
   };
+  console.log(
+    `   📋 Config: ${config.ticks} ticks, ${benchmarkConfig.durationMinutes} minutes`
+  );
 
+  console.log('   📋 Creating BenchmarkDataGenerator...');
   const generator = new BenchmarkDataGenerator(benchmarkConfig);
+
+  console.log(
+    '   📋 Generating benchmark snapshot (this may take a moment)...'
+  );
   const snapshot = await generator.generate();
+  console.log('   📋 Generation complete');
 
   if (!snapshot || !snapshot.ticks || snapshot.ticks.length === 0) {
+    console.log('   📋 ERROR: No ticks generated in snapshot');
     return {
       passed: false,
       message: 'Failed to generate benchmark data',
     };
   }
+
+  console.log(`   📋 Generated ${snapshot.ticks.length} ticks successfully`);
 
   // Store for later tests
   (global as { testSnapshot?: typeof snapshot }).testSnapshot = snapshot;
@@ -592,12 +823,25 @@ async function main(): Promise<void> {
   );
   console.log(`\nConfiguration:`);
   console.log(`  - Use Ollama: ${config.useOllama}`);
+  if (config.useOllama) {
+    console.log(`  - Auto-start Ollama: ${config.autoStartOllama}`);
+    console.log(`  - Stop Ollama after: ${config.stopOllama}`);
+  }
   console.log(`  - Model Name: ${config.modelName}`);
   console.log(`  - Archetype: ${config.archetype}`);
   console.log(`  - Ticks: ${config.ticks}`);
   console.log(`  - Verbose: ${config.verbose}`);
   if (config.importMlxPath) {
     console.log(`  - Import MLX: ${config.importMlxPath}`);
+  }
+
+  // Ensure Ollama is running if needed
+  if (config.useOllama) {
+    const ollamaReady = await ensureOllamaRunning(config);
+    if (!ollamaReady) {
+      console.log('\n❌ Cannot proceed without Ollama. Exiting.');
+      process.exit(1);
+    }
   }
 
   // Run tests
@@ -651,6 +895,14 @@ async function main(): Promise<void> {
   writeFileSync(reportPath, JSON.stringify(report, null, 2));
   console.log(`\n📄 Report saved to: ${reportPath}`);
 
+  // Cleanup Ollama if requested
+  if (config.stopOllama && ollamaStartedByUs) {
+    await stopOllama();
+  } else if (ollamaStartedByUs) {
+    console.log('\n💡 Note: Ollama is still running (we started it).');
+    console.log('   Use --stop-ollama to auto-stop, or run: pkill ollama');
+  }
+
   // Exit with appropriate code
   if (failed > 0) {
     console.log('\n⚠️  Some tests failed. See above for details.');
@@ -663,29 +915,41 @@ async function main(): Promise<void> {
   console.log(
     '\n═══════════════════════════════════════════════════════════════'
   );
-  console.log('  NEXT STEPS TO TEST WITH YOUR TRAINED MODEL');
+  console.log('  NEXT STEPS');
   console.log(
     '═══════════════════════════════════════════════════════════════\n'
   );
-  console.log('1. Train a model on Mac:');
-  console.log('   cd packages/training/python');
-  console.log('   python scripts/train_local.py --backend mlx\n');
-  console.log('2. Test the MLX adapter directly:');
-  console.log('   python scripts/test_trained_model.py \\');
-  console.log('     --adapter-path ./trained_models/local/adapters \\');
-  console.log('     --validate\n');
-  console.log('3. Import to Ollama for game testing:');
-  console.log('   bun run packages/training/scripts/test-model-in-game.ts \\');
-  console.log('     --use-ollama \\');
-  console.log('     --import-mlx ./trained_models/local/adapters\n');
-  console.log('4. Run full benchmark with Ollama:');
-  console.log(
-    '   AGENT_LLM_PROVIDER=ollama bun run packages/training/scripts/test-model-in-game.ts \\'
-  );
-  console.log('     --use-ollama --ticks 500\n');
+  console.log('🚀 Full automated pipeline:');
+  console.log('   bun run packages/training/scripts/train-and-test.ts\n');
+  console.log('   This will automatically:');
+  console.log('   - Train a model (MLX on Mac, CUDA on Linux)');
+  console.log('   - Test the adapter');
+  console.log('   - Import to Ollama');
+  console.log('   - Run game tests with actual trades\n');
 }
 
-main().catch((error) => {
+// Cleanup handler for graceful shutdown
+async function cleanup(): Promise<void> {
+  if (ollamaStartedByUs) {
+    await stopOllama();
+  }
+}
+
+// Handle signals
+process.on('SIGINT', async () => {
+  console.log('\n\n🛑 Interrupted. Cleaning up...');
+  await cleanup();
+  process.exit(130);
+});
+
+process.on('SIGTERM', async () => {
+  console.log('\n\n🛑 Terminated. Cleaning up...');
+  await cleanup();
+  process.exit(143);
+});
+
+main().catch(async (error) => {
   console.error('Test failed:', error);
+  await cleanup();
   process.exit(1);
 });

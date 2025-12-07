@@ -293,7 +293,16 @@ export const parodyHeadlines = pgTable(
   ]
 );
 
-// CharacterMapping
+/**
+ * @deprecated MIGRATION COMPLETE
+ *
+ * The `characterMappings` table is deprecated. Character mappings are now
+ * generated automatically from static actor data in TypeScript and accessed
+ * via StaticDataRegistry.getAllCharacterMappings() from @babylon/engine.
+ *
+ * See: packages/engine/src/data/actors/*.ts for actor data
+ * See: packages/engine/src/services/static-data-registry.ts for mapping generation
+ */
 export const characterMappings = pgTable(
   'CharacterMapping',
   {
@@ -316,7 +325,16 @@ export const characterMappings = pgTable(
   ]
 );
 
-// OrganizationMapping
+/**
+ * @deprecated MIGRATION COMPLETE
+ *
+ * The `organizationMappings` table is deprecated. Organization mappings are now
+ * generated automatically from static organization data in TypeScript and accessed
+ * via StaticDataRegistry.getAllOrganizationMappings() from @babylon/engine.
+ *
+ * See: packages/engine/src/data/organizations/*.ts for organization data
+ * See: packages/engine/src/services/static-data-registry.ts for mapping generation
+ */
 export const organizationMappings = pgTable(
   'OrganizationMapping',
   {
@@ -336,6 +354,30 @@ export const organizationMappings = pgTable(
       table.isActive
     ),
     index('OrganizationMapping_priority_idx').on(table.priority),
+  ]
+);
+
+// TickTokenStats - Stores LLM token usage statistics per game tick
+export const tickTokenStats = pgTable(
+  'TickTokenStats',
+  {
+    id: text('id').primaryKey(),
+    tickId: text('tickId').notNull(),
+    tickStartedAt: timestamp('tickStartedAt', { mode: 'date' }).notNull(),
+    tickCompletedAt: timestamp('tickCompletedAt', { mode: 'date' }).notNull(),
+    tickDurationMs: integer('tickDurationMs').notNull(),
+    totalCalls: integer('totalCalls').notNull(),
+    totalInputTokens: integer('totalInputTokens').notNull(),
+    totalOutputTokens: integer('totalOutputTokens').notNull(),
+    totalTokens: integer('totalTokens').notNull(),
+    byPromptType: json('byPromptType').$type<JsonValue>().notNull(),
+    byModel: json('byModel').$type<JsonValue>().notNull(),
+    createdAt: timestamp('createdAt', { mode: 'date' }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('TickTokenStats_tickStartedAt_idx').on(table.tickStartedAt),
+    index('TickTokenStats_tickId_idx').on(table.tickId),
+    index('TickTokenStats_createdAt_idx').on(table.createdAt),
   ]
 );
 
@@ -401,3 +443,5 @@ export type CharacterMapping = typeof characterMappings.$inferSelect;
 export type NewCharacterMapping = typeof characterMappings.$inferInsert;
 export type OrganizationMapping = typeof organizationMappings.$inferSelect;
 export type NewOrganizationMapping = typeof organizationMappings.$inferInsert;
+export type TickTokenStatsRow = typeof tickTokenStats.$inferSelect;
+export type NewTickTokenStatsRow = typeof tickTokenStats.$inferInsert;

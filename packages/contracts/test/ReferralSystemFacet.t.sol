@@ -120,6 +120,10 @@ contract ReferralSystemFacetTest is Test {
 
         vm.prank(eve);
         PredictionMarketFacet(address(diamond)).deposit{value: 50 ether}();
+        
+        // Test contract also needs funds to pay commissions
+        vm.deal(address(this), 100 ether);
+        PredictionMarketFacet(address(diamond)).deposit{value: 50 ether}();
     }
 
     function testRegisterReferral() public {

@@ -31,6 +31,28 @@ contract PerpetualMarketFacetTest is Test {
     event PositionLiquidated(bytes32 indexed marketId, address indexed trader, address indexed liquidator, uint256 liquidationFee);
     event FundingRateUpdated(bytes32 indexed marketId, uint256 fundingRate);
 
+    /// @notice Helper to mock oracle price with fresh timestamp (for staleness check)
+    function mockOraclePrice(int256 price) internal {
+        // Mock latestRoundData for staleness-aware oracle check
+        vm.mockCall(
+            oracle,
+            abi.encodeWithSignature("latestRoundData()"),
+            abi.encode(
+                uint80(1),           // roundId
+                price,               // answer
+                block.timestamp,     // startedAt
+                block.timestamp,     // updatedAt (fresh)
+                uint80(1)            // answeredInRound
+            )
+        );
+        // Also mock latestAnswer for fallback
+        vm.mockCall(
+            oracle,
+            abi.encodeWithSignature("latestAnswer()"),
+            abi.encode(price)
+        );
+    }
+
     function setUp() public {
         // Deploy facets
         diamondCutFacet = new DiamondCutFacet();
@@ -152,11 +174,7 @@ contract PerpetualMarketFacetTest is Test {
         );
 
         // Mock oracle price
-        vm.mockCall(
-            oracle,
-            abi.encodeWithSelector(bytes4(keccak256("latestAnswer()"))),
-            abi.encode(50000e8) // $50,000
-        );
+        mockOraclePrice(50000e8); // $50,000
 
         uint256 size = 1e18; // 1 BTC position
         uint256 collateral = 5100 ether; // Collateral for ~9.8x leverage (BTC at $50k)
@@ -203,11 +221,7 @@ contract PerpetualMarketFacetTest is Test {
         );
 
         // Mock oracle price
-        vm.mockCall(
-            oracle,
-            abi.encodeWithSelector(bytes4(keccak256("latestAnswer()"))),
-            abi.encode(50000e8)
-        );
+        mockOraclePrice(50000e8);
 
         uint256 size = 1e18;
         uint256 collateral = 5000 ether; // Collateral for ~10x leverage
@@ -251,11 +265,7 @@ contract PerpetualMarketFacetTest is Test {
         );
 
         // Entry at $50,000
-        vm.mockCall(
-            oracle,
-            abi.encodeWithSelector(bytes4(keccak256("latestAnswer()"))),
-            abi.encode(50000e8)
-        );
+        mockOraclePrice(50000e8);
 
         vm.prank(alice);
         PerpetualMarketFacet(address(diamond)).openPosition(
@@ -269,11 +279,7 @@ contract PerpetualMarketFacetTest is Test {
         uint256 balanceBefore = PredictionMarketFacet(address(diamond)).getBalance(alice);
 
         // Price increases to $55,000 (profit)
-        vm.mockCall(
-            oracle,
-            abi.encodeWithSelector(bytes4(keccak256("latestAnswer()"))),
-            abi.encode(55000e8)
-        );
+        mockOraclePrice(55000e8);
 
         vm.expectEmit(true, true, false, false);
         emit PositionClosed(marketId, alice, 0); // PnL checked separately
@@ -301,11 +307,7 @@ contract PerpetualMarketFacetTest is Test {
         );
 
         // Entry at $50,000
-        vm.mockCall(
-            oracle,
-            abi.encodeWithSelector(bytes4(keccak256("latestAnswer()"))),
-            abi.encode(50000e8)
-        );
+        mockOraclePrice(50000e8);
 
         vm.prank(alice);
         PerpetualMarketFacet(address(diamond)).openPosition(
@@ -319,11 +321,7 @@ contract PerpetualMarketFacetTest is Test {
         uint256 balanceBefore = PredictionMarketFacet(address(diamond)).getBalance(alice);
 
         // Price decreases to $45,000 (loss)
-        vm.mockCall(
-            oracle,
-            abi.encodeWithSelector(bytes4(keccak256("latestAnswer()"))),
-            abi.encode(45000e8)
-        );
+        mockOraclePrice(45000e8);
 
         vm.prank(alice);
         PerpetualMarketFacet(address(diamond)).closePosition(marketId, 40000e8);
@@ -348,11 +346,7 @@ contract PerpetualMarketFacetTest is Test {
         );
 
         // Entry at $50,000 with 10x leverage
-        vm.mockCall(
-            oracle,
-            abi.encodeWithSelector(bytes4(keccak256("latestAnswer()"))),
-            abi.encode(50000e8)
-        );
+        mockOraclePrice(50000e8);
 
         vm.prank(alice);
         PerpetualMarketFacet(address(diamond)).openPosition(
@@ -364,11 +358,7 @@ contract PerpetualMarketFacetTest is Test {
         );
 
         // Price drops significantly to trigger liquidation
-        vm.mockCall(
-            oracle,
-            abi.encodeWithSelector(bytes4(keccak256("latestAnswer()"))),
-            abi.encode(47000e8) // ~6% loss, below maintenance margin
-        );
+        mockOraclePrice(47000e8); // ~6% loss, below maintenance margin
 
         vm.expectEmit(false, true, true, false); // Skip marketId check
         emit PositionLiquidated(marketId, alice, bob, 0); // liquidationFee not checked
@@ -403,11 +393,7 @@ contract PerpetualMarketFacetTest is Test {
         );
 
         // Mock oracle
-        vm.mockCall(
-            oracle,
-            abi.encodeWithSelector(bytes4(keccak256("latestAnswer()"))),
-            abi.encode(50000e8)
-        );
+        mockOraclePrice(50000e8);
 
         // Open more longs than shorts to create imbalance
         vm.prank(alice);
@@ -455,11 +441,7 @@ contract PerpetualMarketFacetTest is Test {
             20
         );
 
-        vm.mockCall(
-            oracle,
-            abi.encodeWithSelector(bytes4(keccak256("latestAnswer()"))),
-            abi.encode(50000e8)
-        );
+        mockOraclePrice(50000e8);
 
         // Try to open 15x leverage position (should fail with 10x max)
         vm.prank(alice);
@@ -486,11 +468,7 @@ contract PerpetualMarketFacetTest is Test {
             20
         );
 
-        vm.mockCall(
-            oracle,
-            abi.encodeWithSelector(bytes4(keccak256("latestAnswer()"))),
-            abi.encode(50000e8)
-        );
+        mockOraclePrice(50000e8);
 
         // Try to open position with insufficient collateral
         // With 15% margin, requires 7500 ether for 1 BTC at $50k
@@ -519,11 +497,7 @@ contract PerpetualMarketFacetTest is Test {
             20
         );
 
-        vm.mockCall(
-            oracle,
-            abi.encodeWithSelector(bytes4(keccak256("latestAnswer()"))),
-            abi.encode(50000e8)
-        );
+        mockOraclePrice(50000e8);
 
         vm.prank(alice);
         PerpetualMarketFacet(address(diamond)).openPosition(
@@ -535,11 +509,7 @@ contract PerpetualMarketFacetTest is Test {
         );
 
         // Price only slightly down - position still healthy
-        vm.mockCall(
-            oracle,
-            abi.encodeWithSelector(bytes4(keccak256("latestAnswer()"))),
-            abi.encode(49000e8)
-        );
+        mockOraclePrice(49000e8);
 
         // Should fail to liquidate
         vm.prank(bob);

@@ -1,16 +1,17 @@
 /**
  * Database-backed state store for game tick execution.
  * Implements GameStateStore interface for production use.
+ *
+ * NOTE: Static data (actors, organizations) is loaded from in-memory cache
+ * via StaticDataRegistry to avoid unnecessary database queries.
  */
 
 import {
-  actors,
   and,
   db,
   eq,
   lte,
   markets,
-  organizations,
   posts,
   questions,
   worldEvents,
@@ -30,6 +31,7 @@ import type {
   TradeInput,
   TradeResult,
 } from '../GameTick';
+import { StaticDataRegistry } from '../services/static-data-registry';
 
 export class DbStateStore implements GameStateStore {
   async getActiveQuestions(): Promise<ActiveQuestion[]> {
@@ -180,26 +182,28 @@ export class DbStateStore implements GameStateStore {
     return id;
   }
 
+  /**
+   * Get actors from in-memory static data registry (NO DATABASE CALL)
+   */
   async getActors(limit = 50): Promise<GameActor[]> {
-    const rows = await db.select().from(actors).limit(limit);
+    const staticActors = StaticDataRegistry.getAllActors().slice(0, limit);
 
-    return rows.map((a) => ({
+    return staticActors.map((a) => ({
       id: a.id,
       name: a.name,
       tier: a.tier ?? undefined,
       personality: a.personality ?? undefined,
-      domain: Array.isArray(a.domain)
-        ? a.domain
-        : a.domain
-          ? [a.domain]
-          : undefined,
+      domain: a.domain.length > 0 ? a.domain : undefined,
     }));
   }
 
+  /**
+   * Get organizations from in-memory static data registry (NO DATABASE CALL)
+   */
   async getOrganizations(): Promise<GameOrganization[]> {
-    const rows = await db.select().from(organizations);
+    const staticOrgs = StaticDataRegistry.getAllOrganizations();
 
-    return rows.map((o) => ({
+    return staticOrgs.map((o) => ({
       id: o.id,
       name: o.name,
       type: o.type as 'company' | 'media' | 'government',

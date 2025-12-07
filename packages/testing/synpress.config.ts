@@ -20,10 +20,9 @@ const _SEED_PHRASE =
   'test test test test test test test test test test test junk';
 const _PASSWORD = process.env.WALLET_PASSWORD || 'Tester@1234';
 
+// Log credential status for debugging
 if (process.env.PRIVY_TEST_EMAIL) {
-  console.log('✅ Privy test credentials loaded successfully');
-} else {
-  console.warn('⚠️ Privy test credentials not found in environment');
+  console.log('✅ Privy test credentials configured');
 }
 
 export default defineConfig({
@@ -88,14 +87,16 @@ export default defineConfig({
   ],
 
   /* Run your local dev server before starting the tests */
-  webServer: process.env.CI
-    ? undefined
-    : {
-        command: `cd ${rootDir} && bunx next dev --dir apps/web`,
-        url: 'http://localhost:3000',
-        reuseExistingServer: !process.env.CI,
-        timeout: 120 * 1000,
-        stdout: 'pipe',
-        stderr: 'pipe',
-      },
+  /* Note: Set PLAYWRIGHT_SKIP_WEBSERVER=1 to use an existing server */
+  webServer:
+    process.env.CI || process.env.PLAYWRIGHT_SKIP_WEBSERVER
+      ? undefined
+      : {
+          command: `cd ${rootDir}/apps/web && bunx next dev`,
+          url: 'http://localhost:3000',
+          reuseExistingServer: true,
+          timeout: 120 * 1000,
+          stdout: 'pipe',
+          stderr: 'pipe',
+        },
 });

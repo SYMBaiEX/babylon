@@ -93,7 +93,11 @@
  */
 
 import { periodicReputationSync, syncUserReputationNow } from '@babylon/agents';
-import { requireUserByIdentifier } from '@babylon/api';
+import {
+  requireAdmin,
+  requireUserByIdentifier,
+  withErrorHandling,
+} from '@babylon/api';
 import { db } from '@babylon/db';
 import { getReputationBreakdown } from '@babylon/engine';
 import { logger } from '@babylon/shared';
@@ -108,8 +112,12 @@ interface SyncRequest {
 /**
  * POST /api/reputation/sync
  * Sync reputation data with Agent0 network
+ * SECURITY: Requires admin - bulk sync can be resource-intensive and manipulate reputation
  */
-export async function POST(request: NextRequest) {
+export const POST = withErrorHandling(async (request: NextRequest) => {
+  // SECURITY: Only admins can trigger reputation syncs
+  await requireAdmin(request);
+
   let body: SyncRequest = {};
   body = (await request.json()) as SyncRequest;
 
@@ -143,7 +151,7 @@ export async function POST(request: NextRequest) {
     ...results,
     message: `Synced ${results.results.filter((r) => r.success).length} of ${results.total} agents`,
   });
-}
+});
 
 /**
  * GET /api/reputation/sync/status

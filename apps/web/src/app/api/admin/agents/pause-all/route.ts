@@ -51,7 +51,7 @@ import {
   requireAdmin,
   withErrorHandling,
 } from '@babylon/api';
-import { db } from '@babylon/db';
+import { db, userAgentConfigs } from '@babylon/db';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
@@ -67,32 +67,28 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
     metadata: { action: 'emergency_pause_all' },
   });
 
-  // Pause ALL autonomous agents immediately
-  const result = await db.user.updateMany({
-    where: {
-      isAgent: true,
-    },
-    data: {
-      autonomousTrading: false,
-      autonomousPosting: false,
-      autonomousCommenting: false,
-      autonomousDMs: false,
-      autonomousGroupChats: false,
-      agentStatus: 'idle', // Use 'idle' instead of 'paused' to match schema enum
-    },
+  // Pause ALL autonomous agents immediately by updating their configs
+  await db.update(userAgentConfigs).set({
+    autonomousTrading: false,
+    autonomousPosting: false,
+    autonomousCommenting: false,
+    autonomousDMs: false,
+    autonomousGroupChats: false,
+    status: 'idle',
+    updatedAt: new Date(),
   });
 
   logger.warn(
-    `EMERGENCY: Paused ${result.count} autonomous agents`,
+    `EMERGENCY: Paused all autonomous agents`,
     undefined,
     'AdminAgentsAPI'
   );
 
   return NextResponse.json({
     success: true,
-    message: `Paused ${result.count} agents`,
+    message: 'Paused all agents',
     data: {
-      paused: result.count,
+      paused: 'all',
     },
   });
 });

@@ -14,7 +14,13 @@
  * @see BenchmarkService - For training pipeline evaluation
  */
 
-import { benchmarkResults, db, trainedModels, users } from '@babylon/db';
+import {
+  benchmarkResults,
+  db,
+  trainedModels,
+  userAgentConfigs,
+  users,
+} from '@babylon/db';
 import { and, desc, eq, isNull, sql } from 'drizzle-orm';
 import { ethers } from 'ethers';
 import { promises as fs } from 'fs';
@@ -547,19 +553,29 @@ export class ModelBenchmarkService {
         displayName: 'Model Benchmark Agent',
         walletAddress: ethers.Wallet.createRandom().address,
         isAgent: true,
-        autonomousTrading: true,
-        autonomousPosting: false,
-        autonomousCommenting: false,
-        agentSystem: 'You are a test agent for benchmarking model performance.',
-        agentModelTier: 'pro',
         virtualBalance: '10000',
         reputationPoints: 1000,
-        agentPointsBalance: 10000,
         isTest: true,
         updatedAt: new Date(),
       })
       .returning();
     agent = newAgentResult[0];
+
+    // Create agent config in separate table
+    if (agent) {
+      await db.insert(userAgentConfigs).values({
+        id: await generateSnowflakeId(),
+        userId: agentId,
+        autonomousTrading: true,
+        autonomousPosting: false,
+        autonomousCommenting: false,
+        systemPrompt:
+          'You are a test agent for benchmarking model performance.',
+        modelTier: 'pro',
+        pointsBalance: 10000,
+        updatedAt: new Date(),
+      });
+    }
 
     if (!agent) {
       throw new Error('Failed to create model benchmark test agent');

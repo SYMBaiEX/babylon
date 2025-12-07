@@ -2,12 +2,11 @@
 pragma solidity ^0.8.27;
 
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-/// @title UMAOracleMock
-/// @notice Mock UMA Optimistic Oracle V2 (MOOV2) for dispute resolution
-/// @dev Simulates proposal-dispute-resolution pattern
-contract UMAOracleMock is Ownable {
+/// @title MockOracle
+/// @notice Mock optimistic oracle for testing dispute resolution
+/// @dev Simulates proposal-dispute-resolution pattern for testing
+contract MockOracle is Ownable {
     struct Assertion {
         address requester;
         bytes32 marketId;
@@ -77,7 +76,7 @@ contract UMAOracleMock is Ownable {
 
         emit AssertionDisputed(_assertionId, msg.sender);
 
-        // In a real implementation, this would trigger UMA's DVM voting
+        // In a real implementation, this would trigger voting
         // For mock purposes, owner will resolve disputes
     }
 
@@ -102,7 +101,7 @@ contract UMAOracleMock is Ownable {
         require(success, "Bond return failed");
     }
 
-    /// @notice Resolve disputed assertion (owner only, simulates DVM)
+    /// @notice Resolve disputed assertion (owner only)
     /// @param _assertionId Assertion to resolve
     /// @param _resolvedOutcome The resolved outcome
     function resolveDispute(
@@ -118,8 +117,7 @@ contract UMAOracleMock is Ownable {
 
         emit AssertionResolved(_assertionId, _resolvedOutcome);
 
-        // In real UMA, correct party gets both bonds
-        // For simplicity, just return to proposer if correct
+        // Return bond to proposer if correct
         if (_resolvedOutcome == assertion.assertedOutcome) {
             (bool success, ) = assertion.proposer.call{value: assertion.bond}("");
             require(success, "Bond return failed");
@@ -160,14 +158,16 @@ contract UMAOracleMock is Ownable {
 
         // Try callback - intentionally ignore success for testing flexibility
         // This allows tests to work without requiring callback implementation
+        // solhint-disable-next-line avoid-low-level-calls
         (bool success, ) = _requester.call(
             abi.encodeWithSignature(
-                "umaOracleCallback(bytes32,uint8)",
+                "mockOracleCallback(bytes32,uint8)",
                 _marketId,
                 outcome
             )
         );
-        // Explicitly ignore success - mock oracle shouldn't revert on callback failures
+        // Silence compiler warning - intentionally ignoring success
+        // Mock contract should not revert if callback fails
         success;
     }
 
@@ -179,3 +179,4 @@ contract UMAOracleMock is Ownable {
 
     receive() external payable {}
 }
+

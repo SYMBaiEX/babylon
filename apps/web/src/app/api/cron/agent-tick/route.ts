@@ -58,11 +58,12 @@ import {
   agentRuntimeManager,
   agentService,
   autonomousCoordinator,
+  getAgentConfig,
   releaseAgentLock,
 } from '@babylon/agents';
-import { isValidCronSecret, relayCronToStaging } from '@babylon/api';
-import type { User } from '@babylon/db';
-import { db } from '@babylon/db';
+import { relayCronToStaging, verifyCronAuth } from '@babylon/api';
+import type { User, UserAgentConfig } from '@babylon/db';
+import { db, eq, userAgentConfigs, users } from '@babylon/db';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
@@ -71,54 +72,6 @@ import { NextResponse } from 'next/server';
 // Note: vercel.json overrides this with 800 seconds (13.3 minutes)
 export const maxDuration = 800; // 13.3 minutes max for agent tick (matches vercel.json)
 export const dynamic = 'force-dynamic';
-
-/**
- * Verifies that the request is a legitimate cron invocation.
- * In production, requires valid CRON_SECRET.
- * In development, allows dev cron secret or skips if not configured.
- */
-function verifyCronRequest(request: NextRequest): boolean {
-  const authHeader = request.headers.get('authorization');
-  const isProduction = process.env.NODE_ENV === 'production';
-
-  // Extract bearer token
-  if (!authHeader?.startsWith('Bearer ')) {
-    // In dev without auth header, check if CRON_SECRET is required
-    if (!isProduction && !process.env.CRON_SECRET) {
-      logger.info(
-        'Development mode - allowing cron without CRON_SECRET',
-        undefined,
-        'AgentTick'
-      );
-      return true;
-    }
-    return false;
-  }
-
-  const token = authHeader.substring(7);
-
-  // Use the centralized validation that supports both env and dev credentials
-  if (isValidCronSecret(token)) {
-    return true;
-  }
-
-  // In production, fail if no valid secret
-  if (isProduction) {
-    logger.error(
-      'CRON authentication failed - invalid secret provided',
-      { hasAuthHeader: !!authHeader },
-      'AgentTick'
-    );
-    return false;
-  }
-
-  // In dev, allow 'development' as a fallback token
-  if (token === 'development') {
-    return true;
-  }
-
-  return false;
-}
 
 /**
  * GET /api/cron/agent-tick
@@ -145,8 +98,8 @@ export async function GET(req: NextRequest) {
  * @throws {401} Invalid or missing CRON_SECRET
  */
 export async function POST(_req: NextRequest) {
-  // 0. Verify cron authorization - SECURITY FIX: was missing auth check
-  if (!verifyCronRequest(_req)) {
+  // 0. Verify cron authorization using centralized auth
+  if (!verifyCronAuth(_req, { jobName: 'AgentTick' })) {
     logger.warn(
       'Unauthorized agent-tick request attempt',
       undefined,
@@ -266,30 +219,37 @@ export async function POST(_req: NextRequest) {
     type: AgentType;
     name: string;
     user: User | null;
+    config: UserAgentConfig | null;
   }> = [];
 
   for (const agent of registeredAgents) {
     if (agent.type === AgentType.USER_CONTROLLED && agent.userId) {
       // Check User-specific autonomous settings and points
-      const user = await db.user.findUnique({
-        where: { id: agent.userId },
-      });
+      const [user] = await db
+        .select()
+        .from(users)
+        .where(eq(users.id, agent.userId))
+        .limit(1);
+
+      // Get agent config from separate table
+      const config = await getAgentConfig(agent.userId);
 
       if (
         user &&
         user.isAgent &&
-        user.agentPointsBalance >= 1 &&
-        (user.autonomousTrading ||
-          user.autonomousPosting ||
-          user.autonomousCommenting ||
-          user.autonomousDMs ||
-          user.autonomousGroupChats)
+        (config?.pointsBalance ?? 0) >= 1 &&
+        (config?.autonomousTrading ||
+          config?.autonomousPosting ||
+          config?.autonomousCommenting ||
+          config?.autonomousDMs ||
+          config?.autonomousGroupChats)
       ) {
         eligibleAgents.push({
           agentId: agent.agentId,
           type: agent.type,
           name: agent.name,
           user,
+          config,
         });
       }
     } else if (agent.type === AgentType.NPC) {
@@ -299,6 +259,7 @@ export async function POST(_req: NextRequest) {
         type: agent.type,
         name: agent.name,
         user: null,
+        config: null,
       });
     }
   }
@@ -350,7 +311,7 @@ export async function POST(_req: NextRequest) {
     method?: 'database' | 'a2a' | 'planning_coordinator';
   }> = [];
   let totalActionsExecuted = 0;
-  const errors = 0;
+  let errors = 0;
   let skippedDueToLock = 0;
 
   for (const eligibleAgent of eligibleAgents) {
@@ -386,154 +347,183 @@ export async function POST(_req: NextRequest) {
       continue;
     }
 
-    // Always 1pt per tick for USER agents (NPCs don't use points)
-    const pointsCost = eligibleAgent.type === AgentType.USER_CONTROLLED ? 1 : 0;
+    // Process agent with error handling to ensure lock is always released
+    try {
+      // Always 1pt per tick for USER agents (NPCs don't use points)
+      const pointsCost =
+        eligibleAgent.type === AgentType.USER_CONTROLLED ? 1 : 0;
 
-    if (
-      eligibleAgent.type === AgentType.USER_CONTROLLED &&
-      eligibleAgent.user
-    ) {
-      await agentService.deductPoints(
-        eligibleAgent.user.id,
-        pointsCost,
-        'Autonomous tick'
-      );
-    }
-
-    // Use agent runtime manager for both USER and NPC agents
-    const runtime = await agentRuntimeManager.getRuntime(eligibleAgent.agentId);
-
-    // Determine enabled features based on agent type
-    const enabledFeatures: string[] = [];
-    if (
-      eligibleAgent.type === AgentType.USER_CONTROLLED &&
-      eligibleAgent.user
-    ) {
-      if (eligibleAgent.user.autonomousTrading) enabledFeatures.push('trading');
-      if (eligibleAgent.user.autonomousPosting) enabledFeatures.push('posting');
-      if (eligibleAgent.user.autonomousCommenting)
-        enabledFeatures.push('commenting');
-      if (eligibleAgent.user.autonomousDMs) enabledFeatures.push('DMs');
-      if (eligibleAgent.user.autonomousGroupChats)
-        enabledFeatures.push('group chats');
-    } else if (eligibleAgent.type === AgentType.NPC) {
-      // NPCs have all autonomous features enabled by default
-      enabledFeatures.push(
-        'trading',
-        'posting',
-        'commenting',
-        'DMs',
-        'group chats'
-      );
-    }
-
-    // Always record trajectories for RL training data collection
-    const tickResult = await autonomousCoordinator.executeAutonomousTick(
-      eligibleAgent.agentId,
-      runtime,
-      true // Always record trajectories
-    );
-
-    // Validation: Verify tick executed successfully
-    if (!tickResult.success) {
-      logger.warn(
-        `Agent ${eligibleAgent.name} tick completed but was not successful`,
-        {
-          agentId: eligibleAgent.agentId,
-          agentType: eligibleAgent.type,
-          method: tickResult.method,
-          duration: tickResult.duration,
-        },
-        'AgentTick'
-      );
-    }
-
-    const actions = {
-      trades: tickResult.actionsExecuted.trades,
-      posts: tickResult.actionsExecuted.posts,
-      comments: tickResult.actionsExecuted.comments,
-      dms: tickResult.actionsExecuted.messages,
-      groupMessages: tickResult.actionsExecuted.groupMessages,
-    };
-
-    // Calculate total actions
-    const agentActionCount = Object.values(actions).reduce(
-      (sum, count) => sum + count,
-      0
-    );
-    totalActionsExecuted += agentActionCount;
-
-    // Validation: Warn if agent has features enabled but took no actions
-    if (enabledFeatures.length > 0 && agentActionCount === 0) {
-      logger.warn(
-        `Agent ${eligibleAgent.name} has features enabled but took no actions`,
-        {
-          agentId: eligibleAgent.agentId,
-          agentType: eligibleAgent.type,
-          enabledFeatures,
-          method: tickResult.method,
-        },
-        'AgentTick'
-      );
-    }
-
-    const modelUsed = 'qwen/qwen3-32b';
-
-    // Log tick for USER agents only (NPCs don't have agentService logs yet)
-    if (
-      eligibleAgent.type === AgentType.USER_CONTROLLED &&
-      eligibleAgent.user
-    ) {
-      await agentService.createLog(eligibleAgent.user.id, {
-        type: 'tick',
-        level: 'info',
-        message: `Tick completed: ${actions.trades} trades, ${actions.posts} posts, ${actions.comments} comments, ${actions.dms} DMs, ${actions.groupMessages} group messages`,
-        metadata: {
+      if (
+        eligibleAgent.type === AgentType.USER_CONTROLLED &&
+        eligibleAgent.user
+      ) {
+        await agentService.deductPoints(
+          eligibleAgent.user.id,
           pointsCost,
-          duration: Date.now() - agentStartTime,
-          modelUsed,
-          enabledFeatures,
-          actions,
-          success: tickResult.success,
-          method: tickResult.method,
-        },
-      });
+          'Autonomous tick'
+        );
+      }
 
-      // Update User status for USER agents
-      await db.user.update({
-        where: { id: eligibleAgent.user.id },
-        data: {
-          agentLastTickAt: new Date(),
-          agentStatus: 'running',
-        },
-      });
-    }
+      // Use agent runtime manager for both USER and NPC agents
+      const runtime = await agentRuntimeManager.getRuntime(
+        eligibleAgent.agentId
+      );
 
-    results.push({
-      agentId: eligibleAgent.agentId,
-      agentType: eligibleAgent.type,
-      name: eligibleAgent.name,
-      status: tickResult.success ? 'success' : 'completed_without_actions',
-      pointsDeducted: pointsCost,
-      duration: Date.now() - agentStartTime,
-      actions: agentActionCount,
-      method: tickResult.method,
-    });
+      // Determine enabled features based on agent type
+      const enabledFeatures: string[] = [];
+      if (
+        eligibleAgent.type === AgentType.USER_CONTROLLED &&
+        eligibleAgent.config
+      ) {
+        if (eligibleAgent.config.autonomousTrading)
+          enabledFeatures.push('trading');
+        if (eligibleAgent.config.autonomousPosting)
+          enabledFeatures.push('posting');
+        if (eligibleAgent.config.autonomousCommenting)
+          enabledFeatures.push('commenting');
+        if (eligibleAgent.config.autonomousDMs) enabledFeatures.push('DMs');
+        if (eligibleAgent.config.autonomousGroupChats)
+          enabledFeatures.push('group chats');
+      } else if (eligibleAgent.type === AgentType.NPC) {
+        // NPCs have all autonomous features enabled by default
+        enabledFeatures.push(
+          'trading',
+          'posting',
+          'commenting',
+          'DMs',
+          'group chats'
+        );
+      }
 
-    logger.info(
-      `Agent ${eligibleAgent.name} (${eligibleAgent.type}) tick completed in ${Date.now() - agentStartTime}ms`,
-      {
+      // Always record trajectories for RL training data collection
+      const tickResult = await autonomousCoordinator.executeAutonomousTick(
+        eligibleAgent.agentId,
+        runtime,
+        true // Always record trajectories
+      );
+
+      // Validation: Verify tick executed successfully
+      if (!tickResult.success) {
+        logger.warn(
+          `Agent ${eligibleAgent.name} tick completed but was not successful`,
+          {
+            agentId: eligibleAgent.agentId,
+            agentType: eligibleAgent.type,
+            method: tickResult.method,
+            duration: tickResult.duration,
+          },
+          'AgentTick'
+        );
+      }
+
+      const actions = {
+        trades: tickResult.actionsExecuted.trades,
+        posts: tickResult.actionsExecuted.posts,
+        comments: tickResult.actionsExecuted.comments,
+        dms: tickResult.actionsExecuted.messages,
+        groupMessages: tickResult.actionsExecuted.groupMessages,
+      };
+
+      // Calculate total actions
+      const agentActionCount = Object.values(actions).reduce(
+        (sum, count) => sum + count,
+        0
+      );
+      totalActionsExecuted += agentActionCount;
+
+      // Validation: Warn if agent has features enabled but took no actions
+      if (enabledFeatures.length > 0 && agentActionCount === 0) {
+        logger.warn(
+          `Agent ${eligibleAgent.name} has features enabled but took no actions`,
+          {
+            agentId: eligibleAgent.agentId,
+            agentType: eligibleAgent.type,
+            enabledFeatures,
+            method: tickResult.method,
+          },
+          'AgentTick'
+        );
+      }
+
+      const modelUsed = 'qwen/qwen3-32b';
+
+      // Log tick for USER agents only (NPCs don't have agentService logs yet)
+      if (
+        eligibleAgent.type === AgentType.USER_CONTROLLED &&
+        eligibleAgent.user
+      ) {
+        await agentService.createLog(eligibleAgent.user.id, {
+          type: 'tick',
+          level: 'info',
+          message: `Tick completed: ${actions.trades} trades, ${actions.posts} posts, ${actions.comments} comments, ${actions.dms} DMs, ${actions.groupMessages} group messages`,
+          metadata: {
+            pointsCost,
+            duration: Date.now() - agentStartTime,
+            modelUsed,
+            enabledFeatures,
+            actions,
+            success: tickResult.success,
+            method: tickResult.method,
+          },
+        });
+
+        // Update agent config status for USER agents
+        await db
+          .update(userAgentConfigs)
+          .set({
+            lastTickAt: new Date(),
+            status: 'running',
+            updatedAt: new Date(),
+          })
+          .where(eq(userAgentConfigs.userId, eligibleAgent.user.id));
+      }
+
+      results.push({
         agentId: eligibleAgent.agentId,
         agentType: eligibleAgent.type,
+        name: eligibleAgent.name,
+        status: tickResult.success ? 'success' : 'completed_without_actions',
+        pointsDeducted: pointsCost,
+        duration: Date.now() - agentStartTime,
         actions: agentActionCount,
         method: tickResult.method,
-        success: tickResult.success,
-      },
-      'AgentTick'
-    );
+      });
 
-    // Always release the lock
-    await releaseAgentLock(eligibleAgent.agentId, processId);
+      logger.info(
+        `Agent ${eligibleAgent.name} (${eligibleAgent.type}) tick completed in ${Date.now() - agentStartTime}ms`,
+        {
+          agentId: eligibleAgent.agentId,
+          agentType: eligibleAgent.type,
+          actions: agentActionCount,
+          method: tickResult.method,
+          success: tickResult.success,
+        },
+        'AgentTick'
+      );
+    } catch (error) {
+      errors++;
+      logger.error(
+        `Error processing agent ${eligibleAgent.name}`,
+        {
+          agentId: eligibleAgent.agentId,
+          agentType: eligibleAgent.type,
+          error: error instanceof Error ? error.message : String(error),
+        },
+        'AgentTick'
+      );
+
+      results.push({
+        agentId: eligibleAgent.agentId,
+        agentType: eligibleAgent.type,
+        name: eligibleAgent.name,
+        status: 'error',
+        error: error instanceof Error ? error.message : String(error),
+        duration: Date.now() - agentStartTime,
+      });
+    } finally {
+      // Always release the lock, even on error
+      await releaseAgentLock(eligibleAgent.agentId, processId);
+    }
   }
 
   const duration = Date.now() - startTime;
@@ -562,13 +552,13 @@ export async function POST(_req: NextRequest) {
     // Count agents with autonomous features enabled
     const agentsWithFeatures = eligibleAgents.filter((a) => {
       if (a.type === AgentType.NPC) return true; // NPCs always have features enabled
-      if (a.type === AgentType.USER_CONTROLLED && a.user) {
+      if (a.type === AgentType.USER_CONTROLLED && a.config) {
         return (
-          a.user.autonomousTrading ||
-          a.user.autonomousPosting ||
-          a.user.autonomousCommenting ||
-          a.user.autonomousDMs ||
-          a.user.autonomousGroupChats
+          a.config.autonomousTrading ||
+          a.config.autonomousPosting ||
+          a.config.autonomousCommenting ||
+          a.config.autonomousDMs ||
+          a.config.autonomousGroupChats
         );
       }
       return false;

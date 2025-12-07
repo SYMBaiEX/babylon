@@ -53,6 +53,7 @@
  */
 
 import { generateAgentCardSync } from '@babylon/a2a';
+import { getAgentConfig } from '@babylon/agents';
 import { db } from '@babylon/db';
 import { NextResponse } from 'next/server';
 
@@ -71,11 +72,7 @@ export async function GET(
       displayName: true,
       bio: true,
       profileImageUrl: true,
-      agentSystem: true,
-      agentPersonality: true,
-      agentTradingStrategy: true,
       isAgent: true,
-      a2aEnabled: true,
     },
   });
 
@@ -88,23 +85,17 @@ export async function GET(
     );
   }
 
-  if (!agent.a2aEnabled) {
-    return NextResponse.json(
-      {
-        error: 'A2A is not enabled for this agent',
-      },
-      { status: 403 }
-    );
-  }
+  // Get agent config for agent-specific fields
+  const agentConfig = await getAgentConfig(agentId);
 
   const agentCard = generateAgentCardSync({
     id: agent.id,
     displayName: agent.displayName,
     bio: agent.bio,
     profileImageUrl: agent.profileImageUrl,
-    agentSystem: agent.agentSystem,
-    agentPersonality: agent.agentPersonality,
-    agentTradingStrategy: agent.agentTradingStrategy,
+    systemPrompt: agentConfig?.systemPrompt,
+    personality: agentConfig?.personality,
+    tradingStrategy: agentConfig?.tradingStrategy,
   });
 
   return NextResponse.json(agentCard, {

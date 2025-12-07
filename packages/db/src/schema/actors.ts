@@ -12,7 +12,24 @@ import {
 } from 'drizzle-orm/pg-core';
 import type { JsonValue } from '../types';
 
-// Actor - NPCs in the game
+/**
+ * @deprecated MIGRATION IN PROGRESS
+ *
+ * The `actors` table is being deprecated. Static actor data (name, description,
+ * personality, tier, etc.) should be accessed via StaticDataRegistry from
+ * @babylon/engine, which loads data from packages/engine/src/data/actors/*.ts
+ *
+ * For dynamic runtime state (tradingBalance, reputationPoints, hasPool),
+ * use the new `actorState` table from ./actor-state.ts
+ *
+ * Migration path:
+ * 1. Replace `db.actor.findUnique({ where: { id } })` with:
+ *    - Static data: `StaticDataRegistry.getActor(id)` from @babylon/engine
+ *    - Dynamic data: `db.actorState.findUnique({ where: { id } })`
+ *
+ * 2. For queries that join on actors, filter actor IDs in memory using
+ *    StaticDataRegistry.getActorsByTier(), getActorsByDomain(), etc.
+ */
 export const actors = pgTable(
   'Actor',
   {
@@ -226,7 +243,9 @@ export const npcTradesRelations = relations(npcTrades, ({ one }) => ({
 }));
 
 // Type exports
+/** @deprecated Use StaticActor from @babylon/engine for static data */
 export type Actor = typeof actors.$inferSelect;
+/** @deprecated Use NewActorStateRow for dynamic data */
 export type NewActor = typeof actors.$inferInsert;
 export type ActorFollow = typeof actorFollows.$inferSelect;
 export type NewActorFollow = typeof actorFollows.$inferInsert;

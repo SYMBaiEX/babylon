@@ -10,6 +10,7 @@ import OpenAI from 'openai';
 import 'dotenv/config';
 import { logger } from '@babylon/shared';
 import type { JsonValue } from '../types/common';
+import type { LLMCallTokenUsage } from '../types/token-stats';
 import { isPromptLoggingEnabled, logPrompt } from '../utils/prompt-logger';
 import {
   cleanMarkdownCodeBlocks,
@@ -19,6 +20,34 @@ import {
 import { parseXML } from './xml-parser';
 
 type LLMProvider = 'groq' | 'claude' | 'openai';
+
+/**
+ * Token usage callback function type
+ * Called after each LLM call with usage statistics
+ */
+export type TokenUsageCallback = (
+  usage: Omit<LLMCallTokenUsage, 'callId' | 'timestamp'>
+) => void;
+
+// Global token usage callback (can be set by TokenStatsService)
+let globalTokenUsageCallback: TokenUsageCallback | null = null;
+
+/**
+ * Set the global token usage callback
+ * Used by TokenStatsService to collect usage across all LLM calls
+ */
+export function setTokenUsageCallback(
+  callback: TokenUsageCallback | null
+): void {
+  globalTokenUsageCallback = callback;
+}
+
+/**
+ * Get the current token usage callback
+ */
+export function getTokenUsageCallback(): TokenUsageCallback | null {
+  return globalTokenUsageCallback;
+}
 
 /**
  * Simple JSON schema for validation
@@ -255,6 +284,7 @@ WORLD RULES:
     let retryCount = 0;
     const maxRetries = 3;
     const initialDelayMs = 2000;
+    let callStartTime = Date.now();
 
     while (true) {
       try {
@@ -262,6 +292,7 @@ WORLD RULES:
         // See: https://console.groq.com/docs/reasoning
         const isQwen3Model = model.includes('qwen3');
 
+        callStartTime = Date.now();
         const response = await this.client.chat.completions.create({
           model,
           messages,
@@ -271,9 +302,16 @@ WORLD RULES:
           // Disable reasoning for qwen3 models to prevent thinking tokens from consuming output budget
           ...(isQwen3Model ? { reasoning_effort: 'none' as const } : {}),
         });
+        const callDurationMs = Date.now() - callStartTime;
 
         let content = response.choices[0]!.message.content!;
         let finishReason = response.choices[0]!.finish_reason;
+
+        // Extract token usage from response
+        const usage = response.usage;
+        const inputTokens = usage?.prompt_tokens ?? 0;
+        const outputTokens = usage?.completion_tokens ?? 0;
+        const totalTokens = usage?.total_tokens ?? inputTokens + outputTokens;
 
         // Log prompt and response for monitoring
         const fullInput = `System: ${systemContent}\n\nUser: ${prompt}`;
@@ -389,6 +427,20 @@ WORLD RULES:
           // Log parsed output for monitoring
           await this.logParsedOutput(xmlResult.data, promptType);
 
+          // Report token usage via callback
+          if (globalTokenUsageCallback) {
+            globalTokenUsageCallback({
+              provider: this.provider,
+              model,
+              inputTokens,
+              outputTokens,
+              totalTokens,
+              promptType,
+              durationMs: callDurationMs,
+              success: true,
+            });
+          }
+
           return xmlResult.data as T;
         }
         // Use JSON parser
@@ -404,6 +456,21 @@ WORLD RULES:
               },
               'BabylonLLMClient'
             );
+
+            // Report token usage via callback
+            if (globalTokenUsageCallback) {
+              globalTokenUsageCallback({
+                provider: this.provider,
+                model,
+                inputTokens,
+                outputTokens,
+                totalTokens,
+                promptType,
+                durationMs: callDurationMs,
+                success: true,
+              });
+            }
+
             return parsed as T;
           }
           logger.error(
@@ -429,6 +496,20 @@ WORLD RULES:
 
         // Log parsed output for monitoring
         await this.logParsedOutput(parsed, promptType);
+
+        // Report token usage via callback
+        if (globalTokenUsageCallback) {
+          globalTokenUsageCallback({
+            provider: this.provider,
+            model,
+            inputTokens,
+            outputTokens,
+            totalTokens,
+            promptType,
+            durationMs: callDurationMs,
+            success: true,
+          });
+        }
 
         return parsed as T;
       } catch (error: unknown) {
@@ -537,6 +618,22 @@ WORLD RULES:
 
           await new Promise((resolve) => setTimeout(resolve, delay));
           continue;
+        }
+
+        // Report failed call via callback (if we have basic info)
+        if (globalTokenUsageCallback) {
+          const errMessage = err?.message || 'Unknown error';
+          globalTokenUsageCallback({
+            provider: this.provider,
+            model,
+            inputTokens: 0,
+            outputTokens: 0,
+            totalTokens: 0,
+            promptType,
+            durationMs: Date.now() - callStartTime,
+            success: false,
+            error: errMessage,
+          });
         }
 
         // Re-throw if not a retryable error or retries exhausted

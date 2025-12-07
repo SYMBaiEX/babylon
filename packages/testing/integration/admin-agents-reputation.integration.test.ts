@@ -13,7 +13,7 @@ import {
   expect,
   test,
 } from 'bun:test';
-import { db } from '@babylon/db';
+import { db, userAgentConfigs, users } from '@babylon/db';
 import { generateSnowflakeId } from '@babylon/shared';
 
 const BASE_URL =
@@ -43,18 +43,24 @@ describe('Admin Agents Reputation Integration', () => {
     // Create test agent (use 'rep-agent' prefix to avoid preload cleanup which targets 'test-*')
     testAgentUserId = await generateSnowflakeId();
 
-    await db.user.create({
-      data: {
-        id: testAgentUserId,
-        username: `rep-agent-${testAgentUserId}`,
-        displayName: 'Test Agent for Reputation',
-        isAgent: true,
-        agent0TokenId: 99999,
-        autonomousTrading: true,
-        agentModelTier: 'pro',
-        agentPointsBalance: 1000,
-        updatedAt: new Date(),
-      },
+    // Create user record
+    await db.insert(users).values({
+      id: testAgentUserId,
+      username: `rep-agent-${testAgentUserId}`,
+      displayName: 'Test Agent for Reputation',
+      isAgent: true,
+      agent0TokenId: 99999,
+      updatedAt: new Date(),
+    });
+
+    // Create agent config record
+    await db.insert(userAgentConfigs).values({
+      id: await generateSnowflakeId(),
+      userId: testAgentUserId,
+      autonomousTrading: true,
+      modelTier: 'pro',
+      pointsBalance: 1000,
+      updatedAt: new Date(),
     });
 
     // Create performance metrics with reputation
@@ -137,18 +143,24 @@ describe('Admin Agents Reputation Integration', () => {
 
     // If agent was cleaned up by another test, recreate it
     if (!agent) {
-      await db.user.create({
-        data: {
-          id: testAgentUserId,
-          username: `rep-agent-${testAgentUserId}`,
-          displayName: 'Test Agent for Reputation',
-          isAgent: true,
-          agent0TokenId: 99999,
-          autonomousTrading: true,
-          agentModelTier: 'pro',
-          agentPointsBalance: 1000,
-          updatedAt: new Date(),
-        },
+      // Create user record
+      await db.insert(users).values({
+        id: testAgentUserId,
+        username: `rep-agent-${testAgentUserId}`,
+        displayName: 'Test Agent for Reputation',
+        isAgent: true,
+        agent0TokenId: 99999,
+        updatedAt: new Date(),
+      });
+
+      // Create agent config record
+      await db.insert(userAgentConfigs).values({
+        id: await generateSnowflakeId(),
+        userId: testAgentUserId,
+        autonomousTrading: true,
+        modelTier: 'pro',
+        pointsBalance: 1000,
+        updatedAt: new Date(),
       });
 
       await db.agentPerformanceMetrics.create({

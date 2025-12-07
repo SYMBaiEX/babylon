@@ -49,20 +49,24 @@
  * ```
  */
 
+import {
+  BadRequestError,
+  requireAdmin,
+  successResponse,
+  withErrorHandling,
+} from '@babylon/api';
 import { db } from '@babylon/db';
 import { modelDeployer } from '@babylon/training';
 import type { NextRequest } from 'next/server';
-import { NextResponse } from 'next/server';
 
-export async function POST(request: NextRequest) {
+export const POST = withErrorHandling(async (request: NextRequest) => {
+  await requireAdmin(request);
+
   const body = await request.json();
   const { targetVersion } = body;
 
   if (!targetVersion) {
-    return NextResponse.json(
-      { error: 'Target version required' },
-      { status: 400 }
-    );
+    throw new BadRequestError('Target version required');
   }
 
   // Get current deployed version
@@ -72,10 +76,7 @@ export async function POST(request: NextRequest) {
   });
 
   if (!currentModel) {
-    return NextResponse.json(
-      { error: 'No currently deployed model' },
-      { status: 400 }
-    );
+    throw new BadRequestError('No currently deployed model');
   }
 
   const result = await modelDeployer.rollback(
@@ -83,5 +84,5 @@ export async function POST(request: NextRequest) {
     targetVersion
   );
 
-  return NextResponse.json(result);
-}
+  return successResponse(result);
+});
