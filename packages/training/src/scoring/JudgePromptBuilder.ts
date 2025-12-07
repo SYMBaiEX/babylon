@@ -1,8 +1,10 @@
 /**
- * Judge Prompt Builder
+ * JudgePromptBuilder
  *
  * Builds LLM judge prompts with trajectory metrics context and archetype-specific rubrics.
- * The key insight: metrics are included as CONTEXT for the judge, not weighted directly.
+ * Metrics are included as CONTEXT for the judge, not weighted directly.
+ *
+ * @packageDocumentation
  */
 
 import type { BehavioralMetrics } from '../metrics/types';
@@ -10,6 +12,9 @@ import { getMetricsSummary } from '../metrics/types';
 import { getPriorityMetrics, getRubric } from '../rubrics';
 import type { TrajectoryStep } from '../training/types';
 
+/**
+ * Context for trajectory evaluation.
+ */
 export interface TrajectoryContext {
   trajectoryId: string;
   agentId: string;
@@ -21,12 +26,15 @@ export interface TrajectoryContext {
   totalReward?: number;
 }
 
+/**
+ * Options for building judge prompts.
+ */
 export interface JudgePromptOptions {
-  /** Include full action details (more tokens but more context) */
+  /** Include full action details */
   includeActionDetails?: boolean;
-  /** Maximum number of recent actions to include */
+  /** Maximum recent actions to show */
   maxActionsToShow?: number;
-  /** Include key decisions (trades, major social actions) */
+  /** Include key decisions (trades, posts) */
   includeKeyDecisions?: boolean;
 }
 
@@ -36,9 +44,15 @@ const DEFAULT_OPTIONS: JudgePromptOptions = {
   includeKeyDecisions: true,
 };
 
+/**
+ * Builds prompts for LLM-as-judge scoring.
+ */
 export class JudgePromptBuilder {
   /**
-   * Build a complete judge prompt for scoring a trajectory
+   * Build prompt for single trajectory scoring.
+   * @param trajectory - Trajectory context
+   * @param options - Prompt options
+   * @returns System and user prompts
    */
   buildSinglePrompt(
     trajectory: TrajectoryContext,

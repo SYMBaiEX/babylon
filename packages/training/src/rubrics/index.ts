@@ -2,6 +2,9 @@
  * Archetype Evaluation Rubrics
  *
  * LLM judge rubrics for each agent archetype defining what "success" means.
+ * Each archetype has specific scoring criteria tailored to its behavioral goals.
+ *
+ * @packageDocumentation
  */
 
 import { createHash } from 'crypto';

@@ -1,5 +1,5 @@
 /**
- * LLM Judge Cache
+ * LLMJudgeCache
  *
  * Caches LLM-as-judge scoring results to:
  * 1. Avoid redundant API calls for identical trajectories
@@ -7,6 +7,8 @@
  * 3. Provide validation of cached scores
  *
  * Uses content-addressable hashing: cache key = hash(trajectory_content + rubric_version)
+ *
+ * @packageDocumentation
  */
 
 import { db, eq, trajectories } from '@babylon/db';
