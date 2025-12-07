@@ -1,366 +1,301 @@
 """
-Babylon Reward Functions for RLAIF
+Reward Functions for Training
 
-This module provides reward functions for scoring trading agent trajectories.
-These can be used as fallback scoring when LLM judge is unavailable or as
-supplementary signals for the judge.
+Computes various reward signals for RL training:
+- PnL-based: Raw profit/loss performance
+- Risk-adjusted: Sharpe-like reward accounting for variance
+- Efficiency: Reward per action taken
+- Action quality: Based on success rate and correctness
+- Composite: Weighted combination of multiple signals
 
-Key reward functions:
-- PnL-based rewards
-- Risk-adjusted rewards (Sharpe-like)
-- Action efficiency rewards
-- Combined/composite rewards
+Also provides utilities for normalizing and comparing rewards.
 """
 
+from dataclasses import dataclass
+from typing import Optional
 import math
-from typing import Callable, Dict, List, Optional, Tuple
-
-import numpy as np
 
 
-def pnl_reward(
-    final_pnl: float,
-    initial_balance: float = 10000.0,
-    max_pnl_cap: float = 5000.0,
-) -> float:
+@dataclass
+class TrajectoryRewardInputs:
+    """Inputs for computing rewards."""
+
+    final_pnl: float = 0.0
+    starting_balance: float = 10000.0
+    num_steps: int = 0
+    trades_executed: int = 0
+    successful_trades: int = 0
+    total_actions: int = 0
+    successful_actions: int = 0
+    max_drawdown: float = 0.0
+    pnl_variance: float = 0.0
+
+
+def pnl_reward(inputs: TrajectoryRewardInputs) -> float:
     """
-    Simple PnL-based reward normalized to 0-1 range.
-    
+    Compute PnL-based reward.
+
+    Uses percentage return relative to starting balance, scaled to [-1, 1].
+
     Args:
-        final_pnl: Final profit/loss in dollars
-        initial_balance: Starting balance for normalization
-        max_pnl_cap: Cap for maximum expected PnL
-        
+        inputs: Trajectory reward inputs
+
     Returns:
-        Normalized reward between 0 and 1
+        Reward in range [-1, 1]
     """
-    # Normalize PnL relative to initial balance
-    pnl_ratio = final_pnl / initial_balance
-    
-    # Sigmoid-like transformation for smooth reward
-    # Maps roughly: -100% -> 0.1, 0% -> 0.5, +50% -> 0.9
-    reward = 1.0 / (1.0 + math.exp(-5.0 * pnl_ratio))
-    
-    return max(0.0, min(1.0, reward))
+    if inputs.starting_balance <= 0:
+        return 0.0
+
+    return_pct = inputs.final_pnl / inputs.starting_balance
+    # Clip to [-1, 1] with 100% representing full score
+    return max(-1.0, min(1.0, return_pct))
 
 
-def risk_adjusted_reward(
-    final_pnl: float,
-    max_drawdown: float,
-    volatility: float,
-    initial_balance: float = 10000.0,
-) -> float:
+def risk_adjusted_reward(inputs: TrajectoryRewardInputs) -> float:
     """
-    Risk-adjusted reward similar to Sharpe ratio concept.
-    
+    Compute risk-adjusted reward (Sharpe-like).
+
+    Penalizes high variance and drawdown.
+
     Args:
-        final_pnl: Final profit/loss
-        max_drawdown: Maximum drawdown during episode (positive number)
-        volatility: Standard deviation of returns
-        initial_balance: Starting balance
-        
+        inputs: Trajectory reward inputs
+
     Returns:
-        Risk-adjusted reward between 0 and 1
+        Reward in range [-1, 1]
     """
-    # Return component
-    returns = final_pnl / initial_balance
-    
-    # Risk penalty
-    drawdown_penalty = max_drawdown / initial_balance
-    volatility_penalty = volatility / initial_balance if volatility > 0 else 0
-    
-    # Sharpe-like ratio (simplified)
-    if volatility_penalty > 0:
-        sharpe = returns / volatility_penalty
-    else:
-        sharpe = returns * 2  # No volatility means deterministic, scale up return
-        
-    # Combine with drawdown penalty
-    risk_adjusted = sharpe - (drawdown_penalty * 0.5)
-    
-    # Transform to 0-1 range
-    # Roughly: -2 -> 0.1, 0 -> 0.5, +2 -> 0.9
-    reward = 1.0 / (1.0 + math.exp(-risk_adjusted))
-    
-    return max(0.0, min(1.0, reward))
+    base = pnl_reward(inputs)
+
+    if inputs.pnl_variance > 0:
+        sharpe = base / math.sqrt(inputs.pnl_variance)
+        base = max(-1.0, min(1.0, sharpe))
+
+    if inputs.max_drawdown > 0 and inputs.starting_balance > 0:
+        drawdown_penalty = inputs.max_drawdown / inputs.starting_balance
+        base -= drawdown_penalty * 0.5
+
+    return max(-1.0, min(1.0, base))
 
 
-def efficiency_reward(
-    final_pnl: float,
-    episode_length: int,
-    trades_executed: int,
-    target_efficiency: float = 100.0,
-) -> float:
+def efficiency_reward(inputs: TrajectoryRewardInputs) -> float:
     """
-    Reward for achieving results efficiently (fewer actions/trades).
-    
+    Compute efficiency reward (reward per action).
+
+    Rewards achieving results with fewer actions.
+
     Args:
-        final_pnl: Final profit/loss
-        episode_length: Number of steps taken
-        trades_executed: Number of trades made
-        target_efficiency: Target PnL per trade
-        
+        inputs: Trajectory reward inputs
+
     Returns:
-        Efficiency reward between 0 and 1
+        Reward in range [-1, 1]
     """
-    if trades_executed == 0:
-        # No trades = neutral efficiency
+    base = pnl_reward(inputs)
+
+    if inputs.total_actions > 0:
+        efficiency = base / math.log1p(inputs.total_actions)
+        return max(-1.0, min(1.0, efficiency))
+
+    return base
+
+
+def action_quality_reward(inputs: TrajectoryRewardInputs) -> float:
+    """
+    Compute action quality reward based on success rate.
+
+    Args:
+        inputs: Trajectory reward inputs
+
+    Returns:
+        Reward in range [0, 1]
+    """
+    if inputs.total_actions == 0:
         return 0.5
-        
-    # PnL per trade
-    pnl_per_trade = final_pnl / trades_executed
-    
-    # Compare to target efficiency
-    efficiency_ratio = pnl_per_trade / target_efficiency
-    
-    # Bonus for fewer steps if profitable
-    step_bonus = 0.0
-    if final_pnl > 0 and episode_length > 0:
-        step_bonus = max(0.0, 1.0 - (episode_length / 100.0)) * 0.1
-        
-    # Transform to 0-1
-    base_reward = 1.0 / (1.0 + math.exp(-efficiency_ratio))
-    
-    return max(0.0, min(1.0, base_reward + step_bonus))
 
-
-def action_quality_reward(
-    successful_actions: int,
-    total_actions: int,
-    profitable_trades: int,
-    total_trades: int,
-) -> float:
-    """
-    Reward based on action success rates.
-    
-    Args:
-        successful_actions: Number of actions that succeeded
-        total_actions: Total number of actions attempted
-        profitable_trades: Number of profitable trades
-        total_trades: Total trades executed
-        
-    Returns:
-        Action quality reward between 0 and 1
-    """
-    # Action success rate
-    if total_actions > 0:
-        action_success_rate = successful_actions / total_actions
-    else:
-        action_success_rate = 0.5
-        
-    # Trade win rate
-    if total_trades > 0:
-        win_rate = profitable_trades / total_trades
-    else:
-        win_rate = 0.5
-        
-    # Combine with more weight on win rate
-    reward = 0.3 * action_success_rate + 0.7 * win_rate
-    
-    return max(0.0, min(1.0, reward))
+    success_rate = inputs.successful_actions / inputs.total_actions
+    return success_rate
 
 
 def composite_reward(
-    trajectory: Dict,
-    weights: Optional[Dict[str, float]] = None,
+    inputs: TrajectoryRewardInputs,
+    pnl_weight: float = 0.4,
+    risk_weight: float = 0.3,
+    efficiency_weight: float = 0.15,
+    quality_weight: float = 0.15,
 ) -> float:
     """
-    Composite reward combining multiple reward signals.
-    
+    Compute weighted composite reward.
+
     Args:
-        trajectory: Trajectory dictionary with metrics
-        weights: Optional weight dict for each reward component
-            Default: {"pnl": 0.5, "efficiency": 0.2, "quality": 0.3}
-            
+        inputs: Trajectory reward inputs
+        pnl_weight: Weight for PnL component
+        risk_weight: Weight for risk-adjusted component
+        efficiency_weight: Weight for efficiency component
+        quality_weight: Weight for action quality component
+
     Returns:
-        Composite reward between 0 and 1
+        Composite reward in range [-1, 1]
     """
-    if weights is None:
-        weights = {
-            "pnl": 0.5,
-            "efficiency": 0.2,
-            "quality": 0.3,
-        }
-        
-    rewards = {}
-    
-    # PnL reward
-    final_pnl = trajectory.get("final_pnl", 0.0)
-    rewards["pnl"] = pnl_reward(final_pnl)
-    
-    # Efficiency reward
-    episode_length = trajectory.get("episode_length", 0)
-    trades_executed = trajectory.get("trades_executed", 0)
-    rewards["efficiency"] = efficiency_reward(
-        final_pnl, episode_length, trades_executed
-    )
-    
-    # Action quality reward
-    steps = trajectory.get("steps", [])
-    total_actions = len(steps)
-    successful_actions = sum(
-        1 for s in steps
-        if isinstance(s, dict) and s.get("action", {}).get("success", False)
-    )
-    profitable_trades = 0  # Would need trade-level data
-    rewards["quality"] = action_quality_reward(
-        successful_actions, total_actions, profitable_trades, trades_executed
-    )
-    
-    # Weighted sum
-    total_weight = sum(weights.values())
-    composite = sum(
-        weights.get(k, 0) * v for k, v in rewards.items()
+    total_weight = pnl_weight + risk_weight + efficiency_weight + quality_weight
+
+    if total_weight == 0:
+        return 0.0
+
+    composite = (
+        pnl_weight * pnl_reward(inputs)
+        + risk_weight * risk_adjusted_reward(inputs)
+        + efficiency_weight * efficiency_reward(inputs)
+        + quality_weight * action_quality_reward(inputs)
     ) / total_weight
-    
-    return max(0.0, min(1.0, composite))
+
+    return max(-1.0, min(1.0, composite))
 
 
-def relative_scores(
-    trajectories: List[Dict],
-    reward_fn: Callable[[Dict], float] = composite_reward,
-) -> List[float]:
+def relative_scores(rewards: list[float]) -> list[float]:
     """
-    Compute relative scores for a group of trajectories.
-    
-    This normalizes scores to have mean 0, suitable for GRPO training.
-    
+    Convert absolute rewards to relative scores.
+
+    Maps rewards to [0, 1] based on their rank within the group.
+
     Args:
-        trajectories: List of trajectory dictionaries
-        reward_fn: Reward function to compute base scores
-        
+        rewards: List of reward values
+
     Returns:
-        List of normalized scores (mean 0)
+        List of relative scores in [0, 1]
     """
-    if not trajectories:
-        return []
-        
-    # Compute raw scores
-    scores = [reward_fn(t) for t in trajectories]
-    
-    # Normalize to mean 0
-    mean_score = sum(scores) / len(scores)
-    normalized = [s - mean_score for s in scores]
-    
-    # Optionally normalize variance
-    if len(normalized) > 1:
-        std = np.std(normalized)
-        if std > 1e-8:
-            normalized = [s / std for s in normalized]
-            
-    return normalized
+    if len(rewards) < 2:
+        return [0.5] * len(rewards)
+
+    sorted_indices = sorted(range(len(rewards)), key=lambda i: rewards[i])
+    n = len(rewards)
+
+    scores = [0.0] * n
+    for rank, idx in enumerate(sorted_indices):
+        scores[idx] = rank / (n - 1)
+
+    return scores
 
 
-def ranking_to_scores(
-    rankings: List[int],
-    margin: float = 0.1,
-) -> List[float]:
+def ranking_to_scores(rankings: list[int]) -> list[float]:
     """
-    Convert rankings to scores for GRPO.
-    
+    Convert rankings to normalized scores.
+
     Args:
-        rankings: List of ranks (1 = best, N = worst)
-        margin: Score difference between adjacent ranks
-        
+        rankings: List of rankings (1 = best)
+
     Returns:
-        List of scores centered at 0
+        List of scores in [0, 1] where higher = better
     """
+    if len(rankings) < 2:
+        return [0.5] * len(rankings)
+
     n = len(rankings)
-    if n == 0:
-        return []
-        
-    # Convert ranks to scores (higher rank = higher score)
-    max_rank = max(rankings)
-    scores = [(max_rank - r + 1) * margin for r in rankings]
-    
-    # Center at 0
-    mean_score = sum(scores) / len(scores)
-    return [s - mean_score for s in scores]
+    return [(n - r) / (n - 1) for r in rankings]
 
 
 def pairwise_preferences_to_scores(
-    preferences: List[Tuple[int, int]],
-    n_items: int,
-) -> List[float]:
+    n_items: int, preferences: list[tuple[int, int]]
+) -> list[float]:
     """
-    Convert pairwise preferences to scores using win-rate.
-    
+    Convert pairwise preferences to scores via Bradley-Terry model.
+
     Args:
-        preferences: List of (winner_idx, loser_idx) tuples
-        n_items: Total number of items
-        
+        n_items: Number of items being compared
+        preferences: List of (winner, loser) pairs
+
     Returns:
-        List of scores for each item, centered at 0
+        List of scores in [0, 1]
     """
-    # Count wins and comparisons
-    wins = np.zeros(n_items)
-    comparisons = np.zeros(n_items)
-    
+    if n_items < 2 or not preferences:
+        return [0.5] * n_items
+
+    # Simple win-rate estimation
+    wins = [0] * n_items
+    comparisons = [0] * n_items
+
     for winner, loser in preferences:
-        wins[winner] += 1
-        comparisons[winner] += 1
-        comparisons[loser] += 1
-        
-    # Win-rate based scoring
-    scores = np.zeros(n_items)
+        if 0 <= winner < n_items:
+            wins[winner] += 1
+            comparisons[winner] += 1
+        if 0 <= loser < n_items:
+            comparisons[loser] += 1
+
+    scores = []
     for i in range(n_items):
         if comparisons[i] > 0:
-            scores[i] = wins[i] / comparisons[i]
+            scores.append(wins[i] / comparisons[i])
         else:
-            scores[i] = 0.5
-            
-    # Center at 0
-    scores = scores - scores.mean()
-    
-    return scores.tolist()
+            scores.append(0.5)
+
+    return scores
 
 
 class RewardNormalizer:
     """
-    Running normalizer for reward values.
-    
-    Keeps track of reward statistics and normalizes new rewards
-    to have approximately mean 0 and std 1.
+    Online reward normalizer using running statistics.
+
+    Maintains mean and variance for reward normalization.
     """
-    
-    def __init__(self, decay: float = 0.99):
+
+    def __init__(self, epsilon: float = 1e-8):
         """
+        Initialize normalizer.
+
         Args:
-            decay: Exponential moving average decay factor
+            epsilon: Small value to prevent division by zero
         """
-        self.decay = decay
         self.mean = 0.0
         self.var = 1.0
         self.count = 0
-        
-    def update(self, rewards: List[float]):
-        """Update statistics with new rewards."""
-        if not rewards:
-            return
-            
-        batch_mean = sum(rewards) / len(rewards)
-        batch_var = sum((r - batch_mean) ** 2 for r in rewards) / len(rewards)
-        
-        if self.count == 0:
-            self.mean = batch_mean
-            self.var = batch_var
-        else:
-            self.mean = self.decay * self.mean + (1 - self.decay) * batch_mean
-            self.var = self.decay * self.var + (1 - self.decay) * batch_var
-            
-        self.count += len(rewards)
-        
-    def normalize(self, rewards: List[float]) -> List[float]:
-        """Normalize rewards using running statistics."""
-        std = max(math.sqrt(self.var), 1e-8)
-        return [(r - self.mean) / std for r in rewards]
-        
-    @property
-    def std(self) -> float:
-        """Standard deviation of rewards."""
-        return max(math.sqrt(self.var), 1e-8)
-        
-    def denormalize(self, normalized: List[float]) -> List[float]:
-        """Convert normalized rewards back to original scale."""
-        return [n * self.std + self.mean for n in normalized]
+        self.epsilon = epsilon
 
+    def update(self, reward: float) -> None:
+        """
+        Update statistics with new reward.
+
+        Uses Welford's online algorithm for numerical stability.
+
+        Args:
+            reward: New reward value
+        """
+        self.count += 1
+        delta = reward - self.mean
+        self.mean += delta / self.count
+        delta2 = reward - self.mean
+        self.var += delta * delta2
+
+    def normalize(self, reward: float) -> float:
+        """
+        Normalize a reward using current statistics.
+
+        Args:
+            reward: Reward to normalize
+
+        Returns:
+            Normalized reward (approximately zero-mean, unit variance)
+        """
+        if self.count < 2:
+            return reward
+
+        std = math.sqrt(self.var / (self.count - 1) + self.epsilon)
+        return (reward - self.mean) / std
+
+    def update_batch(self, rewards: list[float]) -> None:
+        """
+        Update statistics with batch of rewards.
+
+        Args:
+            rewards: List of reward values
+        """
+        for r in rewards:
+            self.update(r)
+
+    def normalize_batch(self, rewards: list[float]) -> list[float]:
+        """
+        Normalize batch of rewards.
+
+        Args:
+            rewards: List of rewards to normalize
+
+        Returns:
+            List of normalized rewards
+        """
+        return [self.normalize(r) for r in rewards]

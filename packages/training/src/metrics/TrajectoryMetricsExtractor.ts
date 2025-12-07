@@ -1,8 +1,17 @@
 /**
- * Trajectory Metrics Extractor
+ * TrajectoryMetricsExtractor
  *
  * Extracts comprehensive behavioral metrics from agent trajectories
  * for use in multi-criteria LLM-as-judge evaluation.
+ *
+ * Extracts 5 categories of metrics:
+ * - Social: group chats, DMs, posts, mentions
+ * - Trading: P&L, win rate, Sharpe ratio, drawdown
+ * - Influence: followers, reputation, reactions
+ * - Behavior: action patterns, consistency
+ * - Information: research, predictions
+ *
+ * @packageDocumentation
  */
 
 import type { TrajectoryStep } from '../training/types';

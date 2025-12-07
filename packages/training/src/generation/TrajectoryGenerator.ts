@@ -1,10 +1,12 @@
 /**
- * Parallel Trajectory Generator
+ * TrajectoryGenerator
  *
- * Generates REAL trajectories using REAL agents running in parallel.
- * Uses the existing AutonomousCoordinator with trajectory recording enabled.
+ * Generates real trajectories using real agents running in parallel.
+ * Uses AutonomousCoordinator with trajectory recording enabled.
  *
- * NOTE: This requires dependencies to be configured first via configureTrainingDependencies()
+ * Requires dependencies via configureTrainingDependencies() before use.
+ *
+ * @packageDocumentation
  */
 
 import { db, eq, trajectories, type User, users } from '@babylon/db';

@@ -1,11 +1,24 @@
 /**
  * External Dependencies for Training Package
  *
- * This module defines interfaces for external dependencies that must be
- * provided by the consuming application (e.g., apps/web).
+ * Defines interfaces for external dependencies that must be provided
+ * by the consuming application (e.g., apps/web). The training package
+ * is decoupled from specific implementations to maintain clean
+ * package boundaries.
  *
- * The training package is decoupled from specific implementations to
- * maintain clean package boundaries.
+ * Usage:
+ * ```typescript
+ * import { configureTrainingDependencies } from '@babylon/training';
+ *
+ * configureTrainingDependencies({
+ *   agentService,
+ *   agentRuntimeManager,
+ *   autonomousCoordinator,
+ *   llmCaller,
+ * });
+ * ```
+ *
+ * @packageDocumentation
  */
 
 import type { User } from '@babylon/db';
