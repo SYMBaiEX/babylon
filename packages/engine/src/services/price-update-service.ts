@@ -1,9 +1,8 @@
 import { PerpDbAdapter, PerpMarketService } from '@babylon/core/markets/perps';
 import { db, eq, getDbInstance, organizations } from '@babylon/db';
+import { FEE_CONFIG, WalletService } from '@babylon/engine';
 import type { JsonValue } from '@babylon/shared';
 import { logger } from '@babylon/shared';
-import { FEE_CONFIG } from '../config/fees';
-import { WalletService } from './wallet-service';
 
 export type PriceUpdateSource = 'user_trade' | 'npc_trade' | 'event' | 'system';
 
@@ -39,24 +38,22 @@ export class PriceUpdateService {
     const perpService = new PerpMarketService({
       db: new PerpDbAdapter(),
       wallet: {
-        debit: async ({ userId, amount, reason, description, relatedId }) => {
-          await WalletService.debit(
+        debit: ({ userId, amount, reason, description, relatedId }) =>
+          WalletService.debit(
             userId,
             amount,
             reason,
             description ?? '',
             relatedId
-          );
-        },
-        credit: async ({ userId, amount, reason, description, relatedId }) => {
-          await WalletService.credit(
+          ),
+        credit: ({ userId, amount, reason, description, relatedId }) =>
+          WalletService.credit(
             userId,
             amount,
             reason,
             description ?? '',
             relatedId
-          );
-        },
+          ),
         recordPnL: async ({ userId, pnl, reason, relatedId }) => {
           await WalletService.recordPnL(userId, pnl, reason, relatedId);
         },
@@ -134,13 +131,16 @@ export class PriceUpdateService {
     if (priceMap.size > 0) {
       await perpService.applyPriceUpdates(priceMap);
 
-      // Broadcast price updates via API layer (non-blocking, optional)
-      void import('@babylon/api').then(({ broadcastToChannel }) =>
-        broadcastToChannel('markets', {
+      // Broadcast price updates (handled by API layer if available)
+      try {
+        const { broadcastToChannel } = await import('@babylon/api');
+        await broadcastToChannel('markets', {
           type: 'price_update',
           updates: JSON.parse(JSON.stringify(appliedUpdates)) as JsonValue,
-        })
-      );
+        });
+      } catch {
+        // Broadcast is optional - engine can work without it
+      }
 
       logger.info(
         `Applied ${appliedUpdates.length} organization price updates`,

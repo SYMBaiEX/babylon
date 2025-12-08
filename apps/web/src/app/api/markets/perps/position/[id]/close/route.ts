@@ -1,20 +1,10 @@
-/**
- * Perpetual Futures Close Position API
- *
- * @route POST /api/markets/perps/position/[id]/close
- * @access Authenticated
- *
- * Closes an existing perpetual futures position. Calculates final P&L, fees,
- * and updates user balance. Tracks trade events.
- */
-
 import { authenticate, successResponse, withErrorHandling } from '@babylon/api';
 import { PerpDbAdapter, PerpMarketService } from '@babylon/core/markets/perps';
+import { FEE_CONFIG, WalletService } from '@babylon/engine';
 import { ClosePerpPositionSchema } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { z } from 'zod';
 import { trackServerEvent } from '@/lib/posthog/server';
-import { createWalletAdapter, perpFeeConfig } from '../../../_adapters';
 
 const IdParamSchema = z.object({
   id: z.string(),
@@ -32,33 +22,62 @@ export const POST = withErrorHandling(
     const user = await authenticate(request);
     const { id: positionId } = IdParamSchema.parse(await context.params);
 
-    const text = await request.text();
-    const parsed =
-      text.length > 0
-        ? ClosePerpPositionSchema.parse(JSON.parse(text))
-        : { percentage: undefined, slippage: undefined };
+    // Parse and validate request body (optional for partial close)
+    let body: Record<string, unknown> = {};
+    try {
+      body = await request.json();
+    } catch {
+      // Body is optional for this endpoint
+    }
+    if (Object.keys(body).length > 0) {
+      ClosePerpPositionSchema.parse(body);
+    }
 
     const service = new PerpMarketService({
       db: new PerpDbAdapter(),
-      wallet: createWalletAdapter(),
-      fees: perpFeeConfig,
+      wallet: {
+        debit: ({ userId, amount, reason, description, relatedId }) =>
+          WalletService.debit(
+            userId,
+            amount,
+            reason,
+            description ?? '',
+            relatedId
+          ),
+        credit: ({ userId, amount, reason, description, relatedId }) =>
+          WalletService.credit(
+            userId,
+            amount,
+            reason,
+            description ?? '',
+            relatedId
+          ),
+        recordPnL: async ({ userId, pnl, reason, relatedId }) => {
+          await WalletService.recordPnL(userId, pnl, reason, relatedId);
+        },
+        getBalance: (userId: string) => WalletService.getBalance(userId),
+      },
+      fees: {
+        tradingFeeRate: FEE_CONFIG.TRADING_FEE_RATE,
+        platformShare: FEE_CONFIG.PLATFORM_SHARE,
+        referrerShare: FEE_CONFIG.REFERRER_SHARE,
+        minFeeAmount: FEE_CONFIG.MIN_FEE_AMOUNT,
+      },
     });
 
     const result = await service.closePosition({
       userId: user.userId,
       positionId,
-      percentage: parsed.percentage,
-      maxSlippage: parsed.slippage,
     });
 
-    void trackServerEvent(user.userId, 'trade_closed', {
+    trackServerEvent(user.userId, 'trade_closed', {
       type: 'perp',
       ticker: result.ticker,
       side: result.side,
       size: result.size,
       leverage: result.leverage,
-      entryPrice: result.entryPrice,
-      exitPrice: result.exitPrice ?? result.entryPrice,
+      entryPrice: result.entryPrice ?? 0,
+      exitPrice: result.exitPrice ?? 0,
       realizedPnL: result.realizedPnL ?? 0,
       pnlPercent:
         result.marginPaid && result.marginPaid > 0
@@ -67,6 +86,8 @@ export const POST = withErrorHandling(
       feeCharged: result.feePaid,
       wasLiquidated: false,
       positionId,
+    }).catch((error) => {
+      console.warn('Failed to track trade_closed event', { error });
     });
 
     return successResponse({
@@ -87,8 +108,6 @@ export const POST = withErrorHandling(
       },
       wasLiquidated: false,
       newBalance: result.balance,
-      remainingSize: result.remainingSize,
-      fullyClosed: result.fullyClosed,
     });
   }
 );

@@ -160,16 +160,13 @@ Current Status:
 Available Prediction Markets:
 ${shuffledPredictions
   .slice(0, 5)
-  .map(
-    (m: (typeof predictionMarkets)[number]) =>
-      `- ${m.question} (YES: ${m.yesShares}, NO: ${m.noShares})`
-  )
+  .map((m) => `- ${m.question} (YES: ${m.yesShares}, NO: ${m.noShares})`)
   .join('\n')}
 
 Available Perp Markets:
 ${shuffledPerps
   .slice(0, 5)
-  .map((o: (typeof perpMarkets)[number]) => {
+  .map((o) => {
     const initial = o.initialPrice ?? 100;
     const current = o.currentPrice ?? initial;
     const changePercent = (((current - initial) / initial) * 100).toFixed(1);
@@ -285,7 +282,7 @@ ${contextString}`;
       );
     }
 
-    interface TradeDecision {
+    let tradeDecision: {
       action: string;
       reasoning?: string;
       trade?: {
@@ -295,9 +292,24 @@ ${contextString}`;
         amount: number;
         reasoning?: string;
       };
+    };
+    try {
+      tradeDecision = JSON.parse(jsonMatch) as {
+        action: string;
+        reasoning?: string;
+        trade?: {
+          type: string;
+          market: string;
+          action: string;
+          amount: number;
+          reasoning?: string;
+        };
+      };
+    } catch (parseError) {
+      throw new Error(
+        `Failed to parse JSON trade decision: ${parseError instanceof Error ? parseError.message : String(parseError)}. Response: ${decision.substring(0, 200)}`
+      );
     }
-
-    const tradeDecision = JSON.parse(jsonMatch) as TradeDecision;
 
     if (tradeDecision.action !== 'trade' || !tradeDecision.trade) {
       logger.info(
@@ -454,46 +466,24 @@ ${contextString}`;
             const service = new PerpMarketService({
               db: new PerpDbAdapter(),
               wallet: {
-                debit: (params: {
-                  userId: string;
-                  amount: number;
-                  reason: string;
-                  description?: string;
-                  relatedId?: string;
-                }) =>
+                debit: ({ userId, amount, reason, description, relatedId }) =>
                   WalletService.debit(
-                    params.userId,
-                    params.amount,
-                    params.reason,
-                    params.description ?? '',
-                    params.relatedId
+                    userId,
+                    amount,
+                    reason,
+                    description ?? '',
+                    relatedId
                   ),
-                credit: (params: {
-                  userId: string;
-                  amount: number;
-                  reason: string;
-                  description?: string;
-                  relatedId?: string;
-                }) =>
+                credit: ({ userId, amount, reason, description, relatedId }) =>
                   WalletService.credit(
-                    params.userId,
-                    params.amount,
-                    params.reason,
-                    params.description ?? '',
-                    params.relatedId
+                    userId,
+                    amount,
+                    reason,
+                    description ?? '',
+                    relatedId
                   ),
-                recordPnL: async (params: {
-                  userId: string;
-                  pnl: number;
-                  reason: string;
-                  relatedId?: string;
-                }) => {
-                  await WalletService.recordPnL(
-                    params.userId,
-                    params.pnl,
-                    params.reason,
-                    params.relatedId
-                  );
+                recordPnL: async ({ userId, pnl, reason, relatedId }) => {
+                  await WalletService.recordPnL(userId, pnl, reason, relatedId);
                 },
                 getBalance: (userId: string) =>
                   WalletService.getBalance(userId),
