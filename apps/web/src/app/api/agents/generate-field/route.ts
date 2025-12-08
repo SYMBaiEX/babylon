@@ -148,6 +148,12 @@ export async function POST(req: NextRequest) {
       system: systemPrompt,
       temperature: 0.8,
       maxOutputTokens: 300,
+      providerOptions: {
+        groq: {
+          // Hide <think>...</think> reasoning tags from Qwen model output
+          reasoningFormat: 'hidden',
+        },
+      },
     });
 
     generatedValue = result.text.trim();
