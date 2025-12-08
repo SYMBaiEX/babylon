@@ -451,7 +451,10 @@ ${contextString}`;
       }
     } else if (trade.type === 'perp' && perpMarkets.length > 0) {
       const org = perpMarkets.find(
-        (o) => o.name === trade.market || o.id === trade.market || o.ticker === trade.market
+        (o) =>
+          o.name === trade.market ||
+          o.id === trade.market ||
+          o.ticker === trade.market
       );
       if (org && trade.amount <= Number(balance.balance)) {
         if (trade.action === 'open_long' || trade.action === 'open_short') {
