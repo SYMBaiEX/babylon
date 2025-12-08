@@ -23,7 +23,6 @@ import {
   desc,
   eq,
   gte,
-  inArray,
   isNull,
   messages,
   ne,
@@ -213,7 +212,12 @@ export class AutonomousBatchResponseService {
     // Get replies to agent's comments on OTHER people's posts
     // (replies on agent's own posts are already handled above with full thread context)
     const myComments = await db
-      .select({ id: comments.id, postId: comments.postId })
+      .select({
+        id: comments.id,
+        postId: comments.postId,
+        content: comments.content,
+        createdAt: comments.createdAt,
+      })
       .from(comments)
       .where(eq(comments.authorId, agentUserId))
       .orderBy(desc(comments.createdAt))
@@ -226,62 +230,120 @@ export class AutonomousBatchResponseService {
     const myCommentIdsOnOthersPosts = myCommentsOnOthersPosts.map((c) => c.id);
 
     if (myCommentIdsOnOthersPosts.length > 0) {
-      const repliesToCommentsRaw = await db
-        .select({
-          reply: comments,
-          author: {
-            id: users.id,
-            username: users.username,
-            displayName: users.displayName,
-          },
-        })
-        .from(comments)
-        .leftJoin(users, eq(comments.authorId, users.id))
-        .where(
-          and(
-            inArray(comments.parentCommentId, myCommentIdsOnOthersPosts),
-            ne(comments.authorId, agentUserId),
-            gte(comments.createdAt, oneDayAgo)
-          )
-        )
-        .orderBy(desc(comments.createdAt))
-        .limit(20);
+      // Get ALL comments in threads starting from agent's comments recursively
+      // This handles unlimited depth of nested replies
+      const allCommentsInThreads: Array<{
+        id: string;
+        parentCommentId: string | null;
+        authorId: string;
+        content: string;
+        createdAt: Date;
+        author: { id: string; username: string | null; displayName: string | null } | null;
+      }> = [];
 
-      // Get parent comment content separately
-      const parentCommentIds = [
-        ...new Set(
-          repliesToCommentsRaw
-            .map((r) => r.reply.parentCommentId)
-            .filter(Boolean)
-        ),
-      ] as string[];
-      const parentComments =
-        parentCommentIds.length > 0
-          ? await db
-              .select({ id: comments.id, content: comments.content })
-              .from(comments)
-              .where(inArray(comments.id, parentCommentIds))
-          : [];
-      const parentCommentMap = new Map(
-        parentComments.map((pc) => [pc.id, pc.content])
-      );
+      // Start with agent's original comments
+      const agentComments = await db.query.comments.findMany({
+        where: (comments, { and: andFn, gte: gteFn, inArray: inArrayFn }) =>
+          andFn(
+            gteFn(comments.createdAt, oneDayAgo),
+            inArrayFn(comments.id, myCommentIdsOnOthersPosts)
+          ),
+        with: {
+          author: {
+            columns: {
+              id: true,
+              username: true,
+              displayName: true,
+            },
+          },
+        },
+        orderBy: (comments, { asc: ascFn }) => [ascFn(comments.createdAt)],
+      });
+      allCommentsInThreads.push(...agentComments);
+
+      // Recursively fetch all replies at any depth
+      let parentIds = myCommentIdsOnOthersPosts;
+      const MAX_DEPTH = 10; // Safety limit to prevent infinite loops
+      for (let depth = 0; depth < MAX_DEPTH && parentIds.length > 0; depth++) {
+        const replies = await db.query.comments.findMany({
+          where: (comments, { and: andFn, gte: gteFn, inArray: inArrayFn }) =>
+            andFn(
+              gteFn(comments.createdAt, oneDayAgo),
+              inArrayFn(comments.parentCommentId, parentIds)
+            ),
+          with: {
+            author: {
+              columns: {
+                id: true,
+                username: true,
+                displayName: true,
+              },
+            },
+          },
+          orderBy: (comments, { asc: ascFn }) => [ascFn(comments.createdAt)],
+        });
+
+        if (replies.length === 0) break;
+
+        allCommentsInThreads.push(...replies);
+        parentIds = replies.map((r) => r.id);
+      }
 
       console.log(
-        '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! repliesToCommentsRaw (on other posts)',
-        repliesToCommentsRaw
+        '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! allCommentsInThreads (on other posts) count',
+        allCommentsInThreads.length
       );
 
-      for (const row of repliesToCommentsRaw) {
-        interactions.push({
-          type: 'comment_on_comment',
-          id: row.reply.id,
-          commentId: row.reply.id,
-          parentCommentId: row.reply.parentCommentId || undefined,
-          author: row.author?.displayName || row.author?.username || 'Unknown',
-          content: row.reply.content,
-          context: `Your comment: "${parentCommentMap.get(row.reply.parentCommentId || '') || ''}"`,
-          timestamp: row.reply.createdAt,
-        });
+      // For each of agent's comments on other posts, build the thread and check if response needed
+      for (const agentComment of myCommentsOnOthersPosts) {
+        // Build the thread starting from this agent comment
+        const threadComments = this.buildCommentThread(
+          agentComment.id,
+          allCommentsInThreads.map((c) => ({
+            id: c.id,
+            parentCommentId: c.parentCommentId,
+            authorId: c.authorId,
+            content: c.content,
+            createdAt: c.createdAt,
+            author: c.author,
+          }))
+        );
+
+        // Find the last message in the thread
+        const lastMessage = threadComments[threadComments.length - 1];
+
+        // Only add if the last message is from a user (not the agent)
+        // AND the thread has more than just the agent's original comment
+        if (
+          lastMessage &&
+          lastMessage.authorId !== agentUserId &&
+          threadComments.length > 1
+        ) {
+          // Build thread context showing the conversation flow
+          const threadContext = threadComments
+            .map((c) => {
+              const authorName =
+                c.authorId === agentUserId
+                  ? 'You'
+                  : c.author?.displayName || c.author?.username || 'User';
+              return `${authorName}: "${c.content}"`;
+            })
+            .join('\n→ ');
+
+          interactions.push({
+            type: 'comment_on_comment',
+            id: lastMessage.id,
+            commentId: lastMessage.id, // Reply to the last comment in thread
+            parentCommentId: lastMessage.parentCommentId || undefined,
+            author:
+              lastMessage.author?.displayName ||
+              lastMessage.author?.username ||
+              'Unknown',
+            content: lastMessage.content,
+            context: `Thread on someone else's post:\n${threadContext}`,
+            timestamp: lastMessage.createdAt,
+          });
+        }
       }
     }
 
