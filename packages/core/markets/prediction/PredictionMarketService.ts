@@ -3,8 +3,8 @@ import type {
   PredictionBuyInput,
   PredictionDbPort,
   PredictionMarketRecord,
-  PredictionPriceSnapshotRecord,
   PredictionPositionRecord,
+  PredictionPriceSnapshotRecord,
   PredictionResolveInput,
   PredictionSellInput,
   PredictionServiceDeps,
@@ -338,7 +338,8 @@ export class PredictionMarketService {
     const positions = await this.db.listPositionsForMarket(marketId);
     const now = this.now();
     for (const pos of positions) {
-      const isWinner = (winningSide === 'yes' && pos.side === 'yes') ||
+      const isWinner =
+        (winningSide === 'yes' && pos.side === 'yes') ||
         (winningSide === 'no' && pos.side === 'no');
       const payout = isWinner ? pos.shares : 0;
       if (payout > 0) {
@@ -385,9 +386,10 @@ export class PredictionMarketService {
       noShares: market.noShares,
       liquidity: market.liquidity,
       totalPayout: positions
-        .filter((p) =>
-          (winningSide === 'yes' && p.side === 'yes') ||
-          (winningSide === 'no' && p.side === 'no')
+        .filter(
+          (p) =>
+            (winningSide === 'yes' && p.side === 'yes') ||
+            (winningSide === 'no' && p.side === 'no')
         )
         .reduce((acc, p) => acc + p.shares, 0),
       timestamp: now.toISOString(),
@@ -401,7 +403,9 @@ export class PredictionMarketService {
   // ---------------------------------------------------------------------------
   // Helpers
   // ---------------------------------------------------------------------------
-  private async ensureMarket(marketId: string): Promise<PredictionMarketRecord> {
+  private async ensureMarket(
+    marketId: string
+  ): Promise<PredictionMarketRecord> {
     const market = await this.db.getMarketById(marketId);
     if (market) return market;
 

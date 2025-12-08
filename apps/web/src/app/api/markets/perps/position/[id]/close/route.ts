@@ -57,23 +57,23 @@ export const POST = withErrorHandling(
         },
         getBalance: (userId: string) => WalletService.getBalance(userId),
       },
-    fees: {
-      tradingFeeRate: FEE_CONFIG.TRADING_FEE_RATE,
-      platformShare: FEE_CONFIG.PLATFORM_SHARE,
-      referrerShare: FEE_CONFIG.REFERRER_SHARE,
-      minFeeAmount: FEE_CONFIG.MIN_FEE_AMOUNT,
-    },
-    feeProcessor: {
-      processTradingFee: ({ userId, amount, type, relatedId, positionId }) =>
-        FeeService.processTradingFee(
-          userId,
-          type as (typeof FEE_CONFIG.FEE_TYPES)[keyof typeof FEE_CONFIG.FEE_TYPES],
-          amount,
-          positionId,
-          relatedId
-        ),
-    },
-  });
+      fees: {
+        tradingFeeRate: FEE_CONFIG.TRADING_FEE_RATE,
+        platformShare: FEE_CONFIG.PLATFORM_SHARE,
+        referrerShare: FEE_CONFIG.REFERRER_SHARE,
+        minFeeAmount: FEE_CONFIG.MIN_FEE_AMOUNT,
+      },
+      feeProcessor: {
+        processTradingFee: ({ userId, amount, type, relatedId, positionId }) =>
+          FeeService.processTradingFee(
+            userId,
+            type as (typeof FEE_CONFIG.FEE_TYPES)[keyof typeof FEE_CONFIG.FEE_TYPES],
+            amount,
+            positionId,
+            relatedId
+          ),
+      },
+    });
 
     const result = await service.closePosition({
       userId: user.userId,

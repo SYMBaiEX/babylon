@@ -1,10 +1,10 @@
+import type { JsonValue } from '@babylon/api';
 import {
   authenticate,
   broadcastToChannel,
   successResponse,
   withErrorHandling,
 } from '@babylon/api';
-import type { JsonValue } from '@babylon/api';
 import {
   PredictionDbAdapter,
   PredictionMarketService,
@@ -12,8 +12,8 @@ import {
 import {
   FEE_CONFIG,
   FeeService,
-  WalletService,
   invalidateAfterPredictionTrade,
+  WalletService,
 } from '@babylon/engine';
 import {
   logger,
@@ -49,29 +49,29 @@ const buildService = (marketId: string) =>
         ),
       getBalance: (userId: string) => WalletService.getBalance(userId),
     },
-  broadcast: {
-    emit: (channel, payload) =>
-      broadcastToChannel(channel, payload as Record<string, JsonValue>),
-  },
-  cache: { invalidate: () => invalidateAfterPredictionTrade(marketId) },
-  clock: { now: () => new Date() },
-  fees: {
-    tradingFeeRate: FEE_CONFIG.TRADING_FEE_RATE,
-    platformShare: FEE_CONFIG.PLATFORM_SHARE,
-    referrerShare: FEE_CONFIG.REFERRER_SHARE,
-    minFeeAmount: FEE_CONFIG.MIN_FEE_AMOUNT,
-  },
-  feeProcessor: {
-    processTradingFee: ({ userId, amount, type, relatedId, positionId }) =>
-      FeeService.processTradingFee(
-        userId,
-        type as (typeof FEE_CONFIG.FEE_TYPES)[keyof typeof FEE_CONFIG.FEE_TYPES],
-        amount,
-        positionId,
-        relatedId
-      ),
-  },
-});
+    broadcast: {
+      emit: (channel, payload) =>
+        broadcastToChannel(channel, payload as Record<string, JsonValue>),
+    },
+    cache: { invalidate: () => invalidateAfterPredictionTrade(marketId) },
+    clock: { now: () => new Date() },
+    fees: {
+      tradingFeeRate: FEE_CONFIG.TRADING_FEE_RATE,
+      platformShare: FEE_CONFIG.PLATFORM_SHARE,
+      referrerShare: FEE_CONFIG.REFERRER_SHARE,
+      minFeeAmount: FEE_CONFIG.MIN_FEE_AMOUNT,
+    },
+    feeProcessor: {
+      processTradingFee: ({ userId, amount, type, relatedId, positionId }) =>
+        FeeService.processTradingFee(
+          userId,
+          type as (typeof FEE_CONFIG.FEE_TYPES)[keyof typeof FEE_CONFIG.FEE_TYPES],
+          amount,
+          positionId,
+          relatedId
+        ),
+    },
+  });
 
 // POST /api/markets/predictions/[id]/sell - thin handler
 export const POST = withErrorHandling(
@@ -80,7 +80,9 @@ export const POST = withErrorHandling(
     context: { params: Promise<{ id: string }> }
   ) => {
     const user = await authenticate(request);
-    const { id: marketId } = PredictionMarketIdSchema.parse(await context.params);
+    const { id: marketId } = PredictionMarketIdSchema.parse(
+      await context.params
+    );
     const body = await request.json();
     const { shares, positionId } = PredictionMarketSellSchema.parse(body);
 

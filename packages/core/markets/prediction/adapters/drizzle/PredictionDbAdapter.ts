@@ -69,7 +69,11 @@ const mapPosition = (
 
 export class PredictionDbAdapter implements PredictionDbPort {
   async getMarketById(id: string): Promise<PredictionMarketRecord | null> {
-    const [m] = await db.select().from(markets).where(eq(markets.id, id)).limit(1);
+    const [m] = await db
+      .select()
+      .from(markets)
+      .where(eq(markets.id, id))
+      .limit(1);
     return m ? mapMarket(m) : null;
   }
 
@@ -123,10 +127,11 @@ export class PredictionDbAdapter implements PredictionDbPort {
     return rows.map(mapMarket);
   }
 
-  async listUserPositions(
-    userId: string
-  ): Promise<PredictionPositionRecord[]> {
-    const rows = await db.select().from(positions).where(eq(positions.userId, userId));
+  async listUserPositions(userId: string): Promise<PredictionPositionRecord[]> {
+    const rows = await db
+      .select()
+      .from(positions)
+      .where(eq(positions.userId, userId));
     return rows.map(mapPosition);
   }
 
@@ -189,9 +194,12 @@ export class PredictionDbAdapter implements PredictionDbPort {
     const [updated] = await db
       .update(markets)
       .set({
-        yesShares: updates.yesShares != null ? String(updates.yesShares) : undefined,
-        noShares: updates.noShares != null ? String(updates.noShares) : undefined,
-        liquidity: updates.liquidity != null ? String(updates.liquidity) : undefined,
+        yesShares:
+          updates.yesShares != null ? String(updates.yesShares) : undefined,
+        noShares:
+          updates.noShares != null ? String(updates.noShares) : undefined,
+        liquidity:
+          updates.liquidity != null ? String(updates.liquidity) : undefined,
         resolved: updates.resolved ?? undefined,
         resolution: updates.resolution ?? undefined,
         onChainMarketId: updates.onChainMarketId ?? undefined,

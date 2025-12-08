@@ -76,8 +76,8 @@
  */
 
 import { optionalAuth, successResponse, withErrorHandling } from '@babylon/api';
-import { asPublic, asUser } from '@babylon/db';
 import { PredictionPricing } from '@babylon/core/markets/prediction';
+import { asPublic, asUser } from '@babylon/db';
 import {
   logger,
   UserIdParamSchema,

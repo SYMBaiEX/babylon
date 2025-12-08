@@ -1,4 +1,10 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
+import type {
+  BroadcastPort,
+  CachePort,
+  FeeProcessor,
+  WalletPort,
+} from '../../shared/common';
 import { PredictionMarketService } from '../PredictionMarketService';
 import { PredictionPricing } from '../pricing';
 import type {
@@ -7,12 +13,6 @@ import type {
   PredictionPositionRecord,
   PredictionSide,
 } from '../types';
-import type {
-  BroadcastPort,
-  CachePort,
-  FeeProcessor,
-  WalletPort,
-} from '../../shared/common';
 
 const feeConfig = {
   tradingFeeRate: 0.001,
@@ -163,7 +163,7 @@ class InMemoryDb implements PredictionDbPort {
       .map((p) => ({ ...p }));
   }
 
-  async insertPriceSnapshot(snapshot: any): Promise<void> {
+  async insertPriceSnapshot(snapshot: Record<string, unknown>): Promise<void> {
     this.snapshots.push(snapshot);
   }
 }
@@ -237,7 +237,12 @@ describe('PredictionMarketService', () => {
   });
 
   it('sell should decrease position, compute pnl, and close when remaining small', async () => {
-    await service.buy({ userId: 'u1', marketId: 'm1', side: 'yes', amount: 100 });
+    await service.buy({
+      userId: 'u1',
+      marketId: 'm1',
+      side: 'yes',
+      amount: 100,
+    });
     const pos = await db.getPosition('u1', 'm1', 'yes');
     expect(pos).not.toBeNull();
     const sellShares = pos!.shares * 0.9;
@@ -259,7 +264,12 @@ describe('PredictionMarketService', () => {
   });
 
   it('should require positionId when both sides exist', async () => {
-    await service.buy({ userId: 'u1', marketId: 'm1', side: 'yes', amount: 50 });
+    await service.buy({
+      userId: 'u1',
+      marketId: 'm1',
+      side: 'yes',
+      amount: 50,
+    });
     await service.buy({ userId: 'u1', marketId: 'm1', side: 'no', amount: 50 });
     await expect(
       service.sell({ userId: 'u1', marketId: 'm1', shares: 1 })

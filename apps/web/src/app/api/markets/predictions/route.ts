@@ -1,5 +1,6 @@
 // GET /api/markets/predictions – list markets (optionally with user positions)
 import { optionalAuth, successResponse, withErrorHandling } from '@babylon/api';
+import { PredictionPricing } from '@babylon/core/markets/prediction';
 import {
   asPublic,
   asUser,
@@ -7,7 +8,6 @@ import {
   type Market,
   type Position,
 } from '@babylon/db';
-import { PredictionPricing } from '@babylon/core/markets/prediction';
 import { logger, MarketQuerySchema } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { z } from 'zod';

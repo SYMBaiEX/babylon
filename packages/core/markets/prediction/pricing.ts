@@ -69,7 +69,8 @@ export class PredictionPricing {
       sharesBought = currentNoShares - newNoShares;
     }
 
-    if (sharesBought <= 0) throw new Error('Calculated shares must be positive');
+    if (sharesBought <= 0)
+      throw new Error('Calculated shares must be positive');
 
     const newTotal = newYesShares + newNoShares;
     const newYesPrice = newNoShares / newTotal;
@@ -162,7 +163,13 @@ export class PredictionPricing {
       side,
       netAmount
     );
-    return { ...base, fee, netAmount, totalWithFee: totalAmount, totalCost: netAmount };
+    return {
+      ...base,
+      fee,
+      netAmount,
+      totalWithFee: totalAmount,
+      totalCost: netAmount,
+    };
   }
 
   static calculateSellWithFees(
@@ -181,7 +188,13 @@ export class PredictionPricing {
     const gross = base.totalCost;
     const fee = gross * feeRate;
     const netProceeds = gross - fee;
-    return { ...base, fee, netAmount: netProceeds, netProceeds, totalCost: gross };
+    return {
+      ...base,
+      fee,
+      netAmount: netProceeds,
+      netProceeds,
+      totalCost: gross,
+    };
   }
 }
 

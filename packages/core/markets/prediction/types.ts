@@ -2,8 +2,8 @@ import type {
   BroadcastPort,
   CachePort,
   ClockPort,
-  FeeProcessor,
   FeeConfig,
+  FeeProcessor,
   WalletPort,
 } from '../shared/common';
 
