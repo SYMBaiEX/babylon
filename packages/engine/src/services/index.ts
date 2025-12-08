@@ -94,6 +94,8 @@ export * from './rss-feed-service';
 export * from './trade-cache-invalidation';
 export * from './trade-execution-service';
 export * from './wallet-service';
+// Static data registry (actors/orgs)
+export * from './static-data-registry';
 
 // =============================================================================
 // Oracle & Portfolio Services
@@ -120,3 +122,9 @@ export {
   setReputationSyncService,
   syncReputationIfAvailable,
 } from './reputation-service';
+
+// =============================================================================
+// Token Statistics Service
+// =============================================================================
+
+export { TokenStatsService } from './token-stats-service';
