@@ -392,10 +392,17 @@ export const PostCard = memo(function PostCard({
               <TaggedText
                 text={post.quoteComment}
                 onTagClick={(tag) => {
-                  // Extract tag name (remove # prefix) and convert to slug
-                  const tagName = tag.startsWith('#') ? tag.slice(1) : tag;
-                  const tagSlug = tagName.toLowerCase().replace(/\s+/g, '-');
-                  router.push(`/trending/${encodeURIComponent(tagSlug)}`);
+                  if (tag.startsWith('@')) {
+                    // Handle @mentions - route to profile
+                    const username = tag.slice(1);
+                    router.push(getProfileUrl('', username));
+                  } else if (tag.startsWith('$')) {
+                    // Handle $cashtags - route to markets
+                    const symbol = tag.slice(1);
+                    router.push(
+                      `/markets?search=${encodeURIComponent(symbol)}`
+                    );
+                  }
                 }}
               />
             </div>
@@ -473,12 +480,17 @@ export const PostCard = memo(function PostCard({
                   <TaggedText
                     text={post.originalPost.content}
                     onTagClick={(tag) => {
-                      // Extract tag name (remove # prefix) and convert to slug
-                      const tagName = tag.startsWith('#') ? tag.slice(1) : tag;
-                      const tagSlug = tagName
-                        .toLowerCase()
-                        .replace(/\s+/g, '-');
-                      router.push(`/trending/${encodeURIComponent(tagSlug)}`);
+                      if (tag.startsWith('@')) {
+                        // Handle @mentions - route to profile
+                        const username = tag.slice(1);
+                        router.push(getProfileUrl('', username));
+                      } else if (tag.startsWith('$')) {
+                        // Handle $cashtags - route to markets
+                        const symbol = tag.slice(1);
+                        router.push(
+                          `/markets?search=${encodeURIComponent(symbol)}`
+                        );
+                      }
                     }}
                   />
                 </div>
@@ -496,10 +508,15 @@ export const PostCard = memo(function PostCard({
           <TaggedText
             text={post.content || ''}
             onTagClick={(tag) => {
-              // Extract tag name (remove # prefix) and convert to slug
-              const tagName = tag.startsWith('#') ? tag.slice(1) : tag;
-              const tagSlug = tagName.toLowerCase().replace(/\s+/g, '-');
-              router.push(`/trending/${encodeURIComponent(tagSlug)}`);
+              if (tag.startsWith('@')) {
+                // Handle @mentions - route to profile
+                const username = tag.slice(1);
+                router.push(getProfileUrl('', username));
+              } else if (tag.startsWith('$')) {
+                // Handle $cashtags - route to markets
+                const symbol = tag.slice(1);
+                router.push(`/markets?search=${encodeURIComponent(symbol)}`);
+              }
             }}
           />
         </div>
