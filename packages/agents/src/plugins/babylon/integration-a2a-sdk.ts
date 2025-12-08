@@ -237,6 +237,27 @@ export class BabylonA2AClient {
 
     const skillId = skillMap[action] || 'portfolio-balance';
 
+    // Map camelCase actions to category.snake_case operation names
+    // This follows the executor's convention (e.g., 'social.create_post', 'stats.leaderboard')
+    const operationMap: Record<string, string> = {
+      // Social operations
+      createPost: 'social.create_post',
+      getFeed: 'social.get_feed',
+      likePost: 'social.like_post',
+      // Stats operations
+      getSystemStats: 'stats.system',
+      getLeaderboard: 'stats.leaderboard',
+      getTrendingTags: 'stats.trending_tags',
+      getPostsByTag: 'stats.posts_by_tag',
+      // Markets operations
+      getPredictions: 'markets.list_prediction',
+      // Users operations
+      searchUsers: 'users.search',
+    };
+
+    // Use mapped operation name if available, otherwise use original action
+    const operationName = operationMap[action] || action;
+
     const response = await this.sdkClient.sendMessage({
       message: {
         kind: 'message',
@@ -245,7 +266,7 @@ export class BabylonA2AClient {
         parts: [
           {
             kind: 'data',
-            data: { operation: action, params },
+            data: { operation: operationName, params },
             metadata: {
               skillId,
             },
