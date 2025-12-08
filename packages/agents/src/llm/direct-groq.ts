@@ -52,13 +52,9 @@ export async function callGroqDirect(params: {
     baseURL: 'https://api.groq.com/openai/v1',
   });
 
-  // Model selection based on task complexity:
-  // - Small (llama-3.1-8b-instant): Fast batch evaluations, simple decisions (10x cheaper, better at counting)
-  // - Large (moonshotai/kimi-k2-instruct-0905): Complex reasoning, trading decisions, content generation
+  // Model selection based on task complexity
   const model =
-    params.modelSize === 'large'
-      ? 'moonshotai/kimi-k2-instruct-0905' // Kimi K2 - best for complex reasoning and JSON compliance
-      : 'llama-3.1-8b-instant'; // Fast and accurate for structured outputs/batch evaluations
+    params.modelSize === 'large' ? 'qwen/qwen3-32b' : 'llama-3.1-8b-instant';
 
   const startTime = Date.now();
 

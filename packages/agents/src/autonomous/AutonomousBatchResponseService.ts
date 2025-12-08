@@ -401,13 +401,36 @@ Array:`;
       );
     }
 
-    const decisions = JSON.parse(jsonMatch[0]) as boolean[];
+    const decisionsRaw = JSON.parse(jsonMatch[0]) as boolean[];
 
     // Ensure we have the right number of decisions (for capped interactions)
-    if (decisions.length !== evaluateInteractions.length) {
-      throw new Error(
-        `Decision count mismatch: ${decisions.length} vs ${evaluateInteractions.length}`
+    let decisions = decisionsRaw;
+    if (decisionsRaw.length !== evaluateInteractions.length) {
+      logger.warn(
+        `Decision count mismatch: ${decisionsRaw.length} vs ${evaluateInteractions.length}. Adjusting to match.`,
+        undefined,
+        'AutonomousBatchResponse'
       );
+
+      if (decisionsRaw.length < evaluateInteractions.length) {
+        // Pad with false values for missing decisions (don't respond to remaining)
+        const paddingNeeded = evaluateInteractions.length - decisionsRaw.length;
+        decisions = [...decisionsRaw, ...Array(paddingNeeded).fill(false)];
+        logger.info(
+          `Padded ${paddingNeeded} missing decisions with false`,
+          undefined,
+          'AutonomousBatchResponse'
+        );
+      } else {
+        // Truncate excess decisions
+        const excessCount = decisionsRaw.length - evaluateInteractions.length;
+        decisions = decisionsRaw.slice(0, evaluateInteractions.length);
+        logger.info(
+          `Truncated ${excessCount} excess decisions`,
+          undefined,
+          'AutonomousBatchResponse'
+        );
+      }
     }
 
     return decisions.map((shouldRespond) => ({ shouldRespond }));
@@ -487,8 +510,8 @@ Generate ONLY the response text, nothing else.`;
         finalRespPrompt = truncated.text;
       }
 
-    // Use large model for response generation - better quality responses
-    // Add timeout to prevent hanging (20 seconds max)
+      // Use large model for response generation - better quality responses
+      // Add timeout to prevent hanging (20 seconds max)
       const responseContent = await Promise.race([
         callGroqDirect({
           prompt: finalRespPrompt,
