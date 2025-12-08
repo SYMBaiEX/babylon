@@ -68,7 +68,7 @@ export * from './event-generation-helpers';
 export * from './parody-headline-generator';
 export * from './post-generation-helpers';
 export * from './question-arc-planner';
-
+export * from './story-seed-service';
 // Tag Service
 export {
   type GeneratedTag,
@@ -82,7 +82,8 @@ export {
   storeTagsForPost,
   storeTrendingTags,
 } from './tag-service';
-
+// Topic Diversity Services (breaks the trending flywheel)
+export * from './topic-diversity-service';
 // Trending Services (kept separate due to different concerns)
 export * from './trending-calculation-service';
 export * from './trending-grouping-service';
