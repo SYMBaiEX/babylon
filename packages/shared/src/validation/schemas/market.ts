@@ -31,10 +31,14 @@ export const OpenPerpPositionSchema = z.object({
 
 /**
  * Close perp position schema
+ *
+ * NOTE: percentage and slippage fields are defined for future support but
+ * are not currently implemented in PerpMarketService. Positions are closed
+ * entirely at market price.
  */
 export const ClosePerpPositionSchema = z.object({
-  percentage: z.number().min(0).max(1).optional(), // Close partial position (0-1)
-  slippage: z.number().min(0).max(0.1).default(0.01),
+  percentage: z.number().min(0).max(1).optional(), // Close partial position (0-1) - NOT YET IMPLEMENTED
+  slippage: z.number().min(0).max(0.1).default(0.01), // NOT YET IMPLEMENTED
 });
 
 /**

@@ -1,6 +1,8 @@
+import { PerpDbAdapter, PerpMarketService } from '@babylon/core/markets/perps';
 import { db, eq, getDbInstance, organizationState } from '@babylon/db';
-import { getReadyPerpsEngine } from '@babylon/engine';
 import { type JsonValue, logger } from '@babylon/shared';
+import { FEE_CONFIG } from '../config/fees';
+import { WalletService } from './wallet-service';
 
 export type PriceUpdateSource = 'user_trade' | 'npc_trade' | 'event' | 'system';
 
@@ -33,7 +35,59 @@ export class PriceUpdateService {
   ): Promise<AppliedPriceUpdate[]> {
     if (updates.length === 0) return [];
 
-    const perpsEngine = await getReadyPerpsEngine();
+    const perpService = new PerpMarketService({
+      db: new PerpDbAdapter(),
+      wallet: {
+        debit: (params: {
+          userId: string;
+          amount: number;
+          reason: string;
+          description?: string;
+          relatedId?: string;
+        }) =>
+          WalletService.debit(
+            params.userId,
+            params.amount,
+            params.reason,
+            params.description ?? '',
+            params.relatedId
+          ),
+        credit: (params: {
+          userId: string;
+          amount: number;
+          reason: string;
+          description?: string;
+          relatedId?: string;
+        }) =>
+          WalletService.credit(
+            params.userId,
+            params.amount,
+            params.reason,
+            params.description ?? '',
+            params.relatedId
+          ),
+        recordPnL: async (params: {
+          userId: string;
+          pnl: number;
+          reason: string;
+          relatedId?: string;
+        }) => {
+          await WalletService.recordPnL(
+            params.userId,
+            params.pnl,
+            params.reason,
+            params.relatedId
+          );
+        },
+        getBalance: (userId: string) => WalletService.getBalance(userId),
+      },
+      fees: {
+        tradingFeeRate: FEE_CONFIG.TRADING_FEE_RATE,
+        platformShare: FEE_CONFIG.PLATFORM_SHARE,
+        referrerShare: FEE_CONFIG.REFERRER_SHARE,
+        minFeeAmount: FEE_CONFIG.MIN_FEE_AMOUNT,
+      },
+    });
     const appliedUpdates: AppliedPriceUpdate[] = [];
     const priceMap = new Map<string, number>();
 
@@ -97,7 +151,7 @@ export class PriceUpdateService {
     }
 
     if (priceMap.size > 0) {
-      perpsEngine.updatePositions(priceMap);
+      await perpService.applyPriceUpdates(priceMap);
 
       // Broadcast price updates (handled by API layer if available)
       const api = await import('@babylon/api');

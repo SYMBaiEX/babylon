@@ -1,6 +1,9 @@
 /**
  * Playwright configuration for E2E tests.
  *
+ * This config is for standard Playwright tests (not Synpress/MetaMask).
+ * For MetaMask wallet tests, use synpress.config.ts instead.
+ *
  * @module testing/playwright.config
  * @see https://playwright.dev/docs/test-configuration
  */
@@ -12,6 +15,9 @@ import path from 'path';
 const rootDir = path.resolve(__dirname, '../..');
 dotenv.config({ path: path.resolve(rootDir, '.env.local') });
 dotenv.config({ path: path.resolve(rootDir, '.env') });
+
+const baseURL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000';
+
 export default defineConfig({
   testDir: './e2e',
 
@@ -28,25 +34,14 @@ export default defineConfig({
   workers: 1,
 
   /* Reporter to use */
-  reporter: [
-    ['list'], // Console output only, no blocking HTML report
-  ],
+  reporter: [['list']],
 
   /* Shared settings for all the projects below */
   use: {
-    /* Base URL to use in actions like `await page.goto('/')` */
-    baseURL: process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000',
-
-    /* Collect trace when retrying the failed test */
+    baseURL,
     trace: 'on-first-retry',
-
-    /* Screenshot on failure */
     screenshot: 'only-on-failure',
-
-    /* Video on failure */
     video: 'retain-on-failure',
-
-    /* Launch Options to prevent CI crashes */
     launchOptions: {
       args: ['--disable-dev-shm-usage'],
     },
@@ -85,14 +80,16 @@ export default defineConfig({
       dependencies: ['setup'],
     },
   ],
-  webServer: process.env.CI
-    ? undefined
-    : {
-        command: `cd ${rootDir} && bunx next dev --dir apps/web`,
-        url: 'http://localhost:3000',
-        reuseExistingServer: true,
-        timeout: 120 * 1000,
-        stdout: 'pipe',
-        stderr: 'pipe',
-      },
+
+  webServer:
+    process.env.CI || process.env.PLAYWRIGHT_SKIP_WEBSERVER
+      ? undefined
+      : {
+          command: `cd ${rootDir}/apps/web && bunx next dev`,
+          url: baseURL,
+          reuseExistingServer: true,
+          timeout: 120_000,
+          stdout: 'pipe',
+          stderr: 'pipe',
+        },
 });

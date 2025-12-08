@@ -3,6 +3,7 @@
  * This is the "reality" of the game - agents observe and predict, but don't influence.
  */
 
+import type { PerpMarketRecord } from '@babylon/core/markets/perps';
 import { generateSnowflakeId } from '@babylon/shared';
 import { EventEmitter } from 'events';
 import { type FeedEvent, FeedGenerator } from './FeedGenerator';
@@ -17,10 +18,9 @@ import {
 } from './prompts';
 import { characterMappingService } from './services/character-mapping-service';
 import type { JsonValue } from './types/common';
-import type { PerpMarket } from './types/perps';
 
 export interface MarketContext {
-  markets: PerpMarket[];
+  markets: PerpMarketRecord[];
   significantMoves: { ticker: string; change: number }[];
 }
 

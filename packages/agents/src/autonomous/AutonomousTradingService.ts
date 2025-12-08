@@ -5,6 +5,7 @@
  */
 
 import { countTokensSync, truncateToTokenLimitSync } from '@babylon/api';
+import { PerpDbAdapter, PerpMarketService } from '@babylon/core/markets/perps';
 import {
   and,
   asUser,
@@ -23,7 +24,6 @@ import {
 import {
   formatRandomContext,
   generateRandomMarketContext,
-  PerpTradeService,
   PredictionPricing,
   StaticDataRegistry,
   shuffleArray,
@@ -454,15 +454,68 @@ ${contextString}`;
           const ticker = org.name;
 
           await asUser({ userId: agentUserId }, async () => {
-            await PerpTradeService.openPosition(
-              { userId: agentUserId },
-              {
-                ticker,
-                side,
-                size: trade.amount,
-                leverage: 1,
-              }
-            );
+            const service = new PerpMarketService({
+              db: new PerpDbAdapter(),
+              wallet: {
+                debit: (params: {
+                  userId: string;
+                  amount: number;
+                  reason: string;
+                  description?: string;
+                  relatedId?: string;
+                }) =>
+                  WalletService.debit(
+                    params.userId,
+                    params.amount,
+                    params.reason,
+                    params.description ?? '',
+                    params.relatedId
+                  ),
+                credit: (params: {
+                  userId: string;
+                  amount: number;
+                  reason: string;
+                  description?: string;
+                  relatedId?: string;
+                }) =>
+                  WalletService.credit(
+                    params.userId,
+                    params.amount,
+                    params.reason,
+                    params.description ?? '',
+                    params.relatedId
+                  ),
+                recordPnL: async (params: {
+                  userId: string;
+                  pnl: number;
+                  reason: string;
+                  relatedId?: string;
+                }) => {
+                  await WalletService.recordPnL(
+                    params.userId,
+                    params.pnl,
+                    params.reason,
+                    params.relatedId
+                  );
+                },
+                getBalance: (userId: string) =>
+                  WalletService.getBalance(userId),
+              },
+              fees: {
+                tradingFeeRate: 0.001,
+                platformShare: 0.5,
+                referrerShare: 0.5,
+                minFeeAmount: 0.01,
+              },
+            });
+
+            await service.openPosition({
+              userId: agentUserId,
+              ticker,
+              side,
+              size: trade.amount,
+              leverage: 1,
+            });
           });
 
           await agentPnLService.recordTrade({

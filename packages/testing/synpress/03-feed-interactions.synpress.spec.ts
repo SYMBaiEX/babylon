@@ -52,7 +52,8 @@ test.describe('Feed - Core Functionality', () => {
     const followingTab = page.locator('button:has-text("Following")').first();
 
     if (await followingTab.isVisible({ timeout: TIMEOUTS.SHORT })) {
-      await followingTab.click();
+      // Use force click to bypass Next.js dev overlay interception
+      await followingTab.click({ force: true });
       await page.waitForTimeout(1500);
 
       // Following tab should show posts OR empty state

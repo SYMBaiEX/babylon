@@ -10,12 +10,12 @@ import {
   eq,
   markets,
   npcTrades,
+  organizationState,
   poolPositions,
   pools,
   type Transaction,
 } from '@babylon/db';
 import { generateSnowflakeId, logger } from '@babylon/shared';
-import { getReadyPerpsEngine } from '../perps-service';
 import { PredictionPricing } from '../prediction-pricing';
 import type {
   ExecutedTrade,
@@ -226,26 +226,28 @@ export class TradeExecutionService {
       throw new Error(`Organization not found: ${decision.ticker}`);
     }
 
-    // Use initial price from static data (dynamic price updates handled elsewhere)
-    const currentPrice = org.initialPrice ?? 100;
+    // Fetch current market price from organizationState (falls back to initialPrice)
+    const [orgStateRow] = await db
+      .select({ currentPrice: organizationState.currentPrice })
+      .from(organizationState)
+      .where(eq(organizationState.id, org.id))
+      .limit(1);
+    const currentPrice = orgStateRow?.currentPrice ?? org.initialPrice ?? 100;
     const leverage = 5; // Standard leverage
     const side = decision.action === 'open_long' ? 'long' : 'short';
-
-    // Generate transformed ticker for PerpsEngine (matches PerpetualsEngine.generateTicker)
-    // This removes dashes and uppercases the org ID, truncated to 12 chars
-    let engineTicker = org.id.toUpperCase().replace(/-/g, '');
-    if (engineTicker.length > 12) {
-      engineTicker = engineTicker.substring(0, 12);
-    }
 
     // Calculate trading fee (0.1% on position size)
     const positionSize = decision.amount * leverage;
     const feeCalc = FeeService.calculateFee(positionSize);
     const totalCost = decision.amount + feeCalc.feeAmount;
 
-    // Calculate liquidation price
-    const liquidationDistance = side === 'long' ? 0.8 : 1.2;
-    const liquidationPrice = currentPrice * liquidationDistance;
+    // Calculate liquidation price using same formula as PerpMarketService
+    // Liquidate at 90% margin loss (threshold = 0.9 / leverage)
+    const liquidationThreshold = 0.9 / leverage;
+    const liquidationPrice =
+      side === 'long'
+        ? currentPrice * (1 - liquidationThreshold)
+        : currentPrice * (1 + liquidationThreshold);
 
     // Execute in transaction
     const position = await db.transaction(async (tx: Transaction) => {
@@ -346,32 +348,6 @@ export class TradeExecutionService {
         .limit(1);
 
       return pos!;
-    });
-
-    // Add position to perpetuals engine for real-time tracking
-    // Use the transformed ticker that matches PerpsEngine's market indexing
-    const engine = await getReadyPerpsEngine();
-    engine.hydratePosition({
-      id: position.id,
-      userId: actorId,
-      ticker: engineTicker, // Use transformed ticker for engine
-      organizationId: org.id,
-      side,
-      entryPrice: currentPrice,
-      currentPrice,
-      size: positionSize,
-      leverage,
-      liquidationPrice,
-      unrealizedPnL: 0,
-      unrealizedPnLPercent: 0,
-      fundingPaid: 0,
-      openedAt: position.updatedAt,
-      lastUpdated: position.updatedAt,
-    });
-    logger.info('Added NPC position to perpetuals engine', {
-      positionId: position.id,
-      ticker: decision.ticker,
-      actorId,
     });
 
     return {
@@ -800,15 +776,20 @@ export class TradeExecutionService {
     let currentPrice = position.currentPrice;
 
     if (position.marketType === 'perp' && position.ticker) {
-      // Find organization from static registry
+      // Fetch current market price from organizationState
       const tickerLower = position.ticker.toLowerCase();
       const org = StaticDataRegistry.getAllOrganizations().find((o) =>
         o.id.toLowerCase().includes(tickerLower)
       );
 
-      if (org?.initialPrice) {
-        // TODO: Get current price from organizationState if needed
-        currentPrice = org.initialPrice;
+      if (org) {
+        const [orgStateRow] = await db
+          .select({ currentPrice: organizationState.currentPrice })
+          .from(organizationState)
+          .where(eq(organizationState.id, org.id))
+          .limit(1);
+        currentPrice =
+          orgStateRow?.currentPrice ?? org.initialPrice ?? currentPrice;
       }
     } else if (position.marketType === 'prediction' && position.marketId) {
       const [market] = await db
@@ -898,19 +879,6 @@ export class TradeExecutionService {
         reason: decision.reasoning,
       });
     });
-
-    // Remove position from perpetuals engine if it's a perp position
-    if (position.marketType === 'perp') {
-      const engine = await getReadyPerpsEngine();
-      if (engine.hasPosition(position.id)) {
-        engine.closePosition(position.id);
-        logger.info('Removed NPC position from perpetuals engine', {
-          positionId: position.id,
-          ticker: position.ticker,
-          actorId,
-        });
-      }
-    }
 
     return {
       npcId: decision.npcId,

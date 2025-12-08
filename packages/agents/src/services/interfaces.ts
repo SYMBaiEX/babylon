@@ -144,9 +144,6 @@ export interface ITrajectoryRecorder {
  * Perp Trade Service Interface
  */
 export interface IPerpTradeService {
-  /**
-   * Open a perpetual position
-   */
   openPosition(params: {
     userId: string;
     ticker: string;
@@ -158,17 +155,11 @@ export interface IPerpTradeService {
     entryPrice: number;
   }>;
 
-  /**
-   * Close a perpetual position
-   */
   closePosition(params: { userId: string; positionId: string }): Promise<{
     pnl: number;
     exitPrice: number;
   }>;
 
-  /**
-   * Get open positions for user
-   */
   getPositions(userId: string): Promise<
     Array<{
       id: string;
@@ -295,7 +286,6 @@ export interface IServiceContainer {
   walletService?: IWalletService;
   characterMappingService?: ICharacterMappingService;
   trajectoryRecorder?: ITrajectoryRecorder;
-  perpTradeService?: IPerpTradeService;
   predictionPricing?: IPredictionPricing;
   agent0Client?: IAgent0Client;
   dbContext?: IDbContext;

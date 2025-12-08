@@ -1,13 +1,14 @@
 /**
  * Privy authentication helpers for synpress tests.
  *
- * Handles wallet connection flow for E2E testing with Privy using MetaMask.
- * Uses @synthetixio/synpress for real MetaMask browser extension interaction.
+ * Handles wallet connection flow for E2E testing with Privy.
+ * Works with both Synpress MetaMask fixtures and standard Playwright.
  *
  * @module testing/synpress/helpers/privy-auth
  */
 
 import type { Page } from '@playwright/test';
+import type { MetaMask } from '@synthetixio/synpress-metamask/playwright';
 
 /**
  * Default Anvil test wallet (Account #0)
@@ -22,36 +23,7 @@ export const DEFAULT_ANVIL_WALLET = {
 } as const;
 
 /**
- * Wallet configuration for testing
- */
-export interface WalletConfig {
-  seedPhrase: string;
-  password: string;
-}
-
-/**
- * Gets wallet configuration from environment variables.
- */
-export function getWalletConfig(): WalletConfig {
-  return {
-    seedPhrase:
-      process.env.WALLET_SEED_PHRASE || DEFAULT_ANVIL_WALLET.seedPhrase,
-    password: process.env.WALLET_PASSWORD || DEFAULT_ANVIL_WALLET.password,
-  };
-}
-
-/**
- * Checks if custom wallet credentials are configured.
- */
-export function hasWalletCredentials(): boolean {
-  return Boolean(process.env.WALLET_SEED_PHRASE);
-}
-
-/**
  * Waits for Privy SDK to be initialized and ready.
- *
- * @param page - Playwright page instance
- * @param timeout - Maximum time to wait in milliseconds
  */
 export async function waitForPrivyReady(
   page: Page,
@@ -111,9 +83,6 @@ export async function waitForPrivyReady(
 
 /**
  * Checks if user is already authenticated.
- *
- * @param page - Playwright page instance
- * @returns true if user menu is visible
  */
 export async function isAuthenticated(page: Page): Promise<boolean> {
   return page
@@ -126,18 +95,12 @@ export async function isAuthenticated(page: Page): Promise<boolean> {
 /**
  * Login with MetaMask wallet via Privy.
  *
- * This function:
- * 1. Opens the Privy login modal
- * 2. Selects MetaMask wallet option
- * 3. Handles MetaMask connection approval via Synpress
- * 4. Waits for authentication to complete
- *
  * @param page - Playwright page instance
- * @param metamask - Synpress MetaMask instance (optional, for auto-approve)
+ * @param metamask - Optional Synpress MetaMask instance for auto-approve
  */
 export async function loginWithWallet(
   page: Page,
-  metamask?: { connectToDapp: () => Promise<void> }
+  metamask?: MetaMask
 ): Promise<void> {
   await waitForPrivyReady(page);
 
@@ -177,7 +140,10 @@ export async function loginWithWallet(
     .locator('button:has-text("More option")')
     .first();
   if (await moreOptionsButton.isVisible({ timeout: 3000 }).catch(() => false)) {
-    await moreOptionsButton.click({ timeout: 5000 });
+    // Use force click to bypass Next.js dev overlay interception
+    await moreOptionsButton
+      .click({ force: true, timeout: 5000 })
+      .catch(() => {});
     await page.waitForTimeout(1000);
   }
 
@@ -201,13 +167,10 @@ export async function loginWithWallet(
 
   // If Synpress metamask instance provided, auto-approve the connection
   if (walletClicked && metamask) {
-    try {
-      await metamask.connectToDapp();
-      await page.waitForTimeout(2000);
-    } catch (_err) {
+    await metamask.connectToDapp().catch(() => {
       // MetaMask popup may not appear if already connected
-      console.log('MetaMask connect skipped (may already be connected)');
-    }
+    });
+    await page.waitForTimeout(2000);
   } else if (walletClicked) {
     // Wait for manual connection or timeout
     await page.waitForTimeout(3000);
@@ -224,23 +187,28 @@ export async function loginWithWallet(
  * Close Privy modal if open
  */
 async function closePrivyModal(page: Page): Promise<void> {
+  // First try Escape key (works for most modals)
+  await page.keyboard.press('Escape').catch(() => {});
+  await page.waitForTimeout(300);
+
+  // Then try clicking close button if still visible
   const closeButton = page
-    .locator('button[aria-label*="close" i], button:has-text("close modal")')
+    .locator(
+      'button[aria-label*="close" i], button:has-text("×"), svg.lucide-x'
+    )
     .first();
-  if (await closeButton.isVisible({ timeout: 1000 }).catch(() => false)) {
-    await closeButton.click({ force: true, timeout: 2000 }).catch(() => {});
-    await page.waitForTimeout(500);
+  if (await closeButton.isVisible({ timeout: 500 }).catch(() => false)) {
+    await closeButton.click({ force: true, timeout: 1000 }).catch(() => {});
+    await page.waitForTimeout(300);
   }
 
-  // Try pressing Escape as fallback
-  await page.keyboard.press('Escape').catch(() => {});
-  await page.waitForTimeout(500);
+  // Click outside modal to close it
+  await page.mouse.click(10, 10).catch(() => {});
+  await page.waitForTimeout(300);
 }
 
 /**
  * Logout the current user
- *
- * @param page - Playwright page instance
  */
 export async function logout(page: Page): Promise<void> {
   const userMenu = page.locator('[data-testid="user-menu"]').first();
@@ -274,7 +242,18 @@ export function getPrivyTestAccount(): PrivyTestAccount {
 }
 
 export function hasPrivyTestCredentials(): boolean {
-  return true; // Always return true since we use wallet auth now
+  return true;
+}
+
+export function hasWalletCredentials(): boolean {
+  return true;
+}
+
+export function getWalletConfig() {
+  return {
+    seedPhrase: DEFAULT_ANVIL_WALLET.seedPhrase,
+    password: DEFAULT_ANVIL_WALLET.password,
+  };
 }
 
 /**

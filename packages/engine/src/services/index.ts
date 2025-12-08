@@ -43,9 +43,7 @@ export {
   type EventArcValidationResult,
   EventArcValidator,
 } from './event-arc-validator';
-export * from './liquidity-health-service';
 export * from './onchain-market-service';
-export * from './perp-trade-service';
 // Prediction Market Service
 export {
   type BroadcasterFn,

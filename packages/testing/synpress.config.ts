@@ -1,19 +1,20 @@
 /**
- * Synpress configuration for Playwright tests with MetaMask integration.
+ * Synpress configuration for E2E tests with MetaMask integration.
  *
  * Uses @synthetixio/synpress for real MetaMask wallet interaction.
  * The default Anvil test wallet is used for authentication via Privy.
  *
  * @module testing/synpress.config
+ * @see https://docs.synpress.io/docs/playwright/configuration
  */
 
 import { defineConfig, devices } from '@playwright/test';
-import { config } from 'dotenv';
-import { resolve } from 'path';
+import dotenv from 'dotenv';
+import path from 'path';
 
-const rootDir = resolve(__dirname, '../..');
-config({ path: resolve(rootDir, '.env.local') });
-config({ path: resolve(rootDir, '.env') });
+const rootDir = path.resolve(__dirname, '../..');
+dotenv.config({ path: path.resolve(rootDir, '.env.local') });
+dotenv.config({ path: path.resolve(rootDir, '.env') });
 
 const baseURL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000';
 
@@ -22,7 +23,12 @@ export default defineConfig({
   testMatch: '**/*.spec.ts',
 
   /* Maximum time one test can run for */
-  timeout: process.env.CI ? 90 * 1000 : 120 * 1000,
+  timeout: process.env.CI ? 90_000 : 120_000,
+
+  /* Expect timeout */
+  expect: {
+    timeout: 10_000,
+  },
 
   /* Run tests in files in parallel - disabled for wallet tests */
   fullyParallel: false,
@@ -37,10 +43,15 @@ export default defineConfig({
   workers: 1,
 
   /* Reporter to use */
-  reporter: [
-    ['list'],
-    ['json', { outputFile: 'test-results/synpress-results.json' }],
-  ],
+  reporter: process.env.CI
+    ? [
+        ['github'],
+        ['json', { outputFile: 'test-results/synpress-results.json' }],
+      ]
+    : [
+        ['list'],
+        ['json', { outputFile: 'test-results/synpress-results.json' }],
+      ],
 
   /* Shared settings for all the projects below */
   use: {
@@ -48,8 +59,8 @@ export default defineConfig({
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
-    actionTimeout: 30 * 1000,
-    navigationTimeout: 60 * 1000,
+    actionTimeout: 30_000,
+    navigationTimeout: 60_000,
     launchOptions: {
       args: ['--disable-dev-shm-usage'],
     },
@@ -73,7 +84,7 @@ export default defineConfig({
           command: `cd ${rootDir}/apps/web && bunx next dev`,
           url: baseURL,
           reuseExistingServer: true,
-          timeout: 120 * 1000,
+          timeout: 120_000,
           stdout: 'pipe',
           stderr: 'pipe',
         },

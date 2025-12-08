@@ -92,6 +92,32 @@ export async function navigateTo(page: Page, route: string): Promise<void> {
 }
 
 /**
+ * Hide Next.js dev overlay to prevent it from intercepting pointer events.
+ *
+ * In development mode, Next.js injects a portal that can block UI interactions.
+ * This function hides it so tests can interact with the actual UI.
+ *
+ * @param page - Playwright page instance
+ */
+export async function hideNextDevOverlay(page: Page): Promise<void> {
+  await page
+    .evaluate(() => {
+      const overlay = document.querySelector('nextjs-portal');
+      if (overlay instanceof HTMLElement) {
+        overlay.style.pointerEvents = 'none';
+        overlay.style.display = 'none';
+      }
+      // Also hide any error overlays
+      document.querySelectorAll('[data-nextjs-dev-overlay]').forEach((el) => {
+        if (el instanceof HTMLElement) {
+          el.style.pointerEvents = 'none';
+        }
+      });
+    })
+    .catch(() => {});
+}
+
+/**
  * Waits for page to be fully loaded and hydrated.
  *
  * @param page - Playwright page instance
@@ -103,6 +129,9 @@ export async function waitForPageLoad(
 ): Promise<void> {
   try {
     await page.waitForLoadState('domcontentloaded', { timeout });
+
+    // Hide Next.js dev overlay to prevent test interference
+    await hideNextDevOverlay(page);
 
     // Wait for page to have interactive elements
     let hasButtons = false;
@@ -122,6 +151,8 @@ export async function waitForPageLoad(
       // Try reloading the page once
       await page.reload({ waitUntil: 'domcontentloaded' }).catch(() => {});
       await page.waitForTimeout(2000);
+      // Hide overlay again after reload
+      await hideNextDevOverlay(page);
     }
   } catch (_e) {
     // Continue anyway

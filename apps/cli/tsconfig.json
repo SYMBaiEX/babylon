@@ -51,7 +51,9 @@
       "@babylon/training": ["../../packages/training/src/index.ts"],
       "@babylon/training/*": ["../../packages/training/src/*"],
       "@babylon/testing": ["../../packages/testing/src/index.ts"],
-      "@babylon/testing/*": ["../../packages/testing/*"]
+      "@babylon/testing/*": ["../../packages/testing/*"],
+      "@babylon/core": ["../../packages/core/markets/index.ts"],
+      "@babylon/core/markets/*": ["../../packages/core/markets/*"]
     }
   },
   "include": ["src/**/*"],

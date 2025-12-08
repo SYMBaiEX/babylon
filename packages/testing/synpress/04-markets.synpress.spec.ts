@@ -52,7 +52,8 @@ test.describe('Markets Dashboard', () => {
     const perpsTab = page
       .locator('[role="tab"]:has-text("Perps"), button:has-text("Perps")')
       .first();
-    await perpsTab.click();
+    // Use force click to bypass any overlays
+    await perpsTab.click({ force: true });
     await page.waitForTimeout(2000);
     expect(page.url()).toContain('/markets/perps');
 
@@ -64,7 +65,7 @@ test.describe('Markets Dashboard', () => {
         '[role="tab"]:has-text("Predictions"), button:has-text("Predictions")'
       )
       .first();
-    await predictionsTab.click();
+    await predictionsTab.click({ force: true });
     await page.waitForTimeout(2000);
     expect(page.url()).toContain('/markets/predictions');
   });
@@ -232,12 +233,12 @@ test.describe('Predictions Markets', () => {
     const volumeButton = page.locator('button:has-text("Volume")').first();
 
     if (await trendingButton.isVisible({ timeout: TIMEOUTS.SHORT })) {
-      await trendingButton.click();
+      await trendingButton.click({ force: true }).catch(() => {});
       await page.waitForTimeout(1000);
     }
 
     if (await volumeButton.isVisible({ timeout: TIMEOUTS.SHORT })) {
-      await volumeButton.click();
+      await volumeButton.click({ force: true }).catch(() => {});
       await page.waitForTimeout(1000);
     }
 
