@@ -553,6 +553,7 @@ Your JSON response:`;
       if (post && post.id) {
         await a2aClient.sendRequest('a2a.likePost', {
           postId: post.id,
+          userId: agentUserId, // Pass the agent's actual user ID
         });
         engagements++;
 

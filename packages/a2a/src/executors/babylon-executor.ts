@@ -480,7 +480,11 @@ export class BabylonAgentExecutor implements AgentExecutor {
       throw new Error('Post not found');
     }
 
-    const userId = context.contextId || context.taskId;
+    // Use userId from params first (actual agent user ID), fall back to context
+    const userId =
+      typeof params.userId === 'string' && params.userId
+        ? params.userId
+        : context.contextId || context.taskId;
 
     // Check if already liked
     const existingLike = await db.reaction.findFirst({
