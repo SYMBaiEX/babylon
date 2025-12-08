@@ -480,106 +480,149 @@ Do NOT include any explanations, only the XML format above.`;
       );
     }
 
-    // Use large model for batch evaluation - better at consistent counting
-    // Add timeout to prevent hanging (30 seconds max for larger model)
-    const decisionText = await Promise.race([
-      callGroqDirect({
-        prompt: finalPrompt,
-        system: config?.systemPrompt ?? undefined,
-        modelSize: 'large', // Large model: Better at structured outputs and counting
-        runtime: _runtime, // Pass runtime to access W&B trained models AND trajectory context
-        temperature: 0.6,
-        maxTokens: 16384,
-        actionType: 'evaluate_interactions',
-        purpose: 'evaluation', // RLAIF: This is an evaluation/reasoning call
-      }),
-      new Promise<string>((resolve) => {
-        setTimeout(() => {
+    // Use large model for batch evaluation with retry loop
+    const MAX_ATTEMPTS = 3;
+    let decisions: boolean[] | null = null;
+
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      try {
+        const isRetry = attempt > 1;
+        const currentPrompt = isRetry
+          ? `${finalPrompt}\n\nREMINDER: You MUST output valid XML. Start with <response> and include <decisions> with comma-separated true/false values.`
+          : finalPrompt;
+
+        // Add timeout to prevent hanging (30 seconds max for larger model)
+        const decisionText = await Promise.race([
+          callGroqDirect({
+            prompt: currentPrompt,
+            system: config?.systemPrompt ?? undefined,
+            modelSize: 'large', // Large model: Better at structured outputs and counting
+            runtime: _runtime, // Pass runtime to access W&B trained models AND trajectory context
+            temperature: isRetry ? 0.5 : 0.6,
+            maxTokens: 16384,
+            actionType: 'evaluate_interactions',
+            purpose: 'evaluation', // RLAIF: This is an evaluation/reasoning call
+          }),
+          new Promise<string>((_, reject) => {
+            setTimeout(() => {
+              reject(new Error('Timeout'));
+            }, 30000); // 30 second timeout
+          }),
+        ]);
+
+        console.log(
+          '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! decisionText',
+          decisionText
+        );
+
+        // Extract <response>...</response> block before parsing
+        const responseMatch = decisionText.match(
+          /<response>([\s\S]*?)<\/response>/i
+        );
+        if (!responseMatch) {
           logger.warn(
-            `Interaction evaluation timeout for agent ${agentUserId}, defaulting to no responses`,
+            'No <response> block found in batch evaluation',
+            {
+              agentUserId,
+              attempt,
+              raw: decisionText.substring(0, 500),
+            },
+            'AutonomousBatchResponse'
+          );
+          continue;
+        }
+
+        // Parse the extracted XML response
+        const parsed = parseKeyValueXml(responseMatch[0]) as {
+          decisions?: string;
+        } | null;
+
+        console.log(
+          '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! parsed XML',
+          parsed
+        );
+
+        if (!parsed?.decisions) {
+          logger.warn(
+            'Failed to parse decisions from XML response',
+            {
+              agentUserId,
+              attempt,
+              raw: responseMatch[0].substring(0, 200),
+            },
+            'AutonomousBatchResponse'
+          );
+          continue;
+        }
+
+        // Parse comma-separated true/false values
+        const decisionsRaw = parsed.decisions
+          .split(',')
+          .map((d) => d.trim().toLowerCase())
+          .filter(Boolean);
+
+        // Convert to boolean array
+        let parsedDecisions = decisionsRaw.map((d) => d === 'true');
+
+        // Ensure we have the right number of decisions
+        if (parsedDecisions.length !== evaluateInteractions.length) {
+          logger.warn(
+            `Decision count mismatch: ${parsedDecisions.length} vs ${evaluateInteractions.length}. Adjusting to match.`,
             undefined,
             'AutonomousBatchResponse'
           );
-          // Return empty XML response with all false decisions
-          const emptyDecisions = evaluateInteractions
-            .map(() => 'false')
-            .join(', ');
-          resolve(
-            `<response>\n<decisions>${emptyDecisions}</decisions>\n</response>`
+
+          if (parsedDecisions.length < evaluateInteractions.length) {
+            // Pad with false values for missing decisions
+            const paddingNeeded =
+              evaluateInteractions.length - parsedDecisions.length;
+            parsedDecisions = [
+              ...parsedDecisions,
+              ...Array(paddingNeeded).fill(false),
+            ];
+            logger.info(
+              `Padded ${paddingNeeded} missing decisions with false`,
+              undefined,
+              'AutonomousBatchResponse'
+            );
+          } else {
+            // Truncate excess decisions
+            parsedDecisions = parsedDecisions.slice(
+              0,
+              evaluateInteractions.length
+            );
+          }
+        }
+
+        // Success!
+        decisions = parsedDecisions;
+        break;
+      } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        if (errorMsg === 'Timeout') {
+          logger.warn(
+            `Interaction evaluation timeout (attempt ${attempt}/${MAX_ATTEMPTS})`,
+            { agentUserId },
+            'AutonomousBatchResponse'
           );
-        }, 30000); // 30 second timeout (larger model needs more time)
-      }),
-    ]);
-
-    console.log(
-      '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! decisionText',
-      decisionText
-    );
-
-    // Extract <response>...</response> block before parsing
-    const responseMatch = decisionText.match(
-      /<response>([\s\S]*?)<\/response>/i
-    );
-    if (!responseMatch) {
-      logger.warn(
-        'No <response> block found in batch evaluation',
-        {
-          agentUserId,
-          raw: decisionText.substring(0, 500),
-        },
-        'AutonomousBatchResponse'
-      );
-      throw new Error(
-        `Failed to parse decision XML from LLM response: ${decisionText.substring(0, 200)}`
-      );
-    }
-
-    // Parse the extracted XML response
-    const parsed = parseKeyValueXml(responseMatch[0]) as {
-      decisions?: string;
-    } | null;
-
-    console.log(
-      '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! parsed XML',
-      parsed
-    );
-
-    if (!parsed?.decisions) {
-      throw new Error(
-        `Failed to parse decisions from XML response: ${responseMatch[0].substring(0, 200)}`
-      );
-    }
-
-    // Parse comma-separated true/false values
-    const decisionsRaw = parsed.decisions
-      .split(',')
-      .map((d) => d.trim().toLowerCase())
-      .filter(Boolean);
-
-    // Convert to boolean array
-    let decisions = decisionsRaw.map((d) => d === 'true');
-
-    // Ensure we have the right number of decisions
-    if (decisions.length !== evaluateInteractions.length) {
-      logger.warn(
-        `Decision count mismatch: ${decisions.length} vs ${evaluateInteractions.length}. Adjusting to match.`,
-        undefined,
-        'AutonomousBatchResponse'
-      );
-
-      if (decisions.length < evaluateInteractions.length) {
-        // Pad with false values for missing decisions
-        const paddingNeeded = evaluateInteractions.length - decisions.length;
-        decisions = [...decisions, ...Array(paddingNeeded).fill(false)];
-        logger.info(
-          `Padded ${paddingNeeded} missing decisions with false`,
-          undefined,
-          'AutonomousBatchResponse'
-        );
-      } else {
-        // Truncate excess decisions
-        decisions = decisions.slice(0, evaluateInteractions.length);
+        } else {
+          logger.warn(
+            `Interaction evaluation attempt ${attempt} failed`,
+            { agentUserId, error: errorMsg },
+            'AutonomousBatchResponse'
+          );
+        }
       }
+    }
+
+    // If all attempts failed, return all false (don't respond to anything)
+    if (!decisions) {
+      logger.error(
+        `Failed to evaluate interactions after ${MAX_ATTEMPTS} attempts, defaulting to no responses`,
+        { agentUserId },
+        'AutonomousBatchResponse'
+      );
+      decisions = evaluateInteractions.map(() => false);
     }
 
     console.log(
@@ -643,7 +686,7 @@ Do NOT include any explanations, only the XML format above.`;
 
       if (!interaction || !decision || !decision.shouldRespond) continue;
 
-      // Generate response
+      // Generate response with retry loop
       const responsePrompt = `${respConfig?.systemPrompt ?? 'You are an AI agent on Babylon.'}
 
 You are ${agent.displayName}, responding to an interaction.
@@ -656,7 +699,10 @@ Task: Write a thoughtful, engaging response (1-2 sentences, under 200 characters
 Be authentic to your personality.
 Add value to the conversation.
 
-Generate ONLY the response text, nothing else.`;
+# Required Output Format
+<response>
+<text>your response here</text>
+</response>`;
 
       // Truncate if needed (unlikely for individual responses but safe)
       const respTokens = countTokensSync(responsePrompt);
@@ -668,36 +714,95 @@ Generate ONLY the response text, nothing else.`;
         finalRespPrompt = truncated.text;
       }
 
-      // Use large model for response generation - better quality responses
-      // Add timeout to prevent hanging (20 seconds max)
-      const responseContent = await Promise.race([
-        callGroqDirect({
-          prompt: finalRespPrompt,
-          system: respConfig?.systemPrompt ?? undefined,
-          modelSize: 'large', // Large model: Higher quality responses
-          runtime: _runtime, // Pass runtime to access W&B trained models AND trajectory context
-          temperature: 0.8,
-          maxTokens: 16384,
-          actionType: 'execute_response',
-          purpose: 'response', // RLAIF: This is a response generation call
-        }),
-        new Promise<string>((resolve) => {
-          setTimeout(() => {
+      // Use large model for response generation with retry
+      const RESPONSE_MAX_ATTEMPTS = 3;
+      let cleanContent: string | null = null;
+
+      for (let attempt = 1; attempt <= RESPONSE_MAX_ATTEMPTS; attempt++) {
+        try {
+          const isRetry = attempt > 1;
+          const currentPrompt = isRetry
+            ? `${finalRespPrompt}\n\nREMINDER: You MUST output valid XML. Start with <response> and include <text> with your response.`
+            : finalRespPrompt;
+
+          const responseContent = await Promise.race([
+            callGroqDirect({
+              prompt: currentPrompt,
+              system: respConfig?.systemPrompt ?? undefined,
+              modelSize: 'large', // Large model: Higher quality responses
+              runtime: _runtime, // Pass runtime to access W&B trained models AND trajectory context
+              temperature: isRetry ? 0.6 : 0.8,
+              maxTokens: 16384,
+              actionType: 'execute_response',
+              purpose: 'response', // RLAIF: This is a response generation call
+            }),
+            new Promise<string>((_, reject) => {
+              setTimeout(() => {
+                reject(new Error('Timeout'));
+              }, 20000); // 20 second timeout
+            }),
+          ]);
+
+          // Extract <response>...</response> block
+          const responseMatch = responseContent.match(
+            /<response>([\s\S]*?)<\/response>/i
+          );
+          if (!responseMatch) {
             logger.warn(
-              `Response generation timeout for interaction ${interaction.id}, skipping`,
-              undefined,
+              'No <response> block found in response generation',
+              {
+                interactionId: interaction.id,
+                attempt,
+                raw: responseContent.substring(0, 300),
+              },
               'AutonomousBatchResponse'
             );
-            resolve(''); // Empty response = skip
-          }, 20000); // 20 second timeout (larger model needs more time)
-        }),
-      ]);
+            continue;
+          }
 
-      const cleanContent = responseContent.trim().replace(/^["']|["']$/g, '');
+          // Parse the extracted XML response
+          const parsed = parseKeyValueXml(responseMatch[0]) as {
+            text?: string;
+          } | null;
+
+          if (!parsed?.text || parsed.text.trim().length === 0) {
+            logger.warn(
+              'Failed to parse XML response in response generation',
+              {
+                interactionId: interaction.id,
+                attempt,
+                raw: responseContent.substring(0, 300),
+              },
+              'AutonomousBatchResponse'
+            );
+            continue;
+          }
+
+          // Success!
+          cleanContent = parsed.text.trim().replace(/^["']|["']$/g, '');
+          break;
+        } catch (error) {
+          const errorMsg =
+            error instanceof Error ? error.message : String(error);
+          if (errorMsg === 'Timeout') {
+            logger.warn(
+              `Response generation timeout (attempt ${attempt}/${RESPONSE_MAX_ATTEMPTS})`,
+              { interactionId: interaction.id },
+              'AutonomousBatchResponse'
+            );
+          } else {
+            logger.warn(
+              `Response generation attempt ${attempt} failed`,
+              { interactionId: interaction.id, error: errorMsg },
+              'AutonomousBatchResponse'
+            );
+          }
+        }
+      }
 
       if (!cleanContent || cleanContent.length < 5) {
         logger.warn(
-          `Generated response too short for interaction ${interaction.id}`,
+          `Failed to generate valid response for interaction ${interaction.id}`,
           undefined,
           'AutonomousBatchResponse'
         );
