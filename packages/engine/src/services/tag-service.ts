@@ -509,9 +509,9 @@ export async function getTagStatistics(
         whereGte(pt.createdAt, windowStart),
         whereLte(pt.createdAt, windowEnd)
       ),
-    with: { 
+    with: {
       tag: true,
-      post: true
+      post: true,
     },
     orderBy: asc(postTags.createdAt),
   });

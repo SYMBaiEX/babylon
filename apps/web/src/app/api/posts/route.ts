@@ -239,11 +239,6 @@ import {
   successResponse,
   withErrorHandling,
 } from '@babylon/api';
-import {
-  generateTagsFromPost,
-  storeTagsForPost,
-  type GeneratedTag,
-} from '@babylon/engine';
 import type { Post } from '@babylon/db';
 import {
   actors,
@@ -269,6 +264,11 @@ import {
   userActorFollows,
   users,
 } from '@babylon/db';
+import {
+  type GeneratedTag,
+  generateTagsFromPost,
+  storeTagsForPost,
+} from '@babylon/engine';
 import { generateSnowflakeId, logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';

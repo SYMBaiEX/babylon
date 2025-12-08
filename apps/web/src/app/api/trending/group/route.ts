@@ -186,10 +186,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
             .from(postTags)
             .innerJoin(posts, eq(postTags.postId, posts.id))
             .where(
-              and(
-                inArray(postTags.tagId, tagIds),
-                isNull(posts.deletedAt)
-              )
+              and(inArray(postTags.tagId, tagIds), isNull(posts.deletedAt))
             )
             .orderBy(desc(postTags.createdAt))
             .limit(limit * 2); // Get more to deduplicate
@@ -211,10 +208,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
             .from(postTags)
             .innerJoin(posts, eq(postTags.postId, posts.id))
             .where(
-              and(
-                inArray(postTags.tagId, tagIds),
-                isNull(posts.deletedAt)
-              )
+              and(inArray(postTags.tagId, tagIds), isNull(posts.deletedAt))
             )
             .orderBy(desc(postTags.createdAt))
             .limit(limit * 2);
