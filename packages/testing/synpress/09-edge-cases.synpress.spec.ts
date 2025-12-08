@@ -107,11 +107,12 @@ test.describe('Security', () => {
       return;
     }
 
-    // Any response is OK as long as it doesn't leak internals
+    // Check for actual stack trace patterns (not script paths)
     const text = await response.text();
-    expect(text.toLowerCase()).not.toContain('at module');
-    expect(text.toLowerCase()).not.toContain('/node_modules/');
-    // 404 or 500 are both acceptable as long as no stack trace
+    // Look for actual stack trace indicators
+    expect(text).not.toMatch(/at\s+\w+\s+\(/i); // "at Function (" pattern
+    expect(text).not.toMatch(/Error:\s+/i); // "Error: " pattern
+    expect(text.toLowerCase()).not.toContain('internal server error');
   });
 });
 
