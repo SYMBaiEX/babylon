@@ -25,8 +25,8 @@ import {
   generateRandomMarketContext,
   PerpTradeService,
   PredictionPricing,
-  shuffleArray,
   StaticDataRegistry,
+  shuffleArray,
   WalletService,
 } from '@babylon/engine';
 import type { IAgentRuntime } from '@elizaos/core';
@@ -116,10 +116,15 @@ export class AutonomousTradingService {
       .map((state) => {
         const staticOrg = StaticDataRegistry.getOrganization(state.id);
         return staticOrg
-          ? { ...staticOrg, currentPrice: state.currentPrice ?? staticOrg.initialPrice }
+          ? {
+              ...staticOrg,
+              currentPrice: state.currentPrice ?? staticOrg.initialPrice,
+            }
           : null;
       })
-      .filter((o): o is NonNullable<typeof o> => o !== null && o.type === 'company');
+      .filter(
+        (o): o is NonNullable<typeof o> => o !== null && o.type === 'company'
+      );
 
     const balance = await WalletService.getBalance(agentUserId);
 

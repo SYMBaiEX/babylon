@@ -14,10 +14,7 @@ import {
   navigateTo,
   waitForPageLoad,
 } from './helpers/page-helpers';
-import {
-  hasWalletCredentials,
-  loginWithWallet,
-} from './helpers/privy-auth';
+import { hasWalletCredentials, loginWithWallet } from './helpers/privy-auth';
 import {
   ADMIN_ROUTES,
   AUTHENTICATED_ROUTES,
@@ -38,7 +35,9 @@ test.describe('Authentication - Wallet Connection', () => {
     await cooldownBetweenTests(page);
   });
 
-  test('should show login/connect button when not authenticated', async ({ page }) => {
+  test('should show login/connect button when not authenticated', async ({
+    page,
+  }) => {
     await navigateTo(page, ROUTES.HOME);
     await waitForPageLoad(page);
 
@@ -92,7 +91,9 @@ test.describe('Authentication - Wallet Connection', () => {
     }
   });
 
-  test('should access protected routes when authenticated', async ({ page }) => {
+  test('should access protected routes when authenticated', async ({
+    page,
+  }) => {
     await navigateTo(page, ROUTES.HOME);
     await loginWithWallet(page);
     await page.waitForTimeout(2000);

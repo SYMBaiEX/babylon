@@ -132,7 +132,9 @@ test.describe('Settings - Theme Tab', () => {
 
   test('can switch to dark theme', async ({ page }) => {
     const darkOption = page
-      .locator('label:has-text("Dark"), input[value="dark"], button:has-text("Dark")')
+      .locator(
+        'label:has-text("Dark"), input[value="dark"], button:has-text("Dark")'
+      )
       .first();
 
     if (await darkOption.isVisible({ timeout: TIMEOUTS.SHORT })) {
@@ -164,7 +166,9 @@ test.describe('Settings - Privacy Tab', () => {
     await page.waitForTimeout(2000);
   });
 
-  test('displays privacy options including delete account', async ({ page }) => {
+  test('displays privacy options including delete account', async ({
+    page,
+  }) => {
     const content = await page.locator('body').textContent();
 
     // Should have some privacy-related content
@@ -192,7 +196,9 @@ test.describe('Settings - API Keys Tab', () => {
 
   test('displays API keys section with create button', async ({ page }) => {
     const createButton = page
-      .locator('button:has-text("Create"), button:has-text("Generate"), button:has-text("New")')
+      .locator(
+        'button:has-text("Create"), button:has-text("Generate"), button:has-text("New")'
+      )
       .first();
     const isVisible = await createButton
       .isVisible({ timeout: TIMEOUTS.SHORT })

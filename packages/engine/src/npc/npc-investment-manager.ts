@@ -350,7 +350,9 @@ export class NPCInvestmentManager {
         )
       );
     const priceMap = new Map(
-      orgStateResults.map((s) => [s.id, s.currentPrice] as [string, number | null])
+      orgStateResults.map(
+        (s) => [s.id, s.currentPrice] as [string, number | null]
+      )
     );
     const organizationsResult = staticOrgs.map((o) => ({
       id: o.id,

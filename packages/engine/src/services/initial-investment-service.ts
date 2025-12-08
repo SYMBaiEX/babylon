@@ -8,7 +8,11 @@
  */
 
 import { actorState, db, eq, getDbInstance, sql } from '@babylon/db';
-import { BabylonLLMClient, loadActorById, StaticDataRegistry } from '@babylon/engine';
+import {
+  BabylonLLMClient,
+  loadActorById,
+  StaticDataRegistry,
+} from '@babylon/engine';
 import { generateSnowflakeId, logger } from '@babylon/shared';
 
 /**

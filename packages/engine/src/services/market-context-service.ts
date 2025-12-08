@@ -31,7 +31,6 @@ import {
   worldEvents,
 } from '@babylon/db';
 import { logger } from '@babylon/shared';
-import { StaticDataRegistry } from './static-data-registry';
 import type {
   EventContext,
   FeedPostContext,
@@ -43,6 +42,7 @@ import type {
   PredictionMarketSnapshot,
   RelationshipContext,
 } from '../types/market-context';
+import { StaticDataRegistry } from './static-data-registry';
 
 export class MarketContextService {
   /**
@@ -728,7 +728,9 @@ export class MarketContextService {
           initialPrice: org.initialPrice ?? 100,
         };
       })
-      .filter((c): c is typeof c & { currentPrice: number } => c.currentPrice > 0);
+      .filter(
+        (c): c is typeof c & { currentPrice: number } => c.currentPrice > 0
+      );
 
     return Promise.all(
       companies.map(async (company) => {

@@ -71,16 +71,7 @@ import {
   getSafeContextLimit,
   truncateToTokenLimitSync,
 } from '@babylon/api';
-import {
-  and,
-  db,
-  desc,
-  eq,
-  gte,
-  inArray,
-  posts,
-  questions,
-} from '@babylon/db';
+import { and, db, desc, eq, gte, inArray, posts, questions } from '@babylon/db';
 import { logger } from '@babylon/shared';
 import { loadActorById } from './actors-loader';
 import type { BabylonLLMClient } from './llm/openai-client';

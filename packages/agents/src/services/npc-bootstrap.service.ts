@@ -18,8 +18,8 @@
 import { agentRuntimeManager } from '@babylon/agents';
 import {
   loadActorById,
-  StaticDataRegistry,
   type StaticActor,
+  StaticDataRegistry,
 } from '@babylon/engine';
 import type { ActorData, AgentCapabilities } from '@babylon/shared';
 import {

@@ -123,7 +123,9 @@ export class ArchetypeScoringService {
     });
 
     if (!metrics) {
-      throw new Error(`Failed to extract metrics for trajectory ${trajectoryId}`);
+      throw new Error(
+        `Failed to extract metrics for trajectory ${trajectoryId}`
+      );
     }
 
     const context: TrajectoryContext = {
@@ -143,7 +145,9 @@ export class ArchetypeScoringService {
 
     const response = await this.callSingleJudge(system, user);
     if (!response) {
-      throw new Error(`Judge returned no response for trajectory ${trajectoryId}`);
+      throw new Error(
+        `Judge returned no response for trajectory ${trajectoryId}`
+      );
     }
 
     const score: ArchetypeScore = {
@@ -170,11 +174,15 @@ export class ArchetypeScoringService {
         .where(eq(trajectories.trajectoryId, trajectoryId));
     }
 
-    logger.info('Scored trajectory', {
-      trajectoryId,
-      archetype: score.archetype,
-      score: score.score,
-    }, 'ArchetypeScoring');
+    logger.info(
+      'Scored trajectory',
+      {
+        trajectoryId,
+        archetype: score.archetype,
+        score: score.score,
+      },
+      'ArchetypeScoring'
+    );
 
     return score;
   }
@@ -192,10 +200,14 @@ export class ArchetypeScoringService {
     const opts = { ...DEFAULT_OPTIONS, ...options };
 
     if (trajectoryIds.length < this.minGroupSize) {
-      logger.warn('Group too small for RULER scoring', {
-        size: trajectoryIds.length,
-        minRequired: this.minGroupSize,
-      }, 'ArchetypeScoring');
+      logger.warn(
+        'Group too small for RULER scoring',
+        {
+          size: trajectoryIds.length,
+          minRequired: this.minGroupSize,
+        },
+        'ArchetypeScoring'
+      );
       return [];
     }
 
@@ -214,10 +226,14 @@ export class ArchetypeScoringService {
       .where(inArray(trajectories.trajectoryId, trajectoryIds));
 
     if (trajResults.length < this.minGroupSize) {
-      logger.warn('Not enough valid trajectories', {
-        requested: trajectoryIds.length,
-        found: trajResults.length,
-      }, 'ArchetypeScoring');
+      logger.warn(
+        'Not enough valid trajectories',
+        {
+          requested: trajectoryIds.length,
+          found: trajResults.length,
+        },
+        'ArchetypeScoring'
+      );
       return [];
     }
 
@@ -237,7 +253,9 @@ export class ArchetypeScoringService {
       });
 
       if (!metrics) {
-        throw new Error(`Failed to extract metrics for trajectory ${traj.trajectoryId}`);
+        throw new Error(
+          `Failed to extract metrics for trajectory ${traj.trajectoryId}`
+        );
       }
 
       contexts.push({
@@ -257,7 +275,10 @@ export class ArchetypeScoringService {
 
     for (const batch of batches) {
       const scenarioId = batch[0]?.archetype || 'unknown';
-      const { system, user } = judgePromptBuilder.buildComparisonPrompt(batch, scenarioId);
+      const { system, user } = judgePromptBuilder.buildComparisonPrompt(
+        batch,
+        scenarioId
+      );
       const response = await this.callComparisonJudge(system, user);
 
       if (!response) {
@@ -269,7 +290,9 @@ export class ArchetypeScoringService {
         if (!ctx) continue;
 
         const expectedId = `trajectory-${i + 1}`;
-        const scoreData = response.scores.find((s) => s.trajectory_id === expectedId);
+        const scoreData = response.scores.find(
+          (s) => s.trajectory_id === expectedId
+        );
 
         if (!scoreData) {
           throw new Error(`Missing score for ${expectedId}`);
@@ -303,10 +326,14 @@ export class ArchetypeScoringService {
       }
     }
 
-    logger.info('Scored trajectory group', {
-      requested: trajectoryIds.length,
-      scored: scores.length,
-    }, 'ArchetypeScoring');
+    logger.info(
+      'Scored trajectory group',
+      {
+        requested: trajectoryIds.length,
+        scored: scores.length,
+      },
+      'ArchetypeScoring'
+    );
 
     return scores;
   }
@@ -322,7 +349,11 @@ export class ArchetypeScoringService {
     trajectoryIds: string[]
   ): Promise<{ scored: number; errors: number }> {
     if (!hasCustomRubric(archetype)) {
-      logger.warn('No custom rubric for archetype, using default', { archetype }, 'ArchetypeScoring');
+      logger.warn(
+        'No custom rubric for archetype, using default',
+        { archetype },
+        'ArchetypeScoring'
+      );
     }
 
     if (trajectoryIds.length === 0) {
@@ -387,15 +418,21 @@ export class ArchetypeScoringService {
     const results: ArchetypeScore[] = [];
     const batches = splitIntoBatches(trajectoryIds, concurrency);
 
-    logger.info('Starting parallel scoring', {
-      total: trajectoryIds.length,
-      batches: batches.length,
-      concurrency,
-    }, 'ArchetypeScoring');
+    logger.info(
+      'Starting parallel scoring',
+      {
+        total: trajectoryIds.length,
+        batches: batches.length,
+        concurrency,
+      },
+      'ArchetypeScoring'
+    );
 
     for (let i = 0; i < batches.length; i++) {
       const batch = batches[i] ?? [];
-      const batchPromises = batch.map((id) => this.scoreTrajectory(id, options));
+      const batchPromises = batch.map((id) =>
+        this.scoreTrajectory(id, options)
+      );
       const batchResults = await Promise.all(batchPromises);
 
       for (const result of batchResults) {
@@ -409,10 +446,14 @@ export class ArchetypeScoringService {
       }
     }
 
-    logger.info('Parallel scoring complete', {
-      requested: trajectoryIds.length,
-      scored: results.length,
-    }, 'ArchetypeScoring');
+    logger.info(
+      'Parallel scoring complete',
+      {
+        requested: trajectoryIds.length,
+        scored: results.length,
+      },
+      'ArchetypeScoring'
+    );
 
     return results;
   }
@@ -465,16 +506,21 @@ export class ArchetypeScoringService {
    * Parse JSON response from judge.
    */
   private parseJudgeResponse<T>(response: string): T | null {
-    const jsonText = response.trim()
+    const jsonText = response
+      .trim()
       .replace(/```json\n?/g, '')
       .replace(/```\n?/g, '')
       .trim();
 
     const jsonMatch = jsonText.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
-      logger.error('No JSON found in response', {
-        preview: response.substring(0, 200),
-      }, 'ArchetypeScoring');
+      logger.error(
+        'No JSON found in response',
+        {
+          preview: response.substring(0, 200),
+        },
+        'ArchetypeScoring'
+      );
       return null;
     }
 

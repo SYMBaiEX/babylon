@@ -324,7 +324,9 @@ test.describe('Content Detail Pages', () => {
     await navigateTo(page, ROUTES.FEED);
     await waitForPageLoad(page);
 
-    const postContent = page.locator('article p, [data-testid="post-card"] p').first();
+    const postContent = page
+      .locator('article p, [data-testid="post-card"] p')
+      .first();
     if (await postContent.isVisible({ timeout: TIMEOUTS.SHORT })) {
       await postContent.click();
       await page.waitForTimeout(2000);

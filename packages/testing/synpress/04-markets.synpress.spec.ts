@@ -29,7 +29,9 @@ test.describe('Markets Dashboard', () => {
     await cooldownBetweenTests(page);
   });
 
-  test('dashboard displays with Perps and Predictions tabs', async ({ page }) => {
+  test('dashboard displays with Perps and Predictions tabs', async ({
+    page,
+  }) => {
     expect(page.url()).toContain('/markets');
 
     // Check for main tabs
@@ -37,7 +39,9 @@ test.describe('Markets Dashboard', () => {
       .locator('[role="tab"]:has-text("Perps"), button:has-text("Perps")')
       .first();
     const predictionsTab = page
-      .locator('[role="tab"]:has-text("Predictions"), button:has-text("Predictions")')
+      .locator(
+        '[role="tab"]:has-text("Predictions"), button:has-text("Predictions")'
+      )
       .first();
 
     await expect(perpsTab).toBeVisible({ timeout: TIMEOUTS.MEDIUM });
@@ -56,7 +60,9 @@ test.describe('Markets Dashboard', () => {
     await waitForPageLoad(page);
 
     const predictionsTab = page
-      .locator('[role="tab"]:has-text("Predictions"), button:has-text("Predictions")')
+      .locator(
+        '[role="tab"]:has-text("Predictions"), button:has-text("Predictions")'
+      )
       .first();
     await predictionsTab.click();
     await page.waitForTimeout(2000);
@@ -79,7 +85,9 @@ test.describe('Perps Markets', () => {
   });
 
   test('displays perp market list with ticker symbols', async ({ page }) => {
-    const marketCards = page.locator('button:has-text("$"), [data-testid="market-card"]');
+    const marketCards = page.locator(
+      'button:has-text("$"), [data-testid="market-card"]'
+    );
     const count = await marketCards.count().catch(() => 0);
 
     if (count > 0) {
@@ -90,7 +98,9 @@ test.describe('Perps Markets', () => {
     } else {
       // Empty state is acceptable
       const emptyState = page.getByText('No markets');
-      const isEmpty = await emptyState.isVisible({ timeout: TIMEOUTS.SHORT }).catch(() => false);
+      const isEmpty = await emptyState
+        .isVisible({ timeout: TIMEOUTS.SHORT })
+        .catch(() => false);
       expect(isEmpty || count === 0).toBe(true);
     }
   });
@@ -162,11 +172,19 @@ test.describe('Perp Trading Interface', () => {
     }
 
     // Should have trading buttons
-    const longButton = page.locator('button:has-text("Long"), button:has-text("Buy")').first();
-    const shortButton = page.locator('button:has-text("Short"), button:has-text("Sell")').first();
+    const longButton = page
+      .locator('button:has-text("Long"), button:has-text("Buy")')
+      .first();
+    const shortButton = page
+      .locator('button:has-text("Short"), button:has-text("Sell")')
+      .first();
 
-    const hasLong = await longButton.isVisible({ timeout: TIMEOUTS.SHORT }).catch(() => false);
-    const hasShort = await shortButton.isVisible({ timeout: TIMEOUTS.SHORT }).catch(() => false);
+    const hasLong = await longButton
+      .isVisible({ timeout: TIMEOUTS.SHORT })
+      .catch(() => false);
+    const hasShort = await shortButton
+      .isVisible({ timeout: TIMEOUTS.SHORT })
+      .catch(() => false);
 
     // At least one trading button should be visible
     expect(hasLong || hasShort).toBe(true);
@@ -202,7 +220,9 @@ test.describe('Predictions Markets', () => {
     } else {
       // Empty state acceptable
       const emptyState = page.getByText('No active predictions');
-      const isEmpty = await emptyState.isVisible({ timeout: TIMEOUTS.SHORT }).catch(() => false);
+      const isEmpty = await emptyState
+        .isVisible({ timeout: TIMEOUTS.SHORT })
+        .catch(() => false);
       expect(isEmpty || count === 0).toBe(true);
     }
   });

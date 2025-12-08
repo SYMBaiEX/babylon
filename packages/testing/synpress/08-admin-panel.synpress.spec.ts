@@ -36,8 +36,12 @@ test.describe('Admin Dashboard', () => {
     const heading = page.getByRole('heading', { name: 'Admin Dashboard' });
     const accessDenied = page.getByText('Access Denied');
 
-    const hasDashboard = await heading.isVisible({ timeout: TIMEOUTS.MEDIUM }).catch(() => false);
-    const hasAccessDenied = await accessDenied.isVisible({ timeout: TIMEOUTS.SHORT }).catch(() => false);
+    const hasDashboard = await heading
+      .isVisible({ timeout: TIMEOUTS.MEDIUM })
+      .catch(() => false);
+    const hasAccessDenied = await accessDenied
+      .isVisible({ timeout: TIMEOUTS.SHORT })
+      .catch(() => false);
 
     // On localhost, should have access
     if (!hasAccessDenied) {
@@ -105,7 +109,9 @@ test.describe('Admin Users Tab', () => {
     const searchInput = page
       .locator('input[type="search"], input[placeholder*="Search"]')
       .first();
-    const hasSearch = await searchInput.isVisible({ timeout: TIMEOUTS.SHORT }).catch(() => false);
+    const hasSearch = await searchInput
+      .isVisible({ timeout: TIMEOUTS.SHORT })
+      .catch(() => false);
 
     if (hasSearch) {
       await searchInput.fill('test');
@@ -146,8 +152,12 @@ test.describe('Admin Agents Tab', () => {
     const pauseButton = page.locator('button:has-text("Pause")').first();
     const resumeButton = page.locator('button:has-text("Resume")').first();
 
-    const hasPause = await pauseButton.isVisible({ timeout: TIMEOUTS.SHORT }).catch(() => false);
-    const hasResume = await resumeButton.isVisible({ timeout: TIMEOUTS.SHORT }).catch(() => false);
+    const hasPause = await pauseButton
+      .isVisible({ timeout: TIMEOUTS.SHORT })
+      .catch(() => false);
+    const hasResume = await resumeButton
+      .isVisible({ timeout: TIMEOUTS.SHORT })
+      .catch(() => false);
 
     // Should have control buttons
     expect(hasPause || hasResume).toBe(true);

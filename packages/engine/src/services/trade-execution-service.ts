@@ -177,16 +177,12 @@ export class TradeExecutionService {
 
     // Strategy 2: Ticker field match (case-insensitive)
     if (!org) {
-      org = allOrgs.find(
-        (o) => o.ticker?.toUpperCase() === tickerUpper
-      );
+      org = allOrgs.find((o) => o.ticker?.toUpperCase() === tickerUpper);
     }
 
     // Strategy 3: ID contains match (for partial matches)
     if (!org) {
-      org = allOrgs.find((o) =>
-        o.id.toLowerCase().includes(tickerLower)
-      );
+      org = allOrgs.find((o) => o.id.toLowerCase().includes(tickerLower));
     }
 
     // Strategy 4: Name match (normalized - remove spaces, dashes, AI suffixes)

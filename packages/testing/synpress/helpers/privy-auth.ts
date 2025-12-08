@@ -61,7 +61,10 @@ export async function waitForPrivyReady(
 
   // Wait for page to have interactive elements
   for (let i = 0; i < 30; i++) {
-    const buttonCount = await page.locator('button').count().catch(() => 0);
+    const buttonCount = await page
+      .locator('button')
+      .count()
+      .catch(() => 0);
     if (buttonCount > 0) break;
     await page.waitForTimeout(500);
   }
@@ -145,7 +148,9 @@ export async function loginWithWallet(page: Page): Promise<void> {
   const privyModal = page
     .locator('[role="dialog"][aria-label*="log in" i]')
     .first();
-  const modalOpen = await privyModal.isVisible({ timeout: 2000 }).catch(() => false);
+  const modalOpen = await privyModal
+    .isVisible({ timeout: 2000 })
+    .catch(() => false);
 
   if (!modalOpen) {
     // Click login button to open modal
@@ -166,7 +171,9 @@ export async function loginWithWallet(page: Page): Promise<void> {
   }
 
   // Look for "More options" to expand wallet choices
-  const moreOptionsButton = page.locator('button:has-text("More option")').first();
+  const moreOptionsButton = page
+    .locator('button:has-text("More option")')
+    .first();
   if (await moreOptionsButton.isVisible({ timeout: 3000 }).catch(() => false)) {
     await moreOptionsButton.click({ timeout: 5000 });
     await page.waitForTimeout(1000);

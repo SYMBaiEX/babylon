@@ -13,7 +13,11 @@
  */
 
 import { db, eq, users } from '@babylon/db';
-import { type ActorData, loadActorById, StaticDataRegistry } from '@babylon/engine';
+import {
+  type ActorData,
+  loadActorById,
+  StaticDataRegistry,
+} from '@babylon/engine';
 import {
   AgentRuntime,
   type Character,
@@ -423,7 +427,9 @@ export class AgentRuntimeManager {
     const actor = StaticDataRegistry.getActor(registration.agentId);
 
     if (!actor) {
-      throw new Error(`Actor ${registration.agentId} not found in static registry`);
+      throw new Error(
+        `Actor ${registration.agentId} not found in static registry`
+      );
     }
 
     // Load full ActorData from JSON files

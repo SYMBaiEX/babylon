@@ -75,7 +75,6 @@ import { generateSnowflakeId, logger } from '@babylon/shared';
 import { type Article, ArticleGenerator } from './ArticleGenerator';
 import type { BabylonLLMClient } from './llm/openai-client';
 import { BabylonLLMClient as BabylonLLMClientValue } from './llm/openai-client';
-import { StaticDataRegistry } from './services/static-data-registry';
 import { MarketDecisionEngine } from './MarketDecisionEngine';
 import { PredictionPricing } from './prediction-pricing';
 import {
@@ -87,6 +86,7 @@ import {
 } from './prompts';
 import { MarketContextService } from './services/market-context-service';
 import { ensureMarketOnChain } from './services/onchain-market-service';
+import { StaticDataRegistry } from './services/static-data-registry';
 import { TradeExecutionService } from './services/trade-execution-service';
 import type {
   DayTimeline,

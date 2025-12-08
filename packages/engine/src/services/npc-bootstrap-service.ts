@@ -321,7 +321,10 @@ export class NPCBootstrapService {
 
     for (const actor of staticActors) {
       const existing = await db
-        .select({ id: actorState.id, tradingBalance: actorState.tradingBalance })
+        .select({
+          id: actorState.id,
+          tradingBalance: actorState.tradingBalance,
+        })
         .from(actorState)
         .where(eq(actorState.id, actor.id))
         .limit(1);

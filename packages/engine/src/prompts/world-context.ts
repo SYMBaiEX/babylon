@@ -147,7 +147,9 @@ export async function generateCurrentMarkets(): Promise<string> {
           }
         : null;
     })
-    .filter((c): c is NonNullable<typeof c> => c !== null && c.type === 'company');
+    .filter(
+      (c): c is NonNullable<typeof c> => c !== null && c.type === 'company'
+    );
 
   const parts: string[] = [];
 

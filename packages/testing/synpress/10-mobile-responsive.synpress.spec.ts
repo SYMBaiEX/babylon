@@ -29,7 +29,12 @@ test.describe('Mobile Responsiveness', () => {
   });
 
   test('core pages render without horizontal overflow', async ({ page }) => {
-    const routes = [ROUTES.FEED, ROUTES.MARKETS, ROUTES.PROFILE, ROUTES.SETTINGS];
+    const routes = [
+      ROUTES.FEED,
+      ROUTES.MARKETS,
+      ROUTES.PROFILE,
+      ROUTES.SETTINGS,
+    ];
 
     for (const route of routes) {
       await navigateTo(page, route);
@@ -52,11 +57,17 @@ test.describe('Mobile Responsiveness', () => {
     await waitForPageLoad(page);
 
     // Should have either bottom nav or hamburger menu
-    const bottomNav = page.locator('nav.fixed.bottom-0, [data-testid="bottom-nav"]').first();
+    const bottomNav = page
+      .locator('nav.fixed.bottom-0, [data-testid="bottom-nav"]')
+      .first();
     const hamburger = page.locator('button[aria-label*="menu" i]').first();
 
-    const hasBottomNav = await bottomNav.isVisible({ timeout: TIMEOUTS.SHORT }).catch(() => false);
-    const hasHamburger = await hamburger.isVisible({ timeout: TIMEOUTS.SHORT }).catch(() => false);
+    const hasBottomNav = await bottomNav
+      .isVisible({ timeout: TIMEOUTS.SHORT })
+      .catch(() => false);
+    const hasHamburger = await hamburger
+      .isVisible({ timeout: TIMEOUTS.SHORT })
+      .catch(() => false);
 
     expect(hasBottomNav || hasHamburger).toBe(true);
   });

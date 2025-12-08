@@ -48,7 +48,9 @@ test.describe('Security', () => {
 
     // Verify script did NOT execute
     const xssTriggered = await page.evaluate(() => {
-      return (window as Window & { xssTriggered?: boolean }).xssTriggered === true;
+      return (
+        (window as Window & { xssTriggered?: boolean }).xssTriggered === true
+      );
     });
     expect(xssTriggered).toBe(false);
   });
@@ -130,7 +132,9 @@ test.describe('Input Validation', () => {
     await page.keyboard.press('Escape');
   });
 
-  test('unicode and emoji characters are preserved in inputs', async ({ page }) => {
+  test('unicode and emoji characters are preserved in inputs', async ({
+    page,
+  }) => {
     await navigateTo(page, ROUTES.SETTINGS);
     await waitForPageLoad(page);
 
@@ -184,8 +188,7 @@ test.describe('Error Pages', () => {
 
     const content = await page.locator('body').textContent();
     const shows404 =
-      content?.includes('404') ||
-      content?.toLowerCase().includes('not found');
+      content?.includes('404') || content?.toLowerCase().includes('not found');
 
     expect(shows404).toBe(true);
   });

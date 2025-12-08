@@ -133,7 +133,10 @@ test.describe('Feed - Post Creation', () => {
       .locator('button:has-text("Post"), button[type="submit"]')
       .first();
 
-    if ((await submitButton.isVisible()) && !(await submitButton.isDisabled())) {
+    if (
+      (await submitButton.isVisible()) &&
+      !(await submitButton.isDisabled())
+    ) {
       await submitButton.click();
       await page.waitForTimeout(3000);
 

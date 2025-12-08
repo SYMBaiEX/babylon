@@ -23,13 +23,13 @@ import {
   sql,
   users,
 } from '@babylon/db';
+import { StaticDataRegistry } from '@babylon/engine';
 import {
   generateSnowflakeId,
   logger,
   POINTS,
   type PointsReason,
 } from '@babylon/shared';
-import { StaticDataRegistry } from '@babylon/engine';
 
 /**
  * Maximum number of unqualified referrals that can earn signup points at any time.

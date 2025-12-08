@@ -53,7 +53,9 @@ export async function waitForServerHealthy(
   }
 
   // Instead of throwing, log warning and continue - let the actual test fail if needed
-  console.warn(`⚠️ Server may not be fully responsive after ${maxRetries} attempts, continuing anyway...`);
+  console.warn(
+    `⚠️ Server may not be fully responsive after ${maxRetries} attempts, continuing anyway...`
+  );
 }
 
 /**

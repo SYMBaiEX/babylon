@@ -524,7 +524,8 @@ export class RelationshipManager {
       postExample: staticActor.postExample || [],
       tier: (staticActor.tier as ActorTier | null) || undefined,
       initialLuck:
-        (staticActor.initialLuck as 'low' | 'medium' | 'high' | null) || undefined,
+        (staticActor.initialLuck as 'low' | 'medium' | 'high' | null) ||
+        undefined,
       initialMood: staticActor.initialMood ?? undefined,
       profileImageUrl: staticActor.profileImageUrl || undefined,
     };

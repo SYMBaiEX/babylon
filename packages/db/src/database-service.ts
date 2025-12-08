@@ -381,8 +381,7 @@ class DatabaseService {
       .limit(1);
 
     // Test actors have IDs starting with 'test-'
-    const isTestUser =
-      user[0]?.isTest || authorId.startsWith('test-') || false;
+    const isTestUser = user[0]?.isTest || authorId.startsWith('test-') || false;
 
     if (isTestUser) {
       logger.info('DatabaseService.getPostsByActor - test user filtered', {
@@ -665,9 +664,7 @@ class DatabaseService {
    * @param id - Organization ID
    * @returns The organization state or null if not found
    */
-  async getOrganizationState(
-    id: string
-  ): Promise<OrganizationStateRow | null> {
+  async getOrganizationState(id: string): Promise<OrganizationStateRow | null> {
     const result = await db
       .select()
       .from(organizationState)

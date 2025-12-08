@@ -268,9 +268,10 @@ export class NPCGroupDynamicsService {
 
       // Get NPCs who could join from static registry
       const allActors = StaticDataRegistry.getAllActors();
-      const potentialMembers = memberIdsArray.length > 0
-        ? allActors.filter((a) => !memberIdsArray.includes(a.id)).slice(0, 5)
-        : allActors.slice(0, 5);
+      const potentialMembers =
+        memberIdsArray.length > 0
+          ? allActors.filter((a) => !memberIdsArray.includes(a.id)).slice(0, 5)
+          : allActors.slice(0, 5);
 
       for (const candidate of potentialMembers) {
         // Random chance to join
@@ -1027,7 +1028,9 @@ Return your response as XML:
 
       // Get NPCs in this group (for scoring user interactions)
       // Check which members are NPCs using static registry
-      const allActorIds = new Set(StaticDataRegistry.getAllActors().map((a) => a.id));
+      const allActorIds = new Set(
+        StaticDataRegistry.getAllActors().map((a) => a.id)
+      );
       const npcMemberIds = memberIdsArray.filter((id) => allActorIds.has(id));
 
       if (npcMemberIds.length === 0) {

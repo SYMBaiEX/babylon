@@ -27,7 +27,7 @@ import {
   type User,
   users,
 } from '@babylon/db';
-import { StaticDataRegistry, type StaticActor } from '@babylon/engine';
+import { type StaticActor, StaticDataRegistry } from '@babylon/engine';
 import { logger } from '@babylon/shared';
 import { createCipheriv, createDecipheriv, randomBytes } from 'crypto';
 import type {

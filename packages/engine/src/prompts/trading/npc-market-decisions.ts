@@ -9,8 +9,8 @@
  * - Their personality and tier
  */
 
-import { definePrompt } from '../define-prompt';
 import { shuffleArray } from '../../utils/randomization';
+import { definePrompt } from '../define-prompt';
 
 /**
  * Example trading decisions for the prompt.
@@ -113,7 +113,6 @@ const TRADING_EXAMPLES: TradingExample[] = [
     confidence: 0.6,
   },
 ];
-
 
 /**
  * Formats a single trading example into XML format for the prompt.

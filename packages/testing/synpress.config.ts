@@ -24,8 +24,12 @@ const PASSWORD = process.env.WALLET_PASSWORD || 'Tester@1234';
 
 // Log wallet configuration status
 console.log('🔐 Wallet configuration:');
-console.log(`   Seed phrase: ${SEED_PHRASE === 'test test test test test test test test test test test junk' ? 'Default Anvil' : 'Custom'}`);
-console.log(`   Password: ${PASSWORD === 'Tester@1234' ? 'Default' : 'Custom'}`);
+console.log(
+  `   Seed phrase: ${SEED_PHRASE === 'test test test test test test test test test test test junk' ? 'Default Anvil' : 'Custom'}`
+);
+console.log(
+  `   Password: ${PASSWORD === 'Tester@1234' ? 'Default' : 'Custom'}`
+);
 
 // Export for use in tests
 export { SEED_PHRASE, PASSWORD };

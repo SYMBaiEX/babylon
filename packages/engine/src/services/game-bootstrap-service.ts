@@ -16,10 +16,10 @@ import {
   rssFeedSources,
   sql,
 } from '@babylon/db';
-import { StaticDataRegistry } from './static-data-registry';
 import type { ActorTier } from '@babylon/shared';
 import { logger } from '@babylon/shared';
 import { CapitalAllocationService } from './capital-allocation-service';
+import { StaticDataRegistry } from './static-data-registry';
 
 // Minimum balance thresholds by tier
 const MINIMUM_BALANCE_BY_TIER: Record<string, number> = {
@@ -243,9 +243,12 @@ export class GameBootstrapService {
     return result;
   }
 
-  private static async seedActorState(
-    actor: { id: string; name: string; tier: ActorTier | null; domain: string[] }
-  ): Promise<void> {
+  private static async seedActorState(actor: {
+    id: string;
+    name: string;
+    tier: ActorTier | null;
+    domain: string[];
+  }): Promise<void> {
     const capital = CapitalAllocationService.calculateCapital({
       id: actor.id,
       name: actor.name,
@@ -269,9 +272,12 @@ export class GameBootstrapService {
     );
   }
 
-  private static async syncActorState(
-    actor: { id: string; name: string; tier: ActorTier | null; domain: string[] }
-  ): Promise<{ created: boolean; updated: boolean }> {
+  private static async syncActorState(actor: {
+    id: string;
+    name: string;
+    tier: ActorTier | null;
+    domain: string[];
+  }): Promise<{ created: boolean; updated: boolean }> {
     const existing = await db
       .select({
         id: actorState.id,

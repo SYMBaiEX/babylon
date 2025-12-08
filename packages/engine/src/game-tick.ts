@@ -1210,9 +1210,9 @@ async function generateMixedPosts(
     .filter((a): a is NonNullable<typeof a> => a !== null);
 
   // Get media organizations from static registry
-  const orgsList = StaticDataRegistry.getAllOrganizations().filter(
-    (org) => org.type === 'media'
-  ).slice(0, 5);
+  const orgsList = StaticDataRegistry.getAllOrganizations()
+    .filter((org) => org.type === 'media')
+    .slice(0, 5);
 
   if (actorsList.length === 0 && orgsList.length === 0) {
     logger.warn(
@@ -2911,7 +2911,8 @@ async function updateWidgetCaches(): Promise<number> {
           company && company.id && company.name
       )
       .map(async (company: (typeof companies)[number]) => {
-        const currentPrice = company.currentPrice || company.initialPrice || 100;
+        const currentPrice =
+          company.currentPrice || company.initialPrice || 100;
 
         const priceHistory = await dbService().getPriceHistory(
           company.id,

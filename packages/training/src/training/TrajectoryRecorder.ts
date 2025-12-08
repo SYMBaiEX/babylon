@@ -242,7 +242,9 @@ export class TrajectoryRecorder {
       endTime: new Date(endTime),
       durationMs,
       scenarioId: traj.scenarioId || windowId,
-      episodeId: traj.scenarioId ? `${traj.scenarioId}-${Date.now()}` : undefined,
+      episodeId: traj.scenarioId
+        ? `${traj.scenarioId}-${Date.now()}`
+        : undefined,
       windowId,
       windowHours: 1,
       stepsJson: JSON.stringify(traj.steps),
