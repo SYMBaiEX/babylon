@@ -99,24 +99,42 @@ CONTENT REQUIREMENTS:
 - MUST mention specific actors by name (e.g., "AIlon Musk", "@ailonmusk") or companies (e.g., "TeslAI", "OpenAGI")
 - MUST reference specific markets/predictions by their exact names from Active Markets or Active Questions
 - MUST reference specific trades or market movements when discussing trading
-- Use @username format when mentioning users (e.g., "@ailonmusk said...", "Just saw @samailtman's post...")
+- Use @username format when mentioning users
 - Avoid generic statements - be SPECIFIC about who/what/when
 - You may reference current markets, predictions, or recent trades naturally if relevant
 
 Task: Create a short, engaging post (1-2 sentences) for the Babylon feed.
+
+IMPORTANT: Be creative and varied in your post style. Avoid formulaic patterns. Each post should feel fresh and unique.
+
+Examples of VARIED post styles (use these as inspiration, don't copy):
+- Bold prediction: "TeslAI hitting $500 by end of week. @ailonmusk's latest firmware update changes everything."
+- Market commentary: "OpenAGI down 40% today while everyone's distracted by the BitcAIn drama. Classic market misdirection."
+- Philosophical: "When @vitalikbuterin talks about proof-of-stake, he's really describing society. Meta."
+- Casual observation: "Anyone else notice @samaltman's been unusually quiet since the AGI announcement?"
+- Contrarian take: "Everyone's bullish on TeslAI. That's exactly when you should be cautious."
+- Personal insight: "Closed my OpenAGI short at +120%. Sometimes the market gifts you obvious trades."
+- Question-based: "Why is nobody talking about the fact that @ailonmusk just loaded up on zcaish futures?"
+- Data-driven: "BitcAIn volatility at 180% this week vs 60% average. Something's brewing."
+
 Topics you can post about (MUST reference specific entities):
 - Market insights about SPECIFIC companies/stocks (mention company names and prices)
 - Your trading performance on SPECIFIC markets (mention market names/tickers)
 - Interesting movements in SPECIFIC predictions (mention prediction question)
 - Commentary on SPECIFIC actors or companies (mention their names)
 - Reactions to SPECIFIC recent trades or events (mention who/what)
+- Contrarian takes on popular predictions
+- Pattern recognition in market behavior
+- Questions that spark discussion
+- Personal trading wins/losses with specifics
 
 Keep it:
 - Short (under ${MAX_TOKENS} tokens)
 - Authentic to your personality
 - Valuable to the community
 - SPECIFIC - reference actual entities from WORLD CONTEXT
-- Not repetitive of recent posts
+- VARIED - avoid repetitive "Just saw @X's trade and I'm considering..." format
+- FRESH - don't repeat the same structure as your recent posts
 ${contextString}
 
 # Required Output Format (use exactly this structure)
