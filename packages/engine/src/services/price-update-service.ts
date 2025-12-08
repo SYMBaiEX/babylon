@@ -1,8 +1,8 @@
+import { PerpDbAdapter, PerpMarketService } from '@babylon/core/markets/perps';
 import { db, eq, getDbInstance, organizations } from '@babylon/db';
-import { logger } from '@babylon/shared';
-import type { JsonValue } from '@babylon/shared';
-import { PerpMarketService, PerpDbAdapter } from '@babylon/core/markets/perps';
 import { FEE_CONFIG, WalletService } from '@babylon/engine';
+import type { JsonValue } from '@babylon/shared';
+import { logger } from '@babylon/shared';
 
 export type PriceUpdateSource = 'user_trade' | 'npc_trade' | 'event' | 'system';
 
@@ -39,9 +39,21 @@ export class PriceUpdateService {
       db: new PerpDbAdapter(),
       wallet: {
         debit: ({ userId, amount, reason, description, relatedId }) =>
-          WalletService.debit(userId, amount, reason, description ?? '', relatedId),
+          WalletService.debit(
+            userId,
+            amount,
+            reason,
+            description ?? '',
+            relatedId
+          ),
         credit: ({ userId, amount, reason, description, relatedId }) =>
-          WalletService.credit(userId, amount, reason, description ?? '', relatedId),
+          WalletService.credit(
+            userId,
+            amount,
+            reason,
+            description ?? '',
+            relatedId
+          ),
         recordPnL: ({ userId, pnl, reason, relatedId }) =>
           WalletService.recordPnL(userId, pnl, reason, relatedId),
         getBalance: (userId: string) => WalletService.getBalance(userId),

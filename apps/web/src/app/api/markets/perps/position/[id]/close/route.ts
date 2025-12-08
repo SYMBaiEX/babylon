@@ -1,11 +1,10 @@
-import type { NextRequest } from 'next/server';
-import { z } from 'zod';
-import { authenticate } from '@babylon/api';
-import { successResponse, withErrorHandling } from '@babylon/api';
-import { trackServerEvent } from '@/lib/posthog/server';
+import { authenticate, successResponse, withErrorHandling } from '@babylon/api';
+import { PerpDbAdapter, PerpMarketService } from '@babylon/core/markets/perps';
 import { FEE_CONFIG, WalletService } from '@babylon/engine';
 import { ClosePerpPositionSchema } from '@babylon/shared';
-import { PerpMarketService, PerpDbAdapter } from '@babylon/core/markets/perps';
+import type { NextRequest } from 'next/server';
+import { z } from 'zod';
+import { trackServerEvent } from '@/lib/posthog/server';
 
 const IdParamSchema = z.object({
   id: z.string(),
@@ -38,9 +37,21 @@ export const POST = withErrorHandling(
       db: new PerpDbAdapter(),
       wallet: {
         debit: ({ userId, amount, reason, description, relatedId }) =>
-          WalletService.debit(userId, amount, reason, description ?? '', relatedId),
+          WalletService.debit(
+            userId,
+            amount,
+            reason,
+            description ?? '',
+            relatedId
+          ),
         credit: ({ userId, amount, reason, description, relatedId }) =>
-          WalletService.credit(userId, amount, reason, description ?? '', relatedId),
+          WalletService.credit(
+            userId,
+            amount,
+            reason,
+            description ?? '',
+            relatedId
+          ),
         recordPnL: ({ userId, pnl, reason, relatedId }) =>
           WalletService.recordPnL(userId, pnl, reason, relatedId),
         getBalance: (userId: string) => WalletService.getBalance(userId),
@@ -67,9 +78,10 @@ export const POST = withErrorHandling(
       entryPrice: result.entryPrice,
       exitPrice: result.exitPrice,
       realizedPnL: result.realizedPnL ?? 0,
-      pnlPercent: result.marginPaid && result.marginPaid > 0
-        ? ((result.realizedPnL ?? 0) / result.marginPaid) * 100
-        : 0,
+      pnlPercent:
+        result.marginPaid && result.marginPaid > 0
+          ? ((result.realizedPnL ?? 0) / result.marginPaid) * 100
+          : 0,
       feeCharged: result.feePaid,
       wasLiquidated: false,
       positionId,
@@ -79,12 +91,14 @@ export const POST = withErrorHandling(
 
     return successResponse({
       position: result,
-      grossSettlement: result.realizedPnL !== undefined && result.marginPaid !== undefined
-        ? result.marginPaid + result.realizedPnL
-        : undefined,
-      netSettlement: result.realizedPnL !== undefined && result.marginPaid !== undefined
-        ? Math.max(0, result.marginPaid + result.realizedPnL - result.feePaid)
-        : undefined,
+      grossSettlement:
+        result.realizedPnL !== undefined && result.marginPaid !== undefined
+          ? result.marginPaid + result.realizedPnL
+          : undefined,
+      netSettlement:
+        result.realizedPnL !== undefined && result.marginPaid !== undefined
+          ? Math.max(0, result.marginPaid + result.realizedPnL - result.feePaid)
+          : undefined,
       marginReturned: result.marginPaid,
       pnl: result.realizedPnL,
       fee: {

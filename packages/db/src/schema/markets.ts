@@ -215,9 +215,7 @@ export const perpMarketSnapshots = pgTable(
     createdAt: timestamp('createdAt', { mode: 'date' }).notNull().defaultNow(),
     updatedAt: timestamp('updatedAt', { mode: 'date' }).notNull().defaultNow(),
   },
-  (table) => [
-    index('PerpMarketSnapshot_orgId_idx').on(table.organizationId),
-  ]
+  (table) => [index('PerpMarketSnapshot_orgId_idx').on(table.organizationId)]
 );
 
 // PerpPosition
@@ -318,6 +316,3 @@ export type PerpPosition = typeof perpPositions.$inferSelect;
 export type NewPerpPosition = typeof perpPositions.$inferInsert;
 export type PerpMarketSnapshot = typeof perpMarketSnapshots.$inferSelect;
 export type NewPerpMarketSnapshot = typeof perpMarketSnapshots.$inferInsert;
-
-
-

@@ -5,6 +5,7 @@
  */
 
 import { countTokensSync, truncateToTokenLimitSync } from '@babylon/api';
+import { PerpDbAdapter, PerpMarketService } from '@babylon/core/markets/perps';
 import {
   and,
   asUser,
@@ -28,10 +29,6 @@ import {
   shuffleArray,
   WalletService,
 } from '@babylon/engine';
-import {
-  PerpMarketService,
-  PerpDbAdapter,
-} from '@babylon/core/markets/perps';
 import type { IAgentRuntime } from '@elizaos/core';
 import { callGroqDirect } from '../llm/direct-groq';
 import { agentPnLService } from '../services/AgentPnLService';
@@ -487,7 +484,8 @@ ${contextString}`;
                   ),
                 recordPnL: ({ userId, pnl, reason, relatedId }) =>
                   WalletService.recordPnL(userId, pnl, reason, relatedId),
-                getBalance: (userId: string) => WalletService.getBalance(userId),
+                getBalance: (userId: string) =>
+                  WalletService.getBalance(userId),
               },
               fees: {
                 tradingFeeRate: 0.001,

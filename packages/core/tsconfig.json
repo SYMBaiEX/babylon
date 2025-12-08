@@ -15,8 +15,5 @@
   },
   "include": ["markets/**/*"],
   "exclude": ["node_modules", "dist"],
-  "references": [
-    { "path": "../shared" },
-    { "path": "../db" }
-  ]
+  "references": [{ "path": "../shared" }, { "path": "../db" }]
 }

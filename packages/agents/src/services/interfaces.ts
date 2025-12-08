@@ -7,14 +7,14 @@
  * @packageDocumentation
  */
 
-import type { JsonValue } from '../types/common';
 import type {
   AgentCapabilities,
-  UnifiedAgentRegistration,
+  AgentDiscoveryFilter,
   AgentStatus,
   TrustLevel,
-  AgentDiscoveryFilter,
+  UnifiedAgentRegistration,
 } from '../types/agent-registry';
+import type { JsonValue } from '../types/common';
 
 /**
  * Agent Registry Service Interface
@@ -39,7 +39,10 @@ export interface IAgentRegistry {
   /**
    * Update agent status
    */
-  updateAgentStatus(agentId: string, status: AgentStatus): Promise<UnifiedAgentRegistration>;
+  updateAgentStatus(
+    agentId: string,
+    status: AgentStatus
+  ): Promise<UnifiedAgentRegistration>;
 
   /**
    * Update agent trust level
@@ -49,7 +52,9 @@ export interface IAgentRegistry {
   /**
    * Discover agents matching filter
    */
-  discoverAgents(filter: AgentDiscoveryFilter): Promise<UnifiedAgentRegistration[]>;
+  discoverAgents(
+    filter: AgentDiscoveryFilter
+  ): Promise<UnifiedAgentRegistration[]>;
 }
 
 /**
@@ -137,7 +142,7 @@ export interface ITrajectoryRecorder {
   ): Promise<void>;
 }
 
-/** 
+/**
  * Prediction Pricing Interface
  */
 export interface IPredictionPricing {

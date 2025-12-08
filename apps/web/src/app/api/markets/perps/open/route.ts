@@ -1,10 +1,9 @@
-import type { NextRequest } from 'next/server';
-
 import { authenticate, successResponse, withErrorHandling } from '@babylon/api';
-import { trackServerEvent } from '@/lib/posthog/server';
+import { PerpDbAdapter, PerpMarketService } from '@babylon/core/markets/perps';
 import { FEE_CONFIG, WalletService } from '@babylon/engine';
 import { PerpOpenPositionSchema } from '@babylon/shared';
-import { PerpMarketService, PerpDbAdapter } from '@babylon/core/markets/perps';
+import type { NextRequest } from 'next/server';
+import { trackServerEvent } from '@/lib/posthog/server';
 
 /**
  * POST /api/markets/perps/open
@@ -23,9 +22,21 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     db: new PerpDbAdapter(),
     wallet: {
       debit: ({ userId, amount, reason, description, relatedId }) =>
-        WalletService.debit(userId, amount, reason, description ?? '', relatedId),
+        WalletService.debit(
+          userId,
+          amount,
+          reason,
+          description ?? '',
+          relatedId
+        ),
       credit: ({ userId, amount, reason, description, relatedId }) =>
-        WalletService.credit(userId, amount, reason, description ?? '', relatedId),
+        WalletService.credit(
+          userId,
+          amount,
+          reason,
+          description ?? '',
+          relatedId
+        ),
       recordPnL: ({ userId, pnl, reason, relatedId }) =>
         WalletService.recordPnL(userId, pnl, reason, relatedId),
       getBalance: (userId: string) => WalletService.getBalance(userId),

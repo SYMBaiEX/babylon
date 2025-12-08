@@ -50,9 +50,21 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     db: new PerpDbAdapter(),
     wallet: {
       debit: ({ userId, amount, reason, description, relatedId }) =>
-        WalletService.debit(userId, amount, reason, description ?? '', relatedId),
+        WalletService.debit(
+          userId,
+          amount,
+          reason,
+          description ?? '',
+          relatedId
+        ),
       credit: ({ userId, amount, reason, description, relatedId }) =>
-        WalletService.credit(userId, amount, reason, description ?? '', relatedId),
+        WalletService.credit(
+          userId,
+          amount,
+          reason,
+          description ?? '',
+          relatedId
+        ),
       recordPnL: ({ userId, pnl, reason, relatedId }) =>
         WalletService.recordPnL(userId, pnl, reason, relatedId),
       getBalance: (userId: string) => WalletService.getBalance(userId),
