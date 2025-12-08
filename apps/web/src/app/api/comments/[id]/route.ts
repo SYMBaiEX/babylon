@@ -126,13 +126,336 @@
 import {
   AuthorizationError,
   authenticate,
+  getCanonicalUserId,
   NotFoundError,
+  optionalAuth,
   successResponse,
   withErrorHandling,
 } from '@babylon/api';
-import { and, comments, count, db, eq, reactions, users } from '@babylon/db';
+import {
+  and,
+  asc,
+  comments,
+  count,
+  db,
+  eq,
+  inArray,
+  posts,
+  reactions,
+  users,
+} from '@babylon/db';
 import { IdParamSchema, logger, UpdateCommentSchema } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
+
+// Max reply count to return (for efficiency)
+const MAX_REPLY_COUNT = 99;
+
+// Max parent chain depth to prevent infinite loops
+const MAX_PARENT_DEPTH = 50;
+
+/**
+ * Get full parent chain for a comment (oldest first)
+ * Returns array of parent comments from root to immediate parent
+ */
+async function getParentChain(commentId: string | null): Promise<
+  {
+    id: string;
+    content: string;
+    authorId: string;
+    createdAt: Date;
+    parentCommentId: string | null;
+  }[]
+> {
+  const parents: {
+    id: string;
+    content: string;
+    authorId: string;
+    createdAt: Date;
+    parentCommentId: string | null;
+  }[] = [];
+
+  let currentParentId = commentId;
+  let depth = 0;
+
+  while (currentParentId && depth < MAX_PARENT_DEPTH) {
+    const [parent] = await db
+      .select({
+        id: comments.id,
+        content: comments.content,
+        authorId: comments.authorId,
+        createdAt: comments.createdAt,
+        parentCommentId: comments.parentCommentId,
+      })
+      .from(comments)
+      .where(eq(comments.id, currentParentId))
+      .limit(1);
+
+    if (!parent) break;
+
+    parents.unshift(parent); // Add to beginning (oldest first)
+    currentParentId = parent.parentCommentId;
+    depth++;
+  }
+
+  return parents;
+}
+
+/**
+ * Count all replies under comments using iterative batch approach
+ * More efficient than recursive - uses BFS with batched queries
+ * Caps at MAX_REPLY_COUNT for performance
+ */
+async function countAllRepliesBatch(
+  commentIds: string[]
+): Promise<Map<string, number>> {
+  const countMap = new Map<string, number>();
+
+  // Initialize counts to 0
+  for (const id of commentIds) {
+    countMap.set(id, 0);
+  }
+
+  // For each comment, do BFS to count all nested replies
+  for (const rootId of commentIds) {
+    let count = 0;
+    let currentLevel = [rootId];
+
+    // BFS through reply tree, but stop at MAX_REPLY_COUNT
+    while (currentLevel.length > 0 && count < MAX_REPLY_COUNT) {
+      // Get all direct replies to current level comments
+      const replies = await db
+        .select({ id: comments.id })
+        .from(comments)
+        .where(inArray(comments.parentCommentId, currentLevel));
+
+      count += replies.length;
+
+      // Cap at max
+      if (count >= MAX_REPLY_COUNT) {
+        count = MAX_REPLY_COUNT;
+        break;
+      }
+
+      // Move to next level
+      currentLevel = replies.map((r) => r.id);
+    }
+
+    countMap.set(rootId, count);
+  }
+
+  return countMap;
+}
+
+/**
+ * GET /api/comments/[id]
+ * Get a single comment with its direct replies
+ */
+export const GET = withErrorHandling(
+  async (
+    request: NextRequest,
+    context: { params: Promise<{ id: string }> }
+  ) => {
+    const { id: commentId } = IdParamSchema.parse(await context.params);
+
+    // Optional authentication (to show liked status for logged-in users)
+    const user = await optionalAuth(request);
+    const canonicalUserId = user ? getCanonicalUserId(user) : undefined;
+
+    // Find the comment
+    const [comment] = await db
+      .select()
+      .from(comments)
+      .where(eq(comments.id, commentId))
+      .limit(1);
+
+    if (!comment) {
+      throw new NotFoundError('Comment', commentId);
+    }
+
+    // Get the post info
+    const [post] = await db
+      .select({
+        id: posts.id,
+        content: posts.content,
+        authorId: posts.authorId,
+      })
+      .from(posts)
+      .where(eq(posts.id, comment.postId))
+      .limit(1);
+
+    // Get comment author info
+    const [commentAuthor] = await db
+      .select({
+        id: users.id,
+        displayName: users.displayName,
+        username: users.username,
+        profileImageUrl: users.profileImageUrl,
+      })
+      .from(users)
+      .where(eq(users.id, comment.authorId))
+      .limit(1);
+
+    // Get direct replies to this comment
+    const directReplies = await db
+      .select()
+      .from(comments)
+      .where(eq(comments.parentCommentId, commentId))
+      .orderBy(asc(comments.createdAt));
+
+    // Get author IDs for replies
+    const replyAuthorIds = [...new Set(directReplies.map((r) => r.authorId))];
+
+    // Get user info for reply authors
+    const replyAuthors =
+      replyAuthorIds.length > 0
+        ? await db
+            .select({
+              id: users.id,
+              displayName: users.displayName,
+              username: users.username,
+              profileImageUrl: users.profileImageUrl,
+            })
+            .from(users)
+            .where(inArray(users.id, replyAuthorIds))
+        : [];
+
+    const authorMap = new Map(replyAuthors.map((a) => [a.id, a]));
+
+    // Get like counts and reply counts for all comments (main + replies)
+    const allCommentIds = [commentId, ...directReplies.map((r) => r.id)];
+
+    const likeCounts = await db
+      .select({
+        commentId: reactions.commentId,
+        count: count(),
+      })
+      .from(reactions)
+      .where(
+        and(
+          inArray(reactions.commentId, allCommentIds),
+          eq(reactions.type, 'like')
+        )
+      )
+      .groupBy(reactions.commentId);
+
+    const likeCountMap = new Map(
+      likeCounts.map((l) => [l.commentId, Number(l.count)])
+    );
+
+    // Get user's likes if authenticated
+    let userLikes: Set<string> = new Set();
+    if (canonicalUserId) {
+      const likes = await db
+        .select({ commentId: reactions.commentId })
+        .from(reactions)
+        .where(
+          and(
+            inArray(reactions.commentId, allCommentIds),
+            eq(reactions.userId, canonicalUserId),
+            eq(reactions.type, 'like')
+          )
+        );
+      userLikes = new Set(
+        likes.map((l) => l.commentId).filter((id): id is string => id !== null)
+      );
+    }
+
+    // Get full parent chain (oldest to newest, excluding current comment)
+    const parentChainRaw = comment.parentCommentId
+      ? await getParentChain(comment.parentCommentId)
+      : [];
+
+    // Get author info for all parents
+    const parentAuthorIds = [...new Set(parentChainRaw.map((p) => p.authorId))];
+    const parentAuthors =
+      parentAuthorIds.length > 0
+        ? await db
+            .select({
+              id: users.id,
+              displayName: users.displayName,
+              username: users.username,
+              profileImageUrl: users.profileImageUrl,
+            })
+            .from(users)
+            .where(inArray(users.id, parentAuthorIds))
+        : [];
+    const parentAuthorMap = new Map(parentAuthors.map((a) => [a.id, a]));
+
+    // Format parent chain
+    const parentChain = parentChainRaw.map((parent) => {
+      const author = parentAuthorMap.get(parent.authorId);
+      return {
+        id: parent.id,
+        content: parent.content,
+        authorId: parent.authorId,
+        authorName: author?.displayName || 'Unknown',
+        authorUsername: author?.username || null,
+        authorProfileImageUrl: author?.profileImageUrl || null,
+        createdAt: parent.createdAt,
+      };
+    });
+
+    // Get immediate parent for "Replying to" indicator
+    const parentComment =
+      parentChain.length > 0 ? parentChain[parentChain.length - 1] : null;
+
+    // Get total reply counts for main comment and all direct replies (batched)
+    const allIdsToCount = [commentId, ...directReplies.map((r) => r.id)];
+    const replyCountMap = await countAllRepliesBatch(allIdsToCount);
+
+    // Format main comment
+    const formattedComment = {
+      id: comment.id,
+      content: comment.content,
+      postId: comment.postId,
+      authorId: comment.authorId,
+      authorName: commentAuthor?.displayName || 'Unknown',
+      authorUsername: commentAuthor?.username || null,
+      authorProfileImageUrl: commentAuthor?.profileImageUrl || null,
+      parentCommentId: comment.parentCommentId,
+      parentComment,
+      createdAt: comment.createdAt,
+      updatedAt: comment.updatedAt,
+      likeCount: likeCountMap.get(commentId) || 0,
+      replyCount: replyCountMap.get(commentId) || 0,
+      isLiked: userLikes.has(commentId),
+    };
+
+    // Format replies
+    const formattedReplies = directReplies.map((reply) => {
+      const author = authorMap.get(reply.authorId);
+      return {
+        id: reply.id,
+        content: reply.content,
+        postId: reply.postId,
+        authorId: reply.authorId,
+        authorName: author?.displayName || 'Unknown',
+        authorUsername: author?.username || null,
+        authorProfileImageUrl: author?.profileImageUrl || null,
+        parentCommentId: reply.parentCommentId,
+        parentCommentAuthorName: commentAuthor?.displayName || 'Unknown',
+        createdAt: reply.createdAt,
+        updatedAt: reply.updatedAt,
+        likeCount: likeCountMap.get(reply.id) || 0,
+        replyCount: replyCountMap.get(reply.id) || 0,
+        isLiked: userLikes.has(reply.id),
+      };
+    });
+
+    return successResponse({
+      comment: formattedComment,
+      replies: formattedReplies,
+      parentChain, // Full parent chain from root to immediate parent
+      post: post
+        ? {
+            id: post.id,
+            content: post.content,
+            authorId: post.authorId,
+          }
+        : null,
+    });
+  }
+);
 
 /**
  * PATCH /api/comments/[id]
