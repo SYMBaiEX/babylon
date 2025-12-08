@@ -52,10 +52,12 @@ export async function callGroqDirect(params: {
     baseURL: 'https://api.groq.com/openai/v1',
   });
 
-  // Default to llama-3.1-8b-instant for fast evaluation (free tier)
-  // For larger tasks, use qwen3-32b
+  // Use llama-3.3-70b-versatile for best JSON compliance (llama-3.1 models deprecated)
+  // Small model is faster for simple decisions, large for complex reasoning
   const model =
-    params.modelSize === 'large' ? 'qwen/qwen3-32b' : 'llama-3.1-8b-instant';
+    params.modelSize === 'large'
+      ? 'llama-3.3-70b-versatile' // Best for complex reasoning
+      : 'llama-3.3-70b-versatile'; // Use same model for consistency and JSON format compliance
 
   const startTime = Date.now();
 
@@ -70,6 +72,7 @@ export async function callGroqDirect(params: {
       temperature: params.temperature ?? 0.7,
       maxOutputTokens: params.maxTokens ?? 8192,
       maxRetries: 2,
+      experimental_telemetry: { isEnabled: false },
     }),
     new Promise<{ text: string }>((_, reject) => {
       setTimeout(() => {
