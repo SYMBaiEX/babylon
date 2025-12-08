@@ -7,6 +7,19 @@ import { TaggedText } from '@/components/shared/TaggedText';
 import type { ChatParticipant, Message } from './types';
 import { getProfilePath } from './types';
 
+/**
+ * Extracts the displayable content from a message, showing only content after the last `</think>` tag.
+ * AI models use `<think>...</think>` tags for internal reasoning which should not be displayed to users.
+ * The original message data is preserved in storage, this only affects display.
+ */
+function getDisplayContent(content: string): string {
+  const lastThinkCloseIndex = content.lastIndexOf('</think>');
+  if (lastThinkCloseIndex !== -1) {
+    return content.slice(lastThinkCloseIndex + '</think>'.length).trim();
+  }
+  return content;
+}
+
 interface MessageBubbleProps {
   message: Message;
   sender: ChatParticipant | undefined;
@@ -92,7 +105,7 @@ export function MessageBubble({
           }}
         >
           <TaggedText
-            text={message.content}
+            text={getDisplayContent(message.content)}
             onTagClick={onTagClick}
             className="text-foreground"
           />
