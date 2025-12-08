@@ -4,6 +4,7 @@ import {
   positions,
   predictionPriceHistories,
   questions,
+  type DBType,
 } from '@babylon/db';
 import { generateSnowflakeId } from '@babylon/shared';
 import type { InferInsertModel } from 'drizzle-orm';
@@ -68,8 +69,10 @@ const mapPosition = (
 });
 
 export class PredictionDbAdapter implements PredictionDbPort {
+  constructor(private readonly client: DBType = db) {}
+
   async getMarketById(id: string): Promise<PredictionMarketRecord | null> {
-    const [m] = await db
+    const [m] = await this.client
       .select()
       .from(markets)
       .where(eq(markets.id, id))
@@ -79,12 +82,30 @@ export class PredictionDbAdapter implements PredictionDbPort {
 
   async getMarketsByIds(ids: string[]): Promise<PredictionMarketRecord[]> {
     if (ids.length === 0) return [];
-    const ms = await db.select().from(markets).where(inArray(markets.id, ids));
+    const ms = await this.client
+      .select()
+      .from(markets)
+      .where(inArray(markets.id, ids));
     return ms.map(mapMarket);
   }
 
+  async listMarkets(): Promise<PredictionMarketRecord[]> {
+    const rows = await this.client.select().from(markets);
+    return rows.map(mapMarket);
+  }
+
+  async listUserPositions(
+    userId: string
+  ): Promise<PredictionPositionRecord[]> {
+    const rows = await this.client
+      .select()
+      .from(positions)
+      .where(eq(positions.userId, userId));
+    return rows.map(mapPosition);
+  }
+
   async getQuestion(idOrNumber: string): Promise<QuestionRecord | null> {
-    const [byId] = await db
+    const [byId] = await this.client
       .select()
       .from(questions)
       .where(eq(questions.id, idOrNumber))
@@ -103,7 +124,7 @@ export class PredictionDbAdapter implements PredictionDbPort {
 
     const num = Number.parseInt(idOrNumber, 10);
     if (Number.isNaN(num)) return null;
-    const qs = await db
+    const qs = await this.client
       .select()
       .from(questions)
       .where(eq(questions.questionNumber, num))
@@ -120,19 +141,6 @@ export class PredictionDbAdapter implements PredictionDbPort {
           createdDate: q.createdDate,
         }
       : null;
-  }
-
-  async listMarkets(): Promise<PredictionMarketRecord[]> {
-    const rows = await db.select().from(markets);
-    return rows.map(mapMarket);
-  }
-
-  async listUserPositions(userId: string): Promise<PredictionPositionRecord[]> {
-    const rows = await db
-      .select()
-      .from(positions)
-      .where(eq(positions.userId, userId));
-    return rows.map(mapPosition);
   }
 
   async createMarketFromQuestion(
@@ -163,7 +171,7 @@ export class PredictionDbAdapter implements PredictionDbPort {
       resolutionDescription: null,
     };
 
-    const [inserted] = await db
+    const [inserted] = await this.client
       .insert(markets)
       .values(data)
       .onConflictDoNothing()
@@ -186,12 +194,10 @@ export class PredictionDbAdapter implements PredictionDbPort {
         | 'resolution'
         | 'onChainMarketId'
         | 'onChainResolved'
-        | 'resolutionProofUrl'
-        | 'resolutionDescription'
       >
     >
   ): Promise<PredictionMarketRecord> {
-    const [updated] = await db
+    const [updated] = await this.client
       .update(markets)
       .set({
         yesShares:
@@ -218,7 +224,7 @@ export class PredictionDbAdapter implements PredictionDbPort {
     marketId: string,
     side: PredictionSide
   ): Promise<PredictionPositionRecord | null> {
-    const [p] = await db
+    const [p] = await this.client
       .select()
       .from(positions)
       .where(
@@ -254,7 +260,7 @@ export class PredictionDbAdapter implements PredictionDbPort {
       amount: String(position.avgPrice * position.shares),
     };
 
-    const [result] = await db
+    const [result] = await this.client
       .insert(positions)
       .values(row)
       .onConflictDoUpdate({
@@ -275,13 +281,13 @@ export class PredictionDbAdapter implements PredictionDbPort {
   }
 
   async deletePosition(positionId: string): Promise<void> {
-    await db.delete(positions).where(eq(positions.id, positionId));
+    await this.client.delete(positions).where(eq(positions.id, positionId));
   }
 
   async listPositionsForMarket(
     marketId: string
   ): Promise<PredictionPositionRecord[]> {
-    const rows = await db
+    const rows = await this.client
       .select()
       .from(positions)
       .where(eq(positions.marketId, marketId));
@@ -303,6 +309,6 @@ export class PredictionDbAdapter implements PredictionDbPort {
       source: snapshot.source,
       createdAt: snapshot.createdAt ?? new Date(),
     };
-    await db.insert(predictionPriceHistories).values(row);
+    await this.client.insert(predictionPriceHistories).values(row);
   }
 }
