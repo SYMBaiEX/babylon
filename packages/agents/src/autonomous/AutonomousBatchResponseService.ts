@@ -368,13 +368,13 @@ Array:`;
       );
     }
 
-    // Use small model (llama-3.1-8b-instant) for batch evaluation
-    // Add timeout to prevent hanging (20 seconds max)
+    // Use large model for batch evaluation - better at consistent counting
+    // Add timeout to prevent hanging (30 seconds max for larger model)
     const decisionText = await Promise.race([
       callGroqDirect({
         prompt: finalPrompt,
         system: config?.systemPrompt ?? undefined,
-        modelSize: 'small', // Free tier: Fast and efficient
+        modelSize: 'large', // Large model: Better at structured outputs and counting
         runtime: _runtime, // Pass runtime to access W&B trained models AND trajectory context
         temperature: 0.6,
         maxTokens: 16384,
@@ -389,7 +389,7 @@ Array:`;
             'AutonomousBatchResponse'
           );
           resolve('[]'); // Empty array = no responses
-        }, 20000); // 20 second timeout
+        }, 30000); // 30 second timeout (larger model needs more time)
       }),
     ]);
 
@@ -487,13 +487,13 @@ Generate ONLY the response text, nothing else.`;
         finalRespPrompt = truncated.text;
       }
 
-      // Use small model (llama-3.1-8b-instant) for response generation
-      // Add timeout to prevent hanging (15 seconds max)
+    // Use large model for response generation - better quality responses
+    // Add timeout to prevent hanging (20 seconds max)
       const responseContent = await Promise.race([
         callGroqDirect({
           prompt: finalRespPrompt,
           system: respConfig?.systemPrompt ?? undefined,
-          modelSize: 'small', // Free tier: Fast response generation
+          modelSize: 'large', // Large model: Higher quality responses
           runtime: _runtime, // Pass runtime to access W&B trained models AND trajectory context
           temperature: 0.8,
           maxTokens: 16384,
@@ -508,7 +508,7 @@ Generate ONLY the response text, nothing else.`;
               'AutonomousBatchResponse'
             );
             resolve(''); // Empty response = skip
-          }, 15000); // 15 second timeout
+          }, 20000); // 20 second timeout (larger model needs more time)
         }),
       ]);
 
