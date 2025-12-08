@@ -40,6 +40,8 @@ import type { EventContext, FeedPostContext } from '../types/market-context';
 import { stripHashtagsAndEmojis } from '../utils/shared-utils';
 import { characterMappingService } from './character-mapping-service';
 import { StaticDataRegistry } from './static-data-registry';
+import type { GeneratedTag } from './tag-service';
+import { generateTagsFromPost, storeTagsForPost } from './tag-service';
 
 // Minimal question type for post generation (only fields actually used)
 type QuestionForPost = Pick<Question, 'id' | 'text' | 'questionNumber'>;
@@ -673,8 +675,9 @@ Return your response as XML in this exact format:
     );
   }
 
+  const postId = await generateSnowflakeId();
   await getDbInstance().createPostWithAllFields({
-    id: await generateSnowflakeId(),
+    id: postId,
     type: 'article',
     content: transformedSummary.transformedText,
     fullContent: transformedBody.transformedText,
@@ -690,6 +693,29 @@ Return your response as XML in this exact format:
     { org: org.name, timestamp },
     'PostGeneration'
   );
+
+  // Generate and store tags asynchronously
+  void generateTagsFromPost(transformedSummary.transformedText)
+    .then((generatedTags: GeneratedTag[]) => {
+      if (generatedTags.length > 0) {
+        return storeTagsForPost(postId, generatedTags).then(() => {
+          logger.info(
+            'Tagged org article',
+            { postId, orgName: org.name, tagCount: generatedTags.length },
+            'PostGeneration'
+          );
+        });
+      }
+      return Promise.resolve();
+    })
+    .catch((tagError: Error) => {
+      logger.warn(
+        'Failed to tag org article',
+        { postId, orgName: org.name, error: tagError },
+        'PostGeneration'
+      );
+    });
+
   return true;
 }
 

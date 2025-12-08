@@ -10,7 +10,9 @@ import {
   characterMappingService,
   formatRandomContext,
   generateRandomMarketContext,
+  generateTagsFromPost,
   generateWorldContext,
+  storeTagsForPost,
 } from '@babylon/engine';
 import type { IAgentRuntime } from '@elizaos/core';
 import { parseKeyValueXml } from '@elizaos/core';
@@ -271,6 +273,28 @@ ${contextString}
       undefined,
       'AutonomousPosting'
     );
+
+    // Generate and store tags asynchronously
+    void generateTagsFromPost(cleanContent)
+      .then((generatedTags) => {
+        if (generatedTags.length > 0) {
+          return storeTagsForPost(postId, generatedTags).then(() => {
+            logger.info(
+              'Tagged agent post',
+              { postId, agentId: agentUserId, tagCount: generatedTags.length },
+              'AutonomousPosting'
+            );
+          });
+        }
+        return Promise.resolve();
+      })
+      .catch((tagError) => {
+        logger.warn(
+          'Failed to tag agent post',
+          { postId, agentId: agentUserId, error: tagError },
+          'AutonomousPosting'
+        );
+      });
 
     return postId;
   }

@@ -7,6 +7,7 @@
  * @description
  * Discovers agents based on filters including OASF taxonomy skills and domains.
  * Supports Agent0 SDK v0.31.0 discovery patterns.
+ * Set includeExternal=true to also include agents from Agent0 network.
  *
  * @openapi
  * /api/agents/discover:
@@ -15,7 +16,7 @@
  *       - Agents
  *       - A2A Protocol
  *     summary: Discover agents
- *     description: Find agents by type, status, skills, domains, and capabilities
+ *     description: Find agents by type, status, skills, domains, and capabilities. Optionally includes Agent0 network agents.
  *     parameters:
  *       - in: query
  *         name: types
@@ -44,6 +45,12 @@
  *         schema:
  *           type: string
  *         description: Search by name or description
+ *       - in: query
+ *         name: includeExternal
+ *         schema:
+ *           type: boolean
+ *           default: false
+ *         description: Include agents from Agent0 network
  *       - in: query
  *         name: limit
  *         schema:
@@ -90,7 +97,12 @@
  */
 
 import type { AgentDiscoveryFilter } from '@babylon/agents';
-import { AgentStatus, AgentType, agentRegistry } from '@babylon/agents';
+import {
+  AgentStatus,
+  AgentType,
+  agentRegistry,
+  getAgentDiscoveryService,
+} from '@babylon/agents';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
@@ -106,6 +118,8 @@ export async function GET(req: NextRequest) {
   const domainsParam = searchParams.get('domains');
   const matchMode = (searchParams.get('matchMode') as 'any' | 'all') || 'all';
   const search = searchParams.get('search') || undefined;
+  const includeExternalParam = searchParams.get('includeExternal');
+  const includeExternal = includeExternalParam === 'true';
   const limit = Number.parseInt(searchParams.get('limit') || '50');
   const offset = Number.parseInt(searchParams.get('offset') || '0');
 
@@ -154,15 +168,80 @@ export async function GET(req: NextRequest) {
         requiredSkills: filter.requiredSkills?.join(','),
         requiredDomains: filter.requiredDomains?.join(','),
       },
+      includeExternal,
     },
     'AgentDiscovery'
   );
 
-  // Discover agents
-  const agents = await agentRegistry.discoverAgents(filter);
-
   // Build agent cards for discovered agents
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
+
+  // If includeExternal is true, use AgentDiscoveryService for merged results
+  if (includeExternal) {
+    const discoveryService = getAgentDiscoveryService();
+    const response = await discoveryService.discoverAgents(
+      {
+        skills: filter.requiredSkills,
+        active: true,
+        includeExternal: true,
+      },
+      { pageSize: limit }
+    );
+
+    const externalAgentCards = response.items.map((agent) => {
+      const agentId = agent.agentId ?? `agent0-${agent.tokenId}`;
+      return {
+        version: '1.0' as const,
+        agentId,
+        name: agent.name,
+        description: '',
+        type: agentId.startsWith('agent0-') ? 'EXTERNAL' : 'USER_CONTROLLED',
+        status: agent.isActive ? 'ACTIVE' : 'INACTIVE',
+        trustLevel: agent.reputation?.trustScore || 0,
+        endpoints: {
+          a2a: agent.endpoint || `${baseUrl}/api/agents/${agentId}/a2a`,
+          mcp:
+            agent.capabilities?.mcpEndpoint ||
+            `${baseUrl}/api/agents/${agentId}/mcp`,
+          card: `${baseUrl}/api/agents/${agentId}/card`,
+        },
+        capabilities: agent.capabilities || {},
+        reputation: agent.reputation,
+        authentication: {
+          required: false,
+          methods: [],
+        },
+      };
+    });
+
+    logger.info(
+      `Discovered ${externalAgentCards.length} agents (including external)`,
+      {
+        totalFound: externalAgentCards.length,
+        hasNextPage: !!response.nextCursor,
+      },
+      'AgentDiscovery'
+    );
+
+    return NextResponse.json(
+      {
+        agents: externalAgentCards,
+        total: externalAgentCards.length,
+        nextCursor: response.nextCursor,
+        filter: {
+          types: filter.types,
+          skills: filter.requiredSkills,
+          domains: filter.requiredDomains,
+          matchMode: filter.matchMode,
+          includeExternal,
+        },
+      },
+      { status: 200 }
+    );
+  }
+
+  // Default: local registry only
+  const agents = await agentRegistry.discoverAgents(filter);
 
   const agentCards = agents.map((agent) => ({
     version: '1.0' as const,

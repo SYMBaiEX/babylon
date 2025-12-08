@@ -1,70 +1,114 @@
 # CLAUDE.md
 
-Guidance for Claude Code when working in this repo.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## State (target vs current)
-- Target (in-progress): Elysia host in `apps/server`, background workers in `apps/daemon`, dedicated `apps/agents`, domain split into `packages/core/*` with `shared/infra` wiring.
-- Current code: Next.js app `apps/web` hosts UI + API routes/SSE/A2A; CLI tooling in `apps/cli`; docs site in `apps/docs`. Domain/engine lives in `packages/engine` and `packages/agents` (+ `a2a`, `mcp`); infra/util in `packages/api`, `packages/shared`, `packages/db`; on-chain in `packages/contracts`; tests in `packages/testing`.
-- Migration intent: keep new work portable to the target layout; handlers should stay thin and framework-agnostic enough to move to Elysia.
+## Key Commands
 
-## Core Commands
-- Install deps: `bun install`
-- Dev: `bun run dev` (starts Hardhat node + deploy + Turbo dev + cron sim); UI-only: `bun run dev:web` or `bun run dev:next-only`
-- Build: `bun run build`
-- Types: `bun run typecheck`
-- Lint/format (Biome): `bun run lint` (Turbo) or `bun run check` (write)
-- Tests: `bun run test` (unit+integration), `bun run test:e2e`
-- DB (Drizzle/Postgres): `bun run db:generate`, `bun run db:migrate`, `bun run db:push`, `bun run db:pull`, `bun run db:studio`
-- Docs vendors: `bun run docs:generate` (pull vendor docs into `docs/vendors/*`)
-- Runtime is Bun; prefer Bun tooling/commands (Bun APIs like `Bun.file` when appropriate).
+### Development
+- **Start full dev:** `bun run dev` - Starts web server, game engine, and local cron simulator (+ Hardhat/deploy if localnet)
+- **Web only:** `bun run dev:web` (via Turbo) or `bun run dev:next-only` (Next.js directly)
+- **Build:** `bun run build` - Production build via Turbo
+- **Format:** `bun run check` - Auto-fix with Biome (2-space indent, single quotes)
+- **Lint:** `bun run lint` - Check via Turbo (must pass with zero warnings)
+- **Types:** `bun run typecheck` - Verify TypeScript types
 
-## Architecture (modular monolith)
-- Runtime: Bun. Backend: Next.js routes today (moving to Elysia host). Frontend: Next.js 16. DB: Postgres + Drizzle.
-- Apps: current `apps/web` (UI + API routes/SSE/A2A), `apps/cli` (ops), `apps/docs` (docs); target to add `apps/server` (Elysia), `apps/daemon`, `apps/agents`.
-- Packages: current `engine` (game/perps), `agents` (runtime + Agent0/A2A/MCP), `a2a`, `mcp`, `api` (auth/rate-limit/redis/sse/token counting), `shared` (client-safe types/utils/config), `db` (schema), `contracts`, `testing`, `training`, `examples`; target `core-*` and `shared/infra` for domain/infra splits.
-- Dependency flow: apps → packages (`engine`/`agents`/`api`/`db`/`shared`) → contracts. Keep domain code framework-agnostic to move into `core-*` later.
+### Testing
+- **Unit:** `bun test packages/testing/unit/ --preload ./packages/testing/unit/preload.ts`
+- **Integration:** `bun test packages/testing/integration/ --preload ./packages/testing/integration/preload.ts`
+- **E2E:** `cd packages/testing && playwright test e2e`
+- **Contracts:** `cd packages/contracts && forge test`
+- **Single test:** `bun test path/to/test.ts`
 
-## Structure (current)
+### Database (Drizzle + Postgres)
+- **Generate migrations:** `bun run db:generate`
+- **Run migrations:** `bun run db:migrate`
+- **Push schema:** `bun run db:push` (dev only)
+- **Studio UI:** `bun run db:studio`
+- **Seed data:** `bun run db:seed` or `bun run db:seed:test all`
+
+### Deployment & Operations
+- **Deploy contracts:** `bun run deploy:local|testnet|mainnet`
+- **CLI tool:** `bun run babylon <command>` (or `bun run apps/cli/src/index.ts`)
+- **Generate vendor docs:** `bun run docs:generate` (pulls to `docs/vendors/*`)
+
+## Architecture Overview
+
+**Modular monolith** with Bun runtime, moving from Next.js to Elysia:
+- **Current state:** Next.js hosts UI + API routes/SSE/A2A in `apps/web`
+- **Target state:** Elysia server in `apps/server`, workers in `apps/daemon`, domain split into `packages/core/*`
+
+### Package Dependencies
 ```
-apps/
-  web/      # Next.js UI + API routes/SSE/A2A
-  cli/      # Deploy/seed/game/agent ops
-  docs/     # Docs site (Nextra)
-packages/
-  engine/           # Game world/perps/simulation logic
-  agents/           # Agent runtime + Agent0/A2A/MCP integrations
-  a2a/              # A2A protocol server/client helpers
-  mcp/              # MCP tooling
-  api/              # Auth/rate-limit/redis/sse utilities (Next today, portable to Elysia)
-  shared/           # Client-safe types/utils/config
-  db/               # Drizzle schema/client
-  contracts/        # Hardhat/Foundry contracts
-  testing/          # Shared test harnesses and suites
-  training/         # RL/training utilities
-  examples/         # Sample agents
-docs/vendors/*      # Generated vendor docs (via docs:generate)
+apps/* → packages/* → contracts
 ```
-Target adds `apps/server`, `apps/daemon`, `apps/agents`, and moves domain into `packages/core/*` + infra into `packages/shared/infra`.
+- Apps import from packages (engine, agents, api, db, shared)
+- Packages import shared utilities and contracts
+- No circular dependencies allowed
 
-## Working rules
-- Keep app layers thin: validate → call service → map errors. Current handlers are Next.js; write them so they can move to Elysia without Next-only assumptions.
-- Domain logic goes into packages (`engine`/`agents` now; `core-*` later). Avoid domain code in React components or route handlers.
-- No Drizzle/Redis/HTTP inside domain modules; use `@babylon/api` for server-only concerns (auth, rate limit, SSE, token counting, storage).
-- Tests: unit in `core-*`, integration in `apps/server` for routes, E2E later for critical flows.
-- Naming: PascalCase components; camelCase hooks/vars; kebab-case packages; 2-space indent.
-- Commits: concise, imperative, prefixed (`feat: ...`, `fix: ...`, `chore: ...`).
-- Keep `.env.example` current: add new envs with defaults/comments, mark optional vs required, keep it organized.
-- Strive for clean, efficient, DRY code that favors clarity, maintainability, good DX, and performance.
-- Env: use a single root `.env` (see `.env.example`); avoid per-app envs unless explicitly needed.
-- When calling or designing around external libraries/frameworks (Elysia, Drizzle, Bun, Privy, etc.), prefer reading the local vendor docs in `docs/vendors/{vendor}` first; if absent, propose running `bun run docs:generate` instead of guessing APIs or behavior.
+### Key Packages
+- **engine:** Game world, perpetuals, simulation logic (domain)
+- **agents:** Agent runtime, Agent0/A2A/MCP integrations
+- **api:** Server utilities (auth, rate limit, redis, SSE, token counting)
+- **db:** Drizzle schema and client
+- **shared:** Client-safe types, utils, config
+- **contracts:** Smart contracts (Hardhat + Foundry)
 
-## Env (minimal, adjust per app)
-- Root `.env` is canonical; `scripts/pre-dev/pre-dev-local.ts` will create/refresh it for localnet defaults. Use `.env.local` for Next overrides when needed. `.env.example` must list new vars with comments/defaults/optional vs required.
-- `DATABASE_URL` (Postgres) and auth/model/storage keys per feature; consult `.env.example`.
+## Development Workflow
 
-## Workflow reminder
-1) Design/extend use-case in the right `core-*`.  
-2) Wire API in `packages/api` + `apps/server`.  
-3) Consume in `apps/web`.  
-4) Add tests at the right layer.  
-Keep docs/READMEs updated when boundaries change.
+### Before Marking Work Complete
+**CRITICAL:** Run these commands in sequence:
+1. `bun run typecheck` - Must pass
+2. `bun run lint` - Must have zero warnings
+3. `bun run build` - Must build successfully
+
+Only consider work done after all three pass without errors.
+
+### Code Standards
+- **No defensive try/catch:** Fail fast, handle errors at boundaries
+- **No `any` or `unknown`:** Research proper types, use shared types from `@babylon/shared`
+- **No unnecessary files:** Don't create docs/README unless explicitly requested
+- **Integration over unit tests:** Test against running backend, avoid mocks
+- **Keep handlers thin:** Validate → call service → map errors (portable to Elysia)
+- **Domain stays pure:** No DB/Redis/HTTP in domain modules
+
+### Environment Setup
+1. Copy `.env.example` to `.env`
+2. Run `scripts/pre-dev/pre-dev-local.ts` for localnet defaults
+3. Key variables:
+   - `DATABASE_URL` - Postgres connection
+   - `NEXT_PUBLIC_PRIVY_APP_ID` - Auth
+   - `GROQ_API_KEY` or `OPENAI_API_KEY` - AI models
+   - `CRON_SECRET` - For cron endpoints
+   - `GAME_START` - Control game state (pause/running)
+
+### Git Workflow
+- **Commits:** Imperative mood, prefixed (`feat:`, `fix:`, `chore:`)
+- **Main branch:** `staging` (not `main`)
+- **Pre-commit:** Biome format check via Husky
+
+## Migration Context
+
+Currently migrating architecture while keeping new code portable:
+- Write route handlers to be framework-agnostic (easily portable to Elysia)
+- Keep domain logic in packages, not in React components or route handlers
+- Use `@babylon/api` for server-side concerns (auth, rate limiting, SSE)
+- Prefer reading vendor docs from `docs/vendors/{vendor}` over external sources
+
+## Real-time Features
+- **SSE (Server-Sent Events):** For feed updates, market prices, news, chat
+- **Redis broadcasting:** Optional for production (Upstash Redis for Vercel)
+- **Game ticks:** Via cron job (`/api/cron/game-tick`) or local simulator
+- **Lookahead generation:** Maintains 15-minute content buffer
+
+## Testing Philosophy
+- Test against real backend (database, services running)
+- Integration tests over unit tests (less mocking, more confidence)
+- Use test database for isolation
+- E2E for critical user flows only
+
+## Common Pitfalls to Avoid
+- Don't pipe commands in terminal (harder to debug)
+- Don't create files unless necessary (prefer editing existing)
+- Don't use bash for file operations (use dedicated Read/Write/Edit tools)
+- Don't ignore linter issues from other work-in-progress
+- Always check existing code before writing new implementations

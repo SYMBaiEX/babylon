@@ -480,15 +480,22 @@ export async function getTagStatistics(
 > {
   const last24Hours = new Date(windowEnd.getTime() - 24 * 60 * 60 * 1000);
 
-  const postTagsList = await db.query.postTags.findMany({
+  // Query postTags within time window, then filter out deleted posts
+  const allPostTags = await db.query.postTags.findMany({
     where: (pt, { and: andOp, gte: whereGte, lte: whereLte }) =>
       andOp(
         whereGte(pt.createdAt, windowStart),
         whereLte(pt.createdAt, windowEnd)
       ),
-    with: { tag: true },
+    with: {
+      tag: true,
+      post: true,
+    },
     orderBy: asc(postTags.createdAt),
   });
+
+  // Filter out postTags where the post is deleted
+  const postTagsList = allPostTags.filter((pt) => !pt.post.deletedAt);
 
   const tagStats = new Map<
     string,
