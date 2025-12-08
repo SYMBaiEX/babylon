@@ -150,6 +150,7 @@ import {
 } from '@babylon/api';
 import { db, eq, users } from '@babylon/db';
 import { logger } from '@babylon/shared';
+import type { NextRequest } from 'next/server';
 import type { User as PrivyUser } from '@privy-io/server-auth';
 
 type PrivyWalletLite = {

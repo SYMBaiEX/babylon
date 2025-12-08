@@ -239,6 +239,11 @@ import {
   successResponse,
   withErrorHandling,
 } from '@babylon/api';
+import {
+  generateTagsFromPost,
+  storeTagsForPost,
+  type GeneratedTag,
+} from '@babylon/engine';
 import type { Post } from '@babylon/db';
 import {
   actors,
@@ -1115,6 +1120,29 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     contentLength: content.trim().length,
     hasUsername: Boolean(canonicalUser.username),
   });
+
+  // Generate and store tags asynchronously (don't block response)
+  // This allows posts to be tagged for trending without slowing down the API
+  void generateTagsFromPost(content.trim())
+    .then((generatedTags: GeneratedTag[]) => {
+      if (generatedTags.length > 0) {
+        return storeTagsForPost(post.id, generatedTags).then(() => {
+          logger.info(
+            'Tagged user post',
+            { postId: post.id, tagCount: generatedTags.length },
+            'POST /api/posts'
+          );
+        });
+      }
+      return Promise.resolve();
+    })
+    .catch((tagError: Error) => {
+      logger.warn(
+        'Failed to tag post',
+        { postId: post.id, error: tagError },
+        'POST /api/posts'
+      );
+    });
 
   return successResponse({
     success: true,

@@ -70,6 +70,7 @@ import {
 } from '@babylon/api';
 import {
   actors,
+  and,
   asPublic,
   asUser,
   comments,
@@ -77,6 +78,7 @@ import {
   desc,
   eq,
   inArray,
+  isNull,
   organizations,
   posts,
   postTags,
@@ -164,6 +166,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   }
 
   // Get posts that have any of these tags
+  // Filter out deleted posts to match what users can actually see
   const postTagRelations =
     authUser && authUser.userId
       ? await asUser(authUser, async (db) => {
@@ -182,7 +185,12 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
             })
             .from(postTags)
             .innerJoin(posts, eq(postTags.postId, posts.id))
-            .where(inArray(postTags.tagId, tagIds))
+            .where(
+              and(
+                inArray(postTags.tagId, tagIds),
+                isNull(posts.deletedAt)
+              )
+            )
             .orderBy(desc(postTags.createdAt))
             .limit(limit * 2); // Get more to deduplicate
         })
@@ -202,7 +210,12 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
             })
             .from(postTags)
             .innerJoin(posts, eq(postTags.postId, posts.id))
-            .where(inArray(postTags.tagId, tagIds))
+            .where(
+              and(
+                inArray(postTags.tagId, tagIds),
+                isNull(posts.deletedAt)
+              )
+            )
             .orderBy(desc(postTags.createdAt))
             .limit(limit * 2);
         });
