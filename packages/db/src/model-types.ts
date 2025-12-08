@@ -19,8 +19,6 @@ import type * as schema from './schema';
 // ============================================================================
 
 export type User = InferSelectModel<typeof schema.users>;
-/** @deprecated Use StaticActor from @babylon/engine for static data */
-export type Actor = InferSelectModel<typeof schema.actors>;
 export type ActorStateRow = InferSelectModel<typeof schema.actorState>;
 export type ActorFollow = InferSelectModel<typeof schema.actorFollows>;
 export type ActorRelationship = InferSelectModel<
@@ -36,8 +34,6 @@ export type PerpPosition = InferSelectModel<typeof schema.perpPositions>;
 export type Pool = InferSelectModel<typeof schema.pools>;
 export type PoolPosition = InferSelectModel<typeof schema.poolPositions>;
 export type PoolDeposit = InferSelectModel<typeof schema.poolDeposits>;
-/** @deprecated Use StaticOrganization from @babylon/engine for static data */
-export type Organization = InferSelectModel<typeof schema.organizations>;
 export type OrganizationStateRow = InferSelectModel<
   typeof schema.organizationState
 >;
@@ -145,8 +141,6 @@ export type TickTokenStats = InferSelectModel<typeof schema.tickTokenStats>;
 // ============================================================================
 
 export type NewUser = InferInsertModel<typeof schema.users>;
-/** @deprecated Use NewActorStateRow for dynamic data */
-export type NewActor = InferInsertModel<typeof schema.actors>;
 export type NewActorStateRow = InferInsertModel<typeof schema.actorState>;
 export type NewActorFollow = InferInsertModel<typeof schema.actorFollows>;
 export type NewActorRelationship = InferInsertModel<
@@ -162,8 +156,6 @@ export type NewPerpPosition = InferInsertModel<typeof schema.perpPositions>;
 export type NewPool = InferInsertModel<typeof schema.pools>;
 export type NewPoolPosition = InferInsertModel<typeof schema.poolPositions>;
 export type NewPoolDeposit = InferInsertModel<typeof schema.poolDeposits>;
-/** @deprecated Use NewOrganizationStateRow for dynamic data */
-export type NewOrganization = InferInsertModel<typeof schema.organizations>;
 export type NewOrganizationStateRow = InferInsertModel<
   typeof schema.organizationState
 >;
@@ -333,7 +325,7 @@ export interface ActorRef {
 
 /** Post with author and reactions */
 export type PostWithRelations = Post & {
-  author?: User | Actor | null;
+  author?: User | ActorRef | null;
   reactions?: Reaction[];
   comments?: Comment[];
   shares?: Share[];
@@ -341,15 +333,10 @@ export type PostWithRelations = Post & {
 
 /** Message with sender */
 export type MessageWithSender = Message & {
-  sender?: User | Actor | null;
+  sender?: User | ActorRef | null;
 };
 
-/** @deprecated Use PoolWithActorState for future migration */
-export type PoolWithActor = Pool & {
-  Actor?: Actor | null;
-};
-
-/** Pool with actor state (new pattern)
+/** Pool with actor state
  * For full actor data (name, description, etc.), use StaticDataRegistry.getActor(npcActorId)
  */
 export type PoolWithActorState = Pool & {

@@ -241,7 +241,6 @@ import {
 } from '@babylon/api';
 import type { Post } from '@babylon/db';
 import {
-  actors,
   and,
   comments,
   count,
@@ -256,13 +255,18 @@ import {
   isNull,
   lt,
   lte,
-  organizations,
   posts,
   reactions,
   shares,
   userActorFollows,
   users,
 } from '@babylon/db';
+import {
+  type GeneratedTag,
+  generateTagsFromPost,
+  StaticDataRegistry,
+  storeTagsForPost,
+} from '@babylon/engine';
 import { generateSnowflakeId, logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
@@ -404,9 +408,9 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       ),
     ];
 
-    const [usersList, actorsList, orgsList] = await Promise.all([
+    const usersList =
       authorIds.length > 0
-        ? db
+        ? await db
             .select({
               id: users.id,
               username: users.username,
@@ -415,31 +419,20 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
             })
             .from(users)
             .where(inArray(users.id, authorIds))
-        : [],
-      authorIds.length > 0
-        ? db
-            .select({
-              id: actors.id,
-              name: actors.name,
-              profileImageUrl: actors.profileImageUrl,
-            })
-            .from(actors)
-            .where(inArray(actors.id, authorIds))
-        : [],
-      authorIds.length > 0
-        ? db
-            .select({
-              id: organizations.id,
-              name: organizations.name,
-              imageUrl: organizations.imageUrl,
-            })
-            .from(organizations)
-            .where(inArray(organizations.id, authorIds))
-        : [],
-    ]);
+        : [];
     const userMap = new Map(usersList.map((u) => [u.id, u]));
-    const actorMap = new Map(actorsList.map((a) => [a.id, a]));
-    const orgMap = new Map(orgsList.map((o) => [o.id, o]));
+    const actorMap = new Map(
+      authorIds
+        .map((id) => StaticDataRegistry.getActor(id))
+        .filter((a): a is NonNullable<typeof a> => a !== null)
+        .map((a) => [a.id, { id: a.id, name: a.name, profileImageUrl: a.profileImageUrl }])
+    );
+    const orgMap = new Map(
+      authorIds
+        .map((id) => StaticDataRegistry.getOrganization(id))
+        .filter((o): o is NonNullable<typeof o> => o !== null)
+        .map((o) => [o.id, { id: o.id, name: o.name, imageUrl: o.imageUrl }])
+    );
 
     // Get interaction counts for all filtered posts in parallel
     const postIds = filteredPosts.map((p: Post) => p.id);
@@ -699,9 +692,9 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
   const authorIds = [...new Set([...postAuthorIds, ...originalPostAuthorIds])];
 
-  const [usersList, actorsList, orgsList] = await Promise.all([
+  const usersList =
     authorIds.length > 0
-      ? db
+      ? await db
           .select({
             id: users.id,
             username: users.username,
@@ -710,31 +703,20 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
           })
           .from(users)
           .where(inArray(users.id, authorIds))
-      : [],
-    authorIds.length > 0
-      ? db
-          .select({
-            id: actors.id,
-            name: actors.name,
-            profileImageUrl: actors.profileImageUrl,
-          })
-          .from(actors)
-          .where(inArray(actors.id, authorIds))
-      : [],
-    authorIds.length > 0
-      ? db
-          .select({
-            id: organizations.id,
-            name: organizations.name,
-            imageUrl: organizations.imageUrl,
-          })
-          .from(organizations)
-          .where(inArray(organizations.id, authorIds))
-      : [],
-  ]);
+      : [];
   const userMap = new Map(usersList.map((u) => [u.id, u]));
-  const actorMap = new Map(actorsList.map((a) => [a.id, a]));
-  const orgMap = new Map(orgsList.map((o) => [o.id, o]));
+  const actorMap = new Map(
+    authorIds
+      .map((id) => StaticDataRegistry.getActor(id))
+      .filter((a): a is NonNullable<typeof a> => a !== null)
+      .map((a) => [a.id, { id: a.id, name: a.name, profileImageUrl: a.profileImageUrl }])
+  );
+  const orgMap = new Map(
+    authorIds
+      .map((id) => StaticDataRegistry.getOrganization(id))
+      .filter((o): o is NonNullable<typeof o> => o !== null)
+      .map((o) => [o.id, { id: o.id, name: o.name, imageUrl: o.imageUrl }])
+  );
 
   // Get interaction counts for all posts in parallel
   const postIds = validPosts.map((p) => p.id);
@@ -1089,6 +1071,29 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     contentLength: content.trim().length,
     hasUsername: Boolean(canonicalUser.username),
   });
+
+  // Generate and store tags asynchronously (don't block response)
+  // This allows posts to be tagged for trending without slowing down the API
+  void generateTagsFromPost(content.trim())
+    .then((generatedTags: GeneratedTag[]) => {
+      if (generatedTags.length > 0) {
+        return storeTagsForPost(post.id, generatedTags).then(() => {
+          logger.info(
+            'Tagged user post',
+            { postId: post.id, tagCount: generatedTags.length },
+            'POST /api/posts'
+          );
+        });
+      }
+      return Promise.resolve();
+    })
+    .catch((tagError: Error) => {
+      logger.warn(
+        'Failed to tag post',
+        { postId: post.id, error: tagError },
+        'POST /api/posts'
+      );
+    });
 
   return successResponse({
     success: true,

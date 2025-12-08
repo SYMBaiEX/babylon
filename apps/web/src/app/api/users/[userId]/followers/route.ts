@@ -89,18 +89,17 @@ import {
 } from '@babylon/api';
 import {
   actorFollows,
-  actors,
   and,
   db,
   desc,
   eq,
   followStatuses,
   follows,
-  inArray,
   not,
   userActorFollows,
   users,
 } from '@babylon/db';
+import { StaticDataRegistry } from '@babylon/engine';
 import {
   logger,
   UserFollowersQuerySchema,
@@ -152,31 +151,38 @@ export const GET = withErrorHandling(
       'GET /api/users/[userId]/followers'
     );
 
-    // Check if target is an actor
-    const [targetActor] = await db
-      .select({ id: actors.id })
-      .from(actors)
-      .where(eq(actors.id, targetId))
-      .limit(1);
+    const targetActor = StaticDataRegistry.getActor(targetId);
 
     let followersList: FollowerResponse[] = [];
 
     if (targetActor) {
       // Target is an NPC - get both actor followers and user followers
-      const actorFollowersList = await db
+      const actorFollowRelations = await db
         .select({
           id: actorFollows.id,
           followerId: actorFollows.followerId,
           createdAt: actorFollows.createdAt,
-          followerName: actors.name,
-          followerTier: actors.tier,
-          followerProfileImageUrl: actors.profileImageUrl,
-          followerDescription: actors.description,
         })
         .from(actorFollows)
-        .innerJoin(actors, eq(actorFollows.followerId, actors.id))
         .where(eq(actorFollows.followingId, targetId))
         .orderBy(desc(actorFollows.createdAt));
+
+      // Enrich with static actor data
+      const actorFollowersList = actorFollowRelations
+        .map((rel) => {
+          const followerActor = StaticDataRegistry.getActor(rel.followerId);
+          if (!followerActor) return null;
+          return {
+            id: rel.id,
+            followerId: rel.followerId,
+            createdAt: rel.createdAt,
+            followerName: followerActor.name,
+            followerTier: followerActor.tier,
+            followerProfileImageUrl: followerActor.profileImageUrl,
+            followerDescription: followerActor.description,
+          };
+        })
+        .filter((f): f is NonNullable<typeof f> => f !== null);
 
       const userActorFollowersList = await db
         .select({
@@ -248,20 +254,12 @@ export const GET = withErrorHandling(
         .orderBy(desc(followStatuses.followedAt));
 
       const npcIds = npcFollowersList.map((f) => f.npcId);
-      const npcActors =
-        npcIds.length > 0
-          ? await db
-              .select({
-                id: actors.id,
-                name: actors.name,
-                tier: actors.tier,
-                profileImageUrl: actors.profileImageUrl,
-                description: actors.description,
-              })
-              .from(actors)
-              .where(inArray(actors.id, npcIds))
-          : [];
-      const actorMap = new Map(npcActors.map((actor) => [actor.id, actor]));
+      const actorMap = new Map(
+        npcIds
+          .map((id) => StaticDataRegistry.getActor(id))
+          .filter((a): a is NonNullable<typeof a> => a !== null)
+          .map((a) => [a.id, a])
+      );
 
       followersList = [
         ...userFollows.map((f) => ({

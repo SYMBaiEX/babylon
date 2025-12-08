@@ -10,6 +10,7 @@
  */
 
 import { db } from '@babylon/db';
+import { StaticDataRegistry } from '@babylon/engine';
 
 async function verifyArticleGeneration() {
   console.log('🔍 Starting Article Generation Verification...\n');
@@ -91,15 +92,13 @@ async function verifyArticleGeneration() {
       );
     }
 
-    // 5. Check news organizations
+    // 5. Check news organizations from static registry
     console.log('5️⃣ Checking news organizations...');
-    const newsOrgs = await db.organization.findMany({
-      where: { type: 'media' },
-    });
+    const newsOrgs = StaticDataRegistry.getOrganizationsByType('media');
 
     if (newsOrgs.length === 0) {
       console.log('  ⚠️  No media organizations found');
-      console.log('  ℹ️  Articles require media organizations to be seeded\n');
+      console.log('  ℹ️  Articles require media organizations to be defined in static data\n');
     } else {
       console.log(`  ✅ Found ${newsOrgs.length} news organizations\n`);
     }

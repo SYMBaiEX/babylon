@@ -89,7 +89,7 @@ import {
   sum,
   tradingFees,
 } from '@babylon/db';
-import { FeeService } from '@babylon/engine';
+import { FeeService, StaticDataRegistry } from '@babylon/engine';
 import type { NextRequest } from 'next/server';
 
 // Infer the TradingFee type from the schema
@@ -228,15 +228,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         };
       }
 
-      // Try to find as Actor (NPC)
-      const actor = await db.actor.findUnique({
-        where: { id: item.userId },
-        select: {
-          id: true,
-          name: true,
-          profileImageUrl: true,
-        },
-      });
+      const actor = StaticDataRegistry.getActor(item.userId);
 
       return {
         userId: item.userId,
@@ -333,19 +325,13 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
       // If no user data, try to find actor
       if (!userData) {
-        const actor = await db.actor.findUnique({
-          where: { id: fee.userId },
-          select: {
-            name: true,
-            profileImageUrl: true,
-          },
-        });
+        const actor = StaticDataRegistry.getActor(fee.userId);
 
         if (actor) {
           userData = {
             username: actor.name,
             displayName: actor.name,
-            profileImageUrl: actor.profileImageUrl,
+            profileImageUrl: actor.profileImageUrl ?? null,
             isActor: true,
           };
         }

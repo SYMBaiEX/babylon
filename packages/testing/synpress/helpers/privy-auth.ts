@@ -1,21 +1,13 @@
 /**
  * Privy authentication helpers for synpress tests.
  *
- * Handles wallet connection flow for E2E testing with Privy.
- * This helper attempts to authenticate via wallet connection.
+ * Handles wallet connection flow for E2E testing with Privy using MetaMask.
+ * Uses @synthetixio/synpress for real MetaMask browser extension interaction.
  *
  * @module testing/synpress/helpers/privy-auth
  */
 
 import type { Page } from '@playwright/test';
-
-/**
- * Wallet configuration for testing
- */
-export interface WalletConfig {
-  seedPhrase: string;
-  password: string;
-}
 
 /**
  * Default Anvil test wallet (Account #0)
@@ -28,6 +20,14 @@ export const DEFAULT_ANVIL_WALLET = {
   seedPhrase: 'test test test test test test test test test test test junk',
   password: 'Tester@1234',
 } as const;
+
+/**
+ * Wallet configuration for testing
+ */
+export interface WalletConfig {
+  seedPhrase: string;
+  password: string;
+}
 
 /**
  * Gets wallet configuration from environment variables.
@@ -116,7 +116,7 @@ export async function waitForPrivyReady(
  * @returns true if user menu is visible
  */
 export async function isAuthenticated(page: Page): Promise<boolean> {
-  return await page
+  return page
     .locator('[data-testid="user-menu"]')
     .first()
     .isVisible({ timeout: 3000 })
@@ -124,19 +124,21 @@ export async function isAuthenticated(page: Page): Promise<boolean> {
 }
 
 /**
- * Login with wallet via Privy.
+ * Login with MetaMask wallet via Privy.
  *
- * This function attempts the wallet connection flow:
- * 1. Click login button to open Privy modal
- * 2. Select wallet connection option
- * 3. Wait for wallet popup handling
- *
- * Note: For full wallet integration, you need a browser extension
- * or Synpress wallet setup. This helper handles the UI flow.
+ * This function:
+ * 1. Opens the Privy login modal
+ * 2. Selects MetaMask wallet option
+ * 3. Handles MetaMask connection approval via Synpress
+ * 4. Waits for authentication to complete
  *
  * @param page - Playwright page instance
+ * @param metamask - Synpress MetaMask instance (optional, for auto-approve)
  */
-export async function loginWithWallet(page: Page): Promise<void> {
+export async function loginWithWallet(
+  page: Page,
+  metamask?: { connectToDapp: () => Promise<void> }
+): Promise<void> {
   await waitForPrivyReady(page);
 
   // Check if already logged in
@@ -179,27 +181,43 @@ export async function loginWithWallet(page: Page): Promise<void> {
     await page.waitForTimeout(1000);
   }
 
-  // Try to select wallet connection option
+  // Try to select MetaMask connection option
   const walletSelectors = [
     'button:has-text("MetaMask")',
     'button:has-text("Continue with a wallet")',
     'button:has-text("Wallet")',
   ];
 
+  let walletClicked = false;
   for (const selector of walletSelectors) {
     const walletButton = page.locator(selector).first();
     if (await walletButton.isVisible({ timeout: 1000 }).catch(() => false)) {
       await walletButton.click({ force: true, timeout: 5000 });
-      await page.waitForTimeout(2000);
+      walletClicked = true;
+      await page.waitForTimeout(1000);
       break;
     }
   }
 
-  // Close modal if still open to allow test to continue
+  // If Synpress metamask instance provided, auto-approve the connection
+  if (walletClicked && metamask) {
+    try {
+      await metamask.connectToDapp();
+      await page.waitForTimeout(2000);
+    } catch (_err) {
+      // MetaMask popup may not appear if already connected
+      console.log('MetaMask connect skipped (may already be connected)');
+    }
+  } else if (walletClicked) {
+    // Wait for manual connection or timeout
+    await page.waitForTimeout(3000);
+  }
+
+  // Close modal if still open
   await closePrivyModal(page);
 
   // Wait for authentication to complete
-  await page.waitForTimeout(3000);
+  await page.waitForTimeout(2000);
 }
 
 /**
@@ -234,7 +252,9 @@ export async function logout(page: Page): Promise<void> {
   await page.waitForTimeout(500);
 
   const logoutButton = page
-    .locator('button:has-text("Log out"), button:has-text("Sign out")')
+    .locator(
+      'button:has-text("Logout"), button:has-text("Log out"), button:has-text("Sign out")'
+    )
     .first();
 
   if (await logoutButton.isVisible({ timeout: 2000 }).catch(() => false)) {
@@ -254,7 +274,7 @@ export function getPrivyTestAccount(): PrivyTestAccount {
 }
 
 export function hasPrivyTestCredentials(): boolean {
-  return hasWalletCredentials();
+  return true; // Always return true since we use wallet auth now
 }
 
 /**

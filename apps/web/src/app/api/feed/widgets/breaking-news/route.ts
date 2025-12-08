@@ -86,7 +86,6 @@
 
 import { optionalAuth, successResponse, withErrorHandling } from '@babylon/api';
 import {
-  actors,
   and,
   asPublic,
   asUser,
@@ -96,11 +95,12 @@ import {
   isNull,
   lte,
   notInArray,
-  organizations,
+  organizationState,
   posts,
   stockPrices,
   worldEvents,
 } from '@babylon/db';
+import { StaticDataRegistry } from '@babylon/engine';
 import {
   BreakingNewsQuerySchema,
   FEED_WIDGET_CONFIG,
@@ -226,11 +226,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
                 ? event.actors[0]
                 : undefined;
             if (firstActorId) {
-              const [actor] = await db
-                .select({ profileImageUrl: actors.profileImageUrl })
-                .from(actors)
-                .where(eq(actors.id, firstActorId))
-                .limit(1);
+              const actor = StaticDataRegistry.getActor(firstActorId);
               imageUrl = actor?.profileImageUrl || undefined;
             }
 
@@ -263,27 +259,27 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
           // 2. Get organization price updates (any significant changes, not just ATHs)
           const priceUpdatesRaw = await db
-            .select({
-              stockPrice: stockPrices,
-              organization: {
-                id: organizations.id,
-                name: organizations.name,
-                currentPrice: organizations.currentPrice,
-                type: organizations.type,
-              },
-            })
+            .select()
             .from(stockPrices)
-            .leftJoin(
-              organizations,
-              eq(stockPrices.organizationId, organizations.id)
-            )
             .orderBy(desc(stockPrices.timestamp))
             .limit(FEED_WIDGET_CONFIG.MAX_PRICE_UPDATES_QUERY);
 
-          const priceUpdates = priceUpdatesRaw.map((row) => ({
-            ...row.stockPrice,
-            organization: row.organization,
-          }));
+          const orgStates = await db.select().from(organizationState);
+          const orgStateMap = new Map(orgStates.map((s) => [s.id, s]));
+
+          const priceUpdates = priceUpdatesRaw.map((stockPrice) => {
+            const staticOrg = StaticDataRegistry.getOrganization(stockPrice.organizationId);
+            const orgState = orgStateMap.get(stockPrice.organizationId);
+            return {
+              ...stockPrice,
+              organization: staticOrg ? {
+                id: staticOrg.id,
+                name: staticOrg.name,
+                currentPrice: orgState?.currentPrice ?? null,
+                type: staticOrg.type,
+              } : null,
+            };
+          });
 
           // Find any price changes using configurable thresholds
           const significantPriceUpdates = priceUpdates
@@ -336,43 +332,30 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
           }
 
           // 3. Get recent posts from actors (broader criteria for news-worthy content)
-          // First get all actor IDs
-          const allActors = await db.select({ id: actors.id }).from(actors);
+          const allActors = StaticDataRegistry.getAllActors();
           const actorIds = new Set(allActors.map((a) => a.id));
 
-          // Get recent posts and filter for actor posts
-          // Only show posts up to current time (prevent future access)
           const recentPosts = await db
             .select()
             .from(posts)
             .where(
               and(
-                isNull(posts.deletedAt), // Filter out deleted posts
-                lte(posts.timestamp, currentTime) // ✅ No future posts
+                isNull(posts.deletedAt),
+                lte(posts.timestamp, currentTime)
               )
             )
             .orderBy(desc(posts.timestamp))
             .limit(FEED_WIDGET_CONFIG.MAX_POSTS_QUERY);
 
-          // Get actor data for posts authored by actors
           const actorPostIds = recentPosts
             .filter((post) => actorIds.has(post.authorId))
             .map((post) => post.authorId);
 
-          const actorsData = await db
-            .select()
-            .from(actors)
-            .where(inArray(actors.id, Array.from(new Set(actorPostIds))));
           const actorsMap = new Map(
-            actorsData.map((a) => [
-              a.id,
-              {
-                id: a.id,
-                name: a.name,
-                profileImageUrl: (a as { profileImageUrl?: string })
-                  .profileImageUrl,
-              },
-            ])
+            Array.from(new Set(actorPostIds))
+              .map((id) => StaticDataRegistry.getActor(id))
+              .filter((a): a is NonNullable<typeof a> => a !== null)
+              .map((a) => [a.id, { id: a.id, name: a.name, profileImageUrl: a.profileImageUrl }])
           );
 
           // Broader filter for news-worthy posts from actors
@@ -631,11 +614,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
                 ? event.actors[0]
                 : undefined;
             if (firstActorId) {
-              const [actor] = await db
-                .select({ profileImageUrl: actors.profileImageUrl })
-                .from(actors)
-                .where(eq(actors.id, firstActorId))
-                .limit(1);
+              const actor = StaticDataRegistry.getActor(firstActorId);
               imageUrl = actor?.profileImageUrl || undefined;
             }
 
@@ -668,27 +647,27 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
           // 2. Get organization price updates (any significant changes, not just ATHs)
           const priceUpdatesRaw = await db
-            .select({
-              stockPrice: stockPrices,
-              organization: {
-                id: organizations.id,
-                name: organizations.name,
-                currentPrice: organizations.currentPrice,
-                type: organizations.type,
-              },
-            })
+            .select()
             .from(stockPrices)
-            .leftJoin(
-              organizations,
-              eq(stockPrices.organizationId, organizations.id)
-            )
             .orderBy(desc(stockPrices.timestamp))
             .limit(FEED_WIDGET_CONFIG.MAX_PRICE_UPDATES_QUERY);
 
-          const priceUpdates = priceUpdatesRaw.map((row) => ({
-            ...row.stockPrice,
-            organization: row.organization,
-          }));
+          const orgStates = await db.select().from(organizationState);
+          const orgStateMap = new Map(orgStates.map((s) => [s.id, s]));
+
+          const priceUpdates = priceUpdatesRaw.map((stockPrice) => {
+            const staticOrg = StaticDataRegistry.getOrganization(stockPrice.organizationId);
+            const orgState = orgStateMap.get(stockPrice.organizationId);
+            return {
+              ...stockPrice,
+              organization: staticOrg ? {
+                id: staticOrg.id,
+                name: staticOrg.name,
+                currentPrice: orgState?.currentPrice ?? null,
+                type: staticOrg.type,
+              } : null,
+            };
+          });
 
           // Find any price changes using configurable thresholds
           const significantPriceUpdates = priceUpdates
@@ -741,43 +720,30 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
           }
 
           // 3. Get recent posts from actors (broader criteria for news-worthy content)
-          // First get all actor IDs
-          const allActors = await db.select({ id: actors.id }).from(actors);
+          const allActors = StaticDataRegistry.getAllActors();
           const actorIds = new Set(allActors.map((a) => a.id));
 
-          // Get recent posts and filter for actor posts
-          // Only show posts up to current time (prevent future access)
           const recentPosts = await db
             .select()
             .from(posts)
             .where(
               and(
-                isNull(posts.deletedAt), // Filter out deleted posts
-                lte(posts.timestamp, currentTime) // ✅ No future posts
+                isNull(posts.deletedAt),
+                lte(posts.timestamp, currentTime)
               )
             )
             .orderBy(desc(posts.timestamp))
             .limit(FEED_WIDGET_CONFIG.MAX_POSTS_QUERY);
 
-          // Get actor data for posts authored by actors
           const actorPostIds = recentPosts
             .filter((post) => actorIds.has(post.authorId))
             .map((post) => post.authorId);
 
-          const actorsData = await db
-            .select()
-            .from(actors)
-            .where(inArray(actors.id, Array.from(new Set(actorPostIds))));
           const actorsMap = new Map(
-            actorsData.map((a) => [
-              a.id,
-              {
-                id: a.id,
-                name: a.name,
-                profileImageUrl: (a as { profileImageUrl?: string })
-                  .profileImageUrl,
-              },
-            ])
+            Array.from(new Set(actorPostIds))
+              .map((id) => StaticDataRegistry.getActor(id))
+              .filter((a): a is NonNullable<typeof a> => a !== null)
+              .map((a) => [a.id, { id: a.id, name: a.name, profileImageUrl: a.profileImageUrl }])
           );
 
           // Broader filter for news-worthy posts from actors

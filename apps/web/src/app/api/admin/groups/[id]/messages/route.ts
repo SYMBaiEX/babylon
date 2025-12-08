@@ -68,6 +68,7 @@ import {
   withErrorHandling,
 } from '@babylon/api';
 import { db } from '@babylon/db';
+import { StaticDataRegistry } from '@babylon/engine';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 
@@ -136,28 +137,20 @@ export const GET = withErrorHandling(
       take: limit,
     });
 
-    // Get sender details
     const senderIds = [...new Set(messages.map((m) => m.senderId))];
-    const [users, actors] = await Promise.all([
-      db.user.findMany({
-        where: { id: { in: senderIds } },
-        select: {
-          id: true,
-          username: true,
-          displayName: true,
-          isActor: true,
-          profileImageUrl: true,
-        },
-      }),
-      db.actor.findMany({
-        where: { id: { in: senderIds } },
-        select: {
-          id: true,
-          name: true,
-          profileImageUrl: true,
-        },
-      }),
-    ]);
+    const users = await db.user.findMany({
+      where: { id: { in: senderIds } },
+      select: {
+        id: true,
+        username: true,
+        displayName: true,
+        isActor: true,
+        profileImageUrl: true,
+      },
+    });
+    const actors = senderIds
+      .map((id) => StaticDataRegistry.getActor(id))
+      .filter((a): a is NonNullable<typeof a> => a !== null);
 
     const enrichedMessages = messages.map((m) => {
       const user = users.find((u) => u.id === m.senderId);

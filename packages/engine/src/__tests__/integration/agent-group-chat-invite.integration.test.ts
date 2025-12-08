@@ -110,17 +110,7 @@ async function createTestNPC(
 ): Promise<{ id: string; name: string }> {
   const id = await generateSnowflakeId();
 
-  await db.actor.create({
-    data: {
-      id,
-      name,
-      description: 'Test NPC for agent integration testing',
-      domain: ['test', 'trading', 'ai'],
-      isTest: true,
-      updatedAt: new Date(),
-    },
-  });
-
+  // Create user with isActor: true (this is the new pattern - no separate actors table)
   await db.user.create({
     data: {
       id,
@@ -128,6 +118,14 @@ async function createTestNPC(
       displayName: name,
       isActor: true, // NPCs have isActor: true
       isTest: true,
+      updatedAt: new Date(),
+    },
+  });
+
+  // Create actorState for dynamic data
+  await db.actorState.create({
+    data: {
+      id,
       updatedAt: new Date(),
     },
   });
@@ -391,7 +389,7 @@ async function cleanupTestData(): Promise<void> {
     await db.user.deleteMany({ where: { id: { in: testIds.userIds } } });
   }
   if (testIds.actorIds.length > 0) {
-    await db.actor.deleteMany({ where: { id: { in: testIds.actorIds } } });
+    await db.actorState.deleteMany({ where: { id: { in: testIds.actorIds } } });
   }
 
   // Reset all tracking arrays

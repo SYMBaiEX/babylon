@@ -47,6 +47,7 @@ import { SubgraphClient } from '@babylon/agents';
 import { optionalAuth, successResponse, withErrorHandling } from '@babylon/api';
 import type { DrizzleClient } from '@babylon/db';
 import { asPublic } from '@babylon/db';
+import { StaticDataRegistry } from '@babylon/engine';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 
@@ -171,29 +172,34 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     return await asPublic(dbOperation);
   };
 
-  // Fetch actors (NPCs) from database
   const fetchActors = async () => {
     const dbOperation = async (db: DrizzleClient) => {
-      const where = search
-        ? {
-            OR: [
-              { name: { contains: search, mode: 'insensitive' as const } },
-              {
-                description: {
-                  contains: search,
-                  mode: 'insensitive' as const,
-                },
-              },
-              { role: { contains: search, mode: 'insensitive' as const } },
-            ],
-          }
-        : {};
+      // Get all static actors
+      let actors = StaticDataRegistry.getAllActors();
 
-      const actors = await db.actor.findMany({
-        where,
-        orderBy: { reputationPoints: 'desc' },
-        take: 100,
-      });
+      // Filter by search if provided
+      if (search) {
+        const searchLower = search.toLowerCase();
+        actors = actors.filter(
+          (a) =>
+            a.name.toLowerCase().includes(searchLower) ||
+            a.description?.toLowerCase().includes(searchLower) ||
+            a.role?.toLowerCase().includes(searchLower)
+        );
+      }
+
+      // Get dynamic state for all actors
+      const actorStates = await db.actorState.findMany();
+      const stateMap = new Map(actorStates.map((s) => [s.id, s]));
+
+      // Sort by reputationPoints (from state) and take top 100
+      actors = actors
+        .sort((a, b) => {
+          const stateA = stateMap.get(a.id);
+          const stateB = stateMap.get(b.id);
+          return (stateB?.reputationPoints ?? 0) - (stateA?.reputationPoints ?? 0);
+        })
+        .slice(0, 100);
 
       // Get counts for all actors in parallel
       const actorIds = actors.map((a) => a.id);
@@ -219,26 +225,29 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
           ),
         ]);
 
-      return actors.map((actor, index) => ({
-        type: 'actor',
-        id: actor.id,
-        name: actor.name,
-        description: actor.description,
-        imageUrl: actor.profileImageUrl,
-        domain: actor.domain,
-        personality: actor.personality,
-        tier: actor.tier,
-        role: actor.role,
-        balance: actor.tradingBalance.toString(),
-        reputationPoints: actor.reputationPoints,
-        createdAt: actor.createdAt,
-        stats: {
-          pools: poolCounts[index] ?? 0,
-          trades: tradeCounts[index] ?? 0,
-          followers: followerCounts[index] ?? 0,
-          following: followingCounts[index] ?? 0,
-        },
-      }));
+      return actors.map((actor, index) => {
+        const state = stateMap.get(actor.id);
+        return {
+          type: 'actor',
+          id: actor.id,
+          name: actor.name,
+          description: actor.description,
+          imageUrl: actor.profileImageUrl,
+          domain: actor.domain,
+          personality: actor.personality,
+          tier: actor.tier,
+          role: actor.role,
+          balance: state?.tradingBalance?.toString() ?? '10000',
+          reputationPoints: state?.reputationPoints ?? 10000,
+          createdAt: state?.createdAt ?? new Date(),
+          stats: {
+            pools: poolCounts[index] ?? 0,
+            trades: tradeCounts[index] ?? 0,
+            followers: followerCounts[index] ?? 0,
+            following: followingCounts[index] ?? 0,
+          },
+        };
+      });
     };
 
     return await asPublic(dbOperation);

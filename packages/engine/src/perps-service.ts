@@ -9,11 +9,12 @@ import {
   db,
   eq,
   isNull,
-  organizations as organizationsSchema,
+  organizationState,
   perpPositions,
   poolPositions,
 } from '@babylon/db';
 import { PerpetualsEngine } from './PerpetualsEngine';
+import { StaticDataRegistry } from './services/static-data-registry';
 import type { Organization } from './types/shared';
 
 /**
@@ -111,30 +112,22 @@ async function initializePerpsEngine(): Promise<void> {
   if (!perpsEngineInstance) return;
 
   initializing = true;
-  // Get organizations directly from database to avoid module initialization order issues
-  const orgs = await db
-    .select({
-      id: organizationsSchema.id,
-      name: organizationsSchema.name,
-      ticker: organizationsSchema.ticker,
-      description: organizationsSchema.description,
-      type: organizationsSchema.type,
-      canBeInvolved: organizationsSchema.canBeInvolved,
-      initialPrice: organizationsSchema.initialPrice,
-      currentPrice: organizationsSchema.currentPrice,
-    })
-    .from(organizationsSchema);
-  const organizationsList: Organization[] = orgs
+  // Get static organization data from registry and dynamic prices from organizationState
+  const staticOrgs = StaticDataRegistry.getAllOrganizations();
+  const orgStates = await db.select().from(organizationState);
+  const priceMap = new Map(orgStates.map((s) => [s.id, s.currentPrice]));
+
+  const organizationsList: Organization[] = staticOrgs
     .filter((o) => isValidOrgType(o.type))
-    .map((o: (typeof orgs)[number]) => ({
+    .map((o) => ({
       id: o.id,
       name: o.name,
       ticker: o.ticker ?? undefined,
-      description: o.description,
+      description: o.description ?? '',
       type: o.type as Organization['type'],
-      canBeInvolved: o.canBeInvolved,
+      canBeInvolved: o.canBeInvolved ?? true,
       initialPrice: o.initialPrice ?? undefined,
-      currentPrice: o.currentPrice ?? undefined,
+      currentPrice: priceMap.get(o.id) ?? o.initialPrice ?? undefined,
     }));
   perpsEngineInstance.initializeMarkets(organizationsList);
 

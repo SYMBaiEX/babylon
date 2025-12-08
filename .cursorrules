@@ -1,14 +1,13 @@
 # Cursor Rules for Babylon Project
 
-## Pre-Completion Checklist
-
 **CRITICAL**: After each feature development, change, or fix, you MUST run the following commands in sequence before marking the work as done:
 
 1. `bun run typecheck` - Verify TypeScript types are correct
 2. `bun run lint` - Ensure code follows linting rules (max-warnings=0)
-3. `bun run build` - Verify the project builds successfully
+3. Review all of your work and remove any slop, fallbacks, try catch, poor typing, etc, and make new TODOs for anything that is still incomplete
+4. Asssess that you have in fact finished your tasks to 100%
 
-Only after all three commands pass without errors should you consider the work complete and inform the user that the task is done.
+Only after all pass without errors should you consider the work complete and inform the user that the task is done.
 
 If any of these commands fail, you must fix the issues before proceeding.
 
@@ -29,3 +28,5 @@ There are other agents working on stuff. If you see things change or linter issu
 IMPORTANT: DON'T PIPE YOUR COMMANDS. Don't | to tail, head, grep, etc. I want to see the outputs. Otherwise very hard to tell if you are stuck on something.
 
 NEVER generate fake data. Never use synthetic data. Never fake anything. ALWAYS use the real thing, bulid the real thing. Be willing to error or fail building the real thing. Success on fake data is a worse failure.
+
+We have Synpress. Use Synpress and log in with Metamask for testing all auth'd e2e.

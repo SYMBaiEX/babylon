@@ -1,7 +1,5 @@
-import { relations } from 'drizzle-orm';
 import {
   boolean,
-  decimal,
   doublePrecision,
   index,
   integer,
@@ -13,55 +11,17 @@ import {
 import type { JsonValue } from '../types';
 
 /**
- * @deprecated MIGRATION IN PROGRESS
+ * Actor-related tables for NPC interactions and relationships.
  *
- * The `actors` table is being deprecated. Static actor data (name, description,
- * personality, tier, etc.) should be accessed via StaticDataRegistry from
- * @babylon/engine, which loads data from packages/engine/src/data/actors/*.ts
+ * Note: Static actor data (name, personality, tier, etc.) is stored in TypeScript
+ * files and accessed via StaticDataRegistry from @babylon/engine.
  *
- * For dynamic runtime state (tradingBalance, reputationPoints, hasPool),
- * use the new `actorState` table from ./actor-state.ts
+ * Dynamic actor state (tradingBalance, reputationPoints, hasPool) is stored
+ * in the `actorState` table (see actor-state.ts).
  *
- * Migration path:
- * 1. Replace `db.actor.findUnique({ where: { id } })` with:
- *    - Static data: `StaticDataRegistry.getActor(id)` from @babylon/engine
- *    - Dynamic data: `db.actorState.findUnique({ where: { id } })`
- *
- * 2. For queries that join on actors, filter actor IDs in memory using
- *    StaticDataRegistry.getActorsByTier(), getActorsByDomain(), etc.
+ * The tables below track actor-to-actor relationships and interactions,
+ * using actor IDs that reference both the static registry and actorState.
  */
-export const actors = pgTable(
-  'Actor',
-  {
-    id: text('id').primaryKey(),
-    name: text('name').notNull(),
-    description: text('description'),
-    domain: text('domain').array().notNull().default([]),
-    personality: text('personality'),
-    tier: text('tier'),
-    affiliations: text('affiliations').array().notNull().default([]),
-    postStyle: text('postStyle'),
-    postExample: text('postExample').array().notNull().default([]),
-    role: text('role'),
-    initialLuck: text('initialLuck').notNull().default('medium'),
-    initialMood: doublePrecision('initialMood').notNull().default(0),
-    createdAt: timestamp('createdAt', { mode: 'date' }).notNull().defaultNow(),
-    updatedAt: timestamp('updatedAt', { mode: 'date' }).notNull(),
-    hasPool: boolean('hasPool').notNull().default(false),
-    profileImageUrl: text('profileImageUrl'),
-    reputationPoints: integer('reputationPoints').notNull().default(10000),
-    tradingBalance: decimal('tradingBalance', { precision: 18, scale: 2 })
-      .notNull()
-      .default('10000'),
-    isTest: boolean('isTest').notNull().default(false),
-  },
-  (table) => [
-    index('Actor_hasPool_idx').on(table.hasPool),
-    index('Actor_reputationPoints_idx').on(table.reputationPoints),
-    index('Actor_role_idx').on(table.role),
-    index('Actor_tier_idx').on(table.tier),
-  ]
-);
 
 // ActorFollow - NPC follow relationships
 export const actorFollows = pgTable(
@@ -167,86 +127,7 @@ export const npcTrades = pgTable(
   ]
 );
 
-// Relations
-export const actorsRelations = relations(actors, ({ many }) => ({
-  followerActorFollows: many(actorFollows, {
-    relationName: 'ActorFollow_followerIdToActor',
-  }),
-  followingActorFollows: many(actorFollows, {
-    relationName: 'ActorFollow_followingIdToActor',
-  }),
-  actor1Relationships: many(actorRelationships, {
-    relationName: 'ActorRelationship_actor1IdToActor',
-  }),
-  actor2Relationships: many(actorRelationships, {
-    relationName: 'ActorRelationship_actor2IdToActor',
-  }),
-  actor1Interactions: many(npcInteractions, {
-    relationName: 'NPCInteraction_actor1IdToActor',
-  }),
-  actor2Interactions: many(npcInteractions, {
-    relationName: 'NPCInteraction_actor2IdToActor',
-  }),
-  npcTrades: many(npcTrades),
-}));
-
-export const actorFollowsRelations = relations(actorFollows, ({ one }) => ({
-  follower: one(actors, {
-    fields: [actorFollows.followerId],
-    references: [actors.id],
-    relationName: 'ActorFollow_followerIdToActor',
-  }),
-  following: one(actors, {
-    fields: [actorFollows.followingId],
-    references: [actors.id],
-    relationName: 'ActorFollow_followingIdToActor',
-  }),
-}));
-
-export const actorRelationshipsRelations = relations(
-  actorRelationships,
-  ({ one }) => ({
-    actor1: one(actors, {
-      fields: [actorRelationships.actor1Id],
-      references: [actors.id],
-      relationName: 'ActorRelationship_actor1IdToActor',
-    }),
-    actor2: one(actors, {
-      fields: [actorRelationships.actor2Id],
-      references: [actors.id],
-      relationName: 'ActorRelationship_actor2IdToActor',
-    }),
-  })
-);
-
-export const npcInteractionsRelations = relations(
-  npcInteractions,
-  ({ one }) => ({
-    actor1: one(actors, {
-      fields: [npcInteractions.actor1Id],
-      references: [actors.id],
-      relationName: 'NPCInteraction_actor1IdToActor',
-    }),
-    actor2: one(actors, {
-      fields: [npcInteractions.actor2Id],
-      references: [actors.id],
-      relationName: 'NPCInteraction_actor2IdToActor',
-    }),
-  })
-);
-
-export const npcTradesRelations = relations(npcTrades, ({ one }) => ({
-  actor: one(actors, {
-    fields: [npcTrades.npcActorId],
-    references: [actors.id],
-  }),
-}));
-
 // Type exports
-/** @deprecated Use StaticActor from @babylon/engine for static data */
-export type Actor = typeof actors.$inferSelect;
-/** @deprecated Use NewActorStateRow for dynamic data */
-export type NewActor = typeof actors.$inferInsert;
 export type ActorFollow = typeof actorFollows.$inferSelect;
 export type NewActorFollow = typeof actorFollows.$inferInsert;
 export type ActorRelationship = typeof actorRelationships.$inferSelect;

@@ -98,7 +98,6 @@ import {
   withErrorHandling,
 } from '@babylon/api';
 import {
-  actors,
   and,
   db,
   eq,
@@ -106,6 +105,7 @@ import {
   userActorFollows,
   users,
 } from '@babylon/db';
+import { StaticDataRegistry } from '@babylon/engine';
 import {
   generateSnowflakeId,
   logger,
@@ -160,23 +160,9 @@ export const POST = withErrorHandling(
     }
 
     // Check if target exists (could be a user or actor)
-    // If targetUser has isActor flag, we still need to check for Actor record
-    let targetActor: { id: string } | null = null;
-    if (targetUser?.isActor) {
-      const [actor] = await db
-        .select({ id: actors.id })
-        .from(actors)
-        .where(eq(actors.id, targetId))
-        .limit(1);
-      targetActor = actor ?? null;
-    } else if (!targetUser) {
-      const [actor] = await db
-        .select({ id: actors.id })
-        .from(actors)
-        .where(eq(actors.id, targetId))
-        .limit(1);
-      targetActor = actor ?? null;
-    }
+    // Use static registry to check for actor
+    const targetActorStatic = StaticDataRegistry.getActor(targetId);
+    const targetActor = targetActorStatic ? { id: targetActorStatic.id } : null;
 
     // If neither user nor actor found, return error
     // Also error if targetUser has isActor flag but no Actor record exists
@@ -296,18 +282,7 @@ export const POST = withErrorHandling(
 
     const followId = await generateSnowflakeId();
 
-    // Get actor details
-    const [actorDetails] = await db
-      .select({
-        id: actors.id,
-        name: actors.name,
-        description: actors.description,
-        tier: actors.tier,
-        profileImageUrl: actors.profileImageUrl,
-      })
-      .from(actors)
-      .where(eq(actors.id, targetId))
-      .limit(1);
+    const actorDetails = StaticDataRegistry.getActor(targetId);
 
     // Create the follow
     await db.insert(userActorFollows).values({
@@ -539,14 +514,10 @@ export const GET = withErrorHandling(
         isFollowing: !!follow,
       });
     }
-    // Target might be an actor (NPC) - check FollowStatus model
-    const [targetActor] = await db
-      .select({ id: actors.id })
-      .from(actors)
-      .where(eq(actors.id, targetId))
-      .limit(1);
+    // Target might be an actor (NPC) - check static registry
+    const targetActorData = StaticDataRegistry.getActor(targetId);
 
-    if (targetActor) {
+    if (targetActorData) {
       const [userActorFollow] = await db
         .select({ id: userActorFollows.id })
         .from(userActorFollows)

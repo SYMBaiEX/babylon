@@ -1139,14 +1139,14 @@ async function bootstrapTrending(): Promise<void> {
       };
     }
 
-    // Create trending entry
+    // Create trending entry with real post count (0 since no posts are tagged yet)
     const score = (sampleTags.length - i) * 10 + Math.random() * 5;
 
     await db.insert(trendingTags).values({
       id: await generateSnowflakeId(),
       tagId: tag.id,
       score,
-      postCount: Math.floor(Math.random() * 10) + 5,
+      postCount: 0, // Real count - will be updated when trending is calculated
       rank: i + 1,
       windowStart: weekAgo,
       windowEnd: now,

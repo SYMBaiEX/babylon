@@ -64,7 +64,7 @@ import {
   withErrorHandling,
 } from '@babylon/api';
 import { db } from '@babylon/db';
-import { NPCInvestmentManager } from '@babylon/engine';
+import { NPCInvestmentManager, StaticDataRegistry } from '@babylon/engine';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 
@@ -117,13 +117,9 @@ export const POST = withErrorHandling(
       },
     });
 
-    // Get actor details separately if needed
     let actorPersonality: string | null = null;
     if (pool) {
-      const actorDetails = await db.actor.findUnique({
-        where: { id: pool.npcActorId },
-        select: { personality: true },
-      });
+      const actorDetails = StaticDataRegistry.getActor(pool.npcActorId);
       actorPersonality = actorDetails?.personality || null;
     }
 

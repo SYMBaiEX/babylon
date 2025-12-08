@@ -77,6 +77,7 @@
  */
 
 import { db } from '@babylon/db';
+import { StaticDataRegistry } from '@babylon/engine';
 import { PostIdParamSchema } from '@babylon/shared';
 import { type NextRequest, NextResponse } from 'next/server';
 
@@ -125,20 +126,14 @@ export async function GET(
     authorName = userAuthor.displayName || 'Unknown';
     authorUsername = userAuthor.username || null;
   } else {
-    // Check for actor
-    const actor = await db.actor.findUnique({
-      where: { id: post.authorId },
-      select: { name: true },
-    });
+    // Check for actor in static registry
+    const actor = StaticDataRegistry.getActor(post.authorId);
 
     if (actor) {
       authorName = actor.name;
     } else {
-      // Check for organization
-      const org = await db.organization.findUnique({
-        where: { id: post.authorId },
-        select: { name: true },
-      });
+      // Check for organization in static registry
+      const org = StaticDataRegistry.getOrganization(post.authorId);
 
       if (org) {
         authorName = org.name;

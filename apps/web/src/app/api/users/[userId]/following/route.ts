@@ -97,7 +97,6 @@ import {
 } from '@babylon/api';
 import {
   actorFollows,
-  actors,
   and,
   db,
   desc,
@@ -106,6 +105,7 @@ import {
   userActorFollows,
   users,
 } from '@babylon/db';
+import { StaticDataRegistry } from '@babylon/engine';
 import {
   logger,
   UserFollowersQuerySchema,
@@ -160,31 +160,38 @@ export const GET = withErrorHandling(
       'GET /api/users/[userId]/following'
     );
 
-    // Check if target is an actor
-    const [targetActor] = await db
-      .select({ id: actors.id })
-      .from(actors)
-      .where(eq(actors.id, targetId))
-      .limit(1);
+    const targetActor = StaticDataRegistry.getActor(targetId);
 
     let followingList: FollowingResponse[] = [];
 
     if (targetActor) {
       // Target is an NPC - get actors they follow
-      const actorFollowsList = await db
+      const actorFollowRelations = await db
         .select({
           id: actorFollows.id,
           followingId: actorFollows.followingId,
           createdAt: actorFollows.createdAt,
-          followingName: actors.name,
-          followingTier: actors.tier,
-          followingProfileImageUrl: actors.profileImageUrl,
-          followingDescription: actors.description,
         })
         .from(actorFollows)
-        .innerJoin(actors, eq(actorFollows.followingId, actors.id))
         .where(eq(actorFollows.followerId, targetId))
         .orderBy(desc(actorFollows.createdAt));
+
+      // Enrich with static actor data
+      const actorFollowsList = actorFollowRelations
+        .map((rel) => {
+          const followingActor = StaticDataRegistry.getActor(rel.followingId);
+          if (!followingActor) return null;
+          return {
+            id: rel.id,
+            followingId: rel.followingId,
+            createdAt: rel.createdAt,
+            followingName: followingActor.name,
+            followingTier: followingActor.tier,
+            followingProfileImageUrl: followingActor.profileImageUrl,
+            followingDescription: followingActor.description,
+          };
+        })
+        .filter((f): f is NonNullable<typeof f> => f !== null);
 
       followingList = actorFollowsList.map((f) => ({
         id: f.followingId,
@@ -216,20 +223,29 @@ export const GET = withErrorHandling(
         .orderBy(desc(follows.createdAt));
 
       // Get actors being followed (UserActorFollow model)
-      const actorFollowsList = await db
+      const actorFollowRelations = await db
         .select({
           id: userActorFollows.id,
           actorId: userActorFollows.actorId,
           createdAt: userActorFollows.createdAt,
-          actorName: actors.name,
-          actorDescription: actors.description,
-          actorProfileImageUrl: actors.profileImageUrl,
-          actorTier: actors.tier,
         })
         .from(userActorFollows)
-        .leftJoin(actors, eq(userActorFollows.actorId, actors.id))
         .where(eq(userActorFollows.userId, targetId))
         .orderBy(desc(userActorFollows.createdAt));
+
+      // Enrich with static actor data
+      const actorFollowsList = actorFollowRelations.map((rel) => {
+        const actor = StaticDataRegistry.getActor(rel.actorId);
+        return {
+          id: rel.id,
+          actorId: rel.actorId,
+          createdAt: rel.createdAt,
+          actorName: actor?.name ?? null,
+          actorDescription: actor?.description ?? null,
+          actorProfileImageUrl: actor?.profileImageUrl ?? null,
+          actorTier: actor?.tier ?? null,
+        };
+      });
 
       // Check mutual follows if authenticated user is viewing their own following list
       const mutualFollowChecks =

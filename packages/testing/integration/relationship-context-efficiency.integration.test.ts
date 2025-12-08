@@ -34,30 +34,45 @@ describe('Relationship Context Efficiency', () => {
       },
     });
 
-    await db.actor.upsert({
+    // Create test users with isActor: true + actorState for dynamic data
+    await db.user.upsert({
       where: { id: 'efficiency-test-1' },
       update: {},
       create: {
         id: 'efficiency-test-1',
-        name: 'Test Actor',
-        domain: [],
-        affiliations: [],
-        postStyle: 'test',
-        postExample: [],
+        username: 'test-actor',
+        displayName: 'Test Actor',
+        isActor: true,
+        isTest: true,
+        updatedAt: new Date(),
+      },
+    });
+    await db.actorState.upsert({
+      where: { id: 'efficiency-test-1' },
+      update: {},
+      create: {
+        id: 'efficiency-test-1',
         updatedAt: new Date(),
       },
     });
 
-    await db.actor.upsert({
+    await db.user.upsert({
       where: { id: 'efficiency-test-2' },
       update: {},
       create: {
         id: 'efficiency-test-2',
-        name: 'AIlon Musk',
-        domain: [],
-        affiliations: [],
-        postStyle: 'test',
-        postExample: [],
+        username: 'ailon-musk',
+        displayName: 'AIlon Musk',
+        isActor: true,
+        isTest: true,
+        updatedAt: new Date(),
+      },
+    });
+    await db.actorState.upsert({
+      where: { id: 'efficiency-test-2' },
+      update: {},
+      create: {
+        id: 'efficiency-test-2',
         updatedAt: new Date(),
       },
     });
@@ -74,7 +89,10 @@ describe('Relationship Context Efficiency', () => {
         ],
       },
     });
-    await db.actor.deleteMany({
+    await db.actorState.deleteMany({
+      where: { id: { in: ['efficiency-test-1', 'efficiency-test-2'] } },
+    });
+    await db.user.deleteMany({
       where: { id: { in: ['efficiency-test-1', 'efficiency-test-2'] } },
     });
     await db.$disconnect();

@@ -81,6 +81,7 @@ import {
   withErrorHandling,
 } from '@babylon/api';
 import { db } from '@babylon/db';
+import { StaticDataRegistry } from '@babylon/engine';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 
@@ -103,26 +104,19 @@ export const GET = withErrorHandling(
     const { actorId } = params;
 
     // Try to find actor by ID first, then by name (case-insensitive)
-    let actor: { id: string } | null = await db.actor.findUnique({
-      where: { id: actorId },
-      select: { id: true },
-    });
+    let actor = StaticDataRegistry.getActor(actorId);
 
     // If not found by ID, try finding by name
     if (!actor) {
-      actor = await db.actor.findFirst({
-        where: {
-          name: { equals: actorId, mode: 'insensitive' },
-        },
-        select: { id: true },
-      });
+      actor = StaticDataRegistry.getAllActors().find(
+        (a) => a.name.toLowerCase() === actorId.toLowerCase()
+      ) ?? null;
     }
 
     if (!actor) {
       throw new BusinessLogicError(`Actor ${actorId} not found`, 'NOT_FOUND');
     }
 
-    // Use the actual actor ID for all queries
     const actualActorId = actor.id;
 
     // Get follower counts (both from ActorFollow and UserActorFollow)

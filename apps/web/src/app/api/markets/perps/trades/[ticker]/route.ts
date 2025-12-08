@@ -73,6 +73,7 @@ import {
   withErrorHandling,
 } from '@babylon/api';
 import { db } from '@babylon/db';
+import { StaticDataRegistry } from '@babylon/engine';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
@@ -120,27 +121,16 @@ export const GET = withErrorHandling(
     }
 
     // Verify organization/ticker exists - search by ticker field OR id (case-insensitive)
-    // The ticker in the URL may be uppercase (e.g., "BTC") or match the organization id
-    const organization = await db.organization.findFirst({
-      where: {
-        OR: [
-          { ticker: tickerParam },
-          { ticker: tickerParam.toUpperCase() },
-          { ticker: tickerParam.toLowerCase() },
-          { id: tickerParam },
-          { id: tickerParam.toLowerCase() },
-        ],
-      },
-      select: {
-        id: true,
-        name: true,
-        type: true,
-        ticker: true,
-        currentPrice: true,
-      },
-    });
+    const staticOrg = StaticDataRegistry.getAllOrganizations().find(
+      (org) =>
+        org.ticker === tickerParam ||
+        org.ticker === tickerParam.toUpperCase() ||
+        org.ticker === tickerParam.toLowerCase() ||
+        org.id === tickerParam ||
+        org.id === tickerParam.toLowerCase()
+    );
 
-    if (!organization) {
+    if (!staticOrg) {
       logger.warn(
         'Perp market not found for ticker',
         { tickerParam },
@@ -148,6 +138,18 @@ export const GET = withErrorHandling(
       );
       return NextResponse.json({ error: 'Market not found' }, { status: 404 });
     }
+
+    const orgState = await db.organizationState.findUnique({
+      where: { id: staticOrg.id },
+    });
+
+    const organization = {
+      id: staticOrg.id,
+      name: staticOrg.name,
+      type: staticOrg.type,
+      ticker: staticOrg.ticker ?? null,
+      currentPrice: orgState?.currentPrice ?? null,
+    };
 
     // Use the organization's actual ticker or derive from id for perp position lookups
     const perpTicker =

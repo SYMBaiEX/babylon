@@ -74,6 +74,7 @@ import {
   withErrorHandling,
 } from '@babylon/api';
 import { asSystem } from '@babylon/db';
+import { StaticDataRegistry } from '@babylon/engine';
 import { generateSnowflakeId } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
@@ -106,22 +107,15 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   }
 
   // Verify NPC exists
-  const npc = await asSystem(async (db) => {
-    const actor = await db.actor.findUnique({
-      where: { id: npcId },
-      select: { id: true, name: true },
-    });
-
-    if (!actor) {
-      // Try as User with isActor=true
-      return await db.user.findUnique({
-        where: { id: npcId, isActor: true },
-        select: { id: true, displayName: true, username: true },
+  const staticActor = StaticDataRegistry.getActor(npcId);
+  const npc = staticActor
+    ? { id: staticActor.id, name: staticActor.name }
+    : await asSystem(async (db) => {
+        return await db.user.findUnique({
+          where: { id: npcId, isActor: true },
+          select: { id: true, displayName: true, username: true },
+        });
       });
-    }
-
-    return actor;
-  });
 
   if (!npc) {
     return NextResponse.json({ error: 'NPC not found' }, { status: 404 });

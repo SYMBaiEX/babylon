@@ -12,7 +12,7 @@
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import { asSystem, db } from '@babylon/db';
-import { executeGameTick } from '@babylon/engine';
+import { executeGameTick, StaticDataRegistry } from '@babylon/engine';
 import { generateSnowflakeId } from '@babylon/shared';
 
 describe('Trading and Question Generation Integration', () => {
@@ -249,31 +249,31 @@ describe('Trading and Question Generation Integration', () => {
   }, 60000);
 
   test('should update organization prices when NPCs trade', async () => {
-    // Get an organization (company) to track price changes
+    // Get an organization (company) to track price changes from static registry + dynamic state
     // Note: "marketsUpdated" in game tick refers to organization prices, not prediction markets
-    const org = await db.organization.findFirst({
-      where: {
-        type: 'company',
-        ticker: { not: null },
-      },
-      orderBy: { updatedAt: 'desc' },
-    });
+    const staticOrgs = StaticDataRegistry.getOrganizationsByType('company').filter(o => o.ticker);
+    const orgStates = await db.organizationState.findMany();
+    const stateMap = new Map(orgStates.map(s => [s.id, s]));
+    
+    // Find a company with state
+    const staticOrg = staticOrgs.find(o => stateMap.has(o.id));
 
-    // Test requires at least one company
-    expect(org).toBeDefined();
-    if (!org) throw new Error('No organization found');
+    // Test requires at least one company with state
+    expect(staticOrg).toBeDefined();
+    if (!staticOrg) throw new Error('No organization found');
 
-    const beforePrice = org.currentPrice ? Number(org.currentPrice) : null;
+    const orgState = stateMap.get(staticOrg.id);
+    const beforePrice = orgState?.currentPrice ? Number(orgState.currentPrice) : null;
 
     // Run game tick - skipContentGeneration=true for faster test
     const result = await executeGameTick(true);
 
     // Check if organization price was updated
-    const afterOrg = await db.organization.findUnique({
-      where: { id: org.id },
+    const afterOrgState = await db.organizationState.findUnique({
+      where: { id: staticOrg.id },
     });
 
-    expect(afterOrg).toBeTruthy();
+    expect(afterOrgState).toBeTruthy();
 
     // Note: NPCs may choose to hold rather than trade, so we can't always expect price changes.
     // This test verifies the infrastructure works, not that every tick has trading.
@@ -281,8 +281,8 @@ describe('Trading and Question Generation Integration', () => {
     // If we want to verify actual trades, we need to check pool positions.
 
     if (result.marketsUpdated > 0) {
-      const afterPrice = afterOrg?.currentPrice
-        ? Number(afterOrg.currentPrice)
+      const afterPrice = afterOrgState?.currentPrice
+        ? Number(afterOrgState.currentPrice)
         : null;
 
       // Just verify the price is a valid number (may or may not have changed)
@@ -295,7 +295,7 @@ describe('Trading and Question Generation Integration', () => {
       // Log what happened for debugging
       const priceChanged = afterPrice !== beforePrice;
       console.log(
-        `Organization ${org.ticker}: price ${priceChanged ? 'changed' : 'unchanged'} (${beforePrice} -> ${afterPrice})`
+        `Organization ${staticOrg.ticker}: price ${priceChanged ? 'changed' : 'unchanged'} (${beforePrice} -> ${afterPrice})`
       );
     }
 

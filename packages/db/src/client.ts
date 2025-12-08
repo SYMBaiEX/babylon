@@ -1150,12 +1150,6 @@ export interface DrizzleClient {
     InferSelect<typeof schema.users>,
     InferInsert<typeof schema.users>
   >;
-  /** @deprecated Use StaticDataRegistry for static data, actorState for dynamic data */
-  actor: TableRepository<
-    typeof schema.actors,
-    InferSelect<typeof schema.actors>,
-    InferInsert<typeof schema.actors>
-  >;
   actorState: TableRepository<
     typeof schema.actorState,
     InferSelect<typeof schema.actorState>,
@@ -1220,12 +1214,6 @@ export interface DrizzleClient {
     typeof schema.poolDeposits,
     InferSelect<typeof schema.poolDeposits>,
     InferInsert<typeof schema.poolDeposits>
-  >;
-  /** @deprecated Use StaticDataRegistry for static data, organizationState for dynamic data */
-  organization: TableRepository<
-    typeof schema.organizations,
-    InferSelect<typeof schema.organizations>,
-    InferInsert<typeof schema.organizations>
   >;
   organizationState: TableRepository<
     typeof schema.organizationState,
@@ -1670,8 +1658,6 @@ export function createDrizzleClient(drizzle: SchemaDatabase): DrizzleClient {
 
     // Model repositories
     user: new TableRepository(drizzle, schema.users, 'users'),
-    /** @deprecated Use StaticDataRegistry for static data, actorState for dynamic data */
-    actor: new TableRepository(drizzle, schema.actors, 'actors'),
     actorState: new TableRepository(drizzle, schema.actorState, 'actorState'),
     actorFollow: new TableRepository(
       drizzle,
@@ -1704,12 +1690,6 @@ export function createDrizzleClient(drizzle: SchemaDatabase): DrizzleClient {
       drizzle,
       schema.poolDeposits,
       'poolDeposits'
-    ),
-    /** @deprecated Use StaticDataRegistry for static data, organizationState for dynamic data */
-    organization: new TableRepository(
-      drizzle,
-      schema.organizations,
-      'organizations'
     ),
     organizationState: new TableRepository(
       drizzle,

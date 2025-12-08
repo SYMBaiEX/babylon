@@ -79,6 +79,7 @@
  */
 
 import { db } from '@babylon/db';
+import { StaticDataRegistry } from '@babylon/engine';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 
@@ -98,17 +99,7 @@ export async function GET(
 ) {
   const { actorId } = await params;
 
-  // Get actor
-  const actor = await db.actor.findUnique({
-    where: { id: actorId },
-    select: {
-      id: true,
-      name: true,
-      role: true,
-      tier: true,
-      description: true,
-    },
-  });
+  const actor = StaticDataRegistry.getActor(actorId);
 
   if (!actor) {
     return NextResponse.json({ error: 'Actor not found' }, { status: 404 });

@@ -54,7 +54,6 @@
  */
 
 import {
-  actors,
   and,
   db,
   desc,
@@ -65,6 +64,7 @@ import {
   poolPositions,
   pools,
 } from '@babylon/db';
+import { StaticDataRegistry } from '@babylon/engine';
 import { NextResponse } from 'next/server';
 
 export async function GET(request: Request) {
@@ -86,21 +86,13 @@ export async function GET(request: Request) {
     .orderBy(desc(pools.totalValue))
     .limit(limit);
 
-  // Fetch actors for all pools
   const actorIds = poolsList.map((p) => p.npcActorId);
-  const actorsList =
-    actorIds.length > 0
-      ? await db
-          .select({
-            id: actors.id,
-            name: actors.name,
-            profileImageUrl: actors.profileImageUrl,
-            personality: actors.personality,
-          })
-          .from(actors)
-          .where(inArray(actors.id, actorIds))
-      : [];
-  const actorsMap = new Map(actorsList.map((a) => [a.id, a]));
+  const actorsMap = new Map(
+    actorIds
+      .map((id) => StaticDataRegistry.getActor(id))
+      .filter((a): a is NonNullable<typeof a> => a !== null)
+      .map((a) => [a.id, { id: a.id, name: a.name, profileImageUrl: a.profileImageUrl, personality: a.personality }])
+  );
 
   // Fetch open positions for all pools
   const poolIds = poolsList.map((p) => p.id);

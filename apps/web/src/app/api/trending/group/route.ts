@@ -69,7 +69,7 @@ import {
   withErrorHandling,
 } from '@babylon/api';
 import {
-  actors,
+  and,
   asPublic,
   asUser,
   comments,
@@ -77,7 +77,7 @@ import {
   desc,
   eq,
   inArray,
-  organizations,
+  isNull,
   posts,
   postTags,
   reactions,
@@ -85,6 +85,7 @@ import {
   tags,
   users,
 } from '@babylon/db';
+import { StaticDataRegistry } from '@babylon/engine';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
@@ -164,6 +165,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   }
 
   // Get posts that have any of these tags
+  // Filter out deleted posts to match what users can actually see
   const postTagRelations =
     authUser && authUser.userId
       ? await asUser(authUser, async (db) => {
@@ -182,7 +184,9 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
             })
             .from(postTags)
             .innerJoin(posts, eq(postTags.postId, posts.id))
-            .where(inArray(postTags.tagId, tagIds))
+            .where(
+              and(inArray(postTags.tagId, tagIds), isNull(posts.deletedAt))
+            )
             .orderBy(desc(postTags.createdAt))
             .limit(limit * 2); // Get more to deduplicate
         })
@@ -202,7 +206,9 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
             })
             .from(postTags)
             .innerJoin(posts, eq(postTags.postId, posts.id))
-            .where(inArray(postTags.tagId, tagIds))
+            .where(
+              and(inArray(postTags.tagId, tagIds), isNull(posts.deletedAt))
+            )
             .orderBy(desc(postTags.createdAt))
             .limit(limit * 2);
         });
@@ -224,52 +230,42 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
   // Get user info for authors
   const authorIds = [...new Set(uniquePosts.map((pt) => pt.post.authorId))];
-  const [usersList, actorsList, orgsList] =
+  const usersList =
     authUser && authUser.userId
       ? await asUser(authUser, async (db) => {
-          return await Promise.all([
-            db
-              .select({
-                id: users.id,
-                username: users.username,
-                displayName: users.displayName,
-              })
-              .from(users)
-              .where(inArray(users.id, authorIds)),
-            db
-              .select({ id: actors.id, name: actors.name })
-              .from(actors)
-              .where(inArray(actors.id, authorIds)),
-            db
-              .select({ id: organizations.id, name: organizations.name })
-              .from(organizations)
-              .where(inArray(organizations.id, authorIds)),
-          ]);
+          return await db
+            .select({
+              id: users.id,
+              username: users.username,
+              displayName: users.displayName,
+            })
+            .from(users)
+            .where(inArray(users.id, authorIds));
         })
       : await asPublic(async (db) => {
-          return await Promise.all([
-            db
-              .select({
-                id: users.id,
-                username: users.username,
-                displayName: users.displayName,
-              })
-              .from(users)
-              .where(inArray(users.id, authorIds)),
-            db
-              .select({ id: actors.id, name: actors.name })
-              .from(actors)
-              .where(inArray(actors.id, authorIds)),
-            db
-              .select({ id: organizations.id, name: organizations.name })
-              .from(organizations)
-              .where(inArray(organizations.id, authorIds)),
-          ]);
+          return await db
+            .select({
+              id: users.id,
+              username: users.username,
+              displayName: users.displayName,
+            })
+            .from(users)
+            .where(inArray(users.id, authorIds));
         });
 
   const userMap = new Map(usersList.map((u) => [u.id, u]));
-  const actorMap = new Map(actorsList.map((a) => [a.id, a]));
-  const orgMap = new Map(orgsList.map((o) => [o.id, o]));
+  const actorMap = new Map(
+    authorIds
+      .map((id) => StaticDataRegistry.getActor(id))
+      .filter((a): a is NonNullable<typeof a> => a !== null)
+      .map((a) => [a.id, { id: a.id, name: a.name }])
+  );
+  const orgMap = new Map(
+    authorIds
+      .map((id) => StaticDataRegistry.getOrganization(id))
+      .filter((o): o is NonNullable<typeof o> => o !== null)
+      .map((o) => [o.id, { id: o.id, name: o.name }])
+  );
 
   // Get interaction counts using Drizzle's count aggregation
   const [likeCounts, commentCounts, shareCounts] =
