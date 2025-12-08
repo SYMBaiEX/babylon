@@ -93,12 +93,37 @@ const config: Config = {
           '0%': { opacity: '0' },
           '100%': { opacity: '1' },
         },
+        fadeIn: {
+          from: { opacity: '0', transform: 'translateY(20px)' },
+          to: { opacity: '1', transform: 'translateY(0)' },
+        },
+        float: {
+          '0%, 100%': { transform: 'translateY(0px)' },
+          '50%': { transform: 'translateY(-20px)' },
+        },
+        'pulse-glow': {
+          '0%, 100%': {
+            boxShadow: '0 0 20px rgba(var(--primary), 0.5)',
+            transform: 'scale(1)',
+          },
+          '50%': {
+            boxShadow: '0 0 40px rgba(var(--primary), 0.8)',
+            transform: 'scale(1.05)',
+          },
+        },
+        shimmer: {
+          '0%': { backgroundPosition: '200% 0' },
+          '100%': { backgroundPosition: '-200% 0' },
+        },
       },
       animation: {
         'accordion-down': 'accordion-down 0.2s ease-out',
         'accordion-up': 'accordion-up 0.2s ease-out',
         'slide-in': 'slide-in 0.3s ease-out',
         'fade-in': 'fade-in 0.2s ease-out',
+        fadeIn: 'fadeIn 0.8s ease-out forwards',
+        float: 'float 6s ease-in-out infinite',
+        'pulse-slow': 'pulse-glow 3s ease-in-out infinite',
       },
       backdropBlur: {
         xs: '2px',
