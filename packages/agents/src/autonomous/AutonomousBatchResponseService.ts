@@ -189,7 +189,10 @@ export class AutonomousBatchResponseService {
             })
             .join('\n→ ');
 
-            console.log('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! threadContext', threadContext);
+          console.log(
+            '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! threadContext',
+            threadContext
+          );
           interactions.push({
             type: 'comment_on_post',
             id: lastMessage.id,
@@ -215,7 +218,7 @@ export class AutonomousBatchResponseService {
       .where(eq(comments.authorId, agentUserId))
       .orderBy(desc(comments.createdAt))
       .limit(50);
-    
+
     // Filter to only comments on other people's posts
     const myCommentsOnOthersPosts = myComments.filter(
       (c) => !agentPostIds.includes(c.postId)
