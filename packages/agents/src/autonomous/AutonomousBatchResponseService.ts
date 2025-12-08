@@ -58,6 +58,46 @@ interface ResponseDecision {
 
 export class AutonomousBatchResponseService {
   /**
+   * Build a comment thread from a root comment
+   * Returns all comments in the thread in chronological order
+   */
+  private buildCommentThread(
+    rootCommentId: string,
+    allComments: Array<{
+      id: string;
+      parentCommentId: string | null;
+      authorId: string;
+      content: string;
+      createdAt: Date;
+      author?: { displayName: string | null; username: string | null } | null;
+    }>
+  ): typeof allComments {
+    const thread: typeof allComments = [];
+
+    // Start with the root comment
+    const rootComment = allComments.find((c) => c.id === rootCommentId);
+    if (rootComment) {
+      thread.push(rootComment);
+    }
+
+    // Recursively find all replies in the thread
+    const findReplies = (parentId: string) => {
+      const replies = allComments
+        .filter((c) => c.parentCommentId === parentId)
+        .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+
+      for (const reply of replies) {
+        thread.push(reply);
+        findReplies(reply.id); // Recursively get replies to replies
+      }
+    };
+
+    findReplies(rootCommentId);
+
+    return thread;
+  }
+
+  /**
    * Gather all pending interactions that might need responses
    *
    * Collects comments on agent's posts, replies to agent's comments,
@@ -87,13 +127,10 @@ export class AutonomousBatchResponseService {
     const agentPostIds = agentPosts.map((p) => p.id);
 
     if (agentPostIds.length > 0) {
-      const commentsOnPostsRaw = await db.query.comments.findMany({
-        where: (
-          comments,
-          { and: andFn, ne: neFn, gte: gteFn, inArray: inArrayFn }
-        ) =>
+      // Get all comments on agent's posts (including agent's own replies for context)
+      const allCommentsOnPosts = await db.query.comments.findMany({
+        where: (comments, { and: andFn, gte: gteFn, inArray: inArrayFn }) =>
           andFn(
-            neFn(comments.authorId, agentUserId),
             gteFn(comments.createdAt, oneDayAgo),
             inArrayFn(comments.postId, agentPostIds)
           ),
@@ -112,39 +149,80 @@ export class AutonomousBatchResponseService {
             },
           },
         },
-        orderBy: (comments, { desc: descFn }) => [descFn(comments.createdAt)],
-        limit: 20,
+        orderBy: (comments, { asc: ascFn }) => [ascFn(comments.createdAt)],
       });
 
-      console.log('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! commentsOnPostsRaw', commentsOnPostsRaw);
+      console.log(
+        '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! allCommentsOnPosts count',
+        allCommentsOnPosts.length
+      );
 
-      for (const comment of commentsOnPostsRaw) {
-        if (!comment.post) continue;
-        interactions.push({
-          type: 'comment_on_post',
-          id: comment.id,
-          postId: comment.postId,
-          author:
-            comment.author?.displayName ||
-            comment.author?.username ||
-            'Unknown',
-          content: comment.content,
-          context: `Your post: "${comment.post.content}"`,
-          timestamp: comment.createdAt,
-        });
+      // Group comments by their root thread (top-level comments without parentCommentId)
+      // and build thread context
+      const topLevelComments = allCommentsOnPosts.filter(
+        (c) => !c.parentCommentId && c.authorId !== agentUserId
+      );
+
+      for (const topComment of topLevelComments) {
+        if (!topComment.post) continue;
+
+        // Build the full thread for this comment
+        const threadComments = this.buildCommentThread(
+          topComment.id,
+          allCommentsOnPosts
+        );
+
+        // Find the last message in the thread
+        const lastMessage = threadComments[threadComments.length - 1];
+
+        // Only add if the last message is from a user (not the agent)
+        // This means the thread is waiting for agent response
+        if (lastMessage && lastMessage.authorId !== agentUserId) {
+          // Build thread context showing the conversation flow
+          const threadContext = threadComments
+            .map((c) => {
+              const authorName =
+                c.authorId === agentUserId
+                  ? 'You'
+                  : c.author?.displayName || c.author?.username || 'User';
+              return `${authorName}: "${c.content}"`;
+            })
+            .join('\n→ ');
+
+            console.log('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! threadContext', threadContext);
+          interactions.push({
+            type: 'comment_on_post',
+            id: lastMessage.id,
+            postId: topComment.postId,
+            commentId: lastMessage.id, // Reply to the last comment in thread
+            author:
+              lastMessage.author?.displayName ||
+              lastMessage.author?.username ||
+              'Unknown',
+            content: lastMessage.content,
+            context: `Your post: "${topComment.post.content}"\n\nThread:\n${threadContext}`,
+            timestamp: lastMessage.createdAt,
+          });
+        }
       }
     }
 
-    // Get replies to agent's comments
+    // Get replies to agent's comments on OTHER people's posts
+    // (replies on agent's own posts are already handled above with full thread context)
     const myComments = await db
-      .select({ id: comments.id })
+      .select({ id: comments.id, postId: comments.postId })
       .from(comments)
       .where(eq(comments.authorId, agentUserId))
       .orderBy(desc(comments.createdAt))
       .limit(50);
-    const myCommentIds = myComments.map((c) => c.id);
+    
+    // Filter to only comments on other people's posts
+    const myCommentsOnOthersPosts = myComments.filter(
+      (c) => !agentPostIds.includes(c.postId)
+    );
+    const myCommentIdsOnOthersPosts = myCommentsOnOthersPosts.map((c) => c.id);
 
-    if (myCommentIds.length > 0) {
+    if (myCommentIdsOnOthersPosts.length > 0) {
       const repliesToCommentsRaw = await db
         .select({
           reply: comments,
@@ -158,7 +236,7 @@ export class AutonomousBatchResponseService {
         .leftJoin(users, eq(comments.authorId, users.id))
         .where(
           and(
-            inArray(comments.parentCommentId, myCommentIds),
+            inArray(comments.parentCommentId, myCommentIdsOnOthersPosts),
             ne(comments.authorId, agentUserId),
             gte(comments.createdAt, oneDayAgo)
           )
@@ -185,7 +263,10 @@ export class AutonomousBatchResponseService {
         parentComments.map((pc) => [pc.id, pc.content])
       );
 
-      console.log('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! repliesToCommentsRaw', repliesToCommentsRaw);
+      console.log(
+        '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! repliesToCommentsRaw (on other posts)',
+        repliesToCommentsRaw
+      );
 
       for (const row of repliesToCommentsRaw) {
         interactions.push({
@@ -210,11 +291,17 @@ export class AutonomousBatchResponseService {
       .from(chatParticipants)
       .leftJoin(chats, eq(chatParticipants.chatId, chats.id))
       .where(eq(chatParticipants.userId, agentUserId));
-    console.log('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! agentChats', agentChats);
+    console.log(
+      '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! agentChats',
+      agentChats
+    );
 
     for (const chatParticipant of agentChats) {
       const chat = chatParticipant.chat;
-      console.log('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! chat', chat);
+      console.log(
+        '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! chat',
+        chat
+      );
       if (!chat) continue;
 
       // Get recent messages from others in this chat
@@ -230,7 +317,10 @@ export class AutonomousBatchResponseService {
         )
         .orderBy(desc(messages.createdAt))
         .limit(3);
-      console.log('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! chatMessages', chatMessages);
+      console.log(
+        '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! chatMessages',
+        chatMessages
+      );
 
       if (chatMessages.length === 0) continue;
 
@@ -408,16 +498,25 @@ Do NOT include any explanations, only the XML format above.`;
             'AutonomousBatchResponse'
           );
           // Return empty XML response with all false decisions
-          const emptyDecisions = evaluateInteractions.map(() => 'false').join(', ');
-          resolve(`<response>\n<decisions>${emptyDecisions}</decisions>\n</response>`);
+          const emptyDecisions = evaluateInteractions
+            .map(() => 'false')
+            .join(', ');
+          resolve(
+            `<response>\n<decisions>${emptyDecisions}</decisions>\n</response>`
+          );
         }, 30000); // 30 second timeout (larger model needs more time)
       }),
     ]);
 
-    console.log('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! decisionText', decisionText);
+    console.log(
+      '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! decisionText',
+      decisionText
+    );
 
     // Extract <response>...</response> block before parsing
-    const responseMatch = decisionText.match(/<response>([\s\S]*?)<\/response>/i);
+    const responseMatch = decisionText.match(
+      /<response>([\s\S]*?)<\/response>/i
+    );
     if (!responseMatch) {
       logger.warn(
         'No <response> block found in batch evaluation',
@@ -433,9 +532,14 @@ Do NOT include any explanations, only the XML format above.`;
     }
 
     // Parse the extracted XML response
-    const parsed = parseKeyValueXml(responseMatch[0]) as { decisions?: string } | null;
+    const parsed = parseKeyValueXml(responseMatch[0]) as {
+      decisions?: string;
+    } | null;
 
-    console.log('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! parsed XML', parsed);
+    console.log(
+      '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! parsed XML',
+      parsed
+    );
 
     if (!parsed?.decisions) {
       throw new Error(
@@ -475,7 +579,10 @@ Do NOT include any explanations, only the XML format above.`;
       }
     }
 
-    console.log('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! decisions array', decisions);
+    console.log(
+      '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! decisions array',
+      decisions
+    );
 
     return decisions.map((shouldRespond) => ({ shouldRespond }));
   }
@@ -525,7 +632,10 @@ Do NOT include any explanations, only the XML format above.`;
 
     for (let i = 0; i < interactions.length; i++) {
       const interaction = interactions[i];
-      console.log('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! interaction', interaction);
+      console.log(
+        '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! interaction',
+        interaction
+      );
       const decision = decisions[i];
 
       if (!interaction || !decision || !decision.shouldRespond) continue;
@@ -593,18 +703,19 @@ Generate ONLY the response text, nothing else.`;
 
       // Post the response based on type
       if (interaction.type === 'comment_on_post' && interaction.postId) {
-        // Reply to comment on post
+        // Reply TO the specific comment (as a child comment in the thread)
         await db.insert(comments).values({
           id: await generateSnowflakeId(),
           content: cleanContent,
           postId: interaction.postId,
           authorId: agentUserId,
+          parentCommentId: interaction.commentId || interaction.id, // Reply to the specific comment
           createdAt: new Date(),
           updatedAt: new Date(),
         });
         responsesCreated++;
         logger.info(
-          `Agent responded to comment on post ${interaction.postId}`,
+          `Agent replied to comment ${interaction.commentId || interaction.id} on post ${interaction.postId}`,
           undefined,
           'AutonomousBatchResponse'
         );
@@ -713,7 +824,10 @@ Generate ONLY the response text, nothing else.`;
       interactions
     );
 
-    console.log('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! decisions', decisions);
+    console.log(
+      '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! decisions',
+      decisions
+    );
 
     const responseCount = decisions.filter((d) => d.shouldRespond).length;
     logger.info(
@@ -722,7 +836,10 @@ Generate ONLY the response text, nothing else.`;
       'AutonomousBatchResponse'
     );
 
-    console.log('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! responseCount', responseCount);
+    console.log(
+      '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! responseCount',
+      responseCount
+    );
 
     if (responseCount === 0) {
       return 0;
