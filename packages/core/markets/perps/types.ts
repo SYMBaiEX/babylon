@@ -2,6 +2,7 @@ import type {
   BroadcastPort,
   CachePort,
   ClockPort,
+  FeeProcessor,
   FeeConfig,
   WalletPort,
 } from '../shared/common';
@@ -169,4 +170,5 @@ export interface PerpServiceDeps {
   cache?: CachePort;
   clock?: ClockPort;
   fees: FeeConfig;
+  feeProcessor?: FeeProcessor;
 }

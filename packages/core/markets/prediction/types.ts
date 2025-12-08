@@ -2,6 +2,7 @@ import type {
   BroadcastPort,
   CachePort,
   ClockPort,
+  FeeProcessor,
   FeeConfig,
   WalletPort,
 } from '../shared/common';
@@ -33,6 +34,8 @@ export interface PredictionMarketRecord {
   onChainResolved?: boolean;
   oracleCommitTxHash?: string | null;
   oracleRevealTxHash?: string | null;
+  resolutionProofUrl?: string | null;
+  resolutionDescription?: string | null;
   status?: 'active' | 'resolved' | 'cancelled';
   createdAt?: Date;
   updatedAt?: Date;
@@ -69,6 +72,9 @@ export interface PredictionPriceSnapshotRecord {
 export interface PredictionDbPort {
   getMarketById(id: string): Promise<PredictionMarketRecord | null>;
   getMarketsByIds(ids: string[]): Promise<PredictionMarketRecord[]>;
+  listMarkets?(): Promise<PredictionMarketRecord[]>;
+  listUserPositions?(userId: string): Promise<PredictionPositionRecord[]>;
+  getQuestion?(idOrNumber: string): Promise<QuestionRecord | null>;
   createMarketFromQuestion(
     question: QuestionRecord,
     initialLiquidity: number
@@ -85,6 +91,8 @@ export interface PredictionDbPort {
         | 'resolution'
         | 'onChainMarketId'
         | 'onChainResolved'
+        | 'resolutionProofUrl'
+        | 'resolutionDescription'
       >
     >
   ): Promise<PredictionMarketRecord>;
@@ -131,8 +139,12 @@ export interface PredictionTradeResult {
   shares: number;
   avgPrice: number;
   totalCost?: number; // buy
-  netProceeds?: number; // sell
+  totalProceeds?: number; // gross proceeds (sell)
+  netProceeds?: number; // sell (after fee)
   feePaid: number;
+  pnl?: number;
+  remainingShares?: number;
+  positionClosed?: boolean;
   balance?: number;
   market: {
     yesPrice: number;
@@ -152,4 +164,5 @@ export interface PredictionServiceDeps {
   cache?: CachePort;
   clock?: ClockPort;
   fees: FeeConfig;
+  feeProcessor?: FeeProcessor;
 }
