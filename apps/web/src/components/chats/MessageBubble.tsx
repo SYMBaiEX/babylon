@@ -45,12 +45,7 @@ export function MessageBubble({
         </Link>
       )}
       {!isCurrentUser && !sender && (
-        <Avatar
-          id={message.senderId}
-          name={senderName}
-          type="user"
-          size="md"
-        />
+        <Avatar id={message.senderId} name={senderName} type="user" size="md" />
       )}
       <div
         className={cn(

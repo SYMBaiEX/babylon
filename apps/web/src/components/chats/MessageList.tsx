@@ -84,7 +84,9 @@ export function MessageList({
       {/* Messages */}
       {messages.map((msg) => {
         const sender = participants.find((p) => p.id === msg.senderId);
-        const isCurrentUser = currentUserId ? msg.senderId === currentUserId : false;
+        const isCurrentUser = currentUserId
+          ? msg.senderId === currentUserId
+          : false;
 
         return (
           <MessageBubble

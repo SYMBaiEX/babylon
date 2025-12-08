@@ -2,8 +2,8 @@
 
 import { MessageCircle } from 'lucide-react';
 import React from 'react';
-import { ChatListSkeleton } from '@/components/shared/Skeleton';
 import { Separator } from '@/components/shared/Separator';
+import { ChatListSkeleton } from '@/components/shared/Skeleton';
 import { ChatListItem } from './ChatListItem';
 import type { Chat, ChatFilter } from './types';
 

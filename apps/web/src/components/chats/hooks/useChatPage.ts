@@ -40,7 +40,8 @@ export function useChatPage() {
 
   // Group modals
   const [isCreateGroupModalOpen, setIsCreateGroupModalOpen] = useState(false);
-  const [isGroupManagementModalOpen, setIsGroupManagementModalOpen] = useState(false);
+  const [isGroupManagementModalOpen, setIsGroupManagementModalOpen] =
+    useState(false);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
 
   // New DM state
@@ -244,7 +245,14 @@ export function useChatPage() {
     setMessageInput('');
     void loadChats();
     setSending(false);
-  }, [selectedChatId, messageInput, sending, getAccessToken, addMessage, loadChats]);
+  }, [
+    selectedChatId,
+    messageInput,
+    sending,
+    getAccessToken,
+    addMessage,
+    loadChats,
+  ]);
 
   // Leave chat
   const handleLeaveChat = useCallback(async () => {

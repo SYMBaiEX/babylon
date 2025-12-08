@@ -11,7 +11,11 @@ interface ChatListItemProps {
   onSelect: (chatId: string) => void;
 }
 
-export function ChatListItem({ chat, isSelected, onSelect }: ChatListItemProps) {
+export function ChatListItem({
+  chat,
+  isSelected,
+  onSelect,
+}: ChatListItemProps) {
   return (
     <div
       onClick={() => onSelect(chat.id)}
@@ -34,9 +38,7 @@ export function ChatListItem({ chat, isSelected, onSelect }: ChatListItemProps) 
           <Avatar
             id={chat.otherUser?.id || ''}
             name={
-              chat.otherUser?.displayName ||
-              chat.otherUser?.username ||
-              'User'
+              chat.otherUser?.displayName || chat.otherUser?.username || 'User'
             }
             type="user"
             size="md"

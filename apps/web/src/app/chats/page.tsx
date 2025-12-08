@@ -185,10 +185,7 @@ export default function ChatsPage() {
                   onCreateGroup={() => setIsCreateGroupModalOpen(true)}
                 />
 
-                <ChatSearchBar
-                  value={searchQuery}
-                  onChange={setSearchQuery}
-                />
+                <ChatSearchBar value={searchQuery} onChange={setSearchQuery} />
 
                 <ChatList
                   chats={filteredChats}
@@ -251,10 +248,7 @@ export default function ChatsPage() {
                   onCreateGroup={() => setIsCreateGroupModalOpen(true)}
                 />
 
-                <ChatSearchBar
-                  value={searchQuery}
-                  onChange={setSearchQuery}
-                />
+                <ChatSearchBar value={searchQuery} onChange={setSearchQuery} />
 
                 <ChatList
                   chats={filteredChats}

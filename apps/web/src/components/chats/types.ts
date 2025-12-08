@@ -54,7 +54,10 @@ export interface ChatDetails {
 }
 
 // Helper to get the best profile URL identifier (prefer username over id)
-export const getProfilePath = (user: { id: string; username?: string | null }) => {
+export const getProfilePath = (user: {
+  id: string;
+  username?: string | null;
+}) => {
   const identifier = user.username || user.id;
   return `/profile/${identifier}`;
 };
