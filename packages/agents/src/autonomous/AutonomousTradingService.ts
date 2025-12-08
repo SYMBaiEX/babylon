@@ -169,7 +169,7 @@ ${shuffledPerps
   .map((o) => {
     const initial = o.initialPrice ?? 100;
     const current = o.currentPrice ?? initial;
-    const changePercent = ((current - initial) / initial * 100).toFixed(1);
+    const changePercent = (((current - initial) / initial) * 100).toFixed(1);
     const direction = current > initial ? '📈' : current < initial ? '📉' : '➡️';
     return `- ${o.name} @ $${current.toFixed(2)} ${direction} ${changePercent}% from IPO ($${initial})`;
   })
