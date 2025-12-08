@@ -167,11 +167,11 @@ Available Perp Markets:
 ${shuffledPerps
   .slice(0, 5)
   .map((o) => {
-    const initial = o.initialPrice;
-    const current = o.currentPrice;
-    const changePercent = ((current - initial) / initial * 100).toFixed(1);
+    const initial = o.initialPrice ?? 100;
+    const current = o.currentPrice ?? initial;
+    const changePercent = (((current - initial) / initial) * 100).toFixed(1);
     const direction = current > initial ? '📈' : current < initial ? '📉' : '➡️';
-    return `- ${o.name} @ $${current.toFixed(2)} ${direction} ${changePercent}% from IPO ($${initial})`;
+    return `- ${o.ticker}: ${o.name} @ $${current.toFixed(2)} ${direction} ${changePercent}% from IPO ($${initial})`;
   })
   .join('\n')}
 
@@ -451,7 +451,10 @@ ${contextString}`;
       }
     } else if (trade.type === 'perp' && perpMarkets.length > 0) {
       const org = perpMarkets.find(
-        (o) => o.name === trade.market || o.id === trade.market
+        (o) =>
+          o.name === trade.market ||
+          o.id === trade.market ||
+          o.ticker === trade.market
       );
       if (org && trade.amount <= Number(balance.balance)) {
         if (trade.action === 'open_long' || trade.action === 'open_short') {
