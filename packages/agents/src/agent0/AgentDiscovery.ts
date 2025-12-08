@@ -2,17 +2,21 @@
  * Agent Discovery Service
  *
  * Merges local agent registry with Agent0 network discovery
- * to provide comprehensive agent search.
+ * to provide comprehensive agent search with full filter and pagination support.
  */
 
 import type { AgentProfile } from '@babylon/a2a';
 import { AgentRegistryService } from '../services/agent-registry.service';
 import type { UnifiedAgentRegistration } from '../types/agent-registry';
+import { getAgent0Client } from './Agent0Client';
 import { parseCapabilities } from './capabilities-schema';
 import { ReputationBridge } from './ReputationBridge';
 import { type SubgraphAgent, SubgraphClient } from './SubgraphClient';
-// Agent0Client available if needed for future enhancements
 import type {
+  Agent0FeedbackSearchParams,
+  Agent0SearchOptions,
+  Agent0SearchResponse,
+  Agent0SearchResult,
   DiscoveryFilters,
   IAgentDiscoveryService,
   IReputationBridge,
@@ -35,15 +39,21 @@ export class AgentDiscoveryService implements IAgentDiscoveryService {
 
   /**
    * Discover agents from both local registry and Agent0 network
+   * with full filter and pagination support
    */
-  async discoverAgents(filters: DiscoveryFilters): Promise<AgentProfile[]> {
+  async discoverAgents(
+    filters: DiscoveryFilters,
+    options?: Agent0SearchOptions
+  ): Promise<Agent0SearchResponse<AgentProfile>> {
     const results: AgentProfile[] = [];
+    let nextCursor: string | undefined;
 
     // Use discoverAgents() from AgentRegistryService
     // Filter locally for strategies and reputation
     const allLocalAgents = await this.localRegistry.discoverAgents({});
     const localAgents = allLocalAgents.filter(
       (agent: UnifiedAgentRegistration) => {
+        // Apply strategy filter
         if (filters.strategies && filters.strategies.length > 0) {
           const agentStrategies = agent.capabilities?.strategies || [];
           const hasMatchingStrategy = filters.strategies.some((s) =>
@@ -51,12 +61,35 @@ export class AgentDiscoveryService implements IAgentDiscoveryService {
           );
           if (!hasMatchingStrategy) return false;
         }
+
+        // Apply skills filter
+        if (filters.skills && filters.skills.length > 0) {
+          const agentSkills = agent.capabilities?.skills || [];
+          const hasMatchingSkill = filters.skills.some((s) =>
+            agentSkills.includes(s)
+          );
+          if (!hasMatchingSkill) return false;
+        }
+
+        // Apply reputation filter
         if (filters.minReputation !== undefined) {
-          // Map trustLevel (0-4) to reputation (0-100) approximately or use onChainData
           const score =
             agent.onChainData?.reputationScore || agent.trustLevel * 25;
           if (score < filters.minReputation) return false;
         }
+
+        // Apply active filter
+        if (filters.active !== undefined) {
+          const isActive = agent.status === 'ACTIVE';
+          if (filters.active !== isActive) return false;
+        }
+
+        // Apply x402Support filter
+        if (filters.x402Support !== undefined) {
+          const hasX402 = agent.capabilities?.x402Support || false;
+          if (filters.x402Support !== hasX402) return false;
+        }
+
         return true;
       }
     );
@@ -67,23 +100,163 @@ export class AgentDiscoveryService implements IAgentDiscoveryService {
       )
     );
 
+    // Search Agent0 network if enabled
     if (filters.includeExternal && process.env.AGENT0_ENABLED === 'true') {
-      const externalAgents = await this.subgraphClient.searchAgents({
-        strategies: filters.strategies,
-        markets: filters.markets,
-        minTrustScore: filters.minReputation,
-      });
+      try {
+        const agent0Client = getAgent0Client();
 
-      for (const agent0Data of externalAgents) {
-        const profile = await this.transformAgent0Profile(
-          agent0Data,
-          this.reputationBridge
-        );
-        results.push(profile);
+        if (agent0Client.isAvailable()) {
+          const searchResponse = await agent0Client.searchAgents(
+            {
+              skills: filters.skills,
+              strategies: filters.strategies,
+              markets: filters.markets,
+              minReputation: filters.minReputation,
+              active: filters.active,
+              x402Support: filters.x402Support,
+              chains: filters.chains,
+              mcp: filters.mcp,
+              a2a: filters.a2a,
+            },
+            options
+          );
+
+          for (const agent0Data of searchResponse.items) {
+            const profile = await this.transformAgent0SearchResult(
+              agent0Data,
+              this.reputationBridge
+            );
+            results.push(profile);
+          }
+
+          nextCursor = searchResponse.nextCursor;
+        } else {
+          // Fallback to subgraph client
+          const externalAgents = await this.subgraphClient.searchAgents({
+            strategies: filters.strategies,
+            markets: filters.markets,
+            minTrustScore: filters.minReputation,
+          });
+
+          for (const agent0Data of externalAgents) {
+            const profile = await this.transformAgent0Profile(
+              agent0Data,
+              this.reputationBridge
+            );
+            results.push(profile);
+          }
+        }
+      } catch {
+        // Fallback to subgraph client on error
+        const externalAgents = await this.subgraphClient.searchAgents({
+          strategies: filters.strategies,
+          markets: filters.markets,
+          minTrustScore: filters.minReputation,
+        });
+
+        for (const agent0Data of externalAgents) {
+          const profile = await this.transformAgent0Profile(
+            agent0Data,
+            this.reputationBridge
+          );
+          results.push(profile);
+        }
       }
     }
 
-    return this.deduplicateAndSort(results);
+    const deduplicated = this.deduplicateAndSort(results);
+
+    return {
+      items: deduplicated,
+      nextCursor,
+    };
+  }
+
+  /**
+   * Discover agents by reputation using Agent0's feedback-based search
+   */
+  async discoverAgentsByReputation(
+    params: Agent0FeedbackSearchParams,
+    options?: Agent0SearchOptions
+  ): Promise<Agent0SearchResponse<AgentProfile>> {
+    if (process.env.AGENT0_ENABLED !== 'true') {
+      return { items: [] };
+    }
+
+    try {
+      const agent0Client = getAgent0Client();
+
+      if (!agent0Client.isAvailable()) {
+        return { items: [] };
+      }
+
+      const searchResponse = await agent0Client.searchAgentsByReputation(
+        params,
+        options
+      );
+
+      const profiles: AgentProfile[] = [];
+      for (const agent0Data of searchResponse.items) {
+        const profile = await this.transformAgent0SearchResult(
+          agent0Data,
+          this.reputationBridge
+        );
+        profiles.push(profile);
+      }
+
+      return {
+        items: profiles,
+        nextCursor: searchResponse.nextCursor,
+        meta: searchResponse.meta,
+      };
+    } catch {
+      return { items: [] };
+    }
+  }
+
+  /**
+   * Transform Agent0 search result to Babylon AgentProfile format
+   */
+  private async transformAgent0SearchResult(
+    result: Agent0SearchResult,
+    reputationBridge?: IReputationBridge | null
+  ): Promise<AgentProfile> {
+    let reputation;
+    if (reputationBridge) {
+      const aggregated = await reputationBridge.getAggregatedReputation(
+        result.tokenId
+      );
+      reputation = {
+        totalBets: aggregated.totalBets,
+        winningBets: aggregated.winningBets,
+        accuracyScore: aggregated.accuracyScore,
+        trustScore: aggregated.trustScore,
+        totalVolume: aggregated.totalVolume,
+        profitLoss: aggregated.profitLoss,
+        isBanned: aggregated.isBanned,
+      };
+    } else {
+      reputation = {
+        totalBets: 0,
+        winningBets: 0,
+        accuracyScore: result.reputation.accuracyScore,
+        trustScore: result.reputation.trustScore,
+        totalVolume: '0',
+        profitLoss: 0,
+        isBanned: false,
+      };
+    }
+
+    return {
+      agentId: `agent0-${result.tokenId}`,
+      tokenId: result.tokenId,
+      address: result.walletAddress,
+      name: result.name,
+      endpoint: result.capabilities?.a2aEndpoint || '',
+      capabilities: result.capabilities,
+      reputation,
+      isActive: result.active ?? true,
+    };
   }
 
   /**
@@ -162,20 +335,56 @@ export class AgentDiscoveryService implements IAgentDiscoveryService {
   /**
    * Get agent by ID (searches both local and external)
    */
-  async getAgent(agentId: string): Promise<AgentProfile> {
+  async getAgent(agentId: string): Promise<AgentProfile | null> {
+    // Try Agent0 network first for agent0- prefixed IDs
     if (agentId.startsWith('agent0-')) {
       const tokenId = Number.parseInt(agentId.replace('agent0-', ''), 10);
+
+      // Try Agent0Client first
+      if (process.env.AGENT0_ENABLED === 'true') {
+        try {
+          const agent0Client = getAgent0Client();
+          if (agent0Client.isAvailable()) {
+            const profile = await agent0Client.getAgentProfile(tokenId);
+            if (profile) {
+              return {
+                agentId: `agent0-${profile.tokenId}`,
+                tokenId: profile.tokenId,
+                address: profile.walletAddress,
+                name: profile.name,
+                endpoint:
+                  profile.endpoints?.find((e) => e.type === 'A2A')?.value || '',
+                capabilities: profile.capabilities,
+                reputation: {
+                  totalBets: 0,
+                  winningBets: 0,
+                  accuracyScore: profile.reputation.accuracyScore,
+                  trustScore: profile.reputation.trustScore,
+                  totalVolume: '0',
+                  profitLoss: 0,
+                  isBanned: false,
+                },
+                isActive: profile.active ?? true,
+              };
+            }
+          }
+        } catch {
+          // Fallback to subgraph
+        }
+      }
+
+      // Fallback to subgraph client
       const agent0Data = await this.subgraphClient.getAgent(tokenId);
       return this.transformAgent0Profile(agent0Data, this.reputationBridge);
     }
 
-    // Use discoverAgents() and find by ID
+    // Search local registry for non-agent0 IDs
     const allAgents = await this.localRegistry.discoverAgents({});
     const localAgent = allAgents.find(
       (a: UnifiedAgentRegistration) => a.agentId === agentId
     );
     if (!localAgent) {
-      throw new Error(`Agent not found: ${agentId}`);
+      return null;
     }
     return this.mapUnifiedToProfile(localAgent);
   }
@@ -225,4 +434,11 @@ export function getAgentDiscoveryService(): AgentDiscoveryService {
   }
 
   return agentDiscoveryInstance;
+}
+
+/**
+ * Reset the singleton instance (useful for testing)
+ */
+export function resetAgentDiscoveryService(): void {
+  agentDiscoveryInstance = null;
 }
