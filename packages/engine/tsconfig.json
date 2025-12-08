@@ -12,7 +12,9 @@
       "@babylon/db": ["../db/src/index.ts"],
       "@babylon/db/*": ["../db/src/*"],
       "@babylon/contracts": ["../contracts/src/index.ts"],
-      "@babylon/contracts/*": ["../contracts/src/*"]
+      "@babylon/contracts/*": ["../contracts/src/*"],
+      "@babylon/core": ["../core/markets/index.ts"],
+      "@babylon/core/*": ["../core/markets/*"]
     }
   },
   "include": ["src/**/*", "src/**/*.json"],
@@ -20,6 +22,7 @@
   "references": [
     { "path": "../shared" },
     { "path": "../db" },
-    { "path": "../contracts" }
+    { "path": "../contracts" },
+    { "path": "../core" }
   ]
 }

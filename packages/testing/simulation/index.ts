@@ -25,16 +25,6 @@
  */
 
 export {
-  type LiquidityScenarioConfig,
-  LiquiditySimulator,
-  runScenarioComparison,
-  SCENARIOS,
-  type SimulationEvent,
-  type SimulationResult,
-  type TickMetrics,
-} from './liquidity-simulation';
-
-export {
   compareScenarios,
   exportTimeSeriesCSV,
   exportToJSON,

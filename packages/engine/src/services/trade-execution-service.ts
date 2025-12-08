@@ -8,14 +8,15 @@ import {
   actorState,
   db,
   eq,
+  ilike,
   markets,
   npcTrades,
+  organizations,
   poolPositions,
   pools,
   type Transaction,
 } from '@babylon/db';
 import { generateSnowflakeId, logger } from '@babylon/shared';
-import { getReadyPerpsEngine } from '../perps-service';
 import { PredictionPricing } from '../prediction-pricing';
 import type {
   ExecutedTrade,
@@ -29,7 +30,6 @@ import {
   type TradeImpactInput,
 } from './market-impact-service';
 import { PredictionMarketService } from './prediction-market-service';
-import { StaticDataRegistry } from './static-data-registry';
 import { invalidateAfterPredictionTrade } from './trade-cache-invalidation';
 
 export class TradeExecutionService {
@@ -70,20 +70,40 @@ export class TradeExecutionService {
         }
       } catch (error) {
         result.failedTrades++;
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
         result.errors.push({
           npcId: decision.npcId,
           decision,
-          error: error instanceof Error ? error.message : String(error),
+          error: errorMessage,
         });
-        logger.warn(
-          `Trade execution failed for ${decision.npcId}`,
+
+        // Use warn level for expected failures (non-existent organizations, insufficient balance)
+        // Use error level for unexpected system failures
+        const isExpectedFailure =
+          errorMessage.includes('Organization not found') ||
+          errorMessage.includes('Insufficient trading balance') ||
+          errorMessage.includes('Market not found') ||
+          errorMessage.includes('Market already resolved') ||
+          errorMessage.includes('Market expired');
+        const logLevel = isExpectedFailure ? 'warn' : 'error';
+
+        logger[logLevel](
+          `Failed to execute trade for ${decision.npcName}`,
           {
-            npcId: decision.npcId,
-            action: decision.action,
-            error: error instanceof Error ? error.message : String(error),
+            error,
+            decision,
           },
           'TradeExecutionService'
         );
+
+        // FAIL FAST in development: throw on any trade execution error
+        if (process.env.NODE_ENV !== 'production' && !isExpectedFailure) {
+          throw new Error(
+            `[DEV] NPC trade execution failed for ${decision.npcName}: ${errorMessage}`,
+            { cause: error }
+          );
+        }
       }
     }
 
@@ -126,10 +146,14 @@ export class TradeExecutionService {
       throw new Error(`Invalid amount: ${decision.amount}`);
     }
 
-    // Get NPC actor from static registry
-    const staticActor = StaticDataRegistry.getActor(normalizedNpcId);
+    // Get NPC actor
+    const [actor] = await db
+      .select()
+      .from(actorState)
+      .where(eq(actorState.id, normalizedNpcId))
+      .limit(1);
 
-    if (!staticActor) {
+    if (!actor) {
       throw new Error(`Actor not found: ${decision.npcId}`);
     }
 
@@ -141,16 +165,16 @@ export class TradeExecutionService {
 
     // Handle close position
     if (decision.action === 'close_position') {
-      return await this.closePosition(decision, staticActor.id);
+      return await this.closePosition(decision, actor.id);
     }
 
     // Handle open position
     if (decision.action === 'open_long' || decision.action === 'open_short') {
-      return await this.openPerpPosition(decision, staticActor.id);
+      return await this.openPerpPosition(decision, actor.id);
     }
 
     if (decision.action === 'buy_yes' || decision.action === 'buy_no') {
-      return await this.openPredictionPosition(decision, staticActor.id);
+      return await this.openPredictionPosition(decision, actor.id);
     }
 
     throw new Error(`Unknown action: ${decision.action}`);
@@ -170,28 +194,42 @@ export class TradeExecutionService {
     // Try multiple lookup strategies to handle LLM-generated ticker variations
     const tickerUpper = decision.ticker.toUpperCase();
     const tickerLower = decision.ticker.toLowerCase();
-    const allOrgs = StaticDataRegistry.getAllOrganizations();
 
     // Strategy 1: Exact ID match
-    let org = allOrgs.find((o) => o.id === decision.ticker);
+    let [org] = await db
+      .select()
+      .from(organizations)
+      .where(eq(organizations.id, decision.ticker))
+      .limit(1);
 
     // Strategy 2: Ticker field match (case-insensitive)
     if (!org) {
-      org = allOrgs.find((o) => o.ticker?.toUpperCase() === tickerUpper);
+      [org] = await db
+        .select()
+        .from(organizations)
+        .where(ilike(organizations.ticker, tickerUpper))
+        .limit(1);
     }
 
     // Strategy 3: ID contains match (for partial matches)
     if (!org) {
-      org = allOrgs.find((o) => o.id.toLowerCase().includes(tickerLower));
+      [org] = await db
+        .select()
+        .from(organizations)
+        .where(ilike(organizations.id, `%${tickerLower}%`))
+        .limit(1);
     }
 
     // Strategy 4: Name match (normalized - remove spaces, dashes, AI suffixes)
     if (!org) {
       const normalizedTicker = tickerLower.replace(/[^a-z0-9]/g, '');
-      const companyOrgs = allOrgs.filter((o) => o.type === 'company');
+      const orgs = await db
+        .select()
+        .from(organizations)
+        .where(eq(organizations.type, 'company'));
 
-      const matchedOrg = companyOrgs.find((o) => {
-        if (!o.initialPrice) return false;
+      const matchedOrg = orgs.find((o) => {
+        if (!o.currentPrice) return false;
         const normalizedName = o.name.toLowerCase().replace(/[^a-z0-9]/g, '');
         const normalizedOrgTicker = (o.ticker || '')
           .toLowerCase()
@@ -212,7 +250,7 @@ export class TradeExecutionService {
       }
     }
 
-    if (!org) {
+    if (!org?.currentPrice) {
       logger.warn(
         'NPC tried to trade non-existent organization',
         {
@@ -226,22 +264,15 @@ export class TradeExecutionService {
       throw new Error(`Organization not found: ${decision.ticker}`);
     }
 
-    // Use initial price from static data (dynamic price updates handled elsewhere)
-    const currentPrice = org.initialPrice ?? 100;
+    const currentPrice = org.currentPrice;
     const leverage = 5; // Standard leverage
     const side = decision.action === 'open_long' ? 'long' : 'short';
-
-    // Generate transformed ticker for PerpsEngine (matches PerpetualsEngine.generateTicker)
-    // This removes dashes and uppercases the org ID, truncated to 12 chars
-    let engineTicker = org.id.toUpperCase().replace(/-/g, '');
-    if (engineTicker.length > 12) {
-      engineTicker = engineTicker.substring(0, 12);
-    }
 
     // Calculate trading fee (0.1% on position size)
     const positionSize = decision.amount * leverage;
     const feeCalc = FeeService.calculateFee(positionSize);
     const totalCost = decision.amount + feeCalc.feeAmount;
+    const actorName = decision.npcName ?? actorId;
 
     // Calculate liquidation price
     const liquidationDistance = side === 'long' ? 0.8 : 1.2;
@@ -250,16 +281,16 @@ export class TradeExecutionService {
     // Execute in transaction
     const position = await db.transaction(async (tx: Transaction) => {
       // Check and deduct from actor's trading balance (margin + fee)
-      const [actorStateRow] = await tx
+      const [actor] = await tx
         .select()
         .from(actorState)
         .where(eq(actorState.id, actorId))
         .limit(1);
 
-      if (!actorStateRow) throw new Error(`Actor state not found: ${actorId}`);
+      if (!actor) throw new Error(`Actor not found: ${actorId}`);
 
       const availableBalance = Number.parseFloat(
-        actorStateRow.tradingBalance.toString()
+        actor.tradingBalance.toString()
       );
       if (availableBalance < totalCost) {
         throw new Error(
@@ -272,6 +303,7 @@ export class TradeExecutionService {
         .update(actorState)
         .set({
           tradingBalance: String(availableBalance - totalCost),
+          updatedAt: new Date(),
         })
         .where(eq(actorState.id, actorId));
 
@@ -284,12 +316,11 @@ export class TradeExecutionService {
 
       if (!existingPool) {
         const now = new Date();
-        const actorData = StaticDataRegistry.getActor(actorId);
         await tx.insert(pools).values({
           id: actorId,
           npcActorId: actorId,
-          name: `${actorData?.name ?? actorId} Portfolio`,
-          description: `Auto-created portfolio for ${actorData?.name ?? actorId}`,
+          name: `${actorName} Portfolio`,
+          description: `Auto-created portfolio for ${actorName}`,
           isActive: true,
           totalValue: '0',
           totalDeposits: '0',
@@ -346,32 +377,6 @@ export class TradeExecutionService {
         .limit(1);
 
       return pos!;
-    });
-
-    // Add position to perpetuals engine for real-time tracking
-    // Use the transformed ticker that matches PerpsEngine's market indexing
-    const engine = await getReadyPerpsEngine();
-    engine.hydratePosition({
-      id: position.id,
-      userId: actorId,
-      ticker: engineTicker, // Use transformed ticker for engine
-      organizationId: org.id,
-      side,
-      entryPrice: currentPrice,
-      currentPrice,
-      size: positionSize,
-      leverage,
-      liquidationPrice,
-      unrealizedPnL: 0,
-      unrealizedPnLPercent: 0,
-      fundingPaid: 0,
-      openedAt: position.updatedAt,
-      lastUpdated: position.updatedAt,
-    });
-    logger.info('Added NPC position to perpetuals engine', {
-      positionId: position.id,
-      ticker: decision.ticker,
-      actorId,
     });
 
     return {
@@ -444,16 +449,16 @@ export class TradeExecutionService {
     // Execute in transaction
     const position = await db.transaction(async (tx: Transaction) => {
       // Check and deduct from actor's trading balance (amount + fee)
-      const [actorStateRow] = await tx
+      const [actor] = await tx
         .select()
         .from(actorState)
         .where(eq(actorState.id, actorId))
         .limit(1);
 
-      if (!actorStateRow) throw new Error(`Actor state not found: ${actorId}`);
+      if (!actor) throw new Error(`Actor not found: ${actorId}`);
 
       const availableBalance = Number.parseFloat(
-        actorStateRow.tradingBalance.toString()
+        actor.tradingBalance.toString()
       );
       if (availableBalance < totalWithFee) {
         throw new Error(
@@ -466,6 +471,7 @@ export class TradeExecutionService {
         .update(actorState)
         .set({
           tradingBalance: String(availableBalance - totalWithFee),
+          updatedAt: new Date(),
         })
         .where(eq(actorState.id, actorId));
 
@@ -698,20 +704,21 @@ export class TradeExecutionService {
           .where(eq(markets.id, position.marketId!));
 
         // Return proceeds to actor's trading balance
-        const [actorStateRow] = await tx
+        const [actor] = await tx
           .select()
           .from(actorState)
           .where(eq(actorState.id, actorId))
           .limit(1);
 
-        if (actorStateRow) {
+        if (actor) {
           const currentBalance = Number.parseFloat(
-            actorStateRow.tradingBalance.toString()
+            actor.tradingBalance.toString()
           );
           await tx
             .update(actorState)
             .set({
               tradingBalance: String(currentBalance + netProceeds),
+              updatedAt: new Date(),
             })
             .where(eq(actorState.id, actorId));
         }
@@ -800,15 +807,14 @@ export class TradeExecutionService {
     let currentPrice = position.currentPrice;
 
     if (position.marketType === 'perp' && position.ticker) {
-      // Find organization from static registry
-      const tickerLower = position.ticker.toLowerCase();
-      const org = StaticDataRegistry.getAllOrganizations().find((o) =>
-        o.id.toLowerCase().includes(tickerLower)
-      );
+      const [org] = await db
+        .select()
+        .from(organizations)
+        .where(ilike(organizations.id, `%${position.ticker}%`))
+        .limit(1);
 
-      if (org?.initialPrice) {
-        // TODO: Get current price from organizationState if needed
-        currentPrice = org.initialPrice;
+      if (org?.currentPrice) {
+        currentPrice = org.currentPrice;
       }
     } else if (position.marketType === 'prediction' && position.marketId) {
       const [market] = await db
@@ -864,20 +870,21 @@ export class TradeExecutionService {
         .where(eq(poolPositions.id, decision.positionId!));
 
       // Return capital + P&L to actor's trading balance (after fee deduction)
-      const [actorStateRow] = await tx
+      const [actor] = await tx
         .select()
         .from(actorState)
         .where(eq(actorState.id, actorId))
         .limit(1);
 
-      if (actorStateRow) {
+      if (actor) {
         const currentBalance = Number.parseFloat(
-          actorStateRow.tradingBalance.toString()
+          actor.tradingBalance.toString()
         );
         await tx
           .update(actorState)
           .set({
             tradingBalance: String(currentBalance + netReturn),
+            updatedAt: new Date(),
           })
           .where(eq(actorState.id, actorId));
       }
@@ -898,19 +905,6 @@ export class TradeExecutionService {
         reason: decision.reasoning,
       });
     });
-
-    // Remove position from perpetuals engine if it's a perp position
-    if (position.marketType === 'perp') {
-      const engine = await getReadyPerpsEngine();
-      if (engine.hasPosition(position.id)) {
-        engine.closePosition(position.id);
-        logger.info('Removed NPC position from perpetuals engine', {
-          positionId: position.id,
-          ticker: position.ticker,
-          actorId,
-        });
-      }
-    }
 
     return {
       npcId: decision.npcId,

@@ -24,6 +24,7 @@
     "@babylon/contracts": "workspace:*",
     "@babylon/db": "workspace:*",
     "@babylon/engine": "workspace:*",
+    "@babylon/core": "workspace:*",
     "@babylon/shared": "workspace:*",
     "@babylon/testing": "workspace:*",
     "@babylon/training": "workspace:*",
