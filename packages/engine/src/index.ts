@@ -15,6 +15,13 @@ export {
 } from '@babylon/api';
 // Article Generator
 export { type Article, ArticleGenerator } from './ArticleGenerator';
+// Prediction Pricing
+export {
+  calculateExpectedPayout,
+  PredictionPricing,
+  type ShareCalculation,
+  type ShareCalculationWithFees,
+} from '@babylon/core/markets/prediction';
 // Actors Data Loader
 export {
   clearDataCache,
@@ -157,13 +164,6 @@ export {
   type PoolState,
   type RemovePositionResult,
 } from './prediction-concentrated-liquidity';
-// Prediction Pricing
-export {
-  calculateExpectedPayout,
-  PredictionPricing,
-  type ShareCalculation,
-  type ShareCalculationWithFees,
-} from './prediction-pricing';
 // Prompts
 export * from './prompts';
 // Question Manager

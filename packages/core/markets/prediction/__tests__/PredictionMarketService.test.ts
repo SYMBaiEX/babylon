@@ -11,6 +11,7 @@ import type {
   PredictionDbPort,
   PredictionMarketRecord,
   PredictionPositionRecord,
+  PredictionPriceSnapshotRecord,
   PredictionSide,
 } from '../types';
 
@@ -72,7 +73,7 @@ class InMemoryWallet implements WalletPort {
 class InMemoryDb implements PredictionDbPort {
   markets = new Map<string, PredictionMarketRecord>();
   positions = new Map<string, PredictionPositionRecord>();
-  snapshots: Array<Record<string, unknown>> = [];
+  snapshots: PredictionPriceSnapshotRecord[] = [];
   idCounter = 1;
 
   constructor(initialMarket?: PredictionMarketRecord) {
@@ -163,8 +164,10 @@ class InMemoryDb implements PredictionDbPort {
       .map((p) => ({ ...p }));
   }
 
-  async insertPriceSnapshot(snapshot: Record<string, unknown>): Promise<void> {
-    this.snapshots.push(snapshot);
+  async insertPriceSnapshot(
+    snapshot: PredictionPriceSnapshotRecord
+  ): Promise<void> {
+    this.snapshots.push({ ...snapshot });
   }
 }
 

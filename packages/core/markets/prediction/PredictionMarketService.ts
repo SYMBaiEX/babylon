@@ -119,7 +119,7 @@ export class PredictionMarketService {
       source: 'user_trade',
     });
 
-    await this.emitTrade(marketId, {
+    await this.emitTrade({
       type: 'prediction_trade',
       marketId,
       yesPrice: calc.newYesPrice,
@@ -238,11 +238,12 @@ export class PredictionMarketService {
     }
 
     const costBasis = pos.avgPrice * shares;
-    const profitLoss = calc.netProceeds - costBasis;
+    const netProceeds = calc.netProceeds ?? 0;
+    const profitLoss = netProceeds - costBasis;
 
     await this.deps.wallet.credit({
       userId,
-      amount: calc.netProceeds,
+      amount: netProceeds,
       reason: 'pred_sell',
       description: `Sell ${side.toUpperCase()} in ${market.question}`,
       relatedId: marketId,
@@ -266,7 +267,7 @@ export class PredictionMarketService {
       source: 'user_trade',
     });
 
-    await this.emitTrade(marketId, {
+    await this.emitTrade({
       type: 'prediction_trade',
       marketId,
       yesPrice: calc.newYesPrice,
@@ -280,7 +281,7 @@ export class PredictionMarketService {
         action: 'sell',
         side,
         shares,
-        amount: calc.netProceeds,
+        amount: netProceeds,
         price: calc.avgPrice,
         source: 'user_trade',
         timestamp: this.now().toISOString(),
@@ -306,7 +307,7 @@ export class PredictionMarketService {
       shares,
       avgPrice: calc.avgPrice,
       totalProceeds: calc.totalCost,
-      netProceeds: calc.netProceeds,
+      netProceeds,
       feePaid: calc.fee,
       pnl: profitLoss,
       remainingShares: positionClosed ? 0 : remaining,
@@ -378,7 +379,7 @@ export class PredictionMarketService {
       source: 'system',
     });
 
-    await this.emitResolution(marketId, {
+    await this.emitResolution({
       type: 'prediction_resolution',
       marketId,
       winningSide,
@@ -436,15 +437,12 @@ export class PredictionMarketService {
     });
   }
 
-  private async emitTrade(marketId: string, payload: Record<string, unknown>) {
+  private async emitTrade(payload: Record<string, unknown>) {
     if (!this.deps.broadcast) return;
     await this.deps.broadcast.emit('markets', payload);
   }
 
-  private async emitResolution(
-    marketId: string,
-    payload: Record<string, unknown>
-  ) {
+  private async emitResolution(payload: Record<string, unknown>) {
     if (!this.deps.broadcast) return;
     await this.deps.broadcast.emit('markets', payload);
   }

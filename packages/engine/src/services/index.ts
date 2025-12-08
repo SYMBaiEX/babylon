@@ -39,16 +39,6 @@ export {
   EventArcValidator,
 } from './event-arc-validator';
 export * from './onchain-market-service';
-// Prediction Market Service
-export {
-  type BroadcasterFn,
-  type PredictionHistoryEventType,
-  type PredictionHistorySource,
-  PredictionMarketService,
-  type PredictionPriceSnapshot,
-  type PredictionResolutionEvent,
-  type PredictionTradeEvent,
-} from './prediction-market-service';
 export * from './price-update-service';
 export * from './signal-extraction-service';
 export * from './trajectory-market-engine';

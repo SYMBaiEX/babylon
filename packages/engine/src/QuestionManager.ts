@@ -58,6 +58,7 @@
  * ```
  */
 
+import { PredictionPricing } from '@babylon/core/markets/prediction';
 import {
   and,
   Decimal,
@@ -76,7 +77,6 @@ import { type Article, ArticleGenerator } from './ArticleGenerator';
 import type { BabylonLLMClient } from './llm/openai-client';
 import { BabylonLLMClient as BabylonLLMClientValue } from './llm/openai-client';
 import { MarketDecisionEngine } from './MarketDecisionEngine';
-import { PredictionPricing } from './prediction-pricing';
 import {
   generateWorldContext,
   questionGeneration,

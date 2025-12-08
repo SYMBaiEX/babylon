@@ -5,6 +5,10 @@
  */
 
 import {
+  PredictionDbAdapter as CorePredictionDbAdapter,
+  PredictionMarketService as CorePredictionMarketService,
+} from '@babylon/core/markets/prediction';
+import {
   actorRelationships,
   actorState,
   and,
@@ -48,7 +52,6 @@ import { ArticleGenerator } from './ArticleGenerator';
 import { BabylonLLMClient } from './llm/openai-client';
 import { MarketDecisionEngine } from './MarketDecisionEngine';
 import { NPCInvestmentManager } from './npc/npc-investment-manager';
-import { PredictionPricing } from './prediction-pricing';
 import { generateWorldContext } from './prompts';
 import { QuestionManager } from './QuestionManager';
 import { RelationshipEvolutionEngine } from './RelationshipEvolutionEngine';
@@ -69,7 +72,6 @@ import {
   generateOrgPost,
   loadSharedPostContext,
 } from './services/post-generation-helpers';
-import { PredictionMarketService } from './services/prediction-market-service';
 import { PriceUpdateService } from './services/price-update-service';
 import {
   ReputationService,
@@ -2581,8 +2583,6 @@ export async function resolveQuestionPayouts(
   const marketLiquidity = market.liquidity;
   const marketOnChainMarketId = market.onChainMarketId;
   const marketOnChainResolved = market.onChainResolved;
-  const marketYesShares = market.yesShares;
-  const marketNoShares = market.noShares;
 
   const { positionUpdates, totalPayout } = await db.transaction(async (tx) => {
     const positionsList = await tx
@@ -2722,71 +2722,31 @@ export async function resolveQuestionPayouts(
       .where(eq(marketsSchema.id, marketId));
   }
 
-  const [resolvedMarket] = await db
-    .select()
-    .from(marketsSchema)
-    .where(eq(marketsSchema.id, marketId))
-    .limit(1);
-
-  const resolvedYesShares = Number(
-    resolvedMarket?.yesShares ?? marketYesShares ?? 0
-  );
-  const resolvedNoShares = Number(
-    resolvedMarket?.noShares ?? marketNoShares ?? 0
-  );
-  let yesPrice = 0.5;
-  let noPrice = 0.5;
-  if (resolvedYesShares + resolvedNoShares > 0) {
-    yesPrice = PredictionPricing.getCurrentPrice(
-      resolvedYesShares,
-      resolvedNoShares,
-      'yes'
-    );
-    noPrice = PredictionPricing.getCurrentPrice(
-      resolvedYesShares,
-      resolvedNoShares,
-      'no'
-    );
-  } else {
-    yesPrice = winningSide ? 1 : 0;
-    noPrice = winningSide ? 0 : 1;
-  }
-
-  await PredictionMarketService.recordSnapshot({
-    marketId: marketId,
-    yesPrice,
-    noPrice,
-    yesShares: resolvedYesShares,
-    noShares: resolvedNoShares,
-    liquidity: Number(resolvedMarket?.liquidity ?? 0),
-    eventType: 'resolution',
-    source: 'system',
-  }).catch((error) => {
-    logger.warn(
-      'Failed to record price history for resolution',
-      { error, marketId: marketId },
-      'GameTick'
-    );
+  // Emit resolution event via core service (broadcast/cache handled internally)
+  const coreService = new CorePredictionMarketService({
+    db: new CorePredictionDbAdapter(),
+    wallet: {
+      debit: async () => {},
+      credit: async () => {},
+      recordPnL: async () => {},
+      getBalance: async () => ({ balance: 0 }),
+    },
+    cache: {
+      invalidate: () => invalidateAfterPredictionTrade(marketId),
+    },
+    fees: {
+      tradingFeeRate: 0,
+      platformShare: 0,
+      referrerShare: 0,
+      minFeeAmount: 0,
+    },
   });
 
-  await invalidateAfterPredictionTrade(marketId).catch((error) => {
-    logger.warn(
-      'Failed to invalidate prediction cache after resolution',
-      { error, marketId: marketId },
-      'GameTick'
-    );
-  });
-
-  PredictionMarketService.emitResolution({
-    marketId: marketId,
+  await coreService.resolve({
+    marketId,
     winningSide: winningSide ? 'yes' : 'no',
-    yesShares: Number(resolvedMarket?.yesShares ?? marketYesShares ?? 0),
-    noShares: Number(resolvedMarket?.noShares ?? marketNoShares ?? 0),
-    liquidity: Number(resolvedMarket?.liquidity ?? 0),
-    totalPayout,
-    timestamp: resolutionTimestamp.toISOString(),
-    resolutionProofUrl: question.resolutionProofUrl ?? undefined,
     resolutionDescription: question.resolutionDescription ?? undefined,
+    resolutionProofUrl: question.resolutionProofUrl ?? undefined,
   });
 
   logger.info(

@@ -4,7 +4,6 @@ import {
   positions,
   predictionPriceHistories,
   questions,
-  type DBType,
 } from '@babylon/db';
 import { generateSnowflakeId } from '@babylon/shared';
 import type { InferInsertModel } from 'drizzle-orm';
@@ -25,11 +24,10 @@ type NewHistory = InferInsertModel<typeof predictionPriceHistories>;
 const toSideBool = (side: PredictionSide) => side === 'yes';
 const fromSideBool = (side: boolean): PredictionSide => (side ? 'yes' : 'no');
 
+type DbClient = typeof db;
+
 const mapMarket = (m: typeof markets.$inferSelect): PredictionMarketRecord => {
-  const extra = m as unknown as {
-    resolutionProofUrl?: string | null;
-    resolutionDescription?: string | null;
-  };
+  const extra = m as unknown as Partial<PredictionMarketRecord>;
   return {
     id: m.id,
     question: m.question,
@@ -42,10 +40,10 @@ const mapMarket = (m: typeof markets.$inferSelect): PredictionMarketRecord => {
     resolution: m.resolution,
     onChainMarketId: m.onChainMarketId,
     onChainResolved: m.onChainResolved,
-    oracleCommitTxHash: m.oracleCommitTxHash,
-    oracleRevealTxHash: m.oracleRevealTxHash,
-    resolutionProofUrl: extra.resolutionProofUrl,
-    resolutionDescription: extra.resolutionDescription,
+    oracleCommitTxHash: extra.oracleCommitTxHash ?? undefined,
+    oracleRevealTxHash: extra.oracleRevealTxHash ?? undefined,
+    resolutionProofUrl: extra.resolutionProofUrl ?? undefined,
+    resolutionDescription: extra.resolutionDescription ?? undefined,
     createdAt: m.createdAt,
     updatedAt: m.updatedAt,
   };
@@ -69,7 +67,7 @@ const mapPosition = (
 });
 
 export class PredictionDbAdapter implements PredictionDbPort {
-  constructor(private readonly client: DBType = db) {}
+  constructor(private readonly client: DbClient = db) {}
 
   async getMarketById(id: string): Promise<PredictionMarketRecord | null> {
     const [m] = await this.client
@@ -94,9 +92,7 @@ export class PredictionDbAdapter implements PredictionDbPort {
     return rows.map(mapMarket);
   }
 
-  async listUserPositions(
-    userId: string
-  ): Promise<PredictionPositionRecord[]> {
+  async listUserPositions(userId: string): Promise<PredictionPositionRecord[]> {
     const rows = await this.client
       .select()
       .from(positions)
@@ -194,6 +190,8 @@ export class PredictionDbAdapter implements PredictionDbPort {
         | 'resolution'
         | 'onChainMarketId'
         | 'onChainResolved'
+        | 'resolutionProofUrl'
+        | 'resolutionDescription'
       >
     >
   ): Promise<PredictionMarketRecord> {
@@ -210,6 +208,8 @@ export class PredictionDbAdapter implements PredictionDbPort {
         resolution: updates.resolution ?? undefined,
         onChainMarketId: updates.onChainMarketId ?? undefined,
         onChainResolved: updates.onChainResolved ?? undefined,
+        resolutionProofUrl: updates.resolutionProofUrl ?? undefined,
+        resolutionDescription: updates.resolutionDescription ?? undefined,
         updatedAt: new Date(),
       })
       .where(eq(markets.id, marketId))
