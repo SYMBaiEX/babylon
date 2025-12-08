@@ -328,7 +328,6 @@
       "version": "0.1.0",
       "dependencies": {
         "@babylon/db": "workspace:*",
-        "@babylon/engine": "workspace:*",
         "@babylon/shared": "workspace:*",
       },
       "devDependencies": {

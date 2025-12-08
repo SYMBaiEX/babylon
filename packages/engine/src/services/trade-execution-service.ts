@@ -5,7 +5,7 @@
  * Creates positions, updates balances, records trades.
  */
 import {
-  actors,
+  actorState,
   db,
   eq,
   ilike,
@@ -149,8 +149,8 @@ export class TradeExecutionService {
     // Get NPC actor
     const [actor] = await db
       .select()
-      .from(actors)
-      .where(eq(actors.id, normalizedNpcId))
+      .from(actorState)
+      .where(eq(actorState.id, normalizedNpcId))
       .limit(1);
 
     if (!actor) {
@@ -272,6 +272,7 @@ export class TradeExecutionService {
     const positionSize = decision.amount * leverage;
     const feeCalc = FeeService.calculateFee(positionSize);
     const totalCost = decision.amount + feeCalc.feeAmount;
+    const actorName = decision.npcName ?? actorId;
 
     // Calculate liquidation price
     const liquidationDistance = side === 'long' ? 0.8 : 1.2;
@@ -282,8 +283,8 @@ export class TradeExecutionService {
       // Check and deduct from actor's trading balance (margin + fee)
       const [actor] = await tx
         .select()
-        .from(actors)
-        .where(eq(actors.id, actorId))
+        .from(actorState)
+        .where(eq(actorState.id, actorId))
         .limit(1);
 
       if (!actor) throw new Error(`Actor not found: ${actorId}`);
@@ -299,11 +300,12 @@ export class TradeExecutionService {
 
       // Deduct margin + fee from actor's trading balance
       await tx
-        .update(actors)
+        .update(actorState)
         .set({
           tradingBalance: String(availableBalance - totalCost),
+          updatedAt: new Date(),
         })
-        .where(eq(actors.id, actorId));
+        .where(eq(actorState.id, actorId));
 
       // Ensure Pool exists for this actor (required for PoolPosition foreign key)
       const [existingPool] = await tx
@@ -317,8 +319,8 @@ export class TradeExecutionService {
         await tx.insert(pools).values({
           id: actorId,
           npcActorId: actorId,
-          name: `${actor.name} Portfolio`,
-          description: `Auto-created portfolio for ${actor.name}`,
+          name: `${actorName} Portfolio`,
+          description: `Auto-created portfolio for ${actorName}`,
           isActive: true,
           totalValue: '0',
           totalDeposits: '0',
@@ -449,8 +451,8 @@ export class TradeExecutionService {
       // Check and deduct from actor's trading balance (amount + fee)
       const [actor] = await tx
         .select()
-        .from(actors)
-        .where(eq(actors.id, actorId))
+        .from(actorState)
+        .where(eq(actorState.id, actorId))
         .limit(1);
 
       if (!actor) throw new Error(`Actor not found: ${actorId}`);
@@ -466,11 +468,12 @@ export class TradeExecutionService {
 
       // Deduct amount + fee from actor's trading balance
       await tx
-        .update(actors)
+        .update(actorState)
         .set({
           tradingBalance: String(availableBalance - totalWithFee),
+          updatedAt: new Date(),
         })
-        .where(eq(actors.id, actorId));
+        .where(eq(actorState.id, actorId));
 
       // Update market shares with CPMM output
       await tx
@@ -703,8 +706,8 @@ export class TradeExecutionService {
         // Return proceeds to actor's trading balance
         const [actor] = await tx
           .select()
-          .from(actors)
-          .where(eq(actors.id, actorId))
+          .from(actorState)
+          .where(eq(actorState.id, actorId))
           .limit(1);
 
         if (actor) {
@@ -712,11 +715,12 @@ export class TradeExecutionService {
             actor.tradingBalance.toString()
           );
           await tx
-            .update(actors)
+            .update(actorState)
             .set({
               tradingBalance: String(currentBalance + netProceeds),
+              updatedAt: new Date(),
             })
-            .where(eq(actors.id, actorId));
+            .where(eq(actorState.id, actorId));
         }
 
         // Record trade (poolId is optional now)
@@ -868,8 +872,8 @@ export class TradeExecutionService {
       // Return capital + P&L to actor's trading balance (after fee deduction)
       const [actor] = await tx
         .select()
-        .from(actors)
-        .where(eq(actors.id, actorId))
+        .from(actorState)
+        .where(eq(actorState.id, actorId))
         .limit(1);
 
       if (actor) {
@@ -877,11 +881,12 @@ export class TradeExecutionService {
           actor.tradingBalance.toString()
         );
         await tx
-          .update(actors)
+          .update(actorState)
           .set({
             tradingBalance: String(currentBalance + netReturn),
+            updatedAt: new Date(),
           })
-          .where(eq(actors.id, actorId));
+          .where(eq(actorState.id, actorId));
       }
 
       // Record trade (poolId is optional now)
