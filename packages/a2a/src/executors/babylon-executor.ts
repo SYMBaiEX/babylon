@@ -281,7 +281,7 @@ export class BabylonAgentExecutor implements AgentExecutor {
     const command = this.parseCommand(userMessage);
     const result = await this.executeOperation(command, requestContext);
 
-    // Create artifact with result (return result directly, not wrapped)
+    // Create artifact with result
     const artifactUpdate: TaskArtifactUpdateEvent = {
       kind: 'artifact-update',
       taskId,
