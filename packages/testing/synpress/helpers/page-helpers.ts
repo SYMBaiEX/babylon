@@ -107,7 +107,10 @@ export async function waitForPageLoad(
     // Wait for page to have interactive elements
     let hasButtons = false;
     for (let i = 0; i < 20; i++) {
-      const buttonCount = await page.locator('button').count().catch(() => 0);
+      const buttonCount = await page
+        .locator('button')
+        .count()
+        .catch(() => 0);
       if (buttonCount > 0) {
         hasButtons = true;
         break;
