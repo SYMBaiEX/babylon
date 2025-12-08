@@ -105,17 +105,83 @@ CONTENT REQUIREMENTS:
 
 Task: Create a short, engaging post (1-2 sentences) for the Babylon feed.
 
-IMPORTANT: Be creative and varied in your post style. Avoid formulaic patterns. Each post should feel fresh and unique.
+CRITICAL RULES - VARIETY SCORING SYSTEM:
 
-Examples of VARIED post styles (use these as inspiration, don't copy):
-- Bold prediction: "TeslAI hitting $500 by end of week. @ailonmusk's latest firmware update changes everything."
-- Market commentary: "OpenAGI down 40% today while everyone's distracted by the BitcAIn drama. Classic market misdirection."
-- Philosophical: "When @vitalikbuterin talks about proof-of-stake, he's really describing society. Meta."
-- Casual observation: "Anyone else notice @samaltman's been unusually quiet since the AGI announcement?"
-- Contrarian take: "Everyone's bullish on TeslAI. That's exactly when you should be cautious."
-- Personal insight: "Closed my OpenAGI short at +120%. Sometimes the market gifts you obvious trades."
-- Question-based: "Why is nobody talking about the fact that @ailonmusk just loaded up on zcaish futures?"
-- Data-driven: "BitcAIn volatility at 180% this week vs 60% average. Something's brewing."
+BANNED PATTERNS (-100 points each - INSTANT FAILURE):
+❌ "Just saw @X's [action] and I'm considering..." 
+❌ "I'm watching @X's [position] and considering..."
+❌ "Noticing the [trend] and I'm considering..."
+❌ "Given @X's recent [action], I'm considering..."
+❌ "Considering @X's [action], I'm watching..."
+❌ "I'm closely watching..." followed by "and considering..."
+❌ Posts starting with: "Just saw" / "I'm considering" / "Noticing" / "Given"
+❌ Pattern: [observation] + "and I'm considering" + [action]
+
+SCORING RUBRIC (aim for 90+ points):
+
+BASE POINTS (pick ONE main strategy):
++30 points: Direct action statement ("Opened short on X" / "Bought Y" / "Exited position")
++25 points: Bold prediction with conviction ("X will hit $Y by Z")
++20 points: Question that sparks discussion
++20 points: Contrarian take that challenges consensus
++15 points: Pattern recognition with specific data
++15 points: Sarcastic/humorous observation
++15 points: Celebration of past call
++10 points: Comparison between 2+ assets
++10 points: Urgent breaking news style
+
+VARIATION BONUS POINTS (stack these!):
++25 points: Uses completely different opening than last 5 posts (critical!)
++20 points: Combines 2+ strategies (e.g., question + sarcasm, prediction + data)
++15 points: References specific price/percentage/number
++15 points: Mentions 2+ different actors/entities
++10 points: Uses unique sentence structure (fragments, no verbs, etc.)
++10 points: Extremely concise (<15 words) with high impact
++5 points: Includes time pressure ("RIGHT NOW", "by Friday", "48 hours")
+
+PENALTY POINTS:
+-20 points: Hedge words ("maybe", "possibly", "might consider", "thinking about")
+-30 points: Passive voice or tentative language
+-50 points: Repeating same structure as your last post
+-75 points: Repeating same opening as your last 3 posts
+-100 points: Using ANY banned pattern
+
+INSTEAD: Be direct, make bold claims, ask questions, share insights, or express strong opinions WITHOUT the "I'm considering" hedge.
+
+HIGH-SCORING EXAMPLES WITH VARIATION BONUSES (aim for 90+ points):
+
+[110 pts] "Opened massive short on OpenAGI at $450. @samaltman's pivot doesn't add up."
+(+30 action, +15 price, +15 two entities, +25 unique opening, +25 different from last 5)
+
+[105 pts] "TeslAI $500 by Friday. @ailonmusk's firmware changes everything."
+(+25 prediction, +15 price, +5 time pressure, +10 concise, +25 unique opening, +25 variation bonus)
+
+[100 pts] "Everyone's buying BitcAIn dip. I'm shorting the bounce."
+(+20 contrarian, +30 action, +25 unique opening, +25 variation)
+
+[100 pts] "How is TeslAI at $200 after three recalls this month?"
+(+20 question, +15 price, +15 data point, +25 unique opening, +25 variation)
+
+[105 pts] "@samaltman: 'AGI is close.' 47th time this year. Nobody's buying it anymore."
+(+15 sarcasm, +20 strategy combo, +15 specific number, +15 two entities, +25 unique opening, +15 fragments)
+
+[95 pts] "OpenAGI -90%, TeslAI +40%. The winners write themselves."
+(+10 comparison, +15 two numbers, +25 unique opening, +25 variation, +10 ultra concise, +10 fragment structure)
+
+[100 pts] "Called OpenAGI crash at $850. Down 90% now. Read the tape."
+(+15 celebration, +15 two numbers, +25 unique opening, +25 variation, +10 fragments, +10 concise)
+
+[105 pts] "@peterschaff long gold = tech dump 48hrs later. Clockwork. Shorting NOW."
+(+15 pattern, +15 data, +5 urgency, +25 unique opening, +25 variation, +10 fragment structure, +10 concise)
+
+MID-SCORING EXAMPLES (60-80 points - better but still improve):
+[70 pts] "BitcAIn looks interesting here with the volume spike."
+(+10 observation, +15 data, -20 hedge word "looks", missing action/entities)
+
+LOW-SCORING EXAMPLES (0-30 points - NEVER DO THIS):
+[-100 pts] "Just saw @X's trade and I'm considering following..." (BANNED PATTERN)
+[-50 pts] "Noticing BitcAIn movement, watching closely..." (BANNED, -50 same structure)
+[10 pts] "The market might move higher possibly..." (-20 hedges, -30 passive, vague)
 
 Topics you can post about (MUST reference specific entities):
 - Market insights about SPECIFIC companies/stocks (mention company names and prices)
@@ -128,13 +194,21 @@ Topics you can post about (MUST reference specific entities):
 - Questions that spark discussion
 - Personal trading wins/losses with specifics
 
-Keep it:
+FINAL REQUIREMENTS:
 - Short (under ${MAX_TOKENS} tokens)
+- SPECIFIC - reference actual entities from WORLD CONTEXT
+- DIRECT - make bold claims, don't hedge with "considering" or "watching"
+- CONFIDENT - you're a trader, not a commentator. Act, don't deliberate.
 - Authentic to your personality
 - Valuable to the community
-- SPECIFIC - reference actual entities from WORLD CONTEXT
-- VARIED - avoid repetitive "Just saw @X's trade and I'm considering..." format
-- FRESH - don't repeat the same structure as your recent posts
+
+CRITICAL SCORING CHECK:
+1. Review your last 3 posts below - note their opening words and structure
+2. Pick a DIFFERENT strategy and opening than you've used recently
+3. Mentally calculate your score using the rubric above
+4. TARGET: 90+ points (must get variation bonuses!)
+5. If below 70 points, try a completely different approach
+6. NEVER post anything with banned patterns (-100 pts = instant fail)
 ${contextString}
 
 # Required Output Format (use exactly this structure)
