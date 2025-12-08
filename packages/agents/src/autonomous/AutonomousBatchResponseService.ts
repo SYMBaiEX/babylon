@@ -151,11 +151,6 @@ export class AutonomousBatchResponseService {
         orderBy: (comments, { asc: ascFn }) => [ascFn(comments.createdAt)],
       });
 
-      console.log(
-        '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! allCommentsOnPosts count',
-        allCommentsOnPosts.length
-      );
-
       // Group comments by their root thread (top-level comments without parentCommentId)
       // and build thread context
       const topLevelComments = allCommentsOnPosts.filter(
@@ -188,10 +183,6 @@ export class AutonomousBatchResponseService {
             })
             .join('\n→ ');
 
-          console.log(
-            '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! threadContext',
-            threadContext
-          );
           interactions.push({
             type: 'comment_on_post',
             id: lastMessage.id,
@@ -238,7 +229,11 @@ export class AutonomousBatchResponseService {
         authorId: string;
         content: string;
         createdAt: Date;
-        author: { id: string; username: string | null; displayName: string | null } | null;
+        author: {
+          id: string;
+          username: string | null;
+          displayName: string | null;
+        } | null;
       }> = [];
 
       // Start with agent's original comments
@@ -288,11 +283,6 @@ export class AutonomousBatchResponseService {
         allCommentsInThreads.push(...replies);
         parentIds = replies.map((r) => r.id);
       }
-
-      console.log(
-        '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! allCommentsInThreads (on other posts) count',
-        allCommentsInThreads.length
-      );
 
       // For each of agent's comments on other posts, build the thread and check if response needed
       for (const agentComment of myCommentsOnOthersPosts) {
@@ -356,17 +346,9 @@ export class AutonomousBatchResponseService {
       .from(chatParticipants)
       .leftJoin(chats, eq(chatParticipants.chatId, chats.id))
       .where(eq(chatParticipants.userId, agentUserId));
-    console.log(
-      '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! agentChats',
-      agentChats
-    );
 
     for (const chatParticipant of agentChats) {
       const chat = chatParticipant.chat;
-      console.log(
-        '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! chat',
-        chat
-      );
       if (!chat) continue;
 
       // Get recent messages from others in this chat
@@ -382,10 +364,6 @@ export class AutonomousBatchResponseService {
         )
         .orderBy(desc(messages.createdAt))
         .limit(3);
-      console.log(
-        '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! chatMessages',
-        chatMessages
-      );
 
       if (chatMessages.length === 0) continue;
 
@@ -403,8 +381,6 @@ export class AutonomousBatchResponseService {
           (m) => `${m.senderId === agentUserId ? 'You' : 'User'}: ${m.content}`
         )
         .join('\n');
-
-      // console.log('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! chatMessages', chatMessages);
 
       const latestMessage = chatMessages[0];
       if (latestMessage) {
@@ -572,11 +548,6 @@ Do NOT include any explanations, only the XML format above.`;
           }),
         ]);
 
-        console.log(
-          '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! decisionText',
-          decisionText
-        );
-
         // Extract <response>...</response> block before parsing
         const responseMatch = decisionText.match(
           /<response>([\s\S]*?)<\/response>/i
@@ -598,11 +569,6 @@ Do NOT include any explanations, only the XML format above.`;
         const parsed = parseKeyValueXml(responseMatch[0]) as {
           decisions?: string;
         } | null;
-
-        console.log(
-          '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! parsed XML',
-          parsed
-        );
 
         if (!parsed?.decisions) {
           logger.warn(
@@ -687,11 +653,6 @@ Do NOT include any explanations, only the XML format above.`;
       decisions = evaluateInteractions.map(() => false);
     }
 
-    console.log(
-      '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! decisions array',
-      decisions
-    );
-
     return decisions.map((shouldRespond) => ({ shouldRespond }));
   }
 
@@ -740,10 +701,6 @@ Do NOT include any explanations, only the XML format above.`;
 
     for (let i = 0; i < interactions.length; i++) {
       const interaction = interactions[i];
-      console.log(
-        '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! interaction',
-        interaction
-      );
       const decision = decisions[i];
 
       if (!interaction || !decision || !decision.shouldRespond) continue;
@@ -994,21 +951,11 @@ Add value to the conversation.
       interactions
     );
 
-    console.log(
-      '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! decisions',
-      decisions
-    );
-
     const responseCount = decisions.filter((d) => d.shouldRespond).length;
     logger.info(
       `Agent decided to respond to ${responseCount}/${interactions.length} interactions`,
       undefined,
       'AutonomousBatchResponse'
-    );
-
-    console.log(
-      '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! responseCount',
-      responseCount
     );
 
     if (responseCount === 0) {
