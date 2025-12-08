@@ -16,9 +16,21 @@ async function main() {
     db: new PerpDbAdapter(),
     wallet: {
       debit: ({ userId, amount, reason, description, relatedId }) =>
-        WalletService.debit(userId, amount, reason, description ?? '', relatedId),
+        WalletService.debit(
+          userId,
+          amount,
+          reason,
+          description ?? '',
+          relatedId
+        ),
       credit: ({ userId, amount, reason, description, relatedId }) =>
-        WalletService.credit(userId, amount, reason, description ?? '', relatedId),
+        WalletService.credit(
+          userId,
+          amount,
+          reason,
+          description ?? '',
+          relatedId
+        ),
       recordPnL: async ({ userId, pnl, reason, relatedId }) => {
         await WalletService.recordPnL(userId, pnl, reason, relatedId);
       },
