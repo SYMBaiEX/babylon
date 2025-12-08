@@ -15,8 +15,8 @@ import {
 } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { usePathname, useSearchParams } from 'next/navigation';
-import { Suspense, useEffect, useState } from 'react';
+import { usePathname } from 'next/navigation';
+import { useEffect, useState } from 'react';
 import { Avatar } from '@/components/shared/Avatar';
 import { useAuth } from '@/hooks/useAuth';
 import { useAuthStore } from '@/stores/authStore';
@@ -27,7 +27,7 @@ import { useAuthStore } from '@/stores/authStore';
  * Provides a fixed header with logo, profile menu trigger, and slide-out
  * side menu. Shows user profile, navigation links, points balance, referral
  * code, and logout. Automatically hides when WAITLIST_MODE is enabled on
- * home page unless dev mode is enabled via URL parameter (?dev=true).
+ * home page.
  *
  * @returns Mobile header element or null if hidden
  */
@@ -42,23 +42,11 @@ function MobileHeaderContent() {
   const [copiedReferral, setCopiedReferral] = useState(false);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const pathname = usePathname();
-  const searchParams = useSearchParams();
 
-  // Check if dev mode is enabled via URL parameter (for staging testing)
-  const isDevMode = searchParams.get('dev') === 'true';
-  // Force coming soon mode via URL parameter (for testing)
-  const forceComingSoon = searchParams.get('comingsoon') === 'true';
-
-  // Hide mobile header on production (babylon.market) on home page unless ?dev=true
-  const isProduction =
-    typeof window !== 'undefined' &&
-    window.location.hostname === 'babylon.market';
-  // Hide mobile header when WAITLIST_MODE is enabled on home page (unless ?dev=true)
+  // Hide mobile header when WAITLIST_MODE is enabled on home page
   const isWaitlistMode = process.env.NEXT_PUBLIC_WAITLIST_MODE === 'true';
   const isHomePage = pathname === '/';
-  const shouldHide =
-    (isWaitlistMode && isProduction && isHomePage && !isDevMode) ||
-    forceComingSoon;
+  const shouldHide = isWaitlistMode && isHomePage;
 
   // All hooks must be called before any conditional returns
   useEffect(() => {
@@ -470,17 +458,13 @@ function MobileHeaderContent() {
 }
 
 /**
- * Mobile header component wrapper with Suspense boundary.
+ * Mobile header component for mobile devices.
  *
- * Wraps MobileHeaderContent in a Suspense boundary to handle async navigation
- * hooks gracefully. Provides mobile header for the application.
+ * Provides a fixed header with logo, profile menu trigger, and slide-out
+ * side menu. Automatically hides when WAITLIST_MODE is enabled on home page.
  *
- * @returns Mobile header element wrapped in Suspense
+ * @returns Mobile header element or null if hidden
  */
 export function MobileHeader() {
-  return (
-    <Suspense fallback={null}>
-      <MobileHeaderContent />
-    </Suspense>
-  );
+  return <MobileHeaderContent />;
 }
