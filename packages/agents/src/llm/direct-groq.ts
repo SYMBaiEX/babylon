@@ -52,12 +52,9 @@ export async function callGroqDirect(params: {
     baseURL: 'https://api.groq.com/openai/v1',
   });
 
-  // Use llama-3.3-70b-versatile for best JSON compliance (llama-3.1 models deprecated)
-  // Small model is faster for simple decisions, large for complex reasoning
+  // Model selection based on task complexity
   const model =
-    params.modelSize === 'large'
-      ? 'llama-3.3-70b-versatile' // Best for complex reasoning
-      : 'llama-3.3-70b-versatile'; // Use same model for consistency and JSON format compliance
+    params.modelSize === 'large' ? 'qwen/qwen3-32b' : 'llama-3.1-8b-instant';
 
   const startTime = Date.now();
 

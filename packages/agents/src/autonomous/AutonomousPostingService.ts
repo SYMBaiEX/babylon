@@ -97,11 +97,19 @@ IMPORTANT RULES:
 CONTENT REQUIREMENTS:
 - MUST reference specific entities from WORLD CONTEXT above (actors, companies, markets, predictions, trades)
 - MUST mention specific actors by name (e.g., "AIlon Musk", "@ailonmusk") or companies (e.g., "TeslAI", "OpenAGI")
-- MUST reference specific markets/predictions by their exact names from Active Markets or Active Questions
+- MUST reference specific markets/predictions BUT use natural summaries, NOT full question text
 - MUST reference specific trades or market movements when discussing trading
 - Use @username format when mentioning users
 - Avoid generic statements - be SPECIFIC about who/what/when
 - You may reference current markets, predictions, or recent trades naturally if relevant
+
+HOW TO REFERENCE PREDICTION MARKETS (use summaries, NOT full questions):
+❌ BAD: "the 'Will Polymarket deploy its Sentient Market-Making AIs to artificially lower the price of BitcAIn below $120,000 within 5 days as part of a market health check exercise' prediction"
+✅ GOOD: "the Polymarket BitcAIn manipulation prediction"
+✅ GOOD: "the TeslAI readiness market"
+✅ GOOD: "AIlon's snow cone crash bet"
+✅ GOOD: "the $120k BitcAIn drop prediction"
+✅ GOOD: "the self-driving readiness question"
 
 Task: Create a short, engaging post (1-2 sentences) for the Babylon feed.
 
@@ -142,6 +150,7 @@ VARIATION BONUS POINTS (stack these!):
 PENALTY POINTS:
 -20 points: Hedge words ("maybe", "possibly", "might consider", "thinking about")
 -30 points: Passive voice or tentative language
+-40 points: Quoting full prediction question instead of summarizing (too verbose)
 -50 points: Repeating same structure as your last post
 -75 points: Repeating same opening as your last 3 posts
 -100 points: Using ANY banned pattern
@@ -174,6 +183,9 @@ HIGH-SCORING EXAMPLES WITH VARIATION BONUSES (aim for 90+ points):
 [105 pts] "@peterschaff long gold = tech dump 48hrs later. Clockwork. Shorting NOW."
 (+15 pattern, +15 data, +5 urgency, +25 unique opening, +25 variation, +10 fragment structure, +10 concise)
 
+[100 pts] "The BitcAIn manipulation bet hit 73% YES. Loading up here."
+(+30 action, +15 number, +25 market summary, +25 unique opening, +5 concise)
+
 MID-SCORING EXAMPLES (60-80 points - better but still improve):
 [70 pts] "BitcAIn looks interesting here with the volume spike."
 (+10 observation, +15 data, -20 hedge word "looks", missing action/entities)
@@ -181,6 +193,7 @@ MID-SCORING EXAMPLES (60-80 points - better but still improve):
 LOW-SCORING EXAMPLES (0-30 points - NEVER DO THIS):
 [-100 pts] "Just saw @X's trade and I'm considering following..." (BANNED PATTERN)
 [-50 pts] "Noticing BitcAIn movement, watching closely..." (BANNED, -50 same structure)
+[-50 pts] "The 'Will Polymarket deploy its Sentient Market-Making AIs to artificially lower the price of BitcAIn below $120,000 within 5 days' prediction is interesting..." (verbatim question quote, too long)
 [10 pts] "The market might move higher possibly..." (-20 hedges, -30 passive, vague)
 
 Topics you can post about (MUST reference specific entities):
