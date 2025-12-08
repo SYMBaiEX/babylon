@@ -1,6 +1,6 @@
 /**
  * Contract ABIs for ERC-8004 and Prediction Market interactions
- * 
+ *
  * These ABIs are shared across the Babylon codebase for interacting with
  * on-chain contracts. ERC-8004 operations should primarily use the Agent0 SDK
  * (@babylon/agents/agent0), but these ABIs are available for direct contract
@@ -105,17 +105,17 @@ export const PREDICTION_MARKET_ABI = [
 export const ORACLE_ABI = [
   // Oracle resolution requests
   'function requestChainlinkResolution(bytes32 _marketId) external payable',
-  'function requestUMAResolution(bytes32 _marketId, uint8 _proposedOutcome) external payable',
+  'function requestMockResolution(bytes32 _marketId, uint8 _proposedOutcome) external payable',
 
   // Oracle callbacks
   'function oracleCallback(bytes32 _requestId, bytes32 _marketId, uint8 _outcome) external',
-  'function umaOracleCallback(bytes32 _marketId, uint8 _outcome) external',
+  'function mockOracleCallback(bytes32 _marketId, uint8 _outcome) external',
 
   // Oracle management
   'function setChainlinkOracle(address _oracle) external',
-  'function setUMAOracle(address _oracle) external',
+  'function setMockOracle(address _oracle) external',
   'function manualResolve(bytes32 _marketId, uint8 _outcome) external',
-  'function getOracleAddresses() external view returns (address chainlinkOracle, address umaOracle)',
+  'function getOracleAddresses() external view returns (address chainlinkOracle, address mockOracle)',
 
   // Events
   'event OracleRequested(bytes32 indexed marketId, bytes32 indexed requestId, string oracleType)',
@@ -153,4 +153,3 @@ export const PRICE_STORAGE_FACET_ABI = [
   'event PriceBatchSubmitted(bytes32 indexed marketId, uint256 startTick, uint256 endTick, bytes32 merkleRoot)',
   'event AuthorizedUpdaterSet(bytes32 indexed marketId, address indexed updater, bool authorized)',
 ] as const;
-

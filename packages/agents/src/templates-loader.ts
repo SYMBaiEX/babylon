@@ -19,7 +19,7 @@
  * @packageDocumentation
  */
 
-import { templates, templateIds } from './templates';
+import { templateIds, templates } from './templates';
 import type { AgentTemplate } from './types/agent-template';
 
 /**
@@ -85,4 +85,3 @@ export function getRandomTemplate(): AgentTemplate | null {
   const randomIndex = Math.floor(Math.random() * allTemplates.length);
   return allTemplates[randomIndex] ?? null;
 }
-

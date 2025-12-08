@@ -9,9 +9,9 @@
  * - This implementation uses simple encryption for demonstration
  */
 
-import { createCipheriv, createDecipheriv, randomBytes } from 'crypto';
 import { asc, db, eq, oracleCommitments } from '@babylon/db';
 import { logger } from '@babylon/shared';
+import { createCipheriv, createDecipheriv, randomBytes } from 'crypto';
 import type { StoredCommitment } from './oracle/types';
 
 const ENCRYPTION_KEY =
@@ -223,4 +223,3 @@ export class CommitmentStore {
     }));
   }
 }
-

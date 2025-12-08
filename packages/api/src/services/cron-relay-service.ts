@@ -1,5 +1,5 @@
-import type { NextRequest } from 'next/server';
 import { logger } from '@babylon/shared';
+import type { NextRequest } from 'next/server';
 
 interface RelayResult {
   forwarded: boolean;
@@ -10,7 +10,7 @@ interface RelayResult {
 /**
  * Conditionally relay cron execution to staging environment.
  * Enabled when REDIRECT_CRON_STAGING=true and host is not already staging.
- * 
+ *
  * Note: Accepts NextRequest-compatible objects to handle version mismatches
  * between different Next.js versions in the monorepo.
  */
@@ -26,7 +26,9 @@ export async function relayCronToStaging(
     process.env.CRON_STAGING_URL || 'https://staging.babylon.market';
   const stagingHost = stagingBaseUrl.replace(/^https?:\/\//, '');
   // Access headers safely - handle both NextRequest and plain Headers objects
-  const headers = request.headers as Headers | { get: (key: string) => string | null };
+  const headers = request.headers as
+    | Headers
+    | { get: (key: string) => string | null };
   const requestHost = headers?.get('host') || '';
 
   // Avoid infinite loops when request already targets staging
@@ -47,41 +49,24 @@ export async function relayCronToStaging(
   const { pathname, search } = new URL(request.url);
   const targetUrl = `${stagingBaseUrl}${pathname}${search}`;
 
-  try {
-    const res = await fetch(targetUrl, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${cronSecret}`,
-        'x-cron-relay': routeName,
-      },
-      cache: 'no-store',
-    });
+  const res = await fetch(targetUrl, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${cronSecret}`,
+      'x-cron-relay': routeName,
+    },
+    cache: 'no-store',
+  });
 
-    logger.info(
-      'Relayed cron execution to staging',
-      {
-        routeName,
-        targetUrl,
-        status: res.status,
-      },
-      'CronRelay'
-    );
+  logger.info(
+    'Relayed cron execution to staging',
+    {
+      routeName,
+      targetUrl,
+      status: res.status,
+    },
+    'CronRelay'
+  );
 
-    return { forwarded: true, status: res.status };
-  } catch (error) {
-    logger.error(
-      'Failed to relay cron to staging',
-      {
-        routeName,
-        targetUrl,
-        error: error instanceof Error ? error.message : String(error),
-      },
-      'CronRelay'
-    );
-
-    return {
-      forwarded: true,
-      error: error instanceof Error ? error.message : String(error),
-    };
-  }
+  return { forwarded: true, status: res.status };
 }

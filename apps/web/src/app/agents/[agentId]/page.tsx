@@ -28,6 +28,7 @@
 
 'use client';
 
+import { cn } from '@babylon/shared';
 import {
   Activity,
   ArrowLeft,
@@ -52,7 +53,6 @@ import { Skeleton } from '@/components/shared/Skeleton';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/hooks/useAuth';
-import { cn } from '@babylon/shared';
 
 /**
  * Agent data structure
@@ -108,7 +108,7 @@ export default function AgentDetailPage() {
   const [loading, setLoading] = useState(true);
 
   const handleBalanceUpdate = useCallback((newBalance: number) => {
-    setAgent((prev) => prev ? { ...prev, pointsBalance: newBalance } : prev);
+    setAgent((prev) => (prev ? { ...prev, pointsBalance: newBalance } : prev));
   }, []);
 
   const fetchAgent = useCallback(async () => {

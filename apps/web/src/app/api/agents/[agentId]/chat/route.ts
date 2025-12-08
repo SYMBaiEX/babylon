@@ -120,16 +120,14 @@
  * ```
  */
 
+import { agentRuntimeManager, agentService } from '@babylon/agents';
+import { authenticateUser, withErrorHandling } from '@babylon/api';
+import { db, eq, userAgentConfigs } from '@babylon/db';
+import { checkAgentOutput, checkUserInput, logger } from '@babylon/shared';
 import { ModelType, parseKeyValueXml } from '@elizaos/core';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
-import { db } from '@babylon/db';
-import { agentRuntimeManager, agentService } from '@babylon/agents';
-import { withErrorHandling } from '@babylon/api';
-import { logger } from '@babylon/shared';
-import { authenticateUser } from '@babylon/api';
-import { checkAgentOutput, checkUserInput } from '@babylon/shared';
 
 /**
  * POST /api/agents/[agentId]/chat
@@ -153,21 +151,7 @@ export const POST = withErrorHandling(
     const { agentId } = await params;
     logger.info('Agent chat endpoint hit', { agentId }, 'AgentChat');
 
-    let body: { message: string; usePro: boolean };
-    try {
-      body = (await req.json()) as { message: string; usePro: boolean };
-    } catch (error) {
-      logger.error(
-        'Failed to parse request body',
-        { error, agentId },
-        'AgentChat'
-      );
-      return NextResponse.json(
-        { success: false, error: 'Invalid request body' },
-        { status: 400 }
-      );
-    }
-
+    const body = (await req.json()) as { message: string; usePro: boolean };
     const message = body.message;
     const usePro = body.usePro;
 
@@ -188,13 +172,18 @@ export const POST = withErrorHandling(
     const user = await authenticateUser(req);
 
     // Verify user owns this agent before allowing chat
-    const agent = await agentService.getAgent(agentId, user.id);
-    if (!agent) {
+    const agentWithConfig = await agentService.getAgentWithConfig(
+      agentId,
+      user.id
+    );
+    if (!agentWithConfig) {
       return NextResponse.json(
         { success: false, error: 'Agent not found' },
         { status: 404 }
       );
     }
+    const agent = agentWithConfig;
+    const agentConfig = agentWithConfig.agentConfig;
 
     const pointsCost = usePro ? 1 : 1;
 
@@ -241,7 +230,7 @@ export const POST = withErrorHandling(
     const prompt = `CRITICAL: You have only ${MAX_TOKENS} tokens. Your response MUST start with <response> immediately. No <think> tags. No reasoning.
 
 # System
-${agent.agentSystem}
+${agentConfig?.systemPrompt ?? 'You are a helpful AI assistant.'}
 
 # Conversation
 ${conversationHistory}
@@ -259,59 +248,66 @@ Generate ${agent.displayName}'s response. Stay in character.
     let response: string | null = null;
 
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-      try {
-        const isRetry = attempt > 1;
-        const currentPrompt = isRetry
-          ? `${prompt}\n\nIMPORTANT: Keep your response professional, helpful, and appropriate. No profanity or inappropriate content.\n\nREMINDER: You MUST output valid XML. Start with <response> and include <text> with your message.`
-          : prompt;
+      const isRetry = attempt > 1;
+      const currentPrompt = isRetry
+        ? `${prompt}\n\nIMPORTANT: Keep your response professional, helpful, and appropriate. No profanity or inappropriate content.\n\nREMINDER: You MUST output valid XML. Start with <response> and include <text> with your message.`
+        : prompt;
 
-        const generated = await runtime.useModel(modelType, {
-          prompt: currentPrompt,
-          temperature: isRetry ? 0.6 : 0.8,
-          maxTokens: MAX_TOKENS,
-        });
+      const generated = await runtime.useModel(modelType, {
+        prompt: currentPrompt,
+        temperature: isRetry ? 0.6 : 0.8,
+        maxTokens: MAX_TOKENS,
+      });
 
-        // Extract <response>...</response> block before parsing
-        const responseMatch = generated.match(/<response>([\s\S]*?)<\/response>/i);
-        if (!responseMatch) {
-          logger.warn('No <response> block found', { agentId, attempt, raw: generated.substring(0, 300) }, 'AgentChat');
-          continue;
-        }
-
-        // Parse the extracted XML response
-        const parsed = parseKeyValueXml(responseMatch[0]) as { text?: string } | null;
-
-        // Check if we got valid text
-        if (!parsed?.text || parsed.text.trim().length === 0) {
-          logger.warn('Failed to parse XML response', { agentId, attempt, raw: generated.substring(0, 300) }, 'AgentChat');
-          continue;
-        }
-
-        const extractedText = parsed.text.trim();
-
-        // Check safety
-        const safetyCheck = checkAgentOutput(extractedText);
-        if (!safetyCheck.safe) {
-          logger.warn(
-            'Unsafe response generated',
-            { agentId, attempt, reason: safetyCheck.reason, preview: extractedText.substring(0, 100) },
-            'AgentChat'
-          );
-          continue;
-        }
-
-        // Success!
-        response = extractedText;
-        break;
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        logger.error(
-          'Failed to generate response',
-          { error: errorMessage, agentId, attempt },
+      // Extract <response>...</response> block before parsing
+      const responseMatch = generated.match(
+        /<response>([\s\S]*?)<\/response>/i
+      );
+      if (!responseMatch) {
+        logger.warn(
+          'No <response> block found',
+          { agentId, attempt, raw: generated.substring(0, 300) },
           'AgentChat'
         );
         continue;
       }
+
+      // Parse the extracted XML response
+      const parsed = parseKeyValueXml(responseMatch[0]) as {
+        text?: string;
+      } | null;
+
+      // Check if we got valid text
+      if (!parsed?.text || parsed.text.trim().length === 0) {
+        logger.warn(
+          'Failed to parse XML response',
+          { agentId, attempt, raw: generated.substring(0, 300) },
+          'AgentChat'
+        );
+        continue;
+      }
+
+      const extractedText = parsed.text.trim();
+
+      // Check safety
+      const safetyCheck = checkAgentOutput(extractedText);
+      if (!safetyCheck.safe) {
+        logger.warn(
+          'Unsafe response generated',
+          {
+            agentId,
+            attempt,
+            reason: safetyCheck.reason,
+            preview: extractedText.substring(0, 100),
+          },
+          'AgentChat'
+        );
+        continue;
+      }
+
+      // Success!
+      response = extractedText;
+      break;
     }
 
     // If all attempts failed, refund points and return error
@@ -320,7 +316,8 @@ Generate ${agent.displayName}'s response. Stay in character.
       return NextResponse.json(
         {
           success: false,
-          error: 'Failed to generate a valid response after multiple attempts. Points have been refunded.',
+          error:
+            'Failed to generate a valid response after multiple attempts. Points have been refunded.',
         },
         { status: 500 }
       );
@@ -357,10 +354,11 @@ Generate ${agent.displayName}'s response. Stay in character.
       ],
     });
 
-    await db.user.update({
-      where: { id: agentId },
-      data: { agentLastChatAt: new Date() },
-    });
+    // Update lastChatAt in agent config
+    await db
+      .update(userAgentConfigs)
+      .set({ lastChatAt: new Date(), updatedAt: new Date() })
+      .where(eq(userAgentConfigs.userId, agentId));
 
     await db.agentLog.create({
       data: {

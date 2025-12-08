@@ -78,4 +78,3 @@ export function isActorEntity(
 ): entity is ActorEntity {
   return 'name' in entity && !('username' in entity) && !('ticker' in entity);
 }
-

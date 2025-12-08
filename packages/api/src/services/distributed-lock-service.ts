@@ -6,9 +6,9 @@
  * Supports automatic stale lock recovery.
  */
 
-import { randomBytes } from 'crypto';
 import { db, eq, generationLocks } from '@babylon/db';
 import { logger } from '@babylon/shared';
+import { randomBytes } from 'crypto';
 
 export interface LockOptions {
   lockId: string;
@@ -76,7 +76,7 @@ export class DistributedLockService {
             {
               lockId,
               lockHolder,
-              expiresAt: expiry,
+              expiresAt: expiry.toISOString(),
             },
             'DistributedLockService'
           );
@@ -105,68 +105,24 @@ export class DistributedLockService {
     }
 
     // No lock exists - try to create it
-    try {
-      await db.insert(generationLocks).values({
-        id: lockId,
-        lockedBy: lockHolder,
-        lockedAt: now,
-        expiresAt: expiry,
-        operation,
-      });
+    await db.insert(generationLocks).values({
+      id: lockId,
+      lockedBy: lockHolder,
+      lockedAt: now,
+      expiresAt: expiry,
+      operation,
+    });
 
-      logger.info(
-        `Lock ${lockId} acquired (created)`,
-        {
-          lockId,
-          lockHolder,
-          expiresAt: expiry,
-        },
-        'DistributedLockService'
-      );
-      return true;
-    } catch (error: unknown) {
-      // Handle unique constraint violation (race condition - another process created it first)
-      const errorCode =
-        typeof error === 'object' && error !== null && 'code' in error
-          ? (error as { code: string }).code
-          : '';
-
-      if (errorCode === '23505') {
-        // PostgreSQL unique violation - another process acquired the lock first
-        const [currentLock] = await db
-          .select()
-          .from(generationLocks)
-          .where(eq(generationLocks.id, lockId))
-          .limit(1);
-
-        if (currentLock) {
-          const ageMinutes = Math.round(
-            (now.getTime() - currentLock.lockedAt.getTime()) / 1000 / 60
-          );
-          logger.info(
-            `Lock ${lockId} held by ${currentLock.lockedBy} - skipping`,
-            {
-              lockId,
-              holder: currentLock.lockedBy,
-              ageMinutes,
-              expiresIn: Math.round(
-                (currentLock.expiresAt.getTime() - now.getTime()) / 1000
-              ),
-            },
-            'DistributedLockService'
-          );
-        }
-        return false;
-      }
-
-      // Other error
-      logger.error(
-        `Failed to acquire lock ${lockId}`,
-        { error },
-        'DistributedLockService'
-      );
-      return false;
-    }
+    logger.info(
+      `Lock ${lockId} acquired (created)`,
+      {
+        lockId,
+        lockHolder,
+        expiresAt: expiry.toISOString(),
+      },
+      'DistributedLockService'
+    );
+    return true;
   }
 
   /**
@@ -251,4 +207,3 @@ export class DistributedLockService {
     return lock;
   }
 }
-

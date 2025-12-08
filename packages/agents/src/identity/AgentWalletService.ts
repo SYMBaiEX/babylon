@@ -13,6 +13,7 @@ import { PrivyClient } from '@privy-io/server-auth';
 import { ethers } from 'ethers';
 import { v4 as uuidv4 } from 'uuid';
 import { getAgent0Client } from '../agent0/Agent0Client';
+import { getAgentConfig } from '../shared/agent-config';
 import { logger } from '../shared/logger';
 
 /**
@@ -246,9 +247,12 @@ export class AgentWalletService {
       throw new Error('Agent must have wallet before on-chain registration');
     }
 
+    // Get agent config for capabilities
+    const config = await getAgentConfig(agentUserId);
+
     // Step 1: Prepare agent metadata
     const capabilities = {
-      strategies: agent.agentTradingStrategy
+      strategies: config?.tradingStrategy
         ? ['autonomous-trading', 'prediction-markets', 'social-interaction']
         : ['chat', 'analysis'],
       markets: ['prediction', 'perp', 'crypto'],
@@ -266,8 +270,8 @@ export class AgentWalletService {
       userType: 'agent',
       x402Support: true,
       moderationEscrowSupport: true,
-      autonomousTrading: agent.autonomousTrading,
-      autonomousPosting: agent.autonomousPosting,
+      autonomousTrading: config?.autonomousTrading ?? false,
+      autonomousPosting: config?.autonomousPosting ?? false,
       skills: [],
       domains: [],
     };

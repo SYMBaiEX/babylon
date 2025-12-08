@@ -40,8 +40,8 @@
  *                   type: string
  */
 
-import { NextResponse } from 'next/server';
 import { generateAutoSpec } from '@babylon/api';
+import { NextResponse } from 'next/server';
 
 /**
  * GET /api/docs
@@ -59,38 +59,21 @@ import { generateAutoSpec } from '@babylon/api';
  * ```
  */
 export async function GET() {
-  try {
-    const spec = (await generateAutoSpec()) as {
-      openapi?: string;
-      swagger?: string;
-      [key: string]: unknown;
-    };
+  const spec = (await generateAutoSpec()) as {
+    openapi?: string;
+    swagger?: string;
+    [key: string]: unknown;
+  };
 
-    // Ensure openapi version field is present (required by Swagger UI)
-    if (!spec.openapi && !spec.swagger) {
-      spec.openapi = '3.0.0';
-    }
-
-    return NextResponse.json(spec, {
-      headers: {
-        'Content-Type': 'application/json',
-        'Cache-Control': 'public, max-age=3600', // Cache for 1 hour
-      },
-    });
-  } catch (error) {
-    console.error('Error generating API docs:', error);
-    return NextResponse.json(
-      {
-        error: 'Failed to generate API documentation',
-        openapi: '3.0.0',
-        info: {
-          title: 'Babylon API',
-          version: '1.0.0',
-          description: 'API documentation temporarily unavailable',
-        },
-        paths: {},
-      },
-      { status: 500 }
-    );
+  // Ensure openapi version field is present (required by Swagger UI)
+  if (!spec.openapi && !spec.swagger) {
+    spec.openapi = '3.0.0';
   }
+
+  return NextResponse.json(spec, {
+    headers: {
+      'Content-Type': 'application/json',
+      'Cache-Control': 'public, max-age=3600', // Cache for 1 hour
+    },
+  });
 }

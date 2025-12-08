@@ -5,9 +5,9 @@
 
 import { describe, expect, it } from 'bun:test';
 import {
-  toSafeString,
-  toSafeNumber,
   convertBalanceToStrings,
+  toSafeNumber,
+  toSafeString,
 } from '@babylon/shared';
 
 describe('Decimal Converter', () => {
@@ -126,5 +126,3 @@ describe('Decimal Converter', () => {
     });
   });
 });
-
-

@@ -121,11 +121,10 @@
  * ```
  */
 
+import { authenticate } from '@babylon/api';
+import { db } from '@babylon/db';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { db } from '@babylon/db';
-import { authenticate } from '@babylon/api';
-import { logger } from '@babylon/shared';
 
 /**
  * GET - Get single goal
@@ -134,49 +133,41 @@ export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ agentId: string; goalId: string }> }
 ) {
-  try {
-    const authUser = await authenticate(req);
-    const userId = authUser.userId;
-    const { agentId, goalId } = await params;
+  const authUser = await authenticate(req);
+  const userId = authUser.userId;
+  const { agentId, goalId } = await params;
 
-    // Verify ownership
-    const agent = await db.user.findUnique({
-      where: { id: agentId },
-      select: { isAgent: true, managedBy: true },
-    });
+  // Verify ownership
+  const agent = await db.user.findUnique({
+    where: { id: agentId },
+    select: { isAgent: true, managedBy: true },
+  });
 
-    if (!agent?.isAgent || agent.managedBy !== userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
-    }
-
-    const goal = await db.agentGoal.findUnique({
-      where: { id: goalId },
-      include: {
-        AgentGoalAction: {
-          orderBy: { createdAt: 'desc' },
-          take: 20,
-        },
-      },
-    });
-
-    if (!goal || goal.agentUserId !== agentId) {
-      return NextResponse.json({ error: 'Goal not found' }, { status: 404 });
-    }
-
-    return NextResponse.json({
-      success: true,
-      goal: {
-        ...goal,
-        target: goal.target ? JSON.parse(JSON.stringify(goal.target)) : null,
-      },
-    });
-  } catch (error) {
-    console.error('Error fetching goal:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch goal' },
-      { status: 500 }
-    );
+  if (!agent?.isAgent || agent.managedBy !== userId) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
   }
+
+  const goal = await db.agentGoal.findUnique({
+    where: { id: goalId },
+    include: {
+      AgentGoalAction: {
+        orderBy: { createdAt: 'desc' },
+        take: 20,
+      },
+    },
+  });
+
+  if (!goal || goal.agentUserId !== agentId) {
+    return NextResponse.json({ error: 'Goal not found' }, { status: 404 });
+  }
+
+  return NextResponse.json({
+    success: true,
+    goal: {
+      ...goal,
+      target: goal.target ? JSON.parse(JSON.stringify(goal.target)) : null,
+    },
+  });
 }
 
 /**
@@ -186,125 +177,98 @@ export async function PUT(
   req: NextRequest,
   { params }: { params: Promise<{ agentId: string; goalId: string }> }
 ) {
-  try {
-    const authUser = await authenticate(req);
-    const userId = authUser.userId;
-    const { agentId, goalId } = await params;
+  const authUser = await authenticate(req);
+  const userId = authUser.userId;
+  const { agentId, goalId } = await params;
 
-    // Verify ownership
-    const agent = await db.user.findUnique({
-      where: { id: agentId },
-      select: { isAgent: true, managedBy: true },
-    });
+  // Verify ownership
+  const agent = await db.user.findUnique({
+    where: { id: agentId },
+    select: { isAgent: true, managedBy: true },
+  });
 
-    if (!agent?.isAgent || agent.managedBy !== userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
-    }
+  if (!agent?.isAgent || agent.managedBy !== userId) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+  }
 
-    // Get existing goal
-    const existingGoal = await db.agentGoal.findUnique({
-      where: { id: goalId },
-    });
+  // Get existing goal
+  const existingGoal = await db.agentGoal.findUnique({
+    where: { id: goalId },
+  });
 
-    if (!existingGoal || existingGoal.agentUserId !== agentId) {
-      return NextResponse.json({ error: 'Goal not found' }, { status: 404 });
-    }
+  if (!existingGoal || existingGoal.agentUserId !== agentId) {
+    return NextResponse.json({ error: 'Goal not found' }, { status: 404 });
+  }
 
-    // Parse updates
-    let body: {
-      name?: string;
-      description?: string;
-      target?: string;
-      priority?: number | null;
-      status?: string;
-    };
-    try {
-      body = (await req.json()) as {
-        name?: string;
-        description?: string;
-        target?: string;
-        priority?: number | null;
-        status?: string;
-      };
-    } catch (error) {
-      logger.error(
-        'Failed to parse request body',
-        { error, agentId, goalId },
-        'PUT /api/agents/[agentId]/goals/[goalId]'
-      );
+  // Parse updates
+  const body = (await req.json()) as {
+    name?: string;
+    description?: string;
+    target?: string;
+    priority?: number | null;
+    status?: string;
+  };
+  const { name, description, target, priority, status } = body;
+
+  // Build update object
+  const updates: {
+    updatedAt: Date;
+    name?: string;
+    description?: string;
+    target?: string;
+    priority?: number;
+    status?: string;
+    completedAt?: Date;
+  } = {
+    updatedAt: new Date(),
+  };
+
+  if (name !== undefined && typeof name === 'string') updates.name = name;
+  if (description !== undefined && typeof description === 'string')
+    updates.description = description;
+  if (target !== undefined && typeof target === 'string')
+    updates.target = target;
+  if (priority !== undefined && priority !== null) {
+    if (typeof priority !== 'number' || priority < 1 || priority > 10) {
       return NextResponse.json(
-        { error: 'Invalid request body' },
+        { error: 'Priority must be between 1 and 10' },
         { status: 400 }
       );
     }
-    const { name, description, target, priority, status } = body;
-
-    // Build update object
-    const updates: {
-      updatedAt: Date;
-      name?: string;
-      description?: string;
-      target?: string;
-      priority?: number;
-      status?: string;
-      completedAt?: Date;
-    } = {
-      updatedAt: new Date(),
-    };
-
-    if (name !== undefined && typeof name === 'string') updates.name = name;
-    if (description !== undefined && typeof description === 'string')
-      updates.description = description;
-    if (target !== undefined && typeof target === 'string')
-      updates.target = target;
-    if (priority !== undefined && priority !== null) {
-      if (typeof priority !== 'number' || priority < 1 || priority > 10) {
-        return NextResponse.json(
-          { error: 'Priority must be between 1 and 10' },
-          { status: 400 }
-        );
-      }
-      updates.priority = priority;
-    }
-    if (status !== undefined) {
-      const validStatuses = ['active', 'paused', 'completed', 'failed'];
-      if (!validStatuses.includes(status)) {
-        return NextResponse.json(
-          {
-            error: `Invalid status. Must be one of: ${validStatuses.join(', ')}`,
-          },
-          { status: 400 }
-        );
-      }
-      updates.status = status;
-
-      if (status === 'completed' && !existingGoal.completedAt) {
-        updates.completedAt = new Date();
-      }
-    }
-
-    // Update goal
-    const updatedGoal = await db.agentGoal.update({
-      where: { id: goalId },
-      data: updates,
-    });
-
-    return NextResponse.json({
-      success: true,
-      goal: {
-        ...updatedGoal,
-        target: updatedGoal.target
-          ? JSON.parse(JSON.stringify(updatedGoal.target))
-          : null,
-      },
-    });
-  } catch (error) {
-    console.error('Error updating goal:', error);
-    return NextResponse.json(
-      { error: 'Failed to update goal' },
-      { status: 500 }
-    );
+    updates.priority = priority;
   }
+  if (status !== undefined) {
+    const validStatuses = ['active', 'paused', 'completed', 'failed'];
+    if (!validStatuses.includes(status)) {
+      return NextResponse.json(
+        {
+          error: `Invalid status. Must be one of: ${validStatuses.join(', ')}`,
+        },
+        { status: 400 }
+      );
+    }
+    updates.status = status;
+
+    if (status === 'completed' && !existingGoal.completedAt) {
+      updates.completedAt = new Date();
+    }
+  }
+
+  // Update goal
+  const updatedGoal = await db.agentGoal.update({
+    where: { id: goalId },
+    data: updates,
+  });
+
+  return NextResponse.json({
+    success: true,
+    goal: {
+      ...updatedGoal,
+      target: updatedGoal.target
+        ? JSON.parse(JSON.stringify(updatedGoal.target))
+        : null,
+    },
+  });
 }
 
 /**
@@ -314,44 +278,36 @@ export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ agentId: string; goalId: string }> }
 ) {
-  try {
-    const authUser = await authenticate(req);
-    const userId = authUser.userId;
-    const { agentId, goalId } = await params;
+  const authUser = await authenticate(req);
+  const userId = authUser.userId;
+  const { agentId, goalId } = await params;
 
-    // Verify ownership
-    const agent = await db.user.findUnique({
-      where: { id: agentId },
-      select: { isAgent: true, managedBy: true },
-    });
+  // Verify ownership
+  const agent = await db.user.findUnique({
+    where: { id: agentId },
+    select: { isAgent: true, managedBy: true },
+  });
 
-    if (!agent?.isAgent || agent.managedBy !== userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
-    }
-
-    // Verify goal exists and belongs to agent
-    const goal = await db.agentGoal.findUnique({
-      where: { id: goalId },
-    });
-
-    if (!goal || goal.agentUserId !== agentId) {
-      return NextResponse.json({ error: 'Goal not found' }, { status: 404 });
-    }
-
-    // Delete goal (cascades to goal actions)
-    await db.agentGoal.delete({
-      where: { id: goalId },
-    });
-
-    return NextResponse.json({
-      success: true,
-      message: 'Goal deleted successfully',
-    });
-  } catch (error) {
-    console.error('Error deleting goal:', error);
-    return NextResponse.json(
-      { error: 'Failed to delete goal' },
-      { status: 500 }
-    );
+  if (!agent?.isAgent || agent.managedBy !== userId) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
   }
+
+  // Verify goal exists and belongs to agent
+  const goal = await db.agentGoal.findUnique({
+    where: { id: goalId },
+  });
+
+  if (!goal || goal.agentUserId !== agentId) {
+    return NextResponse.json({ error: 'Goal not found' }, { status: 404 });
+  }
+
+  // Delete goal (cascades to goal actions)
+  await db.agentGoal.delete({
+    where: { id: goalId },
+  });
+
+  return NextResponse.json({
+    success: true,
+    message: 'Goal deleted successfully',
+  });
 }

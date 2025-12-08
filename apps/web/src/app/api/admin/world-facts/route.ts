@@ -90,17 +90,17 @@
  * ```
  */
 
-import type { NextRequest } from 'next/server';
+import { requireAdmin, successResponse, withErrorHandling } from '@babylon/api';
 // Removed fs and path imports - using TypeScript imports instead
 import { db } from '@babylon/db';
-import { requireAdmin } from '@babylon/api';
-import { successResponse, withErrorHandling } from '@babylon/api';
-import { logger } from '@babylon/shared';
-import { characterMappingService } from '@babylon/engine';
-import { createParodyHeadlineGenerator } from '@babylon/engine';
-import { rssFeedService } from '@babylon/engine';
-import { worldFactsService } from '@babylon/engine';
-import { generateSnowflakeId } from '@babylon/shared';
+import {
+  characterMappingService,
+  createParodyHeadlineGenerator,
+  rssFeedService,
+  worldFactsService,
+} from '@babylon/engine';
+import { generateSnowflakeId, logger } from '@babylon/shared';
+import type { NextRequest } from 'next/server';
 
 /**
  * GET /api/admin/world-facts - Get all world facts and related data
@@ -120,17 +120,8 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   const context = await worldFactsService.generateWorldContext(true);
 
   // Load reality grounding content from TypeScript export
-  let realityGroundingContent = '';
-  try {
-    const { realityGroundingContent: content } = await import('@babylon/engine');
-    realityGroundingContent = content;
-  } catch (e) {
-    logger.warn(
-      'Failed to load reality-grounding content',
-      { error: e },
-      'WorldFactsAdmin'
-    );
-  }
+  const { realityGroundingContent: content } = await import('@babylon/engine');
+  const realityGroundingContent = content;
 
   return successResponse({
     facts,

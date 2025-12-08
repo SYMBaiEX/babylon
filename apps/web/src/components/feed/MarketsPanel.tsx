@@ -1,12 +1,12 @@
 'use client';
 
+import { cn } from '@babylon/shared';
 import { TrendingDown, TrendingUp } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { useWidgetRefresh } from '@/contexts/WidgetRefreshContext';
 import { usePerpMarkets } from '@/stores/perpMarketsStore';
-import { cn } from '@babylon/shared';
 
 /**
  * Prediction market structure for markets panel.
@@ -45,47 +45,44 @@ export function MarketsPanel() {
   const { registerRefresh, unregisterRefresh } = useWidgetRefresh();
 
   // Use shared perp markets store
-  const { markets: perpMarkets, loading: perpLoading, refetch: refetchPerps } = usePerpMarkets();
+  const {
+    markets: perpMarkets,
+    loading: perpLoading,
+    refetch: refetchPerps,
+  } = usePerpMarkets();
 
   const loading = predictionsLoading && perpLoading;
 
   const fetchMarkets = useCallback(async () => {
-    try {
-      // Fetch prediction markets only - perps come from shared store
-      const response = await fetch('/api/feed/widgets/markets');
+    // Fetch prediction markets only - perps come from shared store
+    const response = await fetch('/api/feed/widgets/markets');
 
-      if (!response.ok) {
-        console.error(
-          'Failed to fetch markets:',
-          response.status,
-          response.statusText
-        );
-        setMarkets([]);
-      } else {
-        const text = await response.text();
-        if (!text) {
-          console.error('Empty response from markets API');
-          setMarkets([]);
-        } else {
-          try {
-            const data = JSON.parse(text);
-            if (data.success) {
-              setMarkets(data.markets || []);
-            } else {
-              setMarkets([]);
-            }
-          } catch (parseError) {
-            console.error('Failed to parse markets response:', parseError);
-            setMarkets([]);
-          }
-        }
-      }
-    } catch (error) {
-      console.error('Error fetching markets:', error);
+    if (!response.ok) {
+      console.error(
+        'Failed to fetch markets:',
+        response.status,
+        response.statusText
+      );
       setMarkets([]);
-    } finally {
       setPredictionsLoading(false);
+      return;
     }
+
+    const text = await response.text();
+    if (!text) {
+      console.error('Empty response from markets API');
+      setMarkets([]);
+      setPredictionsLoading(false);
+      return;
+    }
+
+    const data = JSON.parse(text);
+    if (data.success) {
+      setMarkets(data.markets || []);
+    } else {
+      setMarkets([]);
+    }
+    setPredictionsLoading(false);
   }, []);
 
   useEffect(() => {
@@ -105,25 +102,35 @@ export function MarketsPanel() {
     router.push(`/markets/predictions/${marketId}`);
   };
 
-  // Get top movers (markets with biggest price changes)
-  const topMovers = markets
-    .filter((m) => m.changePercent24h !== undefined && m.changePercent24h !== 0)
-    .sort(
-      (a, b) =>
-        Math.abs(b.changePercent24h || 0) - Math.abs(a.changePercent24h || 0)
-    )
-    .slice(0, 3);
-
-  // Get trending tokens - use same strategy as TopMoversPanel
-  const sortedPerpMarkets = [...perpMarkets].sort(
-    (a, b) => b.changePercent24h - a.changePercent24h
-  );
-  const tokenGainers = sortedPerpMarkets.slice(0, 3); // Top 3 (highest positive or least negative)
-  const tokenLosers = sortedPerpMarkets.slice(-3).reverse(); // Bottom 3 (most negative)
-
   const handleTokenClick = (ticker: string) => {
     router.push(`/markets/perps/${ticker}`);
   };
+
+  // Memoize computed values
+  const topMovers = useMemo(
+    () =>
+      markets
+        .filter(
+          (m) => m.changePercent24h !== undefined && m.changePercent24h !== 0
+        )
+        .sort(
+          (a, b) =>
+            Math.abs(b.changePercent24h || 0) -
+            Math.abs(a.changePercent24h || 0)
+        )
+        .slice(0, 3),
+    [markets]
+  );
+
+  const { tokenGainers, tokenLosers } = useMemo(() => {
+    const sorted = [...perpMarkets].sort(
+      (a, b) => b.changePercent24h - a.changePercent24h
+    );
+    return {
+      tokenGainers: sorted.slice(0, 3),
+      tokenLosers: sorted.slice(-3).reverse(),
+    };
+  }, [perpMarkets]);
 
   return (
     <div className="flex flex-1 flex-col rounded-2xl bg-sidebar px-4 py-3">

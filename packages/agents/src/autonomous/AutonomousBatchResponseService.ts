@@ -13,6 +13,7 @@
  * 4. Executes responses for approved interactions
  */
 
+import { countTokensSync, truncateToTokenLimitSync } from '@babylon/api';
 import {
   and,
   chatParticipants,
@@ -30,10 +31,10 @@ import {
   users,
 } from '@babylon/db';
 import type { IAgentRuntime } from '@elizaos/core';
+import { callGroqDirect } from '../llm/direct-groq';
+import { getAgentConfig } from '../shared/agent-config';
 import { logger } from '../shared/logger';
 import { generateSnowflakeId } from '../shared/snowflake';
-import { countTokensSync, truncateToTokenLimitSync } from '@babylon/engine';
-import { callGroqDirect } from '../llm/direct-groq';
 
 interface PendingInteraction {
   type: 'comment_on_post' | 'comment_on_comment' | 'chat_message';
@@ -301,8 +302,6 @@ export class AutonomousBatchResponseService {
     const [agent] = await db
       .select({
         displayName: users.displayName,
-        agentSystem: users.agentSystem,
-        agentModelTier: users.agentModelTier,
       })
       .from(users)
       .where(eq(users.id, agentUserId))
@@ -312,8 +311,10 @@ export class AutonomousBatchResponseService {
       throw new Error('Agent not found');
     }
 
+    const config = await getAgentConfig(agentUserId);
+
     // Build evaluation prompt
-    const prompt = `${agent.agentSystem}
+    const prompt = `${config?.systemPrompt ?? 'You are an AI agent on Babylon.'}
 
 You are ${agent.displayName}, an AI agent on Babylon. You need to decide which interactions warrant a response.
 
@@ -367,13 +368,13 @@ Array:`;
       );
     }
 
-    // Use small model (llama-3.1-8b-instant) for batch evaluation
-    // Add timeout to prevent hanging (20 seconds max)
+    // Use large model for batch evaluation - better at consistent counting
+    // Add timeout to prevent hanging (30 seconds max for larger model)
     const decisionText = await Promise.race([
       callGroqDirect({
         prompt: finalPrompt,
-        system: agent.agentSystem || undefined,
-        modelSize: 'small', // Free tier: Fast and efficient
+        system: config?.systemPrompt ?? undefined,
+        modelSize: 'large', // Large model: Better at structured outputs and counting
         runtime: _runtime, // Pass runtime to access W&B trained models AND trajectory context
         temperature: 0.6,
         maxTokens: 16384,
@@ -388,7 +389,7 @@ Array:`;
             'AutonomousBatchResponse'
           );
           resolve('[]'); // Empty array = no responses
-        }, 20000); // 20 second timeout
+        }, 30000); // 30 second timeout (larger model needs more time)
       }),
     ]);
 
@@ -400,20 +401,36 @@ Array:`;
       );
     }
 
-    let decisions: boolean[];
-    try {
-      decisions = JSON.parse(jsonMatch[0]) as boolean[];
-    } catch (parseError) {
-      throw new Error(
-        `Failed to parse JSON decision array: ${parseError instanceof Error ? parseError.message : String(parseError)}. Response: ${decisionText.substring(0, 200)}`
-      );
-    }
+    const decisionsRaw = JSON.parse(jsonMatch[0]) as boolean[];
 
     // Ensure we have the right number of decisions (for capped interactions)
-    if (decisions.length !== evaluateInteractions.length) {
-      throw new Error(
-        `Decision count mismatch: ${decisions.length} vs ${evaluateInteractions.length}`
+    let decisions = decisionsRaw;
+    if (decisionsRaw.length !== evaluateInteractions.length) {
+      logger.warn(
+        `Decision count mismatch: ${decisionsRaw.length} vs ${evaluateInteractions.length}. Adjusting to match.`,
+        undefined,
+        'AutonomousBatchResponse'
       );
+
+      if (decisionsRaw.length < evaluateInteractions.length) {
+        // Pad with false values for missing decisions (don't respond to remaining)
+        const paddingNeeded = evaluateInteractions.length - decisionsRaw.length;
+        decisions = [...decisionsRaw, ...Array(paddingNeeded).fill(false)];
+        logger.info(
+          `Padded ${paddingNeeded} missing decisions with false`,
+          undefined,
+          'AutonomousBatchResponse'
+        );
+      } else {
+        // Truncate excess decisions
+        const excessCount = decisionsRaw.length - evaluateInteractions.length;
+        decisions = decisionsRaw.slice(0, evaluateInteractions.length);
+        logger.info(
+          `Truncated ${excessCount} excess decisions`,
+          undefined,
+          'AutonomousBatchResponse'
+        );
+      }
     }
 
     return decisions.map((shouldRespond) => ({ shouldRespond }));
@@ -449,8 +466,6 @@ Array:`;
     const [agent] = await db
       .select({
         displayName: users.displayName,
-        agentSystem: users.agentSystem,
-        agentModelTier: users.agentModelTier,
       })
       .from(users)
       .where(eq(users.id, agentUserId))
@@ -459,6 +474,8 @@ Array:`;
     if (!agent) {
       throw new Error('Agent not found');
     }
+
+    const respConfig = await getAgentConfig(agentUserId);
 
     let responsesCreated = 0;
 
@@ -469,7 +486,7 @@ Array:`;
       if (!interaction || !decision || !decision.shouldRespond) continue;
 
       // Generate response
-      const responsePrompt = `${agent.agentSystem}
+      const responsePrompt = `${respConfig?.systemPrompt ?? 'You are an AI agent on Babylon.'}
 
 You are ${agent.displayName}, responding to an interaction.
 
@@ -493,13 +510,13 @@ Generate ONLY the response text, nothing else.`;
         finalRespPrompt = truncated.text;
       }
 
-      // Use small model (llama-3.1-8b-instant) for response generation
-      // Add timeout to prevent hanging (15 seconds max)
+      // Use large model for response generation - better quality responses
+      // Add timeout to prevent hanging (20 seconds max)
       const responseContent = await Promise.race([
         callGroqDirect({
           prompt: finalRespPrompt,
-          system: agent.agentSystem || undefined,
-          modelSize: 'small', // Free tier: Fast response generation
+          system: respConfig?.systemPrompt ?? undefined,
+          modelSize: 'large', // Large model: Higher quality responses
           runtime: _runtime, // Pass runtime to access W&B trained models AND trajectory context
           temperature: 0.8,
           maxTokens: 16384,
@@ -514,7 +531,7 @@ Generate ONLY the response text, nothing else.`;
               'AutonomousBatchResponse'
             );
             resolve(''); // Empty response = skip
-          }, 15000); // 15 second timeout
+          }, 20000); // 20 second timeout (larger model needs more time)
         }),
       ]);
 

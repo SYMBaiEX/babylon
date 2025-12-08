@@ -11,15 +11,15 @@
  */
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
-import { existsSync, readFileSync } from 'fs';
-import { db } from '@babylon/db';
 import {
   agentRuntimeManager,
   autonomousCoordinator,
   createTestAgent,
 } from '@babylon/agents';
+import { db } from '@babylon/db';
 import { WalletService } from '@babylon/engine';
 import { generateSnowflakeId } from '@babylon/shared';
+import { existsSync, readFileSync } from 'fs';
 
 // Load environment variables from .env files if they exist (for CI and local environments)
 // Priority: process.env > .env.test > .env.local
@@ -51,6 +51,17 @@ const hasLLMKey = !!(
   (process.env.ANTHROPIC_API_KEY?.trim() ?? '') !== '' ||
   (process.env.OPENAI_API_KEY?.trim() ?? '') !== ''
 );
+
+// CRITICAL: Agent tests require LLM API keys and MUST NOT skip
+const requireLLMKey = () => {
+  if (!hasLLMKey) {
+    throw new Error(
+      'AGENT PERSISTENCE TESTS REQUIRE LLM API KEY. ' +
+        'Set GROQ_API_KEY, ANTHROPIC_API_KEY, or OPENAI_API_KEY to run these tests. ' +
+        'These tests validate actual agent functionality and MUST NOT be skipped.'
+    );
+  }
+};
 
 describe('Agent Actions Persistence Integration', () => {
   let testAgentId: string;
@@ -215,7 +226,7 @@ describe('Agent Actions Persistence Integration', () => {
         autonomousTrading: true,
         autonomousPosting: true,
         autonomousCommenting: true,
-        agentPointsBalance: 1000,
+        pointsBalance: 1000,
         virtualBalance: 10000,
       }
     );
@@ -326,10 +337,8 @@ describe('Agent Actions Persistence Integration', () => {
   });
 
   test('should create Position records when agent trades', async () => {
-    // Skip test if no LLM API keys are available
-    if (!hasLLMKey) {
-      return; // Test skipped - no LLM API keys configured
-    }
+    // LLM key is required - fail fast if not present
+    requireLLMKey();
 
     // Get initial position count
     const initialPositions = await db.position.count({
@@ -339,27 +348,12 @@ describe('Agent Actions Persistence Integration', () => {
     // Get initial balance
     const initialBalance = await WalletService.getBalance(testAgentId);
 
-    // Run agent tick
+    // Run agent tick - errors should fail the test, not skip
     const runtime = await agentRuntimeManager.getRuntime(testAgentId);
-    let result;
-    try {
-      result = await autonomousCoordinator.executeAutonomousTick(
-        testAgentId,
-        runtime
-      );
-    } catch (error) {
-      // If tick fails (e.g., LLM parsing error), skip this test
-      // Only log if it's not an API key error (which we already checked for)
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-      if (
-        !errorMessage.includes('API Key') &&
-        !errorMessage.includes('Invalid API')
-      ) {
-        console.log('⚠️  Agent tick failed:', errorMessage);
-      }
-      return;
-    }
+    const result = await autonomousCoordinator.executeAutonomousTick(
+      testAgentId,
+      runtime
+    );
 
     // Verify tick executed
     expect(result.success).toBe(true);
@@ -395,37 +389,20 @@ describe('Agent Actions Persistence Integration', () => {
   });
 
   test('should create Post records when agent posts', async () => {
-    // Skip test if no LLM API keys are available
-    if (!hasLLMKey) {
-      return; // Test skipped - no LLM API keys configured
-    }
+    // LLM key is required - fail fast if not present
+    requireLLMKey();
 
     // Get initial post count
     const initialPosts = await db.post.count({
       where: { authorId: testAgentId },
     });
 
-    // Run agent tick
+    // Run agent tick - errors should fail the test, not skip
     const runtime = await agentRuntimeManager.getRuntime(testAgentId);
-    let result;
-    try {
-      result = await autonomousCoordinator.executeAutonomousTick(
-        testAgentId,
-        runtime
-      );
-    } catch (error) {
-      // If tick fails (e.g., LLM parsing error), skip this test
-      // Only log if it's not an API key error (which we already checked for)
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-      if (
-        !errorMessage.includes('API Key') &&
-        !errorMessage.includes('Invalid API')
-      ) {
-        console.log('⚠️  Agent tick failed:', errorMessage);
-      }
-      return;
-    }
+    const result = await autonomousCoordinator.executeAutonomousTick(
+      testAgentId,
+      runtime
+    );
 
     // Verify tick executed
     expect(result.success).toBe(true);
@@ -454,37 +431,20 @@ describe('Agent Actions Persistence Integration', () => {
   });
 
   test('should create Comment records when agent comments', async () => {
-    // Skip test if no LLM API keys are available
-    if (!hasLLMKey) {
-      return; // Test skipped - no LLM API keys configured
-    }
+    // LLM key is required - fail fast if not present
+    requireLLMKey();
 
     // Get initial comment count
     const initialComments = await db.comment.count({
       where: { authorId: testAgentId },
     });
 
-    // Run agent tick
+    // Run agent tick - errors should fail the test, not skip
     const runtime = await agentRuntimeManager.getRuntime(testAgentId);
-    let result;
-    try {
-      result = await autonomousCoordinator.executeAutonomousTick(
-        testAgentId,
-        runtime
-      );
-    } catch (error) {
-      // If tick fails (e.g., LLM parsing error), skip this test
-      // Only log if it's not an API key error (which we already checked for)
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-      if (
-        !errorMessage.includes('API Key') &&
-        !errorMessage.includes('Invalid API')
-      ) {
-        console.log('⚠️  Agent tick failed:', errorMessage);
-      }
-      return;
-    }
+    const result = await autonomousCoordinator.executeAutonomousTick(
+      testAgentId,
+      runtime
+    );
 
     // Verify tick executed
     expect(result.success).toBe(true);
@@ -514,32 +474,15 @@ describe('Agent Actions Persistence Integration', () => {
   });
 
   test('should update agent P&L when trades are executed', async () => {
-    // Skip test if no LLM API keys are available
-    if (!hasLLMKey) {
-      return; // Test skipped - no LLM API keys configured
-    }
+    // LLM key is required - fail fast if not present
+    requireLLMKey();
 
-    // Run agent tick
+    // Run agent tick - errors should fail the test, not skip
     const runtime = await agentRuntimeManager.getRuntime(testAgentId);
-    let result;
-    try {
-      result = await autonomousCoordinator.executeAutonomousTick(
-        testAgentId,
-        runtime
-      );
-    } catch (error) {
-      // If tick fails (e.g., LLM parsing error), skip this test
-      // Only log if it's not an API key error (which we already checked for)
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-      if (
-        !errorMessage.includes('API Key') &&
-        !errorMessage.includes('Invalid API')
-      ) {
-        console.log('⚠️  Agent tick failed:', errorMessage);
-      }
-      return;
-    }
+    const result = await autonomousCoordinator.executeAutonomousTick(
+      testAgentId,
+      runtime
+    );
 
     // Verify tick executed
     expect(result.success).toBe(true);

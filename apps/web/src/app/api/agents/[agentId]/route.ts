@@ -174,11 +174,11 @@
  * @see {@link /src/app/agents/[agentId]/page.tsx} Agent detail page
  */
 
+import { agentService, getAgentConfig } from '@babylon/agents';
+import { authenticateUser } from '@babylon/api';
+import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { agentService } from '@babylon/agents';
-import { logger } from '@babylon/shared';
-import { authenticateUser } from '@babylon/api';
 
 export async function GET(
   req: NextRequest,
@@ -187,8 +187,11 @@ export async function GET(
   const user = await authenticateUser(req);
   const { agentId } = await params;
 
-  const agent = await agentService.getAgent(agentId, user.id);
-  const performance = await agentService.getPerformance(agentId);
+  const [agent, performance, config] = await Promise.all([
+    agentService.getAgent(agentId, user.id),
+    agentService.getPerformance(agentId),
+    getAgentConfig(agentId),
+  ]);
 
   return NextResponse.json({
     success: true,
@@ -200,77 +203,75 @@ export async function GET(
       profileImageUrl: agent!.profileImageUrl,
       // Parse trading strategy from system prompt if it was appended
       system: (() => {
-        const system = agent!.agentSystem || '';
+        const system = config?.systemPrompt || '';
         const tradingStrategyMatch = system.match(
           /\n\nTrading Strategy:\s*(.+)$/s
         );
-        if (tradingStrategyMatch && agent!.agentTradingStrategy) {
+        if (tradingStrategyMatch && config?.tradingStrategy) {
           // If trading strategy exists in DB and is also in system prompt, extract base system
           return system.replace(/\n\nTrading Strategy:\s*.+$/s, '').trim();
         }
         return system;
       })(),
       bio: (() => {
-        // Use agentMessageExamples (ElizaOS bio array) if available, otherwise fall back to bio string
-        if (agent!.agentMessageExamples) {
-          try {
-            const parsed = JSON.parse(agent!.agentMessageExamples as string);
-            if (Array.isArray(parsed)) {
-              return parsed.filter((b: string) => b && b.trim());
-            }
-          } catch {
-            // Fall through to bio string
+        // Use messageExamples (ElizaOS bio array) if available, otherwise fall back to bio string
+        if (config?.messageExamples) {
+          const parsed =
+            typeof config.messageExamples === 'string'
+              ? JSON.parse(config.messageExamples)
+              : config.messageExamples;
+          if (Array.isArray(parsed)) {
+            return parsed.filter((b: string) => b && b.trim());
           }
         }
         return agent!.bio ? agent!.bio.split('\n').filter((b) => b.trim()) : [];
       })(),
       personality:
-        agent!.agentPersonality ||
+        config?.personality ||
         (() => {
           // If personality is not set but bio array exists, join it for display
-          if (agent!.agentMessageExamples) {
-            try {
-              const parsed = JSON.parse(agent!.agentMessageExamples as string);
-              if (Array.isArray(parsed)) {
-                return parsed.filter((b: string) => b && b.trim()).join('\n');
-              }
-            } catch {
-              // Fall through
+          if (config?.messageExamples) {
+            const parsed =
+              typeof config.messageExamples === 'string'
+                ? JSON.parse(config.messageExamples)
+                : config.messageExamples;
+            if (Array.isArray(parsed)) {
+              return parsed.filter((b: string) => b && b.trim()).join('\n');
             }
           }
           return '';
         })(),
       tradingStrategy:
-        agent!.agentTradingStrategy ||
+        config?.tradingStrategy ||
         (() => {
           // Extract trading strategy from system prompt if it was appended
-          const system = agent!.agentSystem || '';
+          const system = config?.systemPrompt || '';
           const tradingStrategyMatch = system.match(
             /\n\nTrading Strategy:\s*(.+)$/s
           );
           return tradingStrategyMatch ? tradingStrategyMatch[1]!.trim() : '';
         })(),
-      pointsBalance: agent!.agentPointsBalance,
-      totalDeposited: agent!.agentTotalDeposited,
-      totalWithdrawn: agent!.agentTotalWithdrawn,
-      totalPointsSpent: agent!.agentTotalPointsSpent,
-      isActive: agent!.agentStatus === 'active',
-      autonomousEnabled: agent!.autonomousTrading!,
-      autonomousTrading: agent!.autonomousTrading,
-      autonomousPosting: agent!.autonomousPosting,
-      autonomousCommenting: agent!.autonomousCommenting,
-      autonomousDMs: agent!.autonomousDMs,
-      autonomousGroupChats: agent!.autonomousGroupChats,
-      a2aEnabled: agent!.a2aEnabled,
-      modelTier: agent!.agentModelTier,
-      status: agent!.agentStatus,
-      errorMessage: agent!.agentErrorMessage,
+      pointsBalance: config?.pointsBalance ?? 0,
+      totalDeposited: config?.totalDeposited ?? 0,
+      totalWithdrawn: config?.totalWithdrawn ?? 0,
+      totalPointsSpent: config?.totalPointsSpent ?? 0,
+      isActive: config?.status === 'active',
+      autonomousEnabled: config?.autonomousTrading ?? false,
+      autonomousTrading: config?.autonomousTrading ?? false,
+      autonomousPosting: config?.autonomousPosting ?? false,
+      autonomousCommenting: config?.autonomousCommenting ?? false,
+      autonomousDMs: config?.autonomousDMs ?? false,
+      autonomousGroupChats: config?.autonomousGroupChats ?? false,
+      a2aEnabled: config?.a2aEnabled ?? false,
+      modelTier: config?.modelTier ?? 'lite',
+      status: config?.status ?? 'idle',
+      errorMessage: config?.errorMessage ?? null,
       lifetimePnL: agent!.lifetimePnL.toString(),
       totalTrades: performance.totalTrades,
       profitableTrades: performance.profitableTrades,
       winRate: performance.winRate,
-      lastTickAt: agent!.agentLastTickAt?.toISOString(),
-      lastChatAt: agent!.agentLastChatAt?.toISOString(),
+      lastTickAt: config?.lastTickAt?.toISOString(),
+      lastChatAt: config?.lastChatAt?.toISOString(),
       walletAddress: agent!.walletAddress,
       agent0TokenId: agent!.agent0TokenId,
       onChainRegistered: agent!.onChainRegistered,
@@ -286,23 +287,7 @@ export async function PUT(
 ) {
   const user = await authenticateUser(req);
   const { agentId } = await params;
-  let body: Record<string, unknown>;
-  try {
-    body = (await req.json()) as Record<string, unknown>;
-  } catch (error) {
-    logger.error(
-      'Failed to parse request body',
-      { error, agentId },
-      'PUT /api/agents/[agentId]'
-    );
-    return NextResponse.json(
-      {
-        success: false,
-        error: 'Invalid request body',
-      },
-      { status: 400 }
-    );
-  }
+  const body = (await req.json()) as Record<string, unknown>;
 
   const {
     name,
@@ -352,6 +337,7 @@ export async function PUT(
   if (a2aEnabled !== undefined) updates.a2aEnabled = a2aEnabled;
 
   const agent = await agentService.updateAgent(agentId, user.id, updates);
+  const updatedConfig = await getAgentConfig(agentId);
 
   logger.info(`Agent updated via API: ${agentId}`, undefined, 'AgentsAPI');
 
@@ -363,10 +349,10 @@ export async function PUT(
       name: agent.displayName,
       description: agent.bio,
       profileImageUrl: agent.profileImageUrl,
-      pointsBalance: agent.agentPointsBalance,
-      autonomousTrading: agent.autonomousTrading,
-      autonomousPosting: agent.autonomousPosting,
-      modelTier: agent.agentModelTier,
+      pointsBalance: updatedConfig?.pointsBalance ?? 0,
+      autonomousTrading: updatedConfig?.autonomousTrading ?? false,
+      autonomousPosting: updatedConfig?.autonomousPosting ?? false,
+      modelTier: updatedConfig?.modelTier ?? 'lite',
       updatedAt: agent.updatedAt.toISOString(),
     },
   });

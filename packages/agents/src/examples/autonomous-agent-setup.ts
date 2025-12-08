@@ -5,13 +5,14 @@
  * with the new batch processing and dashboard system.
  */
 
-import { db } from '@babylon/db';
+import { db, eq, users } from '@babylon/db';
 import type { Character } from '@elizaos/core';
 import { AgentRuntime, ModelType } from '@elizaos/core';
-import { logger } from '../shared/logger';
 import { autonomousCoordinator } from '../autonomous';
 import { babylonPlugin } from '../plugins/babylon';
 import { groqPlugin } from '../plugins/groq';
+import { getAgentConfig } from '../shared/agent-config';
+import { logger } from '../shared/logger';
 
 /**
  * Example 1: Basic Autonomous Agent Setup
@@ -21,42 +22,31 @@ export async function setupBasicAutonomousAgent(agentUserId: string): Promise<{
     id: string;
     displayName: string | null;
     isAgent: boolean;
-    agentSystem: string | null;
+    systemPrompt: string | null;
   };
   runtime: AgentRuntime;
 }> {
   // 1. Load agent from database
-  const agent = await db.user.findUnique({
-    where: { id: agentUserId },
-    select: {
-      id: true,
-      username: true,
-      displayName: true,
-      isAgent: true,
-      agentSystem: true,
-      bio: true, // Changed from agentBio
-      personality: true, // Changed from agentPersonality
-      agentTradingStrategy: true,
-      agentModelTier: true,
-      autonomousTrading: true, // Changed from autonomousEnabled
-      autonomousPosting: true,
-      autonomousCommenting: true,
-      autonomousDMs: true,
-      autonomousGroupChats: true,
-    },
-  });
+  const [user] = await db
+    .select()
+    .from(users)
+    .where(eq(users.id, agentUserId))
+    .limit(1);
 
-  if (!agent) {
+  if (!user) {
     throw new Error('Agent not found');
   }
 
+  // Get agent config from separate table
+  const config = await getAgentConfig(agentUserId);
+
   // Check if at least one autonomous feature is enabled
   const hasAutonomousFeatures =
-    agent.autonomousTrading ||
-    agent.autonomousPosting ||
-    agent.autonomousCommenting ||
-    agent.autonomousDMs ||
-    agent.autonomousGroupChats;
+    config?.autonomousTrading ||
+    config?.autonomousPosting ||
+    config?.autonomousCommenting ||
+    config?.autonomousDMs ||
+    config?.autonomousGroupChats;
 
   if (!hasAutonomousFeatures) {
     throw new Error('Agent does not have any autonomous features enabled');
@@ -64,10 +54,10 @@ export async function setupBasicAutonomousAgent(agentUserId: string): Promise<{
 
   // 2. Create Eliza character from agent config
   const character: Character = {
-    name: agent.displayName || agent.username || 'Agent',
-    username: agent.username || 'agent',
-    system: agent.agentSystem || 'You are a helpful AI agent on Babylon.',
-    bio: agent.bio ? JSON.parse(agent.bio) : [],
+    name: user.displayName || user.username || 'Agent',
+    username: user.username || 'agent',
+    system: config?.systemPrompt || 'You are a helpful AI agent on Babylon.',
+    bio: user.bio ? JSON.parse(user.bio) : [],
 
     settings: {
       // Always use TEXT_LARGE (qwen 32b) - free chat, 1pt per tick
@@ -79,9 +69,17 @@ export async function setupBasicAutonomousAgent(agentUserId: string): Promise<{
     plugins: [], // Will be added to runtime instead
   };
 
+  // Build the agent object to return
+  const agent = {
+    id: user.id,
+    displayName: user.displayName,
+    isAgent: user.isAgent,
+    systemPrompt: config?.systemPrompt ?? null,
+  };
+
   // 3. Initialize runtime with plugins
   logger.info(
-    `Initializing runtime for agent ${agent.displayName}`,
+    `Initializing runtime for agent ${user.displayName}`,
     undefined,
     'AgentSetup'
   );
@@ -92,7 +90,7 @@ export async function setupBasicAutonomousAgent(agentUserId: string): Promise<{
   );
 
   const runtime = new AgentRuntime({
-    agentId: agent.id as `${string}-${string}-${string}-${string}-${string}`,
+    agentId: user.id as `${string}-${string}-${string}-${string}-${string}`,
     character,
     databaseAdapter: undefined, // Using our own database setup
   } as ConstructorParameters<typeof AgentRuntime>[0]);
@@ -281,7 +279,7 @@ export async function startMultiAgentSystem(agentUserIds: string[]) {
       id: string;
       displayName: string | null;
       isAgent: boolean;
-      agentSystem: string | null;
+      systemPrompt: string | null;
     };
     runtime: AgentRuntime;
   }> = [];

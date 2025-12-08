@@ -273,4 +273,3 @@ export function cleanupRateLimits(): void {
 if (typeof setInterval !== 'undefined') {
   setInterval(cleanupRateLimits, 5 * 60 * 1000);
 }
-

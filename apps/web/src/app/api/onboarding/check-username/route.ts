@@ -94,15 +94,11 @@
  * @see {@link /lib/db/context} RLS context
  */
 
-import type { NextRequest } from 'next/server';
+import { errorResponse, optionalAuth, successResponse } from '@babylon/api';
 import type { DrizzleClient } from '@babylon/db';
-import {
-  errorResponse,
-  optionalAuth,
-  successResponse,
-} from '@babylon/api';
 import { asPublic, asUser } from '@babylon/db';
 import { logger } from '@babylon/shared';
+import type { NextRequest } from 'next/server';
 
 interface UsernameCheckResult {
   available: boolean;
@@ -185,41 +181,40 @@ export async function GET(request: NextRequest) {
   }
 
   if (username.length < 3) {
-    return errorResponse('Username must be at least 3 characters', 'VALIDATION_ERROR', 400);
+    return errorResponse(
+      'Username must be at least 3 characters',
+      'VALIDATION_ERROR',
+      400
+    );
   }
 
   if (username.length > 20) {
-    return errorResponse('Username must be 20 characters or less', 'VALIDATION_ERROR', 400);
+    return errorResponse(
+      'Username must be 20 characters or less',
+      'VALIDATION_ERROR',
+      400
+    );
   }
 
-  try {
-    // Optional auth - username checks are public but RLS still applies
-    const authUser = await optionalAuth(request).catch(() => null);
+  // Optional auth - username checks are public but RLS still applies
+  const authUser = await optionalAuth(request).catch(() => null);
 
-    // Check username availability with RLS (public or user context)
-    // Verify authUser has userId before using asUser()
-    const result =
-      authUser && authUser.userId
-        ? await asUser(authUser, async (db) => {
-            return await checkUsernameAvailability(username, db);
-          })
-        : await asPublic(async (db) => {
-            return await checkUsernameAvailability(username, db);
-          });
+  // Check username availability with RLS (public or user context)
+  // Verify authUser has userId before using asUser()
+  const result =
+    authUser && authUser.userId
+      ? await asUser(authUser, async (db) => {
+          return await checkUsernameAvailability(username, db);
+        })
+      : await asPublic(async (db) => {
+          return await checkUsernameAvailability(username, db);
+        });
 
-    logger.info(
-      'Username check result',
-      result,
-      'GET /api/onboarding/check-username'
-    );
+  logger.info(
+    'Username check result',
+    result,
+    'GET /api/onboarding/check-username'
+  );
 
-    return successResponse(result);
-  } catch (error) {
-    logger.error(
-      'Error checking username availability',
-      { error, username },
-      'GET /api/onboarding/check-username'
-    );
-    return errorResponse('Failed to check username availability', 'INTERNAL_ERROR', 500);
-  }
+  return successResponse(result);
 }

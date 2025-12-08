@@ -1,5 +1,6 @@
 'use client';
 
+import { CHAIN, cn, logger, WALLET_ERROR_MESSAGES } from '@babylon/shared';
 import { useFundWallet, usePrivy } from '@privy-io/react-auth';
 import {
   AlertCircle,
@@ -12,12 +13,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import type { Address } from 'viem';
 import { formatEther } from 'viem';
-import { CHAIN } from '@babylon/shared';
 import { useSmartWallet } from '@/hooks/useSmartWallet';
 import { useSmartWalletBalance } from '@/hooks/useSmartWalletBalance';
-import { logger } from '@babylon/shared';
-import { cn } from '@babylon/shared';
-import { WALLET_ERROR_MESSAGES } from '@babylon/shared';
 
 /**
  * Admin send money modal component for sending ETH to users.
@@ -117,22 +114,14 @@ export function AdminSendMoneyModal({
           ? requiredAmountWei - (currentBalance ?? 0n)
           : requiredAmountWei;
 
-      try {
-        await fundWallet({
-          address: smartWalletAddress as Address,
-          options: {
-            chain: CHAIN,
-            amount: formatEther(deficit),
-            asset: 'native-currency',
-          },
-        });
-      } catch (fundingError) {
-        throw new Error(
-          fundingError instanceof Error
-            ? fundingError.message
-            : 'Funding flow cancelled. Please add funds to continue.'
-        );
-      }
+      await fundWallet({
+        address: smartWalletAddress as Address,
+        options: {
+          chain: CHAIN,
+          amount: formatEther(deficit),
+          asset: 'native-currency',
+        },
+      });
 
       // Poll for balance updates
       const maxAttempts = 30;
@@ -263,154 +252,152 @@ export function AdminSendMoneyModal({
     setLoading(true);
     setError(null);
 
-    try {
-      const token = await getAccessToken();
-      if (!token) {
-        throw new Error('Authentication required');
-      }
-
-      // Create escrow payment request
-      const response = await fetch(
-        '/api/admin/moderation-escrow/create-payment',
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            recipientId,
-            amountUSD: amountNum,
-            reason: reason.trim() || undefined,
-            recipientWalletAddress,
-          }),
-        }
-      );
-
-      const data = await response.json();
-
-      if (!response.ok || !data.success) {
-        throw new Error(data.error || 'Failed to create payment request');
-      }
-
-      setEscrowId(data.escrow.id);
-      const paymentReq = data.paymentRequest as PaymentRequest;
-      setStep('payment');
-
-      // Initiate blockchain transaction
-      // Note: Admin sends payment from their wallet to treasury
-      await handleSendPayment(paymentReq);
-    } catch (err) {
-      logger.error(
-        'Failed to create escrow payment',
-        { error: err },
-        'AdminSendMoneyModal'
-      );
-      setError(
-        err instanceof Error ? err.message : 'Failed to create payment request'
-      );
+    const token = await getAccessToken();
+    if (!token) {
+      logger.error('Authentication required', undefined, 'AdminSendMoneyModal');
+      setError('Authentication required');
       setStep('error');
       toast.error('Failed to create payment request');
-    } finally {
       setLoading(false);
+      return;
     }
+
+    // Create escrow payment request
+    const response = await fetch(
+      '/api/admin/moderation-escrow/create-payment',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          recipientId,
+          amountUSD: amountNum,
+          reason: reason.trim() || undefined,
+          recipientWalletAddress,
+        }),
+      }
+    );
+
+    const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      const errorMessage = data.error || 'Failed to create payment request';
+      logger.error(
+        'Failed to create escrow payment',
+        { error: errorMessage },
+        'AdminSendMoneyModal'
+      );
+      setError(errorMessage);
+      setStep('error');
+      toast.error('Failed to create payment request');
+      setLoading(false);
+      return;
+    }
+
+    setEscrowId(data.escrow.id);
+    const paymentReq = data.paymentRequest as PaymentRequest;
+    setStep('payment');
+
+    // Initiate blockchain transaction
+    // Note: Admin sends payment from their wallet to treasury
+    await handleSendPayment(paymentReq);
+    setLoading(false);
   };
 
   const handleSendPayment = async (paymentReq: PaymentRequest) => {
     setLoading(true);
     setStep('payment');
 
-    try {
-      if (!smartWalletReady || !smartWalletAddress) {
-        throw new Error(WALLET_ERROR_MESSAGES.NO_EMBEDDED_WALLET);
-      }
-
-      const requiredAmountWei = BigInt(paymentReq.amount);
-      await ensureFunds(requiredAmountWei);
-
-      const hash = await sendSmartWalletTransaction({
-        to: paymentReq.to as Address,
-        value: requiredAmountWei,
-        chain: CHAIN,
-      });
-
-      setTxHash(hash);
-      setStep('verifying');
-
-      // Verify payment
-      await handleVerifyPayment(hash, paymentReq);
-    } catch (err) {
+    if (!smartWalletReady || !smartWalletAddress) {
+      const errorMessage = WALLET_ERROR_MESSAGES.NO_EMBEDDED_WALLET;
       logger.error(
         'Escrow payment failed',
-        { error: err },
+        { error: errorMessage },
         'AdminSendMoneyModal'
       );
-      const errorMessage =
-        err instanceof Error ? err.message : 'Payment failed';
       setError(errorMessage);
       setStep('error');
       toast.error('Payment transaction failed');
       setLoading(false);
+      return;
     }
+
+    const requiredAmountWei = BigInt(paymentReq.amount);
+    await ensureFunds(requiredAmountWei);
+
+    const hash = await sendSmartWalletTransaction({
+      to: paymentReq.to as Address,
+      value: requiredAmountWei,
+      chain: CHAIN,
+    });
+
+    setTxHash(hash);
+    setStep('verifying');
+
+    // Verify payment
+    await handleVerifyPayment(hash, paymentReq);
   };
 
   const handleVerifyPayment = async (
     transactionHash: string,
     paymentReq: PaymentRequest
   ) => {
-    try {
-      const token = await getAccessToken();
-      if (!token) {
-        throw new Error('Authentication required');
-      }
-
-      // Wait for transaction confirmation
-      await new Promise((resolve) => setTimeout(resolve, 3000));
-
-      const response = await fetch(
-        '/api/admin/moderation-escrow/verify-payment',
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            escrowId,
-            txHash: transactionHash,
-            fromAddress: smartWalletAddress || paymentReq.from,
-            toAddress: paymentReq.to,
-            amount: paymentReq.amount,
-          }),
-        }
-      );
-
-      const data = await response.json();
-
-      if (!response.ok || !data.success) {
-        throw new Error(data.error || 'Failed to verify payment');
-      }
-
-      setStep('success');
-      toast.success(`Successfully sent $${amountNum} to ${recipientName}!`);
-
-      if (onSuccess) {
-        onSuccess();
-      }
-    } catch (err) {
-      logger.error(
-        'Payment verification failed',
-        { error: err },
-        'AdminSendMoneyModal'
-      );
-      setError(
-        err instanceof Error ? err.message : 'Payment verification failed'
-      );
+    const token = await getAccessToken();
+    if (!token) {
+      logger.error('Authentication required', undefined, 'AdminSendMoneyModal');
+      setError('Authentication required');
       setStep('error');
       toast.error('Failed to verify payment');
-    } finally {
       setLoading(false);
+      return;
     }
+
+    // Wait for transaction confirmation
+    await new Promise((resolve) => setTimeout(resolve, 3000));
+
+    const response = await fetch(
+      '/api/admin/moderation-escrow/verify-payment',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          escrowId,
+          txHash: transactionHash,
+          fromAddress: smartWalletAddress || paymentReq.from,
+          toAddress: paymentReq.to,
+          amount: paymentReq.amount,
+        }),
+      }
+    );
+
+    const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      const errorMessage = data.error || 'Failed to verify payment';
+      logger.error(
+        'Payment verification failed',
+        { error: errorMessage },
+        'AdminSendMoneyModal'
+      );
+      setError(errorMessage);
+      setStep('error');
+      toast.error('Failed to verify payment');
+      setLoading(false);
+      return;
+    }
+
+    setStep('success');
+    toast.success(`Successfully sent $${amountNum} to ${recipientName}!`);
+
+    if (onSuccess) {
+      onSuccess();
+    }
+    setLoading(false);
   };
 
   const handleClose = () => {

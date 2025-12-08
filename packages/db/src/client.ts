@@ -1113,7 +1113,6 @@ type InferSelect<T extends PgTable> = T['$inferSelect'];
  */
 type InferInsert<T extends PgTable> = T['$inferInsert'];
 
-
 /**
  * Drizzle database client interface providing ORM-style API and direct Drizzle access.
  * Includes table repositories for all database models and core Drizzle query methods.
@@ -1151,10 +1150,10 @@ export interface DrizzleClient {
     InferSelect<typeof schema.users>,
     InferInsert<typeof schema.users>
   >;
-  actor: TableRepository<
-    typeof schema.actors,
-    InferSelect<typeof schema.actors>,
-    InferInsert<typeof schema.actors>
+  actorState: TableRepository<
+    typeof schema.actorState,
+    InferSelect<typeof schema.actorState>,
+    InferInsert<typeof schema.actorState>
   >;
   actorFollow: TableRepository<
     typeof schema.actorFollows,
@@ -1216,10 +1215,10 @@ export interface DrizzleClient {
     InferSelect<typeof schema.poolDeposits>,
     InferInsert<typeof schema.poolDeposits>
   >;
-  organization: TableRepository<
-    typeof schema.organizations,
-    InferSelect<typeof schema.organizations>,
-    InferInsert<typeof schema.organizations>
+  organizationState: TableRepository<
+    typeof schema.organizationState,
+    InferSelect<typeof schema.organizationState>,
+    InferInsert<typeof schema.organizationState>
   >;
   stockPrice: TableRepository<
     typeof schema.stockPrices,
@@ -1541,16 +1540,6 @@ export interface DrizzleClient {
     InferSelect<typeof schema.parodyHeadlines>,
     InferInsert<typeof schema.parodyHeadlines>
   >;
-  characterMapping: TableRepository<
-    typeof schema.characterMappings,
-    InferSelect<typeof schema.characterMappings>,
-    InferInsert<typeof schema.characterMappings>
-  >;
-  organizationMapping: TableRepository<
-    typeof schema.organizationMappings,
-    InferSelect<typeof schema.organizationMappings>,
-    InferInsert<typeof schema.organizationMappings>
-  >;
   moderationEscrow: TableRepository<
     typeof schema.moderationEscrows,
     InferSelect<typeof schema.moderationEscrows>,
@@ -1575,6 +1564,21 @@ export interface DrizzleClient {
     typeof schema.widgetCaches,
     InferSelect<typeof schema.widgetCaches>,
     InferInsert<typeof schema.widgetCaches>
+  >;
+  userAgentConfig: TableRepository<
+    typeof schema.userAgentConfigs,
+    InferSelect<typeof schema.userAgentConfigs>,
+    InferInsert<typeof schema.userAgentConfigs>
+  >;
+  userApiKey: TableRepository<
+    typeof schema.userApiKeys,
+    InferSelect<typeof schema.userApiKeys>,
+    InferInsert<typeof schema.userApiKeys>
+  >;
+  tickTokenStats: TableRepository<
+    typeof schema.tickTokenStats,
+    InferSelect<typeof schema.tickTokenStats>,
+    InferInsert<typeof schema.tickTokenStats>
   >;
 }
 
@@ -1654,7 +1658,7 @@ export function createDrizzleClient(drizzle: SchemaDatabase): DrizzleClient {
 
     // Model repositories
     user: new TableRepository(drizzle, schema.users, 'users'),
-    actor: new TableRepository(drizzle, schema.actors, 'actors'),
+    actorState: new TableRepository(drizzle, schema.actorState, 'actorState'),
     actorFollow: new TableRepository(
       drizzle,
       schema.actorFollows,
@@ -1687,10 +1691,10 @@ export function createDrizzleClient(drizzle: SchemaDatabase): DrizzleClient {
       schema.poolDeposits,
       'poolDeposits'
     ),
-    organization: new TableRepository(
+    organizationState: new TableRepository(
       drizzle,
-      schema.organizations,
-      'organizations'
+      schema.organizationState,
+      'organizationState'
     ),
     stockPrice: new TableRepository(drizzle, schema.stockPrices, 'stockPrices'),
     question: new TableRepository(drizzle, schema.questions, 'questions'),
@@ -1912,16 +1916,6 @@ export function createDrizzleClient(drizzle: SchemaDatabase): DrizzleClient {
       schema.parodyHeadlines,
       'parodyHeadlines'
     ),
-    characterMapping: new TableRepository(
-      drizzle,
-      schema.characterMappings,
-      'characterMappings'
-    ),
-    organizationMapping: new TableRepository(
-      drizzle,
-      schema.organizationMappings,
-      'organizationMappings'
-    ),
     moderationEscrow: new TableRepository(
       drizzle,
       schema.moderationEscrows,
@@ -1939,8 +1933,16 @@ export function createDrizzleClient(drizzle: SchemaDatabase): DrizzleClient {
       schema.widgetCaches,
       'widgetCaches'
     ),
+    userAgentConfig: new TableRepository(
+      drizzle,
+      schema.userAgentConfigs,
+      'userAgentConfigs'
+    ),
+    userApiKey: new TableRepository(drizzle, schema.userApiKeys, 'userApiKeys'),
+    tickTokenStats: new TableRepository(
+      drizzle,
+      schema.tickTokenStats,
+      'tickTokenStats'
+    ),
   };
 }
-
-
-

@@ -125,16 +125,21 @@
  * @see {@link /src/app/chats/[id]/page.tsx} Chat room UI
  */
 
+import {
+  authenticate,
+  BusinessLogicError,
+  NotFoundError,
+  successResponse,
+  withErrorHandling,
+} from '@babylon/api';
+import { asUser, hasBlocked } from '@babylon/db';
+import {
+  DMChatCreateSchema,
+  generateSnowflakeId,
+  logger,
+} from '@babylon/shared';
 import type { NextRequest } from 'next/server';
-import { authenticate } from '@babylon/api';
-import { asUser } from '@babylon/db';
-import { BusinessLogicError, NotFoundError } from '@babylon/api';
-import { successResponse, withErrorHandling } from '@babylon/api';
-import { logger } from '@babylon/shared';
-import { hasBlocked } from '@babylon/db';
 import { trackServerEvent } from '@/lib/posthog/server';
-import { generateSnowflakeId } from '@babylon/shared';
-import { DMChatCreateSchema } from '@babylon/shared';
 
 /**
  * POST /api/chats/dm

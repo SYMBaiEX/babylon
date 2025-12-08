@@ -1,5 +1,6 @@
 'use client';
 
+import { cn } from '@babylon/shared';
 import {
   ArrowUpDown,
   Clock,
@@ -8,10 +9,8 @@ import {
   TrendingDown,
   TrendingUp,
 } from 'lucide-react';
-
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-
 import { CategoryPnLCard } from '@/components/markets/CategoryPnLCard';
 import { CategoryPnLShareModal } from '@/components/markets/CategoryPnLShareModal';
 import { MarketsWidgetSidebar } from '@/components/markets/MarketsWidgetSidebar';
@@ -25,8 +24,7 @@ import { Skeleton, WidgetPanelSkeleton } from '@/components/shared/Skeleton';
 import { useAuth } from '@/hooks/useAuth';
 import { usePortfolioPnL } from '@/hooks/usePortfolioPnL';
 import { useUserPositions } from '@/hooks/useUserPositions';
-import { usePerpMarkets, type PerpMarket } from '@/stores/perpMarketsStore';
-import { cn } from '@babylon/shared';
+import { type PerpMarket, usePerpMarkets } from '@/stores/perpMarketsStore';
 
 interface PredictionUserPosition {
   id: string;
@@ -78,7 +76,11 @@ export default function MarketsPage() {
   >(null);
 
   // Use shared perp markets store
-  const { markets: perpMarkets, loading: perpLoading, refetch: refetchPerps } = usePerpMarkets();
+  const {
+    markets: perpMarkets,
+    loading: perpLoading,
+    refetch: refetchPerps,
+  } = usePerpMarkets();
 
   // Data
   const [predictions, setPredictions] = useState<PredictionMarket[]>([]);
@@ -140,32 +142,28 @@ export default function MarketsPage() {
     const isAuth = authenticatedRef.current;
     const userId = userIdRef.current;
 
-    try {
-      const predictionsRes = await fetch(
-        `/api/markets/predictions${isAuth && userId ? `?userId=${userId}` : ''}`
-      );
+    const predictionsRes = await fetch(
+      `/api/markets/predictions${isAuth && userId ? `?userId=${userId}` : ''}`
+    );
 
-      if (!predictionsRes.ok) {
-        throw new Error('Failed to fetch predictions');
-      }
-
-      const predictionsData = await predictionsRes.json();
-      setPredictions(predictionsData.questions || []);
-
-      if (isAuth && userId) {
-        if (refreshPositionsRef.current) {
-          await refreshPositionsRef.current();
-        }
-      }
-
-      // Trigger balance refresh after data fetch (after trades)
-      setBalanceRefreshTrigger(Date.now());
-    } catch (err) {
-      console.error('Failed to fetch predictions:', err);
-      // Keep existing data on error, just stop loading
-    } finally {
+    if (!predictionsRes.ok) {
+      console.error('Failed to fetch predictions: Failed to fetch predictions');
       setPredictionsLoading(false);
+      return;
     }
+
+    const predictionsData = await predictionsRes.json();
+    setPredictions(predictionsData.questions || []);
+
+    if (isAuth && userId) {
+      if (refreshPositionsRef.current) {
+        await refreshPositionsRef.current();
+      }
+    }
+
+    // Trigger balance refresh after data fetch (after trades)
+    setBalanceRefreshTrigger(Date.now());
+    setPredictionsLoading(false);
   }, []); // Empty dependency array - fetchData never changes
 
   // Store fetchData in ref (fetchData is stable with empty deps)
@@ -206,17 +204,26 @@ export default function MarketsPage() {
 
   // Note: Real-time updates via SSE removed - using periodic polling instead
 
-  const filteredPerpMarkets = perpMarkets.filter(
-    (m) =>
-      !searchQuery.trim() ||
-      m.ticker.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      m.name.toLowerCase().includes(searchQuery.toLowerCase())
+  // Memoize filtered markets
+  const filteredPerpMarkets = useMemo(
+    () =>
+      perpMarkets.filter(
+        (m) =>
+          !searchQuery.trim() ||
+          m.ticker.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          m.name.toLowerCase().includes(searchQuery.toLowerCase())
+      ),
+    [perpMarkets, searchQuery]
   );
 
-  const filteredPredictions = predictions.filter(
-    (p) =>
-      !searchQuery.trim() ||
-      p.text.toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredPredictions = useMemo(
+    () =>
+      predictions.filter(
+        (p) =>
+          !searchQuery.trim() ||
+          p.text.toLowerCase().includes(searchQuery.toLowerCase())
+      ),
+    [predictions, searchQuery]
   );
 
   // Sort predictions based on selected option
@@ -265,8 +272,9 @@ export default function MarketsPage() {
   }, [filteredPredictions, predictionSort]);
 
   const activePredictions = sortedPredictions;
-  const resolvedPredictions = filteredPredictions.filter(
-    (p) => p.status === 'resolved'
+  const resolvedPredictions = useMemo(
+    () => filteredPredictions.filter((p) => p.status === 'resolved'),
+    [filteredPredictions]
   );
 
   // Calculate trending tokens (mix of % gain and volume) - memoized

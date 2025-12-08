@@ -293,49 +293,27 @@ export const parodyHeadlines = pgTable(
   ]
 );
 
-// CharacterMapping
-export const characterMappings = pgTable(
-  'CharacterMapping',
+// TickTokenStats - Stores LLM token usage statistics per game tick
+export const tickTokenStats = pgTable(
+  'TickTokenStats',
   {
     id: text('id').primaryKey(),
-    realName: text('realName').notNull().unique(),
-    parodyName: text('parodyName').notNull(),
-    category: text('category').notNull(),
-    aliases: text('aliases').array().notNull().default([]),
-    isActive: boolean('isActive').notNull().default(true),
-    priority: integer('priority').notNull().default(0),
+    tickId: text('tickId').notNull(),
+    tickStartedAt: timestamp('tickStartedAt', { mode: 'date' }).notNull(),
+    tickCompletedAt: timestamp('tickCompletedAt', { mode: 'date' }).notNull(),
+    tickDurationMs: integer('tickDurationMs').notNull(),
+    totalCalls: integer('totalCalls').notNull(),
+    totalInputTokens: integer('totalInputTokens').notNull(),
+    totalOutputTokens: integer('totalOutputTokens').notNull(),
+    totalTokens: integer('totalTokens').notNull(),
+    byPromptType: json('byPromptType').$type<JsonValue>().notNull(),
+    byModel: json('byModel').$type<JsonValue>().notNull(),
     createdAt: timestamp('createdAt', { mode: 'date' }).notNull().defaultNow(),
-    updatedAt: timestamp('updatedAt', { mode: 'date' }).notNull(),
   },
   (table) => [
-    index('CharacterMapping_category_isActive_idx').on(
-      table.category,
-      table.isActive
-    ),
-    index('CharacterMapping_priority_idx').on(table.priority),
-  ]
-);
-
-// OrganizationMapping
-export const organizationMappings = pgTable(
-  'OrganizationMapping',
-  {
-    id: text('id').primaryKey(),
-    realName: text('realName').notNull().unique(),
-    parodyName: text('parodyName').notNull(),
-    category: text('category').notNull(),
-    aliases: text('aliases').array().notNull().default([]),
-    isActive: boolean('isActive').notNull().default(true),
-    priority: integer('priority').notNull().default(0),
-    createdAt: timestamp('createdAt', { mode: 'date' }).notNull().defaultNow(),
-    updatedAt: timestamp('updatedAt', { mode: 'date' }).notNull(),
-  },
-  (table) => [
-    index('OrganizationMapping_category_isActive_idx').on(
-      table.category,
-      table.isActive
-    ),
-    index('OrganizationMapping_priority_idx').on(table.priority),
+    index('TickTokenStats_tickStartedAt_idx').on(table.tickStartedAt),
+    index('TickTokenStats_tickId_idx').on(table.tickId),
+    index('TickTokenStats_createdAt_idx').on(table.createdAt),
   ]
 );
 
@@ -397,9 +375,5 @@ export type RSSHeadline = typeof rssHeadlines.$inferSelect;
 export type NewRSSHeadline = typeof rssHeadlines.$inferInsert;
 export type ParodyHeadline = typeof parodyHeadlines.$inferSelect;
 export type NewParodyHeadline = typeof parodyHeadlines.$inferInsert;
-export type CharacterMapping = typeof characterMappings.$inferSelect;
-export type NewCharacterMapping = typeof characterMappings.$inferInsert;
-export type OrganizationMapping = typeof organizationMappings.$inferSelect;
-export type NewOrganizationMapping = typeof organizationMappings.$inferInsert;
-
-
+export type TickTokenStatsRow = typeof tickTokenStats.$inferSelect;
+export type NewTickTokenStatsRow = typeof tickTokenStats.$inferInsert;

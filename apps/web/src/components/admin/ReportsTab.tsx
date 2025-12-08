@@ -20,12 +20,12 @@
  */
 'use client';
 
+import { cn } from '@babylon/shared';
 import { AlertCircle, CheckCircle, Clock, Flag, XCircle } from 'lucide-react';
 import { useCallback, useEffect, useState, useTransition } from 'react';
 import { toast } from 'sonner';
 import { Avatar } from '@/components/shared/Avatar';
 import { Skeleton } from '@/components/shared/Skeleton';
-import { cn } from '@babylon/shared';
 
 /**
  * Report evaluation structure from AI.
@@ -119,28 +119,31 @@ export function ReportsTab() {
   );
   const [, startRefresh] = useTransition();
 
-  const fetchReports = useCallback(async (showRefreshing = false) => {
-    const fetchLogic = async () => {
-      const params = new URLSearchParams({
-        limit: '100',
-      });
-      if (statusFilter !== 'all') params.set('status', statusFilter);
-      if (priorityFilter !== 'all') params.set('priority', priorityFilter);
+  const fetchReports = useCallback(
+    async (showRefreshing = false) => {
+      const fetchLogic = async () => {
+        const params = new URLSearchParams({
+          limit: '100',
+        });
+        if (statusFilter !== 'all') params.set('status', statusFilter);
+        if (priorityFilter !== 'all') params.set('priority', priorityFilter);
 
-      const response = await fetch(`/api/admin/reports?${params}`);
-      if (!response.ok) throw new Error('Failed to fetch reports');
+        const response = await fetch(`/api/admin/reports?${params}`);
+        if (!response.ok) throw new Error('Failed to fetch reports');
 
-      const data = await response.json();
-      setReports(data.reports || []);
-      setLoading(false);
-    };
+        const data = await response.json();
+        setReports(data.reports || []);
+        setLoading(false);
+      };
 
-    if (showRefreshing) {
-      startRefresh(fetchLogic);
-    } else {
-      await fetchLogic();
-    }
-  }, [statusFilter, priorityFilter]);
+      if (showRefreshing) {
+        startRefresh(fetchLogic);
+      } else {
+        await fetchLogic();
+      }
+    },
+    [statusFilter, priorityFilter]
+  );
 
   const fetchStats = useCallback(async () => {
     const response = await fetch('/api/admin/reports/stats');
@@ -181,36 +184,32 @@ export function ReportsTab() {
 
   const handleEvaluate = async (reportId: string) => {
     setEvaluatingReportId(reportId);
-    try {
-      const response = await fetch(`/api/admin/reports/${reportId}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'evaluate' }),
-      });
+    const response = await fetch(`/api/admin/reports/${reportId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'evaluate' }),
+    });
 
-      if (!response.ok) {
-        const error = await response.json();
-        toast.error(error.message || 'Failed to evaluate report');
-        return;
-      }
-
-      const data = await response.json();
-      toast.success('Report evaluated successfully');
-
-      // Refresh reports to show evaluation
-      await fetchReports(true);
-
-      // Show evaluation modal if we have the report selected
-      const report = reports.find((r) => r.id === reportId);
-      if (report && data.evaluation) {
-        setSelectedReport({ ...report, evaluation: data.evaluation });
-        setShowEvaluationModal(true);
-      }
-    } catch {
-      toast.error('Failed to evaluate report');
-    } finally {
+    if (!response.ok) {
+      const error = await response.json();
+      toast.error(error.message || 'Failed to evaluate report');
       setEvaluatingReportId(null);
+      return;
     }
+
+    const data = await response.json();
+    toast.success('Report evaluated successfully');
+
+    // Refresh reports to show evaluation
+    await fetchReports(true);
+
+    // Show evaluation modal if we have the report selected
+    const report = reports.find((r) => r.id === reportId);
+    if (report && data.evaluation) {
+      setSelectedReport({ ...report, evaluation: data.evaluation });
+      setShowEvaluationModal(true);
+    }
+    setEvaluatingReportId(null);
   };
 
   const formatDate = (date: string) => {

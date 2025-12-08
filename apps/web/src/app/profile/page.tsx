@@ -1,5 +1,6 @@
 'use client';
 
+import { cn, getProfileUrl } from '@babylon/shared';
 import {
   AlertCircle,
   ArrowLeft,
@@ -29,7 +30,6 @@ import {
 } from '@/components/shared/Skeleton';
 import { TaggedText } from '@/components/shared/TaggedText';
 import { useAuth } from '@/hooks/useAuth';
-import { cn } from '@babylon/shared';
 import { useAuthStore } from '@/stores/authStore';
 
 interface ProfileFormData {
@@ -271,9 +271,7 @@ export default function ProfilePage() {
   const filteredPosts = useMemo(() => {
     if (!searchQuery.trim()) return posts;
     const query = searchQuery.toLowerCase();
-    return posts.filter((post) =>
-      post.content?.toLowerCase().includes(query)
-    );
+    return posts.filter((post) => post.content?.toLowerCase().includes(query));
   }, [posts, searchQuery]);
 
   const filteredReplies = useMemo(() => {
@@ -818,7 +816,9 @@ export default function ProfilePage() {
           <div className="py-12 text-center">
             <User className="mx-auto mb-3 h-12 w-12 text-muted-foreground opacity-50" />
             <p className="text-muted-foreground">
-              {searchQuery ? 'No posts found matching your search' : 'Your posts will appear here'}
+              {searchQuery
+                ? 'No posts found matching your search'
+                : 'Your posts will appear here'}
             </p>
           </div>
         );
@@ -884,7 +884,9 @@ export default function ProfilePage() {
         <div className="py-12 text-center">
           <User className="mx-auto mb-3 h-12 w-12 text-muted-foreground opacity-50" />
           <p className="text-muted-foreground">
-            {searchQuery ? 'No replies found matching your search' : 'Your replies will appear here'}
+            {searchQuery
+              ? 'No replies found matching your search'
+              : 'Your replies will appear here'}
           </p>
         </div>
       );
@@ -898,7 +900,17 @@ export default function ProfilePage() {
               <TaggedText
                 text={reply.content}
                 onTagClick={(tag) => {
-                  router.push(`/feed?search=${encodeURIComponent(tag)}`);
+                  if (tag.startsWith('@')) {
+                    // Handle @mentions - route to profile
+                    const username = tag.slice(1);
+                    router.push(getProfileUrl('', username));
+                  } else if (tag.startsWith('$')) {
+                    // Handle $cashtags - route to markets
+                    const symbol = tag.slice(1);
+                    router.push(
+                      `/markets?search=${encodeURIComponent(symbol)}`
+                    );
+                  }
                 }}
               />
             </div>
@@ -917,7 +929,17 @@ export default function ProfilePage() {
               <TaggedText
                 text={reply.post.content.substring(0, 100) + '...'}
                 onTagClick={(tag) => {
-                  router.push(`/feed?search=${encodeURIComponent(tag)}`);
+                  if (tag.startsWith('@')) {
+                    // Handle @mentions - route to profile
+                    const username = tag.slice(1);
+                    router.push(getProfileUrl('', username));
+                  } else if (tag.startsWith('$')) {
+                    // Handle $cashtags - route to markets
+                    const symbol = tag.slice(1);
+                    router.push(
+                      `/markets?search=${encodeURIComponent(symbol)}`
+                    );
+                  }
                 }}
               />
             </div>
@@ -963,7 +985,9 @@ export default function ProfilePage() {
         </div>
         <div className="flex flex-1 flex-col items-center justify-center gap-4">
           <User className="h-12 w-12 text-muted-foreground opacity-50" />
-          <p className="text-muted-foreground">Please log in to view your profile.</p>
+          <p className="text-muted-foreground">
+            Please log in to view your profile.
+          </p>
           <Link
             href="/feed"
             className="rounded-lg bg-primary px-6 py-3 font-semibold text-primary-foreground transition-all hover:bg-primary/90"

@@ -1,18 +1,18 @@
 'use client';
 
-import { HelpCircle, TrendingDown, TrendingUp } from 'lucide-react';
-import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
-import { Skeleton } from '@/components/shared/Skeleton';
-import { useAuth } from '@/hooks/useAuth';
-import { cn } from '@babylon/shared';
-import { useWidgetCacheStore } from '@/stores/widgetCacheStore';
 import type {
   PerpPositionFromAPI,
   PredictionPosition,
   UserBalanceData,
   UserProfileStats,
 } from '@babylon/shared';
+import { cn } from '@babylon/shared';
+import { HelpCircle, TrendingDown, TrendingUp } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import { Skeleton } from '@/components/shared/Skeleton';
+import { useAuth } from '@/hooks/useAuth';
+import { useWidgetCacheStore } from '@/stores/widgetCacheStore';
 import { PositionDetailModal } from './PositionDetailModal';
 
 /**

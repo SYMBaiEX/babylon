@@ -1,5 +1,6 @@
 'use client';
 
+import { logger } from '@babylon/shared';
 import {
   Calendar,
   FileText,
@@ -15,7 +16,6 @@ import {
 import Image from 'next/image';
 import { useEffect, useState } from 'react';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
-import { logger } from '@babylon/shared';
 
 interface UserProfile {
   id: string;
@@ -67,30 +67,36 @@ export function PlayerStatsModal({
       setLoading(true);
       setError(null);
 
-      try {
-        const response = await fetch(`/api/users/${userId}/profile`);
+      const response = await fetch(`/api/users/${userId}/profile`);
 
-        if (!response.ok) {
-          throw new Error('Failed to fetch profile');
-        }
-
-        const data = await response.json();
-
-        if (!data.user) {
-          throw new Error('User not found');
-        }
-
-        setProfile(data.user);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load profile');
+      if (!response.ok) {
+        const errorMessage = 'Failed to fetch profile';
+        setError(errorMessage);
         logger.error(
           'Failed to fetch user profile',
-          { userId, error: err },
+          { userId, status: response.status },
           'PlayerStatsModal'
         );
-      } finally {
         setLoading(false);
+        return;
       }
+
+      const data = await response.json();
+
+      if (!data.user) {
+        const errorMessage = 'User not found';
+        setError(errorMessage);
+        logger.error(
+          'User not found in profile response',
+          { userId },
+          'PlayerStatsModal'
+        );
+        setLoading(false);
+        return;
+      }
+
+      setProfile(data.user);
+      setLoading(false);
     };
 
     fetchProfile();

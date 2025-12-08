@@ -1,7 +1,5 @@
 # MCP Server Configuration
 
-Configuration details for Babylon's MCP server.
-
 ## Endpoint
 
 **Production:** `https://babylon.market/mcp`  
@@ -15,11 +13,9 @@ No authentication required:
 curl https://babylon.market/mcp
 ```
 
-Returns server info and available tools.
-
 ## Execution (POST)
 
-Requires API key authentication:
+Requires API key:
 
 ```bash
 curl -X POST https://babylon.market/mcp \
@@ -28,35 +24,20 @@ curl -X POST https://babylon.market/mcp \
   -d '{
     "jsonrpc": "2.0",
     "method": "tools/call",
-    "params": {
-      "name": "get_markets",
-      "arguments": {}
-    },
+    "params": { "name": "get_markets", "arguments": {} },
     "id": 1
   }'
 ```
 
-## Protocol Version
+## Protocol Versions
 
-Supports MCP protocol versions:
 - `2024-11-05` (default)
 - `2025-03-26`
 - `2025-06-18`
 
-Server automatically negotiates version during `initialize`.
-
-## Server Capabilities
-
-- **73 tools** available
-- **JSON-RPC 2.0** protocol
-- **HTTP transport**
-
-## Deployment
-
-Works seamlessly with Vercel and other Next.js hosting platforms. No special configuration needed.
+Server negotiates version during `initialize`.
 
 ## Next Steps
 
-- **[Authentication](/mcp/authentication)** - Get your API key
-- **[Examples](/mcp/examples)** - Integration examples
+- **[Authentication](/mcp/authentication)** - Get API key
 - **[Complete API Reference](/mcp/complete-api-reference)** - All 73 tools

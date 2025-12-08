@@ -123,13 +123,16 @@
  * @see {@link /lib/db/context} RLS context
  */
 
-import type { NextRequest } from 'next/server';
+import {
+  AuthorizationError,
+  authenticate,
+  NotFoundError,
+  successResponse,
+  withErrorHandling,
+} from '@babylon/api';
 import { and, comments, count, db, eq, reactions, users } from '@babylon/db';
-import { authenticate } from '@babylon/api';
-import { AuthorizationError, NotFoundError } from '@babylon/api';
-import { successResponse, withErrorHandling } from '@babylon/api';
-import { logger } from '@babylon/shared';
-import { IdParamSchema, UpdateCommentSchema } from '@babylon/shared';
+import { IdParamSchema, logger, UpdateCommentSchema } from '@babylon/shared';
+import type { NextRequest } from 'next/server';
 
 /**
  * PATCH /api/comments/[id]

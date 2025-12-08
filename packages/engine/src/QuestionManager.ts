@@ -59,31 +59,24 @@
  */
 
 import {
-  actors,
   and,
   Decimal,
   db,
   desc,
   eq,
   gte,
-  inArray,
   markets,
-  organizations,
   questions,
   tags,
   trendingTags,
   worldEvents,
 } from '@babylon/db';
+import { generateSnowflakeId, logger } from '@babylon/shared';
 import { type Article, ArticleGenerator } from './ArticleGenerator';
+import type { BabylonLLMClient } from './llm/openai-client';
+import { BabylonLLMClient as BabylonLLMClientValue } from './llm/openai-client';
 import { MarketDecisionEngine } from './MarketDecisionEngine';
-import { logger } from '@babylon/shared';
 import { PredictionPricing } from './prediction-pricing';
-import { MarketContextService } from './services/market-context-service';
-import { TradeExecutionService } from './services/trade-execution-service';
-import { ensureMarketOnChain } from './services/onchain-market-service';
-import { worldFactsService } from './world-facts-service';
-import { generateSnowflakeId } from '@babylon/shared';
-import { shuffleArray } from './utils/randomization';
 import {
   generateWorldContext,
   questionGeneration,
@@ -91,6 +84,10 @@ import {
   renderPrompt,
   worldImpactAssessment,
 } from './prompts';
+import { MarketContextService } from './services/market-context-service';
+import { ensureMarketOnChain } from './services/onchain-market-service';
+import { StaticDataRegistry } from './services/static-data-registry';
+import { TradeExecutionService } from './services/trade-execution-service';
 import type {
   DayTimeline,
   Organization,
@@ -99,8 +96,8 @@ import type {
   SelectedActor,
   WorldEvent,
 } from './types/shared';
-import type { BabylonLLMClient } from './llm/openai-client';
-import { BabylonLLMClient as BabylonLLMClientValue } from './llm/openai-client';
+import { shuffleArray } from './utils/randomization';
+import { worldFactsService } from './world-facts-service';
 
 /**
  * Parameters for question generation
@@ -382,21 +379,13 @@ ${s.involvedOrganizations?.length ? `Organizations: ${s.involvedOrganizations.jo
 
     // Load example questions from TypeScript export
     let exampleQuestions = '';
-    try {
-      const { getQuestionExamples } = await import('./data/question-examples');
-      const examples = getQuestionExamples();
-      const shuffled = shuffleArray(examples);
-      exampleQuestions = shuffled
-        .slice(0, 10)
-        .map((q) => `✅ "${q}"`)
-        .join('\n');
-    } catch (error) {
-      logger.warn(
-        'Failed to load question examples',
-        { error },
-        'QuestionManager'
-      );
-    }
+    const { getQuestionExamples } = await import('./data/question-examples');
+    const examples = getQuestionExamples();
+    const shuffled = shuffleArray(examples);
+    exampleQuestions = shuffled
+      .slice(0, 10)
+      .map((q) => `✅ "${q}"`)
+      .join('\n');
 
     return renderPrompt(questionGeneration, {
       scenariosList,
@@ -543,28 +532,19 @@ ${s.involvedOrganizations?.length ? `Organizations: ${s.involvedOrganizations.jo
       visibility: 'public',
     };
 
-    try {
-      const article = await articleGenerator.generateArticleForQuestion(
-        question,
-        org,
-        'resolution',
-        actors,
-        [event]
-      );
+    const article = await articleGenerator.generateArticleForQuestion(
+      question,
+      org,
+      'resolution',
+      actors,
+      [event]
+    );
 
-      return {
-        type: 'article',
-        article,
-        url: `/article/${article.id}`,
-      };
-    } catch (error) {
-      logger.error(
-        'Failed to generate proof article',
-        { error },
-        'QuestionManager'
-      );
-      return null;
-    }
+    return {
+      type: 'article',
+      article,
+      url: `/article/${article.id}`,
+    };
   }
 
   /**
@@ -698,55 +678,45 @@ ${s.involvedOrganizations?.length ? `Organizations: ${s.involvedOrganizations.jo
     question: Question,
     resolutionEvent: string
   ): Promise<void> {
-    try {
-      const worldContext = await generateWorldContext({
-        includeWorldFacts: true,
-        realityGroundingLevel: 'concise',
-      });
+    const worldContext = await generateWorldContext({
+      includeWorldFacts: true,
+      realityGroundingLevel: 'concise',
+    });
 
-      const prompt = renderPrompt(worldImpactAssessment, {
-        worldFacts: worldContext.worldFacts,
-        questionText: question.text,
-        outcome: question.outcome ? 'YES' : 'NO',
-        outcomeText: question.outcome
-          ? 'True/Happened'
-          : 'False/Did not happen',
-        resolutionEvent,
-      });
+    const prompt = renderPrompt(worldImpactAssessment, {
+      worldFacts: worldContext.worldFacts,
+      questionText: question.text,
+      outcome: question.outcome ? 'YES' : 'NO',
+      outcomeText: question.outcome ? 'True/Happened' : 'False/Did not happen',
+      resolutionEvent,
+    });
 
-      const response = await this.llm.generateJSON<
-        | {
+    const response = await this.llm.generateJSON<
+      | {
+          changesWorld: boolean;
+          newFact: string | null;
+        }
+      | {
+          response: {
             changesWorld: boolean;
             newFact: string | null;
-          }
-        | {
-            response: {
-              changesWorld: boolean;
-              newFact: string | null;
-            };
-          }
-      >(prompt, undefined, { promptType: 'question_assess_world_impact' });
+          };
+        }
+    >(prompt, undefined, { promptType: 'question_assess_world_impact' });
 
-      // Handle potential wrapped response
-      let result: { changesWorld: boolean; newFact: string | null };
-      if ('response' in response) {
-        result = response.response;
-      } else {
-        result = response;
-      }
+    // Handle potential wrapped response
+    let result: { changesWorld: boolean; newFact: string | null };
+    if ('response' in response) {
+      result = response.response;
+    } else {
+      result = response;
+    }
 
-      if (result.changesWorld && result.newFact) {
-        await worldFactsService.addDynamicFact(result.newFact);
-        logger.info(
-          `Added new world fact: ${result.newFact}`,
-          { questionId: question.id },
-          'QuestionManager'
-        );
-      }
-    } catch (error) {
-      logger.error(
-        'Failed to assess world impact',
-        { error },
+    if (result.changesWorld && result.newFact) {
+      await worldFactsService.addDynamicFact(result.newFact);
+      logger.info(
+        `Added new world fact: ${result.newFact}`,
+        { questionId: question.id },
         'QuestionManager'
       );
     }
@@ -934,31 +904,33 @@ ${s.involvedOrganizations?.length ? `Organizations: ${s.involvedOrganizations.jo
         )
         .orderBy(desc(questions.updatedAt))
         .limit(10),
-      // Get actors (main and supporting roles)
-      db
-        .select({
-          id: actors.id,
-          name: actors.name,
-          description: actors.description,
-          domain: actors.domain,
-          role: actors.role,
-          personality: actors.personality,
-          affiliations: actors.affiliations,
-        })
-        .from(actors)
-        .where(inArray(actors.role, ['main', 'supporting']))
-        .limit(30),
-      // Get organizations (companies)
-      db
-        .select({
-          id: organizations.id,
-          name: organizations.name,
-          description: organizations.description,
-          type: organizations.type,
-        })
-        .from(organizations)
-        .where(eq(organizations.type, 'company'))
-        .limit(20),
+      // Get actors (main and supporting roles) from static registry
+      Promise.resolve(
+        StaticDataRegistry.getAllActors()
+          .filter((a) => a.role === 'main' || a.role === 'supporting')
+          .slice(0, 30)
+          .map((a) => ({
+            id: a.id,
+            name: a.name,
+            description: a.description,
+            domain: a.domain,
+            role: a.role,
+            personality: a.personality,
+            affiliations: a.affiliations,
+          }))
+      ),
+      // Get organizations (companies) from static registry
+      Promise.resolve(
+        StaticDataRegistry.getAllOrganizations()
+          .filter((o) => o.type === 'company')
+          .slice(0, 20)
+          .map((o) => ({
+            id: o.id,
+            name: o.name,
+            description: o.description,
+            type: o.type,
+          }))
+      ),
       // Get trending topics for context (with manual join for tags)
       db
         .select({
@@ -977,21 +949,13 @@ ${s.involvedOrganizations?.length ? `Organizations: ${s.involvedOrganizations.jo
 
     // Load example questions from TypeScript export
     let exampleQuestions = '';
-    try {
-      const { getQuestionExamples } = await import('./data/question-examples');
-      const examples = getQuestionExamples();
-      const shuffled = shuffleArray(examples);
-      exampleQuestions = shuffled
-        .slice(0, 10)
-        .map((q) => `✅ "${q}"`)
-        .join('\n');
-    } catch (error) {
-      logger.warn(
-        'Failed to load question examples',
-        { error },
-        'QuestionManager'
-      );
-    }
+    const { getQuestionExamples } = await import('./data/question-examples');
+    const examples = getQuestionExamples();
+    const shuffled = shuffleArray(examples);
+    exampleQuestions = shuffled
+      .slice(0, 10)
+      .map((q) => `✅ "${q}"`)
+      .join('\n');
 
     // Format context strings - compact format
     const recentEventsContext =
@@ -1104,294 +1068,270 @@ XML: <response><questions><question><text>...</text><resolutionCriteria>...</res
         }
       | null = null;
 
-    try {
-      if (Date.now() > deadlineMs) {
-        logger.warn(
-          'Question generation aborted due to tick budget limit',
-          { questionsCreated },
-          'QuestionManager'
-        );
-        return questionsCreated;
-      }
+    if (Date.now() > deadlineMs) {
+      logger.warn(
+        'Question generation aborted due to tick budget limit',
+        { questionsCreated },
+        'QuestionManager'
+      );
+      return questionsCreated;
+    }
 
-      response = await this.llm.generateJSON<
-        | {
+    response = await this.llm.generateJSON<
+      | {
+          questions: Array<{
+            text: string;
+            resolutionCriteria: string;
+            daysUntilResolution: number;
+            expectedOutcome: string;
+          }>;
+        }
+      | {
+          response: {
             questions: Array<{
               text: string;
               resolutionCriteria: string;
               daysUntilResolution: number;
               expectedOutcome: string;
             }>;
-          }
-        | {
-            response: {
-              questions: Array<{
-                text: string;
-                resolutionCriteria: string;
-                daysUntilResolution: number;
-                expectedOutcome: string;
-              }>;
-            };
-          }
-      >(
-        prompt,
-        {
-          properties: {
-            questions: {
-              type: 'array',
-              items: {
-                type: 'object',
-                properties: {
-                  text: { type: 'string' },
-                  resolutionCriteria: { type: 'string' },
-                  daysUntilResolution: { type: 'number' },
-                  expectedOutcome: { type: 'string' },
-                },
+          };
+        }
+    >(
+      prompt,
+      {
+        properties: {
+          questions: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                text: { type: 'string' },
+                resolutionCriteria: { type: 'string' },
+                daysUntilResolution: { type: 'number' },
+                expectedOutcome: { type: 'string' },
               },
             },
           },
-          required: ['questions'],
         },
-        {
-          temperature: 0.9,
-          maxTokens: 8000,
-          format: 'xml',
-          promptType: 'question_generate_real_world',
-        }
-      );
-
-      // Handle XML structure
-      const questionsData =
-        response && 'response' in response && response.response
-          ? (
-              response.response as {
-                questions: Array<{
-                  text: string;
-                  resolutionCriteria: string;
-                  daysUntilResolution: number;
-                  expectedOutcome: string;
-                }>;
-              }
-            ).questions
-          : (
-              response as {
-                questions: Array<{
-                  text: string;
-                  resolutionCriteria: string;
-                  daysUntilResolution: number;
-                  expectedOutcome: string;
-                }>;
-              }
-            ).questions;
-
-      if (
-        !questionsData ||
-        !Array.isArray(questionsData) ||
-        questionsData.length === 0
-      ) {
-        logger.warn(
-          'No questions generated from LLM response',
-          { response },
-          'QuestionManager'
-        );
-        return questionsCreated;
+        required: ['questions'],
+      },
+      {
+        temperature: 0.9,
+        maxTokens: 8000,
+        format: 'xml',
+        promptType: 'question_generate_real_world',
       }
+    );
 
-      // Get next question number
-      const [lastQuestion] = await db
-        .select({ questionNumber: questions.questionNumber })
-        .from(questions)
-        .orderBy(desc(questions.questionNumber))
-        .limit(1);
-      let nextQuestionNumber = (lastQuestion?.questionNumber ?? 0) + 1;
+    // Handle XML structure - may be {questions: [...]} or {questions: {question: [...]}}
+    type QuestionData = {
+      text: string;
+      resolutionCriteria: string;
+      daysUntilResolution: number;
+      expectedOutcome: string;
+    };
+    type QuestionsResponse = {
+      questions: QuestionData[] | { question: QuestionData[] };
+    };
 
-      // Using default scenario ID until dynamic scenario selection is implemented
-      const scenarioId = 1;
-      const now = new Date();
+    const rawQuestions =
+      response && 'response' in response && response.response
+        ? (response.response as QuestionsResponse).questions
+        : (response as QuestionsResponse).questions;
 
-      // Create each question
-      for (const questionData of questionsData.slice(0, count)) {
-        if (Date.now() > deadlineMs) {
-          logger.warn(
-            'Question generation aborted due to tick budget limit',
-            { questionsCreated },
-            'QuestionManager'
-          );
-          break;
-        }
+    // Handle nested XML format {questions: {question: [...]}}
+    const questionsData: QuestionData[] = Array.isArray(rawQuestions)
+      ? rawQuestions
+      : rawQuestions &&
+          'question' in rawQuestions &&
+          Array.isArray(rawQuestions.question)
+        ? rawQuestions.question
+        : [];
 
-        if (!questionData.text || !questionData.resolutionCriteria) {
-          logger.warn(
-            'Invalid question data, skipping',
-            { questionData },
-            'QuestionManager'
-          );
-          continue;
-        }
-
-        // Convert "yes"/"no" to boolean
-        const expectedOutcomeStr = String(questionData.expectedOutcome || '')
-          .toLowerCase()
-          .trim();
-        const expectedOutcome =
-          expectedOutcomeStr === 'yes' || expectedOutcomeStr === 'true';
-
-        // Clamp daysUntilResolution to 1-7 range and ensure it's a valid integer
-        const rawDays = questionData.daysUntilResolution;
-        const daysUntilResolution = Math.max(
-          1,
-          Math.min(7, Math.round(rawDays || 3))
-        );
-
-        // Calculate resolution date from current date + daysUntilResolution
-        const resolutionDate = new Date();
-        resolutionDate.setDate(resolutionDate.getDate() + daysUntilResolution);
-        resolutionDate.setHours(23, 59, 59, 999); // Set to end of day for consistency
-
-        logger.info(
-          `Creating question with ${daysUntilResolution} day resolution period`,
-          {
-            questionText: questionData.text,
-            daysUntilResolution,
-            resolutionDate: resolutionDate.toISOString(),
-            rawDaysFromLLM: rawDays,
-            expectedOutcome: expectedOutcomeStr,
-            outcomeBoolean: expectedOutcome,
-          },
-          'QuestionManager'
-        );
-
-        const questionResults = await db
-          .insert(questions)
-          .values({
-            id: await generateSnowflakeId(),
-            questionNumber: nextQuestionNumber++,
-            text: questionData.text,
-            scenarioId,
-            outcome: expectedOutcome,
-            rank: 1,
-            resolutionDate,
-            status: 'active',
-            updatedAt: now,
-          })
-          .returning();
-        const question = questionResults[0]!;
-
-        // Initialize market with sufficient liquidity for trading
-        const initialLiquidity = 20000;
-        const { yesShares, noShares } =
-          PredictionPricing.initializeMarket(initialLiquidity);
-
-        const marketResults = await db
-          .insert(markets)
-          .values({
-            id: question.id,
-            question: questionData.text,
-            description: questionData.resolutionCriteria,
-            yesShares: new Decimal(yesShares).toString(),
-            noShares: new Decimal(noShares).toString(),
-            liquidity: new Decimal(initialLiquidity).toString(),
-            endDate: resolutionDate, // Same resolutionDate as question (1-7 days from now)
-            gameId: 'continuous',
-            updatedAt: now,
-          })
-          .returning();
-        const market = marketResults[0]!;
-
-        logger.debug(
-          'Question and market created with matching resolution dates',
-          {
-            questionId: question.id,
-            questionNumber: question.questionNumber,
-            resolutionDate: resolutionDate.toISOString(),
-            daysUntilResolution,
-            marketEndDate: market.endDate.toISOString(),
-          },
-          'QuestionManager'
-        );
-
-        // Create market on-chain if it doesn't have onChainMarketId
-        if (!market.onChainMarketId) {
-          await ensureMarketOnChain(market.id).catch((error: Error) => {
-            logger.warn(
-              'Failed to create market on-chain (non-blocking)',
-              { error, marketId: market.id },
-              'QuestionManager'
-            );
-          });
-        }
-
-        // Trigger NPC betting on this new question
-        try {
-          const contextService = new MarketContextService();
-
-          // Create LLM client for market decisions
-          const marketDecisionLLM = BabylonLLMClientValue.forGameTick();
-
-          const modelName =
-            process.env.MARKET_DECISION_MODEL || 'qwen/qwen3-32b';
-          const isKimiModel = modelName.toLowerCase().includes('kimi');
-          const defaultMaxOutput = isKimiModel ? 16000 : 32000;
-          const maxOutputTokens = Number.parseInt(
-            process.env.MARKET_DECISION_MAX_OUTPUT_TOKENS ||
-              defaultMaxOutput.toString(),
-            10
-          );
-
-          const decisionEngine = new MarketDecisionEngine(
-            marketDecisionLLM,
-            contextService,
-            {
-              model: modelName,
-              maxOutputTokens,
-            }
-          );
-
-          // Generate decisions for NPCs - they will see the new question in context
-          const decisions = await decisionEngine.generateBatchDecisions();
-
-          // Filter to decisions for this new question
-          const questionDecisions = decisions.filter(
-            (d) => d.marketType === 'prediction' && d.marketId === question.id
-          );
-
-          if (questionDecisions.length > 0) {
-            const executionService = new TradeExecutionService();
-            const executionResult =
-              await executionService.executeDecisionBatch(questionDecisions);
-
-            logger.info(
-              `NPC betting on new question Q${question.questionNumber}`,
-              {
-                questionId: question.id,
-                questionText: question.text,
-                decisionsGenerated: questionDecisions.length,
-                successfulTrades: executionResult.successfulTrades,
-                failedTrades: executionResult.failedTrades,
-              },
-              'QuestionManager'
-            );
-          }
-        } catch (error) {
-          logger.warn(
-            'Failed to trigger NPC betting on new question (non-blocking)',
-            {
-              error: error instanceof Error ? error.message : String(error),
-              questionId: question.id,
-            },
-            'QuestionManager'
-          );
-          // Continue even if NPC betting fails
-        }
-
-        questionsCreated++;
-      }
-    } catch (error) {
-      logger.error(
-        'Failed to generate new questions via LLM',
-        { error: error instanceof Error ? error.message : String(error) },
+    if (questionsData.length === 0) {
+      logger.warn(
+        'No questions generated from LLM response',
+        { response },
         'QuestionManager'
       );
+      return questionsCreated;
+    }
+
+    // Get next question number
+    const [lastQuestion] = await db
+      .select({ questionNumber: questions.questionNumber })
+      .from(questions)
+      .orderBy(desc(questions.questionNumber))
+      .limit(1);
+    let nextQuestionNumber = (lastQuestion?.questionNumber ?? 0) + 1;
+
+    // Using default scenario ID until dynamic scenario selection is implemented
+    const scenarioId = 1;
+    const now = new Date();
+
+    // Create each question
+    for (const questionData of questionsData.slice(0, count)) {
+      if (Date.now() > deadlineMs) {
+        logger.warn(
+          'Question generation aborted due to tick budget limit',
+          { questionsCreated },
+          'QuestionManager'
+        );
+        break;
+      }
+
+      if (!questionData.text || !questionData.resolutionCriteria) {
+        logger.warn(
+          'Invalid question data, skipping',
+          { questionData },
+          'QuestionManager'
+        );
+        continue;
+      }
+
+      // Convert "yes"/"no" to boolean
+      const expectedOutcomeStr = String(questionData.expectedOutcome || '')
+        .toLowerCase()
+        .trim();
+      const expectedOutcome =
+        expectedOutcomeStr === 'yes' || expectedOutcomeStr === 'true';
+
+      // Clamp daysUntilResolution to 1-7 range and ensure it's a valid integer
+      const rawDays = questionData.daysUntilResolution;
+      const daysUntilResolution = Math.max(
+        1,
+        Math.min(7, Math.round(rawDays || 3))
+      );
+
+      // Calculate resolution date from current date + daysUntilResolution
+      const resolutionDate = new Date();
+      resolutionDate.setDate(resolutionDate.getDate() + daysUntilResolution);
+      resolutionDate.setHours(23, 59, 59, 999); // Set to end of day for consistency
+
+      logger.info(
+        `Creating question with ${daysUntilResolution} day resolution period`,
+        {
+          questionText: questionData.text,
+          daysUntilResolution,
+          resolutionDate: resolutionDate.toISOString(),
+          rawDaysFromLLM: rawDays,
+          expectedOutcome: expectedOutcomeStr,
+          outcomeBoolean: expectedOutcome,
+        },
+        'QuestionManager'
+      );
+
+      const questionResults = await db
+        .insert(questions)
+        .values({
+          id: await generateSnowflakeId(),
+          questionNumber: nextQuestionNumber++,
+          text: questionData.text,
+          scenarioId,
+          outcome: expectedOutcome,
+          rank: 1,
+          resolutionDate,
+          status: 'active',
+          updatedAt: now,
+        })
+        .returning();
+      const question = questionResults[0]!;
+
+      // Initialize market with sufficient liquidity for trading
+      const initialLiquidity = 20000;
+      const { yesShares, noShares } =
+        PredictionPricing.initializeMarket(initialLiquidity);
+
+      const marketResults = await db
+        .insert(markets)
+        .values({
+          id: question.id,
+          question: questionData.text,
+          description: questionData.resolutionCriteria,
+          yesShares: new Decimal(yesShares).toString(),
+          noShares: new Decimal(noShares).toString(),
+          liquidity: new Decimal(initialLiquidity).toString(),
+          endDate: resolutionDate, // Same resolutionDate as question (1-7 days from now)
+          gameId: 'continuous',
+          updatedAt: now,
+        })
+        .returning();
+      const market = marketResults[0]!;
+
+      logger.debug(
+        'Question and market created with matching resolution dates',
+        {
+          questionId: question.id,
+          questionNumber: question.questionNumber,
+          resolutionDate: resolutionDate.toISOString(),
+          daysUntilResolution,
+          marketEndDate: market.endDate.toISOString(),
+        },
+        'QuestionManager'
+      );
+
+      // Create market on-chain if it doesn't have onChainMarketId
+      if (!market.onChainMarketId) {
+        await ensureMarketOnChain(market.id).catch((error: Error) => {
+          logger.warn(
+            'Failed to create market on-chain (non-blocking)',
+            { error, marketId: market.id },
+            'QuestionManager'
+          );
+        });
+      }
+
+      // Trigger NPC betting on this new question
+      const contextService = new MarketContextService();
+
+      // Create LLM client for market decisions
+      const marketDecisionLLM = BabylonLLMClientValue.forGameTick();
+
+      const modelName = process.env.MARKET_DECISION_MODEL || 'qwen/qwen3-32b';
+      const isKimiModel = modelName.toLowerCase().includes('kimi');
+      const defaultMaxOutput = isKimiModel ? 16000 : 32000;
+      const maxOutputTokens = Number.parseInt(
+        process.env.MARKET_DECISION_MAX_OUTPUT_TOKENS ||
+          defaultMaxOutput.toString(),
+        10
+      );
+
+      const decisionEngine = new MarketDecisionEngine(
+        marketDecisionLLM,
+        contextService,
+        {
+          model: modelName,
+          maxOutputTokens,
+        }
+      );
+
+      // Generate decisions for NPCs - they will see the new question in context
+      const decisions = await decisionEngine.generateBatchDecisions();
+
+      // Filter to decisions for this new question
+      const questionDecisions = decisions.filter(
+        (d) => d.marketType === 'prediction' && d.marketId === question.id
+      );
+
+      if (questionDecisions.length > 0) {
+        const executionService = new TradeExecutionService();
+        const executionResult =
+          await executionService.executeDecisionBatch(questionDecisions);
+
+        logger.info(
+          `NPC betting on new question Q${question.questionNumber}`,
+          {
+            questionId: question.id,
+            questionText: question.text,
+            decisionsGenerated: questionDecisions.length,
+            successfulTrades: executionResult.successfulTrades,
+            failedTrades: executionResult.failedTrades,
+          },
+          'QuestionManager'
+        );
+      }
+
+      questionsCreated++;
     }
 
     return questionsCreated;

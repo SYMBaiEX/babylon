@@ -88,7 +88,11 @@ export function parseArgs(args: string[]): ParsedArgs {
  * @returns `true` if `--help`, `-h`, or `help` command is present
  */
 export function wantsHelp(args: ParsedArgs): boolean {
-  return args.flags['help'] === true || args.flags['h'] === true || args.command === 'help';
+  return (
+    args.flags['help'] === true ||
+    args.flags['h'] === true ||
+    args.command === 'help'
+  );
 }
 
 /**
@@ -127,6 +131,12 @@ export function getOption(
  * getFlag(args, 'verbose', 'v'); // Returns: true
  * ```
  */
-export function getFlag(args: ParsedArgs, long: string, short?: string): boolean {
-  return args.flags[long] === true || (short ? args.flags[short] === true : false);
+export function getFlag(
+  args: ParsedArgs,
+  long: string,
+  short?: string
+): boolean {
+  return (
+    args.flags[long] === true || (short ? args.flags[short] === true : false)
+  );
 }

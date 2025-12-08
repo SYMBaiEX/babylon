@@ -1,5 +1,11 @@
 'use client';
 
+import type {
+  CommentCardProps,
+  CommentData,
+  CommentWithReplies,
+} from '@babylon/shared';
+import { cn, getProfileUrl } from '@babylon/shared';
 import { formatDistanceToNow } from 'date-fns';
 import { Edit2, MoreVertical, Reply, Trash2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
@@ -10,12 +16,6 @@ import {
   isNpcIdentifier,
   VerifiedBadge,
 } from '@/components/shared/VerifiedBadge';
-import { cn } from '@babylon/shared';
-import type {
-  CommentCardProps,
-  CommentData,
-  CommentWithReplies,
-} from '@babylon/shared';
 import { CommentInput } from './CommentInput';
 import { LikeButton } from './LikeButton';
 
@@ -228,7 +228,15 @@ export function CommentCard({
             <TaggedText
               text={comment.content}
               onTagClick={(tag) => {
-                router.push(`/feed?search=${encodeURIComponent(tag)}`);
+                if (tag.startsWith('@')) {
+                  // Handle @mentions - route to profile
+                  const username = tag.slice(1);
+                  router.push(getProfileUrl('', username));
+                } else if (tag.startsWith('$')) {
+                  // Handle $cashtags - route to markets
+                  const symbol = tag.slice(1);
+                  router.push(`/markets?search=${encodeURIComponent(symbol)}`);
+                }
               }}
             />
           </p>

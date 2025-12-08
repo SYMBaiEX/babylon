@@ -4,8 +4,8 @@
 
 import { beforeEach, describe, expect, it, mock } from 'bun:test';
 import type { BabylonLLMClient } from '../llm/openai-client';
-import type { FeedPost } from '../types/shared';
 import { TrendingTopicsEngine } from '../TrendingTopicsEngine';
+import type { FeedPost } from '../types/shared';
 
 /**
  * Mock LLM client interface for testing
@@ -66,7 +66,7 @@ describe('TrendingTopicsEngine', () => {
       expect(trends).toEqual([]);
     });
 
-    it('should throw error if LLM returns no trends', async () => {
+    it('should use fallback descriptions when LLM returns empty trends array', async () => {
       mockLLM.generateJSON = mock(async () => ({ trends: [] }));
 
       const posts: FeedPost[] = [
@@ -81,8 +81,15 @@ describe('TrendingTopicsEngine', () => {
         },
       ];
 
-      // Should not throw - will keep previous trends on failure
       await engine.updateTrends(posts, 10);
+
+      // When LLM returns empty trends, engine uses tag as fallback for trend name
+      const trends = engine.getTrends();
+      expect(trends.length).toBeGreaterThan(0);
+      // Each trend should have a name (fallback from tag)
+      for (const trend of trends) {
+        expect(trend.trendName).toBeTruthy();
+      }
     });
 
     it('should validate trend descriptions are not empty', async () => {
@@ -107,9 +114,8 @@ describe('TrendingTopicsEngine', () => {
       await engine.updateTrends(posts, 10);
       const trends = engine.getTrends();
 
-      // Should use fallbacks for empty values
-      expect(trends[0]?.trendName).toBe('ai'); // Fallback to tag
-      expect(trends[0]?.description).toContain('posts discussing'); // Fallback description
+      expect(trends[0]?.trendName).toBe('ai');
+      expect(trends[0]?.description).toContain('posts discussing');
     });
   });
 
@@ -172,7 +178,6 @@ describe('TrendingTopicsEngine', () => {
       await engine.updateTrends(posts, 10);
       const trends = engine.getTrends();
 
-      // Crypto should rank higher due to recency despite same count
       const cryptoTrend = trends.find((t) => t.tag === 'crypto');
       expect(cryptoTrend).toBeDefined();
       expect(cryptoTrend!.recency).toBeGreaterThan(0.9);
@@ -306,7 +311,7 @@ describe('TrendingTopicsEngine', () => {
       const callCount2 = (mockLLM.generateJSON as ReturnType<typeof mock>).mock
         .calls.length;
 
-      expect(callCount2).toBeGreaterThan(callCount1); // Should update
+      expect(callCount2).toBeGreaterThan(callCount1);
     });
   });
 });

@@ -33,18 +33,15 @@
 
 import { describe, expect, test } from 'bun:test';
 import type { BabylonLLMClient } from '../llm/openai-client';
-import type { Question } from '../types/shared';
 import { QuestionManager } from '../QuestionManager';
+import type { Question } from '../types/shared';
 
 /**
  * Mock LLM client interface for testing
  * Only implements the methods required by QuestionManager
  */
 interface MockLLMClient
-  extends Pick<
-    BabylonLLMClient,
-    'generateJSON' | 'getProvider' | 'getStats'
-  > {}
+  extends Pick<BabylonLLMClient, 'generateJSON' | 'getProvider' | 'getStats'> {}
 
 // Mock LLM client for testing - implements MockLLMClient interface
 const mockLLMImpl: MockLLMClient = {
@@ -202,7 +199,6 @@ describe('QuestionManager', () => {
       status: 'active' as const,
     }));
 
-    // Should only keep 20
     const activeQuestions = questions
       .filter((q) => q.status === 'active')
       .slice(0, 20);

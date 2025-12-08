@@ -4,250 +4,251 @@
  * Handlers for executing MCP tools
  */
 
+import type { JsonRpcParams, JsonRpcRequest } from '@babylon/a2a';
+import {
+  handleAppealBanWithEscrow,
+  handleCreateEscrowPayment,
+  handleListEscrowPayments,
+  handleRefundEscrowPayment,
+  handleVerifyEscrowPayment,
+} from '@babylon/a2a';
 import { db, eq, users } from '@babylon/db';
-import { logger, generateSnowflakeId, getAPIBaseUrl } from '@babylon/shared';
+import { StaticDataRegistry } from '@babylon/engine';
 import type { JsonValue, StringRecord } from '@babylon/shared';
-import type { AuthenticatedAgent } from '../types/mcp';
+import { generateSnowflakeId, getAPIBaseUrl, logger } from '@babylon/shared';
 import type {
-  GetMarketsArgs,
-  GetMarketsResult,
-  PlaceBetArgs,
-  PlaceBetResult,
-  GetBalanceResult,
-  GetPositionsArgs,
-  GetPositionsResult,
-  ClosePositionArgs,
-  ClosePositionResult,
-  GetMarketDataArgs,
-  GetMarketDataResult,
-  QueryFeedArgs,
-  QueryFeedResult,
-  BuySharesArgs,
-  BuySharesResult,
-  SellSharesArgs,
-  SellSharesResult,
-  OpenPositionArgs,
-  OpenPositionResult,
-  GetMarketPricesArgs,
-  GetMarketPricesResult,
-  GetPerpetualsArgs,
-  GetPerpetualsResult,
-  GetTradesArgs,
-  GetTradesResult,
-  GetTradeHistoryArgs,
-  GetTradeHistoryResult,
-  CreatePostArgs,
-  CreatePostResult,
-  DeletePostArgs,
-  DeletePostResult,
-  LikePostArgs,
-  LikePostResult,
-  UnlikePostArgs,
-  UnlikePostResult,
-  SharePostArgs,
-  SharePostResult,
-  GetCommentsArgs,
-  GetCommentsResult,
-  CreateCommentArgs,
-  CreateCommentResult,
-  DeleteCommentArgs,
-  DeleteCommentResult,
-  LikeCommentArgs,
-  LikeCommentResult,
-  GetPostsByTagArgs,
-  GetPostsByTagResult,
-  GetUserProfileArgs,
-  GetUserProfileResult,
-  UpdateProfileArgs,
-  UpdateProfileResult,
-  FollowUserArgs,
-  FollowUserResult,
-  UnfollowUserArgs,
-  UnfollowUserResult,
-  GetFollowersArgs,
-  GetFollowersResult,
-  GetFollowingArgs,
-  GetFollowingResult,
-  SearchUsersArgs,
-  SearchUsersResult,
-  GetUserWalletArgs,
-  GetUserWalletResult,
-  GetUserStatsArgs,
-  GetUserStatsResult,
-  GetChatsArgs,
-  GetChatsResult,
-  GetChatMessagesArgs,
-  GetChatMessagesResult,
-  SendMessageArgs,
-  SendMessageResult,
-  CreateGroupArgs,
-  CreateGroupResult,
-  LeaveChatArgs,
-  LeaveChatResult,
-  GetUnreadCountArgs,
-  GetUnreadCountResult,
-  GetNotificationsArgs,
-  GetNotificationsResult,
-  MarkNotificationsReadArgs,
-  MarkNotificationsReadResult,
-  GetGroupInvitesArgs,
-  GetGroupInvitesResult,
   AcceptGroupInviteArgs,
   AcceptGroupInviteResult,
-  DeclineGroupInviteArgs,
-  DeclineGroupInviteResult,
-  GetLeaderboardArgs,
-  GetLeaderboardResult,
-  GetSystemStatsArgs,
-  GetSystemStatsResult,
-  GetReferralCodeArgs,
-  GetReferralCodeResult,
-  GetReferralsArgs,
-  GetReferralsResult,
-  GetReferralStatsArgs,
-  GetReferralStatsResult,
-  GetReputationArgs,
-  GetReputationResult,
-  GetReputationBreakdownArgs,
-  GetReputationBreakdownResult,
-  GetTrendingTagsArgs,
-  GetTrendingTagsResult,
-  GetOrganizationsArgs,
-  GetOrganizationsResult,
-  PaymentRequestArgs,
-  PaymentRequestResult,
-  PaymentReceiptArgs,
-  PaymentReceiptResult,
-  BlockUserArgs,
-  BlockUserResult,
-  UnblockUserArgs,
-  UnblockUserResult,
-  MuteUserArgs,
-  MuteUserResult,
-  UnmuteUserArgs,
-  UnmuteUserResult,
-  ReportUserArgs,
-  ReportUserResult,
-  ReportPostArgs,
-  ReportPostResult,
-  GetBlocksArgs,
-  GetBlocksResult,
-  GetMutesArgs,
-  GetMutesResult,
-  CheckBlockStatusArgs,
-  CheckBlockStatusResult,
-  CheckMuteStatusArgs,
-  CheckMuteStatusResult,
-  CreateEscrowPaymentArgs,
-  CreateEscrowPaymentResult,
-  VerifyEscrowPaymentArgs,
-  VerifyEscrowPaymentResult,
-  RefundEscrowPaymentArgs,
-  RefundEscrowPaymentResult,
-  ListEscrowPaymentsArgs,
-  ListEscrowPaymentsResult,
   AppealBanArgs,
   AppealBanResult,
   AppealBanWithEscrowArgs,
   AppealBanWithEscrowResult,
+  AuthenticatedAgent,
+  BlockUserArgs,
+  BlockUserResult,
+  BuySharesArgs,
+  BuySharesResult,
+  CheckBlockStatusArgs,
+  CheckBlockStatusResult,
+  CheckMuteStatusArgs,
+  CheckMuteStatusResult,
+  ClosePositionArgs,
+  ClosePositionResult,
+  CreateCommentArgs,
+  CreateCommentResult,
+  CreateEscrowPaymentArgs,
+  CreateEscrowPaymentResult,
+  CreateGroupArgs,
+  CreateGroupResult,
+  CreatePostArgs,
+  CreatePostResult,
+  DeclineGroupInviteArgs,
+  DeclineGroupInviteResult,
+  DeleteCommentArgs,
+  DeleteCommentResult,
+  DeletePostArgs,
+  DeletePostResult,
   FavoriteProfileArgs,
   FavoriteProfileResult,
-  UnfavoriteProfileArgs,
-  UnfavoriteProfileResult,
-  GetFavoritesArgs,
-  GetFavoritesResult,
+  FollowUserArgs,
+  FollowUserResult,
+  GetBalanceResult,
+  GetBlocksArgs,
+  GetBlocksResult,
+  GetChatMessagesArgs,
+  GetChatMessagesResult,
+  GetChatsArgs,
+  GetChatsResult,
+  GetCommentsArgs,
+  GetCommentsResult,
   GetFavoritePostsArgs,
   GetFavoritePostsResult,
+  GetFavoritesArgs,
+  GetFavoritesResult,
+  GetFollowersArgs,
+  GetFollowersResult,
+  GetFollowingArgs,
+  GetFollowingResult,
+  GetGroupInvitesArgs,
+  GetGroupInvitesResult,
+  GetLeaderboardArgs,
+  GetLeaderboardResult,
+  GetMarketDataArgs,
+  GetMarketDataResult,
+  GetMarketPricesArgs,
+  GetMarketPricesResult,
+  GetMarketsArgs,
+  GetMarketsResult,
+  GetMutesArgs,
+  GetMutesResult,
+  GetNotificationsArgs,
+  GetNotificationsResult,
+  GetOrganizationsArgs,
+  GetOrganizationsResult,
+  GetPerpetualsArgs,
+  GetPerpetualsResult,
+  GetPositionsArgs,
+  GetPositionsResult,
+  GetPostsByTagArgs,
+  GetPostsByTagResult,
+  GetReferralCodeArgs,
+  GetReferralCodeResult,
+  GetReferralStatsArgs,
+  GetReferralStatsResult,
+  GetReferralsArgs,
+  GetReferralsResult,
+  GetReputationArgs,
+  GetReputationBreakdownArgs,
+  GetReputationBreakdownResult,
+  GetReputationResult,
+  GetSystemStatsArgs,
+  GetSystemStatsResult,
+  GetTradeHistoryArgs,
+  GetTradeHistoryResult,
+  GetTradesArgs,
+  GetTradesResult,
+  GetTrendingTagsArgs,
+  GetTrendingTagsResult,
+  GetUnreadCountArgs,
+  GetUnreadCountResult,
+  GetUserProfileArgs,
+  GetUserProfileResult,
+  GetUserStatsArgs,
+  GetUserStatsResult,
+  GetUserWalletArgs,
+  GetUserWalletResult,
+  LeaveChatArgs,
+  LeaveChatResult,
+  LikeCommentArgs,
+  LikeCommentResult,
+  LikePostArgs,
+  LikePostResult,
+  ListEscrowPaymentsArgs,
+  ListEscrowPaymentsResult,
+  MarkNotificationsReadArgs,
+  MarkNotificationsReadResult,
+  MCPToolResult,
+  MuteUserArgs,
+  MuteUserResult,
+  OpenPositionArgs,
+  OpenPositionResult,
+  PaymentReceiptArgs,
+  PaymentReceiptResult,
+  PaymentRequestArgs,
+  PaymentRequestResult,
+  PlaceBetArgs,
+  PlaceBetResult,
+  QueryFeedArgs,
+  QueryFeedResult,
+  RefundEscrowPaymentArgs,
+  RefundEscrowPaymentResult,
+  ReportPostArgs,
+  ReportPostResult,
+  ReportUserArgs,
+  ReportUserResult,
+  SearchUsersArgs,
+  SearchUsersResult,
+  SellSharesArgs,
+  SellSharesResult,
+  SendMessageArgs,
+  SendMessageResult,
+  SharePostArgs,
+  SharePostResult,
   TransferPointsArgs,
   TransferPointsResult,
-  MCPToolResult,
+  UnblockUserArgs,
+  UnblockUserResult,
+  UnfavoriteProfileArgs,
+  UnfavoriteProfileResult,
+  UnfollowUserArgs,
+  UnfollowUserResult,
+  UnlikePostArgs,
+  UnlikePostResult,
+  UnmuteUserArgs,
+  UnmuteUserResult,
+  UpdateProfileArgs,
+  UpdateProfileResult,
+  VerifyEscrowPaymentArgs,
+  VerifyEscrowPaymentResult,
 } from '../types/mcp';
 import {
-  validateGetMarketsArgs,
-  validatePlaceBetArgs,
-  validateGetBalanceArgs,
-  validateGetPositionsArgs,
-  validateClosePositionArgs,
-  validateGetMarketDataArgs,
-  validateQueryFeedArgs,
-  validateBuySharesArgs,
-  validateSellSharesArgs,
-  validateOpenPositionArgs,
-  validateGetMarketPricesArgs,
-  validateGetPerpetualsArgs,
-  validateGetTradesArgs,
-  validateGetTradeHistoryArgs,
-  validateCreatePostArgs,
-  validateDeletePostArgs,
-  validateLikePostArgs,
-  validateUnlikePostArgs,
-  validateSharePostArgs,
-  validateGetCommentsArgs,
-  validateCreateCommentArgs,
-  validateDeleteCommentArgs,
-  validateLikeCommentArgs,
-  validateGetPostsByTagArgs,
-  validateGetUserProfileArgs,
-  validateUpdateProfileArgs,
-  validateFollowUserArgs,
-  validateUnfollowUserArgs,
-  validateGetFollowersArgs,
-  validateGetFollowingArgs,
-  validateSearchUsersArgs,
-  validateGetUserWalletArgs,
-  validateGetUserStatsArgs,
-  validateGetChatsArgs,
-  validateGetChatMessagesArgs,
-  validateSendMessageArgs,
-  validateCreateGroupArgs,
-  validateLeaveChatArgs,
-  validateGetUnreadCountArgs,
-  validateGetNotificationsArgs,
-  validateMarkNotificationsReadArgs,
-  validateGetGroupInvitesArgs,
   validateAcceptGroupInviteArgs,
-  validateDeclineGroupInviteArgs,
-  validateGetLeaderboardArgs,
-  validateGetSystemStatsArgs,
-  validateGetReferralCodeArgs,
-  validateGetReferralsArgs,
-  validateGetReferralStatsArgs,
-  validateGetReputationArgs,
-  validateGetReputationBreakdownArgs,
-  validateGetTrendingTagsArgs,
-  validateGetOrganizationsArgs,
-  validatePaymentRequestArgs,
-  validatePaymentReceiptArgs,
-  validateBlockUserArgs,
-  validateUnblockUserArgs,
-  validateMuteUserArgs,
-  validateUnmuteUserArgs,
-  validateReportUserArgs,
-  validateReportPostArgs,
-  validateGetBlocksArgs,
-  validateGetMutesArgs,
-  validateCheckBlockStatusArgs,
-  validateCheckMuteStatusArgs,
-  validateCreateEscrowPaymentArgs,
-  validateVerifyEscrowPaymentArgs,
-  validateRefundEscrowPaymentArgs,
-  validateListEscrowPaymentsArgs,
   validateAppealBanArgs,
   validateAppealBanWithEscrowArgs,
+  validateBlockUserArgs,
+  validateBuySharesArgs,
+  validateCheckBlockStatusArgs,
+  validateCheckMuteStatusArgs,
+  validateClosePositionArgs,
+  validateCreateCommentArgs,
+  validateCreateEscrowPaymentArgs,
+  validateCreateGroupArgs,
+  validateCreatePostArgs,
+  validateDeclineGroupInviteArgs,
+  validateDeleteCommentArgs,
+  validateDeletePostArgs,
   validateFavoriteProfileArgs,
-  validateUnfavoriteProfileArgs,
-  validateGetFavoritesArgs,
+  validateFollowUserArgs,
+  validateGetBalanceArgs,
+  validateGetBlocksArgs,
+  validateGetChatMessagesArgs,
+  validateGetChatsArgs,
+  validateGetCommentsArgs,
   validateGetFavoritePostsArgs,
+  validateGetFavoritesArgs,
+  validateGetFollowersArgs,
+  validateGetFollowingArgs,
+  validateGetGroupInvitesArgs,
+  validateGetLeaderboardArgs,
+  validateGetMarketDataArgs,
+  validateGetMarketPricesArgs,
+  validateGetMarketsArgs,
+  validateGetMutesArgs,
+  validateGetNotificationsArgs,
+  validateGetOrganizationsArgs,
+  validateGetPerpetualsArgs,
+  validateGetPositionsArgs,
+  validateGetPostsByTagArgs,
+  validateGetReferralCodeArgs,
+  validateGetReferralStatsArgs,
+  validateGetReferralsArgs,
+  validateGetReputationArgs,
+  validateGetReputationBreakdownArgs,
+  validateGetSystemStatsArgs,
+  validateGetTradeHistoryArgs,
+  validateGetTradesArgs,
+  validateGetTrendingTagsArgs,
+  validateGetUnreadCountArgs,
+  validateGetUserProfileArgs,
+  validateGetUserStatsArgs,
+  validateGetUserWalletArgs,
+  validateLeaveChatArgs,
+  validateLikeCommentArgs,
+  validateLikePostArgs,
+  validateListEscrowPaymentsArgs,
+  validateMarkNotificationsReadArgs,
+  validateMuteUserArgs,
+  validateOpenPositionArgs,
+  validatePaymentReceiptArgs,
+  validatePaymentRequestArgs,
+  validatePlaceBetArgs,
+  validateQueryFeedArgs,
+  validateRefundEscrowPaymentArgs,
+  validateReportPostArgs,
+  validateReportUserArgs,
+  validateSearchUsersArgs,
+  validateSellSharesArgs,
+  validateSendMessageArgs,
+  validateSharePostArgs,
   validateTransferPointsArgs,
+  validateUnblockUserArgs,
+  validateUnfavoriteProfileArgs,
+  validateUnfollowUserArgs,
+  validateUnlikePostArgs,
+  validateUnmuteUserArgs,
+  validateUpdateProfileArgs,
+  validateVerifyEscrowPaymentArgs,
 } from '../utils/tool-args-validation';
-import {
-  handleCreateEscrowPayment,
-  handleVerifyEscrowPayment,
-  handleRefundEscrowPayment,
-  handleListEscrowPayments,
-  handleAppealBanWithEscrow,
-} from '@babylon/a2a';
-import type { JsonRpcRequest, JsonRpcParams } from '@babylon/a2a';
 
 /**
  * Execute get_markets tool
@@ -301,8 +302,7 @@ export async function executePlaceBet(
   logger.info(`Agent ${agent.agentId} placing bet:`, args, 'MCP');
 
   // Call the existing market API logic
-  const apiBaseUrl =
-    getAPIBaseUrl();
+  const apiBaseUrl = getAPIBaseUrl();
   const response = await fetch(
     `${apiBaseUrl}/api/markets/${args.marketId}/bet`,
     {
@@ -407,8 +407,7 @@ export async function executeClosePosition(
   logger.info(`Agent ${agent.agentId} closing position:`, args, 'MCP');
 
   // Call the existing close position API logic
-  const apiBaseUrl =
-    getAPIBaseUrl();
+  const apiBaseUrl = getAPIBaseUrl();
   const response = await fetch(
     `${apiBaseUrl}/api/positions/${args.positionId}/close`,
     {
@@ -507,8 +506,7 @@ export async function executeBuyShares(
   agent: AuthenticatedAgent,
   args: BuySharesArgs
 ): Promise<BuySharesResult> {
-  const apiBaseUrl =
-    getAPIBaseUrl();
+  const apiBaseUrl = getAPIBaseUrl();
   const response = await fetch(
     `${apiBaseUrl}/api/markets/predictions/${args.marketId}/buy`,
     {
@@ -531,8 +529,7 @@ export async function executeSellShares(
   agent: AuthenticatedAgent,
   args: SellSharesArgs
 ): Promise<SellSharesResult> {
-  const apiBaseUrl =
-    getAPIBaseUrl();
+  const apiBaseUrl = getAPIBaseUrl();
   const position = await db.position.findUnique({
     where: { id: args.positionId },
   });
@@ -560,8 +557,7 @@ export async function executeOpenPosition(
   agent: AuthenticatedAgent,
   args: OpenPositionArgs
 ): Promise<OpenPositionResult> {
-  const apiBaseUrl =
-    getAPIBaseUrl();
+  const apiBaseUrl = getAPIBaseUrl();
   const response = await fetch(`${apiBaseUrl}/api/markets/perps/open`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -590,7 +586,8 @@ export async function executeGetMarketPrices(
     throw new Error('Market not found');
   }
   const totalShares = Number(market.yesShares) + Number(market.noShares);
-  const yesPrice = totalShares > 0 ? Number(market.yesShares) / totalShares : 0.5;
+  const yesPrice =
+    totalShares > 0 ? Number(market.yesShares) / totalShares : 0.5;
   const noPrice = totalShares > 0 ? Number(market.noShares) / totalShares : 0.5;
   return {
     marketId: market.id,
@@ -618,37 +615,35 @@ export async function executeGetTrades(
   _agent: AuthenticatedAgent,
   args: GetTradesArgs
 ): Promise<GetTradesResult> {
-  const apiBaseUrl =
-    getAPIBaseUrl();
+  const apiBaseUrl = getAPIBaseUrl();
   const url = new URL(`${apiBaseUrl}/api/trades`);
   if (args.marketId) url.searchParams.set('marketId', args.marketId);
   if (args.limit) url.searchParams.set('limit', args.limit.toString());
   const response = await fetch(url.toString());
-  const data = (await response.json()) as { trades: unknown[] };
+  const data = (await response.json()) as {
+    trades: Array<{
+      id: string;
+      marketId: string;
+      userId: string;
+      side: boolean;
+      shares: string;
+      price: string;
+      timestamp: Date | string;
+    }>;
+  };
   return {
-    trades: data.trades.map((t: unknown) => {
-      const trade = t as {
-        id: string;
-        marketId: string;
-        userId: string;
-        side: boolean;
-        shares: string;
-        price: string;
-        timestamp: Date | string;
-      };
-      return {
-        id: trade.id,
-        marketId: trade.marketId,
-        userId: trade.userId,
-        side: trade.side ? 'YES' : 'NO',
-        shares: trade.shares,
-        price: trade.price,
-        timestamp:
-          trade.timestamp instanceof Date
-            ? trade.timestamp.toISOString()
-            : trade.timestamp,
-      };
-    }),
+    trades: data.trades.map((trade) => ({
+      id: trade.id,
+      marketId: trade.marketId,
+      userId: trade.userId,
+      side: trade.side ? 'YES' : 'NO',
+      shares: trade.shares,
+      price: trade.price,
+      timestamp:
+        trade.timestamp instanceof Date
+          ? trade.timestamp.toISOString()
+          : trade.timestamp,
+    })),
   };
 }
 
@@ -659,34 +654,34 @@ export async function executeGetTradeHistory(
   _agent: AuthenticatedAgent,
   args: GetTradeHistoryArgs
 ): Promise<GetTradeHistoryResult> {
-  const apiBaseUrl =
-    getAPIBaseUrl();
-  const url = new URL(`${apiBaseUrl}/api/markets/predictions/${args.userId}/trades`);
+  const apiBaseUrl = getAPIBaseUrl();
+  const url = new URL(
+    `${apiBaseUrl}/api/markets/predictions/${args.userId}/trades`
+  );
   if (args.limit) url.searchParams.set('limit', args.limit.toString());
   const response = await fetch(url.toString());
-  const data = (await response.json()) as { trades: unknown[] };
+  const data = (await response.json()) as {
+    trades: Array<{
+      id: string;
+      marketId: string;
+      side: boolean;
+      shares: string;
+      price: string;
+      timestamp: Date | string;
+    }>;
+  };
   return {
-    trades: data.trades.map((t: unknown) => {
-      const trade = t as {
-        id: string;
-        marketId: string;
-        side: boolean;
-        shares: string;
-        price: string;
-        timestamp: Date | string;
-      };
-      return {
-        id: trade.id,
-        marketId: trade.marketId,
-        side: trade.side ? 'YES' : 'NO',
-        shares: trade.shares,
-        price: trade.price,
-        timestamp:
-          trade.timestamp instanceof Date
-            ? trade.timestamp.toISOString()
-            : trade.timestamp,
-      };
-    }),
+    trades: data.trades.map((trade) => ({
+      id: trade.id,
+      marketId: trade.marketId,
+      side: trade.side ? 'YES' : 'NO',
+      shares: trade.shares,
+      price: trade.price,
+      timestamp:
+        trade.timestamp instanceof Date
+          ? trade.timestamp.toISOString()
+          : trade.timestamp,
+    })),
   };
 }
 
@@ -1563,13 +1558,13 @@ export async function executeGetLeaderboard(
   _agent: AuthenticatedAgent,
   args: GetLeaderboardArgs
 ): Promise<GetLeaderboardResult> {
-  const apiBaseUrl =
-    getAPIBaseUrl();
+  const apiBaseUrl = getAPIBaseUrl();
   const url = new URL(`${apiBaseUrl}/api/leaderboard`);
   if (args.page) url.searchParams.set('page', args.page.toString());
   if (args.pageSize) url.searchParams.set('pageSize', args.pageSize.toString());
   if (args.pointsType) url.searchParams.set('pointsType', args.pointsType);
-  if (args.minPoints) url.searchParams.set('minPoints', args.minPoints.toString());
+  if (args.minPoints)
+    url.searchParams.set('minPoints', args.minPoints.toString());
   const response = await fetch(url.toString());
   const data = (await response.json()) as {
     leaderboard: Array<{
@@ -1703,8 +1698,7 @@ export async function executeGetReputation(
   args: GetReputationArgs
 ): Promise<GetReputationResult> {
   const userId = args.userId || agent.userId;
-  const apiBaseUrl =
-    getAPIBaseUrl();
+  const apiBaseUrl = getAPIBaseUrl();
   const response = await fetch(`${apiBaseUrl}/api/reputation/${userId}`);
   const data = (await response.json()) as GetReputationResult;
   return data;
@@ -1717,8 +1711,7 @@ export async function executeGetReputationBreakdown(
   _agent: AuthenticatedAgent,
   args: GetReputationBreakdownArgs
 ): Promise<GetReputationBreakdownResult> {
-  const apiBaseUrl =
-    getAPIBaseUrl();
+  const apiBaseUrl = getAPIBaseUrl();
   const response = await fetch(
     `${apiBaseUrl}/api/reputation/breakdown/${args.userId}`
   );
@@ -1767,15 +1760,16 @@ export async function executeGetOrganizations(
   _agent: AuthenticatedAgent,
   args: GetOrganizationsArgs
 ): Promise<GetOrganizationsResult> {
-  const orgsList = await db.organization.findMany({
-    take: args.limit || 50,
-    orderBy: { createdAt: 'desc' },
-  });
+  // Get organizations from static registry
+  const orgsList = StaticDataRegistry.getAllOrganizations().slice(
+    0,
+    args.limit || 50
+  );
   return {
-    organizations: orgsList.map((org) => ({
-      id: org.id,
-      name: org.name,
-      description: org.description,
+    organizations: orgsList.map((staticOrg) => ({
+      id: staticOrg.id,
+      name: staticOrg.name,
+      description: staticOrg.description,
     })),
   };
 }
@@ -1792,8 +1786,7 @@ export async function executePaymentRequest(
   args: PaymentRequestArgs
 ): Promise<PaymentRequestResult> {
   // agent used for userId in request body
-  const apiBaseUrl =
-    getAPIBaseUrl();
+  const apiBaseUrl = getAPIBaseUrl();
   const response = await fetch(`${apiBaseUrl}/api/payments/request`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -1815,8 +1808,7 @@ export async function executePaymentReceipt(
   _agent: AuthenticatedAgent,
   args: PaymentReceiptArgs
 ): Promise<PaymentReceiptResult> {
-  const apiBaseUrl =
-    getAPIBaseUrl();
+  const apiBaseUrl = getAPIBaseUrl();
   const response = await fetch(`${apiBaseUrl}/api/payments/receipt`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -2098,6 +2090,9 @@ export async function executeCreateEscrowPayment(
   if (response.error) {
     throw new Error(response.error.message);
   }
+  if (!response.result) {
+    throw new Error('No result in response');
+  }
   return response.result as unknown as CreateEscrowPaymentResult;
 }
 
@@ -2124,6 +2119,9 @@ export async function executeVerifyEscrowPayment(
   if (response.error) {
     throw new Error(response.error.message);
   }
+  if (!response.result) {
+    throw new Error('No result in response');
+  }
   return response.result as unknown as VerifyEscrowPaymentResult;
 }
 
@@ -2147,6 +2145,9 @@ export async function executeRefundEscrowPayment(
   const response = await handleRefundEscrowPayment(agent.agentId, request);
   if (response.error) {
     throw new Error(response.error.message);
+  }
+  if (!response.result) {
+    throw new Error('No result in response');
   }
   return response.result as unknown as RefundEscrowPaymentResult;
 }
@@ -2174,6 +2175,9 @@ export async function executeListEscrowPayments(
   if (response.error) {
     throw new Error(response.error.message);
   }
+  if (!response.result) {
+    throw new Error('No result in response');
+  }
   return response.result as unknown as ListEscrowPaymentsResult;
 }
 
@@ -2188,8 +2192,7 @@ export async function executeAppealBan(
   agent: AuthenticatedAgent,
   args: AppealBanArgs
 ): Promise<AppealBanResult> {
-  const apiBaseUrl =
-    getAPIBaseUrl();
+  const apiBaseUrl = getAPIBaseUrl();
   const response = await fetch(`${apiBaseUrl}/api/moderation/appeal`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -2220,6 +2223,9 @@ export async function executeAppealBanWithEscrow(
   const response = await handleAppealBanWithEscrow(agent.agentId, request);
   if (response.error) {
     throw new Error(response.error.message);
+  }
+  if (!response.result) {
+    throw new Error('No result in response');
   }
   return response.result as unknown as AppealBanWithEscrowResult;
 }
@@ -2318,33 +2324,31 @@ export async function executeGetFavoritePosts(
   agent: AuthenticatedAgent,
   args: GetFavoritePostsArgs
 ): Promise<GetFavoritePostsResult> {
-  const apiBaseUrl =
-    getAPIBaseUrl();
+  const apiBaseUrl = getAPIBaseUrl();
   const url = new URL(`${apiBaseUrl}/api/posts/feed/favorites`);
   if (args.limit) url.searchParams.set('limit', args.limit.toString());
   if (args.offset) url.searchParams.set('offset', args.offset.toString());
   const response = await fetch(url.toString(), {
     headers: { 'X-User-Id': agent.userId },
   });
-  const data = (await response.json()) as { posts: unknown[] };
+  const data = (await response.json()) as {
+    posts: Array<{
+      id: string;
+      content: string;
+      authorId: string;
+      timestamp: Date | string;
+    }>;
+  };
   return {
-    posts: data.posts.map((p: unknown) => {
-      const post = p as {
-        id: string;
-        content: string;
-        authorId: string;
-        timestamp: Date | string;
-      };
-      return {
-        id: post.id,
-        content: post.content,
-        authorId: post.authorId,
-        timestamp:
-          post.timestamp instanceof Date
-            ? post.timestamp.toISOString()
-            : post.timestamp,
-      };
-    }),
+    posts: data.posts.map((post) => ({
+      id: post.id,
+      content: post.content,
+      authorId: post.authorId,
+      timestamp:
+        post.timestamp instanceof Date
+          ? post.timestamp.toISOString()
+          : post.timestamp,
+    })),
   };
 }
 
@@ -2359,8 +2363,7 @@ export async function executeTransferPoints(
   agent: AuthenticatedAgent,
   args: TransferPointsArgs
 ): Promise<TransferPointsResult> {
-  const apiBaseUrl =
-    getAPIBaseUrl();
+  const apiBaseUrl = getAPIBaseUrl();
   const response = await fetch(`${apiBaseUrl}/api/points/transfer`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

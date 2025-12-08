@@ -1,10 +1,10 @@
 'use client';
 
+import { logger } from '@babylon/shared';
 import * as Sentry from '@sentry/nextjs';
 import { AlertTriangle } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Component } from 'react';
-import { logger } from '@babylon/shared';
 
 /**
  * Props for the ErrorBoundary component.

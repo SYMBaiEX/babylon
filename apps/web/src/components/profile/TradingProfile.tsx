@@ -1,5 +1,6 @@
 'use client';
 
+import { cn } from '@babylon/shared';
 import {
   Activity,
   AlertCircle,
@@ -16,7 +17,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { TradesFeed } from '@/components/trades/TradesFeed';
 import { useAuth } from '@/hooks/useAuth';
-import { cn } from '@babylon/shared';
 
 /**
  * Trading profile component for displaying comprehensive trading statistics and positions.
@@ -172,133 +172,131 @@ export function TradingProfile({
     setLoading(true);
     setError(null);
 
-    try {
-      const token = await getAccessToken();
-      const headers: HeadersInit = { 'Content-Type': 'application/json' };
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
+    const token = await getAccessToken();
+    const headers: HeadersInit = { 'Content-Type': 'application/json' };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
 
-      // Fetch all data in parallel
-      const [profileRes, leaderboardRes, positionsRes] = await Promise.all([
-        fetch(`/api/users/${encodeURIComponent(userId)}/profile`, {
+    // Fetch all data in parallel
+    const [profileRes, leaderboardRes, positionsRes] = await Promise.all([
+      fetch(`/api/users/${encodeURIComponent(userId)}/profile`, {
+        headers,
+        signal: abortController.signal,
+      }),
+      fetch(`/api/leaderboard?page=1&pageSize=100`, {
+        headers,
+        signal: abortController.signal,
+      }),
+      fetch(
+        `/api/markets/positions/${encodeURIComponent(userId)}?status=open`,
+        {
           headers,
           signal: abortController.signal,
-        }),
-        fetch(`/api/leaderboard?page=1&pageSize=100`, {
-          headers,
-          signal: abortController.signal,
-        }),
-        fetch(
-          `/api/markets/positions/${encodeURIComponent(userId)}?status=open`,
-          {
-            headers,
-            signal: abortController.signal,
-          }
-        ),
-      ]);
+        }
+      ),
+    ]);
 
-      // Check if aborted
-      if (abortController.signal.aborted) {
-        return;
-      }
+    // Check if aborted
+    if (abortController.signal.aborted) {
+      return;
+    }
 
-      // Check responses
-      if (!profileRes.ok) {
-        throw new Error(
-          `Failed to load profile: ${profileRes.status} ${profileRes.statusText}`
-        );
-      }
-      if (!leaderboardRes.ok) {
-        throw new Error(`Failed to load leaderboard: ${leaderboardRes.status}`);
-      }
-      if (!positionsRes.ok) {
-        throw new Error(`Failed to load positions: ${positionsRes.status}`);
-      }
-
-      const [profileData, leaderboardData, positionsData] = await Promise.all([
-        profileRes.json(),
-        leaderboardRes.json(),
-        positionsRes.json() as Promise<ApiPositionsResponse>,
-      ]);
-
-      // Check if aborted after async operations
-      if (abortController.signal.aborted) {
-        return;
-      }
-
-      // Validate profile data
-      const userProfile = profileData.user;
-      if (!userProfile) {
-        throw new Error('User profile not found');
-      }
-
-      // Find user rank
-      const totalPlayers = leaderboardData.pagination?.totalCount || 0;
-      const userInLeaderboard = leaderboardData.leaderboard?.find(
-        (u: { id: string }) => u.id === userId
-      );
-      const rank = userInLeaderboard?.rank || 0;
-
-      // Set stats
-      setStats({
-        rank,
-        totalPlayers,
-        balance: toNumber(userProfile.virtualBalance),
-        reputationPoints: toNumber(userProfile.reputationPoints),
-        lifetimePnL: toNumber(userProfile.lifetimePnL),
-      });
-
-      // Validate and set positions
-      const perpPos = positionsData.perpetuals?.positions || [];
-      const predPos = positionsData.predictions?.positions || [];
-
-      setPerpPositions(perpPos);
-      setPredictionPositions(predPos);
-
-      // Calculate portfolio P&L for owner
-      if (isOwner) {
-        const perpPnL = perpPos.reduce(
-          (sum, p) => sum + toNumber(p.unrealizedPnL),
-          0
-        );
-        const predictionPnL = predPos.reduce(
-          (sum, p) => sum + toNumber(p.unrealizedPnL),
-          0
-        );
-        const totalUnrealizedPnL = perpPnL + predictionPnL;
-
-        const lifetimePnL = toNumber(userProfile.lifetimePnL);
-        const totalPnL = lifetimePnL + totalUnrealizedPnL;
-
-        // ROI calculation - use actual balance as initial investment proxy
-        const balance = toNumber(userProfile.virtualBalance);
-        const initialInvestment = balance > 0 ? balance - totalPnL : 1000; // Fallback to 1000
-        const roi =
-          initialInvestment > 0 ? (totalPnL / initialInvestment) * 100 : 0;
-
-        setPortfolioPnL({
-          totalPnL,
-          perpPnL,
-          predictionPnL,
-          totalPositions: perpPos.length + predPos.length,
-          perpPositions: perpPos.length,
-          predictionPositions: predPos.length,
-          roi,
-        });
-      }
-    } catch (err) {
-      // Only set error if not aborted
-      if (err instanceof Error && err.name === 'AbortError') {
-        return;
-      }
+    // Check responses
+    if (!profileRes.ok) {
       setError(
-        err instanceof Error ? err.message : 'Failed to load trading data'
+        `Failed to load profile: ${profileRes.status} ${profileRes.statusText}`
       );
-    } finally {
-      if (!abortController.signal.aborted) {
-        setLoading(false);
-      }
+      setLoading(false);
+      return;
+    }
+    if (!leaderboardRes.ok) {
+      setError(`Failed to load leaderboard: ${leaderboardRes.status}`);
+      setLoading(false);
+      return;
+    }
+    if (!positionsRes.ok) {
+      setError(`Failed to load positions: ${positionsRes.status}`);
+      setLoading(false);
+      return;
+    }
+
+    const [profileData, leaderboardData, positionsData] = await Promise.all([
+      profileRes.json(),
+      leaderboardRes.json(),
+      positionsRes.json() as Promise<ApiPositionsResponse>,
+    ]);
+
+    // Check if aborted after async operations
+    if (abortController.signal.aborted) {
+      return;
+    }
+
+    // Validate profile data
+    const userProfile = profileData.user;
+    if (!userProfile) {
+      setError('User profile not found');
+      setLoading(false);
+      return;
+    }
+
+    // Find user rank
+    const totalPlayers = leaderboardData.pagination?.totalCount || 0;
+    const userInLeaderboard = leaderboardData.leaderboard?.find(
+      (u: { id: string }) => u.id === userId
+    );
+    const rank = userInLeaderboard?.rank || 0;
+
+    // Set stats
+    setStats({
+      rank,
+      totalPlayers,
+      balance: toNumber(userProfile.virtualBalance),
+      reputationPoints: toNumber(userProfile.reputationPoints),
+      lifetimePnL: toNumber(userProfile.lifetimePnL),
+    });
+
+    // Validate and set positions
+    const perpPos = positionsData.perpetuals?.positions || [];
+    const predPos = positionsData.predictions?.positions || [];
+
+    setPerpPositions(perpPos);
+    setPredictionPositions(predPos);
+
+    // Calculate portfolio P&L for owner
+    if (isOwner) {
+      const perpPnL = perpPos.reduce(
+        (sum, p) => sum + toNumber(p.unrealizedPnL),
+        0
+      );
+      const predictionPnL = predPos.reduce(
+        (sum, p) => sum + toNumber(p.unrealizedPnL),
+        0
+      );
+      const totalUnrealizedPnL = perpPnL + predictionPnL;
+
+      const lifetimePnL = toNumber(userProfile.lifetimePnL);
+      const totalPnL = lifetimePnL + totalUnrealizedPnL;
+
+      // ROI calculation - use actual balance as initial investment proxy
+      const balance = toNumber(userProfile.virtualBalance);
+      const initialInvestment = balance > 0 ? balance - totalPnL : 1000; // Fallback to 1000
+      const roi =
+        initialInvestment > 0 ? (totalPnL / initialInvestment) * 100 : 0;
+
+      setPortfolioPnL({
+        totalPnL,
+        perpPnL,
+        predictionPnL,
+        totalPositions: perpPos.length + predPos.length,
+        perpPositions: perpPos.length,
+        predictionPositions: predPos.length,
+        roi,
+      });
+    }
+
+    if (!abortController.signal.aborted) {
+      setLoading(false);
     }
   }, [userId, isOwner, getAccessToken]);
 

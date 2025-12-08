@@ -1,12 +1,11 @@
 'use client';
 
+import { cn, logger } from '@babylon/shared';
 import { ArrowDownToLine, ArrowUpFromLine, History } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { Input } from '@/components/ui/input';
 import { useAuth } from '@/hooks/useAuth';
-import { logger } from '@babylon/shared';
-import { cn } from '@babylon/shared';
 
 /**
  * Transaction structure for agent wallet.
@@ -70,35 +69,30 @@ export function AgentWallet({ agent, onUpdate }: AgentWalletProps) {
 
   const fetchTransactions = useCallback(async () => {
     setLoading(true);
-    try {
-      const token = await getAccessToken();
-      if (!token) {
-        setLoading(false);
-        return;
-      }
-
-      const res = await fetch(`/api/agents/${agent.id}/wallet`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (res.ok) {
-        const data = (await res.json()) as {
-          success: boolean;
-          transactions: Transaction[];
-        };
-        if (data.success && data.transactions) {
-          setTransactions(data.transactions);
-        }
-      } else {
-        logger.error('Failed to fetch transactions', undefined, 'AgentWallet');
-      }
-    } catch (error) {
-      logger.error('Error fetching transactions', { error }, 'AgentWallet');
-    } finally {
+    const token = await getAccessToken();
+    if (!token) {
       setLoading(false);
+      return;
     }
+
+    const res = await fetch(`/api/agents/${agent.id}/wallet`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (res.ok) {
+      const data = (await res.json()) as {
+        success: boolean;
+        transactions: Transaction[];
+      };
+      if (data.success && data.transactions) {
+        setTransactions(data.transactions);
+      }
+    } else {
+      logger.error('Failed to fetch transactions', undefined, 'AgentWallet');
+    }
+    setLoading(false);
   }, [agent.id, getAccessToken]);
 
   useEffect(() => {

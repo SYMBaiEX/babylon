@@ -87,28 +87,31 @@
  * @see {@link /lib/services/wallet-service} Wallet service
  */
 
-import type { NextRequest } from 'next/server';
-import { authenticate } from '@babylon/api';
-import { invalidateAfterPredictionTrade } from '@babylon/engine';
-import { FEE_CONFIG } from '@babylon/engine';
-import { asUser } from '@babylon/db';
 import {
+  authenticate,
   BusinessLogicError,
   NotFoundError,
+  successResponse,
+  withErrorHandling,
 } from '@babylon/api';
-import { successResponse, withErrorHandling } from '@babylon/api';
-import { logger } from '@babylon/shared';
-import { trackServerEvent } from '@/lib/posthog/server';
-import { PredictionPricing } from '@babylon/engine';
-import { FeeService } from '@babylon/engine';
+import { asUser } from '@babylon/db';
 import {
+  ensureMarketOnChain,
+  FEE_CONFIG,
+  FeeService,
+  invalidateAfterPredictionTrade,
   PredictionMarketService,
+  PredictionPricing,
+  WalletService,
 } from '@babylon/engine';
-import { WalletService } from '@babylon/engine';
-import { generateSnowflakeId } from '@babylon/shared';
-import { PredictionMarketIdSchema } from '@babylon/shared';
-import { PredictionMarketTradeSchema } from '@babylon/shared';
-import { ensureMarketOnChain } from '@babylon/engine';
+import {
+  generateSnowflakeId,
+  logger,
+  PredictionMarketIdSchema,
+  PredictionMarketTradeSchema,
+} from '@babylon/shared';
+import type { NextRequest } from 'next/server';
+import { trackServerEvent } from '@/lib/posthog/server';
 /**
  * POST /api/markets/predictions/[id]/buy
  *
@@ -285,12 +288,12 @@ export const POST = withErrorHandling(
             'Question has expired',
             'QUESTION_EXPIRED',
             {
-            marketId,
-            resolutionDate:
-              question.resolutionDate instanceof Date
-                ? question.resolutionDate.toISOString()
-                : question.resolutionDate,
-          }
+              marketId,
+              resolutionDate:
+                question.resolutionDate instanceof Date
+                  ? question.resolutionDate.toISOString()
+                  : question.resolutionDate,
+            }
           );
         }
 

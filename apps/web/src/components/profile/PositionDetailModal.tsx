@@ -1,6 +1,12 @@
 'use client';
 
 import {
+  calculateExpectedPayout,
+  PredictionPricing,
+} from '@babylon/engine/client';
+import type { PerpPositionFromAPI, PredictionPosition } from '@babylon/shared';
+import { cn, type JsonValue } from '@babylon/shared';
+import {
   AlertTriangle,
   BarChart3,
   CheckCircle,
@@ -13,17 +19,9 @@ import {
 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
-
 import { FollowButton } from '@/components/interactions';
 import { useAuth } from '@/hooks/useAuth';
 import { usePerpMarketsStore } from '@/stores/perpMarketsStore';
-import {
-  calculateExpectedPayout,
-  PredictionPricing,
-} from '@babylon/engine/client';
-import { cn } from '@babylon/shared';
-
-import type { PerpPositionFromAPI, PredictionPosition } from '@babylon/shared';
 
 /**
  * Format error message from API response payload.
@@ -35,15 +33,20 @@ import type { PerpPositionFromAPI, PredictionPosition } from '@babylon/shared';
  * @param fallback - Fallback error message
  * @returns Formatted error message string
  */
-const formatErrorMessage = (payload: unknown, fallback: string): string => {
-  if (!payload || typeof payload !== 'object') {
+interface ErrorResponsePayload {
+  error?: string | { message?: string };
+  message?: string;
+}
+
+const formatErrorMessage = (
+  payload: ErrorResponsePayload | JsonValue,
+  fallback: string
+): string => {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
     return fallback;
   }
 
-  const data = payload as {
-    error?: string | { message?: string };
-    message?: string;
-  };
+  const data = payload as ErrorResponsePayload;
 
   if (typeof data.error === 'string') {
     return data.error;

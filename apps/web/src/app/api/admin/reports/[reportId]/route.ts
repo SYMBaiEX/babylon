@@ -119,17 +119,17 @@
  * @see {@link /lib/moderation/report-evaluation} Report evaluation
  */
 
-import type { NextRequest } from 'next/server';
-import { db } from '@babylon/db';
-import { requireAdmin } from '@babylon/api';
-import { NotFoundError } from '@babylon/api';
-import { successResponse, withErrorHandling } from '@babylon/api';
-import { logger } from '@babylon/shared';
 import {
   evaluateReport,
+  NotFoundError,
+  requireAdmin,
   storeEvaluationResult,
+  successResponse,
+  withErrorHandling,
 } from '@babylon/api';
-import { AdminReportActionSchema } from '@babylon/shared';
+import { db } from '@babylon/db';
+import { AdminReportActionSchema, logger } from '@babylon/shared';
+import type { NextRequest } from 'next/server';
 
 /**
  * GET /api/admin/reports/[reportId]
@@ -224,10 +224,10 @@ export const GET = withErrorHandling(
     // Parse evaluation if it exists
     let evaluation = null;
     if (report.resolution) {
-      try {
+      // Check if it's valid JSON before parsing
+      const trimmed = report.resolution.trim();
+      if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
         evaluation = JSON.parse(report.resolution);
-      } catch {
-        // Not JSON, treat as plain text resolution
       }
     }
 

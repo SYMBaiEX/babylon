@@ -1,5 +1,7 @@
 'use client';
 
+import { FEE_CONFIG } from '@babylon/engine/client';
+import { cn } from '@babylon/shared';
 import {
   AlertTriangle,
   TrendingDown,
@@ -12,8 +14,6 @@ import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
 import { usePerpTrade } from '@/hooks/usePerpTrade';
 import { useWalletBalance } from '@/hooks/useWalletBalance';
-import { FEE_CONFIG } from '@babylon/engine/client';
-import { cn } from '@babylon/shared';
 
 /**
  * Perpetual market structure for trading modal.

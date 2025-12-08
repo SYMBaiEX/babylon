@@ -1,5 +1,6 @@
 'use client';
 
+import { cn } from '@babylon/shared';
 import {
   Crown,
   Loader2,
@@ -40,7 +41,6 @@ import {
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { Avatar } from '@/components/shared/Avatar';
-import { cn } from '@babylon/shared';
 
 /**
  * Group member structure for group details modal.

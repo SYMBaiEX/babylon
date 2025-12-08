@@ -77,9 +77,9 @@
  * @see {@link /lib/reputation/reputation-service} Reputation service
  */
 
-import { NextResponse } from 'next/server';
-import { getReputationBreakdown } from '@babylon/engine';
 import { requireUserByIdentifier } from '@babylon/api';
+import { getReputationBreakdown } from '@babylon/engine';
+import { NextResponse } from 'next/server';
 
 interface RouteParams {
   params: Promise<{

@@ -9,6 +9,7 @@
  * - Their personality and tier
  */
 
+import { shuffleArray } from '../../utils/randomization';
 import { definePrompt } from '../define-prompt';
 
 /**
@@ -112,19 +113,6 @@ const TRADING_EXAMPLES: TradingExample[] = [
     confidence: 0.6,
   },
 ];
-
-/**
- * Fisher-Yates shuffle algorithm for randomizing array order.
- * Creates a new array to avoid mutating the original.
- */
-function shuffleArray<T>(array: T[]): T[] {
-  const shuffled = [...array];
-  for (let i = shuffled.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]] as [T, T];
-  }
-  return shuffled;
-}
 
 /**
  * Formats a single trading example into XML format for the prompt.

@@ -11,13 +11,24 @@
  *   validate  - Validate actor data integrity
  */
 
-import { db, eq, games, gameConfigs, posts, desc, isNull, and, generateSnowflakeId as dbGenerateSnowflakeId, closeDatabase } from '@babylon/db';
+import type { JsonValue } from '@babylon/db';
+import {
+  and,
+  closeDatabase,
+  db,
+  generateSnowflakeId as dbGenerateSnowflakeId,
+  desc,
+  eq,
+  gameConfigs,
+  games,
+  isNull,
+  posts,
+} from '@babylon/db';
+import type { GameHistory, GroupMessage } from '@babylon/engine';
 import { GameGenerator, loadActorsData } from '@babylon/engine';
 import { nanoid } from 'nanoid';
 import { getFlag, parseArgs, wantsHelp } from '../lib/args.js';
 import { logger } from '../lib/logger.js';
-import type { GameHistory, GroupMessage } from '@babylon/engine';
-import type { JsonValue } from '@babylon/db';
 
 function printHelp(): void {
   console.log(`
@@ -97,7 +108,9 @@ async function controlGame(action: 'start' | 'pause'): Promise<void> {
       })
       .returning();
     game = created[0]!;
-    logger.success(`Game created and ${action === 'start' ? 'started' : 'paused'}`);
+    logger.success(
+      `Game created and ${action === 'start' ? 'started' : 'paused'}`
+    );
     console.log(`  Game ID: ${game.id}`);
   } else {
     const isRunning = action === 'start';
@@ -265,7 +278,9 @@ async function validateActorsData(): Promise<void> {
 
     for (const affiliation of actor.affiliations) {
       if (!validOrgIds.has(affiliation)) {
-        errors.push(`${actor.name} (${actor.id}) has invalid affiliation: "${affiliation}"`);
+        errors.push(
+          `${actor.name} (${actor.id}) has invalid affiliation: "${affiliation}"`
+        );
       }
     }
   }
@@ -327,20 +342,22 @@ async function generateGame(args: ReturnType<typeof parseArgs>): Promise<void> {
     const generator = new GameGenerator();
     const genesis = await generator.generateGenesis();
 
-    await db
-      .insert(games)
-      .values({
-        id: await generateSnowflakeId(),
-        isContinuous: false,
-        isRunning: false,
-        currentDate: new Date(),
-        speed: 60000,
-        updatedAt: new Date(),
-      });
+    await db.insert(games).values({
+      id: await generateSnowflakeId(),
+      isContinuous: false,
+      isRunning: false,
+      currentDate: new Date(),
+      speed: 60000,
+      updatedAt: new Date(),
+    });
 
     logger.success('Genesis game created');
-    console.log(`  Events: ${genesis.timeline.reduce((sum, day) => sum + day.events.length, 0)}`);
-    console.log(`  Posts: ${genesis.timeline.reduce((sum, day) => sum + day.feedPosts.length, 0)}`);
+    console.log(
+      `  Events: ${genesis.timeline.reduce((sum, day) => sum + day.events.length, 0)}`
+    );
+    console.log(
+      `  Posts: ${genesis.timeline.reduce((sum, day) => sum + day.feedPosts.length, 0)}`
+    );
   } else {
     console.log(`Found ${existingGames.length} existing game(s)`);
   }
@@ -351,7 +368,11 @@ async function generateGame(args: ReturnType<typeof parseArgs>): Promise<void> {
   let gameNumber = 1;
 
   if (existingGames.length > 0) {
-    for (let i = Math.max(0, existingGames.length - 2); i < existingGames.length; i++) {
+    for (
+      let i = Math.max(0, existingGames.length - 2);
+      i < existingGames.length;
+      i++
+    ) {
       const gameData = existingGames[i];
       if (!gameData) continue;
 
@@ -381,21 +402,37 @@ async function generateGame(args: ReturnType<typeof parseArgs>): Promise<void> {
 
   logger.step(`Generating Game #${gameNumber} (starting ${nextStartDate})...`);
 
-  const generator = new GameGenerator(undefined, history.length > 0 ? history : undefined);
+  const generator = new GameGenerator(
+    undefined,
+    history.length > 0 ? history : undefined
+  );
   const game = await generator.generateCompleteGame(nextStartDate);
   const duration = Date.now() - startTime;
 
   logger.success('Generation complete');
   console.log(`  Duration: ${(duration / 1000).toFixed(1)}s`);
-  console.log(`  Events: ${game.timeline.reduce((sum, day) => sum + day.events.length, 0)}`);
-  console.log(`  Posts: ${game.timeline.reduce((sum, day) => sum + day.feedPosts.length, 0)}`);
-  console.log(`  Group messages: ${Object.values(game.timeline.reduce((acc, day) => {
-    Object.entries(day.groupChats).forEach(([groupId, messages]) => {
-      if (!acc[groupId]) acc[groupId] = [];
-      acc[groupId]!.push(...messages);
-    });
-    return acc;
-  }, {} as Record<string, GroupMessage[]>)).flat().length}`);
+  console.log(
+    `  Events: ${game.timeline.reduce((sum, day) => sum + day.events.length, 0)}`
+  );
+  console.log(
+    `  Posts: ${game.timeline.reduce((sum, day) => sum + day.feedPosts.length, 0)}`
+  );
+  console.log(
+    `  Group messages: ${
+      Object.values(
+        game.timeline.reduce(
+          (acc, day) => {
+            Object.entries(day.groupChats).forEach(([groupId, messages]) => {
+              if (!acc[groupId]) acc[groupId] = [];
+              acc[groupId]!.push(...messages);
+            });
+            return acc;
+          },
+          {} as Record<string, GroupMessage[]>
+        )
+      ).flat().length
+    }`
+  );
 
   // Show scenarios
   console.log('\nScenarios:');
@@ -449,7 +486,9 @@ async function generateGame(args: ReturnType<typeof parseArgs>): Promise<void> {
   logger.success(`Game saved (ID: ${savedGame.id})`);
 }
 
-async function runSimulation(_args: ReturnType<typeof parseArgs>): Promise<void> {
+async function runSimulation(
+  _args: ReturnType<typeof parseArgs>
+): Promise<void> {
   logger.header('Game Simulation');
   logger.warn('Simulation feature is not yet implemented');
   logger.info('Use "babylon game generate" to generate game content instead.');
@@ -506,4 +545,3 @@ export async function runGameCommand(args: string[]): Promise<void> {
     await closeDatabase();
   }
 }
-

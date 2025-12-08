@@ -4,15 +4,17 @@
  * Handles agents making REAL trades on prediction markets and perps
  */
 
+import { countTokensSync, truncateToTokenLimitSync } from '@babylon/api';
 import {
   and,
+  asUser,
   db,
   desc,
   eq,
+  getDbInstance,
   gte,
   isNull,
   markets,
-  organizations,
   perpPositions,
   positions,
   sql,
@@ -22,6 +24,8 @@ import {
   formatRandomContext,
   generateRandomMarketContext,
   PredictionPricing,
+  StaticDataRegistry,
+  shuffleArray,
   WalletService,
 } from '@babylon/engine';
 import {
@@ -29,13 +33,11 @@ import {
   PerpDbAdapter,
 } from '@babylon/core/markets/perps';
 import type { IAgentRuntime } from '@elizaos/core';
-import { asUser } from '@babylon/db';
-import { logger } from '../shared/logger';
-import { generateSnowflakeId } from '../shared/snowflake';
-import { countTokensSync, truncateToTokenLimitSync } from '@babylon/engine';
-import { shuffleArray } from '@babylon/engine';
 import { callGroqDirect } from '../llm/direct-groq';
 import { agentPnLService } from '../services/AgentPnLService';
+import { getAgentConfig } from '../shared/agent-config';
+import { logger } from '../shared/logger';
+import { generateSnowflakeId } from '../shared/snowflake';
 
 export class AutonomousTradingService {
   /**
@@ -79,8 +81,11 @@ export class AutonomousTradingService {
     const agent = agentResult[0];
 
     if (!agent?.isAgent) {
+      logger.error('Agent not found or not an agent', { agentUserId });
       throw new Error('Agent not found');
     }
+
+    const config = await getAgentConfig(agentUserId);
 
     // Get agent's positions separately
     const positionsResult = await db
@@ -108,12 +113,22 @@ export class AutonomousTradingService {
       .orderBy(desc(markets.createdAt))
       .limit(10);
 
-    const perpMarkets = await db
-      .select()
-      .from(organizations)
-      .where(eq(organizations.type, 'org'))
-      .orderBy(desc(organizations.currentPrice))
-      .limit(10);
+    // Get perp markets from static registry with dynamic prices
+    const orgStates = await getDbInstance().getOrganizationsByPrice();
+    const perpMarkets = orgStates
+      .slice(0, 10)
+      .map((state) => {
+        const staticOrg = StaticDataRegistry.getOrganization(state.id);
+        return staticOrg
+          ? {
+              ...staticOrg,
+              currentPrice: state.currentPrice ?? staticOrg.initialPrice,
+            }
+          : null;
+      })
+      .filter(
+        (o): o is NonNullable<typeof o> => o !== null && o.type === 'company'
+      );
 
     const balance = await WalletService.getBalance(agentUserId);
 
@@ -134,11 +149,11 @@ export class AutonomousTradingService {
     // Build trading decision prompt
     // NPC trust scores are provided by experiencePlugin (marketOutcomeEvaluator)
     // and appear in agent context automatically via providers
-    const prompt = `${agent.agentSystem}
+    const prompt = `${config?.systemPrompt ?? 'You are an autonomous trading agent on Babylon.'}
 
 You are ${agent.displayName}, an autonomous trading agent.
 
-Trading Strategy: ${agent.agentTradingStrategy || 'General market analysis'}
+Trading Strategy: ${config?.tradingStrategy ?? 'General market analysis'}
 
 Current Status:
 - Balance: $${balance.balance}
@@ -154,27 +169,43 @@ ${shuffledPredictions
 Available Perp Markets:
 ${shuffledPerps
   .slice(0, 5)
-  .map((o) => `- ${o.name} @ $${o.currentPrice}`)
+  .map((o) => {
+    const initial = o.initialPrice ?? 100;
+    const current = o.currentPrice ?? initial;
+    const changePercent = (((current - initial) / initial) * 100).toFixed(1);
+    const direction = current > initial ? '📈' : current < initial ? '📉' : '➡️';
+    return `- ${o.ticker}: ${o.name} @ $${current.toFixed(2)} ${direction} ${changePercent}% from IPO ($${initial})`;
+  })
   .join('\n')}
 
 Your Open Positions:
 ${positionsResult.map((p) => `- Prediction: ${p.marketId}, ${p.side ? 'YES' : 'NO'}, ${p.shares} shares`).join('\n') || 'None'}
 ${perpPositionsResult.map((p) => `- Perp: ${p.ticker}, ${p.side}, $${p.size}, ${p.leverage}x`).join('\n') || 'None'}
 
-Decide if you should make any trades this tick.
-Respond in JSON format:
-{
-  "action": "trade" | "hold",
-  "trade": {
-    "type": "prediction" | "perp",
-    "market": "id or ticker",
-    "action": "buy_yes" | "buy_no" | "sell" | "open_long" | "open_short" | "close",
-    "amount": number,
-    "reasoning": "why (mention trust scores if relevant)"
-  }
-}
+Analyze the markets and decide if you should trade based on YOUR strategy and personality.
 
-Only trade if you have strong conviction and sufficient balance.
+Trading Guidelines:
+- Consider using 10-20% of balance per trade (e.g. $100-$200 with $1000 balance)
+- Prediction markets: buy_yes, buy_no, or sell existing positions
+- Perp markets: open_long, open_short, or close existing positions
+- Consider YES/NO odds and look for value
+- You decide the trade size based on your conviction and strategy
+
+IMPORTANT: After your analysis, you MUST output valid JSON at the end.
+
+Your response format:
+1. Think through the decision (optional analysis/reasoning)
+2. End with ONLY this JSON (no text after):
+
+FOR PREDICTION TRADE:
+{"action": "trade", "trade": {"type": "prediction", "market": "exact question text", "action": "buy_yes" | "buy_no" | "sell", "amount": 150, "reasoning": "Market [name], YES:NO ratio [X:Y], betting [side] because [specific reason with probability/edge/catalyst]"}}
+
+FOR PERP TRADE:
+{"action": "trade", "trade": {"type": "perp", "market": "ticker", "action": "open_long" | "open_short" | "close", "amount": 200, "reasoning": "Ticker [name], current price $[X], going [direction] because [specific technical/fundamental reason]"}}
+
+FOR HOLD:
+{"action": "hold", "reasoning": "Why not trading: [specific reason - no conviction/waiting for better setup/insufficient data/etc]"}
+
 ${contextString}`;
 
     // Ensure prompt fits within 32K context limit (W&B trained models)
@@ -200,11 +231,13 @@ ${contextString}`;
     const decision = await Promise.race([
       callGroqDirect({
         prompt: finalPrompt,
-        system: agent.agentSystem || undefined,
-        modelSize: 'large', // Uses trained W&B model if available, else qwen3-32b
+        system:
+          config?.systemPrompt ??
+          'You are a trading agent. Think through your decision, then end your response with valid JSON.',
+        modelSize: 'small', // Uses llama-3.3-70b-versatile - good at JSON format
         runtime: _runtime, // Pass runtime to access W&B trained models AND trajectory context
-        temperature: 0.7,
-        maxTokens: 300,
+        temperature: 0.7, // Normal temperature for natural decision-making
+        maxTokens: 1000, // Increased to allow reasoning + complete JSON output
         actionType: 'evaluate_trading_opportunity',
         purpose: 'action', // Track this as an ACTION call for RL
       }),
@@ -220,8 +253,33 @@ ${contextString}`;
       }),
     ]);
 
-    const jsonMatch = decision.match(/\{[\s\S]*\}/);
+    // Strip out <think> tags if present (some models like to reason first)
+    let cleanedDecision = decision;
+    if (decision.includes('<think>')) {
+      cleanedDecision = decision
+        .replace(/<think>[\s\S]*?<\/think>/g, '')
+        .trim();
+    }
+
+    // Extract JSON from response - find the LAST JSON object (in case reasoning comes before)
+    // Match all JSON objects and take the last one
+    const allJsonMatches = cleanedDecision.match(
+      /\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/g
+    );
+    const jsonMatch = allJsonMatches
+      ? allJsonMatches[allJsonMatches.length - 1]
+      : null;
+
     if (!jsonMatch) {
+      logger.error(
+        '❌ Failed to extract JSON from LLM response',
+        {
+          agentUserId,
+          responsePreview: decision.substring(0, 300),
+          hasThinkTags: decision.includes('<think>'),
+        },
+        'AutonomousTrading'
+      );
       throw new Error(
         `Failed to parse trade decision JSON from LLM response: ${decision.substring(0, 200)}`
       );
@@ -229,6 +287,7 @@ ${contextString}`;
 
     let tradeDecision: {
       action: string;
+      reasoning?: string;
       trade?: {
         type: string;
         market: string;
@@ -238,8 +297,9 @@ ${contextString}`;
       };
     };
     try {
-      tradeDecision = JSON.parse(jsonMatch[0]) as {
+      tradeDecision = JSON.parse(jsonMatch) as {
         action: string;
+        reasoning?: string;
         trade?: {
           type: string;
           market: string;
@@ -255,6 +315,14 @@ ${contextString}`;
     }
 
     if (tradeDecision.action !== 'trade' || !tradeDecision.trade) {
+      logger.info(
+        'Agent decided to hold',
+        {
+          agentUserId,
+          reasoning: tradeDecision.reasoning || 'No reasoning provided',
+        },
+        'AutonomousTrading'
+      );
       return {
         tradesExecuted: 0,
         marketId: undefined,
@@ -386,7 +454,10 @@ ${contextString}`;
       }
     } else if (trade.type === 'perp' && perpMarkets.length > 0) {
       const org = perpMarkets.find(
-        (o) => o.name === trade.market || o.id === trade.market
+        (o) =>
+          o.name === trade.market ||
+          o.id === trade.market ||
+          o.ticker === trade.market
       );
       if (org && trade.amount <= Number(balance.balance)) {
         if (trade.action === 'open_long' || trade.action === 'open_short') {

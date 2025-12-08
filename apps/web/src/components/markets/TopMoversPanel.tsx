@@ -1,13 +1,13 @@
 'use client';
 
+import { cn } from '@babylon/shared';
 import { TrendingDown, TrendingUp } from 'lucide-react';
 import { Skeleton } from '@/components/shared/Skeleton';
 import {
-  usePerpTopMovers,
-  usePerpMarketsPolling,
   type PerpMarket,
+  usePerpMarketsPolling,
+  usePerpTopMovers,
 } from '@/stores/perpMarketsStore';
-import { cn } from '@babylon/shared';
 
 /**
  * Top movers panel component for displaying biggest gainers and losers.

@@ -50,4 +50,3 @@ export const connections = {
   remove: (id: string) => registry.remove(id),
   snapshot: () => registry.snapshot(),
 };
-

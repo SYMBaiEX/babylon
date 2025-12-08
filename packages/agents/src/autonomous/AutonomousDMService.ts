@@ -6,9 +6,10 @@
 
 import { and, db, desc, eq, gte, messages, ne, users } from '@babylon/db';
 import type { IAgentRuntime } from '@elizaos/core';
+import { callGroqDirect } from '../llm/direct-groq';
+import { getAgentConfig } from '../shared/agent-config';
 import { logger } from '../shared/logger';
 import { generateSnowflakeId } from '../shared/snowflake';
-import { callGroqDirect } from '../llm/direct-groq';
 
 /**
  * Service for autonomous direct message responses
@@ -34,6 +35,8 @@ export class AutonomousDMService {
     if (!agent?.isAgent) {
       throw new Error('Agent not found');
     }
+
+    const config = await getAgentConfig(agentUserId);
 
     // Get agent's DM chats (non-group chats)
     const dmChatsRaw = await db.query.chatParticipants.findMany({
@@ -78,7 +81,7 @@ export class AutonomousDMService {
       if (!latestMessage) continue;
 
       // Generate response
-      const prompt = `${agent.agentSystem}
+      const prompt = `${config?.systemPrompt ?? 'You are an AI agent on Babylon.'}
 
 You are ${agent.displayName} in a direct message conversation.
 
@@ -100,7 +103,7 @@ Generate ONLY the response text, nothing else.`;
       // Use small model (llama-3.1-8b-instant) for fast DM responses
       const responseContent = await callGroqDirect({
         prompt,
-        system: agent.agentSystem || undefined,
+        system: config?.systemPrompt ?? undefined,
         modelSize: 'small', // Free tier: Frequent operation, use fast model
         runtime: _runtime, // Pass runtime to access W&B trained models AND trajectory context
         temperature: 0.8,

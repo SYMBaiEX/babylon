@@ -49,8 +49,8 @@
  *                   type: string
  */
 
-import { NextResponse } from 'next/server';
 import { logger } from '@babylon/shared';
+import { NextResponse } from 'next/server';
 
 export async function POST() {
   logger.info('Training cycle endpoint called (currently disabled)');

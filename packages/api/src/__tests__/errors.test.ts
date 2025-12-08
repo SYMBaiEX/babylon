@@ -45,7 +45,9 @@ describe('Error Classes', () => {
     });
 
     it('creates error with custom message and context', () => {
-      const error = new AuthenticationError('Token expired', { userId: 'test' });
+      const error = new AuthenticationError('Token expired', {
+        userId: 'test',
+      });
       expect(error.message).toBe('Token expired');
       expect(error.context).toEqual({ userId: 'test' });
     });
@@ -60,7 +62,11 @@ describe('Error Classes', () => {
     });
 
     it('creates error with resource and action', () => {
-      const error = new AuthorizationError('Cannot delete post', 'post', 'delete');
+      const error = new AuthorizationError(
+        'Cannot delete post',
+        'post',
+        'delete'
+      );
       expect(error.resource).toBe('post');
       expect(error.action).toBe('delete');
     });
@@ -208,7 +214,7 @@ describe('createErrorResponse', () => {
   it('creates basic error response', () => {
     const error = new BadRequestError('Invalid input', 'INVALID_INPUT');
     const response = createErrorResponse(error);
-    
+
     expect(response).toEqual({
       error: {
         message: 'Invalid input',
@@ -223,7 +229,7 @@ describe('createErrorResponse', () => {
       name: ['Required', 'Too short'],
     });
     const response = createErrorResponse(error);
-    
+
     expect(response.error.violations).toEqual([
       { field: 'email', message: 'Invalid format' },
       { field: 'name', message: 'Required' },
@@ -241,4 +247,3 @@ describe('ErrorCodes', () => {
     expect(ErrorCodes.BLOCKCHAIN_ERROR).toBe('BLOCKCHAIN_ERROR');
   });
 });
-

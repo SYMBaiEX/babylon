@@ -49,49 +49,40 @@
  * ```
  */
 
-import type { NextRequest } from 'next/server';
-import { NextResponse } from 'next/server';
+import {
+  BadRequestError,
+  requireAdmin,
+  successResponse,
+  withErrorHandling,
+} from '@babylon/api';
 import { db } from '@babylon/db';
 import { modelDeployer } from '@babylon/training';
+import type { NextRequest } from 'next/server';
 
-export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json();
-    const { targetVersion } = body;
+export const POST = withErrorHandling(async (request: NextRequest) => {
+  await requireAdmin(request);
 
-    if (!targetVersion) {
-      return NextResponse.json(
-        { error: 'Target version required' },
-        { status: 400 }
-      );
-    }
+  const body = await request.json();
+  const { targetVersion } = body;
 
-    // Get current deployed version
-    const currentModel = await db.trainedModel.findFirst({
-      where: { status: 'deployed' },
-      orderBy: { deployedAt: 'desc' },
-    });
-
-    if (!currentModel) {
-      return NextResponse.json(
-        { error: 'No currently deployed model' },
-        { status: 400 }
-      );
-    }
-
-    const result = await modelDeployer.rollback(
-      currentModel.version,
-      targetVersion
-    );
-
-    return NextResponse.json(result);
-  } catch (error) {
-    return NextResponse.json(
-      {
-        success: false,
-        error: error instanceof Error ? error.message : 'Rollback failed',
-      },
-      { status: 500 }
-    );
+  if (!targetVersion) {
+    throw new BadRequestError('Target version required');
   }
-}
+
+  // Get current deployed version
+  const currentModel = await db.trainedModel.findFirst({
+    where: { status: 'deployed' },
+    orderBy: { deployedAt: 'desc' },
+  });
+
+  if (!currentModel) {
+    throw new BadRequestError('No currently deployed model');
+  }
+
+  const result = await modelDeployer.rollback(
+    currentModel.version,
+    targetVersion
+  );
+
+  return successResponse(result);
+});

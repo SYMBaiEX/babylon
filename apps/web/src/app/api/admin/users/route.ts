@@ -89,8 +89,7 @@
  * @see {@link /lib/api/admin-middleware} Admin middleware
  */
 
-import type { NextRequest } from 'next/server';
-import { z } from 'zod';
+import { requireAdmin, successResponse, withErrorHandling } from '@babylon/api';
 import {
   and,
   asc,
@@ -110,9 +109,9 @@ import {
   userMutes,
   users,
 } from '@babylon/db';
-import { requireAdmin } from '@babylon/api';
-import { successResponse, withErrorHandling } from '@babylon/api';
 import { logger } from '@babylon/shared';
+import type { NextRequest } from 'next/server';
+import { z } from 'zod';
 
 const QuerySchema = z.object({
   limit: z.coerce.number().min(1).max(100).default(50),

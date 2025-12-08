@@ -1,3 +1,31 @@
+import { getContractAddresses, getRpcUrl } from '@babylon/contracts';
+import {
+  and,
+  balanceTransactions,
+  Decimal,
+  db,
+  eq,
+  follows,
+  referrals,
+  users,
+} from '@babylon/db';
+import type {
+  AgentCapabilities,
+  AuthenticatedUser,
+  JsonValue,
+  StringRecord,
+} from '@babylon/shared';
+import {
+  BusinessLogicError,
+  generateSnowflakeId,
+  IDENTITY_REGISTRY_ABI,
+  InternalServerError,
+  identityRegistryAbi,
+  logger,
+  POINTS,
+  reputationSystemAbi,
+  ValidationError,
+} from '@babylon/shared';
 import {
   type Account,
   type Address,
@@ -10,35 +38,6 @@ import {
 } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { baseSepolia, foundry } from 'viem/chains';
-import type {
-  JsonValue,
-  StringRecord,
-  AuthenticatedUser,
-  AgentCapabilities,
-} from '@babylon/shared';
-import {
-  and,
-  balanceTransactions,
-  Decimal,
-  db,
-  eq,
-  follows,
-  referrals,
-  users,
-} from '@babylon/db';
-import {
-  extractErrorMessage,
-  POINTS,
-  BusinessLogicError,
-  InternalServerError,
-  ValidationError,
-  logger,
-  generateSnowflakeId,
-  IDENTITY_REGISTRY_ABI,
-  identityRegistryAbi,
-  reputationSystemAbi,
-} from '@babylon/shared';
-import { getContractAddresses, getRpcUrl } from '@babylon/contracts';
 
 /**
  * Agent0Client interface for dependency injection
@@ -65,15 +64,26 @@ type Agent0Client = {
  */
 type OnboardingServices = {
   getAgent0Client: () => Agent0Client;
-  syncAfterAgent0Registration: (userId: string, tokenId: number) => Promise<void>;
+  syncAfterAgent0Registration: (
+    userId: string,
+    tokenId: number
+  ) => Promise<void>;
   notifyNewAccount: (userId: string) => Promise<void>;
   pointsService: {
-    awardReferralSignup: (referrerId: string, referredUserId: string) => Promise<{
+    awardReferralSignup: (
+      referrerId: string,
+      referredUserId: string
+    ) => Promise<{
       success: boolean;
       pointsAwarded: number;
       error?: string;
     }>;
-    awardPoints: (userId: string, amount: number, reason: string, metadata?: StringRecord<JsonValue>) => Promise<{
+    awardPoints: (
+      userId: string,
+      amount: number,
+      reason: string,
+      metadata?: StringRecord<JsonValue>
+    ) => Promise<{
       success: boolean;
       pointsAwarded: number;
       newTotal: number;
@@ -383,8 +393,11 @@ export async function processOnchainRegistration({
 
     // In local dev, contracts may not be deployed yet during startup
     // Check if contract exists before calling it
-    const contractCode = await publicClient.getCode({ address: IDENTITY_REGISTRY });
-    const contractExists = contractCode && contractCode !== '0x' && contractCode.length > 2;
+    const contractCode = await publicClient.getCode({
+      address: IDENTITY_REGISTRY,
+    });
+    const contractExists =
+      contractCode && contractCode !== '0x' && contractCode.length > 2;
 
     if (!contractExists) {
       // Contract not deployed yet - use database state
@@ -552,85 +565,12 @@ export async function processOnchainRegistration({
       );
     }
   } else if (walletClient) {
-    try {
-      registrationTxHash = await walletClient.writeContract({
-        address: IDENTITY_REGISTRY,
-        abi: identityRegistryAbi,
-        functionName: 'registerAgent',
-        args: [name, agentEndpoint, capabilitiesHash, metadataURI],
-      } as unknown as Parameters<typeof walletClient.writeContract>[0]);
-    } catch (registrationError) {
-      const message = extractErrorMessage(
-        registrationError as Error | { message?: string }
-      ).toLowerCase();
-      if (message.includes('already registered')) {
-        const onChainStatus = await publicClient.readContract({
-          address: IDENTITY_REGISTRY,
-          abi: identityRegistryAbi,
-          functionName: 'isRegistered',
-          args: [registrationAddress],
-        });
-
-        if (onChainStatus) {
-          const tokenOnChain = Number(
-            await publicClient.readContract({
-              address: IDENTITY_REGISTRY,
-              abi: identityRegistryAbi,
-              functionName: 'getTokenId',
-              args: [registrationAddress],
-            })
-          );
-
-          await db
-            .update(users)
-            .set({
-              onChainRegistered: true,
-              nftTokenId: tokenOnChain,
-            })
-            .where(eq(users.id, dbUser.id));
-
-          const [hasWelcomeBonusRetry] = await db
-            .select({ id: balanceTransactions.id })
-            .from(balanceTransactions)
-            .where(
-              and(
-                eq(balanceTransactions.userId, dbUser.id),
-                eq(
-                  balanceTransactions.description,
-                  'Welcome bonus - initial signup'
-                )
-              )
-            )
-            .limit(1);
-
-          logger.info(
-            'Detected prior registration for wallet during server signer attempt',
-            { address: registrationAddress, tokenId: tokenOnChain },
-            'OnboardingOnchain'
-          );
-
-          return {
-            message: 'Already registered on-chain',
-            tokenId: tokenOnChain,
-            alreadyRegistered: true,
-            userId: dbUser.id,
-            pointsAwarded: hasWelcomeBonusRetry ? 1000 : 0,
-          };
-        }
-
-        logger.warn(
-          'Server signer rejected registration due to existing owner',
-          { signer: deployerAccount?.address, registrationAddress },
-          'OnboardingOnchain'
-        );
-        throw new BusinessLogicError(
-          'SERVER_SIGNER_UNSUPPORTED',
-          'SERVER_SIGNER_UNSUPPORTED'
-        );
-      }
-
-      throw registrationError;
-    }
+    registrationTxHash = await walletClient.writeContract({
+      address: IDENTITY_REGISTRY,
+      abi: identityRegistryAbi,
+      functionName: 'registerAgent',
+      args: [name, agentEndpoint, capabilitiesHash, metadataURI],
+    } as unknown as Parameters<typeof walletClient.writeContract>[0]);
 
     logger.info(
       'Registration transaction sent',
@@ -706,28 +646,18 @@ export async function processOnchainRegistration({
     if (log.topics.length === 0) {
       return false;
     }
-    try {
-      const decodedLog = decodeEventLog({
-        abi: identityRegistryAbi,
-        data: log.data,
-        topics: log.topics,
-        strict: false,
-      });
-      logger.info(
-        'Decoded log event',
-        { eventName: decodedLog.eventName },
-        'processOnchainRegistration'
-      );
-      return decodedLog.eventName === 'AgentRegistered';
-    } catch (decodeError) {
-      // Log signature not in ABI (e.g., ERC-721 Transfer event) - skip this log
-      logger.warn(
-        'Failed to decode log',
-        { topics: log.topics, error: String(decodeError) },
-        'processOnchainRegistration'
-      );
-      return false;
-    }
+    const decodedLog = decodeEventLog({
+      abi: identityRegistryAbi,
+      data: log.data,
+      topics: log.topics,
+      strict: false,
+    });
+    logger.info(
+      'Decoded log event',
+      { eventName: decodedLog.eventName },
+      'processOnchainRegistration'
+    );
+    return decodedLog.eventName === 'AgentRegistered';
   });
 
   if (!agentRegisteredLog) {
@@ -737,7 +667,9 @@ export async function processOnchainRegistration({
         txHash: registrationTxHash ?? submittedTxHash,
         totalLogs: finalizedReceipt.logs.length,
         contractLogs: contractLogs.length,
-        allLogAddresses: finalizedReceipt.logs.map((l: Log) => l.address.toLowerCase()),
+        allLogAddresses: finalizedReceipt.logs.map((l: Log) =>
+          l.address.toLowerCase()
+        ),
         expectedAddress: IDENTITY_REGISTRY.toLowerCase(),
       }
     );
@@ -1202,16 +1134,7 @@ export async function confirmOnchainProfileUpdate({
 
   let metadata: StringRecord<JsonValue> | null = null;
   if (typeof rawMetadata === 'string' && rawMetadata.trim().length > 0) {
-    try {
-      metadata = JSON.parse(rawMetadata) as StringRecord<JsonValue>;
-    } catch (error) {
-      logger.warn(
-        'Failed to parse on-chain metadata JSON during profile update confirmation',
-        { error, userId, txHash },
-        'OnboardingOnchain'
-      );
-      metadata = null;
-    }
+    metadata = JSON.parse(rawMetadata) as StringRecord<JsonValue>;
   }
 
   return {
@@ -1314,4 +1237,3 @@ export async function getOnchainRegistrationStatus(
     dbRegistered: userRecord.onChainRegistered,
   };
 }
-

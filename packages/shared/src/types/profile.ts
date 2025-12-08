@@ -58,4 +58,3 @@ export interface PerpPositionFromAPI {
   fundingPaid: number;
   openedAt: string;
 }
-

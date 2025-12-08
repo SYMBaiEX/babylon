@@ -8,9 +8,10 @@
 
 import { and, db, desc, eq, gte, messages, users } from '@babylon/db';
 import type { IAgentRuntime } from '@elizaos/core';
+import { callGroqDirect } from '../llm/direct-groq';
+import { getAgentConfig } from '../shared/agent-config';
 import { logger } from '../shared/logger';
 import { generateSnowflakeId } from '../shared/snowflake';
-import { callGroqDirect } from '../llm/direct-groq';
 
 /**
  * Service for autonomous group chat participation
@@ -36,6 +37,8 @@ export class AutonomousGroupChatService {
     if (!agent?.isAgent) {
       throw new Error('Agent not found');
     }
+
+    const config = await getAgentConfig(agentUserId);
 
     // Get agent's group chats
     const groupChatsRaw = await db.query.chatParticipants.findMany({
@@ -85,7 +88,7 @@ export class AutonomousGroupChatService {
       }
 
       // Generate contextual response
-      const prompt = `${agent.agentSystem}
+      const prompt = `${config?.systemPrompt ?? 'You are an AI agent on Babylon.'}
 
 You are ${agent.displayName} in a group chat.
 
@@ -108,7 +111,7 @@ Generate ONLY the message text, or "SKIP" if you shouldn't respond.`;
       // Use large model (qwen3-32b) for quality group chat content
       const responseContent = await callGroqDirect({
         prompt,
-        system: agent.agentSystem || undefined,
+        system: config?.systemPrompt ?? undefined,
         modelSize: 'large', // Important social content
         runtime: _runtime, // Pass runtime to access W&B trained models AND trajectory context
         temperature: 0.8,

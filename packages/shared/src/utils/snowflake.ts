@@ -77,16 +77,11 @@ class SnowflakeGenerator {
     this.generating = true;
     const request = this.queue.shift()!;
 
-    try {
-      const id = this.generateSync();
-      request.resolve(id);
-    } catch (error) {
-      request.reject(error as Error);
-    } finally {
-      this.generating = false;
-      // Process next item in queue
-      queueMicrotask(() => this.processQueue());
-    }
+    const id = this.generateSync();
+    request.resolve(id);
+    this.generating = false;
+    // Process next item in queue
+    queueMicrotask(() => this.processQueue());
   }
 
   /**

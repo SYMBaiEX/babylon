@@ -1,20 +1,22 @@
 'use client';
 
+import { cn } from '@babylon/shared';
 import {
   Activity,
   Award,
+  Brain,
   DollarSign,
   Shield,
   ShoppingCart,
   TrendingUp,
   UserCheck,
   Users,
+  Zap,
 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { z } from 'zod';
 import { Avatar } from '@/components/shared/Avatar';
 import { Skeleton } from '@/components/shared/Skeleton';
-import { cn } from '@babylon/shared';
 
 /**
  * User stats schema for validation.
@@ -112,6 +114,58 @@ const FeeStatsSchema = z.object({
 type FeeStats = z.infer<typeof FeeStatsSchema>;
 
 /**
+ * Token stats schema for validation.
+ */
+const TokenStatsSchema = z.object({
+  success: z.boolean(),
+  summary: z.object({
+    periodStart: z.string(),
+    periodEnd: z.string(),
+    tickCount: z.number(),
+    totalCalls: z.number(),
+    totalInputTokens: z.number(),
+    totalOutputTokens: z.number(),
+    totalTokens: z.number(),
+    avgCallsPerTick: z.number(),
+    avgInputTokensPerTick: z.number(),
+    avgOutputTokensPerTick: z.number(),
+    avgTotalTokensPerTick: z.number(),
+    estimatedTotalCostUSD: z.number(),
+  }),
+  byPromptType: z.array(
+    z.object({
+      promptType: z.string(),
+      callCount: z.number(),
+      totalInputTokens: z.number(),
+      totalOutputTokens: z.number(),
+      totalTokens: z.number(),
+      avgTokensPerCall: z.number(),
+    })
+  ),
+  byModel: z.array(
+    z.object({
+      model: z.string(),
+      provider: z.string(),
+      callCount: z.number(),
+      totalInputTokens: z.number(),
+      totalOutputTokens: z.number(),
+      totalTokens: z.number(),
+      avgTokensPerCall: z.number(),
+    })
+  ),
+  recentTicks: z.array(
+    z.object({
+      tickId: z.string(),
+      tickStartedAt: z.string(),
+      tickCompletedAt: z.string(),
+      totalCalls: z.number(),
+      totalTokens: z.number(),
+    })
+  ),
+});
+type TokenStats = z.infer<typeof TokenStatsSchema>;
+
+/**
  * Stats tab component for displaying comprehensive system statistics.
  *
  * Displays detailed system-wide statistics including user metrics, market
@@ -135,6 +189,7 @@ type FeeStats = z.infer<typeof FeeStatsSchema>;
 export function StatsTab() {
   const [stats, setStats] = useState<SystemStats | null>(null);
   const [feeStats, setFeeStats] = useState<FeeStats | null>(null);
+  const [tokenStats, setTokenStats] = useState<TokenStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -161,15 +216,24 @@ export function StatsTab() {
     }
   }, []);
 
+  const fetchTokenStats = useCallback(async () => {
+    const response = await fetch('/api/stats/tokens?period=day&limit=50');
+    if (!response.ok) return; // Fail silently for token stats
+    const data = await response.json();
+    const validation = TokenStatsSchema.safeParse(data);
+    if (validation.success) {
+      setTokenStats(validation.data);
+    }
+  }, []);
+
   useEffect(() => {
     const loadData = async () => {
-      try {
-        await fetchStats();
-      } catch (err) {
+      await fetchStats().catch((err) => {
         setError(err instanceof Error ? err.message : 'Failed to load stats');
         setLoading(false);
-      }
+      });
       fetchFeeStats(); // This one fails silently
+      fetchTokenStats(); // This one fails silently
     };
 
     loadData();
@@ -177,7 +241,7 @@ export function StatsTab() {
       loadData();
     }, 30000); // Refresh every 30s
     return () => clearInterval(interval);
-  }, [fetchStats, fetchFeeStats]);
+  }, [fetchStats, fetchFeeStats, fetchTokenStats]);
 
   const formatCurrency = (value: string) => {
     const num = parseFloat(value);
@@ -388,6 +452,158 @@ export function StatsTab() {
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Token Stats (LLM Usage) */}
+      {tokenStats && tokenStats.summary.tickCount > 0 && (
+        <div className="rounded-lg border border-purple-500/20 bg-gradient-to-br from-purple-500/10 to-blue-500/10 p-6">
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="font-semibold text-lg text-muted-foreground uppercase tracking-wide">
+              LLM Token Usage (24h)
+            </h2>
+            <Brain className="h-6 w-6 text-purple-500" />
+          </div>
+
+          {/* Summary Stats */}
+          <div className="mb-6 grid grid-cols-2 gap-4 md:grid-cols-5">
+            <div>
+              <div className="mb-1 text-muted-foreground text-sm">
+                Total Tokens
+              </div>
+              <div className="font-bold text-2xl text-purple-500">
+                {formatNumber(tokenStats.summary.totalTokens)}
+              </div>
+            </div>
+            <div>
+              <div className="mb-1 text-muted-foreground text-sm">
+                Input Tokens
+              </div>
+              <div className="font-bold text-xl">
+                {formatNumber(tokenStats.summary.totalInputTokens)}
+              </div>
+            </div>
+            <div>
+              <div className="mb-1 text-muted-foreground text-sm">
+                Output Tokens
+              </div>
+              <div className="font-bold text-xl">
+                {formatNumber(tokenStats.summary.totalOutputTokens)}
+              </div>
+            </div>
+            <div>
+              <div className="mb-1 text-muted-foreground text-sm">
+                LLM Calls
+              </div>
+              <div className="font-bold text-xl">
+                {formatNumber(tokenStats.summary.totalCalls)}
+              </div>
+            </div>
+            <div>
+              <div className="mb-1 text-muted-foreground text-sm">
+                Est. Cost (USD)
+              </div>
+              <div className="font-bold text-green-500 text-xl">
+                ${tokenStats.summary.estimatedTotalCostUSD.toFixed(4)}
+              </div>
+            </div>
+          </div>
+
+          {/* Per Tick Averages */}
+          <div className="mb-6 grid grid-cols-2 gap-4 md:grid-cols-4">
+            <div className="rounded-md bg-background/50 p-3">
+              <div className="mb-1 text-muted-foreground text-xs">
+                Avg Calls/Tick
+              </div>
+              <div className="font-semibold">
+                {formatNumber(tokenStats.summary.avgCallsPerTick)}
+              </div>
+            </div>
+            <div className="rounded-md bg-background/50 p-3">
+              <div className="mb-1 text-muted-foreground text-xs">
+                Avg Input/Tick
+              </div>
+              <div className="font-semibold">
+                {formatNumber(tokenStats.summary.avgInputTokensPerTick)}
+              </div>
+            </div>
+            <div className="rounded-md bg-background/50 p-3">
+              <div className="mb-1 text-muted-foreground text-xs">
+                Avg Output/Tick
+              </div>
+              <div className="font-semibold">
+                {formatNumber(tokenStats.summary.avgOutputTokensPerTick)}
+              </div>
+            </div>
+            <div className="rounded-md bg-background/50 p-3">
+              <div className="mb-1 text-muted-foreground text-xs">
+                Ticks (24h)
+              </div>
+              <div className="font-semibold">
+                {formatNumber(tokenStats.summary.tickCount)}
+              </div>
+            </div>
+          </div>
+
+          {/* By Model */}
+          {tokenStats.byModel.length > 0 && (
+            <div className="mb-4">
+              <h3 className="mb-2 font-medium text-muted-foreground text-sm">
+                By Model
+              </h3>
+              <div className="space-y-2">
+                {tokenStats.byModel.slice(0, 5).map((model) => (
+                  <div
+                    key={`${model.provider}-${model.model}`}
+                    className="flex items-center justify-between rounded-md bg-background/50 p-2"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Zap className="h-4 w-4 text-yellow-500" />
+                      <span className="font-mono text-sm">{model.model}</span>
+                      <span className="rounded bg-muted px-1.5 py-0.5 text-muted-foreground text-xs">
+                        {model.provider}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-4 text-sm">
+                      <span className="text-muted-foreground">
+                        {formatNumber(model.callCount)} calls
+                      </span>
+                      <span className="font-medium">
+                        {formatNumber(model.totalTokens)} tokens
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* By Prompt Type */}
+          {tokenStats.byPromptType.length > 0 && (
+            <div>
+              <h3 className="mb-2 font-medium text-muted-foreground text-sm">
+                By Prompt Type
+              </h3>
+              <div className="grid grid-cols-1 gap-2 md:grid-cols-2 lg:grid-cols-3">
+                {tokenStats.byPromptType.slice(0, 9).map((pt) => (
+                  <div
+                    key={pt.promptType}
+                    className="flex items-center justify-between rounded-md bg-background/50 p-2"
+                  >
+                    <span className="truncate font-mono text-muted-foreground text-xs">
+                      {pt.promptType}
+                    </span>
+                    <div className="ml-2 flex items-center gap-2 text-xs">
+                      <span>{formatNumber(pt.callCount)}x</span>
+                      <span className="font-medium">
+                        {formatNumber(pt.totalTokens)}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 

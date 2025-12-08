@@ -651,4 +651,3 @@ export function estimateFeeAPR(
     timeInRange,
   };
 }
-

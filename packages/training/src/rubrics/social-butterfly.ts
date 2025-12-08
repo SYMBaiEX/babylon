@@ -71,4 +71,3 @@ export const SOCIAL_BUTTERFLY_PRIORITY_METRICS = [
   'behavior.socialToTradeRatio',
   'influence.followersGained',
 ];
-

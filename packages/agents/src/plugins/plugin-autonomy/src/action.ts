@@ -3,6 +3,7 @@ import {
   type ActionResult,
   asUUID,
   type HandlerCallback,
+  type HandlerOptions,
   type IAgentRuntime,
   type Memory,
   type State,
@@ -102,7 +103,7 @@ export const sendToAdminAction: Action = {
     runtime: IAgentRuntime,
     message: Memory,
     _state?: State,
-    _options?: { [key: string]: unknown },
+    _options?: HandlerOptions,
     callback?: HandlerCallback
   ): Promise<ActionResult> => {
     void _state; // State is currently unused but preserved for future compatibility

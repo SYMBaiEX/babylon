@@ -48,124 +48,116 @@
  * ```
  */
 
-import type { NextRequest } from 'next/server';
-import { NextResponse } from 'next/server';
 import { db } from '@babylon/db';
 import { logger } from '@babylon/shared';
+import type { NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
 
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ gameId: string }> }
 ) {
-  try {
-    const { gameId } = await params;
+  const { gameId } = await params;
 
-    // SECURITY CHECK: Verify game is completed
-    // For now, check if all questions for this game are resolved
-    const activeQuestions = await db.question.findMany({
-      where: {
-        // gameId: gameId,  // Add gameId to Question model if not exists
-        status: 'active',
+  // SECURITY CHECK: Verify game is completed
+  // For now, check if all questions for this game are resolved
+  const activeQuestions = await db.question.findMany({
+    where: {
+      // gameId: gameId,  // Add gameId to Question model if not exists
+      status: 'active',
+    },
+  });
+
+  // If any questions still active, game is not complete
+  if (activeQuestions.length > 0) {
+    logger.warn(
+      'Training data requested for active game - rejected',
+      {
+        gameId,
+        activeQuestions: activeQuestions.length,
       },
-    });
+      'TrainingDataAPI'
+    );
 
-    // If any questions still active, game is not complete
-    if (activeQuestions.length > 0) {
-      logger.warn(
-        'Training data requested for active game - rejected',
-        {
-          gameId,
-          activeQuestions: activeQuestions.length,
-        },
-        'TrainingDataAPI'
-      );
-
-      return NextResponse.json(
-        {
-          error: 'Training data only available for completed games',
-          status: 'GAME_ACTIVE',
-          message:
-            'This game has active questions. Training data will be available after all questions resolve.',
-        },
-        { status: 403 }
-      );
-    }
-
-    // Get all resolved questions
-    const questions = await db.question.findMany({
-      where: {
-        status: 'resolved',
-      },
-      orderBy: { createdDate: 'asc' },
-    });
-
-    // Get all posts from this time period
-    // TODO: Add relatedQuestion field to Post model for better filtering
-    const posts = await db.post.findMany({
-      where: {
-        gameId: gameId,
-        // relatedQuestion: { in: questions.map(q => q.questionNumber) }  // TODO: Add field
-      },
-      select: {
-        id: true,
-        content: true,
-        authorId: true,
-        gameId: true,
-        dayNumber: true,
-        sentiment: true,
-        createdAt: true,
-      },
-      orderBy: { createdAt: 'asc' },
-    });
-
-    // Group posts by question (simplified for now):
-    const questionData = questions.map((q) => {
-      const questionPosts = posts; // TODO: Filter by relatedQuestion when field added
-
-      return {
-        questionId: q.questionNumber,
-        questionText: q.text,
-        finalOutcome: q.resolvedOutcome, // ✅ Safe - game completed
-        createdDate: q.createdDate,
-        resolutionDate: q.resolutionDate,
-
-        // Posts with analysis:
-        posts: questionPosts.map((p) => ({
-          id: p.id,
-          content: p.content,
-          authorId: p.authorId,
-          dayNumber: p.dayNumber,
-          sentiment: p.sentiment,
-
-          // For training: was the content's sentiment correct?
-          contentSentiment: p.sentiment,
-          finalOutcome: q.resolvedOutcome,
-          sentimentMatchedOutcome:
-            (p.sentiment === 'positive' && q.resolvedOutcome === true) ||
-            (p.sentiment === 'negative' && q.resolvedOutcome === false),
-        })),
-      };
-    });
-
-    return NextResponse.json({
-      gameId,
-      status: 'completed',
-      questionsAnalyzed: questions.length,
-      totalPosts: posts.length,
-      questions: questionData,
-
-      // Metadata for training:
-      trainingMetadata: {
-        generatedAt: new Date().toISOString(),
-        purpose: 'offline_reinforcement_learning',
-        safetyNote: 'This data is only available after game completion',
-      },
-    });
-  } catch (error) {
-    logger.error('Error fetching training data', error, 'TrainingDataAPI');
     return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
+      {
+        error: 'Training data only available for completed games',
+        status: 'GAME_ACTIVE',
+        message:
+          'This game has active questions. Training data will be available after all questions resolve.',
+      },
+      { status: 403 }
     );
   }
+
+  // Get all resolved questions
+  const questions = await db.question.findMany({
+    where: {
+      status: 'resolved',
+    },
+    orderBy: { createdDate: 'asc' },
+  });
+
+  // Get all posts from this time period
+  // TODO: Add relatedQuestion field to Post model for better filtering
+  const posts = await db.post.findMany({
+    where: {
+      gameId: gameId,
+      // relatedQuestion: { in: questions.map(q => q.questionNumber) }  // TODO: Add field
+    },
+    select: {
+      id: true,
+      content: true,
+      authorId: true,
+      gameId: true,
+      dayNumber: true,
+      sentiment: true,
+      createdAt: true,
+    },
+    orderBy: { createdAt: 'asc' },
+  });
+
+  // Group posts by question (simplified for now):
+  const questionData = questions.map((q) => {
+    const questionPosts = posts; // TODO: Filter by relatedQuestion when field added
+
+    return {
+      questionId: q.questionNumber,
+      questionText: q.text,
+      finalOutcome: q.resolvedOutcome, // ✅ Safe - game completed
+      createdDate: q.createdDate,
+      resolutionDate: q.resolutionDate,
+
+      // Posts with analysis:
+      posts: questionPosts.map((p) => ({
+        id: p.id,
+        content: p.content,
+        authorId: p.authorId,
+        dayNumber: p.dayNumber,
+        sentiment: p.sentiment,
+
+        // For training: was the content's sentiment correct?
+        contentSentiment: p.sentiment,
+        finalOutcome: q.resolvedOutcome,
+        sentimentMatchedOutcome:
+          (p.sentiment === 'positive' && q.resolvedOutcome === true) ||
+          (p.sentiment === 'negative' && q.resolvedOutcome === false),
+      })),
+    };
+  });
+
+  return NextResponse.json({
+    gameId,
+    status: 'completed',
+    questionsAnalyzed: questions.length,
+    totalPosts: posts.length,
+    questions: questionData,
+
+    // Metadata for training:
+    trainingMetadata: {
+      generatedAt: new Date().toISOString(),
+      purpose: 'offline_reinforcement_learning',
+      safetyNote: 'This data is only available after game completion',
+    },
+  });
 }

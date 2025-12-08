@@ -1,63 +1,12 @@
 /**
- * Babylon Game World Generator
- *
- * @module engine/GameWorld
- *
- * @description
- * Generates complete narrative worlds with NPCs, events, and predetermined outcomes
- * that agents observe and bet on. This is the "reality" of the game - agents don't
- * participate in or influence this world, they only observe and predict outcomes.
- *
- * **What This Generates:**
- * - 30 days of narrative events and developments
- * - NPC conversations and private discussions
- * - Clues and information reveals (public and leaked)
- * - News reports, rumors, and expert analysis
- * - Social media feed posts and reactions
- * - Final outcome revelation
- *
- * **World vs Betting:**
- * - GameWorld = what actually happens (predetermined narrative)
- * - Agents = observers who bet on outcomes (don't affect world)
- * - Feed = how agents learn about the world (filtered, biased)
- * - Markets = where agents bet on predictions
- *
- * **Generation Phases:**
- * - **Early (Days 1-10)**: Rumors, leaks, initial reports
- * - **Mid (Days 11-20)**: Meetings, analysis, developments
- * - **Late (Days 21-30)**: Revelations, whistleblowers, final events
- *
- * **LLM Integration:**
- * - Optional LLM for rich content generation
- * - Falls back to templates if LLM unavailable
- * - Uses prompts from @/prompts for consistency
- *
- * **Event Types:**
- * - announcement, meeting, leak, development
- * - scandal, rumor, deal, conflict, revelation
- *
- * @see {@link GameEngine} - Production system (not used in GameEngine)
- * @see {@link FeedGenerator} - Converts events to social media posts
- *
- * @example
- * ```typescript
- * const world = new GameWorld({ outcome: true }, llmClient);
- *
- * world.on('feed:post', (post) => {
- *   console.log(`${post.authorName}: ${post.content}`);
- * });
- *
- * const finalWorld = await world.generate();
- * console.log(`Question: ${finalWorld.question}`);
- * console.log(`Outcome: ${finalWorld.outcome ? 'YES' : 'NO'}`);
- * console.log(`Events: ${finalWorld.events.length}`);
- * console.log(`Timeline: ${finalWorld.timeline.length} days`);
- * ```
+ * Generates complete narrative worlds with NPCs, events, and predetermined outcomes.
+ * This is the "reality" of the game - agents observe and predict, but don't influence.
  */
 
-import { EventEmitter } from 'events';
-import { characterMappingService } from './services/character-mapping-service';
 import { generateSnowflakeId } from '@babylon/shared';
+import { EventEmitter } from 'events';
+import { type FeedEvent, FeedGenerator } from './FeedGenerator';
+import type { BabylonLLMClient } from './llm/openai-client';
 import {
   daySummary,
   expertAnalysis,
@@ -66,10 +15,9 @@ import {
   renderPrompt,
   rumor,
 } from './prompts';
-import type { PerpMarket } from './types/perps';
+import { characterMappingService } from './services/character-mapping-service';
 import type { JsonValue } from './types/common';
-import { type FeedEvent, FeedGenerator } from './FeedGenerator';
-import type { BabylonLLMClient } from './llm/openai-client';
+import type { PerpMarket } from './types/perps';
 
 export interface MarketContext {
   markets: PerpMarket[];
@@ -93,16 +41,6 @@ export interface GameWorldEvents {
   event: { type: string; data: JsonValue };
 }
 
-/**
- * World generation configuration
- *
- * @interface WorldConfig
- *
- * @property outcome - Predetermined outcome (true = success/YES, false = failure/NO)
- * @property numNPCs - Number of NPCs in the world (default: 8)
- * @property duration - Game duration in days (default: 30)
- * @property verbosity - Content detail level (default: 'normal')
- */
 export interface WorldConfig {
   outcome: boolean;
   numNPCs?: number;
@@ -110,50 +48,7 @@ export interface WorldConfig {
   verbosity?: 'minimal' | 'normal' | 'detailed';
 }
 
-/**
- * World Event - Actual story events that occur in the game
- *
- * @interface WorldEvent
- *
- * @description
- * Canonical representation of events that happen in the game world. These are the
- * "actual events" that actors observe and react to via the social feed. Each event
- * can point toward a question outcome and has varying levels of visibility.
- *
- * **This is THE WorldEvent:**
- * - Used throughout entire engine (GameWorld, FeedGenerator, GameEngine)
- * - Represents what "actually happened" (not just posts/reactions)
- * - Feed posts are reactions TO these events
- *
- * @property id - Unique event identifier
- * @property day - Game day number (1-30) when event occurred
- * @property type - Event category (determines impact and reactions)
- * @property description - Event description (max 150 chars, dramatic and specific)
- * @property actors - Actor IDs involved in this event
- * @property visibility - Who can see this event
- * @property pointsToward - Optional hint toward question outcome
- * @property relatedQuestion - Optional prediction market question ID
- *
- * **Event Types:**
- * - `announcement`: Official public statements
- * - `meeting`: Private meetings (may leak)
- * - `leak`: Information leaked to media
- * - `development`: Progress updates
- * - `scandal`: Negative revelations
- * - `rumor`: Unconfirmed reports
- * - `deal`: Business transactions
- * - `conflict`: Disputes or conflicts
- * - `revelation`: Major discoveries
- * - `development:occurred`: Internal development marker
- * - `news:published`: News article published marker
- *
- * **Visibility Levels:**
- * - `public`: Everyone sees it
- * - `leaked`: Media has it, public soon
- * - `secret`: Only involved actors know
- * - `private`: Small group knows
- * - `group`: Group chat only
- */
+/** Canonical world event - what actually happened in the game world. */
 export interface WorldEvent {
   id: string;
   day: number;
@@ -176,10 +71,6 @@ export interface WorldEvent {
   relatedQuestion?: number | null;
 }
 
-/**
- * EmitterEvent - Internal EventEmitter format for tracking world state changes
- * Used by GameWorld for event emission and logging
- */
 interface EmitterEvent {
   type: EmitterEventType;
   day: number;

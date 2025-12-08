@@ -37,7 +37,7 @@ export function PostHogIdentifier() {
         hasTwitter: user.hasTwitter ?? false,
         authenticated: true,
       };
-      
+
       if (user.username) {
         properties.username = user.username;
       }
@@ -59,15 +59,20 @@ export function PostHogIdentifier() {
       if (user.createdAt) {
         properties.createdAt = user.createdAt;
       }
-      
+
       posthog.identify(user.id, properties);
       identifiedUserId.current = user.id;
 
       // Set user properties (people API is optional and may not exist)
       const posthogWithPeople = posthog as typeof posthog & {
-        people?: { set: (properties: Record<string, string | boolean>) => void };
+        people?: {
+          set: (properties: Record<string, string | boolean>) => void;
+        };
       };
-      if (posthogWithPeople.people && typeof posthogWithPeople.people.set === 'function') {
+      if (
+        posthogWithPeople.people &&
+        typeof posthogWithPeople.people.set === 'function'
+      ) {
         const peopleProperties: Record<string, string | boolean> = {
           authenticated: true,
         };

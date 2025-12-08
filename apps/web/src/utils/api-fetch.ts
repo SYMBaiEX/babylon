@@ -35,13 +35,8 @@ export async function getPrivyAccessToken(): Promise<string | null> {
 
   // ALWAYS call getAccessToken() on-demand - it auto-refreshes expired tokens
   if (window.__privyGetAccessToken) {
-    try {
-      const token = await window.__privyGetAccessToken();
-      return token;
-    } catch {
-      // If getAccessToken fails, user will be logged out by Privy automatically
-      return null;
-    }
+    const token = await window.__privyGetAccessToken();
+    return token;
   }
 
   // No token available - user not authenticated via Privy hook
@@ -120,4 +115,3 @@ export async function apiFetch(
 
   return response;
 }
-

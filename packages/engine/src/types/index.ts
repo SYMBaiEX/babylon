@@ -1,7 +1,7 @@
 /**
  * Types Index
  *
- * Re-exports all types from the engine package
+ * Re-exports all types from the engine package.
  */
 
 // Common types (JsonValue, LogData, etc.)
@@ -15,5 +15,3 @@ export * from './market-context';
 
 // Market decision types
 export * from './market-decisions';
-
-// Perpetual futures types

@@ -12,14 +12,9 @@ declare module '@babylon/contracts/deployments/local' {
     identityRegistry: string;
     reputationSystem: string;
     babylonOracle: string;
-    predimarket: string;
-    marketFactory: string;
-    contestOracle: string;
-    banManager: string;
-    reportingSystem: string;
-    labelManager: string;
+    banManager?: string;
     chainlinkOracle?: string;
-    umaOracle?: string;
+    mockOracle?: string;
     testToken?: string;
   }
 
@@ -50,14 +45,9 @@ declare module '@babylon/contracts/deployments/base-sepolia' {
     identityRegistry: string;
     reputationSystem: string;
     babylonOracle?: string;
-    predimarket?: string;
-    marketFactory?: string;
-    contestOracle?: string;
     banManager?: string;
-    reportingSystem?: string;
-    labelManager?: string;
     chainlinkOracle?: string;
-    umaOracle?: string;
+    mockOracle?: string;
     testToken?: string;
   }
 
@@ -88,12 +78,7 @@ declare module '@babylon/contracts/deployments/base' {
     identityRegistry: string;
     reputationSystem: string;
     babylonOracle?: string;
-    predimarket?: string;
-    marketFactory?: string;
-    contestOracle?: string;
     banManager?: string;
-    reportingSystem?: string;
-    labelManager?: string;
   }
 
   interface Deployment {

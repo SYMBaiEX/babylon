@@ -109,4 +109,3 @@ describe('Snowflake ID Generator', () => {
     });
   });
 });
-

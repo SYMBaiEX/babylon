@@ -51,12 +51,15 @@
  * ```
  */
 
-import type { NextRequest } from 'next/server';
-import { authenticate } from '@babylon/api';
-import { asUser } from '@babylon/db';
-import { ApiError } from '@babylon/api';
-import { successResponse, withErrorHandling } from '@babylon/api';
+import {
+  ApiError,
+  authenticate,
+  successResponse,
+  withErrorHandling,
+} from '@babylon/api';
+import { and, asUser, chatParticipants, chats, eq } from '@babylon/db';
 import { logger } from '@babylon/shared';
+import type { NextRequest } from 'next/server';
 
 /**
  * GET /api/chats/[id]/group
@@ -70,24 +73,29 @@ export const GET = withErrorHandling(
     const user = await authenticate(request);
     const { id: chatId } = await params;
 
-    const groupId = await asUser(user, async (db) => {
+    const groupId = await asUser(user, async (dbClient) => {
       // Check if user is a participant in the chat
-      const participant = await db.chatParticipant.findFirst({
-        where: {
-          chatId,
-          userId: user.userId,
-        },
-      });
+      const [participant] = await dbClient
+        .select()
+        .from(chatParticipants)
+        .where(
+          and(
+            eq(chatParticipants.chatId, chatId),
+            eq(chatParticipants.userId, user.userId)
+          )
+        )
+        .limit(1);
 
       if (!participant) {
         throw new ApiError('You are not a participant in this chat', 403);
       }
 
       // Get the chat and its groupId
-      const chat = await db.chat.findUnique({
-        where: { id: chatId },
-        select: { groupId: true, isGroup: true },
-      });
+      const [chat] = await dbClient
+        .select({ groupId: chats.groupId, isGroup: chats.isGroup })
+        .from(chats)
+        .where(eq(chats.id, chatId))
+        .limit(1);
 
       if (!chat) {
         throw new ApiError('Chat not found', 404);

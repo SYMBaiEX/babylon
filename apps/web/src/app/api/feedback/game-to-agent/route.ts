@@ -62,19 +62,19 @@
  * ```
  */
 
+import { submitFeedbackToAgent0 } from '@babylon/agents';
+import {
+  requireCronAuth,
+  requireUserByIdentifier,
+  withErrorHandling,
+} from '@babylon/api';
+import type { JsonValue } from '@babylon/db';
+import { db } from '@babylon/db';
+import { updateFeedbackMetrics, updateGameMetrics } from '@babylon/engine';
+import { generateSnowflakeId, logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import type { JsonValue } from '@babylon/db';
-import { db } from '@babylon/db';
-import { logger } from '@babylon/shared';
-import { submitFeedbackToAgent0 } from '@babylon/agents';
-import {
-  updateFeedbackMetrics,
-  updateGameMetrics,
-} from '@babylon/engine';
-import { generateSnowflakeId } from '@babylon/shared';
-import { requireUserByIdentifier } from '@babylon/api';
 
 const GameFeedbackSchema = z.object({
   agentId: z.string().min(1, 'agentId is required'),
@@ -85,7 +85,8 @@ const GameFeedbackSchema = z.object({
   metadata: z.record(z.string(), z.unknown()).optional(),
 });
 
-export async function POST(request: NextRequest) {
+export const POST = withErrorHandling(async (request: NextRequest) => {
+  requireCronAuth(request, { jobName: 'GameFeedback' });
   const json = await request.json();
   const parsed = GameFeedbackSchema.parse(json);
 
@@ -178,4 +179,4 @@ export async function POST(request: NextRequest) {
     },
     { status: 201 }
   );
-}
+});

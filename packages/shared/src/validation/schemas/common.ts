@@ -3,8 +3,8 @@
  */
 
 import { z } from 'zod';
-import { isValidSnowflakeId } from '../../utils/snowflake';
 import { JsonValueSchema } from '../../types/common';
+import { isValidSnowflakeId } from '../../utils/snowflake';
 
 /**
  * Snowflake ID validation schema
@@ -15,14 +15,6 @@ export const SnowflakeIdSchema = z
   .refine((val) => isValidSnowflakeId(val), {
     message: 'Invalid Snowflake ID format',
   });
-
-/**
- * UUID validation schema
- * Kept for legacy compatibility and external system integration
- */
-export const UUIDSchema = z.string().uuid({
-  message: 'Invalid UUID format',
-});
 
 /**
  * User ID schema - accepts UUID, Privy DID, or username formats

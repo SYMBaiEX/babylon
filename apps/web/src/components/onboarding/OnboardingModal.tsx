@@ -1,5 +1,7 @@
 'use client';
 
+import type { OnboardingProfilePayload } from '@babylon/shared';
+import { cn, logger } from '@babylon/shared';
 import {
   AlertCircle,
   Check,
@@ -14,9 +16,6 @@ import Image from 'next/image';
 import { useEffect, useMemo, useState } from 'react';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { apiFetch } from '@/utils/api-fetch';
-import { logger } from '@babylon/shared';
-import type { OnboardingProfilePayload } from '@babylon/shared';
-import { cn } from '@babylon/shared';
 
 /**
  * Imported profile data structure from social platforms.

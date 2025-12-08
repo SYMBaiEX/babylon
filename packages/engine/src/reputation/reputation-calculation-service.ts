@@ -14,8 +14,7 @@ import {
   gte,
   users,
 } from '@babylon/db';
-import { logger } from '@babylon/shared';
-import { generateSnowflakeId } from '@babylon/shared';
+import { generateSnowflakeId, logger } from '@babylon/shared';
 import {
   calculateConfidenceScore,
   calculateWinRate,
@@ -842,19 +841,17 @@ export async function generateBatchGameFeedback(
   );
 
   // Process sequentially to avoid overwhelming the database
-  const results: PromiseSettledResult<Awaited<ReturnType<typeof generateGameCompletionFeedback>>>[] = [];
+  const results: PromiseSettledResult<
+    Awaited<ReturnType<typeof generateGameCompletionFeedback>>
+  >[] = [];
 
   for (const completion of completions) {
-    try {
-      const result = await generateGameCompletionFeedback(
-        completion.agentId,
-        completion.gameId,
-        completion.metrics
-      );
-      results.push({ status: 'fulfilled', value: result });
-    } catch (error) {
-      results.push({ status: 'rejected', reason: error });
-    }
+    const result = await generateGameCompletionFeedback(
+      completion.agentId,
+      completion.gameId,
+      completion.metrics
+    );
+    results.push({ status: 'fulfilled', value: result });
   }
 
   const successful = results.filter((r) => r.status === 'fulfilled').length;
@@ -876,4 +873,3 @@ export async function generateBatchGameFeedback(
     )
     .map((r) => r.value);
 }
-

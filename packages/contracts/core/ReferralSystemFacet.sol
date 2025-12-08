@@ -73,7 +73,11 @@ contract ReferralSystemFacet is ReentrancyGuard {
         emit ReferralRegistered(msg.sender, _referrer);
     }
 
-    /// @notice Pay referral commission on a transaction
+    /// @notice Pay referral commission from caller's balance
+    /// @dev Deducts commission from msg.sender's balance - caller must have sufficient funds
+    /// @dev This ensures commissions are properly funded and prevents exploitation
+    /// @param _user The user who made the transaction
+    /// @param _transactionAmount The transaction amount to calculate commission on
     function payReferralCommission(
         address _user,
         uint256 _transactionAmount
@@ -93,6 +97,9 @@ contract ReferralSystemFacet is ReentrancyGuard {
         commission = (_transactionAmount * commissionRate) / 10000;
 
         if (commission > 0) {
+            // Deduct commission from caller's balance (prevents free commission exploit)
+            LibMarket.subtractBalance(msg.sender, commission);
+            
             // Add commission to referrer's balance
             LibMarket.addBalance(referrer, commission);
 
@@ -108,9 +115,6 @@ contract ReferralSystemFacet is ReentrancyGuard {
 
     /// @notice Claim accumulated referral earnings
     function claimReferralEarnings() external nonReentrant {
-        ReferralStorage storage rs = referralStorage();
-        ReferralData storage referrerData = rs.referrals[msg.sender];
-
         uint256 balance = LibMarket.getBalance(msg.sender);
         require(balance > 0, "No earnings to claim");
 

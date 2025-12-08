@@ -1,10 +1,9 @@
 'use client';
 
+import { cn } from '@babylon/shared';
 import { ArrowLeft, ArrowUpDown, Clock, Flame, Search } from 'lucide-react';
-
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-
 import { CategoryPnLCard } from '@/components/markets/CategoryPnLCard';
 import { CategoryPnLShareModal } from '@/components/markets/CategoryPnLShareModal';
 import { PredictionPositionsList } from '@/components/markets/PredictionPositionsList';
@@ -15,7 +14,6 @@ import { useAuth } from '@/hooks/useAuth';
 import { usePortfolioPnL } from '@/hooks/usePortfolioPnL';
 import { usePredictionMarketsSubscription } from '@/hooks/usePredictionMarketStream';
 import { useUserPositions } from '@/hooks/useUserPositions';
-import { cn } from '@babylon/shared';
 
 interface PredictionUserPosition {
   id: string;
@@ -110,64 +108,61 @@ export default function PredictionsPage() {
     const isAuth = authenticatedRef.current;
     const userId = userIdRef.current;
 
-    try {
-      const predictionsRes = await fetch(
-        `/api/markets/predictions${isAuth && userId ? `?userId=${userId}` : ''}`
-      );
+    const predictionsRes = await fetch(
+      `/api/markets/predictions${isAuth && userId ? `?userId=${userId}` : ''}`
+    );
 
-      if (!predictionsRes.ok) {
-        throw new Error('Failed to fetch predictions');
-      }
-
-      const predictionsData = await predictionsRes.json();
-
-      const fetchedAt = Date.now();
-      const fetchedPredictions: PredictionMarket[] = (
-        predictionsData.questions || []
-      ).map((prediction: PredictionMarket) => {
-        if (
-          prediction.resolutionDate &&
-          new Date(prediction.resolutionDate).getTime() < fetchedAt
-        ) {
-          return {
-            ...prediction,
-            status: 'resolved',
-          };
-        }
-        return prediction;
-      });
-      setPredictions(fetchedPredictions);
-
-      setSparklineData((prev) => {
-        const next = { ...prev };
-        fetchedPredictions.forEach((prediction) => {
-          const id = prediction.id.toString();
-          const totalShares =
-            (prediction.yesShares || 0) + (prediction.noShares || 0);
-          const yesProbability =
-            totalShares > 0 ? (prediction.yesShares || 0) / totalShares : 0.5;
-          const noProbability = 1 - yesProbability;
-          if (!next[id] || next[id].length === 0) {
-            next[id] = [
-              {
-                time: fetchedAt,
-                yesPrice: yesProbability,
-                noPrice: noProbability,
-              },
-            ];
-          }
-        });
-        return next;
-      });
-
-      if (isAuth && userId && refreshPositionsRef.current) {
-        await refreshPositionsRef.current();
-      }
-    } catch (err) {
-      console.error('Failed to fetch predictions:', err);
-    } finally {
+    if (!predictionsRes.ok) {
+      console.error('Failed to fetch predictions: Failed to fetch predictions');
       setLoading(false);
+      return;
     }
+
+    const predictionsData = await predictionsRes.json();
+
+    const fetchedAt = Date.now();
+    const fetchedPredictions: PredictionMarket[] = (
+      predictionsData.questions || []
+    ).map((prediction: PredictionMarket) => {
+      if (
+        prediction.resolutionDate &&
+        new Date(prediction.resolutionDate).getTime() < fetchedAt
+      ) {
+        return {
+          ...prediction,
+          status: 'resolved',
+        };
+      }
+      return prediction;
+    });
+    setPredictions(fetchedPredictions);
+
+    setSparklineData((prev) => {
+      const next = { ...prev };
+      fetchedPredictions.forEach((prediction) => {
+        const id = prediction.id.toString();
+        const totalShares =
+          (prediction.yesShares || 0) + (prediction.noShares || 0);
+        const yesProbability =
+          totalShares > 0 ? (prediction.yesShares || 0) / totalShares : 0.5;
+        const noProbability = 1 - yesProbability;
+        if (!next[id] || next[id].length === 0) {
+          next[id] = [
+            {
+              time: fetchedAt,
+              yesPrice: yesProbability,
+              noPrice: noProbability,
+            },
+          ];
+        }
+      });
+      return next;
+    });
+
+    if (isAuth && userId && refreshPositionsRef.current) {
+      await refreshPositionsRef.current();
+    }
+    setLoading(false);
   }, []);
 
   // Store fetchData in ref

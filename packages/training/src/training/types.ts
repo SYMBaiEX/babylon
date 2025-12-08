@@ -13,6 +13,7 @@ import type {
   Trajectory,
   WhereInput,
 } from '@babylon/db';
+import type { JsonValue } from '@babylon/shared';
 
 // Re-export schema types for convenience
 export type { Trajectory, TrainingBatch, TrainedModel, LlmCallLog };
@@ -42,7 +43,7 @@ export interface EnvironmentState {
 
 export interface ProviderAccess {
   providerName: string;
-  data: Record<string, unknown>;
+  data: Record<string, JsonValue>;
   purpose: string;
 }
 
@@ -62,9 +63,9 @@ export interface LLMCall {
 
 export interface Action {
   actionType: string;
-  parameters: Record<string, unknown>;
+  parameters: Record<string, JsonValue>;
   success: boolean;
-  result?: Record<string, unknown>;
+  result?: Record<string, JsonValue>;
   error?: string;
   reasoning?: string;
   // Correctness tracking (for RL training)
@@ -109,8 +110,8 @@ export interface TrajectoryMetadata {
   isTrainingData: boolean;
   gameKnowledge?: {
     trueProbabilities?: Record<string, number>;
-    actualOutcomes?: Record<string, unknown>;
-    futureOutcomes?: Record<string, unknown>;
+    actualOutcomes?: Record<string, JsonValue>;
+    futureOutcomes?: Record<string, JsonValue>;
   };
 }
 

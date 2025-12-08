@@ -1,5 +1,6 @@
 'use client';
 
+import { cn } from '@babylon/shared';
 import { Activity, Bot, Plus, TrendingUp } from 'lucide-react';
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
@@ -8,7 +9,6 @@ import { PageContainer } from '@/components/shared/PageContainer';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
-import { cn } from '@babylon/shared';
 
 interface Agent {
   id: string;

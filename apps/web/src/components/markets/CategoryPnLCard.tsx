@@ -1,5 +1,5 @@
-import { ArrowDownRight, ArrowUpRight, RefreshCcw, Share2 } from 'lucide-react';
 import { cn } from '@babylon/shared';
+import { ArrowDownRight, ArrowUpRight, RefreshCcw, Share2 } from 'lucide-react';
 
 /**
  * Market category type for category PnL card.

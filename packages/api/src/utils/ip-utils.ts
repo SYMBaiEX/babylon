@@ -26,7 +26,12 @@ export function hashIpAddress(ip: string): string {
  * @param headers - Headers object (from NextRequest or standard Headers)
  * @returns Client IP address or null if not found
  */
-export function getClientIp(headers: Headers | Map<string, string> | Record<string, string | string[] | undefined>): string | null {
+export function getClientIp(
+  headers:
+    | Headers
+    | Map<string, string>
+    | Record<string, string | string[] | undefined>
+): string | null {
   // Helper to get header value
   const getHeader = (name: string): string | null => {
     if (headers instanceof Headers) {
@@ -73,7 +78,12 @@ export function getClientIp(headers: Headers | Map<string, string> | Record<stri
  * @param headers - Headers object (from NextRequest or standard Headers)
  * @returns Hashed IP address or null if IP not found
  */
-export function getHashedClientIp(headers: Headers | Map<string, string> | Record<string, string | string[] | undefined>): string | null {
+export function getHashedClientIp(
+  headers:
+    | Headers
+    | Map<string, string>
+    | Record<string, string | string[] | undefined>
+): string | null {
   const ip = getClientIp(headers);
   if (!ip) return null;
   return hashIpAddress(ip);

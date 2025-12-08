@@ -8,7 +8,7 @@ import {IDiamondCut} from "../libraries/LibDiamond.sol";
 /// @notice Main diamond proxy contract for Babylon prediction market
 /// @dev Implements EIP-2535 Diamond Standard for upgradeability
 contract Diamond {
-    constructor(address _diamondCutFacet, address _diamondLoupeFacet) payable {
+    constructor(address _diamondCutFacet, address /* _diamondLoupeFacet */) payable {
         LibDiamond.setContractOwner(msg.sender);
 
         // Add the diamondCut external function from the diamondCutFacet

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, mock } from 'bun:test';
-import { NextRequest } from 'next/server';
 import { NotFoundError } from '@babylon/agents';
+import { NextRequest } from 'next/server';
 import type { MockUserRecord, UserFindUniqueArgs } from '../types/test-types';
 
 // Mock result storage - will be set by tests
@@ -22,7 +22,9 @@ const mockSelect = mock(() => createChainableMock());
 const mockVerifyAuthToken = mock((_token: string) =>
   Promise.resolve({ userId: 'did:privy:testuser123' })
 );
-const mockVerifyAgentSession = mock((_token: string) => Promise.resolve<{ agentId: string } | null>(null));
+const mockVerifyAgentSession = mock((_token: string) =>
+  Promise.resolve<{ agentId: string } | null>(null)
+);
 const mockFindUnique = mock<
   (args?: UserFindUniqueArgs) => Promise<MockUserRecord | null>
 >(() => Promise.resolve(null));
@@ -92,7 +94,8 @@ const mockAuthMiddleware = () => {
     // Query database for user - use the mocked select chain
     const selectChain = mockSelect();
     const dbResult = await selectChain.from({}).where({}).limit();
-    const dbUser = Array.isArray(dbResult) && dbResult.length > 0 ? dbResult[0] : null;
+    const dbUser =
+      Array.isArray(dbResult) && dbResult.length > 0 ? dbResult[0] : null;
 
     return {
       userId: dbUser?.id ?? claims.userId,
@@ -124,7 +127,9 @@ const mockAuthMiddleware = () => {
     authenticate,
     authenticateWithDbUser,
     getPrivyClient,
-    isAuthenticationError: (error: unknown): error is Error & { code: string } => {
+    isAuthenticationError: (
+      error: unknown
+    ): error is Error & { code: string } => {
       return (
         typeof error === 'object' &&
         error !== null &&
@@ -201,10 +206,7 @@ mock.module('@babylon/db', () => ({
 
 // Import authenticate functions from the mocked module
 // The mock.module above ensures these use our mocked implementations
-import {
-  authenticate,
-  authenticateWithDbUser,
-} from '@babylon/api';
+import { authenticate, authenticateWithDbUser } from '@babylon/api';
 
 describe('User Not Found Handling', () => {
   beforeEach(() => {
@@ -219,7 +221,9 @@ describe('User Not Found Handling', () => {
     mockVerifyAuthToken.mockImplementation((_token: string) =>
       Promise.resolve({ userId: 'did:privy:testuser123' })
     );
-    mockVerifyAgentSession.mockImplementation((_token: string) => Promise.resolve<{ agentId: string } | null>(null));
+    mockVerifyAgentSession.mockImplementation((_token: string) =>
+      Promise.resolve<{ agentId: string } | null>(null)
+    );
 
     // Reset select mock to return chainable object that resolves with mockDbResult
     mockSelect.mockImplementation(() => {
@@ -238,7 +242,6 @@ describe('User Not Found Handling', () => {
   describe('authenticate()', () => {
     it('should return Privy DID when user does not exist in database', async () => {
       mockDbResult = null; // No user in DB
-
 
       const request = new NextRequest('https://babylon.market/api/test', {
         headers: {
@@ -260,7 +263,6 @@ describe('User Not Found Handling', () => {
         id: 'db-user-123',
         walletAddress: '0x1234567890123456789012345678901234567890',
       };
-
 
       const request = new NextRequest('https://babylon.market/api/test', {
         headers: {
@@ -284,7 +286,6 @@ describe('User Not Found Handling', () => {
     it('should throw error when user does not exist in database', async () => {
       mockDbResult = null; // No user in DB
 
-
       const request = new NextRequest('https://babylon.market/api/test', {
         headers: {
           authorization: 'Bearer valid-token',
@@ -302,7 +303,6 @@ describe('User Not Found Handling', () => {
         id: 'db-user-123',
         walletAddress: '0x1234567890123456789012345678901234567890',
       };
-
 
       const request = new NextRequest('https://babylon.market/api/test', {
         headers: {

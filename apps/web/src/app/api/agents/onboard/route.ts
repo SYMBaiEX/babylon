@@ -71,6 +71,24 @@
  * ```
  */
 
+import type { AgentCapabilities } from '@babylon/agents';
+import { getAgent0Client, syncAfterAgent0Registration } from '@babylon/agents';
+import {
+  AuthorizationError,
+  authenticate,
+  InternalServerError,
+  successResponse,
+  withErrorHandling,
+} from '@babylon/api';
+import { asUser } from '@babylon/db';
+import {
+  AgentOnboardSchema,
+  generateSnowflakeId,
+  getCurrentRpcUrl,
+  IDENTITY_REGISTRY_BASE_SEPOLIA,
+  logger,
+  REPUTATION_SYSTEM_BASE_SEPOLIA,
+} from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import {
   type Address,
@@ -83,21 +101,6 @@ import {
 } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { baseSepolia } from 'viem/chains';
-import { getAgent0Client } from '@babylon/agents';
-import { authenticate } from '@babylon/api';
-import { asUser } from '@babylon/db';
-import { AuthorizationError, InternalServerError } from '@babylon/api';
-import { successResponse, withErrorHandling } from '@babylon/api';
-import {
-  logger,
-  IDENTITY_REGISTRY_BASE_SEPOLIA,
-  REPUTATION_SYSTEM_BASE_SEPOLIA,
-  getCurrentRpcUrl,
-} from '@babylon/shared';
-import { syncAfterAgent0Registration } from '@babylon/agents';
-import { generateSnowflakeId } from '@babylon/shared';
-import { AgentOnboardSchema } from '@babylon/shared';
-import type { AgentCapabilities } from '@babylon/agents';
 
 // Helper to validate and get environment variables
 function getRequiredEnvVar(name: string): string {
@@ -248,10 +251,14 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   });
 
   if (receipt.status !== 'success') {
-    throw new InternalServerError('Agent registration transaction failed', 'TRANSACTION_FAILED', {
-      txHash,
-      receipt: receipt.status,
-    });
+    throw new InternalServerError(
+      'Agent registration transaction failed',
+      'TRANSACTION_FAILED',
+      {
+        txHash,
+        receipt: receipt.status,
+      }
+    );
   }
 
   const agentRegisteredLog = receipt.logs.find((log) => {

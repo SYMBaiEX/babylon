@@ -10,8 +10,10 @@ Key features:
 - Uses LLM-as-judge for RLAIF scoring (relative comparison within groups)
 - Supports multi-turn agent interactions
 - Integrates with Atropos's async rollout system
+- Optional Tinker integration for cloud-based training
 
 Based on: https://github.com/NousResearch/atropos/blob/main/environments/rlaif_server.py
+Tinker integration: https://tinker-docs.thinkingmachines.ai/
 """
 
 import asyncpg
@@ -20,7 +22,7 @@ import json
 import logging
 import os
 import random
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, TYPE_CHECKING
 
 import openai
 import wandb
@@ -35,6 +37,10 @@ from atroposlib.envs.base import (
     EvalHandlingEnum,
     ScoredDataGroup,
 )
+
+# Optional Tinker support
+if TYPE_CHECKING:
+    from .tinker_client import BabylonTinkerClient
 
 logger = logging.getLogger(__name__)
 
@@ -115,6 +121,10 @@ class BabylonRLAIFEnv(BaseEnv):
     2. Groups them by scenario/window for relative comparison
     3. Uses an LLM judge to score trajectories (RLAIF)
     4. Sends scored trajectories to Atropos API for training
+    
+    Tinker Integration:
+    When use_tinker=True, uses Tinker's SamplingClient for inference
+    instead of local vLLM, enabling cloud-based training.
     """
     
     name = "babylon-rlaif"
@@ -139,6 +149,25 @@ class BabylonRLAIFEnv(BaseEnv):
         # Initialize OpenAI client for judge model
         # Uses OPENAI_API_KEY env var by default
         self.judge_client = openai.AsyncOpenAI()
+        
+        # Optional Tinker client (set externally for Tinker-based training)
+        self._tinker_client: Optional["BabylonTinkerClient"] = None
+    
+    @property
+    def tinker_client(self) -> Optional["BabylonTinkerClient"]:
+        """Get Tinker client if available"""
+        return self._tinker_client
+    
+    @tinker_client.setter
+    def tinker_client(self, client: "BabylonTinkerClient") -> None:
+        """Set Tinker client for cloud-based inference"""
+        self._tinker_client = client
+        logger.info("Tinker client attached to environment")
+    
+    @property
+    def use_tinker(self) -> bool:
+        """Check if using Tinker for inference"""
+        return self._tinker_client is not None and self._tinker_client.is_initialized
         
     @classmethod
     def config_init(cls) -> Tuple[BabylonEnvConfig, List[APIServerConfig]]:

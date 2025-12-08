@@ -4,6 +4,7 @@
  * Wraps actions with trajectory logging
  */
 
+import type { JsonValue } from '@babylon/shared';
 import type {
   Action,
   HandlerCallback,
@@ -14,7 +15,6 @@ import type {
   State,
 } from '@elizaos/core';
 import { logger } from '../../../shared/logger';
-import type { JsonValue } from '@babylon/shared';
 import type { TrajectoryLoggerService } from './TrajectoryLoggerService';
 
 /**
@@ -70,13 +70,7 @@ export function wrapActionWithLogging(
       if (!context) {
         // No trajectory context - execute without logging
         if (originalHandler) {
-          await originalHandler(
-            runtime,
-            message,
-            state,
-            options,
-            callback
-          );
+          await originalHandler(runtime, message, state, options, callback);
         }
         return;
       }
@@ -90,13 +84,7 @@ export function wrapActionWithLogging(
           trajectoryId,
         });
         if (originalHandler) {
-          await originalHandler(
-            runtime,
-            message,
-            state,
-            options,
-            callback
-          );
+          await originalHandler(runtime, message, state, options, callback);
         }
         return;
       }
@@ -160,13 +148,10 @@ export function wrapActionWithLogging(
 
       // Execute action and handle both success and error cases
       if (originalHandler) {
-        await originalHandler(
-          runtime,
-          message,
-          state,
-          options,
-          callback
-        ).then(successHandler, errorHandler);
+        await originalHandler(runtime, message, state, options, callback).then(
+          successHandler,
+          errorHandler
+        );
       } else {
         successHandler();
       }
@@ -247,7 +232,9 @@ export function logProviderFromAction(
 
   trajectoryLogger.logProviderAccess(stepId, {
     providerName: (actionContext.providerName as string) || 'unknown',
-    data: (actionContext.data as Record<string, JsonValue>) || ({} as Record<string, JsonValue>),
+    data:
+      (actionContext.data as Record<string, JsonValue>) ||
+      ({} as Record<string, JsonValue>),
     purpose: (actionContext.purpose as string) || 'action',
     query: (actionContext.query as Record<string, JsonValue>) || undefined,
   });

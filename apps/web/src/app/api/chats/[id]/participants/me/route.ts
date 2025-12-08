@@ -43,15 +43,15 @@
  * ```
  */
 
-import type { NextRequest } from 'next/server';
-import { authenticate } from '@babylon/api';
-import { asUser } from '@babylon/db';
 import {
+  authenticate,
   errorResponse,
   successResponse,
   withErrorHandling,
 } from '@babylon/api';
+import { asUser } from '@babylon/db';
 import { logger } from '@babylon/shared';
+import type { NextRequest } from 'next/server';
 export const DELETE = withErrorHandling(
   async (
     request: NextRequest,

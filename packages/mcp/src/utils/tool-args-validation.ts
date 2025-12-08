@@ -4,85 +4,85 @@
  * Validation schemas for each tool's arguments
  */
 
-import { z } from 'zod';
 import { JsonValueSchema } from '@babylon/shared';
+import { z } from 'zod';
 import type {
-  GetMarketsArgs,
-  PlaceBetArgs,
-  GetBalanceArgs,
-  GetPositionsArgs,
-  ClosePositionArgs,
-  GetMarketDataArgs,
-  QueryFeedArgs,
-  BuySharesArgs,
-  SellSharesArgs,
-  OpenPositionArgs,
-  GetMarketPricesArgs,
-  GetPerpetualsArgs,
-  GetTradesArgs,
-  GetTradeHistoryArgs,
-  CreatePostArgs,
-  DeletePostArgs,
-  LikePostArgs,
-  UnlikePostArgs,
-  SharePostArgs,
-  GetCommentsArgs,
-  CreateCommentArgs,
-  DeleteCommentArgs,
-  LikeCommentArgs,
-  GetPostsByTagArgs,
-  GetUserProfileArgs,
-  UpdateProfileArgs,
-  FollowUserArgs,
-  UnfollowUserArgs,
-  GetFollowersArgs,
-  GetFollowingArgs,
-  SearchUsersArgs,
-  GetUserWalletArgs,
-  GetUserStatsArgs,
-  GetChatsArgs,
-  GetChatMessagesArgs,
-  SendMessageArgs,
-  CreateGroupArgs,
-  LeaveChatArgs,
-  GetUnreadCountArgs,
-  GetNotificationsArgs,
-  MarkNotificationsReadArgs,
-  GetGroupInvitesArgs,
   AcceptGroupInviteArgs,
-  DeclineGroupInviteArgs,
-  GetLeaderboardArgs,
-  GetSystemStatsArgs,
-  GetReferralCodeArgs,
-  GetReferralsArgs,
-  GetReferralStatsArgs,
-  GetReputationArgs,
-  GetReputationBreakdownArgs,
-  GetTrendingTagsArgs,
-  GetOrganizationsArgs,
-  PaymentRequestArgs,
-  PaymentReceiptArgs,
-  BlockUserArgs,
-  UnblockUserArgs,
-  MuteUserArgs,
-  UnmuteUserArgs,
-  ReportUserArgs,
-  ReportPostArgs,
-  GetBlocksArgs,
-  GetMutesArgs,
-  CheckBlockStatusArgs,
-  CheckMuteStatusArgs,
-  CreateEscrowPaymentArgs,
-  VerifyEscrowPaymentArgs,
-  RefundEscrowPaymentArgs,
-  ListEscrowPaymentsArgs,
   AppealBanArgs,
   AppealBanWithEscrowArgs,
+  BlockUserArgs,
+  BuySharesArgs,
+  CheckBlockStatusArgs,
+  CheckMuteStatusArgs,
+  ClosePositionArgs,
+  CreateCommentArgs,
+  CreateEscrowPaymentArgs,
+  CreateGroupArgs,
+  CreatePostArgs,
+  DeclineGroupInviteArgs,
+  DeleteCommentArgs,
+  DeletePostArgs,
   FavoriteProfileArgs,
-  UnfavoriteProfileArgs,
-  GetFavoritesArgs,
+  FollowUserArgs,
+  GetBalanceArgs,
+  GetBlocksArgs,
+  GetChatMessagesArgs,
+  GetChatsArgs,
+  GetCommentsArgs,
   GetFavoritePostsArgs,
+  GetFavoritesArgs,
+  GetFollowersArgs,
+  GetFollowingArgs,
+  GetGroupInvitesArgs,
+  GetLeaderboardArgs,
+  GetMarketDataArgs,
+  GetMarketPricesArgs,
+  GetMarketsArgs,
+  GetMutesArgs,
+  GetNotificationsArgs,
+  GetOrganizationsArgs,
+  GetPerpetualsArgs,
+  GetPositionsArgs,
+  GetPostsByTagArgs,
+  GetReferralCodeArgs,
+  GetReferralStatsArgs,
+  GetReferralsArgs,
+  GetReputationArgs,
+  GetReputationBreakdownArgs,
+  GetSystemStatsArgs,
+  GetTradeHistoryArgs,
+  GetTradesArgs,
+  GetTrendingTagsArgs,
+  GetUnreadCountArgs,
+  GetUserProfileArgs,
+  GetUserStatsArgs,
+  GetUserWalletArgs,
+  LeaveChatArgs,
+  LikeCommentArgs,
+  LikePostArgs,
+  ListEscrowPaymentsArgs,
+  MarkNotificationsReadArgs,
+  MuteUserArgs,
+  OpenPositionArgs,
+  PaymentReceiptArgs,
+  PaymentRequestArgs,
+  PlaceBetArgs,
+  QueryFeedArgs,
+  RefundEscrowPaymentArgs,
+  ReportPostArgs,
+  ReportUserArgs,
+  SearchUsersArgs,
+  SellSharesArgs,
+  SendMessageArgs,
+  SharePostArgs,
   TransferPointsArgs,
+  UnblockUserArgs,
+  UnfavoriteProfileArgs,
+  UnfollowUserArgs,
+  UnlikePostArgs,
+  UnmuteUserArgs,
+  UpdateProfileArgs,
+  VerifyEscrowPaymentArgs,
 } from '../types/mcp';
 
 const GetMarketsArgsSchema = z.object({
@@ -170,7 +170,9 @@ const GetMarketPricesArgsSchema = z.object({
   marketId: z.string().min(1),
 }) satisfies z.ZodType<GetMarketPricesArgs>;
 
-const GetPerpetualsArgsSchema = z.object({}) satisfies z.ZodType<GetPerpetualsArgs>;
+const GetPerpetualsArgsSchema = z.object(
+  {}
+) satisfies z.ZodType<GetPerpetualsArgs>;
 
 const GetTradesArgsSchema = z.object({
   limit: z.number().int().positive().optional(),
@@ -298,7 +300,9 @@ const LeaveChatArgsSchema = z.object({
   chatId: z.string().min(1),
 }) satisfies z.ZodType<LeaveChatArgs>;
 
-const GetUnreadCountArgsSchema = z.object({}) satisfies z.ZodType<GetUnreadCountArgs>;
+const GetUnreadCountArgsSchema = z.object(
+  {}
+) satisfies z.ZodType<GetUnreadCountArgs>;
 
 // Notifications - Validation Schemas
 const GetNotificationsArgsSchema = z.object({
@@ -309,7 +313,9 @@ const MarkNotificationsReadArgsSchema = z.object({
   notificationIds: z.array(z.string().min(1)),
 }) satisfies z.ZodType<MarkNotificationsReadArgs>;
 
-const GetGroupInvitesArgsSchema = z.object({}) satisfies z.ZodType<GetGroupInvitesArgs>;
+const GetGroupInvitesArgsSchema = z.object(
+  {}
+) satisfies z.ZodType<GetGroupInvitesArgs>;
 
 const AcceptGroupInviteArgsSchema = z.object({
   inviteId: z.string().min(1),
@@ -327,14 +333,22 @@ const GetLeaderboardArgsSchema = z.object({
   minPoints: z.number().nonnegative().optional().default(0),
 }) satisfies z.ZodType<GetLeaderboardArgs>;
 
-const GetSystemStatsArgsSchema = z.object({}) satisfies z.ZodType<GetSystemStatsArgs>;
+const GetSystemStatsArgsSchema = z.object(
+  {}
+) satisfies z.ZodType<GetSystemStatsArgs>;
 
 // Referrals & Rewards - Validation Schemas
-const GetReferralCodeArgsSchema = z.object({}) satisfies z.ZodType<GetReferralCodeArgs>;
+const GetReferralCodeArgsSchema = z.object(
+  {}
+) satisfies z.ZodType<GetReferralCodeArgs>;
 
-const GetReferralsArgsSchema = z.object({}) satisfies z.ZodType<GetReferralsArgs>;
+const GetReferralsArgsSchema = z.object(
+  {}
+) satisfies z.ZodType<GetReferralsArgs>;
 
-const GetReferralStatsArgsSchema = z.object({}) satisfies z.ZodType<GetReferralStatsArgs>;
+const GetReferralStatsArgsSchema = z.object(
+  {}
+) satisfies z.ZodType<GetReferralStatsArgs>;
 
 // Reputation - Validation Schemas
 const GetReputationArgsSchema = z.object({
@@ -487,7 +501,9 @@ export function validateOpenPositionArgs(args: unknown): OpenPositionArgs {
   return OpenPositionArgsSchema.parse(args);
 }
 
-export function validateGetMarketPricesArgs(args: unknown): GetMarketPricesArgs {
+export function validateGetMarketPricesArgs(
+  args: unknown
+): GetMarketPricesArgs {
   return GetMarketPricesArgsSchema.parse(args);
 }
 
@@ -499,7 +515,9 @@ export function validateGetTradesArgs(args: unknown): GetTradesArgs {
   return GetTradesArgsSchema.parse(args);
 }
 
-export function validateGetTradeHistoryArgs(args: unknown): GetTradeHistoryArgs {
+export function validateGetTradeHistoryArgs(
+  args: unknown
+): GetTradeHistoryArgs {
   return GetTradeHistoryArgsSchema.parse(args);
 }
 
@@ -586,7 +604,9 @@ export function validateGetChatsArgs(args: unknown): GetChatsArgs {
   return GetChatsArgsSchema.parse(args);
 }
 
-export function validateGetChatMessagesArgs(args: unknown): GetChatMessagesArgs {
+export function validateGetChatMessagesArgs(
+  args: unknown
+): GetChatMessagesArgs {
   return GetChatMessagesArgsSchema.parse(args);
 }
 
@@ -607,23 +627,33 @@ export function validateGetUnreadCountArgs(args: unknown): GetUnreadCountArgs {
 }
 
 // Validation Functions - Notifications
-export function validateGetNotificationsArgs(args: unknown): GetNotificationsArgs {
+export function validateGetNotificationsArgs(
+  args: unknown
+): GetNotificationsArgs {
   return GetNotificationsArgsSchema.parse(args);
 }
 
-export function validateMarkNotificationsReadArgs(args: unknown): MarkNotificationsReadArgs {
+export function validateMarkNotificationsReadArgs(
+  args: unknown
+): MarkNotificationsReadArgs {
   return MarkNotificationsReadArgsSchema.parse(args);
 }
 
-export function validateGetGroupInvitesArgs(args: unknown): GetGroupInvitesArgs {
+export function validateGetGroupInvitesArgs(
+  args: unknown
+): GetGroupInvitesArgs {
   return GetGroupInvitesArgsSchema.parse(args);
 }
 
-export function validateAcceptGroupInviteArgs(args: unknown): AcceptGroupInviteArgs {
+export function validateAcceptGroupInviteArgs(
+  args: unknown
+): AcceptGroupInviteArgs {
   return AcceptGroupInviteArgsSchema.parse(args);
 }
 
-export function validateDeclineGroupInviteArgs(args: unknown): DeclineGroupInviteArgs {
+export function validateDeclineGroupInviteArgs(
+  args: unknown
+): DeclineGroupInviteArgs {
   return DeclineGroupInviteArgsSchema.parse(args);
 }
 
@@ -637,7 +667,9 @@ export function validateGetSystemStatsArgs(args: unknown): GetSystemStatsArgs {
 }
 
 // Validation Functions - Referrals & Rewards
-export function validateGetReferralCodeArgs(args: unknown): GetReferralCodeArgs {
+export function validateGetReferralCodeArgs(
+  args: unknown
+): GetReferralCodeArgs {
   return GetReferralCodeArgsSchema.parse(args);
 }
 
@@ -645,7 +677,9 @@ export function validateGetReferralsArgs(args: unknown): GetReferralsArgs {
   return GetReferralsArgsSchema.parse(args);
 }
 
-export function validateGetReferralStatsArgs(args: unknown): GetReferralStatsArgs {
+export function validateGetReferralStatsArgs(
+  args: unknown
+): GetReferralStatsArgs {
   return GetReferralStatsArgsSchema.parse(args);
 }
 
@@ -654,17 +688,23 @@ export function validateGetReputationArgs(args: unknown): GetReputationArgs {
   return GetReputationArgsSchema.parse(args);
 }
 
-export function validateGetReputationBreakdownArgs(args: unknown): GetReputationBreakdownArgs {
+export function validateGetReputationBreakdownArgs(
+  args: unknown
+): GetReputationBreakdownArgs {
   return GetReputationBreakdownArgsSchema.parse(args);
 }
 
 // Validation Functions - Trending & Discovery
-export function validateGetTrendingTagsArgs(args: unknown): GetTrendingTagsArgs {
+export function validateGetTrendingTagsArgs(
+  args: unknown
+): GetTrendingTagsArgs {
   return GetTrendingTagsArgsSchema.parse(args);
 }
 
 // Validation Functions - Organizations
-export function validateGetOrganizationsArgs(args: unknown): GetOrganizationsArgs {
+export function validateGetOrganizationsArgs(
+  args: unknown
+): GetOrganizationsArgs {
   return GetOrganizationsArgsSchema.parse(args);
 }
 
@@ -710,28 +750,40 @@ export function validateGetMutesArgs(args: unknown): GetMutesArgs {
   return GetMutesArgsSchema.parse(args);
 }
 
-export function validateCheckBlockStatusArgs(args: unknown): CheckBlockStatusArgs {
+export function validateCheckBlockStatusArgs(
+  args: unknown
+): CheckBlockStatusArgs {
   return CheckBlockStatusArgsSchema.parse(args);
 }
 
-export function validateCheckMuteStatusArgs(args: unknown): CheckMuteStatusArgs {
+export function validateCheckMuteStatusArgs(
+  args: unknown
+): CheckMuteStatusArgs {
   return CheckMuteStatusArgsSchema.parse(args);
 }
 
 // Validation Functions - Moderation Escrow
-export function validateCreateEscrowPaymentArgs(args: unknown): CreateEscrowPaymentArgs {
+export function validateCreateEscrowPaymentArgs(
+  args: unknown
+): CreateEscrowPaymentArgs {
   return CreateEscrowPaymentArgsSchema.parse(args);
 }
 
-export function validateVerifyEscrowPaymentArgs(args: unknown): VerifyEscrowPaymentArgs {
+export function validateVerifyEscrowPaymentArgs(
+  args: unknown
+): VerifyEscrowPaymentArgs {
   return VerifyEscrowPaymentArgsSchema.parse(args);
 }
 
-export function validateRefundEscrowPaymentArgs(args: unknown): RefundEscrowPaymentArgs {
+export function validateRefundEscrowPaymentArgs(
+  args: unknown
+): RefundEscrowPaymentArgs {
   return RefundEscrowPaymentArgsSchema.parse(args);
 }
 
-export function validateListEscrowPaymentsArgs(args: unknown): ListEscrowPaymentsArgs {
+export function validateListEscrowPaymentsArgs(
+  args: unknown
+): ListEscrowPaymentsArgs {
   return ListEscrowPaymentsArgsSchema.parse(args);
 }
 
@@ -740,16 +792,22 @@ export function validateAppealBanArgs(args: unknown): AppealBanArgs {
   return AppealBanArgsSchema.parse(args);
 }
 
-export function validateAppealBanWithEscrowArgs(args: unknown): AppealBanWithEscrowArgs {
+export function validateAppealBanWithEscrowArgs(
+  args: unknown
+): AppealBanWithEscrowArgs {
   return AppealBanWithEscrowArgsSchema.parse(args);
 }
 
 // Validation Functions - Favorites
-export function validateFavoriteProfileArgs(args: unknown): FavoriteProfileArgs {
+export function validateFavoriteProfileArgs(
+  args: unknown
+): FavoriteProfileArgs {
   return FavoriteProfileArgsSchema.parse(args);
 }
 
-export function validateUnfavoriteProfileArgs(args: unknown): UnfavoriteProfileArgs {
+export function validateUnfavoriteProfileArgs(
+  args: unknown
+): UnfavoriteProfileArgs {
   return UnfavoriteProfileArgsSchema.parse(args);
 }
 
@@ -757,7 +815,9 @@ export function validateGetFavoritesArgs(args: unknown): GetFavoritesArgs {
   return GetFavoritesArgsSchema.parse(args);
 }
 
-export function validateGetFavoritePostsArgs(args: unknown): GetFavoritePostsArgs {
+export function validateGetFavoritePostsArgs(
+  args: unknown
+): GetFavoritePostsArgs {
   return GetFavoritePostsArgsSchema.parse(args);
 }
 
@@ -765,4 +825,3 @@ export function validateGetFavoritePostsArgs(args: unknown): GetFavoritePostsArg
 export function validateTransferPointsArgs(args: unknown): TransferPointsArgs {
   return TransferPointsArgsSchema.parse(args);
 }
-

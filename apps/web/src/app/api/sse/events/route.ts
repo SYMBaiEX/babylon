@@ -1,13 +1,14 @@
-import type { NextRequest } from 'next/server';
-import { logger } from '@babylon/shared';
 import {
+  connections,
   generateConnectionId,
+  getRedisClient,
   type RealtimeChannel,
+  streamRead,
   toStreamKey,
   verifyRealtimeToken,
 } from '@babylon/api';
-import { connections } from '@babylon/api';
-import { getRedisClient, streamRead } from '@babylon/api';
+import { logger } from '@babylon/shared';
+import type { NextRequest } from 'next/server';
 
 // Vercel function configuration
 // Max duration for SSE connections - 300s on Enterprise, 60s on Pro, 10s on Hobby
@@ -30,13 +31,9 @@ interface CursorMap {
 
 const parseCursor = (raw: string | null): CursorMap => {
   if (!raw) return {};
-  try {
-    const decoded = decodeURIComponent(raw);
-    const parsed = JSON.parse(decoded) as CursorMap;
-    return parsed && typeof parsed === 'object' ? parsed : {};
-  } catch {
-    return {};
-  }
+  const decoded = decodeURIComponent(raw);
+  const parsed = JSON.parse(decoded) as CursorMap;
+  return parsed && typeof parsed === 'object' ? parsed : {};
 };
 
 export async function GET(request: NextRequest) {
@@ -110,13 +107,8 @@ export async function GET(request: NextRequest) {
 
       const send = (payload: string): boolean => {
         if (isControllerClosed) return false;
-        try {
-          controller.enqueue(encoder.encode(payload));
-          return true;
-        } catch {
-          isControllerClosed = true;
-          return false;
-        }
+        controller.enqueue(encoder.encode(payload));
+        return true;
       };
 
       // Send heartbeat to keep connection alive and detect disconnects
@@ -142,11 +134,7 @@ export async function GET(request: NextRequest) {
 
       const abortListener = () => {
         isControllerClosed = true;
-        try {
-          controller.close();
-        } catch {
-          // Already closed
-        }
+        controller.close();
       };
       request.signal.addEventListener('abort', abortListener, { once: true });
 
@@ -173,22 +161,10 @@ export async function GET(request: NextRequest) {
 
         // Use blocking read - waits up to BLOCK_TIMEOUT_MS for new messages
         // This is more efficient than polling as it doesn't waste CPU cycles
-        let messages;
-        try {
-          messages = await streamRead(streamKeys, ids, {
-            count: MAX_MESSAGES_PER_READ,
-            block: BLOCK_TIMEOUT_MS,
-          });
-        } catch (error) {
-          logger.warn(
-            'Redis stream read error',
-            { connectionId, error },
-            'SSE'
-          );
-          // On Redis error, wait briefly before retrying
-          await new Promise((resolve) => setTimeout(resolve, 1000));
-          continue;
-        }
+        const messages = await streamRead(streamKeys, ids, {
+          count: MAX_MESSAGES_PER_READ,
+          block: BLOCK_TIMEOUT_MS,
+        });
 
         // No messages received (timeout), loop continues for heartbeat
         if (!messages || messages.length === 0) {

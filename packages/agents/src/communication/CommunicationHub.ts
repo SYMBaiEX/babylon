@@ -7,16 +7,16 @@
  * @packageDocumentation
  */
 
-import { AgentType } from '../types/agent-registry';
-import type { JsonValue } from '../types/common';
 import type {
   ExternalAgentMessage as AgentMessage,
   AgentResponse,
 } from '../external/ExternalAgentAdapter';
 import { getExternalAgentAdapter } from '../external/ExternalAgentAdapter';
+import { agentRegistry } from '../services/agent-registry.service';
+import { AgentType } from '../types/agent-registry';
+import type { JsonValue } from '../types/common';
 import type { AgentEvent, EventBus } from './EventBus';
 import { getEventBus } from './EventBus';
-import { agentRegistry } from '../services/agent-registry.service';
 
 export interface Message {
   id: string;
@@ -35,25 +35,26 @@ export interface Message {
  * @internal
  */
 function isMessage(data: unknown): data is Message {
+  if (
+    !data ||
+    typeof data !== 'object' ||
+    Array.isArray(data) ||
+    data === null
+  ) {
+    return false;
+  }
+
+  const obj = data as Record<string, JsonValue>;
   return (
-    data !== null &&
-    typeof data === 'object' &&
-    !Array.isArray(data) &&
-    'id' in data &&
-    'from' in data &&
-    'to' in data &&
-    'type' in data &&
-    'content' in data &&
-    'timestamp' in data &&
-    'metadata' in data &&
-    typeof (data as { id: unknown }).id === 'string' &&
-    typeof (data as { from: unknown }).from === 'string' &&
-    typeof (data as { to: unknown }).to === 'string' &&
-    typeof (data as { type: unknown }).type === 'string' &&
-    typeof (data as { timestamp: unknown }).timestamp === 'string' &&
-    typeof (data as { metadata: unknown }).metadata === 'object' &&
-    (data as { metadata: unknown }).metadata !== null &&
-    !Array.isArray((data as { metadata: unknown }).metadata)
+    typeof obj.id === 'string' &&
+    typeof obj.from === 'string' &&
+    typeof obj.to === 'string' &&
+    typeof obj.type === 'string' &&
+    typeof obj.content !== 'undefined' &&
+    typeof obj.timestamp === 'string' &&
+    typeof obj.metadata === 'object' &&
+    obj.metadata !== null &&
+    !Array.isArray(obj.metadata)
   );
 }
 
@@ -138,47 +139,24 @@ export class CommunicationHub {
     const route = await this.routeMessage(message);
 
     // Execute delivery
-    try {
-      const response = await this.deliverMessage(message, route);
+    const response = await this.deliverMessage(message, route);
 
-      // Update route status
-      route.status = response.success ? 'delivered' : 'failed';
-      route.error = response.error;
+    // Update route status
+    route.status = response.success ? 'delivered' : 'failed';
+    route.error = response.error;
 
-      // Broadcast delivery event (serialize to JsonValue)
-      await this.eventBus.publish(
-        response.success ? 'message.delivered' : 'message.failed',
-        JSON.parse(JSON.stringify({ message, response })),
-        from
-      );
+    // Broadcast delivery event (serialize to JsonValue)
+    await this.eventBus.publish(
+      response.success ? 'message.delivered' : 'message.failed',
+      JSON.parse(JSON.stringify({ message, response })),
+      from
+    );
 
-      return response;
-    } catch (error) {
-      route.status = 'failed';
-      route.error = error instanceof Error ? error.message : 'Unknown error';
-
-      // Broadcast failure event (serialize to JsonValue with error message)
-      await this.eventBus.publish(
-        'message.failed',
-        JSON.parse(
-          JSON.stringify({
-            message,
-            error: error instanceof Error ? error.message : String(error),
-          })
-        ),
-        from
-      );
-
-      return {
-        success: false,
-        error: route.error,
-      };
-    } finally {
-      // Add route to history
-      this.routeHistory.push(route);
-      if (this.routeHistory.length > this.maxHistorySize) {
-        this.routeHistory.shift();
-      }
+    return response;
+    // Add route to history
+    this.routeHistory.push(route);
+    if (this.routeHistory.length > this.maxHistorySize) {
+      this.routeHistory.shift();
     }
   }
 
@@ -221,22 +199,19 @@ export class CommunicationHub {
     };
 
     // Check if recipient is external agent
-    try {
-      const recipient = await agentRegistry.getAgentById(message.to);
+    const recipient = await agentRegistry.getAgentById(message.to);
 
-      if (recipient && recipient.type === AgentType.EXTERNAL) {
-        // Get external agent connection to determine protocol
-        const externalAdapter = getExternalAgentAdapter();
-        const connection = externalAdapter.getConnectionStatus(message.to);
+    if (recipient && recipient.type === AgentType.EXTERNAL) {
+      // Get external agent connection to determine protocol
+      const externalAdapter = getExternalAgentAdapter();
+      const connection = externalAdapter.getConnectionStatus(message.to);
 
-        if (connection) {
-          route.protocol = connection.protocol;
-        } else {
-          route.protocol = 'custom';
-        }
+      if (connection) {
+        route.protocol = connection.protocol;
+      } else {
+        route.protocol = 'custom';
       }
-    } catch {
-      // Agent not found or error, use internal routing
+    } else {
       route.protocol = 'internal';
     }
 

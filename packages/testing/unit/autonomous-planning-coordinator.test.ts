@@ -1,5 +1,4 @@
 import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
-import type { IAgentRuntime } from '@elizaos/core';
 import {
   autonomousCommentingService,
   autonomousDMService,
@@ -7,6 +6,7 @@ import {
   type PlannedAction,
 } from '@babylon/agents';
 import type { JsonValue } from '@babylon/api';
+import type { IAgentRuntime } from '@elizaos/core';
 
 type ExecuteActionFn = (
   agentUserId: string,
@@ -21,7 +21,8 @@ type ExecuteActionFn = (
 type CoordinatorWithExecuteAction = {
   executeAction: ExecuteActionFn;
 };
-const coordinator = autonomousPlanningCoordinator as unknown as CoordinatorWithExecuteAction;
+const coordinator =
+  autonomousPlanningCoordinator as unknown as CoordinatorWithExecuteAction;
 
 describe('AutonomousPlanningCoordinator executeAction', () => {
   const runtime = {} as IAgentRuntime;

@@ -1,11 +1,11 @@
 'use client';
 
+import { logger } from '@babylon/shared';
 import { ArrowLeft } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import { PostCard } from '@/components/posts/PostCard';
 import { PageContainer } from '@/components/shared/PageContainer';
-import { logger } from '@babylon/shared';
 
 interface PostData {
   id: string;

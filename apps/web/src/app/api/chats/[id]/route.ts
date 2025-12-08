@@ -51,10 +51,17 @@
  *         description: Chat not found
  */
 
-import type { NextRequest } from 'next/server';
 import {
-  actors,
+  AuthorizationError,
+  authenticate,
+  NotFoundError,
+  successResponse,
+  withErrorHandling,
+} from '@babylon/api';
+import {
   and,
+  asSystem,
+  asUser,
   chatParticipants,
   chats,
   desc,
@@ -64,12 +71,9 @@ import {
   messages,
   users,
 } from '@babylon/db';
-import { authenticate } from '@babylon/api';
-import { asSystem, asUser } from '@babylon/db';
-import { AuthorizationError, NotFoundError } from '@babylon/api';
-import { successResponse, withErrorHandling } from '@babylon/api';
-import { logger } from '@babylon/shared';
-import { ChatQuerySchema } from '@babylon/shared';
+import { StaticDataRegistry } from '@babylon/engine';
+import { ChatQuerySchema, logger } from '@babylon/shared';
+import type { NextRequest } from 'next/server';
 
 /**
  * GET /api/chats/[id]
@@ -238,17 +242,14 @@ export const GET = withErrorHandling(
               .where(inArray(users.id, participantUserIds))
           : [];
 
-      const actorsList =
-        senderIds.length > 0
-          ? await db
-              .select({
-                id: actors.id,
-                name: actors.name,
-                profileImageUrl: actors.profileImageUrl,
-              })
-              .from(actors)
-              .where(inArray(actors.id, senderIds as string[]))
-          : [];
+      const actorsList = (senderIds as string[])
+        .map((id) => StaticDataRegistry.getActor(id))
+        .filter((a): a is NonNullable<typeof a> => a !== null)
+        .map((a) => ({
+          id: a.id,
+          name: a.name,
+          profileImageUrl: a.profileImageUrl,
+        }));
 
       return { users: usersList, actors: actorsList };
     };

@@ -1,36 +1,33 @@
-import { defineConfig } from 'drizzle-kit';
-import { existsSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import dotenv from 'dotenv';
+import { defineConfig } from 'drizzle-kit';
 
-// Load env from root .env file, trying both possible locations
-const rootEnvPath = existsSync('../../.env') ? '../../.env' : '.env';
-dotenv.config({ path: rootEnvPath });
+const __dirname = dirname(fileURLToPath(import.meta.url));
+
+dotenv.config({ path: resolve(__dirname, '../../.env') });
 
 // Determine if we're in local development mode
-const isLocalDev = process.env.DEPLOYMENT_ENV === 'localnet' || 
-                   process.env.NODE_ENV === 'development' ||
-                   !process.env.DIRECT_DATABASE_URL;
+const isLocalDev =
+  process.env.DEPLOYMENT_ENV === 'localnet' ||
+  process.env.NODE_ENV === 'development' ||
+  !process.env.DIRECT_DATABASE_URL;
 
 // Local development database URL (matches docker-compose setup)
-const LOCAL_DATABASE_URL = 'postgresql://babylon:babylon_dev_password@localhost:5433/babylon';
+const LOCAL_DATABASE_URL =
+  'postgresql://babylon:babylon_dev_password@localhost:5433/babylon';
 
 // Use local URL for development, production URL only when explicitly set
-const databaseUrl = isLocalDev 
+const databaseUrl = isLocalDev
   ? (process.env.DATABASE_URL ?? LOCAL_DATABASE_URL)
-  : (process.env.DIRECT_DATABASE_URL ?? process.env.DATABASE_URL ?? LOCAL_DATABASE_URL);
-
-// Detect if we're running from packages/db or from project root
-const isInPackageDir = existsSync('./src/schema/index.ts');
-const schemaPath = isInPackageDir 
-  ? './src/schema/index.ts'
-  : 'packages/db/src/schema/index.ts';
-const outPath = isInPackageDir
-  ? './drizzle/migrations'
-  : 'packages/db/drizzle/migrations';
+  : (process.env.DIRECT_DATABASE_URL ??
+    process.env.DATABASE_URL ??
+    LOCAL_DATABASE_URL);
 
 export default defineConfig({
-  schema: schemaPath,
-  out: outPath,
+  // Use relative paths - drizzle-kit has issues with absolute paths
+  schema: './src/schema/index.ts',
+  out: './drizzle/migrations',
   dialect: 'postgresql',
   dbCredentials: {
     url: databaseUrl,
@@ -38,4 +35,3 @@ export default defineConfig({
   verbose: true,
   strict: true,
 });
-

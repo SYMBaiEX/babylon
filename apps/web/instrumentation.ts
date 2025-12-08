@@ -23,22 +23,27 @@ export async function register() {
   if (process.env.NEXT_RUNTIME === 'nodejs') {
     // Dynamically import Node.js-only modules to avoid Edge Runtime errors
     // Import from main package entry point
-    const { setPointsService, setNotificationService, PointsService, createNotification } = await import('@babylon/api');
+    const {
+      setPointsService,
+      setNotificationService,
+      PointsService,
+      createNotification,
+      logDevCredentials,
+    } = await import('@babylon/api');
+
+    // Log development credentials at startup (only in dev mode)
+    // This makes it easy for developers to authenticate with admin APIs
+    logDevCredentials();
 
     // Initialize agent service container with required services
     // Uses globalThis to persist across module instances
-    try {
-      const { setServiceContainer, agentRegistry } = await import('@babylon/agents');
-      setServiceContainer({
-        agentRegistry,
-      });
-    } catch (error) {
-      console.warn(
-        '[Agents] Service container initialization failed:',
-        error instanceof Error ? error.message : String(error)
-      );
-    }
-    
+    const { setServiceContainer, agentRegistry } = await import(
+      '@babylon/agents'
+    );
+    setServiceContainer({
+      agentRegistry,
+    });
+
     // Initialize shared moderation services with web app implementations
     setPointsService({
       awardPoints: async (userId, amount, reason, metadata) => {
@@ -58,7 +63,9 @@ export async function register() {
       createNotification: async (params) => {
         // Cast params to match CreateNotificationParams type
         // setNotificationService interface uses string for type, but createNotification expects NotificationType
-        return await createNotification(params as Parameters<typeof createNotification>[0]);
+        return await createNotification(
+          params as Parameters<typeof createNotification>[0]
+        );
       },
     });
   }
@@ -75,18 +82,13 @@ export async function register() {
   // Register reputation sync service if agents package is available
   // This breaks the circular dependency between engine and agents packages
   // Only load agent0 code server-side to avoid bundling electron-fetch in client
-  if (process.env.AGENT0_ENABLED === 'true' && process.env.NEXT_RUNTIME === 'nodejs') {
-    try {
-      const { setReputationSyncService } = await import('@babylon/engine');
-      const { createReputationSyncAdapter } = await import('@babylon/agents');
-      setReputationSyncService(createReputationSyncAdapter());
-    } catch (error) {
-      // Don't fail startup if agents package isn't available
-      console.warn(
-        'Reputation sync service not available (agents package may not be installed):',
-        error instanceof Error ? error.message : String(error)
-      );
-    }
+  if (
+    process.env.AGENT0_ENABLED === 'true' &&
+    process.env.NEXT_RUNTIME === 'nodejs'
+  ) {
+    const { setReputationSyncService } = await import('@babylon/engine');
+    const { createReputationSyncAdapter } = await import('@babylon/agents');
+    setReputationSyncService(createReputationSyncAdapter());
   }
 
   // Register Babylon on Agent0 registry (ERC-8004) on startup
@@ -97,29 +99,8 @@ export async function register() {
     process.env.NEXT_RUNTIME === 'nodejs' &&
     process.env.NODE_ENV === 'production' // Only in production to avoid blocking dev
   ) {
-    try {
-      const { registerBabylonGame } = await import('@babylon/agents');
-      await registerBabylonGame().catch((error: Error) => {
-        // Don't fail startup if registration fails - log and continue
-        console.error(
-          'Failed to register Babylon game on Agent0 registry:',
-          error
-        );
-        // Capture error in Sentry if available
-        if (
-          !sentryDisabled &&
-          (process.env.SENTRY_DSN || process.env.NEXT_PUBLIC_SENTRY_DSN)
-        ) {
-          Sentry.captureException(error);
-        }
-      });
-    } catch (error) {
-      // Don't fail if agent0 package can't be loaded (e.g., electron-fetch bundling issue)
-      console.warn(
-        'Agent0 registration skipped (package may not be available in this environment):',
-        error instanceof Error ? error.message : String(error)
-      );
-    }
+    const { registerBabylonGame } = await import('@babylon/agents');
+    await registerBabylonGame();
   }
 }
 

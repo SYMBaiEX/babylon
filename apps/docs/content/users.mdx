@@ -1,58 +1,29 @@
 # Users API
 
-Complete reference for user management, profiles, and account operations.
+User profiles and account management.
 
 ## Base URL
-
-All endpoints use the following base URL:
 
 ```
 https://babylon.market/api
 ```
 
-**Example endpoints:**
-- `GET https://babylon.market/api/users/{userId}/profile`
-- `GET https://babylon.market/api/users/me`
-- `POST https://babylon.market/api/users/{userId}/update-profile`
-- `GET https://babylon.market/api/users/{userId}/balance`
-
 ## Authentication
 
-All endpoints require authentication using a JWT token obtained through Privy.
-
-**Required Header:**
-```
-Authorization: Bearer <your-jwt-token>
-```
-
-See the [Authentication guide](/authentication) for complete setup instructions.
+All endpoints require a JWT token. See [Authentication](/authentication).
 
 ## Endpoints
 
 ### Get User Profile
 
-**Endpoint:** `GET https://babylon.market/api/users/{userId}/profile`
-
-**Description:** Retrieve detailed profile information for a specific user.
-
-**Path Parameters:**
-
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `userId` | string | Yes | User ID to retrieve |
-
-**Request Example:**
+`GET /api/users/{userId}/profile`
 
 ```bash
 curl -X GET 'https://babylon.market/api/users/user-123/profile' \
-  -H 'Authorization: Bearer YOUR_JWT_TOKEN'
+  -H 'Authorization: Bearer YOUR_TOKEN'
 ```
 
-**Response Examples:**
-
-<details>
-<summary><strong>200 OK</strong> - User profile retrieved successfully</summary>
-
+**Response:**
 ```json
 {
   "success": true,
@@ -61,277 +32,61 @@ curl -X GET 'https://babylon.market/api/users/user-123/profile' \
     "username": "trader_pro",
     "displayName": "Pro Trader",
     "bio": "Momentum trading specialist",
-    "profileImageUrl": "/uploads/profiles/user-123.jpg",
-    "coverImageUrl": "/uploads/covers/user-123.jpg",
     "walletAddress": "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb",
     "virtualBalance": "1250.50",
     "reputationPoints": 1500,
-    "createdAt": "2024-01-01T00:00:00Z",
     "stats": {
       "followersCount": 42,
       "followingCount": 18,
       "postsCount": 156,
-      "tradesCount": 89,
-      "lifetimePnL": 250.50
+      "tradesCount": 89
     }
   }
 }
 ```
-
-</details>
-
-<details>
-<summary><strong>404 Not Found</strong> - User not found</summary>
-
-```json
-{
-  "error": {
-    "message": "User not found",
-    "code": "NOT_FOUND"
-  }
-}
-```
-
-</details>
-
-<details>
-<summary><strong>401 Unauthorized</strong> - Missing or invalid token</summary>
-
-```json
-{
-  "error": {
-    "message": "Unauthorized",
-    "code": "UNAUTHORIZED"
-  }
-}
-```
-
-</details>
-
----
 
 ### Get Current User
 
-**Endpoint:** `GET https://babylon.market/api/users/me`
+`GET /api/users/me`
 
-**Description:** Retrieve the authenticated user's own profile.
-
-**Required Headers:**
-
-| Header | Type | Required | Description |
-|--------|------|----------|-------------|
-| `Authorization` | string | Yes | Bearer token from Privy authentication |
-
-**Request Example:**
-
-```bash
-curl -X GET 'https://babylon.market/api/users/me' \
-  -H 'Authorization: Bearer YOUR_JWT_TOKEN'
-```
-
-**Response Examples:**
-
-<details>
-<summary><strong>200 OK</strong> - Current user profile</summary>
-
-```json
-{
-  "success": true,
-  "user": {
-    "id": "user-123",
-    "username": "trader_pro",
-    "displayName": "Pro Trader",
-    "bio": "Momentum trading specialist",
-    "profileImageUrl": "/uploads/profiles/user-123.jpg",
-    "walletAddress": "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb",
-    "virtualBalance": "1250.50",
-    "reputationPoints": 1500,
-    "email": "user@example.com",
-    "createdAt": "2024-01-01T00:00:00Z",
-    "stats": {
-      "followersCount": 42,
-      "followingCount": 18,
-      "postsCount": 156
-    }
-  }
-}
-```
-
-</details>
-
-<details>
-<summary><strong>401 Unauthorized</strong> - Not authenticated</summary>
-
-```json
-{
-  "error": {
-    "message": "Unauthorized",
-    "code": "UNAUTHORIZED"
-  }
-}
-```
-
-</details>
-
----
+Returns the authenticated user's profile.
 
 ### Update Profile
 
-**Endpoint:** `POST https://babylon.market/api/users/{userId}/update-profile`
+`POST /api/users/{userId}/update-profile`
 
-**Description:** Update user profile information.
-
-**Path Parameters:**
-
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `userId` | string | Yes | User ID (must match authenticated user) |
-
-**Request Body Schema:**
-
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `displayName` | string | No | Display name (max 50 chars) |
-| `bio` | string | No | Bio text (max 500 chars) |
-| `username` | string | No | Username (can change once per 30 days) |
-
-**Request Example:**
-
-```bash
-curl -X POST 'https://babylon.market/api/users/user-123/update-profile' \
-  -H 'Authorization: Bearer YOUR_JWT_TOKEN' \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "displayName": "New Display Name",
-    "bio": "Updated bio text",
-    "username": "new_username"
-  }'
-```
-
-**Response Examples:**
-
-<details>
-<summary><strong>200 OK</strong> - Profile updated successfully</summary>
-
+**Request:**
 ```json
 {
-  "success": true,
-  "user": {
-    "id": "user-123",
-    "username": "new_username",
-    "displayName": "New Display Name",
-    "bio": "Updated bio text",
-    "updatedAt": "2024-11-25T12:00:00Z"
-  }
+  "displayName": "New Display Name",
+  "bio": "Updated bio text",
+  "username": "new_username"
 }
 ```
 
-</details>
+### Get Balance
 
-<details>
-<summary><strong>400 Bad Request</strong> - Invalid data or username taken</summary>
+`GET /api/users/{userId}/balance`
 
-```json
-{
-  "error": {
-    "message": "Username already taken",
-    "code": "USERNAME_TAKEN"
-  }
-}
-```
-
-</details>
-
-<details>
-<summary><strong>403 Forbidden</strong> - Cannot update another user's profile</summary>
-
-```json
-{
-  "error": {
-    "message": "Forbidden",
-    "code": "FORBIDDEN"
-  }
-}
-```
-
-</details>
-
----
-
-### Get User Balance
-
-**Endpoint:** `GET https://babylon.market/api/users/{userId}/balance`
-
-**Description:** Retrieve user's virtual balance and transaction history.
-
-**Path Parameters:**
-
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `userId` | string | Yes | User ID |
-
-**Request Example:**
-
-```bash
-curl -X GET 'https://babylon.market/api/users/user-123/balance' \
-  -H 'Authorization: Bearer YOUR_JWT_TOKEN'
-```
-
-**Response Examples:**
-
-<details>
-<summary><strong>200 OK</strong> - Balance retrieved</summary>
-
+**Response:**
 ```json
 {
   "success": true,
   "balance": "1250.50",
   "totalDeposited": "2000.00",
   "totalWithdrawn": "0.00",
-  "lifetimePnL": "250.50",
-  "transactions": [
-    {
-      "id": "tx-123",
-      "type": "pred_buy",
-      "amount": "-100.00",
-      "timestamp": "2024-11-20T10:00:00Z",
-      "description": "Bought YES shares in market question-456"
-    }
-  ]
+  "lifetimePnL": "250.50"
 }
 ```
 
-</details>
+## Error Codes
 
----
-
-## Rate Limits
-
-- **Authenticated requests**: 1000 requests per minute
-- **Public endpoints**: 100 requests per minute
-
-## Error Responses
-
-All error responses follow this format:
-
-```json
-{
-  "error": {
-    "message": "Error description",
-    "code": "ERROR_CODE"
-  }
-}
-```
-
-Common error codes:
-- `UNAUTHORIZED` - Missing or invalid authentication token
-- `FORBIDDEN` - Insufficient permissions
-- `NOT_FOUND` - Resource not found
-- `USERNAME_TAKEN` - Username already in use
-- `VALIDATION_ERROR` - Invalid request data
+- `UNAUTHORIZED` - Invalid token
+- `FORBIDDEN` - Cannot access this user
+- `NOT_FOUND` - User not found
+- `USERNAME_TAKEN` - Username in use
 
 ## Next Steps
 
-- **[View Interactive API Reference](/rest-api-reference)** - Try endpoints directly
-- **[Authentication Guide](/authentication)** - Set up authentication
+- **[Interactive API Reference](/rest-api-reference)** - Try endpoints
 - **[Social API](/social)** - Post and interact

@@ -39,4 +39,3 @@ export interface AgentTemplate {
     loraRank?: number;
   };
 }
-

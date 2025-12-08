@@ -7,9 +7,8 @@
 
 import type { InputJsonValue } from '@babylon/db';
 import { db, npcInteractions } from '@babylon/db';
-import { logger } from '@babylon/shared';
-import { generateSnowflakeId } from '@babylon/shared';
 import type { Actor } from '@babylon/shared';
+import { generateSnowflakeId, logger } from '@babylon/shared';
 
 export class InteractionTracker {
   /**

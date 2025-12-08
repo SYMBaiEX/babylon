@@ -13,19 +13,17 @@
 
 import {
   actorRelationships,
-  actors as actorsSchema,
   and,
   db,
   desc,
   eq,
   gte,
-  inArray,
   npcInteractions,
   or,
 } from '@babylon/db';
+import { generateSnowflakeId, logger } from '@babylon/shared';
 import type { BabylonLLMClient } from './llm/openai-client';
-import { logger } from '@babylon/shared';
-import { generateSnowflakeId } from '@babylon/shared';
+import { StaticDataRegistry } from './services/static-data-registry';
 import type { Actor, Organization } from './types/shared';
 
 export interface RelationshipChange {
@@ -354,19 +352,9 @@ Return JSON: { "description": "...", "type": "...", "sentiment": 0.0 }`;
         )
         .limit(1);
 
-      // Get actor names for prompt
-      const [[actor1], [actor2]] = await Promise.all([
-        db
-          .select({ name: actorsSchema.name })
-          .from(actorsSchema)
-          .where(eq(actorsSchema.id, actor1Id))
-          .limit(1),
-        db
-          .select({ name: actorsSchema.name })
-          .from(actorsSchema)
-          .where(eq(actorsSchema.id, actor2Id))
-          .limit(1),
-      ]);
+      // Get actor names from static registry
+      const actor1 = StaticDataRegistry.getActor(actor1Id);
+      const actor2 = StaticDataRegistry.getActor(actor2Id);
 
       if (!actor1 || !actor2) continue;
 
@@ -544,13 +532,13 @@ Return JSON: { "description": "...", "type": "...", "sentiment": 0.0 }`;
       rel.actor1Id === actorId ? rel.actor2Id : rel.actor1Id
     );
 
-    // Get actor names
-    const actors = await db
-      .select({ id: actorsSchema.id, name: actorsSchema.name })
-      .from(actorsSchema)
-      .where(inArray(actorsSchema.id, otherActorIds));
-
-    const actorNameMap = new Map(actors.map((a) => [a.id, a.name]));
+    // Get actor names from static registry
+    const actorNameMap = new Map(
+      otherActorIds.map((id) => {
+        const actor = StaticDataRegistry.getActor(id);
+        return [id, actor?.name || 'Unknown'];
+      })
+    );
 
     // SIMPLEST FORMAT: Just list the relationships
     const lines = relationships.map((rel) => {

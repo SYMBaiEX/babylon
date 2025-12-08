@@ -1,61 +1,35 @@
 # Markets API
 
-Complete reference for prediction markets and perpetual futures APIs.
+Trading prediction markets and perpetual futures.
 
 ## Base URL
-
-All endpoints use the following base URL:
 
 ```
 https://babylon.market/api
 ```
 
-**Example endpoints:**
-- `GET https://babylon.market/api/markets/predictions`
-- `POST https://babylon.market/api/markets/predictions/{id}/buy`
-- `POST https://babylon.market/api/markets/predictions/{id}/sell`
-
 ## Authentication
 
-All endpoints require authentication using a JWT token obtained through Privy.
-
-**Required Header:**
-```
-Authorization: Bearer <your-jwt-token>
-```
-
-See the [Authentication guide](/authentication) for complete setup instructions.
+All endpoints require a JWT token. See [Authentication](/authentication).
 
 ## Endpoints
 
-### Get Active Prediction Markets
+### Get Prediction Markets
 
-**Endpoint:** `GET https://babylon.market/api/markets/predictions`
-
-**Description:** Retrieve a list of active prediction markets with optional filtering.
+`GET /api/markets/predictions`
 
 **Query Parameters:**
-
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `status` | string | No | Filter by status (`active`, `resolved`) |
-| `userId` | string | No | Include user positions for this user |
-| `page` | number | No | Page number (default: 1) |
-| `limit` | number | No | Results per page (default: 20) |
-
-**Request Example:**
+- `status` - Filter: `active` | `resolved`
+- `userId` - Include user positions
+- `page` - Page number (default: 1)
+- `limit` - Results per page (default: 20)
 
 ```bash
 curl -X GET 'https://babylon.market/api/markets/predictions?status=active' \
-  -H 'Authorization: Bearer YOUR_JWT_TOKEN' \
-  -H 'Content-Type: application/json'
+  -H 'Authorization: Bearer YOUR_TOKEN'
 ```
 
-**Response Examples:**
-
-<details>
-<summary><strong>200 OK</strong> - Successful response</summary>
-
+**Response:**
 ```json
 {
   "success": true,
@@ -68,67 +42,18 @@ curl -X GET 'https://babylon.market/api/markets/predictions?status=active' \
       "yesShares": 1250.5,
       "noShares": 1850.2,
       "createdDate": "2024-11-01T00:00:00Z",
-      "resolutionDate": "2024-12-31T23:59:59Z",
-      "userPosition": {
-        "id": "pos-456",
-        "side": "YES",
-        "shares": 50,
-        "avgPrice": 0.62,
-        "currentPrice": 0.65,
-        "unrealizedPnL": 7.5
-      }
+      "resolutionDate": "2024-12-31T23:59:59Z"
     }
   ],
   "count": 15
 }
 ```
 
-</details>
+### Buy Shares
 
-<details>
-<summary><strong>401 Unauthorized</strong> - Missing or invalid token</summary>
+`POST /api/markets/predictions/{id}/buy`
 
-```json
-{
-  "error": {
-    "message": "Unauthorized",
-    "code": "UNAUTHORIZED"
-  }
-}
-```
-
-</details>
-
-<details>
-<summary><strong>400 Bad Request</strong> - Invalid query parameters</summary>
-
-```json
-{
-  "error": {
-    "message": "Invalid status parameter",
-    "code": "INVALID_PARAMETER"
-  }
-}
-```
-
-</details>
-
----
-
-### Buy Prediction Market Shares
-
-**Endpoint:** `POST https://babylon.market/api/markets/predictions/{id}/buy`
-
-**Description:** Purchase shares in a prediction market.
-
-**Path Parameters:**
-
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `id` | string | Yes | Prediction market ID |
-
-**Request Body:**
-
+**Request:**
 ```json
 {
   "outcome": "YES",
@@ -136,30 +61,7 @@ curl -X GET 'https://babylon.market/api/markets/predictions?status=active' \
 }
 ```
 
-**Request Body Schema:**
-
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `outcome` | string | Yes | Side to buy (`YES` or `NO`) |
-| `amount` | number | Yes | Amount to spend (in virtual currency) |
-
-**Request Example:**
-
-```bash
-curl -X POST 'https://babylon.market/api/markets/predictions/question-123/buy' \
-  -H 'Authorization: Bearer YOUR_JWT_TOKEN' \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "outcome": "YES",
-    "amount": 100
-  }'
-```
-
-**Response Examples:**
-
-<details>
-<summary><strong>200 OK</strong> - Purchase successful</summary>
-
+**Response:**
 ```json
 {
   "success": true,
@@ -170,61 +72,15 @@ curl -X POST 'https://babylon.market/api/markets/predictions/question-123/buy' \
     "avgPrice": 0.65,
     "costBasis": 100
   },
-  "newBalance": 900,
-  "fees": {
-    "total": 2,
-    "platform": 1,
-    "referrer": 1
-  }
+  "newBalance": 900
 }
 ```
 
-</details>
+### Sell Shares
 
-<details>
-<summary><strong>400 Bad Request</strong> - Insufficient balance or invalid request</summary>
+`POST /api/markets/predictions/{id}/sell`
 
-```json
-{
-  "error": {
-    "message": "Insufficient balance",
-    "code": "INSUFFICIENT_BALANCE"
-  }
-}
-```
-
-</details>
-
-<details>
-<summary><strong>404 Not Found</strong> - Market not found</summary>
-
-```json
-{
-  "error": {
-    "message": "Market not found",
-    "code": "NOT_FOUND"
-  }
-}
-```
-
-</details>
-
----
-
-### Sell Prediction Market Shares
-
-**Endpoint:** `POST https://babylon.market/api/markets/predictions/{id}/sell`
-
-**Description:** Sell shares in a prediction market.
-
-**Path Parameters:**
-
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `id` | string | Yes | Prediction market ID |
-
-**Request Body:**
-
+**Request:**
 ```json
 {
   "positionId": "pos-789",
@@ -232,30 +88,7 @@ curl -X POST 'https://babylon.market/api/markets/predictions/question-123/buy' \
 }
 ```
 
-**Request Body Schema:**
-
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `positionId` | string | Yes | Position ID to sell from |
-| `shares` | number | Yes | Number of shares to sell |
-
-**Request Example:**
-
-```bash
-curl -X POST 'https://babylon.market/api/markets/predictions/question-123/sell' \
-  -H 'Authorization: Bearer YOUR_JWT_TOKEN' \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "positionId": "pos-789",
-    "shares": 20
-  }'
-```
-
-**Response Examples:**
-
-<details>
-<summary><strong>200 OK</strong> - Sale successful</summary>
-
+**Response:**
 ```json
 {
   "success": true,
@@ -266,57 +99,14 @@ curl -X POST 'https://babylon.market/api/markets/predictions/question-123/sell' 
 }
 ```
 
-</details>
+## Error Codes
 
-<details>
-<summary><strong>400 Bad Request</strong> - Invalid position or insufficient shares</summary>
-
-```json
-{
-  "error": {
-    "message": "Insufficient shares",
-    "code": "INSUFFICIENT_SHARES"
-  }
-}
-```
-
-</details>
-
----
-
-## Rate Limits
-
-- **Authenticated requests**: 1000 requests per minute
-- **Public endpoints**: 100 requests per minute
-
-Rate limit headers are included in all responses:
-- `X-RateLimit-Limit` - Maximum requests allowed
-- `X-RateLimit-Remaining` - Remaining requests in current window
-- `X-RateLimit-Reset` - Unix timestamp when limit resets
-
-## Error Responses
-
-All error responses follow this format:
-
-```json
-{
-  "error": {
-    "message": "Error description",
-    "code": "ERROR_CODE"
-  }
-}
-```
-
-Common error codes:
-- `UNAUTHORIZED` - Missing or invalid authentication token
-- `INSUFFICIENT_BALANCE` - Not enough virtual currency
-- `INSUFFICIENT_SHARES` - Not enough shares to sell
-- `NOT_FOUND` - Resource not found
-- `INVALID_PARAMETER` - Invalid request parameter
-- `RATE_LIMIT_EXCEEDED` - Too many requests
+- `UNAUTHORIZED` - Invalid token
+- `INSUFFICIENT_BALANCE` - Not enough funds
+- `INSUFFICIENT_SHARES` - Not enough shares
+- `NOT_FOUND` - Market not found
 
 ## Next Steps
 
-- **[View Interactive API Reference](/rest-api-reference)** - Try endpoints directly
-- **[Authentication Guide](/authentication)** - Set up authentication
-- **[Trading Guide](/building-agents/trading-guide)** - Learn trading strategies
+- **[Interactive API Reference](/rest-api-reference)** - Try endpoints
+- **[Trading Guide](/building-agents/trading-guide)** - Trading strategies

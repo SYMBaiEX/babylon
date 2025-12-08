@@ -146,9 +146,10 @@ class FullPipeline:
         For now, this loads existing data from the database.
         """
         if not self.database_url:
-            logger.warning("No DATABASE_URL - using synthetic data")
-            await self._generate_synthetic_data()
-            return
+            logger.error("No DATABASE_URL configured!")
+            logger.error("Set DATABASE_URL environment variable to connect to the database.")
+            logger.error("Cannot proceed without real trajectory data.")
+            raise ValueError("DATABASE_URL required for training - no synthetic fallback")
         
         from src.data_bridge import PostgresTrajectoryReader
         
@@ -156,161 +157,48 @@ class FullPipeline:
         
         try:
             async with PostgresTrajectoryReader(self.database_url) as reader:
-                # Get recent windows
+                # Get all recent windows (with min_agents=1 to find all)
                 windows = await reader.get_window_ids(
-                    min_agents=2,
+                    min_agents=1,
                     lookback_hours=72
                 )
                 
                 if not windows:
-                    logger.warning("No windows found in database - using synthetic data")
-                    await self._generate_synthetic_data()
-                    return
+                    logger.error("No trajectory windows found in database!")
+                    logger.error("Generate real trajectories first:")
+                    logger.error("  1. Start server: bun run dev")
+                    logger.error("  2. Run: babylon train parallel --archetypes trader --num-agents 2 --ticks 10")
+                    raise ValueError("No trajectory data in database - generate real data first")
                 
-                # Load trajectories from most recent window
-                window_id = windows[0]
-                logger.info(f"Loading from window: {window_id}")
+                logger.info(f"Found {len(windows)} trajectory windows")
                 
-                trajectories = await reader.get_trajectories_by_window(
-                    window_id,
-                    min_actions=3
-                )
+                # Load trajectories from multiple windows (up to 50)
+                all_trajectories = []
+                for window_id in windows[:50]:
+                    trajectories = await reader.get_trajectories_by_window(
+                        window_id,
+                        min_actions=1  # Lowered to capture more data
+                    )
+                    all_trajectories.extend(trajectories)
+                    
+                    # Stop if we have enough
+                    if len(all_trajectories) >= self.num_agents * 2:
+                        break
                 
-                self.generated_trajectories = trajectories
-                logger.info(f"Loaded {len(trajectories)} trajectories")
+                if not all_trajectories:
+                    logger.error("No valid trajectories found in database!")
+                    logger.error("The trajectories may be corrupted or missing required fields.")
+                    logger.error("Generate new real trajectories with: babylon train parallel")
+                    raise ValueError("No valid trajectory data - generate real data first")
+                
+                self.generated_trajectories = all_trajectories
+                logger.info(f"Loaded {len(all_trajectories)} trajectories from database")
                 
         except Exception as e:
             logger.error(f"Failed to load from database: {e}")
-            logger.warning("Falling back to synthetic data")
-            await self._generate_synthetic_data()
-    
-    async def _generate_synthetic_data(self):
-        """
-        Generate realistic synthetic data for testing.
-        
-        Creates trajectories with:
-        - Multiple LLM calls per step (reasoning + action)
-        - Proper action_type fields for reward attribution
-        - Varied outcomes (some successful, some not)
-        - Realistic prompt structures
-        """
-        from datetime import datetime
-        import random
-        from src.models import (
-            BabylonTrajectory, TrajectoryStep, EnvironmentState,
-            Action, LLMCall
-        )
-        
-        logger.info(f"Generating {self.num_agents} synthetic trajectories...")
-        
-        # Agent strategies for variety
-        strategies = [
-            "momentum trading - buy when price is rising",
-            "contrarian - buy when others are selling",
-            "fundamental analysis - focus on value",
-            "technical analysis - use chart patterns",
-            "risk-averse - small positions only",
-        ]
-        
-        trajectories = []
-        for agent_idx in range(self.num_agents):
-            steps = []
-            balance = 10000.0
-            pnl = 0.0
-            strategy = strategies[agent_idx % len(strategies)]
-            
-            # Agent skill level affects success rate
-            skill = 0.3 + (agent_idx / self.num_agents) * 0.5  # 0.3 to 0.8
-            
-            for tick in range(self.ticks_per_agent):
-                # Simulate P&L changes based on agent skill
-                base_change = random.gauss(0, 50)  # Random market move
-                skill_bonus = (skill - 0.5) * 100  # Skill affects avg outcome
-                pnl_change = base_change + skill_bonus
-                pnl += pnl_change
-                balance += pnl_change
-                
-                env = EnvironmentState(
-                    agent_balance=balance,
-                    agent_pnl=pnl,
-                    open_positions=tick % 5
-                )
-                
-                # Decide action based on tick and skill
-                is_trade_tick = tick % 3 == 0
-                action_success = random.random() < skill  # Skill determines success
-                
-                # Build realistic LLM calls
-                llm_calls = []
-                
-                # Reasoning call (sometimes)
-                if tick % 2 == 0:
-                    llm_calls.append(LLMCall(
-                        model=self.model_name,
-                        system_prompt=f"You are a trading agent focused on {strategy}. Analyze markets carefully.",
-                        user_prompt=f"Current state: Balance ${balance:.2f}, P&L ${pnl:.2f}, Positions: {tick % 5}. Analyze the market.",
-                        response=f"Looking at the market conditions, I see {'bullish' if pnl > 0 else 'bearish'} momentum. "
-                                 f"Based on my {strategy} approach, I {'should consider entering' if is_trade_tick else 'will wait for better opportunity'}.",
-                        temperature=0.7,
-                        max_tokens=500,
-                        purpose='reasoning',
-                        action_type='market_analysis',
-                    ))
-                
-                # Action call
-                action_type = 'buy' if is_trade_tick else 'wait'
-                llm_calls.append(LLMCall(
-                    model=self.model_name,
-                    system_prompt=f"You are a trading agent. Strategy: {strategy}",
-                    user_prompt=f"Balance: ${balance:.2f}, P&L: ${pnl:.2f}. Decide your action. Respond in JSON format.",
-                    response='{"action": "' + ('trade' if is_trade_tick else 'hold') + '"' + 
-                             (', "trade": {"type": "prediction", "market": "btc", "action": "buy_yes", "amount": 100}' if is_trade_tick else '') + '}',
-                    temperature=0.7,
-                    max_tokens=300,
-                    purpose='action',
-                    action_type='evaluate_trading_opportunity',
-                ))
-                
-                # Step reward based on P&L change and action success
-                step_reward = pnl_change / 500  # Normalize
-                if is_trade_tick and action_success:
-                    step_reward += 0.1
-                elif is_trade_tick and not action_success:
-                    step_reward -= 0.05
-                
-                steps.append(TrajectoryStep(
-                    step_number=tick,
-                    timestamp=int(time.time() * 1000) + tick * 1000,
-                    environment_state=env,
-                    provider_accesses=[],
-                    llm_calls=llm_calls,
-                    action=Action(
-                        action_type=action_type,
-                        parameters={'amount': 100} if is_trade_tick else {},
-                        success=action_success if is_trade_tick else True,
-                        reasoning=f"Executing {action_type} based on {strategy}"
-                    ),
-                    reward=step_reward
-                ))
-            
-            traj = BabylonTrajectory(
-                id=f"synthetic-{agent_idx}",
-                trajectory_id=f"synthetic-{agent_idx}",
-                agent_id=f"agent-{agent_idx}",
-                window_id=datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:00"),
-                start_time=datetime.now(timezone.utc),
-                end_time=datetime.now(timezone.utc),
-                duration_ms=self.ticks_per_agent * 1000,
-                steps=steps,
-                total_reward=sum(s.reward for s in steps),
-                final_pnl=pnl,
-                episode_length=len(steps),
-                final_status='completed'
-            )
-            trajectories.append(traj)
-        
-        self.generated_trajectories = trajectories
-        logger.info(f"Generated {len(trajectories)} synthetic trajectories")
+            import traceback
+            traceback.print_exc()
+            raise ValueError(f"Database connection failed: {e}")
     
     async def score_trajectories(self):
         """Score trajectories using heuristics and relative comparison"""
@@ -352,19 +240,74 @@ class FullPipeline:
             logger.info(f"  {traj.agent_id}: P&L=${traj.final_pnl:.2f}, Score={score:.3f}")
     
     async def train_model(self):
-        """Train model using GRPO from scored trajectories"""
-        from src.training import AtroposTrainingConfig, BabylonAtroposTrainer
-        from src.data_bridge import BabylonToAtroposConverter
-        from src.training import MultiPromptDatasetBuilder, prepare_multi_prompt_training_data
-        
+        """Train model using Tinker (cloud) or GRPO (local) from scored trajectories"""
         if not self.generated_trajectories or not self.scores:
             logger.warning("No scored trajectories for training")
             return
         
         logger.info("Preparing training data...")
         
-        # Convert to training format
-        converter = BabylonToAtroposConverter()
+        # Check if Tinker is available
+        tinker_api_key = os.getenv("TINKER_API_KEY")
+        
+        if tinker_api_key:
+            # Use Tinker for cloud-based training
+            await self._train_with_tinker()
+        else:
+            # Fall back to local training data preparation
+            await self._prepare_local_training_data()
+    
+    async def _train_with_tinker(self):
+        """Train using Tinker cloud API"""
+        from src.training.tinker_trainer import BabylonTinkerTrainer, TinkerTrainingConfig
+        from src.training.tinker_client import TINKER_AVAILABLE
+        
+        if not TINKER_AVAILABLE:
+            logger.warning("Tinker not installed. Install with: pip install tinker")
+            logger.info("Falling back to local training data preparation")
+            await self._prepare_local_training_data()
+            return
+        
+        logger.info("Using Tinker for cloud-based training")
+        
+        config = TinkerTrainingConfig(
+            base_model=self.model_name,
+            training_steps=min(100, len(self.generated_trajectories) * 2),
+            group_size=4,
+            learning_rate=4e-5,
+            lora_rank=32,
+            database_url=self.database_url,
+            log_file=str(self.output_dir / "tinker_training_metrics.jsonl"),
+        )
+        
+        trainer = BabylonTinkerTrainer(config)
+        
+        try:
+            result = await trainer.train()
+            
+            if result.get("success"):
+                self.trained_model_path = self.output_dir / "tinker_trained"
+                self.trained_model_path.mkdir(parents=True, exist_ok=True)
+                
+                # Save training result
+                with open(self.trained_model_path / "training_result.json", "w") as f:
+                    json.dump(result, f, indent=2, default=str)
+                
+                logger.info(f"Tinker training complete!")
+                logger.info(f"  Run ID: {result.get('run_id')}")
+                logger.info(f"  Steps: {result.get('steps')}")
+                logger.info(f"  Final weights: {result.get('final_weights')}")
+            else:
+                logger.error("Tinker training failed")
+                
+        except Exception as e:
+            logger.error(f"Tinker training error: {e}")
+            logger.info("Falling back to local training data preparation")
+            await self._prepare_local_training_data()
+    
+    async def _prepare_local_training_data(self):
+        """Prepare training data for local training (Atropos/vLLM)"""
+        from src.training import MultiPromptDatasetBuilder
         
         # Use multi-prompt dataset builder for comprehensive training
         builder = MultiPromptDatasetBuilder()
@@ -387,15 +330,14 @@ class FullPipeline:
         builder.save_dataset(str(training_data_path))
         logger.info(f"Training data saved to: {training_data_path}")
         
-        # For actual training, we would use the AtroposTrainer
-        # This requires the Atropos API server and vLLM running
-        logger.info("\nNote: Full training requires:")
+        # Note about requirements
+        logger.info("\nTo train locally, you need:")
         logger.info("  1. Atropos API server running (run-api)")
         logger.info("  2. vLLM server with base model")
-        logger.info("  3. DATABASE_URL and OPENAI_API_KEY configured")
+        logger.info("  3. Or set TINKER_API_KEY for cloud training")
         
         # Save model path
-        self.trained_model_path = self.output_dir / "trained_model"
+        self.trained_model_path = self.output_dir / "training_data"
         self.trained_model_path.mkdir(parents=True, exist_ok=True)
         
         # Save training config for reference
@@ -404,6 +346,7 @@ class FullPipeline:
             "num_trajectories": len(self.generated_trajectories),
             "num_samples": stats['total_samples'],
             "timestamp": datetime.now(timezone.utc).isoformat(),
+            "training_method": "prepared_data",
         }
         with open(self.trained_model_path / "training_config.json", "w") as f:
             json.dump(config, f, indent=2)

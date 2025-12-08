@@ -75,17 +75,15 @@
  * @see {@link /lib/db/context} RLS context
  */
 
-import type { NextRequest } from 'next/server';
-
-import { optionalAuth } from '@babylon/api';
+import { optionalAuth, successResponse, withErrorHandling } from '@babylon/api';
 import { asPublic, asUser } from '@babylon/db';
-import { successResponse, withErrorHandling } from '@babylon/api';
-import { logger } from '@babylon/shared';
 import { PredictionPricing } from '@babylon/engine';
 import {
+  logger,
   UserIdParamSchema,
   UserPositionsQuerySchema,
 } from '@babylon/shared';
+import type { NextRequest } from 'next/server';
 
 /**
  * GET /api/markets/positions/[userId]
@@ -262,22 +260,14 @@ export const GET = withErrorHandling(
             let currentUnitPrice = shares > 0 ? avgPrice : 0;
 
             if (shares > 0 && yesShares > 0 && noShares > 0) {
-              try {
-                const sellPreview = PredictionPricing.calculateSell(
-                  yesShares,
-                  noShares,
-                  sideKey,
-                  shares
-                );
-                currentValue = sellPreview.totalCost;
-                currentUnitPrice = sellPreview.totalCost / shares;
-              } catch (error) {
-                logger.warn(
-                  'Failed to compute prediction MTM value',
-                  { error, marketId: p.marketId },
-                  'GET /api/markets/positions/[userId]'
-                );
-              }
+              const sellPreview = PredictionPricing.calculateSell(
+                yesShares,
+                noShares,
+                sideKey,
+                shares
+              );
+              currentValue = sellPreview.totalCost;
+              currentUnitPrice = sellPreview.totalCost / shares;
             }
 
             const currentProbability =

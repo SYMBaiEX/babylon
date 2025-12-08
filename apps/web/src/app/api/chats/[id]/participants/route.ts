@@ -122,14 +122,17 @@
  * @see {@link /lib/services/notification-service} Notification service
  */
 
-import type { NextRequest } from 'next/server';
-import { authenticate } from '@babylon/api';
+import {
+  authenticate,
+  BusinessLogicError,
+  NotFoundError,
+  notifyGroupChatInvite,
+  successResponse,
+  withErrorHandling,
+} from '@babylon/api';
 import { asSystem, asUser } from '@babylon/db';
-import { BusinessLogicError, NotFoundError } from '@babylon/api';
-import { successResponse, withErrorHandling } from '@babylon/api';
-import { logger } from '@babylon/shared';
-import { notifyGroupChatInvite } from '@babylon/api';
-import { generateSnowflakeId } from '@babylon/shared';
+import { generateSnowflakeId, logger } from '@babylon/shared';
+import type { NextRequest } from 'next/server';
 
 /**
  * POST /api/chats/[id]/participants

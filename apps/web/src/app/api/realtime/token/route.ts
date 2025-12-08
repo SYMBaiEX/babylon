@@ -1,10 +1,13 @@
+import {
+  authenticate,
+  issueRealtimeToken,
+  type RealtimeChannel,
+} from '@babylon/api';
+import { db } from '@babylon/db';
+import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { db } from '@babylon/db';
-import { authenticate } from '@babylon/api';
-import { logger } from '@babylon/shared';
-import { issueRealtimeToken, type RealtimeChannel } from '@babylon/api';
 
 const BodySchema = z.object({
   channels: z.array(z.string()).optional(),
@@ -21,10 +24,23 @@ const PUBLIC_CHANNELS: RealtimeChannel[] = [
 ];
 
 const dedupe = <T>(items: T[]) => Array.from(new Set(items));
-const isDmChatId = (id: string, userId: string) => {
+/**
+ * Validates a DM chat ID format and checks if user is a participant.
+ *
+ * @security DM chat IDs follow the format dm-{userId1}-{userId2} where IDs are sorted.
+ * This validation ensures:
+ * 1. The format is correct (dm- prefix, exactly 2 user IDs)
+ * 2. The requesting user is one of the participants
+ *
+ * Note: This is a format check only. For additional security, the actual
+ * chat authorization is verified against the database in the main flow.
+ */
+const isDmChatId = (id: string, userId: string): boolean => {
   if (!id.startsWith('dm-')) return false;
   const parts = id.substring('dm-'.length).split('-').filter(Boolean);
+  // Require exactly 2 user IDs
   if (parts.length !== 2) return false;
+  // User must be one of the participants
   return parts.includes(userId);
 };
 
@@ -32,10 +48,9 @@ export async function POST(request: NextRequest) {
   const user = await authenticate(request);
 
   let body: unknown = {};
-  try {
-    body = await request.json();
-  } catch {
-    // ignore empty body
+  const bodyText = await request.text();
+  if (bodyText.trim()) {
+    body = JSON.parse(bodyText);
   }
 
   const {

@@ -5,8 +5,8 @@
  */
 
 import { beforeEach, describe, expect, it } from 'bun:test';
-import { ExtendedTaskStore } from '@babylon/a2a';
 import type { Task } from '@a2a-js/sdk';
+import { ExtendedTaskStore } from '@babylon/a2a';
 
 describe('A2A ExtendedTaskStore', () => {
   let store: ExtendedTaskStore;
@@ -266,4 +266,3 @@ describe('A2A ExtendedTaskStore', () => {
     });
   });
 });
-

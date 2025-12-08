@@ -8,10 +8,10 @@
 import type { MarketDecisionEngine } from '@babylon/engine';
 import { logger } from '@babylon/shared';
 import {
-  TrajectoryRecorder,
   type Action,
   type EnvironmentState,
   getCurrentWindowId,
+  TrajectoryRecorder,
 } from '@babylon/training';
 import type { TradingDecision } from '../types/market-decisions';
 
@@ -31,9 +31,8 @@ export class TrajectoryMarketEngine {
   ) {
     this.engine = engine;
 
-    // Check environment variable for recording flag
-    const envEnabled = process.env.RECORD_AGENT_TRAJECTORIES === 'true';
-    this.enabled = options.enableRecording ?? envEnabled;
+    // Always enable trajectory recording for RL training
+    this.enabled = options.enableRecording ?? true;
 
     // Sampling rate (1.0 = record everything, 0.5 = record 50%)
     this.samplingRate =
@@ -60,14 +59,7 @@ export class TrajectoryMarketEngine {
     const shouldRecord = this.enabled && Math.random() < this.samplingRate;
 
     if (shouldRecord && this.recorder) {
-      try {
-        await this.startRecording();
-      } catch (error) {
-        logger.warn(
-          'Failed to start trajectory recording, continuing without',
-          { error }
-        );
-      }
+      await this.startRecording();
     }
 
     // Generate decisions using underlying engine
@@ -75,20 +67,12 @@ export class TrajectoryMarketEngine {
 
     // Record each decision if recording is active
     if (this.trajectoryId && this.recorder) {
-      try {
-        await this.recordDecisions(decisions);
-      } catch (error) {
-        logger.warn('Failed to record decisions, continuing anyway', { error });
-      }
+      await this.recordDecisions(decisions);
     }
 
     // End recording
     if (this.trajectoryId && this.recorder) {
-      try {
-        await this.endRecording(decisions);
-      } catch (error) {
-        logger.warn('Failed to end trajectory recording', { error });
-      }
+      await this.endRecording(decisions);
     }
 
     return decisions;
@@ -161,8 +145,8 @@ export class TrajectoryMarketEngine {
         parameters: {
           npcId: decision.npcId,
           npcName: decision.npcName,
-          ticker: decision.ticker,
-          marketId: decision.marketId,
+          ticker: decision.ticker ?? '',
+          marketId: decision.marketId ?? '',
           marketType: decision.marketType,
           amount: decision.amount,
           confidence: decision.confidence,

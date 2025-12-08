@@ -5,6 +5,7 @@
  * Useful for validation and understanding benchmark structure.
  */
 
+import type { JsonValue } from '@babylon/shared';
 import { promises as fs } from 'fs';
 import type {
   BenchmarkGameSnapshot,
@@ -241,7 +242,7 @@ export class BenchmarkDataViewer {
   ): {
     tick: Tick | null;
     state: GameState | null;
-    events: Array<{ type: string; data: Record<string, unknown> }>;
+    events: Array<{ type: string; data: Record<string, JsonValue> }>;
   } {
     const tick = snapshot.ticks[tickNumber] || null;
 

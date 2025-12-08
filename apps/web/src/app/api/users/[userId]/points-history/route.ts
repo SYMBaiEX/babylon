@@ -9,13 +9,16 @@
  * Used to check which rewards have already been claimed.
  */
 
-import type { NextRequest } from 'next/server';
+import {
+  AuthorizationError,
+  authenticate,
+  requireUserByIdentifier,
+  successResponse,
+  withErrorHandling,
+} from '@babylon/api';
 import { db, desc, eq, pointsTransactions } from '@babylon/db';
-import { authenticate, successResponse } from '@babylon/api';
-import { AuthorizationError } from '@babylon/api';
-import { withErrorHandling } from '@babylon/api';
-import { requireUserByIdentifier } from '@babylon/api';
 import { UserIdParamSchema } from '@babylon/shared';
+import type { NextRequest } from 'next/server';
 
 /**
  * GET /api/users/[userId]/points-history

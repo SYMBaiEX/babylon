@@ -91,14 +91,17 @@
  * ```
  */
 
+import {
+  requireCronAuth,
+  requireUserByIdentifier,
+  withErrorHandling,
+} from '@babylon/api';
+import type { JsonValue } from '@babylon/db';
+import { db } from '@babylon/db';
+import { generateSnowflakeId, logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import type { JsonValue } from '@babylon/db';
-import { db } from '@babylon/db';
-import { logger } from '@babylon/shared';
-import { generateSnowflakeId } from '@babylon/shared';
-import { requireUserByIdentifier } from '@babylon/api';
 
 const AgentToUserFeedbackSchema = z.object({
   agentId: z.string().min(1, 'agentId is required'),
@@ -117,7 +120,9 @@ const AgentToUserFeedbackQuerySchema = z.object({
   offset: z.number().int().min(0).default(0),
 });
 
-export async function POST(request: NextRequest) {
+export const POST = withErrorHandling(async (request: NextRequest) => {
+  requireCronAuth(request, { jobName: 'AgentFeedback' });
+
   const json = await request.json();
   const parsed = AgentToUserFeedbackSchema.parse(json);
 
@@ -166,7 +171,7 @@ export async function POST(request: NextRequest) {
     },
     { status: 201 }
   );
-}
+});
 
 /**
  * GET endpoint to retrieve feedback for a user from agents

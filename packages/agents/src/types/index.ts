@@ -2,36 +2,35 @@
  * Type Exports for @babylon/agents
  */
 
-export * from './common';
 // Re-export specific A2A types (avoid duplicates with ./common)
 export {
-  type JsonRpcRequest,
-  type JsonRpcResponse,
-  type JsonRpcError,
-  type JsonRpcNotification,
-  type AgentProfile,
-  type AgentCredentials,
-  type AgentReputation,
+  type A2AEvent,
+  A2AEventType,
+  A2AMethod,
+  type AgentCapabilities,
+  AgentCapabilitiesSchema,
   type AgentConnection,
-  type MarketData,
-  type MarketSubscription,
-  type PaymentRequest,
-  type PaymentReceipt,
-  type HandshakeRequest,
-  type HandshakeResponse,
+  type AgentCredentials,
+  type AgentProfile,
+  type AgentReputation,
   type DiscoverRequest,
   type DiscoverResponse,
-  type A2AEvent,
-  type GameNetworkInfo,
-  type AgentCapabilities,
-  A2AMethod,
-  A2AEventType,
   ErrorCode,
-  PaymentRequestSchema,
+  type GameNetworkInfo,
   GameNetworkInfoSchema,
-  AgentCapabilitiesSchema,
+  type HandshakeRequest,
+  type HandshakeResponse,
+  type JsonRpcError,
+  type JsonRpcNotification,
+  type JsonRpcRequest,
+  type JsonRpcResponse,
+  type MarketData,
+  type MarketSubscription,
+  type PaymentReceipt,
+  type PaymentRequest,
+  PaymentRequestSchema,
 } from '@babylon/a2a';
 export * from './a2a-responses';
 export * from './agent-registry';
+export * from './common';
 export * from './entities';
-

@@ -12,9 +12,15 @@
  * - More total interactions (10+ quality replies)
  */
 
-import { and, db, desc, eq, followStatuses, userInteractions } from '@babylon/db';
-import { logger } from '@babylon/shared';
-import { generateSnowflakeId } from '@babylon/shared';
+import {
+  and,
+  db,
+  desc,
+  eq,
+  followStatuses,
+  userInteractions,
+} from '@babylon/db';
+import { generateSnowflakeId, logger } from '@babylon/shared';
 // Notification handled by API layer - engine doesn't depend on api
 
 export interface FollowingChance {
@@ -214,17 +220,8 @@ export class FollowingMechanics {
     // Create notification for the user (NPCs follow users, not the other way around)
     // For NPC follows, use the NPC's ID as actorId since they're not real users
     // Notification handled by API layer - engine doesn't manage notifications
-    try {
-      const { notifyFollow } = await import('@babylon/api');
-      await notifyFollow(userId, npcId);
-    } catch (error) {
-      // Notification is optional - engine can work without it
-      logger.debug(
-        'Follow notification skipped (API layer handles notifications)',
-        { userId, npcId, error },
-        'FollowingMechanics'
-      );
-    }
+    const { notifyFollow } = await import('@babylon/api');
+    await notifyFollow(userId, npcId);
   }
 
   /**

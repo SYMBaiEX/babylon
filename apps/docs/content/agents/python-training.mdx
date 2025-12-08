@@ -1,376 +1,60 @@
-# Python RL Training System
+# Python RL Training
 
-Complete reinforcement learning training system for Babylon autonomous agents using continuous MMO-style training.
+> **⚠️ Experimental** - Under active development. See `packages/training/README.md` for full documentation.
 
-## Overview
-
-The Python RL training system enables continuous learning from live agent gameplay:
-- **Continuous Collection**: Agents generate training data 24/7
-- **Automated Training**: GRPO training with Atropos runs automatically
-- **Live Deployment**: Updated models deploy without downtime
-- **MMO-Style**: Multiple agents learn together, share experiences
-
-**Based on**: Atropos (RLAIF framework by Nous Research) with GRPO training
-
-**Status**: **Production Ready** - Complete automation pipeline
-
-## Architecture
-
-```mermaid
-graph TB
- A[Live Agents] --> B[Trajectory Collection]
- B --> C[(PostgreSQL)]
- C --> D[Training Pipeline]
- D --> E[GRPO Trainer]
- E --> F[Model Checkpoint]
- F --> G[Deployment]
- G --> H[Updated Agents]
- H --> A
-```
-
-### Continuous Learning Loop
-
-1. **Agents Play**: Autonomous agents interact with Babylon
-2. **Data Collection**: Decisions recorded via trajectory logger
-3. **Windowed Batching**: Group by time windows (1-hour default)
-4. **Training**: GRPO optimizes model on successful decisions (scored via RLAIF)
-5. **Deployment**: New model replaces old without downtime
-6. **Repeat**: Loop continues indefinitely
+RL training for Babylon agents using trajectory-based learning with MLX, CUDA, or Tinker cloud.
 
 ## Quick Start
 
-### 1. Installation
+### 1. Generate Trajectories
+
+```bash
+bun run dev  # Start server
+babylon train parallel --archetypes trader --num-agents 5 --ticks 20
+```
+
+### 2. Train
 
 ```bash
 cd packages/training/python
+python3 -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
 
-# Note: Python commands below assume you're in packages/training/python directory
-# or have PYTHONPATH set to include packages/training/python/src
+python scripts/train_local.py  # Auto-detects MLX/CUDA/CPU
 ```
 
-### 2. Configuration
+## Hardware
 
-Set environment variables:
+| Platform | Backend | Model |
+|----------|---------|-------|
+| Mac M1/M2 (16GB) | MLX | `mlx-community/Qwen2.5-1.5B-Instruct-4bit` |
+| GTX 3060+ | CUDA | `Qwen/Qwen2.5-1.5B-Instruct` |
+| Any | Tinker | Cloud-based |
 
-```env
-# Database
-DATABASE_URL=postgresql://user:pass@host/babylon
-
-# Training
-BASE_MODEL=unsloth/Qwen3-4B-128K
-JUDGE_MODEL=gpt-4o-mini
-ATROPOS_API_URL=http://localhost:8000
-VLLM_PORT=9001
-```
-
-### 3. Start Training
-
-The Atropos training pipeline requires three components running:
-
-**Terminal 1 - Atropos API Server:**
-```bash
-run-api
-```
-
-**Terminal 2 - Babylon RLAIF Environment:**
-```bash
-python -m src.training.babylon_env serve --slurm false
-```
-
-**Terminal 3 - GRPO Trainer:**
-```bash
-python -m src.training.atropos_trainer \
-  --model unsloth/Qwen3-4B-128K \
-  --steps 100 \
-  --batch-size 4 \
-  --lr 1e-5
-```
-
-## Architecture
-
-The training pipeline uses three components:
-
-1. **Atropos API Server** (`run-api`): Coordinates batches between environment and trainer
-2. **Babylon RLAIF Environment** (`babylon_env.py`): Loads trajectories, scores with LLM judge
-3. **GRPO Trainer** (`atropos_trainer.py`): Trains the model using Group Relative Policy Optimization
-
-```
-┌─────────────────┐     ┌──────────────────┐     ┌─────────────────┐
-│   PostgreSQL    │────▶│  Babylon RLAIF   │────▶│  Atropos API    │
-│   Trajectories  │     │   Environment    │     │    Server       │
-└─────────────────┘     └──────────────────┘     └────────┬────────┘
-                              │                          │
-                              │ LLM Judge               │ Batches
-                              ▼                          ▼
-                       ┌──────────────┐          ┌─────────────────┐
-                       │  GPT-4o-mini │          │   GRPO Trainer  │
-                       │   (RLAIF)    │          │   + vLLM        │
-                       └──────────────┘          └─────────────────┘
-```
-
-## Training Process
-
-The Atropos training loop:
-
-1. **Environment** loads trajectories from PostgreSQL
-2. **LLM Judge** scores trajectories using RLAIF (GPT-4o-mini)
-3. **Atropos API** batches scored trajectories
-4. **GRPO Trainer** trains on batches
-5. **Model checkpoint** saved periodically
-6. **vLLM** restarted with updated model
-
-## Data Collection
-
-### Windowing Strategy
-
-**Time Windows**:
-- Default: 1 hour
-- Configurable: 15 minutes to 24 hours
-- Agents: Minimum 3 per window
-- Actions: Minimum 5 per trajectory
-
-**Example Window**:
-```
-Window: 2024-11-13 10:00 - 11:00
-- Agents: 5
-- Trajectories: 47
-- Avg Reward: 0.73
-- Training: Yes
-```
-
-### Quality Filters
-
-**Trajectories must have**:
-- Complete provider data
-- LLM call with reasoning
-- Action result
-- Reward score
-- All timestamps
-
-**Rejected if**:
-- Missing required fields
-- Reward below threshold
-- Incomplete data
-- Malformed JSON
-
-## Training Configuration
-
-### Atropos Configuration
-
-Using YAML config file:
+## Environment
 
 ```bash
-python -m src.training.babylon_env serve --config config/babylon_atropos.yaml
+DATABASE_URL=postgresql://...   # Required
+OPENAI_API_KEY=sk-...           # For RLAIF judge
+TINKER_API_KEY=...              # For cloud training
 ```
 
-Or CLI arguments:
+## How It Works
 
-```bash
-python -m src.training.babylon_env serve \
-  --env--tokenizer_name Qwen/Qwen2.5-3B-Instruct \
-  --env--group_size 4 \
-  --env--max_token_length 4096 \
-  --env--database_url $DATABASE_URL \
-  --openai--model_name Qwen/Qwen2.5-3B-Instruct \
-  --openai--base_url http://localhost:9001/v1 \
-  --slurm false
-```
-
-### Trainer Configuration
-
-```bash
-python -m src.training.atropos_trainer \
-  --model Qwen/Qwen2.5-3B-Instruct \
-  --steps 100 \
-  --batch-size 4 \
-  --lr 1e-5 \
-  --save-path ./trained_models \
-  --api-url http://localhost:8000 \
-  --vllm-port 9001
-```
-
-### Key Configuration Options
-
-| Option | Default | Description |
-|--------|---------|-------------|
-| `group_size` | 4 | Trajectories compared per GRPO group |
-| `max_token_length` | 4096 | Maximum sequence length |
-| `lookback_hours` | 72 | Hours to look back for trajectories |
-| `min_agents_per_window` | 2 | Minimum agents required per window |
-| `judge_model` | gpt-4o-mini | LLM model for RLAIF scoring |
-
-## Supported Models
-
-### Recommended for Training
-
-| Model | VRAM | Notes |
-|-------|------|-------|
-| `unsloth/Qwen3-4B-128K` | ~10GB | **Default** - 4B params, 128K context, ideal for fine-tuning |
-| `Qwen/Qwen2.5-3B-Instruct` | ~8GB | Fast, good quality |
-| `Qwen/Qwen2.5-7B-Instruct` | ~16GB | Better quality |
-| `Qwen/Qwen2.5-14B-Instruct` | ~32GB | Best quality |
-
-### For Apple Silicon (MLX)
-
-| Model | RAM | Notes |
-|-------|-----|-------|
-| `mlx-community/Qwen2.5-3B-Instruct-4bit` | ~4GB | Fast |
-| `mlx-community/Qwen2.5-7B-Instruct-4bit` | ~8GB | Good balance |
-
-## Monitoring
-
-### Training Metrics
-
-Training metrics are logged to `./logs/training_metrics.jsonl`:
-
-```json
-{
-  "step": 100,
-  "loss": 0.21,
-  "grad_norm": 0.45,
-  "pos_logp": -2.3,
-  "neg_logp": -3.1,
-  "total_pos": 12,
-  "total_neg": 8
-}
-```
-
-### Local Debugging
-
-```bash
-# View rollouts in browser
-view-run
-
-# Generate offline data
-python -m src.training.babylon_env process \
-  --env--data_path_to_save_groups output/rollouts.jsonl \
-  --env--total_steps 10
-```
-
-## RLAIF Scoring
-
-The environment uses an LLM judge to score trajectories:
-
-1. **Group Formation**: Trajectories grouped by window/scenario
-2. **Context Injection**: P&L, episode length, actions provided to judge
-3. **Relative Comparison**: Judge compares trajectories within group
-4. **Score Normalization**: Scores normalized to mean 0 for GRPO
-
-### Custom Scoring Rubric
-
-Edit the `scoring_rubric` in your config:
-
-```yaml
-env:
-  scoring_rubric: |
-    You are evaluating trading agent performance.
-    
-    Score from 0.0 to 1.0 based on:
-    - Profitability (50%)
-    - Risk management (30%)  
-    - Decision quality (20%)
-    
-    Compare trajectories RELATIVE to each other.
-```
-
-## Files
-
-### Core Training Files
-
-- `packages/training/python/src/training/babylon_env.py` - RLAIF environment for Atropos
-- `packages/training/python/src/training/atropos_trainer.py` - GRPO trainer
-- `packages/training/python/src/training/rewards.py` - Reward functions
-- `packages/training/python/config/babylon_atropos.yaml` - Default configuration
-
-### Data Bridge
-
-- `packages/training/python/src/data_bridge/reader.py` - PostgreSQL trajectory reader
-- `packages/training/python/src/data_bridge/converter.py` - Trajectory format conversion
-
-## Troubleshooting
-
-### No trajectories found
-
-```bash
-# Check database connection
-python -c "import asyncpg; print('asyncpg OK')"
-
-# Verify trajectories exist
-psql $DATABASE_URL -c "SELECT COUNT(*) FROM trajectories WHERE \"stepsJson\" IS NOT NULL"
-```
-
-### vLLM not starting
-
-```bash
-# Check GPU availability
-python -c "import torch; print(torch.cuda.is_available())"
-
-# Check vLLM installation
-python -c "import vllm; print(vllm.__version__)"
-```
-
-### Environment not connecting to API
-
-```bash
-# Verify API server is running
-curl http://localhost:8000/
-
-# Check registration
-curl http://localhost:8000/status
-```
+1. Agents generate trajectories via `babylon train parallel`
+2. LLM judge scores trajectories using RLAIF
+3. Trainer optimizes model (MLX/CUDA/Tinker)
+4. Updated model deployed
 
 ## HuggingFace Dataset
 
-Training data is automatically published to HuggingFace daily via GitHub Actions.
-
-**Dataset**: [elizaos/babylon-game-data](https://huggingface.co/datasets/elizaos/babylon-game-data) ✅ LIVE
-
-**Contains**:
-- **Agent Trajectories**: Complete gameplay with decisions + environment + ground truth
-- **Benchmark Scenarios**: Game simulations for evaluation
-- **Model Performance**: Results from model testing
-- **Organized by Month**: Easy browsing (2025-10, 2025-11, etc.)
-
-**Updated**: Daily at 2 AM UTC via GitHub Actions
-
-**Usage**:
 ```python
 from datasets import load_dataset
-
-# Load dataset
 dataset = load_dataset("elizaos/babylon-game-data")
-
-# Use for training
-trajectories = dataset['train']
 ```
-
-**Offline Simulation** (100-1000x faster):
-```bash
-# Download
-huggingface-cli download elizaos/babylon-game-data
-
-# Run offline
-npm run hf:offline -- --month=2025-11 --agent=my-agent
-```
-
-**See**: [HuggingFace Integration](/agents/huggingface-integration) for complete guide and setup
-
----
-
-## Resources
-
-- **Full Documentation**: `packages/training/python/README.md`
-- **Atropos Trainer**: `packages/training/python/src/training/atropos_trainer.py`
-- **Babylon Environment**: `packages/training/python/src/training/babylon_env.py`
-- **Automation Pipeline**: `packages/training/src/training/AutomationPipeline.ts`
-- **HuggingFace Dataset**: https://huggingface.co/datasets/elizaos/babylon-game-data
 
 ## Next Steps
 
-- [HuggingFace Integration](/agents/huggingface-integration) - **NEW!** Dataset on HuggingFace
 - [Trajectory Logging](/agents/trajectory-logging)
-- [Autonomous Agents](/agents/autonomous-guide)
-- [Autonomous Agent Guide](/agents/autonomous-guide) - Learn about autonomous agents
-- [Python LangGraph Example](/agent-examples/langchain-python)
+- [Autonomous Guide](/agents/autonomous-guide)
 

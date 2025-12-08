@@ -69,7 +69,12 @@
  * @see {@link /lib/db/context} RLS context
  */
 
-import type { NextRequest } from 'next/server';
+import {
+  NotFoundError,
+  optionalAuth,
+  successResponse,
+  withErrorHandling,
+} from '@babylon/api';
 import {
   comments,
   count,
@@ -80,11 +85,8 @@ import {
   reactions,
   users,
 } from '@babylon/db';
-import { optionalAuth } from '@babylon/api';
-import { NotFoundError } from '@babylon/api';
-import { successResponse, withErrorHandling } from '@babylon/api';
-import { logger } from '@babylon/shared';
-import { UsernameParamSchema } from '@babylon/shared';
+import { logger, UsernameParamSchema } from '@babylon/shared';
+import type { NextRequest } from 'next/server';
 
 /**
  * GET /api/users/by-username/[username]

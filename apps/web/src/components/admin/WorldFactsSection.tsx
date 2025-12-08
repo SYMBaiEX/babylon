@@ -1,9 +1,9 @@
 'use client';
 
+import { cn } from '@babylon/shared';
 import { Edit, Globe, Newspaper, RefreshCw, Save, X, Zap } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { Skeleton } from '@/components/shared/Skeleton';
-import { cn } from '@babylon/shared';
 
 /**
  * World fact structure for world facts section.

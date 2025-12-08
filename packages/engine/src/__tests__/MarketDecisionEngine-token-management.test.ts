@@ -133,9 +133,9 @@ mock.module('@babylon/db', () => ({
 }));
 
 import type { BabylonLLMClient } from '../llm/openai-client';
+import { MarketDecisionEngine } from '../MarketDecisionEngine';
 import { MarketContextService } from '../services/market-context-service';
 import type { NPCMarketContext } from '../types/market-context';
-import { MarketDecisionEngine } from '../MarketDecisionEngine';
 
 interface JSONSchemaProperty {
   type?: 'string' | 'number' | 'boolean' | 'object' | 'array';
@@ -310,8 +310,6 @@ describe('MarketDecisionEngine - Token Management', () => {
   describe('Initialization', () => {
     test('should initialize with default model and token limits', () => {
       const engine = new MarketDecisionEngine(mockLLM, mockContext);
-
-      // Should initialize without errors
       expect(engine).toBeDefined();
     });
 
@@ -325,7 +323,6 @@ describe('MarketDecisionEngine - Token Management', () => {
     });
 
     test('should use qwen/qwen3-32b by default', () => {
-      // The default model should be qwen/qwen3-32b
       const engine = new MarketDecisionEngine(mockLLM, mockContext);
       expect(engine).toBeDefined();
     });
@@ -356,19 +353,19 @@ describe('MarketDecisionEngine - Token Management', () => {
       const decisions = await engine.generateBatchDecisions();
 
       expect(decisions.length).toBe(10);
-      expect(mockLLMInstance.getCallCount()).toBe(1); // Should be single batch
+      expect(mockLLMInstance.getCallCount()).toBe(1);
     });
 
     test('should split large NPC count into multiple batches', async () => {
-      // Create 100 NPCs (should require 4 batches with current config: 32 NPCs per batch)
-      // Actual implementation: 2000 tokens per NPC, ~128k max context, 50% safety = 32 NPCs per batch
-      // 100 NPCs / 32 = 3.125 -> 4 batches
+      // Create 100 NPCs (should require 5 batches with current config: 20 NPCs per batch max)
+      // Batch size is capped at 20 to avoid hitting output token limits (32k)
+      // 100 NPCs / 20 = 5 batches
       const npcs = Array.from({ length: 100 }, (_, i) =>
         createMockNPC(`npc-${i}`, `NPC ${i}`)
       );
       mockContext.setMockNPCs(npcs);
 
-      // Mock responses for each batch (32 NPCs per batch)
+      // Mock responses for each batch (20 NPCs per batch max)
       const createBatch = (start: number, count: number) =>
         npcs.slice(start, start + count).map((npc) => ({
           npcId: npc.npcId,
@@ -381,16 +378,17 @@ describe('MarketDecisionEngine - Token Management', () => {
           timestamp: new Date().toISOString(),
         }));
 
-      mockLLMInstance.setMockResponse(createBatch(0, 32));
-      mockLLMInstance.setMockResponse(createBatch(32, 32));
-      mockLLMInstance.setMockResponse(createBatch(64, 32));
-      mockLLMInstance.setMockResponse(createBatch(96, 4)); // Last batch has 4 NPCs
+      mockLLMInstance.setMockResponse(createBatch(0, 20));
+      mockLLMInstance.setMockResponse(createBatch(20, 20));
+      mockLLMInstance.setMockResponse(createBatch(40, 20));
+      mockLLMInstance.setMockResponse(createBatch(60, 20));
+      mockLLMInstance.setMockResponse(createBatch(80, 20)); // Last batch has 20 NPCs
 
       const engine = new MarketDecisionEngine(mockLLM, mockContext);
       const decisions = await engine.generateBatchDecisions();
 
       expect(decisions.length).toBe(100);
-      expect(mockLLMInstance.getCallCount()).toBe(4); // Should be exactly 4 batches
+      expect(mockLLMInstance.getCallCount()).toBe(5); // 5 batches of 20 NPCs each
     });
   });
 
@@ -545,7 +543,6 @@ describe('MarketDecisionEngine - Token Management', () => {
       const engine = new MarketDecisionEngine(mockLLM, mockContext);
       const decisions = await engine.generateBatchDecisions();
 
-      // Should complete without token overflow
       expect(decisions.length).toBe(1);
     });
 
@@ -630,10 +627,11 @@ describe('MarketDecisionEngine - Token Management', () => {
       mockLLMInstance.setMockResponse(mockResponse);
 
       const engine = new MarketDecisionEngine(mockLLM, mockContext);
-      const decisions = await engine.generateBatchDecisions();
 
-      // Should be rejected (filtered out)
-      expect(decisions.length).toBe(0);
+      // In test mode, exceeding balance skips the decision (no throw)
+      // In dev mode, it would throw - but tests skip fail-fast behavior
+      const decisions = await engine.generateBatchDecisions();
+      expect(decisions.length).toBe(0); // Decision rejected due to exceeding balance
     });
 
     test('should accept valid trade decisions', async () => {
@@ -682,8 +680,7 @@ describe('MarketDecisionEngine - Token Management', () => {
       ];
       mockContext.setMockNPCs(npcs);
 
-      // First call (batch) fails, then individual calls succeed
-      mockLLMInstance.setMockResponse(null); // Batch failure
+      mockLLMInstance.setMockResponse(null);
       mockLLMInstance.setMockResponse([
         {
           npcId: 'npc1',
@@ -711,10 +708,8 @@ describe('MarketDecisionEngine - Token Management', () => {
 
       const engine = new MarketDecisionEngine(mockLLM, mockContext);
 
-      // Should handle the error gracefully
       const decisions = await engine.generateBatchDecisions();
 
-      // Should get some decisions from individual retries
       expect(decisions).toBeDefined();
     });
   });

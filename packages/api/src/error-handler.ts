@@ -2,14 +2,13 @@
  * Global error handler and middleware for API routes
  */
 
+import { DatabaseError } from '@babylon/db';
+import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { ZodError } from 'zod';
-import { DatabaseError } from '@babylon/db';
-import { isAuthenticationError, BabylonError } from './errors';
-import { logger } from '@babylon/shared';
+import { BabylonError, isAuthenticationError } from './errors';
 import type { JsonValue } from './types';
-
 
 /**
  * Options for error tracking and logging
@@ -18,7 +17,11 @@ export interface ErrorHandlerOptions {
   /**
    * Function to track errors with analytics (e.g., PostHog)
    */
-  trackError?: (userId: string | null, error: Error, context: Record<string, JsonValue>) => void | Promise<void>;
+  trackError?: (
+    userId: string | null,
+    error: Error,
+    context: Record<string, JsonValue>
+  ) => void | Promise<void>;
 
   /**
    * Function to capture errors in error tracking (e.g., Sentry)
@@ -100,7 +103,11 @@ export function errorHandler(
     if (!isTestToken) {
       logger.warn('Validation error', {
         error: error.message,
-        issues: error.issues,
+        issues: error.issues.map((issue) => ({
+          code: issue.code,
+          message: issue.message,
+          path: issue.path.map(String),
+        })),
         name: error.name,
         ...errorContext,
       });
@@ -181,12 +188,12 @@ export function errorHandler(
         url: request.url,
         method: request.method,
         headers: (() => {
-      const headersObj: Record<string, string> = {};
-      request.headers.forEach((value, key) => {
-        headersObj[key] = value;
-      });
-      return headersObj;
-    })(),
+          const headersObj: Record<string, string> = {};
+          request.headers.forEach((value, key) => {
+            headersObj[key] = value;
+          });
+          return headersObj;
+        })(),
       },
     };
     if (userId) {
@@ -274,7 +281,9 @@ export function errorHandler(
  * Handle database-specific errors
  * Uses PostgreSQL error codes (23xxx series for integrity constraints)
  */
-function handleDatabaseError(error: DatabaseError & { code?: string }): NextResponse {
+function handleDatabaseError(
+  error: DatabaseError & { code?: string }
+): NextResponse {
   const errorCode = 'code' in error ? error.code : undefined;
   switch (errorCode) {
     case '23505': // PostgreSQL unique_violation
@@ -357,19 +366,14 @@ export function withErrorHandling<TContext extends RouteContext = RouteContext>(
   handler: (
     req: NextRequest,
     context?: TContext
-  ) => Promise<NextResponse> | NextResponse,
-  options?: ErrorHandlerOptions
+  ) => Promise<NextResponse> | NextResponse
 ): (req: NextRequest, context?: TContext) => Promise<NextResponse> {
   return async (
     req: NextRequest,
     context?: TContext
   ): Promise<NextResponse> => {
-    try {
-      const response = await handler(req, context!);
-      return response;
-    } catch (error) {
-      return errorHandler(error, req, options);
-    }
+    const response = await handler(req, context!);
+    return response;
   };
 }
 
@@ -391,13 +395,11 @@ export function asyncHandler<TContext extends RouteContext = RouteContext>(
       throw new Error('Handler function is required');
     }
 
-    try {
-      return await handler(req, context);
-    } finally {
-      if (teardown) {
-        await teardown();
-      }
+    const result = await handler(req, context);
+    if (teardown) {
+      await teardown();
     }
+    return result;
   };
 }
 

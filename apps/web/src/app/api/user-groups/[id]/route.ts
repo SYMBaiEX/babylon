@@ -102,8 +102,7 @@
  * ```
  */
 
-import type { NextRequest } from 'next/server';
-import { NextResponse } from 'next/server';
+import { authenticate, withErrorHandling } from '@babylon/api';
 import {
   and,
   chatParticipants,
@@ -116,8 +115,8 @@ import {
   userGroups,
   users,
 } from '@babylon/db';
-import { authenticate } from '@babylon/api';
-import { withErrorHandling } from '@babylon/api';
+import type { NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
 /**

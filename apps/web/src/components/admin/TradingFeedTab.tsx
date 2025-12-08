@@ -1,11 +1,11 @@
 'use client';
 
+import { cn } from '@babylon/shared';
 import { Activity, Plus, RefreshCw, X } from 'lucide-react';
 import { useCallback, useEffect, useState, useTransition } from 'react';
 import { z } from 'zod';
 import { Avatar } from '@/components/shared/Avatar';
 import { Skeleton } from '@/components/shared/Skeleton';
-import { cn } from '@babylon/shared';
 
 /**
  * Trade type schema for validation.
@@ -185,15 +185,18 @@ export function TradingFeedTab() {
     setLoading(false);
   }, [filter]);
 
-  const fetchTrades = useCallback((showRefreshing = false) => {
-    if (showRefreshing) {
-      startRefresh(async () => {
-        await fetchAndSetTrades();
-      });
-    } else {
-      fetchAndSetTrades();
-    }
-  }, [fetchAndSetTrades]);
+  const fetchTrades = useCallback(
+    (showRefreshing = false) => {
+      if (showRefreshing) {
+        startRefresh(async () => {
+          await fetchAndSetTrades();
+        });
+      } else {
+        fetchAndSetTrades();
+      }
+    },
+    [fetchAndSetTrades]
+  );
 
   useEffect(() => {
     fetchTrades();
@@ -210,52 +213,47 @@ export function TradingFeedTab() {
     const tradeType = formData.get('tradeType') as string;
     const payload: Record<string, unknown> = { type: tradeType };
 
-    try {
-      if (tradeType === 'balance') {
-        payload.userId = formData.get('userId') as string;
-        payload.transactionType = formData.get('transactionType') as string;
-        payload.amount = parseFloat(formData.get('amount') as string);
-        payload.description =
-          (formData.get('description') as string) || undefined;
-        payload.relatedId = (formData.get('relatedId') as string) || undefined;
-        payload.updateBalance = formData.get('updateBalance') === 'true';
-      } else if (tradeType === 'npc') {
-        payload.npcActorId = formData.get('npcActorId') as string;
-        payload.marketType = formData.get('marketType') as string;
-        payload.ticker = (formData.get('ticker') as string) || undefined;
-        payload.marketId = (formData.get('marketId') as string) || undefined;
-        payload.action = formData.get('action') as string;
-        payload.side = (formData.get('side') as string) || undefined;
-        payload.amount = parseFloat(formData.get('amount') as string);
-        payload.price = parseFloat(formData.get('price') as string);
-        payload.sentiment = formData.get('sentiment')
-          ? parseFloat(formData.get('sentiment') as string)
-          : undefined;
-        payload.reason = (formData.get('reason') as string) || undefined;
-      }
-
-      const response = await fetch('/api/admin/trades', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to create trade');
-      }
-
-      // Refresh trades and close form
-      await fetchAndSetTrades();
-      setShowCreateForm(false);
-      e.currentTarget.reset();
-    } catch (error) {
-      setCreateError(
-        error instanceof Error ? error.message : 'Failed to create trade'
-      );
-    } finally {
-      setCreating(false);
+    if (tradeType === 'balance') {
+      payload.userId = formData.get('userId') as string;
+      payload.transactionType = formData.get('transactionType') as string;
+      payload.amount = parseFloat(formData.get('amount') as string);
+      payload.description =
+        (formData.get('description') as string) || undefined;
+      payload.relatedId = (formData.get('relatedId') as string) || undefined;
+      payload.updateBalance = formData.get('updateBalance') === 'true';
+    } else if (tradeType === 'npc') {
+      payload.npcActorId = formData.get('npcActorId') as string;
+      payload.marketType = formData.get('marketType') as string;
+      payload.ticker = (formData.get('ticker') as string) || undefined;
+      payload.marketId = (formData.get('marketId') as string) || undefined;
+      payload.action = formData.get('action') as string;
+      payload.side = (formData.get('side') as string) || undefined;
+      payload.amount = parseFloat(formData.get('amount') as string);
+      payload.price = parseFloat(formData.get('price') as string);
+      payload.sentiment = formData.get('sentiment')
+        ? parseFloat(formData.get('sentiment') as string)
+        : undefined;
+      payload.reason = (formData.get('reason') as string) || undefined;
     }
+
+    const response = await fetch('/api/admin/trades', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      setCreating(false);
+      setCreateError(errorData.error || 'Failed to create trade');
+      return;
+    }
+
+    // Refresh trades and close form
+    await fetchAndSetTrades();
+    setShowCreateForm(false);
+    e.currentTarget.reset();
+    setCreating(false);
   };
 
   const formatCurrency = (value: string | number) => {

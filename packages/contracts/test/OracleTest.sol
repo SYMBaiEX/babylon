@@ -25,9 +25,7 @@ contract OracleTest is DiamondTestSetup {
         oracle.requestChainlinkResolution{value: oracleFee}(marketId);
 
         // Simulate oracle fulfillment
-        bytes32 requestId = bytes32(uint256(1)); // Mock request ID
-
-        // Find the actual request ID by checking the oracle
+        // Note: Mock request ID would be bytes32(uint256(1))
         // In a real test, we'd capture this from events
     }
 
@@ -59,31 +57,31 @@ contract OracleTest is DiamondTestSetup {
         assertEq(winningOutcome, 0, "Winning outcome should be 0");
     }
 
-    /// @notice Test UMA optimistic oracle assertion
-    function testUMAOracleAssertion() public {
+    /// @notice Test mock oracle assertion
+    function testMockOracleAssertion() public {
         bytes32 marketId = createBasicMarket();
 
         // Warp to resolution time
         vm.warp(block.timestamp + 31 days);
 
-        // Request UMA resolution with proposed outcome
-        uint256 disputeBond = umaOracle.DISPUTE_BOND();
-        oracle.requestUMAResolution{value: disputeBond}(marketId, 0);
+        // Request mock resolution with proposed outcome
+        uint256 disputeBond = mockOracle.DISPUTE_BOND();
+        oracle.requestMockResolution{value: disputeBond}(marketId, 0);
 
         // Verify assertion was made (would check events in real test)
     }
 
-    /// @notice Test UMA assertion settlement without dispute
-    function testUMAAssertionSettlement() public {
+    /// @notice Test mock assertion settlement without dispute
+    function testMockAssertionSettlement() public {
         bytes32 marketId = createBasicMarket();
 
         // Warp to resolution time
         vm.warp(block.timestamp + 31 days);
 
         // Make assertion from user1 (so bond can be returned to EOA)
-        uint256 disputeBond = umaOracle.DISPUTE_BOND();
+        uint256 disputeBond = mockOracle.DISPUTE_BOND();
         vm.prank(user1);
-        bytes32 assertionId = umaOracle.assertTruth{value: disputeBond}(
+        bytes32 assertionId = mockOracle.assertTruth{value: disputeBond}(
             marketId,
             bytes32(uint256(0))
         );
@@ -92,7 +90,7 @@ contract OracleTest is DiamondTestSetup {
         vm.warp(block.timestamp + 3 hours);
 
         // Settle assertion
-        umaOracle.settleAssertion(assertionId);
+        mockOracle.settleAssertion(assertionId);
 
         // Verify oracle state (not testing market resolution since we're calling oracle directly)
         (
@@ -104,33 +102,33 @@ contract OracleTest is DiamondTestSetup {
             ,
             bool resolved,
             bytes32 resolvedOutcome
-        ) = umaOracle.getAssertion(assertionId);
+        ) = mockOracle.getAssertion(assertionId);
 
         assertTrue(resolved, "Assertion should be resolved");
         assertEq(uint256(resolvedOutcome), 0, "Resolved outcome should be 0");
     }
 
-    /// @notice Test UMA assertion dispute and resolution
-    function testUMAAssertionDispute() public {
+    /// @notice Test mock assertion dispute and resolution
+    function testMockAssertionDispute() public {
         bytes32 marketId = createBasicMarket();
 
         // Warp to resolution time
         vm.warp(block.timestamp + 31 days);
 
         // User1 makes assertion
-        uint256 disputeBond = umaOracle.DISPUTE_BOND();
+        uint256 disputeBond = mockOracle.DISPUTE_BOND();
         vm.prank(user1);
-        bytes32 assertionId = umaOracle.assertTruth{value: disputeBond}(
+        bytes32 assertionId = mockOracle.assertTruth{value: disputeBond}(
             marketId,
             bytes32(uint256(0))
         );
 
         // User2 disputes
         vm.prank(user2);
-        umaOracle.disputeAssertion{value: disputeBond}(assertionId);
+        mockOracle.disputeAssertion{value: disputeBond}(assertionId);
 
-        // Owner resolves dispute (simulating DVM)
-        umaOracle.resolveDispute(assertionId, bytes32(uint256(1)));
+        // Owner resolves dispute
+        mockOracle.resolveDispute(assertionId, bytes32(uint256(1)));
 
         // Verify oracle state (not testing market resolution since we're calling oracle directly)
         (
@@ -142,7 +140,7 @@ contract OracleTest is DiamondTestSetup {
             bool disputed,
             bool resolved,
             bytes32 resolvedOutcome
-        ) = umaOracle.getAssertion(assertionId);
+        ) = mockOracle.getAssertion(assertionId);
 
         assertTrue(disputed, "Assertion should be disputed");
         assertTrue(resolved, "Assertion should be resolved");
@@ -195,25 +193,25 @@ contract OracleTest is DiamondTestSetup {
     }
 
     /// @notice Test oracle address getters
-    function testGetOracleAddresses() public {
-        (address chainlink, address uma) = oracle.getOracleAddresses();
+    function testGetOracleAddresses() public view {
+        (address chainlink, address mock) = oracle.getOracleAddresses();
 
         assertEq(chainlink, address(chainlinkOracle), "Chainlink address should match");
-        assertEq(uma, address(umaOracle), "UMA address should match");
+        assertEq(mock, address(mockOracle), "Mock address should match");
     }
 
     /// @notice Test set oracle addresses (owner only)
     function testSetOracleAddresses() public {
         address newChainlink = makeAddr("newChainlink");
-        address newUMA = makeAddr("newUMA");
+        address newMock = makeAddr("newMock");
 
         oracle.setChainlinkOracle(newChainlink);
-        oracle.setUMAOracle(newUMA);
+        oracle.setMockOracle(newMock);
 
-        (address chainlink, address uma) = oracle.getOracleAddresses();
+        (address chainlink, address mock) = oracle.getOracleAddresses();
 
         assertEq(chainlink, newChainlink);
-        assertEq(uma, newUMA);
+        assertEq(mock, newMock);
     }
 
     /// @notice Test non-owner cannot set oracle addresses
@@ -259,8 +257,8 @@ contract OracleTest is DiamondTestSetup {
         assertGt(balance, 10 ether, "Winner should profit");
     }
 
-    /// @notice Test full flow with UMA oracle
-    function testFullFlowWithUMA() public {
+    /// @notice Test full flow with mock oracle
+    function testFullFlowWithMockOracle() public {
         bytes32 marketId = createBasicMarket();
 
         // Users buy shares
@@ -277,9 +275,9 @@ contract OracleTest is DiamondTestSetup {
         // Warp to resolution
         vm.warp(block.timestamp + 31 days);
 
-        // Request UMA resolution through diamond (oracle is owner in this test)
-        uint256 disputeBond = umaOracle.DISPUTE_BOND();
-        oracle.requestUMAResolution{value: disputeBond}(marketId, 1);
+        // Request mock resolution through diamond (oracle is owner in this test)
+        uint256 disputeBond = mockOracle.DISPUTE_BOND();
+        oracle.requestMockResolution{value: disputeBond}(marketId, 1);
 
         // Wait for liveness period
         vm.warp(block.timestamp + 3 hours);
@@ -287,8 +285,8 @@ contract OracleTest is DiamondTestSetup {
         // Find the assertion ID by checking the oracle
         // In production, this would be tracked via events
         // For now, we'll settle manually via callback
-        vm.prank(address(umaOracle));
-        oracle.umaOracleCallback(marketId, 1);
+        vm.prank(address(mockOracle));
+        oracle.mockOracleCallback(marketId, 1);
 
         // Winner claims
         vm.prank(user2);

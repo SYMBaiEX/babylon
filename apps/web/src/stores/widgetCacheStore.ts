@@ -3,7 +3,6 @@
  * when navigating between pages
  */
 
-import { create } from 'zustand';
 import type { A2AReputationResponse } from '@babylon/agents/client';
 import type {
   PerpPositionFromAPI,
@@ -11,6 +10,7 @@ import type {
   UserBalanceData,
   UserProfileStats,
 } from '@babylon/shared';
+import { create } from 'zustand';
 
 /**
  * Trending item structure for trending panel (supports grouped trends).

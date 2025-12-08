@@ -28,6 +28,8 @@
 
 'use client';
 
+import type { AgentTemplate } from '@babylon/agents/client';
+import { cn } from '@babylon/shared';
 import {
   ArrowLeft,
   Bot,
@@ -48,9 +50,7 @@ import { PageContainer } from '@/components/shared/PageContainer';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import type { AgentTemplate } from '@babylon/agents/client';
 import { useAuth } from '@/hooks/useAuth';
-import { cn } from '@babylon/shared';
 
 /**
  * Local storage key for saving agent drafts
@@ -67,46 +67,147 @@ const TOTAL_PROFILE_PICTURES = 100;
  */
 const NAME_PREFIXES = [
   // Greek letters
-  'Alpha', 'Beta', 'Gamma', 'Delta', 'Epsilon', 'Zeta', 'Eta', 'Theta',
-  'Iota', 'Kappa', 'Lambda', 'Mu', 'Nu', 'Xi', 'Omicron', 'Pi', 'Rho',
-  'Sigma', 'Tau', 'Upsilon', 'Phi', 'Chi', 'Psi', 'Omega',
+  'Alpha',
+  'Beta',
+  'Gamma',
+  'Delta',
+  'Epsilon',
+  'Zeta',
+  'Eta',
+  'Theta',
+  'Iota',
+  'Kappa',
+  'Lambda',
+  'Mu',
+  'Nu',
+  'Xi',
+  'Omicron',
+  'Pi',
+  'Rho',
+  'Sigma',
+  'Tau',
+  'Upsilon',
+  'Phi',
+  'Chi',
+  'Psi',
+  'Omega',
   // Tech/Cyber
-  'Quantum', 'Neo', 'Cyber', 'Nexus', 'Apex', 'Vertex', 'Pulse', 'Flux',
-  'Vector', 'Helix', 'Prism', 'Matrix', 'Cipher', 'Binary', 'Neural',
+  'Quantum',
+  'Neo',
+  'Cyber',
+  'Nexus',
+  'Apex',
+  'Vertex',
+  'Pulse',
+  'Flux',
+  'Vector',
+  'Helix',
+  'Prism',
+  'Matrix',
+  'Cipher',
+  'Binary',
+  'Neural',
   // Nature/Elements
-  'Nova', 'Solar', 'Lunar', 'Stellar', 'Cosmic', 'Astral', 'Phoenix',
-  'Storm', 'Thunder', 'Frost', 'Ember', 'Shadow', 'Dawn', 'Dusk',
+  'Nova',
+  'Solar',
+  'Lunar',
+  'Stellar',
+  'Cosmic',
+  'Astral',
+  'Phoenix',
+  'Storm',
+  'Thunder',
+  'Frost',
+  'Ember',
+  'Shadow',
+  'Dawn',
+  'Dusk',
   // Power/Status
-  'Iron', 'Steel', 'Titan', 'Atlas', 'Orion', 'Vortex', 'Blaze', 'Spark',
-  'Echo', 'Phantom', 'Specter', 'Raven', 'Falcon', 'Hawk', 'Eagle',
+  'Iron',
+  'Steel',
+  'Titan',
+  'Atlas',
+  'Orion',
+  'Vortex',
+  'Blaze',
+  'Spark',
+  'Echo',
+  'Phantom',
+  'Specter',
+  'Raven',
+  'Falcon',
+  'Hawk',
+  'Eagle',
   // Abstract
-  'Zen', 'Aura', 'Axiom', 'Lumen', 'Photon', 'Quark', 'Volt', 'Arc',
+  'Zen',
+  'Aura',
+  'Axiom',
+  'Lumen',
+  'Photon',
+  'Quark',
+  'Volt',
+  'Arc',
 ];
 
 const NAME_SUFFIXES = [
   // Role-based
-  'Trader', 'Agent', 'Bot', 'AI', 'Mind', 'Brain', 'Sage', 'Oracle',
+  'Trader',
+  'Agent',
+  'Bot',
+  'AI',
+  'Mind',
+  'Brain',
+  'Sage',
+  'Oracle',
   // Technical
-  'Core', 'Node', 'Edge', 'Prime', 'Pro', 'Max', 'Ultra', 'Plus',
-  'X', 'Zero', 'One', 'Protocol', 'System', 'Engine', 'Logic',
+  'Core',
+  'Node',
+  'Edge',
+  'Prime',
+  'Pro',
+  'Max',
+  'Ultra',
+  'Plus',
+  'X',
+  'Zero',
+  'One',
+  'Protocol',
+  'System',
+  'Engine',
+  'Logic',
   // Abstract
-  'Flow', 'Wave', 'Sync', 'Link', 'Net', 'Hub', 'Lab', 'Works',
-  'Force', 'Drive', 'Pulse', 'Signal', 'Stream', 'Grid', 'Mesh',
+  'Flow',
+  'Wave',
+  'Sync',
+  'Link',
+  'Net',
+  'Hub',
+  'Lab',
+  'Works',
+  'Force',
+  'Drive',
+  'Pulse',
+  'Signal',
+  'Stream',
+  'Grid',
+  'Mesh',
 ];
 
 /**
  * Generate a unique random agent name
  * Combines prefix + suffix + numeric identifier for uniqueness
- * 
+ *
  * Total combinations: 65 prefixes × 35 suffixes × 9000 numbers = 20,475,000+
  */
 const generateAgentName = (): string => {
-  const prefix = NAME_PREFIXES[Math.floor(Math.random() * NAME_PREFIXES.length)]!;
-  const suffix = NAME_SUFFIXES[Math.floor(Math.random() * NAME_SUFFIXES.length)]!;
-  
+  const prefix =
+    NAME_PREFIXES[Math.floor(Math.random() * NAME_PREFIXES.length)]!;
+  const suffix =
+    NAME_SUFFIXES[Math.floor(Math.random() * NAME_SUFFIXES.length)]!;
+
   // Always add a unique 4-digit identifier (1000-9999) for guaranteed uniqueness
   const number = Math.floor(Math.random() * 9000) + 1000;
-  
+
   return `${prefix}${suffix}-${number}`;
 };
 
@@ -210,117 +311,85 @@ export default function CreateAgentPage() {
     const loadTemplate = async () => {
       const savedData = localStorage.getItem(STORAGE_KEY);
       if (savedData) {
-        try {
-          const parsed = JSON.parse(savedData);
-          // Only load saved data if it has all required fields
-          if (
-            parsed.profileData &&
-            parsed.profileData.displayName &&
-            parsed.profileData.username
-          ) {
-            setProfileData(parsed.profileData);
-          }
-          if (parsed.agentData && parsed.agentData.system) {
-            setAgentData(parsed.agentData);
-          }
-          // If profile data is complete, use saved draft
-          if (
-            parsed.profileData &&
-            parsed.profileData.displayName &&
-            parsed.profileData.username
-          ) {
-            setIsInitialized(true);
-            return;
-          }
-        } catch (error) {
-          console.error('Failed to parse saved data:', error);
-          localStorage.removeItem(STORAGE_KEY);
+        const parsed = JSON.parse(savedData);
+        // Only load saved data if it has all required fields
+        if (
+          parsed.profileData &&
+          parsed.profileData.displayName &&
+          parsed.profileData.username
+        ) {
+          setProfileData(parsed.profileData);
+        }
+        if (parsed.agentData && parsed.agentData.system) {
+          setAgentData(parsed.agentData);
+        }
+        // If profile data is complete, use saved draft
+        if (
+          parsed.profileData &&
+          parsed.profileData.displayName &&
+          parsed.profileData.username
+        ) {
+          setIsInitialized(true);
+          return;
         }
       }
 
       // Load random template and customize with unique name
-      try {
-        const indexResponse = await fetch('/api/agent-templates');
-        if (!indexResponse.ok) throw new Error('Failed to load template index');
+      const indexResponse = await fetch('/api/agent-templates');
+      if (!indexResponse.ok) throw new Error('Failed to load template index');
 
-        const index = (await indexResponse.json()) as { templates: string[] };
-        if (!index.templates || index.templates.length === 0) {
-          throw new Error('No templates available');
-        }
-
-        const randomTemplate =
-          index.templates[Math.floor(Math.random() * index.templates.length)]!;
-
-        const templateResponse = await fetch(
-          `/api/agent-templates/${randomTemplate}`
-        );
-        if (!templateResponse.ok) throw new Error('Failed to load template');
-
-        const template = (await templateResponse.json()) as AgentTemplate;
-
-        // Generate agent name
-        const agentName = generateAgentName();
-
-        // Replace placeholders
-        const processedTemplate = {
-          ...template,
-          name: template.name.replace('{{agentName}}', agentName),
-          system: template.system.replace(/{{agentName}}/g, agentName),
-          personality: template.personality.replace(/{{agentName}}/g, agentName),
-          tradingStrategy: template.tradingStrategy.replace(/{{agentName}}/g, agentName),
-        };
-
-        // Set random images
-        const randomPfp =
-          Math.floor(Math.random() * TOTAL_PROFILE_PICTURES) + 1;
-        const randomBanner =
-          Math.floor(Math.random() * TOTAL_PROFILE_PICTURES) + 1;
-
-        // Initialize form data
-        setProfileData({
-          username: agentName.toLowerCase().replace(/\s+/g, ''),
-          displayName: processedTemplate.name,
-          bio: processedTemplate.description,
-          profileImageUrl: `/assets/user-profiles/profile-${randomPfp}.jpg`,
-          coverImageUrl: `/assets/user-banners/banner-${randomBanner}.jpg`,
-        });
-
-        setAgentData({
-          system: processedTemplate.system,
-          personality: processedTemplate.bio,
-          tradingStrategy: processedTemplate.tradingStrategy,
-          initialDeposit: 100,
-        });
-
-        setIsInitialized(true);
-      } catch (error) {
-        console.error('Failed to load template:', error);
-        toast.error('Failed to load agent template. Using defaults.');
-
-        // Fallback to defaults
-        const agentName = generateAgentName();
-        const randomPfp =
-          Math.floor(Math.random() * TOTAL_PROFILE_PICTURES) + 1;
-        const randomBanner =
-          Math.floor(Math.random() * TOTAL_PROFILE_PICTURES) + 1;
-
-        setProfileData({
-          username: agentName.toLowerCase().replace(/\s+/g, ''),
-          displayName: agentName,
-          bio: 'An AI-powered trading agent ready to analyze markets.',
-          profileImageUrl: `/assets/user-profiles/profile-${randomPfp}.jpg`,
-          coverImageUrl: `/assets/user-banners/banner-${randomBanner}.jpg`,
-        });
-
-        setAgentData({
-          system: `You are ${agentName}, an AI trading agent. You analyze market data, identify opportunities, and make informed trading decisions. You communicate clearly and provide reasoning for your trades.`,
-          personality: 'Analytical and precise. Communicates with confidence while acknowledging uncertainty. Focuses on data-driven insights.',
-          tradingStrategy: 'Combines technical and fundamental analysis. Uses risk management with position sizing. Monitors key indicators and market sentiment.',
-          initialDeposit: 100,
-        });
-
-        setIsInitialized(true);
+      const index = (await indexResponse.json()) as { templates: string[] };
+      if (!index.templates || index.templates.length === 0) {
+        throw new Error('No templates available');
       }
+
+      const randomTemplate =
+        index.templates[Math.floor(Math.random() * index.templates.length)]!;
+
+      const templateResponse = await fetch(
+        `/api/agent-templates/${randomTemplate}`
+      );
+      if (!templateResponse.ok) throw new Error('Failed to load template');
+
+      const template = (await templateResponse.json()) as AgentTemplate;
+
+      // Generate agent name
+      const agentName = generateAgentName();
+
+      // Replace placeholders
+      const processedTemplate = {
+        ...template,
+        name: template.name.replace('{{agentName}}', agentName),
+        system: template.system.replace(/{{agentName}}/g, agentName),
+        personality: template.personality.replace(/{{agentName}}/g, agentName),
+        tradingStrategy: template.tradingStrategy.replace(
+          /{{agentName}}/g,
+          agentName
+        ),
+      };
+
+      // Set random images
+      const randomPfp = Math.floor(Math.random() * TOTAL_PROFILE_PICTURES) + 1;
+      const randomBanner =
+        Math.floor(Math.random() * TOTAL_PROFILE_PICTURES) + 1;
+
+      // Initialize form data
+      setProfileData({
+        username: agentName.toLowerCase().replace(/\s+/g, ''),
+        displayName: processedTemplate.name,
+        bio: processedTemplate.description,
+        profileImageUrl: `/assets/user-profiles/profile-${randomPfp}.jpg`,
+        coverImageUrl: `/assets/user-banners/banner-${randomBanner}.jpg`,
+      });
+
+      setAgentData({
+        system: processedTemplate.system,
+        personality: processedTemplate.bio,
+        tradingStrategy: processedTemplate.tradingStrategy,
+        initialDeposit: 100,
+      });
+
+      setIsInitialized(true);
     };
 
     loadTemplate();
@@ -330,17 +399,13 @@ export default function CreateAgentPage() {
   useEffect(() => {
     if (!isInitialized) return;
 
-    try {
-      localStorage.setItem(
-        STORAGE_KEY,
-        JSON.stringify({
-          profileData,
-          agentData,
-        })
-      );
-    } catch (error) {
-      console.error('Failed to save to localStorage:', error);
-    }
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        profileData,
+        agentData,
+      })
+    );
   }, [profileData, agentData, isInitialized]);
 
   const updateAgentField = (field: string, value: string | number) => {
@@ -523,67 +588,63 @@ export default function CreateAgentPage() {
   const handleRegenerateField = async (field: string) => {
     setGeneratingField(field);
 
-    try {
-      const token = await getAccessToken();
+    const token = await getAccessToken();
 
-      if (!token) {
-        toast.error('Authentication required');
-        return;
-      }
-
-      const response = await fetch('/api/agents/generate-field', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          fieldName: field,
-          currentValue: agentData[field as keyof typeof agentData],
-          context: {
-            name: profileData.displayName,
-            description: profileData.bio,
-            system: agentData.system,
-            personality: agentData.personality,
-            tradingStrategy: agentData.tradingStrategy,
-          },
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || 'Failed to generate field');
-      }
-
-      const result = await response.json();
-
-      // Strip any <think>...</think> tags that may come from reasoning models
-      const strippedValue = (result.value as string)
-        .replace(/<think>[\s\S]*?<\/think>/gi, '')
-        .trim();
-
-      // For personality, split by | and join with \n (no \n\n allowed)
-      if (field === 'personality') {
-        const personalityLines = strippedValue
-          .split('|')
-          .map((s: string) => s.trim())
-          .filter((s: string) => s);
-        updateAgentField('personality', personalityLines.join('\n'));
-      } else {
-        // Replace \n\n with \n for other fields
-        const cleaned = strippedValue.replace(/\n\n+/g, '\n');
-        updateAgentField(field, cleaned);
-      }
-
-      toast.success(`Regenerated ${field}!`);
-    } catch (error) {
-      console.error('Error generating field:', error);
-      toast.error(
-        error instanceof Error ? error.message : 'Failed to generate field'
-      );
-    } finally {
+    if (!token) {
+      toast.error('Authentication required');
       setGeneratingField(null);
+      return;
     }
+
+    const response = await fetch('/api/agents/generate-field', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        fieldName: field,
+        currentValue: agentData[field as keyof typeof agentData],
+        context: {
+          name: profileData.displayName,
+          description: profileData.bio,
+          system: agentData.system,
+          personality: agentData.personality,
+          tradingStrategy: agentData.tradingStrategy,
+        },
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      const errorMessage = errorData.error || 'Failed to generate field';
+      toast.error(errorMessage);
+      setGeneratingField(null);
+      return;
+    }
+
+    const result = await response.json();
+
+    // Strip any <think>...</think> tags that may come from reasoning models
+    const strippedValue = (result.value as string)
+      .replace(/<think>[\s\S]*?<\/think>/gi, '')
+      .trim();
+
+    // For personality, split by | and join with \n (no \n\n allowed)
+    if (field === 'personality') {
+      const personalityLines = strippedValue
+        .split('|')
+        .map((s: string) => s.trim())
+        .filter((s: string) => s);
+      updateAgentField('personality', personalityLines.join('\n'));
+    } else {
+      // Replace \n\n with \n for other fields
+      const cleaned = strippedValue.replace(/\n\n+/g, '\n');
+      updateAgentField(field, cleaned);
+    }
+
+    toast.success(`Regenerated ${field}!`);
+    setGeneratingField(null);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -601,65 +662,57 @@ export default function CreateAgentPage() {
 
     setLoading(true);
 
-    try {
-      const token = await getAccessToken();
+    const token = await getAccessToken();
 
-      if (!token) {
-        toast.error('Authentication required');
-        return;
-      }
-
-      // Split personality by \n and filter empty lines for bio array
-      const bioArray = agentData.personality
-        .split('\n')
-        .filter((b) => b.trim());
-
-      // Append trading strategy to system prompt
-      const systemPrompt = agentData.tradingStrategy.trim()
-        ? `${agentData.system}\n\nTrading Strategy: ${agentData.tradingStrategy}`
-        : agentData.system;
-
-      const res = await fetch('/api/agents', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          name: profileData.displayName,
-          description: profileData.bio,
-          profileImageUrl: profileData.profileImageUrl,
-          coverImageUrl: profileData.coverImageUrl,
-          system: systemPrompt,
-          bio: bioArray,
-          personality: agentData.personality,
-          tradingStrategy: agentData.tradingStrategy,
-          initialDeposit: agentData.initialDeposit,
-        }),
-      });
-
-      if (!res.ok) {
-        const error = await res.json().catch(() => ({}));
-        const errorMsg = error.error || 'Failed to create agent';
-        toast.error(errorMsg);
-        return;
-      }
-
-      const data = (await res.json()) as { agent: { id: string } };
-
-      // Clear draft
-      localStorage.removeItem(STORAGE_KEY);
-
-      toast.success('Agent created successfully!');
-      router.push(`/agents/${data.agent.id}`);
-    } catch (error) {
-      console.error('Failed to create agent:', error);
-      toast.error(
-        error instanceof Error ? error.message : 'Failed to create agent'
-      );
-    } finally {
+    if (!token) {
+      toast.error('Authentication required');
       setLoading(false);
+      return;
     }
+
+    // Split personality by \n and filter empty lines for bio array
+    const bioArray = agentData.personality.split('\n').filter((b) => b.trim());
+
+    // Append trading strategy to system prompt
+    const systemPrompt = agentData.tradingStrategy.trim()
+      ? `${agentData.system}\n\nTrading Strategy: ${agentData.tradingStrategy}`
+      : agentData.system;
+
+    const res = await fetch('/api/agents', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        name: profileData.displayName,
+        description: profileData.bio,
+        profileImageUrl: profileData.profileImageUrl,
+        coverImageUrl: profileData.coverImageUrl,
+        system: systemPrompt,
+        bio: bioArray,
+        personality: agentData.personality,
+        tradingStrategy: agentData.tradingStrategy,
+        initialDeposit: agentData.initialDeposit,
+      }),
+    });
+
+    if (!res.ok) {
+      const error = await res.json().catch(() => ({}));
+      const errorMsg = error.error || 'Failed to create agent';
+      toast.error(errorMsg);
+      setLoading(false);
+      return;
+    }
+
+    const data = (await res.json()) as { agent: { id: string } };
+
+    // Clear draft
+    localStorage.removeItem(STORAGE_KEY);
+
+    toast.success('Agent created successfully!');
+    router.push(`/agents/${data.agent.id}`);
+    setLoading(false);
   };
 
   if (!ready || !authenticated) {

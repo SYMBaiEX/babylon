@@ -1,5 +1,11 @@
 'use client';
 
+import {
+  getReferralUrl,
+  logger,
+  POINTS,
+  signInWithFarcaster,
+} from '@babylon/shared';
 import { usePrivy } from '@privy-io/react-auth';
 import {
   Check,
@@ -23,10 +29,6 @@ import { LinkSocialAccountsModal } from '@/components/profile/LinkSocialAccounts
 import { Avatar } from '@/components/shared/Avatar';
 import { PlayerStatsModal } from '@/components/shared/PlayerStatsModal';
 import { useAuth } from '@/hooks/useAuth';
-import { POINTS } from '@babylon/shared';
-import { signInWithFarcaster } from '@babylon/shared';
-import { logger } from '@babylon/shared';
-import { getReferralUrl } from '@babylon/shared';
 
 /**
  * Waitlist data structure containing user position and points information.
@@ -158,11 +160,13 @@ export function ComingSoon() {
   });
   const [profilePictureIndex, setProfilePictureIndex] = useState(1);
   const [bannerIndex, setBannerIndex] = useState(1);
-  const [uploadedProfileImage, setUploadedProfileImage] = useState<string | null>(null);
+  const [uploadedProfileImage, setUploadedProfileImage] = useState<
+    string | null
+  >(null);
   const [uploadedBanner, setUploadedBanner] = useState<string | null>(null);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const prevShowProfileModalRef = useRef(false);
-  
+
   // Username validation state
   const [isCheckingUsername, setIsCheckingUsername] = useState(false);
   const [usernameStatus, setUsernameStatus] = useState<
@@ -247,100 +251,64 @@ export function ComingSoon() {
       return;
     }
 
-    try {
-      // Use the proper SIWF protocol via relay.farcaster.xyz
-      const result = await signInWithFarcaster({
-        userId: dbUser.id,
-        onStatusUpdate: (status) => {
-          logger.debug('Farcaster auth status', { status }, 'ComingSoon');
-        },
-      });
+    // Use the proper SIWF protocol via relay.farcaster.xyz
+    const result = await signInWithFarcaster({
+      userId: dbUser.id,
+      onStatusUpdate: (status) => {
+        logger.debug('Farcaster auth status', { status }, 'ComingSoon');
+      },
+    });
 
-      // Send authentication data to backend for verification and linking
-      const token =
-        typeof window !== 'undefined' ? window.__privyAccessToken : null;
-      const response = await fetch('/api/auth/farcaster/callback', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({
-          message: result.message,
-          signature: result.signature,
-          fid: result.fid,
-          username: result.username,
-          displayName: result.displayName,
-          pfpUrl: result.pfpUrl,
-          state: result.state,
-        }),
-      });
+    // Send authentication data to backend for verification and linking
+    const token =
+      typeof window !== 'undefined' ? window.__privyAccessToken : null;
+    const response = await fetch('/api/auth/farcaster/callback', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({
+        message: result.message,
+        signature: result.signature,
+        fid: result.fid,
+        username: result.username,
+        displayName: result.displayName,
+        pfpUrl: result.pfpUrl,
+        state: result.state,
+      }),
+    });
 
-      const data = await response.json();
+    const data = await response.json();
 
-      if (response.ok && data.success) {
-        // Refresh user profile to reflect the linked Farcaster account
-        await refresh();
+    if (response.ok && data.success) {
+      // Refresh user profile to reflect the linked Farcaster account
+      await refresh();
 
-        // Refresh waitlist position to update points
-        if (dbUser?.id) {
-          await fetchWaitlistPosition(dbUser.id);
-        }
+      // Refresh waitlist position to update points
+      if (dbUser?.id) {
+        await fetchWaitlistPosition(dbUser.id);
+      }
 
-        if (data.pointsAwarded > 0) {
-          toast.success(
-            `Farcaster linked! +${data.pointsAwarded} points awarded`
-          );
-        } else {
-          toast.success('Farcaster account linked successfully!');
-        }
+      if (data.pointsAwarded > 0) {
+        toast.success(
+          `Farcaster linked! +${data.pointsAwarded} points awarded`
+        );
       } else {
-        // Show specific error message for 409 conflicts
-        const errorMessage = data.error || 'Failed to link Farcaster account';
-        if (response.status === 409) {
-          toast.error(
-            errorMessage.includes('already linked')
-              ? errorMessage
-              : 'This Farcaster account is already linked to another user'
-          );
-        } else {
-          toast.error(errorMessage);
-        }
+        toast.success('Farcaster account linked successfully!');
       }
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-
-      // Don't show error toast for user cancellation
-      if (errorMessage === 'Authentication cancelled') {
-        logger.info(
-          'Farcaster auth cancelled by user',
-          { userId: dbUser.id },
-          'ComingSoon'
+    } else {
+      // Show specific error message for 409 conflicts
+      const errorMessage = data.error || 'Failed to link Farcaster account';
+      if (response.status === 409) {
+        toast.error(
+          errorMessage.includes('already linked')
+            ? errorMessage
+            : 'This Farcaster account is already linked to another user'
         );
-        return;
+      } else {
+        toast.error(errorMessage);
       }
-
-      // Handle popup blocked
-      if (errorMessage.includes('popup')) {
-        toast.error('Please allow popups to connect Farcaster');
-        logger.warn(
-          'Farcaster popup blocked',
-          { userId: dbUser.id },
-          'ComingSoon'
-        );
-        return;
-      }
-
-      logger.error(
-        'Error during Farcaster authentication',
-        {
-          error: errorMessage,
-          userId: dbUser.id,
-        },
-        'ComingSoon'
-      );
-      toast.error('Failed to connect Farcaster. Please try again.');
     }
   };
 
@@ -374,56 +342,43 @@ export function ComingSoon() {
     if (!dbUser?.id) return;
 
     setIsVerifyingFollow(true);
-    try {
-      const token = await getAccessToken();
-      const response = await fetch(
-        `/api/users/${encodeURIComponent(dbUser.id)}/verify-farcaster-follow`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-        }
-      );
+    const token = await getAccessToken();
+    const response = await fetch(
+      `/api/users/${encodeURIComponent(dbUser.id)}/verify-farcaster-follow`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      }
+    );
 
-      const data = await response.json();
+    const data = await response.json();
 
-      if (response.ok && data.verified) {
-        setHasFarcasterFollow(true);
-        setShowVerifyFollowButton(false);
+    if (response.ok && data.verified) {
+      setHasFarcasterFollow(true);
+      setShowVerifyFollowButton(false);
 
-        // Refresh waitlist position to update points
-        await fetchWaitlistPosition(dbUser.id);
+      // Refresh waitlist position to update points
+      await fetchWaitlistPosition(dbUser.id);
 
-        if (data.points?.awarded > 0) {
-          toast.success(
-            `Follow verified! +${data.points.awarded} points awarded`
-          );
-        } else {
-          toast.success(
-            'Follow verified! You already received points for this action.'
-          );
-        }
+      if (data.points?.awarded > 0) {
+        toast.success(
+          `Follow verified! +${data.points.awarded} points awarded`
+        );
       } else {
-        toast.error(
-          data.message ||
-            'Could not verify follow. Please make sure you followed @playbabylon on Farcaster.'
+        toast.success(
+          'Follow verified! You already received points for this action.'
         );
       }
-    } catch (error) {
-      logger.error(
-        'Error verifying Farcaster follow',
-        {
-          error: error instanceof Error ? error.message : String(error),
-          userId: dbUser.id,
-        },
-        'ComingSoon'
+    } else {
+      toast.error(
+        data.message ||
+          'Could not verify follow. Please make sure you followed @playbabylon on Farcaster.'
       );
-      toast.error('Failed to verify follow. Please try again.');
-    } finally {
-      setIsVerifyingFollow(false);
     }
+    setIsVerifyingFollow(false);
   };
 
   // Handle Twitter Follow - just open the follow intent link
@@ -459,53 +414,38 @@ export function ComingSoon() {
     if (!dbUser?.id) return;
 
     setIsVerifyingTwitterFollow(true);
-    try {
-      const token = await getAccessToken();
-      const response = await fetch(
-        `/api/users/${encodeURIComponent(dbUser.id)}/verify-twitter-follow`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-        }
-      );
-
-      const data = await response.json();
-
-      if (response.ok && data.verified) {
-        setHasTwitterFollow(true);
-        setShowVerifyTwitterFollowButton(false);
-
-        // Refresh waitlist position to update points
-        await fetchWaitlistPosition(dbUser.id);
-
-        if (data.points?.awarded > 0) {
-          toast.success(
-            `Thank you for following! +${data.points.awarded} points awarded`
-          );
-        } else {
-          toast.success('You already received points for this action.');
-        }
-      } else {
-        toast.error(
-          data.message || 'Could not claim reward. Please try again.'
-        );
-      }
-    } catch (error) {
-      logger.error(
-        'Error claiming Twitter follow reward',
-        {
-          error: error instanceof Error ? error.message : String(error),
-          userId: dbUser.id,
+    const token = await getAccessToken();
+    const response = await fetch(
+      `/api/users/${encodeURIComponent(dbUser.id)}/verify-twitter-follow`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        'ComingSoon'
-      );
-      toast.error('Failed to claim reward. Please try again.');
-    } finally {
-      setIsVerifyingTwitterFollow(false);
+      }
+    );
+
+    const data = await response.json();
+
+    if (response.ok && data.verified) {
+      setHasTwitterFollow(true);
+      setShowVerifyTwitterFollowButton(false);
+
+      // Refresh waitlist position to update points
+      await fetchWaitlistPosition(dbUser.id);
+
+      if (data.points?.awarded > 0) {
+        toast.success(
+          `Thank you for following! +${data.points.awarded} points awarded`
+        );
+      } else {
+        toast.success('You already received points for this action.');
+      }
+    } else {
+      toast.error(data.message || 'Could not claim reward. Please try again.');
     }
+    setIsVerifyingTwitterFollow(false);
   };
 
   // Handle Discord Join - open invite link
@@ -541,56 +481,43 @@ export function ComingSoon() {
     if (!dbUser?.id) return;
 
     setIsVerifyingDiscordJoin(true);
-    try {
-      const token = await getAccessToken();
-      const response = await fetch(
-        `/api/users/${encodeURIComponent(dbUser.id)}/verify-discord-join`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-        }
-      );
+    const token = await getAccessToken();
+    const response = await fetch(
+      `/api/users/${encodeURIComponent(dbUser.id)}/verify-discord-join`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      }
+    );
 
-      const data = await response.json();
+    const data = await response.json();
 
-      if (response.ok && data.verified) {
-        setHasDiscordJoin(true);
-        setShowVerifyDiscordJoinButton(false);
+    if (response.ok && data.verified) {
+      setHasDiscordJoin(true);
+      setShowVerifyDiscordJoinButton(false);
 
-        // Refresh waitlist position to update points
-        await fetchWaitlistPosition(dbUser.id);
+      // Refresh waitlist position to update points
+      await fetchWaitlistPosition(dbUser.id);
 
-        if (data.points?.awarded > 0) {
-          toast.success(
-            `Discord membership verified! +${data.points.awarded} points awarded`
-          );
-        } else {
-          toast.success(
-            'Membership verified! You already received points for this action.'
-          );
-        }
+      if (data.points?.awarded > 0) {
+        toast.success(
+          `Discord membership verified! +${data.points.awarded} points awarded`
+        );
       } else {
-        toast.error(
-          data.message ||
-            'Could not verify membership. Please make sure you joined the Babylon Discord server.'
+        toast.success(
+          'Membership verified! You already received points for this action.'
         );
       }
-    } catch (error) {
-      logger.error(
-        'Error verifying Discord join',
-        {
-          error: error instanceof Error ? error.message : String(error),
-          userId: dbUser.id,
-        },
-        'ComingSoon'
+    } else {
+      toast.error(
+        data.message ||
+          'Could not verify membership. Please make sure you joined the Babylon Discord server.'
       );
-      toast.error('Failed to verify Discord membership. Please try again.');
-    } finally {
-      setIsVerifyingDiscordJoin(false);
     }
+    setIsVerifyingDiscordJoin(false);
   };
 
   // Check if user has already been awarded follow rewards on page load
@@ -634,18 +561,18 @@ export function ComingSoon() {
         document.removeEventListener('mousedown', handleClickOutside);
       };
     }
-    
+
     return undefined;
   }, [showProfileDropdown]);
 
-  const getPointsTypeForTab = useCallback((tab: 'leaderboard' | 'inviters') =>
-    tab === 'leaderboard' ? 'total' : 'invite', []);
+  const getPointsTypeForTab = useCallback(
+    (tab: 'leaderboard' | 'inviters') =>
+      tab === 'leaderboard' ? 'total' : 'invite',
+    []
+  );
 
-  const fetchWaitlistPosition = useCallback(async (
-    userId: string,
-    skipLeaderboard = false
-  ): Promise<boolean> => {
-    try {
+  const fetchWaitlistPosition = useCallback(
+    async (userId: string, skipLeaderboard = false): Promise<boolean> => {
       // Only fetch leaderboard if not skipped AND (never fetched OR stale > 5 minutes)
       const now = Date.now();
       const shouldFetchLeaderboard =
@@ -761,25 +688,12 @@ export function ComingSoon() {
       if (leaderboardResult && leaderboardResult.status === 'fulfilled') {
         const leaderboardResponse = leaderboardResult.value;
         if (leaderboardResponse.ok) {
-          try {
-            const leaderboardData = await leaderboardResponse.json();
-            setTopUsers(leaderboardData.leaderboard || []);
-            setLeaderboardTotalPages(leaderboardData.totalPages || 10);
-            setLeaderboardLastFetched(now);
-            // Reset to first page when leaderboard updates
-            setLeaderboardPage(1);
-          } catch (parseError) {
-            logger.warn(
-              'Failed to parse leaderboard response',
-              {
-                error:
-                  parseError instanceof Error
-                    ? parseError.message
-                    : String(parseError),
-              },
-              'ComingSoon'
-            );
-          }
+          const leaderboardData = await leaderboardResponse.json();
+          setTopUsers(leaderboardData.leaderboard || []);
+          setLeaderboardTotalPages(leaderboardData.totalPages || 10);
+          setLeaderboardLastFetched(now);
+          // Reset to first page when leaderboard updates
+          setLeaderboardPage(1);
         } else {
           logger.warn(
             'Failed to fetch leaderboard',
@@ -804,21 +718,18 @@ export function ComingSoon() {
       }
 
       return true;
-    } catch (error) {
-      logger.error(
-        'Error fetching waitlist position',
-        {
-          userId,
-          error: error instanceof Error ? error.message : String(error),
-        },
-        'ComingSoon'
-      );
-      return false;
-    }
-  }, [leaderboardLastFetched, leaderboardTab, getAccessToken, previousRank, getPointsTypeForTab]);
+    },
+    [
+      leaderboardLastFetched,
+      leaderboardTab,
+      getAccessToken,
+      previousRank,
+      getPointsTypeForTab,
+    ]
+  );
 
-  const awardWalletBonus = useCallback(async (userId: string, walletAddress: string) => {
-    try {
+  const awardWalletBonus = useCallback(
+    async (userId: string, walletAddress: string) => {
       const response = await fetch('/api/waitlist/bonus/wallet', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -853,18 +764,9 @@ export function ComingSoon() {
 
       // Refresh position to show updated points
       await fetchWaitlistPosition(userId);
-    } catch (error) {
-      logger.error(
-        'Error awarding wallet bonus',
-        {
-          userId,
-          walletAddress,
-          error: error instanceof Error ? error.message : String(error),
-        },
-        'ComingSoon'
-      );
-    }
-  }, [fetchWaitlistPosition]);
+    },
+    [fetchWaitlistPosition]
+  );
 
   // If user completes onboarding, mark as waitlisted and fetch position
   useEffect(() => {
@@ -882,24 +784,14 @@ export function ComingSoon() {
       if (existingPosition) {
         // Already setup, just refresh data
         // Check if user has been awarded points for Farcaster follow
-        try {
-          const token = await getAccessToken();
-          const response = await fetch(`/api/waitlist/position`, {
-            headers: token ? { Authorization: `Bearer ${token}` } : {},
-          });
+        const token = await getAccessToken();
+        const response = await fetch(`/api/waitlist/position`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
 
-          if (response.ok) {
-            // Check points transactions to see if farcaster_follow was awarded
-            // For now, we'll fetch this status when needed
-          }
-        } catch (error) {
-          logger.error(
-            'Error checking Farcaster follow status',
-            {
-              error: error instanceof Error ? error.message : String(error),
-            },
-            'ComingSoon'
-          );
+        if (response.ok) {
+          // Check points transactions to see if farcaster_follow was awarded
+          // For now, we'll fetch this status when needed
         }
         return;
       }
@@ -917,65 +809,54 @@ export function ComingSoon() {
         'ComingSoon'
       );
 
-      try {
-        // Get access token for authentication
-        const token = await getAccessToken();
-        const response = await fetch('/api/waitlist/mark', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-          body: JSON.stringify({
-            userId,
-            referralCode,
-          }),
-        });
+      // Get access token for authentication
+      const token = await getAccessToken();
+      const response = await fetch('/api/waitlist/mark', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          userId,
+          referralCode,
+        }),
+      });
 
-        if (!response.ok) {
-          const errorText = await response.text();
-          logger.error(
-            'Failed to mark as waitlisted',
-            {
-              userId,
-              status: response.status,
-              errorText,
-            },
-            'ComingSoon'
-          );
-          return;
-        }
-
-        const result = await response.json();
-        logger.info(
-          'User marked as waitlisted',
-          {
-            userId,
-            position: result.waitlistPosition,
-            inviteCode: result.inviteCode,
-            points: result.points,
-            referrerRewarded: result.referrerRewarded,
-          },
-          'ComingSoon'
-        );
-
-        // Fetch position data to get complete info
-        await fetchWaitlistPosition(userId);
-
-        // Award bonuses if available
-        const walletAddress = privyUser?.wallet?.address;
-        if (walletAddress) {
-          await awardWalletBonus(userId, walletAddress);
-        }
-      } catch (error) {
+      if (!response.ok) {
+        const errorText = await response.text();
         logger.error(
-          'Error setting up waitlist',
+          'Failed to mark as waitlisted',
           {
             userId,
-            error: error instanceof Error ? error.message : String(error),
+            status: response.status,
+            errorText,
           },
           'ComingSoon'
         );
+        return;
+      }
+
+      const result = await response.json();
+      logger.info(
+        'User marked as waitlisted',
+        {
+          userId,
+          position: result.waitlistPosition,
+          inviteCode: result.inviteCode,
+          points: result.points,
+          referrerRewarded: result.referrerRewarded,
+        },
+        'ComingSoon'
+      );
+
+      // Fetch position data to get complete info
+      await fetchWaitlistPosition(userId);
+
+      // Award bonuses if available
+      const walletAddress = privyUser?.wallet?.address;
+      if (walletAddress) {
+        await awardWalletBonus(userId, walletAddress);
       }
     };
 
@@ -999,21 +880,10 @@ export function ComingSoon() {
     if (!authenticated || !dbUser?.id) return;
 
     const checkAndAwardWalletBonus = async () => {
-      try {
-        // Check for wallet bonus
-        const walletAddress = privyUser?.wallet?.address;
-        if (walletAddress) {
-          await awardWalletBonus(dbUser.id, walletAddress);
-        }
-      } catch (error) {
-        logger.error(
-          'Error checking wallet bonus',
-          {
-            userId: dbUser.id,
-            error: error instanceof Error ? error.message : String(error),
-          },
-          'ComingSoon'
-        );
+      // Check for wallet bonus
+      const walletAddress = privyUser?.wallet?.address;
+      if (walletAddress) {
+        await awardWalletBonus(dbUser.id, walletAddress);
       }
     };
 
@@ -1044,35 +914,23 @@ export function ComingSoon() {
     tab: 'leaderboard' | 'inviters' = leaderboardTab
   ) => {
     const pointsType = getPointsTypeForTab(tab);
-    try {
-      const response = await fetch(
-        `/api/waitlist/leaderboard?page=${page}&limit=10&pointsType=${pointsType}`
-      );
-      if (!response.ok) {
-        logger.warn(
-          'Failed to fetch leaderboard page',
-          { page, status: response.status },
-          'ComingSoon'
-        );
-        return false;
-      }
-
-      const data = await response.json();
-      setTopUsers(data.leaderboard || []);
-      setLeaderboardTotalPages(data.totalPages || 10);
-      setLeaderboardLastFetched(Date.now());
-      return true;
-    } catch (error) {
-      logger.error(
-        'Error fetching leaderboard page',
-        {
-          page,
-          error: error instanceof Error ? error.message : String(error),
-        },
+    const response = await fetch(
+      `/api/waitlist/leaderboard?page=${page}&limit=10&pointsType=${pointsType}`
+    );
+    if (!response.ok) {
+      logger.warn(
+        'Failed to fetch leaderboard page',
+        { page, status: response.status },
         'ComingSoon'
       );
       return false;
     }
+
+    const data = await response.json();
+    setTopUsers(data.leaderboard || []);
+    setLeaderboardTotalPages(data.totalPages || 10);
+    setLeaderboardLastFetched(Date.now());
+    return true;
   };
 
   const handleCopyInviteCode = useCallback(() => {
@@ -1091,20 +949,19 @@ export function ComingSoon() {
     const trimmedUsername = profileForm.username?.trim();
     const trimmedDisplayName = profileForm.displayName?.trim();
     const trimmedBio = profileForm.bio?.trim();
-    
+
     // Use uploaded image or current form value
-    const profileImageUrl = uploadedProfileImage || profileForm.profileImageUrl?.trim() || 
+    const profileImageUrl =
+      uploadedProfileImage ||
+      profileForm.profileImageUrl?.trim() ||
       `/assets/user-profiles/profile-${profilePictureIndex}.jpg`;
-    const coverImageUrl = uploadedBanner || profileForm.coverImageUrl?.trim() ||
+    const coverImageUrl =
+      uploadedBanner ||
+      profileForm.coverImageUrl?.trim() ||
       `/assets/user-banners/banner-${bannerIndex}.jpg`;
 
-    if (
-      !trimmedUsername ||
-      !trimmedDisplayName
-    ) {
-      toast.error(
-        'Please fill in all required fields.'
-      );
+    if (!trimmedUsername || !trimmedDisplayName) {
+      toast.error('Please fill in all required fields.');
       return;
     }
 
@@ -1115,51 +972,50 @@ export function ComingSoon() {
     }
 
     setIsSavingProfile(true);
-    try {
-      const token = await getAccessToken();
-      const response = await fetch(
-        `/api/users/${encodeURIComponent(dbUser.id)}/update-profile`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-          body: JSON.stringify({
-            username: trimmedUsername,
-            displayName: trimmedDisplayName,
-            bio: trimmedBio,
-            profileImageUrl,
-            coverImageUrl,
-          }),
-        }
-      );
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(
-          errorData?.error?.message || errorData?.message || 'Failed to update profile'
-        );
+    const token = await getAccessToken();
+    const response = await fetch(
+      `/api/users/${encodeURIComponent(dbUser.id)}/update-profile`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          username: trimmedUsername,
+          displayName: trimmedDisplayName,
+          bio: trimmedBio,
+          profileImageUrl,
+          coverImageUrl,
+        }),
       }
+    );
 
-      await refresh();
-      await fetchWaitlistPosition(dbUser.id);
-      setShowProfileModal(false);
-      toast.success('Profile updated successfully!');
-    } catch (error) {
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      const errorMessage =
+        errorData?.error?.message ||
+        errorData?.message ||
+        'Failed to update profile';
       logger.error(
-        'Error saving profile',
+        'Failed to update profile',
         {
-          error: error instanceof Error ? error.message : String(error),
+          userId: dbUser.id,
+          status: response.status,
+          error: errorMessage,
         },
         'ComingSoon'
       );
-      toast.error(
-        error instanceof Error ? error.message : 'Failed to save profile'
-      );
-    } finally {
+      toast.error(errorMessage);
       setIsSavingProfile(false);
+      return;
     }
+
+    await refresh();
+    await fetchWaitlistPosition(dbUser.id);
+    setShowProfileModal(false);
+    toast.success('Profile updated successfully!');
+    setIsSavingProfile(false);
   };
 
   // Sync profile form with dbUser when modal opens (only on modal open, not on dbUser changes)
@@ -1191,16 +1047,16 @@ export function ComingSoon() {
   // Real-time username validation
   useEffect(() => {
     if (!showProfileModal) return;
-    
+
     const username = profileForm.username?.trim();
-    
+
     // Don't check if username is empty or too short
     if (!username || username.length < 3) {
       setUsernameStatus(null);
       setUsernameSuggestion(null);
       return;
     }
-    
+
     // Don't check if username hasn't changed from original
     if (username === dbUser?.username) {
       setUsernameStatus('available');
@@ -1212,27 +1068,20 @@ export function ComingSoon() {
 
     const checkUsername = async () => {
       setIsCheckingUsername(true);
-      
-      try {
-        const response = await fetch(
-          `/api/onboarding/check-username?username=${encodeURIComponent(username)}`
+
+      const response = await fetch(
+        `/api/onboarding/check-username?username=${encodeURIComponent(username)}`
+      );
+
+      if (!cancelled && response.ok) {
+        const result = await response.json();
+        setUsernameStatus(result.available ? 'available' : 'taken');
+        setUsernameSuggestion(
+          result.available ? null : result.suggestion || null
         );
-        
-        if (!cancelled && response.ok) {
-          const result = await response.json();
-          setUsernameStatus(result.available ? 'available' : 'taken');
-          setUsernameSuggestion(result.available ? null : (result.suggestion || null));
-        }
-      } catch (error) {
-        logger.warn(
-          'Username availability check error',
-          { error: error instanceof Error ? error.message : String(error) },
-          'ComingSoon'
-        );
-      } finally {
-        if (!cancelled) {
-          setIsCheckingUsername(false);
-        }
+      }
+      if (!cancelled) {
+        setIsCheckingUsername(false);
       }
     };
 
@@ -1275,7 +1124,7 @@ export function ComingSoon() {
     const reader = new FileReader();
     reader.onloadend = () => {
       setUploadedProfileImage(reader.result as string);
-      setProfileForm(prev => ({ ...prev, profileImageUrl: '' }));
+      setProfileForm((prev) => ({ ...prev, profileImageUrl: '' }));
     };
     reader.readAsDataURL(file);
   };
@@ -1286,7 +1135,7 @@ export function ComingSoon() {
     const reader = new FileReader();
     reader.onloadend = () => {
       setUploadedBanner(reader.result as string);
-      setProfileForm(prev => ({ ...prev, coverImageUrl: '' }));
+      setProfileForm((prev) => ({ ...prev, coverImageUrl: '' }));
     };
     reader.readAsDataURL(file);
   };
@@ -2290,7 +2139,7 @@ export function ComingSoon() {
                     alt={dbUser.displayName || dbUser.username || 'User'}
                     size="sm"
                   />
-                  
+
                   {/* User Info - Hidden on mobile */}
                   <div className="hidden min-w-0 text-left sm:block">
                     <div className="truncate font-semibold text-foreground text-sm">
@@ -2638,17 +2487,15 @@ export function ComingSoon() {
                 <h3 className="mb-3 font-bold text-xl">Invite Friends</h3>
                 <p className="mb-4 text-muted-foreground text-sm leading-relaxed">
                   <span className="font-bold text-primary">You earn:</span>
-                  <br />
-                  • 100 points per friend who signs up
-                  <br />
-                  • +100 extra when they complete profile
+                  <br />• 100 points per friend who signs up
+                  <br />• +100 extra when they complete profile
                 </p>
                 <div className="mb-4 rounded-lg border border-primary/20 bg-primary/10 p-3">
                   <p className="text-foreground text-sm leading-relaxed">
                     <span className="font-semibold">🎁 Friend bonus:</span> Your
                     friends get an additional{' '}
-                    <span className="font-bold text-primary">100 points</span> when
-                    they join through your referral link!
+                    <span className="font-bold text-primary">100 points</span>{' '}
+                    when they join through your referral link!
                   </p>
                 </div>
                 {waitlistData.inviteCode ? (
@@ -3379,7 +3226,9 @@ export function ComingSoon() {
                   </div>
                   <div>
                     <h2 className="font-bold text-2xl">
-                      {dbUser?.profileComplete ? 'Edit Profile' : 'Complete Profile'}
+                      {dbUser?.profileComplete
+                        ? 'Edit Profile'
+                        : 'Complete Profile'}
                     </h2>
                     {!dbUser?.profileComplete ? (
                       <p className="text-muted-foreground text-sm">
@@ -3417,9 +3266,12 @@ export function ComingSoon() {
                 {!dbUser?.profileComplete && (
                   <div className="rounded-lg border border-primary/20 bg-primary/10 p-4">
                     <p className="text-foreground text-sm leading-relaxed">
-                      <span className="font-semibold">💡 Pro Tip:</span> Complete all fields below to earn{' '}
-                      <span className="font-bold text-primary">{POINTS.PROFILE_COMPLETION} points</span> and
-                      personalize your Babylon experience!
+                      <span className="font-semibold">💡 Pro Tip:</span>{' '}
+                      Complete all fields below to earn{' '}
+                      <span className="font-bold text-primary">
+                        {POINTS.PROFILE_COMPLETION} points
+                      </span>{' '}
+                      and personalize your Babylon experience!
                     </p>
                   </div>
                 )}
@@ -3431,7 +3283,11 @@ export function ComingSoon() {
                   </label>
                   <div className="group relative h-40 overflow-hidden rounded-lg bg-muted">
                     <Image
-                      src={uploadedBanner || profileForm.coverImageUrl || `/assets/user-banners/banner-${bannerIndex}.jpg`}
+                      src={
+                        uploadedBanner ||
+                        profileForm.coverImageUrl ||
+                        `/assets/user-banners/banner-${bannerIndex}.jpg`
+                      }
                       alt="Profile banner"
                       fill
                       className="object-cover"
@@ -3446,7 +3302,10 @@ export function ComingSoon() {
                       >
                         <ChevronLeft className="h-5 w-5" />
                       </button>
-                      <label className="cursor-pointer rounded-lg bg-background/80 p-2 transition-colors hover:bg-background" title="Upload banner">
+                      <label
+                        className="cursor-pointer rounded-lg bg-background/80 p-2 transition-colors hover:bg-background"
+                        title="Upload banner"
+                      >
                         <Upload className="h-5 w-5" />
                         <input
                           type="file"
@@ -3475,7 +3334,11 @@ export function ComingSoon() {
                 <div className="flex items-start gap-4">
                   <div className="group relative h-24 w-24 shrink-0 overflow-hidden rounded-full bg-muted">
                     <Image
-                      src={uploadedProfileImage || profileForm.profileImageUrl || `/assets/user-profiles/profile-${profilePictureIndex}.jpg`}
+                      src={
+                        uploadedProfileImage ||
+                        profileForm.profileImageUrl ||
+                        `/assets/user-profiles/profile-${profilePictureIndex}.jpg`
+                      }
                       alt="Profile picture"
                       fill
                       className="object-cover"
@@ -3490,7 +3353,10 @@ export function ComingSoon() {
                       >
                         <ChevronLeft className="h-4 w-4" />
                       </button>
-                      <label className="cursor-pointer rounded-lg bg-background/80 p-1.5 transition-colors hover:bg-background" title="Upload picture">
+                      <label
+                        className="cursor-pointer rounded-lg bg-background/80 p-1.5 transition-colors hover:bg-background"
+                        title="Upload picture"
+                      >
                         <Upload className="h-4 w-4" />
                         <input
                           type="file"
@@ -3561,9 +3427,10 @@ export function ComingSoon() {
                             <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
                           </div>
                         )}
-                        {usernameStatus === 'available' && !isCheckingUsername && (
-                          <Check className="-translate-y-1/2 absolute top-1/2 right-3 h-4 w-4 text-green-500" />
-                        )}
+                        {usernameStatus === 'available' &&
+                          !isCheckingUsername && (
+                            <Check className="-translate-y-1/2 absolute top-1/2 right-3 h-4 w-4 text-green-500" />
+                          )}
                         {usernameStatus === 'taken' && !isCheckingUsername && (
                           <X className="-translate-y-1/2 absolute top-1/2 right-3 h-4 w-4 text-red-500" />
                         )}
@@ -3591,9 +3458,7 @@ export function ComingSoon() {
 
                 {/* Bio */}
                 <div className="space-y-2">
-                  <label className="block font-medium text-sm">
-                    Bio
-                  </label>
+                  <label className="block font-medium text-sm">Bio</label>
                   <textarea
                     value={profileForm.bio}
                     onChange={(e) =>
@@ -3628,15 +3493,15 @@ export function ComingSoon() {
                     disabled={(() => {
                       const username = profileForm.username?.trim() || '';
                       const displayName = profileForm.displayName?.trim() || '';
-                      return (
-                        isSavingProfile ||
-                        !username ||
-                        !displayName
-                      );
+                      return isSavingProfile || !username || !displayName;
                     })()}
                     className="min-h-[44px] flex-1 rounded-lg bg-primary px-4 py-2 font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    {isSavingProfile ? 'Saving...' : dbUser?.profileComplete ? 'Save Changes' : 'Save & Earn Points'}
+                    {isSavingProfile
+                      ? 'Saving...'
+                      : dbUser?.profileComplete
+                        ? 'Save Changes'
+                        : 'Save & Earn Points'}
                   </button>
                 </div>
               </form>

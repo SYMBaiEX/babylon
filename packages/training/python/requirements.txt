@@ -1,8 +1,15 @@
-# Babylon RL Training - Atropos Framework
-# Supports: CUDA (GPU), MLX (Apple Silicon), CPU, and distributed training
+# Babylon RL Training - Atropos + Tinker Framework
+# Supports: Tinker Cloud (RECOMMENDED), CUDA (GPU), MLX (Apple Silicon), CPU
 
 # ===========================================
-# Core Atropos Framework (replaces openpipe-art)
+# Tinker API (RECOMMENDED - Cloud Training)
+# ===========================================
+# Tinker provides cloud-based training without local GPU requirements
+# Get API key from: https://tinker-docs.thinkingmachines.ai/
+tinker>=0.1.0
+
+# ===========================================
+# Core Atropos Framework (for environments)
 # ===========================================
 atroposlib>=0.3.0
 
@@ -20,26 +27,9 @@ aiohttp>=3.9.0
 requests>=2.31.0
 
 # ===========================================
-# OpenAI-compatible client (for inference)
+# OpenAI-compatible client (for RLAIF judge)
 # ===========================================
 openai>=1.0.0
-
-# ===========================================
-# Training Framework
-# ===========================================
-torch>=2.1.0
-transformers>=4.36.0
-peft>=0.8.0
-
-# ===========================================
-# Inference Server
-# ===========================================
-vllm>=0.3.0
-
-# ===========================================
-# Monitoring (optional - logs to file by default)
-# ===========================================
-# tensorboard>=2.15.0  # Optional: for local visualization
 
 # ===========================================
 # Configuration
@@ -66,6 +56,17 @@ rich>=13.0.0
 jsonlines>=4.0.0
 
 # ============================================
+# OPTIONAL: Local Training (GPU/CPU)
+# ============================================
+# Only needed if NOT using Tinker for training
+# Uncomment if you need local fallback:
+#
+# torch>=2.1.0
+# transformers>=4.36.0
+# peft>=0.8.0
+# vllm>=0.3.0
+
+# ============================================
 # OPTIONAL: MLX Backend (Apple Silicon only)
 # ============================================
 # Install on Mac with Apple Silicon:
@@ -78,11 +79,3 @@ jsonlines>=4.0.0
 #   - mlx-community/Qwen2.5-3B-Instruct-4bit
 #   - mlx-community/Qwen2.5-7B-Instruct-4bit
 #   - mlx-community/Qwen3-4B-4bit
-
-# ============================================
-# OPTIONAL: CPU Backend (transformers/peft)
-# ============================================
-# Already included above for GPU training
-# For CPU-only, use smaller models:
-#   - Qwen/Qwen2.5-0.5B-Instruct
-#   - Qwen/Qwen2.5-1.5B-Instruct

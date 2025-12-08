@@ -127,4 +127,3 @@ export function getQuestionExamples(): string[] {
     .split('\n')
     .filter((line) => line.trim().length > 0 && !line.startsWith('#'));
 }
-

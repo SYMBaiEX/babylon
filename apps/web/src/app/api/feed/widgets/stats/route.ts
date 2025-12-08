@@ -75,12 +75,20 @@
  * @see {@link /lib/db/context} RLS context
  */
 
+import { optionalAuth, successResponse, withErrorHandling } from '@babylon/api';
+import {
+  actorState,
+  asPublic,
+  asUser,
+  count,
+  eq,
+  posts,
+  sum,
+  users,
+} from '@babylon/db';
+import { StaticDataRegistry } from '@babylon/engine';
+import { logger, StatsQuerySchema } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
-import { optionalAuth } from '@babylon/api';
-import { asPublic, asUser } from '@babylon/db';
-import { successResponse, withErrorHandling } from '@babylon/api';
-import { logger } from '@babylon/shared';
-import { StatsQuerySchema } from '@babylon/shared';
 
 interface BabylonStats {
   activePlayers: number;
@@ -100,114 +108,59 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   };
   StatsQuerySchema.parse(queryParams);
 
-  // Optional auth - stats are public but RLS still applies
   const authUser = await optionalAuth(request).catch(() => null);
 
-  // Get all stats in parallel for better performance with RLS
-  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  const queryStats = async (
+    db: Parameters<Parameters<typeof asUser>[1]>[0]
+  ) => {
+    const [
+      activePlayersResult,
+      totalHootsResult,
+      userPointsResult,
+      actorPointsResult,
+    ] = await Promise.all([
+      db.select({ count: count() }).from(users).where(eq(users.isActor, false)),
+      db.select({ count: count() }).from(posts),
+      db
+        .select({ total: sum(users.virtualBalance) })
+        .from(users)
+        .where(eq(users.isActor, false)),
+      db.select({ total: sum(actorState.tradingBalance) }).from(actorState),
+    ]);
 
-  const [
-    activePlayers,
-    aiAgents,
-    totalHoots,
-    userPointsResult,
-    actorPointsResult,
-  ] =
-    authUser && authUser.userId
-      ? await asUser(authUser, async (db) => {
-          return await Promise.all([
-            // Get active users (logged in within last 7 days) - exclude actors
-            db.user.count({
-              where: {
-                isActor: false, // Only real users, not NPCs
-                updatedAt: {
-                  gte: sevenDaysAgo,
-                },
-              },
-            }),
+    return {
+      activePlayers: Number(activePlayersResult[0]?.count ?? 0),
+      aiAgents: StaticDataRegistry.getAllActors().length,
+      totalHoots: Number(totalHootsResult[0]?.count ?? 0),
+      userPoints: userPointsResult[0]?.total ?? '0',
+      actorPoints: actorPointsResult[0]?.total ?? '0',
+    };
+  };
 
-            // Get AI agents from Actor table (all actors, not just those with pools)
-            db.actor.count(),
+  const statsResult = authUser?.userId
+    ? await asUser(authUser, queryStats)
+    : await asPublic(queryStats);
 
-            // Get total posts (hoots) - all posts from both users and actors
-            db.post.count(),
-
-            // Calculate points in circulation (sum of all user virtual balances)
-            db.user.aggregate({
-              _sum: {
-                virtualBalance: true,
-              },
-              where: {
-                isActor: false, // Only count real users' virtual balances
-              },
-            }),
-
-            // Sum actor trading balances
-            db.actor.aggregate({
-              _sum: {
-                tradingBalance: true,
-              },
-            }),
-          ]);
-        })
-      : await asPublic(async (db) => {
-          return await Promise.all([
-            // Get active users (logged in within last 7 days) - exclude actors
-            db.user.count({
-              where: {
-                isActor: false, // Only real users, not NPCs
-                updatedAt: {
-                  gte: sevenDaysAgo,
-                },
-              },
-            }),
-
-            // Get AI agents from Actor table (all actors, not just those with pools)
-            db.actor.count(),
-
-            // Get total posts (hoots) - all posts from both users and actors
-            db.post.count(),
-
-            // Calculate points in circulation (sum of all user virtual balances)
-            db.user.aggregate({
-              _sum: {
-                virtualBalance: true,
-              },
-              where: {
-                isActor: false, // Only count real users' virtual balances
-              },
-            }),
-
-            // Sum actor trading balances
-            db.actor.aggregate({
-              _sum: {
-                tradingBalance: true,
-              },
-            }),
-          ]);
-        });
-
-  const userPoints = userPointsResult._sum?.virtualBalance || BigInt(0);
-  const actorPoints = actorPointsResult._sum?.tradingBalance || BigInt(0);
-  const totalPoints = Number(userPoints) + Number(actorPoints);
+  const totalPoints =
+    Number(statsResult.userPoints) + Number(statsResult.actorPoints);
   const pointsInCirculation = formatPoints(BigInt(totalPoints));
 
-  const stats: BabylonStats = {
-    activePlayers,
-    aiAgents,
-    totalHoots,
+  const finalStats: BabylonStats = {
+    activePlayers: statsResult.activePlayers,
+    aiAgents: statsResult.aiAgents,
+    totalHoots: statsResult.totalHoots,
     pointsInCirculation,
   };
 
   logger.info(
     'Babylon stats fetched successfully',
-    stats,
+    finalStats,
     'GET /api/feed/widgets/stats'
   );
 
   return successResponse({
     success: true,
-    stats,
+    stats: finalStats,
   });
 });
 

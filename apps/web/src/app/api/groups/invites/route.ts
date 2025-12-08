@@ -65,11 +65,10 @@
  * @see {@link /lib/db/context} RLS context
  */
 
-import type { NextRequest } from 'next/server';
-import { authenticate } from '@babylon/api';
+import { authenticate, successResponse, withErrorHandling } from '@babylon/api';
 import { asUser } from '@babylon/db';
-import { successResponse, withErrorHandling } from '@babylon/api';
 import { logger } from '@babylon/shared';
+import type { NextRequest } from 'next/server';
 
 /**
  * GET /api/groups/invites

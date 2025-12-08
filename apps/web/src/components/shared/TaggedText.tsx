@@ -5,9 +5,10 @@ import { cn } from '@babylon/shared';
 /**
  * Tagged text component for parsing and highlighting social tags.
  *
- * Parses and highlights @mentions, #hashtags, and $cashtags in text.
+ * Parses and highlights @mentions and $cashtags in text.
  * Tags are clickable and styled in blue with hover effects. Handles
  * edge cases like null/undefined text and empty strings gracefully.
+ * Note: Prices like $120k, $19.99 are NOT treated as cashtags.
  *
  * @param props - TaggedText component props
  * @returns Tagged text element with highlighted tags
@@ -15,7 +16,7 @@ import { cn } from '@babylon/shared';
  * @example
  * ```tsx
  * <TaggedText
- *   text="Check out @username and #hashtag $AAPL"
+ *   text="Check out @username and $AAPL stock"
  *   onTagClick={(tag) => console.log('Clicked:', tag)}
  * />
  * ```
@@ -37,10 +38,12 @@ export function TaggedText({ text, onTagClick, className }: TaggedTextProps) {
     return <span className={className}></span>;
   }
 
-  // Regex to match @mentions, #hashtags, and $cashtags
-  // Matches: @username, #hashtag, $cashtag, $19.99
-  // Captures everything until a space (allows periods, hyphens, numbers, etc.)
-  const tagRegex = /(@|#|\$)([^\s]+)/g;
+  // Regex to match @mentions and $cashtags (excluding prices)
+  // @mentions: followed by word characters
+  // $cashtags: only match if followed by letters (not numbers) to avoid matching prices like $120k, $19.99
+  // Examples: @username, $AAPL, $BTC (but NOT $120k, $19.99)
+  // Note: #hashtags are ignored - not used in the app
+  const tagRegex = /(@[\w-]+)|(\$[A-Za-z][\w]*)/g;
 
   const parts: Array<{
     text: string;
@@ -62,9 +65,10 @@ export function TaggedText({ text, onTagClick, className }: TaggedTextProps) {
       });
     }
 
-    // Add the tag
+    // Add the tag - match[0] is the full match
+    // match[1] = @mention, match[2] = #hashtag, match[3] = $cashtag
     const fullTag = match[0]; // e.g., "@username" or "#hashtag" or "$cashtag"
-    const tagType = match[1] as '@' | '#' | '$';
+    const tagType = fullTag[0] as '@' | '#' | '$';
     parts.push({
       text: fullTag,
       isTag: true,

@@ -32,29 +32,31 @@ export { schema };
 // Re-export client types
 export type { DrizzleClient, JsonValue, SQLValue } from './client';
 export { TableRepository } from './client';
-// Re-export types
-export * from './types';
-
 /**
  * Re-export unique relation types from model-types.
  *
  * Base types (User, Actor, etc.) are already exported from schema.
  */
 export type {
+  ActorRef,
+  ActorStateRow,
+  AgentGoalWithActions,
+  BalanceTransactionWithUser,
   ChatWithParticipants,
   ChatWithParticipantsAndMessages,
   ChatWithRelations,
-  UserWithMetrics,
-  UserWithAgentRelations,
-  PostWithRelations,
-  MessageWithSender,
-  PoolWithActor,
-  BalanceTransactionWithUser,
-  ModerationEscrowWithRelations,
-  TradingFeeWithUser,
   ExternalAgentConnectionWithRegistry,
-  AgentGoalWithActions,
+  MessageWithSender,
+  ModerationEscrowWithRelations,
+  NewActorStateRow,
+  PoolWithActorState,
+  PostWithRelations,
+  TradingFeeWithUser,
+  UserWithAgentRelations,
+  UserWithMetrics,
 } from './model-types';
+// Re-export types
+export * from './types';
 
 // ============================================================================
 // Types
@@ -96,12 +98,13 @@ function createPostgresClient(): ReturnType<typeof postgres> {
 
   // Determine if this is a local database connection
   const isLocalhost = url.includes('localhost') || url.includes('127.0.0.1');
-  
+
   // Check if SSL is already specified in the URL (sslmode=require or ssl=true)
-  const hasExplicitSSL = url.includes('sslmode=require') || url.includes('ssl=true');
-  
+  const hasExplicitSSL =
+    url.includes('sslmode=require') || url.includes('ssl=true');
+
   // Check for cloud database providers that require SSL (Neon, Supabase, etc.)
-  const isCloudProvider = 
+  const isCloudProvider =
     url.includes('neon.tech') ||
     url.includes('supabase.co') ||
     url.includes('pooler.supabase') ||
@@ -113,8 +116,10 @@ function createPostgresClient(): ReturnType<typeof postgres> {
   // - URL explicitly specifies sslmode=require
   // - Production with non-localhost connections
   // - Any cloud database provider (even in development)
-  const sslMode: 'require' | false = 
-    hasExplicitSSL || (!isLocalhost && (isProd || isCloudProvider)) ? 'require' : false;
+  const sslMode: 'require' | false =
+    hasExplicitSSL || (!isLocalhost && (isProd || isCloudProvider))
+      ? 'require'
+      : false;
 
   logger.debug('[Drizzle] Creating postgres client', {
     isProd,
@@ -399,14 +404,10 @@ export async function asPublic<T>(
 
 /** Health check */
 export async function checkDatabaseHealth(): Promise<boolean> {
-  try {
-    const instance = getDrizzleInstance();
-    if (!instance) return false;
-    await instance.execute(sql`SELECT 1`);
-    return true;
-  } catch {
-    return false;
-  }
+  const instance = getDrizzleInstance();
+  if (!instance) return false;
+  await instance.execute(sql`SELECT 1`);
+  return true;
 }
 
 /** Graceful shutdown */
@@ -433,6 +434,14 @@ export async function executeRaw<
 // Drizzle Query Operators
 // ============================================================================
 
+// Re-export snowflake utilities from @babylon/shared
+export {
+  generateSnowflakeId,
+  isValidSnowflakeId,
+  parseSnowflakeId,
+  SnowflakeGenerator,
+} from '@babylon/shared';
+export type { SQL } from 'drizzle-orm';
 export {
   and,
   asc,
@@ -461,7 +470,6 @@ export {
   sql,
   sum,
 } from 'drizzle-orm';
-export type { SQL } from 'drizzle-orm';
 // Re-export database service
 export {
   DatabaseService,
@@ -477,17 +485,14 @@ export {
   isRetryableError,
   withRetry,
 } from './helpers';
-// Re-export snowflake utilities from @babylon/shared
-export {
-  generateSnowflakeId,
-  isValidSnowflakeId,
-  parseSnowflakeId,
-  SnowflakeGenerator,
-} from '@babylon/shared';
-export type { DatabaseErrorType } from './types';
-// Re-export error utilities
-export { isUniqueConstraintError, toDatabaseErrorType } from './types';
 // Re-export moderation filters
 export * from './moderation/filters';
 // Re-export query monitor
-export { queryMonitor, type QueryMetrics, type SlowQueryStats } from './query-monitor';
+export {
+  type QueryMetrics,
+  queryMonitor,
+  type SlowQueryStats,
+} from './query-monitor';
+export type { DatabaseErrorType } from './types';
+// Re-export error utilities
+export { isUniqueConstraintError, toDatabaseErrorType } from './types';

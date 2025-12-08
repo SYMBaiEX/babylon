@@ -5,14 +5,14 @@
 
 import { beforeEach, describe, expect, it } from 'bun:test';
 import {
-  checkRateLimit,
-  clearAllRateLimits,
-  getRateLimitStatus,
-  RATE_LIMIT_CONFIGS,
   checkDuplicate,
+  checkRateLimit,
   clearAllDuplicates,
+  clearAllRateLimits,
   DUPLICATE_DETECTION_CONFIGS,
   getDuplicateStats,
+  getRateLimitStatus,
+  RATE_LIMIT_CONFIGS,
 } from '@babylon/api';
 
 describe('Rate Limiting (Shared)', () => {
@@ -85,10 +85,18 @@ describe('Rate Limiting (Shared)', () => {
       const content1 = 'Unique content A';
       const content2 = 'Unique content B';
 
-      const result1 = checkDuplicate(userId, content1, DUPLICATE_DETECTION_CONFIGS.POST);
+      const result1 = checkDuplicate(
+        userId,
+        content1,
+        DUPLICATE_DETECTION_CONFIGS.POST
+      );
       expect(result1.isDuplicate).toBe(false);
 
-      const result2 = checkDuplicate(userId, content2, DUPLICATE_DETECTION_CONFIGS.POST);
+      const result2 = checkDuplicate(
+        userId,
+        content2,
+        DUPLICATE_DETECTION_CONFIGS.POST
+      );
       expect(result2.isDuplicate).toBe(false);
     });
 
@@ -97,7 +105,11 @@ describe('Rate Limiting (Shared)', () => {
       const content = 'Duplicate content';
 
       checkDuplicate(userId, content, DUPLICATE_DETECTION_CONFIGS.POST);
-      const result = checkDuplicate(userId, content, DUPLICATE_DETECTION_CONFIGS.POST);
+      const result = checkDuplicate(
+        userId,
+        content,
+        DUPLICATE_DETECTION_CONFIGS.POST
+      );
       expect(result.isDuplicate).toBe(true);
       expect(result.lastPostedAt).toBeInstanceOf(Date);
     });
@@ -108,7 +120,11 @@ describe('Rate Limiting (Shared)', () => {
       const content2 = '  same content  '; // Different case and whitespace
 
       checkDuplicate(userId, content1, DUPLICATE_DETECTION_CONFIGS.POST);
-      const result = checkDuplicate(userId, content2, DUPLICATE_DETECTION_CONFIGS.POST);
+      const result = checkDuplicate(
+        userId,
+        content2,
+        DUPLICATE_DETECTION_CONFIGS.POST
+      );
       expect(result.isDuplicate).toBe(true);
     });
 
@@ -118,7 +134,11 @@ describe('Rate Limiting (Shared)', () => {
       const content = 'Shared content';
 
       checkDuplicate(user1, content, DUPLICATE_DETECTION_CONFIGS.POST);
-      const result = checkDuplicate(user2, content, DUPLICATE_DETECTION_CONFIGS.POST);
+      const result = checkDuplicate(
+        user2,
+        content,
+        DUPLICATE_DETECTION_CONFIGS.POST
+      );
       expect(result.isDuplicate).toBe(false);
     });
   });
@@ -152,5 +172,3 @@ describe('Rate Limiting (Shared)', () => {
     });
   });
 });
-
-

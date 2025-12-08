@@ -5,12 +5,11 @@
  * @access Authenticated (own keys only)
  */
 
+import { authenticate, successResponse, withErrorHandling } from '@babylon/api';
+import { asUser, eq, userApiKeys } from '@babylon/db';
+import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { authenticate } from '@babylon/api';
-import { userApiKeys, eq, asUser } from '@babylon/db';
-import { successResponse, withErrorHandling } from '@babylon/api';
-import { logger } from '@babylon/shared';
 
 /**
  * DELETE /api/users/api-keys/[keyId] - Revoke API key
@@ -65,4 +64,3 @@ export const DELETE = withErrorHandling(
     });
   }
 );
-

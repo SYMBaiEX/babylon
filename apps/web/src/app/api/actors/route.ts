@@ -65,8 +65,8 @@
  * @see {@link @babylon/engine#loadActorsData} Actors data loader (TypeScript imports)
  */
 
-import { NextResponse } from 'next/server';
 import { loadActorsData } from '@babylon/engine';
+import { NextResponse } from 'next/server';
 
 /**
  * GET /api/actors
@@ -76,14 +76,6 @@ import { loadActorsData } from '@babylon/engine';
  * @returns {Promise<NextResponse>} Actors and organizations data
  */
 export async function GET() {
-  try {
-    const actorsData = loadActorsData();
-    return NextResponse.json(actorsData);
-  } catch (error) {
-    console.error('Error loading actors data:', error);
-    return NextResponse.json(
-      { error: 'Failed to load actors data' },
-      { status: 500 }
-    );
-  }
+  const actorsData = loadActorsData();
+  return NextResponse.json(actorsData);
 }

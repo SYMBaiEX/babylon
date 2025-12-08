@@ -9,7 +9,6 @@
 import {
   actorFollows,
   actorRelationships,
-  actors,
   and,
   count,
   db,
@@ -18,12 +17,9 @@ import {
   inArray,
   or,
 } from '@babylon/db';
-import type {
-  Actor,
-  ActorRelationship,
-  ActorTier,
-} from '@babylon/shared';
+import type { Actor, ActorRelationship, ActorTier } from '@babylon/shared';
 import { RELATIONSHIP_TYPES } from '@babylon/shared';
+import { StaticDataRegistry } from './static-data-registry';
 
 /**
  * Relationship context for LLM prompts
@@ -149,10 +145,10 @@ export class RelationshipManager {
     const followingIds = follows.map((f) => f.followingId);
     if (followingIds.length === 0) return [];
 
-    const followedActors = await db
-      .select()
-      .from(actors)
-      .where(inArray(actors.id, followingIds));
+    // Get actors from static registry
+    const followedActors = followingIds
+      .map((id) => StaticDataRegistry.getActor(id))
+      .filter((a): a is NonNullable<typeof a> => a !== null);
 
     const actorMap = new Map(followedActors.map((a) => [a.id, a]));
 
@@ -161,7 +157,7 @@ export class RelationshipManager {
         const actor = actorMap.get(f.followingId);
         if (!actor) return null;
         return {
-          ...RelationshipManager.mapActorFromDb(actor),
+          ...RelationshipManager.mapActorFromRegistry(actor),
           followedAt: f.createdAt,
         };
       })
@@ -186,10 +182,10 @@ export class RelationshipManager {
     const followerIds = follows.map((f) => f.followerId);
     if (followerIds.length === 0) return [];
 
-    const followerActors = await db
-      .select()
-      .from(actors)
-      .where(inArray(actors.id, followerIds));
+    // Get actors from static registry
+    const followerActors = followerIds
+      .map((id) => StaticDataRegistry.getActor(id))
+      .filter((a): a is NonNullable<typeof a> => a !== null);
 
     const actorMap = new Map(followerActors.map((a) => [a.id, a]));
 
@@ -198,7 +194,7 @@ export class RelationshipManager {
         const actor = actorMap.get(f.followerId);
         if (!actor) return null;
         return {
-          ...RelationshipManager.mapActorFromDb(actor),
+          ...RelationshipManager.mapActorFromRegistry(actor),
           followedAt: f.createdAt,
         };
       })
@@ -257,14 +253,14 @@ export class RelationshipManager {
         )
       );
 
-    // Get actor names
+    // Get actor names from static registry
     const allActorIds = [
       ...new Set(relationships.flatMap((r) => [r.actor1Id, r.actor2Id])),
     ];
-    const actorsList = await db
-      .select({ id: actors.id, name: actors.name })
-      .from(actors)
-      .where(inArray(actors.id, allActorIds));
+    const actorsList = allActorIds
+      .map((id) => StaticDataRegistry.getActor(id))
+      .filter((a): a is NonNullable<typeof a> => a !== null)
+      .map((a) => ({ id: a.id, name: a.name }));
     const actorNameMap = new Map(actorsList.map((a) => [a.id, a.name]));
 
     const relationshipData = relationships.map((rel) => {
@@ -371,18 +367,17 @@ export class RelationshipManager {
 
     if (relatedActorIds.length === 0) return [];
 
-    // Fetch full actor details
-    const relatedActors = await db
-      .select()
-      .from(actors)
-      .where(inArray(actors.id, relatedActorIds));
+    // Fetch full actor details from static registry
+    const relatedActors = relatedActorIds
+      .map((id) => StaticDataRegistry.getActor(id))
+      .filter((a): a is NonNullable<typeof a> => a !== null);
 
     // Remove duplicates and limit to count
     const uniqueActors = Array.from(new Set(relatedActors.map((a) => a.id)))
       .map((id) => relatedActors.find((a) => a.id === id)!)
       .slice(0, count);
 
-    return uniqueActors.map((a) => RelationshipManager.mapActorFromDb(a));
+    return uniqueActors.map((a) => RelationshipManager.mapActorFromRegistry(a));
   }
 
   /**
@@ -445,8 +440,8 @@ export class RelationshipManager {
    * Get actors with no followers (for verification/fixing)
    */
   static async getActorsWithNoFollowers(): Promise<Actor[]> {
-    // Get all actors
-    const allActors = await db.select().from(actors);
+    // Get all actors from static registry
+    const allActors = StaticDataRegistry.getAllActors();
 
     // Get all followed actor IDs
     const followedActors = await db
@@ -461,7 +456,7 @@ export class RelationshipManager {
     );
 
     return actorsWithNoFollowers.map((a) =>
-      RelationshipManager.mapActorFromDb(a)
+      RelationshipManager.mapActorFromRegistry(a)
     );
   }
 
@@ -500,45 +495,39 @@ export class RelationshipManager {
   }
 
   /**
-   * Map DB actor to shared Actor type
+   * Map static registry actor to shared Actor type
    */
-  private static mapActorFromDb(dbActor: {
+  private static mapActorFromRegistry(staticActor: {
     id: string;
     name: string;
-    description?: string | null;
+    description?: string;
     domain: string[];
-    personality?: string | null;
+    personality?: string;
     role?: string | null;
     affiliations: string[];
-    postStyle?: string | null;
+    postStyle?: string;
     postExample: string[];
     tier?: string | null;
     initialLuck?: string;
     initialMood?: number;
-    hasPool?: boolean;
-    tradingBalance?: unknown;
-    reputationPoints?: number;
     profileImageUrl?: string | null;
   }): Actor {
     return {
-      id: dbActor.id,
-      name: dbActor.name,
-      description: dbActor.description || undefined,
-      domain: dbActor.domain || [],
-      personality: dbActor.personality || undefined,
-      role: dbActor.role || undefined,
-      affiliations: dbActor.affiliations || [],
-      postStyle: dbActor.postStyle || undefined,
-      postExample: dbActor.postExample || [],
-      tier: (dbActor.tier as ActorTier | null) || undefined,
+      id: staticActor.id,
+      name: staticActor.name,
+      description: staticActor.description || undefined,
+      domain: staticActor.domain || [],
+      personality: staticActor.personality || undefined,
+      role: staticActor.role || undefined,
+      affiliations: staticActor.affiliations || [],
+      postStyle: staticActor.postStyle || undefined,
+      postExample: staticActor.postExample || [],
+      tier: (staticActor.tier as ActorTier | null) || undefined,
       initialLuck:
-        (dbActor.initialLuck as 'low' | 'medium' | 'high' | null) || undefined,
-      initialMood: dbActor.initialMood ?? undefined,
-      tradingBalance: dbActor.tradingBalance
-        ? Number(dbActor.tradingBalance)
-        : undefined,
-      reputationPoints: dbActor.reputationPoints || undefined,
-      profileImageUrl: dbActor.profileImageUrl || undefined,
+        (staticActor.initialLuck as 'low' | 'medium' | 'high' | null) ||
+        undefined,
+      initialMood: staticActor.initialMood ?? undefined,
+      profileImageUrl: staticActor.profileImageUrl || undefined,
     };
   }
 }

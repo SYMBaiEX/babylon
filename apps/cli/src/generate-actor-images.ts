@@ -70,11 +70,11 @@
 import {
   actorBanner,
   actorPortrait,
+  loadActorsData,
   organizationBanner,
   organizationLogo,
   renderPrompt,
 } from '@babylon/engine';
-import { loadActorsData } from '@babylon/engine';
 import { fal } from '@fal-ai/client';
 import { config } from 'dotenv';
 import { access, mkdir, writeFile } from 'fs/promises';
@@ -645,7 +645,9 @@ async function main() {
   }
 
   // Build job queue for organization logos
-  logger.info(`Checking ${actorsDb.organizations.length} organization logos...`);
+  logger.info(
+    `Checking ${actorsDb.organizations.length} organization logos...`
+  );
   for (const org of actorsDb.organizations) {
     const imagePath = join(orgsImagesDir, `${org.id}.jpg`);
 
@@ -663,7 +665,9 @@ async function main() {
   }
 
   // Build job queue for organization banners
-  logger.info(`Checking ${actorsDb.organizations.length} organization banners...`);
+  logger.info(
+    `Checking ${actorsDb.organizations.length} organization banners...`
+  );
   for (const org of actorsDb.organizations) {
     const bannerPath = join(orgsBannersDir, `${org.id}.jpg`);
 
@@ -680,7 +684,9 @@ async function main() {
     }
   }
 
-  logger.info(`Found ${jobs.length} images to generate (${skippedCount} already exist)`);
+  logger.info(
+    `Found ${jobs.length} images to generate (${skippedCount} already exist)`
+  );
 
   if (jobs.length === 0) {
     logger.info('All images already exist!');

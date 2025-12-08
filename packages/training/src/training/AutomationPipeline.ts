@@ -11,10 +11,8 @@
  * 7. Monitor performance
  */
 
-import { spawn } from 'child_process';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { inArray } from 'drizzle-orm';
 import {
   and,
   count,
@@ -30,6 +28,8 @@ import {
   trajectories,
   users,
 } from '@babylon/db';
+import { spawn } from 'child_process';
+import { inArray } from 'drizzle-orm';
 import { getExportGroupedForGRPO } from '../dependencies';
 import { logger } from '../utils/logger';
 import { benchmarkService } from './BenchmarkService';
@@ -37,7 +37,6 @@ import { MarketOutcomesTracker } from './MarketOutcomesTracker';
 import { modelSelectionService } from './ModelSelectionService';
 import { rewardBackpropagationService } from './RewardBackpropagationService';
 import { rulerScoringService } from './RulerScoringService';
-import { getCurrentWindowId } from './window-utils';
 import type {
   AutomationConfig,
   AutomationStatus,
@@ -47,6 +46,7 @@ import type {
   TrainingTriggerResult,
   TrajectoryStep,
 } from './types';
+import { getCurrentWindowId, getPreviousWindowId } from './window-utils';
 
 export type { AutomationConfig };
 
@@ -86,8 +86,12 @@ export class AutomationPipeline {
       dataStoragePath:
         config.dataStoragePath ||
         path.resolve(process.cwd(), 'storage/training-data'),
-      atroposApiUrl: config.atroposApiUrl || process.env.ATROPOS_API_URL || 'http://localhost:8000',
-      vllmPort: config.vllmPort || parseInt(process.env.VLLM_PORT || '9001', 10),
+      atroposApiUrl:
+        config.atroposApiUrl ||
+        process.env.ATROPOS_API_URL ||
+        'http://localhost:8000',
+      vllmPort:
+        config.vllmPort || parseInt(process.env.VLLM_PORT || '9001', 10),
     };
   }
 
@@ -401,10 +405,16 @@ export class AutomationPipeline {
 
     const batch = batchResult[0]!;
 
-    // Trigger Python training script (Atropos trainer)
+    // Determine training mode: 'tinker' for cloud-based or 'atropos' for local vLLM
+    const trainingMode = process.env.TRAINING_MODE || 'atropos';
+    const useTinker = trainingMode.toLowerCase() === 'tinker';
+
+    // Trigger appropriate Python training script based on mode
+    // Scripts are in packages/training/python/src/training/
     const pythonScript = path.resolve(
       process.cwd(),
-      'python/src/training/atropos_trainer.py'
+      'packages/training/python/src/training',
+      useTinker ? 'tinker_trainer.py' : 'atropos_trainer.py'
     );
 
     // Set environment variables for Python script
@@ -421,14 +431,22 @@ export class AutomationPipeline {
       VLLM_PORT: String(this.config.vllmPort || 9001),
       FORCE_TRAINING: options.force ? 'true' : 'false',
       MIN_AGENTS_PER_WINDOW: '1',
+      TRAINING_MODE: trainingMode,
     };
 
     logger.info(
-      'Training will use Atropos GRPO with vLLM',
-      { 
-        atroposUrl: env.ATROPOS_API_URL, 
-        vllmPort: env.VLLM_PORT,
-        model: env.BASE_MODEL,
+      useTinker
+        ? 'Training will use Tinker cloud-based GRPO'
+        : 'Training will use Atropos GRPO with vLLM',
+      {
+        trainingMode,
+        ...(useTinker
+          ? { model: env.BASE_MODEL }
+          : {
+              atroposUrl: env.ATROPOS_API_URL,
+              vllmPort: env.VLLM_PORT,
+              model: env.BASE_MODEL,
+            }),
       },
       'AutomationPipeline'
     );
@@ -461,7 +479,9 @@ export class AutomationPipeline {
         })
         .where(eq(trainingBatches.batchId, batchId))
         .catch((err: unknown) =>
-          logger.error('Failed to update batch status', { error: err })
+          logger.error('Failed to update batch status', {
+            error: err instanceof Error ? err : String(err),
+          })
         );
     });
 
@@ -567,13 +587,8 @@ export class AutomationPipeline {
    * Export files can accumulate to 200GB+ if not cleaned up.
    */
   private async cleanupExportFiles(batchId: string): Promise<void> {
-
     // Clean up GRPO export directory
-    const exportDir = path.resolve(
-      process.cwd(),
-      'exports',
-      'grpo-groups'
-    );
+    const exportDir = path.resolve(process.cwd(), 'exports', 'grpo-groups');
     const files = await fs.readdir(exportDir);
     for (const file of files) {
       const filePath = path.join(exportDir, file);
@@ -696,13 +711,12 @@ export class AutomationPipeline {
 
     // Score current window and previous windows
     for (let hoursAgo = 0; hoursAgo < 24; hoursAgo++) {
-      const windowDate = new Date(Date.now() - hoursAgo * 60 * 60 * 1000);
-      const windowIdStr = windowDate.toISOString().slice(0, 13) + ':00';
+      const windowId = getPreviousWindowId(hoursAgo);
 
-      const scored = await rulerScoringService.scoreWindow(windowIdStr);
+      const scored = await rulerScoringService.scoreWindow(windowId);
       if (scored > 0) {
         logger.info('Scored trajectories with RULER', {
-          windowId: windowIdStr,
+          windowId,
           scored,
         });
       }
@@ -983,22 +997,12 @@ export class AutomationPipeline {
       .where(eq(trainingBatches.status, 'training'));
     const trainingCount = trainingCountResult[0]?.count || 0;
 
-    // Health checks
-    let dbHealthy = false;
-    try {
-      await db.select({ count: count() }).from(users);
-      dbHealthy = true;
-    } catch {
-      dbHealthy = false;
-    }
+    // Health checks - fail fast if unhealthy
+    await db.select({ count: count() }).from(users);
+    const dbHealthy = true;
 
-    let storageHealthy = false;
-    try {
-      await fs.access(this.config.modelStoragePath);
-      storageHealthy = true;
-    } catch {
-      storageHealthy = false;
-    }
+    await fs.access(this.config.modelStoragePath);
+    const storageHealthy = true;
 
     const atroposHealthy = !!this.config.atroposApiUrl;
 

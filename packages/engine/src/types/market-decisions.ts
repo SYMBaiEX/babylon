@@ -72,4 +72,3 @@ export interface TradeImpact {
   netSentiment: number;
   priceImpact: number;
 }
-

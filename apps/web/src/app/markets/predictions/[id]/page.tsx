@@ -1,6 +1,11 @@
 'use client';
 
 import {
+  calculateExpectedPayout,
+  PredictionPricing,
+} from '@babylon/engine/client';
+import { cn } from '@babylon/shared';
+import {
   ArrowLeft,
   CheckCircle,
   Clock,
@@ -30,11 +35,6 @@ import type {
   PredictionTradeSSE,
 } from '@/hooks/usePredictionMarketStream';
 import { usePredictionMarketStream } from '@/hooks/usePredictionMarketStream';
-import {
-  calculateExpectedPayout,
-  PredictionPricing,
-} from '@babylon/engine/client';
-import { cn } from '@babylon/shared';
 
 interface PredictionPosition {
   id: string;
@@ -105,30 +105,25 @@ export default function PredictionDetailPage() {
           return position;
         }
 
-        try {
-          const sellPreview = PredictionPricing.calculateSell(
-            nextYesShares,
-            nextNoShares,
-            position.side === 'YES' ? 'yes' : 'no',
-            position.shares
-          );
-          const currentValue = sellPreview.totalCost;
-          const currentPrice = currentValue / position.shares;
-          const costBasis =
-            position.costBasis ?? position.shares * position.avgPrice;
-          const unrealizedPnL = currentValue - costBasis;
+        const sellPreview = PredictionPricing.calculateSell(
+          nextYesShares,
+          nextNoShares,
+          position.side === 'YES' ? 'yes' : 'no',
+          position.shares
+        );
+        const currentValue = sellPreview.totalCost;
+        const currentPrice = currentValue / position.shares;
+        const costBasis =
+          position.costBasis ?? position.shares * position.avgPrice;
+        const unrealizedPnL = currentValue - costBasis;
 
-          return {
-            ...position,
-            currentPrice,
-            currentValue,
-            costBasis,
-            unrealizedPnL,
-          };
-        } catch (error) {
-          console.warn('Failed to recalc prediction position', error);
-          return position;
-        }
+        return {
+          ...position,
+          currentPrice,
+          currentValue,
+          costBasis,
+          unrealizedPnL,
+        };
       });
     },
     []

@@ -15,6 +15,7 @@ import {
 import type { JsonValue } from '../types';
 import { agentPerformanceMetrics } from './agents';
 import { onboardingStatusEnum } from './enums';
+import { userAgentConfigs } from './user-agent-configs';
 
 // User - Main user table
 export const users = pgTable(
@@ -190,54 +191,11 @@ export const users = pgTable(
     emailVerified: boolean('emailVerified').notNull().default(false),
     email: text('email'),
     waitlistGraduatedAt: timestamp('waitlistGraduatedAt', { mode: 'date' }),
-    // Agent fields
-    agentCount: integer('agentCount').notNull().default(0),
-    totalAgentPnL: decimal('totalAgentPnL', { precision: 18, scale: 2 })
-      .notNull()
-      .default('0'),
-    agentErrorMessage: text('agentErrorMessage'),
-    agentLastChatAt: timestamp('agentLastChatAt', { mode: 'date' }),
-    agentLastTickAt: timestamp('agentLastTickAt', { mode: 'date' }),
-    agentMessageExamples: json('agentMessageExamples').$type<JsonValue>(),
-    agentModelTier: text('agentModelTier').notNull().default('free'),
-    agentPersonality: text('agentPersonality'),
-    agentPointsBalance: integer('agentPointsBalance').notNull().default(0),
-    agentStatus: text('agentStatus').notNull().default('idle'),
-    agentStyle: json('agentStyle').$type<JsonValue>(),
-    agentSystem: text('agentSystem'),
-    agentTotalDeposited: integer('agentTotalDeposited').notNull().default(0),
-    agentTotalPointsSpent: integer('agentTotalPointsSpent')
-      .notNull()
-      .default(0),
-    agentTotalWithdrawn: integer('agentTotalWithdrawn').notNull().default(0),
-    agentTradingStrategy: text('agentTradingStrategy'),
-    autonomousCommenting: boolean('autonomousCommenting')
-      .notNull()
-      .default(false),
-    autonomousDMs: boolean('autonomousDMs').notNull().default(false),
-    autonomousGroupChats: boolean('autonomousGroupChats')
-      .notNull()
-      .default(false),
-    autonomousPosting: boolean('autonomousPosting').notNull().default(false),
-    autonomousTrading: boolean('autonomousTrading').notNull().default(false),
-    a2aEnabled: boolean('a2aEnabled').notNull().default(false),
+    // Agent flags (config stored in UserAgentConfig table)
     isAgent: boolean('isAgent').notNull().default(false),
     managedBy: text('managedBy'),
-    agentGoals: json('agentGoals').$type<JsonValue>(),
-    agentDirectives: json('agentDirectives').$type<JsonValue>(),
-    agentConstraints: json('agentConstraints').$type<JsonValue>(),
-    agentPersonaPrompt: text('agentPersonaPrompt'),
-    agentPlanningHorizon: text('agentPlanningHorizon')
-      .notNull()
-      .default('single'),
-    agentRiskTolerance: text('agentRiskTolerance').notNull().default('medium'),
-    agentMaxActionsPerTick: integer('agentMaxActionsPerTick')
-      .notNull()
-      .default(3),
   },
   (table) => [
-    index('User_agentCount_idx').on(table.agentCount),
-    index('User_autonomousTrading_idx').on(table.autonomousTrading),
     index('User_displayName_idx').on(table.displayName),
     index('User_earnedPoints_idx').on(table.earnedPoints),
     index('User_invitePoints_idx').on(table.invitePoints),
@@ -254,7 +212,6 @@ export const users = pgTable(
     ),
     index('User_referralCode_idx').on(table.referralCode),
     index('User_reputationPoints_idx').on(table.reputationPoints),
-    index('User_totalAgentPnL_idx').on(table.totalAgentPnL),
     index('User_username_idx').on(table.username),
     index('User_waitlistJoinedAt_idx').on(table.waitlistJoinedAt),
     index('User_waitlistPosition_idx').on(table.waitlistPosition),
@@ -397,7 +354,9 @@ export const referrals = pgTable(
     createdAt: timestamp('createdAt', { mode: 'date' }).notNull().defaultNow(),
     completedAt: timestamp('completedAt', { mode: 'date' }),
     qualifiedAt: timestamp('qualifiedAt', { mode: 'date' }),
-    signupPointsAwarded: boolean('signupPointsAwarded').notNull().default(false),
+    signupPointsAwarded: boolean('signupPointsAwarded')
+      .notNull()
+      .default(false),
     suspiciousReferralFlags: json('suspiciousReferralFlags').$type<JsonValue>(),
   },
   (table) => [
@@ -575,6 +534,10 @@ export const usersRelations = relations(users, ({ many, one }) => ({
   apiKeys: many(userApiKeys, {
     relationName: 'UserApiKey_userIdToUser',
   }),
+  agentConfig: one(userAgentConfigs, {
+    fields: [users.id],
+    references: [userAgentConfigs.userId],
+  }),
 }));
 
 export const onboardingIntentsRelations = relations(
@@ -717,7 +680,3 @@ export type UserInteraction = typeof userInteractions.$inferSelect;
 export type NewUserInteraction = typeof userInteractions.$inferInsert;
 export type UserApiKey = typeof userApiKeys.$inferSelect;
 export type NewUserApiKey = typeof userApiKeys.$inferInsert;
-
-
-
-

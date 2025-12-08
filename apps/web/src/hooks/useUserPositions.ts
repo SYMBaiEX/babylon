@@ -1,8 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
-
 import type { PerpPosition } from '@babylon/shared';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 /**
  * Represents a user's position in a prediction market.

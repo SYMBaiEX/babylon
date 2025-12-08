@@ -135,13 +135,16 @@
  * @see {@link /lib/db/context} RLS context
  */
 
+import {
+  ApiError,
+  authenticate,
+  successResponse,
+  withErrorHandling,
+} from '@babylon/api';
+import { asUser } from '@babylon/db';
+import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { z } from 'zod';
-import { authenticate } from '@babylon/api';
-import { asUser } from '@babylon/db';
-import { ApiError } from '@babylon/api';
-import { successResponse, withErrorHandling } from '@babylon/api';
-import { logger } from '@babylon/shared';
 
 const UpdateGroupSchema = z.object({
   name: z.string().min(1).max(100).optional(),

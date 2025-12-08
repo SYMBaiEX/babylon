@@ -8,20 +8,19 @@
  * - Performance tracking
  */
 
-import { desc, eq, inArray, or } from 'drizzle-orm';
-import { db } from '@babylon/db';
 import {
   actorRelationships,
-  actors,
+  db,
   npcTrades,
-  organizations,
+  organizationState,
   poolPositions,
   pools,
-} from '@babylon/db/schema';
-import { logger } from '@babylon/shared';
+} from '@babylon/db';
+import { generateSnowflakeId, logger } from '@babylon/shared';
+import { desc, eq, inArray, or } from 'drizzle-orm';
 import { getReputationBreakdown } from '../reputation';
+import { StaticDataRegistry } from '../services/static-data-registry';
 import { TradeExecutionService } from '../services/trade-execution-service';
-import { generateSnowflakeId } from '@babylon/shared';
 import type {
   TradingDecision,
   TradingExecutionResult,
@@ -339,15 +338,28 @@ export class NPCInvestmentManager {
       new Set(activePools.map((pool) => pool.npcActorId))
     );
 
-    const organizationsPromise = db
-      .select({
-        id: organizations.id,
-        name: organizations.name,
-        currentPrice: organizations.currentPrice,
-        initialPrice: organizations.initialPrice,
-      })
-      .from(organizations)
-      .where(eq(organizations.type, 'company'));
+    // Get organizations from static registry with dynamic prices
+    const staticOrgs = StaticDataRegistry.getOrganizationsByType('company');
+    const orgStateResults = await db
+      .select()
+      .from(organizationState)
+      .where(
+        inArray(
+          organizationState.id,
+          staticOrgs.map((o) => o.id)
+        )
+      );
+    const priceMap = new Map(
+      orgStateResults.map(
+        (s) => [s.id, s.currentPrice] as [string, number | null]
+      )
+    );
+    const organizationsResult = staticOrgs.map((o) => ({
+      id: o.id,
+      name: o.name,
+      currentPrice: priceMap.get(o.id) ?? o.initialPrice,
+      initialPrice: o.initialPrice,
+    }));
 
     const relationships = await db
       .select({
@@ -370,16 +382,15 @@ export class NPCInvestmentManager {
       actorIdSet.add(rel.actor2Id);
     });
 
-    const actorsResult = await db
-      .select({
-        id: actors.id,
-        name: actors.name,
-        affiliations: actors.affiliations,
-      })
-      .from(actors)
-      .where(inArray(actors.id, Array.from(actorIdSet)));
-
-    const organizationsResult = await organizationsPromise;
+    // Get actors from static registry
+    const actorsResult = Array.from(actorIdSet)
+      .map((id) => StaticDataRegistry.getActor(id))
+      .filter((a): a is NonNullable<typeof a> => a !== null)
+      .map((a) => ({
+        id: a.id,
+        name: a.name,
+        affiliations: a.affiliations,
+      }));
 
     const actorMap = new Map(actorsResult.map((actor) => [actor.id, actor]));
     const organizationMap = new Map(
@@ -414,11 +425,11 @@ export class NPCInvestmentManager {
     });
 
     // Sort fallback organizations by current price (descending) to pick meaningful assets
-    const fallbackOrganizations = [...organizationsResult].sort(
-      (a, b) =>
-        (b.currentPrice ?? b.initialPrice ?? 100) -
-        (a.currentPrice ?? a.initialPrice ?? 100)
-    );
+    const fallbackOrganizations = [...organizationsResult].sort((a, b) => {
+      const priceA = a.currentPrice ?? a.initialPrice ?? 100;
+      const priceB = b.currentPrice ?? b.initialPrice ?? 100;
+      return priceB - priceA;
+    });
 
     const baselineDecisions: TradingDecision[] = [];
 
@@ -623,35 +634,30 @@ export class NPCInvestmentManager {
       'NPCInvestmentManager'
     );
 
-    try {
-      if (action.type === 'close' && action.positionId) {
-        // Close position
-        await db
-          .update(poolPositions)
-          .set({ closedAt: new Date() })
-          .where(eq(poolPositions.id, action.positionId));
+    if (action.type === 'close' && action.positionId) {
+      // Close position
+      await db
+        .update(poolPositions)
+        .set({ closedAt: new Date() })
+        .where(eq(poolPositions.id, action.positionId));
 
-        // Record the rebalance trade
-        await db.insert(npcTrades).values({
-          id: await generateSnowflakeId(),
-          npcActorId: npcUserId,
-          poolId,
-          marketType: action.marketType,
-          ticker: action.ticker ?? null,
-          marketId: action.marketId ?? null,
-          action: 'close',
-          side: action.side,
-          amount: 0,
-          price: 0,
-          sentiment: 0,
-          reason: action.reason,
-        });
-      }
-      // Add other action types (open, resize) as needed
-    } catch (error) {
-      logger.error('Error executing NPC action', { error, action });
-      throw error;
+      // Record the rebalance trade
+      await db.insert(npcTrades).values({
+        id: await generateSnowflakeId(),
+        npcActorId: npcUserId,
+        poolId,
+        marketType: action.marketType,
+        ticker: action.ticker ?? null,
+        marketId: action.marketId ?? null,
+        action: 'close',
+        side: action.side,
+        amount: 0,
+        price: 0,
+        sentiment: 0,
+        reason: action.reason,
+      });
     }
+    // Add other action types (open, resize) as needed
   }
 
   /**
@@ -668,14 +674,13 @@ export class NPCInvestmentManager {
     const actorIds = [...new Set(activePools.map((p) => p.npcActorId))];
     const actorsList =
       actorIds.length > 0
-        ? await db
-            .select({
-              id: actors.id,
-              name: actors.name,
-              personality: actors.personality,
-            })
-            .from(actors)
-            .where(inArray(actors.id, actorIds))
+        ? StaticDataRegistry.getAllActors()
+            .filter((a) => actorIds.includes(a.id))
+            .map((a) => ({
+              id: a.id,
+              name: a.name,
+              personality: a.personality ?? null,
+            }))
         : [];
     const actorsMap = new Map(actorsList.map((a) => [a.id, a]));
 
@@ -869,4 +874,3 @@ export class NPCInvestmentManager {
     return positionSize;
   }
 }
-

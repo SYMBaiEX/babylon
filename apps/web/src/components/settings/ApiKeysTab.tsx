@@ -1,17 +1,17 @@
 'use client';
 
+import { logger } from '@babylon/shared';
 import {
+  AlertTriangle,
   CheckCircle2,
   Copy,
   Key,
   Plus,
   Trash2,
-  AlertTriangle,
 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
-import { logger } from '@babylon/shared';
 
 interface ApiKey {
   id: string;
@@ -47,32 +47,36 @@ export function ApiKeysTab() {
   const [keyName, setKeyName] = useState('');
 
   const fetchKeys = useCallback(async () => {
-    try {
-      setLoading(true);
-      const token = await getAccessToken();
-      if (!token) {
-        throw new Error('Not authenticated');
-      }
-
-      const response = await fetch('/api/users/api-keys', {
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch API keys');
-      }
-
-      const data = await response.json();
-      setKeys(data.keys || []);
-    } catch (error) {
-      logger.error('Failed to fetch API keys', { error }, 'ApiKeysTab');
+    setLoading(true);
+    const token = await getAccessToken();
+    if (!token) {
+      logger.error('Not authenticated', undefined, 'ApiKeysTab');
       toast.error('Failed to load API keys');
-    } finally {
       setLoading(false);
+      return;
     }
+
+    const response = await fetch('/api/users/api-keys', {
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      logger.error(
+        'Failed to fetch API keys',
+        { status: response.status },
+        'ApiKeysTab'
+      );
+      toast.error('Failed to load API keys');
+      setLoading(false);
+      return;
+    }
+
+    const data = await response.json();
+    setKeys(data.keys || []);
+    setLoading(false);
   }, [getAccessToken]);
 
   useEffect(() => {
@@ -80,40 +84,43 @@ export function ApiKeysTab() {
   }, [fetchKeys]);
 
   const handleGenerateKey = async () => {
-    try {
-      setGenerating(true);
-      const token = await getAccessToken();
-      if (!token) {
-        throw new Error('Not authenticated');
-      }
-
-      const response = await fetch('/api/users/api-keys', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ name: keyName || undefined }),
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to generate API key');
-      }
-
-      const data: ApiKeyResponse = await response.json();
-      setNewKey(data);
-      setKeyName('');
-      await fetchKeys();
-      toast.success('API key generated successfully');
-    } catch (error) {
-      logger.error('Failed to generate API key', { error }, 'ApiKeysTab');
-      toast.error(
-        error instanceof Error ? error.message : 'Failed to generate API key'
-      );
-    } finally {
+    setGenerating(true);
+    const token = await getAccessToken();
+    if (!token) {
+      logger.error('Not authenticated', undefined, 'ApiKeysTab');
+      toast.error('Failed to generate API key');
       setGenerating(false);
+      return;
     }
+
+    const response = await fetch('/api/users/api-keys', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ name: keyName || undefined }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      const errorMessage = error.error || 'Failed to generate API key';
+      logger.error(
+        'Failed to generate API key',
+        { status: response.status, error: errorMessage },
+        'ApiKeysTab'
+      );
+      toast.error(errorMessage);
+      setGenerating(false);
+      return;
+    }
+
+    const data: ApiKeyResponse = await response.json();
+    setNewKey(data);
+    setKeyName('');
+    await fetchKeys();
+    toast.success('API key generated successfully');
+    setGenerating(false);
   };
 
   const handleRevokeKey = async (keyId: string) => {
@@ -125,40 +132,38 @@ export function ApiKeysTab() {
       return;
     }
 
-    try {
-      const token = await getAccessToken();
-      if (!token) {
-        throw new Error('Not authenticated');
-      }
-
-      const response = await fetch(`/api/users/api-keys/${keyId}`, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to revoke API key');
-      }
-
-      toast.success('API key revoked successfully');
-      await fetchKeys();
-    } catch (error) {
-      logger.error('Failed to revoke API key', { error }, 'ApiKeysTab');
+    const token = await getAccessToken();
+    if (!token) {
+      logger.error('Not authenticated', undefined, 'ApiKeysTab');
       toast.error('Failed to revoke API key');
+      return;
     }
+
+    const response = await fetch(`/api/users/api-keys/${keyId}`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      logger.error(
+        'Failed to revoke API key',
+        { status: response.status },
+        'ApiKeysTab'
+      );
+      toast.error('Failed to revoke API key');
+      return;
+    }
+
+    toast.success('API key revoked successfully');
+    await fetchKeys();
   };
 
   const handleCopyKey = async (key: string) => {
-    try {
-      await navigator.clipboard.writeText(key);
-      toast.success('API key copied to clipboard');
-    } catch (error) {
-      logger.error('Failed to copy API key', { error }, 'ApiKeysTab');
-      toast.error('Failed to copy API key');
-    }
+    await navigator.clipboard.writeText(key);
+    toast.success('API key copied to clipboard');
   };
 
   const formatDate = (dateString: string) => {
@@ -317,16 +322,17 @@ export function ApiKeysTab() {
       <div className="rounded-lg border border-border bg-muted/30 p-4">
         <h3 className="mb-2 font-semibold text-sm">How to Use API Keys</h3>
         <div className="space-y-2 text-muted-foreground text-sm">
+          <p>1. Generate an API key and copy it to a secure location</p>
           <p>
-            1. Generate an API key and copy it to a secure location
+            2. Add the key to your AI agent configuration (Cursor, Claude
+            Desktop, etc.)
           </p>
           <p>
-            2. Add the key to your AI agent configuration (Cursor, Claude Desktop,
-            etc.)
-          </p>
-          <p>
-            3. Use the key in the <code className="rounded bg-background px-1">X-Babylon-Api-Key</code> header
-            when making MCP requests
+            3. Use the key in the{' '}
+            <code className="rounded bg-background px-1">
+              X-Babylon-Api-Key
+            </code>{' '}
+            header when making MCP requests
           </p>
           <p>
             4. Your agent will be able to control your account and create/manage
@@ -337,4 +343,3 @@ export function ApiKeysTab() {
     </div>
   );
 }
-

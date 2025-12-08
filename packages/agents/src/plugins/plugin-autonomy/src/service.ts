@@ -8,6 +8,7 @@ import {
   type UUID,
 } from '@elizaos/core';
 import { v4 as uuidv4 } from 'uuid';
+import type { JsonValue } from '../../../types/common';
 import { AutonomousServiceType } from './types';
 
 /**
@@ -254,7 +255,8 @@ export class AutonomyService extends Service {
           m.entityId === agentEntity.id &&
           m.content?.text &&
           m.content?.metadata &&
-          (m.content.metadata as Record<string, unknown>)?.isAutonomous === true
+          (m.content.metadata as Record<string, JsonValue>)?.isAutonomous ===
+            true
       )
       .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))[0];
 

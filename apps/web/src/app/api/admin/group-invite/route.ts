@@ -66,12 +66,18 @@
  * ```
  */
 
+import {
+  getClientIp,
+  logAdminModify,
+  notifyGroupChatInvite,
+  requireAdmin,
+  withErrorHandling,
+} from '@babylon/api';
+import { asSystem } from '@babylon/db';
+import { StaticDataRegistry } from '@babylon/engine';
+import { generateSnowflakeId } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { authenticate, notifyGroupChatInvite } from '@babylon/api';
-import { asSystem } from '@babylon/db';
-import { withErrorHandling } from '@babylon/api';
-import { generateSnowflakeId } from '@babylon/shared';
 
 /**
  * POST /api/admin/group-invite
@@ -79,50 +85,18 @@ import { generateSnowflakeId } from '@babylon/shared';
  * Admin only
  */
 export const POST = withErrorHandling(async (request: NextRequest) => {
-  const user = await authenticate(request);
+  const admin = await requireAdmin(request);
 
   const body = await request.json();
   const { npcId, userId, chatId, chatName } = body;
 
-  // Check admin permissions using asSystem
-  const dbUser = await asSystem(async (db) => {
-    return await db.user.findUnique({
-      where: { id: user.userId },
-      select: {
-        id: true,
-        username: true,
-        isAdmin: true,
-      },
-    });
-  }, 'admin-group-invite-permission-check');
-
-  console.log(
-    '[Admin Group Invite] Auth user:',
-    user.userId,
-    'DB user:',
-    dbUser
-  );
-
-  if (!dbUser) {
-    return NextResponse.json(
-      { error: 'User not found in database' },
-      { status: 404 }
-    );
-  }
-
-  if (!dbUser.isAdmin) {
-    return NextResponse.json(
-      {
-        error: 'Admin access required',
-        debug: {
-          userId: user.userId,
-          username: dbUser.username,
-          isAdmin: dbUser.isAdmin,
-        },
-      },
-      { status: 403 }
-    );
-  }
+  // Audit log the invite
+  logAdminModify({
+    adminId: admin.userId,
+    ipAddress: getClientIp(request.headers) ?? undefined,
+    resourceType: 'group_invite',
+    metadata: { action: 'send_group_invite', npcId, userId, chatId },
+  });
 
   // Validate inputs
   if (!npcId || !userId) {
@@ -133,22 +107,15 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   }
 
   // Verify NPC exists
-  const npc = await asSystem(async (db) => {
-    const actor = await db.actor.findUnique({
-      where: { id: npcId },
-      select: { id: true, name: true },
-    });
-
-    if (!actor) {
-      // Try as User with isActor=true
-      return await db.user.findUnique({
-        where: { id: npcId, isActor: true },
-        select: { id: true, displayName: true, username: true },
+  const staticActor = StaticDataRegistry.getActor(npcId);
+  const npc = staticActor
+    ? { id: staticActor.id, name: staticActor.name }
+    : await asSystem(async (db) => {
+        return await db.user.findUnique({
+          where: { id: npcId, isActor: true },
+          select: { id: true, displayName: true, username: true },
+        });
       });
-    }
-
-    return actor;
-  });
 
   if (!npc) {
     return NextResponse.json({ error: 'NPC not found' }, { status: 404 });

@@ -4,8 +4,8 @@
  * Consolidated utility functions used across the engine
  */
 
-import { shuffleArray } from './randomization';
 import type { Actor, ActorRelationship } from '../types/shared';
+import { shuffleArray } from './randomization';
 
 export { shuffleArray };
 
@@ -59,7 +59,9 @@ export function formatActorVoiceContext(actor: {
       examples.reduce((sum, ex) => sum + ex.length, 0) / examples.length
     );
     const hasLowercase = examples.some((ex) => ex === ex.toLowerCase());
-    const hasAllCaps = examples.some((ex) => ex === ex.toUpperCase() && ex.length > 3);
+    const hasAllCaps = examples.some(
+      (ex) => ex === ex.toUpperCase() && ex.length > 3
+    );
 
     parts.push(`   EXAMPLE POSTS (YOUR OUTPUT MUST MATCH THIS STYLE):`);
     examples.forEach((ex, i) => {
@@ -164,49 +166,6 @@ export function buildRelationshipContext(
 }
 
 /**
- * Build comprehensive character voice block for LLM prompts
- */
-export function buildCharacterVoiceBlock(actor: {
-  name: string;
-  description?: string;
-  personality?: string;
-  voice?: string;
-  postStyle?: string;
-  postExample?: string[];
-}): string {
-  const lines: string[] = [];
-
-  lines.push(`[CHARACTER: ${actor.name}]`);
-
-  if (actor.description) {
-    lines.push(`Identity: ${actor.description}`);
-  }
-
-  if (actor.personality) {
-    lines.push(`Personality: ${actor.personality}`);
-  }
-
-  if (actor.voice) {
-    lines.push(`Voice: ${actor.voice}`);
-  }
-
-  if (actor.postStyle) {
-    lines.push(`Writing Style: ${actor.postStyle}`);
-  }
-
-  if (actor.postExample && actor.postExample.length > 0) {
-    const shuffledExamples = shuffleArray(actor.postExample);
-    const examples = shuffledExamples.slice(0, 3);
-    lines.push(`Example Posts:`);
-    examples.forEach((ex, i) => {
-      lines.push(`  ${i + 1}. "${ex}"`);
-    });
-  }
-
-  return lines.join('\n');
-}
-
-/**
  * Convert question ID to number or null
  * Handles both string and number IDs
  */
@@ -223,3 +182,31 @@ export function toQuestionIdNumberOrNull(
   return isNaN(parsed) ? null : parsed;
 }
 
+/**
+ * Emoji regex pattern for stripping emojis from content.
+ * Covers most common emoji Unicode ranges.
+ */
+const EMOJI_REGEX =
+  /[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F900}-\u{1F9FF}\u{1FA70}-\u{1FAFF}]/gu;
+
+/**
+ * Strip hashtags and emojis from content.
+ * Used as post-processing for LLM-generated content.
+ *
+ * @param content - Raw content from LLM
+ * @returns Cleaned content without hashtags or emojis
+ */
+export function stripHashtagsAndEmojis(content: string): string {
+  let processed = content;
+
+  // Strip hashtags (LLMs love to add them despite instructions)
+  processed = processed.replace(/#\w+/g, '');
+
+  // Strip emojis
+  processed = processed.replace(EMOJI_REGEX, '');
+
+  // Normalize whitespace (multiple spaces → single space)
+  processed = processed.replace(/\s+/g, ' ').trim();
+
+  return processed;
+}

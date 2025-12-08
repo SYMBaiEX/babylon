@@ -35,61 +35,44 @@
  * ```
  */
 
-import { NextResponse } from 'next/server';
-import { huggingFaceIntegration } from '@babylon/training';
 import { logger } from '@babylon/shared';
+import { huggingFaceIntegration } from '@babylon/training';
+import { NextResponse } from 'next/server';
 
 export async function GET() {
-  try {
-    logger.info(
-      'Fetching HuggingFace integration status',
-      undefined,
-      'HuggingFaceStatus'
-    );
+  logger.info(
+    'Fetching HuggingFace integration status',
+    undefined,
+    'HuggingFaceStatus'
+  );
 
-    // Get validation results
-    const validation = await huggingFaceIntegration.validateSystemReadiness();
+  // Get validation results
+  const validation = await huggingFaceIntegration.validateSystemReadiness();
 
-    // Get statistics
-    const stats = await huggingFaceIntegration.getStatistics();
+  // Get statistics
+  const stats = await huggingFaceIntegration.getStatistics();
 
-    // Check for new data
-    const newData = await huggingFaceIntegration.hasNewDataToUpload();
+  // Check for new data
+  const newData = await huggingFaceIntegration.hasNewDataToUpload();
 
-    return NextResponse.json({
-      status: 'ok',
-      ready: validation.ready,
-      validation: {
-        issues: validation.issues,
-        warnings: validation.warnings,
-      },
-      statistics: stats,
-      newDataAvailable: newData,
-      environment: {
-        hasToken: !!(process.env.HUGGING_FACE_TOKEN || process.env.HF_TOKEN),
-        datasetName:
-          process.env.HF_DATASET_NAME || 'babylonlabs/agent-benchmarks',
-        trajectoryDatasetName:
-          process.env.HF_TRAJECTORY_DATASET_NAME ||
-          'babylonlabs/agent-trajectories',
-        modelNamePrefix:
-          process.env.HF_MODEL_NAME || 'babylonlabs/babylon-agent',
-      },
-      nextScheduledRun: 'Sundays at 2 AM UTC',
-    });
-  } catch (error) {
-    logger.error(
-      'Failed to get HuggingFace status',
-      { error },
-      'HuggingFaceStatus'
-    );
-
-    return NextResponse.json(
-      {
-        status: 'error',
-        error: error instanceof Error ? error.message : 'Unknown error',
-      },
-      { status: 500 }
-    );
-  }
+  return NextResponse.json({
+    status: 'ok',
+    ready: validation.ready,
+    validation: {
+      issues: validation.issues,
+      warnings: validation.warnings,
+    },
+    statistics: stats,
+    newDataAvailable: newData,
+    environment: {
+      hasToken: !!(process.env.HUGGING_FACE_TOKEN || process.env.HF_TOKEN),
+      datasetName:
+        process.env.HF_DATASET_NAME || 'babylonlabs/agent-benchmarks',
+      trajectoryDatasetName:
+        process.env.HF_TRAJECTORY_DATASET_NAME ||
+        'babylonlabs/agent-trajectories',
+      modelNamePrefix: process.env.HF_MODEL_NAME || 'babylonlabs/babylon-agent',
+    },
+    nextScheduledRun: 'Sundays at 2 AM UTC',
+  });
 }

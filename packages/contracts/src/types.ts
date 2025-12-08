@@ -103,6 +103,11 @@ export interface FeedbackResult {
  * Contract addresses for a deployment environment.
  *
  * Contains addresses for all deployed Babylon smart contracts on a specific network.
+ *
+ * Architecture:
+ * - Diamond: Upgradeable proxy with facets for prediction markets, perps, etc.
+ * - BabylonGameOracle: The game IS the prediction oracle (IPredictionOracle)
+ * - GameOracleFacet: Bridges oracle outcomes to Diamond markets
  */
 export interface DeploymentContracts {
   /** Diamond proxy contract address */
@@ -113,8 +118,10 @@ export interface DeploymentContracts {
   diamondLoupeFacet: string;
   /** PredictionMarket facet address */
   predictionMarketFacet: string;
-  /** Oracle facet address */
+  /** Oracle facet address (Chainlink/Mock) */
   oracleFacet: string;
+  /** GameOracle facet address (bridges BabylonGameOracle to Diamond) */
+  gameOracleFacet?: string;
   /** LiquidityPool facet address */
   liquidityPoolFacet: string;
   /** PerpetualMarket facet address */
@@ -127,26 +134,14 @@ export interface DeploymentContracts {
   identityRegistry: string;
   /** ERC-8004 Reputation System address */
   reputationSystem: string;
-  /** Babylon Game Oracle address (optional) */
+  /** Babylon Game Oracle address - THE GAME IS THE PREDICTION ORACLE */
   babylonOracle?: string;
-  /** Predimarket contract address (optional) */
-  predimarket?: string;
-  /** Market Factory address (optional) */
-  marketFactory?: string;
-  /** Contest Oracle address (optional) */
-  contestOracle?: string;
   /** Ban Manager address (optional) */
   banManager?: string;
-  /** Reporting System address (optional) */
-  reportingSystem?: string;
-  /** Reputation Label Manager address (optional) */
-  labelManager?: string;
   /** Chainlink Oracle mock address (testnet only) */
   chainlinkOracle?: string;
-  /** UMA Oracle mock address (testnet only) */
-  umaOracle?: string;
-  /** Test ERC20 token address (testnet only) */
-  testToken?: string;
+  /** Mock Oracle address (testnet only) */
+  mockOracle?: string;
 }
 
 /**
@@ -206,4 +201,3 @@ export interface FeedbackSubmittedEvent {
   /** Rating value (typically -1 to 1) */
   rating: number;
 }
-

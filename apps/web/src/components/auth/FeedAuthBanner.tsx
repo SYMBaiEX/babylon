@@ -1,9 +1,9 @@
 'use client';
 
+import { cn } from '@babylon/shared';
 import { useSearchParams } from 'next/navigation';
 import { Suspense } from 'react';
 import { useAuth } from '@/hooks/useAuth';
-import { cn } from '@babylon/shared';
 
 /**
  * Feed authentication banner content component.

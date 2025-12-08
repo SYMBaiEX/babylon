@@ -11,12 +11,12 @@ import {
   eq,
   gte,
   lte,
-  markets,
   marketOutcomes,
+  markets,
   perpPositions,
 } from '@babylon/db';
-import { logger } from '../utils/logger';
-import { generateSnowflakeId } from '../utils/snowflake';
+import { generateSnowflakeId, logger } from '../utils';
+import { getPreviousWindowId } from './window-utils';
 
 export interface WindowOutcomes {
   windowId: string;
@@ -148,25 +148,19 @@ export class MarketOutcomesTracker {
     logger.info(`Syncing market outcomes for last ${hours} hours`);
 
     let synced = 0;
-    const now = new Date();
 
     for (let i = 0; i < hours; i++) {
-      const windowStart = new Date(now.getTime() - i * 60 * 60 * 1000);
-      // Round to hour
-      const roundedHour =
-        Math.floor(windowStart.getTime() / (60 * 60 * 1000)) * (60 * 60 * 1000);
-      const windowIdStr =
-        new Date(roundedHour).toISOString().slice(0, 13) + ':00';
+      const windowId = getPreviousWindowId(i);
 
       // Check if already tracked
       const existingResult = await db
         .select()
         .from(marketOutcomes)
-        .where(eq(marketOutcomes.windowId, windowIdStr))
+        .where(eq(marketOutcomes.windowId, windowId))
         .limit(1);
 
       if (existingResult.length === 0) {
-        await this.trackWindowOutcomes(windowIdStr);
+        await this.trackWindowOutcomes(windowId);
         synced++;
       }
     }

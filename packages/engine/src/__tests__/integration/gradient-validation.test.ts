@@ -53,18 +53,14 @@ describe('Information Gradient Validation', () => {
     expect(climaxRate).toBeGreaterThan(0.85);
     expect(climaxRate).toBeLessThan(0.95);
 
-    // Verify gradient exists (monotonic increase)
     expect(middleRate).toBeGreaterThan(earlyRate);
     expect(lateRate).toBeGreaterThan(middleRate);
     expect(climaxRate).toBeGreaterThan(lateRate);
 
-    // Verify sufficient gradient (late - early > 50%)
     expect(lateRate - earlyRate).toBeGreaterThan(0.5);
   });
 
   test('gradient creates skill-based betting advantage', () => {
-    // Verify that the gradient creates meaningful timing differences
-
     // Early: ~15% reveal, ~43% accurate when revealed
     // Expected value of early bet: 0.15 * 0.43 = 6.45% certainty
     const earlyExpectedCertainty = 0.15 * 0.43;
@@ -83,11 +79,6 @@ describe('Information Gradient Validation', () => {
     );
     console.log(`Certainty gain: ${(certaintyGain * 100).toFixed(1)}%`);
 
-    // Should gain at least 40% certainty from early to late
     expect(certaintyGain).toBeGreaterThan(0.4);
-
-    // This creates skill-based timing:
-    // - Early bets: Risky (low certainty) but high value (if correct)
-    // - Late bets: Safe (high certainty) but lower value
   });
 });

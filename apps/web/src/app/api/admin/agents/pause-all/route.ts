@@ -45,49 +45,50 @@
  * ```
  */
 
+import {
+  getClientIp,
+  logAdminModify,
+  requireAdmin,
+  withErrorHandling,
+} from '@babylon/api';
+import { db, userAgentConfigs } from '@babylon/db';
+import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { db } from '@babylon/db';
-import { logger } from '@babylon/shared';
 
-export async function POST(_req: NextRequest) {
-  try {
-    // Pause ALL autonomous agents immediately
-    const result = await db.user.updateMany({
-      where: {
-        isAgent: true,
-      },
-      data: {
-        autonomousTrading: false,
-        autonomousPosting: false,
-        autonomousCommenting: false,
-        autonomousDMs: false,
-        autonomousGroupChats: false,
-        agentStatus: 'idle', // Use 'idle' instead of 'paused' to match schema enum
-      },
-    });
+export const POST = withErrorHandling(async (req: NextRequest) => {
+  const admin = await requireAdmin(req);
 
-    logger.warn(
-      `EMERGENCY: Paused ${result.count} autonomous agents`,
-      undefined,
-      'AdminAgentsAPI'
-    );
+  // Audit log the emergency action
+  logAdminModify({
+    adminId: admin.userId,
+    ipAddress: getClientIp(req.headers) ?? undefined,
+    resourceType: 'agents',
+    metadata: { action: 'emergency_pause_all' },
+  });
 
-    return NextResponse.json({
-      success: true,
-      message: `Paused ${result.count} agents`,
-      data: {
-        paused: result.count,
-      },
-    });
-  } catch (error) {
-    logger.error('Failed to pause all agents', { error }, 'AdminAgentsAPI');
-    return NextResponse.json(
-      {
-        success: false,
-        error: 'Failed to pause all agents',
-      },
-      { status: 500 }
-    );
-  }
-}
+  // Pause ALL autonomous agents immediately by updating their configs
+  await db.update(userAgentConfigs).set({
+    autonomousTrading: false,
+    autonomousPosting: false,
+    autonomousCommenting: false,
+    autonomousDMs: false,
+    autonomousGroupChats: false,
+    status: 'idle',
+    updatedAt: new Date(),
+  });
+
+  logger.warn(
+    `EMERGENCY: Paused all autonomous agents`,
+    undefined,
+    'AdminAgentsAPI'
+  );
+
+  return NextResponse.json({
+    success: true,
+    message: 'Paused all agents',
+    data: {
+      paused: 'all',
+    },
+  });
+});

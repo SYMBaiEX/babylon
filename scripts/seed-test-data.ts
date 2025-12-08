@@ -17,10 +17,16 @@
  *   bun run scripts/seed-test-data.ts all           # Create all test data
  */
 
+import {
+  db,
+  eq,
+  generateSnowflakeId,
+  userAgentConfigs,
+  users,
+} from '@babylon/db';
+import { logger } from '@babylon/engine';
 import { ethers } from 'ethers';
 import { nanoid } from 'nanoid';
-import { db, generateSnowflakeId } from '@babylon/db';
-import { logger } from '@babylon/engine';
 
 // ============================================================================
 // AUTONOMOUS TRADING AGENTS
@@ -30,7 +36,7 @@ const AUTONOMOUS_AGENT_CONFIGS = [
   {
     username: 'trader-aggressive',
     displayName: 'Aggressive Trader',
-    agentSystem: `You are an aggressive trader on Babylon prediction markets. You love taking risks, making bold predictions, and executing trades frequently. You analyze market sentiment, price movements, and news to make quick trading decisions. You're confident in your abilities and enjoy the thrill of trading. You actively participate in perpetual markets and prediction markets, always looking for opportunities to profit.`,
+    systemPrompt: `You are an aggressive trader on Babylon prediction markets. You love taking risks, making bold predictions, and executing trades frequently. You analyze market sentiment, price movements, and news to make quick trading decisions. You're confident in your abilities and enjoy the thrill of trading. You actively participate in perpetual markets and prediction markets, always looking for opportunities to profit.`,
     bio: 'Technical analysis expert | Risk-conscious trader | Pattern recognition specialist',
     personality: 'Analytical, patient, disciplined',
     tradingStrategy:
@@ -43,7 +49,7 @@ const AUTONOMOUS_AGENT_CONFIGS = [
   {
     username: 'trader-conservative',
     displayName: 'Conservative Trader',
-    agentSystem: `You are a conservative trader on Babylon prediction markets. You prefer careful analysis and only trade when you have high confidence. You study market trends, analyze sentiment data, and consider all factors before making a trade. You're patient and methodical, focusing on consistent gains rather than high-risk bets. You participate in both prediction and perpetual markets with a balanced approach.`,
+    systemPrompt: `You are a conservative trader on Babylon prediction markets. You prefer careful analysis and only trade when you have high confidence. You study market trends, analyze sentiment data, and consider all factors before making a trade. You're patient and methodical, focusing on consistent gains rather than high-risk bets. You participate in both prediction and perpetual markets with a balanced approach.`,
     bio: 'Sentiment analysis expert | Social media monitoring | News-driven trader',
     personality: 'Social, reactive, trend-following',
     tradingStrategy:
@@ -56,7 +62,7 @@ const AUTONOMOUS_AGENT_CONFIGS = [
   {
     username: 'trader-social',
     displayName: 'Social Trader',
-    agentSystem: `You are a social trader on Babylon prediction markets. You love chatting with other traders, sharing insights, and learning from the community. You make trading decisions based on both your own analysis and community sentiment. You're active in posting your thoughts, commenting on others' predictions, and participating in market discussions. You enjoy the social aspect of trading as much as the financial gains.`,
+    systemPrompt: `You are a social trader on Babylon prediction markets. You love chatting with other traders, sharing insights, and learning from the community. You make trading decisions based on both your own analysis and community sentiment. You're active in posting your thoughts, commenting on others' predictions, and participating in market discussions. You enjoy the social aspect of trading as much as the financial gains.`,
     bio: 'Quantitative analyst | Arbitrage specialist | Statistical edge hunter',
     personality: 'Mathematical, precise, opportunistic',
     tradingStrategy:
@@ -96,22 +102,12 @@ async function seedAutonomousAgents(): Promise<number> {
         ? Number(existing.virtualBalance)
         : 0;
 
+      // Update user basic info
       await db.user.update({
         where: { id: existing.id },
         data: {
           displayName: config.displayName,
           bio: config.bio,
-          agentSystem: config.agentSystem,
-          agentPersonality: config.personality,
-          agentTradingStrategy: config.tradingStrategy,
-          agentModelTier: config.modelTier,
-          autonomousTrading: config.autonomousTrading,
-          autonomousPosting: config.autonomousPosting,
-          autonomousCommenting: config.autonomousCommenting,
-          agentPointsBalance:
-            existing.agentPointsBalance < 10000
-              ? 10000
-              : existing.agentPointsBalance,
           virtualBalance: (currentBalance < 10000
             ? 10000
             : currentBalance
@@ -120,39 +116,92 @@ async function seedAutonomousAgents(): Promise<number> {
         },
       });
 
+      // Upsert agent config
+      const existingConfig = await db
+        .select()
+        .from(userAgentConfigs)
+        .where(eq(userAgentConfigs.userId, existing.id))
+        .limit(1);
+
+      if (existingConfig.length > 0) {
+        await db
+          .update(userAgentConfigs)
+          .set({
+            systemPrompt: config.systemPrompt,
+            personality: config.personality,
+            tradingStrategy: config.tradingStrategy,
+            modelTier: config.modelTier,
+            autonomousTrading: config.autonomousTrading,
+            autonomousPosting: config.autonomousPosting,
+            autonomousCommenting: config.autonomousCommenting,
+            pointsBalance:
+              existingConfig[0]!.pointsBalance < 10000
+                ? 10000
+                : existingConfig[0]!.pointsBalance,
+            updatedAt: new Date(),
+          })
+          .where(eq(userAgentConfigs.userId, existing.id));
+      } else {
+        await db.insert(userAgentConfigs).values({
+          id: await generateSnowflakeId(),
+          userId: existing.id,
+          systemPrompt: config.systemPrompt,
+          personality: config.personality,
+          tradingStrategy: config.tradingStrategy,
+          modelTier: config.modelTier,
+          autonomousTrading: config.autonomousTrading,
+          autonomousPosting: config.autonomousPosting,
+          autonomousCommenting: config.autonomousCommenting,
+          autonomousDMs: true,
+          autonomousGroupChats: true,
+          pointsBalance: 10000,
+          status: 'running',
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        });
+      }
+
       continue;
     }
 
     const agentId = await generateSnowflakeId();
     const wallet = ethers.Wallet.createRandom();
 
-    await db.user.create({
-      data: {
-        id: agentId,
-        privyId: `did:privy:test-${agentId}`,
-        username: config.username,
-        displayName: config.displayName,
-        bio: config.bio,
-        walletAddress: wallet.address,
-        isAgent: true,
-        agentSystem: config.agentSystem,
-        agentPersonality: config.personality,
-        agentTradingStrategy: config.tradingStrategy,
-        agentModelTier: config.modelTier,
-        agentPointsBalance: 10000,
-        agentStatus: 'running',
-        autonomousTrading: config.autonomousTrading,
-        autonomousPosting: config.autonomousPosting,
-        autonomousCommenting: config.autonomousCommenting,
-        autonomousDMs: true,
-        autonomousGroupChats: true,
-        virtualBalance: '10000',
-        reputationPoints: 1000,
-        isTest: false, // These are demo agents, not test agents
-        profileComplete: true,
-        hasUsername: true,
-        updatedAt: new Date(),
-      },
+    // Create user record
+    await db.insert(users).values({
+      id: agentId,
+      privyId: `did:privy:test-${agentId}`,
+      username: config.username,
+      displayName: config.displayName,
+      bio: config.bio,
+      walletAddress: wallet.address,
+      isAgent: true,
+      virtualBalance: '10000',
+      reputationPoints: 1000,
+      isTest: false,
+      profileComplete: true,
+      hasUsername: true,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    // Create agent config
+    await db.insert(userAgentConfigs).values({
+      id: await generateSnowflakeId(),
+      userId: agentId,
+      systemPrompt: config.systemPrompt,
+      personality: config.personality,
+      tradingStrategy: config.tradingStrategy,
+      modelTier: config.modelTier,
+      pointsBalance: 10000,
+      status: 'running',
+      autonomousTrading: config.autonomousTrading,
+      autonomousPosting: config.autonomousPosting,
+      autonomousCommenting: config.autonomousCommenting,
+      autonomousDMs: true,
+      autonomousGroupChats: true,
+      createdAt: new Date(),
+      updatedAt: new Date(),
     });
 
     created++;
@@ -284,14 +333,42 @@ async function seedA2ATestAgents(): Promise<number> {
         where: { id: existing.id },
         data: {
           walletAddress,
-          agentSystem: config.system,
-          ...config.features,
-          agentPointsBalance: 1000,
-          agentModelTier: 'free',
           virtualBalance: '10000',
           updatedAt: new Date(),
         },
       });
+
+      // Upsert agent config
+      const existingConfig = await db
+        .select()
+        .from(userAgentConfigs)
+        .where(eq(userAgentConfigs.userId, existing.id))
+        .limit(1);
+
+      if (existingConfig.length > 0) {
+        await db
+          .update(userAgentConfigs)
+          .set({
+            systemPrompt: config.system,
+            ...config.features,
+            pointsBalance: 1000,
+            modelTier: 'free',
+            updatedAt: new Date(),
+          })
+          .where(eq(userAgentConfigs.userId, existing.id));
+      } else {
+        await db.insert(userAgentConfigs).values({
+          id: await generateSnowflakeId(),
+          userId: existing.id,
+          systemPrompt: config.system,
+          ...config.features,
+          pointsBalance: 1000,
+          modelTier: 'free',
+          status: 'idle',
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        });
+      }
 
       logger.info(
         `Updated ${config.name}`,
@@ -308,26 +385,39 @@ async function seedA2ATestAgents(): Promise<number> {
       .substring(0, 40)
       .padEnd(40, '0')}`;
 
-    const agent = await db.user.create({
-      data: {
-        id: await generateSnowflakeId(),
-        username: config.username,
-        displayName: config.name,
-        bio: `Automated testing agent for ${config.name.toLowerCase()}`,
-        walletAddress,
-        isAgent: true,
-        agentSystem: config.system,
-        ...config.features,
-        agentPointsBalance: 1000,
-        agentModelTier: 'free',
-        virtualBalance: '10000',
-        reputationPoints: 100,
-        hasUsername: true,
-        profileComplete: true,
-        isTest: true,
-        updatedAt: new Date(),
-      },
+    const agentId = await generateSnowflakeId();
+
+    // Create user
+    await db.insert(users).values({
+      id: agentId,
+      username: config.username,
+      displayName: config.name,
+      bio: `Automated testing agent for ${config.name.toLowerCase()}`,
+      walletAddress,
+      isAgent: true,
+      virtualBalance: '10000',
+      reputationPoints: 100,
+      hasUsername: true,
+      profileComplete: true,
+      isTest: true,
+      createdAt: new Date(),
+      updatedAt: new Date(),
     });
+
+    // Create agent config
+    await db.insert(userAgentConfigs).values({
+      id: await generateSnowflakeId(),
+      userId: agentId,
+      systemPrompt: config.system,
+      ...config.features,
+      pointsBalance: 1000,
+      modelTier: 'free',
+      status: 'idle',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    const agent = { id: agentId };
 
     created++;
     logger.info(
@@ -375,29 +465,40 @@ async function seedBenchmarkAgents(): Promise<number> {
     const agentId = await generateSnowflakeId();
     const wallet = ethers.Wallet.createRandom();
 
-    agent = await db.user.create({
-      data: {
-        id: agentId,
-        privyId: `did:privy:test-${agentId}`,
-        username: config.username,
-        displayName: config.displayName,
-        walletAddress: wallet.address,
-        isAgent: true,
-        autonomousTrading: true,
-        autonomousPosting: true,
-        autonomousCommenting: false,
-        agentSystem:
-          'You are a disciplined trading agent focused on consistent profits.',
-        agentModelTier: 'lite',
-        virtualBalance: '10000',
-        reputationPoints: 1000,
-        agentPointsBalance: 10000,
-        isTest: true,
-        profileComplete: true,
-        hasUsername: true,
-        updatedAt: new Date(),
-      },
+    // Create user
+    await db.insert(users).values({
+      id: agentId,
+      privyId: `did:privy:test-${agentId}`,
+      username: config.username,
+      displayName: config.displayName,
+      walletAddress: wallet.address,
+      isAgent: true,
+      virtualBalance: '10000',
+      reputationPoints: 1000,
+      isTest: true,
+      profileComplete: true,
+      hasUsername: true,
+      createdAt: new Date(),
+      updatedAt: new Date(),
     });
+
+    // Create agent config
+    await db.insert(userAgentConfigs).values({
+      id: await generateSnowflakeId(),
+      userId: agentId,
+      systemPrompt:
+        'You are a disciplined trading agent focused on consistent profits.',
+      modelTier: 'lite',
+      pointsBalance: 10000,
+      autonomousTrading: true,
+      autonomousPosting: true,
+      autonomousCommenting: false,
+      status: 'idle',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    agent = { id: agentId } as Awaited<ReturnType<typeof db.user.create>>;
 
     created++;
     logger.info(

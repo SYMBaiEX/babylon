@@ -240,18 +240,6 @@ class TestFastSimulator:
         assert len(sim.benchmark_ticks) == 2
         assert sim.game_state.markets == [{'id': 'm1'}]
     
-    def test_for_data_generation(self):
-        """Test data generation mode creation"""
-        sim = FastSimulator.for_data_generation(
-            database_url='postgresql://test',
-            ticks_per_window=100,
-            max_concurrent_agents=10
-        )
-        
-        assert sim.config.mode == 'data_generation'
-        assert sim.config.ticks_per_window == 100
-        assert sim.config.max_concurrent_agents == 10
-    
     def test_is_complete_benchmark(self):
         """Test completion check in benchmark mode"""
         snapshot = {'ticks': [{}] * 5, 'groundTruth': {}, 'initialState': {}}

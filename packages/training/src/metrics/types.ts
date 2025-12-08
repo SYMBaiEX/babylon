@@ -198,4 +198,3 @@ export function getMetricsSummary(metrics: BehavioralMetrics): MetricsSummary {
     episodeLength: metrics.behavior.episodeLength,
   };
 }
-

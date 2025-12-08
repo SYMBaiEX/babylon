@@ -74,20 +74,17 @@
  * ```
  */
 
-import type { NextRequest } from 'next/server';
-import { z } from 'zod';
-import { requireAdmin } from '@babylon/api';
 import {
   errorResponse,
+  requireAdmin,
   successResponse,
   withErrorHandling,
 } from '@babylon/api';
 import { logger } from '@babylon/shared';
 import type { LoadTestResult } from '@babylon/testing';
-import {
-  LoadTestSimulator,
-  TEST_SCENARIOS,
-} from '@babylon/testing';
+import { LoadTestSimulator, TEST_SCENARIOS } from '@babylon/testing';
+import type { NextRequest } from 'next/server';
+import { z } from 'zod';
 
 const LoadTestRequestSchema = z.object({
   scenario: z.enum(['LIGHT', 'NORMAL', 'HEAVY', 'STRESS']),
@@ -166,7 +163,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       );
     })
     .catch((error: Error) => {
-      logger.error('Load test failed', error, 'LoadTest');
+      logger.error('Load test failed', { error: error.message }, 'LoadTest');
       activeTest = null;
     });
 

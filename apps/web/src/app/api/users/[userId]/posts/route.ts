@@ -80,9 +80,13 @@
  * @see {@link /lib/db/context} RLS context
  */
 
-import type { NextRequest } from 'next/server';
 import {
-  actors,
+  findUserByIdentifier,
+  optionalAuth,
+  successResponse,
+  withErrorHandling,
+} from '@babylon/api';
+import {
   and,
   comments,
   count,
@@ -92,20 +96,18 @@ import {
   inArray,
   isNull,
   lte,
-  organizations,
   posts,
   reactions,
   shares,
   users,
 } from '@babylon/db';
-import { optionalAuth } from '@babylon/api';
-import { successResponse, withErrorHandling } from '@babylon/api';
-import { logger } from '@babylon/shared';
-import { findUserByIdentifier } from '@babylon/api';
+import { StaticDataRegistry } from '@babylon/engine';
 import {
+  logger,
   UserIdParamSchema,
   UserPostsQuerySchema,
 } from '@babylon/shared';
+import type { NextRequest } from 'next/server';
 
 /**
  * GET /api/users/[userId]/posts
@@ -236,28 +238,26 @@ export const GET = withErrorHandling(
 
       // Fetch author info for posts
       const postAuthorIds = [...new Set(postsData.map((p) => p.authorId))];
-      const [postAuthorsUsers, postAuthorsActors] = await Promise.all([
-        db
-          .select({
-            id: users.id,
-            displayName: users.displayName,
-            username: users.username,
-            profileImageUrl: users.profileImageUrl,
-          })
-          .from(users)
-          .where(inArray(users.id, postAuthorIds)),
-        db
-          .select({
-            id: actors.id,
-            name: actors.name,
-            profileImageUrl: actors.profileImageUrl,
-          })
-          .from(actors)
-          .where(inArray(actors.id, postAuthorIds)),
-      ]);
+      const postAuthorsUsers = await db
+        .select({
+          id: users.id,
+          displayName: users.displayName,
+          username: users.username,
+          profileImageUrl: users.profileImageUrl,
+        })
+        .from(users)
+        .where(inArray(users.id, postAuthorIds));
 
       const userAuthorsMap = new Map(postAuthorsUsers.map((u) => [u.id, u]));
-      const actorAuthorsMap = new Map(postAuthorsActors.map((a) => [a.id, a]));
+      const actorAuthorsMap = new Map(
+        postAuthorIds
+          .map((id) => StaticDataRegistry.getActor(id))
+          .filter((a): a is NonNullable<typeof a> => a !== null)
+          .map((a) => [
+            a.id,
+            { id: a.id, name: a.name, profileImageUrl: a.profileImageUrl },
+          ])
+      );
 
       // Format comments as replies
       const replies = userComments.map((comment) => {
@@ -460,43 +460,33 @@ export const GET = withErrorHandling(
     >();
 
     if (originalPostAuthorIds.length > 0) {
-      const [originalAuthorsUsers, originalAuthorsActors, originalAuthorsOrgs] =
-        await Promise.all([
-          db
-            .select({
-              id: users.id,
-              displayName: users.displayName,
-              username: users.username,
-              profileImageUrl: users.profileImageUrl,
-            })
-            .from(users)
-            .where(inArray(users.id, originalPostAuthorIds)),
-          db
-            .select({
-              id: actors.id,
-              name: actors.name,
-              profileImageUrl: actors.profileImageUrl,
-            })
-            .from(actors)
-            .where(inArray(actors.id, originalPostAuthorIds)),
-          db
-            .select({
-              id: organizations.id,
-              name: organizations.name,
-              imageUrl: organizations.imageUrl,
-            })
-            .from(organizations)
-            .where(inArray(organizations.id, originalPostAuthorIds)),
-        ]);
+      const originalAuthorsUsers = await db
+        .select({
+          id: users.id,
+          displayName: users.displayName,
+          username: users.username,
+          profileImageUrl: users.profileImageUrl,
+        })
+        .from(users)
+        .where(inArray(users.id, originalPostAuthorIds));
 
       originalUserAuthorsMap = new Map(
         originalAuthorsUsers.map((u) => [u.id, u])
       );
       originalActorAuthorsMap = new Map(
-        originalAuthorsActors.map((a) => [a.id, a])
+        originalPostAuthorIds
+          .map((id) => StaticDataRegistry.getActor(id))
+          .filter((a): a is NonNullable<typeof a> => a !== null)
+          .map((a) => [
+            a.id,
+            { id: a.id, name: a.name, profileImageUrl: a.profileImageUrl },
+          ])
       );
       originalOrgAuthorsMap = new Map(
-        originalAuthorsOrgs.map((o) => [o.id, o])
+        originalPostAuthorIds
+          .map((id) => StaticDataRegistry.getOrganization(id))
+          .filter((o): o is NonNullable<typeof o> => o !== null)
+          .map((o) => [o.id, { id: o.id, name: o.name, imageUrl: o.imageUrl }])
       );
     }
 

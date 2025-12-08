@@ -10,7 +10,6 @@ import {
   timestamp,
 } from 'drizzle-orm/pg-core';
 import type { JsonValue } from '../types';
-import { actors } from './actors';
 import { agentStatusEnum, agentTypeEnum } from './enums';
 import { users } from './users';
 
@@ -413,16 +412,13 @@ export const agentTradesRelations = relations(agentTrades, ({ one }) => ({
   }),
 }));
 
+// Note: actorId references actor IDs from StaticDataRegistry (static) and actorState (dynamic)
 export const agentRegistriesRelations = relations(
   agentRegistries,
   ({ one }) => ({
     user: one(users, {
       fields: [agentRegistries.userId],
       references: [users.id],
-    }),
-    actor: one(actors, {
-      fields: [agentRegistries.actorId],
-      references: [actors.id],
     }),
     capabilities: one(agentCapabilities, {
       fields: [agentRegistries.id],
@@ -482,7 +478,3 @@ export type ExternalAgentConnection =
   typeof externalAgentConnections.$inferSelect;
 export type NewExternalAgentConnection =
   typeof externalAgentConnections.$inferInsert;
-
-
-
-

@@ -1,7 +1,5 @@
-import { relations } from 'drizzle-orm';
 import {
   boolean,
-  decimal,
   doublePrecision,
   index,
   integer,
@@ -12,39 +10,18 @@ import {
 } from 'drizzle-orm/pg-core';
 import type { JsonValue } from '../types';
 
-// Actor - NPCs in the game
-export const actors = pgTable(
-  'Actor',
-  {
-    id: text('id').primaryKey(),
-    name: text('name').notNull(),
-    description: text('description'),
-    domain: text('domain').array().notNull().default([]),
-    personality: text('personality'),
-    tier: text('tier'),
-    affiliations: text('affiliations').array().notNull().default([]),
-    postStyle: text('postStyle'),
-    postExample: text('postExample').array().notNull().default([]),
-    role: text('role'),
-    initialLuck: text('initialLuck').notNull().default('medium'),
-    initialMood: doublePrecision('initialMood').notNull().default(0),
-    createdAt: timestamp('createdAt', { mode: 'date' }).notNull().defaultNow(),
-    updatedAt: timestamp('updatedAt', { mode: 'date' }).notNull(),
-    hasPool: boolean('hasPool').notNull().default(false),
-    profileImageUrl: text('profileImageUrl'),
-    reputationPoints: integer('reputationPoints').notNull().default(10000),
-    tradingBalance: decimal('tradingBalance', { precision: 18, scale: 2 })
-      .notNull()
-      .default('10000'),
-    isTest: boolean('isTest').notNull().default(false),
-  },
-  (table) => [
-    index('Actor_hasPool_idx').on(table.hasPool),
-    index('Actor_reputationPoints_idx').on(table.reputationPoints),
-    index('Actor_role_idx').on(table.role),
-    index('Actor_tier_idx').on(table.tier),
-  ]
-);
+/**
+ * Actor-related tables for NPC interactions and relationships.
+ *
+ * Note: Static actor data (name, personality, tier, etc.) is stored in TypeScript
+ * files and accessed via StaticDataRegistry from @babylon/engine.
+ *
+ * Dynamic actor state (tradingBalance, reputationPoints, hasPool) is stored
+ * in the `actorState` table (see actor-state.ts).
+ *
+ * The tables below track actor-to-actor relationships and interactions,
+ * using actor IDs that reference both the static registry and actorState.
+ */
 
 // ActorFollow - NPC follow relationships
 export const actorFollows = pgTable(
@@ -150,84 +127,7 @@ export const npcTrades = pgTable(
   ]
 );
 
-// Relations
-export const actorsRelations = relations(actors, ({ many }) => ({
-  followerActorFollows: many(actorFollows, {
-    relationName: 'ActorFollow_followerIdToActor',
-  }),
-  followingActorFollows: many(actorFollows, {
-    relationName: 'ActorFollow_followingIdToActor',
-  }),
-  actor1Relationships: many(actorRelationships, {
-    relationName: 'ActorRelationship_actor1IdToActor',
-  }),
-  actor2Relationships: many(actorRelationships, {
-    relationName: 'ActorRelationship_actor2IdToActor',
-  }),
-  actor1Interactions: many(npcInteractions, {
-    relationName: 'NPCInteraction_actor1IdToActor',
-  }),
-  actor2Interactions: many(npcInteractions, {
-    relationName: 'NPCInteraction_actor2IdToActor',
-  }),
-  npcTrades: many(npcTrades),
-}));
-
-export const actorFollowsRelations = relations(actorFollows, ({ one }) => ({
-  follower: one(actors, {
-    fields: [actorFollows.followerId],
-    references: [actors.id],
-    relationName: 'ActorFollow_followerIdToActor',
-  }),
-  following: one(actors, {
-    fields: [actorFollows.followingId],
-    references: [actors.id],
-    relationName: 'ActorFollow_followingIdToActor',
-  }),
-}));
-
-export const actorRelationshipsRelations = relations(
-  actorRelationships,
-  ({ one }) => ({
-    actor1: one(actors, {
-      fields: [actorRelationships.actor1Id],
-      references: [actors.id],
-      relationName: 'ActorRelationship_actor1IdToActor',
-    }),
-    actor2: one(actors, {
-      fields: [actorRelationships.actor2Id],
-      references: [actors.id],
-      relationName: 'ActorRelationship_actor2IdToActor',
-    }),
-  })
-);
-
-export const npcInteractionsRelations = relations(
-  npcInteractions,
-  ({ one }) => ({
-    actor1: one(actors, {
-      fields: [npcInteractions.actor1Id],
-      references: [actors.id],
-      relationName: 'NPCInteraction_actor1IdToActor',
-    }),
-    actor2: one(actors, {
-      fields: [npcInteractions.actor2Id],
-      references: [actors.id],
-      relationName: 'NPCInteraction_actor2IdToActor',
-    }),
-  })
-);
-
-export const npcTradesRelations = relations(npcTrades, ({ one }) => ({
-  actor: one(actors, {
-    fields: [npcTrades.npcActorId],
-    references: [actors.id],
-  }),
-}));
-
 // Type exports
-export type Actor = typeof actors.$inferSelect;
-export type NewActor = typeof actors.$inferInsert;
 export type ActorFollow = typeof actorFollows.$inferSelect;
 export type NewActorFollow = typeof actorFollows.$inferInsert;
 export type ActorRelationship = typeof actorRelationships.$inferSelect;
@@ -236,7 +136,3 @@ export type NPCInteraction = typeof npcInteractions.$inferSelect;
 export type NewNPCInteraction = typeof npcInteractions.$inferInsert;
 export type NPCTrade = typeof npcTrades.$inferSelect;
 export type NewNPCTrade = typeof npcTrades.$inferInsert;
-
-
-
-

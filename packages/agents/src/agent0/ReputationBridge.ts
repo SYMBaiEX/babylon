@@ -2,13 +2,18 @@
  * Reputation Bridge
  *
  * Aggregates reputation from ERC-8004 on-chain data and Agent0 network feedback
- * to provide reputation scores.
+ * to provide comprehensive reputation scores with tag-filtered support.
  */
 
-import { type RegistryClient, type AgentReputation } from '@babylon/a2a';
+import { type AgentReputation, type RegistryClient } from '@babylon/a2a';
 import { logger } from '../shared/logger';
+import { getAgent0Client } from './Agent0Client';
 import { SubgraphClient } from './SubgraphClient';
-import type { AggregatedReputation, IReputationBridge } from './types';
+import type {
+  Agent0ReputationSummary,
+  AggregatedReputation,
+  IReputationBridge,
+} from './types';
 
 export class ReputationBridge implements IReputationBridge {
   private erc8004Registry?: RegistryClient;
@@ -46,6 +51,74 @@ export class ReputationBridge implements IReputationBridge {
   }
 
   /**
+   * Get Agent0 reputation summary with optional tag filtering
+   * Uses the Agent0Client's getReputationSummary method
+   */
+  async getAgent0ReputationSummary(
+    agentId: string,
+    tag1?: string,
+    tag2?: string
+  ): Promise<Agent0ReputationSummary> {
+    if (process.env.AGENT0_ENABLED !== 'true') {
+      return { count: 0, averageScore: 0 };
+    }
+
+    try {
+      const agent0Client = getAgent0Client();
+
+      if (agent0Client.isAvailable()) {
+        return await agent0Client.getReputationSummary(agentId, tag1, tag2);
+      }
+
+      // Fallback to subgraph if Agent0Client is not available
+      const tokenId = this.extractTokenId(agentId);
+      if (tokenId === null) {
+        return { count: 0, averageScore: 0 };
+      }
+
+      const agent = await this.subgraphClient.getAgent(tokenId);
+      if (!agent || !agent.reputation) {
+        return { count: 0, averageScore: 0 };
+      }
+
+      return {
+        count: agent.reputation.totalBets || 0,
+        averageScore: (agent.reputation.trustScore || 0) / 100,
+      };
+    } catch (error) {
+      logger.error(
+        'Failed to get Agent0 reputation summary',
+        { error, agentId, tag1, tag2 },
+        'ReputationBridge'
+      );
+      return { count: 0, averageScore: 0 };
+    }
+  }
+
+  /**
+   * Extract token ID from agent ID string
+   * Supports formats: "84532:1234", "agent0-1234", "1234"
+   */
+  private extractTokenId(agentId: string): number | null {
+    if (agentId.includes(':')) {
+      // Format: "chainId:tokenId" (e.g., "84532:1234")
+      const parts = agentId.split(':');
+      const tokenId = Number.parseInt(parts[1] || '', 10);
+      return Number.isNaN(tokenId) ? null : tokenId;
+    }
+
+    if (agentId.startsWith('agent0-')) {
+      // Format: "agent0-1234"
+      const tokenId = Number.parseInt(agentId.replace('agent0-', ''), 10);
+      return Number.isNaN(tokenId) ? null : tokenId;
+    }
+
+    // Format: plain token ID "1234"
+    const tokenId = Number.parseInt(agentId, 10);
+    return Number.isNaN(tokenId) ? null : tokenId;
+  }
+
+  /**
    * Get reputation from ERC-8004 (local/on-chain)
    */
   private async getLocalReputation(tokenId: number): Promise<AgentReputation> {
@@ -60,6 +133,32 @@ export class ReputationBridge implements IReputationBridge {
    * Get reputation from Agent0 network
    */
   private async getAgent0Reputation(tokenId: number): Promise<AgentReputation> {
+    // Try Agent0Client first if available
+    if (process.env.AGENT0_ENABLED === 'true') {
+      try {
+        const agent0Client = getAgent0Client();
+
+        if (agent0Client.isAvailable()) {
+          const chainId = agent0Client.getChainId();
+          const agentId = `${chainId}:${tokenId}`;
+          const summary = await agent0Client.getReputationSummary(agentId);
+
+          return {
+            totalBets: summary.count,
+            winningBets: 0, // Not available in summary
+            accuracyScore: summary.averageScore / 100, // Convert 0-100 to 0-1
+            trustScore: summary.averageScore / 100,
+            totalVolume: '0',
+            profitLoss: 0,
+            isBanned: false,
+          };
+        }
+      } catch {
+        // Fallback to subgraph
+      }
+    }
+
+    // Fallback to subgraph client
     const agent = await this.subgraphClient.getAgent(tokenId);
 
     if (!agent || !agent.reputation) {
@@ -169,7 +268,7 @@ export class ReputationBridge implements IReputationBridge {
         targetAgentId: number;
         rating: number;
         comment: string;
-      }) => Promise<void>;
+      }) => Promise<unknown>;
     }
   ): Promise<void> {
     logger.info(

@@ -80,4 +80,3 @@ export function isUserProfile(profile: ProfileInfo): profile is UserProfile {
 export function isActorProfile(profile: ProfileInfo): profile is ActorProfile {
   return 'description' in profile && 'domain' in profile;
 }
-

@@ -84,4 +84,3 @@ export async function monitoredUploadImage(options: {
  * This is a placeholder for when that functionality is added.
  * For now, we only monitor uploads.
  */
-

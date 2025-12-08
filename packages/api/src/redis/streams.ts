@@ -5,8 +5,8 @@
  * Works with any Redis server via the standard Redis protocol.
  */
 
-import { getRedisClient } from './client';
 import type { JsonValue } from '../types';
+import { getRedisClient } from './client';
 
 /**
  * Convert a payload object into Redis stream field/value pairs (stringified).

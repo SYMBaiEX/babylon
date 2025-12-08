@@ -1,9 +1,9 @@
 'use client';
 
+import { cn } from '@babylon/shared';
 import { Activity } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { PageContainer } from '@/components/shared/PageContainer';
-import { cn } from '@babylon/shared';
 
 interface GameStats {
   totalPosts: number;
@@ -28,21 +28,19 @@ export default function GamePage() {
 
   const loadGameData = useCallback(async () => {
     setRefreshing(true);
-    try {
-      const response = await fetch('/api/stats');
-      if (!response.ok) {
-        throw new Error('Failed to fetch game stats');
-      }
-      const data = await response.json();
-      setStats(data.stats);
-      setEngineStatus(data.engineStatus);
-      setError(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load game data');
-    } finally {
+    const response = await fetch('/api/stats');
+    if (!response.ok) {
+      setError('Failed to load game data');
       setLoading(false);
       setRefreshing(false);
+      return;
     }
+    const data = await response.json();
+    setStats(data.stats);
+    setEngineStatus(data.engineStatus);
+    setError(null);
+    setLoading(false);
+    setRefreshing(false);
   }, []);
 
   // Initial load

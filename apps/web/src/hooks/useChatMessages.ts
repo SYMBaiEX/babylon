@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
 import { logger } from '@babylon/shared';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSSEChannel } from './useSSE';
 
 /**

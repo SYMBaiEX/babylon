@@ -15,7 +15,7 @@ import {
   navigateTo,
   waitForPageLoad,
 } from './helpers/page-helpers';
-import { getPrivyTestAccount, loginWithPrivyEmail } from './helpers/privy-auth';
+import { loginWithWallet } from './helpers/privy-auth';
 import { ROUTES } from './helpers/test-data';
 
 // Increase test timeout for flaky server conditions
@@ -37,7 +37,7 @@ test.describe('Chats Page - Updated Design', () => {
 
     try {
       await navigateTo(page, ROUTES.HOME);
-      await loginWithPrivyEmail(page, getPrivyTestAccount());
+      await loginWithWallet(page);
       await page.waitForTimeout(2000); // Wait for auth to settle
       await navigateTo(page, ROUTES.CHATS);
       await waitForPageLoad(page);
@@ -244,7 +244,7 @@ test.describe('Chat Messaging - New Implementation', () => {
 
     try {
       await navigateTo(page, ROUTES.HOME);
-      await loginWithPrivyEmail(page, getPrivyTestAccount());
+      await loginWithWallet(page);
       await page.waitForTimeout(2000); // Wait for auth to settle
       await navigateTo(page, ROUTES.CHATS);
       await waitForPageLoad(page);
@@ -387,7 +387,7 @@ test.describe('Profile Message Button', () => {
 
     try {
       await navigateTo(page, ROUTES.HOME);
-      await loginWithPrivyEmail(page, getPrivyTestAccount());
+      await loginWithWallet(page);
       await page.waitForTimeout(2000); // Wait for auth to settle
     } catch (error) {
       // Log console errors if authentication or page load failed
@@ -464,7 +464,7 @@ test.describe('Real-time Updates', () => {
 
     try {
       await navigateTo(page, ROUTES.HOME);
-      await loginWithPrivyEmail(page, getPrivyTestAccount());
+      await loginWithWallet(page);
       await page.waitForTimeout(2000); // Wait for auth to settle
     } catch (error) {
       // Log console errors if authentication or page load failed

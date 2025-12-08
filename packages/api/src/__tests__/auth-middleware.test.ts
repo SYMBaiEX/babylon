@@ -153,7 +153,9 @@ describe('authenticate middleware', () => {
       expect.unreachable('Should have thrown');
     } catch (error) {
       expect(error).toBeInstanceOf(Error);
-      expect((error as Error).message).toBe('Authentication token has expired. Please refresh your session.');
+      expect((error as Error).message).toBe(
+        'Authentication token has expired. Please refresh your session.'
+      );
       expect((error as { code: string }).code).toBe('AUTH_FAILED');
     }
   });

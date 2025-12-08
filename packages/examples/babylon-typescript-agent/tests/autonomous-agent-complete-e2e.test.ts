@@ -22,10 +22,10 @@
  */
 
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
-import dotenv from 'dotenv';
-import { db, eq, users, markets, organizations, posts } from '@babylon/db';
-import { generateSnowflakeId } from '@babylon/shared';
 import type { A2AMarketPosition } from '@babylon/a2a';
+import { db, eq, getDbInstance, markets, posts, users } from '@babylon/db';
+import { generateSnowflakeId } from '@babylon/shared';
+import dotenv from 'dotenv';
 import { BabylonA2AClient } from '../src/a2a-client';
 
 dotenv.config({ path: '.env.local' });
@@ -103,16 +103,12 @@ describe('Autonomous Agent - Complete E2E Test', () => {
       console.log('⚠️  No active markets found - some tests will be skipped');
     }
 
-    // Find a perpetual market (organization)
-    const orgResult = await db
-      .select()
-      .from(organizations)
-      .orderBy(organizations.createdAt)
-      .limit(1);
-    if (orgResult.length > 0) {
-      testPerpTicker =
-        orgResult[0]!.ticker ||
-        orgResult[0]!.name.toUpperCase().substring(0, 4);
+    // Find a perpetual market (organization) from database state
+    const orgStates = await getDbInstance().getAllOrganizationStates();
+    if (orgStates.length > 0) {
+      // Use the first org state id as the ticker (e.g., "Macrohard" becomes "MACR")
+      const orgId = orgStates[0]!.id;
+      testPerpTicker = orgId.toUpperCase().substring(0, 4);
       console.log(`✅ Found test perpetual: ${testPerpTicker}`);
     } else {
       console.log('⚠️  No perpetual markets found - some tests will be skipped');
@@ -269,7 +265,8 @@ describe('Autonomous Agent - Complete E2E Test', () => {
       expect(result.success).toBe(true);
       expect(result.positionId).toBeDefined();
       expect(result.entryPrice).toBeGreaterThan(0);
-      createdPositionId = typeof result.positionId === 'string' ? result.positionId : null;
+      createdPositionId =
+        typeof result.positionId === 'string' ? result.positionId : null;
       console.log(
         `   ✅ Opened LONG position: ${result.positionId} at $${result.entryPrice}`
       );
@@ -374,7 +371,10 @@ describe('Autonomous Agent - Complete E2E Test', () => {
     });
 
     it('should get leaderboard', async () => {
-      const result = await a2aClient.getLeaderboard({ pointsType: 'all', limit: 10 });
+      const result = await a2aClient.getLeaderboard({
+        pointsType: 'all',
+        limit: 10,
+      });
       expect(result).toBeDefined();
       expect(result.leaderboard).toBeInstanceOf(Array);
       console.log(`   ✅ Leaderboard: ${result.leaderboard.length} entries`);

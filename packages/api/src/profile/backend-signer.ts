@@ -9,6 +9,12 @@
  */
 
 import {
+  CAPABILITIES_HASH,
+  getIdentityRegistryAddress,
+  identityRegistryAbi,
+  logger,
+} from '@babylon/shared';
+import {
   type Address,
   createPublicClient,
   createWalletClient,
@@ -16,13 +22,6 @@ import {
 } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { baseSepolia } from 'viem/chains';
-
-import {
-  CAPABILITIES_HASH,
-  getIdentityRegistryAddress,
-  identityRegistryAbi,
-  logger,
-} from '@babylon/shared';
 
 const PROFILE_MANAGER_PRIVATE_KEY = process.env.PROFILE_MANAGER_PRIVATE_KEY;
 const RPC_URL = process.env.BASE_SEPOLIA_RPC_URL || 'https://sepolia.base.org';
@@ -144,7 +143,7 @@ export async function updateProfileBackendSigned({
 
   logger.info(
     'Profile update confirmed on-chain',
-    { txHash, blockNumber: receipt.blockNumber },
+    { txHash, blockNumber: receipt.blockNumber.toString() },
     'BackendSigner'
   );
 
@@ -171,4 +170,3 @@ export async function verifyBackendSignedUpdate(
   const receipt = await publicClient.getTransactionReceipt({ hash: txHash });
   return receipt.status === 'success';
 }
-

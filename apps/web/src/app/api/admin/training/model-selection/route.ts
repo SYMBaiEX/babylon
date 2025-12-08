@@ -43,44 +43,26 @@
  * ```
  */
 
-import { NextResponse } from 'next/server';
-import { logger } from '@babylon/shared';
+import { requireAdmin, successResponse, withErrorHandling } from '@babylon/api';
 import { modelSelectionService } from '@babylon/training';
+import type { NextRequest } from 'next/server';
 
-export async function GET(): Promise<NextResponse> {
-  try {
-    // Get summary
-    const summary = await modelSelectionService.getSelectionSummary();
+export const GET = withErrorHandling(async (request: NextRequest) => {
+  await requireAdmin(request);
 
-    // Try to select base model
-    let selection = null;
-    let selectionError = null;
+  // Get summary
+  const summary = await modelSelectionService.getSelectionSummary();
 
-    try {
-      selection = await modelSelectionService.selectBaseModel();
-    } catch (error) {
-      selectionError =
-        error instanceof Error ? error.message : 'Selection failed';
-    }
+  // Try to select base model
+  let selection = null;
+  const selectionError = null;
 
-    return NextResponse.json({
-      success: true,
-      summary,
-      selection,
-      selectionError,
-    });
-  } catch (error) {
-    logger.error('Model selection API failed', error, 'ModelSelectionAPI');
+  selection = await modelSelectionService.selectBaseModel();
 
-    return NextResponse.json(
-      {
-        success: false,
-        error:
-          error instanceof Error
-            ? error.message
-            : 'Failed to get selection info',
-      },
-      { status: 500 }
-    );
-  }
-}
+  return successResponse({
+    success: true,
+    summary,
+    selection,
+    selectionError,
+  });
+});

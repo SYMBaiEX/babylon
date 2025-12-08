@@ -30,8 +30,8 @@ import {
   messages,
   userInteractions,
 } from '@babylon/db';
-import { generateSnowflakeId, logger } from '@babylon/shared';
 import type { GroupChat } from '@babylon/shared';
+import { generateSnowflakeId } from '@babylon/shared';
 
 // =============================================================================
 // Types
@@ -227,7 +227,8 @@ export class GroupChatService {
     // Calculate probability based on quality and engagement
     const qualityFactor = avgQuality / GroupChatService.MIN_QUALITY_SCORE;
     const engagementFactor = Math.min(
-      interactionsSinceFollow.length / GroupChatService.MIN_REPLIES_SINCE_FOLLOW,
+      interactionsSinceFollow.length /
+        GroupChatService.MIN_REPLIES_SINCE_FOLLOW,
       1.5
     );
 
@@ -324,16 +325,8 @@ export class GroupChatService {
       );
 
     // Send notification to user about the invite
-    try {
-      const { notifyGroupChatInvite } = await import('@babylon/api');
-      await notifyGroupChatInvite(userId, npcId, chatId, chatName);
-    } catch (error) {
-      logger.debug(
-        'Group chat invite notification skipped (API layer handles notifications)',
-        { userId, npcId, chatId, error },
-        'GroupChatService'
-      );
-    }
+    const { notifyGroupChatInvite } = await import('@babylon/api');
+    await notifyGroupChatInvite(userId, npcId, chatId, chatName);
   }
 
   /**
@@ -455,7 +448,9 @@ export class GroupChatService {
     let inactivityMultiplier = 1;
     let reason = '';
 
-    if (ticksSinceLastMessage > GroupChatService.INACTIVITY_GRACE_PERIOD_TICKS) {
+    if (
+      ticksSinceLastMessage > GroupChatService.INACTIVITY_GRACE_PERIOD_TICKS
+    ) {
       const excessTicks =
         ticksSinceLastMessage - GroupChatService.INACTIVITY_GRACE_PERIOD_TICKS;
       const range =
@@ -486,7 +481,10 @@ export class GroupChatService {
       reason = `Low participation: ${messagesLast24h} messages in 24h`;
     }
 
-    const finalMultiplier = Math.max(inactivityMultiplier, overactivityMultiplier);
+    const finalMultiplier = Math.max(
+      inactivityMultiplier,
+      overactivityMultiplier
+    );
     const kickChance = Math.min(
       1,
       GroupChatService.BASE_KICK_PROBABILITY * finalMultiplier
@@ -494,7 +492,10 @@ export class GroupChatService {
 
     return {
       kickChance,
-      reason: kickChance > GroupChatService.BASE_KICK_PROBABILITY ? reason : undefined,
+      reason:
+        kickChance > GroupChatService.BASE_KICK_PROBABILITY
+          ? reason
+          : undefined,
       stats: {
         hoursSinceLastMessage: ticksSinceLastMessage / 60,
         messagesLast24h,
@@ -640,5 +641,3 @@ export class GroupChatService {
       );
   }
 }
-
-

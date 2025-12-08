@@ -8,8 +8,8 @@
 /// <reference path="./swagger-jsdoc.d.ts" />
 
 import path from 'path';
-import { generateOpenApiSpec } from './generator';
 import { swaggerDefinition } from './config';
+import { generateOpenApiSpec } from './generator';
 
 // swagger-jsdoc is an optional dev dependency for docs generation
 // Use dynamic import to handle cases where it's not installed
@@ -18,7 +18,9 @@ type SwaggerJsdocOptions = {
   apis: string[];
 };
 
-type SwaggerJsdocFunction = (options: SwaggerJsdocOptions) => Record<string, unknown>;
+type SwaggerJsdocFunction = (
+  options: SwaggerJsdocOptions
+) => Record<string, unknown>;
 
 /**
  * OpenAPI specification type
@@ -50,13 +52,9 @@ interface OpenAPISpec {
 export async function generateAutoSpec() {
   // Dynamically import swagger-jsdoc if available (optional dev dependency)
   let swaggerJsdoc: SwaggerJsdocFunction | null = null;
-  try {
-    const swaggerModule = await import('swagger-jsdoc');
-    // Handle type mismatch between swagger-jsdoc types and our interface
-    swaggerJsdoc = swaggerModule.default as unknown as SwaggerJsdocFunction;
-  } catch {
-    // swagger-jsdoc not installed - fall back to manual spec only
-  }
+  const swaggerModule = await import('swagger-jsdoc');
+  // Handle type mismatch between swagger-jsdoc types and our interface
+  swaggerJsdoc = swaggerModule.default as unknown as SwaggerJsdocFunction;
 
   // Check if we're in a Node.js environment with file system access
   if (typeof process === 'undefined' || typeof process.cwd !== 'function') {
@@ -81,7 +79,10 @@ export async function generateAutoSpec() {
   // Generate auto spec if swagger-jsdoc is available, otherwise use base spec
   const autoSpec: OpenAPISpec = swaggerJsdoc
     ? (swaggerJsdoc(options) as OpenAPISpec)
-    : { openapi: swaggerDefinition.openapi || '3.0.0', info: swaggerDefinition.info };
+    : {
+        openapi: swaggerDefinition.openapi || '3.0.0',
+        info: swaggerDefinition.info,
+      };
 
   // Ensure openapi version field is present (required by Swagger UI)
   if (!autoSpec.openapi && !autoSpec.swagger) {

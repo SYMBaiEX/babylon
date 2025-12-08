@@ -6,13 +6,13 @@
  */
 
 import { afterEach, beforeAll, describe, expect, test } from 'bun:test';
-import { db } from '@babylon/db';
 import { getCachedAgent0ReputationScore } from '@babylon/agents/agent0/reputation/agent0-reputation-cache';
 import {
   batchSyncReputationsToERC8004,
   syncAllReputationsToERC8004,
   syncUserReputationToERC8004,
 } from '@babylon/agents/agent0/reputation/erc8004-reputation-sync';
+import { db } from '@babylon/db';
 import { generateSnowflakeId } from '@babylon/shared';
 
 const BASE_URL =

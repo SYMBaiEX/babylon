@@ -5,21 +5,18 @@
  */
 
 // Content analysis utilities
+// Content safety utilities
 export {
   analyzeCertainty,
   analyzeSentiment,
+  type ContentCheckResult,
   calculateContentQuality,
   calculateFreshness,
-  detectPrediction,
-  hasInsiderLanguage,
-} from '@babylon/shared';
-
-// Content safety utilities
-export {
   checkAgentOutput,
   checkUserInput,
+  detectPrediction,
+  hasInsiderLanguage,
   sanitizeContent,
-  type ContentCheckResult,
 } from '@babylon/shared';
 
 // Prompt logging utilities
@@ -40,10 +37,9 @@ export {
 
 // Shared utilities (formatActorVoiceContext, buildPhaseContext, etc.)
 export {
-  buildCharacterVoiceBlock,
   buildPhaseContext,
   buildRelationshipContext,
   formatActorVoiceContext,
+  stripHashtagsAndEmojis,
   toQuestionIdNumberOrNull,
 } from './shared-utils';
-

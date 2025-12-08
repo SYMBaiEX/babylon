@@ -16,7 +16,7 @@ import {
   reports,
   users,
 } from '@babylon/db';
-import { logger, generateSnowflakeId } from '@babylon/shared';
+import { generateSnowflakeId, logger } from '@babylon/shared';
 
 /**
  * PointsService interface for dependency injection
@@ -318,4 +318,3 @@ export async function shouldDistributePoints(userId: string): Promise<boolean> {
   // Only distribute if user is banned AND marked as scammer or CSAM
   return user.isBanned && (user.isScammer || user.isCSAM);
 }
-

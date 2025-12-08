@@ -4,9 +4,9 @@
  * Validates user API keys for MCP authentication
  */
 
-import { userApiKeys, eq, asSystem } from '@babylon/db';
-import { logger } from '@babylon/shared';
 import { hashApiKey } from '@babylon/api';
+import { asSystem, eq, userApiKeys } from '@babylon/db';
+import { logger } from '@babylon/shared';
 
 /**
  * Validate user API key and return userId
@@ -21,44 +21,35 @@ export async function validateUserApiKey(
     return null;
   }
 
-  try {
-    // Hash the provided API key
-    const keyHash = hashApiKey(apiKey);
+  // Hash the provided API key
+  const keyHash = hashApiKey(apiKey);
 
-    // Use asSystem for key lookup since we're authenticating based on the key itself
-    const keyRecord = await asSystem(async (dbClient) => {
-      return await dbClient.query.userApiKeys.findFirst({
-        where: (keys, { eq, and: andFn, isNull: isNullFn, or: orFn, gt: gtFn }) =>
-          andFn(
-            eq(keys.keyHash, keyHash),
-            isNullFn(keys.revokedAt),
-            orFn(
-              isNullFn(keys.expiresAt),
-              gtFn(keys.expiresAt, new Date())
-            )
-          ),
-      });
+  // Use asSystem for key lookup since we're authenticating based on the key itself
+  const keyRecord = await asSystem(async (dbClient) => {
+    return await dbClient.query.userApiKeys.findFirst({
+      where: (keys, { eq, and: andFn, isNull: isNullFn, or: orFn, gt: gtFn }) =>
+        andFn(
+          eq(keys.keyHash, keyHash),
+          isNullFn(keys.revokedAt),
+          orFn(isNullFn(keys.expiresAt), gtFn(keys.expiresAt, new Date()))
+        ),
     });
+  });
 
-    if (!keyRecord) {
-      logger.warn('Invalid or expired API key', undefined, 'MCP Auth');
-      return null;
-    }
-
-    // Update lastUsedAt timestamp
-    await asSystem(async (dbClient) => {
-      await dbClient
-        .update(userApiKeys)
-        .set({ lastUsedAt: new Date() })
-        .where(eq(userApiKeys.id, keyRecord.id));
-    });
-
-    return {
-      userId: keyRecord.userId,
-    };
-  } catch (error) {
-    logger.error('Error validating API key', error, 'MCP Auth');
+  if (!keyRecord) {
+    logger.warn('Invalid or expired API key', undefined, 'MCP Auth');
     return null;
   }
-}
 
+  // Update lastUsedAt timestamp
+  await asSystem(async (dbClient) => {
+    await dbClient
+      .update(userApiKeys)
+      .set({ lastUsedAt: new Date() })
+      .where(eq(userApiKeys.id, keyRecord.id));
+  });
+
+  return {
+    userId: keyRecord.userId,
+  };
+}

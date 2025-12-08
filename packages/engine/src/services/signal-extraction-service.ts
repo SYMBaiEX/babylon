@@ -16,7 +16,6 @@
  */
 
 import {
-  actors,
   and,
   db,
   eq,
@@ -28,6 +27,7 @@ import {
   users,
 } from '@babylon/db';
 import { logger } from '@babylon/shared';
+import { StaticDataRegistry } from './static-data-registry';
 
 export interface SignalAnalysis {
   marketId: string;
@@ -133,16 +133,13 @@ export class SignalExtractionService {
     });
     const npcIds = npcPosts.map((p) => p.authorId);
 
+    // Get actors from static registry
     const actorsList =
       npcIds.length > 0
-        ? await db
-            .select({
-              id: actors.id,
-              name: actors.name,
-              role: actors.role,
-            })
-            .from(actors)
-            .where(inArray(actors.id, npcIds))
+        ? npcIds
+            .map((id) => StaticDataRegistry.getActor(id))
+            .filter((a): a is NonNullable<typeof a> => a !== null)
+            .map((a) => ({ id: a.id, name: a.name, role: a.role }))
         : [];
 
     const actorMap = new Map(actorsList.map((a) => [a.id, a]));
@@ -177,7 +174,7 @@ export class SignalExtractionService {
     let signalPosts = 0;
 
     // Process each post
-      // Posts do not currently store pointsToward metadata in the database
+    // Posts do not currently store pointsToward metadata in the database
     // We use sentiment analysis as a proxy for signal
     for (const post of postsList) {
       // Skip non-NPC posts (only NPCs provide signal)

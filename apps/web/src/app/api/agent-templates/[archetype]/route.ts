@@ -11,8 +11,8 @@
  * @returns {Promise<NextResponse>} JSON response with template data
  */
 
-import { NextResponse } from 'next/server';
 import { getTemplate } from '@babylon/agents';
+import { NextResponse } from 'next/server';
 
 /**
  * GET /api/agent-templates/[archetype]
@@ -25,24 +25,15 @@ export async function GET(
   _req: Request,
   { params }: { params: Promise<{ archetype: string }> }
 ) {
-  try {
-    const { archetype } = await params;
-    const template = getTemplate(archetype);
-    
-    if (!template) {
-      return NextResponse.json(
-        { error: `Template '${archetype}' not found` },
-        { status: 404 }
-      );
-    }
-    
-    return NextResponse.json(template);
-  } catch (error) {
-    console.error('Error loading agent template:', error);
+  const { archetype } = await params;
+  const template = getTemplate(archetype);
+
+  if (!template) {
     return NextResponse.json(
-      { error: 'Failed to load agent template' },
-      { status: 500 }
+      { error: `Template '${archetype}' not found` },
+      { status: 404 }
     );
   }
-}
 
+  return NextResponse.json(template);
+}

@@ -16,9 +16,9 @@
  */
 
 import type { IAgentRuntime } from '@elizaos/core';
-import { logger } from '../shared/logger';
-import type { TrajectoryLoggerService } from '../plugins/plugin-trajectory-logger/src/TrajectoryLoggerService';
 import { getTrajectoryContext } from '../plugins/plugin-trajectory-logger/src/action-interceptor';
+import type { TrajectoryLoggerService } from '../plugins/plugin-trajectory-logger/src/TrajectoryLoggerService';
+import { logger } from '../shared/logger';
 
 /**
  * Ollama model metadata from API
@@ -88,41 +88,28 @@ export interface OllamaCallParams {
  * Check if Ollama is available
  */
 export async function isOllamaAvailable(): Promise<boolean> {
-  try {
-    const response = await fetch(`${OLLAMA_BASE_URL}/api/tags`, {
-      method: 'GET',
-      signal: AbortSignal.timeout(2000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
+  const response = await fetch(`${OLLAMA_BASE_URL}/api/tags`, {
+    method: 'GET',
+    signal: AbortSignal.timeout(2000),
+  });
+  return response.ok;
 }
 
 /**
  * List available Ollama models
  */
 export async function listOllamaModels(): Promise<OllamaModelInfo[]> {
-  try {
-    const response = await fetch(`${OLLAMA_BASE_URL}/api/tags`, {
-      method: 'GET',
-      signal: AbortSignal.timeout(5000),
-    });
+  const response = await fetch(`${OLLAMA_BASE_URL}/api/tags`, {
+    method: 'GET',
+    signal: AbortSignal.timeout(5000),
+  });
 
-    if (!response.ok) {
-      throw new Error(`Ollama API error: ${response.status}`);
-    }
-
-    const data = (await response.json()) as OllamaListResponse;
-    return data.models || [];
-  } catch (error) {
-    logger.warn(
-      'Failed to list Ollama models',
-      { error: error instanceof Error ? error.message : String(error) },
-      'OllamaProvider'
-    );
-    return [];
+  if (!response.ok) {
+    throw new Error(`Ollama API error: ${response.status}`);
   }
+
+  const data = (await response.json()) as OllamaListResponse;
+  return data.models || [];
 }
 
 /**
@@ -131,7 +118,8 @@ export async function listOllamaModels(): Promise<OllamaModelInfo[]> {
 export async function isModelAvailable(modelName: string): Promise<boolean> {
   const models = await listOllamaModels();
   return models.some(
-    (m) => m.name === modelName || m.name.startsWith(modelName.split(':')[0] ?? '')
+    (m) =>
+      m.name === modelName || m.name.startsWith(modelName.split(':')[0] ?? '')
   );
 }
 
@@ -201,80 +189,68 @@ export async function callOllama(params: OllamaCallParams): Promise<string> {
   // Call Ollama chat API
   const timeoutMs = params.maxTokens && params.maxTokens < 500 ? 30000 : 120000;
 
-  try {
-    const response = await fetch(`${OLLAMA_BASE_URL}/api/chat`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model,
-        messages,
-        stream: false,
-        options: {
-          temperature: params.temperature ?? 0.7,
-          num_predict: params.maxTokens ?? 8192,
-        },
-      }),
-      signal: AbortSignal.timeout(timeoutMs),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Ollama API error: ${response.status} - ${errorText}`);
-    }
-
-    const data = (await response.json()) as {
-      message?: { content: string };
-      response?: string;
-      prompt_eval_count?: number;
-      eval_count?: number;
-    };
-
-    const responseText = data.message?.content || data.response || '';
-    const latencyMs = Date.now() - startTime;
-
-    // Log to trajectory if available (CRITICAL for RL training data collection)
-    if (trajectoryLogger && trajectoryId) {
-      const stepId = trajectoryLogger.getCurrentStepId(trajectoryId);
-      if (stepId) {
-        trajectoryLogger.logLLMCall(stepId, {
-          model,
-          systemPrompt: params.system || '',
-          userPrompt: params.prompt,
-          response: responseText,
-          temperature: params.temperature ?? 0.7,
-          maxTokens: params.maxTokens ?? 8192,
-          purpose: params.purpose || 'action',
-          actionType: params.actionType,
-          latencyMs,
-          promptTokens: data.prompt_eval_count,
-          completionTokens: data.eval_count,
-        });
-      }
-    }
-
-    logger.debug(
-      'Ollama call complete',
-      {
-        model,
-        archetype: params.archetype,
-        latencyMs,
-        responseLength: responseText.length,
+  const response = await fetch(`${OLLAMA_BASE_URL}/api/chat`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model,
+      messages,
+      stream: false,
+      options: {
+        temperature: params.temperature ?? 0.7,
+        num_predict: params.maxTokens ?? 8192,
       },
-      'OllamaProvider'
-    );
+    }),
+    signal: AbortSignal.timeout(timeoutMs),
+  });
 
-    return responseText;
-  } catch (error) {
-    logger.error(
-      'Ollama call failed',
-      {
-        model,
-        error: error instanceof Error ? error.message : String(error),
-      },
-      'OllamaProvider'
-    );
-    throw error;
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Ollama API error: ${response.status} - ${errorText}`);
   }
+
+  const data = (await response.json()) as {
+    message?: { content: string };
+    response?: string;
+    prompt_eval_count?: number;
+    eval_count?: number;
+  };
+
+  const responseText = data.message?.content || data.response || '';
+  const latencyMs = Date.now() - startTime;
+
+  // Log to trajectory if available (CRITICAL for RL training data collection)
+  if (trajectoryLogger && trajectoryId) {
+    const stepId = trajectoryLogger.getCurrentStepId(trajectoryId);
+    if (stepId) {
+      trajectoryLogger.logLLMCall(stepId, {
+        model,
+        systemPrompt: params.system || '',
+        userPrompt: params.prompt,
+        response: responseText,
+        temperature: params.temperature ?? 0.7,
+        maxTokens: params.maxTokens ?? 8192,
+        purpose: params.purpose || 'action',
+        actionType: params.actionType,
+        latencyMs,
+        promptTokens: data.prompt_eval_count,
+        completionTokens: data.eval_count,
+      });
+    }
+  }
+
+  logger.debug(
+    'Ollama call complete',
+    {
+      model,
+      archetype: params.archetype,
+      latencyMs,
+      responseLength: responseText.length,
+    },
+    'OllamaProvider'
+  );
+
+  return responseText;
 }
 
 /**
@@ -319,42 +295,28 @@ PARAMETER temperature 0.7
 PARAMETER num_predict 8192
 `;
 
-  try {
-    // Create the model in Ollama
-    const response = await fetch(`${OLLAMA_BASE_URL}/api/create`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name: params.modelName,
-        modelfile,
-        stream: false,
-      }),
-      signal: AbortSignal.timeout(600000), // 10 minute timeout for model creation
-    });
+  // Create the model in Ollama
+  const response = await fetch(`${OLLAMA_BASE_URL}/api/create`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      name: params.modelName,
+      modelfile,
+      stream: false,
+    }),
+    signal: AbortSignal.timeout(600000), // 10 minute timeout for model creation
+  });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to create Ollama model: ${errorText}`);
-    }
-
-    logger.info(
-      'Successfully imported model to Ollama',
-      { modelName: params.modelName },
-      'OllamaProvider'
-    );
-
-    return true;
-  } catch (error) {
-    logger.error(
-      'Failed to import model to Ollama',
-      {
-        modelPath: params.modelPath,
-        modelName: params.modelName,
-        error: error instanceof Error ? error.message : String(error),
-      },
-      'OllamaProvider'
-    );
-    return false;
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Failed to create Ollama model: ${errorText}`);
   }
-}
 
+  logger.info(
+    'Successfully imported model to Ollama',
+    { modelName: params.modelName },
+    'OllamaProvider'
+  );
+
+  return true;
+}

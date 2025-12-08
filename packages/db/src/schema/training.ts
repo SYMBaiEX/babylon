@@ -21,6 +21,7 @@ export const trajectories = pgTable(
     id: text('id').primaryKey(),
     trajectoryId: text('trajectoryId').notNull().unique(),
     agentId: text('agentId').notNull(),
+    archetype: varchar('archetype', { length: 50 }),
     startTime: timestamp('startTime', { mode: 'date' }).notNull(),
     endTime: timestamp('endTime', { mode: 'date' }).notNull(),
     durationMs: integer('durationMs').notNull(),
@@ -70,6 +71,7 @@ export const trajectories = pgTable(
       table.agentId
     ),
     index('trajectories_windowId_idx').on(table.windowId),
+    index('trajectories_archetype_idx').on(table.archetype),
   ]
 );
 
@@ -289,7 +291,3 @@ export type LlmCallLog = typeof llmCallLogs.$inferSelect;
 export type NewLlmCallLog = typeof llmCallLogs.$inferInsert;
 export type MarketOutcome = typeof marketOutcomes.$inferSelect;
 export type NewMarketOutcome = typeof marketOutcomes.$inferInsert;
-
-
-
-

@@ -8,6 +8,7 @@ import { z } from 'zod';
 
 /**
  * JSON-serializable value types
+ * Note: undefined is intentionally excluded as it's not valid JSON
  */
 export type JsonValue =
   | string
@@ -137,4 +138,3 @@ export interface QueryParams extends PaginationParams {
   sort?: SortParams;
   filters?: FilterParams;
 }
-

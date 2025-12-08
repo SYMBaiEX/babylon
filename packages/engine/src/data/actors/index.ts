@@ -287,5 +287,5 @@ export const actors = [
   vitailik_buterin,
   yainn_lecun,
   zohran_mamdanai,
-  zookai_wilcox
+  zookai_wilcox,
 ] as const;

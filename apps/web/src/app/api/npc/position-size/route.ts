@@ -61,13 +61,17 @@
  * ```
  */
 
+import { verifyCronAuth, withErrorHandling } from '@babylon/api';
+import { getReputationBreakdown, NPCInvestmentManager } from '@babylon/engine';
+import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { logger } from '@babylon/shared';
-import { NPCInvestmentManager } from '@babylon/engine';
-import { getReputationBreakdown } from '@babylon/engine';
 
-export async function GET(request: NextRequest) {
+export const GET = withErrorHandling(async (request: NextRequest) => {
+  if (!verifyCronAuth(request, { jobName: 'NPCPositionSize' })) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   const { searchParams } = new URL(request.url);
   const npcUserId = searchParams.get('npcUserId')!;
   const poolId = searchParams.get('poolId')!;
@@ -113,4 +117,4 @@ export async function GET(request: NextRequest) {
       unrealizedPnL: metrics.unrealizedPnL,
     },
   });
-}
+});

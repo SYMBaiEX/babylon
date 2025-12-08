@@ -1,10 +1,9 @@
 'use client';
 
+import { cn } from '@babylon/shared';
 import { ArrowLeft, Search, TrendingDown, TrendingUp } from 'lucide-react';
-
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-
 import { CategoryPnLCard } from '@/components/markets/CategoryPnLCard';
 import { CategoryPnLShareModal } from '@/components/markets/CategoryPnLShareModal';
 import { PerpPositionsList } from '@/components/markets/PerpPositionsList';
@@ -13,8 +12,7 @@ import { Skeleton } from '@/components/shared/Skeleton';
 import { useAuth } from '@/hooks/useAuth';
 import { usePortfolioPnL } from '@/hooks/usePortfolioPnL';
 import { useUserPositions } from '@/hooks/useUserPositions';
-import { usePerpMarkets, type PerpMarket } from '@/stores/perpMarketsStore';
-import { cn } from '@babylon/shared';
+import { type PerpMarket, usePerpMarkets } from '@/stores/perpMarketsStore';
 
 export default function PerpsPage() {
   const router = useRouter();
@@ -24,7 +22,11 @@ export default function PerpsPage() {
     useState(false);
 
   // Use shared perp markets store
-  const { markets: perpMarkets, loading, refetch: refetchPerps } = usePerpMarkets();
+  const {
+    markets: perpMarkets,
+    loading,
+    refetch: refetchPerps,
+  } = usePerpMarkets();
 
   const {
     loading: portfolioLoading,
@@ -62,11 +64,16 @@ export default function PerpsPage() {
     await refetchPerps();
   }, [refetchPerps]);
 
-  const filteredPerpMarkets = perpMarkets.filter(
-    (m) =>
-      !searchQuery.trim() ||
-      m.ticker.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      m.name.toLowerCase().includes(searchQuery.toLowerCase())
+  // Memoize filtered markets
+  const filteredPerpMarkets = useMemo(
+    () =>
+      perpMarkets.filter(
+        (m) =>
+          !searchQuery.trim() ||
+          m.ticker.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          m.name.toLowerCase().includes(searchQuery.toLowerCase())
+      ),
+    [perpMarkets, searchQuery]
   );
 
   // Category P&L data

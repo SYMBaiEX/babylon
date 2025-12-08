@@ -43,54 +43,45 @@ export const messagesProvider: Provider = {
       };
     }
 
-    try {
-      // Define chat participant type
-      interface ChatParticipant {
-        id: string;
-        username?: string;
-        displayName?: string;
-      }
-
-      // Define chat type
-      interface Chat {
-        id: string;
-        name: string | null;
-        isGroup: boolean;
-        participants: ChatParticipant[];
-      }
-
-      const [chatsResult, unreadResult] = await Promise.all([
-        babylonRuntime.a2aClient.getChats(),
-        babylonRuntime.a2aClient.getUnreadCount(),
-      ]);
-
-      const chatsData = chatsResult as { chats?: Chat[] };
-      const unreadData = unreadResult as { unreadCount?: number };
-
-      const chats = chatsData.chats || [];
-      const unreadCount = unreadData.unreadCount || 0;
-
-      const chatsText =
-        chats.length > 0
-          ? `Chats:\n${chats
-              .map(
-                (c) =>
-                  `- ${c.name || 'Unnamed'} (${c.isGroup ? 'Group' : 'DM'}) | ID: ${c.id} | Participants: ${c.participants.length}`
-              )
-              .join('\n')}`
-          : 'No chats available.';
-
-      return {
-        text: `${chatsText}\n\nUnread messages: ${unreadCount}`,
-      };
-    } catch (error) {
-      logger.error(
-        'Error fetching messages via A2A',
-        { error, agentId: runtime.agentId },
-        'MessagesProvider'
-      );
-      throw error;
+    // Define chat participant type
+    interface ChatParticipant {
+      id: string;
+      username?: string;
+      displayName?: string;
     }
+
+    // Define chat type
+    interface Chat {
+      id: string;
+      name: string | null;
+      isGroup: boolean;
+      participants: ChatParticipant[];
+    }
+
+    const [chatsResult, unreadResult] = await Promise.all([
+      babylonRuntime.a2aClient.getChats(),
+      babylonRuntime.a2aClient.getUnreadCount(),
+    ]);
+
+    const chatsData = chatsResult as { chats?: Chat[] };
+    const unreadData = unreadResult as { unreadCount?: number };
+
+    const chats = chatsData.chats || [];
+    const unreadCount = unreadData.unreadCount || 0;
+
+    const chatsText =
+      chats.length > 0
+        ? `Chats:\n${chats
+            .map(
+              (c) =>
+                `- ${c.name || 'Unnamed'} (${c.isGroup ? 'Group' : 'DM'}) | ID: ${c.id} | Participants: ${c.participants.length}`
+            )
+            .join('\n')}`
+        : 'No chats available.';
+
+    return {
+      text: `${chatsText}\n\nUnread messages: ${unreadCount}`,
+    };
   },
 };
 

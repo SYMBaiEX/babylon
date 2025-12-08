@@ -1,5 +1,6 @@
 'use client';
 
+import { cn } from '@babylon/shared';
 import {
   AlertTriangle,
   CheckCircle,
@@ -17,7 +18,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { cn } from '@babylon/shared';
 
 /**
  * Trade type discriminator for confirmation dialog.

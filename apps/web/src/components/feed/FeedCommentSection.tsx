@@ -1,5 +1,7 @@
 'use client';
 
+import type { CommentData, CommentWithReplies } from '@babylon/shared';
+import { cn } from '@babylon/shared';
 import { MessageCircle, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -9,9 +11,7 @@ import { PostCard } from '@/components/posts/PostCard';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { useAuth } from '@/hooks/useAuth';
-import { cn } from '@babylon/shared';
 import { useInteractionStore } from '@/stores/interactionStore';
-import type { CommentData, CommentWithReplies } from '@babylon/shared';
 
 /**
  * Feed comment section component for displaying post comments.

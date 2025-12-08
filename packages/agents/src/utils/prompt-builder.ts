@@ -7,12 +7,12 @@
  * @packageDocumentation
  */
 
-import { logger } from '../shared/logger';
 import {
   countTokensSync,
   getModelTokenLimit,
   truncateToTokenLimitSync,
-} from '@babylon/engine';
+} from '@babylon/api';
+import { logger } from '../shared/logger';
 
 export interface PromptSection {
   name: string;

@@ -392,4 +392,3 @@ export interface CommentInputProps {
   onCancel?: () => void;
   className?: string;
 }
-

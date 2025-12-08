@@ -46,13 +46,15 @@
  * ```
  */
 
+import {
+  AuthorizationError,
+  authenticate,
+  findUserByIdentifier,
+  successResponse,
+  withErrorHandling,
+} from '@babylon/api';
+import { logger, UserIdParamSchema } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
-import { authenticate, successResponse } from '@babylon/api';
-import { AuthorizationError } from '@babylon/api';
-import { withErrorHandling } from '@babylon/api';
-import { logger } from '@babylon/shared';
-import { findUserByIdentifier } from '@babylon/api';
-import { UserIdParamSchema } from '@babylon/shared';
 
 /**
  * GET /api/users/[userId]/is-new

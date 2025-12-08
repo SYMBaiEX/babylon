@@ -73,19 +73,20 @@ import {
   DefaultRequestHandler,
   JsonRpcTransportHandler,
 } from '@a2a-js/sdk/server';
-import type { NextRequest } from 'next/server';
-import { NextResponse } from 'next/server';
-import { db } from '@babylon/db';
 import {
   BabylonAgentExecutor,
-  ExtendedTaskStore,
-  type ListTasksParams,
-  generateAgentCardSync,
-  RateLimiter,
-  type JsonRpcRequest,
   ErrorCode,
+  ExtendedTaskStore,
+  generateAgentCardSync,
+  type JsonRpcRequest,
+  type ListTasksParams,
+  RateLimiter,
 } from '@babylon/a2a';
+import { getAgentConfig } from '@babylon/agents';
+import { db, eq, users } from '@babylon/db';
 import { logger } from '@babylon/shared';
+import type { NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
 
 // Type assertions are used instead of type guards due to intersection type issues
 
@@ -114,25 +115,29 @@ async function getAgentJsonRpcHandler(
       const eventBusManager = new DefaultExecutionEventBusManager();
 
       // Get agent data for card generation
-      const agentData = await db.user.findUnique({
-        where: { id: agentId },
-        select: {
-          id: true,
-          displayName: true,
-          bio: true,
-          profileImageUrl: true,
-          agentSystem: true,
-          agentPersonality: true,
-          agentTradingStrategy: true,
-        },
-      });
+      const [agentUser] = await db
+        .select()
+        .from(users)
+        .where(eq(users.id, agentId))
+        .limit(1);
+      const agentConfig = await getAgentConfig(agentId);
 
-      if (!agentData) {
+      if (!agentUser) {
         throw new Error(`Agent ${agentId} not found`);
       }
 
+      const agentCardData = {
+        id: agentUser.id,
+        displayName: agentUser.displayName,
+        bio: agentUser.bio,
+        profileImageUrl: agentUser.profileImageUrl,
+        systemPrompt: agentConfig?.systemPrompt ?? null,
+        personality: agentConfig?.personality ?? null,
+        tradingStrategy: agentConfig?.tradingStrategy ?? null,
+      };
+
       const requestHandler = new DefaultRequestHandler(
-        generateAgentCardSync(agentData),
+        generateAgentCardSync(agentCardData),
         taskStore,
         executor,
         eventBusManager
@@ -155,20 +160,12 @@ export async function POST(
   const { agentId } = await params;
 
   // Verify agent exists and has A2A enabled
-  const agent = await db.user.findUnique({
-    where: { id: agentId },
-    select: {
-      id: true,
-      isAgent: true,
-      a2aEnabled: true,
-      displayName: true,
-      bio: true,
-      profileImageUrl: true,
-      agentSystem: true,
-      agentPersonality: true,
-      agentTradingStrategy: true,
-    },
-  });
+  const [agent] = await db
+    .select()
+    .from(users)
+    .where(eq(users.id, agentId))
+    .limit(1);
+  const agentConfig = await getAgentConfig(agentId);
 
   if (!agent || !agent.isAgent) {
     return NextResponse.json(
@@ -184,7 +181,7 @@ export async function POST(
     );
   }
 
-  if (!agent.a2aEnabled) {
+  if (!agentConfig?.a2aEnabled) {
     return NextResponse.json(
       {
         jsonrpc: '2.0',
@@ -198,22 +195,7 @@ export async function POST(
     );
   }
 
-  let body: JsonRpcRequest;
-  try {
-    body = (await req.json()) as JsonRpcRequest;
-  } catch {
-    return NextResponse.json(
-      {
-        jsonrpc: '2.0',
-        id: null,
-        error: {
-          code: ErrorCode.INVALID_REQUEST,
-          message: 'Invalid JSON-RPC request',
-        },
-      },
-      { status: 400 }
-    );
-  }
+  const body = (await req.json()) as JsonRpcRequest;
 
   const requestingAgentId =
     req.headers.get('x-agent-id') ||
@@ -274,130 +256,110 @@ export async function POST(
   ];
 
   if (officialMethods.includes(body.method)) {
-    try {
-      // Handle tasks/list manually
-      if (body.method === 'tasks/list') {
-        const jsonRpcHandler = await getAgentJsonRpcHandler(agentId);
-        
-        // Use type assertions to access internal SDK structure
-        // These properties exist at runtime but aren't in the public types
-        const handlerWithRequestHandler = jsonRpcHandler as unknown as {
-          requestHandler: {
-            taskStore: ExtendedTaskStore;
-          };
-        };
-        const taskStore = handlerWithRequestHandler.requestHandler.taskStore;
+    // Handle tasks/list manually
+    if (body.method === 'tasks/list') {
+      const jsonRpcHandler = await getAgentJsonRpcHandler(agentId);
 
-        const params = (body.params || {}) as {
-          contextId?: string;
-          status?: string;
-          pageSize?: number;
-          pageToken?: string;
-          historyLength?: number;
-          includeArtifacts?: boolean;
-          lastUpdatedAfter?: number;
+      // Use type assertions to access internal SDK structure
+      // These properties exist at runtime but aren't in the public types
+      const handlerWithRequestHandler = jsonRpcHandler as unknown as {
+        requestHandler: {
+          taskStore: ExtendedTaskStore;
         };
+      };
+      const taskStore = handlerWithRequestHandler.requestHandler.taskStore;
 
-        if (
-          params.pageSize !== undefined &&
-          (params.pageSize < 1 || params.pageSize > 100)
-        ) {
-          return NextResponse.json(
-            {
-              jsonrpc: '2.0',
-              id: body.id ?? null,
-              error: {
-                code: -32602,
-                message: 'Invalid params: pageSize must be between 1 and 100',
-                data: { pageSize: params.pageSize },
-              },
+      const params = (body.params || {}) as {
+        contextId?: string;
+        status?: string;
+        pageSize?: number;
+        pageToken?: string;
+        historyLength?: number;
+        includeArtifacts?: boolean;
+        lastUpdatedAfter?: number;
+      };
+
+      if (
+        params.pageSize !== undefined &&
+        (params.pageSize < 1 || params.pageSize > 100)
+      ) {
+        return NextResponse.json(
+          {
+            jsonrpc: '2.0',
+            id: body.id ?? null,
+            error: {
+              code: -32602,
+              message: 'Invalid params: pageSize must be between 1 and 100',
+              data: { pageSize: params.pageSize },
             },
-            { status: 400 }
-          );
-        }
-
-        if (params.historyLength !== undefined && params.historyLength < 0) {
-          return NextResponse.json(
-            {
-              jsonrpc: '2.0',
-              id: body.id ?? null,
-              error: {
-                code: -32602,
-                message: 'Invalid params: historyLength must be non-negative',
-                data: { historyLength: params.historyLength },
-              },
-            },
-            { status: 400 }
-          );
-        }
-
-        const listParams: ListTasksParams = {
-          contextId: params.contextId,
-          status:
-            params.status === 'pending'
-              ? 'submitted'
-              : params.status === 'running'
-                ? 'working'
-                : params.status === 'cancelled'
-                  ? 'canceled'
-                  : (params.status as
-                      | 'submitted'
-                      | 'working'
-                      | 'completed'
-                      | 'failed'
-                      | 'canceled'
-                      | undefined),
-          pageSize: params.pageSize || 20,
-          pageToken: params.pageToken,
-          historyLength: params.historyLength,
-          includeArtifacts: params.includeArtifacts || false,
-          lastUpdatedAfter: params.lastUpdatedAfter,
-        };
-
-        const tasks = await taskStore.list(listParams);
-
-        return NextResponse.json({
-          jsonrpc: '2.0',
-          id: body.id ?? null,
-          result: {
-            tasks: tasks.tasks,
-            nextPageToken: tasks.nextPageToken,
           },
-        });
+          { status: 400 }
+        );
       }
 
-      // Handle other official methods via SDK handler
-      const jsonRpcHandler = await getAgentJsonRpcHandler(agentId);
-      const response = await jsonRpcHandler.handle(body);
-
-      return NextResponse.json(response, {
-        headers: {
-          'Content-Type': 'application/json',
-          'X-RateLimit-Limit': '100',
-          'X-RateLimit-Remaining': limiter
-            .getTokens(requestingAgentId)
-            .toString(),
-        },
-      });
-    } catch (error) {
-      logger.error('Per-agent A2A handler error', {
-        error,
-        method: body.method,
-        agentId,
-        requestingAgentId,
-      });
-      return NextResponse.json(
-        {
-          jsonrpc: '2.0',
-          id: body.id ?? null,
-          error: {
-            code: ErrorCode.INTERNAL_ERROR,
-            message: error instanceof Error ? error.message : 'Internal error',
+      if (params.historyLength !== undefined && params.historyLength < 0) {
+        return NextResponse.json(
+          {
+            jsonrpc: '2.0',
+            id: body.id ?? null,
+            error: {
+              code: -32602,
+              message: 'Invalid params: historyLength must be non-negative',
+              data: { historyLength: params.historyLength },
+            },
           },
+          { status: 400 }
+        );
+      }
+
+      const listParams: ListTasksParams = {
+        contextId: params.contextId,
+        status:
+          params.status === 'pending'
+            ? 'submitted'
+            : params.status === 'running'
+              ? 'working'
+              : params.status === 'cancelled'
+                ? 'canceled'
+                : (params.status as
+                    | 'submitted'
+                    | 'working'
+                    | 'completed'
+                    | 'failed'
+                    | 'canceled'
+                    | undefined),
+        pageSize: params.pageSize || 20,
+        pageToken: params.pageToken,
+        historyLength: params.historyLength,
+        includeArtifacts: params.includeArtifacts || false,
+        lastUpdatedAfter: params.lastUpdatedAfter,
+      };
+
+      const tasks = await taskStore.list(listParams);
+
+      return NextResponse.json({
+        jsonrpc: '2.0',
+        id: body.id ?? null,
+        result: {
+          tasks: tasks.tasks,
+          nextPageToken: tasks.nextPageToken,
         },
-        { status: 500 }
-      );
+      });
     }
+
+    // Handle other official methods via SDK handler
+    const jsonRpcHandler = await getAgentJsonRpcHandler(agentId);
+    const response = await jsonRpcHandler.handle(body);
+
+    return NextResponse.json(response, {
+      headers: {
+        'Content-Type': 'application/json',
+        'X-RateLimit-Limit': '100',
+        'X-RateLimit-Remaining': limiter
+          .getTokens(requestingAgentId)
+          .toString(),
+      },
+    });
   }
 
   // All methods should be handled above via official A2A protocol
@@ -422,20 +384,12 @@ export async function GET(
   const { agentId } = await params;
 
   // Verify agent exists and has A2A enabled
-  const agent = await db.user.findUnique({
-    where: { id: agentId },
-    select: {
-      id: true,
-      isAgent: true,
-      a2aEnabled: true,
-      displayName: true,
-      bio: true,
-      profileImageUrl: true,
-      agentSystem: true,
-      agentPersonality: true,
-      agentTradingStrategy: true,
-    },
-  });
+  const [agent] = await db
+    .select()
+    .from(users)
+    .where(eq(users.id, agentId))
+    .limit(1);
+  const config = await getAgentConfig(agentId);
 
   if (!agent || !agent.isAgent) {
     return NextResponse.json(
@@ -446,7 +400,7 @@ export async function GET(
     );
   }
 
-  if (!agent.a2aEnabled) {
+  if (!config?.a2aEnabled) {
     return NextResponse.json(
       {
         error: 'A2A is not enabled for this agent',
@@ -460,9 +414,9 @@ export async function GET(
     displayName: agent.displayName,
     bio: agent.bio,
     profileImageUrl: agent.profileImageUrl,
-    agentSystem: agent.agentSystem,
-    agentPersonality: agent.agentPersonality,
-    agentTradingStrategy: agent.agentTradingStrategy,
+    systemPrompt: config?.systemPrompt ?? null,
+    personality: config?.personality ?? null,
+    tradingStrategy: config?.tradingStrategy ?? null,
   });
 
   return NextResponse.json(

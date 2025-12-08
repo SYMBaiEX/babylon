@@ -23,6 +23,7 @@ import {
   not,
   trajectories,
 } from '@babylon/db';
+import type { JsonValue } from '@babylon/shared';
 import { asUUID } from '@elizaos/core';
 import { v4 as uuidv4 } from 'uuid';
 import {
@@ -31,7 +32,7 @@ import {
   type TrajectoryForTraining,
   type TrajectoryStepForTraining,
 } from '../dependencies';
-import { logger } from '../utils/logger';
+import { logger, splitIntoBatches } from '../utils';
 import type { TrajectoryStep as TrainingTrajectoryStep } from './types';
 
 // Use types from dependencies
@@ -120,10 +121,7 @@ export class RulerScoringService {
         continue;
       }
 
-      const batches = this.splitIntoBatches(
-        group.trajectories,
-        this.maxGroupSize
-      );
+      const batches = splitIntoBatches(group.trajectories, this.maxGroupSize);
 
       for (const batch of batches) {
         const scored = await this.scoreGroup(batch, group.scenarioId);
@@ -221,20 +219,7 @@ export class RulerScoringService {
         continue;
       }
 
-      let steps: TrainingTrajectoryStep[];
-      try {
-        steps = JSON.parse(dbTraj.stepsJson) as TrainingTrajectoryStep[];
-      } catch (error) {
-        logger.error(
-          'Failed to parse stepsJson',
-          {
-            trajectoryId: dbTraj.trajectoryId,
-            error: error instanceof Error ? error.message : String(error),
-          },
-          'RulerScoring'
-        );
-        continue;
-      }
+      const steps = JSON.parse(dbTraj.stepsJson) as TrainingTrajectoryStep[];
 
       const stepTimestamp = Date.now();
       const richTraj: RichTrajectory = {
@@ -261,7 +246,7 @@ export class RulerScoringService {
               providerId: uuidv4(),
               providerName: p.providerName,
               timestamp: s.timestamp || stepTimestamp + idx,
-              query: p.data as Record<string, unknown>,
+              query: p.data as Record<string, JsonValue>,
               data: p.data,
               purpose: p.purpose,
             })),
@@ -514,19 +499,10 @@ Important: Use the performance context provided (P&L, episode length, success ra
    * Uses structured output format to ensure valid JSON response.
    */
   private async callJudge(promptJson: string): Promise<RulerResponse | null> {
-    let promptData: { system: string; user: string };
-    try {
-      promptData = JSON.parse(promptJson);
-    } catch (error) {
-      logger.error(
-        'Failed to parse judge prompt JSON',
-        {
-          error: error instanceof Error ? error.message : String(error),
-        },
-        'RulerScoring'
-      );
-      return null;
-    }
+    const promptData = JSON.parse(promptJson) as {
+      system: string;
+      user: string;
+    };
 
     const structuredPrompt = `${promptData.user}
 
@@ -576,20 +552,7 @@ Return ONLY the JSON, no other text.`;
       return null;
     }
 
-    let parsed: RulerResponse;
-    try {
-      parsed = JSON.parse(jsonMatch[0]) as RulerResponse;
-    } catch (error) {
-      logger.error(
-        'Failed to parse judge response JSON',
-        {
-          error: error instanceof Error ? error.message : String(error),
-          jsonText: jsonText.substring(0, 500),
-        },
-        'RulerScoring'
-      );
-      return null;
-    }
+    const parsed = JSON.parse(jsonMatch[0]) as RulerResponse;
 
     if (!parsed.scores || !Array.isArray(parsed.scores)) {
       logger.error(
@@ -667,17 +630,6 @@ Return ONLY the JSON, no other text.`;
       scenarioId,
       trajectories: trajs,
     }));
-  }
-
-  /**
-   * Split large groups into optimal-sized batches
-   */
-  private splitIntoBatches<T>(items: T[], batchSize: number): T[][] {
-    const batches: T[][] = [];
-    for (let i = 0; i < items.length; i += batchSize) {
-      batches.push(items.slice(i, i + batchSize));
-    }
-    return batches;
   }
 
   /**

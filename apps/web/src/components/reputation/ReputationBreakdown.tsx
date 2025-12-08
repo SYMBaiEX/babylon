@@ -26,9 +26,9 @@
  */
 'use client';
 
+import { cn } from '@babylon/shared';
 import { Activity, DollarSign, MessageSquare } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { cn } from '@babylon/shared';
 
 /**
  * Breakdown data structure from API.

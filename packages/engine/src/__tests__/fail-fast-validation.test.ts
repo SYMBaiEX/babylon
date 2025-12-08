@@ -6,7 +6,7 @@
  * propagating bad state. Critical for data integrity.
  */
 
-import { describe, expect, test, mock } from 'bun:test';
+import { describe, expect, mock, test } from 'bun:test';
 import { FeedGenerator } from '../FeedGenerator';
 import type { BabylonLLMClient } from '../llm/openai-client';
 
@@ -16,7 +16,12 @@ function createMockLLMClient(): BabylonLLMClient {
     generateText: mock(() => Promise.resolve('')),
     generateJSON: mock(() => Promise.resolve({})),
     getProvider: () => 'groq',
-    getStats: () => ({ provider: 'groq' as const, model: 'test', totalTokens: 0, totalCost: 0 }),
+    getStats: () => ({
+      provider: 'groq' as const,
+      model: 'test',
+      totalTokens: 0,
+      totalCost: 0,
+    }),
   } as unknown as BabylonLLMClient;
 }
 
@@ -44,7 +49,6 @@ describe('Fail-Fast Validation', () => {
   });
 
   test('skips posts with empty content', () => {
-    // Verify that posts without content are skipped
     const posts = [
       { post: 'Valid content', sentiment: 0, clueStrength: 0.5 },
       { post: '', sentiment: 0, clueStrength: 0.5 }, // Empty - should skip
@@ -59,7 +63,7 @@ describe('Fail-Fast Validation', () => {
   test('validates event descriptions are not empty', () => {
     const events = [
       { event: 'Valid event' },
-      { event: '' }, // Should be rejected
+      { event: '' },
       { event: 'Another valid event' },
     ];
 

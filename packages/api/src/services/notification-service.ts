@@ -4,9 +4,17 @@
  * Helper functions for creating notifications when users interact
  */
 
-import { and, db, desc, eq, gt, hasBlocked, notifications, users } from '@babylon/db';
-import { logger } from '@babylon/shared';
-import { generateSnowflakeId } from '@babylon/shared';
+import {
+  and,
+  db,
+  desc,
+  eq,
+  gt,
+  hasBlocked,
+  notifications,
+  users,
+} from '@babylon/db';
+import { generateSnowflakeId, logger } from '@babylon/shared';
 
 export type NotificationType =
   | 'comment'

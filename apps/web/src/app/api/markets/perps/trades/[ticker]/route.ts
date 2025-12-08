@@ -64,15 +64,20 @@
  * ```
  */
 
+import type { JsonValue } from '@babylon/api';
+import {
+  getCache,
+  optionalAuth,
+  setCache,
+  successResponse,
+  withErrorHandling,
+} from '@babylon/api';
+import { db } from '@babylon/db';
+import { StaticDataRegistry } from '@babylon/engine';
+import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { db } from '@babylon/db';
-import { optionalAuth } from '@babylon/api';
-import { getCache, setCache } from '@babylon/api';
-import { successResponse, withErrorHandling } from '@babylon/api';
-import { logger } from '@babylon/shared';
-import type { JsonValue } from '@babylon/api';
 
 const QuerySchema = z.object({
   limit: z.coerce.number().min(1).max(100).default(50),
@@ -107,32 +112,25 @@ export const GET = withErrorHandling(
     const cached = await getCache<Record<string, JsonValue>>(cacheKey);
 
     if (cached) {
-      logger.debug('Cache hit for perp trades', { ticker: tickerParam }, 'PerpTrades');
+      logger.debug(
+        'Cache hit for perp trades',
+        { ticker: tickerParam },
+        'PerpTrades'
+      );
       return successResponse(cached);
     }
 
     // Verify organization/ticker exists - search by ticker field OR id (case-insensitive)
-    // The ticker in the URL may be uppercase (e.g., "BTC") or match the organization id
-    const organization = await db.organization.findFirst({
-      where: {
-        OR: [
-          { ticker: tickerParam },
-          { ticker: tickerParam.toUpperCase() },
-          { ticker: tickerParam.toLowerCase() },
-          { id: tickerParam },
-          { id: tickerParam.toLowerCase() },
-        ],
-      },
-      select: {
-        id: true,
-        name: true,
-        type: true,
-        ticker: true,
-        currentPrice: true,
-      },
-    });
+    const staticOrg = StaticDataRegistry.getAllOrganizations().find(
+      (org) =>
+        org.ticker === tickerParam ||
+        org.ticker === tickerParam.toUpperCase() ||
+        org.ticker === tickerParam.toLowerCase() ||
+        org.id === tickerParam ||
+        org.id === tickerParam.toLowerCase()
+    );
 
-    if (!organization) {
+    if (!staticOrg) {
       logger.warn(
         'Perp market not found for ticker',
         { tickerParam },
@@ -141,16 +139,27 @@ export const GET = withErrorHandling(
       return NextResponse.json({ error: 'Market not found' }, { status: 404 });
     }
 
+    const orgState = await db.organizationState.findUnique({
+      where: { id: staticOrg.id },
+    });
+
+    const organization = {
+      id: staticOrg.id,
+      name: staticOrg.name,
+      type: staticOrg.type,
+      ticker: staticOrg.ticker ?? null,
+      currentPrice: orgState?.currentPrice ?? null,
+    };
+
     // Use the organization's actual ticker or derive from id for perp position lookups
-    const perpTicker = organization.ticker || organization.id.toUpperCase().replace(/-/g, '').substring(0, 12);
+    const perpTicker =
+      organization.ticker ||
+      organization.id.toUpperCase().replace(/-/g, '').substring(0, 12);
 
     // Get perp positions for this ticker (try both the ticker and organizationId)
     const perpPositions = await db.perpPosition.findMany({
       where: {
-        OR: [
-          { ticker: perpTicker },
-          { organizationId: organization.id },
-        ],
+        OR: [{ ticker: perpTicker }, { organizationId: organization.id }],
       },
       orderBy: { openedAt: 'desc' },
       take: queryParams.limit,
@@ -160,10 +169,7 @@ export const GET = withErrorHandling(
     // Get total count for pagination
     const totalPositions = await db.perpPosition.count({
       where: {
-        OR: [
-          { ticker: perpTicker },
-          { organizationId: organization.id },
-        ],
+        OR: [{ ticker: perpTicker }, { organizationId: organization.id }],
       },
     });
 

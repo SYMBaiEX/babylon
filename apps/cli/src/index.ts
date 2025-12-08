@@ -13,18 +13,19 @@
 // Load environment variables from project root before any other imports
 import { config } from 'dotenv';
 import { resolve } from 'path';
+
 config({ path: resolve(process.cwd(), '.env') });
 config({ path: resolve(process.cwd(), '.env.local') });
 
-import { runDbCommand } from './commands/db.js';
 import { runAdminCommand } from './commands/admin.js';
-import { runStatusCommand } from './commands/status.js';
-import { runTrainCommand } from './commands/train.js';
-import { runModelCommand } from './commands/model.js';
-import { runGameCommand } from './commands/game.js';
 import { runAgentCommand } from './commands/agent.js';
+import { runDbCommand } from './commands/db.js';
 import { runDeployCommand } from './commands/deploy.js';
+import { runGameCommand } from './commands/game.js';
+import { runModelCommand } from './commands/model.js';
+import { runStatusCommand } from './commands/status.js';
 import { runTestCommand } from './commands/test.js';
+import { runTrainCommand } from './commands/train.js';
 
 const VERSION = '0.2.0';
 
@@ -102,61 +103,49 @@ async function main(): Promise<void> {
     process.exit(0);
   }
 
-  try {
-    switch (domain) {
-      case 'db':
-        await runDbCommand(commandArgs);
-        break;
+  switch (domain) {
+    case 'db':
+      await runDbCommand(commandArgs);
+      break;
 
-      case 'admin':
-        await runAdminCommand(commandArgs);
-        break;
+    case 'admin':
+      await runAdminCommand(commandArgs);
+      break;
 
-      case 'status':
-        await runStatusCommand(commandArgs);
-        break;
+    case 'status':
+      await runStatusCommand(commandArgs);
+      break;
 
-      case 'train':
-        await runTrainCommand(commandArgs);
-        break;
+    case 'train':
+      await runTrainCommand(commandArgs);
+      break;
 
-      case 'model':
-        await runModelCommand(commandArgs);
-        break;
+    case 'model':
+      await runModelCommand(commandArgs);
+      break;
 
-      case 'game':
-        await runGameCommand(commandArgs);
-        break;
+    case 'game':
+      await runGameCommand(commandArgs);
+      break;
 
-      case 'agent':
-        await runAgentCommand(commandArgs);
-        break;
+    case 'agent':
+      await runAgentCommand(commandArgs);
+      break;
 
-      case 'deploy':
-        await runDeployCommand(commandArgs);
-        break;
+    case 'deploy':
+      await runDeployCommand(commandArgs);
+      break;
 
-      case 'test':
-        await runTestCommand(commandArgs);
-        break;
+    case 'test':
+      await runTestCommand(commandArgs);
+      break;
 
-      default:
-        console.error(`Unknown domain: ${domain}`);
-        console.log("\nRun 'babylon --help' for usage information.");
-        process.exit(1);
-    }
-    process.exit(0);
-  } catch (error) {
-    if (error instanceof Error) {
-      console.error(`\n❌ Error: ${error.message}`);
-      if (process.env.DEBUG) {
-        console.error(error.stack);
-      }
-    } else {
-      console.error('\n❌ An unexpected error occurred');
-    }
-    process.exit(1);
+    default:
+      console.error(`Unknown domain: ${domain}`);
+      console.log("\nRun 'babylon --help' for usage information.");
+      process.exit(1);
   }
+  process.exit(0);
 }
 
 if (import.meta.main) {
@@ -164,4 +153,3 @@ if (import.meta.main) {
 }
 
 export { main };
-

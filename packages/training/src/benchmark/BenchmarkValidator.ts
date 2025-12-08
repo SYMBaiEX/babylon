@@ -5,6 +5,7 @@
  * and contains all required fields.
  */
 
+import type { JsonValue } from '@babylon/shared';
 import { logger } from '../utils/logger';
 import type { BenchmarkGameSnapshot } from './BenchmarkDataGenerator';
 
@@ -28,7 +29,7 @@ export class BenchmarkValidator {
       return { valid: false, errors, warnings };
     }
 
-    const snap = snapshot as Record<string, unknown>;
+    const snap = snapshot as Record<string, JsonValue>;
 
     if (!snap.id) errors.push('Missing required field: id');
     if (!snap.version) errors.push('Missing required field: version');
@@ -43,7 +44,7 @@ export class BenchmarkValidator {
 
     // 2. Validate initial state
     if (snap.initialState && typeof snap.initialState === 'object') {
-      const state = snap.initialState as Record<string, unknown>;
+      const state = snap.initialState as Record<string, JsonValue>;
 
       if (typeof state.tick !== 'number')
         errors.push('initialState.tick must be a number');
@@ -68,12 +69,12 @@ export class BenchmarkValidator {
         warnings.push('Ticks array is empty');
       }
 
-      snap.ticks.forEach((tick: unknown, index: number) => {
+      snap.ticks.forEach((tick: JsonValue, index: number) => {
         if (!tick || typeof tick !== 'object') {
           errors.push(`Tick ${index}: invalid tick object`);
           return;
         }
-        const tickObj = tick as Record<string, unknown>;
+        const tickObj = tick as Record<string, JsonValue>;
         if (typeof tickObj.number !== 'number') {
           errors.push(`Tick ${index}: missing or invalid 'number' field`);
         }
@@ -89,7 +90,7 @@ export class BenchmarkValidator {
 
       // Check tick numbering is sequential
       for (let i = 0; i < snap.ticks.length; i++) {
-        const tick = snap.ticks[i] as Record<string, unknown> | undefined;
+        const tick = snap.ticks[i] as Record<string, JsonValue> | undefined;
         if (tick && typeof tick.number === 'number' && tick.number !== i) {
           warnings.push(`Tick ${i}: number ${tick.number} doesn't match index`);
         }
@@ -98,7 +99,7 @@ export class BenchmarkValidator {
 
     // 4. Validate ground truth
     if (snap.groundTruth && typeof snap.groundTruth === 'object') {
-      const gt = snap.groundTruth as Record<string, unknown>;
+      const gt = snap.groundTruth as Record<string, JsonValue>;
 
       if (!gt.marketOutcomes || typeof gt.marketOutcomes !== 'object') {
         errors.push('groundTruth.marketOutcomes must be an object');
@@ -136,19 +137,19 @@ export class BenchmarkValidator {
       snap.groundTruth &&
       typeof snap.groundTruth === 'object'
     ) {
-      const initialState = snap.initialState as Record<string, unknown>;
-      const groundTruth = snap.groundTruth as Record<string, unknown>;
+      const initialState = snap.initialState as Record<string, JsonValue>;
+      const groundTruth = snap.groundTruth as Record<string, JsonValue>;
       const markets = (
         Array.isArray(initialState.predictionMarkets)
           ? initialState.predictionMarkets
           : []
-      ) as Array<Record<string, unknown>>;
+      ) as Array<Record<string, JsonValue>>;
       const outcomes = (
         groundTruth.marketOutcomes &&
         typeof groundTruth.marketOutcomes === 'object'
           ? groundTruth.marketOutcomes
           : {}
-      ) as Record<string, unknown>;
+      ) as Record<string, JsonValue>;
 
       markets.forEach((market) => {
         if (
@@ -181,7 +182,7 @@ export class BenchmarkValidator {
    */
   static sanityCheck(snapshot: unknown): snapshot is BenchmarkGameSnapshot {
     if (!snapshot || typeof snapshot !== 'object') return false;
-    const snap = snapshot as Record<string, unknown>;
+    const snap = snapshot as Record<string, JsonValue>;
     return !!(
       snap.id &&
       snap.initialState &&

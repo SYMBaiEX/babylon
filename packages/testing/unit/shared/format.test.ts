@@ -156,5 +156,3 @@ describe('Format Utilities', () => {
     });
   });
 });
-
-

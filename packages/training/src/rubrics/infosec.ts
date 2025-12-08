@@ -99,4 +99,3 @@ export const INFOSEC_PRIORITY_METRICS = [
   'behavior.consistencyScore',
   'trading.totalPnL',
 ];
-

@@ -102,38 +102,45 @@
  *
  */
 
-import type { NextRequest } from 'next/server';
+import type { JsonValue } from '@babylon/api';
 import {
-  actors,
+  authenticate,
+  BusinessLogicError,
+  broadcastToChannel,
+  cachedDb,
+  checkRateLimitAndDuplicates,
+  ensureUserForAuth,
+  getCanonicalUserId,
+  NotFoundError,
+  notifyShare,
+  RATE_LIMIT_CONFIGS,
+  successResponse,
+  withErrorHandling,
+} from '@babylon/api';
+import {
   and,
   count,
   db,
   eq,
+  hasBlocked,
   isNull,
-  organizations,
   posts,
   shares,
   users,
 } from '@babylon/db';
-import { authenticate } from '@babylon/api';
-import { cachedDb } from '@babylon/api';
-import { BusinessLogicError, NotFoundError } from '@babylon/api';
-import { successResponse, withErrorHandling } from '@babylon/api';
-import { logger } from '@babylon/shared';
-import { hasBlocked } from '@babylon/db';
-import { parsePostId } from '@babylon/engine';
-import { trackServerEvent } from '@/lib/posthog/server';
 import {
-  checkRateLimitAndDuplicates,
-  RATE_LIMIT_CONFIGS,
-} from '@babylon/api';
-import { notifyShare } from '@babylon/api';
-import { NPCInteractionTracker } from '@babylon/engine';
-import { generateSnowflakeId } from '@babylon/shared';
-import { broadcastToChannel } from '@babylon/api';
-import { ensureUserForAuth, getCanonicalUserId } from '@babylon/api';
-import { PostIdParamSchema, SharePostSchema } from '@babylon/shared';
-import type { JsonValue } from '@babylon/api';
+  NPCInteractionTracker,
+  parsePostId,
+  StaticDataRegistry,
+} from '@babylon/engine';
+import {
+  generateSnowflakeId,
+  logger,
+  PostIdParamSchema,
+  SharePostSchema,
+} from '@babylon/shared';
+import type { NextRequest } from 'next/server';
+import { trackServerEvent } from '@/lib/posthog/server';
 
 /**
  * POST /api/posts/[id]/share
@@ -273,34 +280,20 @@ export const POST = withErrorHandling(
     let repostPostData = null;
 
     if (originalPost) {
-      const [[originalUser], [originalActor], [originalOrg]] =
-        await Promise.all([
-          db
-            .select({
-              username: users.username,
-              displayName: users.displayName,
-              profileImageUrl: users.profileImageUrl,
-            })
-            .from(users)
-            .where(eq(users.id, originalPost.authorId))
-            .limit(1),
-          db
-            .select({
-              name: actors.name,
-              profileImageUrl: actors.profileImageUrl,
-            })
-            .from(actors)
-            .where(eq(actors.id, originalPost.authorId))
-            .limit(1),
-          db
-            .select({
-              name: organizations.name,
-              imageUrl: organizations.imageUrl,
-            })
-            .from(organizations)
-            .where(eq(organizations.id, originalPost.authorId))
-            .limit(1),
-        ]);
+      const [originalUser] = await db
+        .select({
+          username: users.username,
+          displayName: users.displayName,
+          profileImageUrl: users.profileImageUrl,
+        })
+        .from(users)
+        .where(eq(users.id, originalPost.authorId))
+        .limit(1);
+
+      const originalActor = StaticDataRegistry.getActor(originalPost.authorId);
+      const originalOrg = StaticDataRegistry.getOrganization(
+        originalPost.authorId
+      );
 
       const originalAuthorName =
         originalUser?.displayName ||

@@ -105,8 +105,12 @@ contract ChainlinkOracleMock is Ownable {
     }
 
     /// @notice Update oracle fee (owner only)
+    event FeeUpdated(uint256 oldFee, uint256 newFee);
+
     function setFee(uint256 _fee) external onlyOwner {
+        uint256 oldFee = fee;
         fee = _fee;
+        emit FeeUpdated(oldFee, _fee);
     }
 
     /// @notice Withdraw accumulated fees (owner only)

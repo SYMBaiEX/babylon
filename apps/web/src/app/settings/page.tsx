@@ -1,18 +1,17 @@
 'use client';
 
+import { cn, logger } from '@babylon/shared';
 import { ArrowLeft, Key, Palette, Save, Shield, User } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useTheme } from 'next-themes';
 import { useEffect, useState } from 'react';
 import { LoginButton } from '@/components/auth/LoginButton';
+import { ApiKeysTab } from '@/components/settings/ApiKeysTab';
 import { PrivacyTab } from '@/components/settings/PrivacyTab';
 import { SecurityTab } from '@/components/settings/SecurityTab';
-import { ApiKeysTab } from '@/components/settings/ApiKeysTab';
 import { PageContainer } from '@/components/shared/PageContainer';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { useAuth } from '@/hooks/useAuth';
-import { logger } from '@babylon/shared';
-import { cn } from '@babylon/shared';
 import { useAuthStore } from '@/stores/authStore';
 
 export default function SettingsPage() {
@@ -121,62 +120,49 @@ export default function SettingsPage() {
       headers['Authorization'] = `Bearer ${token}`;
     }
 
-    try {
-      const response = await fetch(
-        `/api/users/${encodeURIComponent(user.id)}/update-profile`,
-        {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({
-            displayName: trimmedDisplayName,
-            username: trimmedUsername,
-            bio: trimmedBio,
-          }),
-        }
-      );
-
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        const message = payload?.error || 'Unable to save your changes.';
-        setErrorMessage(message);
-        logger.error(
-          'Failed to save profile settings',
-          { error: message },
-          'SettingsPage'
-        );
-        return;
+    const response = await fetch(
+      `/api/users/${encodeURIComponent(user.id)}/update-profile`,
+      {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          displayName: trimmedDisplayName,
+          username: trimmedUsername,
+          bio: trimmedBio,
+        }),
       }
+    );
 
-      if (payload.user) {
-        setUser({
-          ...user,
-          username: payload.user.username,
-          displayName: payload.user.displayName,
-          bio: payload.user.bio,
-          usernameChangedAt: payload.user.usernameChangedAt,
-          referralCode: payload.user.referralCode,
-          onChainRegistered:
-            payload.user.onChainRegistered ?? user.onChainRegistered,
-        });
-      }
-
-      setSaved(true);
-      setTimeout(() => setSaved(false), 3000);
-      await refresh().catch(() => undefined);
-    } catch (error) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : 'Failed to save profile settings';
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const message = payload?.error || 'Unable to save your changes.';
       setErrorMessage(message);
       logger.error(
         'Failed to save profile settings',
-        { error },
+        { error: message },
         'SettingsPage'
       );
-    } finally {
       setSaving(false);
+      return;
     }
+
+    if (payload.user) {
+      setUser({
+        ...user,
+        username: payload.user.username,
+        displayName: payload.user.displayName,
+        bio: payload.user.bio,
+        usernameChangedAt: payload.user.usernameChangedAt,
+        referralCode: payload.user.referralCode,
+        onChainRegistered:
+          payload.user.onChainRegistered ?? user.onChainRegistered,
+      });
+    }
+
+    setSaved(true);
+    setTimeout(() => setSaved(false), 3000);
+    await refresh().catch(() => undefined);
+    setSaving(false);
   };
 
   if (!ready) {

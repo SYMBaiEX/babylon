@@ -173,7 +173,13 @@ export interface Organization {
   ticker?: string; // 4-6 character trading ticker (e.g., METAI, NVDAI, AINDRL)
   description: string;
   profileDescription?: string; // What the organization says about itself on its profile
-  type: 'company' | 'media' | 'government' | 'vc' | 'organization' | 'financial';
+  type:
+    | 'company'
+    | 'media'
+    | 'government'
+    | 'vc'
+    | 'organization'
+    | 'financial';
   canBeInvolved: boolean;
   postStyle?: string;
   postExample?: string[];
@@ -243,7 +249,7 @@ export interface FeedPost {
     authorProfileImageUrl: string | null;
     timestamp: string;
   } | null;
-  // Legacy fields (for backward compatibility with old posts)
+  // Flat fields for original post metadata (alternative to nested originalPost object)
   originalAuthorId?: string | null;
   originalAuthorName?: string | null;
   originalAuthorUsername?: string | null;
@@ -578,4 +584,3 @@ export interface GenesisGame {
   timeline: DayTimeline[];
   summary: string;
 }
-

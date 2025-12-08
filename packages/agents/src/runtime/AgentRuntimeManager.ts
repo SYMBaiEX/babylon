@@ -1,7 +1,7 @@
 /**
  * Multi-Agent Runtime Manager
  *
- * Unified runtime factory for all agent types (USER_CONTROLLED, NPC, EXTERNAL).
+ * Runtime factory for all agent types (USER_CONTROLLED, NPC, EXTERNAL).
  * Manages multiple concurrent Eliza agent runtimes in a serverless environment.
  * Each agent gets its own isolated runtime instance with its own character configuration.
  *
@@ -12,22 +12,20 @@
  * @packageDocumentation
  */
 
-import { actors, db, eq, users } from '@babylon/db';
+import { db, eq, users } from '@babylon/db';
+import {
+  type ActorData,
+  loadActorById,
+  StaticDataRegistry,
+} from '@babylon/engine';
 import {
   AgentRuntime,
   type Character,
   type Plugin,
   type UUID,
 } from '@elizaos/core';
-import { loadActorById, type ActorData } from '@babylon/engine';
-import { logger } from '../shared/logger';
-import { generateSnowflakeId } from '../shared/snowflake';
-import {
-  AgentType,
-  type UnifiedAgentRegistration,
-} from '../types/agent-registry';
-import { agentRegistry } from '../services/agent-registry.service';
-import type { JsonValue } from '../types/common';
+import { anthropicPlugin } from '@elizaos/plugin-anthropic';
+import { openaiPlugin } from '@elizaos/plugin-openai';
 import { babylonPlugin } from '../plugins/babylon';
 import { enhanceRuntimeWithBabylon } from '../plugins/babylon/integration';
 import { groqPlugin } from '../plugins/groq';
@@ -38,8 +36,12 @@ import {
   wrapPluginProviders,
 } from '../plugins/plugin-trajectory-logger/src/action-interceptor';
 import { TrajectoryLoggerService } from '../plugins/plugin-trajectory-logger/src/TrajectoryLoggerService';
-import { openaiPlugin } from '@elizaos/plugin-openai';
-import { anthropicPlugin } from '@elizaos/plugin-anthropic';
+import { agentRegistry } from '../services/agent-registry.service';
+import { getAgentConfig } from '../shared/agent-config';
+import { logger } from '../shared/logger';
+import { generateSnowflakeId } from '../shared/snowflake';
+import { type AgentRegistration, AgentType } from '../types/agent-registry';
+import type { JsonValue } from '../types/common';
 
 /**
  * Extended AgentRuntime with Babylon-specific properties
@@ -146,73 +148,42 @@ export class AgentRuntimeManager {
       throw new Error(`User ${agentUserId} is not an agent`);
     }
 
+    // Get agent config from separate table
+    const agentConfig = await getAgentConfig(agentUserId);
+
     const parseBio = (): string[] => {
-      if (!agentUser.agentMessageExamples) {
+      if (!agentConfig?.messageExamples) {
         return [agentUser.bio || ''];
       }
 
-      try {
-        const parsed = JSON.parse(agentUser.agentMessageExamples as string);
-        if (Array.isArray(parsed)) {
-          return parsed;
-        }
-        logger.warn(
-          'agentMessageExamples is not an array, using bio',
-          {
-            agentId: agentUser.id,
-            type: typeof parsed,
-          },
-          'AgentRuntimeManager'
-        );
-        return [agentUser.bio || ''];
-      } catch (error) {
-        const exampleValue = agentUser.agentMessageExamples;
-        const displayValue =
-          typeof exampleValue === 'string'
-            ? exampleValue.substring(0, 50)
-            : String(exampleValue);
-
-        logger.warn(
-          'Failed to parse agentMessageExamples, using bio',
-          {
-            agentId: agentUser.id,
-            value: displayValue,
-            error: error instanceof Error ? error.message : String(error),
-          },
-          'AgentRuntimeManager'
-        );
-        return [agentUser.bio || ''];
+      const parsed =
+        typeof agentConfig.messageExamples === 'string'
+          ? JSON.parse(agentConfig.messageExamples)
+          : agentConfig.messageExamples;
+      if (Array.isArray(parsed)) {
+        return parsed;
       }
+      logger.warn(
+        'messageExamples is not an array, using bio',
+        {
+          agentId: agentUser.id,
+          type: typeof parsed,
+        },
+        'AgentRuntimeManager'
+      );
+      return [agentUser.bio || ''];
     };
 
     const parseStyle = (): Record<string, JsonValue> | undefined => {
-      if (!agentUser.agentStyle) {
+      if (!agentConfig?.style) {
         return undefined;
       }
 
-      try {
-        return JSON.parse(agentUser.agentStyle as string) as Record<
-          string,
-          JsonValue
-        >;
-      } catch (error) {
-        const styleValue = agentUser.agentStyle;
-        const displayValue =
-          typeof styleValue === 'string'
-            ? styleValue.substring(0, 50)
-            : String(styleValue);
-
-        logger.warn(
-          'Failed to parse agentStyle, using defaults',
-          {
-            agentId: agentUser.id,
-            value: displayValue,
-            error: error instanceof Error ? error.message : String(error),
-          },
-          'AgentRuntimeManager'
-        );
-        return undefined;
-      }
+      const style =
+        typeof agentConfig.style === 'string'
+          ? JSON.parse(agentConfig.style)
+          : agentConfig.style;
+      return style as Record<string, JsonValue>;
     };
 
     logger.info(
@@ -228,7 +199,7 @@ export class AgentRuntimeManager {
     // Always use qwen 32b (TEXT_LARGE) - free chat, 1pt per tick
     const character: Character = {
       name: agentUser.displayName || agentUser.username || 'Agent',
-      system: agentUser.agentSystem || 'You are a helpful AI agent',
+      system: agentConfig?.systemPrompt || 'You are a helpful AI agent',
       bio: parseBio(),
       messageExamples: [],
       style: parseStyle(),
@@ -288,7 +259,7 @@ export class AgentRuntimeManager {
     runtime.adapter = {
       ...runtime.adapter,
       log: async (_params: {
-        body: { [key: string]: unknown };
+        body: { [key: string]: JsonValue };
         entityId: string;
         roomId: string;
         type: string;
@@ -359,7 +330,7 @@ export class AgentRuntimeManager {
       undefined,
       'AgentRuntimeManager'
     );
-    
+
     // Register plugins
     const pluginRegistrationPromises: Promise<void>[] = [];
     const pluginsToLoad = plugins;
@@ -379,7 +350,7 @@ export class AgentRuntimeManager {
    * Uses registry data or falls back to User model
    */
   private async createUserAgentRuntime(
-    registration: UnifiedAgentRegistration
+    registration: AgentRegistration
   ): Promise<AgentRuntime> {
     if (!registration.userId) {
       throw new Error(
@@ -398,37 +369,36 @@ export class AgentRuntimeManager {
       throw new Error(`User ${registration.userId} not found`);
     }
 
-    // Parse bio from agentMessageExamples or bio field
+    // Get agent config from separate table
+    const userAgentConfig = await getAgentConfig(registration.userId);
+
+    // Parse bio from messageExamples or bio field
     const parseBio = (): string[] => {
-      if (!agentUser.agentMessageExamples) {
+      if (!userAgentConfig?.messageExamples) {
         return [agentUser.bio || ''];
       }
 
-      try {
-        const parsed = JSON.parse(agentUser.agentMessageExamples as string);
-        if (Array.isArray(parsed)) {
-          return parsed;
-        }
-        return [agentUser.bio || ''];
-      } catch {
-        return [agentUser.bio || ''];
+      const parsed =
+        typeof userAgentConfig.messageExamples === 'string'
+          ? JSON.parse(userAgentConfig.messageExamples)
+          : userAgentConfig.messageExamples;
+      if (Array.isArray(parsed)) {
+        return parsed;
       }
+      return [agentUser.bio || ''];
     };
 
     // Parse style
     const parseStyle = (): Record<string, JsonValue> | undefined => {
-      if (!agentUser.agentStyle) {
+      if (!userAgentConfig?.style) {
         return undefined;
       }
 
-      try {
-        return JSON.parse(agentUser.agentStyle as string) as Record<
-          string,
-          JsonValue
-        >;
-      } catch {
-        return undefined;
-      }
+      const style =
+        typeof userAgentConfig.style === 'string'
+          ? JSON.parse(userAgentConfig.style)
+          : userAgentConfig.style;
+      return style as Record<string, JsonValue>;
     };
 
     // Build Character configuration
@@ -451,17 +421,15 @@ export class AgentRuntimeManager {
    * Loads ActorData and creates Character from NPC configuration
    */
   private async createNpcRuntime(
-    registration: UnifiedAgentRegistration
+    registration: AgentRegistration
   ): Promise<AgentRuntime> {
-    // Verify actor exists in database
-    const [actor] = await db
-      .select()
-      .from(actors)
-      .where(eq(actors.id, registration.agentId))
-      .limit(1);
+    // Verify actor exists in static registry
+    const actor = StaticDataRegistry.getActor(registration.agentId);
 
     if (!actor) {
-      throw new Error(`Actor ${registration.agentId} not found in database`);
+      throw new Error(
+        `Actor ${registration.agentId} not found in static registry`
+      );
     }
 
     // Load full ActorData from JSON files
@@ -501,7 +469,7 @@ export class AgentRuntimeManager {
    * Minimal Character config for external agents using A2A/MCP protocols
    */
   private async createExternalRuntime(
-    registration: UnifiedAgentRegistration
+    registration: AgentRegistration
   ): Promise<AgentRuntime> {
     // External agents may not have full Character config
     // Use minimal viable configuration
@@ -570,7 +538,7 @@ export class AgentRuntimeManager {
     runtime.adapter = {
       ...runtime.adapter,
       log: async (_params: {
-        body: { [key: string]: unknown };
+        body: { [key: string]: JsonValue };
         entityId: string;
         roomId: string;
         type: string;
@@ -695,16 +663,7 @@ export class AgentRuntimeManager {
       trajectoryLoggers.delete(agentUserId);
 
       // Update registry status if agent exists in registry
-      try {
-        await agentRegistry.clearRuntimeInstance(agentUserId);
-      } catch {
-        // Agent may not be in registry (unregistered agents), ignore error
-        logger.debug(
-          `Could not clear registry for ${agentUserId}, likely unregistered agent`,
-          undefined,
-          'AgentRuntimeManager'
-        );
-      }
+      await agentRegistry.clearRuntimeInstance(agentUserId);
 
       logger.info(
         `Runtime cleared for agent ${agentUserId}`,

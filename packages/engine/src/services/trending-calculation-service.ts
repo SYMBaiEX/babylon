@@ -191,4 +191,3 @@ export async function calculateTrendingIfNeeded(): Promise<boolean> {
   await calculateTrendingTags();
   return true;
 }
-

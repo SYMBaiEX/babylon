@@ -4,16 +4,6 @@
  * Centralized exports for rate limiting functionality
  */
 
-// Rate limiting (moved from @babylon/shared)
-export {
-  checkRateLimit,
-  cleanupRateLimits,
-  clearAllRateLimits,
-  getRateLimitStatus,
-  RATE_LIMIT_CONFIGS,
-  resetRateLimit,
-} from './user-rate-limiter';
-
 // Duplicate detection (uses crypto, moved to api)
 export {
   checkDuplicate,
@@ -23,7 +13,6 @@ export {
   DUPLICATE_DETECTION_CONFIGS,
   getDuplicateStats,
 } from '../utils/duplicate-detector';
-
 // Middleware
 export {
   addRateLimitHeaders,
@@ -33,3 +22,12 @@ export {
   duplicateContentError,
   rateLimitError,
 } from './middleware';
+// Rate limiting (moved from @babylon/shared)
+export {
+  checkRateLimit,
+  cleanupRateLimits,
+  clearAllRateLimits,
+  getRateLimitStatus,
+  RATE_LIMIT_CONFIGS,
+  resetRateLimit,
+} from './user-rate-limiter';

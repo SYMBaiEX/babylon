@@ -41,44 +41,35 @@ export const feedProvider: Provider = {
       };
     }
 
-    try {
-      // Validate feedResult structure
-      const feedResult = await babylonRuntime.a2aClient.getFeed({ limit: 20 });
-      if (!feedResult || typeof feedResult !== 'object') {
-        throw new Error('Invalid feed result format from A2A client');
-      }
-      type FeedResult = {
-        posts?: Array<{
-          id: string;
-          content: string;
-          authorId: string;
-          timestamp: string | Date;
-          type?: string;
-        }>;
-      };
-      const typedFeedResult = feedResult as FeedResult;
-      const posts = typedFeedResult.posts || [];
-
-      if (posts.length === 0) {
-        return { text: 'No posts in feed.' };
-      }
-
-      const feedText = `Recent Feed Posts:\n${posts
-        .map(
-          (p, idx) =>
-            `${idx + 1}. [${p.type || 'post'}] ${p.content.substring(0, 200)}${p.content.length > 200 ? '...' : ''} (Author: ${p.authorId}, ID: ${p.id})`
-        )
-        .join('\n\n')}`;
-
-      return { text: feedText };
-    } catch (error) {
-      logger.error(
-        'Error fetching feed via A2A',
-        { error, agentId: runtime.agentId },
-        'FeedProvider'
-      );
-      throw error;
+    // Validate feedResult structure
+    const feedResult = await babylonRuntime.a2aClient.getFeed({ limit: 20 });
+    if (!feedResult || typeof feedResult !== 'object') {
+      throw new Error('Invalid feed result format from A2A client');
     }
+    type FeedResult = {
+      posts?: Array<{
+        id: string;
+        content: string;
+        authorId: string;
+        timestamp: string | Date;
+        type?: string;
+      }>;
+    };
+    const typedFeedResult = feedResult as FeedResult;
+    const posts = typedFeedResult.posts || [];
+
+    if (posts.length === 0) {
+      return { text: 'No posts in feed.' };
+    }
+
+    const feedText = `Recent Feed Posts:\n${posts
+      .map(
+        (p, idx) =>
+          `${idx + 1}. [${p.type || 'post'}] ${p.content.substring(0, 200)}${p.content.length > 200 ? '...' : ''} (Author: ${p.authorId}, ID: ${p.id})`
+      )
+      .join('\n\n')}`;
+
+    return { text: feedText };
   },
 };
 

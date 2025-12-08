@@ -1,5 +1,6 @@
 'use client';
 
+import { cn } from '@babylon/shared';
 import {
   AlertCircle,
   ArrowUpDown,
@@ -12,7 +13,6 @@ import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { usePredictionMarketStream } from '@/hooks/usePredictionMarketStream';
-import { cn } from '@babylon/shared';
 
 /**
  * Page size for pagination in trades feed.
@@ -176,44 +176,44 @@ export function AssetTradesFeed({
   // Fetch trades from API
   const fetchTrades = useCallback(
     async (requestOffset: number, append = false) => {
-      try {
-        setError(null);
-        const params = new URLSearchParams({
-          limit: PAGE_SIZE.toString(),
-          offset: requestOffset.toString(),
-        });
+      setError(null);
+      const params = new URLSearchParams({
+        limit: PAGE_SIZE.toString(),
+        offset: requestOffset.toString(),
+      });
 
-        const response = await fetch(`${apiEndpoint}?${params.toString()}`);
-        if (!response.ok) {
-          throw new Error(`Failed to load trades: ${response.status}`);
-        }
-
-        const data = await response.json();
-        const newTrades = data.trades || [];
-
-        if (append) {
-          setTrades((prev) => {
-            // Deduplicate trades by ID
-            const existingIds = new Set(prev.map((t) => t.id));
-            const uniqueNewTrades = newTrades.filter(
-              (t: Trade) => !existingIds.has(t.id)
-            );
-            return [...prev, ...uniqueNewTrades];
-          });
-          setLoadingMore(false);
-        } else {
-          setTrades(newTrades);
-          setLoading(false);
-        }
-
-        setHasMore(data.hasMore || false);
-        setOffset(requestOffset + newTrades.length);
-      } catch (err) {
-        console.error('Failed to fetch trades:', err);
-        setError(err instanceof Error ? err.message : 'Failed to load trades');
+      const response = await fetch(`${apiEndpoint}?${params.toString()}`);
+      if (!response.ok) {
+        console.error(
+          'Failed to fetch trades:',
+          `Failed to load trades: ${response.status}`
+        );
+        setError(`Failed to load trades: ${response.status}`);
         setLoading(false);
         setLoadingMore(false);
+        return;
       }
+
+      const data = await response.json();
+      const newTrades = data.trades || [];
+
+      if (append) {
+        setTrades((prev) => {
+          // Deduplicate trades by ID
+          const existingIds = new Set(prev.map((t) => t.id));
+          const uniqueNewTrades = newTrades.filter(
+            (t: Trade) => !existingIds.has(t.id)
+          );
+          return [...prev, ...uniqueNewTrades];
+        });
+        setLoadingMore(false);
+      } else {
+        setTrades(newTrades);
+        setLoading(false);
+      }
+
+      setHasMore(data.hasMore || false);
+      setOffset(requestOffset + newTrades.length);
     },
     [apiEndpoint]
   );

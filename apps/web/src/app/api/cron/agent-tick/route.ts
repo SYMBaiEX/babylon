@@ -50,23 +50,23 @@
  * @see {@link /lib/agents/services/AgentService} Agent service
  */
 
-import type { NextRequest } from 'next/server';
-import { NextResponse } from 'next/server';
-import type { User } from '@babylon/db';
-import { db } from '@babylon/db';
 import {
+  AgentStatus,
+  AgentType,
+  acquireAgentLock,
+  agentRegistry,
   agentRuntimeManager,
   agentService,
   autonomousCoordinator,
-} from '@babylon/agents';
-import { logger } from '@babylon/shared';
-import {
-  acquireAgentLock,
+  getAgentConfig,
   releaseAgentLock,
 } from '@babylon/agents';
-import { agentRegistry } from '@babylon/agents';
-import { relayCronToStaging } from '@babylon/api';
-import { AgentStatus, AgentType } from '@babylon/agents';
+import { relayCronToStaging, verifyCronAuth } from '@babylon/api';
+import type { User, UserAgentConfig } from '@babylon/db';
+import { db, eq, userAgentConfigs, users } from '@babylon/db';
+import { logger } from '@babylon/shared';
+import type { NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
 
 // Vercel function configuration
 // Note: vercel.json overrides this with 800 seconds (13.3 minutes)
@@ -98,6 +98,19 @@ export async function GET(req: NextRequest) {
  * @throws {401} Invalid or missing CRON_SECRET
  */
 export async function POST(_req: NextRequest) {
+  // 0. Verify cron authorization using centralized auth
+  if (!verifyCronAuth(_req, { jobName: 'AgentTick' })) {
+    logger.warn(
+      'Unauthorized agent-tick request attempt',
+      undefined,
+      'AgentTick'
+    );
+    return NextResponse.json(
+      { error: 'Unauthorized cron request' },
+      { status: 401 }
+    );
+  }
+
   const startTime = Date.now();
   const processId = `agent-tick-${Date.now()}-${Math.random().toString(36).substring(7)}`;
   logger.info('Agent tick started', { processId }, 'AgentTick');
@@ -192,7 +205,11 @@ export async function POST(_req: NextRequest) {
   // NEW: Query via AgentRegistry to include both USER agents and NPCs
   const registeredAgents = await agentRegistry.discoverAgents({
     types: [AgentType.USER_CONTROLLED, AgentType.NPC],
-    statuses: [AgentStatus.ACTIVE, AgentStatus.INITIALIZED, AgentStatus.REGISTERED],
+    statuses: [
+      AgentStatus.ACTIVE,
+      AgentStatus.INITIALIZED,
+      AgentStatus.REGISTERED,
+    ],
     limit: 500, // Increase limit to ensure we process all agents in test environments
   });
 
@@ -202,30 +219,37 @@ export async function POST(_req: NextRequest) {
     type: AgentType;
     name: string;
     user: User | null;
+    config: UserAgentConfig | null;
   }> = [];
 
   for (const agent of registeredAgents) {
     if (agent.type === AgentType.USER_CONTROLLED && agent.userId) {
       // Check User-specific autonomous settings and points
-      const user = await db.user.findUnique({
-        where: { id: agent.userId },
-      });
+      const [user] = await db
+        .select()
+        .from(users)
+        .where(eq(users.id, agent.userId))
+        .limit(1);
+
+      // Get agent config from separate table
+      const config = await getAgentConfig(agent.userId);
 
       if (
         user &&
         user.isAgent &&
-        user.agentPointsBalance >= 1 &&
-        (user.autonomousTrading ||
-          user.autonomousPosting ||
-          user.autonomousCommenting ||
-          user.autonomousDMs ||
-          user.autonomousGroupChats)
+        (config?.pointsBalance ?? 0) >= 1 &&
+        (config?.autonomousTrading ||
+          config?.autonomousPosting ||
+          config?.autonomousCommenting ||
+          config?.autonomousDMs ||
+          config?.autonomousGroupChats)
       ) {
         eligibleAgents.push({
           agentId: agent.agentId,
           type: agent.type,
           name: agent.name,
           user,
+          config,
         });
       }
     } else if (agent.type === AgentType.NPC) {
@@ -235,6 +259,7 @@ export async function POST(_req: NextRequest) {
         type: agent.type,
         name: agent.name,
         user: null,
+        config: null,
       });
     }
   }
@@ -322,6 +347,7 @@ export async function POST(_req: NextRequest) {
       continue;
     }
 
+    // Process agent with error handling to ensure lock is always released
     try {
       // Always 1pt per tick for USER agents (NPCs don't use points)
       const pointsCost =
@@ -347,16 +373,16 @@ export async function POST(_req: NextRequest) {
       const enabledFeatures: string[] = [];
       if (
         eligibleAgent.type === AgentType.USER_CONTROLLED &&
-        eligibleAgent.user
+        eligibleAgent.config
       ) {
-        if (eligibleAgent.user.autonomousTrading)
+        if (eligibleAgent.config.autonomousTrading)
           enabledFeatures.push('trading');
-        if (eligibleAgent.user.autonomousPosting)
+        if (eligibleAgent.config.autonomousPosting)
           enabledFeatures.push('posting');
-        if (eligibleAgent.user.autonomousCommenting)
+        if (eligibleAgent.config.autonomousCommenting)
           enabledFeatures.push('commenting');
-        if (eligibleAgent.user.autonomousDMs) enabledFeatures.push('DMs');
-        if (eligibleAgent.user.autonomousGroupChats)
+        if (eligibleAgent.config.autonomousDMs) enabledFeatures.push('DMs');
+        if (eligibleAgent.config.autonomousGroupChats)
           enabledFeatures.push('group chats');
       } else if (eligibleAgent.type === AgentType.NPC) {
         // NPCs have all autonomous features enabled by default
@@ -369,15 +395,11 @@ export async function POST(_req: NextRequest) {
         );
       }
 
-      // Enable trajectory recording for RL training data collection
-      // Can be toggled via environment variable
-      const recordTrajectories =
-        process.env.RECORD_AGENT_TRAJECTORIES === 'true';
-
+      // Always record trajectories for RL training data collection
       const tickResult = await autonomousCoordinator.executeAutonomousTick(
         eligibleAgent.agentId,
         runtime,
-        recordTrajectories
+        true // Always record trajectories
       );
 
       // Validation: Verify tick executed successfully
@@ -445,14 +467,15 @@ export async function POST(_req: NextRequest) {
           },
         });
 
-        // Update User status for USER agents
-        await db.user.update({
-          where: { id: eligibleAgent.user.id },
-          data: {
-            agentLastTickAt: new Date(),
-            agentStatus: 'running',
-          },
-        });
+        // Update agent config status for USER agents
+        await db
+          .update(userAgentConfigs)
+          .set({
+            lastTickAt: new Date(),
+            status: 'running',
+            updatedAt: new Date(),
+          })
+          .where(eq(userAgentConfigs.userId, eligibleAgent.user.id));
       }
 
       results.push({
@@ -480,8 +503,12 @@ export async function POST(_req: NextRequest) {
     } catch (error) {
       errors++;
       logger.error(
-        `Failed to process agent ${eligibleAgent.name} (${eligibleAgent.type})`,
-        error,
+        `Error processing agent ${eligibleAgent.name}`,
+        {
+          agentId: eligibleAgent.agentId,
+          agentType: eligibleAgent.type,
+          error: error instanceof Error ? error.message : String(error),
+        },
         'AgentTick'
       );
 
@@ -525,13 +552,13 @@ export async function POST(_req: NextRequest) {
     // Count agents with autonomous features enabled
     const agentsWithFeatures = eligibleAgents.filter((a) => {
       if (a.type === AgentType.NPC) return true; // NPCs always have features enabled
-      if (a.type === AgentType.USER_CONTROLLED && a.user) {
+      if (a.type === AgentType.USER_CONTROLLED && a.config) {
         return (
-          a.user.autonomousTrading ||
-          a.user.autonomousPosting ||
-          a.user.autonomousCommenting ||
-          a.user.autonomousDMs ||
-          a.user.autonomousGroupChats
+          a.config.autonomousTrading ||
+          a.config.autonomousPosting ||
+          a.config.autonomousCommenting ||
+          a.config.autonomousDMs ||
+          a.config.autonomousGroupChats
         );
       }
       return false;

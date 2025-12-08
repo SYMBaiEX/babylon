@@ -13,9 +13,9 @@
 import { createGroq } from '@ai-sdk/groq';
 import type { IAgentRuntime } from '@elizaos/core';
 import { generateText } from 'ai';
-import { isPromptLoggingEnabled, logPrompt } from '../utils/prompt-logger';
-import type { TrajectoryLoggerService } from '../plugins/plugin-trajectory-logger/src/TrajectoryLoggerService';
 import { getTrajectoryContext } from '../plugins/plugin-trajectory-logger/src/action-interceptor';
+import type { TrajectoryLoggerService } from '../plugins/plugin-trajectory-logger/src/TrajectoryLoggerService';
+import { isPromptLoggingEnabled, logPrompt } from '../utils/prompt-logger';
 
 export async function callGroqDirect(params: {
   prompt: string;
@@ -52,8 +52,7 @@ export async function callGroqDirect(params: {
     baseURL: 'https://api.groq.com/openai/v1',
   });
 
-  // Default to llama-3.1-8b-instant for fast evaluation (free tier)
-  // For larger tasks, use qwen3-32b
+  // Model selection based on task complexity
   const model =
     params.modelSize === 'large' ? 'qwen/qwen3-32b' : 'llama-3.1-8b-instant';
 
@@ -70,6 +69,7 @@ export async function callGroqDirect(params: {
       temperature: params.temperature ?? 0.7,
       maxOutputTokens: params.maxTokens ?? 8192,
       maxRetries: 2,
+      experimental_telemetry: { isEnabled: false },
     }),
     new Promise<{ text: string }>((_, reject) => {
       setTimeout(() => {

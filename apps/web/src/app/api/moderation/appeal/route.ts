@@ -70,18 +70,21 @@
  * ```
  */
 
+import {
+  authenticate,
+  callClaudeDirect,
+  createNotification,
+  successResponse,
+  withErrorHandling,
+} from '@babylon/api';
+import type { JsonValue } from '@babylon/db';
+import { db } from '@babylon/db';
+import { WalletService } from '@babylon/engine';
+import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { type Address, createPublicClient, http } from 'viem';
 import { baseSepolia } from 'viem/chains';
 import { z } from 'zod';
-import type { JsonValue } from '@babylon/db';
-import { db } from '@babylon/db';
-import { callClaudeDirect } from '@babylon/api';
-import { authenticate } from '@babylon/api';
-import { successResponse, withErrorHandling } from '@babylon/api';
-import { logger } from '@babylon/shared';
-import { createNotification } from '@babylon/api';
-import { WalletService } from '@babylon/engine';
 
 const AppealSchema = z.object({
   reason: z.string().min(10).max(2000),
@@ -384,38 +387,25 @@ Respond with JSON:
   "reasoning": "Detailed explanation"
 }`;
 
-  try {
-    const response = await callClaudeDirect({
-      prompt,
-      system:
-        'You are a strict appeal judge. Only approve appeals if the ban was clearly a false positive. Be conservative.',
-      model: 'claude-sonnet-4-5',
-      temperature: 0.2,
-      maxTokens: 2048,
-    });
+  const response = await callClaudeDirect({
+    prompt,
+    system:
+      'You are a strict appeal judge. Only approve appeals if the ban was clearly a false positive. Be conservative.',
+    model: 'claude-sonnet-4-5',
+    temperature: 0.2,
+    maxTokens: 2048,
+  });
 
-    const jsonMatch = response.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      throw new Error('No JSON found in response');
-    }
-
-    const result = JSON.parse(jsonMatch[0]) as {
-      isFalsePositive: boolean;
-      reasoning: string;
-    };
-    return result;
-  } catch (error) {
-    logger.error(
-      'Strict appeal processing failed',
-      { error, userId },
-      'Appeal'
-    );
-    // Default to denying if processing fails
-    return {
-      isFalsePositive: false,
-      reasoning: 'Appeal processing failed - defaulting to denial',
-    };
+  const jsonMatch = response.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) {
+    throw new Error('No JSON found in response');
   }
+
+  const result = JSON.parse(jsonMatch[0]) as {
+    isFalsePositive: boolean;
+    reasoning: string;
+  };
+  return result;
 }
 
 /**
@@ -461,38 +451,25 @@ Respond with JSON:
   "reasoning": "Detailed explanation"
 }`;
 
-  try {
-    const response = await callClaudeDirect({
-      prompt,
-      system:
-        'You are a lenient appeal judge. Be VERY lenient. Only deny if user is VERY OBVIOUSLY a scammer or CSAM poster. If there is ANY doubt, approve.',
-      model: 'claude-sonnet-4-5',
-      temperature: 0.3,
-      maxTokens: 2048,
-    });
+  const response = await callClaudeDirect({
+    prompt,
+    system:
+      'You are a lenient appeal judge. Be VERY lenient. Only deny if user is VERY OBVIOUSLY a scammer or CSAM poster. If there is ANY doubt, approve.',
+    model: 'claude-sonnet-4-5',
+    temperature: 0.3,
+    maxTokens: 2048,
+  });
 
-    const jsonMatch = response.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      throw new Error('No JSON found in response');
-    }
-
-    const result = JSON.parse(jsonMatch[0]) as {
-      shouldDeny: boolean;
-      reasoning: string;
-    };
-    return result;
-  } catch (error) {
-    logger.error(
-      'Lenient appeal processing failed',
-      { error, userId },
-      'Appeal'
-    );
-    // Default to approving if processing fails (lenient)
-    return {
-      shouldDeny: false,
-      reasoning: 'Appeal processing failed - defaulting to approval (lenient)',
-    };
+  const jsonMatch = response.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) {
+    throw new Error('No JSON found in response');
   }
+
+  const result = JSON.parse(jsonMatch[0]) as {
+    shouldDeny: boolean;
+    reasoning: string;
+  };
+  return result;
 }
 
 /**
@@ -611,102 +588,90 @@ async function verifyStakeTransaction(
   txHash: string,
   userId: string
 ): Promise<{ verified: boolean; amount?: number; error?: string }> {
-  try {
-    const publicClient = createPublicClient({
-      chain: baseSepolia,
-      transport: http(
-        process.env.NEXT_PUBLIC_RPC_URL ||
-          process.env.BASE_SEPOLIA_RPC_URL ||
-          'https://sepolia.base.org'
-      ),
-    });
+  const publicClient = createPublicClient({
+    chain: baseSepolia,
+    transport: http(
+      process.env.NEXT_PUBLIC_RPC_URL ||
+        process.env.BASE_SEPOLIA_RPC_URL ||
+        'https://sepolia.base.org'
+    ),
+  });
 
-    const tx = await publicClient.getTransaction({ hash: txHash as Address });
-    if (!tx) {
-      return { verified: false, error: 'Transaction not found on blockchain' };
-    }
+  const tx = await publicClient.getTransaction({ hash: txHash as Address });
+  if (!tx) {
+    return { verified: false, error: 'Transaction not found on blockchain' };
+  }
 
-    const receipt = await publicClient.getTransactionReceipt({
-      hash: txHash as Address,
-    });
-    if (!receipt) {
-      return { verified: false, error: 'Transaction not yet confirmed' };
-    }
+  const receipt = await publicClient.getTransactionReceipt({
+    hash: txHash as Address,
+  });
+  if (!receipt) {
+    return { verified: false, error: 'Transaction not yet confirmed' };
+  }
 
-    if (receipt.status !== 'success') {
-      return { verified: false, error: 'Transaction failed on blockchain' };
-    }
+  if (receipt.status !== 'success') {
+    return { verified: false, error: 'Transaction failed on blockchain' };
+  }
 
-    // Get user's wallet address
-    const user = await db.user.findUnique({
-      where: { id: userId },
-      select: { walletAddress: true },
-    });
+  // Get user's wallet address
+  const user = await db.user.findUnique({
+    where: { id: userId },
+    select: { walletAddress: true },
+  });
 
-    if (!user?.walletAddress) {
-      return { verified: false, error: 'User has no wallet address' };
-    }
+  if (!user?.walletAddress) {
+    return { verified: false, error: 'User has no wallet address' };
+  }
 
-    // Verify sender matches user's wallet (with case-insensitive comparison)
-    const senderMatch =
-      tx.from.toLowerCase() === user.walletAddress.toLowerCase();
-    if (!senderMatch) {
-      return {
-        verified: false,
-        error: 'Transaction sender does not match user wallet',
-      };
-    }
-
-    // Verify amount is at least $10 USD equivalent
-    // For ETH/USDC, we need to check the value or token transfer
-    // Since we're dealing with USD, we'll check if value is reasonable (at least 0.01 ETH or equivalent)
-    // In production, you'd want to check against a specific token contract
-    const minStakeWei = BigInt('10000000000000000'); // 0.01 ETH minimum
-    const txValue = tx.value || BigInt(0);
-
-    // If it's a token transfer, we'd need to decode the transaction data
-    // For now, we'll accept ETH transfers of at least 0.01 ETH
-    // In production, you'd want to verify against USDC or a specific stake contract
-    if (txValue < minStakeWei && tx.to) {
-      // Check if it's a token transfer by examining logs
-      const hasTokenTransfer = receipt.logs.length > 0;
-      if (!hasTokenTransfer) {
-        return {
-          verified: false,
-          error: 'Transaction value too low or not a valid stake',
-        };
-      }
-    }
-
-    // Calculate USD amount (simplified - in production use oracle for accurate conversion)
-    // Assuming 1 ETH = $3000, 0.01 ETH = $30, so we need at least 0.0033 ETH for $10
-    const minStakeFor10USD = BigInt('3300000000000000'); // ~0.0033 ETH
-    const amountUSD =
-      txValue >= minStakeFor10USD ? 10 : (Number(txValue) * 3000) / 1e18;
-
-    logger.info(
-      'Stake transaction verified',
-      {
-        txHash,
-        userId,
-        amountUSD,
-        txValue: txValue.toString(),
-      },
-      'Appeal'
-    );
-
-    return { verified: true, amount: amountUSD };
-  } catch (error) {
-    logger.error(
-      'Failed to verify stake transaction',
-      { error, txHash, userId },
-      'Appeal'
-    );
+  // Verify sender matches user's wallet (with case-insensitive comparison)
+  const senderMatch =
+    tx.from.toLowerCase() === user.walletAddress.toLowerCase();
+  if (!senderMatch) {
     return {
       verified: false,
-      error: error instanceof Error ? error.message : 'Verification failed',
+      error: 'Transaction sender does not match user wallet',
     };
   }
+
+  // Verify amount is at least $10 USD equivalent
+  // For ETH/USDC, we need to check the value or token transfer
+  // Since we're dealing with USD, we'll check if value is reasonable (at least 0.01 ETH or equivalent)
+  // In production, you'd want to check against a specific token contract
+  const minStakeWei = BigInt('10000000000000000'); // 0.01 ETH minimum
+  const txValue = tx.value || BigInt(0);
+
+  // If it's a token transfer, we'd need to decode the transaction data
+  // For now, we'll accept ETH transfers of at least 0.01 ETH
+  // In production, you'd want to verify against USDC or a specific stake contract
+  if (txValue < minStakeWei && tx.to) {
+    // Check if it's a token transfer by examining logs
+    const hasTokenTransfer = receipt.logs.length > 0;
+    if (!hasTokenTransfer) {
+      return {
+        verified: false,
+        error: 'Transaction value too low or not a valid stake',
+      };
+    }
+  }
+
+  // Calculate USD amount (simplified - in production use oracle for accurate conversion)
+  // Assuming 1 ETH = $3000, 0.01 ETH = $30, so we need at least 0.0033 ETH for $10
+  const minStakeFor10USD = BigInt('3300000000000000'); // ~0.0033 ETH
+  const amountUSD =
+    txValue >= minStakeFor10USD ? 10 : (Number(txValue) * 3000) / 1e18;
+
+  logger.info(
+    'Stake transaction verified',
+    {
+      txHash,
+      userId,
+      amountUSD,
+      txValue: txValue.toString(),
+    },
+    'Appeal'
+  );
+
+  return { verified: true, amount: amountUSD };
 }
 
 /**
@@ -716,39 +681,30 @@ async function refundAppealStake(
   userId: string,
   stakeAmount: number
 ): Promise<void> {
-  try {
-    await WalletService.credit(
+  await WalletService.credit(
+    userId,
+    stakeAmount,
+    'appeal_stake_refund',
+    'Appeal stake refund - account restored',
+    undefined
+  );
+
+  // Clear stake flags
+  await db.user.update({
+    where: { id: userId },
+    data: {
+      appealStaked: false,
+      appealStakeAmount: null,
+      appealStakeTxHash: null,
+    },
+  });
+
+  logger.info(
+    'Appeal stake refunded',
+    {
       userId,
       stakeAmount,
-      'appeal_stake_refund',
-      'Appeal stake refund - account restored',
-      undefined
-    );
-
-    // Clear stake flags
-    await db.user.update({
-      where: { id: userId },
-      data: {
-        appealStaked: false,
-        appealStakeAmount: null,
-        appealStakeTxHash: null,
-      },
-    });
-
-    logger.info(
-      'Appeal stake refunded',
-      {
-        userId,
-        stakeAmount,
-      },
-      'Appeal'
-    );
-  } catch (error) {
-    logger.error(
-      'Failed to refund appeal stake',
-      { error, userId, stakeAmount },
-      'Appeal'
-    );
-    // Don't throw - refund failure shouldn't block account restoration
-  }
+    },
+    'Appeal'
+  );
 }

@@ -83,4 +83,3 @@ export const ASS_KISSER_PRIORITY_METRICS = [
   'social.commentsMade',
   'social.mentionsGiven',
 ];
-

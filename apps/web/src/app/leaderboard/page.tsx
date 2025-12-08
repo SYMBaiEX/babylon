@@ -1,5 +1,6 @@
 'use client';
 
+import { formatCurrency } from '@babylon/shared';
 import {
   ChevronLeft,
   ChevronRight,
@@ -16,7 +17,6 @@ import { RankBadge, RankNumber } from '@/components/shared/RankBadge';
 import { LeaderboardSkeleton } from '@/components/shared/Skeleton';
 import { VerifiedBadge } from '@/components/shared/VerifiedBadge';
 import { useAuth } from '@/hooks/useAuth';
-import { formatCurrency } from '@babylon/shared';
 
 type LeaderboardTab = 'all' | 'earned' | 'referral';
 
@@ -91,24 +91,19 @@ export default function LeaderboardPage() {
       setLoading(true);
       setError(null);
 
-      try {
-        const response = await fetch(
-          `/api/leaderboard?page=${currentPage}&pageSize=${pageSize}&minPoints=${minPoints}&pointsType=${selectedTab}`
-        );
+      const response = await fetch(
+        `/api/leaderboard?page=${currentPage}&pageSize=${pageSize}&minPoints=${minPoints}&pointsType=${selectedTab}`
+      );
 
-        if (!response.ok) {
-          throw new Error('Failed to fetch leaderboard');
-        }
-
-        const data = await response.json();
-        setLeaderboardData(data);
-      } catch (err) {
-        setError(
-          err instanceof Error ? err.message : 'Failed to fetch leaderboard'
-        );
-      } finally {
+      if (!response.ok) {
+        setError('Failed to fetch leaderboard');
         setLoading(false);
+        return;
       }
+
+      const data = await response.json();
+      setLeaderboardData(data);
+      setLoading(false);
     }
 
     fetchLeaderboard();
@@ -340,7 +335,9 @@ export default function LeaderboardPage() {
                                 <VerifiedBadge size="sm" />
                               ) : (
                                 <OnChainBadge
-                                  isRegistered={player.onChainRegistered ?? false}
+                                  isRegistered={
+                                    player.onChainRegistered ?? false
+                                  }
                                   nftTokenId={player.nftTokenId ?? null}
                                   size="sm"
                                 />
@@ -669,7 +666,9 @@ export default function LeaderboardPage() {
                                 <VerifiedBadge size="sm" />
                               ) : (
                                 <OnChainBadge
-                                  isRegistered={player.onChainRegistered ?? false}
+                                  isRegistered={
+                                    player.onChainRegistered ?? false
+                                  }
                                   nftTokenId={player.nftTokenId ?? null}
                                   size="sm"
                                 />

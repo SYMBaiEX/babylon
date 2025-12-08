@@ -10,10 +10,9 @@
  */
 
 import { beforeAll, describe, expect, test } from 'bun:test';
+import { Agent0FeedbackService } from '@babylon/agents';
 import { getAgent0Client } from '@babylon/agents/agent0/Agent0Client';
 import { SubgraphClient } from '@babylon/agents/agent0/SubgraphClient';
-import { db } from '@babylon/db';
-import { Agent0FeedbackService } from '@babylon/agents';
 
 describe('Agent0 SDK Complete Integration', () => {
   let agent0Client: ReturnType<typeof getAgent0Client> | undefined;
@@ -127,12 +126,13 @@ describe('Agent0 SDK Complete Integration', () => {
         return;
       }
 
-      const results = await agent0Client.searchAgents({
+      const response = await agent0Client.searchAgents({
         name: 'Test',
       });
 
-      expect(Array.isArray(results)).toBe(true);
-      results.forEach((agent) => {
+      expect(response).toBeDefined();
+      expect(Array.isArray(response.items)).toBe(true);
+      response.items.forEach((agent) => {
         expect(agent.tokenId).toBeGreaterThan(0);
         expect(agent.name).toBeDefined();
         expect(agent.capabilities).toBeDefined();
@@ -145,11 +145,12 @@ describe('Agent0 SDK Complete Integration', () => {
         return;
       }
 
-      const results = await agent0Client.searchAgents({
+      const response = await agent0Client.searchAgents({
         strategies: ['momentum', 'sentiment'],
       });
 
-      expect(Array.isArray(results)).toBe(true);
+      expect(response).toBeDefined();
+      expect(Array.isArray(response.items)).toBe(true);
     });
 
     test('should search agents with x402 support filter', async () => {
@@ -158,11 +159,12 @@ describe('Agent0 SDK Complete Integration', () => {
         return;
       }
 
-      const results = await agent0Client.searchAgents({
+      const response = await agent0Client.searchAgents({
         x402Support: true,
       });
 
-      expect(Array.isArray(results)).toBe(true);
+      expect(response).toBeDefined();
+      expect(Array.isArray(response.items)).toBe(true);
     });
 
     test('should return empty array when no agents match', async () => {
@@ -171,11 +173,12 @@ describe('Agent0 SDK Complete Integration', () => {
         return;
       }
 
-      const results = await agent0Client.searchAgents({
+      const response = await agent0Client.searchAgents({
         name: 'NonExistentAgent12345',
       });
 
-      expect(Array.isArray(results)).toBe(true);
+      expect(response).toBeDefined();
+      expect(Array.isArray(response.items)).toBe(true);
     });
   });
 
@@ -217,34 +220,19 @@ describe('Agent0 SDK Complete Integration', () => {
         return;
       }
 
-      // This requires a valid agent token ID and user with wallet
-      const testUserId = 'test-user-id';
-      const testAgentId = '84532:1'; // Example agent ID
-
-      // Create test user if needed
-      const user = await db.user.upsert({
-        where: { id: testUserId },
-        create: {
-          id: testUserId,
-          username: 'testuser',
-          walletAddress: '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb7',
-          updatedAt: new Date(),
-        },
-        update: {
-          updatedAt: new Date(),
-        },
-      });
-
+      // Submit feedback using Agent0FeedbackParams format
+      // targetAgentId: the token ID of the agent
+      // rating: -5 to +5 scale (3 = positive, corresponds to score 80)
       await feedbackService.submitFeedback({
-        agentId: testAgentId,
-        fromUserId: user.id,
-        score: 80,
+        targetAgentId: 1,
+        rating: 3, // Score 80 converts to rating 3: (80/10) - 5 = 3
         skill: 'trading',
         comment: 'Test feedback',
       });
 
       // If we get here, feedback was submitted successfully
       // Verify by checking the result or querying back
+      const testAgentId = '84532:1';
       const reputation = await feedbackService.getAgentReputation(testAgentId);
       expect(reputation).toBeDefined();
     });
@@ -257,9 +245,9 @@ describe('Agent0 SDK Complete Integration', () => {
 
       await expect(
         feedbackService.submitFeedback({
-          agentId: '84532:999999999', // Non-existent agent
-          fromUserId: 'test-user',
-          score: 80,
+          targetAgentId: 999999999, // Non-existent agent
+          rating: 3,
+          comment: 'Test error handling',
         })
       ).rejects.toThrow();
     });

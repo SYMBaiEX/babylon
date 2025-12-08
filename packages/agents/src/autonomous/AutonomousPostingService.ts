@@ -4,19 +4,22 @@
  * Handles agents creating posts autonomously
  */
 
+import { countTokensSync, truncateToTokenLimitSync } from '@babylon/api';
 import { agentTrades, db, desc, eq, posts, users } from '@babylon/db';
 import {
   characterMappingService,
   formatRandomContext,
   generateRandomMarketContext,
+  generateTagsFromPost,
   generateWorldContext,
+  storeTagsForPost,
 } from '@babylon/engine';
 import type { IAgentRuntime } from '@elizaos/core';
 import { parseKeyValueXml } from '@elizaos/core';
+import { callGroqDirect } from '../llm/direct-groq';
+import { getAgentConfig } from '../shared/agent-config';
 import { logger } from '../shared/logger';
 import { generateSnowflakeId } from '../shared/snowflake';
-import { countTokensSync, truncateToTokenLimitSync } from '@babylon/engine';
-import { callGroqDirect } from '../llm/direct-groq';
 
 export class AutonomousPostingService {
   /**
@@ -35,6 +38,8 @@ export class AutonomousPostingService {
     if (!agent?.isAgent) {
       throw new Error('Agent not found');
     }
+
+    const config = await getAgentConfig(agentUserId);
 
     // Get recent agent activity for context
     const recentTrades = await db
@@ -68,7 +73,7 @@ export class AutonomousPostingService {
     const MAX_TOKENS = 280;
     const prompt = `CRITICAL: You have only ${MAX_TOKENS} tokens. Your response MUST start with <response> immediately. No <think> tags. No reasoning.
 
-${agent.agentSystem}
+${config?.systemPrompt ?? 'You are an AI agent on Babylon.'}
 
 You are ${agent.displayName}, an AI agent in the Babylon prediction market community.
 
@@ -92,26 +97,131 @@ IMPORTANT RULES:
 CONTENT REQUIREMENTS:
 - MUST reference specific entities from WORLD CONTEXT above (actors, companies, markets, predictions, trades)
 - MUST mention specific actors by name (e.g., "AIlon Musk", "@ailonmusk") or companies (e.g., "TeslAI", "OpenAGI")
-- MUST reference specific markets/predictions by their exact names from Active Markets or Active Questions
+- MUST reference specific markets/predictions BUT use natural summaries, NOT full question text
 - MUST reference specific trades or market movements when discussing trading
-- Use @username format when mentioning users (e.g., "@ailonmusk said...", "Just saw @samailtman's post...")
+- Use @username format when mentioning users
 - Avoid generic statements - be SPECIFIC about who/what/when
 - You may reference current markets, predictions, or recent trades naturally if relevant
 
+HOW TO REFERENCE PREDICTION MARKETS (use summaries, NOT full questions):
+❌ BAD: "the 'Will Polymarket deploy its Sentient Market-Making AIs to artificially lower the price of BitcAIn below $120,000 within 5 days as part of a market health check exercise' prediction"
+✅ GOOD: "the Polymarket BitcAIn manipulation prediction"
+✅ GOOD: "the TeslAI readiness market"
+✅ GOOD: "AIlon's snow cone crash bet"
+✅ GOOD: "the $120k BitcAIn drop prediction"
+✅ GOOD: "the self-driving readiness question"
+
 Task: Create a short, engaging post (1-2 sentences) for the Babylon feed.
+
+CRITICAL RULES - VARIETY SCORING SYSTEM:
+
+BANNED PATTERNS (-100 points each - INSTANT FAILURE):
+❌ "Just saw @X's [action] and I'm considering..." 
+❌ "I'm watching @X's [position] and considering..."
+❌ "Noticing the [trend] and I'm considering..."
+❌ "Given @X's recent [action], I'm considering..."
+❌ "Considering @X's [action], I'm watching..."
+❌ "I'm closely watching..." followed by "and considering..."
+❌ Posts starting with: "Just saw" / "I'm considering" / "Noticing" / "Given"
+❌ Pattern: [observation] + "and I'm considering" + [action]
+
+SCORING RUBRIC (aim for 90+ points):
+
+BASE POINTS (pick ONE main strategy):
++30 points: Direct action statement ("Opened short on X" / "Bought Y" / "Exited position")
++25 points: Bold prediction with conviction ("X will hit $Y by Z")
++20 points: Question that sparks discussion
++20 points: Contrarian take that challenges consensus
++15 points: Pattern recognition with specific data
++15 points: Sarcastic/humorous observation
++15 points: Celebration of past call
++10 points: Comparison between 2+ assets
++10 points: Urgent breaking news style
+
+VARIATION BONUS POINTS (stack these!):
++25 points: Uses completely different opening than last 5 posts (critical!)
++20 points: Combines 2+ strategies (e.g., question + sarcasm, prediction + data)
++15 points: References specific price/percentage/number
++15 points: Mentions 2+ different actors/entities
++10 points: Uses unique sentence structure (fragments, no verbs, etc.)
++10 points: Extremely concise (<15 words) with high impact
++5 points: Includes time pressure ("RIGHT NOW", "by Friday", "48 hours")
+
+PENALTY POINTS:
+-20 points: Hedge words ("maybe", "possibly", "might consider", "thinking about")
+-30 points: Passive voice or tentative language
+-40 points: Quoting full prediction question instead of summarizing (too verbose)
+-50 points: Repeating same structure as your last post
+-75 points: Repeating same opening as your last 3 posts
+-100 points: Using ANY banned pattern
+
+INSTEAD: Be direct, make bold claims, ask questions, share insights, or express strong opinions WITHOUT the "I'm considering" hedge.
+
+HIGH-SCORING EXAMPLES WITH VARIATION BONUSES (aim for 90+ points):
+
+[110 pts] "Opened massive short on OpenAGI at $450. @samaltman's pivot doesn't add up."
+(+30 action, +15 price, +15 two entities, +25 unique opening, +25 different from last 5)
+
+[105 pts] "TeslAI $500 by Friday. @ailonmusk's firmware changes everything."
+(+25 prediction, +15 price, +5 time pressure, +10 concise, +25 unique opening, +25 variation bonus)
+
+[100 pts] "Everyone's buying BitcAIn dip. I'm shorting the bounce."
+(+20 contrarian, +30 action, +25 unique opening, +25 variation)
+
+[100 pts] "How is TeslAI at $200 after three recalls this month?"
+(+20 question, +15 price, +15 data point, +25 unique opening, +25 variation)
+
+[105 pts] "@samaltman: 'AGI is close.' 47th time this year. Nobody's buying it anymore."
+(+15 sarcasm, +20 strategy combo, +15 specific number, +15 two entities, +25 unique opening, +15 fragments)
+
+[95 pts] "OpenAGI -90%, TeslAI +40%. The winners write themselves."
+(+10 comparison, +15 two numbers, +25 unique opening, +25 variation, +10 ultra concise, +10 fragment structure)
+
+[100 pts] "Called OpenAGI crash at $850. Down 90% now. Read the tape."
+(+15 celebration, +15 two numbers, +25 unique opening, +25 variation, +10 fragments, +10 concise)
+
+[105 pts] "@peterschaff long gold = tech dump 48hrs later. Clockwork. Shorting NOW."
+(+15 pattern, +15 data, +5 urgency, +25 unique opening, +25 variation, +10 fragment structure, +10 concise)
+
+[100 pts] "The BitcAIn manipulation bet hit 73% YES. Loading up here."
+(+30 action, +15 number, +25 market summary, +25 unique opening, +5 concise)
+
+MID-SCORING EXAMPLES (60-80 points - better but still improve):
+[70 pts] "BitcAIn looks interesting here with the volume spike."
+(+10 observation, +15 data, -20 hedge word "looks", missing action/entities)
+
+LOW-SCORING EXAMPLES (0-30 points - NEVER DO THIS):
+[-100 pts] "Just saw @X's trade and I'm considering following..." (BANNED PATTERN)
+[-50 pts] "Noticing BitcAIn movement, watching closely..." (BANNED, -50 same structure)
+[-50 pts] "The 'Will Polymarket deploy its Sentient Market-Making AIs to artificially lower the price of BitcAIn below $120,000 within 5 days' prediction is interesting..." (verbatim question quote, too long)
+[10 pts] "The market might move higher possibly..." (-20 hedges, -30 passive, vague)
+
 Topics you can post about (MUST reference specific entities):
 - Market insights about SPECIFIC companies/stocks (mention company names and prices)
 - Your trading performance on SPECIFIC markets (mention market names/tickers)
 - Interesting movements in SPECIFIC predictions (mention prediction question)
 - Commentary on SPECIFIC actors or companies (mention their names)
 - Reactions to SPECIFIC recent trades or events (mention who/what)
+- Contrarian takes on popular predictions
+- Pattern recognition in market behavior
+- Questions that spark discussion
+- Personal trading wins/losses with specifics
 
-Keep it:
+FINAL REQUIREMENTS:
 - Short (under ${MAX_TOKENS} tokens)
+- SPECIFIC - reference actual entities from WORLD CONTEXT
+- DIRECT - make bold claims, don't hedge with "considering" or "watching"
+- CONFIDENT - you're a trader, not a commentator. Act, don't deliberate.
 - Authentic to your personality
 - Valuable to the community
-- SPECIFIC - reference actual entities from WORLD CONTEXT
-- Not repetitive of recent posts
+
+CRITICAL SCORING CHECK:
+1. Review your last 3 posts below - note their opening words and structure
+2. Pick a DIFFERENT strategy and opening than you've used recently
+3. Mentally calculate your score using the rubric above
+4. TARGET: 90+ points (must get variation bonuses!)
+5. If below 70 points, try a completely different approach
+6. NEVER post anything with banned patterns (-100 pts = instant fail)
 ${contextString}
 
 # Required Output Format (use exactly this structure)
@@ -149,7 +259,7 @@ ${contextString}
 
         const postContent = await callGroqDirect({
           prompt: currentPrompt,
-          system: agent.agentSystem || undefined,
+          system: config?.systemPrompt ?? undefined,
           modelSize: 'large', // Uses trained W&B model if available, else qwen3-32b
           runtime: _runtime, // Pass runtime to access W&B trained models AND trajectory context
           temperature: isRetry ? 0.6 : 0.8,
@@ -198,14 +308,10 @@ ${contextString}
         cleanContent = parsed.text.trim().replace(/^["']|["']$/g, '');
         break;
       } catch (error) {
-        const errorMessage =
-          error instanceof Error ? error.message : String(error);
-        logger.error(
-          'Failed to generate post',
-          { error: errorMessage, agentUserId, attempt },
-          'AutonomousPosting'
-        );
-        continue;
+        logger.warn(`Post generation attempt ${attempt} failed`, {
+          agentUserId,
+          error: String(error),
+        });
       }
     }
 
@@ -272,6 +378,28 @@ ${contextString}
       undefined,
       'AutonomousPosting'
     );
+
+    // Generate and store tags asynchronously
+    void generateTagsFromPost(cleanContent)
+      .then((generatedTags) => {
+        if (generatedTags.length > 0) {
+          return storeTagsForPost(postId, generatedTags).then(() => {
+            logger.info(
+              'Tagged agent post',
+              { postId, agentId: agentUserId, tagCount: generatedTags.length },
+              'AutonomousPosting'
+            );
+          });
+        }
+        return Promise.resolve();
+      })
+      .catch((tagError) => {
+        logger.warn(
+          'Failed to tag agent post',
+          { postId, agentId: agentUserId, error: tagError },
+          'AutonomousPosting'
+        );
+      });
 
     return postId;
   }

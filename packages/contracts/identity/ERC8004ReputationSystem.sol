@@ -8,7 +8,7 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 /// @notice Reputation system for AI agents
 /// @dev Tracks agent performance, accuracy, and trustworthiness
 contract ERC8004ReputationSystem is Ownable {
-    ERC8004IdentityRegistry public identityRegistry;
+    ERC8004IdentityRegistry public immutable identityRegistry;
 
     struct Reputation {
         uint256 totalBets;
@@ -32,6 +32,13 @@ contract ERC8004ReputationSystem is Ownable {
     mapping(uint256 => Reputation) public reputations;
     mapping(uint256 => FeedbackEntry[]) public feedback;
     mapping(uint256 => mapping(address => bool)) public hasFeedback; // Prevent spam
+    
+    /// @notice Authorized reporters that can record bets/wins/losses
+    mapping(address => bool) public authorizedReporters;
+    
+    /// @notice Tracked agent token IDs for enumeration
+    uint256[] private _trackedAgents;
+    mapping(uint256 => bool) private _isTracked;
 
     // Reputation decay parameters
     uint256 public constant DECAY_PERIOD = 30 days;
@@ -41,16 +48,43 @@ contract ERC8004ReputationSystem is Ownable {
     event FeedbackSubmitted(uint256 indexed tokenId, address indexed from, int8 rating);
     event AgentBanned(uint256 indexed tokenId);
     event AgentUnbanned(uint256 indexed tokenId);
+    event ReporterAuthorized(address indexed reporter);
+    event ReporterRevoked(address indexed reporter);
+
+    error OnlyAuthorizedReporter();
+
+    modifier onlyReporter() {
+        if (!authorizedReporters[msg.sender] && msg.sender != owner()) {
+            revert OnlyAuthorizedReporter();
+        }
+        _;
+    }
 
     constructor(address _identityRegistry) Ownable(msg.sender) {
         identityRegistry = ERC8004IdentityRegistry(_identityRegistry);
+    }
+    
+    /// @notice Authorize a reporter to record bets/wins/losses
+    function authorizeReporter(address reporter) external onlyOwner {
+        authorizedReporters[reporter] = true;
+        emit ReporterAuthorized(reporter);
+    }
+    
+    /// @notice Revoke reporter authorization
+    function revokeReporter(address reporter) external onlyOwner {
+        authorizedReporters[reporter] = false;
+        emit ReporterRevoked(reporter);
     }
 
     /// @notice Record a bet made by an agent
     /// @param _tokenId Agent token ID
     /// @param _amount Bet amount
-    function recordBet(uint256 _tokenId, uint256 _amount) external {
+    function recordBet(uint256 _tokenId, uint256 _amount) external onlyReporter {
         require(identityRegistry.ownerOf(_tokenId) != address(0), "Agent not registered");
+        require(_amount > 0, "Amount must be positive");
+
+        // Track agent if first interaction
+        _trackAgent(_tokenId);
 
         Reputation storage rep = reputations[_tokenId];
         rep.totalBets++;
@@ -63,7 +97,9 @@ contract ERC8004ReputationSystem is Ownable {
     /// @notice Record a winning bet
     /// @param _tokenId Agent token ID
     /// @param _profit Profit amount
-    function recordWin(uint256 _tokenId, uint256 _profit) external {
+    function recordWin(uint256 _tokenId, uint256 _profit) external onlyReporter {
+        require(_profit > 0, "Profit must be positive");
+        
         Reputation storage rep = reputations[_tokenId];
         rep.winningBets++;
         rep.profitLoss += _profit;
@@ -78,7 +114,9 @@ contract ERC8004ReputationSystem is Ownable {
     /// @notice Record a losing bet
     /// @param _tokenId Agent token ID
     /// @param _loss Loss amount
-    function recordLoss(uint256 _tokenId, uint256 _loss) external {
+    function recordLoss(uint256 _tokenId, uint256 _loss) external onlyReporter {
+        require(_loss > 0, "Loss must be positive");
+        
         Reputation storage rep = reputations[_tokenId];
         rep.profitLoss -= _loss;
         rep.lastUpdated = block.timestamp;
@@ -88,13 +126,23 @@ contract ERC8004ReputationSystem is Ownable {
 
         emit ReputationUpdated(_tokenId, rep.accuracyScore, rep.trustScore);
     }
+    
+    /// @notice Track an agent for enumeration
+    function _trackAgent(uint256 _tokenId) internal {
+        if (!_isTracked[_tokenId]) {
+            _trackedAgents.push(_tokenId);
+            _isTracked[_tokenId] = true;
+        }
+    }
 
     /// @notice Submit feedback for an agent
     /// @param _tokenId Agent token ID
     /// @param _rating Rating from -5 to +5
     /// @param _comment Feedback comment
     function submitFeedback(uint256 _tokenId, int8 _rating, string calldata _comment) external {
-        require(identityRegistry.ownerOf(_tokenId) != address(0), "Agent not registered");
+        address agentOwner = identityRegistry.ownerOf(_tokenId);
+        require(agentOwner != address(0), "Agent not registered");
+        require(agentOwner != msg.sender, "Cannot review self");
         require(!hasFeedback[_tokenId][msg.sender], "Already submitted feedback");
         require(_rating >= -5 && _rating <= 5, "Invalid rating");
 
@@ -167,36 +215,38 @@ contract ERC8004ReputationSystem is Ownable {
     /// @param minScore Minimum trust score (0-10000 scale)
     /// @return tokenIds Array of token IDs meeting the minimum score
     function getAgentsByMinScore(uint256 minScore) external view returns (uint256[] memory) {
-        // Iterate through all possible token IDs (max reasonable range)
-        // In production, consider using an index or limiting the range
-        uint256[] memory max = new uint256[](1000); // Max 1000 agents
+        uint256 trackedCount = _trackedAgents.length;
+        uint256[] memory temp = new uint256[](trackedCount);
         uint256 count = 0;
         
-        // Check token IDs from 1 to 1000 (adjust based on deployment)
-        for (uint256 i = 1; i <= 1000; i++) {
-            // Verify token exists in identity registry
-            try identityRegistry.ownerOf(i) returns (address owner) {
-                if (owner != address(0)) {
-                    Reputation storage rep = reputations[i];
-                    if (!rep.isBanned && rep.trustScore >= minScore) {
-                        max[count] = i;
-                        count++;
-                        if (count >= 1000) break; // Prevent gas issues
-                    }
-                }
-            } catch {
-                // Token doesn't exist, skip
-                continue;
+        // Only iterate through tracked agents (those with recorded activity)
+        for (uint256 i = 0; i < trackedCount; i++) {
+            uint256 tokenId = _trackedAgents[i];
+            Reputation storage rep = reputations[tokenId];
+            if (!rep.isBanned && rep.trustScore >= minScore) {
+                temp[count] = tokenId;
+                count++;
             }
         }
         
         // Resize array to actual count
         uint256[] memory result = new uint256[](count);
         for (uint256 i = 0; i < count; i++) {
-            result[i] = max[i];
+            result[i] = temp[i];
         }
         
         return result;
+    }
+    
+    /// @notice Get total number of tracked agents
+    function getTrackedAgentCount() external view returns (uint256) {
+        return _trackedAgents.length;
+    }
+    
+    /// @notice Get tracked agent at index
+    function getTrackedAgentAt(uint256 index) external view returns (uint256) {
+        require(index < _trackedAgents.length, "Index out of bounds");
+        return _trackedAgents[index];
     }
 
     // Internal functions

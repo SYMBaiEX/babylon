@@ -141,12 +141,80 @@
  * @see {@link /src/contexts/AuthContext.tsx} Auth context consumer
  */
 
-import type { NextRequest } from 'next/server';
+import {
+  authenticate,
+  cachedDb,
+  getPrivyClient,
+  successResponse,
+  withErrorHandling,
+} from '@babylon/api';
 import { db, eq, users } from '@babylon/db';
-import { authenticate, getPrivyClient } from '@babylon/api';
-import { cachedDb } from '@babylon/api';
-import { successResponse, withErrorHandling } from '@babylon/api';
 import { logger } from '@babylon/shared';
+import type { User as PrivyUser } from '@privy-io/server-auth';
+import type { NextRequest } from 'next/server';
+
+type PrivyWalletLite = {
+  id?: string | null;
+  address?: string;
+  chainType?: string;
+  walletClientType?: string | null;
+};
+
+type PrivyUserWithSmartWallet = PrivyUser & {
+  smartWallet?: { address?: string | null };
+  wallet?: PrivyWalletLite;
+  linkedAccounts?: Array<
+    PrivyWalletLite & {
+      type?: string;
+    }
+  >;
+};
+
+function pickEmbeddedEvmWallet(
+  user: PrivyUserWithSmartWallet
+): PrivyWalletLite | null {
+  const candidates: PrivyWalletLite[] = [];
+  if (user.wallet) candidates.push(user.wallet);
+  if (Array.isArray(user.linkedAccounts)) {
+    for (const acc of user.linkedAccounts) {
+      if (acc?.type === 'wallet') candidates.push(acc);
+    }
+  }
+  return (
+    candidates.find(
+      (w) =>
+        (w.walletClientType === 'privy' || Boolean(w.id)) &&
+        (!w.chainType || w.chainType === 'ethereum') &&
+        typeof w.address === 'string'
+    ) ?? null
+  );
+}
+
+async function ensureSmartWalletAddress(privyId: string): Promise<{
+  smartWalletAddress: string | null;
+  embeddedWalletAddress: string | null;
+}> {
+  const privyClient = getPrivyClient();
+  const user = (await privyClient.getUser(privyId)) as PrivyUserWithSmartWallet;
+  let smartWalletAddress = user.smartWallet?.address?.toLowerCase() ?? null;
+  let embeddedWallet = pickEmbeddedEvmWallet(user);
+
+  if (!smartWalletAddress) {
+    const updated = (await privyClient.createWallets({
+      userId: privyId,
+      createEthereumSmartWallet: true,
+      createEthereumWallet: !embeddedWallet,
+    })) as PrivyUserWithSmartWallet;
+
+    smartWalletAddress = updated.smartWallet?.address?.toLowerCase() ?? null;
+    embeddedWallet = embeddedWallet ?? pickEmbeddedEvmWallet(updated);
+  }
+
+  return {
+    smartWalletAddress,
+    embeddedWalletAddress: embeddedWallet?.address?.toLowerCase() ?? null,
+  };
+}
 
 const userSelectFields = {
   id: users.id,
@@ -215,48 +283,47 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     let farcasterFid: string | null = null;
     let twitterUsername: string | null = null;
     let twitterId: string | null = null;
+    let smartWalletAddress: string | null = null;
 
-    try {
-      const privyClient = getPrivyClient();
-      const privyUser = await privyClient.getUser(privyId);
+    const privyClient = getPrivyClient();
+    const privyUser = await privyClient.getUser(privyId);
 
-      // Extract email from linked accounts
-      if (privyUser.email?.address) {
-        email = privyUser.email.address;
-      }
-
-      // Extract Farcaster info
-      if (privyUser.farcaster) {
-        farcasterUsername = privyUser.farcaster.username ?? null;
-        farcasterFid = privyUser.farcaster.fid
-          ? String(privyUser.farcaster.fid)
-          : null;
-      }
-
-      // Extract Twitter info
-      if (privyUser.twitter) {
-        twitterUsername = privyUser.twitter.username ?? null;
-        twitterId = privyUser.twitter.subject ?? null;
-      }
-
-      logger.info(
-        'Fetched Privy user data for new user',
-        {
-          privyId,
-          hasEmail: !!email,
-          hasFarcaster: !!farcasterUsername,
-          hasTwitter: !!twitterUsername,
-        },
-        'GET /api/users/me'
-      );
-    } catch (error) {
-      logger.warn(
-        'Failed to fetch Privy user data',
-        { privyId, error },
-        'GET /api/users/me'
-      );
-      // Continue with user creation even if Privy fetch fails
+    // Extract email from linked accounts
+    if (privyUser.email?.address) {
+      email = privyUser.email.address;
     }
+
+    // Extract Farcaster info
+    if (privyUser.farcaster) {
+      farcasterUsername = privyUser.farcaster.username ?? null;
+      farcasterFid = privyUser.farcaster.fid
+        ? String(privyUser.farcaster.fid)
+        : null;
+    }
+
+    // Extract Twitter info
+    if (privyUser.twitter) {
+      twitterUsername = privyUser.twitter.username ?? null;
+      twitterId = privyUser.twitter.subject ?? null;
+    }
+
+    // Prefer Privy smart wallet over linked/embedded wallet for DB storage
+    smartWalletAddress = privyUser.smartWallet?.address?.toLowerCase() ?? null;
+    if (smartWalletAddress) {
+      authUser.walletAddress = smartWalletAddress;
+    }
+
+    logger.info(
+      'Fetched Privy user data for new user',
+      {
+        privyId,
+        hasEmail: !!email,
+        hasFarcaster: !!farcasterUsername,
+        hasTwitter: !!twitterUsername,
+        hasSmartWallet: !!smartWalletAddress,
+      },
+      'GET /api/users/me'
+    );
 
     // Resolve referrer if referralCode provided
     let resolvedReferrerId: string | null = null;
@@ -340,12 +407,20 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       'GET /api/users/me'
     );
 
+    const { smartWalletAddress: ensuredSmart, embeddedWalletAddress } =
+      await ensureSmartWalletAddress(privyId);
+    const dbWalletAddress =
+      ensuredSmart ??
+      embeddedWalletAddress ??
+      authUser.walletAddress?.toLowerCase() ??
+      null;
+
     const [newUser] = await db
       .insert(users)
       .values({
         id: canonicalUserId,
         privyId,
-        walletAddress: authUser.walletAddress?.toLowerCase() ?? null,
+        walletAddress: dbWalletAddress,
         referredBy: resolvedReferrerId,
         email,
         farcasterUsername,

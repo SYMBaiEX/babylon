@@ -73,16 +73,20 @@
  * ```
  */
 
-import type { NextRequest } from 'next/server';
-import { NextResponse } from 'next/server';
-import { z } from 'zod';
-import { logger } from '@babylon/shared';
 import { submitFeedbackToAgent0 } from '@babylon/agents';
+import {
+  requireCronAuth,
+  requireUserByIdentifier,
+  withErrorHandling,
+} from '@babylon/api';
 import {
   generateGameCompletionFeedback,
   generateTradeCompletionFeedback,
 } from '@babylon/engine';
-import { requireUserByIdentifier } from '@babylon/api';
+import { logger } from '@babylon/shared';
+import type { NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
 
 const GameMetricsSchema = z.object({
   won: z.boolean(),
@@ -123,7 +127,9 @@ const AutoGenerateFeedbackRequestSchema = z.discriminatedUnion('type', [
   TradeFeedbackRequestSchema,
 ]);
 
-export async function POST(request: NextRequest) {
+export const POST = withErrorHandling(async (request: NextRequest) => {
+  requireCronAuth(request, { jobName: 'AutoGenerateFeedback' });
+
   const json = await request.json();
   const parsed = AutoGenerateFeedbackRequestSchema.parse(json);
 
@@ -163,7 +169,11 @@ export async function POST(request: NextRequest) {
       { status: 201 }
     );
   }
-  const feedback = await generateTradeCompletionFeedback(agent.id, body.tradeId, body.metrics);
+  const feedback = await generateTradeCompletionFeedback(
+    agent.id,
+    body.tradeId,
+    body.metrics
+  );
 
   if (!feedback) {
     throw new Error('Failed to create trade feedback');
@@ -189,4 +199,4 @@ export async function POST(request: NextRequest) {
     },
     { status: 201 }
   );
-}
+});
