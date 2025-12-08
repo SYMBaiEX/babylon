@@ -31,6 +31,7 @@ import {
   users,
 } from '@babylon/db';
 import type { IAgentRuntime } from '@elizaos/core';
+import { parseKeyValueXml } from '@elizaos/core';
 import { callGroqDirect } from '../llm/direct-groq';
 import { getAgentConfig } from '../shared/agent-config';
 import { logger } from '../shared/logger';
@@ -115,6 +116,8 @@ export class AutonomousBatchResponseService {
         limit: 20,
       });
 
+      console.log('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! commentsOnPostsRaw', commentsOnPostsRaw);
+
       for (const comment of commentsOnPostsRaw) {
         if (!comment.post) continue;
         interactions.push({
@@ -182,6 +185,8 @@ export class AutonomousBatchResponseService {
         parentComments.map((pc) => [pc.id, pc.content])
       );
 
+      console.log('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! repliesToCommentsRaw', repliesToCommentsRaw);
+
       for (const row of repliesToCommentsRaw) {
         interactions.push({
           type: 'comment_on_comment',
@@ -205,9 +210,11 @@ export class AutonomousBatchResponseService {
       .from(chatParticipants)
       .leftJoin(chats, eq(chatParticipants.chatId, chats.id))
       .where(eq(chatParticipants.userId, agentUserId));
+    console.log('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! agentChats', agentChats);
 
     for (const chatParticipant of agentChats) {
       const chat = chatParticipant.chat;
+      console.log('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! chat', chat);
       if (!chat) continue;
 
       // Get recent messages from others in this chat
@@ -223,6 +230,7 @@ export class AutonomousBatchResponseService {
         )
         .orderBy(desc(messages.createdAt))
         .limit(3);
+      console.log('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! chatMessages', chatMessages);
 
       if (chatMessages.length === 0) continue;
 
@@ -240,6 +248,8 @@ export class AutonomousBatchResponseService {
           (m) => `${m.senderId === agentUserId ? 'You' : 'User'}: ${m.content}`
         )
         .join('\n');
+
+      // console.log('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! chatMessages', chatMessages);
 
       const latestMessage = chatMessages[0];
       if (latestMessage) {
@@ -313,7 +323,7 @@ export class AutonomousBatchResponseService {
 
     const config = await getAgentConfig(agentUserId);
 
-    // Build evaluation prompt
+    // Build evaluation prompt with XML output format
     const prompt = `${config?.systemPrompt ?? 'You are an AI agent on Babylon.'}
 
 You are ${agent.displayName}, an AI agent on Babylon. You need to decide which interactions warrant a response.
@@ -330,7 +340,7 @@ Pending Interactions (${evaluateInteractions.length}):
 ${evaluateInteractions
   .map(
     (interaction, idx) => `
-[${idx}] Type: ${interaction.type}
+Interaction ${idx}: Type: ${interaction.type}
 Author: ${interaction.author}
 Content: "${interaction.content}"
 Context: ${interaction.context}
@@ -339,12 +349,21 @@ Time: ${new Date(interaction.timestamp).toLocaleString()}
   )
   .join('\n')}
 
-Task: For each interaction above, decide if you should respond.
+Task: For each interaction above (${evaluateInteractions.length} total), decide if you should respond (true or false).
 
-Output ONLY a JSON array of booleans, one per interaction in order.
-Example: [true, false, true, false, false, true, ...]
+# Required Output Format
+Return only this XML structure with comma-separated true/false values (one per interaction, in order):
 
-Array:`;
+<response>
+<decisions>true, false, true, ...</decisions>
+</response>
+
+Example for 5 interactions:
+<response>
+<decisions>true, false, true, false, true</decisions>
+</response>
+
+Do NOT include any explanations, only the XML format above.`;
 
     // Ensure prompt fits within 32K context limit (W&B trained models)
     const estimatedTokens = countTokensSync(prompt);
@@ -388,34 +407,63 @@ Array:`;
             undefined,
             'AutonomousBatchResponse'
           );
-          resolve('[]'); // Empty array = no responses
+          // Return empty XML response with all false decisions
+          const emptyDecisions = evaluateInteractions.map(() => 'false').join(', ');
+          resolve(`<response>\n<decisions>${emptyDecisions}</decisions>\n</response>`);
         }, 30000); // 30 second timeout (larger model needs more time)
       }),
     ]);
 
-    // Parse the boolean array
-    const jsonMatch = decisionText.match(/\[[\s\S]*?\]/);
-    if (!jsonMatch) {
+    console.log('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! decisionText', decisionText);
+
+    // Extract <response>...</response> block before parsing
+    const responseMatch = decisionText.match(/<response>([\s\S]*?)<\/response>/i);
+    if (!responseMatch) {
+      logger.warn(
+        'No <response> block found in batch evaluation',
+        {
+          agentUserId,
+          raw: decisionText.substring(0, 500),
+        },
+        'AutonomousBatchResponse'
+      );
       throw new Error(
-        `Failed to parse decision array from LLM response: ${decisionText.substring(0, 200)}`
+        `Failed to parse decision XML from LLM response: ${decisionText.substring(0, 200)}`
       );
     }
 
-    const decisionsRaw = JSON.parse(jsonMatch[0]) as boolean[];
+    // Parse the extracted XML response
+    const parsed = parseKeyValueXml(responseMatch[0]) as { decisions?: string } | null;
 
-    // Ensure we have the right number of decisions (for capped interactions)
-    let decisions = decisionsRaw;
-    if (decisionsRaw.length !== evaluateInteractions.length) {
+    console.log('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! parsed XML', parsed);
+
+    if (!parsed?.decisions) {
+      throw new Error(
+        `Failed to parse decisions from XML response: ${responseMatch[0].substring(0, 200)}`
+      );
+    }
+
+    // Parse comma-separated true/false values
+    const decisionsRaw = parsed.decisions
+      .split(',')
+      .map((d) => d.trim().toLowerCase())
+      .filter(Boolean);
+
+    // Convert to boolean array
+    let decisions = decisionsRaw.map((d) => d === 'true');
+
+    // Ensure we have the right number of decisions
+    if (decisions.length !== evaluateInteractions.length) {
       logger.warn(
-        `Decision count mismatch: ${decisionsRaw.length} vs ${evaluateInteractions.length}. Adjusting to match.`,
+        `Decision count mismatch: ${decisions.length} vs ${evaluateInteractions.length}. Adjusting to match.`,
         undefined,
         'AutonomousBatchResponse'
       );
 
-      if (decisionsRaw.length < evaluateInteractions.length) {
-        // Pad with false values for missing decisions (don't respond to remaining)
-        const paddingNeeded = evaluateInteractions.length - decisionsRaw.length;
-        decisions = [...decisionsRaw, ...Array(paddingNeeded).fill(false)];
+      if (decisions.length < evaluateInteractions.length) {
+        // Pad with false values for missing decisions
+        const paddingNeeded = evaluateInteractions.length - decisions.length;
+        decisions = [...decisions, ...Array(paddingNeeded).fill(false)];
         logger.info(
           `Padded ${paddingNeeded} missing decisions with false`,
           undefined,
@@ -423,15 +471,11 @@ Array:`;
         );
       } else {
         // Truncate excess decisions
-        const excessCount = decisionsRaw.length - evaluateInteractions.length;
-        decisions = decisionsRaw.slice(0, evaluateInteractions.length);
-        logger.info(
-          `Truncated ${excessCount} excess decisions`,
-          undefined,
-          'AutonomousBatchResponse'
-        );
+        decisions = decisions.slice(0, evaluateInteractions.length);
       }
     }
+
+    console.log('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! decisions array', decisions);
 
     return decisions.map((shouldRespond) => ({ shouldRespond }));
   }
@@ -481,6 +525,7 @@ Array:`;
 
     for (let i = 0; i < interactions.length; i++) {
       const interaction = interactions[i];
+      console.log('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! interaction', interaction);
       const decision = decisions[i];
 
       if (!interaction || !decision || !decision.shouldRespond) continue;
@@ -668,12 +713,16 @@ Generate ONLY the response text, nothing else.`;
       interactions
     );
 
+    console.log('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! decisions', decisions);
+
     const responseCount = decisions.filter((d) => d.shouldRespond).length;
     logger.info(
       `Agent decided to respond to ${responseCount}/${interactions.length} interactions`,
       undefined,
       'AutonomousBatchResponse'
     );
+
+    console.log('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! responseCount', responseCount);
 
     if (responseCount === 0) {
       return 0;
