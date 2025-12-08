@@ -16,7 +16,6 @@ export {
   type IAgentRegistry,
   type ICharacterMappingService,
   type IDbContext,
-  type IPerpTradeService,
   type IPredictionPricing,
   type IRedisClient,
   type IServiceContainer,

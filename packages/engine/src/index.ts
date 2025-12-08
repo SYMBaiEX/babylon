@@ -137,17 +137,6 @@ export {
   NPCPortfolioStrategy,
   type StrategyConfig,
 } from './npc/npc-portfolio-strategy';
-// Perpetuals Engine
-export { PerpetualsEngine } from './PerpetualsEngine';
-// Perps Utilities (funding rate calculator, etc.)
-export * from './perps';
-// Perps Service
-export {
-  ensurePerpsEngineReady,
-  getPerpsEngine,
-  getReadyPerpsEngine,
-  withPerpsEngine,
-} from './perps-service';
 // Post ID Parser
 export {
   type ParsedPostMetadata,

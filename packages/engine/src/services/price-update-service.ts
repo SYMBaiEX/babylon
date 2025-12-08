@@ -1,6 +1,8 @@
-import { db, eq, getDbInstance, organizationState } from '@babylon/db';
-import { getReadyPerpsEngine } from '@babylon/engine';
-import { type JsonValue, logger } from '@babylon/shared';
+import { PerpDbAdapter, PerpMarketService } from '@babylon/core/markets/perps';
+import { db, eq, getDbInstance, organizations } from '@babylon/db';
+import { FEE_CONFIG, WalletService } from '@babylon/engine';
+import type { JsonValue } from '@babylon/shared';
+import { logger } from '@babylon/shared';
 
 export type PriceUpdateSource = 'user_trade' | 'npc_trade' | 'event' | 'system';
 
@@ -33,7 +35,36 @@ export class PriceUpdateService {
   ): Promise<AppliedPriceUpdate[]> {
     if (updates.length === 0) return [];
 
-    const perpsEngine = await getReadyPerpsEngine();
+    const perpService = new PerpMarketService({
+      db: new PerpDbAdapter(),
+      wallet: {
+        debit: ({ userId, amount, reason, description, relatedId }) =>
+          WalletService.debit(
+            userId,
+            amount,
+            reason,
+            description ?? '',
+            relatedId
+          ),
+        credit: ({ userId, amount, reason, description, relatedId }) =>
+          WalletService.credit(
+            userId,
+            amount,
+            reason,
+            description ?? '',
+            relatedId
+          ),
+        recordPnL: ({ userId, pnl, reason, relatedId }) =>
+          WalletService.recordPnL(userId, pnl, reason, relatedId),
+        getBalance: (userId: string) => WalletService.getBalance(userId),
+      },
+      fees: {
+        tradingFeeRate: FEE_CONFIG.TRADING_FEE_RATE,
+        platformShare: FEE_CONFIG.PLATFORM_SHARE,
+        referrerShare: FEE_CONFIG.REFERRER_SHARE,
+        minFeeAmount: FEE_CONFIG.MIN_FEE_AMOUNT,
+      },
+    });
     const appliedUpdates: AppliedPriceUpdate[] = [];
     const priceMap = new Map<string, number>();
 
@@ -47,44 +78,44 @@ export class PriceUpdateService {
         continue;
       }
 
-      const [orgState] = await db
+      const [organization] = await db
         .select({
-          id: organizationState.id,
-          currentPrice: organizationState.currentPrice,
+          id: organizations.id,
+          currentPrice: organizations.currentPrice,
         })
-        .from(organizationState)
-        .where(eq(organizationState.id, update.organizationId))
+        .from(organizations)
+        .where(eq(organizations.id, update.organizationId))
         .limit(1);
 
-      if (!orgState) {
+      if (!organization) {
         logger.warn(
-          'Organization state not found for price update',
+          'Organization not found for price update',
           { organizationId: update.organizationId },
           'PriceUpdateService'
         );
         continue;
       }
 
-      const oldPrice = Number(orgState.currentPrice ?? update.newPrice);
+      const oldPrice = Number(organization.currentPrice ?? update.newPrice);
       const change = update.newPrice - oldPrice;
       const changePercent = oldPrice === 0 ? 0 : (change / oldPrice) * 100;
 
       await db
-        .update(organizationState)
+        .update(organizations)
         .set({ currentPrice: update.newPrice, updatedAt: new Date() })
-        .where(eq(organizationState.id, orgState.id));
+        .where(eq(organizations.id, organization.id));
 
       await getDbInstance().recordPriceUpdate(
-        orgState.id,
+        organization.id,
         update.newPrice,
         change,
         changePercent
       );
 
-      priceMap.set(orgState.id, update.newPrice);
+      priceMap.set(organization.id, update.newPrice);
 
       appliedUpdates.push({
-        organizationId: orgState.id,
+        organizationId: organization.id,
         oldPrice,
         newPrice: update.newPrice,
         change,
@@ -97,21 +128,18 @@ export class PriceUpdateService {
     }
 
     if (priceMap.size > 0) {
-      perpsEngine.updatePositions(priceMap);
+      await perpService.applyPriceUpdates(priceMap);
 
       // Broadcast price updates (handled by API layer if available)
-      const api = await import('@babylon/api');
-      // JSON.parse/stringify ensures clean JSON-serializable data
-      // Using Record<string, unknown> for JSON-parsed data since the exact shape varies
-      const serializedUpdates = JSON.parse(
-        JSON.stringify(appliedUpdates)
-      ) as Record<string, unknown>[];
-      await api.broadcastToChannel('markets', {
-        type: 'price_update',
-        updates: serializedUpdates,
-      } as Record<string, unknown> as Parameters<
-        typeof api.broadcastToChannel
-      >[1]);
+      try {
+        const { broadcastToChannel } = await import('@babylon/api');
+        await broadcastToChannel('markets', {
+          type: 'price_update',
+          updates: JSON.parse(JSON.stringify(appliedUpdates)) as JsonValue,
+        });
+      } catch {
+        // Broadcast is optional - engine can work without it
+      }
 
       logger.info(
         `Applied ${appliedUpdates.length} organization price updates`,

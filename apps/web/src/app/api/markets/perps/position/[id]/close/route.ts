@@ -1,82 +1,6 @@
-/**
- * Perpetual Futures Close Position API
- *
- * @route POST /api/markets/perps/position/[id]/close - Close perpetual position
- * @access Authenticated
- *
- * @description
- * Closes an existing perpetual futures position. Calculates final P&L, fees,
- * and updates user balance. Supports partial closes. Tracks trade events.
- *
- * @openapi
- * /api/markets/perps/position/{id}/close:
- *   post:
- *     tags:
- *       - Markets
- *     summary: Close perpetual position
- *     description: Closes an existing perpetual futures position with P&L calculation
- *     security:
- *       - PrivyAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *         description: Position ID
- *     requestBody:
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               size:
- *                 type: number
- *                 description: Partial close size (optional, closes full position if omitted)
- *     responses:
- *       200:
- *         description: Position closed successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 position:
- *                   type: object
- *                 realizedPnL:
- *                   type: number
- *                 fee:
- *                   type: object
- *                 newBalance:
- *                   type: number
- *       400:
- *         description: Invalid position or insufficient size
- *       401:
- *         description: Unauthorized
- *       404:
- *         description: Position not found
- *
- * @example
- * ```typescript
- * // Close full position
- * await fetch(`/api/markets/perps/position/${positionId}/close`, {
- *   method: 'POST',
- *   headers: { 'Authorization': `Bearer ${token}` }
- * });
- *
- * // Partial close
- * await fetch(`/api/markets/perps/position/${positionId}/close`, {
- *   method: 'POST',
- *   headers: { 'Authorization': `Bearer ${token}` },
- *   body: JSON.stringify({ size: 50 })
- * });
- * ```
- *
- * @see {@link /lib/services/perp-trade-service} Perp trade service
- */
-
 import { authenticate, successResponse, withErrorHandling } from '@babylon/api';
-import { PerpTradeService } from '@babylon/engine';
+import { PerpDbAdapter, PerpMarketService } from '@babylon/core/markets/perps';
+import { FEE_CONFIG, WalletService } from '@babylon/engine';
 import { ClosePerpPositionSchema } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { z } from 'zod';
@@ -100,63 +24,89 @@ export const POST = withErrorHandling(
 
     // Parse and validate request body (optional for partial close)
     let body: Record<string, unknown> = {};
-    const bodyText = await request.text();
-    if (bodyText.trim()) {
-      body = JSON.parse(bodyText);
+    try {
+      body = await request.json();
+    } catch {
+      // Body is optional for this endpoint
     }
     if (Object.keys(body).length > 0) {
       ClosePerpPositionSchema.parse(body);
     }
 
-    const result = await PerpTradeService.closePosition(user, positionId);
+    const service = new PerpMarketService({
+      db: new PerpDbAdapter(),
+      wallet: {
+        debit: ({ userId, amount, reason, description, relatedId }) =>
+          WalletService.debit(
+            userId,
+            amount,
+            reason,
+            description ?? '',
+            relatedId
+          ),
+        credit: ({ userId, amount, reason, description, relatedId }) =>
+          WalletService.credit(
+            userId,
+            amount,
+            reason,
+            description ?? '',
+            relatedId
+          ),
+        recordPnL: ({ userId, pnl, reason, relatedId }) =>
+          WalletService.recordPnL(userId, pnl, reason, relatedId),
+        getBalance: (userId: string) => WalletService.getBalance(userId),
+      },
+      fees: {
+        tradingFeeRate: FEE_CONFIG.TRADING_FEE_RATE,
+        platformShare: FEE_CONFIG.PLATFORM_SHARE,
+        referrerShare: FEE_CONFIG.REFERRER_SHARE,
+        minFeeAmount: FEE_CONFIG.MIN_FEE_AMOUNT,
+      },
+    });
 
-    const holdTimeMs =
-      new Date().getTime() - new Date(result.position.openedAt).getTime();
-    const holdTimeMinutes = Math.round(holdTimeMs / 60000);
+    const result = await service.closePosition({
+      userId: user.userId,
+      positionId,
+    });
 
     trackServerEvent(user.userId, 'trade_closed', {
       type: 'perp',
-      ticker: result.position.ticker,
-      side: result.position.side,
-      size: result.position.size,
-      leverage: result.position.leverage,
-      entryPrice: result.position.entryPrice,
-      exitPrice: result.position.currentPrice,
-      realizedPnL: result.realizedPnL,
+      ticker: result.ticker,
+      side: result.side,
+      size: result.size,
+      leverage: result.leverage,
+      entryPrice: result.entryPrice,
+      exitPrice: result.exitPrice,
+      realizedPnL: result.realizedPnL ?? 0,
       pnlPercent:
-        result.marginReturned > 0
-          ? (result.realizedPnL / result.marginReturned) * 100
+        result.marginPaid && result.marginPaid > 0
+          ? ((result.realizedPnL ?? 0) / result.marginPaid) * 100
           : 0,
-      holdTimeMinutes,
-      feeCharged: result.fee.feeCharged,
-      wasLiquidated: result.wasLiquidated,
+      feeCharged: result.feePaid,
+      wasLiquidated: false,
       positionId,
     }).catch((error) => {
       console.warn('Failed to track trade_closed event', { error });
     });
 
     return successResponse({
-      position: {
-        id: result.position.id,
-        ticker: result.position.ticker,
-        side: result.position.side,
-        entryPrice: result.position.entryPrice,
-        exitPrice: result.position.currentPrice,
-        size: result.position.size,
-        leverage: result.position.leverage,
-        realizedPnL: result.realizedPnL,
-        fundingPaid: result.position.fundingPaid,
-      },
-      grossSettlement: result.grossSettlement,
-      netSettlement: result.netSettlement,
-      marginReturned: result.marginReturned,
+      position: result,
+      grossSettlement:
+        result.realizedPnL !== undefined && result.marginPaid !== undefined
+          ? result.marginPaid + result.realizedPnL
+          : undefined,
+      netSettlement:
+        result.realizedPnL !== undefined && result.marginPaid !== undefined
+          ? Math.max(0, result.marginPaid + result.realizedPnL - result.feePaid)
+          : undefined,
+      marginReturned: result.marginPaid,
       pnl: result.realizedPnL,
       fee: {
-        amount: result.fee.feeCharged,
-        referrerPaid: result.fee.referrerPaid,
+        amount: result.feePaid,
+        referrerPaid: 0,
       },
-      wasLiquidated: result.wasLiquidated,
-      newBalance: result.newBalance,
+      wasLiquidated: false,
+      newBalance: result.balance,
     });
   }
 );

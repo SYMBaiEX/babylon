@@ -10,9 +10,9 @@
 import type {
   AgentCapabilities,
   AgentDiscoveryFilter,
-  AgentRegistration,
   AgentStatus,
   TrustLevel,
+  UnifiedAgentRegistration,
 } from '../types/agent-registry';
 import type { JsonValue } from '../types/common';
 
@@ -29,12 +29,12 @@ export interface IAgentRegistry {
     systemPrompt: string;
     capabilities: AgentCapabilities;
     trustLevel?: TrustLevel;
-  }): Promise<AgentRegistration>;
+  }): Promise<UnifiedAgentRegistration>;
 
   /**
    * Get agent by ID
    */
-  getAgentById(agentId: string): Promise<AgentRegistration | null>;
+  getAgentById(agentId: string): Promise<UnifiedAgentRegistration | null>;
 
   /**
    * Update agent status
@@ -42,7 +42,7 @@ export interface IAgentRegistry {
   updateAgentStatus(
     agentId: string,
     status: AgentStatus
-  ): Promise<AgentRegistration>;
+  ): Promise<UnifiedAgentRegistration>;
 
   /**
    * Update agent trust level
@@ -52,7 +52,9 @@ export interface IAgentRegistry {
   /**
    * Discover agents matching filter
    */
-  discoverAgents(filter: AgentDiscoveryFilter): Promise<AgentRegistration[]>;
+  discoverAgents(
+    filter: AgentDiscoveryFilter
+  ): Promise<UnifiedAgentRegistration[]>;
 }
 
 /**
@@ -138,48 +140,6 @@ export interface ITrajectoryRecorder {
       metadata?: Record<string, JsonValue>;
     }
   ): Promise<void>;
-}
-
-/**
- * Perp Trade Service Interface
- */
-export interface IPerpTradeService {
-  /**
-   * Open a perpetual position
-   */
-  openPosition(params: {
-    userId: string;
-    ticker: string;
-    side: 'long' | 'short';
-    size: number;
-    leverage: number;
-  }): Promise<{
-    positionId: string;
-    entryPrice: number;
-  }>;
-
-  /**
-   * Close a perpetual position
-   */
-  closePosition(params: { userId: string; positionId: string }): Promise<{
-    pnl: number;
-    exitPrice: number;
-  }>;
-
-  /**
-   * Get open positions for user
-   */
-  getPositions(userId: string): Promise<
-    Array<{
-      id: string;
-      ticker: string;
-      side: 'long' | 'short';
-      size: number;
-      entryPrice: number;
-      currentPrice: number;
-      unrealizedPnL: number;
-    }>
-  >;
 }
 
 /**
@@ -295,7 +255,6 @@ export interface IServiceContainer {
   walletService?: IWalletService;
   characterMappingService?: ICharacterMappingService;
   trajectoryRecorder?: ITrajectoryRecorder;
-  perpTradeService?: IPerpTradeService;
   predictionPricing?: IPredictionPricing;
   agent0Client?: IAgent0Client;
   dbContext?: IDbContext;
