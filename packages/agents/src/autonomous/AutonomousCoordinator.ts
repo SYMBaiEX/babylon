@@ -261,17 +261,26 @@ export class AutonomousCoordinator {
           };
         }
       } else {
-        const tradeResult = await autonomousTradingService.executeTrades(
-          agentUserId,
-          runtime
-        );
-        result.actionsExecuted.trades += tradeResult.tradesExecuted;
-        tradeInfo = {
-          marketId: tradeResult.marketId,
-          ticker: tradeResult.ticker,
-          side: tradeResult.side,
-          marketType: tradeResult.marketType,
-        };
+        try {
+          const tradeResult = await autonomousTradingService.executeTrades(
+            agentUserId,
+            runtime
+          );
+          result.actionsExecuted.trades += tradeResult.tradesExecuted;
+          tradeInfo = {
+            marketId: tradeResult.marketId,
+            ticker: tradeResult.ticker,
+            side: tradeResult.side,
+            marketType: tradeResult.marketType,
+          };
+        } catch (tradingError) {
+          logger.error(
+            'Error during autonomous trade execution',
+            tradingError,
+            'AutonomousCoordinator'
+          );
+          // Don't fail the entire tick if trading fails - continue with other actions
+        }
       }
 
       // Complete trajectory step if recording
