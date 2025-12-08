@@ -2,7 +2,11 @@
 
 import { logger } from '@babylon/shared';
 import { useCallback, useEffect, useState } from 'react';
-import type { LeaderboardTab, TopUser, WaitlistData } from '@/components/waitlist/types';
+import type {
+  LeaderboardTab,
+  TopUser,
+  WaitlistData,
+} from '@/components/waitlist/types';
 import { useAuth } from '@/hooks/useAuth';
 
 interface UseWaitlistDataOptions {
@@ -21,8 +25,14 @@ interface UseWaitlistDataReturn {
   showRankImprovement: boolean;
   setLeaderboardPage: (page: number) => void;
   setLeaderboardTab: (tab: LeaderboardTab) => void;
-  fetchWaitlistPosition: (userId: string, skipLeaderboard?: boolean) => Promise<boolean>;
-  fetchLeaderboardPage: (page: number, tab?: LeaderboardTab) => Promise<boolean>;
+  fetchWaitlistPosition: (
+    userId: string,
+    skipLeaderboard?: boolean
+  ) => Promise<boolean>;
+  fetchLeaderboardPage: (
+    page: number,
+    tab?: LeaderboardTab
+  ) => Promise<boolean>;
   refreshWaitlistData: () => Promise<void>;
 }
 
@@ -41,8 +51,10 @@ export function useWaitlistData({
   const [topUsers, setTopUsers] = useState<TopUser[]>([]);
   const [leaderboardPage, setLeaderboardPage] = useState(1);
   const [leaderboardTotalPages, setLeaderboardTotalPages] = useState(10);
-  const [leaderboardTab, setLeaderboardTab] = useState<LeaderboardTab>('leaderboard');
-  const [leaderboardLastFetched, setLeaderboardLastFetched] = useState<number>(0);
+  const [leaderboardTab, setLeaderboardTab] =
+    useState<LeaderboardTab>('leaderboard');
+  const [leaderboardLastFetched, setLeaderboardLastFetched] =
+    useState<number>(0);
   const [previousRank, setPreviousRank] = useState<number | null>(null);
   const [showRankImprovement, setShowRankImprovement] = useState(false);
 
@@ -56,7 +68,8 @@ export function useWaitlistData({
       try {
         const now = Date.now();
         const shouldFetchLeaderboard =
-          !skipLeaderboard && now - leaderboardLastFetched > LEADERBOARD_CACHE_DURATION;
+          !skipLeaderboard &&
+          now - leaderboardLastFetched > LEADERBOARD_CACHE_DURATION;
         const pointsType = getPointsTypeForTab(leaderboardTab);
 
         const token = await getAccessToken();
@@ -69,7 +82,9 @@ export function useWaitlistData({
 
         if (shouldFetchLeaderboard) {
           requests.push(
-            fetch(`/api/waitlist/leaderboard?page=1&limit=10&pointsType=${pointsType}`)
+            fetch(
+              `/api/waitlist/leaderboard?page=1&limit=10&pointsType=${pointsType}`
+            )
           );
         }
 
@@ -78,7 +93,11 @@ export function useWaitlistData({
         const leaderboardResult = shouldFetchLeaderboard ? results[1] : null;
 
         if (!positionResult) {
-          logger.error('Position result is undefined', { userId: fetchUserId }, 'useWaitlistData');
+          logger.error(
+            'Position result is undefined',
+            { userId: fetchUserId },
+            'useWaitlistData'
+          );
           return false;
         }
 
@@ -88,7 +107,11 @@ export function useWaitlistData({
             const errorText = await positionResponse.text();
             logger.error(
               'Failed to fetch waitlist position',
-              { userId: fetchUserId, status: positionResponse.status, errorText },
+              {
+                userId: fetchUserId,
+                status: positionResponse.status,
+                errorText,
+              },
               'useWaitlistData'
             );
             return false;
@@ -136,7 +159,10 @@ export function useWaitlistData({
               logger.warn(
                 'Failed to parse leaderboard response',
                 {
-                  error: parseError instanceof Error ? parseError.message : String(parseError),
+                  error:
+                    parseError instanceof Error
+                      ? parseError.message
+                      : String(parseError),
                 },
                 'useWaitlistData'
               );
@@ -157,11 +183,20 @@ export function useWaitlistData({
         return false;
       }
     },
-    [leaderboardLastFetched, leaderboardTab, getAccessToken, previousRank, getPointsTypeForTab]
+    [
+      leaderboardLastFetched,
+      leaderboardTab,
+      getAccessToken,
+      previousRank,
+      getPointsTypeForTab,
+    ]
   );
 
   const fetchLeaderboardPage = useCallback(
-    async (page: number, tab: LeaderboardTab = leaderboardTab): Promise<boolean> => {
+    async (
+      page: number,
+      tab: LeaderboardTab = leaderboardTab
+    ): Promise<boolean> => {
       const pointsType = getPointsTypeForTab(tab);
       try {
         const response = await fetch(

@@ -39,8 +39,9 @@ export function InviteSection({ inviteCode }: InviteSectionProps) {
       <div className="mb-4 rounded-lg border border-primary/20 bg-primary/10 p-3">
         <p className="text-foreground text-sm leading-relaxed">
           <span className="font-semibold">Friend bonus:</span> Your friends get
-          an additional <span className="font-bold text-primary">100 points</span>{' '}
-          when they join through your referral link!
+          an additional{' '}
+          <span className="font-bold text-primary">100 points</span> when they
+          join through your referral link!
         </p>
       </div>
       {inviteCode ? (
@@ -67,7 +68,9 @@ export function InviteSection({ inviteCode }: InviteSectionProps) {
         </div>
       ) : (
         <div className="rounded-lg border border-yellow-500/20 bg-yellow-500/10 p-4 text-center">
-          <div className="text-sm text-yellow-600">Generating invite code...</div>
+          <div className="text-sm text-yellow-600">
+            Generating invite code...
+          </div>
         </div>
       )}
     </div>

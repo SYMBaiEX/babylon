@@ -2,7 +2,7 @@
 
 import { Users } from 'lucide-react';
 import { Avatar } from '@/components/shared/Avatar';
-import type { ReferralUser, WaitlistData, ReferralTab } from '../types';
+import type { ReferralTab, ReferralUser, WaitlistData } from '../types';
 
 interface ReferralProgressProps {
   waitlistData: WaitlistData;

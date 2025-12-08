@@ -3,7 +3,10 @@
 import { logger } from '@babylon/shared';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import type { ProfileFormState, UsernameStatus } from '@/components/waitlist/types';
+import type {
+  ProfileFormState,
+  UsernameStatus,
+} from '@/components/waitlist/types';
 import { useAuth } from '@/hooks/useAuth';
 
 interface UseProfileFormOptions {
@@ -62,12 +65,16 @@ export function useProfileForm({
 
   const [profilePictureIndex, setProfilePictureIndex] = useState(1);
   const [bannerIndex, setBannerIndex] = useState(1);
-  const [uploadedProfileImage, setUploadedProfileImage] = useState<string | null>(null);
+  const [uploadedProfileImage, setUploadedProfileImage] = useState<
+    string | null
+  >(null);
   const [uploadedBanner, setUploadedBanner] = useState<string | null>(null);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [isCheckingUsername, setIsCheckingUsername] = useState(false);
   const [usernameStatus, setUsernameStatus] = useState<UsernameStatus>(null);
-  const [usernameSuggestion, setUsernameSuggestion] = useState<string | null>(null);
+  const [usernameSuggestion, setUsernameSuggestion] = useState<string | null>(
+    null
+  );
 
   const prevShowProfileModalRef = useRef(false);
 
@@ -92,7 +99,14 @@ export function useProfileForm({
     } else {
       prevShowProfileModalRef.current = false;
     }
-  }, [showProfileModal, username, displayName, bio, profileImageUrl, coverImageUrl]);
+  }, [
+    showProfileModal,
+    username,
+    displayName,
+    bio,
+    profileImageUrl,
+    coverImageUrl,
+  ]);
 
   // Real-time username validation
   useEffect(() => {
@@ -125,7 +139,9 @@ export function useProfileForm({
         if (!cancelled && response.ok) {
           const result = await response.json();
           setUsernameStatus(result.available ? 'available' : 'taken');
-          setUsernameSuggestion(result.available ? null : result.suggestion || null);
+          setUsernameSuggestion(
+            result.available ? null : result.suggestion || null
+          );
         }
       } catch (error) {
         logger.warn(
@@ -275,25 +291,30 @@ export function useProfileForm({
     setIsSavingProfile(true);
     try {
       const token = await getAccessToken();
-      const response = await fetch(`/api/users/${encodeURIComponent(userId)}/update-profile`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({
-          username: trimmedUsername,
-          displayName: trimmedDisplayName,
-          bio: trimmedBio,
-          profileImageUrl: finalProfileImageUrl,
-          coverImageUrl: finalCoverImageUrl,
-        }),
-      });
+      const response = await fetch(
+        `/api/users/${encodeURIComponent(userId)}/update-profile`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({
+            username: trimmedUsername,
+            displayName: trimmedDisplayName,
+            bio: trimmedBio,
+            profileImageUrl: finalProfileImageUrl,
+            coverImageUrl: finalCoverImageUrl,
+          }),
+        }
+      );
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         throw new Error(
-          errorData?.error?.message || errorData?.message || 'Failed to update profile'
+          errorData?.error?.message ||
+            errorData?.message ||
+            'Failed to update profile'
         );
       }
 
@@ -306,7 +327,9 @@ export function useProfileForm({
         { error: error instanceof Error ? error.message : String(error) },
         'useProfileForm'
       );
-      toast.error(error instanceof Error ? error.message : 'Failed to save profile');
+      toast.error(
+        error instanceof Error ? error.message : 'Failed to save profile'
+      );
     } finally {
       setIsSavingProfile(false);
     }

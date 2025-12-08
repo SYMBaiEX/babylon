@@ -1,7 +1,7 @@
 'use client';
 
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import type { TopUser, WaitlistData, LeaderboardTab } from '../types';
+import type { LeaderboardTab, TopUser, WaitlistData } from '../types';
 
 interface LeaderboardProps {
   topUsers: TopUser[];
@@ -161,15 +161,17 @@ export function Leaderboard({
                     </div>
                     <div className="mt-0.5 text-muted-foreground text-sm">
                       {waitlistData.referralCount}{' '}
-                      {waitlistData.referralCount === 1 ? 'referral' : 'referrals'}
+                      {waitlistData.referralCount === 1
+                        ? 'referral'
+                        : 'referrals'}
                     </div>
                   </div>
                 </div>
                 <div className="ml-4 shrink-0 text-right">
                   <div className="font-bold text-lg text-primary lg:text-xl">
                     {(leaderboardTab === 'leaderboard'
-                      ? waitlistData.pointsBreakdown?.total ?? 0
-                      : waitlistData.pointsBreakdown?.invite ?? 0
+                      ? (waitlistData.pointsBreakdown?.total ?? 0)
+                      : (waitlistData.pointsBreakdown?.invite ?? 0)
                     ).toLocaleString()}
                   </div>
                   <div className="text-muted-foreground text-sm">
@@ -196,7 +198,9 @@ export function Leaderboard({
             </div>
             <button
               onClick={() =>
-                onPageChange(Math.min(leaderboardTotalPages, leaderboardPage + 1))
+                onPageChange(
+                  Math.min(leaderboardTotalPages, leaderboardPage + 1)
+                )
               }
               disabled={leaderboardPage >= leaderboardTotalPages}
               className="flex min-h-[44px] touch-manipulation items-center gap-2 rounded-lg border border-border bg-background/50 px-4 py-2 font-semibold text-sm transition-all duration-200 hover:bg-background disabled:cursor-not-allowed disabled:opacity-50"

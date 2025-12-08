@@ -61,13 +61,16 @@ export function useSocialVerification({
 
   // Twitter state
   const [hasTwitterFollow, setHasTwitterFollow] = useState(false);
-  const [isVerifyingTwitterFollow, setIsVerifyingTwitterFollow] = useState(false);
-  const [showVerifyTwitterFollowButton, setShowVerifyTwitterFollowButton] = useState(false);
+  const [isVerifyingTwitterFollow, setIsVerifyingTwitterFollow] =
+    useState(false);
+  const [showVerifyTwitterFollowButton, setShowVerifyTwitterFollowButton] =
+    useState(false);
 
   // Discord state
   const [hasDiscordJoin, setHasDiscordJoin] = useState(false);
   const [isVerifyingDiscordJoin, setIsVerifyingDiscordJoin] = useState(false);
-  const [showVerifyDiscordJoinButton, setShowVerifyDiscordJoinButton] = useState(false);
+  const [showVerifyDiscordJoinButton, setShowVerifyDiscordJoinButton] =
+    useState(false);
 
   // Check if user has already been awarded follow rewards on page load
   useEffect(() => {
@@ -96,7 +99,11 @@ export function useSocialVerification({
   const handleTwitterOAuth = useCallback(() => {
     if (!userId) {
       toast.error('Please complete your profile first');
-      logger.warn('Twitter OAuth attempted without user ID', {}, 'useSocialVerification');
+      logger.warn(
+        'Twitter OAuth attempted without user ID',
+        {},
+        'useSocialVerification'
+      );
       return;
     }
 
@@ -107,7 +114,11 @@ export function useSocialVerification({
   const handleDiscordOAuth = useCallback(() => {
     if (!userId) {
       toast.error('Please complete your profile first');
-      logger.warn('Discord OAuth attempted without user ID', {}, 'useSocialVerification');
+      logger.warn(
+        'Discord OAuth attempted without user ID',
+        {},
+        'useSocialVerification'
+      );
       return;
     }
 
@@ -118,7 +129,11 @@ export function useSocialVerification({
   const handleFarcasterOAuth = useCallback(async () => {
     if (!userId) {
       toast.error('Please complete your profile first');
-      logger.warn('Farcaster OAuth attempted without user ID', {}, 'useSocialVerification');
+      logger.warn(
+        'Farcaster OAuth attempted without user ID',
+        {},
+        'useSocialVerification'
+      );
       return;
     }
 
@@ -126,27 +141,34 @@ export function useSocialVerification({
       const result = await signInWithFarcaster({
         userId,
         onStatusUpdate: (status) => {
-          logger.debug('Farcaster auth status', { status }, 'useSocialVerification');
+          logger.debug(
+            'Farcaster auth status',
+            { status },
+            'useSocialVerification'
+          );
         },
       });
 
       const token = await getAccessToken();
-      const response = await fetch(`/api/users/${encodeURIComponent(userId)}/link-farcaster`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({
-          message: result.message,
-          signature: result.signature,
-          fid: result.fid,
-          username: result.username,
-          displayName: result.displayName,
-          pfpUrl: result.pfpUrl,
-          state: result.state,
-        }),
-      });
+      const response = await fetch(
+        `/api/users/${encodeURIComponent(userId)}/link-farcaster`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({
+            message: result.message,
+            signature: result.signature,
+            fid: result.fid,
+            username: result.username,
+            displayName: result.displayName,
+            pfpUrl: result.pfpUrl,
+            state: result.state,
+          }),
+        }
+      );
 
       const data = await response.json();
 
@@ -155,7 +177,9 @@ export function useSocialVerification({
         await onPointsAwarded();
 
         if (data.pointsAwarded > 0) {
-          toast.success(`Farcaster linked! +${data.pointsAwarded} points awarded`);
+          toast.success(
+            `Farcaster linked! +${data.pointsAwarded} points awarded`
+          );
         } else {
           toast.success('Farcaster account linked successfully!');
         }
@@ -172,16 +196,25 @@ export function useSocialVerification({
         }
       }
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
 
       if (errorMessage === 'Authentication cancelled') {
-        logger.info('Farcaster auth cancelled by user', { userId }, 'useSocialVerification');
+        logger.info(
+          'Farcaster auth cancelled by user',
+          { userId },
+          'useSocialVerification'
+        );
         return;
       }
 
       if (errorMessage.includes('popup')) {
         toast.error('Please allow popups to connect Farcaster');
-        logger.warn('Farcaster popup blocked', { userId }, 'useSocialVerification');
+        logger.warn(
+          'Farcaster popup blocked',
+          { userId },
+          'useSocialVerification'
+        );
         return;
       }
 
@@ -198,7 +231,11 @@ export function useSocialVerification({
   const handleFarcasterFollow = useCallback(() => {
     if (!userId) {
       toast.error('Please complete your profile first');
-      logger.warn('Farcaster follow link clicked without user ID', {}, 'useSocialVerification');
+      logger.warn(
+        'Farcaster follow link clicked without user ID',
+        {},
+        'useSocialVerification'
+      );
       return;
     }
 
@@ -218,13 +255,16 @@ export function useSocialVerification({
     setIsVerifyingFollow(true);
     try {
       const token = await getAccessToken();
-      const response = await fetch(`/api/users/${encodeURIComponent(userId)}/verify-farcaster-follow`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-      });
+      const response = await fetch(
+        `/api/users/${encodeURIComponent(userId)}/verify-farcaster-follow`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+        }
+      );
 
       const data = await response.json();
 
@@ -234,9 +274,13 @@ export function useSocialVerification({
         await onPointsAwarded();
 
         if (data.points?.awarded > 0) {
-          toast.success(`Follow verified! +${data.points.awarded} points awarded`);
+          toast.success(
+            `Follow verified! +${data.points.awarded} points awarded`
+          );
         } else {
-          toast.success('Follow verified! You already received points for this action.');
+          toast.success(
+            'Follow verified! You already received points for this action.'
+          );
         }
       } else {
         toast.error(
@@ -247,7 +291,10 @@ export function useSocialVerification({
     } catch (error) {
       logger.error(
         'Error verifying Farcaster follow',
-        { error: error instanceof Error ? error.message : String(error), userId },
+        {
+          error: error instanceof Error ? error.message : String(error),
+          userId,
+        },
         'useSocialVerification'
       );
       toast.error('Failed to verify follow. Please try again.');
@@ -260,7 +307,11 @@ export function useSocialVerification({
   const handleTwitterFollow = useCallback(() => {
     if (!userId) {
       toast.error('Please complete your profile first');
-      logger.warn('Twitter follow link clicked without user ID', {}, 'useSocialVerification');
+      logger.warn(
+        'Twitter follow link clicked without user ID',
+        {},
+        'useSocialVerification'
+      );
       return;
     }
 
@@ -269,7 +320,10 @@ export function useSocialVerification({
       return;
     }
 
-    window.open('https://x.com/intent/follow?screen_name=PlayBabylon', '_blank');
+    window.open(
+      'https://x.com/intent/follow?screen_name=PlayBabylon',
+      '_blank'
+    );
     setShowVerifyTwitterFollowButton(true);
     toast.success('After following, click the "Claim Reward" button below!');
   }, [userId, hasTwitter]);
@@ -280,13 +334,16 @@ export function useSocialVerification({
     setIsVerifyingTwitterFollow(true);
     try {
       const token = await getAccessToken();
-      const response = await fetch(`/api/users/${encodeURIComponent(userId)}/verify-twitter-follow`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-      });
+      const response = await fetch(
+        `/api/users/${encodeURIComponent(userId)}/verify-twitter-follow`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+        }
+      );
 
       const data = await response.json();
 
@@ -296,17 +353,24 @@ export function useSocialVerification({
         await onPointsAwarded();
 
         if (data.points?.awarded > 0) {
-          toast.success(`Thank you for following! +${data.points.awarded} points awarded`);
+          toast.success(
+            `Thank you for following! +${data.points.awarded} points awarded`
+          );
         } else {
           toast.success('You already received points for this action.');
         }
       } else {
-        toast.error(data.message || 'Could not claim reward. Please try again.');
+        toast.error(
+          data.message || 'Could not claim reward. Please try again.'
+        );
       }
     } catch (error) {
       logger.error(
         'Error claiming Twitter follow reward',
-        { error: error instanceof Error ? error.message : String(error), userId },
+        {
+          error: error instanceof Error ? error.message : String(error),
+          userId,
+        },
         'useSocialVerification'
       );
       toast.error('Failed to claim reward. Please try again.');
@@ -319,7 +383,11 @@ export function useSocialVerification({
   const handleDiscordJoin = useCallback(() => {
     if (!userId) {
       toast.error('Please complete your profile first');
-      logger.warn('Discord join link clicked without user ID', {}, 'useSocialVerification');
+      logger.warn(
+        'Discord join link clicked without user ID',
+        {},
+        'useSocialVerification'
+      );
       return;
     }
 
@@ -329,7 +397,8 @@ export function useSocialVerification({
     }
 
     const discordInviteUrl =
-      process.env.NEXT_PUBLIC_DISCORD_INVITE_URL || 'https://discord.gg/4DYsFgyp';
+      process.env.NEXT_PUBLIC_DISCORD_INVITE_URL ||
+      'https://discord.gg/4DYsFgyp';
     window.open(discordInviteUrl, '_blank');
     setShowVerifyDiscordJoinButton(true);
     toast.success('After joining, click the "Verify Join" button below!');
@@ -341,13 +410,16 @@ export function useSocialVerification({
     setIsVerifyingDiscordJoin(true);
     try {
       const token = await getAccessToken();
-      const response = await fetch(`/api/users/${encodeURIComponent(userId)}/verify-discord-join`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-      });
+      const response = await fetch(
+        `/api/users/${encodeURIComponent(userId)}/verify-discord-join`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+        }
+      );
 
       const data = await response.json();
 
@@ -357,9 +429,13 @@ export function useSocialVerification({
         await onPointsAwarded();
 
         if (data.points?.awarded > 0) {
-          toast.success(`Discord membership verified! +${data.points.awarded} points awarded`);
+          toast.success(
+            `Discord membership verified! +${data.points.awarded} points awarded`
+          );
         } else {
-          toast.success('Membership verified! You already received points for this action.');
+          toast.success(
+            'Membership verified! You already received points for this action.'
+          );
         }
       } else {
         toast.error(
@@ -370,7 +446,10 @@ export function useSocialVerification({
     } catch (error) {
       logger.error(
         'Error verifying Discord join',
-        { error: error instanceof Error ? error.message : String(error), userId },
+        {
+          error: error instanceof Error ? error.message : String(error),
+          userId,
+        },
         'useSocialVerification'
       );
       toast.error('Failed to verify Discord membership. Please try again.');

@@ -7,7 +7,10 @@ interface JoinWaitlistButtonProps {
   children?: React.ReactNode;
 }
 
-export function JoinWaitlistButton({ className, children }: JoinWaitlistButtonProps) {
+export function JoinWaitlistButton({
+  className,
+  children,
+}: JoinWaitlistButtonProps) {
   const { login } = usePrivy();
 
   const handleClick = () => {

@@ -3,17 +3,15 @@
  * Barrel file for clean imports across the application.
  */
 
-// Types
-export * from './types';
-
 // Dashboard components
 export {
-  StatsCards,
-  ReferralProgress,
-  InviteSection,
   BonusActions,
+  InviteSection,
   Leaderboard,
+  ReferralProgress,
+  StatsCards,
 } from './dashboard';
-
 // Modal components
 export { ProfileModal } from './modals';
+// Types
+export * from './types';

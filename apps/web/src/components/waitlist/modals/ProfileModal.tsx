@@ -1,7 +1,14 @@
 'use client';
 
 import { POINTS } from '@babylon/shared';
-import { Check, ChevronLeft, ChevronRight, Upload, User, X } from 'lucide-react';
+import {
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  Upload,
+  User,
+  X,
+} from 'lucide-react';
 import Image from 'next/image';
 import type { ProfileFormState, UsernameStatus } from '../types';
 
@@ -140,7 +147,9 @@ export function ProfileModal({
 
             {/* Banner Image */}
             <div className="space-y-2">
-              <label className="block font-medium text-sm">Profile Banner</label>
+              <label className="block font-medium text-sm">
+                Profile Banner
+              </label>
               <div className="group relative h-40 overflow-hidden rounded-lg bg-muted">
                 <Image
                   src={
@@ -261,7 +270,9 @@ export function ProfileModal({
 
                 {/* Username */}
                 <div className="space-y-2">
-                  <label className="block font-medium text-sm">Username *</label>
+                  <label className="block font-medium text-sm">
+                    Username *
+                  </label>
                   <div className="relative">
                     <span className="-translate-y-1/2 absolute top-1/2 left-3 text-muted-foreground">
                       @

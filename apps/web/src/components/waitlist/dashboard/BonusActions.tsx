@@ -143,7 +143,9 @@ export function BonusActions({
           >
             <div className="flex items-center gap-3">
               <Users className="h-4 w-4 shrink-0 text-primary sm:h-5 sm:w-5" />
-              <span className="font-semibold text-sm">Follow @PlayBabylon on X</span>
+              <span className="font-semibold text-sm">
+                Follow @PlayBabylon on X
+              </span>
             </div>
             <span className="ml-2 font-bold text-primary text-sm">
               +{POINTS.TWITTER_FOLLOW}
@@ -164,7 +166,9 @@ export function BonusActions({
                 >
                   <Check className="h-4 w-4" />
                   <span className="text-sm">
-                    {isVerifyingTwitterFollow ? 'Processing...' : 'Claim Reward'}
+                    {isVerifyingTwitterFollow
+                      ? 'Processing...'
+                      : 'Claim Reward'}
                   </span>
                 </button>
                 <button
@@ -184,7 +188,9 @@ export function BonusActions({
           <div className="flex w-full items-center justify-between rounded-lg border border-green-500/20 bg-green-500/10 p-3 sm:p-4">
             <div className="flex items-center gap-3">
               <Check className="h-4 w-4 shrink-0 text-green-500 sm:h-5 sm:w-5" />
-              <span className="font-semibold text-sm">Following @PlayBabylon</span>
+              <span className="font-semibold text-sm">
+                Following @PlayBabylon
+              </span>
             </div>
             <span className="font-bold text-green-500 text-sm">
               +{POINTS.TWITTER_FOLLOW}
@@ -230,7 +236,9 @@ export function BonusActions({
           >
             <div className="flex items-center gap-3">
               <Users className="h-4 w-4 shrink-0 text-primary sm:h-5 sm:w-5" />
-              <span className="font-semibold text-sm">Join Babylon Discord</span>
+              <span className="font-semibold text-sm">
+                Join Babylon Discord
+              </span>
             </div>
             <span className="ml-2 font-bold text-primary text-sm">
               +{POINTS.DISCORD_JOIN}
@@ -271,7 +279,9 @@ export function BonusActions({
           <div className="flex w-full items-center justify-between rounded-lg border border-green-500/20 bg-green-500/10 p-3 sm:p-4">
             <div className="flex items-center gap-3">
               <Check className="h-4 w-4 shrink-0 text-green-500 sm:h-5 sm:w-5" />
-              <span className="font-semibold text-sm">Joined Babylon Discord</span>
+              <span className="font-semibold text-sm">
+                Joined Babylon Discord
+              </span>
             </div>
             <span className="font-bold text-green-500 text-sm">
               +{POINTS.DISCORD_JOIN}
@@ -360,7 +370,9 @@ export function BonusActions({
           <div className="flex w-full items-center justify-between rounded-lg border border-green-500/20 bg-green-500/10 p-3 sm:p-4">
             <div className="flex items-center gap-3">
               <Check className="h-4 w-4 shrink-0 text-green-500 sm:h-5 sm:w-5" />
-              <span className="font-semibold text-sm">Following @playbabylon</span>
+              <span className="font-semibold text-sm">
+                Following @playbabylon
+              </span>
             </div>
             <span className="font-bold text-green-500 text-sm">
               +{POINTS.FARCASTER_FOLLOW}
