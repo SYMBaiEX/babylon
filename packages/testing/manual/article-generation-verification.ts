@@ -98,7 +98,9 @@ async function verifyArticleGeneration() {
 
     if (newsOrgs.length === 0) {
       console.log('  ⚠️  No media organizations found');
-      console.log('  ℹ️  Articles require media organizations to be defined in static data\n');
+      console.log(
+        '  ℹ️  Articles require media organizations to be defined in static data\n'
+      );
     } else {
       console.log(`  ✅ Found ${newsOrgs.length} news organizations\n`);
     }

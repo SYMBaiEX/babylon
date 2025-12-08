@@ -198,7 +198,11 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       const allActors = allUserIds
         .map((id) => StaticDataRegistry.getActor(id))
         .filter((a): a is NonNullable<typeof a> => a !== null)
-        .map((a) => ({ id: a.id, name: a.name, profileImageUrl: a.profileImageUrl }));
+        .map((a) => ({
+          id: a.id,
+          name: a.name,
+          profileImageUrl: a.profileImageUrl,
+        }));
 
       // Get all user groups
       const allUserGroups = await database

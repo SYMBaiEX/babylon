@@ -128,7 +128,11 @@ import {
   shares,
   users,
 } from '@babylon/db';
-import { NPCInteractionTracker, parsePostId, StaticDataRegistry } from '@babylon/engine';
+import {
+  NPCInteractionTracker,
+  parsePostId,
+  StaticDataRegistry,
+} from '@babylon/engine';
 import {
   generateSnowflakeId,
   logger,
@@ -287,7 +291,9 @@ export const POST = withErrorHandling(
         .limit(1);
 
       const originalActor = StaticDataRegistry.getActor(originalPost.authorId);
-      const originalOrg = StaticDataRegistry.getOrganization(originalPost.authorId);
+      const originalOrg = StaticDataRegistry.getOrganization(
+        originalPost.authorId
+      );
 
       const originalAuthorName =
         originalUser?.displayName ||

@@ -76,7 +76,16 @@
  */
 
 import { optionalAuth, successResponse, withErrorHandling } from '@babylon/api';
-import { actorState, asPublic, asUser, count, eq, posts, sum, users } from '@babylon/db';
+import {
+  actorState,
+  asPublic,
+  asUser,
+  count,
+  eq,
+  posts,
+  sum,
+  users,
+} from '@babylon/db';
 import { StaticDataRegistry } from '@babylon/engine';
 import { logger, StatsQuerySchema } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
@@ -101,22 +110,22 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
   const authUser = await optionalAuth(request).catch(() => null);
 
-  const queryStats = async (db: Parameters<Parameters<typeof asUser>[1]>[0]) => {
-    const [activePlayersResult, totalHootsResult, userPointsResult, actorPointsResult] = await Promise.all([
-      db
-        .select({ count: count() })
-        .from(users)
-        .where(eq(users.isActor, false)),
-      db
-        .select({ count: count() })
-        .from(posts),
+  const queryStats = async (
+    db: Parameters<Parameters<typeof asUser>[1]>[0]
+  ) => {
+    const [
+      activePlayersResult,
+      totalHootsResult,
+      userPointsResult,
+      actorPointsResult,
+    ] = await Promise.all([
+      db.select({ count: count() }).from(users).where(eq(users.isActor, false)),
+      db.select({ count: count() }).from(posts),
       db
         .select({ total: sum(users.virtualBalance) })
         .from(users)
         .where(eq(users.isActor, false)),
-      db
-        .select({ total: sum(actorState.tradingBalance) })
-        .from(actorState),
+      db.select({ total: sum(actorState.tradingBalance) }).from(actorState),
     ]);
 
     return {
@@ -132,7 +141,8 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     ? await asUser(authUser, queryStats)
     : await asPublic(queryStats);
 
-  const totalPoints = Number(statsResult.userPoints) + Number(statsResult.actorPoints);
+  const totalPoints =
+    Number(statsResult.userPoints) + Number(statsResult.actorPoints);
   const pointsInCirculation = formatPoints(BigInt(totalPoints));
 
   const finalStats: BabylonStats = {

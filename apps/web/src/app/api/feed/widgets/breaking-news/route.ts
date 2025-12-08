@@ -268,16 +268,20 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
           const orgStateMap = new Map(orgStates.map((s) => [s.id, s]));
 
           const priceUpdates = priceUpdatesRaw.map((stockPrice) => {
-            const staticOrg = StaticDataRegistry.getOrganization(stockPrice.organizationId);
+            const staticOrg = StaticDataRegistry.getOrganization(
+              stockPrice.organizationId
+            );
             const orgState = orgStateMap.get(stockPrice.organizationId);
             return {
               ...stockPrice,
-              organization: staticOrg ? {
-                id: staticOrg.id,
-                name: staticOrg.name,
-                currentPrice: orgState?.currentPrice ?? null,
-                type: staticOrg.type,
-              } : null,
+              organization: staticOrg
+                ? {
+                    id: staticOrg.id,
+                    name: staticOrg.name,
+                    currentPrice: orgState?.currentPrice ?? null,
+                    type: staticOrg.type,
+                  }
+                : null,
             };
           });
 
@@ -339,10 +343,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
             .select()
             .from(posts)
             .where(
-              and(
-                isNull(posts.deletedAt),
-                lte(posts.timestamp, currentTime)
-              )
+              and(isNull(posts.deletedAt), lte(posts.timestamp, currentTime))
             )
             .orderBy(desc(posts.timestamp))
             .limit(FEED_WIDGET_CONFIG.MAX_POSTS_QUERY);
@@ -355,7 +356,10 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
             Array.from(new Set(actorPostIds))
               .map((id) => StaticDataRegistry.getActor(id))
               .filter((a): a is NonNullable<typeof a> => a !== null)
-              .map((a) => [a.id, { id: a.id, name: a.name, profileImageUrl: a.profileImageUrl }])
+              .map((a) => [
+                a.id,
+                { id: a.id, name: a.name, profileImageUrl: a.profileImageUrl },
+              ])
           );
 
           // Broader filter for news-worthy posts from actors
@@ -656,16 +660,20 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
           const orgStateMap = new Map(orgStates.map((s) => [s.id, s]));
 
           const priceUpdates = priceUpdatesRaw.map((stockPrice) => {
-            const staticOrg = StaticDataRegistry.getOrganization(stockPrice.organizationId);
+            const staticOrg = StaticDataRegistry.getOrganization(
+              stockPrice.organizationId
+            );
             const orgState = orgStateMap.get(stockPrice.organizationId);
             return {
               ...stockPrice,
-              organization: staticOrg ? {
-                id: staticOrg.id,
-                name: staticOrg.name,
-                currentPrice: orgState?.currentPrice ?? null,
-                type: staticOrg.type,
-              } : null,
+              organization: staticOrg
+                ? {
+                    id: staticOrg.id,
+                    name: staticOrg.name,
+                    currentPrice: orgState?.currentPrice ?? null,
+                    type: staticOrg.type,
+                  }
+                : null,
             };
           });
 
@@ -727,10 +735,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
             .select()
             .from(posts)
             .where(
-              and(
-                isNull(posts.deletedAt),
-                lte(posts.timestamp, currentTime)
-              )
+              and(isNull(posts.deletedAt), lte(posts.timestamp, currentTime))
             )
             .orderBy(desc(posts.timestamp))
             .limit(FEED_WIDGET_CONFIG.MAX_POSTS_QUERY);
@@ -743,7 +748,10 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
             Array.from(new Set(actorPostIds))
               .map((id) => StaticDataRegistry.getActor(id))
               .filter((a): a is NonNullable<typeof a> => a !== null)
-              .map((a) => [a.id, { id: a.id, name: a.name, profileImageUrl: a.profileImageUrl }])
+              .map((a) => [
+                a.id,
+                { id: a.id, name: a.name, profileImageUrl: a.profileImageUrl },
+              ])
           );
 
           // Broader filter for news-worthy posts from actors

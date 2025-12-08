@@ -251,19 +251,23 @@ describe('Trading and Question Generation Integration', () => {
   test('should update organization prices when NPCs trade', async () => {
     // Get an organization (company) to track price changes from static registry + dynamic state
     // Note: "marketsUpdated" in game tick refers to organization prices, not prediction markets
-    const staticOrgs = StaticDataRegistry.getOrganizationsByType('company').filter(o => o.ticker);
+    const staticOrgs = StaticDataRegistry.getOrganizationsByType(
+      'company'
+    ).filter((o) => o.ticker);
     const orgStates = await db.organizationState.findMany();
-    const stateMap = new Map(orgStates.map(s => [s.id, s]));
-    
+    const stateMap = new Map(orgStates.map((s) => [s.id, s]));
+
     // Find a company with state
-    const staticOrg = staticOrgs.find(o => stateMap.has(o.id));
+    const staticOrg = staticOrgs.find((o) => stateMap.has(o.id));
 
     // Test requires at least one company with state
     expect(staticOrg).toBeDefined();
     if (!staticOrg) throw new Error('No organization found');
 
     const orgState = stateMap.get(staticOrg.id);
-    const beforePrice = orgState?.currentPrice ? Number(orgState.currentPrice) : null;
+    const beforePrice = orgState?.currentPrice
+      ? Number(orgState.currentPrice)
+      : null;
 
     // Run game tick - skipContentGeneration=true for faster test
     const result = await executeGameTick(true);

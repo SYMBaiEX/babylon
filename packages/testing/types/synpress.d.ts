@@ -33,4 +33,3 @@ declare module '@synthetixio/synpress-metamask/playwright' {
     signMessage(): Promise<void>;
   }
 }
-

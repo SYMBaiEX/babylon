@@ -34,11 +34,7 @@ export const ANVIL_NETWORK = {
 export default defineWalletSetup(
   ANVIL_WALLET.password,
   async (context, walletPage) => {
-    const metamask = new MetaMask(
-      context,
-      walletPage,
-      ANVIL_WALLET.password
-    );
+    const metamask = new MetaMask(context, walletPage, ANVIL_WALLET.password);
 
     // Import seed phrase
     await metamask.importWallet(ANVIL_WALLET.seedPhrase);
@@ -47,4 +43,3 @@ export default defineWalletSetup(
     await metamask.addNetwork(ANVIL_NETWORK);
   }
 );
-

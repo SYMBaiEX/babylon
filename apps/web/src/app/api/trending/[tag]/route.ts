@@ -105,14 +105,7 @@ export async function GET(
       const actor = StaticDataRegistry.getActor(post.authorId);
       const org = StaticDataRegistry.getOrganization(post.authorId);
 
-      const [
-        user,
-        likeCount,
-        commentCount,
-        shareCount,
-        userLike,
-        userShare,
-      ] =
+      const [user, likeCount, commentCount, shareCount, userLike, userShare] =
         authUser && authUser.userId
           ? await asUser(authUser, async (db) => {
               return await Promise.all([

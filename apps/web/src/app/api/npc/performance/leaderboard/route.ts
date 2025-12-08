@@ -91,7 +91,15 @@ export async function GET(request: Request) {
     actorIds
       .map((id) => StaticDataRegistry.getActor(id))
       .filter((a): a is NonNullable<typeof a> => a !== null)
-      .map((a) => [a.id, { id: a.id, name: a.name, profileImageUrl: a.profileImageUrl, personality: a.personality }])
+      .map((a) => [
+        a.id,
+        {
+          id: a.id,
+          name: a.name,
+          profileImageUrl: a.profileImageUrl,
+          personality: a.personality,
+        },
+      ])
   );
 
   // Fetch open positions for all pools

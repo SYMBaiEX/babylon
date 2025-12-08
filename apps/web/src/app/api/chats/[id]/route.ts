@@ -245,7 +245,11 @@ export const GET = withErrorHandling(
       const actorsList = (senderIds as string[])
         .map((id) => StaticDataRegistry.getActor(id))
         .filter((a): a is NonNullable<typeof a> => a !== null)
-        .map((a) => ({ id: a.id, name: a.name, profileImageUrl: a.profileImageUrl }));
+        .map((a) => ({
+          id: a.id,
+          name: a.name,
+          profileImageUrl: a.profileImageUrl,
+        }));
 
       return { users: usersList, actors: actorsList };
     };

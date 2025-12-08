@@ -108,9 +108,10 @@ export const GET = withErrorHandling(
 
     // If not found by ID, try finding by name
     if (!actor) {
-      actor = StaticDataRegistry.getAllActors().find(
-        (a) => a.name.toLowerCase() === actorId.toLowerCase()
-      ) ?? null;
+      actor =
+        StaticDataRegistry.getAllActors().find(
+          (a) => a.name.toLowerCase() === actorId.toLowerCase()
+        ) ?? null;
     }
 
     if (!actor) {

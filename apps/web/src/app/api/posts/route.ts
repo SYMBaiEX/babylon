@@ -425,7 +425,10 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       authorIds
         .map((id) => StaticDataRegistry.getActor(id))
         .filter((a): a is NonNullable<typeof a> => a !== null)
-        .map((a) => [a.id, { id: a.id, name: a.name, profileImageUrl: a.profileImageUrl }])
+        .map((a) => [
+          a.id,
+          { id: a.id, name: a.name, profileImageUrl: a.profileImageUrl },
+        ])
     );
     const orgMap = new Map(
       authorIds
@@ -709,7 +712,10 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     authorIds
       .map((id) => StaticDataRegistry.getActor(id))
       .filter((a): a is NonNullable<typeof a> => a !== null)
-      .map((a) => [a.id, { id: a.id, name: a.name, profileImageUrl: a.profileImageUrl }])
+      .map((a) => [
+        a.id,
+        { id: a.id, name: a.name, profileImageUrl: a.profileImageUrl },
+      ])
   );
   const orgMap = new Map(
     authorIds

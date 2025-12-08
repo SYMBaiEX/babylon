@@ -197,7 +197,9 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         .sort((a, b) => {
           const stateA = stateMap.get(a.id);
           const stateB = stateMap.get(b.id);
-          return (stateB?.reputationPoints ?? 0) - (stateA?.reputationPoints ?? 0);
+          return (
+            (stateB?.reputationPoints ?? 0) - (stateA?.reputationPoints ?? 0)
+          );
         })
         .slice(0, 100);
 

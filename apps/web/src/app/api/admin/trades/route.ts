@@ -165,7 +165,10 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     actorIds
       .map((id) => StaticDataRegistry.getActor(id))
       .filter((a): a is NonNullable<typeof a> => a !== null)
-      .map((a) => [a.id, { id: a.id, name: a.name, profileImageUrl: a.profileImageUrl }])
+      .map((a) => [
+        a.id,
+        { id: a.id, name: a.name, profileImageUrl: a.profileImageUrl },
+      ])
   );
 
   // Get recent position changes

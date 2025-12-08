@@ -29,7 +29,9 @@ describe('Time Filtering - API Endpoints', () => {
     const allActors = StaticDataRegistry.getAllActors();
     const firstActor = allActors[0];
     if (!firstActor) {
-      throw new Error('No actors in registry - cannot run time filtering tests');
+      throw new Error(
+        'No actors in registry - cannot run time filtering tests'
+      );
     }
     testActorId = firstActor.id;
 

@@ -62,7 +62,9 @@ test.describe('Authentication - Wallet Connection', () => {
     const pageLoaded = await page.locator('body').textContent();
     expect(isVisible || pageLoaded).toBeTruthy();
 
-    console.log(`✅ Wallet connection flow completed - user menu visible: ${isVisible}`);
+    console.log(
+      `✅ Wallet connection flow completed - user menu visible: ${isVisible}`
+    );
   });
 
   test('should persist session across page navigation', async ({ page }) => {

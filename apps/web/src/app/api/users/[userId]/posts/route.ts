@@ -253,7 +253,10 @@ export const GET = withErrorHandling(
         postAuthorIds
           .map((id) => StaticDataRegistry.getActor(id))
           .filter((a): a is NonNullable<typeof a> => a !== null)
-          .map((a) => [a.id, { id: a.id, name: a.name, profileImageUrl: a.profileImageUrl }])
+          .map((a) => [
+            a.id,
+            { id: a.id, name: a.name, profileImageUrl: a.profileImageUrl },
+          ])
       );
 
       // Format comments as replies
@@ -474,7 +477,10 @@ export const GET = withErrorHandling(
         originalPostAuthorIds
           .map((id) => StaticDataRegistry.getActor(id))
           .filter((a): a is NonNullable<typeof a> => a !== null)
-          .map((a) => [a.id, { id: a.id, name: a.name, profileImageUrl: a.profileImageUrl }])
+          .map((a) => [
+            a.id,
+            { id: a.id, name: a.name, profileImageUrl: a.profileImageUrl },
+          ])
       );
       originalOrgAuthorsMap = new Map(
         originalPostAuthorIds
