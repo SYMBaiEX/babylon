@@ -10,8 +10,6 @@
  */
 
 import type { TrustLevel } from '@babylon/agents';
-// import { verifyApiKey } from '@babylon/shared'
-// import { db } from '@babylon/db'
 import { AgentStatus, AgentType, agentRegistry } from '@babylon/agents';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
@@ -64,132 +62,106 @@ async function authenticateRequest(req: NextRequest): Promise<boolean> {
  * Discover agents based on filters
  */
 export async function GET(req: NextRequest) {
-  try {
-    // Authenticate the request
-    const isAuthenticated = await authenticateRequest(req);
+  // Authenticate the request
+  const isAuthenticated = await authenticateRequest(req);
 
-    if (!isAuthenticated) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Unauthorized',
-          message: 'Invalid or missing API key',
-        },
-        { status: 401 }
-      );
-    }
-
-    // Parse query parameters
-    const { searchParams } = new URL(req.url);
-    const query = {
-      types: searchParams.get('types') || undefined,
-      statuses: searchParams.get('statuses') || undefined,
-      minTrustLevel: searchParams.get('minTrustLevel') || undefined,
-      capabilities: searchParams.get('capabilities') || undefined,
-      skills: searchParams.get('skills') || undefined,
-      domains: searchParams.get('domains') || undefined,
-      limit: searchParams.get('limit') || undefined,
-      offset: searchParams.get('offset') || undefined,
-    };
-
-    const validated = DiscoveryQuerySchema.parse(query);
-
-    // Build discovery filter
-    const filter: DiscoveryFilter = {};
-
-    // Filter by agent types
-    if (validated.types) {
-      const types = validated.types.split(',').map((t) => t.trim());
-      filter.types = types.filter((t) =>
-        Object.values(AgentType).includes(t as AgentType)
-      ) as AgentType[];
-    }
-
-    // Filter by statuses
-    if (validated.statuses) {
-      const statuses = validated.statuses.split(',').map((s) => s.trim());
-      filter.statuses = statuses.filter((s) =>
-        Object.values(AgentStatus).includes(s as AgentStatus)
-      ) as AgentStatus[];
-    }
-
-    // Filter by minimum trust level
-    if (validated.minTrustLevel !== undefined) {
-      filter.minTrustLevel = validated.minTrustLevel as TrustLevel;
-    }
-
-    // Filter by capabilities (actions)
-    if (validated.capabilities) {
-      filter.requiredCapabilities = validated.capabilities
-        .split(',')
-        .map((c) => c.trim());
-    }
-
-    // Filter by OASF skills
-    if (validated.skills) {
-      filter.requiredSkills = validated.skills.split(',').map((s) => s.trim());
-    }
-
-    // Filter by OASF domains
-    if (validated.domains) {
-      filter.requiredDomains = validated.domains
-        .split(',')
-        .map((d) => d.trim());
-    }
-
-    // Pagination
-    filter.limit = validated.limit;
-    filter.offset = validated.offset;
-
-    // Discover agents using agent registry
-    const agents = await agentRegistry.discoverAgents(filter);
-
-    // Transform agents for external API response
-    const results = agents.map((agent) => ({
-      agentId: agent.agentId,
-      name: agent.name,
-      type: agent.type,
-      status: agent.status,
-      trustLevel: agent.trustLevel,
-      capabilities: agent.capabilities,
-      discoveryMetadata: agent.discoveryMetadata,
-      endpoints: agent.discoveryMetadata?.endpoints,
-      lastActiveAt: agent.lastActiveAt,
-    }));
-
-    return NextResponse.json({
-      success: true,
-      agents: results,
-      pagination: {
-        limit: validated.limit,
-        offset: validated.offset,
-        total: results.length,
-      },
-      filters: filter,
-    });
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Invalid query parameters',
-          details: error.issues,
-        },
-        { status: 400 }
-      );
-    }
-
-    console.error('[Discovery] Error:', error);
-
+  if (!isAuthenticated) {
     return NextResponse.json(
       {
         success: false,
-        error: 'Discovery failed',
-        message: error instanceof Error ? error.message : 'Unknown error',
+        error: 'Unauthorized',
+        message: 'Invalid or missing API key',
       },
-      { status: 500 }
+      { status: 401 }
     );
   }
+
+  // Parse query parameters
+  const { searchParams } = new URL(req.url);
+  const query = {
+    types: searchParams.get('types') || undefined,
+    statuses: searchParams.get('statuses') || undefined,
+    minTrustLevel: searchParams.get('minTrustLevel') || undefined,
+    capabilities: searchParams.get('capabilities') || undefined,
+    skills: searchParams.get('skills') || undefined,
+    domains: searchParams.get('domains') || undefined,
+    limit: searchParams.get('limit') || undefined,
+    offset: searchParams.get('offset') || undefined,
+  };
+
+  const validated = DiscoveryQuerySchema.parse(query);
+
+  // Build discovery filter
+  const filter: DiscoveryFilter = {};
+
+  // Filter by agent types
+  if (validated.types) {
+    const types = validated.types.split(',').map((t) => t.trim());
+    filter.types = types.filter((t) =>
+      Object.values(AgentType).includes(t as AgentType)
+    ) as AgentType[];
+  }
+
+  // Filter by statuses
+  if (validated.statuses) {
+    const statuses = validated.statuses.split(',').map((s) => s.trim());
+    filter.statuses = statuses.filter((s) =>
+      Object.values(AgentStatus).includes(s as AgentStatus)
+    ) as AgentStatus[];
+  }
+
+  // Filter by minimum trust level
+  if (validated.minTrustLevel !== undefined) {
+    filter.minTrustLevel = validated.minTrustLevel as TrustLevel;
+  }
+
+  // Filter by capabilities (actions)
+  if (validated.capabilities) {
+    filter.requiredCapabilities = validated.capabilities
+      .split(',')
+      .map((c) => c.trim());
+  }
+
+  // Filter by OASF skills
+  if (validated.skills) {
+    filter.requiredSkills = validated.skills.split(',').map((s) => s.trim());
+  }
+
+  // Filter by OASF domains
+  if (validated.domains) {
+    filter.requiredDomains = validated.domains.split(',').map((d) => d.trim());
+  }
+
+  // Pagination
+  filter.limit = validated.limit;
+  filter.offset = validated.offset;
+
+  // Discover agents using agent registry
+  const agents = await agentRegistry.discoverAgents(filter);
+
+  // Transform agents for external API response
+  const results = agents.map((agent) => ({
+    agentId: agent.agentId,
+    name: agent.name,
+    type: agent.type,
+    status: agent.status,
+    trustLevel: agent.trustLevel,
+    capabilities: agent.capabilities,
+    discoveryMetadata: agent.discoveryMetadata,
+    endpoints: agent.discoveryMetadata?.endpoints,
+    lastActiveAt: agent.lastActiveAt,
+  }));
+
+  return NextResponse.json({
+    success: true,
+    agents: results,
+    pagination: {
+      limit: validated.limit,
+      offset: validated.offset,
+      total: results.length,
+    },
+    filters: filter,
+  });
 }
 
 /**
@@ -198,60 +170,47 @@ export async function GET(req: NextRequest) {
  * Advanced discovery with complex filters (body-based)
  */
 export async function POST(req: NextRequest) {
-  try {
-    // Authenticate the request
-    const isAuthenticated = await authenticateRequest(req);
+  // Authenticate the request
+  const isAuthenticated = await authenticateRequest(req);
 
-    if (!isAuthenticated) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Unauthorized',
-          message: 'Invalid or missing API key',
-        },
-        { status: 401 }
-      );
-    }
-
-    // Parse request body
-    const body = await req.json();
-
-    // Discover agents using agent registry
-    const agents = await agentRegistry.discoverAgents(body);
-
-    // Transform agents for external API response
-    const results = agents.map((agent) => ({
-      agentId: agent.agentId,
-      name: agent.name,
-      type: agent.type,
-      status: agent.status,
-      trustLevel: agent.trustLevel,
-      capabilities: agent.capabilities,
-      discoveryMetadata: agent.discoveryMetadata,
-      endpoints: agent.discoveryMetadata?.endpoints,
-      lastActiveAt: agent.lastActiveAt,
-    }));
-
-    return NextResponse.json({
-      success: true,
-      agents: results,
-      pagination: {
-        limit: body.limit || 20,
-        offset: body.offset || 0,
-        total: results.length,
-      },
-      filters: body,
-    });
-  } catch (error) {
-    console.error('[Discovery] Error:', error);
-
+  if (!isAuthenticated) {
     return NextResponse.json(
       {
         success: false,
-        error: 'Discovery failed',
-        message: error instanceof Error ? error.message : 'Unknown error',
+        error: 'Unauthorized',
+        message: 'Invalid or missing API key',
       },
-      { status: 500 }
+      { status: 401 }
     );
   }
+
+  // Parse request body
+  const body = await req.json();
+
+  // Discover agents using agent registry
+  const agents = await agentRegistry.discoverAgents(body);
+
+  // Transform agents for external API response
+  const results = agents.map((agent) => ({
+    agentId: agent.agentId,
+    name: agent.name,
+    type: agent.type,
+    status: agent.status,
+    trustLevel: agent.trustLevel,
+    capabilities: agent.capabilities,
+    discoveryMetadata: agent.discoveryMetadata,
+    endpoints: agent.discoveryMetadata?.endpoints,
+    lastActiveAt: agent.lastActiveAt,
+  }));
+
+  return NextResponse.json({
+    success: true,
+    agents: results,
+    pagination: {
+      limit: body.limit || 20,
+      offset: body.offset || 0,
+      total: results.length,
+    },
+    filters: body,
+  });
 }

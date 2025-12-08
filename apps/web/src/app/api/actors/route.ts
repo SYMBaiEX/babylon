@@ -76,14 +76,6 @@ import { NextResponse } from 'next/server';
  * @returns {Promise<NextResponse>} Actors and organizations data
  */
 export async function GET() {
-  try {
-    const actorsData = loadActorsData();
-    return NextResponse.json(actorsData);
-  } catch (error) {
-    console.error('Error loading actors data:', error);
-    return NextResponse.json(
-      { error: 'Failed to load actors data' },
-      { status: 500 }
-    );
-  }
+  const actorsData = loadActorsData();
+  return NextResponse.json(actorsData);
 }

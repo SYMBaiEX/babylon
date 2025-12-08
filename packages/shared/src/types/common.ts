@@ -8,6 +8,7 @@ import { z } from 'zod';
 
 /**
  * JSON-serializable value types
+ * Note: undefined is NOT included as it's not valid JSON - use optional properties instead
  */
 export type JsonValue =
   | string

@@ -119,53 +119,44 @@ export function ShareEarnModal({
 
     setCheckingExistingShares(true);
 
-    try {
-      // Check for existing verified and earned shares for this content type
-      const response = await fetch(
-        `/api/users/${encodeURIComponent(user.id)}/share?contentType=${contentType}`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
+    // Check for existing verified and earned shares for this content type
+    const response = await fetch(
+      `/api/users/${encodeURIComponent(user.id)}/share?contentType=${contentType}`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+
+    if (response.ok) {
+      const data = await response.json();
+      const shares = data.shares || [];
+
+      // Update state for each platform that has been verified and earned
+      const twitterShare = shares.find(
+        (s: { platform: string }) => s.platform === 'twitter'
+      );
+      const farcasterShare = shares.find(
+        (s: { platform: string }) => s.platform === 'farcaster'
       );
 
-      if (response.ok) {
-        const data = await response.json();
-        const shares = data.shares || [];
+      setShareStatus((prev) => ({
+        twitter: twitterShare
+          ? { shared: true, earned: true, loading: false }
+          : prev.twitter,
+        farcaster: farcasterShare
+          ? { shared: true, earned: true, loading: false }
+          : prev.farcaster,
+      }));
 
-        // Update state for each platform that has been verified and earned
-        const twitterShare = shares.find(
-          (s: { platform: string }) => s.platform === 'twitter'
-        );
-        const farcasterShare = shares.find(
-          (s: { platform: string }) => s.platform === 'farcaster'
-        );
-
-        setShareStatus((prev) => ({
-          twitter: twitterShare
-            ? { shared: true, earned: true, loading: false }
-            : prev.twitter,
-          farcaster: farcasterShare
-            ? { shared: true, earned: true, loading: false }
-            : prev.farcaster,
-        }));
-
-        logger.info(
-          `Found ${shares.length} existing verified shares for ${contentType}`,
-          { contentType, twitter: !!twitterShare, farcaster: !!farcasterShare },
-          'ShareEarnModal'
-        );
-      }
-    } catch (error) {
-      logger.warn(
-        'Failed to check existing shares',
-        { error },
+      logger.info(
+        `Found ${shares.length} existing verified shares for ${contentType}`,
+        { contentType, twitter: !!twitterShare, farcaster: !!farcasterShare },
         'ShareEarnModal'
       );
-    } finally {
-      setCheckingExistingShares(false);
     }
+    setCheckingExistingShares(false);
   }, [user, contentType]);
 
   // Check configuration and existing shares on mount

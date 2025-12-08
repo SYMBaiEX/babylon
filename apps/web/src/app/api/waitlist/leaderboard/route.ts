@@ -116,86 +116,75 @@ const CACHE_TTL_SECONDS = Math.max(1, Math.floor(CACHE_TTL_MS / 1000));
 const STALE_SECONDS = CACHE_TTL_SECONDS * 3;
 
 export const GET = withErrorHandling(async (request: NextRequest) => {
-  try {
-    const { searchParams } = new URL(request.url);
-    const page = Math.max(
-      1,
-      Number.parseInt(searchParams.get('page') || '1', 10)
-    );
-    const limit = Math.min(
-      Number.parseInt(searchParams.get('limit') || '10', 10),
-      100
-    ); // Cap at 100
-    const pointsTypeParam = (
-      searchParams.get('pointsType') || ''
-    ).toLowerCase();
-    const pointsType: 'total' | 'invite' =
-      pointsTypeParam === 'total' ? 'total' : 'invite';
+  const { searchParams } = new URL(request.url);
+  const page = Math.max(
+    1,
+    Number.parseInt(searchParams.get('page') || '1', 10)
+  );
+  const limit = Math.min(
+    Number.parseInt(searchParams.get('limit') || '10', 10),
+    100
+  ); // Cap at 100
+  const pointsTypeParam = (searchParams.get('pointsType') || '').toLowerCase();
+  const pointsType: 'total' | 'invite' =
+    pointsTypeParam === 'total' ? 'total' : 'invite';
 
-    // Calculate offset for pagination
-    const offset = (page - 1) * limit;
+  // Calculate offset for pagination
+  const offset = (page - 1) * limit;
 
-    // Cache key includes page, limit, and points type
-    const cacheKey = `${pointsType}-${page}-${limit}`;
+  // Cache key includes page, limit, and points type
+  const cacheKey = `${pointsType}-${page}-${limit}`;
 
-    if (CACHE_TTL_MS > 0) {
-      const cached = await getCache<LeaderboardResponse>(cacheKey, {
-        namespace: CACHE_KEY_NAMESPACE,
-      });
-      if (cached) {
-        return successResponse(cached, 200, {
-          'x-cache': 'waitlist-leaderboard-hit',
-          'Cache-Control': `public, s-maxage=${CACHE_TTL_SECONDS}, stale-while-revalidate=${STALE_SECONDS}`,
-          Vary: 'Accept-Encoding',
-        });
-      }
-    }
-
-    logger.info(
-      'Waitlist leaderboard request',
-      { page, limit, offset, pointsType },
-      'GET /api/waitlist/leaderboard'
-    );
-
-    const topUsers = await WaitlistService.getTopWaitlistUsers(
-      limit,
-      offset,
-      pointsType
-    );
-
-    // Calculate total pages (cap at 100 users for leaderboard display)
-    // Determine hasMore based on whether we got a full page of results
-    const maxUsers = 100;
-    const totalPages = Math.ceil(maxUsers / limit);
-    const hasMore = topUsers.length === limit && page < totalPages;
-
-    const responseBody: LeaderboardResponse = {
-      leaderboard: topUsers,
-      totalShown: topUsers.length,
-      page,
-      totalPages,
-      hasMore,
-      pointsType,
-    };
-
-    if (CACHE_TTL_MS > 0) {
-      await setCache(cacheKey, responseBody, {
-        namespace: CACHE_KEY_NAMESPACE,
-        ttl: CACHE_TTL_SECONDS,
-      });
-    }
-
-    return successResponse(responseBody, 200, {
-      'x-cache': 'waitlist-leaderboard-miss',
-      'Cache-Control': `public, s-maxage=${CACHE_TTL_SECONDS}, stale-while-revalidate=${STALE_SECONDS}`,
-      Vary: 'Accept-Encoding',
+  if (CACHE_TTL_MS > 0) {
+    const cached = await getCache<LeaderboardResponse>(cacheKey, {
+      namespace: CACHE_KEY_NAMESPACE,
     });
-  } catch (error) {
-    logger.error(
-      'Error fetching waitlist leaderboard',
-      { error },
-      'GET /api/waitlist/leaderboard'
-    );
-    throw error;
+    if (cached) {
+      return successResponse(cached, 200, {
+        'x-cache': 'waitlist-leaderboard-hit',
+        'Cache-Control': `public, s-maxage=${CACHE_TTL_SECONDS}, stale-while-revalidate=${STALE_SECONDS}`,
+        Vary: 'Accept-Encoding',
+      });
+    }
   }
+
+  logger.info(
+    'Waitlist leaderboard request',
+    { page, limit, offset, pointsType },
+    'GET /api/waitlist/leaderboard'
+  );
+
+  const topUsers = await WaitlistService.getTopWaitlistUsers(
+    limit,
+    offset,
+    pointsType
+  );
+
+  // Calculate total pages (cap at 100 users for leaderboard display)
+  // Determine hasMore based on whether we got a full page of results
+  const maxUsers = 100;
+  const totalPages = Math.ceil(maxUsers / limit);
+  const hasMore = topUsers.length === limit && page < totalPages;
+
+  const responseBody: LeaderboardResponse = {
+    leaderboard: topUsers,
+    totalShown: topUsers.length,
+    page,
+    totalPages,
+    hasMore,
+    pointsType,
+  };
+
+  if (CACHE_TTL_MS > 0) {
+    await setCache(cacheKey, responseBody, {
+      namespace: CACHE_KEY_NAMESPACE,
+      ttl: CACHE_TTL_SECONDS,
+    });
+  }
+
+  return successResponse(responseBody, 200, {
+    'x-cache': 'waitlist-leaderboard-miss',
+    'Cache-Control': `public, s-maxage=${CACHE_TTL_SECONDS}, stale-while-revalidate=${STALE_SECONDS}`,
+    Vary: 'Accept-Encoding',
+  });
 });

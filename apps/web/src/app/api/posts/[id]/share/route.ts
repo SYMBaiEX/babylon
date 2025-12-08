@@ -118,19 +118,21 @@ import {
   withErrorHandling,
 } from '@babylon/api';
 import {
-  actors,
   and,
   count,
   db,
   eq,
   hasBlocked,
   isNull,
-  organizations,
   posts,
   shares,
   users,
 } from '@babylon/db';
-import { NPCInteractionTracker, parsePostId } from '@babylon/engine';
+import {
+  NPCInteractionTracker,
+  parsePostId,
+  StaticDataRegistry,
+} from '@babylon/engine';
 import {
   generateSnowflakeId,
   logger,
@@ -278,34 +280,20 @@ export const POST = withErrorHandling(
     let repostPostData = null;
 
     if (originalPost) {
-      const [[originalUser], [originalActor], [originalOrg]] =
-        await Promise.all([
-          db
-            .select({
-              username: users.username,
-              displayName: users.displayName,
-              profileImageUrl: users.profileImageUrl,
-            })
-            .from(users)
-            .where(eq(users.id, originalPost.authorId))
-            .limit(1),
-          db
-            .select({
-              name: actors.name,
-              profileImageUrl: actors.profileImageUrl,
-            })
-            .from(actors)
-            .where(eq(actors.id, originalPost.authorId))
-            .limit(1),
-          db
-            .select({
-              name: organizations.name,
-              imageUrl: organizations.imageUrl,
-            })
-            .from(organizations)
-            .where(eq(organizations.id, originalPost.authorId))
-            .limit(1),
-        ]);
+      const [originalUser] = await db
+        .select({
+          username: users.username,
+          displayName: users.displayName,
+          profileImageUrl: users.profileImageUrl,
+        })
+        .from(users)
+        .where(eq(users.id, originalPost.authorId))
+        .limit(1);
+
+      const originalActor = StaticDataRegistry.getActor(originalPost.authorId);
+      const originalOrg = StaticDataRegistry.getOrganization(
+        originalPost.authorId
+      );
 
       const originalAuthorName =
         originalUser?.displayName ||

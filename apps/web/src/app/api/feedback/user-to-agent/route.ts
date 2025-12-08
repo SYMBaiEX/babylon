@@ -94,7 +94,12 @@
  */
 
 import { submitFeedbackToAgent0 } from '@babylon/agents';
-import { requireUserByIdentifier } from '@babylon/api';
+import {
+  authenticate,
+  BusinessLogicError,
+  requireUserByIdentifier,
+  withErrorHandling,
+} from '@babylon/api';
 import type { JsonValue } from '@babylon/db';
 import { db } from '@babylon/db';
 import { updateFeedbackMetrics } from '@babylon/engine';
@@ -104,7 +109,6 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
 const UserToAgentFeedbackSchema = z.object({
-  fromUserId: z.string().min(1, 'fromUserId is required'),
   agentId: z.string().min(1, 'agentId is required'),
   score: z.number().min(0).max(100),
   rating: z.number().int().min(1).max(5).optional(),
@@ -120,14 +124,23 @@ const UserToAgentFeedbackQuerySchema = z.object({
   offset: z.number().int().min(0).default(0),
 });
 
-export async function POST(request: NextRequest) {
+export const POST = withErrorHandling(async (request: NextRequest) => {
+  const authUser = await authenticate(request);
+
   const json = await request.json();
   const parsed = UserToAgentFeedbackSchema.parse(json);
 
   const body = parsed;
 
-  const fromUser = await requireUserByIdentifier(body.fromUserId);
+  const fromUser = await requireUserByIdentifier(authUser.userId);
   const toAgent = await requireUserByIdentifier(body.agentId);
+
+  if (fromUser.id === toAgent.id) {
+    throw new BusinessLogicError(
+      'Cannot submit feedback to yourself',
+      'SELF_FEEDBACK'
+    );
+  }
 
   const now = new Date();
   const feedback = await db.feedback.create({
@@ -190,7 +203,7 @@ export async function POST(request: NextRequest) {
     },
     { status: 201 }
   );
-}
+});
 
 /**
  * GET endpoint to retrieve feedback for an agent

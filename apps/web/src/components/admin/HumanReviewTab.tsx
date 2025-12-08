@@ -18,7 +18,7 @@
  */
 'use client';
 
-import { cn } from '@babylon/shared';
+import { cn, type JsonValue } from '@babylon/shared';
 import { AlertCircle, DollarSign } from 'lucide-react';
 import { useCallback, useEffect, useState, useTransition } from 'react';
 import { toast } from 'sonner';
@@ -43,7 +43,7 @@ interface Appeal {
   appealStakeAmount: number | null;
   appealStakeTxHash: string | null;
   appealSubmittedAt: Date | null;
-  falsePositiveHistory: unknown;
+  falsePositiveHistory: Array<Record<string, JsonValue>> | null;
   earnedPoints: number;
   totalDeposited: number;
   totalWithdrawn: number;
@@ -57,18 +57,15 @@ export function HumanReviewTab() {
   const [showActionModal, setShowActionModal] = useState(false);
 
   const fetchAppeals = useCallback(async () => {
-    try {
-      const response = await fetch('/api/admin/moderation/human-review');
-      if (!response.ok) {
-        throw new Error('Failed to fetch appeals');
-      }
-      const data = await response.json();
-      setAppeals(data.appeals || []);
-    } catch {
+    const response = await fetch('/api/admin/moderation/human-review');
+    if (!response.ok) {
       toast.error('Failed to load appeals');
-    } finally {
       setLoading(false);
+      return;
     }
+    const data = await response.json();
+    setAppeals(data.appeals || []);
+    setLoading(false);
   }, []);
 
   useEffect(() => {

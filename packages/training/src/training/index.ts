@@ -10,7 +10,7 @@ export type { BenchmarkResults, ComparisonResults } from './BenchmarkService';
 export { BenchmarkService, benchmarkService } from './BenchmarkService';
 
 export { ConfigValidator } from './ConfigValidator';
-export { initializeTrainingSystem } from './init';
+export { logRLConfigOnStartup } from './logRLConfig';
 export { MarketOutcomesTracker } from './MarketOutcomesTracker';
 export type { DeploymentOptions, DeploymentResult } from './ModelDeployer';
 export { ModelDeployer, modelDeployer } from './ModelDeployer';
@@ -22,6 +22,16 @@ export {
   modelSelectionService,
 } from './ModelSelectionService';
 export { ModelUsageVerifier } from './ModelUsageVerifier';
+// Multi-model orchestration for efficient archetype model management
+export type {
+  ModelInferenceRequest,
+  ModelInferenceResult,
+  OrchestratorConfig,
+} from './MultiModelOrchestrator';
+export {
+  createMultiModelOrchestrator,
+  MultiModelOrchestrator,
+} from './MultiModelOrchestrator';
 export {
   RewardBackpropagationService,
   rewardBackpropagationService,
@@ -30,6 +40,8 @@ export type {
   ArchetypeModelConfig,
   ModelTier,
   ModelTierConfig,
+  MultiModelConfig,
+  QuantizationMode,
   RLModelConfig,
 } from './RLModelConfig';
 export {
@@ -39,7 +51,10 @@ export {
   getModelForArchetype,
   getModelForTier,
   getModelTierForVram,
+  getMultiModelConfig,
+  getQuantizedModelName,
   getRLModelConfig,
+  getVramRequirement,
   hasArchetypeModel,
   isRLModelAvailable,
   isTierAvailable,
@@ -54,14 +69,7 @@ export {
   rulerScoringService,
 } from './RulerScoringService';
 // Storage services
-export {
-  ModelStorageService,
-  modelStorage,
-} from './storage/ModelStorageService';
-export {
-  TrainingDataArchiver,
-  trainingDataArchiver,
-} from './storage/TrainingDataArchiver';
+export * from './storage';
 export { TrainingMonitor, trainingMonitor } from './TrainingMonitor';
 export { TrajectoryRecorder, trajectoryRecorder } from './TrajectoryRecorder';
 

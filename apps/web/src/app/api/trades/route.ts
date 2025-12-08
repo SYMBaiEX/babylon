@@ -149,6 +149,7 @@
 
 import { optionalAuth, successResponse, withErrorHandling } from '@babylon/api';
 import { db } from '@babylon/db';
+import { StaticDataRegistry } from '@babylon/engine';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { z } from 'zod';
@@ -263,11 +264,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       orderBy: { executedAt: 'desc' },
     });
   } else {
-    // Check if the userId corresponds to an Actor (NPC)
-    const actor = await db.actor.findUnique({
-      where: { id: params.userId },
-      select: { id: true },
-    });
+    const actor = StaticDataRegistry.getActor(params.userId);
 
     if (actor) {
       npcTrades = await db.npcTrade.findMany({
@@ -279,44 +276,27 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     }
   }
 
-  // Fetch NPC actors for NPC trades
-  // npcActorId references Actor.id, so query Actor table
   const npcActorIds = [...new Set(npcTrades.map((t) => t.npcActorId))];
 
-  // Query both Actor and User tables to get complete profile information
-  // Skip queries if no NPC trades to avoid unnecessary database calls
-  const [actors, users] =
+  const usersData =
     npcActorIds.length > 0
-      ? await Promise.all([
-          db.actor.findMany({
-            where: { id: { in: npcActorIds } },
-            select: {
-              id: true,
-              name: true,
-              profileImageUrl: true,
-            },
-          }),
-          db.user.findMany({
-            where: {
-              id: { in: npcActorIds },
-              isActor: true, // Only get users that are actors
-            },
-            select: {
-              id: true,
-              username: true,
-              displayName: true,
-              profileImageUrl: true,
-              isActor: true,
-            },
-          }),
-        ])
-      : [[], []];
+      ? await db.user.findMany({
+          where: {
+            id: { in: npcActorIds },
+            isActor: true,
+          },
+          select: {
+            id: true,
+            username: true,
+            displayName: true,
+            profileImageUrl: true,
+            isActor: true,
+          },
+        })
+      : [];
 
-  // Create maps for both actors and users
-  const actorsDataMap = new Map(actors.map((a) => [a.id, a]));
-  const usersDataMap = new Map(users.map((u) => [u.id, u]));
+  const usersDataMap = new Map(usersData.map((u) => [u.id, u]));
 
-  // Merge Actor and User data, preferring User data when available (more complete)
   const actorsMap = new Map<
     string,
     {
@@ -329,10 +309,9 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   >();
 
   for (const actorId of npcActorIds) {
-    const actor = actorsDataMap.get(actorId);
+    const actor = StaticDataRegistry.getActor(actorId);
     const user = usersDataMap.get(actorId);
 
-    // Prefer User data if available, otherwise use Actor data
     if (user) {
       actorsMap.set(actorId, {
         id: user.id,
@@ -349,12 +328,10 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         id: actor.id,
         username: actor.name.toLowerCase().replace(/\s+/g, '-'),
         displayName: actor.name,
-        profileImageUrl: actor.profileImageUrl,
+        profileImageUrl: actor.profileImageUrl ?? null,
         isActor: true,
       });
     }
-    // If neither actor nor user exists, skip adding to map
-    // Trade will have user: null and will be filtered out later
   }
 
   // Get recent position updates (significant changes)
@@ -425,19 +402,15 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     });
   }
 
-  // Fetch organizations for perp positions
   const organizationIds = [
     ...new Set(perpPositions.map((p) => p.organizationId)),
   ];
-  const organizations = await db.organization.findMany({
-    where: { id: { in: organizationIds } },
-    select: {
-      id: true,
-      name: true,
-      type: true,
-    },
-  });
-  const organizationsMap = new Map(organizations.map((o) => [o.id, o]));
+  const organizationsMap = new Map(
+    organizationIds
+      .map((id) => StaticDataRegistry.getOrganization(id))
+      .filter((o): o is NonNullable<typeof o> => o !== null)
+      .map((o) => [o.id, { id: o.id, name: o.name, type: o.type }])
+  );
 
   // Fetch users for perp positions
   const perpUserIds = [...new Set(perpPositions.map((p) => p.userId))];

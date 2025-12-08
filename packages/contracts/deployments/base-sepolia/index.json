@@ -12,7 +12,7 @@
     "predictionMarketFacet": "0x95A1aEe004de01267daDD1e55C1a3fc2818636cE",
     "oracleFacet": "0x58A0Cd5307CdE4F2ccD8E2cA71510206F1365D9B",
     "chainlinkOracle": "0x2b66946c747DDc3fB0e303d40c3f2F6CE89928FB",
-    "umaOracle": "0xC128cb3A64077983c3036D5a8b08d1B67FF6A3c4"
+    "mockOracle": "0xC128cb3A64077983c3036D5a8b08d1B67FF6A3c4"
   },
   "gasUsed": "0.000013251950070528 ETH",
   "explorer": {

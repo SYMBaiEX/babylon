@@ -14,7 +14,10 @@
   },
   "scripts": {
     "lint": "biome lint src/",
-    "typecheck": "tsc -b ."
+    "typecheck": "tsc -b .",
+    "train": "bun run scripts/train-and-test.ts",
+    "test": "bun run scripts/train-and-test.ts --skip-training --ticks 100",
+    "benchmark": "bun run scripts/train-and-test.ts --skip-training --ticks 500"
   },
   "dependencies": {
     "@huggingface/hub": "^2.6.12",
@@ -24,6 +27,8 @@
   },
   "peerDependencies": {
     "@babylon/db": "workspace:*",
+    "@babylon/engine": "workspace:*",
+    "@babylon/shared": "workspace:*",
     "@elizaos/core": "^1.6.4",
     "drizzle-orm": "^0.44.7"
   },

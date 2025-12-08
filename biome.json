@@ -23,7 +23,8 @@
       "!**/*.md",
       "!**/*.mdx",
       "!**/babylon-platform-artchitecture",
-      "!**/genesis.json"
+      "!**/genesis.json",
+      "!**/drizzle/migrations"
     ]
   },
   "formatter": {

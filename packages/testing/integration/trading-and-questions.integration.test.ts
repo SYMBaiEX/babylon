@@ -6,58 +6,14 @@
  * - Prediction question generation creates new questions and markets
  * - Both features work together in a game tick
  *
- * NOTE: These tests make real LLM API calls and may fail if rate limited.
- * They will skip gracefully if API is unavailable.
+ * CRITICAL: These tests make real LLM API calls and MUST NOT skip.
+ * If LLM API is unavailable, tests should FAIL, not skip.
  */
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import { asSystem, db } from '@babylon/db';
-import { executeGameTick } from '@babylon/engine';
+import { executeGameTick, StaticDataRegistry } from '@babylon/engine';
 import { generateSnowflakeId } from '@babylon/shared';
-
-// Helper to check if we should skip due to rate limiting or API issues
-let apiAvailable = true;
-
-/**
- * Execute game tick with retry and graceful error handling
- */
-async function safeExecuteGameTick(skipContentGeneration: boolean) {
-  try {
-    return await executeGameTick(skipContentGeneration);
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    // Check if it's a rate limit, API key, or other API availability error
-    if (
-      errorMessage.includes('429') ||
-      errorMessage.includes('401') ||
-      errorMessage.includes('rate_limit') ||
-      errorMessage.includes('Rate limit') ||
-      errorMessage.includes('Invalid API Key') ||
-      errorMessage.includes('API key') ||
-      errorMessage.includes('Unauthorized')
-    ) {
-      console.log('⏭️  LLM API unavailable - test will skip assertions');
-      apiAvailable = false;
-      return {
-        marketsUpdated: 0,
-        questionsCreated: 0,
-        questionsResolved: 0,
-        postsCreated: 0,
-        eventsCreated: 0,
-        articlesCreated: 0,
-        widgetCachesUpdated: 0,
-        trendingCalculated: false,
-        reputationSynced: false,
-        alphaInvitesSent: 0,
-        oracleCommits: 0,
-        oracleReveals: 0,
-        oracleErrors: 0,
-      };
-    }
-    // Re-throw non-API-availability errors
-    throw error;
-  }
-}
 
 describe('Trading and Question Generation Integration', () => {
   let initialMarketCount: number;
@@ -65,9 +21,6 @@ describe('Trading and Question Generation Integration', () => {
   const testMarketIds: string[] = [];
 
   beforeAll(async () => {
-    // Reset API availability flag
-    apiAvailable = true;
-
     // Ensure game is running
     const gameState = await asSystem(async (db) => {
       return await db.game.findFirst({
@@ -184,12 +137,8 @@ describe('Trading and Question Generation Integration', () => {
   });
 
   test('should execute game tick and process trading', async () => {
-    const result = await safeExecuteGameTick(true); // Skip content generation for faster test
-
-    if (!apiAvailable) {
-      console.log('⏭️  Skipping assertions - API rate limited');
-      return;
-    }
+    // skipContentGeneration=true for faster test - still uses LLM for trading decisions
+    const result = await executeGameTick(true);
 
     expect(result).toBeDefined();
     expect(typeof result.marketsUpdated).toBe('number');
@@ -212,13 +161,8 @@ describe('Trading and Question Generation Integration', () => {
       where: { closedAt: null }, // Open positions have no closedAt
     });
 
-    // Run game tick
-    const result = await safeExecuteGameTick(true);
-
-    if (!apiAvailable) {
-      console.log('⏭️  Skipping assertions - API rate limited');
-      return;
-    }
+    // Run game tick - skipContentGeneration=true for faster test
+    const result = await executeGameTick(true);
 
     // Get position count after tick
     const afterPositions = await db.poolPosition.count({
@@ -262,12 +206,7 @@ describe('Trading and Question Generation Integration', () => {
 
     // Run game tick - note: skipContentGeneration=true means question generation is skipped
     // This test verifies that the game tick infrastructure works, not that questions are created
-    const result = await safeExecuteGameTick(true);
-
-    if (!apiAvailable) {
-      console.log('⏭️  Skipping assertions - API rate limited');
-      return;
-    }
+    const result = await executeGameTick(true);
 
     // Verify the game tick completed successfully
     expect(result).toBeDefined();
@@ -310,37 +249,35 @@ describe('Trading and Question Generation Integration', () => {
   }, 60000);
 
   test('should update organization prices when NPCs trade', async () => {
-    // Get an organization (company) to track price changes
+    // Get an organization (company) to track price changes from static registry + dynamic state
     // Note: "marketsUpdated" in game tick refers to organization prices, not prediction markets
-    const org = await db.organization.findFirst({
-      where: {
-        type: 'company',
-        ticker: { not: null },
-      },
-      orderBy: { updatedAt: 'desc' },
-    });
+    const staticOrgs = StaticDataRegistry.getOrganizationsByType(
+      'company'
+    ).filter((o) => o.ticker);
+    const orgStates = await db.organizationState.findMany();
+    const stateMap = new Map(orgStates.map((s) => [s.id, s]));
 
-    if (!org) {
-      console.log('⏭️  Skipping - no companies found');
-      return;
-    }
+    // Find a company with state
+    const staticOrg = staticOrgs.find((o) => stateMap.has(o.id));
 
-    const beforePrice = org.currentPrice ? Number(org.currentPrice) : null;
+    // Test requires at least one company with state
+    expect(staticOrg).toBeDefined();
+    if (!staticOrg) throw new Error('No organization found');
 
-    // Run game tick
-    const result = await safeExecuteGameTick(true);
+    const orgState = stateMap.get(staticOrg.id);
+    const beforePrice = orgState?.currentPrice
+      ? Number(orgState.currentPrice)
+      : null;
 
-    if (!apiAvailable) {
-      console.log('⏭️  Skipping assertions - API rate limited');
-      return;
-    }
+    // Run game tick - skipContentGeneration=true for faster test
+    const result = await executeGameTick(true);
 
     // Check if organization price was updated
-    const afterOrg = await db.organization.findUnique({
-      where: { id: org.id },
+    const afterOrgState = await db.organizationState.findUnique({
+      where: { id: staticOrg.id },
     });
 
-    expect(afterOrg).toBeTruthy();
+    expect(afterOrgState).toBeTruthy();
 
     // Note: NPCs may choose to hold rather than trade, so we can't always expect price changes.
     // This test verifies the infrastructure works, not that every tick has trading.
@@ -348,8 +285,8 @@ describe('Trading and Question Generation Integration', () => {
     // If we want to verify actual trades, we need to check pool positions.
 
     if (result.marketsUpdated > 0) {
-      const afterPrice = afterOrg?.currentPrice
-        ? Number(afterOrg.currentPrice)
+      const afterPrice = afterOrgState?.currentPrice
+        ? Number(afterOrgState.currentPrice)
         : null;
 
       // Just verify the price is a valid number (may or may not have changed)
@@ -362,7 +299,7 @@ describe('Trading and Question Generation Integration', () => {
       // Log what happened for debugging
       const priceChanged = afterPrice !== beforePrice;
       console.log(
-        `Organization ${org.ticker}: price ${priceChanged ? 'changed' : 'unchanged'} (${beforePrice} -> ${afterPrice})`
+        `Organization ${staticOrg.ticker}: price ${priceChanged ? 'changed' : 'unchanged'} (${beforePrice} -> ${afterPrice})`
       );
     }
 
@@ -392,13 +329,8 @@ describe('Trading and Question Generation Integration', () => {
       }
     }
 
-    // Run game tick
-    const result = await safeExecuteGameTick(true);
-
-    if (!apiAvailable) {
-      console.log('⏭️  Skipping assertions - API rate limited');
-      return;
-    }
+    // Run game tick - skipContentGeneration=true for faster test
+    const result = await executeGameTick(true);
 
     // Check if new markets were created
     const afterMarkets = await db.market.count({
@@ -439,13 +371,8 @@ describe('Trading and Question Generation Integration', () => {
       where: { status: 'active' },
     });
 
-    // Run game tick
-    const result = await safeExecuteGameTick(true);
-
-    if (!apiAvailable) {
-      console.log('⏭️  Skipping assertions - API rate limited');
-      return;
-    }
+    // Run game tick - skipContentGeneration=true for faster test
+    const result = await executeGameTick(true);
 
     // Verify results structure
     expect(result).toBeDefined();

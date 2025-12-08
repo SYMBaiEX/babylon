@@ -14,7 +14,6 @@
 
 import {
   actorRelationships,
-  actors,
   and,
   chatParticipants,
   chats,
@@ -26,7 +25,6 @@ import {
   groupChatMemberships,
   gte,
   inArray,
-  isUniqueConstraintError,
   lt,
   messages,
   notInArray,
@@ -35,7 +33,6 @@ import {
   posts,
   reactions,
   shares,
-  toDatabaseErrorType,
   userGroupInvites,
   userInteractions,
   users,
@@ -43,12 +40,15 @@ import {
 import {
   BabylonLLMClient,
   generateWorldContext,
-  validateNoEmojis,
-  validateNoHashtags,
   validateNoRealNames,
 } from '@babylon/engine';
 import { generateSnowflakeId, logger } from '@babylon/shared';
-import { NPCGroupDynamicsService as NPCGroupDynamicsCalculations } from './npc-group-dynamics-calculations';
+import { MarketContextService } from './market-context-service';
+import { NPCGroupDynamicsCalculations } from './npc-group-dynamics-calculations';
+import { StaticDataRegistry } from './static-data-registry';
+
+// Singleton for NPC context
+const marketContextService = new MarketContextService();
 
 export interface GroupDynamicsResult {
   groupsCreated: number;
@@ -99,16 +99,7 @@ export class NPCGroupDynamicsService {
 
     // Initialize LLM client for message generation
     // Priority: Groq > Claude > OpenAI
-    let llm: BabylonLLMClient | null = null;
-    try {
-      llm = BabylonLLMClient.forGameTick();
-    } catch (error) {
-      logger.warn(
-        'Failed to initialize LLM for group dynamics',
-        { error },
-        'NPCGroupDynamicsService'
-      );
-    }
+    const llm = BabylonLLMClient.forGameTick();
 
     // 1. Form new groups
     const newGroups = await NPCGroupDynamicsService.formNewGroups();
@@ -152,13 +143,11 @@ export class NPCGroupDynamicsService {
   private static async formNewGroups(): Promise<number> {
     let groupsCreated = 0;
 
-    // Get NPCs who could start a group
-    const npcs = await db
-      .select({
-        id: actors.id,
-        name: actors.name,
-      })
-      .from(actors);
+    // Get NPCs from static registry
+    const npcs = StaticDataRegistry.getAllActors().map((a) => ({
+      id: a.id,
+      name: a.name,
+    }));
 
     for (const npc of npcs) {
       // Random chance to form a group
@@ -277,15 +266,12 @@ export class NPCGroupDynamicsService {
       const currentMemberIds = new Set(participants.map((p) => p.userId));
       const memberIdsArray = Array.from(currentMemberIds);
 
-      // Get NPCs who could join
+      // Get NPCs who could join from static registry
+      const allActors = StaticDataRegistry.getAllActors();
       const potentialMembers =
         memberIdsArray.length > 0
-          ? await db
-              .select()
-              .from(actors)
-              .where(notInArray(actors.id, memberIdsArray))
-              .limit(5)
-          : await db.select().from(actors).limit(5);
+          ? allActors.filter((a) => !memberIdsArray.includes(a.id)).slice(0, 5)
+          : allActors.slice(0, 5);
 
       for (const candidate of potentialMembers) {
         // Random chance to join
@@ -496,12 +482,8 @@ export class NPCGroupDynamicsService {
       const randomNpc = npcUsers[Math.floor(Math.random() * npcUsers.length)];
       if (!randomNpc) continue;
 
-      // Get full NPC actor data for insider context
-      const [npcActor] = await db
-        .select()
-        .from(actors)
-        .where(eq(actors.id, randomNpc.id))
-        .limit(1);
+      // Get full NPC actor data from static registry
+      const npcActor = StaticDataRegistry.getActor(randomNpc.id);
 
       // Get NPC's current positions for insider trading context
       const npcPositions = await db
@@ -509,6 +491,22 @@ export class NPCGroupDynamicsService {
         .from(poolPositions)
         .where(eq(poolPositions.poolId, randomNpc.id))
         .limit(5);
+
+      // Get NPC-specific events (things that happened to THIS NPC)
+      const npcName = npcActor?.name || randomNpc.displayName || 'Unknown';
+      const npcEvents = await marketContextService.getEventsForNPC(
+        randomNpc.id,
+        npcName
+      );
+
+      // Build personal events context
+      const personalEventsContext =
+        npcEvents.length > 0
+          ? `RECENT EVENTS INVOLVING YOU (use as insider knowledge):\n${npcEvents
+              .slice(0, 5)
+              .map((e) => `- [${e.type}] ${e.description}`)
+              .join('\n')}`
+          : '';
 
       // Get sender details for recent messages
       const messageSenderIds = recentMsgs.slice(0, 5).map((m) => m.senderId);
@@ -554,13 +552,15 @@ export class NPCGroupDynamicsService {
           ? `Your affiliations: ${npcActor.affiliations.join(', ')}`
           : '';
 
-      try {
-        // Get world context for consistent parody names and market awareness
-        const worldContext = await generateWorldContext({ maxActors: 20 });
+      // Get world context for consistent parody names and market awareness
+      const worldContext = await generateWorldContext({ maxActors: 20 });
 
-        // Generate INSIDER message - this is the key asymmetric information mechanic!
-        const prompt = `You are ${randomNpc.displayName} in a PRIVATE group chat with trusted insiders.
+      // Generate INSIDER message - this is the key asymmetric information mechanic!
+      // Each NPC generates their message INDEPENDENTLY with their own personal context
+      const prompt = `You are ${randomNpc.displayName} in a PRIVATE group chat with trusted insiders.
 ${affiliationContext}
+
+${personalEventsContext}
 
 ${conversationContext}
 
@@ -572,6 +572,7 @@ ${worldContext.currentMarkets}
 This is PRIVATE - share STRATEGIC insider information that you would NEVER post publicly:
 
 WHAT TO SHARE (pick one that's relevant):
+- React to events that happened to YOU (see above) with insider perspective
 - "Just loaded up on [ticker] before the announcement drops"
 - "Between us, [company] numbers look terrible this quarter"
 - "I'm hearing [rival] is in serious trouble"
@@ -587,7 +588,7 @@ PRIVATE vs PUBLIC:
 - Help friends make money, hurt enemies
 
 Write a private message (max 200 chars) with ACTIONABLE insider info.
-Be SPECIFIC with tickers, positions, or predictions.
+Be SPECIFIC with tickers, positions, or predictions. Reference your recent events if relevant.
 NO hashtags. Emojis OK (🤫 👀 🔥).
 Use parody names from World Actors (AIlon Musk, not Elon Musk).
 
@@ -596,97 +597,85 @@ Return your response as XML:
   <message>your insider message here</message>
 </response>`;
 
-        const rawResponse = await llm.generateJSON<
-          { message: string } | { response: { message: string } }
-        >(
-          prompt,
-          {
-            properties: {
-              message: { type: 'string' },
-            },
-            required: ['message'],
+      const rawResponse = await llm.generateJSON<
+        { message: string } | { response: { message: string } }
+      >(
+        prompt,
+        {
+          properties: {
+            message: { type: 'string' },
           },
-          {
-            temperature: 0.9,
-            maxTokens: 100,
-            promptType: 'npc_group_dynamic_message',
-          }
-        );
-
-        // Handle XML structure
-        const response =
-          'response' in rawResponse && rawResponse.response
-            ? rawResponse.response
-            : (rawResponse as { message: string });
-
-        if (!response.message || response.message.length === 0) {
-          continue;
+          required: ['message'],
+        },
+        {
+          temperature: 0.9,
+          maxTokens: 100,
+          promptType: 'npc_group_dynamic_message',
         }
+      );
 
-        // Validate message follows rules
-        const messageContent = response.message.trim();
-        const realNameViolations = validateNoRealNames(messageContent);
-        const hashtagViolations = validateNoHashtags(messageContent);
-        const emojiViolations = validateNoEmojis(messageContent);
+      // Handle XML structure
+      const response =
+        'response' in rawResponse && rawResponse.response
+          ? rawResponse.response
+          : (rawResponse as { message: string });
 
-        if (
-          realNameViolations.length > 0 ||
-          hashtagViolations.length > 0 ||
-          emojiViolations.length > 0
-        ) {
-          logger.warn(
-            'NPC group message validation failed, skipping',
-            {
-              npcId: randomNpc.id,
-              violations: [
-                ...realNameViolations,
-                ...hashtagViolations,
-                ...emojiViolations,
-              ],
-              message: messageContent,
-            },
-            'NPCGroupDynamicsService'
-          );
-          continue;
-        }
-
-        // Create the message
-        await db.insert(messages).values({
-          id: await generateSnowflakeId(),
-          content: messageContent,
-          chatId: group.id,
-          senderId: randomNpc.id,
-          createdAt: new Date(),
-        });
-
-        // Update chat updated timestamp
-        await db
-          .update(chats)
-          .set({ updatedAt: new Date() })
-          .where(eq(chats.id, group.id));
-
-        messagesPosted++;
-        logger.debug(
-          'NPC posted to group',
-          {
-            npcId: randomNpc.id,
-            npcName: randomNpc.displayName,
-            chatId: group.id,
-            chatName: group.name,
-          },
-          'NPCGroupDynamicsService'
-        );
-      } catch (error) {
-        logger.warn(
-          'Failed to generate NPC group message',
-          {
-            error,
-            npcId: randomNpc.id,
-            chatId: group.id,
-          },
-          'NPCGroupDynamicsService'
-        );
+      if (!response.message || response.message.length === 0) {
+        continue;
       }
+
+      // Process message: strip hashtags (never allowed) but keep emojis (allowed in private chats)
+      const rawContent = response.message.trim();
+      // Strip hashtags (defense-in-depth since prompt forbids them)
+      const messageContent = rawContent
+        .replace(/#\w+/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+      // Validate message follows rules
+      // Note: Emojis are ALLOWED in private group chats (unlike public feed posts)
+      // This is intentional - group chats are more casual/private
+      const realNameViolations = validateNoRealNames(messageContent);
+
+      if (realNameViolations.length > 0) {
+        logger.warn(
+          'NPC group message validation failed, skipping',
+          {
+            npcId: randomNpc.id,
+            violations: realNameViolations,
+            message: messageContent,
+          },
+          'NPCGroupDynamicsService'
+        );
+        continue;
+      }
+
+      // Create the message
+      await db.insert(messages).values({
+        id: await generateSnowflakeId(),
+        content: messageContent,
+        chatId: group.id,
+        senderId: randomNpc.id,
+        createdAt: new Date(),
+      });
+
+      // Update chat updated timestamp
+      await db
+        .update(chats)
+        .set({ updatedAt: new Date() })
+        .where(eq(chats.id, group.id));
+
+      messagesPosted++;
+      logger.debug(
+        'NPC posted to group',
+        {
+          npcId: randomNpc.id,
+          npcName: randomNpc.displayName,
+          chatId: group.id,
+          chatName: group.name,
+        },
+        'NPCGroupDynamicsService'
+      );
     }
 
     return messagesPosted;
@@ -1038,19 +1027,17 @@ Return your response as XML:
       const memberIdsArray = Array.from(currentMemberIds);
 
       // Get NPCs in this group (for scoring user interactions)
-      const npcMemberIds =
-        memberIdsArray.length > 0
-          ? await db
-              .select({ id: actors.id })
-              .from(actors)
-              .where(inArray(actors.id, memberIdsArray))
-          : [];
+      // Check which members are NPCs using static registry
+      const allActorIds = new Set(
+        StaticDataRegistry.getAllActors().map((a) => a.id)
+      );
+      const npcMemberIds = memberIdsArray.filter((id) => allActorIds.has(id));
 
       if (npcMemberIds.length === 0) {
         continue; // No NPCs in group
       }
 
-      const npcIds = npcMemberIds.map((npc) => npc.id);
+      const npcIds = npcMemberIds;
 
       // Get active real users (not NPCs) who aren't in this group
       // First get users who have at least one share
@@ -1139,65 +1126,36 @@ Return your response as XML:
 
       // Get an NPC admin from the group to send the invite
       if (npcMemberIds.length === 0) continue;
-      const invitingNpc = npcMemberIds[0];
-      if (!invitingNpc) continue;
+      const invitingNpcId = npcMemberIds[0];
+      if (!invitingNpcId) continue;
 
-      // Get full NPC data for logging
-      const [npcData] = await db
-        .select({ name: actors.name })
-        .from(actors)
-        .where(eq(actors.id, invitingNpc.id))
-        .limit(1);
+      // Get NPC name for logging from STATIC REGISTRY (no DB call!)
+      const npcData = StaticDataRegistry.getActor(invitingNpcId);
 
-      // Create the invitation - handle unique constraint (user may already be invited)
-      try {
-        await db.insert(userGroupInvites).values({
-          id: await generateSnowflakeId(),
-          groupId: group.id,
-          invitedUserId: selectedCandidate.user.id,
-          invitedBy: invitingNpc.id,
-          status: 'pending',
-          message: `Join our group chat "${group.name}"!`,
-          invitedAt: new Date(),
-        });
-        usersInvited++;
-        logger.info(
-          'User invited to NPC group (reply guy score)',
-          {
-            userId: selectedCandidate.user.id,
-            userName: selectedCandidate.user.displayName,
-            chatId: group.id,
-            chatName: group.name,
-            invitedBy: npcData?.name,
-            replyGuyScore: selectedCandidate.score,
-            breakdown: selectedCandidate.breakdown,
-          },
-          'NPCGroupDynamicsService'
-        );
-      } catch (error) {
-        // Handle unique constraint violation - user already has an invite
-        if (isUniqueConstraintError(toDatabaseErrorType(error))) {
-          const pgError = error as { meta?: { target?: string[] } };
-          const target = pgError.meta?.target;
-          if (
-            target?.includes('groupId') &&
-            target?.includes('invitedUserId')
-          ) {
-            // User already has an invite, skip silently (this is expected in NPC dynamics)
-            logger.debug(
-              'User already has invite, skipping',
-              {
-                userId: selectedCandidate.user.id,
-                groupId: group.id,
-              },
-              'NPCGroupDynamicsService'
-            );
-            continue;
-          }
-        }
-        // Re-throw other errors
-        throw error;
-      }
+      // Create the invitation
+      await db.insert(userGroupInvites).values({
+        id: await generateSnowflakeId(),
+        groupId: group.id,
+        invitedUserId: selectedCandidate.user.id,
+        invitedBy: invitingNpcId,
+        status: 'pending',
+        message: `Join our group chat "${group.name}"!`,
+        invitedAt: new Date(),
+      });
+      usersInvited++;
+      logger.info(
+        'User invited to NPC group (reply guy score)',
+        {
+          userId: selectedCandidate.user.id,
+          userName: selectedCandidate.user.displayName,
+          chatId: group.id,
+          chatName: group.name,
+          invitedBy: npcData?.name,
+          replyGuyScore: selectedCandidate.score,
+          breakdown: selectedCandidate.breakdown,
+        },
+        'NPCGroupDynamicsService'
+      );
     }
 
     return usersInvited;

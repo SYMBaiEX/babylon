@@ -62,6 +62,7 @@
 
 import { requireAdmin, successResponse, withErrorHandling } from '@babylon/api';
 import { db } from '@babylon/db';
+import { StaticDataRegistry } from '@babylon/engine';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 
@@ -124,7 +125,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   ] = await Promise.all([
     // User counts
     db.user.count(),
-    db.actor.count(), // Count from Actor table, not User.isActor
+    StaticDataRegistry.getAllActors().length,
     db.user.count({ where: { isActor: false } }),
     db.user.count({ where: { isBanned: true } }),
     db.user.count({ where: { isAdmin: true } }),

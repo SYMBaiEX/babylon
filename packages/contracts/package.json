@@ -33,7 +33,18 @@
   ],
   "scripts": {
     "lint": "biome lint src/",
-    "typecheck": "tsc -b ."
+    "typecheck": "tsc -b .",
+    "build": "command -v forge >/dev/null 2>&1 && forge build || echo 'Skipping forge build (Foundry not installed)'",
+    "test": "forge test -vvv",
+    "test:unit": "forge test --match-path 'test/*.t.sol' --no-match-path 'test/Fuzz*.sol' --no-match-path 'test/Invariant*.sol' -vvv",
+    "test:fuzz": "forge test --match-path 'test/Fuzz*.sol' -vvv",
+    "test:invariant": "forge test --match-path 'test/Invariant*.sol' -vvv",
+    "test:all": "forge test -vvv && bun run slither",
+    "test:coverage": "forge coverage --report lcov",
+    "slither": "slither . --config-file slither.config.json --checklist",
+    "slither:triage": "slither . --config-file slither.config.json --triage-mode",
+    "security": "bun run test && bun run slither",
+    "security:full": "bun run test:all && bun run test:fuzz && bun run test:invariant"
   },
   "dependencies": {
     "@babylon/shared": "workspace:*"

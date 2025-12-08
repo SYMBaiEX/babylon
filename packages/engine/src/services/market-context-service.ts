@@ -9,7 +9,7 @@
 
 import {
   actorRelationships,
-  actors,
+  actorState,
   and,
   asc,
   chatParticipants,
@@ -17,15 +17,14 @@ import {
   db,
   desc,
   eq,
+  getDbInstance,
   gte,
   inArray,
-  isNotNull,
   isNull,
   lte,
   markets,
   messages,
   or,
-  organizations,
   poolPositions,
   posts,
   stockPrices,
@@ -43,6 +42,7 @@ import type {
   PredictionMarketSnapshot,
   RelationshipContext,
 } from '../types/market-context';
+import { StaticDataRegistry } from './static-data-registry';
 
 export class MarketContextService {
   /**
@@ -66,12 +66,32 @@ export class MarketContextService {
   async buildContextForAllNPCs(): Promise<Map<string, NPCMarketContext>> {
     const startTime = Date.now();
 
-    // Fetch all NPCs (no pool requirement)
-    // Note: All records in Actor table are NPCs
+    // Fetch all NPCs from static registry and state table
     // Filter out test actors (Group Test Alice, Bob, Charlie)
-    const npcsList = await db.select().from(actors);
+    const staticActors = StaticDataRegistry.getAllActors();
+    const actorStates = await db.select().from(actorState);
+    const stateMap = new Map(actorStates.map((s) => [s.id, s]));
 
-    const npcs = npcsList.filter((actor) => !actor.name.includes('Group Test'));
+    // Combine static and dynamic data, filter test actors
+    const npcs = staticActors
+      .filter((actor) => !actor.name.includes('Group Test') && !actor.isTest)
+      .map((actor) => {
+        const state = stateMap.get(actor.id);
+        return {
+          id: actor.id,
+          name: actor.name,
+          description: actor.description,
+          domain: actor.domain,
+          personality: actor.personality,
+          tier: actor.tier,
+          affiliations: actor.affiliations,
+          postStyle: actor.postStyle,
+          postExample: actor.postExample,
+          tradingBalance: state?.tradingBalance ?? '10000',
+          reputationPoints: state?.reputationPoints ?? 10000,
+          hasPool: state?.hasPool ?? false,
+        };
+      });
 
     // Fetch shared data once (used by all NPCs)
     const [marketSnapshots, recentPosts, recentEvents] = await Promise.all([
@@ -278,15 +298,22 @@ export class MarketContextService {
    * ```
    */
   async buildContextForNPC(npcId: string): Promise<NPCMarketContext> {
-    const [npc] = await db
-      .select()
-      .from(actors)
-      .where(eq(actors.id, npcId))
-      .limit(1);
-
-    if (!npc) {
+    // Get static actor data from registry
+    const staticNpc = StaticDataRegistry.getActor(npcId);
+    if (!staticNpc) {
       throw new Error(`NPC not found: ${npcId}`);
     }
+
+    // Get dynamic state from database
+    const npcState = await getDbInstance().getActorState(npcId);
+
+    // Combine static and dynamic data
+    const npc = {
+      ...staticNpc,
+      tradingBalance: npcState?.tradingBalance ?? '10000',
+      reputationPoints: npcState?.reputationPoints ?? 10000,
+      hasPool: npcState?.hasPool ?? false,
+    };
 
     const [marketSnapshots, recentPosts, recentEvents, groupChatMessages] =
       await Promise.all([
@@ -543,6 +570,113 @@ export class MarketContextService {
   }
 
   /**
+   * Get events that involve a specific NPC
+   *
+   * Retrieves events where the NPC is listed in the actors array.
+   * This is used to build personal context for NPC content generation.
+   *
+   * @param npcId - Unique identifier for the NPC
+   * @param npcName - Name of the NPC (for name-based matching)
+   * @returns Array of event contexts specific to this NPC
+   */
+  async getEventsForNPC(
+    npcId: string,
+    npcName: string
+  ): Promise<EventContext[]> {
+    const now = new Date();
+    const threeDaysAgo = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
+
+    // Get all recent events and filter by NPC involvement
+    const eventList = await db
+      .select()
+      .from(worldEvents)
+      .where(
+        and(
+          lte(worldEvents.timestamp, now),
+          gte(worldEvents.timestamp, threeDaysAgo)
+        )
+      )
+      .orderBy(desc(worldEvents.timestamp))
+      .limit(100);
+
+    // Filter events where NPC is in the actors array or mentioned in description
+    const npcEvents = eventList.filter((event) => {
+      const actorsArray = event.actors || [];
+      const isInActors =
+        actorsArray.includes(npcId) ||
+        actorsArray.some(
+          (a) =>
+            a.toLowerCase().includes(npcName.toLowerCase()) ||
+            npcName.toLowerCase().includes(a.toLowerCase())
+        );
+      const isMentioned =
+        event.description.toLowerCase().includes(npcName.toLowerCase()) ||
+        event.description.includes(npcId);
+
+      return isInActors || isMentioned;
+    });
+
+    return npcEvents.slice(0, 15).map((event) => {
+      const maxDescLength = 200;
+      const description =
+        event.description.length > maxDescLength
+          ? event.description.slice(0, maxDescLength) + '...'
+          : event.description;
+
+      return {
+        type: event.eventType,
+        description,
+        actors: event.actors as string[] | undefined,
+        timestamp: event.timestamp.toISOString(),
+        relatedQuestion: event.relatedQuestion || undefined,
+        pointsToward: event.pointsToward || undefined,
+      };
+    });
+  }
+
+  /**
+   * Get recent posts by a specific NPC
+   *
+   * Used to provide memory of what the NPC has previously posted,
+   * preventing repetition and maintaining consistency.
+   *
+   * @param npcId - Unique identifier for the NPC
+   * @returns Array of the NPC's recent posts
+   */
+  async getRecentPostsByNPC(npcId: string): Promise<FeedPostContext[]> {
+    const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
+
+    const npcPosts = await db
+      .select()
+      .from(posts)
+      .where(
+        and(
+          eq(posts.authorId, npcId),
+          gte(posts.createdAt, threeDaysAgo),
+          isNull(posts.deletedAt)
+        )
+      )
+      .orderBy(desc(posts.createdAt))
+      .limit(10);
+
+    return npcPosts.map((post) => {
+      const maxContentLength = 200;
+      const content =
+        post.content.length > maxContentLength
+          ? post.content.slice(0, maxContentLength) + '...'
+          : post.content;
+
+      return {
+        author: post.authorId,
+        authorName: post.authorId,
+        content,
+        timestamp: post.createdAt.toISOString(),
+        articleTitle: post.articleTitle || undefined,
+      };
+    });
+  }
+
+  /**
    * Get current market snapshots
    *
    * Retrieves snapshots of both perpetual and prediction markets.
@@ -573,26 +707,34 @@ export class MarketContextService {
    * @returns Array of perpetual market snapshots
    */
   private async getPerpMarketSnapshots(): Promise<PerpMarketSnapshot[]> {
-    const companies = await db
-      .select({
-        id: organizations.id,
-        name: organizations.name,
-        ticker: organizations.ticker,
-        currentPrice: organizations.currentPrice,
-        initialPrice: organizations.initialPrice,
+    // Get static organization data and dynamic prices
+    const staticOrgs = StaticDataRegistry.getAllOrganizations();
+    const orgStates = await getDbInstance().getAllOrganizationStates();
+    const priceMap = new Map<string, number | null>(
+      orgStates.map((s): [string, number | null] => [s.id, s.currentPrice])
+    );
+
+    // Filter to companies with prices and combine static + dynamic data
+    const companies = staticOrgs
+      .filter((org) => org.type === 'company')
+      .map((org) => {
+        const dynamicPrice = priceMap.get(org.id);
+        const price: number = dynamicPrice ?? org.initialPrice ?? 100;
+        return {
+          id: org.id,
+          name: org.name,
+          ticker: org.ticker,
+          currentPrice: price,
+          initialPrice: org.initialPrice ?? 100,
+        };
       })
-      .from(organizations)
-      .where(
-        and(
-          eq(organizations.type, 'company'),
-          isNotNull(organizations.currentPrice)
-        )
+      .filter(
+        (c): c is typeof c & { currentPrice: number } => c.currentPrice > 0
       );
 
     return Promise.all(
       companies.map(async (company) => {
-        const currentPrice =
-          company.currentPrice || company.initialPrice || 100;
+        const currentPrice: number = company.currentPrice;
 
         // Get 24h price history
         const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);

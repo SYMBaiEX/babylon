@@ -10,7 +10,6 @@ import {
   Users,
 } from 'lucide-react';
 import { useCallback, useEffect, useState, useTransition } from 'react';
-// import { toast } from 'sonner'
 import { z } from 'zod';
 
 /**
@@ -24,7 +23,6 @@ const ParticipantSchema = z.object({
   profileImageUrl: z.string().nullable(),
   joinedAt: z.coerce.date(),
 });
-// type Participant = z.infer<typeof ParticipantSchema>;
 
 /**
  * Message schema for validation.
@@ -39,7 +37,6 @@ const MessageSchema = z.object({
     isNPC: z.boolean(),
   }),
 });
-// type Message = z.infer<typeof MessageSchema>;
 
 /**
  * Group chat schema for validation.

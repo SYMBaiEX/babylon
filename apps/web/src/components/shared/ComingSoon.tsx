@@ -251,100 +251,64 @@ export function ComingSoon() {
       return;
     }
 
-    try {
-      // Use the proper SIWF protocol via relay.farcaster.xyz
-      const result = await signInWithFarcaster({
-        userId: dbUser.id,
-        onStatusUpdate: (status) => {
-          logger.debug('Farcaster auth status', { status }, 'ComingSoon');
-        },
-      });
+    // Use the proper SIWF protocol via relay.farcaster.xyz
+    const result = await signInWithFarcaster({
+      userId: dbUser.id,
+      onStatusUpdate: (status) => {
+        logger.debug('Farcaster auth status', { status }, 'ComingSoon');
+      },
+    });
 
-      // Send authentication data to backend for verification and linking
-      const token =
-        typeof window !== 'undefined' ? window.__privyAccessToken : null;
-      const response = await fetch('/api/auth/farcaster/callback', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({
-          message: result.message,
-          signature: result.signature,
-          fid: result.fid,
-          username: result.username,
-          displayName: result.displayName,
-          pfpUrl: result.pfpUrl,
-          state: result.state,
-        }),
-      });
+    // Send authentication data to backend for verification and linking
+    const token =
+      typeof window !== 'undefined' ? window.__privyAccessToken : null;
+    const response = await fetch('/api/auth/farcaster/callback', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({
+        message: result.message,
+        signature: result.signature,
+        fid: result.fid,
+        username: result.username,
+        displayName: result.displayName,
+        pfpUrl: result.pfpUrl,
+        state: result.state,
+      }),
+    });
 
-      const data = await response.json();
+    const data = await response.json();
 
-      if (response.ok && data.success) {
-        // Refresh user profile to reflect the linked Farcaster account
-        await refresh();
+    if (response.ok && data.success) {
+      // Refresh user profile to reflect the linked Farcaster account
+      await refresh();
 
-        // Refresh waitlist position to update points
-        if (dbUser?.id) {
-          await fetchWaitlistPosition(dbUser.id);
-        }
+      // Refresh waitlist position to update points
+      if (dbUser?.id) {
+        await fetchWaitlistPosition(dbUser.id);
+      }
 
-        if (data.pointsAwarded > 0) {
-          toast.success(
-            `Farcaster linked! +${data.pointsAwarded} points awarded`
-          );
-        } else {
-          toast.success('Farcaster account linked successfully!');
-        }
+      if (data.pointsAwarded > 0) {
+        toast.success(
+          `Farcaster linked! +${data.pointsAwarded} points awarded`
+        );
       } else {
-        // Show specific error message for 409 conflicts
-        const errorMessage = data.error || 'Failed to link Farcaster account';
-        if (response.status === 409) {
-          toast.error(
-            errorMessage.includes('already linked')
-              ? errorMessage
-              : 'This Farcaster account is already linked to another user'
-          );
-        } else {
-          toast.error(errorMessage);
-        }
+        toast.success('Farcaster account linked successfully!');
       }
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-
-      // Don't show error toast for user cancellation
-      if (errorMessage === 'Authentication cancelled') {
-        logger.info(
-          'Farcaster auth cancelled by user',
-          { userId: dbUser.id },
-          'ComingSoon'
+    } else {
+      // Show specific error message for 409 conflicts
+      const errorMessage = data.error || 'Failed to link Farcaster account';
+      if (response.status === 409) {
+        toast.error(
+          errorMessage.includes('already linked')
+            ? errorMessage
+            : 'This Farcaster account is already linked to another user'
         );
-        return;
+      } else {
+        toast.error(errorMessage);
       }
-
-      // Handle popup blocked
-      if (errorMessage.includes('popup')) {
-        toast.error('Please allow popups to connect Farcaster');
-        logger.warn(
-          'Farcaster popup blocked',
-          { userId: dbUser.id },
-          'ComingSoon'
-        );
-        return;
-      }
-
-      logger.error(
-        'Error during Farcaster authentication',
-        {
-          error: errorMessage,
-          userId: dbUser.id,
-        },
-        'ComingSoon'
-      );
-      toast.error('Failed to connect Farcaster. Please try again.');
     }
   };
 
@@ -378,56 +342,43 @@ export function ComingSoon() {
     if (!dbUser?.id) return;
 
     setIsVerifyingFollow(true);
-    try {
-      const token = await getAccessToken();
-      const response = await fetch(
-        `/api/users/${encodeURIComponent(dbUser.id)}/verify-farcaster-follow`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-        }
-      );
+    const token = await getAccessToken();
+    const response = await fetch(
+      `/api/users/${encodeURIComponent(dbUser.id)}/verify-farcaster-follow`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      }
+    );
 
-      const data = await response.json();
+    const data = await response.json();
 
-      if (response.ok && data.verified) {
-        setHasFarcasterFollow(true);
-        setShowVerifyFollowButton(false);
+    if (response.ok && data.verified) {
+      setHasFarcasterFollow(true);
+      setShowVerifyFollowButton(false);
 
-        // Refresh waitlist position to update points
-        await fetchWaitlistPosition(dbUser.id);
+      // Refresh waitlist position to update points
+      await fetchWaitlistPosition(dbUser.id);
 
-        if (data.points?.awarded > 0) {
-          toast.success(
-            `Follow verified! +${data.points.awarded} points awarded`
-          );
-        } else {
-          toast.success(
-            'Follow verified! You already received points for this action.'
-          );
-        }
+      if (data.points?.awarded > 0) {
+        toast.success(
+          `Follow verified! +${data.points.awarded} points awarded`
+        );
       } else {
-        toast.error(
-          data.message ||
-            'Could not verify follow. Please make sure you followed @playbabylon on Farcaster.'
+        toast.success(
+          'Follow verified! You already received points for this action.'
         );
       }
-    } catch (error) {
-      logger.error(
-        'Error verifying Farcaster follow',
-        {
-          error: error instanceof Error ? error.message : String(error),
-          userId: dbUser.id,
-        },
-        'ComingSoon'
+    } else {
+      toast.error(
+        data.message ||
+          'Could not verify follow. Please make sure you followed @playbabylon on Farcaster.'
       );
-      toast.error('Failed to verify follow. Please try again.');
-    } finally {
-      setIsVerifyingFollow(false);
     }
+    setIsVerifyingFollow(false);
   };
 
   // Handle Twitter Follow - just open the follow intent link
@@ -463,53 +414,38 @@ export function ComingSoon() {
     if (!dbUser?.id) return;
 
     setIsVerifyingTwitterFollow(true);
-    try {
-      const token = await getAccessToken();
-      const response = await fetch(
-        `/api/users/${encodeURIComponent(dbUser.id)}/verify-twitter-follow`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-        }
-      );
-
-      const data = await response.json();
-
-      if (response.ok && data.verified) {
-        setHasTwitterFollow(true);
-        setShowVerifyTwitterFollowButton(false);
-
-        // Refresh waitlist position to update points
-        await fetchWaitlistPosition(dbUser.id);
-
-        if (data.points?.awarded > 0) {
-          toast.success(
-            `Thank you for following! +${data.points.awarded} points awarded`
-          );
-        } else {
-          toast.success('You already received points for this action.');
-        }
-      } else {
-        toast.error(
-          data.message || 'Could not claim reward. Please try again.'
-        );
-      }
-    } catch (error) {
-      logger.error(
-        'Error claiming Twitter follow reward',
-        {
-          error: error instanceof Error ? error.message : String(error),
-          userId: dbUser.id,
+    const token = await getAccessToken();
+    const response = await fetch(
+      `/api/users/${encodeURIComponent(dbUser.id)}/verify-twitter-follow`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        'ComingSoon'
-      );
-      toast.error('Failed to claim reward. Please try again.');
-    } finally {
-      setIsVerifyingTwitterFollow(false);
+      }
+    );
+
+    const data = await response.json();
+
+    if (response.ok && data.verified) {
+      setHasTwitterFollow(true);
+      setShowVerifyTwitterFollowButton(false);
+
+      // Refresh waitlist position to update points
+      await fetchWaitlistPosition(dbUser.id);
+
+      if (data.points?.awarded > 0) {
+        toast.success(
+          `Thank you for following! +${data.points.awarded} points awarded`
+        );
+      } else {
+        toast.success('You already received points for this action.');
+      }
+    } else {
+      toast.error(data.message || 'Could not claim reward. Please try again.');
     }
+    setIsVerifyingTwitterFollow(false);
   };
 
   // Handle Discord Join - open invite link
@@ -545,56 +481,43 @@ export function ComingSoon() {
     if (!dbUser?.id) return;
 
     setIsVerifyingDiscordJoin(true);
-    try {
-      const token = await getAccessToken();
-      const response = await fetch(
-        `/api/users/${encodeURIComponent(dbUser.id)}/verify-discord-join`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-        }
-      );
+    const token = await getAccessToken();
+    const response = await fetch(
+      `/api/users/${encodeURIComponent(dbUser.id)}/verify-discord-join`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      }
+    );
 
-      const data = await response.json();
+    const data = await response.json();
 
-      if (response.ok && data.verified) {
-        setHasDiscordJoin(true);
-        setShowVerifyDiscordJoinButton(false);
+    if (response.ok && data.verified) {
+      setHasDiscordJoin(true);
+      setShowVerifyDiscordJoinButton(false);
 
-        // Refresh waitlist position to update points
-        await fetchWaitlistPosition(dbUser.id);
+      // Refresh waitlist position to update points
+      await fetchWaitlistPosition(dbUser.id);
 
-        if (data.points?.awarded > 0) {
-          toast.success(
-            `Discord membership verified! +${data.points.awarded} points awarded`
-          );
-        } else {
-          toast.success(
-            'Membership verified! You already received points for this action.'
-          );
-        }
+      if (data.points?.awarded > 0) {
+        toast.success(
+          `Discord membership verified! +${data.points.awarded} points awarded`
+        );
       } else {
-        toast.error(
-          data.message ||
-            'Could not verify membership. Please make sure you joined the Babylon Discord server.'
+        toast.success(
+          'Membership verified! You already received points for this action.'
         );
       }
-    } catch (error) {
-      logger.error(
-        'Error verifying Discord join',
-        {
-          error: error instanceof Error ? error.message : String(error),
-          userId: dbUser.id,
-        },
-        'ComingSoon'
+    } else {
+      toast.error(
+        data.message ||
+          'Could not verify membership. Please make sure you joined the Babylon Discord server.'
       );
-      toast.error('Failed to verify Discord membership. Please try again.');
-    } finally {
-      setIsVerifyingDiscordJoin(false);
     }
+    setIsVerifyingDiscordJoin(false);
   };
 
   // Check if user has already been awarded follow rewards on page load
@@ -650,183 +573,151 @@ export function ComingSoon() {
 
   const fetchWaitlistPosition = useCallback(
     async (userId: string, skipLeaderboard = false): Promise<boolean> => {
-      try {
-        // Only fetch leaderboard if not skipped AND (never fetched OR stale > 5 minutes)
-        const now = Date.now();
-        const shouldFetchLeaderboard =
-          !skipLeaderboard && now - leaderboardLastFetched > 5 * 60 * 1000;
-        const pointsType = getPointsTypeForTab(leaderboardTab);
+      // Only fetch leaderboard if not skipped AND (never fetched OR stale > 5 minutes)
+      const now = Date.now();
+      const shouldFetchLeaderboard =
+        !skipLeaderboard && now - leaderboardLastFetched > 5 * 60 * 1000;
+      const pointsType = getPointsTypeForTab(leaderboardTab);
 
-        // Get auth token for authenticated position endpoint
-        const token = await getAccessToken();
+      // Get auth token for authenticated position endpoint
+      const token = await getAccessToken();
 
-        const requests = [
-          fetch('/api/waitlist/position', {
-            headers: token ? { Authorization: `Bearer ${token}` } : {},
-          }),
-        ];
-        if (shouldFetchLeaderboard) {
-          // Fetch first page of leaderboard with pagination
-          requests.push(
-            fetch(
-              `/api/waitlist/leaderboard?page=1&limit=10&pointsType=${pointsType}`
-            )
+      const requests = [
+        fetch('/api/waitlist/position', {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        }),
+      ];
+      if (shouldFetchLeaderboard) {
+        // Fetch first page of leaderboard with pagination
+        requests.push(
+          fetch(
+            `/api/waitlist/leaderboard?page=1&limit=10&pointsType=${pointsType}`
+          )
+        );
+      }
+
+      const results = await Promise.allSettled(requests);
+      const positionResult = results[0];
+      const leaderboardResult = shouldFetchLeaderboard ? results[1] : null;
+
+      // Handle position response
+      if (!positionResult) {
+        logger.error('Position result is undefined', { userId }, 'ComingSoon');
+        return false;
+      }
+
+      if (positionResult.status === 'fulfilled') {
+        const positionResponse = positionResult.value;
+        if (!positionResponse.ok) {
+          const errorText = await positionResponse.text();
+          logger.error(
+            'Failed to fetch waitlist position',
+            {
+              userId,
+              status: positionResponse.status,
+              errorText,
+            },
+            'ComingSoon'
+          );
+          // User might not be on waitlist yet
+          return false;
+        }
+
+        const data = await positionResponse.json();
+
+        // Check if user is actually on waitlist (API returns { position: null } if not)
+        if (data.position === null) {
+          return false;
+        }
+
+        // Verify points calculation consistency
+        const calculatedTotal =
+          (data.pointsBreakdown?.base || 0) +
+          (data.pointsBreakdown?.invite || 0) +
+          (data.pointsBreakdown?.earned || 0) +
+          (data.pointsBreakdown?.bonus || 0);
+        const reportedTotal = data.points || 0;
+
+        // Log warning if points don't match (but don't block - might be base points)
+        if (Math.abs(calculatedTotal - reportedTotal) > 100) {
+          logger.warn(
+            'Points calculation mismatch detected',
+            {
+              userId,
+              calculatedTotal,
+              reportedTotal,
+              breakdown: data.pointsBreakdown,
+            },
+            'ComingSoon'
           );
         }
 
-        const results = await Promise.allSettled(requests);
-        const positionResult = results[0];
-        const leaderboardResult = shouldFetchLeaderboard ? results[1] : null;
-
-        // Handle position response
-        if (!positionResult) {
-          logger.error(
-            'Position result is undefined',
+        // Log if invite code is missing for debugging
+        if (!data.inviteCode) {
+          logger.warn(
+            'Invite code missing in waitlist data',
             { userId },
             'ComingSoon'
           );
-          return false;
         }
 
-        if (positionResult.status === 'fulfilled') {
-          const positionResponse = positionResult.value;
-          if (!positionResponse.ok) {
-            const errorText = await positionResponse.text();
-            logger.error(
-              'Failed to fetch waitlist position',
-              {
-                userId,
-                status: positionResponse.status,
-                errorText,
-              },
-              'ComingSoon'
-            );
-            // User might not be on waitlist yet
-            return false;
-          }
-
-          const data = await positionResponse.json();
-
-          // Check if user is actually on waitlist (API returns { position: null } if not)
-          if (data.position === null) {
-            return false;
-          }
-
-          // Verify points calculation consistency
-          const calculatedTotal =
-            (data.pointsBreakdown?.base || 0) +
-            (data.pointsBreakdown?.invite || 0) +
-            (data.pointsBreakdown?.earned || 0) +
-            (data.pointsBreakdown?.bonus || 0);
-          const reportedTotal = data.points || 0;
-
-          // Log warning if points don't match (but don't block - might be base points)
-          if (Math.abs(calculatedTotal - reportedTotal) > 100) {
-            logger.warn(
-              'Points calculation mismatch detected',
-              {
-                userId,
-                calculatedTotal,
-                reportedTotal,
-                breakdown: data.pointsBreakdown,
-              },
-              'ComingSoon'
-            );
-          }
-
-          // Log if invite code is missing for debugging
-          if (!data.inviteCode) {
-            logger.warn(
-              'Invite code missing in waitlist data',
-              { userId },
-              'ComingSoon'
-            );
-          }
-
-          // Check if rank improved
-          if (previousRank !== null && data.leaderboardRank < previousRank) {
-            setShowRankImprovement(true);
-            setTimeout(() => setShowRankImprovement(false), 5000);
-          }
-          setPreviousRank(data.leaderboardRank);
-
-          setWaitlistData(data);
-        } else {
-          logger.error(
-            'Failed to fetch waitlist position (network error)',
-            {
-              userId,
-              error:
-                positionResult.reason instanceof Error
-                  ? positionResult.reason.message
-                  : String(positionResult.reason),
-            },
-            'ComingSoon'
-          );
-          return false;
+        // Check if rank improved
+        if (previousRank !== null && data.leaderboardRank < previousRank) {
+          setShowRankImprovement(true);
+          setTimeout(() => setShowRankImprovement(false), 5000);
         }
+        setPreviousRank(data.leaderboardRank);
 
-        // Handle leaderboard response (non-blocking - don't fail if this fails)
-        if (leaderboardResult && leaderboardResult.status === 'fulfilled') {
-          const leaderboardResponse = leaderboardResult.value;
-          if (leaderboardResponse.ok) {
-            try {
-              const leaderboardData = await leaderboardResponse.json();
-              setTopUsers(leaderboardData.leaderboard || []);
-              setLeaderboardTotalPages(leaderboardData.totalPages || 10);
-              setLeaderboardLastFetched(now);
-              // Reset to first page when leaderboard updates
-              setLeaderboardPage(1);
-            } catch (parseError) {
-              logger.warn(
-                'Failed to parse leaderboard response',
-                {
-                  error:
-                    parseError instanceof Error
-                      ? parseError.message
-                      : String(parseError),
-                },
-                'ComingSoon'
-              );
-            }
-          } else {
-            logger.warn(
-              'Failed to fetch leaderboard',
-              {
-                status: leaderboardResponse.status,
-              },
-              'ComingSoon'
-            );
-          }
-        } else if (
-          leaderboardResult &&
-          leaderboardResult.status === 'rejected'
-        ) {
-          // Leaderboard fetch failed - log but don't block
-          logger.warn(
-            'Failed to fetch leaderboard (network error)',
-            {
-              error:
-                leaderboardResult.reason instanceof Error
-                  ? leaderboardResult.reason.message
-                  : String(leaderboardResult.reason),
-            },
-            'ComingSoon'
-          );
-        }
-
-        return true;
-      } catch (error) {
+        setWaitlistData(data);
+      } else {
         logger.error(
-          'Error fetching waitlist position',
+          'Failed to fetch waitlist position (network error)',
           {
             userId,
-            error: error instanceof Error ? error.message : String(error),
+            error:
+              positionResult.reason instanceof Error
+                ? positionResult.reason.message
+                : String(positionResult.reason),
           },
           'ComingSoon'
         );
         return false;
       }
+
+      // Handle leaderboard response (non-blocking - don't fail if this fails)
+      if (leaderboardResult && leaderboardResult.status === 'fulfilled') {
+        const leaderboardResponse = leaderboardResult.value;
+        if (leaderboardResponse.ok) {
+          const leaderboardData = await leaderboardResponse.json();
+          setTopUsers(leaderboardData.leaderboard || []);
+          setLeaderboardTotalPages(leaderboardData.totalPages || 10);
+          setLeaderboardLastFetched(now);
+          // Reset to first page when leaderboard updates
+          setLeaderboardPage(1);
+        } else {
+          logger.warn(
+            'Failed to fetch leaderboard',
+            {
+              status: leaderboardResponse.status,
+            },
+            'ComingSoon'
+          );
+        }
+      } else if (leaderboardResult && leaderboardResult.status === 'rejected') {
+        // Leaderboard fetch failed - log but don't block
+        logger.warn(
+          'Failed to fetch leaderboard (network error)',
+          {
+            error:
+              leaderboardResult.reason instanceof Error
+                ? leaderboardResult.reason.message
+                : String(leaderboardResult.reason),
+          },
+          'ComingSoon'
+        );
+      }
+
+      return true;
     },
     [
       leaderboardLastFetched,
@@ -839,52 +730,40 @@ export function ComingSoon() {
 
   const awardWalletBonus = useCallback(
     async (userId: string, walletAddress: string) => {
-      try {
-        const response = await fetch('/api/waitlist/bonus/wallet', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId, walletAddress }),
-        });
+      const response = await fetch('/api/waitlist/bonus/wallet', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, walletAddress }),
+      });
 
-        if (!response.ok) {
-          const errorText = await response.text();
-          logger.error(
-            'Failed to award wallet bonus',
-            {
-              userId,
-              walletAddress,
-              status: response.status,
-              errorText,
-            },
-            'ComingSoon'
-          );
-          return;
-        }
-
-        const result = await response.json();
-        logger.info(
-          'Wallet bonus awarded',
-          {
-            userId,
-            awarded: result.awarded,
-            bonusAmount: result.bonusAmount,
-          },
-          'ComingSoon'
-        );
-
-        // Refresh position to show updated points
-        await fetchWaitlistPosition(userId);
-      } catch (error) {
+      if (!response.ok) {
+        const errorText = await response.text();
         logger.error(
-          'Error awarding wallet bonus',
+          'Failed to award wallet bonus',
           {
             userId,
             walletAddress,
-            error: error instanceof Error ? error.message : String(error),
+            status: response.status,
+            errorText,
           },
           'ComingSoon'
         );
+        return;
       }
+
+      const result = await response.json();
+      logger.info(
+        'Wallet bonus awarded',
+        {
+          userId,
+          awarded: result.awarded,
+          bonusAmount: result.bonusAmount,
+        },
+        'ComingSoon'
+      );
+
+      // Refresh position to show updated points
+      await fetchWaitlistPosition(userId);
     },
     [fetchWaitlistPosition]
   );
@@ -905,24 +784,14 @@ export function ComingSoon() {
       if (existingPosition) {
         // Already setup, just refresh data
         // Check if user has been awarded points for Farcaster follow
-        try {
-          const token = await getAccessToken();
-          const response = await fetch(`/api/waitlist/position`, {
-            headers: token ? { Authorization: `Bearer ${token}` } : {},
-          });
+        const token = await getAccessToken();
+        const response = await fetch(`/api/waitlist/position`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
 
-          if (response.ok) {
-            // Check points transactions to see if farcaster_follow was awarded
-            // For now, we'll fetch this status when needed
-          }
-        } catch (error) {
-          logger.error(
-            'Error checking Farcaster follow status',
-            {
-              error: error instanceof Error ? error.message : String(error),
-            },
-            'ComingSoon'
-          );
+        if (response.ok) {
+          // Check points transactions to see if farcaster_follow was awarded
+          // For now, we'll fetch this status when needed
         }
         return;
       }
@@ -940,65 +809,54 @@ export function ComingSoon() {
         'ComingSoon'
       );
 
-      try {
-        // Get access token for authentication
-        const token = await getAccessToken();
-        const response = await fetch('/api/waitlist/mark', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-          body: JSON.stringify({
-            userId,
-            referralCode,
-          }),
-        });
+      // Get access token for authentication
+      const token = await getAccessToken();
+      const response = await fetch('/api/waitlist/mark', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          userId,
+          referralCode,
+        }),
+      });
 
-        if (!response.ok) {
-          const errorText = await response.text();
-          logger.error(
-            'Failed to mark as waitlisted',
-            {
-              userId,
-              status: response.status,
-              errorText,
-            },
-            'ComingSoon'
-          );
-          return;
-        }
-
-        const result = await response.json();
-        logger.info(
-          'User marked as waitlisted',
-          {
-            userId,
-            position: result.waitlistPosition,
-            inviteCode: result.inviteCode,
-            points: result.points,
-            referrerRewarded: result.referrerRewarded,
-          },
-          'ComingSoon'
-        );
-
-        // Fetch position data to get complete info
-        await fetchWaitlistPosition(userId);
-
-        // Award bonuses if available
-        const walletAddress = privyUser?.wallet?.address;
-        if (walletAddress) {
-          await awardWalletBonus(userId, walletAddress);
-        }
-      } catch (error) {
+      if (!response.ok) {
+        const errorText = await response.text();
         logger.error(
-          'Error setting up waitlist',
+          'Failed to mark as waitlisted',
           {
             userId,
-            error: error instanceof Error ? error.message : String(error),
+            status: response.status,
+            errorText,
           },
           'ComingSoon'
         );
+        return;
+      }
+
+      const result = await response.json();
+      logger.info(
+        'User marked as waitlisted',
+        {
+          userId,
+          position: result.waitlistPosition,
+          inviteCode: result.inviteCode,
+          points: result.points,
+          referrerRewarded: result.referrerRewarded,
+        },
+        'ComingSoon'
+      );
+
+      // Fetch position data to get complete info
+      await fetchWaitlistPosition(userId);
+
+      // Award bonuses if available
+      const walletAddress = privyUser?.wallet?.address;
+      if (walletAddress) {
+        await awardWalletBonus(userId, walletAddress);
       }
     };
 
@@ -1022,21 +880,10 @@ export function ComingSoon() {
     if (!authenticated || !dbUser?.id) return;
 
     const checkAndAwardWalletBonus = async () => {
-      try {
-        // Check for wallet bonus
-        const walletAddress = privyUser?.wallet?.address;
-        if (walletAddress) {
-          await awardWalletBonus(dbUser.id, walletAddress);
-        }
-      } catch (error) {
-        logger.error(
-          'Error checking wallet bonus',
-          {
-            userId: dbUser.id,
-            error: error instanceof Error ? error.message : String(error),
-          },
-          'ComingSoon'
-        );
+      // Check for wallet bonus
+      const walletAddress = privyUser?.wallet?.address;
+      if (walletAddress) {
+        await awardWalletBonus(dbUser.id, walletAddress);
       }
     };
 
@@ -1067,35 +914,23 @@ export function ComingSoon() {
     tab: 'leaderboard' | 'inviters' = leaderboardTab
   ) => {
     const pointsType = getPointsTypeForTab(tab);
-    try {
-      const response = await fetch(
-        `/api/waitlist/leaderboard?page=${page}&limit=10&pointsType=${pointsType}`
-      );
-      if (!response.ok) {
-        logger.warn(
-          'Failed to fetch leaderboard page',
-          { page, status: response.status },
-          'ComingSoon'
-        );
-        return false;
-      }
-
-      const data = await response.json();
-      setTopUsers(data.leaderboard || []);
-      setLeaderboardTotalPages(data.totalPages || 10);
-      setLeaderboardLastFetched(Date.now());
-      return true;
-    } catch (error) {
-      logger.error(
-        'Error fetching leaderboard page',
-        {
-          page,
-          error: error instanceof Error ? error.message : String(error),
-        },
+    const response = await fetch(
+      `/api/waitlist/leaderboard?page=${page}&limit=10&pointsType=${pointsType}`
+    );
+    if (!response.ok) {
+      logger.warn(
+        'Failed to fetch leaderboard page',
+        { page, status: response.status },
         'ComingSoon'
       );
       return false;
     }
+
+    const data = await response.json();
+    setTopUsers(data.leaderboard || []);
+    setLeaderboardTotalPages(data.totalPages || 10);
+    setLeaderboardLastFetched(Date.now());
+    return true;
   };
 
   const handleCopyInviteCode = useCallback(() => {
@@ -1137,53 +972,50 @@ export function ComingSoon() {
     }
 
     setIsSavingProfile(true);
-    try {
-      const token = await getAccessToken();
-      const response = await fetch(
-        `/api/users/${encodeURIComponent(dbUser.id)}/update-profile`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-          body: JSON.stringify({
-            username: trimmedUsername,
-            displayName: trimmedDisplayName,
-            bio: trimmedBio,
-            profileImageUrl,
-            coverImageUrl,
-          }),
-        }
-      );
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(
-          errorData?.error?.message ||
-            errorData?.message ||
-            'Failed to update profile'
-        );
+    const token = await getAccessToken();
+    const response = await fetch(
+      `/api/users/${encodeURIComponent(dbUser.id)}/update-profile`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          username: trimmedUsername,
+          displayName: trimmedDisplayName,
+          bio: trimmedBio,
+          profileImageUrl,
+          coverImageUrl,
+        }),
       }
+    );
 
-      await refresh();
-      await fetchWaitlistPosition(dbUser.id);
-      setShowProfileModal(false);
-      toast.success('Profile updated successfully!');
-    } catch (error) {
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      const errorMessage =
+        errorData?.error?.message ||
+        errorData?.message ||
+        'Failed to update profile';
       logger.error(
-        'Error saving profile',
+        'Failed to update profile',
         {
-          error: error instanceof Error ? error.message : String(error),
+          userId: dbUser.id,
+          status: response.status,
+          error: errorMessage,
         },
         'ComingSoon'
       );
-      toast.error(
-        error instanceof Error ? error.message : 'Failed to save profile'
-      );
-    } finally {
+      toast.error(errorMessage);
       setIsSavingProfile(false);
+      return;
     }
+
+    await refresh();
+    await fetchWaitlistPosition(dbUser.id);
+    setShowProfileModal(false);
+    toast.success('Profile updated successfully!');
+    setIsSavingProfile(false);
   };
 
   // Sync profile form with dbUser when modal opens (only on modal open, not on dbUser changes)
@@ -1237,28 +1069,19 @@ export function ComingSoon() {
     const checkUsername = async () => {
       setIsCheckingUsername(true);
 
-      try {
-        const response = await fetch(
-          `/api/onboarding/check-username?username=${encodeURIComponent(username)}`
-        );
+      const response = await fetch(
+        `/api/onboarding/check-username?username=${encodeURIComponent(username)}`
+      );
 
-        if (!cancelled && response.ok) {
-          const result = await response.json();
-          setUsernameStatus(result.available ? 'available' : 'taken');
-          setUsernameSuggestion(
-            result.available ? null : result.suggestion || null
-          );
-        }
-      } catch (error) {
-        logger.warn(
-          'Username availability check error',
-          { error: error instanceof Error ? error.message : String(error) },
-          'ComingSoon'
+      if (!cancelled && response.ok) {
+        const result = await response.json();
+        setUsernameStatus(result.available ? 'available' : 'taken');
+        setUsernameSuggestion(
+          result.available ? null : result.suggestion || null
         );
-      } finally {
-        if (!cancelled) {
-          setIsCheckingUsername(false);
-        }
+      }
+      if (!cancelled) {
+        setIsCheckingUsername(false);
       }
     };
 

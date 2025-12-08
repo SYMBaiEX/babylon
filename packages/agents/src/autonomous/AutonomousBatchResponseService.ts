@@ -13,6 +13,7 @@
  * 4. Executes responses for approved interactions
  */
 
+import { countTokensSync, truncateToTokenLimitSync } from '@babylon/api';
 import {
   and,
   chatParticipants,
@@ -29,9 +30,9 @@ import {
   posts,
   users,
 } from '@babylon/db';
-import { countTokensSync, truncateToTokenLimitSync } from '@babylon/engine';
 import type { IAgentRuntime } from '@elizaos/core';
 import { callGroqDirect } from '../llm/direct-groq';
+import { getAgentConfig } from '../shared/agent-config';
 import { logger } from '../shared/logger';
 import { generateSnowflakeId } from '../shared/snowflake';
 
@@ -301,8 +302,6 @@ export class AutonomousBatchResponseService {
     const [agent] = await db
       .select({
         displayName: users.displayName,
-        agentSystem: users.agentSystem,
-        agentModelTier: users.agentModelTier,
       })
       .from(users)
       .where(eq(users.id, agentUserId))
@@ -312,8 +311,10 @@ export class AutonomousBatchResponseService {
       throw new Error('Agent not found');
     }
 
+    const config = await getAgentConfig(agentUserId);
+
     // Build evaluation prompt
-    const prompt = `${agent.agentSystem}
+    const prompt = `${config?.systemPrompt ?? 'You are an AI agent on Babylon.'}
 
 You are ${agent.displayName}, an AI agent on Babylon. You need to decide which interactions warrant a response.
 
@@ -372,7 +373,7 @@ Array:`;
     const decisionText = await Promise.race([
       callGroqDirect({
         prompt: finalPrompt,
-        system: agent.agentSystem || undefined,
+        system: config?.systemPrompt ?? undefined,
         modelSize: 'small', // Free tier: Fast and efficient
         runtime: _runtime, // Pass runtime to access W&B trained models AND trajectory context
         temperature: 0.6,
@@ -400,14 +401,7 @@ Array:`;
       );
     }
 
-    let decisions: boolean[];
-    try {
-      decisions = JSON.parse(jsonMatch[0]) as boolean[];
-    } catch (parseError) {
-      throw new Error(
-        `Failed to parse JSON decision array: ${parseError instanceof Error ? parseError.message : String(parseError)}. Response: ${decisionText.substring(0, 200)}`
-      );
-    }
+    const decisions = JSON.parse(jsonMatch[0]) as boolean[];
 
     // Ensure we have the right number of decisions (for capped interactions)
     if (decisions.length !== evaluateInteractions.length) {
@@ -449,8 +443,6 @@ Array:`;
     const [agent] = await db
       .select({
         displayName: users.displayName,
-        agentSystem: users.agentSystem,
-        agentModelTier: users.agentModelTier,
       })
       .from(users)
       .where(eq(users.id, agentUserId))
@@ -459,6 +451,8 @@ Array:`;
     if (!agent) {
       throw new Error('Agent not found');
     }
+
+    const respConfig = await getAgentConfig(agentUserId);
 
     let responsesCreated = 0;
 
@@ -469,7 +463,7 @@ Array:`;
       if (!interaction || !decision || !decision.shouldRespond) continue;
 
       // Generate response
-      const responsePrompt = `${agent.agentSystem}
+      const responsePrompt = `${respConfig?.systemPrompt ?? 'You are an AI agent on Babylon.'}
 
 You are ${agent.displayName}, responding to an interaction.
 
@@ -498,7 +492,7 @@ Generate ONLY the response text, nothing else.`;
       const responseContent = await Promise.race([
         callGroqDirect({
           prompt: finalRespPrompt,
-          system: agent.agentSystem || undefined,
+          system: respConfig?.systemPrompt ?? undefined,
           modelSize: 'small', // Free tier: Fast response generation
           runtime: _runtime, // Pass runtime to access W&B trained models AND trajectory context
           temperature: 0.8,

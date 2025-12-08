@@ -66,40 +66,48 @@ describe('A2A Endpoints Integration Tests', () => {
       return;
     }
 
-    // Ensure actors exist
-    const actor1 = await db.actor.findUnique({
+    // Ensure test users exist (with isActor: true for NPC behavior)
+    const user1 = await db.user.findUnique({
       where: { id: testTraderAgentId },
     });
-    if (!actor1) {
-      await db.actor.create({
+    if (!user1) {
+      await db.user.create({
         data: {
           id: testTraderAgentId,
-          name: 'Test Trader NPC',
-          description: 'Test trader NPC',
-          domain: [],
-          tier: 'B_TIER',
-          postStyle: 'Test',
-          postExample: [],
-          personality: 'Test',
+          username: 'test-trader-npc',
+          displayName: 'Test Trader NPC',
+          bio: 'Test trader NPC',
+          isActor: true,
+          isTest: true,
+          updatedAt: new Date(),
+        },
+      });
+      await db.actorState.create({
+        data: {
+          id: testTraderAgentId,
           updatedAt: new Date(),
         },
       });
     }
 
-    const actor2 = await db.actor.findUnique({
+    const user2 = await db.user.findUnique({
       where: { id: testAnalystAgentId },
     });
-    if (!actor2) {
-      await db.actor.create({
+    if (!user2) {
+      await db.user.create({
         data: {
           id: testAnalystAgentId,
-          name: 'Test Analyst NPC',
-          description: 'Test analyst NPC',
-          domain: [],
-          tier: 'B_TIER',
-          postStyle: 'Test',
-          postExample: [],
-          personality: 'Test',
+          username: 'test-analyst-npc',
+          displayName: 'Test Analyst NPC',
+          bio: 'Test analyst NPC',
+          isActor: true,
+          isTest: true,
+          updatedAt: new Date(),
+        },
+      });
+      await db.actorState.create({
+        data: {
+          id: testAnalystAgentId,
           updatedAt: new Date(),
         },
       });

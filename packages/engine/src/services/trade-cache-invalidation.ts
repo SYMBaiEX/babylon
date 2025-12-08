@@ -55,39 +55,31 @@ export function setCacheInvalidationClient(
 export async function invalidatePredictionTradesCache(
   marketId: string
 ): Promise<void> {
-  try {
-    if (cacheClient) {
-      const pattern = `market-trades:prediction-trades:${marketId}:*`;
-      const deletedCount = await cacheClient.deleteByPattern(pattern);
+  if (cacheClient) {
+    const pattern = `market-trades:prediction-trades:${marketId}:*`;
+    const deletedCount = await cacheClient.deleteByPattern(pattern);
 
-      if (deletedCount > 0) {
-        logger.debug(
-          `Deleted ${deletedCount} cache keys for market ${marketId}`,
-          undefined,
-          'TradeCache'
-        );
-      }
-    } else {
-      // If no cache client, cache is in-memory and will expire naturally
+    if (deletedCount > 0) {
       logger.debug(
-        'No cache client available, cache will expire naturally',
-        { marketId },
+        `Deleted ${deletedCount} cache keys for market ${marketId}`,
+        undefined,
         'TradeCache'
       );
     }
-
-    logger.info(
-      `Invalidated prediction trades cache for market ${marketId}`,
-      undefined,
-      'TradeCache'
-    );
-  } catch (error) {
-    logger.error(
-      `Failed to invalidate prediction trades cache`,
-      error,
+  } else {
+    // If no cache client, cache is in-memory and will expire naturally
+    logger.debug(
+      'No cache client available, cache will expire naturally',
+      { marketId },
       'TradeCache'
     );
   }
+
+  logger.info(
+    `Invalidated prediction trades cache for market ${marketId}`,
+    undefined,
+    'TradeCache'
+  );
 }
 
 /**
@@ -97,34 +89,30 @@ export async function invalidatePredictionTradesCache(
  * @returns {Promise<void>}
  */
 export async function invalidatePerpTradesCache(ticker: string): Promise<void> {
-  try {
-    if (cacheClient) {
-      const pattern = `market-trades:perp-trades:${ticker}:*`;
-      const deletedCount = await cacheClient.deleteByPattern(pattern);
+  if (cacheClient) {
+    const pattern = `market-trades:perp-trades:${ticker}:*`;
+    const deletedCount = await cacheClient.deleteByPattern(pattern);
 
-      if (deletedCount > 0) {
-        logger.debug(
-          `Deleted ${deletedCount} cache keys for ticker ${ticker}`,
-          undefined,
-          'TradeCache'
-        );
-      }
-    } else {
+    if (deletedCount > 0) {
       logger.debug(
-        'No cache client available, cache will expire naturally',
-        { ticker },
+        `Deleted ${deletedCount} cache keys for ticker ${ticker}`,
+        undefined,
         'TradeCache'
       );
     }
-
-    logger.info(
-      `Invalidated perp trades cache for ticker ${ticker}`,
-      undefined,
+  } else {
+    logger.debug(
+      'No cache client available, cache will expire naturally',
+      { ticker },
       'TradeCache'
     );
-  } catch (error) {
-    logger.error(`Failed to invalidate perp trades cache`, error, 'TradeCache');
   }
+
+  logger.info(
+    `Invalidated perp trades cache for ticker ${ticker}`,
+    undefined,
+    'TradeCache'
+  );
 }
 
 /**

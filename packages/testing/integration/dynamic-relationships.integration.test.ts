@@ -79,20 +79,26 @@ describe('Dynamic Relationships System', () => {
       },
     });
 
-    // Create test actors
+    // Create test actors - use users table with isActor: true + actorState for dynamic data
     for (const actor of testActors) {
-      await db.actor.upsert({
+      await db.user.upsert({
         where: { id: actor.id },
         update: {},
         create: {
           id: actor.id,
-          name: actor.name,
-          description: actor.description,
-          domain: actor.domain || [],
-          personality: 'test',
-          affiliations: actor.affiliations || [],
-          postStyle: 'test',
-          postExample: [],
+          username: actor.name.toLowerCase().replace(/\s+/g, '-'),
+          displayName: actor.name,
+          bio: actor.description,
+          isActor: true,
+          isTest: true,
+          updatedAt: new Date(),
+        },
+      });
+      await db.actorState.upsert({
+        where: { id: actor.id },
+        update: {},
+        create: {
+          id: actor.id,
           updatedAt: new Date(),
         },
       });
@@ -119,7 +125,11 @@ describe('Dynamic Relationships System', () => {
       },
     });
 
-    await db.actor.deleteMany({
+    await db.actorState.deleteMany({
+      where: { id: { startsWith: 'test-actor-' } },
+    });
+
+    await db.user.deleteMany({
       where: { id: { startsWith: 'test-actor-' } },
     });
 

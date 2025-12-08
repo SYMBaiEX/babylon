@@ -65,14 +65,8 @@ async function runLoadTest(args: ReturnType<typeof parseArgs>): Promise<void> {
   console.log(`Ramp-up: ${config.rampUpSeconds || 0}s\n`);
 
   // Check server
-  try {
-    const response = await fetch(`${baseUrl}/api/stats`);
-    console.log(`✅ Server responding (status: ${response.status})\n`);
-  } catch {
-    logger.fail('Could not connect to server');
-    console.log(`Make sure the server is running at ${baseUrl}`);
-    process.exit(1);
-  }
+  const response = await fetch(`${baseUrl}/api/stats`);
+  console.log(`✅ Server responding (status: ${response.status})\n`);
 
   // Enable query monitoring
   process.env.ENABLE_QUERY_MONITORING = 'true';
@@ -169,20 +163,14 @@ async function runA2AStressTest(
   console.log(`Max RPS: ${config.maxRps || 'unlimited'}\n`);
 
   // Check A2A endpoint
-  try {
-    const response = await fetch(`${baseUrl}/api/a2a`);
-    const data = await response.json();
+  const response = await fetch(`${baseUrl}/api/a2a`);
+  const data = await response.json();
 
-    if (data.service !== 'Babylon A2A Protocol') {
-      logger.fail('A2A endpoint not responding correctly');
-      process.exit(1);
-    }
-    console.log(`✅ A2A endpoint active (version: ${data.version})\n`);
-  } catch {
-    logger.fail('Could not connect to A2A endpoint');
-    console.log(`Make sure the server is running at ${baseUrl}`);
+  if (data.service !== 'Babylon A2A Protocol') {
+    logger.fail('A2A endpoint not responding correctly');
     process.exit(1);
   }
+  console.log(`✅ A2A endpoint active (version: ${data.version})\n`);
 
   // Run test
   const simulator = new LoadTestSimulator(baseUrl);
@@ -249,27 +237,20 @@ export async function runTestCommand(args: string[]): Promise<void> {
     process.exit(0);
   }
 
-  try {
-    switch (parsed.command) {
-      case 'load':
-        await runLoadTest(parsed);
-        break;
+  switch (parsed.command) {
+    case 'load':
+      await runLoadTest(parsed);
+      break;
 
-      case 'a2a':
-        await runA2AStressTest(parsed);
-        break;
+    case 'a2a':
+      await runA2AStressTest(parsed);
+      break;
 
-      default:
-        if (parsed.command) {
-          logger.fail(`Unknown command: ${parsed.command}`);
-        }
-        printHelp();
-        process.exit(parsed.command ? 1 : 0);
-    }
-  } catch (error) {
-    if (error instanceof Error) {
-      logger.fail(error.message);
-    }
-    process.exit(1);
+    default:
+      if (parsed.command) {
+        logger.fail(`Unknown command: ${parsed.command}`);
+      }
+      printHelp();
+      process.exit(parsed.command ? 1 : 0);
   }
 }

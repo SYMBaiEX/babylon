@@ -1,7 +1,7 @@
 /**
  * Tag Service
  *
- * Unified service for tag generation and storage:
+ * Service for tag generation and storage:
  * - Generates organic tags from post content using LLM
  * - Stores and retrieves tags in the database
  * - Manages tag statistics and trending calculations
@@ -63,19 +63,10 @@ async function getOpenAIClient(): Promise<OpenAIClient | null> {
 
   if (!openaiImportAttempted) {
     openaiImportAttempted = true;
-    try {
-      openaiClient = new OpenAI({
-        apiKey,
-        baseURL,
-      });
-    } catch (error) {
-      logger.warn(
-        'OpenAI SDK not available, tag generation disabled',
-        { error },
-        'TagService'
-      );
-      openaiClient = null;
-    }
+    openaiClient = new OpenAI({
+      apiKey,
+      baseURL,
+    });
   }
 
   return openaiClient;
@@ -203,62 +194,49 @@ If no good tags, return: <response><tags></tags></response>`;
 
   const parsedTags: Array<{ displayName: string; category?: string }> = [];
 
-  try {
-    const tagMatches = xmlContent.matchAll(/<tag>([\s\S]*?)<\/tag>/g);
+  const tagMatches = xmlContent.matchAll(/<tag>([\s\S]*?)<\/tag>/g);
 
-    for (const tagMatch of tagMatches) {
-      const tagContent = tagMatch[1];
-      if (!tagContent) continue;
+  for (const tagMatch of tagMatches) {
+    const tagContent = tagMatch[1];
+    if (!tagContent) continue;
 
-      const displayNameMatch = tagContent.match(
-        /<displayName>(.*?)<\/displayName>/
-      );
-      const categoryMatch = tagContent.match(/<category>(.*?)<\/category>/);
+    const displayNameMatch = tagContent.match(
+      /<displayName>(.*?)<\/displayName>/
+    );
+    const categoryMatch = tagContent.match(/<category>(.*?)<\/category>/);
 
-      if (displayNameMatch && displayNameMatch[1]) {
-        const displayName = displayNameMatch[1].trim();
-        const genericTags = [
-          'ai',
-          'tech',
-          'news',
-          'breaking',
-          'market',
-          'update',
-          'latest',
-        ];
-        if (genericTags.includes(displayName.toLowerCase())) {
-          logger.debug('Skipping generic tag', { displayName }, 'TagService');
-          continue;
-        }
-
-        parsedTags.push({
-          displayName,
-          category: categoryMatch?.[1]?.trim(),
-        });
+    if (displayNameMatch && displayNameMatch[1]) {
+      const displayName = displayNameMatch[1].trim();
+      const genericTags = [
+        'ai',
+        'tech',
+        'news',
+        'breaking',
+        'market',
+        'update',
+        'latest',
+      ];
+      if (genericTags.includes(displayName.toLowerCase())) {
+        logger.debug('Skipping generic tag', { displayName }, 'TagService');
+        continue;
       }
-    }
 
-    if (parsedTags.length === 0) {
-      logger.debug(
-        'No specific tags extracted from post',
-        {
-          xmlPreview: xmlContent.substring(0, 200),
-          contentPreview: content.substring(0, 100),
-        },
-        'TagService'
-      );
+      parsedTags.push({
+        displayName,
+        category: categoryMatch?.[1]?.trim(),
+      });
     }
-  } catch (error) {
-    logger.error(
-      'Failed to parse tag generation XML',
+  }
+
+  if (parsedTags.length === 0) {
+    logger.debug(
+      'No specific tags extracted from post',
       {
-        error,
-        xmlContent: xmlContent.substring(0, 200),
+        xmlPreview: xmlContent.substring(0, 200),
         contentPreview: content.substring(0, 100),
       },
       'TagService'
     );
-    return [];
   }
 
   const generatedTags: GeneratedTag[] = parsedTags

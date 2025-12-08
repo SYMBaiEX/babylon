@@ -213,33 +213,25 @@ export function withTrajectoryLogging<
 
     let success = false;
     let error: string | undefined;
-    let result: TResult | undefined;
-
-    try {
-      result = await fn(...args);
-      success = true;
-      return result;
-    } catch (err) {
-      error = err instanceof Error ? err.message : String(err);
-      throw err;
-    } finally {
-      // Log as action attempt
-      trajectoryLogger.completeStep(
-        trajectoryId,
-        stepId,
-        {
-          actionType: context.actionType || 'function_call',
-          actionName: fn.name || 'anonymous',
-          parameters: { args: args as JsonValue[] },
-          success,
-          result: (success && result !== undefined
-            ? { result: result as JsonValue }
-            : { error: error || 'Unknown error' }) as Record<string, JsonValue>,
-        },
-        {
-          reward: success ? 0.05 : -0.05,
-        }
-      );
-    }
+    const result = await fn(...args);
+    success = true;
+    // Log as action attempt
+    trajectoryLogger.completeStep(
+      trajectoryId,
+      stepId,
+      {
+        actionType: context.actionType || 'function_call',
+        actionName: fn.name || 'anonymous',
+        parameters: { args: args as JsonValue[] },
+        success,
+        result: (success && result !== undefined
+          ? { result: result as JsonValue }
+          : { error: error || 'Unknown error' }) as Record<string, JsonValue>,
+      },
+      {
+        reward: success ? 0.05 : -0.05,
+      }
+    );
+    return result;
   };
 }

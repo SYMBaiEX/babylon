@@ -71,6 +71,10 @@ from .archetype_trainer import (
     ArchetypeTrainer,
     ArchetypeTrainingConfig,
     ArchetypeTrainingResult,
+)
+
+# Rubric loading from config/rubrics.json (single source of truth)
+from .rubric_loader import (
     get_rubric,
     get_priority_metrics,
     get_available_archetypes,

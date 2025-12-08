@@ -250,14 +250,7 @@ async function uploadDataset(
   console.log(`Private: ${isPrivate ? 'yes' : 'no'}\n`);
 
   // Check source directory exists
-  try {
-    await fs.access(sourceDir);
-  } catch {
-    logger.fail(`Source directory not found: ${sourceDir}`);
-    console.log('\nRun data collection first:');
-    console.log('  babylon model collect-data');
-    process.exit(1);
-  }
+  await fs.access(sourceDir);
 
   // Get all JSON files in source directory
   const files = await fs.readdir(sourceDir);
@@ -454,68 +447,57 @@ interface OllamaModel {
 async function ollamaList(): Promise<void> {
   logger.header('Ollama Models');
 
-  try {
-    const response = await fetch(`${OLLAMA_BASE_URL}/api/tags`, {
-      signal: AbortSignal.timeout(10000),
-    });
+  const response = await fetch(`${OLLAMA_BASE_URL}/api/tags`, {
+    signal: AbortSignal.timeout(10000),
+  });
 
-    if (!response.ok) {
-      logger.fail(`Ollama API error: ${response.status}`);
-      process.exit(1);
-    }
-
-    const data = (await response.json()) as { models?: OllamaModel[] };
-    const models = data.models || [];
-
-    if (models.length === 0) {
-      console.log('No models installed.\n');
-      console.log('To install a model:');
-      console.log('  babylon model ollama pull --name=qwen2.5:7b-instruct');
-      console.log('  ollama pull qwen2.5:7b-instruct');
-      return;
-    }
-
-    console.log(`Found ${models.length} model(s):\n`);
-
-    for (const model of models) {
-      const sizeGB = (model.size / 1024 / 1024 / 1024).toFixed(2);
-      const modified = new Date(model.modified_at).toLocaleDateString();
-
-      console.log(`${'─'.repeat(60)}`);
-      console.log(`Model:     ${model.name}`);
-      console.log(`Size:      ${sizeGB} GB`);
-      console.log(`Modified:  ${modified}`);
-      if (model.details) {
-        if (model.details.parameter_size) {
-          console.log(`Params:    ${model.details.parameter_size}`);
-        }
-        if (model.details.quantization_level) {
-          console.log(`Quant:     ${model.details.quantization_level}`);
-        }
-      }
-    }
-    console.log(`${'─'.repeat(60)}`);
-
-    // Show archetype-specific models
-    const archetypeModels = models.filter((m) => m.name.startsWith('babylon-'));
-    if (archetypeModels.length > 0) {
-      console.log('\n🎯 Babylon Trained Models:');
-      for (const model of archetypeModels) {
-        const archetype = model.name
-          .replace('babylon-', '')
-          .replace(':latest', '');
-        console.log(`  - ${archetype}: ${model.name}`);
-      }
-    }
-  } catch (error) {
-    if (error instanceof Error && error.name === 'AbortError') {
-      logger.fail('Ollama request timed out');
-    } else {
-      logger.fail(`Cannot connect to Ollama at ${OLLAMA_BASE_URL}`);
-      console.log('\nMake sure Ollama is running:');
-      console.log('  ollama serve');
-    }
+  if (!response.ok) {
+    logger.fail(`Ollama API error: ${response.status}`);
     process.exit(1);
+  }
+
+  const data = (await response.json()) as { models?: OllamaModel[] };
+  const models = data.models || [];
+
+  if (models.length === 0) {
+    console.log('No models installed.\n');
+    console.log('To install a model:');
+    console.log('  babylon model ollama pull --name=qwen2.5:7b-instruct');
+    console.log('  ollama pull qwen2.5:7b-instruct');
+    return;
+  }
+
+  console.log(`Found ${models.length} model(s):\n`);
+
+  for (const model of models) {
+    const sizeGB = (model.size / 1024 / 1024 / 1024).toFixed(2);
+    const modified = new Date(model.modified_at).toLocaleDateString();
+
+    console.log(`${'─'.repeat(60)}`);
+    console.log(`Model:     ${model.name}`);
+    console.log(`Size:      ${sizeGB} GB`);
+    console.log(`Modified:  ${modified}`);
+    if (model.details) {
+      if (model.details.parameter_size) {
+        console.log(`Params:    ${model.details.parameter_size}`);
+      }
+      if (model.details.quantization_level) {
+        console.log(`Quant:     ${model.details.quantization_level}`);
+      }
+    }
+  }
+  console.log(`${'─'.repeat(60)}`);
+
+  // Show archetype-specific models
+  const archetypeModels = models.filter((m) => m.name.startsWith('babylon-'));
+  if (archetypeModels.length > 0) {
+    console.log('\n🎯 Babylon Trained Models:');
+    for (const model of archetypeModels) {
+      const archetype = model.name
+        .replace('babylon-', '')
+        .replace(':latest', '');
+      console.log(`  - ${archetype}: ${model.name}`);
+    }
   }
 }
 
@@ -538,34 +520,27 @@ async function ollamaPull(args: ReturnType<typeof parseArgs>): Promise<void> {
 
   logger.header(`Pulling Model: ${modelName}`);
 
-  try {
-    console.log('Downloading... (this may take a while)\n');
+  console.log('Downloading... (this may take a while)\n');
 
-    const response = await fetch(`${OLLAMA_BASE_URL}/api/pull`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: modelName, stream: false }),
-    });
+  const response = await fetch(`${OLLAMA_BASE_URL}/api/pull`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: modelName, stream: false }),
+  });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      logger.fail(`Failed to pull model: ${errorText}`);
-      process.exit(1);
-    }
-
-    const result = (await response.json()) as { status?: string };
-    logger.success(`Model ${modelName} pulled successfully`);
-    console.log(`Status: ${result.status || 'completed'}`);
-
-    // Verify the model is available
-    console.log('\nVerifying model...');
-    await ollamaList();
-  } catch {
-    logger.fail(`Cannot connect to Ollama at ${OLLAMA_BASE_URL}`);
-    console.log('\nMake sure Ollama is running:');
-    console.log('  ollama serve');
+  if (!response.ok) {
+    const errorText = await response.text();
+    logger.fail(`Failed to pull model: ${errorText}`);
     process.exit(1);
   }
+
+  const result = (await response.json()) as { status?: string };
+  logger.success(`Model ${modelName} pulled successfully`);
+  console.log(`Status: ${result.status || 'completed'}`);
+
+  // Verify the model is available
+  console.log('\nVerifying model...');
+  await ollamaList();
 }
 
 /**
@@ -587,24 +562,19 @@ async function ollamaDelete(args: ReturnType<typeof parseArgs>): Promise<void> {
 
   logger.header(`Deleting Model: ${modelName}`);
 
-  try {
-    const response = await fetch(`${OLLAMA_BASE_URL}/api/delete`, {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: modelName }),
-    });
+  const response = await fetch(`${OLLAMA_BASE_URL}/api/delete`, {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: modelName }),
+  });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      logger.fail(`Failed to delete model: ${errorText}`);
-      process.exit(1);
-    }
-
-    logger.success(`Model ${modelName} deleted`);
-  } catch {
-    logger.fail(`Cannot connect to Ollama at ${OLLAMA_BASE_URL}`);
+  if (!response.ok) {
+    const errorText = await response.text();
+    logger.fail(`Failed to delete model: ${errorText}`);
     process.exit(1);
   }
+
+  logger.success(`Model ${modelName} deleted`);
 }
 
 /**
@@ -617,47 +587,39 @@ async function ollamaStatus(): Promise<void> {
 
   console.log(`Server URL: ${OLLAMA_BASE_URL}\n`);
 
-  try {
-    const response = await fetch(`${OLLAMA_BASE_URL}/api/tags`, {
-      signal: AbortSignal.timeout(5000),
-    });
+  const response = await fetch(`${OLLAMA_BASE_URL}/api/tags`, {
+    signal: AbortSignal.timeout(5000),
+  });
 
-    if (response.ok) {
-      const data = (await response.json()) as { models?: OllamaModel[] };
-      const modelCount = data.models?.length || 0;
+  if (response.ok) {
+    const data = (await response.json()) as { models?: OllamaModel[] };
+    const modelCount = data.models?.length || 0;
 
-      logger.success('Ollama is running');
-      console.log(`\n  Models installed: ${modelCount}`);
+    logger.success('Ollama is running');
+    console.log(`\n  Models installed: ${modelCount}`);
 
-      // Check if recommended models are available
-      const recommendedModels = [
-        'qwen2.5:7b-instruct',
-        'llama3.2:3b',
-        'mistral:7b',
-      ];
+    // Check if recommended models are available
+    const recommendedModels = [
+      'qwen2.5:7b-instruct',
+      'llama3.2:3b',
+      'mistral:7b',
+    ];
 
-      const modelNames = data.models?.map((m) => m.name) || [];
-      console.log('\n  Recommended models:');
-      for (const model of recommendedModels) {
-        const installed = modelNames.some((m) =>
-          m.includes(model.split(':')[0] ?? '')
-        );
-        console.log(`    ${installed ? '✅' : '❌'} ${model}`);
-      }
-
-      if (modelCount === 0) {
-        console.log('\n📥 To install the default model:');
-        console.log('  babylon model ollama pull --name=qwen2.5:7b-instruct');
-      }
-    } else {
-      logger.fail(`Ollama returned status ${response.status}`);
+    const modelNames = data.models?.map((m) => m.name) || [];
+    console.log('\n  Recommended models:');
+    for (const model of recommendedModels) {
+      const installed = modelNames.some((m) =>
+        m.includes(model.split(':')[0] ?? '')
+      );
+      console.log(`    ${installed ? '✅' : '❌'} ${model}`);
     }
-  } catch {
-    logger.fail('Ollama is not running');
-    console.log('\nTo start Ollama:');
-    console.log('  ollama serve');
-    console.log('\nOr install Ollama:');
-    console.log('  https://ollama.ai/download');
+
+    if (modelCount === 0) {
+      console.log('\n📥 To install the default model:');
+      console.log('  babylon model ollama pull --name=qwen2.5:7b-instruct');
+    }
+  } else {
+    logger.fail(`Ollama returned status ${response.status}`);
   }
 }
 
@@ -710,38 +672,36 @@ export async function runModelCommand(args: string[]): Promise<void> {
   // Commands that don't need database
   const noDatabaseCommands = ['ollama'];
 
-  try {
-    switch (parsed.command) {
-      case 'list':
-        await listModels();
-        break;
+  switch (parsed.command) {
+    case 'list':
+      await listModels();
+      break;
 
-      case 'upload':
-        await uploadModel(parsed);
-        break;
+    case 'upload':
+      await uploadModel(parsed);
+      break;
 
-      case 'collect-data':
-        await collectGameData(parsed);
-        break;
+    case 'collect-data':
+      await collectGameData(parsed);
+      break;
 
-      case 'upload-dataset':
-        await uploadDataset(parsed);
-        break;
+    case 'upload-dataset':
+      await uploadDataset(parsed);
+      break;
 
-      case 'ollama':
-        await runOllamaCommand(parsed);
-        break;
+    case 'ollama':
+      await runOllamaCommand(parsed);
+      break;
 
-      default:
-        if (parsed.command) {
-          logger.fail(`Unknown command: ${parsed.command}`);
-        }
-        printHelp();
-        process.exit(parsed.command ? 1 : 0);
-    }
-  } finally {
-    if (!noDatabaseCommands.includes(parsed.command || '')) {
-      await closeDatabase();
-    }
+    default:
+      if (parsed.command) {
+        logger.fail(`Unknown command: ${parsed.command}`);
+      }
+      printHelp();
+      process.exit(parsed.command ? 1 : 0);
+  }
+
+  if (!noDatabaseCommands.includes(parsed.command || '')) {
+    await closeDatabase();
   }
 }

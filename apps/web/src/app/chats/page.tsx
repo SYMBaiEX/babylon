@@ -258,85 +258,81 @@ export default function ChatsPage() {
     console.log('[ChatsPage] loadChats called, isDebugMode:', isDebugMode);
     setLoading(true);
 
-    try {
-      // Skip token check in debug mode
-      if (!isDebugMode) {
-        // Ensure Privy is ready before getting token
-        if (!ready || !authenticated) {
-          console.log(
-            '[ChatsPage] Privy not ready or not authenticated, skipping loadChats'
-          );
-          setLoading(false);
-          return;
-        }
-      }
-
-      const token = await getAccessToken();
-      console.log('[ChatsPage] Got access token:', token ? 'yes' : 'no');
-      if (!token && !isDebugMode) {
-        console.warn(
-          '[ChatsPage] No access token available, skipping loadChats'
+    // Skip token check in debug mode
+    if (!isDebugMode) {
+      // Ensure Privy is ready before getting token
+      if (!ready || !authenticated) {
+        console.log(
+          '[ChatsPage] Privy not ready or not authenticated, skipping loadChats'
         );
         setLoading(false);
         return;
       }
-
-      // Fetch both personal chats (with DMs) AND game chats
-      console.log('[ChatsPage] Fetching personal chats and game chats');
-      const [personalResponse, gameResponse] = await Promise.all([
-        fetch('/api/chats', {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }),
-        isDebugMode ? fetch('/api/chats?all=true') : Promise.resolve(null),
-      ]);
-
-      if (!personalResponse.ok) {
-        throw new Error('Failed to fetch personal chats');
-      }
-
-      console.log(
-        '[ChatsPage] Personal response status:',
-        personalResponse.status
-      );
-      const personalData = await personalResponse.json();
-      console.log('[ChatsPage] Personal response data:', personalData);
-
-      let gameChats: Chat[] = [];
-      if (gameResponse) {
-        if (!gameResponse.ok) {
-          console.warn(
-            '[ChatsPage] Failed to fetch game chats, continuing with personal chats only'
-          );
-        } else {
-          console.log('[ChatsPage] Game response status:', gameResponse.status);
-          const gameData = await gameResponse.json();
-          console.log('[ChatsPage] Game response data:', gameData);
-          gameChats = gameData.chats || [];
-        }
-      }
-
-      // Combine personal chats (groups + DMs) and game chats
-      const combined = [
-        ...(personalData.groupChats || []),
-        ...(personalData.directChats || []),
-        ...gameChats,
-      ].sort((a, b) => {
-        // Sort by last message time (most recent first)
-        const aTime = a.lastMessage?.createdAt || a.updatedAt;
-        const bTime = b.lastMessage?.createdAt || b.updatedAt;
-        return new Date(bTime).getTime() - new Date(aTime).getTime();
-      });
-
-      console.log('[ChatsPage] Combined chats (personal + game):', combined);
-      setAllChats(combined);
-    } catch (err) {
-      console.error('[ChatsPage] Failed to load chats:', err);
-      // Keep existing chats on error
-    } finally {
-      setLoading(false);
     }
+
+    const token = await getAccessToken();
+    console.log('[ChatsPage] Got access token:', token ? 'yes' : 'no');
+    if (!token && !isDebugMode) {
+      console.warn('[ChatsPage] No access token available, skipping loadChats');
+      setLoading(false);
+      return;
+    }
+
+    // Fetch both personal chats (with DMs) AND game chats
+    console.log('[ChatsPage] Fetching personal chats and game chats');
+    const [personalResponse, gameResponse] = await Promise.all([
+      fetch('/api/chats', {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }),
+      isDebugMode ? fetch('/api/chats?all=true') : Promise.resolve(null),
+    ]);
+
+    if (!personalResponse.ok) {
+      console.error(
+        '[ChatsPage] Failed to load chats: Failed to fetch personal chats'
+      );
+      setLoading(false);
+      return;
+    }
+
+    console.log(
+      '[ChatsPage] Personal response status:',
+      personalResponse.status
+    );
+    const personalData = await personalResponse.json();
+    console.log('[ChatsPage] Personal response data:', personalData);
+
+    let gameChats: Chat[] = [];
+    if (gameResponse) {
+      if (!gameResponse.ok) {
+        console.warn(
+          '[ChatsPage] Failed to fetch game chats, continuing with personal chats only'
+        );
+      } else {
+        console.log('[ChatsPage] Game response status:', gameResponse.status);
+        const gameData = await gameResponse.json();
+        console.log('[ChatsPage] Game response data:', gameData);
+        gameChats = gameData.chats || [];
+      }
+    }
+
+    // Combine personal chats (groups + DMs) and game chats
+    const combined = [
+      ...(personalData.groupChats || []),
+      ...(personalData.directChats || []),
+      ...gameChats,
+    ].sort((a, b) => {
+      // Sort by last message time (most recent first)
+      const aTime = a.lastMessage?.createdAt || a.updatedAt;
+      const bTime = b.lastMessage?.createdAt || b.updatedAt;
+      return new Date(bTime).getTime() - new Date(aTime).getTime();
+    });
+
+    console.log('[ChatsPage] Combined chats (personal + game):', combined);
+    setAllChats(combined);
+    setLoading(false);
   }, [getAccessToken, isDebugMode, ready, authenticated]);
 
   // Define loadChatDetails BEFORE it's used in handleGroupUpdated
@@ -364,38 +360,33 @@ export default function ChatsPage() {
         return;
       }
 
-      try {
-        const response = await fetch(`/api/chats/${chatId}`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
+      const response = await fetch(`/api/chats/${chatId}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
 
-        // If chat doesn't exist yet (404), it's a new DM that hasn't been persisted
-        if (response.status === 404) {
-          // Chat will be created when first message is sent
-          setLoadingChat(false);
-          return;
-        }
-
-        if (!response.ok) {
-          console.error('Failed to load chat details');
-          setLoadingChat(false);
-          return;
-        }
-
-        const data = await response.json();
-        setChatDetails({
-          ...data,
-          chat: data.chat || null,
-          messages: data.messages || [],
-          participants: data.participants || [],
-        });
-      } catch (err) {
-        console.error('Failed to load chat details:', err);
-      } finally {
+      // If chat doesn't exist yet (404), it's a new DM that hasn't been persisted
+      if (response.status === 404) {
+        // Chat will be created when first message is sent
         setLoadingChat(false);
+        return;
       }
+
+      if (!response.ok) {
+        console.error('Failed to load chat details');
+        setLoadingChat(false);
+        return;
+      }
+
+      const data = await response.json();
+      setChatDetails({
+        ...data,
+        chat: data.chat || null,
+        messages: data.messages || [],
+        participants: data.participants || [],
+      });
+      setLoadingChat(false);
     },
     [getAccessToken, isDebugMode]
   );

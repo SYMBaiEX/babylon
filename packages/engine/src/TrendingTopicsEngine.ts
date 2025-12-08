@@ -149,28 +149,18 @@ export class TrendingTopicsEngine {
     const topTopics = rankedTopics.slice(0, 5);
 
     // 4. Generate LLM descriptions for each trend
-    try {
-      this.currentTrends = await this.generateTrendDescriptions(
-        topTopics,
-        recentPosts
-      );
+    this.currentTrends = await this.generateTrendDescriptions(
+      topTopics,
+      recentPosts
+    );
 
-      logger.info(
-        `Generated ${this.currentTrends.length} trending topics`,
-        {
-          trends: this.currentTrends.map((t) => t.trendName),
-        },
-        'TrendingTopicsEngine'
-      );
-    } catch (error) {
-      logger.error(
-        'Failed to generate trend descriptions, keeping previous trends',
-        {
-          error: error instanceof Error ? error.message : String(error),
-        },
-        'TrendingTopicsEngine'
-      );
-    }
+    logger.info(
+      `Generated ${this.currentTrends.length} trending topics`,
+      {
+        trends: this.currentTrends.map((t) => t.trendName),
+      },
+      'TrendingTopicsEngine'
+    );
   }
 
   /**
@@ -401,7 +391,7 @@ export class TrendingTopicsEngine {
     const prompt = renderPrompt(trendingTopics, { topicsList });
     const params = getPromptParams(trendingTopics);
 
-    const rawResponse = await this.llm.generateJSON<
+    let rawResponse:
       | {
           trends: Array<{
             trendName: string;
@@ -422,12 +412,32 @@ export class TrendingTopicsEngine {
                   }>;
                 };
           };
-        }
-    >(prompt, undefined, {
-      ...params,
-      format: 'xml',
-      promptType: 'trending_topics_generate',
-    });
+        };
+
+    try {
+      rawResponse = await this.llm.generateJSON(prompt, undefined, {
+        ...params,
+        format: 'xml',
+        promptType: 'trending_topics_generate',
+      });
+    } catch (error) {
+      // Handle LLM failures gracefully - return trends with fallback descriptions
+      logger.warn(
+        'LLM failed to generate trend descriptions, using fallbacks',
+        { error: error instanceof Error ? error.message : String(error) },
+        'TrendingTopicsEngine'
+      );
+      return topics.map((topic) => ({
+        tag: topic.tag,
+        count: topic.count,
+        recency: topic.recency,
+        score: topic.score,
+        trendName: topic.tag,
+        description: `Trending topic: ${topic.tag}`,
+        relatedQuestions: topic.relatedQuestions,
+        samplePosts: topic.samplePosts || [],
+      }));
+    }
 
     // Handle XML structure with strict validation
     let trendDescriptions: Array<{ trendName: string; description: string }> =
@@ -454,7 +464,22 @@ export class TrendingTopicsEngine {
     }
 
     if (trendDescriptions.length === 0) {
-      throw new Error('LLM returned no trend descriptions');
+      // Return trends with fallback descriptions when LLM returns empty array
+      logger.warn(
+        'LLM returned empty trends array, using fallbacks',
+        undefined,
+        'TrendingTopicsEngine'
+      );
+      return topics.map((topic) => ({
+        tag: topic.tag,
+        count: topic.count,
+        recency: topic.recency,
+        score: topic.score,
+        trendName: topic.tag,
+        description: `Trending topic: ${topic.tag}`,
+        relatedQuestions: topic.relatedQuestions,
+        samplePosts: topic.samplePosts || [],
+      }));
     }
 
     if (trendDescriptions.length < topics.length) {

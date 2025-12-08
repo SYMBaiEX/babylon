@@ -9,7 +9,7 @@ import {
   text,
   timestamp,
 } from 'drizzle-orm/pg-core';
-import { actors, npcTrades } from './actors';
+import { npcTrades } from './actors';
 
 // Pool
 export const pools = pgTable(
@@ -131,11 +131,8 @@ export const poolPositions = pgTable(
 );
 
 // Relations
-export const poolsRelations = relations(pools, ({ one, many }) => ({
-  Actor: one(actors, {
-    fields: [pools.npcActorId],
-    references: [actors.id],
-  }),
+// Note: npcActorId references actor IDs from StaticDataRegistry (static) and actorState (dynamic)
+export const poolsRelations = relations(pools, ({ many }) => ({
   PoolDeposit: many(poolDeposits),
   PoolPosition: many(poolPositions),
   NPCTrade: many(npcTrades),

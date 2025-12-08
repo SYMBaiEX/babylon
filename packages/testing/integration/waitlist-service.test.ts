@@ -38,20 +38,8 @@ describeWaitlist('WaitlistService', () => {
 
   beforeAll(async () => {
     // Verify database connectivity before running tests
-    try {
-      await db.select().from(users).limit(1);
-    } catch (error) {
-      const msg = (error as Error).message ?? '';
-      if (msg.includes('ECONNREFUSED') || msg.includes('connect')) {
-        console.error(
-          '\n❌ Database connection failed. Integration tests require a running PostgreSQL database.'
-        );
-        console.error('   Run: docker-compose up postgres -d\n');
-        dbAvailable = false;
-        return;
-      }
-      throw error;
-    }
+    await db.select().from(users).limit(1);
+    dbAvailable = true;
   });
 
   beforeEach(() => {

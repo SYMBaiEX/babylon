@@ -15,9 +15,8 @@
 
 import { generateSnowflakeId } from '@babylon/shared';
 import {
-  actors,
+  actorState,
   and,
-  asc,
   count,
   db,
   desc,
@@ -28,7 +27,7 @@ import {
   isNull,
   lt,
   lte,
-  organizations,
+  organizationState,
   posts,
   questions,
   stockPrices,
@@ -36,7 +35,11 @@ import {
   worldEvents,
 } from './index';
 import { logger } from './logger';
-import type { Actor, Organization, Question } from './model-types';
+import type {
+  ActorStateRow,
+  OrganizationStateRow,
+  Question,
+} from './model-types';
 
 /**
  * FeedPost type representing a post in the feed.
@@ -185,6 +188,9 @@ class DatabaseService {
     gameId?: string;
     dayNumber?: number;
     timestamp: Date;
+    commentOnPostId?: string;
+    parentCommentId?: string;
+    originalPostId?: string;
   }) {
     const safeDayNumber =
       typeof data.dayNumber === 'number' &&
@@ -218,6 +224,9 @@ class DatabaseService {
         gameId: data.gameId,
         dayNumber: safeDayNumber,
         timestamp: data.timestamp,
+        commentOnPostId: data.commentOnPostId,
+        parentCommentId: data.parentCommentId,
+        originalPostId: data.originalPostId,
       })
       .returning();
 
@@ -307,20 +316,18 @@ class DatabaseService {
 
     const authorIds = [...new Set(allPosts.map((p) => p.authorId))];
 
-    const [testUsers, testActors] = await Promise.all([
-      db
-        .select({ id: users.id })
-        .from(users)
-        .where(and(inArray(users.id, authorIds), eq(users.isTest, true))),
-      db
-        .select({ id: actors.id })
-        .from(actors)
-        .where(and(inArray(actors.id, authorIds), eq(actors.isTest, true))),
-    ]);
+    // Check users table for isTest flag
+    const testUsers = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(and(inArray(users.id, authorIds), eq(users.isTest, true)));
+
+    // For actors, use ID pattern: test actors have IDs starting with 'test-'
+    const testActorIds = authorIds.filter((id) => id.startsWith('test-'));
 
     const testAuthorIds = new Set([
       ...testUsers.map((u) => u.id),
-      ...testActors.map((a) => a.id),
+      ...testActorIds,
     ]);
 
     const filteredPosts = allPosts
@@ -366,20 +373,15 @@ class DatabaseService {
       offset,
     });
 
-    const [user, actor] = await Promise.all([
-      db
-        .select({ isTest: users.isTest })
-        .from(users)
-        .where(eq(users.id, authorId))
-        .limit(1),
-      db
-        .select({ isTest: actors.isTest })
-        .from(actors)
-        .where(eq(actors.id, authorId))
-        .limit(1),
-    ]);
+    // Check if it's a test user from users table or test actor by ID pattern
+    const user = await db
+      .select({ isTest: users.isTest })
+      .from(users)
+      .where(eq(users.id, authorId))
+      .limit(1);
 
-    const isTestUser = user[0]?.isTest || actor[0]?.isTest || false;
+    // Test actors have IDs starting with 'test-'
+    const isTestUser = user[0]?.isTest || authorId.startsWith('test-') || false;
 
     if (isTestUser) {
       logger.info('DatabaseService.getPostsByActor - test user filtered', {
@@ -597,47 +599,44 @@ class DatabaseService {
     return updated[0]!;
   }
 
-  // ========== ORGANIZATIONS ==========
+  // ========== ORGANIZATION STATE ==========
 
   /**
-   * Upsert an organization: create if it doesn't exist, update if it does.
+   * Upsert organization state (dynamic data only).
+   * For static organization data (name, description, type, etc.),
+   * use StaticDataRegistry from @babylon/engine.
    *
-   * @param org - Organization data with required id and name
-   * @returns The created or updated organization record
+   * @param id - Organization ID
+   * @param currentPrice - Current price value
+   * @returns The created or updated organization state record
    */
-  async upsertOrganization(
-    org: Partial<Organization> & { id: string; name: string }
-  ) {
+  async upsertOrganizationState(
+    id: string,
+    currentPrice: number | null
+  ): Promise<OrganizationStateRow> {
     const existing = await db
-      .select({ id: organizations.id })
-      .from(organizations)
-      .where(eq(organizations.id, org.id))
+      .select({ id: organizationState.id })
+      .from(organizationState)
+      .where(eq(organizationState.id, id))
       .limit(1);
 
     if (existing.length > 0) {
-      // Update
       const updated = await db
-        .update(organizations)
+        .update(organizationState)
         .set({
-          currentPrice: org.currentPrice ?? org.initialPrice,
+          currentPrice,
           updatedAt: new Date(),
         })
-        .where(eq(organizations.id, org.id))
+        .where(eq(organizationState.id, id))
         .returning();
       return updated[0]!;
     }
 
-    // Create
     const created = await db
-      .insert(organizations)
+      .insert(organizationState)
       .values({
-        id: org.id,
-        name: org.name,
-        description: org.description ?? '',
-        type: org.type ?? 'company',
-        canBeInvolved: org.canBeInvolved ?? true,
-        initialPrice: org.initialPrice,
-        currentPrice: org.currentPrice ?? org.initialPrice,
+        id,
+        currentPrice,
         updatedAt: new Date(),
       })
       .returning();
@@ -650,39 +649,50 @@ class DatabaseService {
    *
    * @param id - Organization ID
    * @param price - New price value
-   * @returns The updated organization record
+   * @returns The updated organization state record
    */
-  async updateOrganizationPrice(id: string, price: number) {
-    const updated = await db
-      .update(organizations)
-      .set({ currentPrice: price })
-      .where(eq(organizations.id, id))
-      .returning();
-
-    return updated[0]!;
+  async updateOrganizationPrice(
+    id: string,
+    price: number
+  ): Promise<OrganizationStateRow> {
+    return this.upsertOrganizationState(id, price);
   }
 
   /**
-   * Get all companies ordered by current price (descending).
+   * Get organization state by ID.
    *
-   * @returns Array of company organizations
+   * @param id - Organization ID
+   * @returns The organization state or null if not found
    */
-  async getCompanies() {
-    return await db
+  async getOrganizationState(id: string): Promise<OrganizationStateRow | null> {
+    const result = await db
       .select()
-      .from(organizations)
-      .where(eq(organizations.type, 'company'))
-      .orderBy(desc(organizations.currentPrice));
+      .from(organizationState)
+      .where(eq(organizationState.id, id))
+      .limit(1);
+    return result[0] ?? null;
   }
 
   /**
-   * Get all organizations in the database.
+   * Get all organization states.
    *
-   * @returns Array of all organizations
+   * @returns Array of all organization state records
    */
-  async getAllOrganizations() {
-    const orgs = await db.select().from(organizations);
-    return orgs;
+  async getAllOrganizationStates(): Promise<OrganizationStateRow[]> {
+    return db.select().from(organizationState);
+  }
+
+  /**
+   * Get all organization states with current prices ordered by price.
+   * This replaces the old getCompanies() method.
+   *
+   * @returns Array of organization states ordered by price descending
+   */
+  async getOrganizationsByPrice(): Promise<OrganizationStateRow[]> {
+    return db
+      .select()
+      .from(organizationState)
+      .orderBy(desc(organizationState.currentPrice));
   }
 
   // ========== STOCK PRICES ==========
@@ -891,76 +901,54 @@ class DatabaseService {
       .orderBy(desc(worldEvents.timestamp));
   }
 
-  // ========== ACTORS ==========
+  // ========== ACTOR STATE ==========
+  // For static actor data (name, description, tier, etc.), use StaticDataRegistry
+  // from @babylon/engine. This table only stores dynamic runtime state.
 
   /**
-   * Upsert an actor: create if it doesn't exist, update if it does.
+   * Upsert actor state: create if it doesn't exist, update if it does.
+   * For static actor data (name, tier, etc.), use StaticDataRegistry.getActor(id)
    *
-   * @param actor - Actor data with required id and name
-   * @returns The created or updated actor record
+   * @param state - Actor state with required id and optional dynamic fields
+   * @returns The created or updated actor state record
    */
-  async upsertActor(actor: Partial<Actor> & { id: string; name: string }) {
+  async upsertActorState(
+    state: Partial<ActorStateRow> & { id: string }
+  ): Promise<ActorStateRow> {
     const existing = await db
-      .select({ id: actors.id })
-      .from(actors)
-      .where(eq(actors.id, actor.id))
+      .select({ id: actorState.id })
+      .from(actorState)
+      .where(eq(actorState.id, state.id))
       .limit(1);
 
     if (existing.length > 0) {
-      // Update
       const updated = await db
-        .update(actors)
+        .update(actorState)
         .set({
-          name: actor.name,
-          description: actor.description,
-          domain: actor.domain || [],
-          personality: actor.personality,
-          tier: actor.tier,
-          affiliations: actor.affiliations || [],
-          postStyle: actor.postStyle,
-          postExample: actor.postExample || [],
-          role: actor.role,
-          ...(actor.initialLuck !== undefined && {
-            initialLuck: actor.initialLuck,
+          ...(state.tradingBalance !== undefined && {
+            tradingBalance: String(state.tradingBalance),
           }),
-          ...(actor.initialMood !== undefined && {
-            initialMood: actor.initialMood,
+          ...(state.reputationPoints !== undefined && {
+            reputationPoints: state.reputationPoints,
           }),
-          ...(actor.tradingBalance !== undefined && {
-            tradingBalance: String(actor.tradingBalance),
+          ...(state.hasPool !== undefined && {
+            hasPool: state.hasPool,
           }),
-          ...(actor.reputationPoints !== undefined && {
-            reputationPoints: actor.reputationPoints,
-          }),
-          ...(actor.profileImageUrl !== undefined && {
-            profileImageUrl: actor.profileImageUrl,
-          }),
+          updatedAt: new Date(),
         })
-        .where(eq(actors.id, actor.id))
+        .where(eq(actorState.id, state.id))
         .returning();
 
       return updated[0]!;
     }
 
-    // Create
     const created = await db
-      .insert(actors)
+      .insert(actorState)
       .values({
-        id: actor.id,
-        name: actor.name,
-        description: actor.description ?? '',
-        domain: actor.domain || [],
-        personality: actor.personality ?? '',
-        tier: actor.tier ?? 'background',
-        affiliations: actor.affiliations || [],
-        postStyle: actor.postStyle ?? '',
-        postExample: actor.postExample || [],
-        role: actor.role ?? 'background',
-        initialLuck: actor.initialLuck || 'medium',
-        initialMood: actor.initialMood ?? 0,
-        tradingBalance: String(actor.tradingBalance ?? 0),
-        reputationPoints: actor.reputationPoints ?? 0,
-        profileImageUrl: actor.profileImageUrl,
+        id: state.id,
+        tradingBalance: String(state.tradingBalance ?? 10000),
+        reputationPoints: state.reputationPoints ?? 10000,
+        hasPool: state.hasPool ?? false,
         updatedAt: new Date(),
       })
       .returning();
@@ -969,28 +957,27 @@ class DatabaseService {
   }
 
   /**
-   * Get all actors ordered by tier and name.
+   * Get all actor states.
+   * For static actor data, use StaticDataRegistry.getAllActors()
    *
-   * @returns Array of all actors
+   * @returns Array of all actor state records
    */
-  async getAllActors() {
-    return await db
-      .select()
-      .from(actors)
-      .orderBy(asc(actors.tier), asc(actors.name));
+  async getAllActorStates(): Promise<ActorStateRow[]> {
+    return await db.select().from(actorState);
   }
 
   /**
-   * Get an actor by ID.
+   * Get actor state by ID.
+   * For static actor data, use StaticDataRegistry.getActor(id)
    *
    * @param id - Actor ID
-   * @returns The actor record or null if not found
+   * @returns The actor state record or null if not found
    */
-  async getActor(id: string) {
+  async getActorState(id: string): Promise<ActorStateRow | null> {
     const result = await db
       .select()
-      .from(actors)
-      .where(eq(actors.id, id))
+      .from(actorState)
+      .where(eq(actorState.id, id))
       .limit(1);
     return result[0] ?? null;
   }
@@ -1026,11 +1013,11 @@ class DatabaseService {
         .then((r) => Number(r[0]?.count ?? 0)),
       db
         .select({ count: count() })
-        .from(organizations)
+        .from(organizationState)
         .then((r) => Number(r[0]?.count ?? 0)),
       db
         .select({ count: count() })
-        .from(actors)
+        .from(actorState)
         .then((r) => Number(r[0]?.count ?? 0)),
       this.getGameState(),
     ]);

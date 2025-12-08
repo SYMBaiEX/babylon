@@ -120,19 +120,8 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   const context = await worldFactsService.generateWorldContext(true);
 
   // Load reality grounding content from TypeScript export
-  let realityGroundingContent = '';
-  try {
-    const { realityGroundingContent: content } = await import(
-      '@babylon/engine'
-    );
-    realityGroundingContent = content;
-  } catch (e) {
-    logger.warn(
-      'Failed to load reality-grounding content',
-      { error: e },
-      'WorldFactsAdmin'
-    );
-  }
+  const { realityGroundingContent: content } = await import('@babylon/engine');
+  const realityGroundingContent = content;
 
   return successResponse({
     facts,

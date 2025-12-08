@@ -6,7 +6,7 @@
  * point types (reputation, invite, bonus) and provides leaderboard functionality.
  */
 import {
-  actors,
+  actorState,
   and,
   asc,
   count,
@@ -16,20 +16,20 @@ import {
   gt,
   gte,
   isNull,
+  type JsonValue,
   ne,
   pointsTransactions,
   referrals,
   sql,
   users,
 } from '@babylon/db';
+import { StaticDataRegistry } from '@babylon/engine';
 import {
   generateSnowflakeId,
   logger,
   POINTS,
   type PointsReason,
 } from '@babylon/shared';
-
-import type { JsonValue } from '../types';
 
 /**
  * Maximum number of unqualified referrals that can earn signup points at any time.
@@ -1073,38 +1073,42 @@ export class PointsService {
     ];
 
     if (pointsCategory === 'all') {
-      const actorsResult = await db
+      // Get actor states with sufficient reputation points
+      const actorStates = await db
         .select({
-          id: actors.id,
-          name: actors.name,
-          description: actors.description,
-          profileImageUrl: actors.profileImageUrl,
-          reputationPoints: actors.reputationPoints,
-          tier: actors.tier,
-          createdAt: actors.createdAt,
+          id: actorState.id,
+          reputationPoints: actorState.reputationPoints,
+          createdAt: actorState.createdAt,
         })
-        .from(actors)
-        .where(gte(actors.reputationPoints, minPoints));
+        .from(actorState)
+        .where(gte(actorState.reputationPoints, minPoints));
 
+      // Combine with static data
       combined.push(
-        ...actorsResult.map((actor) => ({
-          id: actor.id,
-          username: actor.id,
-          displayName: actor.name,
-          profileImageUrl: actor.profileImageUrl,
-          allPoints: actor.reputationPoints,
-          invitePoints: 0,
-          earnedPoints: 0,
-          bonusPoints: 0,
-          referralCount: 0,
-          balance: 0,
-          lifetimePnL: 0,
-          createdAt: actor.createdAt,
-          isActor: true,
-          tier: actor.tier,
-          onChainRegistered: false,
-          nftTokenId: null as number | null,
-        }))
+        ...actorStates
+          .map((state) => {
+            const staticActor = StaticDataRegistry.getActor(state.id);
+            if (!staticActor) return null;
+            return {
+              id: state.id,
+              username: state.id,
+              displayName: staticActor.name,
+              profileImageUrl: staticActor.profileImageUrl,
+              allPoints: state.reputationPoints,
+              invitePoints: 0,
+              earnedPoints: 0,
+              bonusPoints: 0,
+              referralCount: 0,
+              balance: 0,
+              lifetimePnL: 0,
+              createdAt: state.createdAt,
+              isActor: true,
+              tier: staticActor.tier,
+              onChainRegistered: false,
+              nftTokenId: null as number | null,
+            };
+          })
+          .filter((a): a is NonNullable<typeof a> => a !== null)
       );
     }
 
@@ -1185,11 +1189,11 @@ export class PointsService {
         )
       );
 
-    // Count actors with more points
+    // Count actors with more points using actorState table
     const [higherActorsResult] = await db
       .select({ count: count() })
-      .from(actors)
-      .where(gt(actors.reputationPoints, user.reputationPoints));
+      .from(actorState)
+      .where(gt(actorState.reputationPoints, user.reputationPoints));
 
     const higherUsersCount = higherUsersResult?.count ?? 0;
     const higherActorsCount = higherActorsResult?.count ?? 0;

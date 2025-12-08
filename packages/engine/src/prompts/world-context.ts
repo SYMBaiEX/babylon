@@ -14,18 +14,18 @@
  */
 
 import {
-  actors,
   agentTrades,
   db,
   desc,
   eq,
+  getDbInstance,
   markets,
   npcTrades,
-  organizations,
   questions,
   users,
 } from '@babylon/db';
 import { loadActorsData } from '../actors-loader';
+import { StaticDataRegistry } from '../services/static-data-registry';
 import type { ActorData } from '../types/shared';
 import { shuffleArray } from '../utils/randomization';
 import { worldFactsService } from '../world-facts-service';
@@ -135,12 +135,21 @@ export async function generateCurrentMarkets(): Promise<string> {
     .limit(5);
 
   // Get top perpetual markets (companies with recent activity)
-  const companies = await db
-    .select()
-    .from(organizations)
-    .where(eq(organizations.type, 'company'))
-    .orderBy(desc(organizations.currentPrice))
-    .limit(5);
+  const orgStates = await getDbInstance().getOrganizationsByPrice();
+  const companies = orgStates
+    .slice(0, 5)
+    .map((state) => {
+      const staticOrg = StaticDataRegistry.getOrganization(state.id);
+      return staticOrg
+        ? {
+            ...staticOrg,
+            currentPrice: state.currentPrice ?? staticOrg.initialPrice,
+          }
+        : null;
+    })
+    .filter(
+      (c): c is NonNullable<typeof c> => c !== null && c.type === 'company'
+    );
 
   const parts: string[] = [];
 
@@ -230,8 +239,8 @@ export async function generateActivePredictions(): Promise<string> {
  * @returns Formatted string listing recent trading activity
  */
 export async function generateRecentTrades(): Promise<string> {
-  // Get recent NPC trades with actor names
-  const npcTradeResults = await db
+  // Get recent NPC trades with actor names from static registry
+  const rawNpcTrades = await db
     .select({
       action: npcTrades.action,
       side: npcTrades.side,
@@ -240,12 +249,17 @@ export async function generateRecentTrades(): Promise<string> {
       marketType: npcTrades.marketType,
       ticker: npcTrades.ticker,
       executedAt: npcTrades.executedAt,
-      actorName: actors.name,
+      npcActorId: npcTrades.npcActorId,
     })
     .from(npcTrades)
-    .leftJoin(actors, eq(npcTrades.npcActorId, actors.id))
     .orderBy(desc(npcTrades.executedAt))
     .limit(15);
+
+  // Map actor IDs to names from static registry
+  const npcTradeResults = rawNpcTrades.map((trade) => ({
+    ...trade,
+    actorName: StaticDataRegistry.getActor(trade.npcActorId)?.name ?? 'Unknown',
+  }));
 
   // Get recent agent trades with user names
   const agentTradeResults = await db

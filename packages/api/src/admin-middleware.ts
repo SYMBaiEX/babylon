@@ -2,9 +2,14 @@
  * Admin Authentication Middleware
  *
  * @description Middleware for verifying admin privileges. Authenticates the user
- * and checks if they have admin access. On localhost, ALL users get admin access
- * without requiring authentication (for development/debugging).
- * Throws AuthorizationError if user is not authenticated or not an admin (in production).
+ * and checks if they have admin access. In development mode, supports dev admin
+ * token authentication for easier testing. In production, requires full Privy
+ * authentication and database admin flag verification.
+ *
+ * @security
+ * - NEVER bypasses authentication based on localhost/host header
+ * - Dev mode requires explicit dev admin token
+ * - Production requires Privy auth + database admin flag
  */
 
 import { db, eq, users } from '@babylon/db';
@@ -12,38 +17,46 @@ import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import type { AuthenticatedUser } from './auth-middleware';
 import { authenticate } from './auth-middleware';
+import { getDevAdminUser, isValidDevAdminToken } from './dev-credentials';
 import { AuthorizationError } from './errors';
 
-/**
- * Check if request is from localhost
- */
-function isLocalhostRequest(request: NextRequest): boolean {
-  const host = request.headers.get('host') || '';
-  return host.includes('localhost') || host.includes('127.0.0.1');
-}
+const isDevelopment = process.env.NODE_ENV !== 'production';
 
 /**
  * Authenticate request and verify admin privileges.
- * On localhost, skips authentication entirely and grants admin access.
+ *
+ * In development mode:
+ * - Accepts x-dev-admin-token header with valid dev token
+ * - Falls back to standard Privy auth + admin check
+ *
+ * In production:
+ * - Requires valid Privy authentication
+ * - Requires isAdmin flag in database
  */
 export async function requireAdmin(
   request: NextRequest
 ): Promise<AuthenticatedUser> {
-  // On localhost, skip authentication entirely for easier debugging
-  if (isLocalhostRequest(request)) {
-    logger.info(
-      'Admin access granted (localhost bypass - no auth required)',
-      { host: request.headers.get('host') },
-      'requireAdmin'
-    );
-    // Return a mock admin user for localhost
-    return {
-      userId: 'localhost-admin',
-      dbUserId: 'localhost-admin',
-    };
+  // In development, check for dev admin token first
+  if (isDevelopment) {
+    const devAdminToken = request.headers.get('x-dev-admin-token');
+    if (devAdminToken && isValidDevAdminToken(devAdminToken)) {
+      const devUser = getDevAdminUser();
+      if (devUser) {
+        logger.info(
+          'Admin access granted via dev token',
+          { userId: devUser.userId },
+          'requireAdmin'
+        );
+        return {
+          userId: devUser.userId,
+          dbUserId: devUser.dbUserId,
+          walletAddress: devUser.walletAddress,
+        };
+      }
+    }
   }
 
-  // For non-localhost, require proper authentication
+  // Standard authentication flow
   const user = await authenticate(request);
 
   // Check if user is an admin in the database

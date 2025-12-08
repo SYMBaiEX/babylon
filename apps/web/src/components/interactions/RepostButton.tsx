@@ -11,8 +11,6 @@ import { useLoginModal } from '@/hooks/useLoginModal';
 import { useFeedStore } from '@/stores/feedStore';
 import { useInteractionStore } from '@/stores/interactionStore';
 
-// // import { toast } from 'sonner');
-
 /**
  * Repost/share button component for sharing posts.
  *

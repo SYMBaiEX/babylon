@@ -44,71 +44,62 @@ export const marketsProvider: Provider = {
       };
     }
 
-    try {
-      const [predictionsResult, perpetualsResult] = await Promise.all([
-        babylonRuntime.a2aClient.getPredictions({ status: 'active' }),
-        babylonRuntime.a2aClient.getPerpetuals(),
-      ]);
+    const [predictionsResult, perpetualsResult] = await Promise.all([
+      babylonRuntime.a2aClient.getPredictions({ status: 'active' }),
+      babylonRuntime.a2aClient.getPerpetuals(),
+    ]);
 
-      // Type assertion using A2A response types
-      interface PredictionMarket {
-        id: string;
-        question: string;
-        yesShares: number;
-        noShares: number;
-        liquidity: number;
-        resolved: boolean;
-        endDate: string | Date;
-      }
-
-      interface PerpetualMarket {
-        name: string;
-        type: string;
-        currentPrice: number;
-      }
-
-      const predictionsData = predictionsResult as {
-        predictions?: PredictionMarket[];
-      };
-      const perpetualsData = perpetualsResult as {
-        perpetuals?: PerpetualMarket[];
-      };
-
-      const predictions = predictionsData.predictions || [];
-      const perpetuals = perpetualsData.perpetuals || [];
-
-      const predictionsText =
-        predictions.length > 0
-          ? `Prediction Markets:\n${predictions
-              .slice(0, 10)
-              .map(
-                (m) =>
-                  `- ${m.question} (ID: ${m.id}) | YES: ${m.yesShares.toFixed(2)}, NO: ${m.noShares.toFixed(2)}, Liquidity: $${m.liquidity.toFixed(2)}`
-              )
-              .join('\n')}`
-          : 'No active prediction markets available.';
-
-      const perpetualsText =
-        perpetuals.length > 0
-          ? `Perpetual Markets:\n${perpetuals
-              .slice(0, 10)
-              .map(
-                (p) =>
-                  `- ${p.name} (${p.type}) | Price: $${p.currentPrice.toFixed(2)}`
-              )
-              .join('\n')}`
-          : 'No perpetual markets available.';
-
-      return {
-        text: `${predictionsText}\n\n${perpetualsText}`,
-      };
-    } catch (error) {
-      logger.error(
-        'Error fetching markets via A2A',
-        { error, agentId: runtime.agentId },
-        'MarketsProvider'
-      );
-      throw error;
+    // Type assertion using A2A response types
+    interface PredictionMarket {
+      id: string;
+      question: string;
+      yesShares: number;
+      noShares: number;
+      liquidity: number;
+      resolved: boolean;
+      endDate: string | Date;
     }
+
+    interface PerpetualMarket {
+      name: string;
+      type: string;
+      currentPrice: number;
+    }
+
+    const predictionsData = predictionsResult as {
+      predictions?: PredictionMarket[];
+    };
+    const perpetualsData = perpetualsResult as {
+      perpetuals?: PerpetualMarket[];
+    };
+
+    const predictions = predictionsData.predictions || [];
+    const perpetuals = perpetualsData.perpetuals || [];
+
+    const predictionsText =
+      predictions.length > 0
+        ? `Prediction Markets:\n${predictions
+            .slice(0, 10)
+            .map(
+              (m) =>
+                `- ${m.question} (ID: ${m.id}) | YES: ${m.yesShares.toFixed(2)}, NO: ${m.noShares.toFixed(2)}, Liquidity: $${m.liquidity.toFixed(2)}`
+            )
+            .join('\n')}`
+        : 'No active prediction markets available.';
+
+    const perpetualsText =
+      perpetuals.length > 0
+        ? `Perpetual Markets:\n${perpetuals
+            .slice(0, 10)
+            .map(
+              (p) =>
+                `- ${p.name} (${p.type}) | Price: $${p.currentPrice.toFixed(2)}`
+            )
+            .join('\n')}`
+        : 'No perpetual markets available.';
+
+    return {
+      text: `${predictionsText}\n\n${perpetualsText}`,
+    };
   },
 };

@@ -1,7 +1,6 @@
-import { db, eq, getDbInstance, organizations } from '@babylon/db';
+import { db, eq, getDbInstance, organizationState } from '@babylon/db';
 import { getReadyPerpsEngine } from '@babylon/engine';
-import type { JsonValue } from '@babylon/shared';
-import { logger } from '@babylon/shared';
+import { type JsonValue, logger } from '@babylon/shared';
 
 export type PriceUpdateSource = 'user_trade' | 'npc_trade' | 'event' | 'system';
 
@@ -48,44 +47,44 @@ export class PriceUpdateService {
         continue;
       }
 
-      const [organization] = await db
+      const [orgState] = await db
         .select({
-          id: organizations.id,
-          currentPrice: organizations.currentPrice,
+          id: organizationState.id,
+          currentPrice: organizationState.currentPrice,
         })
-        .from(organizations)
-        .where(eq(organizations.id, update.organizationId))
+        .from(organizationState)
+        .where(eq(organizationState.id, update.organizationId))
         .limit(1);
 
-      if (!organization) {
+      if (!orgState) {
         logger.warn(
-          'Organization not found for price update',
+          'Organization state not found for price update',
           { organizationId: update.organizationId },
           'PriceUpdateService'
         );
         continue;
       }
 
-      const oldPrice = Number(organization.currentPrice ?? update.newPrice);
+      const oldPrice = Number(orgState.currentPrice ?? update.newPrice);
       const change = update.newPrice - oldPrice;
       const changePercent = oldPrice === 0 ? 0 : (change / oldPrice) * 100;
 
       await db
-        .update(organizations)
+        .update(organizationState)
         .set({ currentPrice: update.newPrice, updatedAt: new Date() })
-        .where(eq(organizations.id, organization.id));
+        .where(eq(organizationState.id, orgState.id));
 
       await getDbInstance().recordPriceUpdate(
-        organization.id,
+        orgState.id,
         update.newPrice,
         change,
         changePercent
       );
 
-      priceMap.set(organization.id, update.newPrice);
+      priceMap.set(orgState.id, update.newPrice);
 
       appliedUpdates.push({
-        organizationId: organization.id,
+        organizationId: orgState.id,
         oldPrice,
         newPrice: update.newPrice,
         change,
@@ -101,15 +100,18 @@ export class PriceUpdateService {
       perpsEngine.updatePositions(priceMap);
 
       // Broadcast price updates (handled by API layer if available)
-      try {
-        const { broadcastToChannel } = await import('@babylon/api');
-        await broadcastToChannel('markets', {
-          type: 'price_update',
-          updates: JSON.parse(JSON.stringify(appliedUpdates)) as JsonValue,
-        });
-      } catch {
-        // Broadcast is optional - engine can work without it
-      }
+      const api = await import('@babylon/api');
+      // JSON.parse/stringify ensures clean JSON-serializable data
+      // Using Record<string, unknown> for JSON-parsed data since the exact shape varies
+      const serializedUpdates = JSON.parse(
+        JSON.stringify(appliedUpdates)
+      ) as Record<string, unknown>[];
+      await api.broadcastToChannel('markets', {
+        type: 'price_update',
+        updates: serializedUpdates,
+      } as Record<string, unknown> as Parameters<
+        typeof api.broadcastToChannel
+      >[1]);
 
       logger.info(
         `Applied ${appliedUpdates.length} organization price updates`,

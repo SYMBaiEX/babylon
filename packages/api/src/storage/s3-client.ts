@@ -254,27 +254,22 @@ class S3StorageClient {
    * Check if an object exists
    */
   async exists(key: string): Promise<boolean> {
-    try {
-      if (this.useVercel) {
-        const { head } = await import('@vercel/blob');
-        await head(key);
-        return true;
-      } else {
-        const { HeadObjectCommand } = await import('@aws-sdk/client-s3');
-        if (!this.client) {
-          return false;
-        }
-        await this.client.send(
-          new HeadObjectCommand({
-            Bucket: this.bucket,
-            Key: key,
-          })
-        );
-        return true;
+    if (this.useVercel) {
+      const { head } = await import('@vercel/blob');
+      await head(key);
+      return true;
+    } else {
+      const { HeadObjectCommand } = await import('@aws-sdk/client-s3');
+      if (!this.client) {
+        return false;
       }
-    } catch {
-      // File doesn't exist if head/headObject fails
-      return false;
+      await this.client.send(
+        new HeadObjectCommand({
+          Bucket: this.bucket,
+          Key: key,
+        })
+      );
+      return true;
     }
   }
 }

@@ -17,14 +17,6 @@ export const SnowflakeIdSchema = z
   });
 
 /**
- * UUID validation schema
- * Kept for legacy compatibility and external system integration
- */
-export const UUIDSchema = z.string().uuid({
-  message: 'Invalid UUID format',
-});
-
-/**
  * User ID schema - accepts UUID, Privy DID, or username formats
  * Examples:
  * - UUID: "550e8400-e29b-41d4-a716-446655440000"

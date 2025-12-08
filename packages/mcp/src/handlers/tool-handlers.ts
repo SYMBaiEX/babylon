@@ -13,6 +13,7 @@ import {
   handleVerifyEscrowPayment,
 } from '@babylon/a2a';
 import { db, eq, users } from '@babylon/db';
+import { StaticDataRegistry } from '@babylon/engine';
 import type { JsonValue, StringRecord } from '@babylon/shared';
 import { generateSnowflakeId, getAPIBaseUrl, logger } from '@babylon/shared';
 import type {
@@ -619,31 +620,30 @@ export async function executeGetTrades(
   if (args.marketId) url.searchParams.set('marketId', args.marketId);
   if (args.limit) url.searchParams.set('limit', args.limit.toString());
   const response = await fetch(url.toString());
-  const data = (await response.json()) as { trades: unknown[] };
+  const data = (await response.json()) as {
+    trades: Array<{
+      id: string;
+      marketId: string;
+      userId: string;
+      side: boolean;
+      shares: string;
+      price: string;
+      timestamp: Date | string;
+    }>;
+  };
   return {
-    trades: data.trades.map((t: unknown) => {
-      const trade = t as {
-        id: string;
-        marketId: string;
-        userId: string;
-        side: boolean;
-        shares: string;
-        price: string;
-        timestamp: Date | string;
-      };
-      return {
-        id: trade.id,
-        marketId: trade.marketId,
-        userId: trade.userId,
-        side: trade.side ? 'YES' : 'NO',
-        shares: trade.shares,
-        price: trade.price,
-        timestamp:
-          trade.timestamp instanceof Date
-            ? trade.timestamp.toISOString()
-            : trade.timestamp,
-      };
-    }),
+    trades: data.trades.map((trade) => ({
+      id: trade.id,
+      marketId: trade.marketId,
+      userId: trade.userId,
+      side: trade.side ? 'YES' : 'NO',
+      shares: trade.shares,
+      price: trade.price,
+      timestamp:
+        trade.timestamp instanceof Date
+          ? trade.timestamp.toISOString()
+          : trade.timestamp,
+    })),
   };
 }
 
@@ -660,29 +660,28 @@ export async function executeGetTradeHistory(
   );
   if (args.limit) url.searchParams.set('limit', args.limit.toString());
   const response = await fetch(url.toString());
-  const data = (await response.json()) as { trades: unknown[] };
+  const data = (await response.json()) as {
+    trades: Array<{
+      id: string;
+      marketId: string;
+      side: boolean;
+      shares: string;
+      price: string;
+      timestamp: Date | string;
+    }>;
+  };
   return {
-    trades: data.trades.map((t: unknown) => {
-      const trade = t as {
-        id: string;
-        marketId: string;
-        side: boolean;
-        shares: string;
-        price: string;
-        timestamp: Date | string;
-      };
-      return {
-        id: trade.id,
-        marketId: trade.marketId,
-        side: trade.side ? 'YES' : 'NO',
-        shares: trade.shares,
-        price: trade.price,
-        timestamp:
-          trade.timestamp instanceof Date
-            ? trade.timestamp.toISOString()
-            : trade.timestamp,
-      };
-    }),
+    trades: data.trades.map((trade) => ({
+      id: trade.id,
+      marketId: trade.marketId,
+      side: trade.side ? 'YES' : 'NO',
+      shares: trade.shares,
+      price: trade.price,
+      timestamp:
+        trade.timestamp instanceof Date
+          ? trade.timestamp.toISOString()
+          : trade.timestamp,
+    })),
   };
 }
 
@@ -1761,15 +1760,16 @@ export async function executeGetOrganizations(
   _agent: AuthenticatedAgent,
   args: GetOrganizationsArgs
 ): Promise<GetOrganizationsResult> {
-  const orgsList = await db.organization.findMany({
-    take: args.limit || 50,
-    orderBy: { createdAt: 'desc' },
-  });
+  // Get organizations from static registry
+  const orgsList = StaticDataRegistry.getAllOrganizations().slice(
+    0,
+    args.limit || 50
+  );
   return {
-    organizations: orgsList.map((org) => ({
-      id: org.id,
-      name: org.name,
-      description: org.description,
+    organizations: orgsList.map((staticOrg) => ({
+      id: staticOrg.id,
+      name: staticOrg.name,
+      description: staticOrg.description,
     })),
   };
 }
@@ -2090,6 +2090,9 @@ export async function executeCreateEscrowPayment(
   if (response.error) {
     throw new Error(response.error.message);
   }
+  if (!response.result) {
+    throw new Error('No result in response');
+  }
   return response.result as unknown as CreateEscrowPaymentResult;
 }
 
@@ -2116,6 +2119,9 @@ export async function executeVerifyEscrowPayment(
   if (response.error) {
     throw new Error(response.error.message);
   }
+  if (!response.result) {
+    throw new Error('No result in response');
+  }
   return response.result as unknown as VerifyEscrowPaymentResult;
 }
 
@@ -2139,6 +2145,9 @@ export async function executeRefundEscrowPayment(
   const response = await handleRefundEscrowPayment(agent.agentId, request);
   if (response.error) {
     throw new Error(response.error.message);
+  }
+  if (!response.result) {
+    throw new Error('No result in response');
   }
   return response.result as unknown as RefundEscrowPaymentResult;
 }
@@ -2165,6 +2174,9 @@ export async function executeListEscrowPayments(
   const response = await handleListEscrowPayments(agent.agentId, request);
   if (response.error) {
     throw new Error(response.error.message);
+  }
+  if (!response.result) {
+    throw new Error('No result in response');
   }
   return response.result as unknown as ListEscrowPaymentsResult;
 }
@@ -2211,6 +2223,9 @@ export async function executeAppealBanWithEscrow(
   const response = await handleAppealBanWithEscrow(agent.agentId, request);
   if (response.error) {
     throw new Error(response.error.message);
+  }
+  if (!response.result) {
+    throw new Error('No result in response');
   }
   return response.result as unknown as AppealBanWithEscrowResult;
 }
@@ -2316,25 +2331,24 @@ export async function executeGetFavoritePosts(
   const response = await fetch(url.toString(), {
     headers: { 'X-User-Id': agent.userId },
   });
-  const data = (await response.json()) as { posts: unknown[] };
+  const data = (await response.json()) as {
+    posts: Array<{
+      id: string;
+      content: string;
+      authorId: string;
+      timestamp: Date | string;
+    }>;
+  };
   return {
-    posts: data.posts.map((p: unknown) => {
-      const post = p as {
-        id: string;
-        content: string;
-        authorId: string;
-        timestamp: Date | string;
-      };
-      return {
-        id: post.id,
-        content: post.content,
-        authorId: post.authorId,
-        timestamp:
-          post.timestamp instanceof Date
-            ? post.timestamp.toISOString()
-            : post.timestamp,
-      };
-    }),
+    posts: data.posts.map((post) => ({
+      id: post.id,
+      content: post.content,
+      authorId: post.authorId,
+      timestamp:
+        post.timestamp instanceof Date
+          ? post.timestamp.toISOString()
+          : post.timestamp,
+    })),
   };
 }
 

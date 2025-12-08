@@ -70,13 +70,7 @@ export function NotificationsTab() {
       });
 
       if (response.ok) {
-        let data;
-        try {
-          data = await response.json();
-        } catch {
-          // Silently fail - this is just for debug info
-          return;
-        }
+        const data = await response.json();
         setCurrentUserId(data.user?.id || null);
       }
     };
@@ -118,18 +112,7 @@ export function NotificationsTab() {
         }),
       });
 
-      let data;
-      try {
-        data = await response.json();
-      } catch (parseError) {
-        logger.error(
-          'Failed to parse notification response',
-          { error: parseError },
-          'NotificationsTab'
-        );
-        toast.error('Failed to parse response');
-        return;
-      }
+      const data = await response.json();
 
       if (response.ok && data.success) {
         toast.success(data.message || 'Notification sent successfully');
@@ -165,18 +148,7 @@ export function NotificationsTab() {
         }
       );
 
-      let data;
-      try {
-        data = await response.json();
-      } catch (parseError) {
-        logger.error(
-          'Failed to parse debug DM response',
-          { error: parseError },
-          'NotificationsTab'
-        );
-        toast.error('Failed to parse response');
-        return;
-      }
+      const data = await response.json();
       logger.debug('Debug DM response', { data }, 'NotificationsTab');
       setDebugInfo(data);
 
@@ -229,18 +201,7 @@ export function NotificationsTab() {
         }),
       });
 
-      let data;
-      try {
-        data = await response.json();
-      } catch (parseError) {
-        logger.error(
-          'Failed to parse test DM response',
-          { error: parseError },
-          'NotificationsTab'
-        );
-        toast.error('Failed to parse response');
-        return;
-      }
+      const data = await response.json();
 
       if (response.ok && data.success) {
         const chatId = data.chatId;
@@ -698,18 +659,7 @@ function GroupInviteSection() {
       }),
     });
 
-    let data;
-    try {
-      data = await response.json();
-    } catch (parseError) {
-      logger.error(
-        'Failed to parse group invite response',
-        { error: parseError },
-        'NotificationsTab'
-      );
-      toast.error('Failed to parse response');
-      return;
-    }
+    const data = await response.json();
 
     if (response.ok && data.success) {
       toast.success(data.message || 'Group invite sent successfully');

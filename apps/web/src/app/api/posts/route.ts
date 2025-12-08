@@ -241,14 +241,12 @@ import {
 } from '@babylon/api';
 import type { Post } from '@babylon/db';
 import {
-  actors,
   and,
   comments,
   count,
   db,
   desc,
   eq,
-  followStatuses,
   follows,
   getBlockedByUserIds,
   getBlockedUserIds,
@@ -257,7 +255,6 @@ import {
   isNull,
   lt,
   lte,
-  organizations,
   posts,
   reactions,
   shares,
@@ -267,6 +264,7 @@ import {
 import {
   type GeneratedTag,
   generateTagsFromPost,
+  StaticDataRegistry,
   storeTagsForPost,
 } from '@babylon/engine';
 import { generateSnowflakeId, logger } from '@babylon/shared';
@@ -342,33 +340,20 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     const allFollowedIds = await getCacheOrFetch(
       followsCacheKey,
       async () => {
-        const [userFollowsList, actorFollowsList, npcFollowStatuses] =
-          await Promise.all([
-            db
-              .select({ followingId: follows.followingId })
-              .from(follows)
-              .where(eq(follows.followerId, userId)),
-            db
-              .select({ actorId: userActorFollows.actorId })
-              .from(userActorFollows)
-              .where(eq(userActorFollows.userId, userId)),
-            db
-              .select({ npcId: followStatuses.npcId })
-              .from(followStatuses)
-              .where(
-                and(
-                  eq(followStatuses.userId, userId),
-                  eq(followStatuses.isActive, true),
-                  eq(followStatuses.followReason, 'user_followed')
-                )
-              ),
-          ]);
+        const [userFollowsList, actorFollowsList] = await Promise.all([
+          db
+            .select({ followingId: follows.followingId })
+            .from(follows)
+            .where(eq(follows.followerId, userId)),
+          db
+            .select({ actorId: userActorFollows.actorId })
+            .from(userActorFollows)
+            .where(eq(userActorFollows.userId, userId)),
+        ]);
 
         const followedUserIds = userFollowsList.map((f) => f.followingId);
-        const followedActorIds = new Set<string>();
-        actorFollowsList.forEach((f) => followedActorIds.add(f.actorId));
-        npcFollowStatuses.forEach((f) => followedActorIds.add(f.npcId));
-        return [...followedUserIds, ...Array.from(followedActorIds)];
+        const followedActorIds = actorFollowsList.map((f) => f.actorId);
+        return [...followedUserIds, ...followedActorIds];
       },
       {
         namespace: 'user:follows',
@@ -423,9 +408,9 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       ),
     ];
 
-    const [usersList, actorsList, orgsList] = await Promise.all([
+    const usersList =
       authorIds.length > 0
-        ? db
+        ? await db
             .select({
               id: users.id,
               username: users.username,
@@ -434,31 +419,23 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
             })
             .from(users)
             .where(inArray(users.id, authorIds))
-        : [],
-      authorIds.length > 0
-        ? db
-            .select({
-              id: actors.id,
-              name: actors.name,
-              profileImageUrl: actors.profileImageUrl,
-            })
-            .from(actors)
-            .where(inArray(actors.id, authorIds))
-        : [],
-      authorIds.length > 0
-        ? db
-            .select({
-              id: organizations.id,
-              name: organizations.name,
-              imageUrl: organizations.imageUrl,
-            })
-            .from(organizations)
-            .where(inArray(organizations.id, authorIds))
-        : [],
-    ]);
+        : [];
     const userMap = new Map(usersList.map((u) => [u.id, u]));
-    const actorMap = new Map(actorsList.map((a) => [a.id, a]));
-    const orgMap = new Map(orgsList.map((o) => [o.id, o]));
+    const actorMap = new Map(
+      authorIds
+        .map((id) => StaticDataRegistry.getActor(id))
+        .filter((a): a is NonNullable<typeof a> => a !== null)
+        .map((a) => [
+          a.id,
+          { id: a.id, name: a.name, profileImageUrl: a.profileImageUrl },
+        ])
+    );
+    const orgMap = new Map(
+      authorIds
+        .map((id) => StaticDataRegistry.getOrganization(id))
+        .filter((o): o is NonNullable<typeof o> => o !== null)
+        .map((o) => [o.id, { id: o.id, name: o.name, imageUrl: o.imageUrl }])
+    );
 
     // Get interaction counts for all filtered posts in parallel
     const postIds = filteredPosts.map((p: Post) => p.id);
@@ -718,9 +695,9 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
   const authorIds = [...new Set([...postAuthorIds, ...originalPostAuthorIds])];
 
-  const [usersList, actorsList, orgsList] = await Promise.all([
+  const usersList =
     authorIds.length > 0
-      ? db
+      ? await db
           .select({
             id: users.id,
             username: users.username,
@@ -729,31 +706,23 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
           })
           .from(users)
           .where(inArray(users.id, authorIds))
-      : [],
-    authorIds.length > 0
-      ? db
-          .select({
-            id: actors.id,
-            name: actors.name,
-            profileImageUrl: actors.profileImageUrl,
-          })
-          .from(actors)
-          .where(inArray(actors.id, authorIds))
-      : [],
-    authorIds.length > 0
-      ? db
-          .select({
-            id: organizations.id,
-            name: organizations.name,
-            imageUrl: organizations.imageUrl,
-          })
-          .from(organizations)
-          .where(inArray(organizations.id, authorIds))
-      : [],
-  ]);
+      : [];
   const userMap = new Map(usersList.map((u) => [u.id, u]));
-  const actorMap = new Map(actorsList.map((a) => [a.id, a]));
-  const orgMap = new Map(orgsList.map((o) => [o.id, o]));
+  const actorMap = new Map(
+    authorIds
+      .map((id) => StaticDataRegistry.getActor(id))
+      .filter((a): a is NonNullable<typeof a> => a !== null)
+      .map((a) => [
+        a.id,
+        { id: a.id, name: a.name, profileImageUrl: a.profileImageUrl },
+      ])
+  );
+  const orgMap = new Map(
+    authorIds
+      .map((id) => StaticDataRegistry.getOrganization(id))
+      .filter((o): o is NonNullable<typeof o> => o !== null)
+      .map((o) => [o.id, { id: o.id, name: o.name, imageUrl: o.imageUrl }])
+  );
 
   // Get interaction counts for all posts in parallel
   const postIds = validPosts.map((p) => p.id);
@@ -1006,19 +975,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 export const POST = withErrorHandling(async (request: NextRequest) => {
   const authUser = await authenticate(request);
 
-  let body: { content: string };
-  try {
-    body = (await request.json()) as { content: string };
-  } catch (error) {
-    logger.error('Failed to parse request body', { error }, 'POST /api/posts');
-    return NextResponse.json(
-      {
-        success: false,
-        error: 'Invalid request body',
-      },
-      { status: 400 }
-    );
-  }
+  const body = (await request.json()) as { content: string };
   const { content } = body;
 
   checkRateLimitAndDuplicates(

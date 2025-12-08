@@ -197,14 +197,20 @@ library LibPerpetual {
 
         if (position.side == Side.LONG) {
             // For longs: liq price = entry price - (collateral - maintenance margin) / size
+            // Note: buffer is in 18 decimals (ether), need to convert to 8 decimals for price
             if (position.collateral <= maintenanceMargin) return 0;
             uint256 buffer = position.collateral - maintenanceMargin;
-            return position.entryPrice - ((buffer * 1e18) / position.size);
+            // Convert buffer to price units: (buffer * 1e8) / size
+            // Example: (1000e18 * 1e8) / 10e18 = 10000e8 ($10k price buffer)
+            uint256 priceBuffer = (buffer * 1e8) / position.size;
+            return position.entryPrice > priceBuffer ? position.entryPrice - priceBuffer : 0;
         } else {
             // For shorts: liq price = entry price + (collateral - maintenance margin) / size
             if (position.collateral <= maintenanceMargin) return type(uint256).max;
             uint256 buffer = position.collateral - maintenanceMargin;
-            return position.entryPrice + ((buffer * 1e18) / position.size);
+            // Convert buffer to price units: (buffer * 1e8) / size
+            uint256 priceBuffer = (buffer * 1e8) / position.size;
+            return position.entryPrice + priceBuffer;
         }
     }
 }

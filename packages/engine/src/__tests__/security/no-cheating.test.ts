@@ -67,9 +67,6 @@ const mockWorldContext = {
   checkRealityGrounding: () => ({ score: 1, feedback: [] }),
 };
 
-// Mock world-context functions to avoid DB calls
-// Note: Since prompts are now exported from root, we mock the root package
-// Internal code uses relative imports so this only affects external imports
 mock.module('@babylon/engine', () => mockWorldContext);
 
 // Load environment variables from .env files
@@ -99,78 +96,37 @@ const hasLLMKey = !!(
   (process.env.OPENAI_API_KEY?.trim() ?? '') !== ''
 );
 
-// Skip this test suite unless:
-// 1. RUN_LLM_TESTS=true is set (explicit opt-in), or
-// 2. Running in CI WITH LLM keys available
-// This is a long-running test (10+ minutes) that requires real LLM API calls
-const shouldSkipSuite =
-  !process.env.RUN_LLM_TESTS && !(process.env.CI === 'true' && hasLLMKey);
+const requireLLMKey = () => {
+  if (!hasLLMKey) {
+    throw new Error(
+      'SECURITY TESTS REQUIRE LLM API KEY. ' +
+        'Set GROQ_API_KEY, ANTHROPIC_API_KEY, or OPENAI_API_KEY to run these tests. ' +
+        'These tests validate actual engine functionality and MUST NOT be skipped.'
+    );
+  }
+};
 
-describe.skipIf(shouldSkipSuite)('Security: Prevent Cheating', () => {
+describe('Security: Prevent Cheating', () => {
   // Shared game instance - generated once before all tests that need it
   let game: GeneratedGame | null = null;
-  let skipped = false;
-  let skipReason = '';
 
   beforeAll(async () => {
-    if (!hasLLMKey) {
-      console.log(
-        '⏭️  Skipping all LLM-dependent tests - No LLM API key available'
-      );
-      skipped = true;
-      skipReason = 'No LLM API key';
-      return;
-    }
+    requireLLMKey();
 
-    try {
-      console.log('Generating shared game for security tests...');
-      const { GameGenerator } = await import('@/engine/GameGenerator');
-      const generator = new GameGenerator();
-      game = await generator.generateCompleteGame();
-      console.log('Game generated successfully');
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-      // Check if it's a rate limit or API availability error
-      if (
-        errorMessage.includes('429') ||
-        errorMessage.includes('rate_limit') ||
-        errorMessage.includes('Rate limit') ||
-        errorMessage.includes('401') ||
-        errorMessage.includes('Invalid API Key') ||
-        errorMessage.includes('API key') ||
-        errorMessage.includes('Unauthorized') ||
-        errorMessage.includes('Failed to generate') ||
-        errorMessage.includes('timeout') ||
-        errorMessage.includes('ECONNRESET') ||
-        errorMessage.includes('ETIMEDOUT')
-      ) {
-        console.log(
-          '⏭️  LLM API unavailable or rate limited - tests will skip gracefully'
-        );
-        skipped = true;
-        skipReason = 'API rate limited or generation failed';
-      } else {
-        // For any error, just skip gracefully rather than failing the entire suite
-        console.log(
-          '⏭️  Game generation failed - tests will skip:',
-          errorMessage
-        );
-        skipped = true;
-        skipReason = `Generation failed: ${errorMessage.substring(0, 100)}`;
-      }
-    }
+    console.log('Generating shared game for security tests...');
+    const { GameGenerator } = await import('../../GameGenerator');
+    const generator = new GameGenerator();
+    game = await generator.generateCompleteGame();
+    console.log('Game generated successfully');
   });
 
   describe('No Predetermined Outcome Access', () => {
     test('question outcomes not visible before resolution', async () => {
-      if (skipped || !game) {
-        console.log(`⏭️  Skipping - ${skipReason || 'No game generated'}`);
-        return;
-      }
+      // Game must be generated - enforced by beforeAll
+      expect(game).toBeDefined();
 
       // Simulate what an API would return
-      const publicQuestions = game.setup.questions.map((q) => {
+      const publicQuestions = game!.setup.questions.map((q) => {
         // Before resolution, outcome should not be visible
         if (q.status !== 'resolved') {
           const { outcome: _outcome, ...publicQuestion } = q;
@@ -179,7 +135,6 @@ describe.skipIf(shouldSkipSuite)('Security: Prevent Cheating', () => {
         return q;
       });
 
-      // Check no active questions expose outcome
       const activeQuestions = publicQuestions.filter(
         (q) => !q.status || q.status === 'active'
       );
@@ -196,10 +151,8 @@ describe.skipIf(shouldSkipSuite)('Security: Prevent Cheating', () => {
     });
 
     test('posts dont directly reveal predetermined outcomes', async () => {
-      if (skipped || !game) {
-        console.log(`⏭️  Skipping - ${skipReason || 'No game generated'}`);
-        return;
-      }
+      // Game must be generated - enforced by beforeAll
+      expect(game).toBeDefined();
 
       const suspiciousPatterns = [
         /the answer is (yes|no)/i,
@@ -210,7 +163,7 @@ describe.skipIf(shouldSkipSuite)('Security: Prevent Cheating', () => {
 
       let suspiciousPosts = 0;
 
-      for (const day of game.timeline) {
+      for (const day of game!.timeline) {
         for (const post of day.feedPosts) {
           for (const pattern of suspiciousPatterns) {
             if (pattern.test(post.content)) {
@@ -221,7 +174,7 @@ describe.skipIf(shouldSkipSuite)('Security: Prevent Cheating', () => {
         }
       }
 
-      const totalPosts = game.timeline.reduce(
+      const totalPosts = game!.timeline.reduce(
         (sum, d) => sum + d.feedPosts.length,
         0
       );
@@ -262,12 +215,10 @@ describe.skipIf(shouldSkipSuite)('Security: Prevent Cheating', () => {
 
   describe('No Hidden Knowledge Access', () => {
     test('NPC persona reliability not visible to users', async () => {
-      if (skipped || !game) {
-        console.log(`⏭️  Skipping - ${skipReason || 'No game generated'}`);
-        return;
-      }
+      // Game must be generated - enforced by beforeAll
+      expect(game).toBeDefined();
 
-      const publicActors = game.setup.mainActors.map((actor) => {
+      const publicActors = game!.setup.mainActors.map((actor) => {
         const {
           persona: _persona,
           trackRecord: _trackRecord,
@@ -278,19 +229,18 @@ describe.skipIf(shouldSkipSuite)('Security: Prevent Cheating', () => {
 
       for (const actor of publicActors) {
         expect(actor.persona).toBeUndefined();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         expect(
-          (actor as (typeof game.setup.mainActors)[0]).trackRecord
+          (actor as { trackRecord?: unknown }).trackRecord
         ).toBeUndefined();
       }
     });
 
     test('insider status not visible to users', async () => {
-      if (skipped || !game) {
-        console.log(`⏭️  Skipping - ${skipReason || 'No game generated'}`);
-        return;
-      }
+      // Game must be generated - enforced by beforeAll
+      expect(game).toBeDefined();
 
-      const publicQuestions = game.setup.questions.map((q) => {
+      const publicQuestions = game!.setup.questions.map((q) => {
         if (q.metadata?.arcPlan) {
           const { metadata: _metadata, ...publicQuestion } = q;
           return publicQuestion;
@@ -306,12 +256,10 @@ describe.skipIf(shouldSkipSuite)('Security: Prevent Cheating', () => {
 
   describe('Information Gradient Integrity', () => {
     test('early game doesnt reveal too much', async () => {
-      if (skipped || !game) {
-        console.log(`⏭️  Skipping - ${skipReason || 'No game generated'}`);
-        return;
-      }
+      // Game must be generated - enforced by beforeAll
+      expect(game).toBeDefined();
 
-      const earlyDays = game.timeline.filter((d) => d.day <= 10);
+      const earlyDays = game!.timeline.filter((d) => d.day <= 10);
       const earlyEvents = earlyDays.flatMap((d) => d.events);
 
       const hintsGiven = earlyEvents.filter(
@@ -324,12 +272,10 @@ describe.skipIf(shouldSkipSuite)('Security: Prevent Cheating', () => {
     });
 
     test('late game provides sufficient clarity', async () => {
-      if (skipped || !game) {
-        console.log(`⏭️  Skipping - ${skipReason || 'No game generated'}`);
-        return;
-      }
+      // Game must be generated - enforced by beforeAll
+      expect(game).toBeDefined();
 
-      const lateDays = game.timeline.filter((d) => d.day >= 25);
+      const lateDays = game!.timeline.filter((d) => d.day >= 25);
       const lateEvents = lateDays.flatMap((d) => d.events);
 
       const hintsGiven = lateEvents.filter(
@@ -360,12 +306,10 @@ describe.skipIf(shouldSkipSuite)('Security: Prevent Cheating', () => {
     });
 
     test('group chat membership provides fair insider advantage', async () => {
-      if (skipped || !game) {
-        console.log(`⏭️  Skipping - ${skipReason || 'No game generated'}`);
-        return;
-      }
+      // Game must be generated - enforced by beforeAll
+      expect(game).toBeDefined();
 
-      const groupChats = game.setup.groupChats;
+      const groupChats = game!.setup.groupChats;
 
       for (const group of groupChats) {
         expect(group.members.length).toBeGreaterThan(0);
@@ -376,12 +320,10 @@ describe.skipIf(shouldSkipSuite)('Security: Prevent Cheating', () => {
 
   describe('Temporal Integrity', () => {
     test('posts have valid timestamps in sequence', async () => {
-      if (skipped || !game) {
-        console.log(`⏭️  Skipping - ${skipReason || 'No game generated'}`);
-        return;
-      }
+      // Game must be generated - enforced by beforeAll
+      expect(game).toBeDefined();
 
-      const allPosts = game.timeline.flatMap((d) => d.feedPosts);
+      const allPosts = game!.timeline.flatMap((d) => d.feedPosts);
 
       for (let i = 1; i < allPosts.length; i++) {
         const prev = allPosts[i - 1];
@@ -397,12 +339,10 @@ describe.skipIf(shouldSkipSuite)('Security: Prevent Cheating', () => {
     });
 
     test('event timestamps match their day numbers', async () => {
-      if (skipped || !game) {
-        console.log(`⏭️  Skipping - ${skipReason || 'No game generated'}`);
-        return;
-      }
+      // Game must be generated - enforced by beforeAll
+      expect(game).toBeDefined();
 
-      for (const dayData of game.timeline) {
+      for (const dayData of game!.timeline) {
         for (const event of dayData.events) {
           expect(event.day).toBe(dayData.day);
           expect(event.day).toBeGreaterThanOrEqual(1);

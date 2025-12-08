@@ -111,60 +111,52 @@ export default function RLTrainingDashboard() {
     setLoading(true);
     setError(null);
 
-    try {
-      // Fetch models
-      const modelsRes = await fetch('/api/admin/training/models');
-      const modelsData = await modelsRes.json();
-      if (modelsData.models) {
-        setModels(modelsData.models);
-      }
-
-      // Fetch benchmark summary
-      const benchmarkRes = await fetch('/api/admin/training/benchmark');
-      const benchmarkData = await benchmarkRes.json();
-      if (benchmarkData.summary) {
-        setBenchmarkSummary(benchmarkData.summary);
-      }
-
-      // Fetch model selection
-      const selectionRes = await fetch('/api/admin/training/model-selection');
-      const selectionData = await selectionRes.json();
-      if (selectionData.success) {
-        setModelSelection(selectionData);
-      }
-
-      // Fetch training status
-      const statusRes = await fetch('/api/admin/training/trigger');
-      const statusData = await statusRes.json();
-      if (statusData) {
-        setTrainingStatus(statusData);
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch data');
-    } finally {
-      setLoading(false);
+    // Fetch models
+    const modelsRes = await fetch('/api/admin/training/models');
+    const modelsData = await modelsRes.json();
+    if (modelsData.models) {
+      setModels(modelsData.models);
     }
+
+    // Fetch benchmark summary
+    const benchmarkRes = await fetch('/api/admin/training/benchmark');
+    const benchmarkData = await benchmarkRes.json();
+    if (benchmarkData.summary) {
+      setBenchmarkSummary(benchmarkData.summary);
+    }
+
+    // Fetch model selection
+    const selectionRes = await fetch('/api/admin/training/model-selection');
+    const selectionData = await selectionRes.json();
+    if (selectionData.success) {
+      setModelSelection(selectionData);
+    }
+
+    // Fetch training status
+    const statusRes = await fetch('/api/admin/training/trigger');
+    const statusData = await statusRes.json();
+    if (statusData) {
+      setTrainingStatus(statusData);
+    }
+
+    setLoading(false);
   }, []);
 
   // Trigger training
   const triggerTraining = async (force = false) => {
     setActionStatus('Triggering training...');
-    try {
-      const res = await fetch('/api/admin/training/trigger', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ force }),
-      });
-      const data = await res.json();
+    const res = await fetch('/api/admin/training/trigger', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ force }),
+    });
+    const data = await res.json();
 
-      if (data.success) {
-        setActionStatus('✅ Training triggered successfully!');
-        setTimeout(() => fetchData(), 2000);
-      } else {
-        setActionStatus(`❌ ${data.error || 'Failed to trigger training'}`);
-      }
-    } catch (err) {
-      setActionStatus(`❌ ${err instanceof Error ? err.message : 'Failed'}`);
+    if (data.success) {
+      setActionStatus('✅ Training triggered successfully!');
+      setTimeout(() => fetchData(), 2000);
+    } else {
+      setActionStatus(`❌ ${data.error || 'Failed to trigger training'}`);
     }
     setTimeout(() => setActionStatus(null), 5000);
   };
@@ -172,24 +164,20 @@ export default function RLTrainingDashboard() {
   // Benchmark a model
   const benchmarkModel = async (modelId: string) => {
     setActionStatus(`Benchmarking ${modelId}...`);
-    try {
-      const res = await fetch('/api/admin/training/benchmark', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ modelId, compare: true }),
-      });
-      const data = await res.json();
+    const res = await fetch('/api/admin/training/benchmark', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ modelId, compare: true }),
+    });
+    const data = await res.json();
 
-      if (data.success) {
-        setActionStatus(
-          `✅ Benchmark complete! Score: ${data.benchmark.benchmarkScore.toFixed(3)}`
-        );
-        setTimeout(() => fetchData(), 2000);
-      } else {
-        setActionStatus(`❌ ${data.error || 'Benchmarking failed'}`);
-      }
-    } catch (err) {
-      setActionStatus(`❌ ${err instanceof Error ? err.message : 'Failed'}`);
+    if (data.success) {
+      setActionStatus(
+        `✅ Benchmark complete! Score: ${data.benchmark.benchmarkScore.toFixed(3)}`
+      );
+      setTimeout(() => fetchData(), 2000);
+    } else {
+      setActionStatus(`❌ ${data.error || 'Benchmarking failed'}`);
     }
     setTimeout(() => setActionStatus(null), 8000);
   };

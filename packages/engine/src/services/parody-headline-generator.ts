@@ -213,47 +213,39 @@ Generate the parody now.`;
     const parodies: ParodyHeadline[] = [];
 
     for (const headline of headlines) {
-      try {
-        const parody = await this.generateParody(
-          headline.title,
-          headline.summary || undefined,
-          headline.source?.name
-        );
+      const parody = await this.generateParody(
+        headline.title,
+        headline.summary || undefined,
+        headline.source?.name
+      );
 
-        const [parodyHeadline] = await db
-          .insert(parodyHeadlines)
-          .values({
-            id: await generateSnowflakeId(),
-            originalHeadlineId: headline.id,
-            originalTitle: headline.title,
-            originalSource: headline.source?.name || 'Unknown',
-            parodyTitle: parody.parodyTitle,
-            parodyContent: parody.parodyContent || null,
-            characterMappings: parody.characterMappings,
-            organizationMappings: parody.organizationMappings,
-            generatedAt: new Date(),
-          })
-          .returning();
+      const [parodyHeadline] = await db
+        .insert(parodyHeadlines)
+        .values({
+          id: await generateSnowflakeId(),
+          originalHeadlineId: headline.id,
+          originalTitle: headline.title,
+          originalSource: headline.source?.name || 'Unknown',
+          parodyTitle: parody.parodyTitle,
+          parodyContent: parody.parodyContent || null,
+          characterMappings: parody.characterMappings,
+          organizationMappings: parody.organizationMappings,
+          generatedAt: new Date(),
+        })
+        .returning();
 
-        if (parodyHeadline) {
-          parodies.push(parodyHeadline);
-        }
-
-        logger.info(
-          'Generated parody headline',
-          {
-            original: headline.title,
-            parody: parody.parodyTitle,
-          },
-          'ParodyHeadlineGenerator'
-        );
-      } catch (error) {
-        logger.error(
-          `Failed to generate parody for headline: ${headline.title}`,
-          { error },
-          'ParodyHeadlineGenerator'
-        );
+      if (parodyHeadline) {
+        parodies.push(parodyHeadline);
       }
+
+      logger.info(
+        'Generated parody headline',
+        {
+          original: headline.title,
+          parody: parody.parodyTitle,
+        },
+        'ParodyHeadlineGenerator'
+      );
     }
 
     return parodies;

@@ -26,9 +26,9 @@ import {
   and,
   db,
   eq,
+  getDbInstance,
   isNull,
   markets,
-  organizations,
   perpPositions,
 } from '@babylon/db';
 import {
@@ -38,6 +38,7 @@ import {
   PredictionPricing,
 } from '@babylon/engine';
 import { logger } from '@babylon/shared';
+import { StaticDataRegistry } from './static-data-registry';
 
 /**
  * Health assessment for a prediction market
@@ -291,20 +292,20 @@ export class LiquidityHealthService {
   static async assessPerpMarket(
     organizationId: string
   ): Promise<PerpMarketHealth | null> {
-    const [org] = await db
-      .select({
-        id: organizations.id,
-        name: organizations.name,
-        ticker: organizations.ticker,
-        currentPrice: organizations.currentPrice,
-      })
-      .from(organizations)
-      .where(eq(organizations.id, organizationId))
-      .limit(1);
-
-    if (!org) {
+    // Get static organization data
+    const staticOrg = StaticDataRegistry.getOrganization(organizationId);
+    if (!staticOrg) {
       return null;
     }
+
+    // Get dynamic price from state
+    const orgState = await getDbInstance().getOrganizationState(organizationId);
+    const org = {
+      id: staticOrg.id,
+      name: staticOrg.name,
+      ticker: staticOrg.ticker,
+      currentPrice: orgState?.currentPrice ?? staticOrg.initialPrice,
+    };
 
     // Get all open positions for this market
     const positions = await db
@@ -412,11 +413,10 @@ export class LiquidityHealthService {
       }
     }
 
-    // Get all companies (perp markets)
-    const companies = await db
-      .select({ id: organizations.id })
-      .from(organizations)
-      .where(eq(organizations.type, 'company'));
+    // Get all companies (perp markets) from static registry
+    const companies = StaticDataRegistry.getAllOrganizations()
+      .filter((o) => o.type === 'company')
+      .map((o) => ({ id: o.id }));
 
     const perpHealths: PerpMarketHealth[] = [];
     for (const company of companies) {

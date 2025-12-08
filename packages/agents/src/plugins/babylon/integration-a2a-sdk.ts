@@ -237,104 +237,91 @@ export class BabylonA2AClient {
 
     const skillId = skillMap[action] || 'portfolio-balance';
 
-    try {
-      const response = await this.sdkClient.sendMessage({
-        message: {
-          kind: 'message',
-          messageId: crypto.randomUUID(),
-          role: 'user',
-          parts: [
-            {
-              kind: 'data',
-              data: { operation: action, params },
-              metadata: {
-                skillId,
-              },
+    const response = await this.sdkClient.sendMessage({
+      message: {
+        kind: 'message',
+        messageId: crypto.randomUUID(),
+        role: 'user',
+        parts: [
+          {
+            kind: 'data',
+            data: { operation: action, params },
+            metadata: {
+              skillId,
             },
-          ],
-        },
-      });
+          },
+        ],
+      },
+    });
 
-      // Type for data part in A2A messages
-      interface DataPart {
-        kind: 'data';
-        data: JsonValue;
+    // Type for data part in A2A messages
+    interface DataPart {
+      kind: 'data';
+      data: JsonValue;
+    }
+
+    function isDataPart(part: { kind: string }): part is DataPart {
+      return part.kind === 'data' && 'data' in part;
+    }
+
+    // Handle response - extract Task or Message
+    let task: Task | undefined;
+    if ('result' in response && response.result) {
+      const result = response.result;
+      if (typeof result === 'object' && result !== null && 'kind' in result) {
+        if (result.kind === 'task') {
+          task = result as Task;
+        } else if (result.kind === 'message') {
+          // Direct message response
+          const msg = result as Message;
+          const dataPart = msg.parts.find((p) => isDataPart(p));
+          return dataPart && isDataPart(dataPart) ? dataPart.data : {};
+        }
+      }
+    }
+
+    if (!task) {
+      throw new Error('Expected task response from A2A');
+    }
+
+    // Poll for completion
+    const maxWaitMs = 30000;
+    const startTime = Date.now();
+    while (Date.now() - startTime < maxWaitMs) {
+      const taskResponse = await this.sdkClient.getTask({ id: task.id });
+
+      if ('result' in taskResponse && taskResponse.result) {
+        const result = taskResponse.result as { task?: Task };
+        if (result.task) {
+          task = result.task;
+        }
       }
 
-      function isDataPart(part: { kind: string }): part is DataPart {
-        return part.kind === 'data' && 'data' in part;
-      }
-
-      // Handle response - extract Task or Message
-      let task: Task | undefined;
-      if ('result' in response && response.result) {
-        const result = response.result;
-        if (typeof result === 'object' && result !== null && 'kind' in result) {
-          if (result.kind === 'task') {
-            task = result as Task;
-          } else if (result.kind === 'message') {
-            // Direct message response
-            const msg = result as Message;
-            const dataPart = msg.parts.find((p) => isDataPart(p));
+      const state = task.status?.state;
+      if (state === 'completed') {
+        if (task.artifacts && task.artifacts.length > 0) {
+          const artifact = task.artifacts[0];
+          if (artifact) {
+            const dataPart = artifact.parts.find((p) => isDataPart(p));
             return dataPart && isDataPart(dataPart) ? dataPart.data : {};
           }
         }
+        return {};
       }
 
-      if (!task) {
-        throw new Error('Expected task response from A2A');
+      if (state === 'failed' || state === 'canceled' || state === 'rejected') {
+        const messagePart = task.status?.message?.parts?.[0];
+        const errorText =
+          messagePart && 'text' in messagePart
+            ? messagePart.text
+            : 'Unknown error';
+        throw new Error(`Task ${state}: ${errorText}`);
       }
 
-      // Poll for completion
-      const maxWaitMs = 30000;
-      const startTime = Date.now();
-      while (Date.now() - startTime < maxWaitMs) {
-        const taskResponse = await this.sdkClient.getTask({ id: task.id });
-
-        if ('result' in taskResponse && taskResponse.result) {
-          const result = taskResponse.result as { task?: Task };
-          if (result.task) {
-            task = result.task;
-          }
-        }
-
-        const state = task.status?.state;
-        if (state === 'completed') {
-          if (task.artifacts && task.artifacts.length > 0) {
-            const artifact = task.artifacts[0];
-            if (artifact) {
-              const dataPart = artifact.parts.find((p) => isDataPart(p));
-              return dataPart && isDataPart(dataPart) ? dataPart.data : {};
-            }
-          }
-          return {};
-        }
-
-        if (
-          state === 'failed' ||
-          state === 'canceled' ||
-          state === 'rejected'
-        ) {
-          const messagePart = task.status?.message?.parts?.[0];
-          const errorText =
-            messagePart && 'text' in messagePart
-              ? messagePart.text
-              : 'Unknown error';
-          throw new Error(`Task ${state}: ${errorText}`);
-        }
-
-        await new Promise((resolve) => setTimeout(resolve, 500));
-      }
-
-      throw new Error('Task did not complete within timeout');
-    } catch (error) {
-      logger.error(
-        'A2A execution failed',
-        { error, action, skillId },
-        'BabylonA2AClient'
-      );
-      throw error;
+      await new Promise((resolve) => setTimeout(resolve, 500));
     }
+
+    throw new Error('Task did not complete within timeout');
   }
 
   /**
@@ -344,8 +331,8 @@ export class BabylonA2AClient {
    */
   async request(
     method: string,
-    params?: Record<string, unknown>
-  ): Promise<unknown> {
+    params?: Record<string, JsonValue | undefined>
+  ): Promise<JsonValue> {
     if (method.startsWith('a2a.')) {
       // Map a2a.* methods to actions
       const action = method
@@ -379,8 +366,8 @@ export class BabylonA2AClient {
    */
   async sendRequest(
     method: string,
-    params?: Record<string, unknown>
-  ): Promise<unknown> {
+    params?: Record<string, JsonValue | undefined>
+  ): Promise<JsonValue> {
     return this.request(method, params);
   }
 
@@ -655,12 +642,12 @@ export class BabylonA2AClient {
     to: string;
     amount: string;
     service: string;
-    metadata?: Record<string, unknown>;
+    metadata?: Record<string, JsonValue>;
     from?: string;
   }) {
     return this.request(
       'a2a.paymentRequest',
-      params as Record<string, unknown>
+      params as Record<string, JsonValue>
     );
   }
 
@@ -854,22 +841,12 @@ export async function disconnectAgentA2AClient(
     return;
   }
 
-  try {
-    if (babylonRuntime.a2aClient && 'close' in babylonRuntime.a2aClient) {
-      await (
-        babylonRuntime.a2aClient as { close: () => Promise<void> }
-      ).close();
-    }
-    babylonRuntime.a2aClient = undefined;
-
-    logger.info('A2A client disconnected', { agentId: runtime.agentId });
-  } catch (error) {
-    logger.error(
-      'Failed to disconnect A2A client',
-      error,
-      'BabylonIntegration'
-    );
+  if (babylonRuntime.a2aClient && 'close' in babylonRuntime.a2aClient) {
+    await (babylonRuntime.a2aClient as { close: () => Promise<void> }).close();
   }
+  babylonRuntime.a2aClient = undefined;
+
+  logger.info('A2A client disconnected', { agentId: runtime.agentId });
 }
 
 /**

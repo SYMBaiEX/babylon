@@ -4,7 +4,7 @@
  * @module engine/__tests__/integration/game-quality.test
  *
  * @description
- * Integration tests that validate generated game content quality with REAL LLM calls.
+ * Integration tests that validate generated game content quality with LLM calls.
  *
  * **Tests verify:**
  * 1. No undefined/missing fields in generated content
@@ -53,35 +53,28 @@ const loadEnvFile = (filePath: string) => {
 loadEnvFile('.env.test');
 loadEnvFile('.env.local');
 
-// Check if LLM API keys are available for agent runtime (must be non-empty)
 const hasLLMKey = !!(
   (process.env.GROQ_API_KEY?.trim() ?? '') !== '' ||
   (process.env.ANTHROPIC_API_KEY?.trim() ?? '') !== '' ||
   (process.env.OPENAI_API_KEY?.trim() ?? '') !== ''
 );
 
-// Skip this test suite unless:
-// 1. RUN_LLM_TESTS=true is set (explicit opt-in), or
-// 2. Running in CI WITH LLM keys available
-// This is a long-running test (10+ minutes) that requires real LLM API calls
-const shouldSkipSuite =
-  !process.env.RUN_LLM_TESTS && !(process.env.CI === 'true' && hasLLMKey);
+const requireLLMKey = () => {
+  if (!hasLLMKey) {
+    throw new Error(
+      'GAME QUALITY TESTS REQUIRE LLM API KEY. ' +
+        'Set GROQ_API_KEY, ANTHROPIC_API_KEY, or OPENAI_API_KEY to run these tests. ' +
+        'These tests validate actual engine functionality and MUST NOT be skipped.'
+    );
+  }
+};
 
-describe.skipIf(shouldSkipSuite)('Game Quality Integration Tests', () => {
+describe('Game Quality Integration Tests', () => {
   // Shared game instance - generated once before all tests
   let game: GeneratedGame | null = null;
-  let skipped = false;
-  let skipReason = '';
 
   beforeAll(async () => {
-    if (!hasLLMKey) {
-      console.log(
-        '⏭️  Skipping all tests - No LLM API key available (GROQ_API_KEY, ANTHROPIC_API_KEY, or OPENAI_API_KEY required)'
-      );
-      skipped = true;
-      skipReason = 'No LLM API key';
-      return;
-    }
+    requireLLMKey();
 
     try {
       logger.info(
@@ -95,25 +88,17 @@ describe.skipIf(shouldSkipSuite)('Game Quality Integration Tests', () => {
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
-      // For any error, just skip gracefully rather than failing the entire suite
-      console.log(
-        '⏭️  Game generation failed - tests will skip:',
-        errorMessage.substring(0, 100)
-      );
-      skipped = true;
-      skipReason = `Generation failed: ${errorMessage.substring(0, 100)}`;
+      // Game generation failure is a test failure, not a skip
+      throw new Error(`Game generation failed: ${errorMessage}`);
     }
   });
 
   test('generated game has no undefined fields', async () => {
-    if (skipped || !game) {
-      console.log(`⏭️  Skipping - ${skipReason || 'No game generated'}`);
-      return;
-    }
+    // Game must be generated - enforced by beforeAll
+    expect(game).toBeDefined();
 
     logger.info('Validating game structure...', undefined, 'QualityTest');
 
-    // Check all actors have required fields
     const allActors = [
       ...game.setup.mainActors,
       ...game.setup.supportingActors,
@@ -127,7 +112,6 @@ describe.skipIf(shouldSkipSuite)('Game Quality Integration Tests', () => {
       expect(actor.tier).toBeDefined();
       expect(actor.role).toBeDefined();
 
-      // Validate persona if present
       if (actor.persona) {
         expect(typeof actor.persona.reliability).toBe('number');
         expect(actor.persona.reliability).toBeGreaterThanOrEqual(0);
@@ -136,14 +120,12 @@ describe.skipIf(shouldSkipSuite)('Game Quality Integration Tests', () => {
         expect(typeof actor.persona.willingToLie).toBe('boolean');
       }
     }
-
     logger.info(
       `✅ All ${allActors.length} actors have required fields`,
       undefined,
       'QualityTest'
     );
 
-    // Check all events have required fields
     let eventCount = 0;
     for (const day of game.timeline) {
       for (const event of day.events) {
@@ -166,7 +148,6 @@ describe.skipIf(shouldSkipSuite)('Game Quality Integration Tests', () => {
       'QualityTest'
     );
 
-    // Check all feed posts have required fields
     let postCount = 0;
     for (const day of game.timeline) {
       for (const post of day.feedPosts) {
@@ -179,17 +160,14 @@ describe.skipIf(shouldSkipSuite)('Game Quality Integration Tests', () => {
         expect(post.timestamp).toBeDefined();
         expect(post.day).toBeDefined();
 
-        // Validate timestamp format
         const timestamp = new Date(post.timestamp);
         expect(isNaN(timestamp.getTime())).toBe(false);
 
-        // Sentiment should be in valid range if present
         if (post.sentiment !== null && post.sentiment !== undefined) {
           expect(post.sentiment).toBeGreaterThanOrEqual(-1);
           expect(post.sentiment).toBeLessThanOrEqual(1);
         }
 
-        // ClueStrength should be in valid range if present
         if (post.clueStrength !== null && post.clueStrength !== undefined) {
           expect(post.clueStrength).toBeGreaterThanOrEqual(0);
           expect(post.clueStrength).toBeLessThanOrEqual(1);
@@ -210,10 +188,8 @@ describe.skipIf(shouldSkipSuite)('Game Quality Integration Tests', () => {
   });
 
   test('all actor IDs are unique', async () => {
-    if (skipped || !game) {
-      console.log(`⏭️  Skipping - ${skipReason || 'No game generated'}`);
-      return;
-    }
+    // Game must be generated - enforced by beforeAll
+    expect(game).toBeDefined();
 
     const allActors = [
       ...game.setup.mainActors,
@@ -233,10 +209,8 @@ describe.skipIf(shouldSkipSuite)('Game Quality Integration Tests', () => {
   });
 
   test('all event IDs are unique', async () => {
-    if (skipped || !game) {
-      console.log(`⏭️  Skipping - ${skipReason || 'No game generated'}`);
-      return;
-    }
+    // Game must be generated - enforced by beforeAll
+    expect(game).toBeDefined();
 
     const allEvents = game.timeline.flatMap((day) => day.events);
     const ids = allEvents.map((e) => e.id);
@@ -251,10 +225,8 @@ describe.skipIf(shouldSkipSuite)('Game Quality Integration Tests', () => {
   });
 
   test('all actor references are valid', async () => {
-    if (skipped || !game) {
-      console.log(`⏭️  Skipping - ${skipReason || 'No game generated'}`);
-      return;
-    }
+    // Game must be generated - enforced by beforeAll
+    expect(game).toBeDefined();
 
     const allActors = [
       ...game.setup.mainActors,
@@ -264,7 +236,6 @@ describe.skipIf(shouldSkipSuite)('Game Quality Integration Tests', () => {
     const validActorIds = new Set(allActors.map((a) => a.id));
     const validOrgIds = new Set(game.setup.organizations.map((o) => o.id));
 
-    // Check events reference valid actors
     for (const day of game.timeline) {
       for (const event of day.events) {
         for (const actorId of event.actors) {
@@ -272,7 +243,6 @@ describe.skipIf(shouldSkipSuite)('Game Quality Integration Tests', () => {
         }
       }
 
-      // Check posts reference valid authors
       for (const post of day.feedPosts) {
         // Allow system authors
         if (
@@ -283,7 +253,6 @@ describe.skipIf(shouldSkipSuite)('Game Quality Integration Tests', () => {
           continue;
         }
 
-        // Must be valid actor or organization
         const isValid =
           validActorIds.has(post.author) || validOrgIds.has(post.author);
         expect(isValid).toBe(true);
@@ -298,26 +267,21 @@ describe.skipIf(shouldSkipSuite)('Game Quality Integration Tests', () => {
   });
 
   test('questions have metadata and arc plans', async () => {
-    if (skipped || !game) {
-      console.log(`⏭️  Skipping - ${skipReason || 'No game generated'}`);
-      return;
-    }
+    // Game must be generated - enforced by beforeAll
+    expect(game).toBeDefined();
 
     for (const question of game.setup.questions) {
-      // Questions should have metadata with arc plans
       expect(question.metadata).toBeDefined();
       expect(question.metadata?.arcPlan).toBeDefined();
 
       const arcPlan = question.metadata!.arcPlan!;
 
-      // Validate arc plan structure
       expect(typeof arcPlan.uncertaintyPeakDay).toBe('number');
       expect(typeof arcPlan.clarityOnsetDay).toBe('number');
       expect(typeof arcPlan.verificationDay).toBe('number');
       expect(Array.isArray(arcPlan.insiders)).toBe(true);
       expect(Array.isArray(arcPlan.deceivers)).toBe(true);
 
-      // Validate day ordering
       expect(arcPlan.clarityOnsetDay).toBeGreaterThan(
         arcPlan.uncertaintyPeakDay
       );

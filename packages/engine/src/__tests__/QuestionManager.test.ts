@@ -199,7 +199,6 @@ describe('QuestionManager', () => {
       status: 'active' as const,
     }));
 
-    // Should only keep 20
     const activeQuestions = questions
       .filter((q) => q.status === 'active')
       .slice(0, 20);

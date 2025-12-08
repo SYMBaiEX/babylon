@@ -79,7 +79,6 @@ import {
   withErrorHandling,
 } from '@babylon/api';
 import {
-  actors,
   asc,
   asSystem,
   chatParticipants,
@@ -91,6 +90,7 @@ import {
   userGroups,
   users,
 } from '@babylon/db';
+import { StaticDataRegistry } from '@babylon/engine';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 
@@ -195,17 +195,14 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
               .where(inArray(users.id, allUserIds))
           : [];
 
-      const allActors =
-        allUserIds.length > 0
-          ? await database
-              .select({
-                id: actors.id,
-                name: actors.name,
-                profileImageUrl: actors.profileImageUrl,
-              })
-              .from(actors)
-              .where(inArray(actors.id, allUserIds))
-          : [];
+      const allActors = allUserIds
+        .map((id) => StaticDataRegistry.getActor(id))
+        .filter((a): a is NonNullable<typeof a> => a !== null)
+        .map((a) => ({
+          id: a.id,
+          name: a.name,
+          profileImageUrl: a.profileImageUrl,
+        }));
 
       // Get all user groups
       const allUserGroups = await database

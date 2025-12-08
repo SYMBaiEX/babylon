@@ -10,6 +10,7 @@ import OpenAI from 'openai';
 import 'dotenv/config';
 import { logger } from '@babylon/shared';
 import type { JsonValue } from '../types/common';
+import type { LLMCallTokenUsage } from '../types/token-stats';
 import { isPromptLoggingEnabled, logPrompt } from '../utils/prompt-logger';
 import {
   cleanMarkdownCodeBlocks,
@@ -19,6 +20,34 @@ import {
 import { parseXML } from './xml-parser';
 
 type LLMProvider = 'groq' | 'claude' | 'openai';
+
+/**
+ * Token usage callback function type
+ * Called after each LLM call with usage statistics
+ */
+export type TokenUsageCallback = (
+  usage: Omit<LLMCallTokenUsage, 'callId' | 'timestamp'>
+) => void;
+
+// Global token usage callback (can be set by TokenStatsService)
+let globalTokenUsageCallback: TokenUsageCallback | null = null;
+
+/**
+ * Set the global token usage callback
+ * Used by TokenStatsService to collect usage across all LLM calls
+ */
+export function setTokenUsageCallback(
+  callback: TokenUsageCallback | null
+): void {
+  globalTokenUsageCallback = callback;
+}
+
+/**
+ * Get the current token usage callback
+ */
+export function getTokenUsageCallback(): TokenUsageCallback | null {
+  return globalTokenUsageCallback;
+}
 
 /**
  * Simple JSON schema for validation
@@ -98,14 +127,17 @@ export class BabylonLLMClient {
     this.claudeKey = process.env.ANTHROPIC_API_KEY;
     this.openaiKey = apiKey || process.env.OPENAI_API_KEY;
 
-    // Timeout and retry configuration - shorter in test environments to fail fast
+    // Timeout and retry configuration
+    // For large batch operations (like NPC trading), we need longer timeouts
+    // since Groq can take 30-60 seconds for complex prompts
     const isTestEnv =
       process.env.NODE_ENV === 'test' || process.env.BUN_ENV === 'test';
-    // Test: 30 seconds, Production: 180 seconds (3 minutes)
-    const timeoutMs = isTestEnv ? 30000 : 180000;
-    // Test: 0 SDK retries (we handle retries ourselves, fail fast on rate limits)
-    // Production: 2 retries
-    const sdkMaxRetries = isTestEnv ? 0 : 2;
+    // Test: 120 seconds (2 min) to allow for large batch operations
+    // Production: 300 seconds (5 minutes) for safety
+    const timeoutMs = isTestEnv ? 120000 : 300000;
+    // Let SDK handle initial retries for transient errors
+    // We also do our own retries in generateJSON for more control
+    const sdkMaxRetries = 2;
 
     // Force specific provider if requested
     if (forceProvider === 'groq' && this.groqKey) {
@@ -252,6 +284,7 @@ WORLD RULES:
     let retryCount = 0;
     const maxRetries = 3;
     const initialDelayMs = 2000;
+    let callStartTime = Date.now();
 
     while (true) {
       try {
@@ -259,6 +292,7 @@ WORLD RULES:
         // See: https://console.groq.com/docs/reasoning
         const isQwen3Model = model.includes('qwen3');
 
+        callStartTime = Date.now();
         const response = await this.client.chat.completions.create({
           model,
           messages,
@@ -268,9 +302,16 @@ WORLD RULES:
           // Disable reasoning for qwen3 models to prevent thinking tokens from consuming output budget
           ...(isQwen3Model ? { reasoning_effort: 'none' as const } : {}),
         });
+        const callDurationMs = Date.now() - callStartTime;
 
         let content = response.choices[0]!.message.content!;
         let finishReason = response.choices[0]!.finish_reason;
+
+        // Extract token usage from response
+        const usage = response.usage;
+        const inputTokens = usage?.prompt_tokens ?? 0;
+        const outputTokens = usage?.completion_tokens ?? 0;
+        const totalTokens = usage?.total_tokens ?? inputTokens + outputTokens;
 
         // Log prompt and response for monitoring
         const fullInput = `System: ${systemContent}\n\nUser: ${prompt}`;
@@ -386,6 +427,20 @@ WORLD RULES:
           // Log parsed output for monitoring
           await this.logParsedOutput(xmlResult.data, promptType);
 
+          // Report token usage via callback
+          if (globalTokenUsageCallback) {
+            globalTokenUsageCallback({
+              provider: this.provider,
+              model,
+              inputTokens,
+              outputTokens,
+              totalTokens,
+              promptType,
+              durationMs: callDurationMs,
+              success: true,
+            });
+          }
+
           return xmlResult.data as T;
         }
         // Use JSON parser
@@ -401,6 +456,21 @@ WORLD RULES:
               },
               'BabylonLLMClient'
             );
+
+            // Report token usage via callback
+            if (globalTokenUsageCallback) {
+              globalTokenUsageCallback({
+                provider: this.provider,
+                model,
+                inputTokens,
+                outputTokens,
+                totalTokens,
+                promptType,
+                durationMs: callDurationMs,
+                success: true,
+              });
+            }
+
             return parsed as T;
           }
           logger.error(
@@ -427,6 +497,20 @@ WORLD RULES:
         // Log parsed output for monitoring
         await this.logParsedOutput(parsed, promptType);
 
+        // Report token usage via callback
+        if (globalTokenUsageCallback) {
+          globalTokenUsageCallback({
+            provider: this.provider,
+            model,
+            inputTokens,
+            outputTokens,
+            totalTokens,
+            promptType,
+            durationMs: callDurationMs,
+            success: true,
+          });
+        }
+
         return parsed as T;
       } catch (error: unknown) {
         const err = error as {
@@ -444,19 +528,8 @@ WORLD RULES:
           err?.message?.includes('rate_limit');
 
         if (isRateLimitError) {
-          // In test environments, fail fast - don't retry rate limits
-          if (isTestEnv) {
-            logger.warn(
-              'Rate limit hit (429) in test environment - failing fast',
-              {
-                error: err.message,
-              },
-              'BabylonLLMClient'
-            );
-            throw error;
-          }
-
-          // In production, retry with backoff
+          // Retry with backoff in both test and production environments
+          // Tests need to be robust to rate limits too
           if (retryCount < maxRetries) {
             retryCount++;
 
@@ -472,8 +545,9 @@ WORLD RULES:
               }
             }
 
-            // Cap at 30 seconds for rate limits
-            delay = Math.min(delay, 30000);
+            // Cap at 30 seconds for rate limits (shorter in tests for faster feedback)
+            const maxDelay = isTestEnv ? 10000 : 30000;
+            delay = Math.min(delay, maxDelay);
 
             logger.warn(
               `Rate limit hit (429), retrying in ${delay}ms...`,
@@ -482,6 +556,7 @@ WORLD RULES:
                 maxRetries,
                 retryAfterHeader: retryAfter || 'not provided',
                 delay,
+                isTestEnv,
               },
               'BabylonLLMClient'
             );
@@ -502,9 +577,7 @@ WORLD RULES:
             err?.message?.includes('service_unavailable'))
         ) {
           retryCount++;
-          // Faster retries in test environments
-          const baseDelay = isTestEnv ? 500 : initialDelayMs;
-          const delay = baseDelay * 2 ** (retryCount - 1);
+          const delay = initialDelayMs * 2 ** (retryCount - 1);
 
           logger.warn(
             `LLM Service Error (${err.status || 'unknown'}), retrying in ${delay}ms...`,
@@ -520,6 +593,49 @@ WORLD RULES:
           continue;
         }
 
+        // Handle timeout errors with exponential backoff
+        const isTimeoutError =
+          err?.message?.includes('timed out') ||
+          err?.message?.includes('timeout') ||
+          err?.message?.includes('ETIMEDOUT') ||
+          err?.message?.includes('ECONNRESET') ||
+          err?.message?.includes('APIConnectionTimeoutError');
+
+        if (isTimeoutError && retryCount < maxRetries) {
+          retryCount++;
+          // Longer backoff for timeouts since the server is overloaded
+          const delay = Math.min(initialDelayMs * 3 ** (retryCount - 1), 60000);
+
+          logger.warn(
+            `LLM request timed out, retrying in ${delay}ms...`,
+            {
+              attempt: retryCount,
+              maxRetries,
+              error: err.message,
+            },
+            'BabylonLLMClient'
+          );
+
+          await new Promise((resolve) => setTimeout(resolve, delay));
+          continue;
+        }
+
+        // Report failed call via callback (if we have basic info)
+        if (globalTokenUsageCallback) {
+          const errMessage = err?.message || 'Unknown error';
+          globalTokenUsageCallback({
+            provider: this.provider,
+            model,
+            inputTokens: 0,
+            outputTokens: 0,
+            totalTokens: 0,
+            promptType,
+            durationMs: Date.now() - callStartTime,
+            success: false,
+            error: errMessage,
+          });
+        }
+
         // Re-throw if not a retryable error or retries exhausted
         throw error;
       }
@@ -533,24 +649,20 @@ WORLD RULES:
     data: JsonValue,
     promptType: string
   ): Promise<void> {
-    try {
-      if (!isPromptLoggingEnabled()) {
-        return;
-      }
-
-      // Parsed output is logged via the main flow
-      // This provides additional structured data for monitoring
-      logger.debug(
-        'Parsed LLM output',
-        {
-          promptType,
-          dataType: Array.isArray(data) ? 'array' : typeof data,
-        },
-        'BabylonLLMClient'
-      );
-    } catch {
-      // Ignore logging errors
+    if (!isPromptLoggingEnabled()) {
+      return;
     }
+
+    // Parsed output is logged via the main flow
+    // This provides additional structured data for monitoring
+    logger.debug(
+      'Parsed LLM output',
+      {
+        promptType,
+        dataType: Array.isArray(data) ? 'array' : typeof data,
+      },
+      'BabylonLLMClient'
+    );
   }
 
   /**
@@ -569,28 +681,23 @@ WORLD RULES:
       format?: string;
     }
   ): Promise<void> {
-    try {
-      if (!isPromptLoggingEnabled()) {
-        return;
-      }
-
-      await logPrompt({
-        promptType: metadata.promptType || 'unknown',
-        promptTemplate: metadata.promptTemplate,
-        input,
-        output,
-        metadata: {
-          provider: metadata.provider,
-          model: metadata.model,
-          temperature: metadata.temperature,
-          maxTokens: metadata.maxTokens,
-          format: metadata.format,
-        },
-      });
-    } catch (error) {
-      // Logging failure should not break generation
-      logger.debug('Failed to log prompt debug', { error }, 'BabylonLLMClient');
+    if (!isPromptLoggingEnabled()) {
+      return;
     }
+
+    await logPrompt({
+      promptType: metadata.promptType || 'unknown',
+      promptTemplate: metadata.promptTemplate,
+      input,
+      output,
+      metadata: {
+        provider: metadata.provider,
+        model: metadata.model,
+        temperature: metadata.temperature,
+        maxTokens: metadata.maxTokens,
+        format: metadata.format,
+      },
+    });
   }
 
   /**

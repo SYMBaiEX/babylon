@@ -1,43 +1,63 @@
 /**
- * State Manager
+ * State Manager - 100% PERMISSIONLESS
  *
- * Manages game state persistence using encrypted storage.
- * Coordinates between the TEE enclave and IPFS storage.
+ * Manages game state persistence using encrypted storage on Arweave.
+ * All data is permanently stored with wallet signatures only.
+ *
+ * NO API KEYS. WALLET IS YOUR ONLY CREDENTIAL.
  */
 
 import type { Hex } from 'viem';
+import { keccak256, toBytes } from 'viem';
 import type { TEEEnclave } from '../tee/enclave.js';
 import type { SealedData } from '../tee/keystore.js';
-import type { IPFSSimulator } from './ipfs-simulator.js';
+import type { Storage } from './storage-interface.js';
 
 export interface StateCheckpoint {
-  cid: string;
+  /** Arweave transaction ID */
+  id: string;
+  /** Content hash (keccak256) */
   hash: Hex;
+  /** Checkpoint version number */
   version: number;
+  /** Key version used for encryption */
   keyVersion: number;
+  /** Upload timestamp */
   timestamp: number;
+  /** Size in bytes */
   size: number;
+  /** Arweave URL */
+  url: string;
 }
 
 export interface TrainingDataset {
-  cid: string;
+  /** Arweave transaction ID */
+  id: string;
+  /** Training epoch */
   epoch: number;
+  /** Number of training samples */
   sampleCount: number;
+  /** Upload timestamp */
   timestamp: number;
+  /** Model hash before training */
   modelHashBefore: Hex;
+  /** Model hash after training */
   modelHashAfter: Hex;
+  /** Arweave URL */
+  url: string;
 }
 
 export interface StateManagerConfig {
+  /** Enable verbose logging */
   verbose?: boolean;
 }
 
 /**
- * Manages encrypted game state and public training data
+ * Manages encrypted game state and public training data using permanent storage
  */
 export class StateManager {
   private enclave: TEEEnclave;
-  private ipfs: IPFSSimulator;
+  private storage: Storage;
   private checkpoints: StateCheckpoint[] = [];
   private trainingDatasets: TrainingDataset[] = [];
   private currentEpoch = 0;
@@ -45,24 +65,24 @@ export class StateManager {
 
   constructor(
     enclave: TEEEnclave,
-    ipfs: IPFSSimulator,
+    storage: Storage,
     config: StateManagerConfig = {}
   ) {
     this.enclave = enclave;
-    this.ipfs = ipfs;
+    this.storage = storage;
     this.config = config;
 
     if (config.verbose) {
-      console.log('[StateManager] Initialized');
+      console.log('[StateManager] Initialized with permanent storage');
     }
   }
 
   /**
-   * Save encrypted game state to IPFS
+   * Save encrypted game state to permanent storage
    */
   async saveState(state: object): Promise<StateCheckpoint> {
     // Encrypt state inside TEE
-    const { cid, hash } = await this.enclave.encryptState(state);
+    const { hash } = await this.enclave.encryptState(state);
 
     // Get sealed data from enclave
     const sealed = this.enclave.getSealedState();
@@ -70,30 +90,41 @@ export class StateManager {
       throw new Error('Failed to get sealed state from enclave');
     }
 
-    // Store sealed blob in IPFS
+    // Serialize sealed data for storage
     const sealedJson = JSON.stringify(sealed);
-    this.ipfs.store(sealedJson, {
+
+    if (this.config.verbose) {
+      console.log(
+        `[StateManager] Uploading encrypted state (${sealedJson.length} bytes)...`
+      );
+    }
+
+    // Upload to permanent storage
+    const result = await this.storage.upload(sealedJson, {
       encrypted: true,
-      metadata: {
-        keyVersion: sealed.version,
-        stateHash: hash,
+      tags: {
+        'Content-Type': 'application/json',
+        'Data-Type': 'encrypted-game-state',
+        'Key-Version': sealed.version.toString(),
+        'State-Hash': hash,
       },
     });
 
     const checkpoint: StateCheckpoint = {
-      cid,
+      id: result.id,
       hash,
       version: this.checkpoints.length + 1,
       keyVersion: sealed.version,
       timestamp: Date.now(),
-      size: sealedJson.length,
+      size: result.size,
+      url: result.url,
     };
 
     this.checkpoints.push(checkpoint);
 
     if (this.config.verbose) {
       console.log(
-        `[StateManager] Saved checkpoint v${checkpoint.version}: ${cid}`
+        `[StateManager] ✓ Saved checkpoint v${checkpoint.version}: ${result.url}`
       );
     }
 
@@ -101,29 +132,28 @@ export class StateManager {
   }
 
   /**
-   * Load and decrypt state from IPFS
+   * Load and decrypt state from permanent storage
    */
-  async loadState<T = object>(cid: string, keyVersion?: number): Promise<T> {
-    // Retrieve sealed blob from IPFS
-    const obj = this.ipfs.retrieve(cid);
-    if (!obj) {
-      throw new Error(`State not found: ${cid}`);
+  async loadState<T = object>(id: string, keyVersion?: number): Promise<T> {
+    if (this.config.verbose) {
+      console.log(
+        `[StateManager] Loading state from ${this.storage.getUrl(id)}...`
+      );
     }
 
-    // Verify integrity
-    const verification = this.ipfs.verify(cid);
-    if (!verification.valid) {
-      throw new Error(`State integrity check failed: ${verification.error}`);
-    }
+    // Download sealed blob from storage
+    const sealedJson = await this.storage.downloadJSON<SealedData>(id);
 
-    // Parse sealed data
-    const sealed: SealedData = JSON.parse(obj.content);
+    // Verify we got valid sealed data
+    if (!sealedJson.payload || !sealedJson.version || !sealedJson.label) {
+      throw new Error('Invalid sealed data structure');
+    }
 
     // Decrypt inside TEE
-    const state = await this.enclave.decryptState<T>(sealed, keyVersion);
+    const state = await this.enclave.decryptState<T>(sealedJson, keyVersion);
 
     if (this.config.verbose) {
-      console.log(`[StateManager] Loaded state from ${cid}`);
+      console.log(`[StateManager] ✓ Loaded and decrypted state from ${id}`);
     }
 
     return state;
@@ -138,7 +168,7 @@ export class StateManager {
     }
 
     // Tell enclave to rotate its key and re-encrypt state
-    const { newVersion, newCid } = await this.enclave.rotateStateKey();
+    const { newVersion } = await this.enclave.rotateStateKey();
 
     // Get new sealed data
     const sealed = this.enclave.getSealedState();
@@ -146,30 +176,34 @@ export class StateManager {
       throw new Error('Failed to get re-encrypted state');
     }
 
-    // Store new sealed blob
+    // Upload new sealed blob to permanent storage
     const sealedJson = JSON.stringify(sealed);
-    this.ipfs.store(sealedJson, {
+    const result = await this.storage.upload(sealedJson, {
       encrypted: true,
-      metadata: {
-        keyVersion: newVersion,
-        rotatedFrom: sealed.version - 1,
+      tags: {
+        'Content-Type': 'application/json',
+        'Data-Type': 'encrypted-game-state',
+        'Key-Version': sealed.version.toString(),
+        'Rotated-From': (sealed.version - 1).toString(),
       },
     });
 
+    const stateHash = keccak256(toBytes(sealedJson));
     const checkpoint: StateCheckpoint = {
-      cid: newCid,
-      hash: this.enclave.getStatus().stateVersion.toString() as Hex,
+      id: result.id,
+      hash: stateHash,
       version: this.checkpoints.length + 1,
       keyVersion: newVersion,
       timestamp: Date.now(),
-      size: sealedJson.length,
+      size: result.size,
+      url: result.url,
     };
 
     this.checkpoints.push(checkpoint);
 
     if (this.config.verbose) {
       console.log(
-        `[StateManager] Key rotated to v${newVersion}, new checkpoint: ${newCid}`
+        `[StateManager] ✓ Key rotated to v${newVersion}, checkpoint: ${result.url}`
       );
     }
 
@@ -177,67 +211,71 @@ export class StateManager {
   }
 
   /**
-   * Save public training dataset to IPFS
+   * Save public training dataset to permanent storage
    */
-  saveTrainingData(
+  async saveTrainingData(
     data: object[],
     modelHashBefore: Hex,
     modelHashAfter: Hex
-  ): TrainingDataset {
+  ): Promise<TrainingDataset> {
     this.currentEpoch++;
 
     // Training data is stored publicly (not encrypted)
-    const dataJson = JSON.stringify({
+    const dataPayload = {
       epoch: this.currentEpoch,
       timestamp: Date.now(),
       samples: data,
-    });
+      modelHashBefore,
+      modelHashAfter,
+    };
 
-    const obj = this.ipfs.store(dataJson, {
+    if (this.config.verbose) {
+      console.log(
+        `[StateManager] Uploading training data epoch ${this.currentEpoch} (${data.length} samples)...`
+      );
+    }
+
+    const result = await this.storage.uploadJSON(dataPayload, {
       encrypted: false,
-      metadata: {
-        type: 'training_dataset',
-        epoch: this.currentEpoch,
-        sampleCount: data.length,
-        modelHashBefore,
-        modelHashAfter,
+      tags: {
+        'Data-Type': 'public-training-data',
+        Epoch: this.currentEpoch.toString(),
+        'Sample-Count': data.length.toString(),
+        'Model-Hash-Before': modelHashBefore,
+        'Model-Hash-After': modelHashAfter,
       },
     });
 
     const dataset: TrainingDataset = {
-      cid: obj.cid,
+      id: result.id,
       epoch: this.currentEpoch,
       sampleCount: data.length,
-      timestamp: obj.timestamp,
+      timestamp: Date.now(),
       modelHashBefore,
       modelHashAfter,
+      url: result.url,
     };
 
     this.trainingDatasets.push(dataset);
 
     if (this.config.verbose) {
-      console.log(
-        `[StateManager] Saved training data epoch ${this.currentEpoch}: ${obj.cid} (${data.length} samples)`
-      );
+      console.log(`[StateManager] ✓ Saved training data: ${result.url}`);
     }
 
     return dataset;
   }
 
   /**
-   * Load public training dataset from IPFS
+   * Load public training dataset from permanent storage
    */
-  loadTrainingData(cid: string): {
+  async loadTrainingData(id: string): Promise<{
     epoch: number;
     timestamp: number;
     samples: object[];
-  } {
-    const obj = this.ipfs.retrieve(cid);
-    if (!obj) {
-      throw new Error(`Training data not found: ${cid}`);
-    }
-
-    return JSON.parse(obj.content);
+    modelHashBefore: Hex;
+    modelHashAfter: Hex;
+  }> {
+    return this.storage.downloadJSON(id);
   }
 
   /**
@@ -276,11 +314,11 @@ export class StateManager {
     trainingDatasets: number;
     totalStorageBytes: number;
   } {
-    const ipfsStats = this.ipfs.getStats();
+    const storageStats = this.storage.getStats?.();
     return {
       checkpoints: this.checkpoints.length,
       trainingDatasets: this.trainingDatasets.length,
-      totalStorageBytes: ipfsStats.totalSize,
+      totalStorageBytes: storageStats?.totalSize ?? 0,
     };
   }
 }

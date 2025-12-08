@@ -6,10 +6,18 @@
  */
 
 import { db, eq, trainedModels } from '@babylon/db';
+import type { JsonValue } from '@babylon/shared';
 import { del, list, put } from '@vercel/blob';
 import fs from 'fs/promises';
 import path from 'path';
 import { logger } from '../../utils/logger';
+
+export interface ModelMetadata {
+  trainingBatch?: string;
+  accuracy?: number;
+  avgReward?: number;
+  baseModel?: string;
+}
 
 export interface ModelVersion {
   version: string;
@@ -17,13 +25,7 @@ export interface ModelVersion {
   blobUrl: string;
   size: number;
   uploadedAt: Date;
-  metadata: {
-    trainingBatch?: string;
-    accuracy?: number;
-    avgReward?: number;
-    baseModel?: string;
-    [key: string]: unknown;
-  };
+  metadata: ModelMetadata & Record<string, JsonValue | undefined>;
 }
 
 export class ModelStorageService {

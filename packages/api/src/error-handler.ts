@@ -103,7 +103,11 @@ export function errorHandler(
     if (!isTestToken) {
       logger.warn('Validation error', {
         error: error.message,
-        issues: error.issues,
+        issues: error.issues.map((issue) => ({
+          code: issue.code,
+          message: issue.message,
+          path: issue.path.map(String),
+        })),
         name: error.name,
         ...errorContext,
       });
@@ -362,19 +366,14 @@ export function withErrorHandling<TContext extends RouteContext = RouteContext>(
   handler: (
     req: NextRequest,
     context?: TContext
-  ) => Promise<NextResponse> | NextResponse,
-  options?: ErrorHandlerOptions
+  ) => Promise<NextResponse> | NextResponse
 ): (req: NextRequest, context?: TContext) => Promise<NextResponse> {
   return async (
     req: NextRequest,
     context?: TContext
   ): Promise<NextResponse> => {
-    try {
-      const response = await handler(req, context!);
-      return response;
-    } catch (error) {
-      return errorHandler(error, req, options);
-    }
+    const response = await handler(req, context!);
+    return response;
   };
 }
 
@@ -396,13 +395,11 @@ export function asyncHandler<TContext extends RouteContext = RouteContext>(
       throw new Error('Handler function is required');
     }
 
-    try {
-      return await handler(req, context);
-    } finally {
-      if (teardown) {
-        await teardown();
-      }
+    const result = await handler(req, context);
+    if (teardown) {
+      await teardown();
     }
+    return result;
   };
 }
 

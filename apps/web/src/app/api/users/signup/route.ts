@@ -180,37 +180,26 @@ async function ensureSmartWalletAddress(
   smartWalletAddress: string | null;
   embeddedWalletAddress: string | null;
 }> {
-  try {
-    const user = (await privyClient.getUser(
-      privyId
-    )) as PrivyUserWithSmartWallet;
-    let smartWalletAddress = user.smartWallet?.address?.toLowerCase() ?? null;
-    let embeddedWallet = pickEmbeddedEvmWallet(user);
+  const user = (await privyClient.getUser(privyId)) as PrivyUserWithSmartWallet;
+  let smartWalletAddress = user.smartWallet?.address?.toLowerCase() ?? null;
+  let embeddedWallet = pickEmbeddedEvmWallet(user);
 
-    if (!smartWalletAddress) {
-      const updated = (await privyClient.createWallets({
-        userId: privyId,
-        createEthereumSmartWallet: true,
-        // Only create a new embedded wallet if none exists
-        createEthereumWallet: !embeddedWallet,
-      })) as PrivyUserWithSmartWallet;
+  if (!smartWalletAddress) {
+    const updated = (await privyClient.createWallets({
+      userId: privyId,
+      createEthereumSmartWallet: true,
+      // Only create a new embedded wallet if none exists
+      createEthereumWallet: !embeddedWallet,
+    })) as PrivyUserWithSmartWallet;
 
-      smartWalletAddress = updated.smartWallet?.address?.toLowerCase() ?? null;
-      embeddedWallet = embeddedWallet ?? pickEmbeddedEvmWallet(updated);
-    }
-
-    return {
-      smartWalletAddress,
-      embeddedWalletAddress: embeddedWallet?.address?.toLowerCase() ?? null,
-    };
-  } catch (error) {
-    logger.warn(
-      'Failed to ensure smart wallet for user',
-      { privyId, error },
-      'POST /api/users/signup'
-    );
-    return { smartWalletAddress: null, embeddedWalletAddress: null };
+    smartWalletAddress = updated.smartWallet?.address?.toLowerCase() ?? null;
+    embeddedWallet = embeddedWallet ?? pickEmbeddedEvmWallet(updated);
   }
+
+  return {
+    smartWalletAddress,
+    embeddedWalletAddress: embeddedWallet?.address?.toLowerCase() ?? null,
+  };
 }
 
 const SignupSchema = OnboardingProfileSchema.extend({
@@ -251,20 +240,12 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   let identityTwitterUsername: string | undefined;
 
   if (identityToken) {
-    try {
-      const privyClient = getPrivyClient();
-      const identityUser: PrivyUser =
-        await privyClient.getUserFromIdToken(identityToken);
+    const privyClient = getPrivyClient();
+    const identityUser: PrivyUser =
+      await privyClient.getUserFromIdToken(identityToken);
 
-      identityFarcasterUsername = identityUser.farcaster?.username ?? undefined;
-      identityTwitterUsername = identityUser.twitter?.username ?? undefined;
-    } catch (error) {
-      logger.warn(
-        'Failed to decode identity token during signup',
-        { error },
-        'POST /api/users/signup'
-      );
-    }
+    identityFarcasterUsername = identityUser.farcaster?.username ?? undefined;
+    identityTwitterUsername = identityUser.twitter?.username ?? undefined;
   } else {
     logger.info(
       'Signup received no identity token; proceeding with provided payload only',
@@ -715,15 +696,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     'POST /api/users/signup'
   );
 
-  try {
-    await notifyNewAccount(result.user.id);
-  } catch (error) {
-    logger.warn(
-      'Failed to send welcome notification',
-      { userId: result.user.id, error },
-      'POST /api/users/signup'
-    );
-  }
+  await notifyNewAccount(result.user.id);
 
   // Track signup with PostHog
   await trackServerEvent(result.user.id, 'signup_completed', {

@@ -97,12 +97,7 @@ function parseDeploymentOutput(output: string): Record<string, string> {
     ['identityRegistry', /IdentityRegistry:\s*(0x[a-fA-F0-9]{40})/],
     ['reputationSystem', /ReputationSystem:\s*(0x[a-fA-F0-9]{40})/],
     ['babylonGameOracle', /BabylonGameOracle:\s*(0x[a-fA-F0-9]{40})/],
-    ['predimarket', /Predimarket:\s*(0x[a-fA-F0-9]{40})/],
-    ['marketFactory', /MarketFactory:\s*(0x[a-fA-F0-9]{40})/],
-    ['contestOracle', /ContestOracle:\s*(0x[a-fA-F0-9]{40})/],
     ['banManager', /BanManager:\s*(0x[a-fA-F0-9]{40})/],
-    ['labelManager', /ReputationLabelManager:\s*(0x[a-fA-F0-9]{40})/],
-    ['reportingSystem', /ReportingSystem:\s*(0x[a-fA-F0-9]{40})/],
     ['testToken', /TestToken:\s*(0x[a-fA-F0-9]{40})/],
   ] as const;
 
@@ -115,12 +110,8 @@ function parseDeploymentOutput(output: string): Record<string, string> {
 }
 
 async function checkForge(): Promise<boolean> {
-  try {
-    await $`forge --version`.quiet();
-    return true;
-  } catch {
-    return false;
-  }
+  await $`forge --version`.quiet();
+  return true;
 }
 
 async function deployToNetwork(
@@ -151,14 +142,8 @@ async function deployToNetwork(
 
   // For local, check Hardhat is running
   if (network === 'local') {
-    try {
-      await $`cast block-number --rpc-url ${config.rpcUrl}`.quiet();
-      logger.success('Hardhat node is running');
-    } catch {
-      logger.fail('Hardhat is not running');
-      console.log('\nStart it with: bun run hardhat');
-      process.exit(1);
-    }
+    await $`cast block-number --rpc-url ${config.rpcUrl}`.quiet();
+    logger.success('Hardhat node is running');
   }
 
   // Compile contracts (run from contracts directory where foundry.toml is)
@@ -184,49 +169,44 @@ async function deployToNetwork(
 
   const verifyFlag = !skipVerify && network !== 'local' ? '--verify' : '';
 
-  try {
-    const result = await $`cd ${CONTRACTS_DIR} && forge script ${scriptPath} \
-      --rpc-url ${config.rpcUrl} \
-      --private-key ${config.privateKey} \
-      --broadcast ${verifyFlag}`;
+  const result = await $`cd ${CONTRACTS_DIR} && forge script ${scriptPath} \
+    --rpc-url ${config.rpcUrl} \
+    --private-key ${config.privateKey} \
+    --broadcast ${verifyFlag}`;
 
-    const output = result.text();
-    const addresses = parseDeploymentOutput(output);
+  const output = result.text();
+  const addresses = parseDeploymentOutput(output);
 
-    if (!addresses.diamond) {
-      throw new Error('Failed to parse deployment addresses');
-    }
-
-    logger.success('Deployment complete!');
-    console.log('\nContract addresses:');
-    console.log(`  Diamond: ${addresses.diamond}`);
-
-    // Save to env file
-    const envFile = network === 'local' ? '.env.local' : `.env.${network}`;
-    const envPath = join(process.cwd(), envFile);
-
-    let envContent = existsSync(envPath) ? readFileSync(envPath, 'utf-8') : '';
-
-    const updates = [
-      ['BABYLON_DIAMOND_ADDRESS', addresses.diamond],
-      ['BABYLON_CHAIN_ID', String(config.chainId)],
-    ];
-
-    for (const [key, value] of updates) {
-      const regex = new RegExp(`^${key}=.*$`, 'm');
-      if (envContent.match(regex)) {
-        envContent = envContent.replace(regex, `${key}=${value}`);
-      } else {
-        envContent += `\n${key}=${value}`;
-      }
-    }
-
-    writeFileSync(envPath, envContent);
-    logger.success(`Updated ${envFile}`);
-  } catch (error) {
-    logger.fail('Deployment failed');
-    throw error;
+  if (!addresses.diamond) {
+    throw new Error('Failed to parse deployment addresses');
   }
+
+  logger.success('Deployment complete!');
+  console.log('\nContract addresses:');
+  console.log(`  Diamond: ${addresses.diamond}`);
+
+  // Save to env file
+  const envFile = network === 'local' ? '.env.local' : `.env.${network}`;
+  const envPath = join(process.cwd(), envFile);
+
+  let envContent = existsSync(envPath) ? readFileSync(envPath, 'utf-8') : '';
+
+  const updates = [
+    ['BABYLON_DIAMOND_ADDRESS', addresses.diamond],
+    ['BABYLON_CHAIN_ID', String(config.chainId)],
+  ];
+
+  for (const [key, value] of updates) {
+    const regex = new RegExp(`^${key}=.*$`, 'm');
+    if (envContent.match(regex)) {
+      envContent = envContent.replace(regex, `${key}=${value}`);
+    } else {
+      envContent += `\n${key}=${value}`;
+    }
+  }
+
+  writeFileSync(envPath, envContent);
+  logger.success(`Updated ${envFile}`);
 }
 
 async function runTestnetSetup(): Promise<void> {
@@ -251,30 +231,25 @@ async function runTestnetSetup(): Promise<void> {
   logger.step('Initializing game state...');
 
   // Call initialization functions on the contract
-  try {
-    // Initialize game
-    await $`cast send ${diamondAddress} "initializeGame()" \
-      --rpc-url ${rpcUrl} \
-      --private-key ${privateKey}`.quiet();
+  // Initialize game
+  await $`cast send ${diamondAddress} "initializeGame()" \
+    --rpc-url ${rpcUrl} \
+    --private-key ${privateKey}`.quiet();
 
-    logger.success('Game initialized');
+  logger.success('Game initialized');
 
-    // Create initial market
-    await $`cast send ${diamondAddress} "createMarket(string,uint256)" \
-      "Will the test event occur?" \
-      ${Math.floor(Date.now() / 1000) + 86400 * 7} \
-      --rpc-url ${rpcUrl} \
-      --private-key ${privateKey}`.quiet();
+  // Create initial market
+  await $`cast send ${diamondAddress} "createMarket(string,uint256)" \
+    "Will the test event occur?" \
+    ${Math.floor(Date.now() / 1000) + 86400 * 7} \
+    --rpc-url ${rpcUrl} \
+    --private-key ${privateKey}`.quiet();
 
-    logger.success('Initial market created');
+  logger.success('Initial market created');
 
-    console.log('\n✅ Testnet setup complete!');
-    console.log(`\nDiamond: ${diamondAddress}`);
-    console.log('\nNext: Start the app with bun run dev');
-  } catch (error) {
-    logger.fail('Setup failed');
-    throw error;
-  }
+  console.log('\n✅ Testnet setup complete!');
+  console.log(`\nDiamond: ${diamondAddress}`);
+  console.log('\nNext: Start the app with bun run dev');
 }
 
 /**
@@ -293,42 +268,35 @@ export async function runDeployCommand(args: string[]): Promise<void> {
   const skipVerify = getFlag(parsed, 'skip-verify');
   const force = getFlag(parsed, 'force');
 
-  try {
-    switch (parsed.command) {
-      case 'local':
-        await deployToNetwork('local', true, force);
-        break;
+  switch (parsed.command) {
+    case 'local':
+      await deployToNetwork('local', true, force);
+      break;
 
-      case 'testnet':
-        await deployToNetwork('testnet', skipVerify, force);
-        break;
+    case 'testnet':
+      await deployToNetwork('testnet', skipVerify, force);
+      break;
 
-      case 'mainnet':
-        if (!force) {
-          logger.fail('Mainnet deployment requires --force flag');
-          console.log(
-            '\nThis is a safety check. Use: babylon deploy mainnet --force'
-          );
-          process.exit(1);
-        }
-        await deployToNetwork('mainnet', skipVerify, force);
-        break;
+    case 'mainnet':
+      if (!force) {
+        logger.fail('Mainnet deployment requires --force flag');
+        console.log(
+          '\nThis is a safety check. Use: babylon deploy mainnet --force'
+        );
+        process.exit(1);
+      }
+      await deployToNetwork('mainnet', skipVerify, force);
+      break;
 
-      case 'setup':
-        await runTestnetSetup();
-        break;
+    case 'setup':
+      await runTestnetSetup();
+      break;
 
-      default:
-        if (parsed.command) {
-          logger.fail(`Unknown command: ${parsed.command}`);
-        }
-        printHelp();
-        process.exit(parsed.command ? 1 : 0);
-    }
-  } catch (error) {
-    if (error instanceof Error) {
-      console.error(`\n❌ ${error.message}`);
-    }
-    process.exit(1);
+    default:
+      if (parsed.command) {
+        logger.fail(`Unknown command: ${parsed.command}`);
+      }
+      printHelp();
+      process.exit(parsed.command ? 1 : 0);
   }
 }

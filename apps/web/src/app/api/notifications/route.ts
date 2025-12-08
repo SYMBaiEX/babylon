@@ -195,7 +195,6 @@ import {
   NotificationsQuerySchema,
 } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
-import { NextResponse } from 'next/server';
 
 /**
  * GET /api/notifications - Get user notifications
@@ -333,11 +332,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         if (typeof value === 'number') return String(value);
         if (typeof value === 'boolean') return String(value);
         if (typeof value === 'object' && 'toString' in value) {
-          try {
-            return (value as { toString: () => string }).toString();
-          } catch {
-            return String(value);
-          }
+          return (value as { toString: () => string }).toString();
         }
         return String(value);
       };
@@ -350,12 +345,8 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         createdAtISO = n.createdAt;
       } else {
         // Fallback: try to convert to Date then to ISO string
-        try {
-          const dateValue = n.createdAt as string | number | Date;
-          createdAtISO = new Date(dateValue).toISOString();
-        } catch {
-          createdAtISO = new Date().toISOString();
-        }
+        const dateValue = n.createdAt as string | number | Date;
+        createdAtISO = new Date(dateValue).toISOString();
       }
 
       return {
@@ -391,26 +382,10 @@ export const PATCH = withErrorHandling(async (request: NextRequest) => {
   const authUser = await authenticate(request);
 
   // Parse and validate request body
-  let body: { notificationIds?: string[]; markAllAsRead?: boolean };
-  try {
-    body = (await request.json()) as {
-      notificationIds?: string[];
-      markAllAsRead?: boolean;
-    };
-  } catch (error) {
-    logger.error(
-      'Failed to parse request body',
-      { error },
-      'PATCH /api/notifications'
-    );
-    return NextResponse.json(
-      {
-        success: false,
-        error: 'Invalid request body',
-      },
-      { status: 400 }
-    );
-  }
+  const body = (await request.json()) as {
+    notificationIds?: string[];
+    markAllAsRead?: boolean;
+  };
   const { notificationIds, markAllAsRead } =
     MarkNotificationsReadSchema.parse(body);
 

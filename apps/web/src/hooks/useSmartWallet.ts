@@ -1,8 +1,4 @@
-import {
-  getWalletErrorMessage,
-  logger,
-  WALLET_ERROR_MESSAGES,
-} from '@babylon/shared';
+import { logger, WALLET_ERROR_MESSAGES } from '@babylon/shared';
 import { useWallets } from '@privy-io/react-auth';
 import type { SmartWalletClientType } from '@privy-io/react-auth/smart-wallets';
 import { useSmartWallets } from '@privy-io/react-auth/smart-wallets';
@@ -124,11 +120,7 @@ export function useSmartWallet(): UseSmartWalletResult {
         throw new Error(WALLET_ERROR_MESSAGES.NO_EMBEDDED_WALLET);
       }
 
-      try {
-        return await typedClient.sendTransaction(input, options);
-      } catch (error) {
-        throw new Error(getWalletErrorMessage(error));
-      }
+      return await typedClient.sendTransaction(input, options);
     },
     [typedClient, smartWalletAddress]
   );

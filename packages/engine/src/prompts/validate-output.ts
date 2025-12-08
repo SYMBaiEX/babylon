@@ -115,14 +115,6 @@ export function validateHashtags(
 }
 
 /**
- * Legacy function for strict no-hashtag validation
- * @deprecated Use validateHashtags with maxAllowed=0
- */
-export function validateNoHashtags(text: string): string[] {
-  return validateHashtags(text, 0);
-}
-
-/**
  * Validates that text doesn't contain emojis
  */
 export function validateNoEmojis(text: string): string[] {
@@ -173,7 +165,7 @@ export function validateFeedPost(
 
   // Critical validations (must pass)
   violations.push(...validateNoRealNames(text));
-  violations.push(...validateNoHashtags(text));
+  violations.push(...validateHashtags(text, 0));
   violations.push(...validateNoEmojis(text));
   violations.push(
     ...validateCharacterLimit(text, options.maxLength, options.postType)

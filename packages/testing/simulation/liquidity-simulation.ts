@@ -31,9 +31,9 @@ import {
   calculateDynamicFundingRate,
   calculatePositionFunding,
   type FundingRateResult,
-  logger,
   PredictionPricing,
 } from '@babylon/engine';
+import { logger } from '@babylon/shared';
 
 /**
  * Configuration for a simulation scenario

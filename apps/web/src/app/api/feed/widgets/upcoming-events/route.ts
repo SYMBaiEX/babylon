@@ -66,7 +66,8 @@ interface UpcomingEvent {
   time?: string;
   isLive?: boolean;
   hint?: string; // Subtle hint about related prediction market
-  fullDescription?: string;
+  // NOTE: fullDescription removed for security - could leak prediction market question text
+  // which would give unfair advantage to users who can see unresolved question details
   source?: string;
   relatedQuestion?: number;
   imageUrl?: string; // Actor profile image or organization logo
@@ -218,7 +219,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
                 (daysUntil <= FEED_WIDGET_CONFIG.HINT_SHOW_DAYS
                   ? question.text.substring(0, 40) + '...'
                   : undefined),
-              fullDescription: `This market will resolve on ${resolutionDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })} at ${eventTime}. ${question.text}`,
+              // SECURITY: fullDescription removed - could leak question text for cheating
               source: 'Prediction Market',
               relatedQuestion: question.questionNumber,
             });
@@ -346,7 +347,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
                 description.length > 60
                   ? description.substring(0, 57) + '...'
                   : description,
-              fullDescription: description,
+              // SECURITY: fullDescription removed from world events too
               source: event.relatedQuestion
                 ? `World Event (Related to Question #${event.relatedQuestion})`
                 : 'World Event',
@@ -497,7 +498,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
                 (daysUntil <= FEED_WIDGET_CONFIG.HINT_SHOW_DAYS
                   ? question.text.substring(0, 40) + '...'
                   : undefined),
-              fullDescription: `This market will resolve on ${resolutionDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })} at ${eventTime}. ${question.text}`,
+              // SECURITY: fullDescription removed - could leak question text for cheating
               source: 'Prediction Market',
               relatedQuestion: question.questionNumber,
             });
@@ -625,7 +626,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
                 description.length > 60
                   ? description.substring(0, 57) + '...'
                   : description,
-              fullDescription: description,
+              // SECURITY: fullDescription removed from world events too
               source: event.relatedQuestion
                 ? `World Event (Related to Question #${event.relatedQuestion})`
                 : 'World Event',

@@ -222,104 +222,76 @@ export class BabylonAgentExecutor implements AgentExecutor {
   ): Promise<void> {
     const { taskId, contextId, userMessage, task } = requestContext;
 
-    try {
-      // Extract message text
-      const textParts = userMessage.parts.filter(
-        (p): p is TextPart => p.kind === 'text'
-      );
-      const messageText = textParts.map((p) => p.text).join(' ');
+    // Extract message text
+    const textParts = userMessage.parts.filter(
+      (p): p is TextPart => p.kind === 'text'
+    );
+    const messageText = textParts.map((p) => p.text).join(' ');
 
-      logger.info('Babylon processing A2A message', { taskId, messageText });
+    logger.info('Babylon processing A2A message', { taskId, messageText });
 
-      // Create initial task if needed
-      if (!task) {
-        const initialTask: Task = {
-          kind: 'task',
-          id: taskId,
-          contextId: contextId || uuidv4(),
-          status: {
-            state: 'submitted',
-            timestamp: new Date().toISOString(),
-          },
-          history: [userMessage],
-        };
-        eventBus.publish(initialTask);
-      }
-
-      // Update to working state
-      const workingUpdate: TaskStatusUpdateEvent = {
-        kind: 'status-update',
-        taskId,
+    // Create initial task if needed
+    if (!task) {
+      const initialTask: Task = {
+        kind: 'task',
+        id: taskId,
         contextId: contextId || uuidv4(),
         status: {
-          state: 'working',
+          state: 'submitted',
           timestamp: new Date().toISOString(),
         },
-        final: false,
+        history: [userMessage],
       };
-      eventBus.publish(workingUpdate);
-
-      const command = this.parseCommand(userMessage);
-      const result = await this.executeOperation(command, requestContext);
-
-      // Create artifact with result
-      const artifactUpdate: TaskArtifactUpdateEvent = {
-        kind: 'artifact-update',
-        taskId,
-        contextId: contextId || uuidv4(),
-        artifact: {
-          artifactId: uuidv4(),
-          name: 'result.json',
-          parts: [
-            {
-              kind: 'data',
-              data: { result: result ?? null } as { [k: string]: JsonValue },
-            },
-          ],
-        },
-      };
-      eventBus.publish(artifactUpdate);
-
-      // Mark completed
-      const completedUpdate: TaskStatusUpdateEvent = {
-        kind: 'status-update',
-        taskId,
-        contextId: contextId || uuidv4(),
-        status: {
-          state: 'completed',
-          timestamp: new Date().toISOString(),
-        },
-        final: true,
-      };
-      eventBus.publish(completedUpdate);
-      eventBus.finished();
-    } catch (error) {
-      logger.error('Babylon executor error', error);
-
-      const errorUpdate: TaskStatusUpdateEvent = {
-        kind: 'status-update',
-        taskId,
-        contextId: contextId || uuidv4(),
-        status: {
-          state: 'failed',
-          timestamp: new Date().toISOString(),
-          message: {
-            kind: 'message',
-            messageId: uuidv4(),
-            role: 'agent',
-            parts: [
-              {
-                kind: 'text',
-                text: `Error: ${(error as Error).message}`,
-              },
-            ],
-          },
-        },
-        final: true,
-      };
-      eventBus.publish(errorUpdate);
-      eventBus.finished();
+      eventBus.publish(initialTask);
     }
+
+    // Update to working state
+    const workingUpdate: TaskStatusUpdateEvent = {
+      kind: 'status-update',
+      taskId,
+      contextId: contextId || uuidv4(),
+      status: {
+        state: 'working',
+        timestamp: new Date().toISOString(),
+      },
+      final: false,
+    };
+    eventBus.publish(workingUpdate);
+
+    const command = this.parseCommand(userMessage);
+    const result = await this.executeOperation(command, requestContext);
+
+    // Create artifact with result
+    const artifactUpdate: TaskArtifactUpdateEvent = {
+      kind: 'artifact-update',
+      taskId,
+      contextId: contextId || uuidv4(),
+      artifact: {
+        artifactId: uuidv4(),
+        name: 'result.json',
+        parts: [
+          {
+            kind: 'data',
+            data: { result: result ?? null } as { [k: string]: JsonValue },
+          },
+        ],
+      },
+    };
+    eventBus.publish(artifactUpdate);
+
+    // Mark completed
+    const completedUpdate: TaskStatusUpdateEvent = {
+      kind: 'status-update',
+      taskId,
+      contextId: contextId || uuidv4(),
+      status: {
+        state: 'completed',
+        timestamp: new Date().toISOString(),
+      },
+      final: true,
+    };
+    eventBus.publish(completedUpdate);
+    eventBus.finished();
   }
 
   private async executeOperation(
@@ -381,7 +353,9 @@ export class BabylonAgentExecutor implements AgentExecutor {
     );
 
     if (dataPart && dataPart.data && typeof dataPart.data === 'object') {
-      const { operation, params } = dataPart.data as Record<string, unknown>;
+      const data = dataPart.data as Record<string, JsonValue>;
+      const operation = data.operation;
+      const params = data.params;
       if (typeof operation !== 'string') {
         throw new Error('Data part must include an "operation" string');
       }
@@ -398,16 +372,12 @@ export class BabylonAgentExecutor implements AgentExecutor {
       .trim();
 
     if (textPayload.length > 0) {
-      try {
-        const parsed = JSON.parse(textPayload);
-        if (typeof parsed.operation === 'string') {
-          return {
-            operation: parsed.operation,
-            params: this.ensureRecord(parsed.params),
-          };
-        }
-      } catch {
-        // fall through
+      const parsed = JSON.parse(textPayload);
+      if (typeof parsed.operation === 'string') {
+        return {
+          operation: parsed.operation,
+          params: this.ensureRecord(parsed.params),
+        };
       }
     }
 
@@ -444,7 +414,7 @@ export class BabylonAgentExecutor implements AgentExecutor {
     return { success: true, postId: post.id, content: post.content };
   }
 
-  private async getFeed(params: Record<string, unknown>) {
+  private async getFeed(params: Record<string, JsonValue>) {
     const limit = this.parsePositiveInt(params.limit, 20, 100);
     const posts = await db.post.findMany({
       take: limit,
@@ -466,7 +436,7 @@ export class BabylonAgentExecutor implements AgentExecutor {
     };
   }
 
-  private async listPredictionMarkets(params: Record<string, unknown>) {
+  private async listPredictionMarkets(params: Record<string, JsonValue>) {
     const limit = this.parsePositiveInt(params.limit, 20, 50);
     const markets = await db.market.findMany({
       take: limit,
@@ -483,7 +453,7 @@ export class BabylonAgentExecutor implements AgentExecutor {
     };
   }
 
-  private async searchUsers(params: Record<string, unknown>) {
+  private async searchUsers(params: Record<string, JsonValue>) {
     const query = typeof params.query === 'string' ? params.query.trim() : '';
     if (!query) {
       throw new Error('query is required');
@@ -517,7 +487,7 @@ export class BabylonAgentExecutor implements AgentExecutor {
     return { users: userCount, posts: postCount, markets: marketCount };
   }
 
-  private async getLeaderboard(params: Record<string, unknown>) {
+  private async getLeaderboard(params: Record<string, JsonValue>) {
     const limit = this.parsePositiveInt(params.limit, 10, 50);
     const users = await db.user.findMany({
       take: limit,

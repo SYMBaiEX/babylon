@@ -1,8 +1,10 @@
 /**
- * Archetype-Aware Scoring Service
+ * ArchetypeScoringService
  *
- * Scores trajectories using LLM-as-judge with archetype-specific rubrics and behavioral metrics.
- * This is the main entry point for multi-criteria evaluation.
+ * Scores trajectories using LLM-as-judge with archetype-specific rubrics.
+ * Supports both single trajectory scoring and RULER-style relative comparison.
+ *
+ * @packageDocumentation
  */
 
 import { and, db, eq, inArray, isNull, not, trajectories } from '@babylon/db';
@@ -10,12 +12,15 @@ import { getLLMCaller } from '../dependencies';
 import { type BehavioralMetrics, trajectoryMetricsExtractor } from '../metrics';
 import { hasCustomRubric } from '../rubrics';
 import type { TrajectoryStep } from '../training/types';
-import { logger } from '../utils/logger';
+import { logger, splitIntoBatches } from '../utils';
 import {
   judgePromptBuilder,
   type TrajectoryContext,
 } from './JudgePromptBuilder';
 
+/**
+ * Score result for a single trajectory.
+ */
 export interface ArchetypeScore {
   trajectoryId: string;
   agentId: string;
@@ -28,6 +33,9 @@ export interface ArchetypeScore {
   scoredAt: Date;
 }
 
+/**
+ * LLM response for single trajectory scoring.
+ */
 interface TrajectoryScoreResponse {
   score: number;
   reasoning: string;
@@ -35,6 +43,9 @@ interface TrajectoryScoreResponse {
   weaknesses?: string[];
 }
 
+/**
+ * LLM response for RULER comparison scoring.
+ */
 interface RulerScoreResponse {
   scores: Array<{
     trajectory_id: string;
@@ -43,10 +54,13 @@ interface RulerScoreResponse {
   }>;
 }
 
+/**
+ * Options for scoring operations.
+ */
 export interface ScoringOptions {
-  /** Override archetype */
+  /** Override archetype for scoring */
   archetype?: string;
-  /** Include detailed action context in prompt */
+  /** Include detailed action context in prompts */
   includeActionDetails?: boolean;
   /** Save scores to database */
   saveToDatabase?: boolean;
@@ -57,12 +71,18 @@ const DEFAULT_OPTIONS: ScoringOptions = {
   saveToDatabase: true,
 };
 
+/**
+ * Service for scoring trajectories with archetype-aware evaluation.
+ */
 export class ArchetypeScoringService {
   private readonly minGroupSize = 2;
   private readonly maxGroupSize = 8;
 
   /**
-   * Score a single trajectory with archetype-aware evaluation
+   * Score a single trajectory.
+   * @param trajectoryId - ID of the trajectory to score
+   * @param options - Scoring options
+   * @returns The score or null if trajectory not found
    */
   async scoreTrajectory(
     trajectoryId: string,
@@ -70,11 +90,11 @@ export class ArchetypeScoringService {
   ): Promise<ArchetypeScore | null> {
     const opts = { ...DEFAULT_OPTIONS, ...options };
 
-    // Fetch trajectory data
     const trajResult = await db
       .select({
         trajectoryId: trajectories.trajectoryId,
         agentId: trajectories.agentId,
+        archetype: trajectories.archetype,
         stepsJson: trajectories.stepsJson,
         scenarioId: trajectories.scenarioId,
         finalPnL: trajectories.finalPnL,
@@ -91,32 +111,8 @@ export class ArchetypeScoringService {
       return null;
     }
 
-    // Get archetype from options (must be provided explicitly since not stored in DB)
-    const archetype = opts.archetype || 'default';
-
-    if (archetype === 'default') {
-      logger.info(
-        'Using default archetype for scoring',
-        { agentId: traj.agentId, trajectoryId },
-        'ArchetypeScoring'
-      );
-    }
-
-    // Parse steps and extract metrics
-    let steps: TrajectoryStep[];
-    try {
-      steps = JSON.parse(traj.stepsJson) as TrajectoryStep[];
-    } catch (error) {
-      logger.error(
-        'Failed to parse trajectory steps',
-        {
-          trajectoryId,
-          error: error instanceof Error ? error.message : String(error),
-        },
-        'ArchetypeScoring'
-      );
-      return null;
-    }
+    const archetype = traj.archetype || opts.archetype || 'default';
+    const steps = JSON.parse(traj.stepsJson) as TrajectoryStep[];
 
     const metrics = trajectoryMetricsExtractor.extractFromRaw({
       trajectoryId: traj.trajectoryId,
@@ -127,15 +123,11 @@ export class ArchetypeScoringService {
     });
 
     if (!metrics) {
-      logger.error(
-        'Failed to extract metrics',
-        { trajectoryId },
-        'ArchetypeScoring'
+      throw new Error(
+        `Failed to extract metrics for trajectory ${trajectoryId}`
       );
-      return null;
     }
 
-    // Build prompt
     const context: TrajectoryContext = {
       trajectoryId: traj.trajectoryId,
       agentId: traj.agentId,
@@ -151,16 +143,11 @@ export class ArchetypeScoringService {
       includeActionDetails: opts.includeActionDetails,
     });
 
-    // Call LLM judge
     const response = await this.callSingleJudge(system, user);
-
     if (!response) {
-      logger.error(
-        'Judge returned no response',
-        { trajectoryId },
-        'ArchetypeScoring'
+      throw new Error(
+        `Judge returned no response for trajectory ${trajectoryId}`
       );
-      return null;
     }
 
     const score: ArchetypeScore = {
@@ -175,7 +162,6 @@ export class ArchetypeScoringService {
       scoredAt: new Date(),
     };
 
-    // Save to database if requested
     if (opts.saveToDatabase) {
       await db
         .update(trajectories)
@@ -202,7 +188,10 @@ export class ArchetypeScoringService {
   }
 
   /**
-   * Score multiple trajectories using RULER (relative comparison)
+   * Score multiple trajectories using RULER comparison.
+   * @param trajectoryIds - IDs of trajectories to score
+   * @param options - Scoring options
+   * @returns Array of scores
    */
   async scoreTrajectoryGroup(
     trajectoryIds: string[],
@@ -213,17 +202,20 @@ export class ArchetypeScoringService {
     if (trajectoryIds.length < this.minGroupSize) {
       logger.warn(
         'Group too small for RULER scoring',
-        { size: trajectoryIds.length, minRequired: this.minGroupSize },
+        {
+          size: trajectoryIds.length,
+          minRequired: this.minGroupSize,
+        },
         'ArchetypeScoring'
       );
       return [];
     }
 
-    // Fetch all trajectory data
     const trajResults = await db
       .select({
         trajectoryId: trajectories.trajectoryId,
         agentId: trajectories.agentId,
+        archetype: trajectories.archetype,
         stepsJson: trajectories.stepsJson,
         scenarioId: trajectories.scenarioId,
         finalPnL: trajectories.finalPnL,
@@ -235,29 +227,22 @@ export class ArchetypeScoringService {
 
     if (trajResults.length < this.minGroupSize) {
       logger.warn(
-        'Not enough valid trajectories found',
-        { requested: trajectoryIds.length, found: trajResults.length },
+        'Not enough valid trajectories',
+        {
+          requested: trajectoryIds.length,
+          found: trajResults.length,
+        },
         'ArchetypeScoring'
       );
       return [];
     }
 
-    // Build contexts with metrics
     const contexts: TrajectoryContext[] = [];
-    const archetype = opts.archetype || 'default';
+    const fallbackArchetype = opts.archetype || 'default';
 
     for (const traj of trajResults) {
-      let steps: TrajectoryStep[];
-      try {
-        steps = JSON.parse(traj.stepsJson) as TrajectoryStep[];
-      } catch {
-        logger.warn(
-          'Skipping trajectory with invalid steps',
-          { trajectoryId: traj.trajectoryId },
-          'ArchetypeScoring'
-        );
-        continue;
-      }
+      const steps = JSON.parse(traj.stepsJson) as TrajectoryStep[];
+      const archetype = traj.archetype || fallbackArchetype;
 
       const metrics = trajectoryMetricsExtractor.extractFromRaw({
         trajectoryId: traj.trajectoryId,
@@ -268,12 +253,9 @@ export class ArchetypeScoringService {
       });
 
       if (!metrics) {
-        logger.warn(
-          'Skipping trajectory with failed metrics extraction',
-          { trajectoryId: traj.trajectoryId },
-          'ArchetypeScoring'
+        throw new Error(
+          `Failed to extract metrics for trajectory ${traj.trajectoryId}`
         );
-        continue;
       }
 
       contexts.push({
@@ -288,17 +270,7 @@ export class ArchetypeScoringService {
       });
     }
 
-    if (contexts.length < this.minGroupSize) {
-      logger.warn(
-        'Not enough valid contexts for scoring',
-        { count: contexts.length },
-        'ArchetypeScoring'
-      );
-      return [];
-    }
-
-    // Split into batches and score
-    const batches = this.splitIntoBatches(contexts, this.maxGroupSize);
+    const batches = splitIntoBatches(contexts, this.maxGroupSize);
     const scores: ArchetypeScore[] = [];
 
     for (const batch of batches) {
@@ -307,19 +279,12 @@ export class ArchetypeScoringService {
         batch,
         scenarioId
       );
-
       const response = await this.callComparisonJudge(system, user);
 
       if (!response) {
-        logger.error(
-          'Judge returned no response for batch',
-          {},
-          'ArchetypeScoring'
-        );
-        continue;
+        throw new Error('Judge returned no response for batch');
       }
 
-      // Map responses to contexts
       for (let i = 0; i < batch.length; i++) {
         const ctx = batch[i];
         if (!ctx) continue;
@@ -330,12 +295,7 @@ export class ArchetypeScoringService {
         );
 
         if (!scoreData) {
-          logger.warn(
-            'Missing score for trajectory',
-            { expectedId },
-            'ArchetypeScoring'
-          );
-          continue;
+          throw new Error(`Missing score for ${expectedId}`);
         }
 
         const score: ArchetypeScore = {
@@ -352,7 +312,6 @@ export class ArchetypeScoringService {
 
         scores.push(score);
 
-        // Save to database if requested
         if (opts.saveToDatabase) {
           await db
             .update(trajectories)
@@ -369,7 +328,10 @@ export class ArchetypeScoringService {
 
     logger.info(
       'Scored trajectory group',
-      { requested: trajectoryIds.length, scored: scores.length },
+      {
+        requested: trajectoryIds.length,
+        scored: scores.length,
+      },
       'ArchetypeScoring'
     );
 
@@ -377,7 +339,10 @@ export class ArchetypeScoringService {
   }
 
   /**
-   * Score trajectories with a specific archetype rubric
+   * Score trajectories by archetype.
+   * @param archetype - Archetype to use for scoring
+   * @param trajectoryIds - IDs to score
+   * @returns Count of scored and errors
    */
   async scoreByArchetype(
     archetype: string,
@@ -392,11 +357,6 @@ export class ArchetypeScoringService {
     }
 
     if (trajectoryIds.length === 0) {
-      logger.info(
-        'No trajectories provided for archetype scoring',
-        { archetype },
-        'ArchetypeScoring'
-      );
       return { scored: 0, errors: 0 };
     }
 
@@ -412,16 +372,17 @@ export class ArchetypeScoringService {
   }
 
   /**
-   * Score all unscored trajectories with a default archetype
+   * Score all unscored trajectories.
+   * @param archetype - Default archetype to use
+   * @param limit - Maximum trajectories to score
+   * @returns Count of scored and errors
    */
   async scoreUnscoredTrajectories(
     archetype: string = 'default',
     limit: number = 100
   ): Promise<{ scored: number; errors: number }> {
     const unscoredResult = await db
-      .select({
-        trajectoryId: trajectories.trajectoryId,
-      })
+      .select({ trajectoryId: trajectories.trajectoryId })
       .from(trajectories)
       .where(
         and(
@@ -439,22 +400,73 @@ export class ArchetypeScoringService {
     }
 
     const trajectoryIds = unscoredResult.map((r) => r.trajectoryId);
-
     return this.scoreByArchetype(archetype, trajectoryIds);
   }
 
   /**
-   * Call LLM judge for single trajectory
+   * Score trajectories in parallel with rate limiting.
+   * @param trajectoryIds - IDs to score
+   * @param options - Scoring options
+   * @param concurrency - Maximum concurrent calls
+   * @returns Array of scores
+   */
+  async scoreTrajectoriesParallel(
+    trajectoryIds: string[],
+    options: ScoringOptions = {},
+    concurrency: number = 5
+  ): Promise<ArchetypeScore[]> {
+    const results: ArchetypeScore[] = [];
+    const batches = splitIntoBatches(trajectoryIds, concurrency);
+
+    logger.info(
+      'Starting parallel scoring',
+      {
+        total: trajectoryIds.length,
+        batches: batches.length,
+        concurrency,
+      },
+      'ArchetypeScoring'
+    );
+
+    for (let i = 0; i < batches.length; i++) {
+      const batch = batches[i] ?? [];
+      const batchPromises = batch.map((id) =>
+        this.scoreTrajectory(id, options)
+      );
+      const batchResults = await Promise.all(batchPromises);
+
+      for (const result of batchResults) {
+        if (result) {
+          results.push(result);
+        }
+      }
+
+      if (i < batches.length - 1) {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+    }
+
+    logger.info(
+      'Parallel scoring complete',
+      {
+        requested: trajectoryIds.length,
+        scored: results.length,
+      },
+      'ArchetypeScoring'
+    );
+
+    return results;
+  }
+
+  /**
+   * Call LLM judge for single trajectory.
    */
   private async callSingleJudge(
     system: string,
     user: string
   ): Promise<TrajectoryScoreResponse | null> {
     const llmCaller = getLLMCaller();
-
-    const prompt = `${user}
-
-Return ONLY valid JSON, no other text.`;
+    const prompt = `${user}\n\nReturn ONLY valid JSON, no other text.`;
 
     const response = await llmCaller.callGroqDirect({
       prompt,
@@ -465,21 +477,18 @@ Return ONLY valid JSON, no other text.`;
       actionType: 'archetype_score_trajectory',
     });
 
-    return this.parseSingleResponse(response);
+    return this.parseJudgeResponse<TrajectoryScoreResponse>(response);
   }
 
   /**
-   * Call LLM judge for trajectory comparison
+   * Call LLM judge for trajectory comparison.
    */
   private async callComparisonJudge(
     system: string,
     user: string
   ): Promise<RulerScoreResponse | null> {
     const llmCaller = getLLMCaller();
-
-    const prompt = `${user}
-
-Return ONLY valid JSON, no other text.`;
+    const prompt = `${user}\n\nReturn ONLY valid JSON, no other text.`;
 
     const response = await llmCaller.callGroqDirect({
       prompt,
@@ -490,107 +499,34 @@ Return ONLY valid JSON, no other text.`;
       actionType: 'archetype_ruler_score',
     });
 
-    return this.parseComparisonResponse(response);
+    return this.parseJudgeResponse<RulerScoreResponse>(response);
   }
 
   /**
-   * Parse single trajectory score response
+   * Parse JSON response from judge.
    */
-  private parseSingleResponse(
-    response: string
-  ): TrajectoryScoreResponse | null {
-    try {
-      let jsonText = response.trim();
-      jsonText = jsonText
-        .replace(/```json\n?/g, '')
-        .replace(/```\n?/g, '')
-        .trim();
+  private parseJudgeResponse<T>(response: string): T | null {
+    const jsonText = response
+      .trim()
+      .replace(/```json\n?/g, '')
+      .replace(/```\n?/g, '')
+      .trim();
 
-      const jsonMatch = jsonText.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) {
-        logger.error(
-          'No JSON found in response',
-          { response: response.substring(0, 200) },
-          'ArchetypeScoring'
-        );
-        return null;
-      }
-
-      const parsed = JSON.parse(jsonMatch[0]) as TrajectoryScoreResponse;
-
-      if (typeof parsed.score !== 'number') {
-        logger.error('Invalid score type', { parsed }, 'ArchetypeScoring');
-        return null;
-      }
-
-      return parsed;
-    } catch (error) {
+    const jsonMatch = jsonText.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
       logger.error(
-        'Failed to parse judge response',
-        { error: error instanceof Error ? error.message : String(error) },
+        'No JSON found in response',
+        {
+          preview: response.substring(0, 200),
+        },
         'ArchetypeScoring'
       );
       return null;
     }
-  }
 
-  /**
-   * Parse comparison (RULER) response
-   */
-  private parseComparisonResponse(response: string): RulerScoreResponse | null {
-    try {
-      let jsonText = response.trim();
-      jsonText = jsonText
-        .replace(/```json\n?/g, '')
-        .replace(/```\n?/g, '')
-        .trim();
-
-      const jsonMatch = jsonText.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) {
-        logger.error(
-          'No JSON found in response',
-          { response: response.substring(0, 200) },
-          'ArchetypeScoring'
-        );
-        return null;
-      }
-
-      const parsed = JSON.parse(jsonMatch[0]) as RulerScoreResponse;
-
-      if (!parsed.scores || !Array.isArray(parsed.scores)) {
-        logger.error('Invalid scores array', { parsed }, 'ArchetypeScoring');
-        return null;
-      }
-
-      // Normalize scores to 0-1 range
-      for (const score of parsed.scores) {
-        score.score = Math.max(0, Math.min(1, score.score));
-      }
-
-      return parsed;
-    } catch (error) {
-      logger.error(
-        'Failed to parse comparison response',
-        { error: error instanceof Error ? error.message : String(error) },
-        'ArchetypeScoring'
-      );
-      return null;
-    }
-  }
-
-  /**
-   * Split items into batches
-   */
-  private splitIntoBatches<T>(items: T[], batchSize: number): T[][] {
-    const batches: T[][] = [];
-    for (let i = 0; i < items.length; i += batchSize) {
-      batches.push(items.slice(i, i + batchSize));
-    }
-    return batches;
+    return JSON.parse(jsonMatch[0]) as T;
   }
 }
 
-/**
- * Singleton instance
- */
+/** Singleton instance */
 export const archetypeScoringService = new ArchetypeScoringService();

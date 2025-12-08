@@ -63,6 +63,22 @@ export {
   setCache,
   warmCache,
 } from './cache';
+// Cron Authentication
+export {
+  cronUnauthorizedResponse,
+  requireCronAuth,
+  verifyCronAuth,
+} from './cron-auth';
+// Development credentials (for local testing)
+export {
+  type DevCredentials,
+  getDevAdminUser,
+  getDevCredentials,
+  isValidAgentSecret,
+  isValidCronSecret,
+  isValidDevAdminToken,
+  logDevCredentials,
+} from './dev-credentials';
 // Error Handler (Next.js specific)
 export {
   asyncHandler,
@@ -92,7 +108,6 @@ export {
   UnauthorizedError,
   ValidationError,
 } from './errors';
-
 // Fetch utilities
 export { type ApiFetchOptions, apiFetch, getPrivyAccessToken } from './fetch';
 export * from './monitoring/monitored-cache';
@@ -160,7 +175,6 @@ export {
   streamAdd,
   streamRead,
 } from './redis';
-
 // Services
 export * from './services';
 // SSE Event Broadcasting

@@ -53,6 +53,7 @@
  * ```
  */
 
+import { verifyCronAuth } from '@babylon/api';
 import { db } from '@babylon/db';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
@@ -62,73 +63,34 @@ import { NextResponse } from 'next/server';
 export const maxDuration = 60; // 1 minute max for health check
 export const dynamic = 'force-dynamic';
 
-// Verify this is a legitimate Vercel Cron request
-function verifyVercelCronRequest(request: NextRequest): boolean {
-  const authHeader = request.headers.get('authorization');
-  const cronSecret = process.env.CRON_SECRET;
-
-  // In development, allow without secret for easy testing
-  if (process.env.NODE_ENV === 'development') {
-    if (!cronSecret) {
-      return true;
-    }
-  }
-
-  if (!cronSecret) {
-    logger.error('CRON_SECRET not configured', undefined, 'HealthCheck');
-    return false;
-  }
-
-  const expectedAuth = `Bearer ${cronSecret}`;
-  return authHeader === expectedAuth;
-}
-
 export async function GET(request: NextRequest) {
   const startTime = Date.now();
 
-  // Verify cron authorization
-  if (!verifyVercelCronRequest(request)) {
+  // Verify cron authorization using centralized auth
+  if (!verifyCronAuth(request, { jobName: 'HealthCheck' })) {
     logger.warn('Unauthorized health check attempt', undefined, 'HealthCheck');
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  try {
-    // Quick database health check
-    await db.$queryRaw`SELECT 1`;
+  // Quick database health check
+  await db.$queryRaw`SELECT 1`;
 
-    const duration = Date.now() - startTime;
+  const duration = Date.now() - startTime;
 
-    logger.info(
-      'Health check passed',
-      {
-        duration,
-        timestamp: new Date().toISOString(),
-      },
-      'HealthCheck'
-    );
-
-    return NextResponse.json({
-      success: true,
-      status: 'healthy',
-      database: 'connected',
+  logger.info(
+    'Health check passed',
+    {
       duration,
       timestamp: new Date().toISOString(),
-    });
-  } catch (error) {
-    const duration = Date.now() - startTime;
+    },
+    'HealthCheck'
+  );
 
-    logger.error('Health check failed', error, 'HealthCheck');
-
-    return NextResponse.json(
-      {
-        success: false,
-        status: 'unhealthy',
-        database: 'error',
-        duration,
-        error: error instanceof Error ? error.message : 'Unknown error',
-        timestamp: new Date().toISOString(),
-      },
-      { status: 500 }
-    );
-  }
+  return NextResponse.json({
+    success: true,
+    status: 'healthy',
+    database: 'connected',
+    duration,
+    timestamp: new Date().toISOString(),
+  });
 }

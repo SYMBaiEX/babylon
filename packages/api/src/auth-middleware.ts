@@ -8,7 +8,6 @@
 
 import { db, eq, users } from '@babylon/db';
 import type { AuthenticatedUser } from '@babylon/shared';
-import { extractErrorMessage, logger } from '@babylon/shared';
 import { PrivyClient } from '@privy-io/server-auth';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
@@ -90,62 +89,28 @@ export async function authenticate(
   }
 
   // Try Privy authentication
-  try {
-    const privy = getPrivyClient();
-    const claims = await privy.verifyAuthToken(token);
+  const privy = getPrivyClient();
+  const claims = await privy.verifyAuthToken(token);
 
-    const result = await db
-      .select({
-        id: users.id,
-        walletAddress: users.walletAddress,
-      })
-      .from(users)
-      .where(eq(users.privyId, claims.userId))
-      .limit(1);
+  const result = await db
+    .select({
+      id: users.id,
+      walletAddress: users.walletAddress,
+    })
+    .from(users)
+    .where(eq(users.privyId, claims.userId))
+    .limit(1);
 
-    const dbUser = result[0];
+  const dbUser = result[0];
 
-    return {
-      userId: dbUser?.id ?? claims.userId,
-      dbUserId: dbUser?.id,
-      privyId: claims.userId,
-      walletAddress: dbUser?.walletAddress ?? undefined,
-      email: undefined,
-      isAgent: false,
-    };
-  } catch (error) {
-    // Log the specific error for debugging purposes
-    logger.warn(
-      'Privy authentication failed',
-      {
-        error: extractErrorMessage(
-          error instanceof Error
-            ? error
-            : typeof error === 'string'
-              ? error
-              : { message: String(error) }
-        ),
-      },
-      'auth-middleware'
-    );
-
-    // Check for specific error types
-    const errorMessage = extractErrorMessage(
-      error instanceof Error
-        ? error
-        : typeof error === 'string'
-          ? error
-          : { message: String(error) }
-    );
-    if (errorMessage.includes('expired') || errorMessage.includes('exp')) {
-      throw new AuthenticationError(
-        'Authentication token has expired. Please refresh your session.'
-      );
-    }
-
-    // Privy token verification failed
-    throw new AuthenticationError('Invalid or expired authentication token');
-  }
+  return {
+    userId: dbUser?.id ?? claims.userId,
+    dbUserId: dbUser?.id,
+    privyId: claims.userId,
+    walletAddress: dbUser?.walletAddress ?? undefined,
+    email: undefined,
+    isAgent: false,
+  };
 }
 
 /**
@@ -197,33 +162,28 @@ export async function optionalAuth(
   }
 
   // Try Privy authentication - return null on failure (optional auth)
-  try {
-    const privy = getPrivyClient();
-    const claims = await privy.verifyAuthToken(token);
+  const privy = getPrivyClient();
+  const claims = await privy.verifyAuthToken(token);
 
-    const result = await db
-      .select({
-        id: users.id,
-        walletAddress: users.walletAddress,
-      })
-      .from(users)
-      .where(eq(users.privyId, claims.userId))
-      .limit(1);
+  const result = await db
+    .select({
+      id: users.id,
+      walletAddress: users.walletAddress,
+    })
+    .from(users)
+    .where(eq(users.privyId, claims.userId))
+    .limit(1);
 
-    const dbUser = result[0];
+  const dbUser = result[0];
 
-    return {
-      userId: dbUser?.id ?? claims.userId,
-      dbUserId: dbUser?.id,
-      privyId: claims.userId,
-      walletAddress: dbUser?.walletAddress ?? undefined,
-      email: undefined,
-      isAgent: false,
-    };
-  } catch {
-    // Token verification failed - return null for optional auth
-    return null;
-  }
+  return {
+    userId: dbUser?.id ?? claims.userId,
+    dbUserId: dbUser?.id,
+    privyId: claims.userId,
+    walletAddress: dbUser?.walletAddress ?? undefined,
+    email: undefined,
+    isAgent: false,
+  };
 }
 
 /**
@@ -249,20 +209,15 @@ export async function optionalAuthFromHeaders(
   }
 
   // Try Privy authentication - return null on failure (optional auth)
-  try {
-    const privy = getPrivyClient();
-    const claims = await privy.verifyAuthToken(token);
+  const privy = getPrivyClient();
+  const claims = await privy.verifyAuthToken(token);
 
-    return {
-      userId: claims.userId,
-      walletAddress: undefined,
-      email: undefined,
-      isAgent: false,
-    };
-  } catch {
-    // Token verification failed - return null for optional auth
-    return null;
-  }
+  return {
+    userId: claims.userId,
+    walletAddress: undefined,
+    email: undefined,
+    isAgent: false,
+  };
 }
 
 /**

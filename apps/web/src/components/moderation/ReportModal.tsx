@@ -32,7 +32,6 @@
  */
 'use client';
 
-import { logger } from '@babylon/shared';
 import { AlertCircle, Flag, X } from 'lucide-react';
 import { useState, useTransition } from 'react';
 import { toast } from 'sonner';
@@ -139,18 +138,7 @@ export function ReportModal({
       });
 
       if (!response.ok) {
-        let error;
-        try {
-          error = await response.json();
-        } catch (parseError) {
-          logger.error(
-            'Failed to parse report response',
-            { error: parseError },
-            'ReportModal'
-          );
-          toast.error('Failed to submit report');
-          return;
-        }
+        const error = await response.json();
         toast.error(error.message || 'Failed to submit report');
         return;
       }

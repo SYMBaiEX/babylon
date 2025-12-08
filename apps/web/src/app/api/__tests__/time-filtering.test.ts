@@ -8,7 +8,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
 import { cachedDb } from '@babylon/api';
 import { db, generateSnowflakeId, getDbInstance } from '@babylon/db';
-import { MarketContextService } from '@babylon/engine';
+import { MarketContextService, StaticDataRegistry } from '@babylon/engine';
 
 describe('Time Filtering - API Endpoints', () => {
   let testActorId: string;
@@ -21,31 +21,27 @@ describe('Time Filtering - API Endpoints', () => {
   let oneHourFuture: Date;
 
   beforeAll(async () => {
-    // Capture current time at test execution, not module load
     now = new Date();
     oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
     oneHourFuture = new Date(now.getTime() + 60 * 60 * 1000);
 
-    // Create test actor (explicitly set isTest: false so it's not filtered)
-    const actor = await db.actor.create({
-      data: {
-        id: await generateSnowflakeId(),
-        name: 'Test Actor',
-        domain: 'test',
-        tier: 'main',
-        role: 'main',
-        isTest: false, // Explicitly set to false so posts aren't filtered out
-      },
-    });
-    testActorId = actor.id;
+    // Use a known static actor from the registry
+    const allActors = StaticDataRegistry.getAllActors();
+    const firstActor = allActors[0];
+    if (!firstActor) {
+      throw new Error(
+        'No actors in registry - cannot run time filtering tests'
+      );
+    }
+    testActorId = firstActor.id;
 
-    // Create test user (explicitly set isTest: false so it's not filtered)
+    // Create test user
     const user = await db.user.create({
       data: {
         id: await generateSnowflakeId(),
         username: `test-user-${Date.now()}`,
         displayName: 'Test User',
-        isTest: false, // Explicitly set to false so posts aren't filtered out
+        isTest: false,
       },
     });
     testUserId = user.id;
@@ -95,13 +91,11 @@ describe('Time Filtering - API Endpoints', () => {
   });
 
   afterAll(async () => {
-    // Cleanup test data
     await db.post.deleteMany({
       where: {
         id: { in: [pastPostId, currentPostId, futurePostId] },
       },
     });
-    await db.actor.delete({ where: { id: testActorId } });
     await db.user.delete({ where: { id: testUserId } });
   });
 
@@ -145,10 +139,8 @@ describe('Time Filtering - API Endpoints', () => {
     });
 
     it('getPostsByActor should filter out future posts', async () => {
-      // Verify actor exists and is not a test user
-      const actor = await db.actor.findUnique({ where: { id: testActorId } });
+      const actor = StaticDataRegistry.getActor(testActorId);
       expect(actor).toBeTruthy();
-      expect(actor?.isTest).toBe(false);
 
       const posts = await getDbInstance().getPostsByActor(testActorId, 100);
       const postIds = posts.map((p) => p.id);

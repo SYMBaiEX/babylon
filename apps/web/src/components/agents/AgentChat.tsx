@@ -73,35 +73,30 @@ export function AgentChat({ agent, onBalanceUpdate }: AgentChatProps) {
 
   const fetchMessages = useCallback(async () => {
     setLoading(true);
-    try {
-      const token = await getAccessToken();
-      if (!token) {
-        setLoading(false);
-        return;
-      }
-
-      const res = await fetch(`/api/agents/${agent.id}/chat?limit=50`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (res.ok) {
-        const data = (await res.json()) as {
-          success: boolean;
-          messages: Message[];
-        };
-        if (data.success && data.messages) {
-          setMessages(data.messages.reverse());
-        }
-      } else {
-        logger.error('Failed to fetch messages', undefined, 'AgentChat');
-      }
-    } catch (error) {
-      logger.error('Error fetching messages', { error }, 'AgentChat');
-    } finally {
+    const token = await getAccessToken();
+    if (!token) {
       setLoading(false);
+      return;
     }
+
+    const res = await fetch(`/api/agents/${agent.id}/chat?limit=50`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (res.ok) {
+      const data = (await res.json()) as {
+        success: boolean;
+        messages: Message[];
+      };
+      if (data.success && data.messages) {
+        setMessages(data.messages.reverse());
+      }
+    } else {
+      logger.error('Failed to fetch messages', undefined, 'AgentChat');
+    }
+    setLoading(false);
   }, [agent.id, getAccessToken]);
 
   useEffect(() => {
@@ -131,71 +126,65 @@ export function AgentChat({ agent, onBalanceUpdate }: AgentChatProps) {
     };
     setMessages((prev) => [...prev, optimisticMessage]);
 
-    try {
-      const token = await getAccessToken();
-      if (!token) {
-        throw new Error('Authentication required');
-      }
-
-      const res = await fetch(`/api/agents/${agent.id}/chat`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          message: userMessage,
-          usePro,
-        }),
-      });
-
-      if (!res.ok) {
-        const error = (await res.json()) as { error: string };
-        setMessages((prev) =>
-          prev.filter((m) => m.id !== optimisticMessage.id)
-        );
-        toast.error(error.error || 'Failed to send message');
-        setSending(false);
-        return;
-      }
-
-      const data = (await res.json()) as {
-        success: boolean;
-        messageId: string;
-        response: string;
-        modelUsed: string;
-        pointsCost: number;
-        balanceAfter: number;
-      };
-
-      if (!data.response || !data.messageId) {
-        throw new Error('Invalid response from agent');
-      }
-
-      // Add assistant message
-      const assistantMessage: Message = {
-        id: data.messageId,
-        role: 'assistant',
-        content: data.response,
-        modelUsed: data.modelUsed,
-        pointsCost: data.pointsCost,
-        createdAt: new Date().toISOString(),
-      };
-      setMessages((prev) => [...prev, assistantMessage]);
-
-      // Update agent balance without full page refresh
-      onBalanceUpdate?.(data.balanceAfter);
-      toast.success(`Message sent (-${data.pointsCost} points)`);
-    } catch (error) {
-      // Remove optimistic message on error
+    const token = await getAccessToken();
+    if (!token) {
       setMessages((prev) => prev.filter((m) => m.id !== optimisticMessage.id));
-      const errorMessage =
-        error instanceof Error ? error.message : 'Failed to send message';
-      toast.error(errorMessage);
-      logger.error('Chat error', { error }, 'AgentChat');
-    } finally {
+      toast.error('Authentication required');
       setSending(false);
+      return;
     }
+
+    const res = await fetch(`/api/agents/${agent.id}/chat`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        message: userMessage,
+        usePro,
+      }),
+    });
+
+    if (!res.ok) {
+      const error = (await res.json()) as { error: string };
+      setMessages((prev) => prev.filter((m) => m.id !== optimisticMessage.id));
+      toast.error(error.error || 'Failed to send message');
+      setSending(false);
+      return;
+    }
+
+    const data = (await res.json()) as {
+      success: boolean;
+      messageId: string;
+      response: string;
+      modelUsed: string;
+      pointsCost: number;
+      balanceAfter: number;
+    };
+
+    if (!data.response || !data.messageId) {
+      setMessages((prev) => prev.filter((m) => m.id !== optimisticMessage.id));
+      toast.error('Invalid response from agent');
+      setSending(false);
+      return;
+    }
+
+    // Add assistant message
+    const assistantMessage: Message = {
+      id: data.messageId,
+      role: 'assistant',
+      content: data.response,
+      modelUsed: data.modelUsed,
+      pointsCost: data.pointsCost,
+      createdAt: new Date().toISOString(),
+    };
+    setMessages((prev) => [...prev, assistantMessage]);
+
+    // Update agent balance without full page refresh
+    onBalanceUpdate?.(data.balanceAfter);
+    toast.success(`Message sent (-${data.pointsCost} points)`);
+    setSending(false);
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {

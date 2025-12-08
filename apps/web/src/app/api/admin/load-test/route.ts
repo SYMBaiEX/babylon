@@ -163,7 +163,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       );
     })
     .catch((error: Error) => {
-      logger.error('Load test failed', error, 'LoadTest');
+      logger.error('Load test failed', { error: error.message }, 'LoadTest');
       activeTest = null;
     });
 

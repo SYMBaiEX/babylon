@@ -157,21 +157,14 @@ function buildPositionSnapshot(p: PositionWithMarket, market?: Market | null) {
   let currentUnitPrice = shares > 0 ? avgPrice : 0;
 
   if (shares > 0 && yesShares > 0 && noShares > 0) {
-    try {
-      const sellPreview = PredictionPricing.calculateSell(
-        yesShares,
-        noShares,
-        sideKey,
-        shares
-      );
-      currentValue = sellPreview.totalCost;
-      currentUnitPrice = sellPreview.totalCost / shares;
-    } catch (error) {
-      logger.warn('Failed to compute prediction MTM value', {
-        error,
-        marketId: p.marketId,
-      });
-    }
+    const sellPreview = PredictionPricing.calculateSell(
+      yesShares,
+      noShares,
+      sideKey,
+      shares
+    );
+    currentValue = sellPreview.totalCost;
+    currentUnitPrice = sellPreview.totalCost / shares;
   }
 
   const currentProbability =

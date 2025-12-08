@@ -19,7 +19,7 @@ import type * as schema from './schema';
 // ============================================================================
 
 export type User = InferSelectModel<typeof schema.users>;
-export type Actor = InferSelectModel<typeof schema.actors>;
+export type ActorStateRow = InferSelectModel<typeof schema.actorState>;
 export type ActorFollow = InferSelectModel<typeof schema.actorFollows>;
 export type ActorRelationship = InferSelectModel<
   typeof schema.actorRelationships
@@ -34,7 +34,9 @@ export type PerpPosition = InferSelectModel<typeof schema.perpPositions>;
 export type Pool = InferSelectModel<typeof schema.pools>;
 export type PoolPosition = InferSelectModel<typeof schema.poolPositions>;
 export type PoolDeposit = InferSelectModel<typeof schema.poolDeposits>;
-export type Organization = InferSelectModel<typeof schema.organizations>;
+export type OrganizationStateRow = InferSelectModel<
+  typeof schema.organizationState
+>;
 export type StockPrice = InferSelectModel<typeof schema.stockPrices>;
 export type Question = InferSelectModel<typeof schema.questions>;
 export type PredictionPriceHistory = InferSelectModel<
@@ -123,12 +125,6 @@ export type WorldFact = InferSelectModel<typeof schema.worldFacts>;
 export type RSSFeedSource = InferSelectModel<typeof schema.rssFeedSources>;
 export type RSSHeadline = InferSelectModel<typeof schema.rssHeadlines>;
 export type ParodyHeadline = InferSelectModel<typeof schema.parodyHeadlines>;
-export type CharacterMapping = InferSelectModel<
-  typeof schema.characterMappings
->;
-export type OrganizationMapping = InferSelectModel<
-  typeof schema.organizationMappings
->;
 export type ModerationEscrow = InferSelectModel<
   typeof schema.moderationEscrows
 >;
@@ -136,13 +132,16 @@ export type GenerationLock = InferSelectModel<typeof schema.generationLocks>;
 export type Feedback = InferSelectModel<typeof schema.feedbacks>;
 export type Referral = InferSelectModel<typeof schema.referrals>;
 export type WidgetCache = InferSelectModel<typeof schema.widgetCaches>;
+export type UserAgentConfig = InferSelectModel<typeof schema.userAgentConfigs>;
+export type UserApiKey = InferSelectModel<typeof schema.userApiKeys>;
+export type TickTokenStats = InferSelectModel<typeof schema.tickTokenStats>;
 
 // ============================================================================
 // Insert Types (what you provide when inserting into the database)
 // ============================================================================
 
 export type NewUser = InferInsertModel<typeof schema.users>;
-export type NewActor = InferInsertModel<typeof schema.actors>;
+export type NewActorStateRow = InferInsertModel<typeof schema.actorState>;
 export type NewActorFollow = InferInsertModel<typeof schema.actorFollows>;
 export type NewActorRelationship = InferInsertModel<
   typeof schema.actorRelationships
@@ -157,7 +156,9 @@ export type NewPerpPosition = InferInsertModel<typeof schema.perpPositions>;
 export type NewPool = InferInsertModel<typeof schema.pools>;
 export type NewPoolPosition = InferInsertModel<typeof schema.poolPositions>;
 export type NewPoolDeposit = InferInsertModel<typeof schema.poolDeposits>;
-export type NewOrganization = InferInsertModel<typeof schema.organizations>;
+export type NewOrganizationStateRow = InferInsertModel<
+  typeof schema.organizationState
+>;
 export type NewStockPrice = InferInsertModel<typeof schema.stockPrices>;
 export type NewQuestion = InferInsertModel<typeof schema.questions>;
 export type NewPredictionPriceHistory = InferInsertModel<
@@ -264,12 +265,6 @@ export type NewWorldFact = InferInsertModel<typeof schema.worldFacts>;
 export type NewRSSFeedSource = InferInsertModel<typeof schema.rssFeedSources>;
 export type NewRSSHeadline = InferInsertModel<typeof schema.rssHeadlines>;
 export type NewParodyHeadline = InferInsertModel<typeof schema.parodyHeadlines>;
-export type NewCharacterMapping = InferInsertModel<
-  typeof schema.characterMappings
->;
-export type NewOrganizationMapping = InferInsertModel<
-  typeof schema.organizationMappings
->;
 export type NewModerationEscrow = InferInsertModel<
   typeof schema.moderationEscrows
 >;
@@ -277,6 +272,11 @@ export type NewGenerationLock = InferInsertModel<typeof schema.generationLocks>;
 export type NewFeedback = InferInsertModel<typeof schema.feedbacks>;
 export type NewReferral = InferInsertModel<typeof schema.referrals>;
 export type NewWidgetCache = InferInsertModel<typeof schema.widgetCaches>;
+export type NewUserAgentConfig = InferInsertModel<
+  typeof schema.userAgentConfigs
+>;
+export type NewUserApiKey = InferInsertModel<typeof schema.userApiKeys>;
+export type NewTickTokenStats = InferInsertModel<typeof schema.tickTokenStats>;
 
 // ============================================================================
 // Types with Relations (for queries using include/with)
@@ -310,11 +310,22 @@ export type UserWithAgentRelations = User & {
   AgentPerformanceMetrics?: AgentPerformanceMetrics | null;
   AgentRegistry?: AgentRegistry | null;
   AgentCapability?: AgentCapability | null;
+  agentConfig?: UserAgentConfig | null;
 };
+
+/**
+ * Static actor data reference for future migration
+ * For full actor data, use StaticDataRegistry.getActor(authorId) from @babylon/engine
+ */
+export interface ActorRef {
+  id: string;
+  name: string;
+  profileImageUrl?: string | null;
+}
 
 /** Post with author and reactions */
 export type PostWithRelations = Post & {
-  author?: User | Actor | null;
+  author?: User | ActorRef | null;
   reactions?: Reaction[];
   comments?: Comment[];
   shares?: Share[];
@@ -322,12 +333,14 @@ export type PostWithRelations = Post & {
 
 /** Message with sender */
 export type MessageWithSender = Message & {
-  sender?: User | Actor | null;
+  sender?: User | ActorRef | null;
 };
 
-/** Pool with actor relation */
-export type PoolWithActor = Pool & {
-  Actor?: Actor | null;
+/** Pool with actor state
+ * For full actor data (name, description, etc.), use StaticDataRegistry.getActor(npcActorId)
+ */
+export type PoolWithActorState = Pool & {
+  actorState?: ActorStateRow | null;
 };
 
 /** BalanceTransaction with user relation */

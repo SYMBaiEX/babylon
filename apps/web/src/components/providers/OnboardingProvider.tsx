@@ -367,32 +367,24 @@ export function OnboardingProvider({
     const dataParam = params.get('data');
 
     if (socialImport && dataParam) {
-      try {
-        const profileData = JSON.parse(
-          decodeURIComponent(dataParam)
-        ) as ImportedProfileData;
-        logger.info(
-          'Social profile data received from URL',
-          { platform: socialImport },
-          'OnboardingProvider'
-        );
+      const profileData = JSON.parse(
+        decodeURIComponent(dataParam)
+      ) as ImportedProfileData;
+      logger.info(
+        'Social profile data received from URL',
+        { platform: socialImport },
+        'OnboardingProvider'
+      );
 
-        setImportedProfileData(profileData);
-        setHasProgressedPastSocialImport(true);
-        setStage('PROFILE');
+      setImportedProfileData(profileData);
+      setHasProgressedPastSocialImport(true);
+      setStage('PROFILE');
 
-        // Clean up URL
-        const newUrl = new URL(window.location.href);
-        newUrl.searchParams.delete('social_import');
-        newUrl.searchParams.delete('data');
-        window.history.replaceState({}, '', newUrl.toString());
-      } catch (err) {
-        logger.error(
-          'Failed to parse social import data',
-          { error: err },
-          'OnboardingProvider'
-        );
-      }
+      // Clean up URL
+      const newUrl = new URL(window.location.href);
+      newUrl.searchParams.delete('social_import');
+      newUrl.searchParams.delete('data');
+      window.history.replaceState({}, '', newUrl.toString());
     }
   }, [authenticated]);
 

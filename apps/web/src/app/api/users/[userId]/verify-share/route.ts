@@ -208,167 +208,156 @@ export const POST = withErrorHandling(
           );
         } else {
           // Verify tweet exists using Twitter API v2
-          try {
-            const [user] = await db
-              .select({
-                twitterUsername: users.twitterUsername,
-              })
-              .from(users)
-              .where(eq(users.id, canonicalUserId))
-              .limit(1);
+          const [user] = await db
+            .select({
+              twitterUsername: users.twitterUsername,
+            })
+            .from(users)
+            .where(eq(users.id, canonicalUserId))
+            .limit(1);
 
-            // VALIDATION 1: Check if user has linked Twitter account
-            if (!user?.twitterUsername) {
-              verificationError =
-                'Please link your Twitter/X account first to verify posts.';
-              logger.warn(
-                `User has no linked Twitter account: ${shareId}`,
-                { shareId, userId: canonicalUserId },
-                'POST /api/users/[userId]/verify-share'
-              );
-            } else {
-              const twitterResponse = await fetch(
-                `https://api.twitter.com/2/tweets/${tweetId}?tweet.fields=author_id,created_at,text,entities`,
-                {
-                  headers: {
-                    Authorization: `Bearer ${process.env.TWITTER_BEARER_TOKEN}`,
-                  },
-                }
-              );
+          // VALIDATION 1: Check if user has linked Twitter account
+          if (!user?.twitterUsername) {
+            verificationError =
+              'Please link your Twitter/X account first to verify posts.';
+            logger.warn(
+              `User has no linked Twitter account: ${shareId}`,
+              { shareId, userId: canonicalUserId },
+              'POST /api/users/[userId]/verify-share'
+            );
+          } else {
+            const twitterResponse = await fetch(
+              `https://api.twitter.com/2/tweets/${tweetId}?tweet.fields=author_id,created_at,text,entities`,
+              {
+                headers: {
+                  Authorization: `Bearer ${process.env.TWITTER_BEARER_TOKEN}`,
+                },
+              }
+            );
 
-              if (twitterResponse.ok) {
-                const tweetData = await twitterResponse.json();
+            if (twitterResponse.ok) {
+              const tweetData = await twitterResponse.json();
 
-                if (tweetData.data) {
-                  // VALIDATION 2: Verify tweet author matches user's Twitter account
-                  const userTwitterUsername = user.twitterUsername
-                    .toLowerCase()
-                    .replace('@', '');
-                  const urlTwitterUsername = tweetUsername.toLowerCase();
+              if (tweetData.data) {
+                // VALIDATION 2: Verify tweet author matches user's Twitter account
+                const userTwitterUsername = user.twitterUsername
+                  .toLowerCase()
+                  .replace('@', '');
+                const urlTwitterUsername = tweetUsername.toLowerCase();
 
-                  if (userTwitterUsername !== urlTwitterUsername) {
-                    verificationError = `This tweet is from @${tweetUsername}, but your linked account is @${user.twitterUsername}. You can only verify your own posts.`;
+                if (userTwitterUsername !== urlTwitterUsername) {
+                  verificationError = `This tweet is from @${tweetUsername}, but your linked account is @${user.twitterUsername}. You can only verify your own posts.`;
+                  logger.warn(
+                    `Tweet author mismatch: ${shareId}`,
+                    {
+                      shareId,
+                      expectedUsername: userTwitterUsername,
+                      actualUsername: urlTwitterUsername,
+                    },
+                    'POST /api/users/[userId]/verify-share'
+                  );
+                } else {
+                  // VALIDATION 3: Verify tweet contains the shared URL
+                  // Twitter converts URLs to t.co links, so we need to check expanded URLs from entities
+                  const tweetText = (tweetData.data.text || '').toLowerCase();
+                  const sharedUrl = shareAction.url?.toLowerCase() || '';
+
+                  // Extract expanded URLs from tweet entities (Twitter automatically shortens URLs to t.co)
+                  const urlEntities = tweetData.data.entities?.urls as
+                    | Array<{ expanded_url?: string }>
+                    | undefined;
+                  const expandedUrls = (urlEntities || [])
+                    .map(
+                      (urlEntity) => urlEntity.expanded_url?.toLowerCase() || ''
+                    )
+                    .filter((url) => url);
+
+                  // Check if the tweet contains the shared URL (in text or expanded URLs)
+                  const containsUrlInText =
+                    sharedUrl && tweetText.includes(sharedUrl);
+                  const containsUrlInEntities =
+                    sharedUrl &&
+                    expandedUrls.some(
+                      (expandedUrl) =>
+                        expandedUrl.includes(sharedUrl) ||
+                        sharedUrl.includes(expandedUrl)
+                    );
+
+                  const containsUrl =
+                    containsUrlInText || containsUrlInEntities;
+
+                  if (!containsUrl && sharedUrl) {
+                    verificationError = `This tweet does not contain the shared link (${sharedUrl}). Please paste the tweet where you actually shared the link.`;
                     logger.warn(
-                      `Tweet author mismatch: ${shareId}`,
+                      `Tweet does not contain shared URL: ${shareId}`,
                       {
                         shareId,
-                        expectedUsername: userTwitterUsername,
-                        actualUsername: urlTwitterUsername,
+                        tweetText: tweetText.substring(0, 100),
+                        expectedUrl: sharedUrl,
+                        expandedUrls,
                       },
                       'POST /api/users/[userId]/verify-share'
                     );
                   } else {
-                    // VALIDATION 3: Verify tweet contains the shared URL
-                    // Twitter converts URLs to t.co links, so we need to check expanded URLs from entities
-                    const tweetText = (tweetData.data.text || '').toLowerCase();
-                    const sharedUrl = shareAction.url?.toLowerCase() || '';
+                    // All validations passed!
+                    verified = true;
+                    verificationDetails = {
+                      tweetId,
+                      tweetUrl: postUrl,
+                      tweetUsername,
+                      verificationMethod:
+                        'twitter_api_v2_with_url_verification',
+                      verified: true,
+                      tweetText: tweetData.data.text || '',
+                      tweetAuthorId: tweetData.data.author_id || '',
+                      verifiedAt: new Date().toISOString(),
+                      urlMatch: containsUrl,
+                      urlMatchMethod: containsUrlInEntities
+                        ? 'expanded_urls'
+                        : 'text',
+                      expandedUrls: expandedUrls.join(', '),
+                      authorMatch: true,
+                    };
 
-                    // Extract expanded URLs from tweet entities (Twitter automatically shortens URLs to t.co)
-                    const urlEntities = tweetData.data.entities?.urls as
-                      | Array<{ expanded_url?: string }>
-                      | undefined;
-                    const expandedUrls = (urlEntities || [])
-                      .map(
-                        (urlEntity) =>
-                          urlEntity.expanded_url?.toLowerCase() || ''
-                      )
-                      .filter((url) => url);
-
-                    // Check if the tweet contains the shared URL (in text or expanded URLs)
-                    const containsUrlInText =
-                      sharedUrl && tweetText.includes(sharedUrl);
-                    const containsUrlInEntities =
-                      sharedUrl &&
-                      expandedUrls.some(
-                        (expandedUrl) =>
-                          expandedUrl.includes(sharedUrl) ||
-                          sharedUrl.includes(expandedUrl)
-                      );
-
-                    const containsUrl =
-                      containsUrlInText || containsUrlInEntities;
-
-                    if (!containsUrl && sharedUrl) {
-                      verificationError = `This tweet does not contain the shared link (${sharedUrl}). Please paste the tweet where you actually shared the link.`;
-                      logger.warn(
-                        `Tweet does not contain shared URL: ${shareId}`,
-                        {
-                          shareId,
-                          tweetText: tweetText.substring(0, 100),
-                          expectedUrl: sharedUrl,
-                          expandedUrls,
-                        },
-                        'POST /api/users/[userId]/verify-share'
-                      );
-                    } else {
-                      // All validations passed!
-                      verified = true;
-                      verificationDetails = {
+                    logger.info(
+                      `Twitter share verified via API: ${shareId}`,
+                      {
+                        shareId,
                         tweetId,
-                        tweetUrl: postUrl,
                         tweetUsername,
-                        verificationMethod:
-                          'twitter_api_v2_with_url_verification',
-                        verified: true,
-                        tweetText: tweetData.data.text || '',
-                        tweetAuthorId: tweetData.data.author_id || '',
-                        verifiedAt: new Date().toISOString(),
-                        urlMatch: containsUrl,
+                        userId: canonicalUserId,
                         urlMatchMethod: containsUrlInEntities
                           ? 'expanded_urls'
                           : 'text',
-                        expandedUrls: expandedUrls.join(', '),
-                        authorMatch: true,
-                      };
-
-                      logger.info(
-                        `Twitter share verified via API: ${shareId}`,
-                        {
-                          shareId,
-                          tweetId,
-                          tweetUsername,
-                          userId: canonicalUserId,
-                          urlMatchMethod: containsUrlInEntities
-                            ? 'expanded_urls'
-                            : 'text',
-                        },
-                        'POST /api/users/[userId]/verify-share'
-                      );
-                    }
+                      },
+                      'POST /api/users/[userId]/verify-share'
+                    );
                   }
-                } else {
-                  verificationError = 'Tweet not found or has been deleted';
-                  logger.warn(
-                    `Tweet not found in API response: ${shareId}`,
-                    { shareId, tweetId },
-                    'POST /api/users/[userId]/verify-share'
-                  );
                 }
-              } else if (twitterResponse.status === 404) {
-                verificationError =
-                  'Tweet not found. Please check the URL and try again.';
+              } else {
+                verificationError = 'Tweet not found or has been deleted';
                 logger.warn(
-                  `Tweet not found (404): ${shareId}`,
+                  `Tweet not found in API response: ${shareId}`,
                   { shareId, tweetId },
                   'POST /api/users/[userId]/verify-share'
                 );
-              } else {
-                verificationError = `Twitter API error (${twitterResponse.status}). Please try again later.`;
-                logger.error(
-                  `Twitter API error: ${shareId}`,
-                  { shareId, tweetId, status: twitterResponse.status },
-                  'POST /api/users/[userId]/verify-share'
-                );
               }
+            } else if (twitterResponse.status === 404) {
+              verificationError =
+                'Tweet not found. Please check the URL and try again.';
+              logger.warn(
+                `Tweet not found (404): ${shareId}`,
+                { shareId, tweetId },
+                'POST /api/users/[userId]/verify-share'
+              );
+            } else {
+              verificationError = `Twitter API error (${twitterResponse.status}). Please try again later.`;
+              logger.error(
+                `Twitter API error: ${shareId}`,
+                { shareId, tweetId, status: twitterResponse.status },
+                'POST /api/users/[userId]/verify-share'
+              );
             }
-          } catch (error) {
-            verificationError =
-              'Failed to verify with Twitter API. Please try again later.';
-            logger.error(
-              `Twitter API verification exception: ${shareId}`,
-              { shareId, tweetId, error },
-              'POST /api/users/[userId]/verify-share'
-            );
           }
         }
       }
@@ -386,167 +375,152 @@ export const POST = withErrorHandling(
           'POST /api/users/[userId]/verify-share'
         );
       } else {
-        try {
-          // Use Neynar API to verify cast by URL (more reliable than hash extraction)
+        // Use Neynar API to verify cast by URL (more reliable than hash extraction)
+        logger.info(
+          `Attempting to verify Farcaster cast: ${shareId}`,
+          { shareId, postUrl },
+          'POST /api/users/[userId]/verify-share'
+        );
+
+        const neynarResponse = await fetch(
+          `https://api.neynar.com/v2/farcaster/cast?identifier=${encodeURIComponent(postUrl)}&type=url`,
+          {
+            headers: {
+              accept: 'application/json',
+              api_key: process.env.NEYNAR_API_KEY,
+            },
+            signal: AbortSignal.timeout(10000), // 10 second timeout
+          }
+        );
+
+        if (neynarResponse.ok) {
+          const neynarData = await neynarResponse.json();
+
           logger.info(
-            `Attempting to verify Farcaster cast: ${shareId}`,
-            { shareId, postUrl },
+            `Neynar API response received: ${shareId}`,
+            { shareId, hasCast: !!neynarData.cast },
             'POST /api/users/[userId]/verify-share'
           );
 
-          const neynarResponse = await fetch(
-            `https://api.neynar.com/v2/farcaster/cast?identifier=${encodeURIComponent(postUrl)}&type=url`,
-            {
-              headers: {
-                accept: 'application/json',
-                api_key: process.env.NEYNAR_API_KEY,
-              },
-              signal: AbortSignal.timeout(10000), // 10 second timeout
-            }
-          );
+          if (neynarData.cast) {
+            // VALIDATION 1: Check if user has linked Farcaster account
+            const [user] = await db
+              .select({
+                farcasterUsername: users.farcasterUsername,
+                farcasterFid: users.farcasterFid,
+              })
+              .from(users)
+              .where(eq(users.id, canonicalUserId))
+              .limit(1);
 
-          if (neynarResponse.ok) {
-            const neynarData = await neynarResponse.json();
+            if (!user?.farcasterUsername && !user?.farcasterFid) {
+              verificationError =
+                'Please link your Farcaster account first to verify casts.';
+              logger.warn(
+                `User has no linked Farcaster account: ${shareId}`,
+                { shareId, userId: canonicalUserId },
+                'POST /api/users/[userId]/verify-share'
+              );
+            } else {
+              // VALIDATION 2: Verify cast author matches user's Farcaster account
+              const castAuthorUsername =
+                neynarData.cast.author?.username?.toLowerCase();
+              const castAuthorFid = neynarData.cast.author?.fid?.toString();
+              const userFarcasterUsername =
+                user.farcasterUsername?.toLowerCase();
+              const userFarcasterFid = user.farcasterFid?.toString();
 
-            logger.info(
-              `Neynar API response received: ${shareId}`,
-              { shareId, hasCast: !!neynarData.cast },
-              'POST /api/users/[userId]/verify-share'
-            );
+              const isAuthorMatch =
+                (userFarcasterUsername &&
+                  castAuthorUsername === userFarcasterUsername) ||
+                (userFarcasterFid && castAuthorFid === userFarcasterFid);
 
-            if (neynarData.cast) {
-              // VALIDATION 1: Check if user has linked Farcaster account
-              const [user] = await db
-                .select({
-                  farcasterUsername: users.farcasterUsername,
-                  farcasterFid: users.farcasterFid,
-                })
-                .from(users)
-                .where(eq(users.id, canonicalUserId))
-                .limit(1);
-
-              if (!user?.farcasterUsername && !user?.farcasterFid) {
-                verificationError =
-                  'Please link your Farcaster account first to verify casts.';
+              if (!isAuthorMatch) {
+                verificationError = `This cast was not posted by your Farcaster account (@${userFarcasterUsername || userFarcasterFid}). Please paste a cast from your own account.`;
                 logger.warn(
-                  `User has no linked Farcaster account: ${shareId}`,
-                  { shareId, userId: canonicalUserId },
+                  `Cast author mismatch: ${shareId}`,
+                  {
+                    shareId,
+                    castAuthor: castAuthorUsername,
+                    castAuthorFid,
+                    expectedUsername: userFarcasterUsername,
+                    expectedFid: userFarcasterFid,
+                  },
                   'POST /api/users/[userId]/verify-share'
                 );
               } else {
-                // VALIDATION 2: Verify cast author matches user's Farcaster account
-                const castAuthorUsername =
-                  neynarData.cast.author?.username?.toLowerCase();
-                const castAuthorFid = neynarData.cast.author?.fid?.toString();
-                const userFarcasterUsername =
-                  user.farcasterUsername?.toLowerCase();
-                const userFarcasterFid = user.farcasterFid?.toString();
+                // VALIDATION 3: Verify cast contains the shared URL
+                const castText = (neynarData.cast.text || '').toLowerCase();
+                const sharedUrl = shareAction.url?.toLowerCase() || '';
 
-                const isAuthorMatch =
-                  (userFarcasterUsername &&
-                    castAuthorUsername === userFarcasterUsername) ||
-                  (userFarcasterFid && castAuthorFid === userFarcasterFid);
+                // Check if the cast contains the exact shared URL
+                const containsUrl = sharedUrl && castText.includes(sharedUrl);
 
-                if (!isAuthorMatch) {
-                  verificationError = `This cast was not posted by your Farcaster account (@${userFarcasterUsername || userFarcasterFid}). Please paste a cast from your own account.`;
+                if (!containsUrl && sharedUrl) {
+                  verificationError = `This cast does not contain the shared link (${sharedUrl}). Please paste the cast where you actually shared the link.`;
                   logger.warn(
-                    `Cast author mismatch: ${shareId}`,
+                    `Cast does not contain shared URL: ${shareId}`,
                     {
                       shareId,
-                      castAuthor: castAuthorUsername,
-                      castAuthorFid,
-                      expectedUsername: userFarcasterUsername,
-                      expectedFid: userFarcasterFid,
+                      castText: castText.substring(0, 100),
+                      expectedUrl: sharedUrl,
                     },
                     'POST /api/users/[userId]/verify-share'
                   );
                 } else {
-                  // VALIDATION 3: Verify cast contains the shared URL
-                  const castText = (neynarData.cast.text || '').toLowerCase();
-                  const sharedUrl = shareAction.url?.toLowerCase() || '';
+                  // All validations passed!
+                  verified = true;
+                  verificationDetails = {
+                    castHash: neynarData.cast.hash,
+                    castUrl: postUrl,
+                    verificationMethod: 'neynar_api_url',
+                    verified: true,
+                    castText: neynarData.cast.text || '',
+                    castAuthorUsername: castAuthorUsername || '',
+                    castAuthorFid: castAuthorFid || '',
+                    verifiedAt: new Date().toISOString(),
+                    authorMatch: true,
+                    urlMatch: containsUrl,
+                  };
 
-                  // Check if the cast contains the exact shared URL
-                  const containsUrl = sharedUrl && castText.includes(sharedUrl);
-
-                  if (!containsUrl && sharedUrl) {
-                    verificationError = `This cast does not contain the shared link (${sharedUrl}). Please paste the cast where you actually shared the link.`;
-                    logger.warn(
-                      `Cast does not contain shared URL: ${shareId}`,
-                      {
-                        shareId,
-                        castText: castText.substring(0, 100),
-                        expectedUrl: sharedUrl,
-                      },
-                      'POST /api/users/[userId]/verify-share'
-                    );
-                  } else {
-                    // All validations passed!
-                    verified = true;
-                    verificationDetails = {
+                  logger.info(
+                    `Farcaster share verified via Neynar API: ${shareId}`,
+                    {
+                      shareId,
                       castHash: neynarData.cast.hash,
-                      castUrl: postUrl,
-                      verificationMethod: 'neynar_api_url',
-                      verified: true,
-                      castText: neynarData.cast.text || '',
-                      castAuthorUsername: castAuthorUsername || '',
-                      castAuthorFid: castAuthorFid || '',
-                      verifiedAt: new Date().toISOString(),
-                      authorMatch: true,
-                      urlMatch: containsUrl,
-                    };
-
-                    logger.info(
-                      `Farcaster share verified via Neynar API: ${shareId}`,
-                      {
-                        shareId,
-                        castHash: neynarData.cast.hash,
-                        userId: canonicalUserId,
-                      },
-                      'POST /api/users/[userId]/verify-share'
-                    );
-                  }
+                      userId: canonicalUserId,
+                    },
+                    'POST /api/users/[userId]/verify-share'
+                  );
                 }
               }
-            } else {
-              verificationError = 'Cast not found or has been deleted';
-              logger.warn(
-                `Cast not found in Neynar response: ${shareId}`,
-                { shareId, postUrl },
-                'POST /api/users/[userId]/verify-share'
-              );
             }
-          } else if (neynarResponse.status === 404) {
-            verificationError =
-              'Cast not found. Please check the URL and try again.';
+          } else {
+            verificationError = 'Cast not found or has been deleted';
             logger.warn(
-              `Cast not found (404) via Neynar: ${shareId}`,
+              `Cast not found in Neynar response: ${shareId}`,
               { shareId, postUrl },
               'POST /api/users/[userId]/verify-share'
             );
-          } else {
-            const errorText = await neynarResponse.text().catch(() => '');
-            verificationError = `Neynar API error (${neynarResponse.status}). Please try again later.`;
-            logger.error(
-              `Neynar API error: ${shareId}`,
-              {
-                shareId,
-                postUrl,
-                status: neynarResponse.status,
-                error: errorText,
-              },
-              'POST /api/users/[userId]/verify-share'
-            );
           }
-        } catch (error) {
-          // NO FALLBACK - strict verification only
+        } else if (neynarResponse.status === 404) {
           verificationError =
-            'Failed to verify with Neynar API. Please try again later.';
+            'Cast not found. Please check the URL and try again.';
+          logger.warn(
+            `Cast not found (404) via Neynar: ${shareId}`,
+            { shareId, postUrl },
+            'POST /api/users/[userId]/verify-share'
+          );
+        } else {
+          const errorText = await neynarResponse.text().catch(() => '');
+          verificationError = `Neynar API error (${neynarResponse.status}). Please try again later.`;
           logger.error(
-            `Neynar API verification exception: ${shareId}`,
+            `Neynar API error: ${shareId}`,
             {
               shareId,
               postUrl,
-              error: error instanceof Error ? error.message : String(error),
+              status: neynarResponse.status,
+              error: errorText,
             },
             'POST /api/users/[userId]/verify-share'
           );

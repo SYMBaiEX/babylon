@@ -6,7 +6,7 @@
  *
  * @description
  * Returns list of users and actors following the target user. Supports both
- * regular users and NPCs/actors. Includes legacy follow status support.
+ * regular users and NPCs/actors.
  *
  * @openapi
  * /api/users/{userId}/followers:
@@ -89,18 +89,17 @@ import {
 } from '@babylon/api';
 import {
   actorFollows,
-  actors,
   and,
   db,
   desc,
   eq,
   followStatuses,
   follows,
-  inArray,
   not,
   userActorFollows,
   users,
 } from '@babylon/db';
+import { StaticDataRegistry } from '@babylon/engine';
 import {
   logger,
   UserFollowersQuerySchema,
@@ -152,31 +151,38 @@ export const GET = withErrorHandling(
       'GET /api/users/[userId]/followers'
     );
 
-    // Check if target is an actor
-    const [targetActor] = await db
-      .select({ id: actors.id })
-      .from(actors)
-      .where(eq(actors.id, targetId))
-      .limit(1);
+    const targetActor = StaticDataRegistry.getActor(targetId);
 
     let followersList: FollowerResponse[] = [];
 
     if (targetActor) {
       // Target is an NPC - get both actor followers and user followers
-      const actorFollowersList = await db
+      const actorFollowRelations = await db
         .select({
           id: actorFollows.id,
           followerId: actorFollows.followerId,
           createdAt: actorFollows.createdAt,
-          followerName: actors.name,
-          followerTier: actors.tier,
-          followerProfileImageUrl: actors.profileImageUrl,
-          followerDescription: actors.description,
         })
         .from(actorFollows)
-        .innerJoin(actors, eq(actorFollows.followerId, actors.id))
         .where(eq(actorFollows.followingId, targetId))
         .orderBy(desc(actorFollows.createdAt));
+
+      // Enrich with static actor data
+      const actorFollowersList = actorFollowRelations
+        .map((rel) => {
+          const followerActor = StaticDataRegistry.getActor(rel.followerId);
+          if (!followerActor) return null;
+          return {
+            id: rel.id,
+            followerId: rel.followerId,
+            createdAt: rel.createdAt,
+            followerName: followerActor.name,
+            followerTier: followerActor.tier,
+            followerProfileImageUrl: followerActor.profileImageUrl,
+            followerDescription: followerActor.description,
+          };
+        })
+        .filter((f): f is NonNullable<typeof f> => f !== null);
 
       const userActorFollowersList = await db
         .select({
@@ -193,45 +199,6 @@ export const GET = withErrorHandling(
         .where(eq(userActorFollows.actorId, targetId))
         .orderBy(desc(userActorFollows.createdAt))
         .limit(200);
-
-      const migratedUserIds = new Set(
-        userActorFollowersList.map((f) => f.userId)
-      );
-
-      const legacyUserFollowerStatuses = await db
-        .select()
-        .from(followStatuses)
-        .where(
-          and(
-            eq(followStatuses.npcId, targetId),
-            eq(followStatuses.isActive, true),
-            eq(followStatuses.followReason, 'user_followed')
-          )
-        )
-        .orderBy(desc(followStatuses.followedAt))
-        .limit(100);
-
-      // Fetch user data separately since FollowStatus doesn't have a relation to User
-      const legacyUserIds = legacyUserFollowerStatuses
-        .map((f) => f.userId)
-        .filter((id) => !migratedUserIds.has(id));
-
-      const legacyUsers =
-        legacyUserIds.length > 0
-          ? await db
-              .select({
-                id: users.id,
-                displayName: users.displayName,
-                username: users.username,
-                profileImageUrl: users.profileImageUrl,
-                bio: users.bio,
-              })
-              .from(users)
-              .where(inArray(users.id, legacyUserIds))
-          : [];
-
-      // Create a map for quick lookup
-      const userMap = new Map(legacyUsers.map((u) => [u.id, u]));
 
       followersList = [
         ...actorFollowersList.map((f) => ({
@@ -253,20 +220,6 @@ export const GET = withErrorHandling(
           followedAt: f.createdAt.toISOString(),
           isActor: false,
         })),
-        ...legacyUserFollowerStatuses
-          .filter((f) => !migratedUserIds.has(f.userId))
-          .map((f) => {
-            const user = userMap.get(f.userId);
-            return {
-              id: f.userId,
-              displayName: user?.displayName || '',
-              username: user?.username || null,
-              profileImageUrl: user?.profileImageUrl || null,
-              bio: user?.bio || '',
-              followedAt: f.followedAt.toISOString(),
-              isActor: false,
-            };
-          }),
       ].sort(
         (a, b) =>
           new Date(b.followedAt).getTime() - new Date(a.followedAt).getTime()
@@ -301,20 +254,12 @@ export const GET = withErrorHandling(
         .orderBy(desc(followStatuses.followedAt));
 
       const npcIds = npcFollowersList.map((f) => f.npcId);
-      const npcActors =
-        npcIds.length > 0
-          ? await db
-              .select({
-                id: actors.id,
-                name: actors.name,
-                tier: actors.tier,
-                profileImageUrl: actors.profileImageUrl,
-                description: actors.description,
-              })
-              .from(actors)
-              .where(inArray(actors.id, npcIds))
-          : [];
-      const actorMap = new Map(npcActors.map((actor) => [actor.id, actor]));
+      const actorMap = new Map(
+        npcIds
+          .map((id) => StaticDataRegistry.getActor(id))
+          .filter((a): a is NonNullable<typeof a> => a !== null)
+          .map((a) => [a.id, a])
+      );
 
       followersList = [
         ...userFollows.map((f) => ({

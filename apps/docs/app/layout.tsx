@@ -11,7 +11,7 @@ export const metadata: Metadata = {
   metadataBase: new URL(
     process.env.NEXT_PUBLIC_DOCS_URL ||
       process.env.NEXT_PUBLIC_URL ||
-      'http://localhost:3001'
+      'http://localhost:3002'
   ),
   icons: {
     icon: [{ url: '/favicon.svg', type: 'image/svg+xml' }],

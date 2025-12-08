@@ -1,194 +1,163 @@
-# Permissionless AI Game - Experimental Implementation
+# @babylon/experimental
 
-A toy demonstration of the permissionless AI game infrastructure described in `task.md`.
+**Permissionless AI Compute Marketplace**
 
-## Quick Start
+A decentralized compute marketplace built on ERC-8004 for AI inference. No API keys - only wallet signatures.
 
-```bash
-# Install
-bun install
+## 🎯 Goals
 
-# Run demo (simulated environment)
-bun run demo
+1. **100% Permissionless** - No API keys, no logins, only wallet signatures
+2. **Decentralized Registry** - Providers register via ERC-8004 on-chain
+3. **Hardware Attestation** - Cryptographic proof of GPU/TEE capabilities
+4. **Stake-based Security** - Users and providers stake for accountability
+5. **Open Gateway** - Any gateway can route to any provider
 
-# Run tests
-bun test
-```
-
-## What's Implemented vs What's Needed
-
-### ✅ Production-Quality (Real Crypto, Real Logic)
-
-| Component | Description |
-|-----------|-------------|
-| **AES-256-GCM Encryption** | Real authenticated encryption via Web Crypto API |
-| **HKDF Key Derivation** | Real key derivation per RFC 5869 |
-| **Key Rotation** | Real re-encryption on rotation |
-| **AI Agent** | Real neural network with backpropagation |
-| **Game Logic** | Real pattern prediction game |
-| **State Management** | Real encrypted checkpoint system |
-| **Contract Logic** | Complete state machine for treasury/governance |
-
-### 🔶 Simulated (Needs Real Integration)
-
-| Component | Current | What's Needed |
-|-----------|---------|---------------|
-| **TEE Runtime** | Simulated enclave | Deploy to Phala Network CVM |
-| **Blockchain** | Mock state machine | Deploy `contracts/GameTreasury.sol` to EVM |
-| **IPFS** | In-memory simulator | Connect to real IPFS node |
-| **Attestation** | Fake signatures | Use Phala DStack SDK for real Intel/NVIDIA attestation |
-| **Wallet** | Simulated viem accounts | Use real DStack-derived keys |
-
-## Making It Fully Permissionless
-
-### Step 1: Deploy the Contract
-
-```bash
-# Using Hardhat
-cd contracts
-npx hardhat deploy --network sepolia
-
-# Or Forge
-forge create GameTreasury --rpc-url $RPC_URL --private-key $PRIVATE_KEY
-```
-
-### Step 2: Fund the Treasury
-
-```typescript
-// Anyone can deposit
-const tx = await contract.deposit({ value: parseEther("1.0") });
-```
-
-### Step 3: Deploy to Phala TEE
-
-```bash
-# Package as Docker container
-docker build -t babylon-game .
-
-# Deploy to Phala Cloud (uses wallet for auth, not API keys)
-phala deploy --image babylon-game --wallet $WALLET_ADDRESS
-```
-
-### Step 4: Bootstrap the Game
-
-```bash
-# With real infrastructure
-PRIVATE_KEY=0x... \
-CONTRACT_ADDRESS=0x... \
-RPC_URL=https://... \
-bun run src/infra/bootstrap.ts
-```
-
-## Architecture
+## 🏗️ Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                     PERMISSIONLESS LAYER                        │
-├─────────────────────────────────────────────────────────────────┤
-│  Anyone can:                                                    │
-│  • Fund the treasury (deposit ETH)                             │
-│  • Run a TEE operator node (if they have hardware)             │
-│  • Take over if current operator goes offline                  │
-│  • Vote on governance (with 30-day staked tokens)              │
-│  • Verify attestation and game state                           │
-└─────────────────────────────────────────────────────────────────┘
-          │                    │                    │
-          ▼                    ▼                    ▼
+│                        USER / GAME CLIENT                        │
+│                    (Wallet-based authentication)                 │
+└──────────────────────────────┬──────────────────────────────────┘
+                               │
+                               ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                           GATEWAY                                │
+│   Provider Discovery → Request Router → Response Verifier        │
+└──────────────────────────────┬──────────────────────────────────┘
+                               │
+         ┌─────────────────────┼─────────────────────┐
+         │                     │                     │
+         ▼                     ▼                     ▼
 ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐
-│   GameTreasury  │  │   TEE Enclave   │  │      IPFS       │
-│   (Solidity)    │  │  (Phala CVM)    │  │   (Filecoin)    │
-├─────────────────┤  ├─────────────────┤  ├─────────────────┤
-│ • Holds funds   │  │ • AI inference  │  │ • Encrypted     │
-│ • State anchor  │  │ • Training loop │  │   game state    │
-│ • Operator auth │  │ • Key mgmt      │  │ • Public        │
-│ • Rate limits   │  │ • Attestation   │  │   training data │
-│ • Governance    │  │ • Heartbeat     │  │                 │
-└─────────────────┘  └─────────────────┘  └─────────────────┘
+│   COMPUTE NODE  │  │   COMPUTE NODE  │  │   COMPUTE NODE  │
+│   (Local Demo)  │  │   (Phala TEE)   │  │   (GPU Server)  │
+└────────┬────────┘  └────────┬────────┘  └────────┬────────┘
+         │                    │                    │
+         └────────────────────┼────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                       BLOCKCHAIN LAYER                           │
+│   Provider Registry (ERC-8004) | Staking | Escrow | Reputation   │
+│                                                                  │
+│   Chains: Anvil (local) → Base Sepolia → Base Mainnet            │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-## What Makes It Permissionless?
+## 📦 Components
 
-### 1. No API Keys
-- Phala Cloud uses wallet signatures for deployment
-- Contract interactions use wallet signatures
-- IPFS is content-addressed (no accounts)
+### Smart Contracts
 
-### 2. No Single Operator
-- Any TEE with valid attestation can become operator
-- If operator fails, anyone can take over after timeout
-- Treasury funds are rate-limited (can't be drained)
+- **BabylonRegistry** - ERC-8004 extension for compute providers
+- **ComputeStaking** - User and provider stake management
+- **InferenceEscrow** - Payment escrow for inference jobs
+- **ModerationMarket** - Dispute resolution and reporting
 
-### 3. No Central Server
-- Game runs in decentralized TEE network
-- State is on decentralized storage
-- Coordination is on blockchain
+### Compute Node
 
-### 4. Verifiable Everything
-- Code integrity via attestation
-- State integrity via content-addressing
-- Financial integrity via smart contracts
+Providers run nodes that:
+- Detect and attest hardware (GPU/TEE)
+- Serve OpenAI-compatible inference
+- Generate cryptographic attestations
+- Register on-chain via ERC-8004
 
-## Remaining Work for Full Permissionlessness
+### Gateway
 
-1. **Phala DStack Integration**
-   - Replace simulated attestation with real Intel TDX quotes
-   - Use DStack SDK for key derivation inside enclave
-   - Deploy to actual H200 GPU TEE
+Routes requests from clients to providers:
+- Discovers providers via ERC-8004
+- Routes based on requirements (model, latency, price)
+- Verifies responses and attestations
+- Reports reputation metrics
 
-2. **Contract Deployment**
-   - Deploy `GameTreasury.sol` to mainnet/L2
-   - Set up council multi-sig
-   - Fund initial treasury
+## 🚀 Quick Start
 
-3. **IPFS Pinning**
-   - Set up Filecoin deals for persistence
-   - Or use Arweave for permanent storage
+### Prerequisites
 
-4. **Governance Token**
-   - Deploy ERC-20 with 30-day lock for voting
-   - Integrate with DAO contract
+- Bun 1.0+
+- Wallet with testnet ETH (Base Sepolia)
+- Docker (for node deployment)
 
-## Cost Estimates
+### Run Demo
 
-| Resource | Cost/Month |
-|----------|------------|
-| H200 GPU TEE | ~$3,000 |
-| IPFS/Filecoin storage | ~$10 |
-| Ethereum transactions | ~$100 |
-| **Total** | **~$3,110/month** |
+```bash
+# Install dependencies
+bun install
 
-## Security Model
+# Run automated demo on Anvil
+bun run demo:bun
 
-- **TEE Compromise**: Key rotation limits damage to one time window
-- **Operator Malice**: Rate limits prevent fund theft; attestation prevents code tampering
-- **Council Compromise**: Council can only rotate keys, not access funds
-- **Contract Bug**: Pausable by council; upgradeable by DAO
+# Run permissionless audit
+bun run audit
+```
 
-## Files
+### Run Tests
+
+```bash
+bun run test
+```
+
+## 📚 Documentation
+
+- [Architecture Overview](./docs/PERMISSIONLESS_COMPUTE.md)
+- [Implementation Plan](./docs/IMPLEMENTATION_PLAN.md)
+- [ERC-8004 Specification](./docs/erc8004.md)
+
+## 🔐 Security Model
+
+### Staking Requirements
+
+| Role | Minimum Stake | Purpose |
+|------|---------------|---------|
+| Provider | 0.1 ETH | Accountable for service quality |
+| User | 0.01 ETH | Prevent spam/abuse |
+
+### Trust Models
+
+1. **Reputation** - ERC-8004 feedback from users
+2. **Attestation** - Hardware verification (TEE/GPU)
+3. **Staking** - Economic security via slashing
+
+### Moderation
+
+- Report submission with stake
+- Guardian voting on disputes
+- Slashing for proven misbehavior
+
+## 🖥️ Supported Hardware
+
+| Platform | TEE Type | Status |
+|----------|----------|--------|
+| Intel TDX | Hardware | Production |
+| NVIDIA H100/H200 | GPU TEE | Production |
+| Apple MLX | Secure Enclave | Beta |
+| Simulated | None | Testing only |
+
+## 📁 Project Structure
 
 ```
 packages/experimental/
-├── contracts/
-│   └── GameTreasury.sol      # Solidity contract (deploy this)
 ├── src/
-│   ├── crypto/               # Real AES-GCM, HKDF
-│   ├── tee/                  # Simulated TEE enclave
-│   ├── contracts/            # Mock blockchain logic
-│   ├── storage/              # IPFS simulator + state manager
-│   ├── game/                 # AI agent + game environment
-│   ├── orchestrator/         # System coordinator
-│   ├── infra/                # Real blockchain/IPFS clients
-│   └── tests/                # 344 tests
-├── task.md                   # Original design document
-└── README.md                 # This file
+│   ├── node/           # Compute node implementation
+│   ├── gateway/        # Request routing gateway
+│   ├── attestation/    # Hardware attestation
+│   ├── storage/        # Arweave storage
+│   ├── tee/            # TEE abstractions
+│   ├── infra/          # Blockchain clients
+│   └── tests/          # Test suites
+├── docs/
+│   ├── PERMISSIONLESS_COMPUTE.md
+│   └── IMPLEMENTATION_PLAN.md
+└── docker/             # Docker containers
 ```
 
-## Commands
+## 🔗 Related Projects
 
-```bash
-bun run demo      # Run full demonstration
-bun test          # Run all 344 tests
-bun run typecheck # TypeScript checks
-bun run lint      # Biome linting
-bun run build     # Compile TypeScript
-```
+- [ERC-8004](https://github.com/ethereum/EIPs) - Trustless Agents standard
+- [Agent0 SDK](https://github.com/agent0lab/agent0-ts) - ERC-8004 TypeScript SDK
+- [Arweave](https://www.arweave.org/) - Permanent storage
+- [DStack](https://github.com/phala-network/dstack) - TEE framework
+
+## 📄 License
+
+MIT

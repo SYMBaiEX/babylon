@@ -1,24 +1,35 @@
 """
-Fast Simulator
+Fast Simulator - BENCHMARK EVALUATION ONLY
 
-Unified simulator for both benchmark evaluation and data generation.
-Optimized for maximum speed with minimal overhead.
+=================================================================
+WARNING: This module is for BENCHMARK/EVALUATION purposes only!
+         Do NOT use for training data generation.
+
+Training data MUST come from:
+1. TrajectoryGenerator (real agents with real LLM calls)
+2. Database trajectories (real production data)
+
+This simulator generates SYNTHETIC market data which is useful for:
+- Consistent benchmark comparisons
+- Deterministic testing
+- Performance evaluation
+
+It should NEVER be used to generate training data because:
+- Market data is synthetic (not real)
+- Price movements are random (not realistic)
+- Agent interactions are simulated (not real LLM calls)
+=================================================================
 
 Key features:
 - Zero artificial delays
-- Minimal memory allocations
+- Minimal memory allocations  
 - Async batch processing
-- Direct database integration
-- Real-time metrics
+- Deterministic replay of benchmark snapshots
 
 Usage:
-    # For benchmarking
+    # For benchmarking ONLY
     simulator = FastSimulator.for_benchmark(snapshot)
     results = await simulator.run_benchmark(agents)
-    
-    # For data generation  
-    simulator = FastSimulator.for_data_generation(config)
-    trajectories = await simulator.generate_data(agents, num_ticks=1000)
 """
 
 import asyncio
@@ -421,23 +432,6 @@ class FastSimulator:
         sim.game_state = cls._parse_initial_state(snapshot.get('initialState', {}))
         
         return sim
-    
-    @classmethod
-    def for_data_generation(
-        cls,
-        database_url: str,
-        ticks_per_window: int = 60,
-        max_concurrent_agents: int = 8,
-    ) -> "FastSimulator":
-        """Create simulator for data generation"""
-        config = SimulatorConfig(
-            mode='data_generation',
-            database_url=database_url,
-            ticks_per_window=ticks_per_window,
-            max_concurrent_agents=max_concurrent_agents,
-            save_to_db=True,
-        )
-        return cls(config)
     
     @staticmethod
     def _parse_initial_state(state_dict: dict) -> GameState:

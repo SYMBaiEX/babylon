@@ -168,12 +168,8 @@ export class Agent0Client implements IAgent0Client {
                 },
               };
             }
-          } catch (error) {
-            logger.warn(
-              'Failed to get contract addresses for registry overrides',
-              { error: error instanceof Error ? error.message : String(error) },
-              'Agent0Client'
-            );
+          } catch {
+            // Ignore local contract lookup failures
           }
         }
 
@@ -202,15 +198,6 @@ export class Agent0Client implements IAgent0Client {
 
         this.initPromise = null;
       } catch (error) {
-        logger.error(
-          'Failed to initialize Agent0 SDK',
-          {
-            error: error instanceof Error ? error.message : String(error),
-            chainId: this.chainId,
-            rpcUrl: this.config.rpcUrl,
-          },
-          'Agent0Client'
-        );
         this.initPromise = null;
         throw error;
       }
@@ -428,8 +415,6 @@ export class Agent0Client implements IAgent0Client {
 
     if (filters.x402Support !== undefined) {
       searchParams.x402support = filters.x402Support;
-    } else if (filters.hasX402 !== undefined) {
-      searchParams.x402support = filters.hasX402;
     }
 
     // Multi-chain search support (Agent0 SDK v0.31.0)

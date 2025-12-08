@@ -24,6 +24,34 @@ export interface CreateRepoOptions {
   private?: boolean;
 }
 
+/**
+ * Get HuggingFace token from environment variables
+ *
+ * Checks both HUGGING_FACE_TOKEN and HF_TOKEN for compatibility
+ * with different HuggingFace tooling conventions.
+ *
+ * @returns Token string or undefined if not set
+ */
+export function getHuggingFaceToken(): string | undefined {
+  return process.env.HUGGING_FACE_TOKEN || process.env.HF_TOKEN;
+}
+
+/**
+ * Get HuggingFace token or throw error if not set
+ *
+ * @throws Error if token is not configured
+ * @returns Token string
+ */
+export function requireHuggingFaceToken(): string {
+  const token = getHuggingFaceToken();
+  if (!token) {
+    throw new Error(
+      'HuggingFace token not configured. Set HUGGING_FACE_TOKEN or HF_TOKEN environment variable.'
+    );
+  }
+  return token;
+}
+
 export class HuggingFaceUploadUtil {
   /**
    * Upload a single file to HuggingFace Hub

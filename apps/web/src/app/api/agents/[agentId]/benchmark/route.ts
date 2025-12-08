@@ -188,152 +188,129 @@ export async function POST(
     'AgentBenchmark'
   );
 
-  try {
-    // Load benchmark snapshot
-    let snapshot;
-    if (body.benchmarkData) {
-      snapshot = body.benchmarkData;
-    } else if (body.benchmarkPath) {
-      // Check if we're in a Node.js environment with file system access
-      if (typeof process === 'undefined' || typeof process.cwd !== 'function') {
-        return NextResponse.json(
-          {
-            success: false,
-            error:
-              'File system access not available in edge runtime. Use benchmarkData instead.',
-          },
-          { status: 400 }
-        );
-      }
-
-      // Resolve path (support both absolute and relative)
-      const fullPath = body.benchmarkPath.startsWith('/')
-        ? body.benchmarkPath
-        : path.join(process.cwd(), body.benchmarkPath);
-
-      const data = await fs.readFile(fullPath, 'utf-8');
-      snapshot = JSON.parse(data);
-    } else {
+  // Load benchmark snapshot
+  let snapshot;
+  if (body.benchmarkData) {
+    snapshot = body.benchmarkData;
+  } else if (body.benchmarkPath) {
+    // Check if we're in a Node.js environment with file system access
+    if (typeof process === 'undefined' || typeof process.cwd !== 'function') {
       return NextResponse.json(
         {
           success: false,
-          error: 'Either benchmarkPath or benchmarkData required',
+          error:
+            'File system access not available in edge runtime. Use benchmarkData instead.',
         },
         { status: 400 }
       );
     }
 
-    logger.info(
-      'Benchmark loaded',
+    // Resolve path (support both absolute and relative)
+    const fullPath = body.benchmarkPath.startsWith('/')
+      ? body.benchmarkPath
+      : path.join(process.cwd(), body.benchmarkPath);
+
+    const data = await fs.readFile(fullPath, 'utf-8');
+    snapshot = JSON.parse(data);
+  } else {
+    return NextResponse.json(
       {
-        id: snapshot.id,
-        ticks: snapshot.ticks?.length || 0,
+        success: false,
+        error: 'Either benchmarkPath or benchmarkData required',
       },
-      'AgentBenchmark'
+      { status: 400 }
     );
+  }
 
-    // Run single or multiple benchmarks
-    if (runs === 1) {
-      const result = await runSingleBenchmark(agentId, snapshot, outputDir);
+  logger.info(
+    'Benchmark loaded',
+    {
+      id: snapshot.id,
+      ticks: snapshot.ticks?.length || 0,
+    },
+    'AgentBenchmark'
+  );
 
-      return NextResponse.json({
-        success: true,
-        runs: 1,
-        results: {
-          totalPnl: result.metrics.totalPnl,
-          predictionAccuracy: result.metrics.predictionMetrics.accuracy,
-          perpWinRate: result.metrics.perpMetrics.winRate,
-          optimalityScore: result.metrics.optimalityScore,
-          actionsExecuted: result.actions.length,
-          duration: Date.now() - startTime,
-          outputDir,
-        },
-      });
-    }
-    const results: SimulationResult[] = [];
-
-    for (let i = 0; i < runs; i++) {
-      logger.info(
-        `Running benchmark ${i + 1}/${runs}`,
-        { agentId },
-        'AgentBenchmark'
-      );
-      const result = await runSingleBenchmark(
-        agentId,
-        snapshot,
-        path.join(outputDir, `run-${i + 1}`)
-      );
-      results.push(result);
-    }
-
-    // Calculate aggregate statistics
-    const avgPnl =
-      results.reduce((sum, r) => sum + r.metrics.totalPnl, 0) / runs;
-    const avgAccuracy =
-      results.reduce(
-        (sum, r) => sum + r.metrics.predictionMetrics.accuracy,
-        0
-      ) / runs;
-    const avgOptimality =
-      results.reduce((sum, r) => sum + r.metrics.optimalityScore, 0) / runs;
-    const avgActions =
-      results.reduce((sum, r) => sum + r.actions.length, 0) / runs;
-
-    // Generate comparison visualization
-    await MetricsVisualizer.visualizeComparison(
-      {
-        runs: results,
-        comparison: {
-          avgPnl,
-          avgAccuracy,
-          avgOptimality,
-          bestRun: results.reduce((best, curr) =>
-            curr.metrics.totalPnl > best.metrics.totalPnl ? curr : best
-          ).id,
-          worstRun: results.reduce((worst, curr) =>
-            curr.metrics.totalPnl < worst.metrics.totalPnl ? curr : worst
-          ).id,
-        },
-      },
-      {
-        outputDir,
-        generateHtml: true,
-        generateCsv: true,
-        generateCharts: false,
-      }
-    );
+  // Run single or multiple benchmarks
+  if (runs === 1) {
+    const result = await runSingleBenchmark(agentId, snapshot, outputDir);
 
     return NextResponse.json({
       success: true,
-      runs,
+      runs: 1,
       results: {
-        avgPnl,
-        avgAccuracy,
-        avgOptimality,
-        avgActions,
+        totalPnl: result.metrics.totalPnl,
+        predictionAccuracy: result.metrics.predictionMetrics.accuracy,
+        perpWinRate: result.metrics.perpMetrics.winRate,
+        optimalityScore: result.metrics.optimalityScore,
+        actionsExecuted: result.actions.length,
         duration: Date.now() - startTime,
         outputDir,
       },
     });
-  } catch (error) {
-    logger.error(
-      'Benchmark execution failed',
-      {
-        agentId,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      },
+  }
+  const results: SimulationResult[] = [];
+
+  for (let i = 0; i < runs; i++) {
+    logger.info(
+      `Running benchmark ${i + 1}/${runs}`,
+      { agentId },
       'AgentBenchmark'
     );
-
-    return NextResponse.json(
-      {
-        success: false,
-        error:
-          error instanceof Error ? error.message : 'Benchmark execution failed',
-      },
-      { status: 500 }
+    const result = await runSingleBenchmark(
+      agentId,
+      snapshot,
+      path.join(outputDir, `run-${i + 1}`)
     );
+    results.push(result);
   }
+
+  // Calculate aggregate statistics
+  const avgPnl = results.reduce((sum, r) => sum + r.metrics.totalPnl, 0) / runs;
+  const avgAccuracy =
+    results.reduce((sum, r) => sum + r.metrics.predictionMetrics.accuracy, 0) /
+    runs;
+  const avgOptimality =
+    results.reduce((sum, r) => sum + r.metrics.optimalityScore, 0) / runs;
+  const avgActions =
+    results.reduce((sum, r) => sum + r.actions.length, 0) / runs;
+
+  // Generate comparison visualization
+  await MetricsVisualizer.visualizeComparison(
+    {
+      runs: results,
+      comparison: {
+        avgPnl,
+        avgAccuracy,
+        avgOptimality,
+        bestRun: results.reduce((best, curr) =>
+          curr.metrics.totalPnl > best.metrics.totalPnl ? curr : best
+        ).id,
+        worstRun: results.reduce((worst, curr) =>
+          curr.metrics.totalPnl < worst.metrics.totalPnl ? curr : worst
+        ).id,
+      },
+    },
+    {
+      outputDir,
+      generateHtml: true,
+      generateCsv: true,
+      generateCharts: false,
+    }
+  );
+
+  return NextResponse.json({
+    success: true,
+    runs,
+    results: {
+      avgPnl,
+      avgAccuracy,
+      avgOptimality,
+      avgActions,
+      duration: Date.now() - startTime,
+      outputDir,
+    },
+  });
 }
 
 async function runSingleBenchmark(

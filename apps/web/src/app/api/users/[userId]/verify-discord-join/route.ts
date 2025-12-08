@@ -101,95 +101,81 @@ export const POST = withErrorHandling(
     let isMember = false;
     let verificationError: string | null = null;
 
-    try {
-      logger.info(
-        'Attempting to verify Discord guild membership',
-        {
-          userId: canonicalUserId,
-          discordId: user.discordId,
-          guildId: BABYLON_DISCORD_GUILD_ID,
+    logger.info(
+      'Attempting to verify Discord guild membership',
+      {
+        userId: canonicalUserId,
+        discordId: user.discordId,
+        guildId: BABYLON_DISCORD_GUILD_ID,
+      },
+      'POST /api/users/[userId]/verify-discord-join'
+    );
+
+    // Use Discord API to get user's guilds
+    const discordResponse = await fetch(
+      'https://discord.com/api/v10/users/@me/guilds',
+      {
+        headers: {
+          Authorization: `Bearer ${user.discordAccessToken}`,
         },
+        signal: AbortSignal.timeout(10000), // 10 second timeout
+      }
+    );
+
+    if (discordResponse.ok) {
+      const guilds: Array<{ id: string; name: string }> =
+        await discordResponse.json();
+
+      logger.info(
+        'Discord API response received',
+        { userId: canonicalUserId, guildsCount: guilds.length },
         'POST /api/users/[userId]/verify-discord-join'
       );
 
-      // Use Discord API to get user's guilds
-      const discordResponse = await fetch(
-        'https://discord.com/api/v10/users/@me/guilds',
-        {
-          headers: {
-            Authorization: `Bearer ${user.discordAccessToken}`,
-          },
-          signal: AbortSignal.timeout(10000), // 10 second timeout
-        }
+      // Check if Babylon guild is in the list
+      const babylonGuild = guilds.find(
+        (guild) => guild.id === BABYLON_DISCORD_GUILD_ID
       );
 
-      if (discordResponse.ok) {
-        const guilds: Array<{ id: string; name: string }> =
-          await discordResponse.json();
-
+      if (babylonGuild) {
+        isMember = true;
         logger.info(
-          'Discord API response received',
-          { userId: canonicalUserId, guildsCount: guilds.length },
-          'POST /api/users/[userId]/verify-discord-join'
-        );
-
-        // Check if Babylon guild is in the list
-        const babylonGuild = guilds.find(
-          (guild) => guild.id === BABYLON_DISCORD_GUILD_ID
-        );
-
-        if (babylonGuild) {
-          isMember = true;
-          logger.info(
-            'User is a member of Babylon Discord',
-            { userId: canonicalUserId, discordId: user.discordId },
-            'POST /api/users/[userId]/verify-discord-join'
-          );
-        } else {
-          verificationError =
-            'You are not a member of the Babylon Discord server. Please join first.';
-          logger.warn(
-            'User is not a member of Babylon Discord',
-            {
-              userId: canonicalUserId,
-              discordId: user.discordId,
-              guildsChecked: guilds.length,
-            },
-            'POST /api/users/[userId]/verify-discord-join'
-          );
-        }
-      } else if (discordResponse.status === 401) {
-        const errorBody = await discordResponse.text().catch(() => '');
-        verificationError =
-          'Discord authentication failed. Please re-link your Discord account.';
-        logger.warn(
-          'Discord token expired or invalid',
-          { userId: canonicalUserId, discordId: user.discordId, errorBody },
+          'User is a member of Babylon Discord',
+          { userId: canonicalUserId, discordId: user.discordId },
           'POST /api/users/[userId]/verify-discord-join'
         );
       } else {
-        const errorText = await discordResponse.text().catch(() => '');
-        verificationError = `Discord API error (${discordResponse.status}). Please try again later.`;
-        logger.error(
-          'Discord API error',
+        verificationError =
+          'You are not a member of the Babylon Discord server. Please join first.';
+        logger.warn(
+          'User is not a member of Babylon Discord',
           {
             userId: canonicalUserId,
             discordId: user.discordId,
-            status: discordResponse.status,
-            error: errorText,
+            guildsChecked: guilds.length,
           },
           'POST /api/users/[userId]/verify-discord-join'
         );
       }
-    } catch (error) {
+    } else if (discordResponse.status === 401) {
+      const errorBody = await discordResponse.text().catch(() => '');
       verificationError =
-        'Failed to verify with Discord API. Please try again later.';
+        'Discord authentication failed. Please re-link your Discord account.';
+      logger.warn(
+        'Discord token expired or invalid',
+        { userId: canonicalUserId, discordId: user.discordId, errorBody },
+        'POST /api/users/[userId]/verify-discord-join'
+      );
+    } else {
+      const errorText = await discordResponse.text().catch(() => '');
+      verificationError = `Discord API error (${discordResponse.status}). Please try again later.`;
       logger.error(
-        'Discord API verification exception',
+        'Discord API error',
         {
           userId: canonicalUserId,
           discordId: user.discordId,
-          error: error instanceof Error ? error.message : String(error),
+          status: discordResponse.status,
+          error: errorText,
         },
         'POST /api/users/[userId]/verify-discord-join'
       );

@@ -6,6 +6,18 @@
 
 import type { Address, Hex } from 'viem';
 
+/**
+ * JSON-serializable value types (self-contained to avoid external dependencies)
+ */
+export type JsonValue =
+  | string
+  | number
+  | boolean
+  | null
+  | undefined
+  | JsonValue[]
+  | { [key: string]: JsonValue };
+
 // ============================================================================
 // Game Management Contract Types
 // ============================================================================
@@ -79,7 +91,7 @@ export interface Proposal {
   description: string;
   targetContract: string;
   action: string;
-  params: unknown;
+  params: JsonValue;
   votesFor: bigint;
   votesAgainst: bigint;
   createdAt: number;

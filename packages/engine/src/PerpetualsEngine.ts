@@ -877,7 +877,7 @@ export class PerpetualsEngine extends EventEmitter {
       this.syncDirtyPositions().catch((error: unknown) => {
         logger.error(
           'Error syncing positions to database:',
-          error,
+          { error: String(error) },
           'PerpetualsEngine'
         );
       });
@@ -919,38 +919,18 @@ export class PerpetualsEngine extends EventEmitter {
         }
 
         // Position exists, proceed with update
-        try {
-          const result = await db
-            .update(perpPositions)
-            .set({
-              currentPrice: position.currentPrice,
-              unrealizedPnL: position.unrealizedPnL,
-              unrealizedPnLPercent: position.unrealizedPnLPercent,
-              fundingPaid: position.fundingPaid,
-              lastUpdated: new Date(position.lastUpdated),
-            })
-            .where(eq(perpPositions.id, positionId))
-            .returning();
-          return result[0] || null;
-        } catch (error: unknown) {
-          // Handle not found error (shouldn't happen after existence check, but be safe)
-          const errorMessage =
-            error instanceof Error ? error.message : String(error);
-          if (
-            errorMessage.includes('not found') ||
-            errorMessage.includes('no rows')
-          ) {
-            this.positions.delete(positionId);
-            logger.debug(
-              `Position ${positionId} not found during update, removed from memory`,
-              undefined,
-              'PerpetualsEngine'
-            );
-            return null;
-          }
-          // Re-throw other errors
-          throw error;
-        }
+        const result = await db
+          .update(perpPositions)
+          .set({
+            currentPrice: position.currentPrice,
+            unrealizedPnL: position.unrealizedPnL,
+            unrealizedPnLPercent: position.unrealizedPnLPercent,
+            fundingPaid: position.fundingPaid,
+            lastUpdated: new Date(position.lastUpdated),
+          })
+          .where(eq(perpPositions.id, positionId))
+          .returning();
+        return result[0] || null;
       })
     );
 
@@ -977,7 +957,11 @@ export class PerpetualsEngine extends EventEmitter {
     }
     // Final sync before stopping
     this.syncDirtyPositions().catch((error: unknown) => {
-      logger.error('Error in final sync:', error, 'PerpetualsEngine');
+      logger.error(
+        'Error in final sync:',
+        { error: String(error) },
+        'PerpetualsEngine'
+      );
     });
   }
 

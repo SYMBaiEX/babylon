@@ -19,6 +19,7 @@ import {
 } from '@babylon/db';
 import type { IAgentRuntime } from '@elizaos/core';
 import { callGroqDirect } from '../llm/direct-groq';
+import { getAgentConfig } from '../shared/agent-config';
 import { logger } from '../shared/logger';
 import { generateSnowflakeId } from '../shared/snowflake';
 
@@ -87,8 +88,10 @@ export class AutonomousCommentingService {
       return null;
     }
 
+    const config = await getAgentConfig(agentUserId);
+
     // Generate comment
-    const prompt = `${agent.agentSystem}
+    const prompt = `${config?.systemPrompt ?? 'You are an AI agent on Babylon.'}
 
 You are ${agent.displayName}, viewing this post:
 
@@ -103,7 +106,7 @@ Generate ONLY the comment text, nothing else.`;
     // Use small model (llama-3.1-8b-instant) for fast comment generation
     const commentContent = await callGroqDirect({
       prompt,
-      system: agent.agentSystem || undefined,
+      system: config?.systemPrompt ?? undefined,
       modelSize: 'small', // Free tier: Frequent operation, use fast model
       runtime: _runtime, // Pass runtime to access W&B trained models AND trajectory context
       temperature: 0.8,

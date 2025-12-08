@@ -184,36 +184,32 @@ export function ReportsTab() {
 
   const handleEvaluate = async (reportId: string) => {
     setEvaluatingReportId(reportId);
-    try {
-      const response = await fetch(`/api/admin/reports/${reportId}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'evaluate' }),
-      });
+    const response = await fetch(`/api/admin/reports/${reportId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'evaluate' }),
+    });
 
-      if (!response.ok) {
-        const error = await response.json();
-        toast.error(error.message || 'Failed to evaluate report');
-        return;
-      }
-
-      const data = await response.json();
-      toast.success('Report evaluated successfully');
-
-      // Refresh reports to show evaluation
-      await fetchReports(true);
-
-      // Show evaluation modal if we have the report selected
-      const report = reports.find((r) => r.id === reportId);
-      if (report && data.evaluation) {
-        setSelectedReport({ ...report, evaluation: data.evaluation });
-        setShowEvaluationModal(true);
-      }
-    } catch {
-      toast.error('Failed to evaluate report');
-    } finally {
+    if (!response.ok) {
+      const error = await response.json();
+      toast.error(error.message || 'Failed to evaluate report');
       setEvaluatingReportId(null);
+      return;
     }
+
+    const data = await response.json();
+    toast.success('Report evaluated successfully');
+
+    // Refresh reports to show evaluation
+    await fetchReports(true);
+
+    // Show evaluation modal if we have the report selected
+    const report = reports.find((r) => r.id === reportId);
+    if (report && data.evaluation) {
+      setSelectedReport({ ...report, evaluation: data.evaluation });
+      setShowEvaluationModal(true);
+    }
+    setEvaluatingReportId(null);
   };
 
   const formatDate = (date: string) => {

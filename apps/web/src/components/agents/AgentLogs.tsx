@@ -58,36 +58,31 @@ export function AgentLogs({ agentId }: AgentLogsProps) {
 
   const fetchLogs = useCallback(async () => {
     setLoading(true);
-    try {
-      const token = await getAccessToken();
-      if (!token) {
-        setLoading(false);
-        return;
-      }
-
-      let url = `/api/agents/${agentId}/logs?limit=100`;
-      if (typeFilter !== 'all') url += `&type=${typeFilter}`;
-      if (levelFilter !== 'all') url += `&level=${levelFilter}`;
-
-      const res = await fetch(url, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (res.ok) {
-        const data = (await res.json()) as { success: boolean; logs: Log[] };
-        if (data.success && data.logs) {
-          setLogs(data.logs);
-        }
-      } else {
-        logger.error('Failed to fetch logs', undefined, 'AgentLogs');
-      }
-    } catch (error) {
-      logger.error('Error fetching logs', { error }, 'AgentLogs');
-    } finally {
+    const token = await getAccessToken();
+    if (!token) {
       setLoading(false);
+      return;
     }
+
+    let url = `/api/agents/${agentId}/logs?limit=100`;
+    if (typeFilter !== 'all') url += `&type=${typeFilter}`;
+    if (levelFilter !== 'all') url += `&level=${levelFilter}`;
+
+    const res = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (res.ok) {
+      const data = (await res.json()) as { success: boolean; logs: Log[] };
+      if (data.success && data.logs) {
+        setLogs(data.logs);
+      }
+    } else {
+      logger.error('Failed to fetch logs', undefined, 'AgentLogs');
+    }
+    setLoading(false);
   }, [agentId, typeFilter, levelFilter, getAccessToken]);
 
   useEffect(() => {

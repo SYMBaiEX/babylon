@@ -4,34 +4,35 @@
  * Handles agents making REAL trades on prediction markets and perps
  */
 
+import { countTokensSync, truncateToTokenLimitSync } from '@babylon/api';
 import {
   and,
   asUser,
   db,
   desc,
   eq,
+  getDbInstance,
   gte,
   isNull,
   markets,
-  organizations,
   perpPositions,
   positions,
   sql,
   users,
 } from '@babylon/db';
 import {
-  countTokensSync,
   formatRandomContext,
   generateRandomMarketContext,
   PerpTradeService,
   PredictionPricing,
+  StaticDataRegistry,
   shuffleArray,
-  truncateToTokenLimitSync,
   WalletService,
 } from '@babylon/engine';
 import type { IAgentRuntime } from '@elizaos/core';
 import { callGroqDirect } from '../llm/direct-groq';
 import { agentPnLService } from '../services/AgentPnLService';
+import { getAgentConfig } from '../shared/agent-config';
 import { logger } from '../shared/logger';
 import { generateSnowflakeId } from '../shared/snowflake';
 
@@ -81,6 +82,8 @@ export class AutonomousTradingService {
       throw new Error('Agent not found');
     }
 
+    const config = await getAgentConfig(agentUserId);
+
     // Get agent's positions separately
     const positionsResult = await db
       .select()
@@ -107,12 +110,22 @@ export class AutonomousTradingService {
       .orderBy(desc(markets.createdAt))
       .limit(10);
 
-    const perpMarkets = await db
-      .select()
-      .from(organizations)
-      .where(eq(organizations.type, 'org'))
-      .orderBy(desc(organizations.currentPrice))
-      .limit(10);
+    // Get perp markets from static registry with dynamic prices
+    const orgStates = await getDbInstance().getOrganizationsByPrice();
+    const perpMarkets = orgStates
+      .slice(0, 10)
+      .map((state) => {
+        const staticOrg = StaticDataRegistry.getOrganization(state.id);
+        return staticOrg
+          ? {
+              ...staticOrg,
+              currentPrice: state.currentPrice ?? staticOrg.initialPrice,
+            }
+          : null;
+      })
+      .filter(
+        (o): o is NonNullable<typeof o> => o !== null && o.type === 'company'
+      );
 
     const balance = await WalletService.getBalance(agentUserId);
 
@@ -133,11 +146,11 @@ export class AutonomousTradingService {
     // Build trading decision prompt
     // NPC trust scores are provided by experiencePlugin (marketOutcomeEvaluator)
     // and appear in agent context automatically via providers
-    const prompt = `${agent.agentSystem || ''}
+    const prompt = `${config?.systemPrompt ?? 'You are an autonomous trading agent on Babylon.'}
 
 You are ${agent.displayName}, an autonomous trading agent.
 
-Trading Strategy: ${agent.agentTradingStrategy || 'General market analysis'}
+Trading Strategy: ${config?.tradingStrategy ?? 'General market analysis'}
 
 Current Status:
 - Balance: $${balance.balance}
@@ -210,7 +223,7 @@ ${contextString}`;
       callGroqDirect({
         prompt: finalPrompt,
         system:
-          agent.agentSystem ||
+          config?.systemPrompt ??
           'You are a trading agent. Think through your decision, then end your response with valid JSON.',
         modelSize: 'small', // Uses llama-3.3-70b-versatile - good at JSON format
         runtime: _runtime, // Pass runtime to access W&B trained models AND trajectory context

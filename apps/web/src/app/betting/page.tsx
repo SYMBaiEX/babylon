@@ -76,43 +76,39 @@ export default function OnChainBettingPage() {
       return;
     }
 
-    try {
-      const result = await buyShares(
-        selectedMarket.id.toString(),
-        betSide,
-        shares
-      );
+    const result = await buyShares(
+      selectedMarket.id.toString(),
+      betSide,
+      shares
+    );
 
-      toast.success('Bet placed on-chain!', {
-        description: isLocal
-          ? `TX: ${result.txHash.slice(0, 10)}...`
-          : 'View on explorer',
-        action: explorerUrl
-          ? {
-              label: 'View TX',
-              onClick: () =>
-                window.open(`${explorerUrl}/tx/${result.txHash}`, '_blank'),
-            }
-          : undefined,
-      });
+    toast.success('Bet placed on-chain!', {
+      description: isLocal
+        ? `TX: ${result.txHash.slice(0, 10)}...`
+        : 'View on explorer',
+      action: explorerUrl
+        ? {
+            label: 'View TX',
+            onClick: () =>
+              window.open(`${explorerUrl}/tx/${result.txHash}`, '_blank'),
+          }
+        : undefined,
+    });
 
-      // Verify with backend
-      await fetch(`/api/markets/predictions/${selectedMarket.id}/buy-onchain`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          side: betSide.toLowerCase(),
-          numShares: shares,
-          txHash: result.txHash,
-          walletAddress: smartWalletAddress,
-        }),
-      });
+    // Verify with backend
+    await fetch(`/api/markets/predictions/${selectedMarket.id}/buy-onchain`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        side: betSide.toLowerCase(),
+        numShares: shares,
+        txHash: result.txHash,
+        walletAddress: smartWalletAddress,
+      }),
+    });
 
-      setSelectedMarket(null);
-      setBetAmount('');
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Bet failed');
-    }
+    setSelectedMarket(null);
+    setBetAmount('');
   };
 
   const formatPrice = (price: number) => `$${price.toFixed(2)}`;

@@ -1,5 +1,5 @@
 /**
- * Unified Agent Registry Service
+ * Agent Registry Service
  *
  * Single source of truth for all agent types: USER_CONTROLLED, NPC, EXTERNAL.
  * Provides registration, discovery, and management for all agent types
@@ -11,9 +11,7 @@
 import { verifyApiKey } from '@babylon/api';
 import type { JsonValue } from '@babylon/db';
 import {
-  type Actor,
   type AgentRegistry,
-  actors,
   agentCapabilities,
   agentRegistries,
   and,
@@ -29,14 +27,15 @@ import {
   type User,
   users,
 } from '@babylon/db';
+import { type StaticActor, StaticDataRegistry } from '@babylon/engine';
 import { logger } from '@babylon/shared';
 import { createCipheriv, createDecipheriv, randomBytes } from 'crypto';
 import type {
   AgentCapabilities,
   AgentDiscoveryFilter,
+  AgentRegistration,
   ExternalAgentConnectionParams,
   TrustLevel,
-  UnifiedAgentRegistration,
 } from '../types/agent-registry';
 import { AgentStatus, AgentType } from '../types/agent-registry';
 
@@ -62,12 +61,12 @@ const ALGORITHM = 'aes-256-cbc';
 type RegistryWithRelations = AgentRegistry & {
   capabilities: typeof agentCapabilities.$inferSelect | null;
   User?: User | null;
-  Actor?: Actor | null;
+  Actor?: StaticActor | null;
   externalConnection?: ExternalAgentConnection | null;
 };
 
 /**
- * Unified Agent Registry Service
+ * Agent Registry Service
  *
  * Service for managing agent registry with support for all agent types.
  */
@@ -93,7 +92,7 @@ export class AgentRegistryService {
     systemPrompt: string;
     capabilities: AgentCapabilities;
     trustLevel?: TrustLevel;
-  }): Promise<UnifiedAgentRegistration> {
+  }): Promise<AgentRegistration> {
     const { userId, name, systemPrompt, capabilities, trustLevel = 0 } = params;
 
     // Verify user exists
@@ -168,7 +167,7 @@ export class AgentRegistryService {
       throw new Error('Failed to create agent registry');
     }
 
-    return this.mapToUnifiedRegistration(registry);
+    return this.mapToRegistration(registry);
   }
 
   /**
@@ -181,22 +180,18 @@ export class AgentRegistryService {
    * @param {string} params.actorId - Actor ID
    * @param {string} params.systemPrompt - System prompt
    * @param {AgentCapabilities} params.capabilities - Agent capabilities
-   * @returns {Promise<UnifiedAgentRegistration>} Registered agent
+   * @returns {Promise<AgentRegistration>} Registered agent
    * @throws {Error} If actor not found or already registered
    */
   async registerNpcAgent(params: {
     actorId: string;
     systemPrompt: string;
     capabilities: AgentCapabilities;
-  }): Promise<UnifiedAgentRegistration> {
+  }): Promise<AgentRegistration> {
     const { actorId, systemPrompt, capabilities } = params;
 
-    // Verify actor exists
-    const [actor] = await db
-      .select()
-      .from(actors)
-      .where(eq(actors.id, actorId))
-      .limit(1);
+    // Verify actor exists in static registry
+    const actor = StaticDataRegistry.getActor(actorId);
 
     if (!actor) {
       throw new Error(`Actor not found: ${actorId}`);
@@ -260,7 +255,7 @@ export class AgentRegistryService {
       throw new Error('Failed to create agent registry');
     }
 
-    return this.mapToUnifiedRegistration(registry);
+    return this.mapToRegistration(registry);
   }
 
   /**
@@ -271,12 +266,12 @@ export class AgentRegistryService {
    * type and UNTRUSTED trust level by default.
    *
    * @param {ExternalAgentConnectionParams} params - External agent connection parameters
-   * @returns {Promise<UnifiedAgentRegistration>} Registered agent
+   * @returns {Promise<AgentRegistration>} Registered agent
    * @throws {Error} If external agent already registered
    */
   async registerExternalAgent(
     params: ExternalAgentConnectionParams
-  ): Promise<UnifiedAgentRegistration> {
+  ): Promise<AgentRegistration> {
     const {
       externalId,
       name,
@@ -370,7 +365,7 @@ export class AgentRegistryService {
       throw new Error('Failed to create agent registry');
     }
 
-    return this.mapToUnifiedRegistration(registry);
+    return this.mapToRegistration(registry);
   }
 
   /**
@@ -380,11 +375,11 @@ export class AgentRegistryService {
    * OASF skills/domains. Returns paginated results ordered by trust level and registration date.
    *
    * @param {AgentDiscoveryFilter} [filter={}] - Discovery filter options
-   * @returns {Promise<UnifiedAgentRegistration[]>} Array of matching agents
+   * @returns {Promise<AgentRegistration[]>} Array of matching agents
    */
   async discoverAgents(
     filter: AgentDiscoveryFilter = {}
-  ): Promise<UnifiedAgentRegistration[]> {
+  ): Promise<AgentRegistration[]> {
     const {
       types,
       statuses,
@@ -431,7 +426,6 @@ export class AgentRegistryService {
         eq(agentCapabilities.agentRegistryId, agentRegistries.id)
       )
       .leftJoin(users, eq(users.id, agentRegistries.userId))
-      .leftJoin(actors, eq(actors.id, agentRegistries.actorId))
       .leftJoin(
         externalAgentConnections,
         eq(externalAgentConnections.agentRegistryId, agentRegistries.id)
@@ -444,15 +438,21 @@ export class AgentRegistryService {
       .limit(limit)
       .offset(offset);
 
-    // Map to registry with relations format
+    // Map to registry with relations format, getting Actor from static registry
     const registrations: RegistryWithRelations[] = registrationsRaw.map(
-      (row) => ({
-        ...row.AgentRegistry,
-        capabilities: row.AgentCapability,
-        User: row.User,
-        Actor: row.Actor,
-        externalConnection: row.ExternalAgentConnection,
-      })
+      (row) => {
+        const actorId = row.AgentRegistry.actorId;
+        const staticActor = actorId
+          ? StaticDataRegistry.getActor(actorId)
+          : null;
+        return {
+          ...row.AgentRegistry,
+          capabilities: row.AgentCapability,
+          User: row.User,
+          Actor: staticActor,
+          externalConnection: row.ExternalAgentConnection,
+        };
+      }
     );
 
     // Filter by required capabilities if specified
@@ -501,7 +501,7 @@ export class AgentRegistryService {
       });
     }
 
-    return filtered.map((reg) => this.mapToUnifiedRegistration(reg));
+    return filtered.map((reg) => this.mapToRegistration(reg));
   }
 
   /**
@@ -511,16 +511,14 @@ export class AgentRegistryService {
    * externalId for EXTERNAL). Returns null if not found.
    *
    * @param {string} agentId - Agent ID
-   * @returns {Promise<UnifiedAgentRegistration | null>} Agent registration or null
+   * @returns {Promise<AgentRegistration | null>} Agent registration or null
    */
-  async getAgentById(
-    agentId: string
-  ): Promise<UnifiedAgentRegistration | null> {
+  async getAgentById(agentId: string): Promise<AgentRegistration | null> {
     const registry = await this.getRegistryWithRelations(agentId);
 
     if (!registry) return null;
 
-    return this.mapToUnifiedRegistration(registry);
+    return this.mapToRegistration(registry);
   }
 
   /**
@@ -531,12 +529,12 @@ export class AgentRegistryService {
    *
    * @param {string} agentId - Agent ID
    * @param {AgentStatus} status - New status
-   * @returns {Promise<UnifiedAgentRegistration>} Updated agent registration
+   * @returns {Promise<AgentRegistration>} Updated agent registration
    */
   async updateAgentStatus(
     agentId: string,
     status: AgentStatus
-  ): Promise<UnifiedAgentRegistration> {
+  ): Promise<AgentRegistration> {
     await db
       .update(agentRegistries)
       .set({
@@ -552,7 +550,7 @@ export class AgentRegistryService {
       throw new Error(`Agent not found: ${agentId}`);
     }
 
-    return this.mapToUnifiedRegistration(registry);
+    return this.mapToRegistration(registry);
   }
 
   /**
@@ -625,13 +623,13 @@ export class AgentRegistryService {
    *
    * @param {string} agentId - External agent ID
    * @param {string} userId - User ID to link
-   * @returns {Promise<UnifiedAgentRegistration>} Updated agent registration
+   * @returns {Promise<AgentRegistration>} Updated agent registration
    * @throws {Error} If agent not found, not EXTERNAL type, user not found, or user already linked
    */
   async linkExternalAgentToUser(
     agentId: string,
     userId: string
-  ): Promise<UnifiedAgentRegistration> {
+  ): Promise<AgentRegistration> {
     // Verify agent is EXTERNAL type
     const [registry] = await db
       .select()
@@ -686,7 +684,7 @@ export class AgentRegistryService {
       throw new Error(`Failed to update agent: ${agentId}`);
     }
 
-    return this.mapToUnifiedRegistration(updated);
+    return this.mapToRegistration(updated);
   }
 
   /**
@@ -696,11 +694,11 @@ export class AgentRegistryService {
    * Decrypts stored credentials and checks hash.
    *
    * @param {string} apiKey - API key to verify
-   * @returns {Promise<UnifiedAgentRegistration | null>} Agent registration if valid, null otherwise
+   * @returns {Promise<AgentRegistration | null>} Agent registration if valid, null otherwise
    */
   async verifyExternalAgentApiKey(
     apiKey: string
-  ): Promise<UnifiedAgentRegistration | null> {
+  ): Promise<AgentRegistration | null> {
     const agents = await db
       .select()
       .from(externalAgentConnections)
@@ -710,14 +708,8 @@ export class AgentRegistryService {
       if (!agent.authCredentials) continue;
 
       // Decrypt and verify credentials - continue to next agent if this one fails
-      let credentials: { apiKeyHash?: string };
-      try {
-        const decrypted = this.decryptCredentials(agent.authCredentials);
-        credentials = JSON.parse(decrypted) as { apiKeyHash?: string };
-      } catch {
-        // Decryption or JSON parsing failed - skip this agent
-        continue;
-      }
+      const decrypted = this.decryptCredentials(agent.authCredentials);
+      const credentials = JSON.parse(decrypted) as { apiKeyHash?: string };
 
       if (
         credentials?.apiKeyHash &&
@@ -732,7 +724,7 @@ export class AgentRegistryService {
           );
           return null;
         }
-        return this.mapToUnifiedRegistration(registry);
+        return this.mapToRegistration(registry);
       }
     }
 
@@ -753,7 +745,6 @@ export class AgentRegistryService {
         eq(agentCapabilities.agentRegistryId, agentRegistries.id)
       )
       .leftJoin(users, eq(users.id, agentRegistries.userId))
-      .leftJoin(actors, eq(actors.id, agentRegistries.actorId))
       .leftJoin(
         externalAgentConnections,
         eq(externalAgentConnections.agentRegistryId, agentRegistries.id)
@@ -763,28 +754,32 @@ export class AgentRegistryService {
 
     if (!row) return null;
 
+    // Get Actor from static registry
+    const actorId = row.AgentRegistry.actorId;
+    const staticActor = actorId ? StaticDataRegistry.getActor(actorId) : null;
+
     return {
       ...row.AgentRegistry,
       capabilities: row.AgentCapability,
       User: row.User,
-      Actor: row.Actor,
+      Actor: staticActor,
       externalConnection: row.ExternalAgentConnection,
     };
   }
 
   /**
-   * Map database model to UnifiedAgentRegistration type
+   * Map database model to AgentRegistration type
    *
-   * @description Maps Drizzle AgentRegistry model with relations to UnifiedAgentRegistration
+   * @description Maps Drizzle AgentRegistry model with relations to AgentRegistration
    * type. Handles capabilities, discovery metadata, on-chain data, and Agent0 data mapping.
    *
    * @param {RegistryWithRelations} registry - Registry with relations
-   * @returns {UnifiedAgentRegistration} Unified agent registration
+   * @returns {AgentRegistration} Agent registration
    * @private
    */
-  private mapToUnifiedRegistration(
+  private mapToRegistration(
     registry: RegistryWithRelations
-  ): UnifiedAgentRegistration {
+  ): AgentRegistration {
     // Map capabilities
     const capabilities: AgentCapabilities = registry.capabilities
       ? {

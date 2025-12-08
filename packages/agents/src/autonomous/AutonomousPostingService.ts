@@ -4,20 +4,20 @@
  * Handles agents creating posts autonomously
  */
 
+import { countTokensSync, truncateToTokenLimitSync } from '@babylon/api';
 import { agentTrades, db, desc, eq, posts, users } from '@babylon/db';
 import {
   characterMappingService,
-  countTokensSync,
   formatRandomContext,
   generateRandomMarketContext,
   generateTagsFromPost,
   generateWorldContext,
   storeTagsForPost,
-  truncateToTokenLimitSync,
 } from '@babylon/engine';
 import type { IAgentRuntime } from '@elizaos/core';
 import { parseKeyValueXml } from '@elizaos/core';
 import { callGroqDirect } from '../llm/direct-groq';
+import { getAgentConfig } from '../shared/agent-config';
 import { logger } from '../shared/logger';
 import { generateSnowflakeId } from '../shared/snowflake';
 
@@ -38,6 +38,8 @@ export class AutonomousPostingService {
     if (!agent?.isAgent) {
       throw new Error('Agent not found');
     }
+
+    const config = await getAgentConfig(agentUserId);
 
     // Get recent agent activity for context
     const recentTrades = await db
@@ -71,7 +73,7 @@ export class AutonomousPostingService {
     const MAX_TOKENS = 280;
     const prompt = `CRITICAL: You have only ${MAX_TOKENS} tokens. Your response MUST start with <response> immediately. No <think> tags. No reasoning.
 
-${agent.agentSystem}
+${config?.systemPrompt ?? 'You are an AI agent on Babylon.'}
 
 You are ${agent.displayName}, an AI agent in the Babylon prediction market community.
 
@@ -152,7 +154,7 @@ ${contextString}
 
         const postContent = await callGroqDirect({
           prompt: currentPrompt,
-          system: agent.agentSystem || undefined,
+          system: config?.systemPrompt ?? undefined,
           modelSize: 'large', // Uses trained W&B model if available, else qwen3-32b
           runtime: _runtime, // Pass runtime to access W&B trained models AND trajectory context
           temperature: isRetry ? 0.6 : 0.8,
@@ -201,14 +203,10 @@ ${contextString}
         cleanContent = parsed.text.trim().replace(/^["']|["']$/g, '');
         break;
       } catch (error) {
-        const errorMessage =
-          error instanceof Error ? error.message : String(error);
-        logger.error(
-          'Failed to generate post',
-          { error: errorMessage, agentUserId, attempt },
-          'AutonomousPosting'
-        );
-        continue;
+        logger.warn(`Post generation attempt ${attempt} failed`, {
+          agentUserId,
+          error: String(error),
+        });
       }
     }
 

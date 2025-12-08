@@ -15,6 +15,7 @@ export * from './ActorSocialActions';
 export * from './alpha-group-invite-service';
 export * from './capital-allocation-service';
 export * from './following-mechanics';
+export * from './game-bootstrap-service';
 // Group Chat Service
 export {
   GroupChatService,
@@ -25,11 +26,14 @@ export * from './InteractionTracker';
 export * from './initial-investment-service';
 export * from './lookahead-generation-service';
 export * from './message-quality-checker';
+export * from './npc-bootstrap-service';
+export * from './npc-group-dynamics-calculations';
 export * from './npc-group-dynamics-service';
 export * from './npc-interaction-tracker';
 export * from './npc-persona-generator';
 export * from './RelationshipManager';
 export * from './reply-rate-limiter';
+export * from './static-data-registry';
 
 // =============================================================================
 // Market Services
@@ -122,3 +126,9 @@ export {
   setReputationSyncService,
   syncReputationIfAvailable,
 } from './reputation-service';
+
+// =============================================================================
+// Token Statistics Service
+// =============================================================================
+
+export { TokenStatsService } from './token-stats-service';

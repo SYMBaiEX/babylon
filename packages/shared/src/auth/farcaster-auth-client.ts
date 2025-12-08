@@ -262,42 +262,40 @@ export async function signInWithFarcaster(
     }
   }, 500);
 
-  try {
-    // Step 3: Poll for authentication completion
-    const result = await pollChannelStatus(
-      channel.channelToken,
-      onStatusUpdate,
-      combinedSignal
-    );
+  // Step 3: Poll for authentication completion
+  const result = await pollChannelStatus(
+    channel.channelToken,
+    onStatusUpdate,
+    combinedSignal
+  );
 
-    // Close popup if still open
-    if (!popup.closed) {
-      popup.close();
-    }
-
-    // Generate state for backend verification (userId|timestamp|random)
-    // Using pipe separator because userId may contain colons (e.g., did:privy:xxx)
-    const state = `${userId}|${Date.now()}|${Math.random().toString(36).substring(7)}`;
-
-    logger.info(
-      'Farcaster authentication completed',
-      {
-        fid: result.fid,
-        username: result.username,
-      },
-      'FarcasterAuthClient'
-    );
-
-    return {
-      ...result,
-      state,
-    };
-  } finally {
-    clearInterval(popupCheckInterval);
-    if (!popup.closed) {
-      popup.close();
-    }
+  // Close popup if still open
+  if (!popup.closed) {
+    popup.close();
   }
+
+  // Generate state for backend verification (userId|timestamp|random)
+  // Using pipe separator because userId may contain colons (e.g., did:privy:xxx)
+  const state = `${userId}|${Date.now()}|${Math.random().toString(36).substring(7)}`;
+
+  logger.info(
+    'Farcaster authentication completed',
+    {
+      fid: result.fid,
+      username: result.username,
+    },
+    'FarcasterAuthClient'
+  );
+
+  clearInterval(popupCheckInterval);
+  if (!popup.closed) {
+    popup.close();
+  }
+
+  return {
+    ...result,
+    state,
+  };
 }
 
 /**

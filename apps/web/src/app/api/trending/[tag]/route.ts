@@ -58,7 +58,7 @@
 
 import { optionalAuth } from '@babylon/api';
 import { asPublic, asUser } from '@babylon/db';
-import { getPostsByTag } from '@babylon/engine';
+import { getPostsByTag, StaticDataRegistry } from '@babylon/engine';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 
@@ -102,16 +102,10 @@ export async function GET(
   const enrichedPosts = await Promise.all(
     result.posts.map(async (post) => {
       // Get author info (could be User, Actor, or Organization)
-      const [
-        user,
-        actor,
-        org,
-        likeCount,
-        commentCount,
-        shareCount,
-        userLike,
-        userShare,
-      ] =
+      const actor = StaticDataRegistry.getActor(post.authorId);
+      const org = StaticDataRegistry.getOrganization(post.authorId);
+
+      const [user, likeCount, commentCount, shareCount, userLike, userShare] =
         authUser && authUser.userId
           ? await asUser(authUser, async (db) => {
               return await Promise.all([
@@ -123,22 +117,6 @@ export async function GET(
                     displayName: true,
                     profileImageUrl: true,
                     isActor: true,
-                  },
-                }),
-                db.actor.findUnique({
-                  where: { id: post.authorId },
-                  select: {
-                    id: true,
-                    name: true,
-                    profileImageUrl: true,
-                  },
-                }),
-                db.organization.findUnique({
-                  where: { id: post.authorId },
-                  select: {
-                    id: true,
-                    name: true,
-                    imageUrl: true,
                   },
                 }),
                 db.reaction.count({
@@ -174,22 +152,6 @@ export async function GET(
                     displayName: true,
                     profileImageUrl: true,
                     isActor: true,
-                  },
-                }),
-                db.actor.findUnique({
-                  where: { id: post.authorId },
-                  select: {
-                    id: true,
-                    name: true,
-                    profileImageUrl: true,
-                  },
-                }),
-                db.organization.findUnique({
-                  where: { id: post.authorId },
-                  select: {
-                    id: true,
-                    name: true,
-                    imageUrl: true,
                   },
                 }),
                 db.reaction.count({

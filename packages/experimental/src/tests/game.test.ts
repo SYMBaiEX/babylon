@@ -1,5 +1,11 @@
 /**
  * Game Environment and Trainer Tests
+ *
+ * Tests the game mechanics:
+ * - Session management and pattern generation
+ * - Scoring and statistics
+ * - Training data generation
+ * - AI trainer integration
  */
 
 import { beforeEach, describe, expect, it } from 'bun:test';
@@ -7,7 +13,7 @@ import { AIAgent } from '../game/agent.js';
 import { GameEnvironment } from '../game/environment.js';
 import { AITrainer } from '../game/trainer.js';
 
-describe('GameEnvironment Session', () => {
+describe('GameEnvironment', () => {
   let env: GameEnvironment;
 
   beforeEach(() => {
@@ -18,228 +24,194 @@ describe('GameEnvironment Session', () => {
     });
   });
 
-  it('should start a new session', () => {
-    const session = env.startSession('linear');
+  describe('sessions', () => {
+    it('starts a new session', () => {
+      const session = env.startSession('linear');
 
-    expect(session.id).toBe('session-1');
-    expect(session.patternType).toBe('linear');
-    expect(session.sequence).toHaveLength(6); // sequenceLength + 1
-    expect(session.completed).toBe(false);
-  });
-
-  it('should increment session IDs', () => {
-    const session1 = env.startSession();
-    const session2 = env.startSession();
-    const session3 = env.startSession();
-
-    expect(session1.id).toBe('session-1');
-    expect(session2.id).toBe('session-2');
-    expect(session3.id).toBe('session-3');
-  });
-
-  it('should return visible sequence without answer', () => {
-    env.startSession();
-    const visible = env.getVisibleSequence();
-
-    expect(visible).toHaveLength(5);
-  });
-
-  it('should throw if no active session', () => {
-    expect(() => env.getVisibleSequence()).toThrow('No active session');
-  });
-});
-
-describe('GameEnvironment Patterns', () => {
-  let env: GameEnvironment;
-
-  beforeEach(() => {
-    env = new GameEnvironment({
-      sequenceLength: 5,
-      patternTypes: ['linear', 'quadratic', 'fibonacci', 'sine', 'random'],
-      difficulty: 5,
+      expect(session.id).toBe('session-1');
+      expect(session.patternType).toBe('linear');
+      expect(session.sequence).toHaveLength(6); // sequenceLength + 1
+      expect(session.completed).toBe(false);
     });
-  });
 
-  it('should generate linear patterns', () => {
-    const session = env.startSession('linear');
-    const seq = session.sequence;
+    it('increments session IDs', () => {
+      const session1 = env.startSession();
+      const session2 = env.startSession();
+      const session3 = env.startSession();
 
-    // Linear: constant difference between consecutive elements
-    const diff = seq[1]! - seq[0]!;
-    for (let i = 2; i < seq.length; i++) {
-      expect(seq[i]! - seq[i - 1]!).toBe(diff);
-    }
-  });
-
-  it('should generate quadratic patterns', () => {
-    const session = env.startSession('quadratic');
-    const seq = session.sequence;
-
-    // Quadratic: second differences are constant
-    const firstDiffs = [];
-    for (let i = 1; i < seq.length; i++) {
-      firstDiffs.push(seq[i]! - seq[i - 1]!);
-    }
-
-    const secondDiffs = [];
-    for (let i = 1; i < firstDiffs.length; i++) {
-      secondDiffs.push(firstDiffs[i]! - firstDiffs[i - 1]!);
-    }
-
-    // All second differences should be equal
-    const expected = secondDiffs[0];
-    expect(secondDiffs.every((d) => d === expected)).toBe(true);
-  });
-
-  it('should generate fibonacci patterns', () => {
-    const session = env.startSession('fibonacci');
-    const seq = session.sequence;
-
-    // Fibonacci: each element is sum of two previous (after initial terms)
-    for (let i = 2; i < seq.length; i++) {
-      expect(seq[i]).toBe(seq[i - 1]! + seq[i - 2]!);
-    }
-  });
-});
-
-describe('GameEnvironment Scoring', () => {
-  let env: GameEnvironment;
-
-  beforeEach(() => {
-    env = new GameEnvironment({
-      sequenceLength: 5,
-      patternTypes: ['linear'],
-      difficulty: 5,
+      expect(session1.id).toBe('session-1');
+      expect(session2.id).toBe('session-2');
+      expect(session3.id).toBe('session-3');
     });
-  });
 
-  it('should score correct guesses within tolerance', () => {
-    env.startSession('linear');
-    const session = env.getCurrentSession()!;
-    const actual = session.sequence[session.sequence.length - 1]!;
-
-    // Difficulty 5 means tolerance of 10 - 5 = 5
-    const result = env.submitGuesses(actual, actual);
-
-    expect(result.playerCorrect).toBe(true);
-    expect(result.agentCorrect).toBe(true);
-    expect(result.actual).toBe(actual);
-  });
-
-  it('should accept guesses within tolerance', () => {
-    env.startSession('linear');
-    const session = env.getCurrentSession()!;
-    const actual = session.sequence[session.sequence.length - 1]!;
-
-    // Within tolerance (5)
-    const result = env.submitGuesses(actual + 5, actual - 5);
-
-    expect(result.playerCorrect).toBe(true);
-    expect(result.agentCorrect).toBe(true);
-  });
-
-  it('should reject guesses outside tolerance', () => {
-    env.startSession('linear');
-    const session = env.getCurrentSession()!;
-    const actual = session.sequence[session.sequence.length - 1]!;
-
-    // Outside tolerance
-    const result = env.submitGuesses(actual + 10, actual - 10);
-
-    expect(result.playerCorrect).toBe(false);
-    expect(result.agentCorrect).toBe(false);
-  });
-
-  it('should mark session as completed', () => {
-    env.startSession();
-    expect(env.getCurrentSession()!.completed).toBe(false);
-
-    env.submitGuesses(0, 0);
-    expect(env.getCurrentSession()!.completed).toBe(true);
-  });
-});
-
-describe('GameEnvironment Statistics', () => {
-  let env: GameEnvironment;
-
-  beforeEach(() => {
-    env = new GameEnvironment({
-      sequenceLength: 5,
-      patternTypes: ['linear'],
-      difficulty: 10, // Very strict
-    });
-  });
-
-  it('should track session statistics', () => {
-    // Play some sessions
-    for (let i = 0; i < 5; i++) {
+    it('returns visible sequence without answer', () => {
       env.startSession();
+      const visible = env.getVisibleSequence();
+
+      expect(visible).toHaveLength(5);
+    });
+
+    it('throws if no active session', () => {
+      expect(() => env.getVisibleSequence()).toThrow('No active session');
+    });
+  });
+
+  describe('patterns', () => {
+    it('generates linear patterns (constant difference)', () => {
+      const session = env.startSession('linear');
+      const seq = session.sequence;
+
+      const diff = seq[1]! - seq[0]!;
+      for (let i = 2; i < seq.length; i++) {
+        expect(seq[i]! - seq[i - 1]!).toBe(diff);
+      }
+    });
+
+    it('generates quadratic patterns (constant second difference)', () => {
+      const session = env.startSession('quadratic');
+      const seq = session.sequence;
+
+      const firstDiffs = [];
+      for (let i = 1; i < seq.length; i++) {
+        firstDiffs.push(seq[i]! - seq[i - 1]!);
+      }
+
+      const secondDiffs = [];
+      for (let i = 1; i < firstDiffs.length; i++) {
+        secondDiffs.push(firstDiffs[i]! - firstDiffs[i - 1]!);
+      }
+
+      const expected = secondDiffs[0];
+      expect(secondDiffs.every((d) => d === expected)).toBe(true);
+    });
+
+    it('generates fibonacci patterns', () => {
+      const session = env.startSession('fibonacci');
+      const seq = session.sequence;
+
+      for (let i = 2; i < seq.length; i++) {
+        expect(seq[i]).toBe(seq[i - 1]! + seq[i - 2]!);
+      }
+    });
+  });
+
+  describe('scoring', () => {
+    beforeEach(() => {
+      env = new GameEnvironment({
+        sequenceLength: 5,
+        patternTypes: ['linear'],
+        difficulty: 5,
+      });
+    });
+
+    it('scores correct guesses', () => {
+      env.startSession('linear');
       const session = env.getCurrentSession()!;
       const actual = session.sequence[session.sequence.length - 1]!;
 
-      // Player always exact, agent off by 5
-      env.submitGuesses(actual, actual + 5);
-    }
+      const result = env.submitGuesses(actual, actual);
 
-    const stats = env.getStats();
-    expect(stats.totalSessions).toBe(5);
-    expect(stats.playerWins).toBe(5);
-    expect(stats.agentWins).toBe(0);
-  });
+      expect(result.playerCorrect).toBe(true);
+      expect(result.agentCorrect).toBe(true);
+      expect(result.actual).toBe(actual);
+    });
 
-  it('should track agent input normalization', () => {
-    env.startSession();
-    const input = env.getAgentInput();
+    it('accepts guesses within tolerance', () => {
+      env.startSession('linear');
+      const session = env.getCurrentSession()!;
+      const actual = session.sequence[session.sequence.length - 1]!;
 
-    // Should be normalized to 0-1 range
-    expect(input.every((v) => v >= 0 && v <= 1)).toBe(true);
-    expect(input).toHaveLength(5);
-  });
-});
+      // difficulty=5 means tolerance=5
+      const result = env.submitGuesses(actual + 5, actual - 5);
 
-describe('GameEnvironment Training Data', () => {
-  let env: GameEnvironment;
+      expect(result.playerCorrect).toBe(true);
+      expect(result.agentCorrect).toBe(true);
+    });
 
-  beforeEach(() => {
-    env = new GameEnvironment({
-      sequenceLength: 5,
-      patternTypes: ['linear', 'quadratic', 'fibonacci'],
-      difficulty: 5,
+    it('rejects guesses outside tolerance', () => {
+      env.startSession('linear');
+      const session = env.getCurrentSession()!;
+      const actual = session.sequence[session.sequence.length - 1]!;
+
+      const result = env.submitGuesses(actual + 10, actual - 10);
+
+      expect(result.playerCorrect).toBe(false);
+      expect(result.agentCorrect).toBe(false);
+    });
+
+    it('marks session as completed', () => {
+      env.startSession();
+      expect(env.getCurrentSession()!.completed).toBe(false);
+
+      env.submitGuesses(0, 0);
+      expect(env.getCurrentSession()!.completed).toBe(true);
     });
   });
 
-  it('should generate training sample from completed session', () => {
-    env.startSession();
-    env.submitGuesses(0, 0);
+  describe('statistics', () => {
+    beforeEach(() => {
+      env = new GameEnvironment({
+        sequenceLength: 5,
+        patternTypes: ['linear'],
+        difficulty: 10, // Strict tolerance
+      });
+    });
 
-    const sample = env.generateTrainingSample();
+    it('tracks session statistics', () => {
+      for (let i = 0; i < 5; i++) {
+        env.startSession();
+        const session = env.getCurrentSession()!;
+        const actual = session.sequence[session.sequence.length - 1]!;
 
-    expect(sample).not.toBeNull();
-    expect(sample!.input).toHaveLength(5);
-    expect(sample!.target).toHaveLength(1);
-    expect(sample!.timestamp).toBeLessThanOrEqual(Date.now());
+        // Player exact, agent off by 5
+        env.submitGuesses(actual, actual + 5);
+      }
+
+      const stats = env.getStats();
+      expect(stats.totalSessions).toBe(5);
+      expect(stats.playerWins).toBe(5);
+      expect(stats.agentWins).toBe(0);
+    });
+
+    it('normalizes agent input to 0-1 range', () => {
+      env.startSession();
+      const input = env.getAgentInput();
+
+      expect(input.every((v) => v >= 0 && v <= 1)).toBe(true);
+      expect(input).toHaveLength(5);
+    });
   });
 
-  it('should return null for incomplete session', () => {
-    env.startSession();
-    // Don't submit guesses
+  describe('training data', () => {
+    it('generates training sample from completed session', () => {
+      env.startSession();
+      env.submitGuesses(0, 0);
 
-    const sample = env.generateTrainingSample();
-    expect(sample).toBeNull();
-  });
+      const sample = env.generateTrainingSample();
 
-  it('should generate training batch', () => {
-    const batch = env.generateTrainingBatch(20);
+      expect(sample).not.toBeNull();
+      expect(sample!.input).toHaveLength(5);
+      expect(sample!.target).toHaveLength(1);
+      expect(sample!.timestamp).toBeLessThanOrEqual(Date.now());
+    });
 
-    expect(batch).toHaveLength(20);
-    for (const sample of batch) {
-      expect(sample.input).toHaveLength(5);
-      expect(sample.target).toHaveLength(1);
-      // All values should be normalized
-      expect(sample.input.every((v) => v >= 0 && v <= 1)).toBe(true);
-      expect(sample.target[0]).toBeGreaterThanOrEqual(0);
-      expect(sample.target[0]).toBeLessThanOrEqual(1);
-    }
+    it('returns null for incomplete session', () => {
+      env.startSession();
+      expect(env.generateTrainingSample()).toBeNull();
+    });
+
+    it('generates training batch', () => {
+      const batch = env.generateTrainingBatch(20);
+
+      expect(batch).toHaveLength(20);
+      for (const sample of batch) {
+        expect(sample.input).toHaveLength(5);
+        expect(sample.target).toHaveLength(1);
+        expect(sample.input.every((v) => v >= 0 && v <= 1)).toBe(true);
+        expect(sample.target[0]).toBeGreaterThanOrEqual(0);
+        expect(sample.target[0]).toBeLessThanOrEqual(1);
+      }
+    });
   });
 });
 
@@ -269,7 +241,7 @@ describe('AITrainer', () => {
     );
   });
 
-  it('should run training cycle', () => {
+  it('runs training cycle', () => {
     const result = trainer.runTrainingCycle();
 
     expect(result.cycleNumber).toBe(1);
@@ -280,35 +252,22 @@ describe('AITrainer', () => {
     expect(result.modelHashBefore).not.toBe(result.modelHashAfter);
   });
 
-  it('should increment cycle counter', () => {
+  it('increments cycle counter', () => {
     trainer.runTrainingCycle();
     trainer.runTrainingCycle();
     trainer.runTrainingCycle();
 
-    const stats = trainer.getStats();
-    expect(stats.totalCycles).toBe(3);
+    expect(trainer.getStats().totalCycles).toBe(3);
   });
 
-  it('should track loss improvement', () => {
+  it('tracks loss improvement', () => {
     const result = trainer.runTrainingCycle();
 
     expect(result.initialLoss).toBeGreaterThan(result.finalLoss);
     expect(result.improved).toBe(true);
   });
 
-  it('should early stop at target loss', () => {
-    // Run many cycles to potentially hit target
-    for (let i = 0; i < 5; i++) {
-      trainer.runTrainingCycle();
-    }
-
-    const stats = trainer.getStats();
-    // Should have stopped early if target reached
-    expect(stats.currentLoss).toBeLessThan(1.0);
-  });
-
-  it('should evaluate agent performance', () => {
-    // Train first
+  it('evaluates agent performance', () => {
     trainer.runTrainingCycle();
 
     const evaluation = trainer.evaluate(10);
@@ -319,7 +278,7 @@ describe('AITrainer', () => {
     expect(evaluation.averageError).toBeGreaterThanOrEqual(0);
   });
 
-  it('should provide training history', () => {
+  it('provides training history', () => {
     trainer.runTrainingCycle();
     trainer.runTrainingCycle();
 

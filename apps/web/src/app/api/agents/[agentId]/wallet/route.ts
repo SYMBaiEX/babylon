@@ -141,7 +141,7 @@
  * @see {@link /src/app/agents/[agentId]/page.tsx} Wallet UI
  */
 
-import { agentService } from '@babylon/agents';
+import { agentService, getAgentConfig } from '@babylon/agents';
 import { authenticateUser } from '@babylon/api';
 import { db } from '@babylon/db';
 import { logger } from '@babylon/shared';
@@ -155,7 +155,11 @@ export async function GET(
   const user = await authenticateUser(req);
   const { agentId } = await params;
 
-  const agent = await agentService.getAgent(agentId, user.id);
+  // Verify ownership
+  await agentService.getAgent(agentId, user.id);
+
+  // Get agent config for balance info
+  const config = await getAgentConfig(agentId);
 
   const transactions = await db.agentPointsTransaction.findMany({
     where: { agentUserId: agentId },
@@ -166,10 +170,10 @@ export async function GET(
   return NextResponse.json({
     success: true,
     balance: {
-      current: agent!.agentPointsBalance,
-      totalDeposited: agent!.agentTotalDeposited,
-      totalWithdrawn: agent!.agentTotalWithdrawn,
-      totalSpent: agent!.agentTotalPointsSpent,
+      current: config?.pointsBalance ?? 0,
+      totalDeposited: config?.totalDeposited ?? 0,
+      totalWithdrawn: config?.totalWithdrawn ?? 0,
+      totalSpent: config?.totalPointsSpent ?? 0,
     },
     transactions: transactions.map((tx) => ({
       id: tx.id,
@@ -194,16 +198,15 @@ export async function POST(
 
   const { action, amount } = body;
 
-  let agent;
   if (action === 'deposit') {
-    agent = await agentService.depositPoints(agentId, user.id, amount);
+    await agentService.depositPoints(agentId, user.id, amount);
     logger.info(
       `Deposited ${amount} points to agent ${agentId}`,
       undefined,
       'AgentsAPI'
     );
   } else {
-    agent = await agentService.withdrawPoints(agentId, user.id, amount);
+    await agentService.withdrawPoints(agentId, user.id, amount);
     logger.info(
       `Withdrew ${amount} points from agent ${agentId}`,
       undefined,
@@ -211,12 +214,15 @@ export async function POST(
     );
   }
 
+  // Re-fetch config for updated balance
+  const updatedConfig = await getAgentConfig(agentId);
+
   return NextResponse.json({
     success: true,
     balance: {
-      current: agent.agentPointsBalance,
-      totalDeposited: agent.agentTotalDeposited,
-      totalWithdrawn: agent.agentTotalWithdrawn,
+      current: updatedConfig?.pointsBalance ?? 0,
+      totalDeposited: updatedConfig?.totalDeposited ?? 0,
+      totalWithdrawn: updatedConfig?.totalWithdrawn ?? 0,
     },
     message: `${action === 'deposit' ? 'Deposited' : 'Withdrew'} ${amount} points successfully`,
   });

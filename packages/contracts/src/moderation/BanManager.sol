@@ -1,17 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
-pragma solidity ^0.8.26;
+pragma solidity ^0.8.27;
 
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 
 /**
  * @title BanManager
- * @author Jeju Network
  * @notice Manages network-level and app-specific bans for agent identity system
  * @dev Separates app-level bans from network-level bans for granular moderation
  * 
  * Key Features:
- * - Network bans: Block agent from ALL Jeju apps
+ * - Network bans: Block agent from ALL Babylon apps
  * - App-specific bans: Block agent from specific apps only
  * - Governance-controlled ban/unban operations
  * - Event-driven cache updates for performance
@@ -19,11 +18,9 @@ import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
  * - Appeal integration via governance
  * 
  * Integration:
- * - RegistryGovernance calls ban functions after futarchy approval
+ * - Governance calls ban functions after approval
  * - NetworkBanCache listens to events for real-time updates
  * - All apps query isAccessAllowed() before granting access
- * 
- * @custom:security-contact security@jeju.network
  */
 contract BanManager is Ownable, Pausable {
     
@@ -252,6 +249,35 @@ contract BanManager is Ownable, Pausable {
         bytes32 appId
     ) external view returns (bool) {
         return appBans[agentId][appId].isBanned;
+    }
+    
+    /// @notice Address-based ban mapping for staking contract compatibility
+    mapping(address => bool) public addressBans;
+    
+    /**
+     * @notice Ban an address (for compute staking integration)
+     * @param account Address to ban
+     */
+    function banAddress(address account) external onlyGovernance whenNotPaused {
+        require(account != address(0), "Invalid address");
+        addressBans[account] = true;
+    }
+    
+    /**
+     * @notice Unban an address
+     * @param account Address to unban
+     */
+    function unbanAddress(address account) external onlyGovernance {
+        addressBans[account] = false;
+    }
+    
+    /**
+     * @notice Check if an address is banned
+     * @param account Address to check
+     * @return True if address is banned
+     */
+    function isAddressBanned(address account) external view returns (bool) {
+        return addressBans[account];
     }
     
     // ============ Query Functions ============

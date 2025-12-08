@@ -107,22 +107,14 @@ export function BuyPointsModal({
           ? requiredAmountWei - (currentBalance ?? 0n)
           : requiredAmountWei;
 
-      try {
-        await fundWallet({
-          address: smartWalletAddress,
-          options: {
-            chain: CHAIN,
-            amount: formatEther(deficit),
-            asset: 'native-currency',
-          },
-        });
-      } catch (fundingError) {
-        throw new Error(
-          fundingError instanceof Error
-            ? fundingError.message
-            : 'Funding flow cancelled. Please add funds to continue.'
-        );
-      }
+      await fundWallet({
+        address: smartWalletAddress,
+        options: {
+          chain: CHAIN,
+          amount: formatEther(deficit),
+          asset: 'native-currency',
+        },
+      });
 
       // Poll for balance updates with timeout (30 seconds)
       const maxAttempts = 30;
@@ -222,83 +214,80 @@ export function BuyPointsModal({
     setLoading(true);
     setError(null);
 
-    try {
-      const token = await getAccessToken();
-      if (!token) {
-        throw new Error('Authentication required');
-      }
-
-      // Create payment request
-      const response = await fetch('/api/points/purchase/create-payment', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          amountUSD: amountNum,
-          fromAddress: smartWalletAddress,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok || !data.success) {
-        throw new Error(data.error || 'Failed to create payment request');
-      }
-
-      setPaymentRequestId(data.paymentRequest.requestId);
-      setStep('payment');
-
-      // Initiate blockchain transaction
-      await handleSendPayment(data.paymentRequest);
-    } catch (err) {
-      logger.error(
-        'Failed to create payment',
-        { error: err },
-        'BuyPointsModal'
-      );
-      setError(err instanceof Error ? err.message : 'Failed to create payment');
+    const token = await getAccessToken();
+    if (!token) {
+      logger.error('Authentication required', undefined, 'BuyPointsModal');
+      setError('Authentication required');
       setStep('error');
       toast.error('Failed to create payment request');
-    } finally {
       setLoading(false);
+      return;
     }
+
+    // Create payment request
+    const response = await fetch('/api/points/purchase/create-payment', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        amountUSD: amountNum,
+        fromAddress: smartWalletAddress,
+      }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      const errorMessage = data.error || 'Failed to create payment request';
+      logger.error(
+        'Failed to create payment',
+        { error: errorMessage },
+        'BuyPointsModal'
+      );
+      setError(errorMessage);
+      setStep('error');
+      toast.error('Failed to create payment request');
+      setLoading(false);
+      return;
+    }
+
+    setPaymentRequestId(data.paymentRequest.requestId);
+    setStep('payment');
+
+    // Initiate blockchain transaction
+    await handleSendPayment(data.paymentRequest);
+    setLoading(false);
   };
 
   const handleSendPayment = async (paymentRequest: PaymentRequest) => {
     setLoading(true);
     setStep('payment');
 
-    try {
-      if (!smartWalletReady || !smartWalletAddress) {
-        throw new Error(WALLET_ERROR_MESSAGES.NO_EMBEDDED_WALLET);
-      }
-
-      const requiredAmountWei = BigInt(paymentRequest.amount);
-      await ensureFunds(requiredAmountWei);
-
-      const hash = await sendPointsPayment({
-        to: paymentRequest.to as Address,
-        amountWei: requiredAmountWei,
-      });
-
-      setTxHash(hash);
-      setStep('verifying');
-
-      // Verify payment and credit points
-      await handleVerifyPayment(paymentRequest.requestId, hash, paymentRequest);
-    } catch (err) {
-      logger.error('Payment failed', { error: err }, 'BuyPointsModal');
-      const errorMessage =
-        err instanceof Error ? err.message : 'Payment failed';
-
+    if (!smartWalletReady || !smartWalletAddress) {
+      const errorMessage = WALLET_ERROR_MESSAGES.NO_EMBEDDED_WALLET;
+      logger.error('Payment failed', { error: errorMessage }, 'BuyPointsModal');
       setError(errorMessage);
-
       setStep('error');
       toast.error('Payment transaction failed');
       setLoading(false);
+      return;
     }
+
+    const requiredAmountWei = BigInt(paymentRequest.amount);
+    await ensureFunds(requiredAmountWei);
+
+    const hash = await sendPointsPayment({
+      to: paymentRequest.to as Address,
+      amountWei: requiredAmountWei,
+    });
+
+    setTxHash(hash);
+    setStep('verifying');
+
+    // Verify payment and credit points
+    await handleVerifyPayment(paymentRequest.requestId, hash, paymentRequest);
   };
 
   const handleVerifyPayment = async (
@@ -306,59 +295,60 @@ export function BuyPointsModal({
     transactionHash: string,
     paymentRequest: PaymentRequest
   ) => {
-    try {
-      const token =
-        typeof window !== 'undefined' ? window.__privyAccessToken : null;
-      if (!token) {
-        throw new Error('Authentication required');
-      }
-
-      // Wait a bit for transaction to be confirmed
-      await new Promise((resolve) => setTimeout(resolve, 3000));
-
-      const response = await fetch('/api/points/purchase/verify-payment', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          requestId,
-          txHash: transactionHash,
-          fromAddress: paymentRequest.from,
-          toAddress: paymentRequest.to,
-          amount: paymentRequest.amount,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok || !data.success) {
-        throw new Error(data.error || 'Failed to verify payment');
-      }
-
-      setPointsAwarded(data.pointsAwarded);
-      setStep('success');
-      toast.success(`Successfully purchased ${data.pointsAwarded} points!`);
-
-      // Call onSuccess callback
-      if (onSuccess) {
-        onSuccess();
-      }
-    } catch (err) {
-      logger.error(
-        'Payment verification failed',
-        { error: err },
-        'BuyPointsModal'
-      );
-      setError(
-        err instanceof Error ? err.message : 'Payment verification failed'
-      );
+    const token =
+      typeof window !== 'undefined' ? window.__privyAccessToken : null;
+    if (!token) {
+      logger.error('Authentication required', undefined, 'BuyPointsModal');
+      setError('Authentication required');
       setStep('error');
       toast.error('Failed to verify payment');
-    } finally {
       setLoading(false);
+      return;
     }
+
+    // Wait a bit for transaction to be confirmed
+    await new Promise((resolve) => setTimeout(resolve, 3000));
+
+    const response = await fetch('/api/points/purchase/verify-payment', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        requestId,
+        txHash: transactionHash,
+        fromAddress: paymentRequest.from,
+        toAddress: paymentRequest.to,
+        amount: paymentRequest.amount,
+      }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      const errorMessage = data.error || 'Failed to verify payment';
+      logger.error(
+        'Payment verification failed',
+        { error: errorMessage },
+        'BuyPointsModal'
+      );
+      setError(errorMessage);
+      setStep('error');
+      toast.error('Failed to verify payment');
+      setLoading(false);
+      return;
+    }
+
+    setPointsAwarded(data.pointsAwarded);
+    setStep('success');
+    toast.success(`Successfully purchased ${data.pointsAwarded} points!`);
+
+    // Call onSuccess callback
+    if (onSuccess) {
+      onSuccess();
+    }
+    setLoading(false);
   };
 
   const handleClose = () => {

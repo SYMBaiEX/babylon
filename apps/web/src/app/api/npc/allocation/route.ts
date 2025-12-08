@@ -61,6 +61,7 @@
  * ```
  */
 
+import { requireCronAuth, withErrorHandling } from '@babylon/api';
 import { getReputationBreakdown, NPCInvestmentManager } from '@babylon/engine';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
@@ -71,7 +72,9 @@ interface AllocationRequest {
   baseAmount: number;
 }
 
-export async function POST(request: NextRequest) {
+export const POST = withErrorHandling(async (request: NextRequest) => {
+  requireCronAuth(request, { jobName: 'NPCAllocation' });
+
   const body = (await request.json()) as AllocationRequest;
 
   const adjustedAmount =
@@ -103,4 +106,4 @@ export async function POST(request: NextRequest) {
     multiplier,
     usedFallback,
   });
-}
+});

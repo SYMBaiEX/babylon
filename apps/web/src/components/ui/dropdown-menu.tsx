@@ -12,9 +12,8 @@ import type React from 'react';
 export const DropdownMenu = ({
   children,
   ...props
-}: {
+}: React.HTMLAttributes<HTMLDivElement> & {
   children: React.ReactNode;
-  [key: string]: unknown;
 }) => <div {...props}>{children}</div>;
 
 /**
@@ -27,10 +26,11 @@ export const DropdownMenu = ({
  */
 export const DropdownMenuContent = ({
   children,
+  align: _align,
   ...props
-}: {
+}: React.HTMLAttributes<HTMLDivElement> & {
   children: React.ReactNode;
-  [key: string]: unknown;
+  align?: 'start' | 'center' | 'end';
 }) => <div {...props}>{children}</div>;
 
 /**
@@ -44,9 +44,8 @@ export const DropdownMenuContent = ({
 export const DropdownMenuItem = ({
   children,
   ...props
-}: {
+}: React.HTMLAttributes<HTMLDivElement> & {
   children: React.ReactNode;
-  [key: string]: unknown;
 }) => <div {...props}>{children}</div>;
 
 /**
@@ -59,8 +58,9 @@ export const DropdownMenuItem = ({
  */
 export const DropdownMenuTrigger = ({
   children,
+  asChild: _asChild,
   ...props
-}: {
+}: React.HTMLAttributes<HTMLDivElement> & {
   children: React.ReactNode;
-  [key: string]: unknown;
+  asChild?: boolean;
 }) => <div {...props}>{children}</div>;

@@ -38,7 +38,7 @@ library LibMarket {
         uint256 defaultFeeRate;
         address feeRecipient;
         address chainlinkOracle; // Chainlink oracle contract address
-        address umaOracle; // UMA oracle contract address
+        address mockOracle; // Mock oracle contract address (for testing)
     }
 
     function marketStorage() internal pure returns (MarketStorage storage ms) {

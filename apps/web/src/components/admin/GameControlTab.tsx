@@ -129,17 +129,16 @@ export function GameControlTab() {
   const [autoRefresh, setAutoRefresh] = useState(true);
 
   const fetchStats = useCallback(async () => {
-    try {
-      const response = await fetch('/api/admin/game-stats');
-      if (!response.ok) throw new Error('Failed to fetch game stats');
-      const data = await response.json();
-      setStats(data);
-      setError(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load stats');
-    } finally {
+    const response = await fetch('/api/admin/game-stats');
+    if (!response.ok) {
       setLoading(false);
+      setError('Failed to load stats');
+      return;
     }
+    const data = await response.json();
+    setStats(data);
+    setError(null);
+    setLoading(false);
   }, []);
 
   useEffect(() => {
@@ -155,22 +154,21 @@ export function GameControlTab() {
 
   const handleGameControl = async (action: 'start' | 'pause') => {
     setActionLoading(true);
-    try {
-      const response = await fetch('/api/game/control', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action }),
-      });
+    const response = await fetch('/api/game/control', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action }),
+    });
 
-      if (!response.ok) throw new Error(`Failed to ${action} game`);
-
-      // Refresh stats immediately
-      await fetchStats();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : `Failed to ${action} game`);
-    } finally {
+    if (!response.ok) {
       setActionLoading(false);
+      setError(`Failed to ${action} game`);
+      return;
     }
+
+    // Refresh stats immediately
+    await fetchStats();
+    setActionLoading(false);
   };
 
   const formatUptime = (minutes: number) => {

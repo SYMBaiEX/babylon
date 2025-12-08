@@ -16,8 +16,11 @@
  */
 
 import { agentRuntimeManager } from '@babylon/agents';
-import { type Actor, actors, asc, db, eq } from '@babylon/db';
-import { loadActorById } from '@babylon/engine';
+import {
+  loadActorById,
+  type StaticActor,
+  StaticDataRegistry,
+} from '@babylon/engine';
 import type { ActorData, AgentCapabilities } from '@babylon/shared';
 import {
   getCurrentChainId,
@@ -89,57 +92,34 @@ export class NPCBootstrapService {
       errors: [],
     };
 
-    try {
-      // Load all Actor records from database
-      const actorsList = await db
-        .select()
-        .from(actors)
-        .orderBy(asc(actors.name));
+    // Load all Actor records from static registry
+    const actorsList = StaticDataRegistry.getAllActors()
+      .slice()
+      .sort((a, b) => a.name.localeCompare(b.name));
 
-      result.totalNpcs = actorsList.length;
-      logger.info(
-        `Found ${actorsList.length} NPCs to bootstrap`,
-        undefined,
-        'NPCBootstrapService'
-      );
+    result.totalNpcs = actorsList.length;
+    logger.info(
+      `Found ${actorsList.length} NPCs to bootstrap`,
+      undefined,
+      'NPCBootstrapService'
+    );
 
-      // Bootstrap each actor in sequence (to avoid overwhelming database)
-      for (const actor of actorsList) {
-        try {
-          const bootstrapResult = await this.bootstrapSingleNpc(actor);
-          if (bootstrapResult.registered) {
-            result.registered++;
-          }
-          if (bootstrapResult.initialized) {
-            result.initialized++;
-          }
-        } catch (error) {
-          result.failed++;
-          result.errors.push({
-            actorId: actor.id,
-            error: error instanceof Error ? error.message : String(error),
-          });
-          logger.error(
-            `Failed to bootstrap NPC ${actor.id}`,
-            error instanceof Error ? error : new Error(String(error)),
-            'NPCBootstrapService'
-          );
-        }
+    // Bootstrap each actor in sequence (to avoid overwhelming database)
+    for (const actor of actorsList) {
+      const bootstrapResult = await this.bootstrapSingleNpc(actor);
+      if (bootstrapResult.registered) {
+        result.registered++;
       }
-
-      logger.info(
-        `NPC bootstrap complete: ${result.initialized}/${result.totalNpcs} initialized, ${result.failed} failed`,
-        { result },
-        'NPCBootstrapService'
-      );
-    } catch (error) {
-      logger.error(
-        'NPC bootstrap failed',
-        error instanceof Error ? error : new Error(String(error)),
-        'NPCBootstrapService'
-      );
-      throw error;
+      if (bootstrapResult.initialized) {
+        result.initialized++;
+      }
     }
+
+    logger.info(
+      `NPC bootstrap complete: ${result.initialized}/${result.totalNpcs} initialized, ${result.failed} failed`,
+      { result },
+      'NPCBootstrapService'
+    );
 
     return result;
   }
@@ -151,12 +131,12 @@ export class NPCBootstrapService {
    * Loads ActorData from JSON files, builds system prompt and capabilities, registers
    * in AgentRegistry, and creates runtime instance.
    *
-   * @param {Actor} actor - Actor database record
+   * @param {StaticActor} actor - Static actor data from registry
    * @returns {Promise<object>} Object indicating which operations succeeded
    * @private
    */
   private async bootstrapSingleNpc(
-    actor: Actor
+    actor: StaticActor
   ): Promise<{ registered: boolean; initialized: boolean }> {
     logger.info(
       `Bootstrapping NPC: ${actor.name} (${actor.id})`,
@@ -336,11 +316,8 @@ export class NPCBootstrapService {
    * @throws {Error} If actor not found
    */
   public async bootstrapNpc(actorId: string): Promise<void> {
-    const [actor] = await db
-      .select()
-      .from(actors)
-      .where(eq(actors.id, actorId))
-      .limit(1);
+    // Get actor from static registry
+    const actor = StaticDataRegistry.getActor(actorId);
 
     if (!actor) {
       throw new Error(`Actor ${actorId} not found`);
@@ -414,7 +391,7 @@ export class NPCBootstrapService {
     initialized: number;
     active: number;
   }> {
-    const actorsList = await db.select().from(actors);
+    const actorsList = StaticDataRegistry.getAllActors();
     const totalNpcs = actorsList.length;
 
     const registrations = await agentRegistry.discoverAgents({

@@ -12,8 +12,7 @@
 
 import { getAgentLLMStatus } from '@babylon/agents/llm';
 import {
-  actors,
-  and,
+  actorState,
   checkDatabaseHealth,
   closeDatabase,
   db,
@@ -23,11 +22,12 @@ import {
   games,
   gte,
   isNotNull,
-  organizations,
+  organizationState,
   posts,
   questions,
   worldEvents,
 } from '@babylon/db';
+import { StaticDataRegistry } from '@babylon/engine';
 import { execSync } from 'child_process';
 import { ethers } from 'ethers';
 import { parseArgs, wantsHelp } from '../lib/args.js';
@@ -65,14 +65,16 @@ async function checkGameStatus(): Promise<void> {
     process.exit(1);
   }
 
-  const actorCountResult = await db
+  // Get actor count from static registry + actorState
+  const staticActorCount = StaticDataRegistry.getAllActors().length;
+  const actorStateCount = await db
     .select({ count: drizzleCount() })
-    .from(actors);
-  const actorCount = Number(actorCountResult[0]?.count || 0);
-  console.log(`Actors: ${actorCount}`);
+    .from(actorState);
+  const stateCount = Number(actorStateCount[0]?.count || 0);
+  console.log(`Actors: ${staticActorCount} static, ${stateCount} with state`);
 
-  if (actorCount === 0) {
-    logger.warn('No actors in database! Run: babylon db seed');
+  if (staticActorCount === 0) {
+    logger.warn('No actors defined! Check packages/engine/src/data/actors/');
   }
 
   const questionCountResult = await db
@@ -143,23 +145,18 @@ async function checkGameStatus(): Promise<void> {
     `\nEvents: ${eventCount} total, ${recentEvents} in last 5 minutes`
   );
 
-  const orgCountResult = await db
-    .select({ count: drizzleCount() })
-    .from(organizations);
-  const orgCount = Number(orgCountResult[0]?.count || 0);
+  // Get organization count from static registry + organizationState
+  const staticOrgCount = StaticDataRegistry.getAllOrganizations().length;
+  const companyCount =
+    StaticDataRegistry.getOrganizationsByType('company').length;
 
-  const companiesWithPricesResult = await db
+  const orgsWithPricesResult = await db
     .select({ count: drizzleCount() })
-    .from(organizations)
-    .where(
-      and(
-        eq(organizations.type, 'company'),
-        isNotNull(organizations.currentPrice)
-      )
-    );
-  const companiesWithPrices = Number(companiesWithPricesResult[0]?.count || 0);
+    .from(organizationState)
+    .where(isNotNull(organizationState.currentPrice));
+  const orgsWithPrices = Number(orgsWithPricesResult[0]?.count || 0);
   console.log(
-    `Organizations: ${orgCount} total, ${companiesWithPrices} companies with prices`
+    `Organizations: ${staticOrgCount} total, ${companyCount} companies, ${orgsWithPrices} with prices`
   );
 }
 

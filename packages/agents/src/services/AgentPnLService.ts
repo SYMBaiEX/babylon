@@ -1,7 +1,7 @@
 /**
  * Agent P&L Service
  *
- * Handles P&L tracking, trade recording, and rollup to user accounts.
+ * Handles P&L tracking and trade recording for agents.
  *
  * @packageDocumentation
  */
@@ -29,7 +29,7 @@ export class AgentPnLService {
    *
    * @param params - Trade parameters
    * @param params.agentId - Agent ID
-   * @param params.userId - User ID
+   * @param params.userId - User ID (manager)
    * @param params.marketType - Market type (prediction or perp)
    * @param params.marketId - Market ID for prediction markets
    * @param params.ticker - Ticker for perpetual markets
@@ -55,7 +55,6 @@ export class AgentPnLService {
   }): Promise<void> {
     const {
       agentId,
-      userId,
       marketType,
       marketId,
       ticker,
@@ -103,25 +102,6 @@ export class AgentPnLService {
             updatedAt: new Date(),
           })
           .where(eq(users.id, agentId));
-
-        // Roll up to manager's totalAgentPnL
-        const managerResult = await tx
-          .select({ totalAgentPnL: users.totalAgentPnL })
-          .from(users)
-          .where(eq(users.id, userId))
-          .limit(1);
-
-        const currentManagerPnL = managerResult[0]?.totalAgentPnL
-          ? Number.parseFloat(String(managerResult[0].totalAgentPnL))
-          : 0;
-
-        await tx
-          .update(users)
-          .set({
-            totalAgentPnL: String(currentManagerPnL + pnl),
-            updatedAt: new Date(),
-          })
-          .where(eq(users.id, userId));
       }
 
       // Log the trade
@@ -160,44 +140,21 @@ export class AgentPnLService {
       .limit(limit);
   }
 
+  /**
+   * Get total agent P&L for a user (manager) by summing their agents' lifetimePnL
+   */
   async getUserAgentPnL(userId: string): Promise<number> {
-    const userResult = await db
-      .select({ totalAgentPnL: users.totalAgentPnL })
-      .from(users)
-      .where(eq(users.id, userId))
-      .limit(1);
-
-    const user = userResult[0];
-    return user ? Number.parseFloat(String(user.totalAgentPnL)) : 0;
-  }
-
-  async syncUserAgentPnL(userId: string): Promise<void> {
-    // Filter by managedBy in application since Drizzle needs specific query
     const agentsResult = await db
-      .select({ lifetimePnL: users.lifetimePnL, managedBy: users.managedBy })
+      .select({ lifetimePnL: users.lifetimePnL })
       .from(users)
       .where(eq(users.managedBy, userId));
 
-    const totalPnL = agentsResult.reduce((sum, agent) => {
+    return agentsResult.reduce((sum, agent) => {
       return (
         sum +
         (agent.lifetimePnL ? Number.parseFloat(String(agent.lifetimePnL)) : 0)
       );
     }, 0);
-
-    await db
-      .update(users)
-      .set({
-        totalAgentPnL: String(totalPnL),
-        updatedAt: new Date(),
-      })
-      .where(eq(users.id, userId));
-
-    logger.info(
-      `Synced agent P&L for user ${userId}: ${totalPnL}`,
-      undefined,
-      'AgentPnLService'
-    );
   }
 }
 

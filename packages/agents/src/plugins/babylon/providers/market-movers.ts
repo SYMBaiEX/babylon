@@ -154,7 +154,7 @@ ${losersText}`,
     } catch (error) {
       logger.error(
         'Failed to fetch market movers via A2A',
-        error,
+        { error: error instanceof Error ? error.message : String(error) },
         'MarketMoversProvider'
       );
       throw error;

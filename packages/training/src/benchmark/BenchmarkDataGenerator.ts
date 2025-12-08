@@ -5,6 +5,7 @@
  * Creates pre-recorded game states with known outcomes for reproducible testing.
  */
 
+import type { JsonValue } from '@babylon/shared';
 import { logger } from '../utils/logger';
 
 export interface BenchmarkConfig {
@@ -105,7 +106,7 @@ export interface Tick {
 export interface TickEvent {
   type: string;
   timestamp: number;
-  data: Record<string, unknown>;
+  data: Record<string, JsonValue>;
 }
 
 export interface GroundTruth {
@@ -140,7 +141,7 @@ export interface GroundTruth {
     tick: number;
     fact: string;
     category: 'market' | 'social' | 'event' | 'insider';
-    value: unknown;
+    value: JsonValue;
   }>;
 
   /** Hidden events that occur but agents don't see */
@@ -148,11 +149,11 @@ export interface GroundTruth {
     tick: number;
     type: string;
     description: string;
-    impact: Record<string, unknown>;
+    impact: Record<string, JsonValue>;
   }>;
 
   /** True facts about the world state */
-  trueFacts: Record<string, unknown>;
+  trueFacts: Record<string, JsonValue>;
 }
 
 export interface BenchmarkGameSnapshot {
@@ -565,7 +566,7 @@ export class BenchmarkDataGenerator {
             authorId: post.authorId,
             authorName: post.authorName,
             content: post.content,
-            marketId: post.marketId,
+            marketId: post.marketId ?? null,
           },
         });
       }
@@ -693,7 +694,7 @@ export class BenchmarkDataGenerator {
             data: {
               groupId: groupChat.id,
               groupName: groupChat.name,
-              inviterId: groupChat.memberIds[0],
+              inviterId: groupChat.memberIds[0] ?? 'unknown',
             },
           });
         }

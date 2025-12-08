@@ -14,7 +14,7 @@
 import type { IAgentRuntime } from '@elizaos/core';
 import { promises as fs } from 'fs';
 import * as path from 'path';
-import { createAutonomousCoordinator } from '../dependencies';
+import { getAutonomousCoordinator } from '../dependencies';
 import { TrajectoryRecorder } from '../training/TrajectoryRecorder';
 import { logger } from '../utils/logger';
 import {
@@ -181,7 +181,7 @@ export class BenchmarkRunner {
     });
 
     // Get AutonomousCoordinator for running agent ticks
-    const coordinator = createAutonomousCoordinator();
+    const coordinator = getAutonomousCoordinator();
 
     // Run autonomous ticks for each simulation tick
     let ticksCompleted = 0;
@@ -204,15 +204,21 @@ export class BenchmarkRunner {
         config.agentRuntime
       );
 
-      if (
-        tickResult.success &&
-        tickResult.actionsExecuted &&
-        tickResult.actionsExecuted.length > 0
-      ) {
-        logger.debug('Agent took actions', {
-          tick: currentTick,
-          actions: tickResult.actionsExecuted,
-        });
+      if (tickResult.success && tickResult.actionsExecuted) {
+        const totalActions =
+          tickResult.actionsExecuted.trades +
+          tickResult.actionsExecuted.posts +
+          tickResult.actionsExecuted.comments +
+          tickResult.actionsExecuted.messages +
+          tickResult.actionsExecuted.groupMessages +
+          tickResult.actionsExecuted.engagements;
+
+        if (totalActions > 0) {
+          logger.debug('Agent took actions', {
+            tick: currentTick,
+            actions: tickResult.actionsExecuted,
+          });
+        }
       }
 
       // Advance simulation tick

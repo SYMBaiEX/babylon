@@ -38,22 +38,12 @@ export interface ContractAddresses {
   reputationSystem: string;
   /** Babylon Game Oracle address (optional) */
   babylonOracle?: string;
-  /** Predimarket contract address (optional) */
-  predimarket?: string;
-  /** Market Factory address (optional) */
-  marketFactory?: string;
-  /** Contest Oracle address (optional) */
-  contestOracle?: string;
   /** Ban Manager address (optional) */
   banManager?: string;
-  /** Reporting System address (optional) */
-  reportingSystem?: string;
-  /** Reputation Label Manager address (optional) */
-  labelManager?: string;
   /** Chainlink Oracle mock address (testnet only) */
   chainlinkOracle?: string;
-  /** UMA Oracle mock address (testnet only) */
-  umaOracle?: string;
+  /** Mock Oracle address (testnet only) */
+  mockOracle?: string;
   /** Test ERC20 token address (testnet only) */
   testToken?: string;
 }
@@ -89,21 +79,17 @@ export interface ValidationResult {
 export async function loadDeployment(
   env: DeploymentEnv
 ): Promise<DeploymentInfo | null> {
-  try {
-    if (env === 'localnet') {
-      const deployment = await import('../../deployments/local');
-      return deployment.default as DeploymentInfo;
-    }
-    if (env === 'testnet') {
-      const deployment = await import('../../deployments/base-sepolia');
-      return deployment.default as DeploymentInfo;
-    }
-    if (env === 'mainnet') {
-      const deployment = await import('../../deployments/base');
-      return deployment.default as DeploymentInfo;
-    }
-  } catch {
-    return null;
+  if (env === 'localnet') {
+    const deployment = await import('../../deployments/local');
+    return deployment.default as DeploymentInfo;
+  }
+  if (env === 'testnet') {
+    const deployment = await import('../../deployments/base-sepolia');
+    return deployment.default as DeploymentInfo;
+  }
+  if (env === 'mainnet') {
+    const deployment = await import('../../deployments/base');
+    return deployment.default as DeploymentInfo;
   }
 
   return null;
@@ -162,121 +148,102 @@ export async function validateDeployment(
   const warnings: string[] = [];
   const contracts: Partial<ContractAddresses> = {};
 
-  try {
-    const deployment = await loadDeployment(env);
+  const deployment = await loadDeployment(env);
 
-    if (!deployment) {
-      return {
-        valid: false,
-        deployed: false,
-        errors: [
-          `No deployment found for ${env}`,
-          'Run the deployment script to deploy contracts',
-        ],
-        warnings: [],
-        contracts: {},
-      };
-    }
-
-    const provider = new ethers.JsonRpcProvider(rpcUrl);
-    const network = await provider.getNetwork();
-    const deploymentChainId = BigInt(deployment.chainId);
-    if (network.chainId !== deploymentChainId) {
-      errors.push(
-        `Chain ID mismatch: provider is ${network.chainId}, deployment is ${deploymentChainId}`
-      );
-    }
-
-    const contractsToValidate = expectedContracts || deployment.contracts;
-
-    if (contractsToValidate.diamond) {
-      const code = await provider.getCode(contractsToValidate.diamond);
-      if (code === '0x' || code === '0x0') {
-        errors.push(`Diamond not deployed at ${contractsToValidate.diamond}`);
-      } else {
-        contracts.diamond = contractsToValidate.diamond;
-        logger.info(
-          `✅ Diamond verified at ${contractsToValidate.diamond}`,
-          undefined,
-          'DeploymentValidation'
-        );
-      }
-    }
-
-    if (contractsToValidate.identityRegistry) {
-      const code = await provider.getCode(contractsToValidate.identityRegistry);
-      if (code === '0x' || code === '0x0') {
-        errors.push(
-          `Identity Registry not deployed at ${contractsToValidate.identityRegistry}`
-        );
-      } else {
-        contracts.identityRegistry = contractsToValidate.identityRegistry;
-        logger.info(
-          `✅ Identity Registry verified at ${contractsToValidate.identityRegistry}`,
-          undefined,
-          'DeploymentValidation'
-        );
-      }
-    }
-
-    if (contractsToValidate.reputationSystem) {
-      const code = await provider.getCode(contractsToValidate.reputationSystem);
-      if (code === '0x' || code === '0x0') {
-        errors.push(
-          `Reputation System not deployed at ${contractsToValidate.reputationSystem}`
-        );
-      } else {
-        contracts.reputationSystem = contractsToValidate.reputationSystem;
-        logger.info(
-          `✅ Reputation System verified at ${contractsToValidate.reputationSystem}`,
-          undefined,
-          'DeploymentValidation'
-        );
-      }
-    }
-
-    if (contracts.diamond) {
-      try {
-        const diamondContract = new ethers.Contract(
-          contracts.diamond,
-          ['function getBalance(address) view returns (uint256)'],
-          provider
-        );
-
-        if (diamondContract.getBalance) {
-          await diamondContract.getBalance(ethers.ZeroAddress);
-        }
-        logger.info(
-          '✅ Diamond contract is functional',
-          undefined,
-          'DeploymentValidation'
-        );
-      } catch (error) {
-        const errorMessage =
-          error instanceof Error ? error.message : String(error);
-        warnings.push(
-          `Diamond contract may not be fully functional: ${errorMessage}`
-        );
-      }
-    }
-
-    return {
-      valid: errors.length === 0,
-      deployed: Object.keys(contracts).length > 0,
-      errors,
-      warnings,
-      contracts,
-    };
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
+  if (!deployment) {
     return {
       valid: false,
       deployed: false,
-      errors: [`Validation failed: ${errorMessage}`],
-      warnings,
-      contracts,
+      errors: [
+        `No deployment found for ${env}`,
+        'Run the deployment script to deploy contracts',
+      ],
+      warnings: [],
+      contracts: {},
     };
   }
+
+  const provider = new ethers.JsonRpcProvider(rpcUrl);
+  const network = await provider.getNetwork();
+  const deploymentChainId = BigInt(deployment.chainId);
+  if (network.chainId !== deploymentChainId) {
+    errors.push(
+      `Chain ID mismatch: provider is ${network.chainId}, deployment is ${deploymentChainId}`
+    );
+  }
+
+  const contractsToValidate = expectedContracts || deployment.contracts;
+
+  if (contractsToValidate.diamond) {
+    const code = await provider.getCode(contractsToValidate.diamond);
+    if (code === '0x' || code === '0x0') {
+      errors.push(`Diamond not deployed at ${contractsToValidate.diamond}`);
+    } else {
+      contracts.diamond = contractsToValidate.diamond;
+      logger.info(
+        `✅ Diamond verified at ${contractsToValidate.diamond}`,
+        undefined,
+        'DeploymentValidation'
+      );
+    }
+  }
+
+  if (contractsToValidate.identityRegistry) {
+    const code = await provider.getCode(contractsToValidate.identityRegistry);
+    if (code === '0x' || code === '0x0') {
+      errors.push(
+        `Identity Registry not deployed at ${contractsToValidate.identityRegistry}`
+      );
+    } else {
+      contracts.identityRegistry = contractsToValidate.identityRegistry;
+      logger.info(
+        `✅ Identity Registry verified at ${contractsToValidate.identityRegistry}`,
+        undefined,
+        'DeploymentValidation'
+      );
+    }
+  }
+
+  if (contractsToValidate.reputationSystem) {
+    const code = await provider.getCode(contractsToValidate.reputationSystem);
+    if (code === '0x' || code === '0x0') {
+      errors.push(
+        `Reputation System not deployed at ${contractsToValidate.reputationSystem}`
+      );
+    } else {
+      contracts.reputationSystem = contractsToValidate.reputationSystem;
+      logger.info(
+        `✅ Reputation System verified at ${contractsToValidate.reputationSystem}`,
+        undefined,
+        'DeploymentValidation'
+      );
+    }
+  }
+
+  if (contracts.diamond) {
+    const diamondContract = new ethers.Contract(
+      contracts.diamond,
+      ['function getBalance(address) view returns (uint256)'],
+      provider
+    );
+
+    if (diamondContract.getBalance) {
+      await diamondContract.getBalance(ethers.ZeroAddress);
+    }
+    logger.info(
+      '✅ Diamond contract is functional',
+      undefined,
+      'DeploymentValidation'
+    );
+  }
+
+  return {
+    valid: errors.length === 0,
+    deployed: Object.keys(contracts).length > 0,
+    errors,
+    warnings,
+    contracts,
+  };
 }
 
 /**
@@ -330,12 +297,7 @@ export async function updateEnvFile(
     NEXT_PUBLIC_PERPETUAL_MARKET_FACET: contracts.perpetualMarketFacet,
     NEXT_PUBLIC_REFERRAL_SYSTEM_FACET: contracts.referralSystemFacet,
     NEXT_PUBLIC_BAN_MANAGER: contracts.banManager,
-    NEXT_PUBLIC_REPORTING_SYSTEM: contracts.reportingSystem,
-    NEXT_PUBLIC_LABEL_MANAGER: contracts.labelManager,
     NEXT_PUBLIC_BABYLON_ORACLE: contracts.babylonOracle,
-    NEXT_PUBLIC_PREDIMARKET: contracts.predimarket,
-    NEXT_PUBLIC_MARKET_FACTORY: contracts.marketFactory,
-    NEXT_PUBLIC_CONTEST_ORACLE: contracts.contestOracle,
     NEXT_PUBLIC_TEST_TOKEN: contracts.testToken,
   };
 
@@ -343,8 +305,8 @@ export async function updateEnvFile(
     updates.NEXT_PUBLIC_CHAINLINK_ORACLE = contracts.chainlinkOracle;
   }
 
-  if (contracts.umaOracle) {
-    updates.NEXT_PUBLIC_UMA_ORACLE = contracts.umaOracle;
+  if (contracts.mockOracle) {
+    updates.NEXT_PUBLIC_MOCK_ORACLE = contracts.mockOracle;
   }
 
   for (const [key, value] of Object.entries(updates)) {
@@ -449,31 +411,23 @@ export async function waitForTransaction(
   const maxAttempts = 60;
 
   while (attempts < maxAttempts) {
-    try {
-      const receipt = await provider.getTransactionReceipt(txHash);
-      if (receipt && receipt.blockNumber) {
-        const currentBlock = await provider.getBlockNumber();
-        const confirmedBlocks = currentBlock - receipt.blockNumber;
+    const receipt = await provider.getTransactionReceipt(txHash);
+    if (receipt && receipt.blockNumber) {
+      const currentBlock = await provider.getBlockNumber();
+      const confirmedBlocks = currentBlock - receipt.blockNumber;
 
-        if (confirmedBlocks >= confirmations) {
-          logger.info(
-            `✅ Transaction confirmed (${confirmedBlocks} blocks)`,
-            undefined,
-            'DeploymentValidation'
-          );
-          return receipt;
-        }
-
+      if (confirmedBlocks >= confirmations) {
         logger.info(
-          `Transaction has ${confirmedBlocks}/${confirmations} confirmations`,
+          `✅ Transaction confirmed (${confirmedBlocks} blocks)`,
           undefined,
           'DeploymentValidation'
         );
+        return receipt;
       }
-    } catch (error) {
-      logger.warn(
-        'Error checking transaction',
-        { error },
+
+      logger.info(
+        `Transaction has ${confirmedBlocks}/${confirmations} confirmations`,
+        undefined,
         'DeploymentValidation'
       );
     }

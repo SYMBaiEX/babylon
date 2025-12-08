@@ -74,7 +74,11 @@
  */
 
 import { submitFeedbackToAgent0 } from '@babylon/agents';
-import { requireUserByIdentifier } from '@babylon/api';
+import {
+  requireCronAuth,
+  requireUserByIdentifier,
+  withErrorHandling,
+} from '@babylon/api';
 import {
   generateGameCompletionFeedback,
   generateTradeCompletionFeedback,
@@ -123,7 +127,9 @@ const AutoGenerateFeedbackRequestSchema = z.discriminatedUnion('type', [
   TradeFeedbackRequestSchema,
 ]);
 
-export async function POST(request: NextRequest) {
+export const POST = withErrorHandling(async (request: NextRequest) => {
+  requireCronAuth(request, { jobName: 'AutoGenerateFeedback' });
+
   const json = await request.json();
   const parsed = AutoGenerateFeedbackRequestSchema.parse(json);
 
@@ -193,4 +199,4 @@ export async function POST(request: NextRequest) {
     },
     { status: 201 }
   );
-}
+});

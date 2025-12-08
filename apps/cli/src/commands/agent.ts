@@ -10,7 +10,14 @@
  */
 
 import { createTestAgent } from '@babylon/agents';
-import { and, closeDatabase, db, desc, eq, or, users } from '@babylon/db';
+import {
+  closeDatabase,
+  db,
+  desc,
+  eq,
+  userAgentConfigs,
+  users,
+} from '@babylon/db';
 import { existsSync, readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { getFlag, getOption, parseArgs, wantsHelp } from '../lib/args.js';
@@ -72,27 +79,19 @@ async function spawnAgents(args: ReturnType<typeof parseArgs>): Promise<void> {
   const createdAgents: Array<{ username: string; id: string }> = [];
 
   for (let i = 0; i < count; i++) {
-    try {
-      const result = await createTestAgent(`${prefix}-${i}`, {
-        autonomousTrading: enableTrading || enableAll,
-        autonomousPosting: enablePosting || enableAll,
-        autonomousCommenting: enableAll,
-        autonomousDMs: enableAll,
-        autonomousGroupChats: enableAll,
-      });
+    const result = await createTestAgent(`${prefix}-${i}`, {
+      autonomousTrading: enableTrading || enableAll,
+      autonomousPosting: enablePosting || enableAll,
+      autonomousCommenting: enableAll,
+      autonomousDMs: enableAll,
+      autonomousGroupChats: enableAll,
+    });
 
-      createdAgents.push({
-        username: result.agent.username,
-        id: result.agent.id,
-      });
-      console.log(
-        `  ✅ Created: ${result.agent.username} (${result.agent.id})`
-      );
-    } catch (error) {
-      console.log(
-        `  ❌ Error: ${error instanceof Error ? error.message : String(error)}`
-      );
-    }
+    createdAgents.push({
+      username: result.agent.username,
+      id: result.agent.id,
+    });
+    console.log(`  ✅ Created: ${result.agent.username} (${result.agent.id})`);
   }
 
   logger.header('Summary');
@@ -112,48 +111,49 @@ async function listAgents(args: ReturnType<typeof parseArgs>): Promise<void> {
 
   logger.header('Agents');
 
-  let whereCondition = eq(users.isAgent, true);
-
-  if (activeOnly) {
-    whereCondition = and(
-      eq(users.isAgent, true),
-      or(
-        eq(users.autonomousTrading, true),
-        eq(users.autonomousPosting, true),
-        eq(users.autonomousCommenting, true),
-        eq(users.autonomousDMs, true),
-        eq(users.autonomousGroupChats, true)
-      )!
-    )!;
-  }
-
-  const agents = await db
+  // Query agents with their configs using a join
+  const baseQuery = db
     .select({
       id: users.id,
       username: users.username,
       displayName: users.displayName,
-      agentPointsBalance: users.agentPointsBalance,
-      autonomousTrading: users.autonomousTrading,
-      autonomousPosting: users.autonomousPosting,
-      autonomousCommenting: users.autonomousCommenting,
-      autonomousDMs: users.autonomousDMs,
-      autonomousGroupChats: users.autonomousGroupChats,
       createdAt: users.createdAt,
+      pointsBalance: userAgentConfigs.pointsBalance,
+      autonomousTrading: userAgentConfigs.autonomousTrading,
+      autonomousPosting: userAgentConfigs.autonomousPosting,
+      autonomousCommenting: userAgentConfigs.autonomousCommenting,
+      autonomousDMs: userAgentConfigs.autonomousDMs,
+      autonomousGroupChats: userAgentConfigs.autonomousGroupChats,
     })
     .from(users)
-    .where(whereCondition)
+    .leftJoin(userAgentConfigs, eq(users.id, userAgentConfigs.userId))
+    .where(eq(users.isAgent, true))
     .orderBy(desc(users.createdAt))
     .limit(limit);
 
-  if (agents.length === 0) {
+  const agents = await baseQuery;
+
+  // Filter for active agents if requested
+  const filteredAgents = activeOnly
+    ? agents.filter(
+        (a) =>
+          a.autonomousTrading ||
+          a.autonomousPosting ||
+          a.autonomousCommenting ||
+          a.autonomousDMs ||
+          a.autonomousGroupChats
+      )
+    : agents;
+
+  if (filteredAgents.length === 0) {
     console.log('No agents found.');
     console.log('\nCreate agents with: babylon agent spawn');
     return;
   }
 
-  console.log(`Found ${agents.length} agent(s):\n`);
+  console.log(`Found ${filteredAgents.length} agent(s):\n`);
 
-  for (const agent of agents) {
+  for (const agent of filteredAgents) {
     const features = [];
     if (agent.autonomousTrading) features.push('trading');
     if (agent.autonomousPosting) features.push('posting');
@@ -164,7 +164,7 @@ async function listAgents(args: ReturnType<typeof parseArgs>): Promise<void> {
     console.log(`${'─'.repeat(60)}`);
     console.log(`Username:   ${agent.username || 'N/A'}`);
     console.log(`ID:         ${agent.id}`);
-    console.log(`Points:     ${agent.agentPointsBalance || 0}`);
+    console.log(`Points:     ${agent.pointsBalance || 0}`);
     console.log(
       `Features:   ${features.length > 0 ? features.join(', ') : 'none'}`
     );
@@ -368,36 +368,34 @@ export async function runAgentCommand(args: string[]): Promise<void> {
     process.exit(0);
   }
 
-  try {
-    switch (parsed.command) {
-      case 'spawn':
-        await spawnAgents(parsed);
-        break;
+  switch (parsed.command) {
+    case 'spawn':
+      await spawnAgents(parsed);
+      break;
 
-      case 'list':
-        await listAgents(parsed);
-        break;
+    case 'list':
+      await listAgents(parsed);
+      break;
 
-      case 'enable':
-        await toggleAgentFeatures(parsed, true);
-        break;
+    case 'enable':
+      await toggleAgentFeatures(parsed, true);
+      break;
 
-      case 'disable':
-        await toggleAgentFeatures(parsed, false);
-        break;
+    case 'disable':
+      await toggleAgentFeatures(parsed, false);
+      break;
 
-      case 'agent0-config':
-        await configureAgent0();
-        break;
+    case 'agent0-config':
+      await configureAgent0();
+      break;
 
-      default:
-        if (parsed.command) {
-          logger.fail(`Unknown command: ${parsed.command}`);
-        }
-        printHelp();
-        process.exit(parsed.command ? 1 : 0);
-    }
-  } finally {
-    await closeDatabase();
+    default:
+      if (parsed.command) {
+        logger.fail(`Unknown command: ${parsed.command}`);
+      }
+      printHelp();
+      process.exit(parsed.command ? 1 : 0);
   }
+
+  await closeDatabase();
 }

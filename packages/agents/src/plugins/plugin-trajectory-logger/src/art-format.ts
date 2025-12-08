@@ -392,15 +392,9 @@ export function validateARTCompatibility(trajectory: Trajectory): {
   }
 
   // Try to convert
-  try {
-    const artTraj = toARTTrajectory(trajectory);
-    if (artTraj.messages.length < 2) {
-      warnings.push('Trajectory converts to very few messages (< 2)');
-    }
-  } catch (error) {
-    errors.push(
-      `Failed to convert to ART format: ${error instanceof Error ? error.message : String(error)}`
-    );
+  const artTraj = toARTTrajectory(trajectory);
+  if (artTraj.messages.length < 2) {
+    warnings.push('Trajectory converts to very few messages (< 2)');
   }
 
   return {

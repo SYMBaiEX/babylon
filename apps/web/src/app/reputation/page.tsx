@@ -41,37 +41,32 @@ export default function ReputationPage() {
 
     const fetchReputation = async () => {
       setLoading(true);
-      try {
-        const response = await fetch(
-          `/api/reputation/${encodeURIComponent(user.id)}`
-        );
-        if (!response.ok) {
-          setStats(emptyStats);
-          return;
-        }
-
-        const data = await response.json();
-        const gamesPlayed = data.performance?.gamesPlayed ?? 0;
-        const gamesWon = data.performance?.gamesWon ?? 0;
-        const wins = Math.max(0, gamesWon);
-        const losses = Math.max(0, gamesPlayed - gamesWon);
-
-        setStats({
-          currentReputation: Math.round(data.reputationPoints ?? 0),
-          totalWins: wins,
-          totalLosses: losses,
-          winRate: (data.performance?.winRate ?? 0) * 100,
-          averageGameScore: data.performance?.averageGameScore ?? 0,
-          averageFeedbackScore: data.averageFeedbackScore ?? 0,
-          totalFeedbackReceived: data.totalFeedbackReceived ?? 0,
-          trustLevel: data.trustLevel ?? 'UNRATED',
-        });
-      } catch (error) {
-        console.error('Failed to fetch reputation:', error);
+      const response = await fetch(
+        `/api/reputation/${encodeURIComponent(user.id)}`
+      );
+      if (!response.ok) {
         setStats(emptyStats);
-      } finally {
         setLoading(false);
+        return;
       }
+
+      const data = await response.json();
+      const gamesPlayed = data.performance?.gamesPlayed ?? 0;
+      const gamesWon = data.performance?.gamesWon ?? 0;
+      const wins = Math.max(0, gamesWon);
+      const losses = Math.max(0, gamesPlayed - gamesWon);
+
+      setStats({
+        currentReputation: Math.round(data.reputationPoints ?? 0),
+        totalWins: wins,
+        totalLosses: losses,
+        winRate: (data.performance?.winRate ?? 0) * 100,
+        averageGameScore: data.performance?.averageGameScore ?? 0,
+        averageFeedbackScore: data.averageFeedbackScore ?? 0,
+        totalFeedbackReceived: data.totalFeedbackReceived ?? 0,
+        trustLevel: data.trustLevel ?? 'UNRATED',
+      });
+      setLoading(false);
     };
 
     void fetchReputation();

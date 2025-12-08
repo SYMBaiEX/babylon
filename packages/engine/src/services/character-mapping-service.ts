@@ -1,28 +1,17 @@
 /**
  * Character Mapping Service
  *
- * @description Handles find/replace of real names with parody names in text.
- * Uses database-backed mappings that can be edited via admin panel. Supports
- * both character and organization mappings with priority-based replacement.
+ * Handles find/replace of real names with parody names in text.
+ * Uses StaticDataRegistry for mappings (no database calls).
  */
 
+import { logger } from '@babylon/shared';
 import {
   type CharacterMapping,
-  characterMappings,
-  db,
-  desc,
-  eq,
   type OrganizationMapping,
-  organizationMappings,
-} from '@babylon/db';
-import { logger } from '@babylon/shared';
+  StaticDataRegistry,
+} from './static-data-registry';
 
-/**
- * Text replacement result
- *
- * @description Contains transformed text with applied mappings and metadata
- * about which mappings were used.
- */
 export interface TextReplacementResult {
   transformedText: string;
   characterMappings: Record<string, string>; // real -> parody
@@ -30,74 +19,44 @@ export interface TextReplacementResult {
   replacementCount: number;
 }
 
-/**
- * Character Mapping Service Class
- *
- * @description Transforms text by replacing real names with parody equivalents.
- * Uses cached mappings from database with 5-minute TTL. Supports case-insensitive
- * whole-word matching with priority-based replacement.
- */
+interface ActiveCharacterMapping extends CharacterMapping {
+  isActive: boolean;
+}
+
+interface ActiveOrganizationMapping extends OrganizationMapping {
+  isActive: boolean;
+}
+
 export class CharacterMappingService {
-  private characterMappingsCache: CharacterMapping[] = [];
-  private organizationMappingsCache: OrganizationMapping[] = [];
-  private lastCacheUpdate = 0;
-  private readonly CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+  private characterMappingsCache: ActiveCharacterMapping[] = [];
+  private organizationMappingsCache: ActiveOrganizationMapping[] = [];
+  private initialized = false;
 
-  /**
-   * Load mappings from database (with caching)
-   *
-   * @description Loads character and organization mappings from database with
-   * 5-minute cache TTL. Orders by priority (higher priority first) for proper
-   * replacement order.
-   *
-   * @returns {Promise<void>}
-   * @private
-   */
-  private async loadMappings(): Promise<void> {
-    const now = Date.now();
-    if (now - this.lastCacheUpdate < this.CACHE_TTL) {
-      return; // Use cached data
+  private loadMappings(): void {
+    if (this.initialized) {
+      return;
     }
 
-    try {
-      this.characterMappingsCache = await db
-        .select()
-        .from(characterMappings)
-        .where(eq(characterMappings.isActive, true))
-        .orderBy(desc(characterMappings.priority));
+    const charMappings = StaticDataRegistry.getAllCharacterMappings();
+    const orgMappings = StaticDataRegistry.getAllOrganizationMappings();
 
-      this.organizationMappingsCache = await db
-        .select()
-        .from(organizationMappings)
-        .where(eq(organizationMappings.isActive, true))
-        .orderBy(desc(organizationMappings.priority));
+    this.characterMappingsCache = charMappings
+      .map((m) => ({ ...m, isActive: true }))
+      .sort((a, b) => b.priority - a.priority);
 
-      this.lastCacheUpdate = now;
-      logger.info(
-        `Loaded ${this.characterMappingsCache.length} character mappings and ${this.organizationMappingsCache.length} organization mappings`,
-        undefined,
-        'CharacterMappingService'
-      );
-    } catch (error) {
-      // Handle database connection errors gracefully
-      logger.warn(
-        'CharacterMappingService: Failed to load mappings from database, using empty mappings',
-        { error: error instanceof Error ? error.message : String(error) },
-        'CharacterMappingService'
-      );
-      this.characterMappingsCache = [];
-      this.organizationMappingsCache = [];
-      this.lastCacheUpdate = now;
-    }
+    this.organizationMappingsCache = orgMappings
+      .map((m) => ({ ...m, isActive: true }))
+      .sort((a, b) => b.priority - a.priority);
+
+    this.initialized = true;
+    logger.info(
+      `Loaded ${this.characterMappingsCache.length} character and ${this.organizationMappingsCache.length} organization mappings`,
+      undefined,
+      'CharacterMappingService'
+    );
   }
 
-  /**
-   * Build word-to-word mapping from real name to parody name
-   *
-   * @example
-   * buildWordMapping("Arthur Hayes", "Arthur HAIyes")
-   * // Returns: { "arthur": "Arthur", "hayes": "HAIyes" }
-   */
+  /** Build word-to-word mapping from real name to parody name */
   private buildWordMapping(
     realName: string,
     parodyName: string
@@ -119,19 +78,8 @@ export class CharacterMappingService {
   }
 
   /**
-   * Preserve the case pattern of the original text in the replacement
-   *
-   * Only transforms case for:
-   * - ALL LOWERCASE input → all lowercase output
-   * - ALL UPPERCASE input → all uppercase output
-   *
-   * For mixed case (like "Hayes"), keeps the parody name's original casing ("HAIyes")
-   * to preserve intentional AI-pun styling.
-   *
-   * @example
-   * preserveCase("hayes", "HAIyes") → "haiyes"
-   * preserveCase("HAYES", "HAIyes") → "HAIYES"
-   * preserveCase("Hayes", "HAIyes") → "HAIyes" (keeps parody casing)
+   * Preserve case pattern: lowercase→lowercase, UPPERCASE→UPPERCASE.
+   * Mixed case keeps parody's original casing to preserve AI-pun styling.
    */
   private preserveCase(original: string, replacement: string): string {
     if (!original || !replacement) return replacement;
@@ -146,35 +94,14 @@ export class CharacterMappingService {
       return replacement.toUpperCase();
     }
 
-    // For mixed case (title case, etc.), keep parody name's original casing
-    // This preserves intentional AI-pun styling like "HAIyes", "AIlon", "FrAInk"
     return replacement;
   }
 
-  /**
-   * Generate username from a name (removes spaces, lowercases)
-   *
-   * @example
-   * generateUsername("Elon Musk") → "elonmusk"
-   * generateUsername("AIlon Musk") → "ailonmusk"
-   */
   private generateUsername(name: string): string {
     return name.toLowerCase().replace(/\s+/g, '');
   }
 
-  /**
-   * Get the appropriate replacement for a search term
-   *
-   * If searchName is the full realName, use full parodyName.
-   * If searchName is a partial match (alias), find corresponding parody word.
-   *
-   * @example
-   * getReplacementForTerm("Hayes", "Arthur Hayes", "Arthur HAIyes")
-   * // Returns: "HAIyes"
-   *
-   * getReplacementForTerm("Arthur Hayes", "Arthur Hayes", "Arthur HAIyes")
-   * // Returns: "Arthur HAIyes"
-   */
+  /** Get replacement for search term - full name or word-to-word mapped alias */
   private getReplacementForTerm(
     searchName: string,
     realName: string,
@@ -204,54 +131,26 @@ export class CharacterMappingService {
       return mappedWords.join(' ');
     }
 
-    // Fallback: return the full parody name (shouldn't happen often)
     return parodyName;
   }
 
-  /**
-   * Transform text by replacing real names with parody names
-   *
-   * @description Transforms text by replacing real names with parody equivalents.
-   * Uses case-insensitive whole-word matching and preserves original case pattern.
-   *
-   * Processing order:
-   * 1. Usernames first (@elonmusk → @ailonmusk)
-   * 2. Character names (Elon Musk → AIlon Musk)
-   * 3. Organization names (Tesla → TeslAI)
-   *
-   * Case preservation:
-   * - "hayes" → "haiyes" (lowercase preserved)
-   * - "HAYES" → "HAIYES" (uppercase preserved)
-   * - "Hayes" → "HAIyes" (original parody case)
-   *
-   * Word-to-word mapping:
-   * - "Arthur Hayes" → "Arthur HAIyes" (full name)
-   * - "Hayes" → "HAIyes" (just the word, not full name)
-   *
-   * @param {string} text - Text to transform
-   * @returns {Promise<TextReplacementResult>} Transformation result with mappings applied
-   */
+  /** Transform text by replacing real names with parody equivalents */
   async transformText(text: string): Promise<TextReplacementResult> {
-    await this.loadMappings();
+    this.loadMappings();
 
     let transformedText = text;
     const characterMappingsResult: Record<string, string> = {};
     const organizationMappingsResult: Record<string, string> = {};
     let replacementCount = 0;
 
-    // PHASE 1: Replace usernames FIRST (e.g., @elonmusk → @ailonmusk)
-    // This must happen before name replacements to avoid partial matches
+    // Phase 1: Replace @usernames first to avoid partial matches
     for (const mapping of this.characterMappingsCache) {
       const realUsername = this.generateUsername(mapping.realName);
       const parodyUsername = this.generateUsername(mapping.parodyName);
 
-      // Skip if usernames are the same
       if (realUsername === parodyUsername) continue;
-
-      // Skip if parody username already in text
       if (transformedText.toLowerCase().includes(parodyUsername)) continue;
 
-      // Match @username pattern (case-insensitive)
       const usernameRegex = new RegExp(
         `@${escapeRegex(realUsername)}\\b`,
         'gi'
@@ -259,9 +158,7 @@ export class CharacterMappingService {
 
       if (usernameRegex.test(transformedText)) {
         transformedText = transformedText.replace(usernameRegex, (match) => {
-          // Extract the matched username without @
           const matchedUsername = match.slice(1);
-          // Preserve case of the original username
           const casedReplacement = this.preserveCase(
             matchedUsername,
             parodyUsername
@@ -273,24 +170,21 @@ export class CharacterMappingService {
       }
     }
 
-    // PHASE 2: Replace character names
+    // Phase 2: Replace character names
     for (const mapping of this.characterMappingsCache) {
       const searchNames = [mapping.realName, ...mapping.aliases];
 
       for (const searchName of searchNames) {
-        // Get the appropriate replacement (word-to-word mapping)
         const replacement = this.getReplacementForTerm(
           searchName,
           mapping.realName,
           mapping.parodyName
         );
 
-        // Skip if this specific replacement is already in the text
         if (transformedText.toLowerCase().includes(replacement.toLowerCase())) {
           continue;
         }
 
-        // Create regex for case-insensitive whole-word matching
         const regex = new RegExp(
           `(?:^|\\s|[^a-zA-Z@])${escapeRegex(searchName)}(?:$|\\s|[^a-zA-Z])`,
           'gi'
@@ -299,7 +193,6 @@ export class CharacterMappingService {
         const matches = transformedText.match(regex);
         if (matches) {
           transformedText = transformedText.replace(regex, (match) => {
-            // Extract the actual matched name (excluding leading/trailing chars)
             const matchLower = match.toLowerCase();
             const searchLower = searchName.toLowerCase();
 
@@ -312,13 +205,11 @@ export class CharacterMappingService {
               ? match[match.length - 1]
               : '';
 
-            // Extract the actual matched text (without leading/trailing chars)
             const actualMatch = match.slice(
               leadingChar ? 1 : 0,
               trailingChar ? -1 : undefined
             );
 
-            // Preserve the case of the original text
             const casedReplacement = this.preserveCase(
               actualMatch,
               replacement
@@ -333,19 +224,17 @@ export class CharacterMappingService {
       }
     }
 
-    // PHASE 3: Replace organization names
+    // Phase 3: Replace organization names
     for (const mapping of this.organizationMappingsCache) {
       const searchNames = [mapping.realName, ...mapping.aliases];
 
       for (const searchName of searchNames) {
-        // Get the appropriate replacement (word-to-word mapping)
         const replacement = this.getReplacementForTerm(
           searchName,
           mapping.realName,
           mapping.parodyName
         );
 
-        // Skip if this specific replacement is already in the text
         if (transformedText.toLowerCase().includes(replacement.toLowerCase())) {
           continue;
         }
@@ -370,13 +259,11 @@ export class CharacterMappingService {
               ? match[match.length - 1]
               : '';
 
-            // Extract the actual matched text
             const actualMatch = match.slice(
               leadingChar ? 1 : 0,
               trailingChar ? -1 : undefined
             );
 
-            // Preserve the case of the original text
             const casedReplacement = this.preserveCase(
               actualMatch,
               replacement
@@ -399,16 +286,11 @@ export class CharacterMappingService {
     };
   }
 
-  /**
-   * Check if text contains any real names that should be replaced
-   * Useful for validation
-   */
+  /** Check if text contains any real names that should be replaced */
   async detectRealNames(text: string): Promise<string[]> {
-    await this.loadMappings();
-
+    this.loadMappings();
     const foundNames: string[] = [];
 
-    // Check characters
     for (const mapping of this.characterMappingsCache) {
       const searchNames = [mapping.realName, ...mapping.aliases];
 
@@ -421,7 +303,6 @@ export class CharacterMappingService {
       }
     }
 
-    // Check organizations
     for (const mapping of this.organizationMappingsCache) {
       const searchNames = [mapping.realName, ...mapping.aliases];
 
@@ -437,33 +318,22 @@ export class CharacterMappingService {
     return foundNames;
   }
 
-  /**
-   * Get all active character mappings
-   */
-  async getCharacterMappings(): Promise<CharacterMapping[]> {
-    await this.loadMappings();
+  async getCharacterMappings(): Promise<ActiveCharacterMapping[]> {
+    this.loadMappings();
     return this.characterMappingsCache;
   }
 
-  /**
-   * Get all active organization mappings
-   */
-  async getOrganizationMappings(): Promise<OrganizationMapping[]> {
-    await this.loadMappings();
+  async getOrganizationMappings(): Promise<ActiveOrganizationMapping[]> {
+    this.loadMappings();
     return this.organizationMappingsCache;
   }
 
-  /**
-   * Refresh cache (call after updating mappings)
-   */
   refreshCache(): void {
-    this.lastCacheUpdate = 0;
+    this.initialized = false;
+    StaticDataRegistry.clearCache();
   }
 }
 
-/**
- * Escape special regex characters
- */
 function escapeRegex(str: string): string {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }

@@ -81,29 +81,25 @@ export function ExternalShareButton({
         typeof window !== 'undefined' ? window.__privyAccessToken : null;
       if (!token) return;
 
-      try {
-        const response = await fetch(
-          `/api/users/${encodeURIComponent(user.id)}/share?contentType=${contentType}`,
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          }
-        );
-
-        if (response.ok) {
-          const data = await response.json();
-          const shares = data.shares || [];
-
-          // Track which platforms have already earned points
-          const earned = new Set<string>();
-          shares.forEach((share: { platform: string }) => {
-            earned.add(share.platform);
-          });
-          setEarnedPlatforms(earned);
+      const response = await fetch(
+        `/api/users/${encodeURIComponent(user.id)}/share?contentType=${contentType}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
         }
-      } catch (error) {
-        console.error('Failed to check existing shares:', error);
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        const shares = data.shares || [];
+
+        // Track which platforms have already earned points
+        const earned = new Set<string>();
+        shares.forEach((share: { platform: string }) => {
+          earned.add(share.platform);
+        });
+        setEarnedPlatforms(earned);
       }
     };
 

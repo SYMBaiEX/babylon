@@ -1,14 +1,16 @@
 /**
- * Bootstrap Script
+ * Bootstrap Script - 100% PERMISSIONLESS
  *
  * This is the entry point for deploying the permissionless AI game.
  * Provide a wallet with funds and everything else is handled automatically.
  *
+ * Uses:
+ * - StateManager with Arweave for permanent storage
+ * - Real blockchain client for contract interaction
+ * - TEE enclave (simulated locally, real via Marlin Oyster)
+ *
  * Usage:
  *   PRIVATE_KEY=0x... CONTRACT_ADDRESS=0x... bun run src/infra/bootstrap.ts
- *
- * Or programmatically:
- *   const game = await bootstrap({ privateKey, contractAddress, ... });
  */
 
 import type { Address, Hex } from 'viem';
@@ -16,11 +18,10 @@ import { keccak256, toBytes, toHex } from 'viem';
 import { type AgentState, AIAgent } from '../game/agent.js';
 import { GameEnvironment } from '../game/environment.js';
 import { AITrainer } from '../game/trainer.js';
-import { IPFSSimulator } from '../storage/ipfs-simulator.js';
+import { FileStorage } from '../storage/file-storage.js';
 import { StateManager } from '../storage/state-manager.js';
 import { TEEEnclave } from '../tee/enclave.js';
 import { BlockchainClient } from './blockchain-client.js';
-import { createIPFSClient, type IPFSClient } from './ipfs-client.js';
 
 export interface BootstrapConfig {
   // Required: wallet that will operate the game
@@ -33,10 +34,8 @@ export interface BootstrapConfig {
   chainId?: 'mainnet' | 'sepolia' | 'localhost';
   rpcUrl?: string;
 
-  // IPFS configuration
-  ipfsProvider?: 'local' | 'infura' | 'pinata';
-  ipfsProjectId?: string;
-  ipfsProjectSecret?: string;
+  // Storage directory (for FileStorage)
+  storageDir?: string;
 
   // Game configuration
   gameCodeHash?: Hex;
@@ -48,15 +47,12 @@ export interface BootstrapConfig {
 
   // Heartbeat interval (ms)
   heartbeatIntervalMs?: number;
-
-  // Use simulated IPFS (for testing)
-  useSimulatedIPFS?: boolean;
 }
 
 export interface BootstrappedGame {
   // Clients
   blockchain: BlockchainClient;
-  ipfs: IPFSClient | IPFSSimulator;
+  storage: FileStorage;
 
   // TEE
   enclave: TEEEnclave;
@@ -121,30 +117,15 @@ export async function bootstrap(
   console.log(`  Operator wallet: ${blockchain.getAddress()}`);
 
   // =========================================================================
-  // Step 2: Initialize IPFS client
+  // Step 2: Initialize storage (FileStorage or ArweaveStorage)
   // =========================================================================
-  console.log('\n[2/6] Connecting to IPFS...');
+  console.log('\n[2/6] Initializing storage...');
 
-  let ipfs: IPFSClient | IPFSSimulator;
-
-  if (config.useSimulatedIPFS) {
-    console.log('  Using simulated IPFS');
-    ipfs = new IPFSSimulator();
-  } else {
-    ipfs = createIPFSClient(config.ipfsProvider ?? 'local', {
-      projectId: config.ipfsProjectId,
-      projectSecret: config.ipfsProjectSecret,
-    });
-
-    // Test connection
-    try {
-      const testResult = await ipfs.upload('test');
-      console.log(`  IPFS connected (test CID: ${testResult.cid})`);
-    } catch {
-      console.warn('  Warning: IPFS connection failed, using simulated IPFS');
-      ipfs = new IPFSSimulator();
-    }
-  }
+  const storageDir = config.storageDir ?? './game-data';
+  const storage = new FileStorage({
+    directory: storageDir,
+  });
+  console.log(`  Storage initialized (FileStorage: ${storageDir})`);
 
   // =========================================================================
   // Step 3: Boot TEE enclave
@@ -193,10 +174,10 @@ export async function bootstrap(
   // =========================================================================
   console.log('\n[5/6] Initializing game components...');
 
-  // Create state manager with IPFS simulator (works with both real and simulated)
-  const ipfsSimulator =
-    ipfs instanceof IPFSSimulator ? ipfs : new IPFSSimulator();
-  const stateManager = new StateManager(enclave, ipfsSimulator);
+  // Create state manager with permanent storage
+  const stateManager = new StateManager(enclave, storage, {
+    verbose: false,
+  });
 
   const agent = new AIAgent({
     inputSize: 5,
@@ -231,6 +212,7 @@ export async function bootstrap(
   console.log('\n[6/6] Loading game state...');
 
   const gameState = await blockchain.getGameState();
+  let currentVersion = 0;
 
   if (gameState.cid && gameState.cid.length > 0) {
     console.log(`  Loading existing state: ${gameState.cid}`);
@@ -240,6 +222,7 @@ export async function bootstrap(
       )) as SavedGameState;
       if (state?.agent) {
         agent.loadState(state.agent);
+        currentVersion = state.version;
         console.log('  State loaded ✓');
       }
     } catch {
@@ -256,8 +239,9 @@ export async function bootstrap(
     };
 
     const checkpoint = await stateManager.saveState(initialState);
-    await blockchain.updateState(checkpoint.cid, checkpoint.hash);
-    console.log(`  Genesis state saved: ${checkpoint.cid}`);
+    await blockchain.updateState(checkpoint.id, checkpoint.hash);
+    currentVersion = 1;
+    console.log(`  Genesis state saved: ${checkpoint.id}`);
   }
 
   // =========================================================================
@@ -279,12 +263,8 @@ export async function bootstrap(
     // Start heartbeat interval
     const interval = config.heartbeatIntervalMs ?? 60000; // 1 minute default
     heartbeatTimer = setInterval(async () => {
-      try {
-        await blockchain.heartbeat();
-        console.log(`[Heartbeat] ${new Date().toISOString()}`);
-      } catch (e) {
-        console.error('[Heartbeat] Failed:', e);
-      }
+      await blockchain.heartbeat();
+      console.log(`[Heartbeat] ${new Date().toISOString()}`);
     }, interval);
 
     console.log(`[Game] Running (heartbeat every ${interval / 1000}s)`);
@@ -300,16 +280,17 @@ export async function bootstrap(
     }
 
     // Save final state
+    currentVersion++;
     const finalState: SavedGameState = {
       agent: agent.serialize(),
       gameStats: environment.getStats(),
       trainingStats: trainer.getStats(),
-      version: Number(gameState.version) + 1,
+      version: currentVersion,
       timestamp: Date.now(),
     };
 
     const checkpoint = await stateManager.saveState(finalState);
-    await blockchain.updateState(checkpoint.cid, checkpoint.hash);
+    await blockchain.updateState(checkpoint.id, checkpoint.hash);
 
     await enclave.shutdown();
     console.log('[Game] Stopped');
@@ -320,30 +301,31 @@ export async function bootstrap(
 
     const result = trainer.runTrainingCycle();
 
-    // Save training data to IPFS (public)
-    const dataset = stateManager.saveTrainingData(
+    // Save training data (public)
+    const dataset = await stateManager.saveTrainingData(
       result.samples,
       result.modelHashBefore,
       result.modelHashAfter
     );
 
     // Record on-chain
-    await blockchain.recordTraining(dataset.cid, result.modelHashAfter);
+    await blockchain.recordTraining(dataset.id, result.modelHashAfter);
 
     // Save updated state
+    currentVersion++;
     const newState: SavedGameState = {
       agent: agent.serialize(),
       gameStats: environment.getStats(),
       trainingStats: trainer.getStats(),
-      version: Number(gameState.version) + 1,
+      version: currentVersion,
       timestamp: Date.now(),
     };
 
     const checkpoint = await stateManager.saveState(newState);
-    await blockchain.updateState(checkpoint.cid, checkpoint.hash);
+    await blockchain.updateState(checkpoint.id, checkpoint.hash);
 
     console.log(`[Training] Complete. Loss: ${result.finalLoss.toFixed(4)}`);
-    console.log(`[Training] Dataset CID: ${dataset.cid}`);
+    console.log(`[Training] Dataset ID: ${dataset.id}`);
   };
 
   const getStatus = async (): Promise<GameStatus> => {
@@ -372,7 +354,7 @@ export async function bootstrap(
 
   return {
     blockchain,
-    ipfs,
+    storage,
     enclave,
     stateManager,
     agent,
@@ -413,7 +395,6 @@ if (import.meta.main) {
     contractAddress,
     chainId,
     rpcUrl,
-    ipfsProvider: 'local',
   })
     .then(async (game) => {
       await game.start();

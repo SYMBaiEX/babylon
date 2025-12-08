@@ -46,7 +46,7 @@ import type {
   TrainingTriggerResult,
   TrajectoryStep,
 } from './types';
-import { getCurrentWindowId } from './window-utils';
+import { getCurrentWindowId, getPreviousWindowId } from './window-utils';
 
 export type { AutomationConfig };
 
@@ -479,7 +479,9 @@ export class AutomationPipeline {
         })
         .where(eq(trainingBatches.batchId, batchId))
         .catch((err: unknown) =>
-          logger.error('Failed to update batch status', { error: err })
+          logger.error('Failed to update batch status', {
+            error: err instanceof Error ? err : String(err),
+          })
         );
     });
 
@@ -709,13 +711,12 @@ export class AutomationPipeline {
 
     // Score current window and previous windows
     for (let hoursAgo = 0; hoursAgo < 24; hoursAgo++) {
-      const windowDate = new Date(Date.now() - hoursAgo * 60 * 60 * 1000);
-      const windowIdStr = windowDate.toISOString().slice(0, 13) + ':00';
+      const windowId = getPreviousWindowId(hoursAgo);
 
-      const scored = await rulerScoringService.scoreWindow(windowIdStr);
+      const scored = await rulerScoringService.scoreWindow(windowId);
       if (scored > 0) {
         logger.info('Scored trajectories with RULER', {
-          windowId: windowIdStr,
+          windowId,
           scored,
         });
       }
@@ -996,22 +997,12 @@ export class AutomationPipeline {
       .where(eq(trainingBatches.status, 'training'));
     const trainingCount = trainingCountResult[0]?.count || 0;
 
-    // Health checks
-    let dbHealthy = false;
-    try {
-      await db.select({ count: count() }).from(users);
-      dbHealthy = true;
-    } catch {
-      dbHealthy = false;
-    }
+    // Health checks - fail fast if unhealthy
+    await db.select({ count: count() }).from(users);
+    const dbHealthy = true;
 
-    let storageHealthy = false;
-    try {
-      await fs.access(this.config.modelStoragePath);
-      storageHealthy = true;
-    } catch {
-      storageHealthy = false;
-    }
+    await fs.access(this.config.modelStoragePath);
+    const storageHealthy = true;
 
     const atroposHealthy = !!this.config.atroposApiUrl;
 

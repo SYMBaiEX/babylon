@@ -224,10 +224,10 @@ export const GET = withErrorHandling(
     // Parse evaluation if it exists
     let evaluation = null;
     if (report.resolution) {
-      try {
+      // Check if it's valid JSON before parsing
+      const trimmed = report.resolution.trim();
+      if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
         evaluation = JSON.parse(report.resolution);
-      } catch {
-        // Not JSON, treat as plain text resolution
       }
     }
 
