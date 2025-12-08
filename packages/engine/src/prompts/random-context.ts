@@ -14,14 +14,15 @@ import {
   db,
   desc,
   eq,
+  getDbInstance,
   gte,
   lte,
   markets,
-  organizations,
   posts,
   worldEvents,
 } from '@babylon/db';
 import { logger } from '@babylon/shared';
+import { StaticDataRegistry } from '../services/static-data-registry';
 import { sampleRandom, shuffleArray } from '../utils/randomization';
 
 export interface RandomMarketContext {
@@ -39,17 +40,23 @@ async function getMarketGainers(
   limit = 3
 ): Promise<Array<{ name: string; price: number; change: number }>> {
   try {
-    const companies = await db
-      .select()
-      .from(organizations)
-      .where(eq(organizations.type, 'company'))
-      .limit(50); // Get more than needed, then filter
+    // Get static org data and dynamic prices
+    const staticOrgs = StaticDataRegistry.getAllOrganizations().filter(
+      (o) => o.type === 'company'
+    );
+    const orgStates = await getDbInstance().getAllOrganizationStates();
+    const priceMap = new Map(
+      orgStates.map((s): [string, number | null] => [s.id, s.currentPrice])
+    );
 
-    const withChanges = companies
-      .filter((c) => c.currentPrice !== null && c.initialPrice !== null)
+    const withChanges = staticOrgs
+      .filter((c) => {
+        const currentPrice = priceMap.get(c.id) ?? c.initialPrice;
+        return currentPrice !== null && c.initialPrice !== null;
+      })
       .map((c) => {
-        const current = Number.parseFloat(c.currentPrice?.toString() || '0');
-        const initial = Number.parseFloat(c.initialPrice?.toString() || '0');
+        const current = priceMap.get(c.id) ?? c.initialPrice ?? 0;
+        const initial = c.initialPrice ?? 0;
         const change = initial > 0 ? ((current - initial) / initial) * 100 : 0;
         return { name: c.name, price: current, change };
       })
@@ -71,17 +78,23 @@ async function getMarketLosers(
   limit = 3
 ): Promise<Array<{ name: string; price: number; change: number }>> {
   try {
-    const companies = await db
-      .select()
-      .from(organizations)
-      .where(eq(organizations.type, 'company'))
-      .limit(50);
+    // Get static org data and dynamic prices (reuse data from gainers)
+    const staticOrgs = StaticDataRegistry.getAllOrganizations().filter(
+      (o) => o.type === 'company'
+    );
+    const orgStates = await getDbInstance().getAllOrganizationStates();
+    const priceMap = new Map(
+      orgStates.map((s): [string, number | null] => [s.id, s.currentPrice])
+    );
 
-    const withChanges = companies
-      .filter((c) => c.currentPrice !== null && c.initialPrice !== null)
+    const withChanges = staticOrgs
+      .filter((c) => {
+        const currentPrice = priceMap.get(c.id) ?? c.initialPrice;
+        return currentPrice !== null && c.initialPrice !== null;
+      })
       .map((c) => {
-        const current = Number.parseFloat(c.currentPrice?.toString() || '0');
-        const initial = Number.parseFloat(c.initialPrice?.toString() || '0');
+        const current = priceMap.get(c.id) ?? c.initialPrice ?? 0;
+        const initial = c.initialPrice ?? 0;
         const change = initial > 0 ? ((current - initial) / initial) * 100 : 0;
         return { name: c.name, price: current, change };
       })

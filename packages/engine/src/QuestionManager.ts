@@ -59,16 +59,13 @@
  */
 
 import {
-  actors,
   and,
   Decimal,
   db,
   desc,
   eq,
   gte,
-  inArray,
   markets,
-  organizations,
   questions,
   tags,
   trendingTags,
@@ -78,6 +75,7 @@ import { generateSnowflakeId, logger } from '@babylon/shared';
 import { type Article, ArticleGenerator } from './ArticleGenerator';
 import type { BabylonLLMClient } from './llm/openai-client';
 import { BabylonLLMClient as BabylonLLMClientValue } from './llm/openai-client';
+import { StaticDataRegistry } from './services/static-data-registry';
 import { MarketDecisionEngine } from './MarketDecisionEngine';
 import { PredictionPricing } from './prediction-pricing';
 import {
@@ -906,31 +904,33 @@ ${s.involvedOrganizations?.length ? `Organizations: ${s.involvedOrganizations.jo
         )
         .orderBy(desc(questions.updatedAt))
         .limit(10),
-      // Get actors (main and supporting roles)
-      db
-        .select({
-          id: actors.id,
-          name: actors.name,
-          description: actors.description,
-          domain: actors.domain,
-          role: actors.role,
-          personality: actors.personality,
-          affiliations: actors.affiliations,
-        })
-        .from(actors)
-        .where(inArray(actors.role, ['main', 'supporting']))
-        .limit(30),
-      // Get organizations (companies)
-      db
-        .select({
-          id: organizations.id,
-          name: organizations.name,
-          description: organizations.description,
-          type: organizations.type,
-        })
-        .from(organizations)
-        .where(eq(organizations.type, 'company'))
-        .limit(20),
+      // Get actors (main and supporting roles) from static registry
+      Promise.resolve(
+        StaticDataRegistry.getAllActors()
+          .filter((a) => a.role === 'main' || a.role === 'supporting')
+          .slice(0, 30)
+          .map((a) => ({
+            id: a.id,
+            name: a.name,
+            description: a.description,
+            domain: a.domain,
+            role: a.role,
+            personality: a.personality,
+            affiliations: a.affiliations,
+          }))
+      ),
+      // Get organizations (companies) from static registry
+      Promise.resolve(
+        StaticDataRegistry.getAllOrganizations()
+          .filter((o) => o.type === 'company')
+          .slice(0, 20)
+          .map((o) => ({
+            id: o.id,
+            name: o.name,
+            description: o.description,
+            type: o.type,
+          }))
+      ),
       // Get trending topics for context (with manual join for tags)
       db
         .select({

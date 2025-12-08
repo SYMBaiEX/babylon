@@ -14,7 +14,6 @@
  */
 
 import {
-  actors,
   and,
   asc,
   comments,
@@ -29,7 +28,6 @@ import {
   lt,
   lte,
   markets,
-  organizations,
   type Post,
   positions,
   posts,
@@ -39,6 +37,7 @@ import {
   userActorFollows,
   users,
 } from '@babylon/db';
+import { StaticDataRegistry } from '@babylon/engine';
 import { logger } from '@babylon/shared';
 import {
   CACHE_KEYS,
@@ -128,22 +127,19 @@ class CachedDatabaseService {
       cacheKey,
       async () => {
         // First, filter out test users from followedIds
-        const [testUsers, testActors] = await Promise.all([
-          db
-            .select({ id: users.id })
-            .from(users)
-            .where(and(inArray(users.id, followedIds), eq(users.isTest, true))),
-          db
-            .select({ id: actors.id })
-            .from(actors)
-            .where(
-              and(inArray(actors.id, followedIds), eq(actors.isTest, true))
-            ),
-        ]);
+        const testUsers = await db
+          .select({ id: users.id })
+          .from(users)
+          .where(and(inArray(users.id, followedIds), eq(users.isTest, true)));
+
+        // Get test actors from static registry
+        const testActorIds = StaticDataRegistry.getAllActors()
+          .filter((a) => a.isTest && followedIds.includes(a.id))
+          .map((a) => a.id);
 
         const testAuthorIds = new Set([
           ...testUsers.map((u) => u.id),
-          ...testActors.map((a) => a.id),
+          ...testActorIds,
         ]);
 
         // Remove test users from followedIds
@@ -326,23 +322,18 @@ class CachedDatabaseService {
    * Get actor by ID with caching
    */
   async getActorById(actorId: string) {
-    const cacheKey = actorId;
+    // Static data from registry - no caching needed (already in memory)
+    const staticActor = StaticDataRegistry.getActor(actorId);
+    if (!staticActor) return null;
 
-    return getCacheOrFetch(
-      cacheKey,
-      async () => {
-        const result = await db
-          .select()
-          .from(actors)
-          .where(eq(actors.id, actorId))
-          .limit(1);
-        return result[0] ?? null;
-      },
-      {
-        namespace: CACHE_KEYS.ACTOR,
-        ttl: DEFAULT_TTLS.ACTOR,
-      }
-    );
+    // Optionally combine with dynamic state
+    const state = await getDbInstance().getActorState(actorId);
+    return {
+      ...staticActor,
+      tradingBalance: state?.tradingBalance ?? '10000',
+      reputationPoints: state?.reputationPoints ?? 10000,
+      hasPool: state?.hasPool ?? false,
+    };
   }
 
   /**
@@ -360,23 +351,16 @@ class CachedDatabaseService {
    * Get organization by ID with caching
    */
   async getOrganizationById(orgId: string) {
-    const cacheKey = orgId;
+    // Static data from registry - no caching needed (already in memory)
+    const staticOrg = StaticDataRegistry.getOrganization(orgId);
+    if (!staticOrg) return null;
 
-    return getCacheOrFetch(
-      cacheKey,
-      async () => {
-        const result = await db
-          .select()
-          .from(organizations)
-          .where(eq(organizations.id, orgId))
-          .limit(1);
-        return result[0] ?? null;
-      },
-      {
-        namespace: CACHE_KEYS.ORGANIZATION,
-        ttl: DEFAULT_TTLS.ORGANIZATION,
-      }
-    );
+    // Optionally combine with dynamic state
+    const state = await getDbInstance().getOrganizationState(orgId);
+    return {
+      ...staticOrg,
+      currentPrice: state?.currentPrice ?? staticOrg.initialPrice,
+    };
   }
 
   /**

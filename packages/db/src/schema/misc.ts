@@ -293,70 +293,6 @@ export const parodyHeadlines = pgTable(
   ]
 );
 
-/**
- * @deprecated MIGRATION COMPLETE
- *
- * The `characterMappings` table is deprecated. Character mappings are now
- * generated automatically from static actor data in TypeScript and accessed
- * via StaticDataRegistry.getAllCharacterMappings() from @babylon/engine.
- *
- * See: packages/engine/src/data/actors/*.ts for actor data
- * See: packages/engine/src/services/static-data-registry.ts for mapping generation
- */
-export const characterMappings = pgTable(
-  'CharacterMapping',
-  {
-    id: text('id').primaryKey(),
-    realName: text('realName').notNull().unique(),
-    parodyName: text('parodyName').notNull(),
-    category: text('category').notNull(),
-    aliases: text('aliases').array().notNull().default([]),
-    isActive: boolean('isActive').notNull().default(true),
-    priority: integer('priority').notNull().default(0),
-    createdAt: timestamp('createdAt', { mode: 'date' }).notNull().defaultNow(),
-    updatedAt: timestamp('updatedAt', { mode: 'date' }).notNull(),
-  },
-  (table) => [
-    index('CharacterMapping_category_isActive_idx').on(
-      table.category,
-      table.isActive
-    ),
-    index('CharacterMapping_priority_idx').on(table.priority),
-  ]
-);
-
-/**
- * @deprecated MIGRATION COMPLETE
- *
- * The `organizationMappings` table is deprecated. Organization mappings are now
- * generated automatically from static organization data in TypeScript and accessed
- * via StaticDataRegistry.getAllOrganizationMappings() from @babylon/engine.
- *
- * See: packages/engine/src/data/organizations/*.ts for organization data
- * See: packages/engine/src/services/static-data-registry.ts for mapping generation
- */
-export const organizationMappings = pgTable(
-  'OrganizationMapping',
-  {
-    id: text('id').primaryKey(),
-    realName: text('realName').notNull().unique(),
-    parodyName: text('parodyName').notNull(),
-    category: text('category').notNull(),
-    aliases: text('aliases').array().notNull().default([]),
-    isActive: boolean('isActive').notNull().default(true),
-    priority: integer('priority').notNull().default(0),
-    createdAt: timestamp('createdAt', { mode: 'date' }).notNull().defaultNow(),
-    updatedAt: timestamp('updatedAt', { mode: 'date' }).notNull(),
-  },
-  (table) => [
-    index('OrganizationMapping_category_isActive_idx').on(
-      table.category,
-      table.isActive
-    ),
-    index('OrganizationMapping_priority_idx').on(table.priority),
-  ]
-);
-
 // TickTokenStats - Stores LLM token usage statistics per game tick
 export const tickTokenStats = pgTable(
   'TickTokenStats',
@@ -439,9 +375,5 @@ export type RSSHeadline = typeof rssHeadlines.$inferSelect;
 export type NewRSSHeadline = typeof rssHeadlines.$inferInsert;
 export type ParodyHeadline = typeof parodyHeadlines.$inferSelect;
 export type NewParodyHeadline = typeof parodyHeadlines.$inferInsert;
-export type CharacterMapping = typeof characterMappings.$inferSelect;
-export type NewCharacterMapping = typeof characterMappings.$inferInsert;
-export type OrganizationMapping = typeof organizationMappings.$inferSelect;
-export type NewOrganizationMapping = typeof organizationMappings.$inferInsert;
 export type TickTokenStatsRow = typeof tickTokenStats.$inferSelect;
 export type NewTickTokenStatsRow = typeof tickTokenStats.$inferInsert;

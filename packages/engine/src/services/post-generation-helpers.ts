@@ -16,7 +16,6 @@
  */
 
 import {
-  type Actor,
   and,
   db,
   desc,
@@ -27,7 +26,6 @@ import {
   inArray,
   isNull,
   lte,
-  type Organization,
   poolPositions,
   posts,
   type Question,
@@ -43,6 +41,27 @@ import { StaticDataRegistry } from './static-data-registry';
 
 // Minimal question type for post generation (only fields actually used)
 type QuestionForPost = Pick<Question, 'id' | 'text' | 'questionNumber'>;
+
+// Minimal actor type for post generation
+interface ActorForPost {
+  id: string;
+  name: string;
+  description?: string | null;
+  personality?: string | null;
+  postStyle?: string | null;
+  postExample?: string[] | null;
+  tier?: string | null;
+  domain?: string[];
+}
+
+// Minimal organization type for post generation
+interface OrganizationForPost {
+  id: string;
+  name: string;
+  description?: string;
+  type?: string;
+  ticker?: string | null;
+}
 
 /**
  * Shared context loaded ONCE and passed to all NPC post generators
@@ -176,7 +195,7 @@ export async function loadSharedPostContext(): Promise<SharedPostContext> {
  * WITHOUT making any additional database queries
  */
 function buildNPCContext(
-  actor: Actor,
+  actor: ActorForPost,
   sharedContext: SharedPostContext
 ): NPCContentContext {
   const npcId = actor.id;
@@ -331,7 +350,7 @@ async function getNPCPositions(
  */
 export async function generateNPCPost(
   llmClient: BabylonLLMClient,
-  actor: Actor,
+  actor: ActorForPost,
   question: QuestionForPost,
   worldFactsContext: string,
   timestamp: Date,
@@ -461,7 +480,7 @@ Return your response as XML in this exact format:
  */
 export async function generateOrgPost(
   llmClient: BabylonLLMClient,
-  org: Organization,
+  org: OrganizationForPost,
   question: QuestionForPost,
   worldFactsContext: string,
   timestamp: Date
@@ -558,7 +577,7 @@ Return your response as XML in this exact format:
  */
 export async function generateOrgArticle(
   llmClient: BabylonLLMClient,
-  org: Organization,
+  org: OrganizationForPost,
   question: QuestionForPost,
   worldFactsContext: string,
   timestamp: Date

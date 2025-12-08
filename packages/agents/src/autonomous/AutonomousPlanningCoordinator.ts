@@ -13,12 +13,14 @@ import {
   db,
   desc,
   eq,
+  getDbInstance,
   inArray,
   isNull,
   perpPositions,
   positions,
   users,
 } from '@babylon/db';
+import { StaticDataRegistry } from '@babylon/engine';
 import type { IAgentRuntime } from '@elizaos/core';
 import { sql } from 'drizzle-orm';
 import { callGroqDirect } from '../llm/direct-groq';
@@ -967,10 +969,17 @@ async function detectTradingOpportunities(
   }
 
   // Get perp markets with significant price movement
-  const perpMarkets = await db.organization.findMany({
-    where: { type: 'company' },
-    take: 10,
-  });
+  const orgStates = await getDbInstance().getAllOrganizationStates();
+  const priceMap = new Map(
+    orgStates.map((s): [string, number | null] => [s.id, s.currentPrice])
+  );
+  const perpMarkets = StaticDataRegistry.getAllOrganizations()
+    .filter((o) => o.type === 'company')
+    .slice(0, 10)
+    .map((o) => ({
+      ...o,
+      currentPrice: priceMap.get(o.id) ?? o.initialPrice,
+    }));
 
   for (const org of perpMarkets) {
     const currentPrice = Number(org.currentPrice || org.initialPrice || 100);

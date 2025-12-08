@@ -1,8 +1,8 @@
 /**
  * Edge Case E2E Tests
  *
- * Tests application behavior with unusual inputs.
- * These tests verify the app doesn't crash and handles edge cases gracefully.
+ * Tests security and input validation edge cases.
+ * Focuses on meaningful security/validation checks, not just "doesn't crash".
  */
 
 import { expect, test } from '@playwright/test';
@@ -12,16 +12,11 @@ import {
   waitForPageLoad,
 } from './helpers/page-helpers';
 import { loginWithWallet } from './helpers/privy-auth';
-import {
-  ROUTES,
-  TEST_FORM_DATA,
-  TIMEOUTS,
-  VIEWPORTS,
-} from './helpers/test-data';
+import { ROUTES, TIMEOUTS, VIEWPORTS } from './helpers/test-data';
 
 test.setTimeout(TIMEOUTS.EXTRA_LONG);
 
-test.describe('Edge Cases - Security', () => {
+test.describe('Security', () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize(VIEWPORTS.DESKTOP);
     await navigateTo(page, ROUTES.HOME);
@@ -33,7 +28,7 @@ test.describe('Edge Cases - Security', () => {
     await cooldownBetweenTests(page);
   });
 
-  test('should sanitize XSS attempts in settings bio', async ({ page }) => {
+  test('XSS script tags do not execute in form inputs', async ({ page }) => {
     await navigateTo(page, ROUTES.SETTINGS);
     await waitForPageLoad(page);
 
@@ -41,27 +36,24 @@ test.describe('Edge Cases - Security', () => {
       .locator('textarea#bio, textarea[name="bio"]')
       .first();
 
-    // Skip if bio field not visible (page might be in different state)
     if (!(await bioTextarea.isVisible({ timeout: TIMEOUTS.SHORT }))) {
       test.skip();
       return;
     }
 
+    // Inject XSS payload
     await bioTextarea.clear();
-    await bioTextarea.fill(TEST_FORM_DATA.XSS_ATTEMPT);
+    await bioTextarea.fill('<script>window.xssTriggered=true</script>');
     await page.waitForTimeout(500);
 
-    // The script should not execute
-    const alertTriggered = await page.evaluate(() => {
-      return (
-        (window as Window & { xssTriggered?: boolean }).xssTriggered === true
-      );
+    // Verify script did NOT execute
+    const xssTriggered = await page.evaluate(() => {
+      return (window as Window & { xssTriggered?: boolean }).xssTriggered === true;
     });
-
-    expect(alertTriggered).toBe(false);
+    expect(xssTriggered).toBe(false);
   });
 
-  test('should handle SQL injection attempts in search', async ({ page }) => {
+  test('SQL injection does not expose database errors', async ({ page }) => {
     await navigateTo(page, ROUTES.MARKETS);
     await waitForPageLoad(page);
 
@@ -69,40 +61,35 @@ test.describe('Edge Cases - Security', () => {
       .locator('input[type="search"], input[placeholder*="Search"]')
       .first();
 
-    // Skip if search not visible
     if (!(await searchInput.isVisible({ timeout: TIMEOUTS.SHORT }))) {
       test.skip();
       return;
     }
 
-    await searchInput.fill(TEST_FORM_DATA.SQL_INJECTION);
+    await searchInput.fill("'; DROP TABLE users; --");
     await page.waitForTimeout(1000);
 
-    // Page should not crash or show SQL errors
     const content = await page.locator('body').textContent();
-    expect(content).toBeTruthy();
-
-    const hasSqlError =
-      content?.toLowerCase().includes('sql') &&
-      content?.toLowerCase().includes('error');
-    expect(hasSqlError).toBe(false);
+    // Should not show SQL syntax or database errors
+    expect(content?.toLowerCase()).not.toContain('syntax error');
+    expect(content?.toLowerCase()).not.toContain('postgresql');
+    expect(content?.toLowerCase()).not.toContain('mysql');
   });
 
-  test('should not expose server errors to users', async ({ page }) => {
-    // Try to access an invalid API endpoint
-    const response = await page.request.get('/api/nonexistent-endpoint-12345');
+  test('API errors do not expose stack traces', async ({ page }) => {
+    const response = await page.request.get('/api/nonexistent-endpoint-xyz');
 
-    // Should return 404, not 500 with stack trace
     expect(response.status()).toBe(404);
 
     const text = await response.text();
-    // Should not expose internal details
-    expect(text.toLowerCase()).not.toContain('stack trace');
-    expect(text.toLowerCase()).not.toContain('internal server');
+    expect(text.toLowerCase()).not.toContain('stack');
+    expect(text.toLowerCase()).not.toContain('at module');
+    expect(text.toLowerCase()).not.toContain('/node_modules/');
+    expect(text.toLowerCase()).not.toContain('internal server error');
   });
 });
 
-test.describe('Edge Cases - Input Validation', () => {
+test.describe('Input Validation', () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize(VIEWPORTS.DESKTOP);
     await navigateTo(page, ROUTES.HOME);
@@ -114,7 +101,7 @@ test.describe('Edge Cases - Input Validation', () => {
     await cooldownBetweenTests(page);
   });
 
-  test('should handle empty form submission on feed', async ({ page }) => {
+  test('empty post submission is prevented', async ({ page }) => {
     await navigateTo(page, ROUTES.FEED);
     await waitForPageLoad(page);
 
@@ -143,7 +130,7 @@ test.describe('Edge Cases - Input Validation', () => {
     await page.keyboard.press('Escape');
   });
 
-  test('should handle unicode/emoji in profile settings', async ({ page }) => {
+  test('unicode and emoji characters are preserved in inputs', async ({ page }) => {
     await navigateTo(page, ROUTES.SETTINGS);
     await waitForPageLoad(page);
 
@@ -156,18 +143,16 @@ test.describe('Edge Cases - Input Validation', () => {
       return;
     }
 
+    const unicodeTest = '日本語テスト 🎉 émojis';
     await displayNameInput.clear();
-    await displayNameInput.fill(TEST_FORM_DATA.UNICODE_STRING);
-    await page.waitForTimeout(500);
+    await displayNameInput.fill(unicodeTest);
 
-    // Value should be preserved (not corrupted)
     const value = await displayNameInput.inputValue();
-    expect(value.length).toBeGreaterThan(0);
-    // Should contain at least some of the unicode characters
     expect(value).toContain('🎉');
+    expect(value).toContain('日本語');
   });
 
-  test('should limit very long inputs', async ({ page }) => {
+  test('excessively long input is truncated', async ({ page }) => {
     await navigateTo(page, ROUTES.SETTINGS);
     await waitForPageLoad(page);
 
@@ -180,106 +165,28 @@ test.describe('Edge Cases - Input Validation', () => {
       return;
     }
 
+    const longString = 'A'.repeat(5000);
     await displayNameInput.clear();
-    await displayNameInput.fill(TEST_FORM_DATA.LONG_STRING);
-    await page.waitForTimeout(500);
+    await displayNameInput.fill(longString);
 
-    // Value should be limited (not allow 5000 chars)
     const value = await displayNameInput.inputValue();
-    expect(value.length).toBeLessThan(TEST_FORM_DATA.LONG_STRING.length);
+    // Should be truncated to reasonable length
+    expect(value.length).toBeLessThan(500);
   });
 });
 
-test.describe('Edge Cases - 404 and Error Handling', () => {
-  test('should show 404 page for invalid routes', async ({ page }) => {
+test.describe('Error Pages', () => {
+  test('404 page shows for invalid routes', async ({ page }) => {
     await page.goto(
-      `${process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000'}/nonexistent-page-12345`
+      `${process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000'}/definitely-not-a-page-xyz`
     );
     await waitForPageLoad(page);
 
     const content = await page.locator('body').textContent();
-    expect(content).toBeTruthy();
-
-    // Should show some indication of 404
-    const has404 =
+    const shows404 =
       content?.includes('404') ||
-      content?.toLowerCase().includes('not found') ||
-      content?.toLowerCase().includes('page not found');
-    expect(has404).toBe(true);
-  });
+      content?.toLowerCase().includes('not found');
 
-  test('should handle invalid post ID gracefully', async ({ page }) => {
-    await page.goto(
-      `${process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000'}/post/invalid-id-12345`
-    );
-    await waitForPageLoad(page);
-
-    // Should not crash - either show 404 or redirect
-    const content = await page.locator('body').textContent();
-    expect(content).toBeTruthy();
-  });
-
-  test('should handle invalid profile ID gracefully', async ({ page }) => {
-    await page.goto(
-      `${process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000'}/profile/invalid-user-12345`
-    );
-    await waitForPageLoad(page);
-
-    // Should not crash
-    const content = await page.locator('body').textContent();
-    expect(content).toBeTruthy();
-  });
-});
-
-test.describe('Edge Cases - Rapid Actions', () => {
-  test.beforeEach(async ({ page }) => {
-    await page.setViewportSize(VIEWPORTS.DESKTOP);
-    await navigateTo(page, ROUTES.HOME);
-    await loginWithWallet(page);
-    await page.waitForTimeout(2000);
-  });
-
-  test('should handle rapid tab switching', async ({ page }) => {
-    await navigateTo(page, ROUTES.MARKETS);
-    await waitForPageLoad(page);
-
-    const tabs = page.locator('[role="tab"]');
-    const tabCount = await tabs.count();
-
-    if (tabCount < 2) {
-      test.skip();
-      return;
-    }
-
-    // Rapidly click tabs
-    for (let i = 0; i < 10; i++) {
-      await tabs.nth(i % tabCount).click();
-      await page.waitForTimeout(50); // Very short wait
-    }
-
-    // Page should still be functional
-    const content = await page.locator('body').textContent();
-    expect(content).toBeTruthy();
-  });
-
-  test('should handle rapid navigation', async ({ page }) => {
-    const routes: readonly string[] = [
-      ROUTES.FEED,
-      ROUTES.MARKETS,
-      ROUTES.PROFILE,
-    ];
-
-    for (let i = 0; i < 6; i++) {
-      const routeIndex = i % routes.length;
-      const route = routes[routeIndex];
-      if (!route) continue;
-      await navigateTo(page, route);
-      await page.waitForTimeout(100); // Very short wait
-    }
-
-    // Should end up on last route without crashing
-    await waitForPageLoad(page);
-    const content = await page.locator('body').textContent();
-    expect(content).toBeTruthy();
+    expect(shows404).toBe(true);
   });
 });

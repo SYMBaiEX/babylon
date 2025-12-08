@@ -11,10 +11,10 @@ import {
   db,
   desc,
   eq,
+  getDbInstance,
   gte,
   isNull,
   markets,
-  organizations,
   perpPositions,
   positions,
   sql,
@@ -26,6 +26,7 @@ import {
   PerpTradeService,
   PredictionPricing,
   shuffleArray,
+  StaticDataRegistry,
   WalletService,
 } from '@babylon/engine';
 import type { IAgentRuntime } from '@elizaos/core';
@@ -108,12 +109,17 @@ export class AutonomousTradingService {
       .orderBy(desc(markets.createdAt))
       .limit(10);
 
-    const perpMarkets = await db
-      .select()
-      .from(organizations)
-      .where(eq(organizations.type, 'org'))
-      .orderBy(desc(organizations.currentPrice))
-      .limit(10);
+    // Get perp markets from static registry with dynamic prices
+    const orgStates = await getDbInstance().getOrganizationsByPrice();
+    const perpMarkets = orgStates
+      .slice(0, 10)
+      .map((state) => {
+        const staticOrg = StaticDataRegistry.getOrganization(state.id);
+        return staticOrg
+          ? { ...staticOrg, currentPrice: state.currentPrice ?? staticOrg.initialPrice }
+          : null;
+      })
+      .filter((o): o is NonNullable<typeof o> => o !== null && o.type === 'company');
 
     const balance = await WalletService.getBalance(agentUserId);
 

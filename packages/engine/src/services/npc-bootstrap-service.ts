@@ -12,13 +12,11 @@
  * - Maintains system liquidity by topping up underfunded NPCs
  */
 
-import { actors, db, eq, organizations, pools } from '@babylon/db';
+import { actorState, db, eq, organizationState, pools } from '@babylon/db';
 import type { ActorTier } from '@babylon/shared';
 import { logger } from '@babylon/shared';
-import { existsSync } from 'fs';
-import { join } from 'path';
-import { loadActorsData } from '../actors-loader';
 import { CapitalAllocationService } from './capital-allocation-service';
+import { StaticDataRegistry } from './static-data-registry';
 
 // Minimum balance thresholds by tier
 const MINIMUM_BALANCE_BY_TIER: Record<string, number> = {
@@ -73,30 +71,33 @@ export class NPCBootstrapService {
     };
 
     try {
-      // Load actors from data files
-      const actorsData = loadActorsData();
+      // Get static data from registry
+      const staticActors = StaticDataRegistry.getAllActors();
+      const staticOrgs = StaticDataRegistry.getAllOrganizations();
 
-      // Check if database needs seeding
-      const existingActors = await db.select({ id: actors.id }).from(actors);
-      const existingActorIds = new Set(existingActors.map((a) => a.id));
+      // Check if database needs seeding (state tables)
+      const existingActorStates = await db
+        .select({ id: actorState.id })
+        .from(actorState);
+      const existingActorIds = new Set(existingActorStates.map((a) => a.id));
 
-      // Seed missing actors
-      for (const actor of actorsData.actors) {
+      // Seed missing actor states
+      for (const actor of staticActors) {
         if (!existingActorIds.has(actor.id)) {
-          await this.seedActor(actor);
+          await this.seedActorState(actor);
           result.actorsCreated++;
         }
       }
 
-      // Seed missing organizations
-      const existingOrgs = await db
-        .select({ id: organizations.id })
-        .from(organizations);
-      const existingOrgIds = new Set(existingOrgs.map((o) => o.id));
+      // Seed missing organization states
+      const existingOrgStates = await db
+        .select({ id: organizationState.id })
+        .from(organizationState);
+      const existingOrgIds = new Set(existingOrgStates.map((o) => o.id));
 
-      for (const org of actorsData.organizations) {
+      for (const org of staticOrgs) {
         if (!existingOrgIds.has(org.id)) {
-          await this.seedOrganization(org);
+          await this.seedOrganizationState(org);
           result.organizationsCreated++;
         }
       }
@@ -142,110 +143,53 @@ export class NPCBootstrapService {
   }
 
   /**
-   * Seed a single actor from data file
+   * Seed actor state (dynamic data only)
    */
-  private static async seedActor(actor: {
+  private static async seedActorState(actor: {
     id: string;
     name: string;
-    description?: string;
-    domain?: string[];
-    personality?: string;
-    tier?: string;
-    affiliations?: string[];
-    postStyle?: string;
-    postExample?: string[];
-    role?: string;
-    initialLuck?: string;
-    initialMood?: number;
+    tier: ActorTier | null;
+    domain: string[];
   }): Promise<void> {
-    // Check if actor image exists
-    const imagePath = join(
-      process.cwd(),
-      'public',
-      'images',
-      'actors',
-      `${actor.id}.jpg`
-    );
-    const profileImageUrl = existsSync(imagePath)
-      ? `/images/actors/${actor.id}.jpg`
-      : null;
-
-    // Calculate capital based on tier
     const capital = CapitalAllocationService.calculateCapital({
       id: actor.id,
       name: actor.name,
-      description: actor.description,
+      description: undefined,
       domain: actor.domain,
-      tier: actor.tier as ActorTier | undefined,
+      tier: actor.tier ?? undefined,
     });
 
-    await db.insert(actors).values({
+    await db.insert(actorState).values({
       id: actor.id,
-      name: actor.name,
-      description: actor.description ?? null,
-      domain: actor.domain ?? [],
-      personality: actor.personality ?? null,
-      tier: actor.tier ?? null,
-      affiliations: actor.affiliations ?? [],
-      postStyle: actor.postStyle ?? null,
-      postExample: actor.postExample ?? [],
-      role: actor.role ?? null,
-      initialLuck: actor.initialLuck ?? 'medium',
-      initialMood: actor.initialMood ?? 0,
       tradingBalance: capital.tradingBalance.toString(),
       reputationPoints: capital.reputationPoints,
-      profileImageUrl,
       hasPool: false,
-      isTest: false,
       updatedAt: new Date(),
     });
 
     logger.debug(
-      `Seeded actor ${actor.name} with $${capital.tradingBalance}`,
+      `Seeded actor state ${actor.name} with $${capital.tradingBalance}`,
       { actorId: actor.id, balance: capital.tradingBalance },
       'NPCBootstrapService'
     );
   }
 
   /**
-   * Seed a single organization from data file
+   * Seed organization state (dynamic data only)
    */
-  private static async seedOrganization(org: {
+  private static async seedOrganizationState(org: {
     id: string;
     name: string;
-    ticker?: string;
-    description?: string;
-    type?: string;
-    canBeInvolved?: boolean;
-    initialPrice?: number;
+    initialPrice: number | null;
   }): Promise<void> {
-    // Check if org image exists
-    const imagePath = join(
-      process.cwd(),
-      'public',
-      'images',
-      'organizations',
-      `${org.id}.jpg`
-    );
-    const imageUrl = existsSync(imagePath)
-      ? `/images/organizations/${org.id}.jpg`
-      : null;
-
-    await db.insert(organizations).values({
+    await db.insert(organizationState).values({
       id: org.id,
-      name: org.name,
-      ticker: org.ticker ?? null,
-      description: org.description ?? '',
-      type: org.type ?? 'company',
-      canBeInvolved: org.canBeInvolved !== false,
-      initialPrice: org.initialPrice ?? null,
-      currentPrice: org.initialPrice ?? null,
-      imageUrl,
+      currentPrice: org.initialPrice,
       updatedAt: new Date(),
     });
 
     logger.debug(
-      `Seeded organization ${org.name}`,
+      `Seeded organization state ${org.name}`,
       { orgId: org.id },
       'NPCBootstrapService'
     );
@@ -253,58 +197,48 @@ export class NPCBootstrapService {
 
   /**
    * Ensure all actors have minimum trading balance
-   * Top up actors who fall below the threshold
    */
   private static async ensureMinimumBalances(): Promise<{
     count: number;
     totalAmount: number;
   }> {
-    // Get all actors with their current balances
-    const allActors = await db
+    // Get all actor states with their current balances
+    const allActorStates = await db
       .select({
-        id: actors.id,
-        name: actors.name,
-        tier: actors.tier,
-        tradingBalance: actors.tradingBalance,
+        id: actorState.id,
+        tradingBalance: actorState.tradingBalance,
       })
-      .from(actors);
+      .from(actorState);
 
     let toppedUpCount = 0;
     let totalTopUp = 0;
 
-    for (const actor of allActors) {
-      const currentBalance = Number(actor.tradingBalance) || 0;
-      const tier = actor.tier || 'C_TIER';
+    for (const state of allActorStates) {
+      const staticActor = StaticDataRegistry.getActor(state.id);
+      const currentBalance = Number(state.tradingBalance) || 0;
+      const tier = staticActor?.tier || 'C_TIER';
       const minimumBalance =
         MINIMUM_BALANCE_BY_TIER[tier] || DEFAULT_MINIMUM_BALANCE;
 
-      // Check if actor needs top up
       if (currentBalance < minimumBalance) {
-        // Calculate top up amount (to get to minimum, capped at max)
         const deficit = minimumBalance - currentBalance;
         const topUpAmount = Math.min(deficit, MAX_TOP_UP_AMOUNT);
         const newBalance = currentBalance + topUpAmount;
 
-        // Update actor balance
         await db
-          .update(actors)
+          .update(actorState)
           .set({
             tradingBalance: newBalance.toString(),
             updatedAt: new Date(),
           })
-          .where(eq(actors.id, actor.id));
+          .where(eq(actorState.id, state.id));
 
         toppedUpCount++;
         totalTopUp += topUpAmount;
 
         logger.debug(
-          `Topped up ${actor.name}: $${currentBalance} → $${newBalance}`,
-          {
-            actorId: actor.id,
-            oldBalance: currentBalance,
-            newBalance,
-            topUpAmount,
-          },
+          `Topped up ${staticActor?.name ?? state.id}: $${currentBalance} → $${newBalance}`,
+          { actorId: state.id, topUpAmount },
           'NPCBootstrapService'
         );
       }
@@ -317,24 +251,22 @@ export class NPCBootstrapService {
    * Ensure all actors have pools for trading
    */
   private static async ensureActorPools(): Promise<number> {
-    // Get actors without pools
-    const actorsWithoutPools = await db
+    // Get actor states without pools
+    const actorStatesWithoutPools = await db
       .select({
-        id: actors.id,
-        name: actors.name,
-        tradingBalance: actors.tradingBalance,
+        id: actorState.id,
+        tradingBalance: actorState.tradingBalance,
       })
-      .from(actors)
-      .where(eq(actors.hasPool, false));
+      .from(actorState)
+      .where(eq(actorState.hasPool, false));
 
     let created = 0;
 
-    for (const actor of actorsWithoutPools) {
-      // Create pool for actor
-      const poolId = actor.id; // Use actor ID as pool ID
-      const balance = Number(actor.tradingBalance) || 10000;
+    for (const state of actorStatesWithoutPools) {
+      const staticActor = StaticDataRegistry.getActor(state.id);
+      const poolId = state.id;
+      const balance = Number(state.tradingBalance) || 10000;
 
-      // Check if pool already exists
       const existingPool = await db
         .select({ id: pools.id })
         .from(pools)
@@ -344,8 +276,8 @@ export class NPCBootstrapService {
       if (existingPool.length === 0) {
         await db.insert(pools).values({
           id: poolId,
-          name: `${actor.name}'s Pool`,
-          npcActorId: actor.id,
+          name: `${staticActor?.name ?? state.id}'s Pool`,
+          npcActorId: state.id,
           totalValue: balance.toString(),
           totalDeposits: balance.toString(),
           availableBalance: balance.toString(),
@@ -357,11 +289,10 @@ export class NPCBootstrapService {
           updatedAt: new Date(),
         });
 
-        // Mark actor as having pool
         await db
-          .update(actors)
+          .update(actorState)
           .set({ hasPool: true, updatedAt: new Date() })
-          .where(eq(actors.id, actor.id));
+          .where(eq(actorState.id, state.id));
 
         created++;
       }
@@ -371,11 +302,9 @@ export class NPCBootstrapService {
   }
 
   /**
-   * Force a full reseed of all actors (useful for admin/testing)
-   * This updates existing actors to match data files
+   * Force a full reseed of all actor states (useful for admin/testing)
    */
   static async forceReseed(): Promise<BootstrapResult> {
-    // Reset the cooldown
     this.lastBootstrapTime = 0;
 
     const result: BootstrapResult = {
@@ -388,56 +317,41 @@ export class NPCBootstrapService {
       totalTopUpAmount: 0,
     };
 
-    const actorsData = loadActorsData();
+    const staticActors = StaticDataRegistry.getAllActors();
 
-    // Update or create all actors
-    for (const actor of actorsData.actors) {
+    for (const actor of staticActors) {
       const existing = await db
-        .select({ id: actors.id, tradingBalance: actors.tradingBalance })
-        .from(actors)
-        .where(eq(actors.id, actor.id))
+        .select({ id: actorState.id, tradingBalance: actorState.tradingBalance })
+        .from(actorState)
+        .where(eq(actorState.id, actor.id))
         .limit(1);
 
       if (existing.length > 0) {
-        const existingActor = existing[0];
-        if (!existingActor) continue;
+        const existingState = existing[0];
+        if (!existingState) continue;
 
-        // Keep existing balance if above minimum
-        const currentBalance = Number(existingActor.tradingBalance) || 0;
+        const currentBalance = Number(existingState.tradingBalance) || 0;
         const tier = actor.tier || 'C_TIER';
         const minimumBalance =
           MINIMUM_BALANCE_BY_TIER[tier] || DEFAULT_MINIMUM_BALANCE;
 
-        // Only update balance if below minimum
-        const newBalance = Math.max(currentBalance, minimumBalance);
-
-        await db
-          .update(actors)
-          .set({
-            name: actor.name,
-            description: actor.description ?? null,
-            domain: actor.domain ?? [],
-            personality: actor.personality ?? null,
-            tier: actor.tier ?? null,
-            affiliations: actor.affiliations ?? [],
-            postStyle: actor.postStyle ?? null,
-            postExample: actor.postExample ?? [],
-            tradingBalance:
-              currentBalance < minimumBalance
-                ? newBalance.toString()
-                : undefined,
-            updatedAt: new Date(),
-          })
-          .where(eq(actors.id, actor.id));
+        if (currentBalance < minimumBalance) {
+          await db
+            .update(actorState)
+            .set({
+              tradingBalance: minimumBalance.toString(),
+              updatedAt: new Date(),
+            })
+            .where(eq(actorState.id, actor.id));
+        }
 
         result.actorsUpdated++;
       } else {
-        await this.seedActor(actor);
+        await this.seedActorState(actor);
         result.actorsCreated++;
       }
     }
 
-    // Ensure pools and balances
     result.poolsCreated = await this.ensureActorPools();
     const topUpResult = await this.ensureMinimumBalances();
     result.actorsToppedUp = topUpResult.count;

@@ -9,9 +9,8 @@
 import {
   asUser,
   balanceTransactions,
-  db,
   eq,
-  organizations,
+  getDbInstance,
   perpPositions,
   users,
 } from '@babylon/db';
@@ -386,18 +385,17 @@ export class PerpTradeService {
       });
     }
 
-    const [latestOrganization] = await db
-      .select({ currentPrice: organizations.currentPrice })
-      .from(organizations)
-      .where(eq(organizations.id, dbPosition.organizationId))
-      .limit(1);
+    // Get current price from organization state
+    const orgState = await getDbInstance().getOrganizationState(
+      dbPosition.organizationId
+    );
 
     const enginePosition = perpsEngine.getPosition(positionId);
 
     const exitPrice = resolveExitPrice({
       enginePrice: enginePosition?.currentPrice ?? null,
-      organizationPrice: latestOrganization?.currentPrice
-        ? Number(latestOrganization.currentPrice)
+      organizationPrice: orgState?.currentPrice
+        ? Number(orgState.currentPrice)
         : null,
       positionPrice: dbPosition.currentPrice
         ? Number(dbPosition.currentPrice)
@@ -426,8 +424,8 @@ export class PerpTradeService {
         dbPositionPrice: dbPosition.currentPrice
           ? Number(dbPosition.currentPrice)
           : null,
-        organizationPrice: latestOrganization?.currentPrice
-          ? Number(latestOrganization.currentPrice)
+        organizationPrice: orgState?.currentPrice
+          ? Number(orgState.currentPrice)
           : null,
         exitPrice,
       },

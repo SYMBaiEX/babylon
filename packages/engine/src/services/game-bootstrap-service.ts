@@ -6,21 +6,19 @@
  */
 
 import {
-  actors,
+  actorState,
   db,
   eq,
   games,
   generateSnowflakeId,
-  organizations,
+  organizationState,
   pools,
   rssFeedSources,
   sql,
 } from '@babylon/db';
+import { StaticDataRegistry } from './static-data-registry';
 import type { ActorTier } from '@babylon/shared';
 import { logger } from '@babylon/shared';
-import { existsSync } from 'fs';
-import { join } from 'path';
-import { loadActorsData } from '../actors-loader';
 import { CapitalAllocationService } from './capital-allocation-service';
 
 // Minimum balance thresholds by tier
@@ -95,36 +93,6 @@ export interface GameBootstrapResult {
   totalTopUpAmount: number;
 }
 
-interface ActorDataInput {
-  id: string;
-  name: string;
-  realName?: string;
-  lastName?: string;
-  originalLastName?: string;
-  description?: string;
-  domain?: string[];
-  personality?: string;
-  tier?: string;
-  affiliations?: string[];
-  postStyle?: string;
-  postExample?: string[];
-  role?: string;
-  initialLuck?: string;
-  initialMood?: number;
-}
-
-interface OrgDataInput {
-  id: string;
-  name: string;
-  ticker?: string;
-  description?: string;
-  type?: string;
-  canBeInvolved?: boolean;
-  initialPrice?: number;
-  originalName?: string;
-  originalHandle?: string;
-}
-
 export class GameBootstrapService {
   private static lastBootstrapTime = 0;
   private static BOOTSTRAP_COOLDOWN_MS = 60000;
@@ -159,29 +127,30 @@ export class GameBootstrapService {
     };
 
     try {
-      // Load data from files
-      const actorsData = loadActorsData();
+      // Get static data from registry (no file loading needed)
+      const staticActors = StaticDataRegistry.getAllActors();
+      const staticOrgs = StaticDataRegistry.getAllOrganizations();
 
-      // Get existing database state
-      const [existingActors, existingOrgs] = await Promise.all([
-        db.select({ id: actors.id }).from(actors),
-        db.select({ id: organizations.id }).from(organizations),
+      // Get existing database state from state tables
+      const [existingActorStates, existingOrgStates] = await Promise.all([
+        db.select({ id: actorState.id }).from(actorState),
+        db.select({ id: organizationState.id }).from(organizationState),
       ]);
-      const existingActorIds = new Set(existingActors.map((a) => a.id));
-      const existingOrgIds = new Set(existingOrgs.map((o) => o.id));
+      const existingActorIds = new Set(existingActorStates.map((a) => a.id));
+      const existingOrgIds = new Set(existingOrgStates.map((o) => o.id));
 
-      // 1. Sync actors
-      for (const actor of actorsData.actors) {
+      // 1. Sync actor states (only dynamic data)
+      for (const actor of staticActors) {
         if (!existingActorIds.has(actor.id)) {
-          await this.seedActor(actor as ActorDataInput);
+          await this.seedActorState(actor);
           result.actorsCreated++;
         }
       }
 
-      // 2. Sync organizations
-      for (const org of actorsData.organizations) {
+      // 2. Sync organization states (only dynamic data)
+      for (const org of staticOrgs) {
         if (!existingOrgIds.has(org.id)) {
-          await this.seedOrganization(org as OrgDataInput);
+          await this.seedOrganizationState(org);
           result.organizationsCreated++;
         }
       }
@@ -242,18 +211,20 @@ export class GameBootstrapService {
       totalTopUpAmount: 0,
     };
 
-    const actorsData = loadActorsData();
+    // Get static data from registry
+    const staticActors = StaticDataRegistry.getAllActors();
+    const staticOrgs = StaticDataRegistry.getAllOrganizations();
 
-    // Sync all actors (update existing, create missing)
-    for (const actor of actorsData.actors) {
-      const syncResult = await this.syncActor(actor as ActorDataInput);
+    // Sync all actor states (update existing, create missing)
+    for (const actor of staticActors) {
+      const syncResult = await this.syncActorState(actor);
       if (syncResult.created) result.actorsCreated++;
       if (syncResult.updated) result.actorsUpdated++;
     }
 
-    // Sync all organizations
-    for (const org of actorsData.organizations) {
-      const syncResult = await this.syncOrganization(org as OrgDataInput);
+    // Sync all organization states
+    for (const org of staticOrgs) {
+      const syncResult = await this.syncOrganizationState(org);
       if (syncResult.created) result.organizationsCreated++;
       if (syncResult.updated) result.organizationsUpdated++;
     }
@@ -272,198 +243,136 @@ export class GameBootstrapService {
     return result;
   }
 
-  private static async seedActor(actor: ActorDataInput): Promise<void> {
-    const profileImageUrl = this.getActorImageUrl(actor.id);
+  private static async seedActorState(
+    actor: { id: string; name: string; tier: ActorTier | null; domain: string[] }
+  ): Promise<void> {
     const capital = CapitalAllocationService.calculateCapital({
       id: actor.id,
       name: actor.name,
-      description: actor.description,
+      description: undefined,
       domain: actor.domain,
-      tier: actor.tier as ActorTier | undefined,
+      tier: actor.tier ?? undefined,
     });
 
-    await db.insert(actors).values({
+    await db.insert(actorState).values({
       id: actor.id,
-      name: actor.name,
-      description: actor.description ?? null,
-      domain: actor.domain ?? [],
-      personality: actor.personality ?? null,
-      tier: actor.tier ?? null,
-      affiliations: actor.affiliations ?? [],
-      postStyle: actor.postStyle ?? null,
-      postExample: actor.postExample ?? [],
-      role: actor.role ?? null,
-      initialLuck: actor.initialLuck ?? 'medium',
-      initialMood: actor.initialMood ?? 0,
       tradingBalance: capital.tradingBalance.toString(),
       reputationPoints: capital.reputationPoints,
-      profileImageUrl,
       hasPool: false,
-      isTest: false,
       updatedAt: new Date(),
     });
 
     logger.debug(
-      `Seeded actor ${actor.name} with $${capital.tradingBalance}`,
+      `Seeded actor state ${actor.name} with $${capital.tradingBalance}`,
       { actorId: actor.id },
       'GameBootstrapService'
     );
   }
 
-  private static async syncActor(
-    actor: ActorDataInput
+  private static async syncActorState(
+    actor: { id: string; name: string; tier: ActorTier | null; domain: string[] }
   ): Promise<{ created: boolean; updated: boolean }> {
     const existing = await db
       .select({
-        id: actors.id,
-        tradingBalance: actors.tradingBalance,
+        id: actorState.id,
+        tradingBalance: actorState.tradingBalance,
       })
-      .from(actors)
-      .where(eq(actors.id, actor.id))
+      .from(actorState)
+      .where(eq(actorState.id, actor.id))
       .limit(1);
 
     if (existing.length === 0) {
-      await this.seedActor(actor);
+      await this.seedActorState(actor);
       return { created: true, updated: false };
     }
 
-    const existingActor = existing[0];
-    if (!existingActor) return { created: false, updated: false };
+    const existingState = existing[0];
+    if (!existingState) return { created: false, updated: false };
 
-    const profileImageUrl = this.getActorImageUrl(actor.id);
     const tier = actor.tier || 'C_TIER';
     const minimumBalance =
       MINIMUM_BALANCE_BY_TIER[tier] || DEFAULT_MINIMUM_BALANCE;
-    const currentBalance = Number(existingActor.tradingBalance) || 0;
+    const currentBalance = Number(existingState.tradingBalance) || 0;
 
     // Only update balance if below minimum
-    const newBalance =
-      currentBalance < minimumBalance ? minimumBalance : undefined;
-
-    await db
-      .update(actors)
-      .set({
-        name: actor.name,
-        description: actor.description ?? null,
-        domain: actor.domain ?? [],
-        personality: actor.personality ?? null,
-        tier: actor.tier ?? null,
-        affiliations: actor.affiliations ?? [],
-        postStyle: actor.postStyle ?? null,
-        postExample: actor.postExample ?? [],
-        profileImageUrl: profileImageUrl ?? undefined,
-        tradingBalance: newBalance?.toString(),
-        updatedAt: new Date(),
-      })
-      .where(eq(actors.id, actor.id));
+    if (currentBalance < minimumBalance) {
+      await db
+        .update(actorState)
+        .set({
+          tradingBalance: minimumBalance.toString(),
+          updatedAt: new Date(),
+        })
+        .where(eq(actorState.id, actor.id));
+    }
 
     return { created: false, updated: true };
   }
 
-  private static getActorImageUrl(actorId: string): string | null {
-    const imagePath = join(
-      process.cwd(),
-      'public',
-      'images',
-      'actors',
-      `${actorId}.jpg`
-    );
-    return existsSync(imagePath) ? `/images/actors/${actorId}.jpg` : null;
-  }
-
-  private static async seedOrganization(org: OrgDataInput): Promise<void> {
-    const imageUrl = this.getOrgImageUrl(org.id);
-
-    await db.insert(organizations).values({
+  private static async seedOrganizationState(org: {
+    id: string;
+    name: string;
+    initialPrice: number | null;
+  }): Promise<void> {
+    await db.insert(organizationState).values({
       id: org.id,
-      name: org.name,
-      ticker: org.ticker ?? null,
-      description: org.description ?? '',
-      type: org.type ?? 'company',
-      canBeInvolved: org.canBeInvolved !== false,
-      initialPrice: org.initialPrice ?? null,
-      currentPrice: org.initialPrice ?? null,
-      imageUrl,
+      currentPrice: org.initialPrice,
       updatedAt: new Date(),
     });
 
     logger.debug(
-      `Seeded organization ${org.name}`,
+      `Seeded organization state ${org.name}`,
       { orgId: org.id },
       'GameBootstrapService'
     );
   }
 
-  private static async syncOrganization(
-    org: OrgDataInput
-  ): Promise<{ created: boolean; updated: boolean }> {
+  private static async syncOrganizationState(org: {
+    id: string;
+    name: string;
+    initialPrice: number | null;
+  }): Promise<{ created: boolean; updated: boolean }> {
     const existing = await db
       .select({
-        id: organizations.id,
-        currentPrice: organizations.currentPrice,
+        id: organizationState.id,
+        currentPrice: organizationState.currentPrice,
       })
-      .from(organizations)
-      .where(eq(organizations.id, org.id))
+      .from(organizationState)
+      .where(eq(organizationState.id, org.id))
       .limit(1);
 
     if (existing.length === 0) {
-      await this.seedOrganization(org);
+      await this.seedOrganizationState(org);
       return { created: true, updated: false };
     }
 
-    const existingOrg = existing[0];
-    if (!existingOrg) return { created: false, updated: false };
+    const existingState = existing[0];
+    if (!existingState) return { created: false, updated: false };
 
-    const imageUrl = this.getOrgImageUrl(org.id);
-
-    await db
-      .update(organizations)
-      .set({
-        name: org.name,
-        ticker: org.ticker ?? null,
-        description: org.description ?? '',
-        type: org.type ?? 'company',
-        canBeInvolved: org.canBeInvolved !== false,
-        initialPrice: org.initialPrice ?? null,
-        currentPrice: org.initialPrice || existingOrg.currentPrice || null,
-        imageUrl: imageUrl ?? undefined,
-        updatedAt: new Date(),
-      })
-      .where(eq(organizations.id, org.id));
-
-    return { created: false, updated: true };
-  }
-
-  private static getOrgImageUrl(orgId: string): string | null {
-    const imagePath = join(
-      process.cwd(),
-      'public',
-      'images',
-      'organizations',
-      `${orgId}.jpg`
-    );
-    return existsSync(imagePath) ? `/images/organizations/${orgId}.jpg` : null;
+    // Organization state only contains currentPrice - no update needed for static data
+    // Price updates happen via the normal game tick flow
+    return { created: false, updated: false };
   }
 
   private static async ensureMinimumBalances(): Promise<{
     count: number;
     totalAmount: number;
   }> {
-    const allActors = await db
+    // Get all actor states with their balances
+    const allActorStates = await db
       .select({
-        id: actors.id,
-        name: actors.name,
-        tier: actors.tier,
-        tradingBalance: actors.tradingBalance,
+        id: actorState.id,
+        tradingBalance: actorState.tradingBalance,
       })
-      .from(actors);
+      .from(actorState);
 
     let toppedUpCount = 0;
     let totalTopUp = 0;
 
-    for (const actor of allActors) {
-      const currentBalance = Number(actor.tradingBalance) || 0;
-      const tier = actor.tier || 'C_TIER';
+    for (const state of allActorStates) {
+      // Get static actor data for tier info
+      const staticActor = StaticDataRegistry.getActor(state.id);
+      const currentBalance = Number(state.tradingBalance) || 0;
+      const tier = staticActor?.tier || 'C_TIER';
       const minimumBalance =
         MINIMUM_BALANCE_BY_TIER[tier] || DEFAULT_MINIMUM_BALANCE;
 
@@ -473,19 +382,19 @@ export class GameBootstrapService {
         const newBalance = currentBalance + topUpAmount;
 
         await db
-          .update(actors)
+          .update(actorState)
           .set({
             tradingBalance: newBalance.toString(),
             updatedAt: new Date(),
           })
-          .where(eq(actors.id, actor.id));
+          .where(eq(actorState.id, state.id));
 
         toppedUpCount++;
         totalTopUp += topUpAmount;
 
         logger.debug(
-          `Topped up ${actor.name}: $${currentBalance} → $${newBalance}`,
-          { actorId: actor.id, topUpAmount },
+          `Topped up ${staticActor?.name ?? state.id}: $${currentBalance} → $${newBalance}`,
+          { actorId: state.id, topUpAmount },
           'GameBootstrapService'
         );
       }
@@ -495,20 +404,21 @@ export class GameBootstrapService {
   }
 
   private static async ensureActorPools(): Promise<number> {
-    const actorsWithoutPools = await db
+    // Get actor states that don't have pools
+    const actorStatesWithoutPools = await db
       .select({
-        id: actors.id,
-        name: actors.name,
-        tradingBalance: actors.tradingBalance,
+        id: actorState.id,
+        tradingBalance: actorState.tradingBalance,
       })
-      .from(actors)
-      .where(eq(actors.hasPool, false));
+      .from(actorState)
+      .where(eq(actorState.hasPool, false));
 
     let created = 0;
 
-    for (const actor of actorsWithoutPools) {
-      const poolId = actor.id;
-      const balance = Number(actor.tradingBalance) || 10000;
+    for (const state of actorStatesWithoutPools) {
+      const poolId = state.id;
+      const balance = Number(state.tradingBalance) || 10000;
+      const staticActor = StaticDataRegistry.getActor(state.id);
 
       const existingPool = await db
         .select({ id: pools.id })
@@ -519,8 +429,8 @@ export class GameBootstrapService {
       if (existingPool.length === 0) {
         await db.insert(pools).values({
           id: poolId,
-          name: `${actor.name}'s Pool`,
-          npcActorId: actor.id,
+          name: `${staticActor?.name ?? state.id}'s Pool`,
+          npcActorId: state.id,
           totalValue: balance.toString(),
           totalDeposits: balance.toString(),
           availableBalance: balance.toString(),
@@ -533,9 +443,9 @@ export class GameBootstrapService {
         });
 
         await db
-          .update(actors)
+          .update(actorState)
           .set({ hasPool: true, updatedAt: new Date() })
-          .where(eq(actors.id, actor.id));
+          .where(eq(actorState.id, state.id));
 
         created++;
       }
@@ -625,13 +535,11 @@ export class GameBootstrapService {
     rssFeedSources: number;
   }> {
     const [actorCount, orgCount, poolCount, feedCount] = await Promise.all([
-      db.select({ count: sql<number>`count(*)` }).from(actors),
-      db.select({ count: sql<number>`count(*)` }).from(organizations),
+      db.select({ count: sql<number>`count(*)` }).from(actorState),
+      db.select({ count: sql<number>`count(*)` }).from(organizationState),
       db.select({ count: sql<number>`count(*)` }).from(pools),
       db.select({ count: sql<number>`count(*)` }).from(rssFeedSources),
     ]);
-
-    const { StaticDataRegistry } = await import('./static-data-registry');
 
     return {
       actors: Number(actorCount[0]?.count ?? 0),

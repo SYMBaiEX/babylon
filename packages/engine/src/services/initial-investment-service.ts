@@ -7,8 +7,8 @@
  * Uses LLM to determine appropriate investments based on NPC characteristics.
  */
 
-import { actors, db, eq, sql } from '@babylon/db';
-import { BabylonLLMClient, loadActorById } from '@babylon/engine';
+import { actorState, db, eq, getDbInstance, sql } from '@babylon/db';
+import { BabylonLLMClient, loadActorById, StaticDataRegistry } from '@babylon/engine';
 import { generateSnowflakeId, logger } from '@babylon/shared';
 
 /**
@@ -59,39 +59,39 @@ export class InitialInvestmentService {
       'InitialInvestment'
     );
 
-    // Get all NPCs with their affiliations
-    const npcs = (await db.actor.findMany({
-      where: { tradingBalance: { gt: '0' } },
-      select: {
-        id: true,
-        name: true,
-        affiliations: true,
-        domain: true,
-        personality: true,
-        tier: true,
-        tradingBalance: true,
-      },
-    })) as Array<{
-      id: string;
-      name: string;
-      affiliations: string[];
-      domain: string[];
-      personality: string | null;
-      tier: string | null;
-      tradingBalance: string;
-    }>;
+    // Get all NPCs with their affiliations from static registry + dynamic state
+    const actorStates = await getDbInstance().getAllActorStates();
+    const actorStateMap = new Map(actorStates.map((s) => [s.id, s]));
+    const npcs = StaticDataRegistry.getAllActors()
+      .map((actor) => {
+        const state = actorStateMap.get(actor.id);
+        const tradingBalance = state?.tradingBalance ?? '10000';
+        return {
+          id: actor.id,
+          name: actor.name,
+          affiliations: actor.affiliations ?? [],
+          domain: actor.domain ?? [],
+          personality: actor.personality ?? null,
+          tier: actor.tier ?? null,
+          tradingBalance,
+        };
+      })
+      .filter((npc) => Number.parseFloat(npc.tradingBalance) > 0);
 
-    // Get all companies
-    const companies = await db.organization.findMany({
-      where: { type: 'company', ticker: { not: null } },
-      select: {
-        id: true,
-        name: true,
-        ticker: true,
-        initialPrice: true,
-        currentPrice: true,
-      },
-    });
+    // Get all companies from static registry with dynamic prices
+    const orgStates = await getDbInstance().getAllOrganizationStates();
+    const priceMap = new Map(
+      orgStates.map((s): [string, number | null] => [s.id, s.currentPrice])
+    );
+    const companies = StaticDataRegistry.getAllOrganizations()
+      .filter((o) => o.type === 'company' && o.ticker)
+      .map((o) => ({
+        id: o.id,
+        name: o.name,
+        ticker: o.ticker ?? null,
+        initialPrice: o.initialPrice,
+        currentPrice: priceMap.get(o.id) ?? o.initialPrice,
+      }));
 
     if (companies.length === 0) {
       logger.warn(
@@ -469,14 +469,20 @@ Generate investments for ALL ${npcs.length} NPCs. Each NPC must have 2-5 investm
   private static async executeInvestment(
     investment: InitialInvestment
   ): Promise<void> {
-    // Get organization details
-    const org = await db.organization.findFirst({
-      where: { ticker: investment.ticker },
-    });
+    // Get organization details from static registry with dynamic price
+    const staticOrg = StaticDataRegistry.getAllOrganizations().find(
+      (o) => o.ticker === investment.ticker
+    );
 
-    if (!org || !org.ticker) {
+    if (!staticOrg || !staticOrg.ticker) {
       throw new Error(`Organization not found for ticker ${investment.ticker}`);
     }
+
+    const orgState = await getDbInstance().getOrganizationState(staticOrg.id);
+    const org = {
+      ...staticOrg,
+      currentPrice: orgState?.currentPrice ?? staticOrg.initialPrice,
+    };
 
     const entryPrice = org.currentPrice || org.initialPrice || 100;
     const shares = investment.amount / entryPrice;
@@ -552,11 +558,11 @@ Generate investments for ALL ${npcs.length} NPCs. Each NPC must have 2-5 investm
 
     // Deduct from NPC trading balance using raw SQL decrement
     await db
-      .update(actors)
+      .update(actorState)
       .set({
-        tradingBalance: sql`${actors.tradingBalance} - ${investment.amount}`,
+        tradingBalance: sql`${actorState.tradingBalance} - ${investment.amount}`,
       })
-      .where(eq(actors.id, investment.npcId));
+      .where(eq(actorState.id, investment.npcId));
 
     // Record the trade
     await db.npcTrade.create({

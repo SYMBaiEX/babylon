@@ -72,14 +72,12 @@ import {
   truncateToTokenLimitSync,
 } from '@babylon/api';
 import {
-  actors,
   and,
   db,
   desc,
   eq,
   gte,
   inArray,
-  organizations,
   posts,
   questions,
 } from '@babylon/db';
@@ -990,11 +988,12 @@ ${prompt}`
     // ALL KEYS ARE LOWERCASE for case-insensitive matching
     const originalIdToActualIdMap = new Map<string, string>();
 
-    // Fetch actor data to get original names
-    const actorsList = await db
-      .select({ id: actors.id, name: actors.name })
-      .from(actors)
-      .where(inArray(actors.id, Array.from(contexts.keys())));
+    // Get actor data from static registry
+    const actorIds = Array.from(contexts.keys());
+    const actorsList = actorIds
+      .map((id) => StaticDataRegistry.getActor(id))
+      .filter((a): a is NonNullable<typeof a> => a !== null)
+      .map((a) => ({ id: a.id, name: a.name }));
 
     for (const actor of actorsList) {
       const variations: string[] = [];
@@ -1085,14 +1084,14 @@ ${prompt}`
     // ALL KEYS ARE LOWERCASE for case-insensitive matching
     const originalTickerToActualTickerMap = new Map<string, string>();
 
-    const orgs = await db
-      .select({
-        id: organizations.id,
-        name: organizations.name,
-        ticker: organizations.ticker,
-      })
-      .from(organizations)
-      .where(eq(organizations.type, 'company'));
+    // Get companies from static registry
+    const orgs = StaticDataRegistry.getAllOrganizations()
+      .filter((org) => org.type === 'company')
+      .map((org) => ({
+        id: org.id,
+        name: org.name,
+        ticker: org.ticker,
+      }));
 
     // Get organization mappings from StaticDataRegistry (no DB call!)
     const orgMappings = StaticDataRegistry.getAllOrganizationMappings();
@@ -1954,12 +1953,10 @@ ${prompt}`
     // Get recent posts from the last 24 hours
     const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
-    // Get actor IDs first
-    const actorsForEvents = await db
-      .select({ id: actors.id, name: actors.name })
-      .from(actors);
-    const actorMap = new Map(actorsForEvents.map((a) => [a.id, a.name]));
-    const actorIds = actorsForEvents.map((a) => a.id);
+    // Get actors from static registry
+    const allActors = StaticDataRegistry.getAllActors();
+    const actorMap = new Map(allActors.map((a) => [a.id, a.name]));
+    const actorIds = allActors.map((a) => a.id);
 
     if (actorIds.length === 0) {
       return 'No actors available for narrative context.';

@@ -5,13 +5,11 @@
  * Creates positions, updates balances, records trades.
  */
 import {
-  actors,
+  actorState,
   db,
   eq,
-  ilike,
   markets,
   npcTrades,
-  organizations,
   poolPositions,
   pools,
   type Transaction,
@@ -31,6 +29,7 @@ import {
   type TradeImpactInput,
 } from './market-impact-service';
 import { PredictionMarketService } from './prediction-market-service';
+import { StaticDataRegistry } from './static-data-registry';
 import { invalidateAfterPredictionTrade } from './trade-cache-invalidation';
 
 export class TradeExecutionService {
@@ -127,14 +126,10 @@ export class TradeExecutionService {
       throw new Error(`Invalid amount: ${decision.amount}`);
     }
 
-    // Get NPC actor
-    const [actor] = await db
-      .select()
-      .from(actors)
-      .where(eq(actors.id, normalizedNpcId))
-      .limit(1);
+    // Get NPC actor from static registry
+    const staticActor = StaticDataRegistry.getActor(normalizedNpcId);
 
-    if (!actor) {
+    if (!staticActor) {
       throw new Error(`Actor not found: ${decision.npcId}`);
     }
 
@@ -146,16 +141,16 @@ export class TradeExecutionService {
 
     // Handle close position
     if (decision.action === 'close_position') {
-      return await this.closePosition(decision, actor.id);
+      return await this.closePosition(decision, staticActor.id);
     }
 
     // Handle open position
     if (decision.action === 'open_long' || decision.action === 'open_short') {
-      return await this.openPerpPosition(decision, actor.id);
+      return await this.openPerpPosition(decision, staticActor.id);
     }
 
     if (decision.action === 'buy_yes' || decision.action === 'buy_no') {
-      return await this.openPredictionPosition(decision, actor.id);
+      return await this.openPredictionPosition(decision, staticActor.id);
     }
 
     throw new Error(`Unknown action: ${decision.action}`);
@@ -175,42 +170,32 @@ export class TradeExecutionService {
     // Try multiple lookup strategies to handle LLM-generated ticker variations
     const tickerUpper = decision.ticker.toUpperCase();
     const tickerLower = decision.ticker.toLowerCase();
+    const allOrgs = StaticDataRegistry.getAllOrganizations();
 
     // Strategy 1: Exact ID match
-    let [org] = await db
-      .select()
-      .from(organizations)
-      .where(eq(organizations.id, decision.ticker))
-      .limit(1);
+    let org = allOrgs.find((o) => o.id === decision.ticker);
 
     // Strategy 2: Ticker field match (case-insensitive)
     if (!org) {
-      [org] = await db
-        .select()
-        .from(organizations)
-        .where(ilike(organizations.ticker, tickerUpper))
-        .limit(1);
+      org = allOrgs.find(
+        (o) => o.ticker?.toUpperCase() === tickerUpper
+      );
     }
 
     // Strategy 3: ID contains match (for partial matches)
     if (!org) {
-      [org] = await db
-        .select()
-        .from(organizations)
-        .where(ilike(organizations.id, `%${tickerLower}%`))
-        .limit(1);
+      org = allOrgs.find((o) =>
+        o.id.toLowerCase().includes(tickerLower)
+      );
     }
 
     // Strategy 4: Name match (normalized - remove spaces, dashes, AI suffixes)
     if (!org) {
       const normalizedTicker = tickerLower.replace(/[^a-z0-9]/g, '');
-      const orgs = await db
-        .select()
-        .from(organizations)
-        .where(eq(organizations.type, 'company'));
+      const companyOrgs = allOrgs.filter((o) => o.type === 'company');
 
-      const matchedOrg = orgs.find((o) => {
-        if (!o.currentPrice) return false;
+      const matchedOrg = companyOrgs.find((o) => {
+        if (!o.initialPrice) return false;
         const normalizedName = o.name.toLowerCase().replace(/[^a-z0-9]/g, '');
         const normalizedOrgTicker = (o.ticker || '')
           .toLowerCase()
@@ -231,7 +216,7 @@ export class TradeExecutionService {
       }
     }
 
-    if (!org?.currentPrice) {
+    if (!org) {
       logger.warn(
         'NPC tried to trade non-existent organization',
         {
@@ -245,7 +230,8 @@ export class TradeExecutionService {
       throw new Error(`Organization not found: ${decision.ticker}`);
     }
 
-    const currentPrice = org.currentPrice;
+    // Use initial price from static data (dynamic price updates handled elsewhere)
+    const currentPrice = org.initialPrice ?? 100;
     const leverage = 5; // Standard leverage
     const side = decision.action === 'open_long' ? 'long' : 'short';
 
@@ -268,16 +254,16 @@ export class TradeExecutionService {
     // Execute in transaction
     const position = await db.transaction(async (tx: Transaction) => {
       // Check and deduct from actor's trading balance (margin + fee)
-      const [actor] = await tx
+      const [actorStateRow] = await tx
         .select()
-        .from(actors)
-        .where(eq(actors.id, actorId))
+        .from(actorState)
+        .where(eq(actorState.id, actorId))
         .limit(1);
 
-      if (!actor) throw new Error(`Actor not found: ${actorId}`);
+      if (!actorStateRow) throw new Error(`Actor state not found: ${actorId}`);
 
       const availableBalance = Number.parseFloat(
-        actor.tradingBalance.toString()
+        actorStateRow.tradingBalance.toString()
       );
       if (availableBalance < totalCost) {
         throw new Error(
@@ -287,11 +273,11 @@ export class TradeExecutionService {
 
       // Deduct margin + fee from actor's trading balance
       await tx
-        .update(actors)
+        .update(actorState)
         .set({
           tradingBalance: String(availableBalance - totalCost),
         })
-        .where(eq(actors.id, actorId));
+        .where(eq(actorState.id, actorId));
 
       // Ensure Pool exists for this actor (required for PoolPosition foreign key)
       const [existingPool] = await tx
@@ -302,11 +288,12 @@ export class TradeExecutionService {
 
       if (!existingPool) {
         const now = new Date();
+        const actorData = StaticDataRegistry.getActor(actorId);
         await tx.insert(pools).values({
           id: actorId,
           npcActorId: actorId,
-          name: `${actor.name} Portfolio`,
-          description: `Auto-created portfolio for ${actor.name}`,
+          name: `${actorData?.name ?? actorId} Portfolio`,
+          description: `Auto-created portfolio for ${actorData?.name ?? actorId}`,
           isActive: true,
           totalValue: '0',
           totalDeposits: '0',
@@ -461,16 +448,16 @@ export class TradeExecutionService {
     // Execute in transaction
     const position = await db.transaction(async (tx: Transaction) => {
       // Check and deduct from actor's trading balance (amount + fee)
-      const [actor] = await tx
+      const [actorStateRow] = await tx
         .select()
-        .from(actors)
-        .where(eq(actors.id, actorId))
+        .from(actorState)
+        .where(eq(actorState.id, actorId))
         .limit(1);
 
-      if (!actor) throw new Error(`Actor not found: ${actorId}`);
+      if (!actorStateRow) throw new Error(`Actor state not found: ${actorId}`);
 
       const availableBalance = Number.parseFloat(
-        actor.tradingBalance.toString()
+        actorStateRow.tradingBalance.toString()
       );
       if (availableBalance < totalWithFee) {
         throw new Error(
@@ -480,11 +467,11 @@ export class TradeExecutionService {
 
       // Deduct amount + fee from actor's trading balance
       await tx
-        .update(actors)
+        .update(actorState)
         .set({
           tradingBalance: String(availableBalance - totalWithFee),
         })
-        .where(eq(actors.id, actorId));
+        .where(eq(actorState.id, actorId));
 
       // Update market shares with CPMM output
       await tx
@@ -715,22 +702,22 @@ export class TradeExecutionService {
           .where(eq(markets.id, position.marketId!));
 
         // Return proceeds to actor's trading balance
-        const [actor] = await tx
+        const [actorStateRow] = await tx
           .select()
-          .from(actors)
-          .where(eq(actors.id, actorId))
+          .from(actorState)
+          .where(eq(actorState.id, actorId))
           .limit(1);
 
-        if (actor) {
+        if (actorStateRow) {
           const currentBalance = Number.parseFloat(
-            actor.tradingBalance.toString()
+            actorStateRow.tradingBalance.toString()
           );
           await tx
-            .update(actors)
+            .update(actorState)
             .set({
               tradingBalance: String(currentBalance + netProceeds),
             })
-            .where(eq(actors.id, actorId));
+            .where(eq(actorState.id, actorId));
         }
 
         // Record trade (poolId is optional now)
@@ -817,14 +804,15 @@ export class TradeExecutionService {
     let currentPrice = position.currentPrice;
 
     if (position.marketType === 'perp' && position.ticker) {
-      const [org] = await db
-        .select()
-        .from(organizations)
-        .where(ilike(organizations.id, `%${position.ticker}%`))
-        .limit(1);
+      // Find organization from static registry
+      const tickerLower = position.ticker.toLowerCase();
+      const org = StaticDataRegistry.getAllOrganizations().find((o) =>
+        o.id.toLowerCase().includes(tickerLower)
+      );
 
-      if (org?.currentPrice) {
-        currentPrice = org.currentPrice;
+      if (org?.initialPrice) {
+        // TODO: Get current price from organizationState if needed
+        currentPrice = org.initialPrice;
       }
     } else if (position.marketType === 'prediction' && position.marketId) {
       const [market] = await db
@@ -880,22 +868,22 @@ export class TradeExecutionService {
         .where(eq(poolPositions.id, decision.positionId!));
 
       // Return capital + P&L to actor's trading balance (after fee deduction)
-      const [actor] = await tx
+      const [actorStateRow] = await tx
         .select()
-        .from(actors)
-        .where(eq(actors.id, actorId))
+        .from(actorState)
+        .where(eq(actorState.id, actorId))
         .limit(1);
 
-      if (actor) {
+      if (actorStateRow) {
         const currentBalance = Number.parseFloat(
-          actor.tradingBalance.toString()
+          actorStateRow.tradingBalance.toString()
         );
         await tx
-          .update(actors)
+          .update(actorState)
           .set({
             tradingBalance: String(currentBalance + netReturn),
           })
-          .where(eq(actors.id, actorId));
+          .where(eq(actorState.id, actorId));
       }
 
       // Record trade (poolId is optional now)

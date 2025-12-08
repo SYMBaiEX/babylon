@@ -129,12 +129,6 @@ export type WorldFact = InferSelectModel<typeof schema.worldFacts>;
 export type RSSFeedSource = InferSelectModel<typeof schema.rssFeedSources>;
 export type RSSHeadline = InferSelectModel<typeof schema.rssHeadlines>;
 export type ParodyHeadline = InferSelectModel<typeof schema.parodyHeadlines>;
-export type CharacterMapping = InferSelectModel<
-  typeof schema.characterMappings
->;
-export type OrganizationMapping = InferSelectModel<
-  typeof schema.organizationMappings
->;
 export type ModerationEscrow = InferSelectModel<
   typeof schema.moderationEscrows
 >;
@@ -279,12 +273,6 @@ export type NewWorldFact = InferInsertModel<typeof schema.worldFacts>;
 export type NewRSSFeedSource = InferInsertModel<typeof schema.rssFeedSources>;
 export type NewRSSHeadline = InferInsertModel<typeof schema.rssHeadlines>;
 export type NewParodyHeadline = InferInsertModel<typeof schema.parodyHeadlines>;
-export type NewCharacterMapping = InferInsertModel<
-  typeof schema.characterMappings
->;
-export type NewOrganizationMapping = InferInsertModel<
-  typeof schema.organizationMappings
->;
 export type NewModerationEscrow = InferInsertModel<
   typeof schema.moderationEscrows
 >;

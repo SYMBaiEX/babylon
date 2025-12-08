@@ -12,7 +12,6 @@
  */
 
 import {
-  actors,
   and,
   count,
   db,
@@ -24,6 +23,7 @@ import {
 import { logger } from '@babylon/shared';
 import { GroupChatService } from './group-chat-service';
 import { NPCInteractionTracker } from './npc-interaction-tracker';
+import { StaticDataRegistry } from './static-data-registry';
 
 export interface AlphaInviteResult {
   npcId: string;
@@ -56,13 +56,11 @@ export class AlphaGroupInviteService {
     const startTime = Date.now();
     const invites: AlphaInviteResult[] = [];
 
-    // Get all NPCs (actors)
-    const npcs = await db
-      .select({
-        id: actors.id,
-        name: actors.name,
-      })
-      .from(actors);
+    // Get all NPCs (actors) from static registry
+    const npcs = StaticDataRegistry.getAllActors().map((a) => ({
+      id: a.id,
+      name: a.name,
+    }));
 
     logger.info(
       `Processing alpha invites for ${npcs.length} NPCs`,

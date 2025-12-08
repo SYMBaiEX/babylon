@@ -23,8 +23,6 @@ import { useCallback, useEffect, useState } from 'react';
 import { CreateGroupModal } from './CreateGroupModal';
 import { GroupDetailsModal } from './GroupDetailsModal';
 
-// import { toast } from 'sonner';
-
 /**
  * User group structure for user groups list.
  */

@@ -6,7 +6,6 @@
  */
 
 import {
-  actors,
   and,
   chatParticipants,
   chats,
@@ -19,6 +18,7 @@ import {
 } from '@babylon/db';
 import { generateSnowflakeId, logger } from '@babylon/shared';
 import { GroupChatService } from './group-chat-service';
+import { StaticDataRegistry } from './static-data-registry';
 
 export interface SocialAction {
   type: 'group_chat_invite' | 'dm';
@@ -43,8 +43,8 @@ export class ActorSocialActions {
   static async processRandomSocialActions(): Promise<SocialAction[]> {
     const actions: SocialAction[] = [];
 
-    // Get all actors
-    const actorList = await db.select().from(actors).limit(50); // Limit to prevent overload
+    // Get all actors from static registry (limit to prevent overload)
+    const actorList = StaticDataRegistry.getAllActors().slice(0, 50);
 
     // Get all active users with interactions
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);

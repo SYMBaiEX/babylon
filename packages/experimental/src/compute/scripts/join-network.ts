@@ -98,7 +98,7 @@ async function main() {
   const modelBackend = (process.env.MODEL_BACKEND || 'mock') as
     | 'mock'
     | 'ollama';
-  const stakeAmount = parseEther(process.env.STAKE_AMOUNT || '0.1');
+  const stakeAmount = parseEther(process.env.STAKE_AMOUNT || '0.01');
   const port = Number.parseInt(process.env.PORT || '8080', 10);
 
   // Load contract addresses

@@ -16,8 +16,11 @@
  */
 
 import { agentRuntimeManager } from '@babylon/agents';
-import { type Actor, actors, asc, db, eq } from '@babylon/db';
-import { loadActorById } from '@babylon/engine';
+import {
+  loadActorById,
+  StaticDataRegistry,
+  type StaticActor,
+} from '@babylon/engine';
 import type { ActorData, AgentCapabilities } from '@babylon/shared';
 import {
   getCurrentChainId,
@@ -89,8 +92,10 @@ export class NPCBootstrapService {
       errors: [],
     };
 
-    // Load all Actor records from database
-    const actorsList = await db.select().from(actors).orderBy(asc(actors.name));
+    // Load all Actor records from static registry
+    const actorsList = StaticDataRegistry.getAllActors()
+      .slice()
+      .sort((a, b) => a.name.localeCompare(b.name));
 
     result.totalNpcs = actorsList.length;
     logger.info(
@@ -126,12 +131,12 @@ export class NPCBootstrapService {
    * Loads ActorData from JSON files, builds system prompt and capabilities, registers
    * in AgentRegistry, and creates runtime instance.
    *
-   * @param {Actor} actor - Actor database record
+   * @param {StaticActor} actor - Static actor data from registry
    * @returns {Promise<object>} Object indicating which operations succeeded
    * @private
    */
   private async bootstrapSingleNpc(
-    actor: Actor
+    actor: StaticActor
   ): Promise<{ registered: boolean; initialized: boolean }> {
     logger.info(
       `Bootstrapping NPC: ${actor.name} (${actor.id})`,
@@ -311,11 +316,8 @@ export class NPCBootstrapService {
    * @throws {Error} If actor not found
    */
   public async bootstrapNpc(actorId: string): Promise<void> {
-    const [actor] = await db
-      .select()
-      .from(actors)
-      .where(eq(actors.id, actorId))
-      .limit(1);
+    // Get actor from static registry
+    const actor = StaticDataRegistry.getActor(actorId);
 
     if (!actor) {
       throw new Error(`Actor ${actorId} not found`);
@@ -389,7 +391,7 @@ export class NPCBootstrapService {
     initialized: number;
     active: number;
   }> {
-    const actorsList = await db.select().from(actors);
+    const actorsList = StaticDataRegistry.getAllActors();
     const totalNpcs = actorsList.length;
 
     const registrations = await agentRegistry.discoverAgents({

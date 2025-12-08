@@ -6,7 +6,7 @@
 
 import {
   actorRelationships,
-  actors,
+  actorState,
   and,
   count,
   Decimal,
@@ -16,14 +16,13 @@ import {
   eq,
   games,
   gte,
-  inArray,
   isNotNull,
   isNull,
   type JsonValue,
   lte,
   markets as marketsSchema,
   ne,
-  organizations,
+  organizationState,
   poolPositions,
   pools,
   positions,
@@ -1185,17 +1184,35 @@ async function generateMixedPosts(
 
   // Get actors (NPCs), organizations, world facts, AND shared post context in parallel
   // This loads ALL shared data ONCE to avoid N+1 query problems
-  const [actorsList, orgsList, worldFactsContext, sharedContext] =
-    await Promise.all([
-      db.select().from(actors).orderBy(desc(actors.reputationPoints)).limit(15),
-      db
-        .select()
-        .from(organizations)
-        .where(eq(organizations.type, 'media'))
-        .limit(5),
-      worldFactsService.generatePromptContext(),
-      loadSharedPostContext(), // Load feed posts + events ONCE
-    ]);
+  // Static data from registry, dynamic state from DB
+  const [actorStates, worldFactsContext, sharedContext] = await Promise.all([
+    db
+      .select()
+      .from(actorState)
+      .orderBy(desc(actorState.reputationPoints))
+      .limit(15),
+    worldFactsService.generatePromptContext(),
+    loadSharedPostContext(), // Load feed posts + events ONCE
+  ]);
+
+  // Combine static actor data with dynamic state
+  const actorsList = actorStates
+    .map((state) => {
+      const staticActor = StaticDataRegistry.getActor(state.id);
+      if (!staticActor) return null;
+      return {
+        ...staticActor,
+        tradingBalance: state.tradingBalance,
+        reputationPoints: state.reputationPoints,
+        hasPool: state.hasPool,
+      };
+    })
+    .filter((a): a is NonNullable<typeof a> => a !== null);
+
+  // Get media organizations from static registry
+  const orgsList = StaticDataRegistry.getAllOrganizations().filter(
+    (org) => org.type === 'media'
+  ).slice(0, 5);
 
   if (actorsList.length === 0 && orgsList.length === 0) {
     logger.warn(
@@ -1383,11 +1400,10 @@ async function generateArticles(
       {},
       'GameTick'
     );
-    const newsOrgs = await db
-      .select()
-      .from(organizations)
-      .where(eq(organizations.type, 'media'))
-      .limit(5);
+    // Get media organizations from static registry
+    const newsOrgs = StaticDataRegistry.getAllOrganizations()
+      .filter((org) => org.type === 'media')
+      .slice(0, 5);
 
     if (newsOrgs.length === 0) {
       logger.warn(
@@ -1938,38 +1954,42 @@ async function generateBaselineArticlesParallel(
 ): Promise<number> {
   // Gather game context for relevant articles
   // NOTE: Question articles are handled by generateArticlesForActiveQuestions()
-  const [actorsList, companiesList, worldFactsContext, worldContext] =
-    await Promise.all([
-      db
-        .select({
-          id: actors.id,
-          name: actors.name,
-          description: actors.description,
-          domain: actors.domain,
-          tier: actors.tier,
-        })
-        .from(actors)
-        .where(inArray(actors.role, ['main', 'supporting']))
-        .limit(10),
-      db
-        .select({
-          id: organizations.id,
-          name: organizations.name,
-          description: organizations.description,
-          currentPrice: organizations.currentPrice,
-          initialPrice: organizations.initialPrice,
-        })
-        .from(organizations)
-        .where(eq(organizations.type, 'company'))
-        .limit(10),
-      worldFactsService.generatePromptContext(),
-      (async () => {
-        return generateWorldContext({
-          maxActors: 30,
-          realityGroundingLevel: 'concise',
-        });
-      })(),
-    ]);
+  // Static data from registry, dynamic state from DB
+  const [orgStates, worldFactsContext, worldContext] = await Promise.all([
+    dbService().getAllOrganizationStates(),
+    worldFactsService.generatePromptContext(),
+    (async () => {
+      return generateWorldContext({
+        maxActors: 30,
+        realityGroundingLevel: 'concise',
+      });
+    })(),
+  ]);
+
+  // Get actors with main/supporting roles from static registry
+  const actorsList = StaticDataRegistry.getAllActors()
+    .filter((a) => a.role === 'main' || a.role === 'supporting')
+    .slice(0, 10)
+    .map((a) => ({
+      id: a.id,
+      name: a.name,
+      description: a.description,
+      domain: a.domain,
+      tier: a.tier,
+    }));
+
+  // Get companies from static registry with dynamic prices
+  const priceMap = new Map(orgStates.map((s) => [s.id, s.currentPrice]));
+  const companiesList = StaticDataRegistry.getAllOrganizations()
+    .filter((org) => org.type === 'company')
+    .slice(0, 10)
+    .map((org) => ({
+      id: org.id,
+      name: org.name,
+      description: org.description,
+      currentPrice: priceMap.get(org.id) ?? org.initialPrice,
+      initialPrice: org.initialPrice,
+    }));
 
   // Build article topics from game context
   // NOTE: Questions are already covered by generateArticlesForActiveQuestions()
@@ -2230,16 +2250,18 @@ async function updateMarketPricesFromTrades(
     return 0;
   }
 
-  // Get all companies with current holdings
-  const companiesList = await db
-    .select({
-      id: organizations.id,
-      name: organizations.name,
-      currentPrice: organizations.currentPrice,
-      initialPrice: organizations.initialPrice,
-    })
-    .from(organizations)
-    .where(eq(organizations.type, 'company'));
+  // Get all companies with current holdings (static + dynamic data)
+  const orgStates = await dbService().getAllOrganizationStates();
+  const priceMap = new Map(orgStates.map((s) => [s.id, s.currentPrice]));
+
+  const companiesList = StaticDataRegistry.getAllOrganizations()
+    .filter((org) => org.type === 'company')
+    .map((org) => ({
+      id: org.id,
+      name: org.name,
+      currentPrice: priceMap.get(org.id) ?? org.initialPrice,
+      initialPrice: org.initialPrice,
+    }));
 
   type CompanyData = (typeof companiesList)[0];
   // Use raw org IDs as keys since positions now store raw IDs
@@ -2310,9 +2332,9 @@ async function updateMarketPricesFromTrades(
     if (Math.abs(change) < 0.01) continue;
 
     await db
-      .update(organizations)
+      .update(organizationState)
       .set({ currentPrice: newPrice, updatedAt: new Date() })
-      .where(eq(organizations.id, company.id));
+      .where(eq(organizationState.id, company.id));
 
     await dbService().recordPriceUpdate(
       company.id,
@@ -2861,7 +2883,21 @@ async function publishOracleReveals(
 async function updateWidgetCaches(): Promise<number> {
   let cachesUpdated = 0;
 
-  const companies = await dbService().getCompanies();
+  // Get static organization data from registry
+  const staticOrgs = StaticDataRegistry.getAllOrganizations();
+  // Get dynamic price data from database
+  const orgStates = await dbService().getAllOrganizationStates();
+  const priceMap = new Map(orgStates.map((s) => [s.id, s.currentPrice]));
+
+  // Combine static and dynamic data - filter to companies only
+  const companies = staticOrgs
+    .filter((org) => org.type === 'company')
+    .map((org) => ({
+      id: org.id,
+      name: org.name,
+      initialPrice: org.initialPrice,
+      currentPrice: priceMap.get(org.id) ?? org.initialPrice,
+    }));
 
   if (!companies || companies.length === 0) {
     logger.warn('No companies found for widget cache update', {}, 'GameTick');
@@ -2873,10 +2909,9 @@ async function updateWidgetCaches(): Promise<number> {
       .filter(
         (company: (typeof companies)[number]) =>
           company && company.id && company.name
-      ) // Filter out invalid companies
+      )
       .map(async (company: (typeof companies)[number]) => {
-        const currentPrice =
-          company.currentPrice || company.initialPrice || 100;
+        const currentPrice = company.currentPrice || company.initialPrice || 100;
 
         const priceHistory = await dbService().getPriceHistory(
           company.id,

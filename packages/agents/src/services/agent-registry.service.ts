@@ -11,9 +11,7 @@
 import { verifyApiKey } from '@babylon/api';
 import type { JsonValue } from '@babylon/db';
 import {
-  type Actor,
   type AgentRegistry,
-  actors,
   agentCapabilities,
   agentRegistries,
   and,
@@ -29,6 +27,7 @@ import {
   type User,
   users,
 } from '@babylon/db';
+import { StaticDataRegistry, type StaticActor } from '@babylon/engine';
 import { logger } from '@babylon/shared';
 import { createCipheriv, createDecipheriv, randomBytes } from 'crypto';
 import type {
@@ -62,7 +61,7 @@ const ALGORITHM = 'aes-256-cbc';
 type RegistryWithRelations = AgentRegistry & {
   capabilities: typeof agentCapabilities.$inferSelect | null;
   User?: User | null;
-  Actor?: Actor | null;
+  Actor?: StaticActor | null;
   externalConnection?: ExternalAgentConnection | null;
 };
 
@@ -191,12 +190,8 @@ export class AgentRegistryService {
   }): Promise<AgentRegistration> {
     const { actorId, systemPrompt, capabilities } = params;
 
-    // Verify actor exists
-    const [actor] = await db
-      .select()
-      .from(actors)
-      .where(eq(actors.id, actorId))
-      .limit(1);
+    // Verify actor exists in static registry
+    const actor = StaticDataRegistry.getActor(actorId);
 
     if (!actor) {
       throw new Error(`Actor not found: ${actorId}`);
@@ -431,7 +426,6 @@ export class AgentRegistryService {
         eq(agentCapabilities.agentRegistryId, agentRegistries.id)
       )
       .leftJoin(users, eq(users.id, agentRegistries.userId))
-      .leftJoin(actors, eq(actors.id, agentRegistries.actorId))
       .leftJoin(
         externalAgentConnections,
         eq(externalAgentConnections.agentRegistryId, agentRegistries.id)
@@ -444,15 +438,21 @@ export class AgentRegistryService {
       .limit(limit)
       .offset(offset);
 
-    // Map to registry with relations format
+    // Map to registry with relations format, getting Actor from static registry
     const registrations: RegistryWithRelations[] = registrationsRaw.map(
-      (row) => ({
-        ...row.AgentRegistry,
-        capabilities: row.AgentCapability,
-        User: row.User,
-        Actor: row.Actor,
-        externalConnection: row.ExternalAgentConnection,
-      })
+      (row) => {
+        const actorId = row.AgentRegistry.actorId;
+        const staticActor = actorId
+          ? StaticDataRegistry.getActor(actorId)
+          : null;
+        return {
+          ...row.AgentRegistry,
+          capabilities: row.AgentCapability,
+          User: row.User,
+          Actor: staticActor,
+          externalConnection: row.ExternalAgentConnection,
+        };
+      }
     );
 
     // Filter by required capabilities if specified
@@ -745,7 +745,6 @@ export class AgentRegistryService {
         eq(agentCapabilities.agentRegistryId, agentRegistries.id)
       )
       .leftJoin(users, eq(users.id, agentRegistries.userId))
-      .leftJoin(actors, eq(actors.id, agentRegistries.actorId))
       .leftJoin(
         externalAgentConnections,
         eq(externalAgentConnections.agentRegistryId, agentRegistries.id)
@@ -755,11 +754,15 @@ export class AgentRegistryService {
 
     if (!row) return null;
 
+    // Get Actor from static registry
+    const actorId = row.AgentRegistry.actorId;
+    const staticActor = actorId ? StaticDataRegistry.getActor(actorId) : null;
+
     return {
       ...row.AgentRegistry,
       capabilities: row.AgentCapability,
       User: row.User,
-      Actor: row.Actor,
+      Actor: staticActor,
       externalConnection: row.ExternalAgentConnection,
     };
   }

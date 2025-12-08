@@ -18,11 +18,13 @@
   },
   "dependencies": {
     "@babylon/shared": "workspace:*",
-    "@babylon/a2a": "workspace:*"
+    "@babylon/a2a": "workspace:*",
+    "@babylon/engine": "workspace:*"
   },
   "peerDependencies": {
     "@babylon/db": "workspace:*",
     "@babylon/api": "workspace:*",
+    "@babylon/engine": "workspace:*",
     "@babylon/shared": "workspace:*",
     "@babylon/a2a": "workspace:*",
     "drizzle-orm": "^0.44.7",

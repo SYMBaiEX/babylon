@@ -1,4 +1,4 @@
-import { db, eq, getDbInstance, organizations } from '@babylon/db';
+import { db, eq, getDbInstance, organizationState } from '@babylon/db';
 import { getReadyPerpsEngine } from '@babylon/engine';
 import { type JsonValue, logger } from '@babylon/shared';
 
@@ -47,44 +47,44 @@ export class PriceUpdateService {
         continue;
       }
 
-      const [organization] = await db
+      const [orgState] = await db
         .select({
-          id: organizations.id,
-          currentPrice: organizations.currentPrice,
+          id: organizationState.id,
+          currentPrice: organizationState.currentPrice,
         })
-        .from(organizations)
-        .where(eq(organizations.id, update.organizationId))
+        .from(organizationState)
+        .where(eq(organizationState.id, update.organizationId))
         .limit(1);
 
-      if (!organization) {
+      if (!orgState) {
         logger.warn(
-          'Organization not found for price update',
+          'Organization state not found for price update',
           { organizationId: update.organizationId },
           'PriceUpdateService'
         );
         continue;
       }
 
-      const oldPrice = Number(organization.currentPrice ?? update.newPrice);
+      const oldPrice = Number(orgState.currentPrice ?? update.newPrice);
       const change = update.newPrice - oldPrice;
       const changePercent = oldPrice === 0 ? 0 : (change / oldPrice) * 100;
 
       await db
-        .update(organizations)
+        .update(organizationState)
         .set({ currentPrice: update.newPrice, updatedAt: new Date() })
-        .where(eq(organizations.id, organization.id));
+        .where(eq(organizationState.id, orgState.id));
 
       await getDbInstance().recordPriceUpdate(
-        organization.id,
+        orgState.id,
         update.newPrice,
         change,
         changePercent
       );
 
-      priceMap.set(organization.id, update.newPrice);
+      priceMap.set(orgState.id, update.newPrice);
 
       appliedUpdates.push({
-        organizationId: organization.id,
+        organizationId: orgState.id,
         oldPrice,
         newPrice: update.newPrice,
         change,

@@ -23,7 +23,7 @@
 
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
 import type { A2AMarketPosition } from '@babylon/a2a';
-import { db, eq, markets, organizations, posts, users } from '@babylon/db';
+import { db, eq, getDbInstance, markets, posts, users } from '@babylon/db';
 import { generateSnowflakeId } from '@babylon/shared';
 import dotenv from 'dotenv';
 import { BabylonA2AClient } from '../src/a2a-client';
@@ -103,16 +103,12 @@ describe('Autonomous Agent - Complete E2E Test', () => {
       console.log('⚠️  No active markets found - some tests will be skipped');
     }
 
-    // Find a perpetual market (organization)
-    const orgResult = await db
-      .select()
-      .from(organizations)
-      .orderBy(organizations.createdAt)
-      .limit(1);
-    if (orgResult.length > 0) {
-      testPerpTicker =
-        orgResult[0]!.ticker ||
-        orgResult[0]!.name.toUpperCase().substring(0, 4);
+    // Find a perpetual market (organization) from database state
+    const orgStates = await getDbInstance().getAllOrganizationStates();
+    if (orgStates.length > 0) {
+      // Use the first org state id as the ticker (e.g., "Macrohard" becomes "MACR")
+      const orgId = orgStates[0]!.id;
+      testPerpTicker = orgId.toUpperCase().substring(0, 4);
       console.log(`✅ Found test perpetual: ${testPerpTicker}`);
     } else {
       console.log('⚠️  No perpetual markets found - some tests will be skipped');

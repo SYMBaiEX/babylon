@@ -20,7 +20,7 @@
  */
 
 import {
-  actors,
+  actorState,
   and,
   count,
   db,
@@ -29,7 +29,6 @@ import {
   gte,
   isNull,
   lt,
-  organizations,
   posts,
   questions,
 } from '@babylon/db';
@@ -43,6 +42,7 @@ import {
   generateOrgPost,
   loadSharedPostContext,
 } from './post-generation-helpers';
+import { StaticDataRegistry } from './static-data-registry';
 
 const LOOKAHEAD_MINUTES = 15; // Generate 15 minutes ahead
 const GENERATION_BATCH_MINUTES = 5; // Generate in 5-minute batches
@@ -325,17 +325,34 @@ async function generateContentWindow(
 
   // Get actors, organizations, world facts, AND shared post context in parallel
   // Loading shared context ONCE eliminates N+1 queries during parallel post generation
-  const [actorsList, orgsList, worldFactsContext, sharedContext] =
-    await Promise.all([
-      db.select().from(actors).orderBy(desc(actors.reputationPoints)).limit(15),
-      db
-        .select()
-        .from(organizations)
-        .where(eq(organizations.type, 'media'))
-        .limit(5),
-      worldFactsService.generatePromptContext(),
-      loadSharedPostContext(), // Load ONCE for all NPC posts
-    ]);
+  const [actorStates, worldFactsContext, sharedContext] = await Promise.all([
+    db
+      .select()
+      .from(actorState)
+      .orderBy(desc(actorState.reputationPoints))
+      .limit(15),
+    worldFactsService.generatePromptContext(),
+    loadSharedPostContext(), // Load ONCE for all NPC posts
+  ]);
+
+  // Combine static actor data with dynamic state
+  const actorsList = actorStates
+    .map((state) => {
+      const staticActor = StaticDataRegistry.getActor(state.id);
+      if (!staticActor) return null;
+      return {
+        ...staticActor,
+        tradingBalance: state.tradingBalance,
+        reputationPoints: state.reputationPoints,
+        hasPool: state.hasPool,
+      };
+    })
+    .filter((a): a is NonNullable<typeof a> => a !== null);
+
+  // Get media organizations from static registry
+  const orgsList = StaticDataRegistry.getAllOrganizations()
+    .filter((org) => org.type === 'media')
+    .slice(0, 5);
 
   if (actorsList.length === 0 && orgsList.length === 0) {
     logger.warn(

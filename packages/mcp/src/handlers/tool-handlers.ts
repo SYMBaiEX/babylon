@@ -13,6 +13,7 @@ import {
   handleVerifyEscrowPayment,
 } from '@babylon/a2a';
 import { db, eq, users } from '@babylon/db';
+import { StaticDataRegistry } from '@babylon/engine';
 import type { JsonValue, StringRecord } from '@babylon/shared';
 import { generateSnowflakeId, getAPIBaseUrl, logger } from '@babylon/shared';
 import type {
@@ -1759,15 +1760,16 @@ export async function executeGetOrganizations(
   _agent: AuthenticatedAgent,
   args: GetOrganizationsArgs
 ): Promise<GetOrganizationsResult> {
-  const orgsList = await db.organization.findMany({
-    take: args.limit || 50,
-    orderBy: { createdAt: 'desc' },
-  });
+  // Get organizations from static registry
+  const orgsList = StaticDataRegistry.getAllOrganizations().slice(
+    0,
+    args.limit || 50
+  );
   return {
-    organizations: orgsList.map((org) => ({
-      id: org.id,
-      name: org.name,
-      description: org.description,
+    organizations: orgsList.map((staticOrg) => ({
+      id: staticOrg.id,
+      name: staticOrg.name,
+      description: staticOrg.description,
     })),
   };
 }

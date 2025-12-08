@@ -9,7 +9,7 @@
 
 import {
   actorRelationships,
-  actors,
+  actorState,
   and,
   asc,
   chatParticipants,
@@ -17,21 +17,21 @@ import {
   db,
   desc,
   eq,
+  getDbInstance,
   gte,
   inArray,
-  isNotNull,
   isNull,
   lte,
   markets,
   messages,
   or,
-  organizations,
   poolPositions,
   posts,
   stockPrices,
   worldEvents,
 } from '@babylon/db';
 import { logger } from '@babylon/shared';
+import { StaticDataRegistry } from './static-data-registry';
 import type {
   EventContext,
   FeedPostContext,
@@ -66,12 +66,32 @@ export class MarketContextService {
   async buildContextForAllNPCs(): Promise<Map<string, NPCMarketContext>> {
     const startTime = Date.now();
 
-    // Fetch all NPCs (no pool requirement)
-    // Note: All records in Actor table are NPCs
+    // Fetch all NPCs from static registry and state table
     // Filter out test actors (Group Test Alice, Bob, Charlie)
-    const npcsList = await db.select().from(actors);
+    const staticActors = StaticDataRegistry.getAllActors();
+    const actorStates = await db.select().from(actorState);
+    const stateMap = new Map(actorStates.map((s) => [s.id, s]));
 
-    const npcs = npcsList.filter((actor) => !actor.name.includes('Group Test'));
+    // Combine static and dynamic data, filter test actors
+    const npcs = staticActors
+      .filter((actor) => !actor.name.includes('Group Test') && !actor.isTest)
+      .map((actor) => {
+        const state = stateMap.get(actor.id);
+        return {
+          id: actor.id,
+          name: actor.name,
+          description: actor.description,
+          domain: actor.domain,
+          personality: actor.personality,
+          tier: actor.tier,
+          affiliations: actor.affiliations,
+          postStyle: actor.postStyle,
+          postExample: actor.postExample,
+          tradingBalance: state?.tradingBalance ?? '10000',
+          reputationPoints: state?.reputationPoints ?? 10000,
+          hasPool: state?.hasPool ?? false,
+        };
+      });
 
     // Fetch shared data once (used by all NPCs)
     const [marketSnapshots, recentPosts, recentEvents] = await Promise.all([
@@ -278,15 +298,22 @@ export class MarketContextService {
    * ```
    */
   async buildContextForNPC(npcId: string): Promise<NPCMarketContext> {
-    const [npc] = await db
-      .select()
-      .from(actors)
-      .where(eq(actors.id, npcId))
-      .limit(1);
-
-    if (!npc) {
+    // Get static actor data from registry
+    const staticNpc = StaticDataRegistry.getActor(npcId);
+    if (!staticNpc) {
       throw new Error(`NPC not found: ${npcId}`);
     }
+
+    // Get dynamic state from database
+    const npcState = await getDbInstance().getActorState(npcId);
+
+    // Combine static and dynamic data
+    const npc = {
+      ...staticNpc,
+      tradingBalance: npcState?.tradingBalance ?? '10000',
+      reputationPoints: npcState?.reputationPoints ?? 10000,
+      hasPool: npcState?.hasPool ?? false,
+    };
 
     const [marketSnapshots, recentPosts, recentEvents, groupChatMessages] =
       await Promise.all([
@@ -680,26 +707,32 @@ export class MarketContextService {
    * @returns Array of perpetual market snapshots
    */
   private async getPerpMarketSnapshots(): Promise<PerpMarketSnapshot[]> {
-    const companies = await db
-      .select({
-        id: organizations.id,
-        name: organizations.name,
-        ticker: organizations.ticker,
-        currentPrice: organizations.currentPrice,
-        initialPrice: organizations.initialPrice,
+    // Get static organization data and dynamic prices
+    const staticOrgs = StaticDataRegistry.getAllOrganizations();
+    const orgStates = await getDbInstance().getAllOrganizationStates();
+    const priceMap = new Map<string, number | null>(
+      orgStates.map((s): [string, number | null] => [s.id, s.currentPrice])
+    );
+
+    // Filter to companies with prices and combine static + dynamic data
+    const companies = staticOrgs
+      .filter((org) => org.type === 'company')
+      .map((org) => {
+        const dynamicPrice = priceMap.get(org.id);
+        const price: number = dynamicPrice ?? org.initialPrice ?? 100;
+        return {
+          id: org.id,
+          name: org.name,
+          ticker: org.ticker,
+          currentPrice: price,
+          initialPrice: org.initialPrice ?? 100,
+        };
       })
-      .from(organizations)
-      .where(
-        and(
-          eq(organizations.type, 'company'),
-          isNotNull(organizations.currentPrice)
-        )
-      );
+      .filter((c): c is typeof c & { currentPrice: number } => c.currentPrice > 0);
 
     return Promise.all(
       companies.map(async (company) => {
-        const currentPrice =
-          company.currentPrice || company.initialPrice || 100;
+        const currentPrice: number = company.currentPrice;
 
         // Get 24h price history
         const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);

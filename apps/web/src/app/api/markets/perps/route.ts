@@ -134,7 +134,7 @@
  */
 
 import { successResponse, withErrorHandling } from '@babylon/api';
-import type { Organization, StockPrice } from '@babylon/db';
+import type { StockPrice } from '@babylon/db';
 import {
   and,
   db,
@@ -146,6 +146,7 @@ import {
   perpPositions,
   stockPrices,
 } from '@babylon/db';
+import { StaticDataRegistry } from '@babylon/engine';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 
@@ -177,7 +178,24 @@ export const GET = withErrorHandling(async (_request: NextRequest) => {
   // Filter to only include companies with a valid price (currentPrice OR initialPrice),
   // which matches the PerpetualsEngine.initializeMarkets() filter.
   // Without this, the UI would show markets that users can't actually trade.
-  const allCompanies = await getDbInstance().getCompanies();
+
+  // Get static organization data from registry
+  const staticOrgs = StaticDataRegistry.getAllOrganizations();
+  // Get dynamic price data from database
+  const orgStates = await getDbInstance().getAllOrganizationStates();
+  const priceMap = new Map(orgStates.map((s) => [s.id, s.currentPrice]));
+
+  // Combine static and dynamic data, filter to companies with valid prices
+  const allCompanies = staticOrgs
+    .filter((org) => org.type === 'company')
+    .map((org) => ({
+      id: org.id,
+      name: org.name,
+      ticker: org.ticker,
+      initialPrice: org.initialPrice,
+      currentPrice: priceMap.get(org.id) ?? org.initialPrice,
+    }));
+
   const companies = allCompanies.filter(
     (c) => c.currentPrice !== null || c.initialPrice !== null
   );
@@ -190,7 +208,7 @@ export const GET = withErrorHandling(async (_request: NextRequest) => {
     });
   }
 
-  const companyIds = companies.map((c: Organization) => c.id);
+  const companyIds = companies.map((c) => c.id);
   const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
   // BATCH QUERY 1: Get all price history for all companies in ONE query
@@ -282,7 +300,7 @@ export const GET = withErrorHandling(async (_request: NextRequest) => {
   }
 
   // Build markets from grouped data (no additional queries)
-  const markets = companies.map((company: Organization) => {
+  const markets = companies.map((company) => {
     const ticker =
       company.ticker ||
       company.id.toUpperCase().replace(/-/g, '').substring(0, 12);

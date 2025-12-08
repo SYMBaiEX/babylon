@@ -49,7 +49,6 @@ export type {
   MessageWithSender,
   ModerationEscrowWithRelations,
   NewActorStateRow,
-  PoolWithActor,
   PoolWithActorState,
   PostWithRelations,
   TradingFeeWithUser,

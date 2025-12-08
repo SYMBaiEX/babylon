@@ -53,6 +53,7 @@ export const ROUTES = {
   ADMIN_GROUPS: '/admin/groups',
   ADMIN_PERFORMANCE: '/admin/performance',
   ADMIN_RL_TRAINING: '/admin/rl-training',
+  ADMIN_TRAINING: '/admin/training',
 
   // Share
   SHARE_PNL: (userId: string) => `/share/pnl/${userId}`,
@@ -97,6 +98,7 @@ export const ADMIN_ROUTES = [
   ROUTES.ADMIN_GROUPS,
   ROUTES.ADMIN_PERFORMANCE,
   ROUTES.ADMIN_RL_TRAINING,
+  ROUTES.ADMIN_TRAINING,
 ];
 
 /**

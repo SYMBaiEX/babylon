@@ -12,8 +12,8 @@
  * @packageDocumentation
  */
 
-import { actors, db, eq, users } from '@babylon/db';
-import { type ActorData, loadActorById } from '@babylon/engine';
+import { db, eq, users } from '@babylon/db';
+import { type ActorData, loadActorById, StaticDataRegistry } from '@babylon/engine';
 import {
   AgentRuntime,
   type Character,
@@ -419,15 +419,11 @@ export class AgentRuntimeManager {
   private async createNpcRuntime(
     registration: AgentRegistration
   ): Promise<AgentRuntime> {
-    // Verify actor exists in database
-    const [actor] = await db
-      .select()
-      .from(actors)
-      .where(eq(actors.id, registration.agentId))
-      .limit(1);
+    // Verify actor exists in static registry
+    const actor = StaticDataRegistry.getActor(registration.agentId);
 
     if (!actor) {
-      throw new Error(`Actor ${registration.agentId} not found in database`);
+      throw new Error(`Actor ${registration.agentId} not found in static registry`);
     }
 
     // Load full ActorData from JSON files

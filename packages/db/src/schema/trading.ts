@@ -304,3 +304,4 @@ export type Report = typeof reports.$inferSelect;
 export type NewReport = typeof reports.$inferInsert;
 export type ModerationEscrow = typeof moderationEscrows.$inferSelect;
 export type NewModerationEscrow = typeof moderationEscrows.$inferInsert;
+

@@ -1552,16 +1552,6 @@ export interface DrizzleClient {
     InferSelect<typeof schema.parodyHeadlines>,
     InferInsert<typeof schema.parodyHeadlines>
   >;
-  characterMapping: TableRepository<
-    typeof schema.characterMappings,
-    InferSelect<typeof schema.characterMappings>,
-    InferInsert<typeof schema.characterMappings>
-  >;
-  organizationMapping: TableRepository<
-    typeof schema.organizationMappings,
-    InferSelect<typeof schema.organizationMappings>,
-    InferInsert<typeof schema.organizationMappings>
-  >;
   moderationEscrow: TableRepository<
     typeof schema.moderationEscrows,
     InferSelect<typeof schema.moderationEscrows>,
@@ -1945,16 +1935,6 @@ export function createDrizzleClient(drizzle: SchemaDatabase): DrizzleClient {
       drizzle,
       schema.parodyHeadlines,
       'parodyHeadlines'
-    ),
-    characterMapping: new TableRepository(
-      drizzle,
-      schema.characterMappings,
-      'characterMappings'
-    ),
-    organizationMapping: new TableRepository(
-      drizzle,
-      schema.organizationMappings,
-      'organizationMappings'
     ),
     moderationEscrow: new TableRepository(
       drizzle,

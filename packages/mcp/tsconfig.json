@@ -12,7 +12,9 @@
       "@babylon/db": ["../db/src/index.ts"],
       "@babylon/db/*": ["../db/src/*"],
       "@babylon/api": ["../api/src/index.ts"],
-      "@babylon/api/*": ["../api/src/*"]
+      "@babylon/api/*": ["../api/src/*"],
+      "@babylon/engine": ["../engine/src/index.ts"],
+      "@babylon/engine/*": ["../engine/src/*"]
     }
   },
   "include": ["src/**/*"],
@@ -20,6 +22,7 @@
   "references": [
     { "path": "../shared" },
     { "path": "../db" },
-    { "path": "../api" }
+    { "path": "../api" },
+    { "path": "../engine" }
   ]
 }

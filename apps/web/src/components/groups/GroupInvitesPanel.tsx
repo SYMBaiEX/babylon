@@ -19,8 +19,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { GroupInviteNotification } from './GroupInviteNotification';
 
-// import { toast } from 'sonner';
-
 /**
  * Group invite structure for group invites panel.
  */

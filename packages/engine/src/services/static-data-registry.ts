@@ -168,7 +168,7 @@ export class StaticDataRegistry {
         initialLuck: actorAny.initialLuck ?? 'medium',
         initialMood: actorAny.initialMood ?? 0,
         profileImageUrl: this.getActorImageUrl(actorAny.id),
-        isTest: false,
+        isTest: actorAny.id.startsWith('test-'),
       };
 
       this.actorMap.set(actor.id, staticActor);

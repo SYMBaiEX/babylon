@@ -1,7 +1,5 @@
 'use client';
 
-// @ts-nocheck
-
 import { FEE_CONFIG } from '@babylon/engine/client';
 import { cn } from '@babylon/shared';
 import {
