@@ -18,7 +18,6 @@ import { loginWithWallet } from './helpers/privy-auth';
 import {
   ADMIN_ROUTES,
   AUTHENTICATED_ROUTES,
-  PUBLIC_ROUTES,
   ROUTES,
   SELECTORS,
   TIMEOUTS,

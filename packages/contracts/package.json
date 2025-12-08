@@ -34,7 +34,7 @@
   "scripts": {
     "lint": "biome lint src/",
     "typecheck": "tsc -b .",
-    "build": "forge build",
+    "build": "command -v forge >/dev/null 2>&1 && forge build || echo 'Skipping forge build (Foundry not installed)'",
     "test": "forge test -vvv",
     "test:unit": "forge test --match-path 'test/*.t.sol' --no-match-path 'test/Fuzz*.sol' --no-match-path 'test/Invariant*.sol' -vvv",
     "test:fuzz": "forge test --match-path 'test/Fuzz*.sol' -vvv",
