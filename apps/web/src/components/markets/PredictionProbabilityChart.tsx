@@ -275,23 +275,29 @@ export function PredictionProbabilityChart({
               tickFormatter={(value) => `${value.toFixed(0)}%`}
               domain={[0, 100]}
             />
+            {/* YES probability - filled from 50% line up to value when above 50%, line only otherwise */}
             <Area
               type="monotone"
               dataKey="probability"
               stroke="#16a34a"
               strokeWidth={2}
               fill={`url(#fillProbabilityYes-${marketId})`}
+              fillOpacity={0.6}
               isAnimationActive={false}
               name="YES"
+              connectNulls
+              baseLine={50}
             />
+            {/* NO probability - shown as line only for reference */}
             <Area
               type="monotone"
               dataKey="noProbability"
               stroke="#dc2626"
               strokeWidth={2}
-              fill={`url(#fillProbabilityNo-${marketId})`}
+              fill="none"
               isAnimationActive={false}
               name="NO"
+              connectNulls
             />
             <ChartTooltip
               cursor={{
