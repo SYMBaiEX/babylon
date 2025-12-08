@@ -146,7 +146,7 @@ export class AutonomousTradingService {
     // Build trading decision prompt
     // NPC trust scores are provided by experiencePlugin (marketOutcomeEvaluator)
     // and appear in agent context automatically via providers
-    const prompt = `${config?.systemPrompt ?? agent.agentSystem ?? 'You are an autonomous trading agent on Babylon.'}
+    const prompt = `${config?.systemPrompt ?? 'You are an autonomous trading agent on Babylon.'}
 
 You are ${agent.displayName}, an autonomous trading agent.
 
@@ -224,7 +224,6 @@ ${contextString}`;
         prompt: finalPrompt,
         system:
           config?.systemPrompt ??
-          agent.agentSystem ??
           'You are a trading agent. Think through your decision, then end your response with valid JSON.',
         modelSize: 'small', // Uses llama-3.3-70b-versatile - good at JSON format
         runtime: _runtime, // Pass runtime to access W&B trained models AND trajectory context

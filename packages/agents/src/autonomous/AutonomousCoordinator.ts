@@ -263,7 +263,9 @@ export class AutonomousCoordinator {
         } catch (tradingError) {
           logger.error(
             'Error during autonomous trade execution',
-            tradingError,
+            tradingError instanceof Error
+              ? tradingError
+              : { error: String(tradingError) },
             'AutonomousCoordinator'
           );
           // Don't fail the entire tick if trading fails - continue with other actions

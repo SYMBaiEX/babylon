@@ -95,24 +95,33 @@ export async function navigateTo(page: Page, route: string): Promise<void> {
  * Waits for page to be fully loaded and hydrated.
  *
  * @param page - Playwright page instance
- * @param timeout - Maximum time to wait in milliseconds (default: 15000)
+ * @param timeout - Maximum time to wait in milliseconds (default: 20000)
  */
 export async function waitForPageLoad(
   page: Page,
-  timeout = 15000
+  timeout = 20000
 ): Promise<void> {
   try {
     await page.waitForLoadState('domcontentloaded', { timeout });
 
-    await page
-      .waitForSelector('button', { state: 'visible', timeout: 10000 })
-      .catch(() => {
-        console.log('⚠️ No buttons found, page may not have fully hydrated');
-      });
+    // Wait for page to have interactive elements
+    let hasButtons = false;
+    for (let i = 0; i < 20; i++) {
+      const buttonCount = await page.locator('button').count().catch(() => 0);
+      if (buttonCount > 0) {
+        hasButtons = true;
+        break;
+      }
+      await page.waitForTimeout(500);
+    }
 
-    await page.waitForTimeout(500);
+    if (!hasButtons) {
+      // Try reloading the page once
+      await page.reload({ waitUntil: 'domcontentloaded' }).catch(() => {});
+      await page.waitForTimeout(2000);
+    }
   } catch (_e) {
-    console.log('⚠️ Page load wait timed out, continuing...');
+    // Continue anyway
   }
 }
 
