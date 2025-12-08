@@ -77,6 +77,7 @@ export class AutonomousTradingService {
     const agent = agentResult[0];
 
     if (!agent?.isAgent) {
+      logger.error('Agent not found or not an agent', { agentUserId });
       throw new Error('Agent not found');
     }
 
@@ -132,7 +133,7 @@ export class AutonomousTradingService {
     // Build trading decision prompt
     // NPC trust scores are provided by experiencePlugin (marketOutcomeEvaluator)
     // and appear in agent context automatically via providers
-    const prompt = `${agent.agentSystem}
+    const prompt = `${agent.agentSystem || ''}
 
 You are ${agent.displayName}, an autonomous trading agent.
 
@@ -159,20 +160,30 @@ Your Open Positions:
 ${positionsResult.map((p) => `- Prediction: ${p.marketId}, ${p.side ? 'YES' : 'NO'}, ${p.shares} shares`).join('\n') || 'None'}
 ${perpPositionsResult.map((p) => `- Perp: ${p.ticker}, ${p.side}, $${p.size}, ${p.leverage}x`).join('\n') || 'None'}
 
-Decide if you should make any trades this tick.
-Respond in JSON format:
-{
-  "action": "trade" | "hold",
-  "trade": {
-    "type": "prediction" | "perp",
-    "market": "id or ticker",
-    "action": "buy_yes" | "buy_no" | "sell" | "open_long" | "open_short" | "close",
-    "amount": number,
-    "reasoning": "why (mention trust scores if relevant)"
-  }
-}
+Analyze the markets and decide if you should trade based on YOUR strategy and personality.
 
-Only trade if you have strong conviction and sufficient balance.
+Trading Guidelines:
+- Consider using 10-20% of balance per trade (e.g. $100-$200 with $1000 balance)
+- Prediction markets: buy_yes, buy_no, or sell existing positions
+- Perp markets: open_long, open_short, or close existing positions
+- Consider YES/NO odds and look for value
+- You decide the trade size based on your conviction and strategy
+
+IMPORTANT: After your analysis, you MUST output valid JSON at the end.
+
+Your response format:
+1. Think through the decision (optional analysis/reasoning)
+2. End with ONLY this JSON (no text after):
+
+FOR PREDICTION TRADE:
+{"action": "trade", "trade": {"type": "prediction", "market": "exact question text", "action": "buy_yes" | "buy_no" | "sell", "amount": 150, "reasoning": "Market [name], YES:NO ratio [X:Y], betting [side] because [specific reason with probability/edge/catalyst]"}}
+
+FOR PERP TRADE:
+{"action": "trade", "trade": {"type": "perp", "market": "ticker", "action": "open_long" | "open_short" | "close", "amount": 200, "reasoning": "Ticker [name], current price $[X], going [direction] because [specific technical/fundamental reason]"}}
+
+FOR HOLD:
+{"action": "hold", "reasoning": "Why not trading: [specific reason - no conviction/waiting for better setup/insufficient data/etc]"}
+
 ${contextString}`;
 
     // Ensure prompt fits within 32K context limit (W&B trained models)
@@ -198,11 +209,13 @@ ${contextString}`;
     const decision = await Promise.race([
       callGroqDirect({
         prompt: finalPrompt,
-        system: agent.agentSystem || undefined,
-        modelSize: 'large', // Uses trained W&B model if available, else qwen3-32b
+        system:
+          agent.agentSystem ||
+          'You are a trading agent. Think through your decision, then end your response with valid JSON.',
+        modelSize: 'small', // Uses llama-3.3-70b-versatile - good at JSON format
         runtime: _runtime, // Pass runtime to access W&B trained models AND trajectory context
-        temperature: 0.7,
-        maxTokens: 300,
+        temperature: 0.7, // Normal temperature for natural decision-making
+        maxTokens: 1000, // Increased to allow reasoning + complete JSON output
         actionType: 'evaluate_trading_opportunity',
         purpose: 'action', // Track this as an ACTION call for RL
       }),
@@ -218,8 +231,33 @@ ${contextString}`;
       }),
     ]);
 
-    const jsonMatch = decision.match(/\{[\s\S]*\}/);
+    // Strip out <think> tags if present (some models like to reason first)
+    let cleanedDecision = decision;
+    if (decision.includes('<think>')) {
+      cleanedDecision = decision
+        .replace(/<think>[\s\S]*?<\/think>/g, '')
+        .trim();
+    }
+
+    // Extract JSON from response - find the LAST JSON object (in case reasoning comes before)
+    // Match all JSON objects and take the last one
+    const allJsonMatches = cleanedDecision.match(
+      /\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/g
+    );
+    const jsonMatch = allJsonMatches
+      ? allJsonMatches[allJsonMatches.length - 1]
+      : null;
+
     if (!jsonMatch) {
+      logger.error(
+        '❌ Failed to extract JSON from LLM response',
+        {
+          agentUserId,
+          responsePreview: decision.substring(0, 300),
+          hasThinkTags: decision.includes('<think>'),
+        },
+        'AutonomousTrading'
+      );
       throw new Error(
         `Failed to parse trade decision JSON from LLM response: ${decision.substring(0, 200)}`
       );
@@ -227,6 +265,7 @@ ${contextString}`;
 
     let tradeDecision: {
       action: string;
+      reasoning?: string;
       trade?: {
         type: string;
         market: string;
@@ -236,8 +275,9 @@ ${contextString}`;
       };
     };
     try {
-      tradeDecision = JSON.parse(jsonMatch[0]) as {
+      tradeDecision = JSON.parse(jsonMatch) as {
         action: string;
+        reasoning?: string;
         trade?: {
           type: string;
           market: string;
@@ -253,6 +293,14 @@ ${contextString}`;
     }
 
     if (tradeDecision.action !== 'trade' || !tradeDecision.trade) {
+      logger.info(
+        'Agent decided to hold',
+        {
+          agentUserId,
+          reasoning: tradeDecision.reasoning || 'No reasoning provided',
+        },
+        'AutonomousTrading'
+      );
       return {
         tradesExecuted: 0,
         marketId: undefined,
