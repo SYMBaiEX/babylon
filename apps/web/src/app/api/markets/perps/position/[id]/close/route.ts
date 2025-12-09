@@ -33,9 +33,10 @@ export const POST = withErrorHandling(
     const { id: positionId } = IdParamSchema.parse(await context.params);
 
     const text = await request.text();
-    const parsed = text.length > 0
-      ? ClosePerpPositionSchema.parse(JSON.parse(text))
-      : { percentage: undefined, slippage: undefined };
+    const parsed =
+      text.length > 0
+        ? ClosePerpPositionSchema.parse(JSON.parse(text))
+        : { percentage: undefined, slippage: undefined };
 
     const service = new PerpMarketService({
       db: new PerpDbAdapter(),

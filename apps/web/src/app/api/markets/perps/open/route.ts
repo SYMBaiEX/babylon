@@ -23,7 +23,8 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   const user = await authenticate(request);
 
   const body = await request.json();
-  const { ticker, side, size, leverage, maxSlippage } = PerpOpenPositionSchema.parse(body);
+  const { ticker, side, size, leverage, maxSlippage } =
+    PerpOpenPositionSchema.parse(body);
 
   const normalizedSide = side.toLowerCase() as 'long' | 'short';
   const numericSize = typeof size === 'string' ? Number(size) : size;
