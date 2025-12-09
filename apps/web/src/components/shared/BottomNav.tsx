@@ -3,8 +3,8 @@
 import { cn } from '@babylon/shared';
 import { Bell, Bot, Home, MessageCircle, TrendingUp } from 'lucide-react';
 import Link from 'next/link';
-import { usePathname, useSearchParams } from 'next/navigation';
-import { Suspense, useEffect, useState } from 'react';
+import { usePathname } from 'next/navigation';
+import { useEffect, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useUnreadMessages } from '@/hooks/useUnreadMessages';
 
@@ -13,32 +13,20 @@ import { useUnreadMessages } from '@/hooks/useUnreadMessages';
  *
  * Provides mobile navigation with Feed, Markets, Chats, Agents, and Notifications tabs.
  * Shows unread message and notification badges. Automatically hides when WAITLIST_MODE
- * is enabled on home page unless dev mode is enabled via URL parameter (?dev=true).
+ * is enabled on home page.
  *
  * @returns Bottom navigation element or null if hidden
  */
 function BottomNavContent() {
   const pathname = usePathname();
-  const searchParams = useSearchParams();
   const { authenticated, user } = useAuth();
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const { totalUnread: unreadMessages } = useUnreadMessages();
 
-  // Check if dev mode is enabled via URL parameter (for staging testing)
-  const isDevMode = searchParams.get('dev') === 'true';
-  // Force coming soon mode via URL parameter (for testing)
-  const forceComingSoon = searchParams.get('comingsoon') === 'true';
-
-  // Hide bottom nav on production (babylon.market) on home page unless ?dev=true
-  const isProduction =
-    typeof window !== 'undefined' &&
-    window.location.hostname === 'babylon.market';
-  // Hide bottom nav when WAITLIST_MODE is enabled on home page (unless ?dev=true)
+  // Hide bottom nav when WAITLIST_MODE is enabled on home page
   const isWaitlistMode = process.env.NEXT_PUBLIC_WAITLIST_MODE === 'true';
   const isHomePage = pathname === '/';
-  const shouldHide =
-    (isWaitlistMode && isProduction && isHomePage && !isDevMode) ||
-    forceComingSoon;
+  const shouldHide = isWaitlistMode && isHomePage;
 
   // Poll for unread notifications
   useEffect(() => {
@@ -165,17 +153,14 @@ function BottomNavContent() {
 }
 
 /**
- * Bottom navigation component wrapper with Suspense boundary.
+ * Bottom navigation component for mobile devices.
  *
- * Wraps BottomNavContent in a Suspense boundary to handle async navigation
- * hooks gracefully. Provides mobile navigation for the application.
+ * Provides mobile navigation with Feed, Markets, Chats, Agents, and Notifications tabs.
+ * Shows unread message and notification badges. Automatically hides when WAITLIST_MODE
+ * is enabled on home page.
  *
- * @returns Bottom navigation element wrapped in Suspense
+ * @returns Bottom navigation element or null if hidden
  */
 export function BottomNav() {
-  return (
-    <Suspense fallback={null}>
-      <BottomNavContent />
-    </Suspense>
-  );
+  return <BottomNavContent />;
 }

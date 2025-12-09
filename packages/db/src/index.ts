@@ -237,17 +237,102 @@ async function withRetryInternal<T>(
   throw lastError;
 }
 
+
 // ============================================================================
-// Lazy Database Proxy
+// Storage Mode Management
 // ============================================================================
 
-function createLazyDbProxy(): DrizzleClient {
+import { createJsonClient } from './json-client';
+import {
+  clearJsonStorage,
+  exportJsonState,
+  getJsonState,
+  initJsonStorage,
+  loadJsonSnapshot,
+  saveJsonSnapshot,
+} from './json-storage';
+
+export type StorageMode = 'postgres' | 'json' | 'memory';
+
+// Global storage mode
+let currentStorageMode: StorageMode = 'postgres';
+let jsonClient: DrizzleClient | null = null;
+
+/**
+ * Initialize JSON storage mode.
+ * All database operations will use JSON file storage instead of PostgreSQL.
+ *
+ * @param basePath - Directory to store JSON files
+ * @param options - Configuration options
+ */
+export async function initializeJsonMode(
+  basePath: string,
+  options: { autoSave?: boolean } = {}
+): Promise<void> {
+  await initJsonStorage(basePath, options);
+  currentStorageMode = 'json';
+  jsonClient = createJsonClient();
+  logger.info('[DB] Initialized JSON storage mode', { basePath });
+}
+
+/**
+ * Initialize memory storage mode (JSON without persistence).
+ * Useful for testing.
+ */
+export async function initializeMemoryMode(): Promise<void> {
+  await initJsonStorage('/tmp/babylon-memory', { autoSave: false });
+  currentStorageMode = 'memory';
+  jsonClient = createJsonClient();
+  logger.info('[DB] Initialized memory storage mode');
+}
+
+/**
+ * Reset to PostgreSQL mode.
+ */
+export function resetToPostgresMode(): void {
+  currentStorageMode = 'postgres';
+  jsonClient = null;
+  clearJsonStorage();
+  logger.info('[DB] Reset to PostgreSQL mode');
+}
+
+/** Get current storage mode */
+export function getStorageMode(): StorageMode {
+  return currentStorageMode;
+}
+
+/** Check if using JSON/memory mode */
+export function isSimulationMode(): boolean {
+  return currentStorageMode === 'json' || currentStorageMode === 'memory';
+}
+
+// Re-export JSON storage utilities
+export {
+  exportJsonState,
+  getJsonState,
+  loadJsonSnapshot,
+  saveJsonSnapshot,
+};
+
+// ============================================================================
+// Main Exports
+// ============================================================================
+
+/**
+ * Create a lazy proxy that switches between PostgreSQL and JSON mode.
+ */
+function createModeAwareDbProxy(): DrizzleClient {
   const handler: ProxyHandler<DrizzleClient> = {
     get(_target, prop: string | symbol) {
+      // In JSON/memory mode, use the JSON client
+      if (currentStorageMode !== 'postgres' && jsonClient) {
+        return jsonClient[prop as keyof DrizzleClient];
+      }
+
+      // In PostgreSQL mode, use the Drizzle client
       const client = getDbClient();
       if (!client) {
         if (isBuildTime) {
-          // Return a proxy that returns promises resolving to null/empty
           return new Proxy(
             {},
             {
@@ -257,29 +342,24 @@ function createLazyDbProxy(): DrizzleClient {
             }
           );
         }
-        throw new Error('Database not initialized. Check DATABASE_URL.');
+        throw new Error('Database not initialized. Check DATABASE_URL or use initializeJsonMode().');
       }
       return client[prop as keyof DrizzleClient];
     },
   };
 
-  // Create proxy with proper type casting
-  // The proxy intercepts all property access so the empty object target is fine
-  // Proxy requires a target object, but handler intercepts all access
-  // We use a partial DrizzleClient as target since handler provides all properties
   const proxyTarget: Partial<DrizzleClient> = {};
   return new Proxy(proxyTarget, handler) as DrizzleClient;
 }
 
-// ============================================================================
-// Main Exports
-// ============================================================================
+/** Main database instance - works with both PostgreSQL and JSON modes */
+export const db: DrizzleClient = createModeAwareDbProxy();
 
-/** Main database instance with familiar ORM-style API */
-export const db: DrizzleClient = createLazyDbProxy();
-
-/** Raw Drizzle instance for advanced queries */
+/** Raw Drizzle instance for advanced queries (PostgreSQL only) */
 export function getRawDrizzle(): Database {
+  if (currentStorageMode !== 'postgres') {
+    throw new Error('getRawDrizzle() is only available in PostgreSQL mode');
+  }
   const instance = getDrizzleInstance();
   if (!instance) throw new Error('Database not initialized');
   return instance;

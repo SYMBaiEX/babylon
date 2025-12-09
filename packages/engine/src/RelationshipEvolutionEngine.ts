@@ -24,7 +24,7 @@ import {
 import { generateSnowflakeId, logger } from '@babylon/shared';
 import type { BabylonLLMClient } from './llm/openai-client';
 import { StaticDataRegistry } from './services/static-data-registry';
-import type { Actor, Organization } from './types/shared';
+import type { Actor, ActorRelationship, Organization } from './types/shared';
 
 export interface RelationshipChange {
   actor1Id: string;
@@ -551,5 +551,81 @@ Return JSON: { "description": "...", "type": "...", "sentiment": 0.0 }`;
     });
 
     return lines.join('\n');
+  }
+
+  // =============================================================================
+  // STATIC QUERY METHODS (consolidated from RelationshipManager)
+  // =============================================================================
+
+  /**
+   * Get all relationships for an actor (static method for queries)
+   */
+  static async getActorRelationships(
+    actorId: string
+  ): Promise<ActorRelationship[]> {
+    const relationships = await db
+      .select()
+      .from(actorRelationships)
+      .where(
+        or(
+          eq(actorRelationships.actor1Id, actorId),
+          eq(actorRelationships.actor2Id, actorId)
+        )
+      );
+
+    return relationships.map((rel) => ({
+      id: rel.id,
+      actor1Id: rel.actor1Id,
+      actor2Id: rel.actor2Id,
+      relationshipType: rel.relationshipType as ActorRelationship['relationshipType'],
+      strength: rel.strength,
+      sentiment: rel.sentiment,
+      isPublic: rel.isPublic,
+      history: rel.history || undefined,
+      affects: rel.affects as Record<string, number> | undefined,
+      createdAt: rel.createdAt,
+      updatedAt: rel.updatedAt,
+    }));
+  }
+
+  /**
+   * Get specific relationship between two actors
+   */
+  static async getRelationship(
+    actor1Id: string,
+    actor2Id: string
+  ): Promise<ActorRelationship | null> {
+    const [relationship] = await db
+      .select()
+      .from(actorRelationships)
+      .where(
+        or(
+          and(
+            eq(actorRelationships.actor1Id, actor1Id),
+            eq(actorRelationships.actor2Id, actor2Id)
+          ),
+          and(
+            eq(actorRelationships.actor1Id, actor2Id),
+            eq(actorRelationships.actor2Id, actor1Id)
+          )
+        )
+      )
+      .limit(1);
+
+    if (!relationship) return null;
+
+    return {
+      id: relationship.id,
+      actor1Id: relationship.actor1Id,
+      actor2Id: relationship.actor2Id,
+      relationshipType: relationship.relationshipType as ActorRelationship['relationshipType'],
+      strength: relationship.strength,
+      sentiment: relationship.sentiment,
+      isPublic: relationship.isPublic,
+      history: relationship.history || undefined,
+      affects: relationship.affects as Record<string, number> | undefined,
+      createdAt: relationship.createdAt,
+      updatedAt: relationship.updatedAt,
+    };
   }
 }

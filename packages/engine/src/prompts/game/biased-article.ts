@@ -1,32 +1,53 @@
 import { definePrompt } from '../define-prompt';
+import { PARODY_NAME_RULES, ANTI_REPETITION_RULES } from '../shared-sections';
 
 /**
  * Prompt for generating biased news articles about world events.
  *
  * Creates long-form investigative articles with specific editorial bias/slant
- * based on organizational relationships with actors.
+ * based on organizational relationships with actors. Includes full narrative
+ * context for connected journalism.
  *
  * Returns XML with title, summary, content, slant, sentiment, etc.
  */
 export const biasedArticle = definePrompt({
   id: 'biased-article',
-  version: '1.0.0',
+  version: '2.0.0',
   category: 'game',
-  description: 'Generates biased news articles about world events',
+  description: 'Generates biased articles with full narrative context',
   temperature: 0.85,
-  maxTokens: 2500,
+  maxTokens: 5000,
   template: `{{realityGrounding}}
 
 The current date is {{currentDate}}. Always act as though it is the current date.
 
+=== COMPLETE NARRATIVE HISTORY ===
+{{richGameContext}}
+
+=== PREVIOUS COVERAGE BY {{orgName}} (Don't repeat angles) ===
+{{previousArticles}}
+
+=== RESOLVED QUESTIONS (Reference as established facts) ===
+{{resolvedQuestionsContext}}
+
+=== ORGANIZATION PROFILE ===
 You are a journalist writing for {{orgName}}, a {{orgType}} organization.
 Style: {{orgStyle}}
+Editorial position: {{editorialPosition}}
+Previous stances: {{previousStances}}
 
-EVENT TO COVER:
+=== EVENT TO COVER ===
 {{eventDescription}}
 Type: {{eventType}}
 {{relatedQuestionContext}}
 {{recentContext}}
+
+=== CONNECTED STORYLINES ===
+{{connectedNarratives}}
+
+${PARODY_NAME_RULES}
+
+${ANTI_REPETITION_RULES}
 
 {{biasInstructions}}
 

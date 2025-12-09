@@ -17,8 +17,8 @@ import {
 } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { usePathname, useSearchParams } from 'next/navigation';
-import { Suspense, useEffect, useRef, useState } from 'react';
+import { usePathname } from 'next/navigation';
+import { useEffect, useRef, useState } from 'react';
 import { LoginButton } from '@/components/auth/LoginButton';
 import { UserMenu } from '@/components/auth/UserMenu';
 import { Avatar } from '@/components/shared/Avatar';
@@ -30,8 +30,8 @@ import { useUnreadMessages } from '@/hooks/useUnreadMessages';
  * Main sidebar content component with navigation and user menu.
  *
  * Provides navigation links, user authentication state, unread message
- * counts, and admin access. Handles responsive behavior and dev mode
- * visibility. Includes referral code sharing functionality.
+ * counts, and admin access. Handles responsive behavior. Includes referral
+ * code sharing functionality.
  *
  * @returns Sidebar content element
  */
@@ -41,25 +41,13 @@ function SidebarContent() {
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const mdMenuRef = useRef<HTMLDivElement>(null);
   const pathname = usePathname();
-  const searchParams = useSearchParams();
   const { ready, authenticated, user, logout } = useAuth();
   const { totalUnread: unreadMessages } = useUnreadMessages();
 
-  // Check if dev mode is enabled via URL parameter (for staging testing)
-  const isDevMode = searchParams.get('dev') === 'true';
-  // Force coming soon mode via URL parameter (for testing)
-  const forceComingSoon = searchParams.get('comingsoon') === 'true';
-
-  // Hide sidebar on production (babylon.market) on home page unless ?dev=true
-  const isProduction =
-    typeof window !== 'undefined' &&
-    window.location.hostname === 'babylon.market';
-  // Hide sidebar when WAITLIST_MODE is enabled on home page (unless ?dev=true)
+  // Hide sidebar when WAITLIST_MODE is enabled on home page
   const isWaitlistMode = process.env.NEXT_PUBLIC_WAITLIST_MODE === 'true';
   const isHomePage = pathname === '/';
-  const shouldHideSidebar =
-    (isWaitlistMode && isProduction && isHomePage && !isDevMode) ||
-    forceComingSoon;
+  const shouldHideSidebar = isWaitlistMode && isHomePage;
 
   // Check if user is admin from the user object
   const isAdmin = user?.isAdmin ?? false;
@@ -423,18 +411,14 @@ function SidebarContent() {
 }
 
 /**
- * Sidebar component wrapper with Suspense boundary.
+ * Sidebar component with navigation and user menu.
  *
- * Wraps SidebarContent in a Suspense boundary to handle
- * async navigation hooks gracefully. Provides the main
- * application sidebar with navigation and user menu.
+ * Provides navigation links, user authentication state, unread message
+ * counts, and admin access. Automatically hides when WAITLIST_MODE is
+ * enabled on home page.
  *
- * @returns Sidebar element wrapped in Suspense
+ * @returns Sidebar element or null if hidden
  */
 export function Sidebar() {
-  return (
-    <Suspense fallback={null}>
-      <SidebarContent />
-    </Suspense>
-  );
+  return <SidebarContent />;
 }

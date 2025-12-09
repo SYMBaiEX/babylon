@@ -23,7 +23,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   const user = await authenticate(request);
 
   const body = await request.json();
-  const { ticker, side, size, leverage } = PerpOpenPositionSchema.parse(body);
+  const { ticker, side, size, leverage, maxSlippage } = PerpOpenPositionSchema.parse(body);
 
   const normalizedSide = side.toLowerCase() as 'long' | 'short';
   const numericSize = typeof size === 'string' ? Number(size) : size;
@@ -40,9 +40,10 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     side: normalizedSide,
     size: numericSize,
     leverage,
+    maxSlippage,
   });
 
-  trackServerEvent(user.userId, 'trade_opened', {
+  void trackServerEvent(user.userId, 'trade_opened', {
     type: 'perp',
     ticker,
     side: normalizedSide,
@@ -52,8 +53,6 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     marginPaid: result.marginPaid ?? 0,
     feeCharged: result.feePaid,
     positionId: result.positionId,
-  }).catch((error) => {
-    console.warn('Failed to track trade_opened event', { error });
   });
 
   return successResponse(

@@ -26,6 +26,7 @@
     "uuid": "^11.1.0"
   },
   "peerDependencies": {
+    "@babylon/core": "workspace:*",
     "@babylon/db": "workspace:*",
     "@babylon/engine": "workspace:*",
     "@babylon/shared": "workspace:*",

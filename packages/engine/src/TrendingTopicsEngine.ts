@@ -5,30 +5,31 @@
  *
  * @description
  * Tracks popular topics across the feed and generates LLM-powered trend descriptions.
- * Updates every ~10 ticks to reflect evolving narratives and breaking stories.
+ * Updates every 4 ticks (4 hours, 6x per day) to reflect evolving narratives while
+ * avoiding redundant LLM calls. Only regenerates when topic composition changes significantly.
  *
  * **Key Features:**
  * - Aggregates tags from recent posts (last 100 posts)
  * - Ranks topics by frequency and recency
  * - Generates micro-summaries of each trend using LLM
- * - Updates every 10 ticks to stay current
+ * - Updates every 4 ticks (every 4 hours, 6x per day)
+ * - Skips regeneration if top topics haven't changed
  * - Provides trend context for agent posting
  *
  * **Trend Lifecycle:**
  * 1. **Detection** - Aggregate tags from recent posts
- * 2. **Ranking** - Sort by frequency + recency score
- * 3. **Description** - LLM generates trend name and summary
- * 4. **Distribution** - Make trends available to agents
- * 5. **Refresh** - Update every 10 ticks
+ * 2. **Change Detection** - Check if topics have shifted significantly
+ * 3. **Ranking** - Sort by frequency + recency score
+ * 4. **Description** - LLM generates trend name and summary (only if changed)
+ * 5. **Distribution** - Make trends available to agents
+ * 6. **Refresh** - Update every 4 ticks (6x per day)
  *
  * @example
  * ```typescript
  * const trends = new TrendingTopicsEngine(llm);
  *
- * // Update trends every 10 ticks
- * if (tick % 10 === 0) {
- *   await trends.updateTrends(recentPosts, currentTick);
- * }
+ * // Update trends - internally checks interval and content changes
+ * await trends.updateTrends(recentPosts, currentTick);
  *
  * // Get current trends for agent context
  * const trendContext = trends.getTrendContext();
@@ -70,13 +71,18 @@ export interface TrendingTopic {
  *
  * @description
  * Manages trending topic detection, ranking, and description generation.
- * Updates periodically to reflect evolving narratives.
+ * Updates periodically to reflect evolving narratives while avoiding
+ * redundant LLM calls when topics haven't changed.
  */
 export class TrendingTopicsEngine {
   private llm: BabylonLLMClient;
   private currentTrends: TrendingTopic[] = [];
   private lastUpdateTick = 0;
-  private updateInterval = 10; // Update every 10 ticks
+  private updateInterval = 4; // Update every 4 ticks (4 hours, 6x per day)
+  /** Hash of the last top topics to detect changes */
+  private lastTopicsHash = '';
+  /** Minimum score change ratio required to trigger regeneration (30%) */
+  private static readonly MIN_CHANGE_THRESHOLD = 0.3;
 
   /**
    * Create a new TrendingTopicsEngine
@@ -88,14 +94,16 @@ export class TrendingTopicsEngine {
   }
 
   /**
-   * Update trends based on recent posts (call every tick, updates every 10)
+   * Update trends based on recent posts (call every tick, updates every 100)
    *
    * @param recentPosts - Last 100-200 posts from the feed
    * @param currentTick - Current game tick number
+   * @param forceUpdate - Force update even if interval hasn't passed (default: false)
    */
   async updateTrends(
     recentPosts: FeedPost[],
-    currentTick: number
+    currentTick: number,
+    forceUpdate = false
   ): Promise<void> {
     // Validation
     if (!recentPosts || recentPosts.length === 0) {
@@ -107,19 +115,11 @@ export class TrendingTopicsEngine {
       return;
     }
 
-    // Only update every N ticks
-    if (currentTick - this.lastUpdateTick < this.updateInterval) {
+    // Only update every N ticks (unless forced or first update)
+    const isFirstUpdate = this.lastUpdateTick === 0 && this.currentTrends.length === 0;
+    if (!forceUpdate && !isFirstUpdate && currentTick - this.lastUpdateTick < this.updateInterval) {
       return;
     }
-
-    logger.info(
-      `Updating trending topics at tick ${currentTick}`,
-      {
-        postCount: recentPosts.length,
-      },
-      'TrendingTopicsEngine'
-    );
-    this.lastUpdateTick = currentTick;
 
     // 1. Aggregate tags from recent posts
     const tagFrequency = this.aggregateTags(recentPosts);
@@ -148,7 +148,37 @@ export class TrendingTopicsEngine {
     // 3. Take top 5 topics
     const topTopics = rankedTopics.slice(0, 5);
 
-    // 4. Generate LLM descriptions for each trend
+    // 4. Check if topics have changed significantly - skip LLM if not
+    const newTopicsHash = this.computeTopicsHash(topTopics);
+    const hasSignificantChange = this.hasTopicsChanged(topTopics);
+
+    if (!forceUpdate && !hasSignificantChange && this.currentTrends.length > 0) {
+      logger.debug(
+        `Skipping trend regeneration - topics unchanged (hash: ${newTopicsHash})`,
+        { topTopics: topTopics.map((t) => t.tag) },
+        'TrendingTopicsEngine'
+      );
+      // Update the tick but reuse existing trends with updated counts
+      this.lastUpdateTick = currentTick;
+      this.updateTrendCounts(topTopics);
+      return;
+    }
+
+    logger.info(
+      `Updating trending topics at tick ${currentTick}`,
+      {
+        postCount: recentPosts.length,
+        topicsHash: newTopicsHash,
+        previousHash: this.lastTopicsHash,
+        hasSignificantChange,
+      },
+      'TrendingTopicsEngine'
+    );
+
+    this.lastUpdateTick = currentTick;
+    this.lastTopicsHash = newTopicsHash;
+
+    // 5. Generate LLM descriptions for each trend
     this.currentTrends = await this.generateTrendDescriptions(
       topTopics,
       recentPosts
@@ -161,6 +191,109 @@ export class TrendingTopicsEngine {
       },
       'TrendingTopicsEngine'
     );
+  }
+
+  /**
+   * Compute a hash of the top topics for change detection
+   */
+  private computeTopicsHash(
+    topics: Array<{ tag: string; count: number; score: number }>
+  ): string {
+    // Hash based on tag names and relative ordering
+    return topics.map((t) => `${t.tag}:${Math.round(t.score)}`).join('|');
+  }
+
+  /**
+   * Check if topics have changed significantly from previous update
+   */
+  private hasTopicsChanged(
+    newTopics: Array<{ tag: string; count: number; score: number }>
+  ): boolean {
+    // If no previous trends, definitely changed
+    if (this.currentTrends.length === 0 || !this.lastTopicsHash) {
+      return true;
+    }
+
+    const newHash = this.computeTopicsHash(newTopics);
+
+    // Quick check: if hash is identical, no change
+    if (newHash === this.lastTopicsHash) {
+      return false;
+    }
+
+    // Check if the top tags are the same (order might differ)
+    const currentTags = new Set(this.currentTrends.map((t) => t.tag));
+    const newTags = new Set(newTopics.map((t) => t.tag));
+
+    // Count how many tags are different
+    let differentTags = 0;
+    for (const tag of newTags) {
+      if (!currentTags.has(tag)) {
+        differentTags++;
+      }
+    }
+
+    // If more than 40% of tags are different, it's a significant change
+    const changeRatio = differentTags / newTags.size;
+
+    // Also check if scores have changed significantly
+    const scoreChange = this.computeScoreChange(newTopics);
+
+    return changeRatio >= TrendingTopicsEngine.MIN_CHANGE_THRESHOLD || scoreChange >= 0.5;
+  }
+
+  /**
+   * Compute how much the scores have changed relative to current trends
+   */
+  private computeScoreChange(
+    newTopics: Array<{ tag: string; score: number }>
+  ): number {
+    if (this.currentTrends.length === 0) return 1;
+
+    const currentScoreMap = new Map(
+      this.currentTrends.map((t) => [t.tag, t.score])
+    );
+
+    let totalChange = 0;
+    let compared = 0;
+
+    for (const topic of newTopics) {
+      const currentScore = currentScoreMap.get(topic.tag);
+      if (currentScore !== undefined && currentScore > 0) {
+        const change = Math.abs(topic.score - currentScore) / currentScore;
+        totalChange += change;
+        compared++;
+      }
+    }
+
+    return compared > 0 ? totalChange / compared : 1;
+  }
+
+  /**
+   * Update counts on existing trends without regenerating descriptions
+   */
+  private updateTrendCounts(
+    newTopics: Array<{
+      tag: string;
+      count: number;
+      recency: number;
+      score: number;
+      relatedQuestions: number[];
+      samplePosts: string[];
+    }>
+  ): void {
+    const newTopicMap = new Map(newTopics.map((t) => [t.tag, t]));
+
+    for (const trend of this.currentTrends) {
+      const newData = newTopicMap.get(trend.tag);
+      if (newData) {
+        trend.count = newData.count;
+        trend.recency = newData.recency;
+        trend.score = newData.score;
+        trend.relatedQuestions = newData.relatedQuestions;
+        trend.samplePosts = newData.samplePosts;
+      }
+    }
   }
 
   /**
@@ -341,37 +474,16 @@ export class TrendingTopicsEngine {
     }>,
     allPosts: FeedPost[]
   ): Promise<TrendingTopic[]> {
-    if (topics.length === 0) {
-      throw new Error(
-        'Cannot generate trend descriptions for empty topics array'
-      );
-    }
-
-    const trends: TrendingTopic[] = [];
-
-    // Generate descriptions in batch for efficiency - compact format
+    // Build prompt with sample posts for each topic
     const topicsList = topics
       .map((topic, i) => {
-        // Get sample posts for this topic
         const samplePosts = allPosts
           .filter((p) => topic.samplePosts.includes(p.id))
-          .slice(0, 3); // Reduced from 5 to 3 for token efficiency
-
-        if (samplePosts.length === 0) {
-          throw new Error(
-            `Topic "${topic.tag}" has no sample posts - cannot generate description`
-          );
-        }
+          .slice(0, 3);
 
         const posts = samplePosts
           .map((p) => {
-            if (!p.authorName || !p.content) {
-              throw new Error(
-                'Invalid post data for trending: missing authorName or content'
-              );
-            }
-            const content =
-              p.content.length > 80
+            const content = p.content.length > 80
                 ? p.content.substring(0, 80) + '...'
                 : p.content;
             return `@${p.authorName}:"${content}"`;
@@ -382,170 +494,117 @@ export class TrendingTopicsEngine {
       })
       .join('\n');
 
-    if (!topicsList || topicsList.trim().length === 0) {
-      throw new Error(
-        'Failed to build topics list for LLM prompt - empty content'
-      );
-    }
-
     const prompt = renderPrompt(trendingTopics, { topicsList });
     const params = getPromptParams(trendingTopics);
 
-    let rawResponse:
-      | {
-          trends: Array<{
-            trendName: string;
-            description: string;
-          }>;
-        }
-      | {
-          response: {
-            trends:
-              | Array<{
-                  trendName: string;
-                  description: string;
-                }>
-              | {
-                  trend: Array<{
-                    trendName: string;
-                    description: string;
-                  }>;
-                };
-          };
-        };
-
-    try {
-      rawResponse = await this.llm.generateJSON(prompt, undefined, {
+    const rawResponse = await this.llm.generateJSON<Record<string, unknown>>(prompt, undefined, {
         ...params,
         format: 'xml',
         promptType: 'trending_topics_generate',
       });
-    } catch (error) {
-      // Handle LLM failures gracefully - return trends with fallback descriptions
-      logger.warn(
-        'LLM failed to generate trend descriptions, using fallbacks',
-        { error: error instanceof Error ? error.message : String(error) },
-        'TrendingTopicsEngine'
-      );
-      return topics.map((topic) => ({
-        tag: topic.tag,
-        count: topic.count,
-        recency: topic.recency,
-        score: topic.score,
-        trendName: topic.tag,
-        description: `Trending topic: ${topic.tag}`,
-        relatedQuestions: topic.relatedQuestions,
-        samplePosts: topic.samplePosts || [],
-      }));
-    }
 
-    // Handle XML structure with strict validation
-    let trendDescriptions: Array<{ trendName: string; description: string }> =
-      [];
+    // Extract trend descriptions from XML response structure
+    const trendDescriptions = this.extractTrendDescriptions(rawResponse);
 
-    if ('response' in rawResponse && rawResponse.response) {
-      const response = rawResponse.response;
-      if (Array.isArray(response.trends)) {
-        trendDescriptions = response.trends;
-      } else if (
-        response.trends &&
-        typeof response.trends === 'object' &&
-        'trend' in response.trends
-      ) {
-        const trendData = (
-          response.trends as {
-            trend: Array<{ trendName: string; description: string }>;
-          }
-        ).trend;
-        trendDescriptions = Array.isArray(trendData) ? trendData : [trendData];
-      }
-    } else if ('trends' in rawResponse && Array.isArray(rawResponse.trends)) {
-      trendDescriptions = rawResponse.trends;
-    }
-
-    if (trendDescriptions.length === 0) {
-      // Return trends with fallback descriptions when LLM returns empty array
-      logger.warn(
-        'LLM returned empty trends array, using fallbacks',
-        undefined,
-        'TrendingTopicsEngine'
-      );
-      return topics.map((topic) => ({
-        tag: topic.tag,
-        count: topic.count,
-        recency: topic.recency,
-        score: topic.score,
-        trendName: topic.tag,
-        description: `Trending topic: ${topic.tag}`,
-        relatedQuestions: topic.relatedQuestions,
-        samplePosts: topic.samplePosts || [],
-      }));
-    }
-
-    if (trendDescriptions.length < topics.length) {
-      logger.warn(
-        `LLM returned fewer descriptions (${trendDescriptions.length}) than topics (${topics.length})`,
-        undefined,
-        'TrendingTopicsEngine'
-      );
-    }
-
-    // Combine with topic data and validate each trend
-    topics.forEach((topic, i) => {
+    // Combine topic data with LLM descriptions
+    return topics.map((topic, i) => {
       const desc = trendDescriptions[i];
-      if (!desc) {
-        logger.warn(
-          `No description for topic ${i}: ${topic.tag}`,
-          undefined,
-          'TrendingTopicsEngine'
-        );
-        return;
-      }
-
-      // Validate trend has meaningful content
-      const trendName = desc.trendName?.trim();
-      const description = desc.description?.trim();
-
-      if (!trendName || trendName.length === 0) {
-        logger.warn(
-          `Empty trend name for "${topic.tag}" - using tag as fallback`,
-          undefined,
-          'TrendingTopicsEngine'
-        );
-      }
-
-      if (!description || description.length === 0) {
-        logger.warn(
-          `Empty description for "${topic.tag}" - using default`,
-          undefined,
-          'TrendingTopicsEngine'
-        );
-      }
-
-      trends.push({
+      const trendName = desc?.trendName?.trim();
+      const description = desc?.description?.trim();
+      return {
         tag: topic.tag,
         count: topic.count,
         recency: topic.recency,
         score: topic.score,
         trendName: trendName || topic.tag,
-        description:
-          description || `${topic.count} posts discussing ${topic.tag}`,
+        description: description || `${topic.count} posts discussing ${topic.tag}`,
         relatedQuestions: topic.relatedQuestions,
         samplePosts: topic.samplePosts,
-      });
+      };
     });
-
-    if (trends.length === 0) {
-      throw new Error('Failed to generate any valid trends from LLM response');
     }
 
-    return trends;
+  /**
+   * Extract trend descriptions from LLM response (handles XML structure variations)
+   */
+  private extractTrendDescriptions(
+    rawResponse: Record<string, unknown>
+  ): Array<{ trendName: string; description: string }> {
+    // Direct trends array
+    if ('trends' in rawResponse && Array.isArray(rawResponse.trends)) {
+      return rawResponse.trends as Array<{ trendName: string; description: string }>;
+    }
+
+    // Wrapped in response object
+    if ('response' in rawResponse && rawResponse.response) {
+      const response = rawResponse.response as Record<string, unknown>;
+      if ('trends' in response && Array.isArray(response.trends)) {
+        return response.trends as Array<{ trendName: string; description: string }>;
+      }
+      // Single trend wrapped in object
+      if ('trends' in response && response.trends && typeof response.trends === 'object') {
+        const trendsObj = response.trends as Record<string, unknown>;
+        if ('trend' in trendsObj) {
+          const trendData = trendsObj.trend;
+          return Array.isArray(trendData) ? trendData : [trendData as { trendName: string; description: string }];
+    }
+      }
+    }
+
+    return [];
   }
 
   /**
-   * Set update interval (default: 10 ticks)
+   * Set update interval (default: 4 ticks = every 4 hours, 6x per day)
+   *
+   * @param ticks - Number of ticks between updates (minimum: 1)
    */
   setUpdateInterval(ticks: number): void {
-    this.updateInterval = ticks;
+    // Enforce minimum of 1 tick to prevent continuous updates
+    this.updateInterval = Math.max(1, ticks);
+    if (ticks < 1) {
+      logger.warn(
+        `Update interval ${ticks} is too low, using minimum of 1`,
+        undefined,
+        'TrendingTopicsEngine'
+      );
+    }
+  }
+
+  /**
+   * Get current update interval
+   */
+  getUpdateInterval(): number {
+    return this.updateInterval;
+      }
+
+  /**
+   * Force a trend update regardless of interval or change detection
+   *
+   * @param recentPosts - Last 100-200 posts from the feed
+   * @param currentTick - Current game tick number
+   */
+  async forceTrendUpdate(
+    recentPosts: FeedPost[],
+    currentTick: number
+  ): Promise<void> {
+    await this.updateTrends(recentPosts, currentTick, true);
+      }
+
+  /**
+   * Check if trends need updating (for external callers)
+   *
+   * @param currentTick - Current game tick number
+   * @returns true if update is due based on interval
+   */
+  needsUpdate(currentTick: number): boolean {
+    return currentTick - this.lastUpdateTick >= this.updateInterval;
+  }
+
+  /**
+   * Get the last update tick
+   */
+  getLastUpdateTick(): number {
+    return this.lastUpdateTick;
   }
 }

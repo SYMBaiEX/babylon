@@ -160,13 +160,19 @@ Current Status:
 Available Prediction Markets:
 ${shuffledPredictions
   .slice(0, 5)
-  .map((m) => `- ${m.question} (YES: ${m.yesShares}, NO: ${m.noShares})`)
+  .map((m: (typeof predictionMarkets)[number]) => `- ${m.question} (YES: ${m.yesShares}, NO: ${m.noShares})`)
   .join('\n')}
 
 Available Perp Markets:
 ${shuffledPerps
   .slice(0, 5)
-  .map((o) => `- ${o.name} @ $${o.currentPrice}`)
+  .map((o: (typeof perpMarkets)[number]) => {
+    const initial = o.initialPrice ?? 100;
+    const current = o.currentPrice ?? initial;
+    const changePercent = (((current - initial) / initial) * 100).toFixed(1);
+    const direction = current > initial ? '📈' : current < initial ? '📉' : '➡️';
+    return `- ${o.ticker}: ${o.name} @ $${current.toFixed(2)} ${direction} ${changePercent}% from IPO ($${initial})`;
+  })
   .join('\n')}
 
 Your Open Positions:
@@ -276,7 +282,7 @@ ${contextString}`;
       );
     }
 
-    let tradeDecision: {
+    interface TradeDecision {
       action: string;
       reasoning?: string;
       trade?: {
@@ -286,24 +292,9 @@ ${contextString}`;
         amount: number;
         reasoning?: string;
       };
-    };
-    try {
-      tradeDecision = JSON.parse(jsonMatch) as {
-        action: string;
-        reasoning?: string;
-        trade?: {
-          type: string;
-          market: string;
-          action: string;
-          amount: number;
-          reasoning?: string;
-        };
-      };
-    } catch (parseError) {
-      throw new Error(
-        `Failed to parse JSON trade decision: ${parseError instanceof Error ? parseError.message : String(parseError)}. Response: ${decision.substring(0, 200)}`
-      );
     }
+
+    const tradeDecision = JSON.parse(jsonMatch) as TradeDecision;
 
     if (tradeDecision.action !== 'trade' || !tradeDecision.trade) {
       logger.info(
@@ -445,7 +436,10 @@ ${contextString}`;
       }
     } else if (trade.type === 'perp' && perpMarkets.length > 0) {
       const org = perpMarkets.find(
-        (o) => o.name === trade.market || o.id === trade.market
+        (o) =>
+          o.name === trade.market ||
+          o.id === trade.market ||
+          o.ticker === trade.market
       );
       if (org && trade.amount <= Number(balance.balance)) {
         if (trade.action === 'open_long' || trade.action === 'open_short') {

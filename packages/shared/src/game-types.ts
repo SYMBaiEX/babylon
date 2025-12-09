@@ -283,8 +283,20 @@ export interface WorldEvent {
   actors: string[];
   description: string;
   relatedQuestion?: number | null;
+  /**
+   * @deprecated Use sentimentSignal instead for more nuanced signal direction.
+   * Kept for backwards compatibility - will be derived from sentimentSignal if not set.
+   */
   pointsToward?: 'YES' | 'NO' | null;
   visibility: 'public' | 'leaked' | 'secret' | 'private' | 'group';
+
+  // New sentiment-based signal fields (preferred over pointsToward)
+  /** Sentiment signal from -1.0 (negative) to 1.0 (positive) */
+  sentimentSignal?: number;
+  /** How clear/strong the signal is (0 to 1) */
+  signalClarity?: number;
+  /** Reliability of the source (0 to 1) */
+  sourceReliability?: number;
 }
 
 /**

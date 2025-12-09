@@ -1093,7 +1093,7 @@ export class PointsService {
               id: state.id,
               username: state.id,
               displayName: staticActor.name,
-              profileImageUrl: staticActor.profileImageUrl,
+              profileImageUrl: staticActor.profileImageUrl ?? null as string | null,
               allPoints: state.reputationPoints,
               invitePoints: 0,
               earnedPoints: 0,

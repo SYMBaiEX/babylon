@@ -56,9 +56,21 @@ export interface PerpDbPort {
   listMarkets(): Promise<PerpMarketRecord[]>;
   listOpenPositions(): Promise<PerpPositionRecord[]>;
   getPositionById(id: string): Promise<PerpPositionRecord | null>;
+  /** Get all open positions for a user */
+  getOpenPositionsByUser(userId: string): Promise<PerpPositionRecord[]>;
+  /** Get existing open position for user on specific ticker (for consolidation) */
+  getOpenPositionByUserAndTicker(
+    userId: string,
+    ticker: string
+  ): Promise<PerpPositionRecord | null>;
   upsertPosition(
     position: Omit<PerpPositionRecord, 'id'> & { id?: string }
   ): Promise<PerpPositionRecord>;
+  /**
+   * Execute operations within a transaction for atomicity.
+   * If the callback throws, all changes are rolled back.
+   */
+  transaction<T>(fn: (tx: PerpDbPort) => Promise<T>): Promise<T>;
   updateOpenPosition(
     positionId: string,
     updates: Partial<

@@ -294,4 +294,6 @@ export const PerpOpenPositionSchema = z.object({
     .int({ message: 'Leverage must be an integer' })
     .min(1, { message: 'Minimum leverage is 1x' })
     .max(100, { message: 'Maximum leverage is 100x' }),
+  /** Max slippage tolerance (0-1, e.g., 0.01 = 1%). Rejects if spot/mark deviation exceeds this. */
+  maxSlippage: z.number().min(0).max(1).optional(),
 });

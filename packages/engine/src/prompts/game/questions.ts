@@ -1,4 +1,5 @@
 import { definePrompt } from '../define-prompt';
+import { PARODY_NAME_RULES, QUESTION_CONTINUITY_RULES } from '../shared-sections';
 
 /**
  * Prompt for generating yes/no prediction market questions for each scenario.
@@ -6,64 +7,85 @@ import { definePrompt } from '../define-prompt';
  * Creates 5 bettable yes/no questions per scenario that are provable,
  * definable, and resolve by Day 30. Questions must be concrete and
  * observable, avoiding vague emotional states or abstract concepts.
+ * Includes full narrative context for question continuity.
  *
  * Returns XML with questions for each scenario.
  */
 export const questions = definePrompt({
   id: 'questions',
-  version: '2.0.0',
+  version: '4.0.0',
   category: 'game',
-  description: 'Generates yes/no questions for each scenario',
+  description: 'Generates yes/no questions with full character and narrative context',
   temperature: 0.7,
-  maxTokens: 3000,
+  maxTokens: 10000,
   template: `{{realityGrounding}}
 
 The current date is {{currentDate}}. Always act as though it is the current date.
 
-For each scenario, generate 5 yes/no questions that players can bet on.
+=== ALL CHARACTERS IN WORLD ===
+{{characterRoster}}
 
-SCENARIOS:
+=== DETAILED CHARACTER PROFILES ===
+{{detailedCharacterProfiles}}
+
+=== ORGANIZATIONS ===
+{{organizationRoster}}
+
+=== COMPLETE NARRATIVE CONTEXT ===
+{{richGameContext}}
+
+=== EXISTING QUESTIONS (Active - DON'T DUPLICATE) ===
+{{activeQuestionsContext}}
+
+=== RESOLVED QUESTIONS (Build on these outcomes) ===
+{{resolvedQuestionsContext}}
+
+=== SCENARIOS ===
 {{scenariosList}}
+
+=== ORGANIZATIONS IN PLAY ===
 {{organizationContext}}
 
-IMPORTANT RULES:
-- Use ONLY the exact actor and organization names from the scenarios above
-- NEVER use real-world person or organization names
-- NEVER "correct" or change parody names - use them exactly as shown in scenarios
-- Reference actors and organizations by their exact names from the scenarios
+${PARODY_NAME_RULES}
 
-CRITICAL: Each question must be PROVABLE and DEFINABLE:
-- Must have a clear, observable outcome (announcement, product launch, public event, measurable metric)
-- AVOID vague emotional states ("emotions stabilize", "feelings change")
-- AVOID abstract concepts ("collapse", "apocalypse" without clear definition)
-- GOOD: "Will AIX announce Y?" "Will AIX's product launch?" "Will AIX and Y have a public meeting?"
-- BAD: "Will AIX's emotions stabilize?" "Will the apocalypse occur?" "Will things collapse?"
+${QUESTION_CONTINUITY_RULES}
 
-Each question must:
-- Be a CONCRETE, OBSERVABLE yes/no prediction
-- Have a specific, measurable outcome
-- Resolve by Day 30 with clear evidence
-- Be dramatic and entertaining
-- Have real uncertainty (not obvious)
-- Be satirical
-- Reference specific actors and events
+=== QUESTION GENERATION REQUIREMENTS ===
 
-Examples of GOOD questions (including organizations):
-- "Will Ailon Muskannounce TeslAI's brain upload feature?"
-- "Will Scam AIltman's AGI pass the Turing test publicly?"
-- "Will Vitamin Uterin fork Etherai-foundation before Day 30?"
-- "Will MSDNC break story about leaked OpenLIE documents?"
-- "Will The Fud raise interest rates in response to the crisis?"
-- "Will Xitter announce new content moderation policy?"
+For each scenario, generate 5 yes/no questions that players can bet on.
 
-Examples of BAD questions:
-- "Will Vitamin's emotions stabilize?" (too vague)
-- "Will the crypto apocalypse occur?" (undefined)
-- "Will the economy collapse?" (what counts as collapse?)
+CRITICAL - DISTINCTNESS CHECK:
+Before generating each question, verify it is NOT similar to:
+1. Any active question listed above
+2. Any resolved question (unless explicitly building on its outcome)
+3. Any other question you're generating in this batch
 
-CRITICAL FORMAT: Return a SINGLE XML response with ALL questions from ALL scenarios.
+PROVABLE & DEFINABLE:
+✓ Clear, observable outcome (announcement, launch, public event, metric)
+✓ Specific actors and organizations by parody names
+✓ Resolves by Day 30 with concrete evidence
+✓ Dramatic, entertaining, and satirical
+✓ Real uncertainty (not obvious outcome)
 
-Return XML:
+✗ Vague emotional states ("emotions stabilize")
+✗ Abstract concepts ("apocalypse" without definition)
+✗ Unfalsifiable predictions
+
+EXAMPLES OF DISTINCT QUESTIONS:
+Instead of multiple "Will X announce Y?" questions, vary:
+- "Will TeslAI's share price exceed $500 before Day 15?"
+- "Will OpenAGI's SMH-9000 pass external audit?"
+- "Will AIlon Musk and Sam AIltman have public confrontation?"
+- "Will MSDNC break exclusive on leaked documents?"
+- "Will The Fud intervene in the market?"
+
+BUILDING ON RESOLVED QUESTIONS:
+If "Will AIlon announce X?" resolved YES, good follow-ups:
+- "Will AIlon's X launch on schedule?"
+- "Will competitors respond to X announcement?"
+- "Will X face regulatory scrutiny?"
+
+Return XML with UNIQUE, DISTINCT questions:
 <response>
   <questions>
     <question>
@@ -73,25 +95,9 @@ Return XML:
       <dramaPotential>8</dramaPotential>
       <uncertainty>7</uncertainty>
       <satiricalValue>9</satiricalValue>
-      <observableOutcome>What exact event/announcement/action would prove YES</observableOutcome>
-    </question>
-    <question>
-      <id>2</id>
-      <scenario>1</scenario>
-      <text>Another question for scenario 1...</text>
-      <dramaPotential>7</dramaPotential>
-      <uncertainty>6</uncertainty>
-      <satiricalValue>8</satiricalValue>
-      <observableOutcome>...</observableOutcome>
-    </question>
-    <question>
-      <id>6</id>
-      <scenario>2</scenario>
-      <text>First question for scenario 2...</text>
-      <dramaPotential>9</dramaPotential>
-      <uncertainty>8</uncertainty>
-      <satiricalValue>7</satiricalValue>
-      <observableOutcome>...</observableOutcome>
+      <observableOutcome>What exact evidence would prove YES</observableOutcome>
+      <buildsOn>ID of resolved question this builds on, or "new"</buildsOn>
+      <distinctFrom>Why this is different from similar existing questions</distinctFrom>
     </question>
   </questions>
 </response>

@@ -5,6 +5,7 @@ import {
   withErrorHandling,
 } from '@babylon/api';
 import { PerpDbAdapter, PerpMarketService } from '@babylon/core/markets/perps';
+import { db, isNotNull, organizations } from '@babylon/db';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import {
@@ -35,6 +36,24 @@ function verifyCron(request: NextRequest): void {
   }
 }
 
+/**
+ * Fetch latest prices from organizations table to ensure liquidations use current data.
+ */
+async function fetchLatestPrices(): Promise<Map<string, number>> {
+  const orgs = await db
+    .select({ id: organizations.id, currentPrice: organizations.currentPrice })
+    .from(organizations)
+    .where(isNotNull(organizations.currentPrice));
+
+  const priceMap = new Map<string, number>();
+  for (const org of orgs) {
+    if (org.currentPrice !== null && org.currentPrice > 0) {
+      priceMap.set(org.id, org.currentPrice);
+    }
+  }
+  return priceMap;
+}
+
 export const POST = withErrorHandling(async (request: NextRequest) => {
   verifyCron(request);
 
@@ -49,19 +68,35 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     );
   }
 
+  // Fetch latest prices from organizations table
+  const latestPrices = await fetchLatestPrices();
+
   const service = new PerpMarketService({
     db: new PerpDbAdapter(),
     wallet: createWalletAdapter(),
     fees: perpFeeConfig,
   });
 
-  await service.processFundingAndLiquidations();
+  // Process with latest prices to ensure accurate liquidations
+  const summary = await service.processFundingAndLiquidations(latestPrices);
 
   logger.info(
     'Perp funding step executed via cron',
-    undefined,
+    {
+      pricesUpdated: latestPrices.size,
+      marketsUpdated: summary?.marketsUpdated,
+      positionsUpdated: summary?.positionsUpdated,
+      liquidations: summary?.liquidations,
+      errors: summary?.errors?.length,
+    },
     'Cron:perp-funding'
   );
 
-  return successResponse({ success: true });
+  return successResponse({
+    success: true,
+    pricesUpdated: latestPrices.size,
+    marketsUpdated: summary?.marketsUpdated ?? 0,
+    positionsUpdated: summary?.positionsUpdated ?? 0,
+    liquidations: summary?.liquidations ?? 0,
+  });
 });

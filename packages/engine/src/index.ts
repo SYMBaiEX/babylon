@@ -53,12 +53,39 @@ export {
 
 // State Store Adapters
 export { DbStateStore, InMemoryStateStore } from './adapters';
+
+// Storage Bridge (database-agnostic storage abstraction)
+export {
+  db,
+  exportState,
+  getStorageMode,
+  initializeDatabaseMode,
+  initializeSimulationMode,
+  initializeTestMode,
+  isDatabaseMode,
+  isSimulationMode,
+  isTestMode,
+  loadSnapshot,
+  saveSnapshot,
+  type StorageMode,
+} from './storage-bridge';
+
 // Configuration
 export {
   FEE_CONFIG,
   type FeeTransactionType,
   type FeeType,
 } from './config/fees';
+export {
+  DEFAULT_SIMULATION_CONFIG,
+  PREDICTION_TEMPLATES,
+  SIMULATION_AGENT_NAMES,
+  SIMULATION_CLUE_TEMPLATES,
+  SIMULATION_COMPANIES,
+  SIMULATION_QUESTIONS,
+  SIMULATION_STRATEGIES,
+  type SimulationStrategy,
+} from './config/simulation';
 // Data Exports
 export {
   getQuestionExamples,
@@ -137,6 +164,7 @@ export {
   NPCPortfolioStrategy,
   type StrategyConfig,
 } from './npc/npc-portfolio-strategy';
+
 // Perps: Use @babylon/core/markets/perps for perpetuals trading
 // Legacy PerpetualsEngine, perps/, perps-service removed - functionality moved to core package
 
@@ -306,9 +334,9 @@ export type {
   Scenario,
   SelectedActor,
   StockPrice,
-  WorldContext,
   WorldEvent,
 } from './types/shared';
+// WorldContext export - use the one from prompts/world-context.ts (via prompts/index.ts)
 export {
   ACTOR_TIERS,
   DAY_RANGES,
@@ -344,6 +372,20 @@ export {
   sampleRandom,
   shuffleArray,
 } from './utils/randomization';
+// Utils - Entropy (secure random, weighted picks, cooldowns)
+export {
+  biasedRandomCount,
+  type EventCooldownState,
+  generateSentimentSignal,
+  securePickN,
+  secureRandom,
+  secureRandomInt,
+  secureShuffle,
+  SeededRandom,
+  shouldFireEvent,
+  urgencyWeight,
+  weightedPick,
+} from './utils/entropy';
 // World Facts Service
 export {
   type WorldFactsContext,

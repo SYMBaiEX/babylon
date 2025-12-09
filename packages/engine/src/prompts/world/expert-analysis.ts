@@ -1,4 +1,5 @@
 import { definePrompt } from '../define-prompt';
+import { PARODY_NAME_RULES, ANTI_REPETITION_RULES } from '../shared-sections';
 
 /**
  * Prompt for generating expert analysis from NPCs with domain expertise.
@@ -6,42 +7,66 @@ import { definePrompt } from '../define-prompt';
  * Creates analytical commentary from expert NPCs providing informed
  * perspectives on game events, market movements, or technical matters.
  * Reflects the expert's domain knowledge and analytical style.
+ * Includes full narrative context for nuanced, contextual analysis.
  *
  * Returns XML with expert analysis.
  */
 export const expertAnalysis = definePrompt({
   id: 'expert-analysis',
-  version: '2.0.0',
+  version: '4.0.0',
   category: 'world',
-  description: 'Generates expert analysis from NPCs with domain expertise',
+  description: 'Generates expert analysis with full character context',
   temperature: 0.7,
-  maxTokens: 200,
+  maxTokens: 1000,
   template: `{{realityGrounding}}
 
 The current date is {{currentDate}}. Always act as though it is the current date.
 
-Generate expert analysis from {{expertName}}.
+=== ALL CHARACTERS IN WORLD ===
+{{characterRoster}}
 
-Context:
-- Question: {{question}}
-- Real outcome: {{outcome}}
-- Expert: {{expertName}} ({{expertRole}}, knows truth: {{knowsTruth}}, reliability: {{reliability}})
-- Recent events: {{recentEvents}}
+=== EXPERT'S FULL PROFILE ===
+{{expertProfile}}
 
-IMPORTANT RULES:
-- Use ONLY the exact expert name provided above ({{expertName}})
-- NEVER use real-world person or organization names
-- NEVER "correct" or change parody names - use them exactly as shown
-- When referencing actors or companies mentioned in events, use their exact parody names
+=== EXPERT'S RELATIONSHIPS ===
+{{expertRelationships}}
 
-Generate analysis that:
-- Sounds authoritative and expert-like
-- {{confidenceContext}}
-- Reflects expert's reliability ({{reliabilityContext}})
+=== COMPLETE NARRATIVE CONTEXT ===
+{{richGameContext}}
+
+=== EXPERT'S PREVIOUS STATEMENTS ===
+{{expertPreviousStatements}}
+
+=== CURRENT ANALYSIS REQUEST ===
+Question: {{question}}
+Real outcome: {{outcome}}
+Expert: {{expertName}} ({{expertRole}})
+- Knows truth: {{knowsTruth}}
+- Reliability: {{reliability}}
+
+Recent events to analyze:
+{{recentEvents}}
+
+${PARODY_NAME_RULES}
+
+=== ANALYSIS REQUIREMENTS ===
+Generate expert analysis that:
+1. Sounds authoritative and domain-specific to {{expertRole}}
+2. {{confidenceContext}}
+3. Reflects expert's reliability level ({{reliabilityContext}})
+4. References ongoing narratives from the context above
+5. Builds on or contradicts their previous statements (if any)
+6. Connects to resolved questions when relevant
+
+${ANTI_REPETITION_RULES}
+
+CRITICAL: Check the expert's previous statements above. Don't repeat the same analysis. Evolve their position or provide new insights.
 
 Respond with XML:
 <response>
-  <analysis>...</analysis>
+  <analysis>Expert analysis that sounds like a real {{expertRole}} providing informed commentary. Max 300 chars.</analysis>
+  <confidence>high|medium|low - based on how certain the expert would be</confidence>
+  <references>comma-separated list of events/questions referenced</references>
 </response>
 
 No other text.

@@ -5,6 +5,8 @@
     "rootDir": "./src",
     "tsBuildInfoFile": "./dist/.tsbuildinfo",
     "types": ["bun-types"],
+    // Disable unused locals check - engine has some batch methods reserved for future optimization
+    "noUnusedLocals": false,
     "baseUrl": ".",
     "paths": {
       "@babylon/shared": ["../shared/src/index.ts"],

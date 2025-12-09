@@ -5,17 +5,22 @@ import { FEE_CONFIG } from './config/fees';
 import type { FeedGenerator } from './FeedGenerator';
 import type { GameWorld, WorldEvent } from './GameWorld';
 import type { MarketDecisionEngine } from './MarketDecisionEngine';
-import type { NewsArticlePacingEngine } from './NewsArticlePacingEngine';
+// NewsArticlePacingEngine removed - was reserved but never integrated
 import type { RelationshipEvolutionEngine } from './RelationshipEvolutionEngine';
 import { StaticDataRegistry } from './services/static-data-registry';
 import { TradeExecutionService } from './services/trade-execution-service';
 import { WalletService } from './services/wallet-service';
+import type { TrendingTopicsEngine } from './TrendingTopicsEngine';
 import type { Actor, ActorTier, FeedPost } from './types/shared';
 
 /**
- * Result of a single game tick execution
+ * Result of a single simulation tick execution.
+ * Used by GameLoop for offline/training game generation.
+ * 
+ * Note: This is distinct from GameTick's TickResult (for injectable architecture)
+ * and game-tick.ts's GameTickResult (for production cron).
  */
-export interface TickResult {
+export interface SimulationTickResult {
   /** World events generated during this tick */
   events: WorldEvent[];
   /** Feed posts generated during this tick */
@@ -33,25 +38,29 @@ export interface TickResult {
  * - Market maintenance (funding rates, price updates)
  * - NPC trading decisions and execution
  * - World event generation
- * - Feed post generation
+ * - Feed post generation (with trending topic context)
  * - Relationship evolution
  *
  * Used by both live game ticks (cron jobs) and game simulation (full game generation).
  */
 export class GameLoop {
+  private trendingTopics?: TrendingTopicsEngine;
+  private recentPosts: FeedPost[] = [];
+  private tickCount = 0;
+
   constructor(
     private world: GameWorld,
     private feed: FeedGenerator,
     private marketDecisions: MarketDecisionEngine,
-    private relationships: RelationshipEvolutionEngine,
-    /**
-     * News article pacing engine for article generation.
-     * Currently reserved for future integration.
-     */
-    private readonly _articles: NewsArticlePacingEngine
-  ) {
-    // Suppress unused variable warning until article generation is integrated
-    void this._articles;
+    private relationships: RelationshipEvolutionEngine
+  ) {}
+
+  /**
+   * Set the trending topics engine for trend-aware feed generation
+   */
+  setTrendingTopics(engine: TrendingTopicsEngine): void {
+    this.trendingTopics = engine;
+    this.feed.setTrendingTopics(engine);
   }
 
   /**
@@ -68,7 +77,7 @@ export class GameLoop {
     day: number,
     hour: number,
     marketOnly = false
-  ): Promise<TickResult> {
+  ): Promise<SimulationTickResult> {
     logger.info(
       `Processing Tick: Day ${day}, Hour ${hour}`,
       { gameId, marketOnly },
@@ -175,7 +184,15 @@ export class GameLoop {
     // 4. Feed Reaction (Social Layer)
     // Skip if marketOnly is true (for fast simulations)
     let posts: FeedPost[] = [];
+    this.tickCount++;
+
     if (!marketOnly) {
+      // Update trending topics before feed generation (engine handles interval internally)
+      if (this.trendingTopics && this.recentPosts.length > 0) {
+        await this.trendingTopics.updateTrends(this.recentPosts, this.tickCount);
+        this.feed.updateTrendContext();
+      }
+
       // Fetch actors from static registry for feed generation
       // Use a subset of top actors for efficiency in simulation
       const staticActors = StaticDataRegistry.getAllActors().slice(0, 15);
@@ -209,15 +226,10 @@ export class GameLoop {
           initialMood: actor.initialMood || undefined,
         }));
 
-        try {
-          posts = await this.feed.generateDayFeed(day, worldEvents, actorList);
-        } catch (e) {
-          logger.warn(
-            `Failed to generate feed posts: ${e instanceof Error ? e.message : String(e)}`,
-            { day, actorCount: staticActors.length },
-            'GameLoop'
-          );
-        }
+        posts = await this.feed.generateDayFeed(day, worldEvents, actorList);
+
+        // Accumulate posts for trending analysis (keep last 200)
+        this.recentPosts = [...this.recentPosts, ...posts].slice(-200);
       } else {
         logger.warn('No actors found for feed generation', {}, 'GameLoop');
       }
@@ -256,10 +268,10 @@ export class GameLoop {
   async simulateFullGame(
     gameId: string,
     durationDays = 30
-  ): Promise<TickResult[]> {
+  ): Promise<SimulationTickResult[]> {
     logger.info(`Starting Simulation for ${gameId}...`, undefined, 'GameLoop');
 
-    const history: TickResult[] = [];
+    const history: SimulationTickResult[] = [];
 
     // Run the loop 30 * 24 times
     for (let day = 1; day <= durationDays; day++) {

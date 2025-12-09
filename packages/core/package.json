@@ -2,7 +2,7 @@
   "name": "@babylon/core",
   "version": "0.1.0",
   "private": true,
-  "description": "Babylon core domain modules (markets, etc.)",
+  "description": "Babylon core domain modules (markets, storage, etc.)",
   "main": "./markets/index.ts",
   "types": "./markets/index.ts",
   "exports": {
@@ -25,6 +25,11 @@
       "types": "./markets/shared/index.ts",
       "import": "./markets/shared/index.ts",
       "require": "./markets/shared/index.ts"
+    },
+    "./storage": {
+      "types": "./storage/index.ts",
+      "import": "./storage/index.ts",
+      "require": "./storage/index.ts"
     }
   },
   "scripts": {

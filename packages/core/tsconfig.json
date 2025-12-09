@@ -2,7 +2,7 @@
   "extends": "../tsconfig.base.json",
   "compilerOptions": {
     "outDir": "./dist",
-    "rootDir": "./markets",
+    "rootDir": ".",
     "tsBuildInfoFile": "./dist/.tsbuildinfo",
     "types": ["bun-types"],
     "baseUrl": ".",
@@ -13,7 +13,7 @@
       "@babylon/db/*": ["../db/src/*"]
     }
   },
-  "include": ["markets/**/*"],
+  "include": ["markets/**/*", "storage/**/*"],
   "exclude": ["node_modules", "dist"],
   "references": [{ "path": "../shared" }, { "path": "../db" }]
 }

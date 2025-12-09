@@ -52,6 +52,7 @@ export function renderPrompt(
   const {
     allowEmpty = false,
     optionalVars = [
+      // Standard context vars
       'trendContext',
       'previousPostsContext',
       'worldActors',
@@ -72,6 +73,46 @@ export function renderPrompt(
       'relatedQuestionContext',
       'atmosphereContext',
       'emotionalContext',
+      
+      // Character roster vars (optional until callers are updated)
+      'characterRoster',
+      'detailedCharacterProfiles',
+      'characterRelationships',
+      'organizationRoster',
+      'keyActorProfiles',
+      'expertProfile',
+      'expertRelationships',
+      'journalistProfile',
+      'participantProfiles',
+      'rumorTargetProfiles',
+      'originalAuthorProfile',
+      'involvedCharacterProfiles',
+      'affectedCharacterProfiles',
+      
+      // Rich game context vars (optional)
+      'richGameContext',
+      'eventTimeline',
+      'resolvedQuestionsContext',
+      'activeQuestionsContext',
+      'ongoingNarrativesContext',
+      'feedActivityContext',
+      'worldFactsContext',
+      'phaseContext',
+      'phaseGuidance',
+      'daySummaries',
+      'previousDaySummaries',
+      'ongoingNarratives',
+      'previousGroupMessages',
+      'previousCoverage',
+      'previousRumors',
+      'participantHistory',
+      'expertPreviousStatements',
+      'relatedResolutions',
+      'threadHistory',
+      'previousRepliesContext',
+      'connectionContext',
+      'groupContext',
+      'relationshipContext',
     ],
   } = options;
 

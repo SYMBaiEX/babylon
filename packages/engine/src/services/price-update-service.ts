@@ -1,6 +1,7 @@
 import { PerpDbAdapter, PerpMarketService } from '@babylon/core/markets/perps';
-import { db, eq, getDbInstance, organizationState } from '@babylon/db';
-import { type JsonValue, logger } from '@babylon/shared';
+import { db, eq, getDbInstance, organizations } from '@babylon/db';
+import type { JsonValue } from '@babylon/shared';
+import { logger } from '@babylon/shared';
 import { FEE_CONFIG } from '../config/fees';
 import { WalletService } from './wallet-service';
 
@@ -38,46 +39,26 @@ export class PriceUpdateService {
     const perpService = new PerpMarketService({
       db: new PerpDbAdapter(),
       wallet: {
-        debit: (params: {
-          userId: string;
-          amount: number;
-          reason: string;
-          description?: string;
-          relatedId?: string;
-        }) =>
-          WalletService.debit(
-            params.userId,
-            params.amount,
-            params.reason,
-            params.description ?? '',
-            params.relatedId
-          ),
-        credit: (params: {
-          userId: string;
-          amount: number;
-          reason: string;
-          description?: string;
-          relatedId?: string;
-        }) =>
-          WalletService.credit(
-            params.userId,
-            params.amount,
-            params.reason,
-            params.description ?? '',
-            params.relatedId
-          ),
-        recordPnL: async (params: {
-          userId: string;
-          pnl: number;
-          reason: string;
-          relatedId?: string;
-        }) => {
-          await WalletService.recordPnL(
-            params.userId,
-            params.pnl,
-            params.reason,
-            params.relatedId
+        debit: async ({ userId, amount, reason, description, relatedId }) => {
+          await WalletService.debit(
+            userId,
+            amount,
+            reason,
+            description ?? '',
+            relatedId
           );
+        },
+        credit: async ({ userId, amount, reason, description, relatedId }) => {
+          await WalletService.credit(
+            userId,
+            amount,
+            reason,
+            description ?? '',
+            relatedId
+          );
+        },
+        recordPnL: async ({ userId, pnl, reason, relatedId }) => {
+          await WalletService.recordPnL(userId, pnl, reason, relatedId);
         },
         getBalance: (userId: string) => WalletService.getBalance(userId),
       },
@@ -101,44 +82,44 @@ export class PriceUpdateService {
         continue;
       }
 
-      const [orgState] = await db
+      const [organization] = await db
         .select({
-          id: organizationState.id,
-          currentPrice: organizationState.currentPrice,
+          id: organizations.id,
+          currentPrice: organizations.currentPrice,
         })
-        .from(organizationState)
-        .where(eq(organizationState.id, update.organizationId))
+        .from(organizations)
+        .where(eq(organizations.id, update.organizationId))
         .limit(1);
 
-      if (!orgState) {
+      if (!organization) {
         logger.warn(
-          'Organization state not found for price update',
+          'Organization not found for price update',
           { organizationId: update.organizationId },
           'PriceUpdateService'
         );
         continue;
       }
 
-      const oldPrice = Number(orgState.currentPrice ?? update.newPrice);
+      const oldPrice = Number(organization.currentPrice ?? update.newPrice);
       const change = update.newPrice - oldPrice;
       const changePercent = oldPrice === 0 ? 0 : (change / oldPrice) * 100;
 
       await db
-        .update(organizationState)
+        .update(organizations)
         .set({ currentPrice: update.newPrice, updatedAt: new Date() })
-        .where(eq(organizationState.id, orgState.id));
+        .where(eq(organizations.id, organization.id));
 
       await getDbInstance().recordPriceUpdate(
-        orgState.id,
+        organization.id,
         update.newPrice,
         change,
         changePercent
       );
 
-      priceMap.set(orgState.id, update.newPrice);
+      priceMap.set(organization.id, update.newPrice);
 
       appliedUpdates.push({
-        organizationId: orgState.id,
+        organizationId: organization.id,
         oldPrice,
         newPrice: update.newPrice,
         change,
@@ -153,19 +134,13 @@ export class PriceUpdateService {
     if (priceMap.size > 0) {
       await perpService.applyPriceUpdates(priceMap);
 
-      // Broadcast price updates (handled by API layer if available)
-      const api = await import('@babylon/api');
-      // JSON.parse/stringify ensures clean JSON-serializable data
-      // Using Record<string, unknown> for JSON-parsed data since the exact shape varies
-      const serializedUpdates = JSON.parse(
-        JSON.stringify(appliedUpdates)
-      ) as Record<string, unknown>[];
-      await api.broadcastToChannel('markets', {
-        type: 'price_update',
-        updates: serializedUpdates,
-      } as Record<string, unknown> as Parameters<
-        typeof api.broadcastToChannel
-      >[1]);
+      // Broadcast price updates via API layer (non-blocking, optional)
+      void import('@babylon/api').then(({ broadcastToChannel }) =>
+        broadcastToChannel('markets', {
+          type: 'price_update',
+          updates: JSON.parse(JSON.stringify(appliedUpdates)) as JsonValue,
+        })
+      );
 
       logger.info(
         `Applied ${appliedUpdates.length} organization price updates`,

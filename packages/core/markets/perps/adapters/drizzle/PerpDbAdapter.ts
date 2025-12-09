@@ -1,8 +1,9 @@
 import {
   type PerpPosition as DbPerpPosition,
-  db,
+  db as defaultDb,
   perpMarketSnapshots,
   perpPositions,
+  type Transaction,
 } from '@babylon/db';
 import { generateSnowflakeId } from '@babylon/shared';
 import type { InferInsertModel } from 'drizzle-orm';
@@ -15,6 +16,7 @@ import type {
 } from '../../types';
 
 type NewPerpPosition = InferInsertModel<typeof perpPositions>;
+type DrizzleClient = typeof defaultDb | Transaction;
 
 /**
  * Drizzle adapter for PerpDbPort.
@@ -22,10 +24,17 @@ type NewPerpPosition = InferInsertModel<typeof perpPositions>;
  * Notes:
  * - Uses PerpMarketSnapshot as single source for market-level stats.
  * - Generates IDs via snowflake when none provided.
+ * - Supports transactions via constructor injection or transaction() method.
  */
 export class PerpDbAdapter implements PerpDbPort {
+  private readonly dbClient: DrizzleClient;
+
+  constructor(dbClient?: DrizzleClient) {
+    this.dbClient = dbClient ?? defaultDb;
+  }
+
   async listMarkets(): Promise<PerpMarketRecord[]> {
-    const snapshots = await db.select().from(perpMarketSnapshots);
+    const snapshots = await this.dbClient.select().from(perpMarketSnapshots);
     if (snapshots.length === 0) return [];
 
     // Name is stored directly in the snapshot - no need to join with organizations
@@ -54,7 +63,7 @@ export class PerpDbAdapter implements PerpDbPort {
   }
 
   async listOpenPositions(): Promise<PerpPositionRecord[]> {
-    const positions = await db
+    const positions = await this.dbClient
       .select()
       .from(perpPositions)
       .where(isNull(perpPositions.closedAt));
@@ -63,10 +72,38 @@ export class PerpDbAdapter implements PerpDbPort {
   }
 
   async getPositionById(id: string): Promise<PerpPositionRecord | null> {
-    const [pos] = await db
+    const [pos] = await this.dbClient
       .select()
       .from(perpPositions)
       .where(eq(perpPositions.id, id))
+      .limit(1);
+    return pos ? mapPosition(pos) : null;
+  }
+
+  async getOpenPositionsByUser(userId: string): Promise<PerpPositionRecord[]> {
+    const positions = await this.dbClient
+      .select()
+      .from(perpPositions)
+      .where(
+        and(eq(perpPositions.userId, userId), isNull(perpPositions.closedAt))
+      );
+    return positions.map(mapPosition);
+  }
+
+  async getOpenPositionByUserAndTicker(
+    userId: string,
+    ticker: string
+  ): Promise<PerpPositionRecord | null> {
+    const [pos] = await this.dbClient
+      .select()
+      .from(perpPositions)
+      .where(
+        and(
+          eq(perpPositions.userId, userId),
+          eq(perpPositions.ticker, ticker),
+          isNull(perpPositions.closedAt)
+        )
+      )
       .limit(1);
     return pos ? mapPosition(pos) : null;
   }
@@ -96,7 +133,7 @@ export class PerpDbAdapter implements PerpDbPort {
       realizedPnL: position.realizedPnL ?? null,
     };
 
-    const result = await db
+    const result = await this.dbClient
       .insert(perpPositions)
       .values(insert)
       .onConflictDoUpdate({
@@ -147,7 +184,7 @@ export class PerpDbAdapter implements PerpDbPort {
       setFields.size = updates.size;
     }
 
-    await db
+    await this.dbClient
       .update(perpPositions)
       .set(setFields)
       .where(
@@ -183,7 +220,7 @@ export class PerpDbAdapter implements PerpDbPort {
       setFields.realizedPnL = updates.realizedPnL;
     }
 
-    await db
+    await this.dbClient
       .update(perpPositions)
       .set(setFields)
       .where(eq(perpPositions.id, positionId));
@@ -211,7 +248,7 @@ export class PerpDbAdapter implements PerpDbPort {
     >
   ): Promise<void> {
     const now = new Date();
-    const existing = await db
+    const existing = await this.dbClient
       .select()
       .from(perpMarketSnapshots)
       .where(eq(perpMarketSnapshots.ticker, ticker))
@@ -227,11 +264,11 @@ export class PerpDbAdapter implements PerpDbPort {
     }
 
     const current = existing[0]!;
+    const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
 
     // Rotate price24hAgo if more than 24 hours have passed since last rotation
     let price24hAgo = updates.price24hAgo ?? current.price24hAgo;
     let price24hAgoUpdatedAt = current.price24hAgoUpdatedAt;
-    const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
 
     if (
       !price24hAgoUpdatedAt ||
@@ -242,17 +279,36 @@ export class PerpDbAdapter implements PerpDbPort {
       price24hAgoUpdatedAt = now;
     }
 
-    await db
+    // Reset 24h metrics (high/low/volume) if more than 24 hours have passed
+    let high24h = updates.high24h ?? current.high24h;
+    let low24h = updates.low24h ?? current.low24h;
+    let volume24h = updates.volume24h ?? current.volume24h;
+    let metrics24hResetAt = current.metrics24hResetAt;
+
+    if (
+      !metrics24hResetAt ||
+      now.getTime() - metrics24hResetAt.getTime() >= TWENTY_FOUR_HOURS
+    ) {
+      // Reset: use current price as starting point for high/low, zero volume
+      const currentPrice = updates.currentPrice ?? current.currentPrice;
+      high24h = updates.high24h ?? currentPrice;
+      low24h = updates.low24h ?? currentPrice;
+      volume24h = updates.volume24h ?? 0;
+      metrics24hResetAt = now;
+    }
+
+    await this.dbClient
       .update(perpMarketSnapshots)
       .set({
         currentPrice: updates.currentPrice ?? current.currentPrice,
         price24hAgo,
         price24hAgoUpdatedAt,
+        metrics24hResetAt,
         change24h: updates.change24h ?? current.change24h,
         changePercent24h: updates.changePercent24h ?? current.changePercent24h,
-        high24h: updates.high24h ?? current.high24h,
-        low24h: updates.low24h ?? current.low24h,
-        volume24h: updates.volume24h ?? current.volume24h,
+        high24h,
+        low24h,
+        volume24h,
         openInterest: updates.openInterest ?? current.openInterest,
         fundingRate: updates.fundingRate ?? current.fundingRate,
         maxLeverage: updates.maxLeverage ?? current.maxLeverage,
@@ -262,6 +318,22 @@ export class PerpDbAdapter implements PerpDbPort {
         updatedAt: now,
       })
       .where(eq(perpMarketSnapshots.ticker, ticker));
+  }
+
+  /**
+   * Execute operations within a transaction for atomicity.
+   * Creates a new PerpDbAdapter bound to the transaction context.
+   */
+  async transaction<T>(fn: (tx: PerpDbPort) => Promise<T>): Promise<T> {
+    // If already in a transaction, just use the current client
+    if (this.dbClient !== defaultDb) {
+      return fn(this);
+    }
+
+    return defaultDb.transaction(async (txClient) => {
+      const txAdapter = new PerpDbAdapter(txClient);
+      return fn(txAdapter);
+    });
   }
 }
 

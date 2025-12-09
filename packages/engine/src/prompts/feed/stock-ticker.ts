@@ -11,28 +11,36 @@ import {
  *
  * Creates brief, ticker-style posts reporting stock price movements
  * and market updates. Uses concise financial reporting format with
- * specific price and percentage change data.
+ * specific price and percentage change data. Includes context for
+ * connecting price moves to narratives.
  *
  * Returns XML with ticker post and price data.
  */
 export const stockTicker = definePrompt({
   id: 'stock-ticker',
-  version: '2.0.0',
+  version: '3.0.0',
   category: 'feed',
-  description: 'Generates stock ticker style posts for price movements',
+  description: 'Stock ticker posts with narrative connection',
   temperature: 0.6,
-  maxTokens: 200,
+  maxTokens: 400,
   template: `{{realityGrounding}}
 
 The current date is {{currentDate}}. Always act as though it is the current date.
 
-Generate a stock ticker style post for this price movement:
+=== MARKET CONTEXT ===
+Recent market events: {{recentMarketEvents}}
+Related questions: {{relatedQuestions}}
 
+=== THIS PRICE MOVEMENT ===
 TICKER: {{ticker}}
 COMPANY: {{companyName}}
 PRICE: \${{currentPrice}}
 CHANGE: {{priceChange}}% ({{direction}})
 VOLUME: {{volume}}
+
+=== WHY THIS MOVED ===
+Event catalyst: {{eventCatalyst}}
+Connected storyline: {{connectedNarrative}}
 
 ${WORLD_CONTEXT_HEADER}
 

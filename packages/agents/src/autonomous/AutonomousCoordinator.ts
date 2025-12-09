@@ -190,8 +190,10 @@ export class AutonomousCoordinator {
       return result;
     }
 
-    // Check if A2A client is connected
-    const useA2A = !!(runtime as BabylonRuntime).a2aClient?.isConnected();
+    // Check if A2A should be used (both connected AND enabled in config)
+    const useA2A =
+      !!(runtime as BabylonRuntime).a2aClient?.isConnected() &&
+      config?.a2aEnabled === true;
 
     logger.info(
       `Using ${useA2A ? 'A2A protocol' : 'direct database'} for autonomous actions`,

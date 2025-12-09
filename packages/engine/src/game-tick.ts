@@ -45,7 +45,6 @@ import {
   REPUTATION_SYSTEM_BASE_SEPOLIA,
 } from '@babylon/shared';
 import { ArticleGenerator } from './ArticleGenerator';
-import { loadActorsData } from './actors-loader';
 import { BabylonLLMClient } from './llm/openai-client';
 import { MarketDecisionEngine } from './MarketDecisionEngine';
 import { NPCInvestmentManager } from './npc/npc-investment-manager';
@@ -78,13 +77,16 @@ import {
 } from './services/reputation-service';
 import { rssFeedService } from './services/rss-feed-service';
 import { StaticDataRegistry } from './services/static-data-registry';
+import { getStorySeedService } from './services/story-seed-service';
 import { TokenStatsService } from './services/token-stats-service';
+import { getTopicDiversityService } from './services/topic-diversity-service';
 // Migrated services - local imports
 import { invalidateAfterPredictionTrade } from './services/trade-cache-invalidation';
 import { TradeExecutionService } from './services/trade-execution-service';
 import {
   calculateTrendingIfNeeded,
   calculateTrendingTags,
+  getTrendingPromptContext,
 } from './services/trending-calculation-service';
 import { WalletService } from './services/wallet-service';
 import type { TradingExecutionResult } from './types/market-decisions';
@@ -290,19 +292,35 @@ export async function executeGameTick(
       'GameTick'
     );
 
-    // Load required data for proof generation
-    const actorsData = loadActorsData();
-    // Map ActorData to SelectedActor, ensuring required fields are present
-    const allActors: SelectedActor[] = actorsData.actors
-      .filter((actor) => actor.tier !== undefined)
+    // Load required data for proof generation using StaticDataRegistry (preferred over loadActorsData)
+    const staticActors = StaticDataRegistry.getAllActors();
+    // Map StaticActor to SelectedActor, ensuring required fields are present
+    const allActors: SelectedActor[] = staticActors
+      .filter((actor) => actor.tier !== null)
       .map((actor) => ({
-        ...actor,
+        id: actor.id,
+        name: actor.name,
+        description: actor.description,
+        domain: actor.domain,
+        personality: actor.personality,
+        affiliations: actor.affiliations,
+        postStyle: actor.postStyle,
+        postExample: actor.postExample,
         tier: actor.tier!,
         role: actor.role ?? 'unknown',
-        initialLuck: actor.initialLuck ?? 'medium',
+        initialLuck: (actor.initialLuck as 'low' | 'medium' | 'high') ?? 'medium',
         initialMood: actor.initialMood ?? 0,
       }));
-    const organizations = actorsData.organizations;
+    // Map StaticOrganization to Organization type
+    const organizations: Organization[] = StaticDataRegistry.getAllOrganizations().map((o) => ({
+      id: o.id,
+      name: o.name,
+      ticker: o.ticker,
+      description: o.description,
+      type: o.type,
+      canBeInvolved: o.canBeInvolved,
+      initialPrice: o.initialPrice ?? undefined,
+    }));
 
     // Get recent events for context
     const recentDbEvents = await db
@@ -476,14 +494,14 @@ export async function executeGameTick(
     // Generate NPC-to-NPC public discourse (replies to previous tick posts)
     // This runs in parallel since replies don't depend on posts from this tick
     if (Date.now() < criticalOpsDeadline) {
-      const discourseActorsData = loadActorsData();
+      const discourseActors = StaticDataRegistry.getAllActors();
       const discourseWorldFacts =
         await worldFactsService.generatePromptContext();
 
-      if (discourseActorsData.actors.length >= 2) {
+      if (discourseActors.length >= 2) {
         // Map to DiscourseActor type (only fields needed for reply generation)
         const allActorsForDiscourse: DiscourseActor[] =
-          discourseActorsData.actors.map((actor) => ({
+          discourseActors.map((actor) => ({
             id: actor.id,
             name: actor.name,
             description: actor.description,
@@ -1182,18 +1200,23 @@ async function generateMixedPosts(
     return { posts: 0, articles: 0 };
   }
 
-  // Get actors (NPCs), organizations, world facts, AND shared post context in parallel
+  // Get actors (NPCs), organizations, world facts, trending, AND shared post context in parallel
   // This loads ALL shared data ONCE to avoid N+1 query problems
   // Static data from registry, dynamic state from DB
-  const [actorStates, worldFactsContext, sharedContext] = await Promise.all([
+  const [actorStates, worldFactsBase, trendingContext, sharedContext] =
+    await Promise.all([
     db
       .select()
       .from(actorState)
       .orderBy(desc(actorState.reputationPoints))
       .limit(15),
     worldFactsService.generatePromptContext(),
+      getTrendingPromptContext(),
     loadSharedPostContext(), // Load feed posts + events ONCE
   ]);
+
+  // Combine world facts with trending context
+  const worldFactsContext = worldFactsBase + trendingContext;
 
   // Combine static actor data with dynamic state
   const actorsList = actorStates
@@ -1770,21 +1793,45 @@ async function generateArticlesForActiveQuestions(
       return matchingKeywords.length >= 2;
     }).length;
 
-    // Generate 1-3 articles per question
+    // Check topic diversity - avoid oversaturating coverage of any single question topic
+    const diversityService = getTopicDiversityService();
+    const topicPenalty = await diversityService.getTopicPenalty(question.text);
+
+    // Generate 1-3 articles per question, but reduce if topic is oversaturated
     // If none exist, generate 1-3. If 1-2 exist, fill up to 3. If 3+ exist, skip.
     let targetArticleCount: number;
     if (existingArticleCount === 0) {
       // No articles yet - generate 1-3 articles
-      targetArticleCount = Math.min(
-        1 + Math.floor(Math.random() * 3),
-        newsOrgs.length
-      ); // Random 1-3, capped by available orgs
+      // But reduce based on topic saturation penalty
+      const baseCount = 1 + Math.floor(Math.random() * 3); // Random 1-3
+      const penaltyReduction = Math.floor(topicPenalty * 2); // 0-2 reduction based on saturation
+      targetArticleCount = Math.max(
+        1,
+        Math.min(baseCount - penaltyReduction, newsOrgs.length)
+      );
     } else if (existingArticleCount < 3) {
-      // Some articles exist - fill up to 3 total
-      targetArticleCount = Math.min(3 - existingArticleCount, newsOrgs.length);
+      // Some articles exist - fill up to 3 total, but respect saturation
+      const remainingSlots = 3 - existingArticleCount;
+      // If topic is >50% saturated, only generate 1 more max
+      const maxAllowed = topicPenalty > 0.5 ? 1 : remainingSlots;
+      targetArticleCount = Math.min(maxAllowed, newsOrgs.length);
     } else {
       // Already has 3+ articles - skip
       targetArticleCount = 0;
+    }
+
+    // Log when we reduce articles due to saturation
+    if (topicPenalty > 0.3) {
+      logger.info(
+        `Topic saturation penalty applied for Q${question.questionNumber}`,
+        {
+          questionId: question.id,
+          topicPenalty: topicPenalty.toFixed(2),
+          existingArticles: existingArticleCount,
+          targetArticles: targetArticleCount,
+        },
+        'GameTick'
+      );
     }
 
     if (targetArticleCount <= 0) {
@@ -1991,57 +2038,101 @@ async function generateBaselineArticlesParallel(
       initialPrice: org.initialPrice,
     }));
 
-  // Build article topics from game context
-  // NOTE: Questions are already covered by generateArticlesForActiveQuestions()
-  // This function focuses on actors and companies for variety
+  // Build article topics using DIVERSE story seeds
+  // This breaks the "trending flywheel" by generating topics NOT tied to questions
   const articleTopics: Array<{
     topic: string;
     category: string;
     context: string;
+    orgId?: string; // Preferred org for this topic based on beat
   }> = [];
 
-  // Add topics about high-tier actors
+  // Get diverse story seeds from the story seed service
+  const storySeedService = getStorySeedService(llm);
+  const diversityService = getTopicDiversityService();
+
+  // Generate diverse stories - these are NOT tied to questions
+  const storySeeds = await storySeedService.generateDiverseStories(5);
+
+  for (const seed of storySeeds) {
+    // Check if this topic is oversaturated
+    const shouldSkip = await diversityService.shouldSkipTopic(seed.headline);
+    if (shouldSkip) {
+      logger.debug(
+        'Skipping oversaturated topic for baseline article',
+        { topic: seed.headline, beat: seed.beat },
+        'GameTick'
+      );
+      continue;
+    }
+
+    articleTopics.push({
+      topic: seed.headline,
+      category: seed.beat,
+      context: `${seed.description}. ${seed.suggestedAngle}`,
+    });
+  }
+
+  // Add 1-2 actor/company topics for game relevance, but check diversity first
+  const actorTopicsToAdd = Math.min(1, actorsList.length);
   for (const actor of actorsList
     .filter((a) => a.tier === 'S_TIER' || a.tier === 'A_TIER')
-    .slice(0, 2)) {
+    .slice(0, actorTopicsToAdd)) {
     const domainStr = Array.isArray(actor.domain)
       ? actor.domain[0]
       : actor.domain;
     const domain = domainStr || 'tech';
-    articleTopics.push({
-      topic: `${actor.name} and their recent activities`,
-      category: domain === 'tech' ? 'tech' : 'business',
-      context: `${actor.name} (${actor.description || 'prominent figure'}) in ${domain}`,
-    });
+    const topicText = `${actor.name} and their recent activities`;
+
+    // Check saturation before adding
+    const shouldSkip = await diversityService.shouldSkipTopic(topicText);
+    if (!shouldSkip) {
+      articleTopics.push({
+        topic: topicText,
+        category: domain === 'tech' ? 'tech' : 'business',
+        context: `${actor.name} (${actor.description || 'prominent figure'}) in ${domain}`,
+      });
+    }
   }
 
-  // Add topics about companies with price movements
-  for (const company of companiesList.slice(0, 2)) {
-    const currentPrice = company.currentPrice || company.initialPrice || 100;
-    const initialPrice = company.initialPrice || 100;
-    const changePercent = ((currentPrice - initialPrice) / initialPrice) * 100;
-    articleTopics.push({
-      topic: `${company.name} and market performance`,
-      category: 'finance',
-      context: `${company.name} (${company.description || 'company'}) - ${changePercent > 0 ? 'up' : 'down'} ${Math.abs(changePercent).toFixed(1)}% from initial price`,
-    });
-  }
+  // Add 1 company topic if we have room
+  if (articleTopics.length < 6 && companiesList.length > 0) {
+    const company = companiesList[0];
+    if (company) {
+      const currentPrice = company.currentPrice || company.initialPrice || 100;
+      const initialPrice = company.initialPrice || 100;
+      const changePercent =
+        ((currentPrice - initialPrice) / initialPrice) * 100;
+      const topicText = `${company.name} and market performance`;
 
-  // If we don't have enough topics, add some game-relevant generic ones
-  if (articleTopics.length < 5) {
-    articleTopics.push(
-      {
-        topic: 'recent developments in prediction markets',
-        category: 'finance',
-        context: 'prediction markets and trading activity',
-      },
-      {
-        topic: 'tech industry trends and major players',
-        category: 'tech',
-        context: 'technology sector developments',
+      const shouldSkip = await diversityService.shouldSkipTopic(topicText);
+      if (!shouldSkip) {
+        articleTopics.push({
+          topic: topicText,
+          category: 'finance',
+          context: `${company.name} (${company.description || 'company'}) - ${changePercent > 0 ? 'up' : 'down'} ${Math.abs(changePercent).toFixed(1)}% from initial price`,
+        });
       }
-    );
+    }
   }
+
+  // Log diversity stats
+  const coverageStats = await diversityService.getCoverageStats();
+  logger.info(
+    'Topic diversity stats for baseline articles',
+    {
+      totalTopics: coverageStats.topicCount,
+      totalArticles: coverageStats.totalArticles,
+      topTopics: coverageStats.topTopics
+        .slice(0, 3)
+        .map((t) => `${t.topic}: ${t.percentage.toFixed(0)}%`),
+      beatDistribution: Object.entries(coverageStats.beatDistribution)
+        .filter(([_, count]) => count > 0)
+        .map(([beat, count]) => `${beat}: ${count}`)
+        .join(', '),
+    },
+    'GameTick'
+  );
 
   const articlesToGenerate = Math.min(5, newsOrgs.length, articleTopics.length);
 

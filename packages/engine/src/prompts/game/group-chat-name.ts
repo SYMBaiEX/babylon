@@ -1,23 +1,34 @@
 import { definePrompt } from '../define-prompt';
+import { PARODY_NAME_RULES } from '../shared-sections';
 
 /**
  * Prompt for generating a single satirical group chat name.
  *
  * Creates a funny, satirical name for a private group chat based on
  * the admin/creator and group purpose. Names should be humorous and
- * reflect the group's character or purpose.
+ * reflect the group's character or purpose. Includes existing group
+ * names to ensure uniqueness.
  *
  * Returns XML with group chat name.
  */
 export const groupChatName = definePrompt({
   id: 'group-chat-names',
-  version: '2.0.0',
+  version: '3.0.0',
   category: 'game',
-  description: 'Generates satirical group chat names',
+  description: 'Generates unique satirical group chat names',
   temperature: 0.9,
-  maxTokens: 500,
-  template: `
-Generate a funny, satirical group chat name for this private group.
+  maxTokens: 600,
+  template: `{{realityGrounding}}
+
+=== EXISTING GROUP NAMES (DON'T DUPLICATE) ===
+{{existingGroupNames}}
+
+=== ONGOING NARRATIVES (Reference if relevant) ===
+{{ongoingNarratives}}
+
+${PARODY_NAME_RULES}
+
+Generate a UNIQUE, funny, satirical group chat name for this private group.
 
 ADMIN (group creator): {{adminName}}
 - Role: {{adminRole}}

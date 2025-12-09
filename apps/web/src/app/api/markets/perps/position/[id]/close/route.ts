@@ -32,14 +32,10 @@ export const POST = withErrorHandling(
     const user = await authenticate(request);
     const { id: positionId } = IdParamSchema.parse(await context.params);
 
-    let body: Record<string, unknown> = {};
-    const bodyText = await request.text();
-    if (bodyText.trim()) {
-      body = JSON.parse(bodyText);
-    }
-    if (Object.keys(body).length > 0) {
-      ClosePerpPositionSchema.parse(body);
-    }
+    const text = await request.text();
+    const parsed = text.length > 0
+      ? ClosePerpPositionSchema.parse(JSON.parse(text))
+      : { percentage: undefined, slippage: undefined };
 
     const service = new PerpMarketService({
       db: new PerpDbAdapter(),
@@ -50,9 +46,11 @@ export const POST = withErrorHandling(
     const result = await service.closePosition({
       userId: user.userId,
       positionId,
+      percentage: parsed.percentage,
+      maxSlippage: parsed.slippage,
     });
 
-    trackServerEvent(user.userId, 'trade_closed', {
+    void trackServerEvent(user.userId, 'trade_closed', {
       type: 'perp',
       ticker: result.ticker,
       side: result.side,
@@ -68,8 +66,6 @@ export const POST = withErrorHandling(
       feeCharged: result.feePaid,
       wasLiquidated: false,
       positionId,
-    }).catch((error) => {
-      console.warn('Failed to track trade_closed event', { error });
     });
 
     return successResponse({
@@ -90,6 +86,8 @@ export const POST = withErrorHandling(
       },
       wasLiquidated: false,
       newBalance: result.balance,
+      remainingSize: result.remainingSize,
+      fullyClosed: result.fullyClosed,
     });
   }
 );

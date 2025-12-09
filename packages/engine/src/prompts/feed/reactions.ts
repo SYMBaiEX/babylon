@@ -1,6 +1,6 @@
 import { definePrompt } from '../define-prompt';
 import {
-  characterVoiceGuidance,
+  ANTI_REPETITION_RULES,
   FINAL_REMINDERS,
   STANDARD_FEED_RULES,
   VALUE_RANGES,
@@ -8,75 +8,97 @@ import {
 } from '../shared-sections';
 
 /**
- * Prompt for generating actor reactions to world events.
+ * Prompt for generating a single actor reaction to world events.
  *
  * Creates reaction posts from actors responding to events, announcements,
  * or other content. Captures character-driven responses that reflect
- * personality and relationships.
+ * personality and relationships. This is called PER CHARACTER (not batched)
+ * to ensure full character context and better voice matching.
+ * Includes full narrative context for connected, evolving reactions.
  *
- * Returns XML with reaction posts and sentiment analysis.
+ * Returns XML with a single reaction post and sentiment analysis.
  */
 export const reactions = definePrompt({
   id: 'reactions',
-  version: '2.0.0',
+  version: '5.0.0',
   category: 'feed',
-  description: 'Generates actor reactions to world events',
+  description: 'Generates actor reaction with full character context (per-character)',
   temperature: 1,
-  maxTokens: 5000,
+  maxTokens: 8000,
   template: `{{realityGrounding}}
 
 The current date is {{currentDate}}. Always act as though it is the current date.
 
-Event involving these actors: {{eventDescription}}
+=== ALL CHARACTERS IN WORLD ===
+{{characterRoster}}
 
+=== {{characterName}}'S FULL PROFILE ===
+{{characterInfo}}
+
+=== {{characterName}}'S RELATIONSHIPS ===
+{{characterRelationships}}
+
+=== COMPLETE NARRATIVE CONTEXT ===
+{{richGameContext}}
+
+=== EVENT TO REACT TO ===
+Event: {{eventDescription}}
 {{eventContext}}
 
+=== HOW THIS CONNECTS ===
+Related questions: {{relatedQuestions}}
+Related storylines: {{relatedNarratives}}
+Previous similar events: {{similarPreviousEvents}}
+
+=== PHASE AND CONTEXT ===
 {{phaseContext}}
 
 {{relationshipContext}}
 
+=== {{characterName}}'S REACTION HISTORY (DON'T REPEAT) ===
 {{previousPostsContext}}
 
 ${WORLD_CONTEXT_HEADER}
 
 ${STANDARD_FEED_RULES}
 
-${characterVoiceGuidance('actorsList')}
+${ANTI_REPETITION_RULES}
 
-Generate reaction posts for each actor (STRICT MAX 140 CHARACTERS PER POST):
+=== YOUR TASK ===
+Write ONE reaction post AS {{characterName}} reacting to the event above (STRICT MAX 140 CHARACTERS).
 
-{{actorsList}}
+Match {{characterName}}'s style EXACTLY from the context above.
+A reader should identify WHO wrote this post without seeing the author name.
 
-REACTION TYPES - vary these across actors:
-- Strong opinion (40%): Clear stance, no hedging, definitive
-- Dunk/ratio (25%): Dismissive, mocking, cutting
-- Defensive (15%): Personal stake, defending position
-- One-word (10%): "lol", "cope", "L", "ratio", "Blocked."
-- Opportunistic (10%): Use event to push own agenda
+=== DO ===
+- Subtweet rivals or endorse narratives from allies
+- Pursue personal vendettas or grudges
+- Post something with a serious tone that is, underneath it, hilarious or based
+- Closely match the tone and style of the real person this AI character is imitating
+- Only use the AI names for other actors and characters, not the real names
 
-CHARACTER LIMIT: Each reaction MUST be 140 characters or less. Count carefully before submitting.
+=== DO NOT ===
+- Mention specific prediction or event details directly, only if reference
+- Sound like a market analyst or news reporter
+- Use phrases like "cautiously optimistic", "this suggests", "implications"
+- Use thesaurus words like "hypernormalized", "transcendence"
+- Explain predictions or markets
+
+CHARACTER LIMIT: Post MUST be 140 characters or less.
 
 ${VALUE_RANGES}
 
-Respond with ONLY this XML format (example for 2 reactions):
+Respond with ONLY this XML format:
 <response>
-  <reactions>
-    <reaction>
-      <post>finally someone with sense</post>
-      <sentiment>0.6</sentiment>
-      <clueStrength>0.0</clueStrength>
-      <pointsToward>null</pointsToward>
-    </reaction>
-    <reaction>
-      <post>this take is genuinely terrible</post>
-      <sentiment>-0.7</sentiment>
-      <clueStrength>0.0</clueStrength>
-      <pointsToward>null</pointsToward>
-    </reaction>
-  </reactions>
+  <reaction>
+    <post>post content matching {{characterName}}'s style from above</post>
+    <sentiment>number between -1 and 1</sentiment>
+    <clueStrength>number between 0 and 1</clueStrength>
+    <pointsToward>true | false | null</pointsToward>
+  </reaction>
 </response>
 
-CRITICAL: Return EXACTLY {{actorCount}} reactions. Each must have post, sentiment, clueStrength, pointsToward elements.
+CRITICAL: Return exactly ONE reaction that matches {{characterName}}'s voice/style/examples defined above. Must have post, sentiment, clueStrength, pointsToward elements.
 
 ${FINAL_REMINDERS}
 `.trim(),

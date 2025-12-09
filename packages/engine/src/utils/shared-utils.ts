@@ -4,10 +4,8 @@
  * Consolidated utility functions used across the engine
  */
 
-import type { Actor, ActorRelationship } from '../types/shared';
 import { shuffleArray } from './randomization';
-
-export { shuffleArray };
+import { truncateText, CONTEXT_LIMITS } from './context-limits';
 
 /**
  * Format actor voice context with postStyle and randomized postExample
@@ -88,81 +86,411 @@ export function formatActorVoiceContext(actor: {
 }
 
 /**
+ * Format full character context with entropy/variety for per-character prompts
+ *
+ * Shuffles order of elements, varies formatting, and includes all character details
+ * to ensure each character gets full context when generating individually.
+ * 
+ * Includes:
+ * - Core identity (description, personality, voice)
+ * - Social dynamics (affiliations, allies, enemies)
+ * - Motivations (self-interest, reliability, expertise)
+ * - Posting style (examples, patterns, target length)
+ * - Emotional context (current mood, luck)
+ * - Profile info (bio, tier)
+ */
+export function formatCharacterInfoWithEntropy(actor: {
+  name?: string;
+  description?: string;
+  profileDescription?: string; // Their bio/self-description
+  domain?: string[];
+  postStyle?: string;
+  postExample?: string[];
+  voice?: string;
+  personality?: string;
+  affiliations?: string[];
+  tier?: string;
+  persona?: {
+    reliability?: number;
+    expertise?: string[];
+    willingToLie?: boolean;
+    selfInterest?: 'wealth' | 'reputation' | 'ideology' | 'chaos';
+    favorsActors?: string[];
+    opposesActors?: string[];
+    favorsOrgs?: string[];
+    opposesOrgs?: string[];
+  };
+  emotionalContext?: string;
+  trackRecord?: {
+    totalPosts?: number;
+    accuratePosts?: number;
+    historicalAccuracy?: number;
+  };
+  relationshipContext?: string; // Rich relationship descriptions
+  currentPositions?: string; // Market positions
+}): string {
+  const parts: string[] = [];
+  const actorName = actor.name || 'Unknown';
+
+  // Shuffle order of sections for entropy
+  const sections: Array<{ type: string; content: string }> = [];
+
+  // Identity/Description (core character)
+  if (actor.description) {
+    sections.push({
+      type: 'description',
+      content: `IDENTITY: ${actor.description}`,
+    });
+  }
+
+  // Profile description (their self-description/bio)
+  if (actor.profileDescription) {
+    sections.push({
+      type: 'profileDescription',
+      content: `BIO (how you describe yourself): ${actor.profileDescription}`,
+    });
+  }
+
+  // Domain/Interests
+  if (actor.domain && actor.domain.length > 0) {
+    const shuffledDomains = shuffleArray(actor.domain);
+    sections.push({
+      type: 'domain',
+      content: `INTERESTS/DOMAIN: ${shuffledDomains.join(', ')}`,
+    });
+  }
+
+  // Affiliations
+  if (actor.affiliations && actor.affiliations.length > 0) {
+    sections.push({
+      type: 'affiliations',
+      content: `AFFILIATIONS: ${shuffleArray(actor.affiliations).join(', ')}`,
+    });
+  }
+
+  // Tier
+  if (actor.tier) {
+    sections.push({
+      type: 'tier',
+      content: `INFLUENCE TIER: ${actor.tier}`,
+    });
+  }
+
+  // Personality
+  if (actor.personality) {
+    sections.push({
+      type: 'personality',
+      content: `PERSONALITY: ${actor.personality}`,
+    });
+  }
+
+  // Voice (critical for matching real person's style)
+  if (actor.voice) {
+    sections.push({
+      type: 'voice',
+      content: `VOICE/SPEAKING STYLE: ${actor.voice}`,
+    });
+  }
+
+  // Post Style
+  if (actor.postStyle) {
+    sections.push({
+      type: 'postStyle',
+      content: `WRITING STYLE: ${actor.postStyle}`,
+    });
+  }
+
+  // ======= CRITICAL: SOCIAL DYNAMICS (Randomized Order) =======
+  // These sections are split up so they appear in different random positions
+  
+  // ALLIES - separate section for maximum visibility
+  if (actor.persona?.favorsActors && actor.persona.favorsActors.length > 0) {
+    const allyVerbs = shuffleArray(['defend', 'support', 'back up', 'co-sign', 'ride for', 'stand with']);
+    sections.push({
+      type: 'allies',
+      content: `🟢 YOUR ALLIES (${allyVerbs[0]}, ${allyVerbs[1]}): ${shuffleArray(actor.persona.favorsActors).join(', ')}\n→ When they post, you agree. When they're attacked, you defend.`,
+    });
+  }
+  
+  // RIVALS - separate section for maximum visibility
+  if (actor.persona?.opposesActors && actor.persona.opposesActors.length > 0) {
+    const rivalVerbs = shuffleArray(['attack', 'undermine', 'subtweet', 'ratio', 'dunk on', 'mock']);
+    sections.push({
+      type: 'rivals',
+      content: `🔴 YOUR RIVALS (${rivalVerbs[0]}, ${rivalVerbs[1]}): ${shuffleArray(actor.persona.opposesActors).join(', ')}\n→ You have BEEF. Look for opportunities to clown them.`,
+    });
+  }
+  
+  // SUPPORTED ORGS - separate section
+  if (actor.persona?.favorsOrgs && actor.persona.favorsOrgs.length > 0) {
+    sections.push({
+      type: 'favorsOrgs',
+      content: `🏢 ORGS YOU SUPPORT: ${shuffleArray(actor.persona.favorsOrgs).join(', ')}\n→ Shill subtly. Their wins are your wins.`,
+    });
+  }
+  
+  // OPPOSED ORGS - separate section
+  if (actor.persona?.opposesOrgs && actor.persona.opposesOrgs.length > 0) {
+    sections.push({
+      type: 'opposesOrgs',
+      content: `🚫 ORGS YOU OPPOSE: ${shuffleArray(actor.persona.opposesOrgs).join(', ')}\n→ Spread FUD. Their losses make you happy.`,
+    });
+  }
+  
+  // ======= MOTIVATION - randomized framing =======
+  if (actor.persona?.selfInterest) {
+    const motivationFramings: Record<string, string[]> = {
+      wealth: [
+        'Motivated by WEALTH 💰 - everything is about money, valuations, gains',
+        'PRIMARY DRIVER: MONEY - you think in terms of "what does this mean for my bag?"',
+        'WEALTH-FOCUSED: Your posts often tie back to financial implications',
+      ],
+      reputation: [
+        'Motivated by REPUTATION 🏆 - clout, followers, being proven right matters most',
+        'PRIMARY DRIVER: CLOUT - you need to be seen as smart, connected, influential',
+        'EGO-DRIVEN: Being right, having hot takes, getting engagement is your oxygen',
+      ],
+      ideology: [
+        'Motivated by IDEOLOGY ⚔️ - true believer, pushes agenda, fights enemies',
+        'PRIMARY DRIVER: THE CAUSE - you are a crusader, constantly pushing your worldview',
+        'IDEOLOGUE: Everything connects to your mission. Allies are soldiers, rivals are enemies.',
+      ],
+      chaos: [
+        'Motivated by CHAOS 🔥 - stirs drama, provocative, loves to watch things burn',
+        'PRIMARY DRIVER: ENTERTAINMENT - you post to get reactions, start fights, cause drama',
+        'AGENT OF CHAOS: You don\'t take sides consistently. You take whatever position causes the most drama.',
+      ],
+    };
+    const framings = motivationFramings[actor.persona.selfInterest];
+    if (framings && framings.length > 0) {
+      const randomFraming = framings[Math.floor(Math.random() * framings.length)];
+      sections.push({
+        type: 'motivation',
+        content: randomFraming!,
+      });
+    }
+  }
+  
+  // ======= DECEPTION TENDENCY - split into separate section for visibility =======
+  if (actor.persona?.willingToLie !== undefined) {
+    if (actor.persona.willingToLie) {
+      const deceptionFramings = shuffleArray([
+        '🎭 DECEPTION: You LIE strategically. Say whatever benefits you, truth is optional.',
+        '⚠️ WILLING TO DECEIVE: You spread FUD, exaggerate, mislead when it serves your interests.',
+        '🐍 STRATEGIC LIAR: Your statements aren\'t always sincere. You manipulate narrative.',
+      ]);
+      sections.push({
+        type: 'deception',
+        content: deceptionFramings[0]!,
+      });
+    } else {
+      const honestyFramings = shuffleArray([
+        '✓ HONEST: You tell the truth (as you see it). Your credibility matters to you.',
+        '📢 STRAIGHT SHOOTER: You don\'t BS. Your takes are genuine, even if unpopular.',
+        '💎 AUTHENTIC: You say what you mean. People trust your word.',
+      ]);
+      sections.push({
+        type: 'honesty',
+        content: honestyFramings[0]!,
+      });
+    }
+  }
+
+  // Track record (if they have history)
+  if (actor.trackRecord && actor.trackRecord.totalPosts && actor.trackRecord.totalPosts > 0) {
+    const accuracy = actor.trackRecord.historicalAccuracy 
+      ? `${(actor.trackRecord.historicalAccuracy * 100).toFixed(0)}%`
+      : 'unknown';
+    sections.push({
+      type: 'trackRecord',
+      content: `TRACK RECORD: ${actor.trackRecord.totalPosts} posts, ${accuracy} accuracy`,
+    });
+  }
+
+  // Relationship context (rich descriptions of relationships)
+  if (actor.relationshipContext) {
+    sections.push({
+      type: 'relationships',
+      content: `YOUR RELATIONSHIPS:\n${actor.relationshipContext}`,
+    });
+  }
+
+  // Current market positions (if trading)
+  if (actor.currentPositions) {
+    sections.push({
+      type: 'positions',
+      content: `YOUR CURRENT POSITIONS:\n${actor.currentPositions}`,
+    });
+  }
+
+  // Post Examples (always include if available)
+  if (actor.postExample && actor.postExample.length > 0) {
+    const shuffledExamples = shuffleArray(actor.postExample);
+    const examples = shuffledExamples.slice(0, Math.min(5, shuffledExamples.length));
+
+    const avgLength = Math.round(
+      examples.reduce((sum, ex) => sum + ex.length, 0) / examples.length
+    );
+    const hasLowercase = examples.some((ex) => ex === ex.toLowerCase());
+    const hasAllCaps = examples.some(
+      (ex) => ex === ex.toUpperCase() && ex.length > 3
+    );
+
+    let examplesSection = `EXAMPLE POSTS (MATCH THIS STYLE EXACTLY):\n`;
+    examples.forEach((ex, i) => {
+      examplesSection += `  ${i + 1}. "${ex}"\n`;
+    });
+
+    const hints: string[] = [];
+    if (avgLength < 50) hints.push('ultra-short');
+    else if (avgLength < 100) hints.push('short');
+    if (hasLowercase) hints.push('lowercase');
+    if (hasAllCaps) hints.push('ALL CAPS');
+
+    if (hints.length > 0) {
+      examplesSection += `VOICE PATTERNS: ${hints.join(', ')}\n`;
+    }
+    examplesSection += `TARGET LENGTH: ~${avgLength} characters`;
+
+    sections.push({
+      type: 'examples',
+      content: examplesSection,
+    });
+  }
+
+  // Persona (reliability, expertise)
+  if (actor.persona) {
+    const personaParts: string[] = [];
+    if (actor.persona.reliability !== undefined) {
+      personaParts.push(`Reliability: ${(actor.persona.reliability * 100).toFixed(0)}%`);
+    }
+    if (actor.persona.expertise && actor.persona.expertise.length > 0) {
+      personaParts.push(`Expert in: ${shuffleArray(actor.persona.expertise).join(', ')}`);
+    }
+    if (personaParts.length > 0) {
+      sections.push({
+        type: 'persona',
+        content: `PERSONA: ${personaParts.join(' | ')}`,
+      });
+    }
+  }
+
+  // Emotional Context
+  if (actor.emotionalContext) {
+    sections.push({
+      type: 'emotional',
+      content: `CURRENT MOOD/CONTEXT: ${actor.emotionalContext}`,
+    });
+  }
+
+  // Shuffle sections for entropy (but keep examples near the end for emphasis)
+  const nonExampleSections = sections.filter((s) => s.type !== 'examples');
+  const exampleSections = sections.filter((s) => s.type === 'examples');
+  const shuffledNonExamples = shuffleArray(nonExampleSections);
+
+  // Build final output with varied formatting
+  parts.push(`╔══════════════════════════════════════════════════════════════════╗`);
+  parts.push(`║ CHARACTER: ${actorName.toUpperCase()}`);
+  parts.push(`╚══════════════════════════════════════════════════════════════════╝`);
+
+  // Add shuffled sections
+  shuffledNonExamples.forEach((section) => {
+    parts.push(section.content);
+  });
+
+  // Always put examples at the end for emphasis
+  exampleSections.forEach((section) => {
+    parts.push(`\n${section.content}`);
+  });
+
+  return parts.join('\n');
+}
+
+/** Phase name constants */
+export type GamePhase = 'WILD' | 'CONNECTION' | 'CONVERGENCE' | 'CLIMAX' | 'RESOLUTION';
+
+/** Get the current phase based on game day */
+export function getPhaseForDay(day: number): GamePhase {
+  if (day <= 10) return 'WILD';
+  if (day <= 20) return 'CONNECTION';
+  if (day <= 25) return 'CONVERGENCE';
+  if (day <= 29) return 'CLIMAX';
+  return 'RESOLUTION';
+}
+
+/** Phase guidance content (shared between all phase context builders) */
+const PHASE_GUIDANCE: Record<GamePhase, { range: string; bullets: string[] }> = {
+  WILD: {
+    range: 'Days 1-10',
+    bullets: [
+      'Generate mysterious, disconnected events',
+      'Drop vague hints and rumors',
+      'Create speculation and uncertainty',
+      'Events feel random and chaotic',
+      'Minimal concrete information',
+      'Seeds of storylines being planted',
+    ],
+  },
+  CONNECTION: {
+    range: 'Days 11-20',
+    bullets: [
+      'Begin connecting previous events',
+      'Reveal relationships between actors',
+      'Provide more concrete information',
+      'Story threads start emerging',
+      'Patterns become visible',
+      'Narratives begin to take shape',
+    ],
+  },
+  CONVERGENCE: {
+    range: 'Days 21-25',
+    bullets: [
+      'Major storyline convergence',
+      'Big revelations about questions',
+      'Clear narrative threads',
+      'Dramatic developments accelerating',
+      'Truth starts emerging',
+      'Stakes are raised significantly',
+    ],
+  },
+  CLIMAX: {
+    range: 'Days 26-29',
+    bullets: [
+      'Maximum drama and uncertainty',
+      'Conflicting final clues',
+      'Rapid developments',
+      'High stakes moments',
+      'Resolution seems imminent',
+      'Tension at peak',
+    ],
+  },
+  RESOLUTION: {
+    range: 'Day 30',
+    bullets: [
+      'Definitive outcomes',
+      'All questions resolved',
+      'Epilogue content',
+      'Narrative closure',
+      'The story concludes with clear endings',
+    ],
+  },
+};
+
+/**
  * Build phase-specific narrative context for LLM prompts
  */
 export function buildPhaseContext(day: number): string {
-  if (day <= 10) {
-    return `Phase: WILD (Days 1-10)
-- Generate mysterious, disconnected events
-- Drop vague hints and rumors
-- Create speculation and uncertainty
-- Events feel random and chaotic
-- Minimal concrete information`;
-  }
-  if (day <= 20) {
-    return `Phase: CONNECTION (Days 11-20)
-- Begin connecting previous events
-- Reveal relationships between actors
-- Provide more concrete information
-- Story threads start emerging
-- Patterns become visible`;
-  }
-  if (day <= 25) {
-    return `Phase: CONVERGENCE (Days 21-25)
-- Major storyline convergence
-- Big revelations about questions
-- Clear narrative threads
-- Dramatic developments
-- Truth starts emerging`;
-  }
-  if (day <= 29) {
-    return `Phase: CLIMAX (Days 26-29)
-- Maximum drama and uncertainty
-- Conflicting final clues
-- Rapid developments
-- High stakes moments
-- Resolution seems imminent`;
-  }
-  return `Phase: RESOLUTION (Day 30)
-- Definitive outcomes
-- All questions resolved
-- Epilogue content
-- Narrative closure`;
+  const phase = getPhaseForDay(day);
+  const { range, bullets } = PHASE_GUIDANCE[phase];
+  return `Phase: ${phase} (${range})\n${bullets.map(b => `- ${b}`).join('\n')}`;
 }
 
 /**
- * Build relationship context for actors in LLM prompts
+ * Get phase guidance with header formatting (for rich context builders)
  */
-export function buildRelationshipContext(
-  actors: Actor[],
-  relationships: ActorRelationship[]
-): string {
-  if (!relationships || relationships.length === 0) {
-    return '';
-  }
-
-  const actorIds = new Set(actors.map((a) => a.id));
-  const relevantRelationships = relationships.filter(
-    (r) => actorIds.has(r.actor1Id) && actorIds.has(r.actor2Id)
-  );
-
-  if (relevantRelationships.length === 0) {
-    return '';
-  }
-
-  const actorMap = new Map(actors.map((a) => [a.id, a.name]));
-  const relationshipLines = relevantRelationships
-    .slice(0, 10)
-    .map((r) => {
-      const name1 = actorMap.get(r.actor1Id) || r.actor1Id;
-      const name2 = actorMap.get(r.actor2Id) || r.actor2Id;
-      const sentimentDesc =
-        r.sentiment > 0.5 ? 'respect' : r.sentiment < -0.5 ? 'beef' : 'neutral';
-      return `- ${name1} & ${name2}: ${r.relationshipType} (${sentimentDesc})${r.history ? ` - ${r.history}` : ''}`;
-    })
-    .join('\n');
-
-  return `\nKnown Relationships:\n${relationshipLines}`;
+export function getPhaseNarrativeGuidance(phase: GamePhase): string {
+  const { range, bullets } = PHASE_GUIDANCE[phase];
+  return `=== CURRENT PHASE: ${phase} (${range}) ===\n${bullets.join('. ')}.`;
 }
 
 /**
@@ -180,6 +508,148 @@ export function toQuestionIdNumberOrNull(
   }
   const parsed = parseInt(id, 10);
   return isNaN(parsed) ? null : parsed;
+}
+
+/**
+ * Generate a random behavioral modifier to inject into prompts.
+ * These modifiers add variety and emphasize different character traits each time.
+ */
+export function generateBehavioralModifier(): string {
+  const modifiers = shuffleArray([
+    '💡 THIS POST: Focus on your relationships. Who are you supporting or attacking?',
+    '💡 THIS POST: Let your personality shine through. What makes YOU unique?',
+    '💡 THIS POST: Channel your motivation. What drives you? Show it.',
+    '💡 THIS POST: Consider your allies. Can you co-sign or defend them?',
+    '💡 THIS POST: Consider your rivals. Can you subtweet or dunk on them?',
+    '💡 THIS POST: Be authentic to your voice. Short? Long? ALL CAPS? lowercase?',
+    '💡 THIS POST: Show your expertise. What do you know that others don\'t?',
+    '💡 THIS POST: React emotionally. How does this make you FEEL?',
+    '💡 THIS POST: Think about your bag. How does this affect your interests?',
+    '💡 THIS POST: Be provocative. What\'s the take that gets engagement?',
+    '💡 THIS POST: Connect to a broader narrative. What story is this part of?',
+    '💡 THIS POST: Flex your position. What do you know from your org?',
+  ]);
+  return modifiers[0]!;
+}
+
+/**
+ * Build full context string for character feed generation
+ * Includes trending topics, current events, and ongoing narratives
+ * Maximum randomization in section ordering for variety
+ */
+export function buildCharacterFeedContext(options: {
+  characterInfo: string;
+  trendingTopics?: string;
+  currentEvents?: string;
+  ongoingNarratives?: string;
+  recentPosts?: string;
+  comprehensiveContext?: string;
+  behavioralModifier?: boolean; // Add random behavioral modifier
+}): string {
+  // Build sections with randomized order for maximum entropy
+  const sections: Array<{ priority: number; content: string }> = [];
+  
+  // Character info gets random priority 1-3 (usually high but not always first!)
+  sections.push({
+    priority: 1 + Math.floor(Math.random() * 3),
+    content: truncateText(options.characterInfo, CONTEXT_LIMITS.MAX_SECTION_LENGTH),
+  });
+
+  // Comprehensive context (personal history) - random priority 2-5
+  if (options.comprehensiveContext) {
+    sections.push({
+      priority: 2 + Math.floor(Math.random() * 4),
+      content: truncateText(options.comprehensiveContext, CONTEXT_LIMITS.MAX_SECTION_LENGTH),
+    });
+  }
+
+  // These sections get fully random priorities (3-10)
+  if (options.trendingTopics) {
+    sections.push({
+      priority: 3 + Math.floor(Math.random() * 8),
+      content: truncateText(`\n=== TRENDING TOPICS ===\n${options.trendingTopics}`, CONTEXT_LIMITS.MAX_SECTION_LENGTH),
+    });
+  }
+
+  if (options.currentEvents) {
+    sections.push({
+      priority: 3 + Math.floor(Math.random() * 8),
+      content: truncateText(`\n=== TODAY'S EVENTS ===\n${options.currentEvents}`, CONTEXT_LIMITS.MAX_SECTION_LENGTH),
+    });
+  }
+
+  if (options.ongoingNarratives) {
+    sections.push({
+      priority: 3 + Math.floor(Math.random() * 8),
+      content: truncateText(`\n=== ONGOING NARRATIVES ===\n${options.ongoingNarratives}`, CONTEXT_LIMITS.MAX_SECTION_LENGTH),
+    });
+  }
+
+  if (options.recentPosts) {
+    sections.push({
+      priority: 3 + Math.floor(Math.random() * 8),
+      content: truncateText(`\n=== RECENT POSTS FROM OTHERS ===\n${options.recentPosts}`, CONTEXT_LIMITS.MAX_SECTION_LENGTH),
+    });
+  }
+  
+  // Add behavioral modifier (helps vary which trait is emphasized)
+  if (options.behavioralModifier !== false) {
+    sections.push({
+      priority: 0, // Always near the top for visibility
+      content: `\n${generateBehavioralModifier()}\n`,
+    });
+  }
+
+  // Sort by priority (with some randomization for same-priority items)
+  const sortedSections = sections.sort((a, b) => {
+    if (a.priority === b.priority) {
+      return Math.random() - 0.5; // Random order for same priority
+    }
+    return a.priority - b.priority;
+  });
+
+  const fullContext = sortedSections.map(s => s.content).join('\n');
+  return truncateText(fullContext, CONTEXT_LIMITS.MAX_TOTAL_CONTEXT_LENGTH);
+}
+
+/**
+ * Execute async tasks in parallel with rate limiting
+ * Processes tasks in batches to avoid overwhelming APIs
+ *
+ * @param tasks - Array of async functions to execute
+ * @param batchSize - Number of tasks to run in parallel (default: 5)
+ * @param delayMs - Delay between batches in milliseconds (default: 100)
+ * @returns Array of results (null for failed tasks)
+ */
+export async function rateLimitedParallel<T>(
+  tasks: Array<() => Promise<T>>,
+  batchSize = 5,
+  delayMs = 100
+): Promise<Array<T | null>> {
+  const results: Array<T | null> = [];
+
+  for (let i = 0; i < tasks.length; i += batchSize) {
+    const batch = tasks.slice(i, i + batchSize);
+    const batchResults = await Promise.allSettled(
+      batch.map((task) => task())
+    );
+
+    for (const result of batchResults) {
+      if (result.status === 'fulfilled') {
+        results.push(result.value);
+      } else {
+        // Silently handle failures - caller can filter nulls
+        results.push(null);
+      }
+    }
+
+    // Delay between batches (except for the last batch)
+    if (i + batchSize < tasks.length) {
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+  }
+
+  return results;
 }
 
 /**

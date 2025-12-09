@@ -35,11 +35,70 @@ export {
   shuffleArray,
 } from './randomization';
 
+// Entropy utilities (secure random, weighted picks, cooldowns)
+export {
+  biasedRandomCount,
+  type EventCooldownState,
+  generateSentimentSignal,
+  securePickN,
+  secureRandom,
+  secureRandomInt,
+  secureShuffle,
+  SeededRandom,
+  shouldFireEvent,
+  urgencyWeight,
+  weightedPick,
+} from './entropy';
+
 // Shared utilities (formatActorVoiceContext, buildPhaseContext, etc.)
 export {
+  buildCharacterFeedContext,
   buildPhaseContext,
-  buildRelationshipContext,
   formatActorVoiceContext,
+  formatCharacterInfoWithEntropy,
+  generateBehavioralModifier,
+  getPhaseForDay,
+  getPhaseNarrativeGuidance,
+  rateLimitedParallel,
   stripHashtagsAndEmojis,
   toQuestionIdNumberOrNull,
+  type GamePhase,
 } from './shared-utils';
+
+// Comprehensive context builder for rich NPC context
+export {
+  buildComprehensiveNPCContext,
+  formatComprehensiveContext,
+  type ComprehensiveNPCContext,
+} from './context-builder';
+
+// Rich game context builder for game generation prompts
+export {
+  buildRichGameContext,
+  formatRichGameContext,
+  formatRichGameContextWithEntropy,
+  formatCharacterGameContext,
+  formatDaySummaries,
+  extractNarrativeThreadsWithLoopDetection,
+  generateAntiLoopContext,
+  buildCharacterRoster,
+  formatCharacterAndOrgRoster,
+  type RichGameContext,
+  type CharacterRosterEntry,
+} from './game-context-builder';
+
+// Context limits and utilities
+export {
+  CONTEXT_LIMITS,
+  truncateText,
+  truncateArray,
+  estimateTokens,
+  isContextSizeSafe,
+} from './context-limits';
+
+// Date utilities
+export {
+  extractDayFromTimestamp,
+  extractDayFromEvent,
+  extractDayFromPost,
+} from './date-utils';

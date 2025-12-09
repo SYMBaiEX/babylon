@@ -95,7 +95,7 @@ export class NPCBootstrapService {
     // Load all Actor records from static registry
     const actorsList = StaticDataRegistry.getAllActors()
       .slice()
-      .sort((a, b) => a.name.localeCompare(b.name));
+      .sort((a, b) => (a.name as string).localeCompare(b.name as string));
 
     result.totalNpcs = actorsList.length;
     logger.info(

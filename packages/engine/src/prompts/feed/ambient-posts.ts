@@ -1,6 +1,6 @@
 import { definePrompt } from '../define-prompt';
 import {
-  characterVoiceGuidance,
+  ANTI_REPETITION_RULES,
   FINAL_REMINDERS,
   STANDARD_FEED_RULES,
   VALUE_RANGES,
@@ -8,77 +8,110 @@ import {
 } from '../shared-sections';
 
 /**
- * Prompt for generating multiple ambient posts from actors not directly involved in events.
+ * Prompt for generating a single ambient post from an actor not directly involved in events.
  *
  * Creates organic, casual posts from background actors that add atmosphere
- * and world-building to the feed. Generates multiple posts in batch for
- * actors not central to current events.
+ * and world-building to the feed. This is called PER CHARACTER (not batched)
+ * to ensure full character context and better voice matching.
+ * Includes full narrative context for connected, non-repetitive posts.
  *
- * Returns XML with multiple post entries.
+ * Returns XML with a single post entry.
  */
 export const ambientPosts = definePrompt({
   id: 'ambient-posts',
-  version: '2.0.0',
+  version: '5.0.0',
   category: 'feed',
   description:
-    'Generates organic ambient posts from actors not directly involved in events',
+    'Generates ambient post with full character context (per-character)',
   temperature: 1.1,
-  maxTokens: 5000,
+  maxTokens: 8000,
   template: `{{realityGrounding}}
 
 The current date is {{currentDate}}. Always act as though it is the current date.
 
-Day {{day}}/30
+=== ALL CHARACTERS IN WORLD ===
+{{characterRoster}}
+
+=== {{characterName}}'S FULL PROFILE ===
+{{characterInfo}}
+
+=== {{characterName}}'S RELATIONSHIPS ===
+{{characterRelationships}}
+
+=== COMPLETE NARRATIVE CONTEXT ===
+{{richGameContext}}
+
+=== ONGOING STORYLINES ===
+{{ongoingNarrativesContext}}
+
+=== RESOLVED QUESTIONS (Reference as established facts) ===
+{{resolvedQuestionsContext}}
+
+=== DAY {{day}}/30 CONTEXT ===
 {{progressContext}}
 {{atmosphereContext}}
+Phase: {{phaseContext}}
 
 {{trendContext}}
 
 {{timeEnergy}}
 
+=== {{characterName}}'S POST HISTORY (DON'T REPEAT) ===
 {{previousPostsContext}}
 
 ${WORLD_CONTEXT_HEADER}
 
 ${STANDARD_FEED_RULES}
 
-${characterVoiceGuidance('actorsList')}
+=== {{characterName}}'S EVENT INVOLVEMENT ===
+{{characterEventHistory}}
 
-Generate general thoughts posts for these {{actorCount}} actors (STRICT MAX 140 CHARACTERS PER POST):
+${ANTI_REPETITION_RULES}
 
-{{actorsList}}
+=== YOUR TASK ===
+Write ONE ambient post AS {{characterName}} (STRICT MAX 140 CHARACTERS).
 
-AMBIENT POST TYPES - each actor picks ONE type based on their personality:
-- Hot take (30%): Strong opinion, no hedging, definitive statement
-- Shitpost (20%): Absurdist humor, one-liners, jokes
-- Subtweet (15%): Vague reference to someone without naming them
-- Flex (15%): Humble brag, achievement mention, subtle boasting
-- Complaint (10%): Industry griping, frustration, criticism
-- Insight (10%): Actual observation, genuine analysis
+This is general thoughts/observations - can subtly reference ongoing events.
+Match {{characterName}}'s style EXACTLY from the context above.
+A reader should identify WHO wrote this post without seeing the author name.
 
-CHARACTER LIMIT: Each post MUST be 140 characters or less. Count carefully before submitting.
+NARRATIVE AWARENESS:
+- You can reference resolved questions as established facts
+- You can subtly react to ongoing storylines
+- You can reference other characters' recent posts
+- Don't repeat takes you've already made (see post history above)
+
+=== DO ===
+- Subtweet rivals or endorse narratives from allies
+- Pursue personal vendettas or grudges
+- Post something with a serious tone that is, underneath it, hilarious or based
+- Closely match the tone and style of the real person this AI character is imitating
+- Reference ongoing narratives or resolved outcomes subtly
+- Only use the AI names for other actors and characters, not the real names
+
+=== DO NOT ===
+- Repeat previous posts or takes (check history above)
+- Mention specific prediction or event details directly
+- Sound like a market analyst or news reporter
+- Use phrases like "cautiously optimistic", "this suggests", "implications"
+- Use thesaurus words like "hypernormalized", "transcendence"
+- Explain predictions or markets
+
+CHARACTER LIMIT: Post MUST be 140 characters or less.
 
 ${VALUE_RANGES}
 
-Respond with ONLY this XML format (example for 2 posts):
+Respond with ONLY this XML format:
 <response>
-  <posts>
-    <post>
-      <content>TeslAI stock looking interesting at these levels</content>
-      <sentiment>0.3</sentiment>
-      <clueStrength>0.1</clueStrength>
-      <pointsToward>null</pointsToward>
-    </post>
-    <post>
-      <content>some people really out here shipping code that crashes prod</content>
-      <sentiment>-0.3</sentiment>
-      <clueStrength>0.0</clueStrength>
-      <pointsToward>null</pointsToward>
-    </post>
-  </posts>
+  <post>
+    <content>post content matching {{characterName}}'s style from above</content>
+    <sentiment>number between -1 and 1</sentiment>
+    <clueStrength>number between 0 and 1</clueStrength>
+    <pointsToward>true | false | null</pointsToward>
+  </post>
 </response>
 
-CRITICAL: Return EXACTLY {{actorCount}} posts. Each must have content, sentiment, clueStrength, pointsToward elements.
+CRITICAL: Return exactly ONE post that matches {{characterName}}'s voice/style/examples defined above. Must have content, sentiment, clueStrength, pointsToward elements.
 
 ${FINAL_REMINDERS}
 `.trim(),

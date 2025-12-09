@@ -105,7 +105,6 @@ export type {
   Scenario,
   SelectedActor,
   StockPrice,
-  WorldContext,
   WorldEvent,
 } from './types/shared';
 export {

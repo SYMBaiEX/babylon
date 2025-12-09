@@ -20,7 +20,7 @@ import {
   positions,
   users,
 } from '@babylon/db';
-import { StaticDataRegistry } from '@babylon/engine';
+import { StaticDataRegistry, type StaticOrganization } from '@babylon/engine';
 import type { IAgentRuntime } from '@elizaos/core';
 import { sql } from 'drizzle-orm';
 import { callGroqDirect } from '../llm/direct-groq';
@@ -974,9 +974,9 @@ async function detectTradingOpportunities(
     orgStates.map((s): [string, number | null] => [s.id, s.currentPrice])
   );
   const perpMarkets = StaticDataRegistry.getAllOrganizations()
-    .filter((o) => o.type === 'company')
+    .filter((o): o is StaticOrganization => o.type === 'company')
     .slice(0, 10)
-    .map((o) => ({
+    .map((o: StaticOrganization) => ({
       ...o,
       currentPrice: priceMap.get(o.id) ?? o.initialPrice,
     }));

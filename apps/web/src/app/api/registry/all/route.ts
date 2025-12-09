@@ -8,6 +8,10 @@
  * Fetches ALL entities from the ERC8004 registry and database including users,
  * actors (NPCs), agents (from Agent0 network), and apps (game platforms).
  *
+ * **Important:** When searching with type='users', the API also returns actors
+ * (AI NPCs from static assets). This merges static actor data with human users
+ * for a unified search experience.
+ *
  * @openapi
  * /api/registry/all:
  *   get:
@@ -311,6 +315,8 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   };
 
   // Fetch based on entity type
+  // Note: When searching for 'users', we also include static actors (AI NPCs)
+  // since they are no longer in the database but should appear in user searches
   let users: Awaited<ReturnType<typeof fetchUsers>> = [];
   let actors: Awaited<ReturnType<typeof fetchActors>> = [];
   let agents: Awaited<ReturnType<typeof fetchAgents>> = [];
@@ -318,8 +324,11 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
   if (!entityType || entityType === 'all' || entityType === 'users') {
     users = await fetchUsers();
+    // Also fetch actors when searching for users - AI NPCs should appear in user searches
+    actors = await fetchActors();
   }
-  if (!entityType || entityType === 'all' || entityType === 'actors') {
+  if (entityType === 'actors') {
+    // Only fetch actors when explicitly requested
     actors = await fetchActors();
   }
   if (!entityType || entityType === 'all' || entityType === 'agents') {

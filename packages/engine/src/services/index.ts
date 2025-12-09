@@ -15,7 +15,6 @@ export * from './ActorSocialActions';
 export * from './alpha-group-invite-service';
 export * from './capital-allocation-service';
 export * from './following-mechanics';
-export * from './game-bootstrap-service';
 // Group Chat Service
 export {
   GroupChatService,
@@ -26,14 +25,11 @@ export * from './InteractionTracker';
 export * from './initial-investment-service';
 export * from './lookahead-generation-service';
 export * from './message-quality-checker';
-export * from './npc-bootstrap-service';
-export * from './npc-group-dynamics-calculations';
 export * from './npc-group-dynamics-service';
 export * from './npc-interaction-tracker';
 export * from './npc-persona-generator';
-export * from './RelationshipManager';
+// RelationshipManager consolidated into RelationshipEvolutionEngine
 export * from './reply-rate-limiter';
-export * from './static-data-registry';
 
 // =============================================================================
 // Market Services
@@ -63,6 +59,7 @@ export * from './trajectory-market-engine';
 // =============================================================================
 
 export * from './event-generation-helpers';
+export * from './narrative-state-service';
 export * from './parody-headline-generator';
 export * from './post-generation-helpers';
 export * from './question-arc-planner';
@@ -89,12 +86,20 @@ export * from './trending-grouping-service';
 // Core Services
 // =============================================================================
 
+export {
+  bootstrapGameIfNeeded,
+  GameBootstrapService,
+  type GameBootstrapResult,
+} from './game-bootstrap-service';
 export * from './character-mapping-service';
 export * from './earned-points-service';
 export * from './fee-service';
 export * from './market-context-service';
 export * from './market-impact-service';
 export * from './rss-feed-service';
+// Static data registry (actors/orgs)
+export * from './npc-wallet-adapter';
+export * from './static-data-registry';
 export * from './trade-cache-invalidation';
 export * from './trade-execution-service';
 export * from './wallet-service';

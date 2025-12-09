@@ -59,15 +59,5 @@ export {
   RELATIONSHIP_TYPES,
 } from '@babylon/shared';
 
-/**
- * World context for prompts (engine-specific)
- */
-export interface WorldContext {
-  crypto?: string;
-  politics?: string;
-  economy?: string;
-  technology?: string;
-  general?: string;
-  timestamp?: string;
-  headlines?: string;
-}
+// NOTE: WorldContext removed - use WorldFactsContext from world-facts-service.ts
+// or WorldContext from prompts/world-context.ts depending on use case

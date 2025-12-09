@@ -387,7 +387,7 @@ export async function generateNPCPost(
           .join('\n')}`
       : '';
 
-  const prompt = `You ARE ${actor.name}. Fully embody this character.
+  const prompt = `You ARE ${actor.name}. Post EXACTLY as they would.
 
 === YOUR CHARACTER ===
 ${actor.description || ''}
@@ -397,22 +397,32 @@ ${examplesContext}
 
 ${npcContextFormatted}
 
-=== TOPIC TO POST ABOUT ===
-"${question.text}"
+=== CONTEXT ===
+Something happening in the world: "${question.text}"
+This is background - post as YOUR character naturally would, not as a reporter.
 
-=== CRITICAL RULES ===
-- ABSOLUTELY NO HASHTAGS (no #crypto, #AI, #news, NOTHING with #)
-- NO EMOJIS
-- Match YOUR character's voice exactly - sound like the examples above
-- Be opinionated and entertaining in YOUR unique style
-- Reference events/posts above if they're relevant to your take
-- DON'T repeat what you've already posted
+=== VOICE MATCHING ===
+Your post MUST sound like the examples above. Match:
+- Their length (short/long)
+- Their tone (sarcastic/earnest/cryptic/etc)
+- Their vocabulary and style
+- Their typical post structure
+
+A reader should identify ${actor.name} without seeing the author name.
+
+=== DO NOT ===
+- Mention specific dates ("by Dec 13", "in 3 days")
+- Sound like a market analyst or news reporter
+- Use phrases like "cautiously optimistic", "this suggests", "implications"
+- Explain predictions or markets
+- NO HASHTAGS, NO EMOJIS
+- DON'T repeat previous posts
 
 ${worldFactsContext}
 
-Return your response as XML in this exact format:
+Return as XML:
 <response>
-  <post>your post content here (max 280 chars)</post>
+  <post>your post (max 280 chars)</post>
 </response>`;
 
   const response = await llmClient.generateJSON<

@@ -1,7 +1,3 @@
-'use client';
-
-import { useSearchParams } from 'next/navigation';
-import { Suspense } from 'react';
 import { ComingSoon } from '@/components/shared/ComingSoon';
 
 interface WaitlistWrapperProps {
@@ -9,31 +5,20 @@ interface WaitlistWrapperProps {
   waitlistMode: boolean;
 }
 
-function WaitlistWrapperContent({
-  children,
-  waitlistMode,
-}: WaitlistWrapperProps) {
-  const searchParams = useSearchParams();
-  const forceComingSoon = searchParams.get('comingsoon') === 'true';
-  const isProduction = process.env.NODE_ENV === 'production';
-
-  // Show ComingSoon if WAITLIST_MODE is enabled in production OR ?comingsoon=true
-  if ((waitlistMode && isProduction) || forceComingSoon) {
-    return <ComingSoon />;
-  }
-
-  return <>{children}</>;
-}
-
+/**
+ * Wrapper component that shows ComingSoon page when waitlist mode is enabled.
+ *
+ * @param children - Content to render when not in waitlist mode
+ * @param waitlistMode - Whether waitlist mode is enabled (from NEXT_PUBLIC_WAITLIST_MODE)
+ * @returns ComingSoon component or children based on waitlistMode
+ */
 export function WaitlistWrapper({
   children,
   waitlistMode,
 }: WaitlistWrapperProps) {
-  return (
-    <Suspense fallback={null}>
-      <WaitlistWrapperContent waitlistMode={waitlistMode}>
-        {children}
-      </WaitlistWrapperContent>
-    </Suspense>
-  );
+  if (waitlistMode) {
+    return <ComingSoon />;
+  }
+
+  return <>{children}</>;
 }

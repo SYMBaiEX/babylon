@@ -192,7 +192,7 @@ Available Prediction Markets:
 ${
   predictions.length > 0
     ? predictions
-        .map((m, i) => {
+        .map((m: PredictionMarket, i: number) => {
           const totalShares = m.yesShares + m.noShares;
           const yesPrice = totalShares > 0 ? m.yesShares / totalShares : 0.5;
           const noPrice = 1 - yesPrice;
@@ -210,7 +210,7 @@ Available Perpetual Markets:
 ${
   perpetuals.length > 0
     ? perpetuals
-        .map((m, i) => {
+        .map((m, i: number) => {
           const priceChange = m.priceChange24h || 0;
           const changePercent = (priceChange * 100).toFixed(1);
           const trend = priceChange > 0 ? '📈' : priceChange < 0 ? '📉' : '➡️';
@@ -553,6 +553,7 @@ Your JSON response:`;
       if (post && post.id) {
         await a2aClient.sendRequest('a2a.likePost', {
           postId: post.id,
+          userId: agentUserId, // Pass the agent's actual user ID
         });
         engagements++;
 

@@ -52,7 +52,9 @@ export interface IAgentRegistry {
   /**
    * Discover agents matching filter
    */
-  discoverAgents(filter: AgentDiscoveryFilter): Promise<AgentRegistration[]>;
+  discoverAgents(
+    filter: AgentDiscoveryFilter
+  ): Promise<AgentRegistration[]>;
 }
 
 /**

@@ -90,6 +90,27 @@ class InMemoryPerpDb implements PerpDbPort {
     return pos ? { ...pos } : null;
   }
 
+  async getOpenPositionsByUser(userId: string): Promise<PerpPositionRecord[]> {
+    return Array.from(this.positions.values())
+      .filter((p) => p.userId === userId && !p.closedAt)
+      .map((p) => ({ ...p }));
+  }
+
+  async getOpenPositionByUserAndTicker(
+    userId: string,
+    ticker: string
+  ): Promise<PerpPositionRecord | null> {
+    const pos = Array.from(this.positions.values()).find(
+      (p) => p.userId === userId && p.ticker === ticker && !p.closedAt
+    );
+    return pos ? { ...pos } : null;
+  }
+
+  async transaction<T>(fn: (tx: PerpDbPort) => Promise<T>): Promise<T> {
+    // In-memory mock just runs the function directly
+    return fn(this);
+  }
+
   async upsertPosition(
     position: Omit<PerpPositionRecord, 'id'> & { id?: string }
   ): Promise<PerpPositionRecord> {
@@ -128,6 +149,7 @@ class InMemoryPerpDb implements PerpDbPort {
         | 'fundingPaid'
         | 'liquidationPrice'
         | 'lastUpdated'
+        | 'size'
       >
     >
   ): Promise<void> {
@@ -353,5 +375,140 @@ describe('PerpMarketService', () => {
 
     const market = (await db.listMarkets())[0]!;
     expect(market.fundingRate.rate).not.toBe(0);
+  });
+
+  it('partial close reduces position size and returns proportional margin', async () => {
+    const open = await service.openPosition({
+      userId: 'u1',
+      ticker: 'ABC',
+      side: 'long',
+      size: 100,
+      leverage: 10,
+    });
+
+    // Close 50% of position
+    const close = await service.closePosition({
+      userId: 'u1',
+      positionId: open.positionId,
+      percentage: 0.5,
+    });
+
+    expect(close.fullyClosed).toBe(false);
+    expect(close.remainingSize).toBeCloseTo(50, 4);
+
+    // Position should still exist with reduced size
+    const pos = await db.getPositionById(open.positionId);
+    expect(pos?.closedAt).toBeNull();
+    expect(pos?.size).toBeCloseTo(50, 4);
+
+    // Volume should reflect the closed portion
+    const markets = await db.listMarkets();
+    const m = markets[0]!;
+    expect(m.volume24h).toBeCloseTo(150, 4); // open 100 + close 50
+    expect(m.openInterest).toBeCloseTo(50, 4); // remaining
+  });
+
+  it('slippage protection rejects open if price deviation exceeds max', async () => {
+    // Set markPrice significantly different from spot
+    await db.updateMarketStats('ABC', { currentPrice: 100, markPrice: 110 });
+
+    // Try to open with tight slippage tolerance (5%)
+    await expect(
+      service.openPosition({
+        userId: 'u1',
+        ticker: 'ABC',
+        side: 'long',
+        size: 100,
+        leverage: 10,
+        maxSlippage: 0.05, // 5% max
+      })
+    ).rejects.toThrow(/Slippage exceeded/);
+  });
+
+  it('slippage protection rejects close if price moved beyond tolerance', async () => {
+    const open = await service.openPosition({
+      userId: 'u1',
+      ticker: 'ABC',
+      side: 'long',
+      size: 100,
+      leverage: 10,
+    });
+
+    // Move price significantly
+    await db.updateMarketStats('ABC', { currentPrice: 120 });
+
+    // Try to close with tight slippage tolerance (10%)
+    await expect(
+      service.closePosition({
+        userId: 'u1',
+        positionId: open.positionId,
+        maxSlippage: 0.1, // 10% max - price moved 20%
+      })
+    ).rejects.toThrow(/Slippage exceeded/);
+  });
+
+  it('allows close when slippage is within tolerance', async () => {
+    const open = await service.openPosition({
+      userId: 'u1',
+      ticker: 'ABC',
+      side: 'long',
+      size: 100,
+      leverage: 10,
+    });
+
+    // Move price slightly
+    await db.updateMarketStats('ABC', { currentPrice: 105 });
+
+    // Should succeed with 10% slippage tolerance
+    const close = await service.closePosition({
+      userId: 'u1',
+      positionId: open.positionId,
+      maxSlippage: 0.1, // 10% max - price moved only 5%
+    });
+
+    expect(close.fullyClosed).toBe(true);
+    expect(close.realizedPnL).toBeCloseTo(5, 4);
+  });
+
+  it('prevents duplicate positions on same ticker', async () => {
+    await service.openPosition({
+      userId: 'u3',
+      ticker: 'ABC',
+      side: 'long',
+      size: 100,
+      leverage: 10,
+    });
+
+    // Try to open another position on same ticker - should fail
+    await expect(
+      service.openPosition({
+        userId: 'u3',
+        ticker: 'ABC',
+        side: 'short',
+        size: 50,
+        leverage: 5,
+      })
+    ).rejects.toThrow(/Already have an open/);
+  });
+
+  it('allows different users to open positions on same ticker', async () => {
+    await service.openPosition({
+      userId: 'u4',
+      ticker: 'ABC',
+      side: 'long',
+      size: 100,
+      leverage: 10,
+    });
+
+    // Different user should be able to open position
+    const pos2 = await service.openPosition({
+      userId: 'u5',
+      ticker: 'ABC',
+      side: 'short',
+      size: 50,
+      leverage: 5,
+    });
+
+    expect(pos2.positionId).toBeDefined();
   });
 });

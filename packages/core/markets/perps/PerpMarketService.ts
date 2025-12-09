@@ -26,6 +26,11 @@ const BASE_FUNDING_RATE = 0.01; // 1% APR base
 const MAX_FUNDING_RATE = 0.5; // 50% APR cap
 const IMBALANCE_EXPONENT = 3.0;
 
+/** Maximum total notional exposure per user across all positions */
+const MAX_USER_EXPOSURE = 1_000_000;
+/** Maximum number of open positions per user */
+const MAX_POSITIONS_PER_USER = 50;
+
 /**
  * PerpMarketService
  *
@@ -76,6 +81,37 @@ export class PerpMarketService {
     if (size > maxPositionSize) {
       throw new Error(
         `Order size exceeds market limit (${maxPositionSize.toLocaleString()})`
+      );
+    }
+
+    // Check for existing position on same ticker (prevent duplicates)
+    const existingPosition = await this.db.getOpenPositionByUserAndTicker(
+      input.userId,
+      ticker
+    );
+    if (existingPosition) {
+      throw new Error(
+        `Already have an open ${existingPosition.side} position on ${ticker} ` +
+          `(ID: ${existingPosition.id}). Close or modify existing position first.`
+      );
+    }
+
+    // Check total user exposure across all positions
+    const userPositions = await this.db.getOpenPositionsByUser(input.userId);
+    const currentExposure = userPositions.reduce(
+      (sum, p) => sum + p.size * p.leverage,
+      0
+    );
+    const newNotional = size * leverage;
+    if (currentExposure + newNotional > MAX_USER_EXPOSURE) {
+      throw new Error(
+        `Total exposure would exceed limit: current ${currentExposure.toLocaleString()}, ` +
+          `new ${newNotional.toLocaleString()}, max ${MAX_USER_EXPOSURE.toLocaleString()}`
+      );
+    }
+    if (userPositions.length >= MAX_POSITIONS_PER_USER) {
+      throw new Error(
+        `Maximum positions reached (${MAX_POSITIONS_PER_USER}). Close a position first.`
       );
     }
 
@@ -176,13 +212,16 @@ export class PerpMarketService {
 
     const exitPrice = input.exitPriceOverride ?? market.currentPrice;
 
-    // Slippage protection: reject if price moved too far from expected
+    // Slippage protection: reject if execution price deviates too far from mark price
+    // This protects against executing at a price that differs significantly from fair value
     if (input.maxSlippage !== undefined && input.maxSlippage > 0) {
-      const priceDeviation =
-        Math.abs(exitPrice - position.currentPrice) / position.currentPrice;
+      // Use mark price as the reference (more stable), falling back to position's tracked price
+      const referencePrice = market.markPrice ?? market.currentPrice;
+      const priceDeviation = Math.abs(exitPrice - referencePrice) / referencePrice;
       if (priceDeviation > input.maxSlippage) {
         throw new Error(
-          `Slippage exceeded: price moved ${(priceDeviation * 100).toFixed(2)}% ` +
+          `Slippage exceeded: execution price ${exitPrice.toFixed(2)} deviates ` +
+            `${(priceDeviation * 100).toFixed(2)}% from mark price ${referencePrice.toFixed(2)} ` +
             `(max allowed: ${(input.maxSlippage * 100).toFixed(2)}%)`
         );
       }
