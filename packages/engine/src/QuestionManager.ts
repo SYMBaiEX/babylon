@@ -85,7 +85,9 @@ import {
   worldImpactAssessment,
 } from './prompts';
 import { MarketContextService } from './services/market-context-service';
+import { saveArcPlan } from './services/narrative-state-service';
 import { ensureMarketOnChain } from './services/onchain-market-service';
+import { QuestionArcPlanner } from './services/question-arc-planner';
 import { StaticDataRegistry } from './services/static-data-registry';
 import { TradeExecutionService } from './services/trade-execution-service';
 import type {
@@ -1269,6 +1271,49 @@ XML: <response><questions><question><text>...</text><resolutionCriteria>...</res
         },
         'QuestionManager'
       );
+
+      // Create and persist arc plan for this question
+      const allActors = StaticDataRegistry.getAllActors()
+        .filter((a) => a.role === 'main' || a.role === 'supporting')
+        .slice(0, 30)
+        .map((a) => ({
+          id: a.id,
+          name: a.name,
+          description: a.description,
+          tier: a.tier ?? undefined, // Convert null to undefined for type compatibility
+          role: a.role,
+          personality: a.personality,
+          domain: a.domain,
+          affiliations: a.affiliations,
+        }));
+
+      const allOrgs: Organization[] = StaticDataRegistry.getAllOrganizations()
+        .filter((o) => o.type === 'company')
+        .slice(0, 20)
+        .map((o) => ({
+          id: o.id,
+          name: o.name,
+          description: o.description,
+          type: o.type as Organization['type'],
+          canBeInvolved: o.canBeInvolved ?? true, // Default to true for backward compatibility
+        }));
+
+      const arcPlanner = new QuestionArcPlanner();
+      const arcPlan = arcPlanner.planQuestionArc(
+        {
+          id: question.questionNumber,
+          text: question.text,
+          scenario: scenarioId,
+          outcome: expectedOutcome,
+          rank: 1,
+          status: 'active',
+        },
+        allActors,
+        allOrgs
+      );
+
+      // Save arc plan to database for use in subsequent ticks
+      await saveArcPlan(question.id, arcPlan);
 
       // Create market on-chain if it doesn't have onChainMarketId
       if (!market.onChainMarketId) {

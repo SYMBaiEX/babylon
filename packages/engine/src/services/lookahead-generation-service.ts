@@ -34,6 +34,13 @@ import {
 } from '@babylon/db';
 import type { BabylonLLMClient } from '@babylon/engine';
 import { logger } from '@babylon/shared';
+import {
+  biasedRandomCount,
+  secureRandom,
+  secureShuffle,
+  urgencyWeight,
+  weightedPick,
+} from '../utils/entropy';
 import { worldFactsService } from '../world-facts-service';
 import { generateEvents } from './event-generation-helpers';
 import {
@@ -300,15 +307,15 @@ async function generateContentWindow(
     return;
   }
 
-  // Generate 8 posts distributed across the window
-  const numPosts = 8;
+  // Vary post count per window (6-10) using biased random for natural distribution
+  const numPosts = biasedRandomCount(6, 10);
   const windowDuration = windowEnd.getTime() - windowStart.getTime();
 
-  // Generate events if needed (every 3rd window or so, based on probability)
-  const shouldGenerateEvents = Math.random() < 0.3;
+  // Generate events probabilistically using secure random
+  const shouldGenerateEvents = secureRandom() < 0.3;
   if (shouldGenerateEvents && activeQuestions.length > 0) {
     // Generate events at random times within the window
-    const randomOffset = Math.random() * windowDuration;
+    const randomOffset = secureRandom() * windowDuration;
     const eventTimestamp = new Date(windowStart.getTime() + randomOffset);
 
     const eventsCreated = await generateEvents(activeQuestions, eventTimestamp);
@@ -365,23 +372,37 @@ async function generateContentWindow(
 
   let postsCreated = 0;
 
+  // Pre-shuffle actors and orgs for this window to avoid deterministic selection
+  const shuffledActors = secureShuffle(actorsList);
+  const shuffledOrgs = secureShuffle(orgsList);
+  const shuffledQuestions = secureShuffle([...activeQuestions]);
+
   // Generate posts in parallel for better performance
   const postPromises = Array.from({ length: numPosts }, async (_, i) => {
-    // Distribute timestamps naturally across window
-    const randomOffset = Math.random() * windowDuration;
+    // Distribute timestamps naturally across window using secure random
+    const randomOffset = secureRandom() * windowDuration;
     const postTimestamp = new Date(windowStart.getTime() + randomOffset);
 
-    // Alternate between actors and organizations
-    const useActor = i % 2 === 0 && actorsList.length > 0;
+    // Weighted random choice between actor and org (70% actor, 30% org if both available)
+    const useActor =
+      shuffledActors.length > 0 &&
+      (shuffledOrgs.length === 0 || secureRandom() < 0.7);
+
+    // Pick from shuffled lists with wraparound
     const creator = useActor
-      ? actorsList[i % actorsList.length]
-      : orgsList[i % orgsList.length];
+      ? shuffledActors[i % shuffledActors.length]
+      : shuffledOrgs[i % shuffledOrgs.length];
 
     if (!creator) {
       return 0;
     }
 
-    const question = activeQuestions[i % activeQuestions.length];
+    // Weight question selection toward those with sooner resolution dates using urgency scoring
+    const question =
+      shuffledQuestions.length > 0
+        ? weightedPick(shuffledQuestions, urgencyWeight(5))
+        : activeQuestions[0];
+
     if (!question || !question.text) {
       return 0;
     }
@@ -413,7 +434,7 @@ async function generateContentWindow(
     const org = creator as (typeof orgsList)[number];
 
     // 10% chance to generate a full article instead of a short post
-    const shouldCreateArticle = Math.random() < 0.1;
+    const shouldCreateArticle = secureRandom() < 0.1;
     let success = false;
 
     if (shouldCreateArticle) {

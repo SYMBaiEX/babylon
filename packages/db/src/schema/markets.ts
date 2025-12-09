@@ -5,6 +5,7 @@ import {
   doublePrecision,
   index,
   integer,
+  jsonb,
   pgTable,
   text,
   timestamp,
@@ -140,13 +141,29 @@ export const predictionPriceHistories = pgTable(
   ]
 );
 
-/**
- * StockPrice - Historical price data for organizations (perp markets)
- *
- * Note: organizationId references organization IDs from StaticDataRegistry (static)
- * and organizationState (dynamic). Static organization data (name, ticker, type)
- * is accessed via StaticDataRegistry, current prices via organizationState.
- */
+// Organization (companies)
+export const organizations = pgTable(
+  'Organization',
+  {
+    id: text('id').primaryKey(),
+    name: text('name').notNull(),
+    ticker: text('ticker'),
+    description: text('description').notNull(),
+    type: text('type').notNull(),
+    canBeInvolved: boolean('canBeInvolved').notNull().default(true),
+    initialPrice: doublePrecision('initialPrice'),
+    currentPrice: doublePrecision('currentPrice'),
+    createdAt: timestamp('createdAt', { mode: 'date' }).notNull().defaultNow(),
+    updatedAt: timestamp('updatedAt', { mode: 'date' }).notNull(),
+    imageUrl: text('imageUrl'),
+  },
+  (table) => [
+    index('Organization_currentPrice_idx').on(table.currentPrice),
+    index('Organization_type_idx').on(table.type),
+    index('Organization_ticker_idx').on(table.ticker),
+  ]
+);
+
 // StockPrice
 export const stockPrices = pgTable(
   'StockPrice',
@@ -174,6 +191,37 @@ export const stockPrices = pgTable(
     ),
     index('StockPrice_timestamp_idx').on(table.timestamp),
   ]
+);
+
+// Perp market snapshot (offchain synthetic markets)
+export const perpMarketSnapshots = pgTable(
+  'PerpMarketSnapshot',
+  {
+    ticker: text('ticker').primaryKey(),
+    organizationId: text('organizationId').notNull(),
+    name: text('name'),
+    currentPrice: doublePrecision('currentPrice').notNull(),
+    /** Price from 24h ago for accurate change calculation */
+    price24hAgo: doublePrecision('price24hAgo'),
+    /** Timestamp when price24hAgo was last rotated */
+    price24hAgoUpdatedAt: timestamp('price24hAgoUpdatedAt', { mode: 'date' }),
+    /** Timestamp when 24h metrics (high/low/volume) were last reset */
+    metrics24hResetAt: timestamp('metrics24hResetAt', { mode: 'date' }),
+    change24h: doublePrecision('change24h').notNull().default(0),
+    changePercent24h: doublePrecision('changePercent24h').notNull().default(0),
+    high24h: doublePrecision('high24h').notNull(),
+    low24h: doublePrecision('low24h').notNull(),
+    volume24h: doublePrecision('volume24h').notNull().default(0),
+    openInterest: doublePrecision('openInterest').notNull().default(0),
+    fundingRate: jsonb('fundingRate').notNull(),
+    maxLeverage: integer('maxLeverage').notNull().default(100),
+    minOrderSize: integer('minOrderSize').notNull().default(10),
+    markPrice: doublePrecision('markPrice'),
+    indexPrice: doublePrecision('indexPrice'),
+    createdAt: timestamp('createdAt', { mode: 'date' }).notNull().defaultNow(),
+    updatedAt: timestamp('updatedAt', { mode: 'date' }).notNull().defaultNow(),
+  },
+  (table) => [index('PerpMarketSnapshot_orgId_idx').on(table.organizationId)]
 );
 
 // PerpPosition
@@ -244,6 +292,17 @@ export const predictionPriceHistoriesRelations = relations(
   })
 );
 
+export const organizationsRelations = relations(organizations, ({ many }) => ({
+  stockPrices: many(stockPrices),
+}));
+
+export const stockPricesRelations = relations(stockPrices, ({ one }) => ({
+  Organization: one(organizations, {
+    fields: [stockPrices.organizationId],
+    references: [organizations.id],
+  }),
+}));
+
 // Type exports
 export type Market = typeof markets.$inferSelect;
 export type NewMarket = typeof markets.$inferInsert;
@@ -255,7 +314,11 @@ export type PredictionPriceHistory =
   typeof predictionPriceHistories.$inferSelect;
 export type NewPredictionPriceHistory =
   typeof predictionPriceHistories.$inferInsert;
+export type Organization = typeof organizations.$inferSelect;
+export type NewOrganization = typeof organizations.$inferInsert;
 export type StockPrice = typeof stockPrices.$inferSelect;
 export type NewStockPrice = typeof stockPrices.$inferInsert;
 export type PerpPosition = typeof perpPositions.$inferSelect;
 export type NewPerpPosition = typeof perpPositions.$inferInsert;
+export type PerpMarketSnapshot = typeof perpMarketSnapshots.$inferSelect;
+export type NewPerpMarketSnapshot = typeof perpMarketSnapshots.$inferInsert;

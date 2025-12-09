@@ -1,8 +1,13 @@
 /**
- * Randomization utilities for adding entropy to prompts
+ * Randomization Utilities (Math.random-based)
  *
- * Provides functions to shuffle arrays, sample random elements,
- * and add variety to AI prompts to prevent repetitive outputs.
+ * Fast, non-cryptographic randomization for general use cases:
+ * - Shuffling arrays for prompt variety
+ * - Sampling random elements for content generation
+ * - Adding entropy to prevent repetitive AI outputs
+ *
+ * For cryptographically-secure randomization (e.g., game fairness),
+ * use the functions in `entropy.ts` instead.
  */
 
 /**

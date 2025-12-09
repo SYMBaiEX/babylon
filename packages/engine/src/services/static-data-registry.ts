@@ -58,9 +58,18 @@ export interface StaticActor {
   role?: string;
   initialLuck: string;
   initialMood: number;
-  profileImageUrl: string | null;
+  profileImageUrl?: string;
   isTest: boolean;
 }
+
+/** Organization type enum matching @babylon/shared */
+export type OrgType =
+  | 'company'
+  | 'media'
+  | 'government'
+  | 'vc'
+  | 'organization'
+  | 'financial';
 
 /**
  * Static organization data - immutable properties
@@ -70,10 +79,10 @@ export interface StaticOrganization {
   name: string;
   ticker?: string;
   description: string;
-  type: string;
+  type: OrgType;
   canBeInvolved: boolean;
   initialPrice: number | null;
-  imageUrl: string | null;
+  imageUrl?: string;
   originalName?: string;
   originalHandle?: string;
 }
@@ -210,7 +219,7 @@ export class StaticDataRegistry {
         name: orgAny.name,
         ticker: orgAny.ticker,
         description: orgAny.description ?? '',
-        type: orgAny.type ?? 'company',
+        type: (orgAny.type as OrgType) ?? 'company',
         canBeInvolved: orgAny.canBeInvolved !== false,
         initialPrice: orgAny.initialPrice ?? null,
         imageUrl: this.getOrgImageUrl(orgAny.id),
@@ -513,7 +522,7 @@ export class StaticDataRegistry {
   // PRIVATE HELPERS
   // ==========================================================================
 
-  private static getActorImageUrl(actorId: string): string | null {
+  private static getActorImageUrl(actorId: string): string | undefined {
     const imagePath = join(
       process.cwd(),
       'public',
@@ -521,10 +530,10 @@ export class StaticDataRegistry {
       'actors',
       `${actorId}.jpg`
     );
-    return existsSync(imagePath) ? `/images/actors/${actorId}.jpg` : null;
+    return existsSync(imagePath) ? `/images/actors/${actorId}.jpg` : undefined;
   }
 
-  private static getOrgImageUrl(orgId: string): string | null {
+  private static getOrgImageUrl(orgId: string): string | undefined {
     const imagePath = join(
       process.cwd(),
       'public',
@@ -532,7 +541,9 @@ export class StaticDataRegistry {
       'organizations',
       `${orgId}.jpg`
     );
-    return existsSync(imagePath) ? `/images/organizations/${orgId}.jpg` : null;
+    return existsSync(imagePath)
+      ? `/images/organizations/${orgId}.jpg`
+      : undefined;
   }
 
   private static mapDomainToCategory(domains: string[]): string {

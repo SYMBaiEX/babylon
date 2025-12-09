@@ -59,6 +59,7 @@ import {
 import { asSystem } from '@babylon/db';
 import {
   BabylonLLMClient,
+  bootstrapGameIfNeeded,
   checkLookaheadStatus,
   executeGameTick,
   generateAheadIfNeeded,
@@ -155,6 +156,21 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   );
 
   try {
+    // 3.5. Bootstrap game data if needed (creates game, actors, etc.)
+    // This ensures the game exists and is running before we check state
+    const bootstrapResult = await bootstrapGameIfNeeded();
+    if (bootstrapResult?.gameStateInitialized) {
+      logger.info(
+        '🎮 Game auto-initialized by bootstrap',
+        {
+          actorsCreated: bootstrapResult.actorsCreated,
+          organizationsCreated: bootstrapResult.organizationsCreated,
+          poolsCreated: bootstrapResult.poolsCreated,
+        },
+        'Cron'
+      );
+    }
+
     // 4. Check if we should skip (maintenance mode, etc.) - system operation
     const gameState = await asSystem(async (db) => {
       logger.info(

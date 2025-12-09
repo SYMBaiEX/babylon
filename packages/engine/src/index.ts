@@ -3,33 +3,6 @@
  * Core game simulation, generation, and decision engines
  */
 
-// Article Generator
-export { type Article, ArticleGenerator } from './ArticleGenerator';
-
-// Emotion System
-export {
-  type EmotionalState,
-  generateActorContext,
-  getRelationshipModifier,
-  luckToDescription,
-  moodToEmotion,
-} from './EmotionSystem';
-
-// Feed Generator
-export { FeedGenerator } from './FeedGenerator';
-
-// Game Generator
-export {
-  createQuestionPrompt,
-  createScenarioPrompt,
-  GameGenerator,
-  OrganizationBehavior,
-  type OrganizationType,
-} from './GameGenerator';
-
-// GameHistory, GeneratedGame types are re-exported from ./types/shared
-
-// Token Counter (re-exported from @babylon/api for convenience)
 export {
   budgetTokens,
   countTokens,
@@ -40,6 +13,8 @@ export {
   truncateToTokenLimit,
   truncateToTokenLimitSync,
 } from '@babylon/api';
+// Article Generator
+export { type Article, ArticleGenerator } from './ArticleGenerator';
 // Actors Data Loader
 export {
   clearDataCache,
@@ -50,7 +25,6 @@ export {
   loadActorsData,
   loadOrganizationById,
 } from './actors-loader';
-
 // State Store Adapters
 export { DbStateStore, InMemoryStateStore } from './adapters';
 // Configuration
@@ -59,12 +33,32 @@ export {
   type FeeTransactionType,
   type FeeType,
 } from './config/fees';
+export {
+  DEFAULT_SIMULATION_CONFIG,
+  PREDICTION_TEMPLATES,
+  SIMULATION_AGENT_NAMES,
+  SIMULATION_CLUE_TEMPLATES,
+  SIMULATION_COMPANIES,
+  SIMULATION_QUESTIONS,
+  SIMULATION_STRATEGIES,
+  type SimulationStrategy,
+} from './config/simulation';
 // Data Exports
 export {
   getQuestionExamples,
   questionExamples,
 } from './data/question-examples';
 export { realityGroundingContent } from './data/reality-grounding';
+// Emotion System
+export {
+  type EmotionalState,
+  generateActorContext,
+  getRelationshipModifier,
+  luckToDescription,
+  moodToEmotion,
+} from './EmotionSystem';
+// Feed Generator
+export { FeedGenerator } from './FeedGenerator';
 // Bias Engine
 export {
   type BiasAdjustment,
@@ -74,6 +68,14 @@ export {
 } from './feedback/bias-engine';
 // Game Clock (injectable time abstraction)
 export { GameClock, type GameClockConfig, type GameTime } from './GameClock';
+// Game Generator
+export {
+  createQuestionPrompt,
+  createScenarioPrompt,
+  GameGenerator,
+  OrganizationBehavior,
+  type OrganizationType,
+} from './GameGenerator';
 // Game Tick (canonical tick executor)
 export {
   type ActiveMarket,
@@ -137,18 +139,6 @@ export {
   NPCPortfolioStrategy,
   type StrategyConfig,
 } from './npc/npc-portfolio-strategy';
-// Perpetuals Engine
-export { PerpetualsEngine } from './PerpetualsEngine';
-// Perps Utilities (funding rate calculator, etc.)
-export * from './perps';
-// Perps Service
-export {
-  ensurePerpsEngineReady,
-  getPerpsEngine,
-  getReadyPerpsEngine,
-  withPerpsEngine,
-} from './perps-service';
-// Post ID Parser
 export {
   type ParsedPostMetadata,
   type ParseResult,
@@ -237,6 +227,21 @@ export {
 } from './reputation';
 // Services (all exported from services/index.ts)
 export * from './services';
+// Storage Bridge (database-agnostic storage abstraction)
+export {
+  db,
+  exportState,
+  getStorageMode,
+  initializeDatabaseMode,
+  initializeSimulationMode,
+  initializeTestMode,
+  isDatabaseMode,
+  isSimulationMode,
+  isTestMode,
+  loadSnapshot,
+  type StorageMode,
+  saveSnapshot,
+} from './storage-bridge';
 // Trending Topics Engine
 export {
   type TrendingTopic,
@@ -314,7 +319,6 @@ export type {
   Scenario,
   SelectedActor,
   StockPrice,
-  WorldContext,
   WorldEvent,
 } from './types/shared';
 export {
@@ -338,6 +342,20 @@ export {
   calculateEstimatedCost,
   TOKEN_COST_PER_MILLION,
 } from './types/token-stats';
+// Utils - Entropy (secure random, weighted picks, cooldowns)
+export {
+  biasedRandomCount,
+  type EventCooldownState,
+  generateSentimentSignal,
+  SeededRandom,
+  securePickN,
+  secureRandom,
+  secureRandomInt,
+  secureShuffle,
+  shouldFireEvent,
+  urgencyWeight,
+  weightedPick,
+} from './utils/entropy';
 // Utils - Prompt Logging
 export {
   isPromptLoggingEnabled,

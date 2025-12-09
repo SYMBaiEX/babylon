@@ -118,15 +118,20 @@ These phrases make all characters sound the same. NEVER USE THEM:
 - "Can't believe this"
 - "This is wild"
 
-=== POST TYPE VARIETY ===
-- Hot takes (30%): Strong opinion, controversial, no hedging
-- Shitposts (20%): Jokes, absurdist, one-liners
-- Subtweets (15%): Vague reference without naming
-- Flexes (15%): Humble brags, achievements
-- Complaints (10%): Industry griping
-- Insights (10%): Actual observations
+=== AI SLOP TO AVOID (IMMEDIATE REJECTION) ===
+These patterns indicate generic AI output - reject immediately:
+- "We're cautiously optimistic that by [date]..." (robotic prediction speak)
+- "Looking at the implications of..." (analyst garbage)
+- "This development suggests..." (hedged commentary)
+- "As [date] approaches..." (countdown reporting)
+- "The [topic] raises questions about..." (essay intro)
+- "hypernormalized" / "snack-form transcendence" (thesaurus abuse)
+- Mentioning specific resolution dates ("by Dec 13", "in 3 days")
+- Explaining what a prediction or market is about
+- Sounding like you're writing a market report or news article
 
-REMEMBER: A reader should be able to guess WHO wrote each post without seeing the name.`;
+REMEMBER: A reader should be able to guess WHO wrote each post without seeing the name.
+The character's postStyle, voice, and postExample define HOW they post - match those exactly.`;
 }
 
 /**
@@ -173,6 +178,163 @@ export const PRIVATE_CONTENT_GUIDANCE = `PRIVATE vs PUBLIC:
 - Be STRATEGIC: Help friends, hurt enemies`;
 
 /**
+ * Rich narrative context header for prompts that need full history.
+ * Use this to inject complete event timeline, resolved questions, etc.
+ */
+export const RICH_NARRATIVE_CONTEXT_HEADER = `=== COMPLETE NARRATIVE CONTEXT ===
+
+{{eventTimeline}}
+
+{{resolvedQuestionsContext}}
+
+{{ongoingNarrativesContext}}
+
+{{feedActivityContext}}
+
+{{worldFactsContext}}`;
+
+/**
+ * Character roster header for prompts that need character context.
+ * Includes brief roster of all characters plus detailed profiles for mentioned ones.
+ */
+export const CHARACTER_ROSTER_HEADER = `=== WORLD CHARACTERS ===
+
+{{characterRoster}}
+
+{{detailedCharacterProfiles}}
+
+{{organizationRoster}}`;
+
+/**
+ * Combined full context header with all elements (characters, events, narratives).
+ * Use this for prompts that need maximum context richness.
+ */
+export const FULL_CONTEXT_HEADER = `{{realityGrounding}}
+
+=== WORLD CHARACTERS ===
+{{characterRoster}}
+
+{{detailedCharacterProfiles}}
+
+=== ORGANIZATIONS ===
+{{organizationRoster}}
+
+=== COMPLETE NARRATIVE CONTEXT ===
+{{richGameContext}}
+
+=== CURRENT STATE ===
+Day {{currentDay}} of 30
+Phase: {{currentPhase}}
+
+{{phaseGuidance}}`;
+
+/**
+ * Anti-repetition and distinctness guidance for content generation.
+ * Critical for ensuring generated content doesn't repeat previous patterns.
+ */
+export const ANTI_REPETITION_RULES = `=== ANTI-REPETITION RULES (CRITICAL) ===
+
+1. **NEVER repeat previous content:**
+   - Check the previous posts/events context above carefully
+   - If you've covered a topic before, take a NEW angle or skip it entirely
+   - Don't rephrase the same opinion/event in slightly different words
+
+2. **Build on, don't repeat, resolved questions:**
+   - Resolved questions above show what ALREADY HAPPENED
+   - Reference outcomes naturally, but don't re-announce old news
+   - Use outcomes as context for NEW developments
+
+3. **Advance narratives, don't rehash:**
+   - Ongoing narratives show current storylines
+   - Push these FORWARD with new developments
+   - Don't generate content that retreats to earlier plot points
+
+4. **Each piece must add NEW information:**
+   - New events = new information revealed
+   - New posts = new opinions or reactions
+   - If content doesn't add something new, DON'T generate it`;
+
+/**
+ * Narrative continuity guidance for maintaining story coherence.
+ */
+export const NARRATIVE_CONTINUITY_RULES = `=== NARRATIVE CONTINUITY RULES ===
+
+1. **Reference previous events naturally:**
+   - The event timeline above shows what happened before
+   - Your content should feel like a continuation, not a restart
+   - Characters remember what happened and reference it
+
+2. **Honor resolved question outcomes:**
+   - If a question resolved YES/NO, that outcome is CANON
+   - Don't contradict established outcomes
+   - Build subsequent content around the resolved reality
+
+3. **Maintain character consistency:**
+   - Characters' positions evolve but don't randomly flip
+   - Previous posts show their established stance
+   - New content should be consistent or show gradual evolution
+
+4. **Connect to ongoing narratives:**
+   - Major storylines are listed above
+   - New content should connect to existing threads
+   - Avoid starting completely disconnected plotlines
+
+5. **Phase-appropriate content:**
+   - Early phases: hints, speculation, disconnected events
+   - Middle phases: connections emerge, threads interweave
+   - Late phases: convergence, revelations, resolution`;
+
+/**
+ * Question generation continuity guidance.
+ */
+export const QUESTION_CONTINUITY_RULES = `=== QUESTION GENERATION CONTINUITY ===
+
+1. **Review existing questions first:**
+   - Active questions listed above are ALREADY being tracked
+   - DON'T generate questions that are too similar
+   - Each new question must cover DISTINCT territory
+
+2. **Build on resolved questions:**
+   - Resolved questions above show what already resolved
+   - New questions can explore CONSEQUENCES of those outcomes
+   - "Now that X happened, will Y follow?"
+
+3. **Reference ongoing narratives:**
+   - Current storylines inform what's interesting to bet on
+   - Questions should feel connected to the narrative arc
+   - Avoid random questions disconnected from current drama
+
+4. **Avoid question patterns:**
+   - Don't just swap actor names in similar question templates
+   - Each question needs a unique angle or framing
+   - Vary the resolution timeframes for pacing`;
+
+/**
+ * Event generation continuity guidance.
+ */
+export const EVENT_CONTINUITY_RULES = `=== EVENT GENERATION CONTINUITY ===
+
+1. **Build on previous events:**
+   - The event timeline above is your history
+   - Today's events should feel like natural progressions
+   - Reference yesterday's events where relevant
+
+2. **Advance active questions:**
+   - Events can provide clues toward question outcomes
+   - Don't resolve questions prematurely
+   - Create tension and uncertainty
+
+3. **Follow character arcs:**
+   - Track what each actor has been doing
+   - Their actions today should relate to their journey
+   - Avoid actors randomly appearing in unrelated events
+
+4. **Maintain cause and effect:**
+   - Major events have consequences
+   - Subsequent events should reflect previous happenings
+   - The world reacts to what occurred`;
+
+/**
  * Final reminders section for feed prompts (sandwich structure - reinforcement at end).
  * Repeats critical rules at the end of prompts to use recency effect.
  */
@@ -181,8 +343,9 @@ export const FINAL_REMINDERS = `FINAL REMINDERS:
 - NEVER use real-world names (Elon Musk, Tesla, OpenAI, etc.)
 - ABSOLUTELY NO HASHTAGS - not #crypto, #AI, #news, or ANY hashtag whatsoever
 - NO emojis - plain text only
-- Match each character's unique voice from their examples EXACTLY
-- Each character must sound DISTINCT - a blind reader should identify who wrote each post`;
+- Match each character's postStyle, voice, and postExample EXACTLY
+- Each character must sound DISTINCT - a blind reader should identify who wrote each post
+- NO market analyst speak ("by Dec 13", "cautiously optimistic", "this suggests")`;
 
 /**
  * Helper to build a complete prompt section combining common elements.

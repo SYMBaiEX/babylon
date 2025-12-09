@@ -13,7 +13,7 @@ import {
   storeTrendingTags,
 } from './tag-service';
 
-const CALCULATION_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
+const CALCULATION_INTERVAL_MS = 4 * 60 * 60 * 1000; // 4 hours (6x per day)
 const TRENDING_WINDOW_DAYS = 7; // Look at last 7 days
 
 /**
@@ -190,4 +190,81 @@ export async function calculateTrendingIfNeeded(): Promise<boolean> {
 
   await calculateTrendingTags();
   return true;
+}
+
+/**
+ * Get trending topics context for agent prompts
+ *
+ * Returns a formatted string of current trending topics that can be
+ * injected into agent prompts to make posts more relevant and timely.
+ */
+export async function getTrendingPromptContext(): Promise<string> {
+  const topTrending = await db
+    .select({
+      tagId: trendingTags.tagId,
+      score: trendingTags.score,
+      postCount: trendingTags.postCount,
+      rank: trendingTags.rank,
+      relatedContext: trendingTags.relatedContext,
+    })
+    .from(trendingTags)
+    .orderBy(trendingTags.rank)
+    .limit(10);
+
+  if (topTrending.length === 0) {
+    return '';
+  }
+
+  // Get tag names from tag service
+  const tagIds = topTrending.map((t) => t.tagId);
+  const tagDetails = await getTagDetails(tagIds);
+
+  const trendingLines = topTrending.map((trend) => {
+    const tag = tagDetails.get(trend.tagId);
+    const name = tag?.displayName || tag?.name || `#tag-${trend.tagId}`;
+    const context = trend.relatedContext ? ` (${trend.relatedContext})` : '';
+    const postInfo =
+      trend.postCount > 1 ? ` - ${trend.postCount} posts` : ' - 1 post';
+    return `${trend.rank}. ${name}${context}${postInfo}`;
+  });
+
+  return `
+=== TRENDING TOPICS (What people are talking about) ===
+${trendingLines.join('\n')}
+
+Consider referencing these trends in your post if relevant to your perspective.
+=======================================================
+`;
+}
+
+/**
+ * Get tag details by IDs (helper for trending context)
+ */
+async function getTagDetails(
+  tagIds: string[]
+): Promise<Map<string, { name: string; displayName: string | null }>> {
+  if (tagIds.length === 0) {
+    return new Map();
+  }
+
+  // Import tags table dynamically to avoid circular imports
+  const { tags, inArray } = await import('@babylon/db');
+
+  const tagRows = await db
+    .select({
+      id: tags.id,
+      name: tags.name,
+      displayName: tags.displayName,
+    })
+    .from(tags)
+    .where(inArray(tags.id, tagIds));
+
+  const result = new Map<
+    string,
+    { name: string; displayName: string | null }
+  >();
+  for (const row of tagRows) {
+    result.set(row.id, { name: row.name, displayName: row.displayName });
+  }
+  return result;
 }

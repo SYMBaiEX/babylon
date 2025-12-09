@@ -200,6 +200,24 @@ interface MuteStatusResponse {
   } | null;
 }
 
+interface TrendingTagsResponse {
+  tags: Array<{
+    name: string;
+    displayName: string;
+    category: string;
+    postCount: number;
+  }>;
+}
+
+interface PostsByTagResponse {
+  posts: Array<{
+    id: string;
+    content: string;
+    authorId: string;
+    timestamp: Date;
+  }>;
+}
+
 type ExecutorOperationResult =
   | PostCreatedResponse
   | FeedResponse
@@ -207,6 +225,8 @@ type ExecutorOperationResult =
   | UsersSearchResponse
   | SystemStatsResponse
   | LeaderboardResponse
+  | TrendingTagsResponse
+  | PostsByTagResponse
   | BlockMuteResponse
   | ReportResponse
   | BlocksListResponse
@@ -272,7 +292,7 @@ export class BabylonAgentExecutor implements AgentExecutor {
         parts: [
           {
             kind: 'data',
-            data: { result: result ?? null } as { [k: string]: JsonValue },
+            data: (result ?? {}) as { [k: string]: JsonValue },
           },
         ],
       },
@@ -303,6 +323,8 @@ export class BabylonAgentExecutor implements AgentExecutor {
         return this.createPost(command.params, context);
       case 'social.get_feed':
         return this.getFeed(command.params);
+      case 'social.like_post':
+        return this.likePost(command.params, context);
       case 'markets.list_prediction':
         return this.listPredictionMarkets(command.params);
       case 'users.search':
@@ -311,6 +333,10 @@ export class BabylonAgentExecutor implements AgentExecutor {
         return this.getSystemStats();
       case 'stats.leaderboard':
         return this.getLeaderboard(command.params);
+      case 'stats.trending_tags':
+        return this.getTrendingTags(command.params);
+      case 'stats.posts_by_tag':
+        return this.getPostsByTag(command.params);
       case 'moderation.create_escrow_payment':
         return this.createEscrowPayment(command.params, context);
       case 'moderation.verify_escrow_payment':
@@ -436,6 +462,56 @@ export class BabylonAgentExecutor implements AgentExecutor {
     };
   }
 
+  private async likePost(
+    params: Record<string, JsonValue>,
+    context: RequestContext
+  ): Promise<SuccessResponse> {
+    const postId = typeof params.postId === 'string' ? params.postId : '';
+    if (!postId) {
+      throw new Error('postId is required');
+    }
+
+    // Check if post exists
+    const post = await db.post.findFirst({
+      where: { id: postId, deletedAt: null },
+    });
+
+    if (!post) {
+      throw new Error('Post not found');
+    }
+
+    // Use userId from params first (actual agent user ID), fall back to context
+    const userId =
+      typeof params.userId === 'string' && params.userId
+        ? params.userId
+        : context.contextId || context.taskId;
+
+    // Check if already liked
+    const existingLike = await db.reaction.findFirst({
+      where: {
+        postId,
+        userId,
+        type: 'like',
+      },
+    });
+
+    if (existingLike) {
+      return { success: true, message: 'Already liked' };
+    }
+
+    // Create the like
+    await db.reaction.create({
+      data: {
+        id: await generateSnowflakeId(),
+        postId,
+        userId,
+        type: 'like',
+      },
+    });
+
+    return { success: true, message: 'Post liked' };
+  }
+
   private async listPredictionMarkets(params: Record<string, JsonValue>) {
     const limit = this.parsePositiveInt(params.limit, 20, 50);
     const markets = await db.market.findMany({
@@ -500,6 +576,98 @@ export class BabylonAgentExecutor implements AgentExecutor {
       },
     });
     return { leaderboard: users };
+  }
+
+  private async getTrendingTags(
+    params: Record<string, JsonValue>
+  ): Promise<TrendingTagsResponse> {
+    const limit = this.parsePositiveInt(params.limit, 10, 50);
+
+    // Get trending tags with their tag info via query
+    const trendingTagsList = await db.trendingTag.findMany({
+      take: limit,
+      orderBy: { score: 'desc' },
+    });
+
+    // Get tag IDs
+    const tagIds = trendingTagsList.map((tt) => tt.tagId);
+
+    // Fetch actual tag info
+    const tags =
+      tagIds.length > 0
+        ? await db.tag.findMany({
+            where: { id: { in: tagIds } },
+          })
+        : [];
+
+    // Create a map for quick lookup
+    const tagMap = new Map(tags.map((t) => [t.id, t]));
+
+    return {
+      tags: trendingTagsList.map((tt) => {
+        const tag = tagMap.get(tt.tagId);
+        return {
+          name: tag?.name ?? '',
+          displayName: tag?.displayName ?? tag?.name ?? '',
+          category: tag?.category ?? 'general',
+          postCount: tt.postCount,
+        };
+      }),
+    };
+  }
+
+  private async getPostsByTag(
+    params: Record<string, JsonValue>
+  ): Promise<PostsByTagResponse> {
+    const tagName = typeof params.tag === 'string' ? params.tag.trim() : '';
+    if (!tagName) {
+      throw new Error('tag is required');
+    }
+
+    const limit = this.parsePositiveInt(params.limit, 20, 50);
+    const offset = this.parsePositiveInt(params.offset, 0, 1000);
+
+    // Find the tag by name
+    const tag = await db.tag.findFirst({
+      where: { name: tagName },
+    });
+
+    if (!tag) {
+      return { posts: [] };
+    }
+
+    // Find posts with this tag via PostTag join table
+    const postTagEntries = await db.postTag.findMany({
+      where: { tagId: tag.id },
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+      skip: offset,
+    });
+
+    const postIds = postTagEntries.map((pt) => pt.postId);
+
+    if (postIds.length === 0) {
+      return { posts: [] };
+    }
+
+    // Fetch the actual posts
+    const posts = await db.post.findMany({
+      where: {
+        id: { in: postIds },
+        deletedAt: null,
+        type: 'post',
+      },
+      orderBy: { timestamp: 'desc' },
+    });
+
+    return {
+      posts: posts.map((p) => ({
+        id: p.id,
+        content: p.content,
+        authorId: p.authorId,
+        timestamp: p.timestamp,
+      })),
+    };
   }
 
   private parsePositiveInt(

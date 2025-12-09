@@ -5,6 +5,7 @@
  */
 
 import { countTokensSync, truncateToTokenLimitSync } from '@babylon/api';
+import { PerpDbAdapter, PerpMarketService } from '@babylon/core/markets/perps';
 import {
   and,
   asUser,
@@ -23,7 +24,6 @@ import {
 import {
   formatRandomContext,
   generateRandomMarketContext,
-  PerpTradeService,
   PredictionPricing,
   StaticDataRegistry,
   shuffleArray,
@@ -160,18 +160,21 @@ Current Status:
 Available Prediction Markets:
 ${shuffledPredictions
   .slice(0, 5)
-  .map((m) => `- ${m.question} (YES: ${m.yesShares}, NO: ${m.noShares})`)
+  .map(
+    (m: (typeof predictionMarkets)[number]) =>
+      `- ${m.question} (YES: ${m.yesShares}, NO: ${m.noShares})`
+  )
   .join('\n')}
 
 Available Perp Markets:
 ${shuffledPerps
   .slice(0, 5)
-  .map((o) => {
-    const initial = o.initialPrice;
-    const current = o.currentPrice;
-    const changePercent = ((current - initial) / initial * 100).toFixed(1);
+  .map((o: (typeof perpMarkets)[number]) => {
+    const initial = o.initialPrice ?? 100;
+    const current = o.currentPrice ?? initial;
+    const changePercent = (((current - initial) / initial) * 100).toFixed(1);
     const direction = current > initial ? '📈' : current < initial ? '📉' : '➡️';
-    return `- ${o.name} @ $${current.toFixed(2)} ${direction} ${changePercent}% from IPO ($${initial})`;
+    return `- ${o.ticker}: ${o.name} @ $${current.toFixed(2)} ${direction} ${changePercent}% from IPO ($${initial})`;
   })
   .join('\n')}
 
@@ -282,7 +285,7 @@ ${contextString}`;
       );
     }
 
-    let tradeDecision: {
+    interface TradeDecision {
       action: string;
       reasoning?: string;
       trade?: {
@@ -292,24 +295,9 @@ ${contextString}`;
         amount: number;
         reasoning?: string;
       };
-    };
-    try {
-      tradeDecision = JSON.parse(jsonMatch) as {
-        action: string;
-        reasoning?: string;
-        trade?: {
-          type: string;
-          market: string;
-          action: string;
-          amount: number;
-          reasoning?: string;
-        };
-      };
-    } catch (parseError) {
-      throw new Error(
-        `Failed to parse JSON trade decision: ${parseError instanceof Error ? parseError.message : String(parseError)}. Response: ${decision.substring(0, 200)}`
-      );
     }
+
+    const tradeDecision = JSON.parse(jsonMatch) as TradeDecision;
 
     if (tradeDecision.action !== 'trade' || !tradeDecision.trade) {
       logger.info(
@@ -451,7 +439,10 @@ ${contextString}`;
       }
     } else if (trade.type === 'perp' && perpMarkets.length > 0) {
       const org = perpMarkets.find(
-        (o) => o.name === trade.market || o.id === trade.market
+        (o) =>
+          o.name === trade.market ||
+          o.id === trade.market ||
+          o.ticker === trade.market
       );
       if (org && trade.amount <= Number(balance.balance)) {
         if (trade.action === 'open_long' || trade.action === 'open_short') {
@@ -460,15 +451,68 @@ ${contextString}`;
           const ticker = org.name;
 
           await asUser({ userId: agentUserId }, async () => {
-            await PerpTradeService.openPosition(
-              { userId: agentUserId },
-              {
-                ticker,
-                side,
-                size: trade.amount,
-                leverage: 1,
-              }
-            );
+            const service = new PerpMarketService({
+              db: new PerpDbAdapter(),
+              wallet: {
+                debit: (params: {
+                  userId: string;
+                  amount: number;
+                  reason: string;
+                  description?: string;
+                  relatedId?: string;
+                }) =>
+                  WalletService.debit(
+                    params.userId,
+                    params.amount,
+                    params.reason,
+                    params.description ?? '',
+                    params.relatedId
+                  ),
+                credit: (params: {
+                  userId: string;
+                  amount: number;
+                  reason: string;
+                  description?: string;
+                  relatedId?: string;
+                }) =>
+                  WalletService.credit(
+                    params.userId,
+                    params.amount,
+                    params.reason,
+                    params.description ?? '',
+                    params.relatedId
+                  ),
+                recordPnL: async (params: {
+                  userId: string;
+                  pnl: number;
+                  reason: string;
+                  relatedId?: string;
+                }) => {
+                  await WalletService.recordPnL(
+                    params.userId,
+                    params.pnl,
+                    params.reason,
+                    params.relatedId
+                  );
+                },
+                getBalance: (userId: string) =>
+                  WalletService.getBalance(userId),
+              },
+              fees: {
+                tradingFeeRate: 0.001,
+                platformShare: 0.5,
+                referrerShare: 0.5,
+                minFeeAmount: 0.01,
+              },
+            });
+
+            await service.openPosition({
+              userId: agentUserId,
+              ticker,
+              side,
+              size: trade.amount,
+              leverage: 1,
+            });
           });
 
           await agentPnLService.recordTrade({

@@ -45,7 +45,6 @@ import {
   REPUTATION_SYSTEM_BASE_SEPOLIA,
 } from '@babylon/shared';
 import { ArticleGenerator } from './ArticleGenerator';
-import { loadActorsData } from './actors-loader';
 import { BabylonLLMClient } from './llm/openai-client';
 import { MarketDecisionEngine } from './MarketDecisionEngine';
 import { NPCInvestmentManager } from './npc/npc-investment-manager';
@@ -87,6 +86,7 @@ import { TradeExecutionService } from './services/trade-execution-service';
 import {
   calculateTrendingIfNeeded,
   calculateTrendingTags,
+  getTrendingPromptContext,
 } from './services/trending-calculation-service';
 import { WalletService } from './services/wallet-service';
 import type { TradingExecutionResult } from './types/market-decisions';
@@ -292,19 +292,37 @@ export async function executeGameTick(
       'GameTick'
     );
 
-    // Load required data for proof generation
-    const actorsData = loadActorsData();
-    // Map ActorData to SelectedActor, ensuring required fields are present
-    const allActors: SelectedActor[] = actorsData.actors
-      .filter((actor) => actor.tier !== undefined)
+    // Load required data for proof generation using StaticDataRegistry (preferred over loadActorsData)
+    const staticActors = StaticDataRegistry.getAllActors();
+    // Map StaticActor to SelectedActor, ensuring required fields are present
+    const allActors: SelectedActor[] = staticActors
+      .filter((actor) => actor.tier !== null)
       .map((actor) => ({
-        ...actor,
+        id: actor.id,
+        name: actor.name,
+        description: actor.description,
+        domain: actor.domain,
+        personality: actor.personality,
+        affiliations: actor.affiliations,
+        postStyle: actor.postStyle,
+        postExample: actor.postExample,
         tier: actor.tier!,
         role: actor.role ?? 'unknown',
-        initialLuck: actor.initialLuck ?? 'medium',
+        initialLuck:
+          (actor.initialLuck as 'low' | 'medium' | 'high') ?? 'medium',
         initialMood: actor.initialMood ?? 0,
       }));
-    const organizations = actorsData.organizations;
+    // Map StaticOrganization to Organization type
+    const organizations: Organization[] =
+      StaticDataRegistry.getAllOrganizations().map((o) => ({
+        id: o.id,
+        name: o.name,
+        ticker: o.ticker,
+        description: o.description,
+        type: o.type,
+        canBeInvolved: o.canBeInvolved,
+        initialPrice: o.initialPrice ?? undefined,
+      }));
 
     // Get recent events for context
     const recentDbEvents = await db
@@ -478,21 +496,22 @@ export async function executeGameTick(
     // Generate NPC-to-NPC public discourse (replies to previous tick posts)
     // This runs in parallel since replies don't depend on posts from this tick
     if (Date.now() < criticalOpsDeadline) {
-      const discourseActorsData = loadActorsData();
+      const discourseActors = StaticDataRegistry.getAllActors();
       const discourseWorldFacts =
         await worldFactsService.generatePromptContext();
 
-      if (discourseActorsData.actors.length >= 2) {
+      if (discourseActors.length >= 2) {
         // Map to DiscourseActor type (only fields needed for reply generation)
-        const allActorsForDiscourse: DiscourseActor[] =
-          discourseActorsData.actors.map((actor) => ({
+        const allActorsForDiscourse: DiscourseActor[] = discourseActors.map(
+          (actor) => ({
             id: actor.id,
             name: actor.name,
             description: actor.description,
             personality: actor.personality,
             postStyle: actor.postStyle,
             postExample: actor.postExample || [],
-          }));
+          })
+        );
 
         const npcRepliesCreated = await generateNPCRepliesFromPreviousTicks(
           llmClient,
@@ -1184,18 +1203,23 @@ async function generateMixedPosts(
     return { posts: 0, articles: 0 };
   }
 
-  // Get actors (NPCs), organizations, world facts, AND shared post context in parallel
+  // Get actors (NPCs), organizations, world facts, trending, AND shared post context in parallel
   // This loads ALL shared data ONCE to avoid N+1 query problems
   // Static data from registry, dynamic state from DB
-  const [actorStates, worldFactsContext, sharedContext] = await Promise.all([
-    db
-      .select()
-      .from(actorState)
-      .orderBy(desc(actorState.reputationPoints))
-      .limit(15),
-    worldFactsService.generatePromptContext(),
-    loadSharedPostContext(), // Load feed posts + events ONCE
-  ]);
+  const [actorStates, worldFactsBase, trendingContext, sharedContext] =
+    await Promise.all([
+      db
+        .select()
+        .from(actorState)
+        .orderBy(desc(actorState.reputationPoints))
+        .limit(15),
+      worldFactsService.generatePromptContext(),
+      getTrendingPromptContext(),
+      loadSharedPostContext(), // Load feed posts + events ONCE
+    ]);
+
+  // Combine world facts with trending context
+  const worldFactsContext = worldFactsBase + trendingContext;
 
   // Combine static actor data with dynamic state
   const actorsList = actorStates

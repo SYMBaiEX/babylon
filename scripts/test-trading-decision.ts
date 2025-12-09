@@ -14,7 +14,7 @@ import {
   gte,
   isNull,
   markets,
-  organizations,
+  organizationState,
   perpPositions,
   positions,
   users,
@@ -22,6 +22,7 @@ import {
 import {
   formatRandomContext,
   generateRandomMarketContext,
+  StaticDataRegistry,
   shuffleArray,
   WalletService,
 } from '@babylon/engine';
@@ -75,12 +76,23 @@ async function testTradingDecision() {
       .orderBy(desc(markets.createdAt))
       .limit(10);
 
-    const perpMarkets = await db
+    // Get perp markets from static registry + dynamic state
+    const staticOrgs = StaticDataRegistry.getOrganizationsByType('company');
+    const orgStates = await db
       .select()
-      .from(organizations)
-      .where(eq(organizations.type, 'org'))
-      .orderBy(desc(organizations.currentPrice))
+      .from(organizationState)
+      .orderBy(desc(organizationState.currentPrice))
       .limit(10);
+
+    const perpMarkets = staticOrgs
+      .map((org) => {
+        const state = orgStates.find((s) => s.id === org.id);
+        return {
+          ...org,
+          currentPrice: state?.currentPrice ?? org.initialPrice,
+        };
+      })
+      .slice(0, 10);
 
     const balance = await WalletService.getBalance(agentUserId);
 

@@ -1580,6 +1580,11 @@ export interface DrizzleClient {
     InferSelect<typeof schema.tickTokenStats>,
     InferInsert<typeof schema.tickTokenStats>
   >;
+  questionArcPlan: TableRepository<
+    typeof schema.questionArcPlans,
+    InferSelect<typeof schema.questionArcPlans>,
+    InferInsert<typeof schema.questionArcPlans>
+  >;
 }
 
 /**
@@ -1943,6 +1948,11 @@ export function createDrizzleClient(drizzle: SchemaDatabase): DrizzleClient {
       drizzle,
       schema.tickTokenStats,
       'tickTokenStats'
+    ),
+    questionArcPlan: new TableRepository(
+      drizzle,
+      schema.questionArcPlans,
+      'questionArcPlans'
     ),
   };
 }

@@ -15,7 +15,6 @@ export * from './ActorSocialActions';
 export * from './alpha-group-invite-service';
 export * from './capital-allocation-service';
 export * from './following-mechanics';
-export * from './game-bootstrap-service';
 // Group Chat Service
 export {
   GroupChatService,
@@ -26,14 +25,10 @@ export * from './InteractionTracker';
 export * from './initial-investment-service';
 export * from './lookahead-generation-service';
 export * from './message-quality-checker';
-export * from './npc-bootstrap-service';
-export * from './npc-group-dynamics-calculations';
 export * from './npc-group-dynamics-service';
 export * from './npc-interaction-tracker';
 export * from './npc-persona-generator';
-export * from './RelationshipManager';
 export * from './reply-rate-limiter';
-export * from './static-data-registry';
 
 // =============================================================================
 // Market Services
@@ -43,9 +38,7 @@ export {
   type EventArcValidationResult,
   EventArcValidator,
 } from './event-arc-validator';
-export * from './liquidity-health-service';
 export * from './onchain-market-service';
-export * from './perp-trade-service';
 // Prediction Market Service
 export {
   type BroadcasterFn,
@@ -65,10 +58,11 @@ export * from './trajectory-market-engine';
 // =============================================================================
 
 export * from './event-generation-helpers';
+export * from './narrative-state-service';
 export * from './parody-headline-generator';
 export * from './post-generation-helpers';
 export * from './question-arc-planner';
-export * from './story-seed-service';
+
 // Tag Service
 export {
   type GeneratedTag,
@@ -82,9 +76,7 @@ export {
   storeTagsForPost,
   storeTrendingTags,
 } from './tag-service';
-// Topic Diversity Services (breaks the trending flywheel)
-export * from './topic-diversity-service';
-// Trending Services (kept separate due to different concerns)
+
 export * from './trending-calculation-service';
 export * from './trending-grouping-service';
 
@@ -95,9 +87,16 @@ export * from './trending-grouping-service';
 export * from './character-mapping-service';
 export * from './earned-points-service';
 export * from './fee-service';
+export {
+  bootstrapGameIfNeeded,
+  type GameBootstrapResult,
+  GameBootstrapService,
+} from './game-bootstrap-service';
 export * from './market-context-service';
 export * from './market-impact-service';
+export * from './npc-wallet-adapter';
 export * from './rss-feed-service';
+export * from './static-data-registry';
 export * from './trade-cache-invalidation';
 export * from './trade-execution-service';
 export * from './wallet-service';

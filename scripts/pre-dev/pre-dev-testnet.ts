@@ -172,7 +172,7 @@ if (redisRunning.trim() !== 'babylon-redis') {
 
 // Run database migrations
 import {
-  actors,
+  actorState,
   checkDatabaseHealth,
   closeDatabase,
   count,
@@ -200,7 +200,7 @@ console.info('✅ Database connected', undefined, 'Script');
 
 const actorCountResult = await db
   .select({ count: count() })
-  .from(actors)
+  .from(actorState)
   .catch(async (error: Error) => {
     const errorMessage = error.message;
     if (
@@ -232,7 +232,11 @@ if (actorCount === 0) {
   await $`bun run db:seed`;
   console.info('✅ Database seeded', undefined, 'Script');
 } else if (actorCount > 0) {
-  console.info(`✅ Database has ${actorCount} actors`, undefined, 'Script');
+  console.info(
+    `✅ Database has ${actorCount} actor states`,
+    undefined,
+    'Script'
+  );
 }
 
 await closeDatabase();

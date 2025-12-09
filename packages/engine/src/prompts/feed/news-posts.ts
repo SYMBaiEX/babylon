@@ -1,5 +1,6 @@
 import { definePrompt } from '../define-prompt';
 import {
+  ANTI_REPETITION_RULES,
   FINAL_REMINDERS,
   STANDARD_FEED_RULES,
   VALUE_RANGES,
@@ -11,26 +12,47 @@ import {
  *
  * Creates news-style posts from media organizations reporting on world
  * events. Uses journalistic tone and references specific events, actors,
- * and market impacts.
+ * and market impacts. Includes full narrative context for connected
+ * journalism that builds on previous coverage.
  *
  * Returns XML with news post content and metadata.
  */
 export const newsPosts = definePrompt({
   id: 'news-posts',
-  version: '2.0.0',
+  version: '4.0.0',
   category: 'feed',
-  description:
-    'Generates breaking news posts from media entities about world events',
+  description: 'Generates breaking news with full character context',
   temperature: 0.8,
-  maxTokens: 2000,
+  maxTokens: 8000,
   template: `{{realityGrounding}}
 
 The current date is {{currentDate}}. Always act as though it is the current date.
 
+=== ALL CHARACTERS IN WORLD ===
+{{characterRoster}}
+
+=== DETAILED CHARACTER PROFILES ===
+{{detailedCharacterProfiles}}
+
+=== ORGANIZATIONS ===
+{{organizationRoster}}
+
+=== COMPLETE NEWS CONTEXT ===
+{{richGameContext}}
+
+=== PREVIOUS COVERAGE (DON'T REHASH) ===
+{{previousCoverage}}
+
+=== THIS STORY ===
 Event: {{eventDescription}}
 Type: {{eventType}}
 {{sourceContext}}
 {{outcomeFrame}}
+
+=== HOW THIS CONNECTS ===
+Related ongoing stories: {{relatedStories}}
+Related questions: {{relatedQuestions}}
+Connected actors: {{connectedActors}}
 
 {{phaseContext}}
 
@@ -40,9 +62,17 @@ ${WORLD_CONTEXT_HEADER}
 
 ${STANDARD_FEED_RULES}
 
+${ANTI_REPETITION_RULES}
+
 Generate breaking news posts for these {{mediaCount}} media entities:
 
 {{mediaList}}
+
+JOURNALISTIC CONTINUITY:
+- Reference previous coverage when relevant
+- Connect to ongoing narratives
+- Each outlet should have distinct angle
+- Don't repeat old headlines
 
 ${VALUE_RANGES}
 

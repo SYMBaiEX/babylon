@@ -1,0 +1,141 @@
+'use client';
+
+import { MessageCircle } from 'lucide-react';
+import React from 'react';
+import { Separator } from '@/components/shared/Separator';
+import { ChatViewHeader } from './ChatViewHeader';
+import { FeedbackMessages } from './FeedbackMessages';
+import { MessageInput } from './MessageInput';
+import { MessageList } from './MessageList';
+import type { ChatDetails } from './types';
+
+interface ChatViewProps {
+  chatDetails: ChatDetails | null;
+  currentUserId: string | undefined;
+  authenticated: boolean;
+  sseConnected: boolean;
+  loading: boolean;
+  isLoadingMore: boolean;
+  hasMore: boolean;
+  pullDistance: number;
+  messageInput: string;
+  sending: boolean;
+  sendError: string | null;
+  sendWarning: string | null;
+  sendSuccess: boolean;
+  showBackButton?: boolean;
+  containerRef: (node: HTMLDivElement | null) => void;
+  topSentinelRef: React.RefObject<HTMLDivElement | null>;
+  messagesEndRef: React.RefObject<HTMLDivElement | null>;
+  onBack?: () => void;
+  onManageGroup: () => void;
+  onLeaveChat: () => void;
+  onMessageChange: (value: string) => void;
+  onSendMessage: () => void;
+  onTagClick?: (tag: string) => void;
+}
+
+export function ChatView({
+  chatDetails,
+  currentUserId,
+  authenticated,
+  sseConnected,
+  loading,
+  isLoadingMore,
+  hasMore,
+  pullDistance,
+  messageInput,
+  sending,
+  sendError,
+  sendWarning,
+  sendSuccess,
+  showBackButton = false,
+  containerRef,
+  topSentinelRef,
+  messagesEndRef,
+  onBack,
+  onManageGroup,
+  onLeaveChat,
+  onMessageChange,
+  onSendMessage,
+  onTagClick,
+}: ChatViewProps) {
+  // Empty state when no chat selected
+  if (!chatDetails) {
+    return (
+      <div className="flex flex-1 items-center justify-center">
+        <div className="max-w-md p-8 text-center text-muted-foreground">
+          <MessageCircle className="mx-auto mb-4 h-16 w-16 opacity-50" />
+          <h3 className="mb-2 font-bold text-foreground text-xl">
+            Select a chat
+          </h3>
+          <p className="text-sm">
+            Choose a conversation from the list to view messages
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      {/* Chat Header */}
+      <ChatViewHeader
+        chatDetails={chatDetails}
+        sseConnected={sseConnected}
+        showBackButton={showBackButton}
+        onBack={onBack}
+        onManageGroup={onManageGroup}
+        onLeaveChat={onLeaveChat}
+      />
+
+      {/* Header Separator */}
+      <div className="px-4">
+        <Separator />
+      </div>
+
+      {/* Messages */}
+      <div
+        ref={containerRef}
+        className="relative flex-1 space-y-4 overflow-y-auto px-4 py-3"
+      >
+        <MessageList
+          messages={chatDetails.messages || []}
+          participants={chatDetails.participants || []}
+          currentUserId={currentUserId}
+          loading={loading}
+          isLoadingMore={isLoadingMore}
+          hasMore={hasMore}
+          pullDistance={pullDistance}
+          authenticated={authenticated}
+          onTagClick={onTagClick}
+          topSentinelRef={topSentinelRef}
+          messagesEndRef={messagesEndRef}
+        />
+      </div>
+
+      {/* Feedback Messages */}
+      {authenticated && (
+        <FeedbackMessages
+          error={sendError}
+          warning={sendWarning}
+          success={sendSuccess}
+        />
+      )}
+
+      {/* Input Separator */}
+      <div className="px-4">
+        <Separator />
+      </div>
+
+      {/* Message Input */}
+      <MessageInput
+        value={messageInput}
+        onChange={onMessageChange}
+        onSend={onSendMessage}
+        sending={sending}
+        authenticated={authenticated}
+      />
+    </>
+  );
+}

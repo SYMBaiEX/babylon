@@ -139,6 +139,7 @@ describe('Trending Topics & News Integration', () => {
     mockLLM = mockImpl as BabylonLLMClient;
 
     trendEngine = new TrendingTopicsEngine(mockLLM);
+    // Use default interval of 4 ticks (every 4 hours, 6x per day)
     pacingEngine = new NewsArticlePacingEngine();
     articleGen = new ArticleGenerator(mockLLM);
     feedGen = new FeedGenerator(mockLLM);
@@ -440,7 +441,7 @@ describe('Trending Topics & News Integration', () => {
       }).toThrow('Actors array cannot be empty');
     });
 
-    it('should handle LLM failure gracefully for trends', async () => {
+    it('should propagate LLM failures (fail-fast)', async () => {
       const failingImpl: MockLLMClient = {
         generateJSON: mock(async () => {
           throw new Error('LLM timeout');
@@ -450,6 +451,7 @@ describe('Trending Topics & News Integration', () => {
       const failingLLM = failingImpl as BabylonLLMClient;
 
       const engine = new TrendingTopicsEngine(failingLLM);
+      engine.setUpdateInterval(10);
 
       const posts: FeedPost[] = [
         {
@@ -463,16 +465,10 @@ describe('Trending Topics & News Integration', () => {
         },
       ];
 
-      await engine.updateTrends(posts, 10);
-
-      // When LLM fails, engine should still return fallback trends (not crash)
-      const trends = engine.getTrends();
-      expect(trends.length).toBeGreaterThan(0);
-      // Each trend should have fallback name and description
-      for (const trend of trends) {
-        expect(trend.trendName).toBeTruthy();
-        expect(trend.description).toBeTruthy();
-      }
+      // LLM failures should propagate, not be swallowed
+      await expect(engine.updateTrends(posts, 10)).rejects.toThrow(
+        'LLM timeout'
+      );
     });
   });
 

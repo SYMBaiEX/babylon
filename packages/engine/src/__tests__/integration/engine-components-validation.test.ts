@@ -13,7 +13,7 @@
  * - QuestionManager - Question generation
  * - FeedGenerator - Feed post generation
  * - TrendingTopicsEngine - Trending calculation
- * - PerpetualsEngine - Perpetual market operations
+ * - PerpMarketService (from @babylon/core/markets/perps) - Perpetual market operations
  *
  * @usage
  * RUN_REAL_ENGINE_TESTS=true bun test engine-components-validation
@@ -254,73 +254,61 @@ describe('Engine Components Validation', () => {
     });
   });
 
-  describe('PerpetualsEngine', () => {
-    test('initializes and manages perp markets correctly', async () => {
-      const { PerpetualsEngine } = await import('../../PerpetualsEngine');
+  describe('PerpMarketService', () => {
+    test('initializes and can fetch market snapshots', async () => {
+      console.log('📈 Testing PerpMarketService...');
 
-      console.log('📈 Testing PerpetualsEngine...');
+      const { PerpMarketService, PerpDbAdapter } = await import(
+        '@babylon/core/markets/perps'
+      );
+      const { WalletService } = await import('../../services/wallet-service');
+      const { FEE_CONFIG } = await import('../../config/fees');
 
-      const engine = new PerpetualsEngine();
-
-      // Initialize with test organizations
-      const orgs = [
-        {
-          id: 'test-company-1',
-          name: 'TechCorp',
-          description: 'A tech company',
-          type: 'company' as const,
-          canBeInvolved: true,
-          initialPrice: 100,
+      const service = new PerpMarketService({
+        db: new PerpDbAdapter(),
+        wallet: {
+          debit: ({ userId, amount, reason, description, relatedId }) =>
+            WalletService.debit(
+              userId,
+              amount,
+              reason,
+              description ?? '',
+              relatedId
+            ),
+          credit: ({ userId, amount, reason, description, relatedId }) =>
+            WalletService.credit(
+              userId,
+              amount,
+              reason,
+              description ?? '',
+              relatedId
+            ),
+          recordPnL: async ({ userId, pnl, reason, relatedId }) => {
+            await WalletService.recordPnL(userId, pnl, reason, relatedId);
+          },
+          getBalance: (userId: string) => WalletService.getBalance(userId),
         },
-        {
-          id: 'test-company-2',
-          name: 'FinBank',
-          description: 'A bank',
-          type: 'company' as const,
-          canBeInvolved: true,
-          initialPrice: 50,
+        fees: {
+          tradingFeeRate: FEE_CONFIG.TRADING_FEE_RATE,
+          platformShare: FEE_CONFIG.PLATFORM_SHARE,
+          referrerShare: FEE_CONFIG.REFERRER_SHARE,
+          minFeeAmount: FEE_CONFIG.MIN_FEE_AMOUNT,
         },
-      ];
-
-      engine.initializeMarkets(orgs);
-      const markets = engine.getMarkets();
-
-      expect(markets.length).toBe(2);
-      console.log(`   ✅ Initialized ${markets.length} markets`);
-
-      // Test opening position
-      const position = engine.openPosition('test-user-1', {
-        ticker: markets[0]!.ticker,
-        side: 'long',
-        size: 1000,
-        leverage: 5,
-        orderType: 'market',
       });
 
-      expect(position.side).toBe('long');
-      expect(position.size).toBe(1000);
-      expect(position.leverage).toBe(5);
-      expect(position.liquidationPrice).toBeLessThan(position.entryPrice);
-      console.log(
-        `   ✅ Position opened: ${position.side} ${position.size} @ ${position.entryPrice}`
-      );
+      const markets = await service.getMarketsSnapshot();
+      console.log(`   ✅ Fetched ${markets.length} perp market snapshots`);
 
-      // Test price update
-      const priceMap = new Map([['test-company-1', 110]]);
-      engine.updatePositions(priceMap);
+      expect(Array.isArray(markets)).toBe(true);
 
-      const updatedPositions = engine.getUserPositions('test-user-1');
-      expect(updatedPositions[0]?.unrealizedPnL).toBeGreaterThan(0);
-      console.log(
-        `   ✅ PnL calculated: $${updatedPositions[0]?.unrealizedPnL.toFixed(2)}`
-      );
-
-      // Test closing position
-      const closeResult = engine.closePosition(position.id);
-      expect(closeResult.realizedPnL).toBeGreaterThan(0);
-      console.log(
-        `   ✅ Position closed with $${closeResult.realizedPnL.toFixed(2)} profit`
-      );
+      if (markets.length > 0) {
+        const market = markets[0];
+        expect(market).toHaveProperty('ticker');
+        expect(market).toHaveProperty('price');
+        console.log(
+          `   ✅ Sample market: ${market?.ticker} @ $${market?.price}`
+        );
+      }
     });
   });
 
@@ -328,10 +316,14 @@ describe('Engine Components Validation', () => {
     test('generates NPC trading decisions', async () => {
       console.log('💹 Testing MarketDecisionEngine...');
 
-      // Verify database connection using a simple query
-      const { db } = await import('@babylon/db');
-      const testActors = await db.query.actors.findMany({ limit: 1 });
-      console.log(`   Database connected, found ${testActors.length} actors`);
+      // Verify static registry connection
+      const { StaticDataRegistry } = await import(
+        '../../services/static-data-registry'
+      );
+      const allActors = StaticDataRegistry.getAllActors();
+      console.log(
+        `   Static registry loaded, found ${allActors.length} actors`
+      );
 
       const { MarketDecisionEngine } = await import(
         '../../MarketDecisionEngine'

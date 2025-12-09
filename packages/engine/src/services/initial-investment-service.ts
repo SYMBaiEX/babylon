@@ -89,13 +89,19 @@ export class InitialInvestmentService {
     );
     const companies = StaticDataRegistry.getAllOrganizations()
       .filter((o) => o.type === 'company' && o.ticker)
-      .map((o) => ({
-        id: o.id,
-        name: o.name,
-        ticker: o.ticker ?? null,
-        initialPrice: o.initialPrice,
-        currentPrice: priceMap.get(o.id) ?? o.initialPrice,
-      }));
+      .map((o) => {
+        const currentPriceFromDb = priceMap.get(o.id);
+        return {
+          id: o.id,
+          name: o.name,
+          ticker: o.ticker ?? null,
+          initialPrice: o.initialPrice,
+          currentPrice:
+            currentPriceFromDb !== undefined
+              ? currentPriceFromDb
+              : o.initialPrice,
+        };
+      });
 
     if (companies.length === 0) {
       logger.warn(

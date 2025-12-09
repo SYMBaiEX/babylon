@@ -479,14 +479,21 @@ export const GET = withErrorHandling(
           .filter((a): a is NonNullable<typeof a> => a !== null)
           .map((a) => [
             a.id,
-            { id: a.id, name: a.name, profileImageUrl: a.profileImageUrl },
+            {
+              id: a.id,
+              name: a.name,
+              profileImageUrl: a.profileImageUrl ?? null,
+            },
           ])
       );
       originalOrgAuthorsMap = new Map(
         originalPostAuthorIds
           .map((id) => StaticDataRegistry.getOrganization(id))
           .filter((o): o is NonNullable<typeof o> => o !== null)
-          .map((o) => [o.id, { id: o.id, name: o.name, imageUrl: o.imageUrl }])
+          .map((o) => [
+            o.id,
+            { id: o.id, name: o.name, imageUrl: o.imageUrl ?? null },
+          ])
       );
     }
 

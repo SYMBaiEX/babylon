@@ -159,7 +159,7 @@ export function getShuffledExamplesText(): string {
  * Simulates trading decisions for multiple NPCs based on their information
  * access (feed posts, group chats), personality, tier, and current market
  * conditions. Considers active questions, events, and narratives when
- * determining positions.
+ * determining positions. Includes full narrative context for informed trading.
  *
  * Returns XML with trading decisions for each NPC including market type,
  * ticker, side, size, and reasoning.
@@ -177,13 +177,34 @@ export function getShuffledExamplesText(): string {
  */
 export const npcMarketDecisions = definePrompt({
   id: 'npc-market-decisions',
-  version: '4.0.0',
+  version: '6.0.0',
   category: 'trading',
-  description: 'Generate context-aware trading decisions for NPCs',
+  description: 'Generate trading decisions with full character context',
   temperature: 0.8,
-  maxTokens: 8000,
+  maxTokens: 25000,
 
   template: `{{realityGrounding}}
+
+=== ALL TRADERS IN WORLD ===
+{{characterRoster}}
+
+=== DETAILED NPC PROFILES (For personality-based trading) ===
+{{detailedCharacterProfiles}}
+
+=== NPC RELATIONSHIPS (Allies trade together, rivals opposite) ===
+{{relationshipContext}}
+
+=== COMPLETE NARRATIVE CONTEXT ===
+{{richGameContext}}
+
+=== RESOLVED QUESTIONS (Established outcomes) ===
+{{resolvedQuestionsContext}}
+
+=== PREVIOUS TRADING ACTIVITY ===
+{{previousTrades}}
+
+=== ONGOING NARRATIVES ===
+{{ongoingNarrativesContext}}
 
 EXAMPLES:
 {{examples}}
@@ -202,8 +223,15 @@ DECISION FACTORS:
 - Posts/insider info/events inform trades
 - Rivals(sentiment<-0.5)=trade opposite, Allies(>0.5)=trade same
 - Aggressive=larger trades, Conservative=smaller/hold
+- RESOLVED QUESTIONS inform ongoing market dynamics
+- ONGOING NARRATIVES suggest future movements
 
-FIELDS: npcId, npcName, action, marketType(perp|prediction|null), ticker, marketId, positionId, amount, confidence(0-1), reasoning
+NARRATIVE-INFORMED TRADING:
+- If a question just resolved, NPCs may reposition based on outcome
+- Ongoing storylines suggest which assets might move
+- Previous trades show NPC positions (don't double down unrealistically)
+
+FIELDS: npcId, npcName, action, marketType(perp|prediction|null), ticker, marketId, positionId, amount, confidence(0-1), reasoning, narrativeConnection
 
 QUESTIONS:
 {{activeQuestions}}
@@ -214,5 +242,5 @@ EVENTS:
 TRADERS:
 {{npcsList}}
 
-Generate {{npcCount}} decisions as XML:`,
+Generate {{npcCount}} decisions as XML (each decision must include narrativeConnection explaining why):`,
 });

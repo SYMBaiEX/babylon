@@ -4,6 +4,11 @@
  * Provides full game simulation capabilities.
  */
 
+import {
+  PREDICTION_TEMPLATES,
+  SIMULATION_AGENT_NAMES,
+  SIMULATION_COMPANIES,
+} from '../config/simulation';
 import type {
   ActiveMarket,
   ActiveQuestion,
@@ -18,6 +23,7 @@ import type {
   TradeInput,
   TradeResult,
 } from '../GameTick';
+import { SeededRandom } from '../utils/entropy';
 
 export interface SimulationConfig {
   numPredictionMarkets?: number;
@@ -107,71 +113,9 @@ interface StoredMarket extends ActiveMarket {
   resolvesOnDay: number;
 }
 
-class SeededRandom {
-  private seed: number;
-
-  constructor(seed: number) {
-    this.seed = seed;
-  }
-
-  next(): number {
-    this.seed = (this.seed * 1103515245 + 12345) & 0x7fffffff;
-    return this.seed / 0x7fffffff;
-  }
-
-  nextInt(min: number, max: number): number {
-    return Math.floor(this.next() * (max - min + 1)) + min;
-  }
-
-  nextFloat(min: number, max: number): number {
-    return this.next() * (max - min) + min;
-  }
-
-  pick<T>(array: readonly T[]): T {
-    if (array.length === 0) throw new Error('Cannot pick from empty array');
-    return array[this.nextInt(0, array.length - 1)] as T;
-  }
-}
-
-const PREDICTION_TEMPLATES = [
-  {
-    q: 'Will {company} stock reach ${target} by end of month?',
-    desc: 'Price target prediction',
-  },
-  {
-    q: 'Will {company} announce earnings beat this quarter?',
-    desc: 'Earnings prediction',
-  },
-  {
-    q: 'Will {sector} sector outperform market this week?',
-    desc: 'Sector performance',
-  },
-  {
-    q: 'Will {company} announce new product launch?',
-    desc: 'Product announcement',
-  },
-];
-
-const COMPANIES = [
-  { ticker: 'TECH', name: 'TechCorp Industries', sector: 'Technology' },
-  { ticker: 'FINA', name: 'FinaBank Holdings', sector: 'Finance' },
-  { ticker: 'HLTH', name: 'HealthGen Solutions', sector: 'Healthcare' },
-  { ticker: 'ENRG', name: 'EnergyFlow Corp', sector: 'Energy' },
-  { ticker: 'RETA', name: 'RetailMax Inc', sector: 'Retail' },
-];
-
-const NPC_NAMES = [
-  'Marcus Chen',
-  'Sarah Williams',
-  'Alex Rivera',
-  'Jordan Lee',
-  'Emma Thompson',
-  'David Kim',
-  'Lisa Patel',
-  'Chris Morgan',
-  'Rachel Santos',
-  'James Wilson',
-];
+// Use shared simulation constants
+const COMPANIES = SIMULATION_COMPANIES;
+const NPC_NAMES = SIMULATION_AGENT_NAMES;
 
 export class InMemoryStateStore implements GameStateStore {
   private questions: Map<string, StoredQuestion> = new Map();

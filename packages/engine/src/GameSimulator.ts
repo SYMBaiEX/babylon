@@ -29,6 +29,13 @@
  */
 
 import { EventEmitter } from 'events';
+import {
+  SIMULATION_AGENT_NAMES,
+  SIMULATION_CLUE_TEMPLATES,
+  SIMULATION_QUESTIONS,
+  SIMULATION_STRATEGIES,
+} from './config/simulation';
+import { SeededRandom } from './utils/entropy';
 
 /**
  * Configuration for game simulation
@@ -112,88 +119,10 @@ export interface GameResult {
   totalBets: number;
 }
 
-/**
- * Seeded random number generator for reproducibility
- */
-class SeededRandom {
-  private seed: number;
-
-  constructor(seed: number) {
-    this.seed = seed;
-  }
-
-  next(): number {
-    this.seed = (this.seed * 1103515245 + 12345) & 0x7fffffff;
-    return this.seed / 0x7fffffff;
-  }
-
-  nextInt(min: number, max: number): number {
-    return Math.floor(this.next() * (max - min + 1)) + min;
-  }
-
-  nextFloat(min: number, max: number): number {
-    return this.next() * (max - min) + min;
-  }
-
-  pick<T>(array: readonly T[]): T {
-    if (array.length === 0) throw new Error('Cannot pick from empty array');
-    return array[this.nextInt(0, array.length - 1)] as T;
-  }
-
-  shuffle<T>(array: T[]): T[] {
-    const result = [...array];
-    for (let i = result.length - 1; i > 0; i--) {
-      const j = this.nextInt(0, i);
-      const temp = result[i];
-      result[i] = result[j] as T;
-      result[j] = temp as T;
-    }
-    return result;
-  }
-}
-
-const AGENT_NAMES = [
-  'Marcus Chen',
-  'Sarah Williams',
-  'Alex Rivera',
-  'Jordan Lee',
-  'Emma Thompson',
-  'David Kim',
-  'Lisa Patel',
-  'Chris Morgan',
-  'Rachel Santos',
-  'James Wilson',
-  'Olivia Brown',
-  'Michael Davis',
-  'Sophia Martinez',
-  'Daniel Taylor',
-  'Ava Anderson',
-];
-
-const SAMPLE_QUESTIONS = [
-  'Will TechCorp announce quarterly earnings above expectations?',
-  'Will the Fed raise interest rates this month?',
-  'Will CryptoToken reach $100 by end of day?',
-  'Will the merger between MegaCorp and StartupInc be approved?',
-  'Will the new regulation pass the committee vote?',
-];
-
-const CLUE_TEMPLATES = {
-  positive: [
-    'Insider sources suggest outcome leaning positive',
-    'Early indicators point toward YES',
-    'Key stakeholder reportedly supportive',
-    'Internal documents hint at favorable decision',
-    'Reliable sources confirm positive trajectory',
-  ],
-  negative: [
-    'Insider sources suggest outcome leaning negative',
-    'Early indicators point toward NO',
-    'Key stakeholder reportedly opposed',
-    'Internal documents hint at unfavorable decision',
-    'Reliable sources confirm negative trajectory',
-  ],
-};
+// Use shared simulation constants
+const AGENT_NAMES = SIMULATION_AGENT_NAMES;
+const SAMPLE_QUESTIONS = SIMULATION_QUESTIONS;
+const CLUE_TEMPLATES = SIMULATION_CLUE_TEMPLATES;
 
 /**
  * Autonomous prediction market simulation engine
@@ -241,8 +170,6 @@ export class GameSimulator extends EventEmitter {
     const numInsiders = Math.floor(
       this.config.numAgents * this.config.insiderPercentage
     );
-    const strategies: Array<'informed' | 'momentum' | 'contrarian' | 'random'> =
-      ['informed', 'momentum', 'contrarian', 'random'];
 
     for (let i = 0; i < this.config.numAgents; i++) {
       const isInsider = i < numInsiders;
@@ -255,7 +182,9 @@ export class GameSimulator extends EventEmitter {
         betsPlaced: 0,
         winningBets: 0,
         totalPnl: 0,
-        strategy: isInsider ? 'informed' : this.rng.pick(strategies),
+        strategy: isInsider
+          ? 'informed'
+          : this.rng.pick([...SIMULATION_STRATEGIES]),
       });
     }
   }

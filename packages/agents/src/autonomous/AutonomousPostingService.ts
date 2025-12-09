@@ -9,6 +9,7 @@ import { agentTrades, db, desc, eq, posts, users } from '@babylon/db';
 import {
   characterMappingService,
   formatRandomContext,
+  type GeneratedTag,
   generateRandomMarketContext,
   generateTagsFromPost,
   generateWorldContext,
@@ -381,7 +382,7 @@ ${contextString}
 
     // Generate and store tags asynchronously
     void generateTagsFromPost(cleanContent)
-      .then((generatedTags) => {
+      .then((generatedTags: GeneratedTag[]) => {
         if (generatedTags.length > 0) {
           return storeTagsForPost(postId, generatedTags).then(() => {
             logger.info(
@@ -393,7 +394,7 @@ ${contextString}
         }
         return Promise.resolve();
       })
-      .catch((tagError) => {
+      .catch((tagError: Error) => {
         logger.warn(
           'Failed to tag agent post',
           { postId, agentId: agentUserId, error: tagError },

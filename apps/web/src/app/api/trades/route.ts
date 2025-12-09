@@ -334,55 +334,12 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     }
   }
 
-  // Get recent position updates (significant changes)
-  const positions = await db.position.findMany({
-    take: params.limit,
-    skip: params.offset,
-    orderBy: { updatedAt: 'desc' },
-    where: {
-      ...userFilter,
-      shares: { gt: '0' }, // Only include positions with shares (decimal is string)
-    },
-  });
-
-  // Get markets for positions
-  const positionMarketIds = [...new Set(positions.map((p) => p.marketId))];
-  const positionMarkets =
-    positionMarketIds.length > 0
-      ? await db.market.findMany({
-          where: { id: { in: positionMarketIds } },
-          select: {
-            id: true,
-            question: true,
-            resolved: true,
-            resolution: true,
-          },
-        })
-      : [];
-  const positionMarketMap = new Map(positionMarkets.map((m) => [m.id, m]));
-
-  // Join positions with markets
-  const positionsWithMarkets = positions.map((p) => {
-    const market = positionMarketMap.get(p.marketId);
-    return {
-      ...p,
-      Market: market || null,
-    };
-  });
-
-  // Fetch users for positions
-  const positionUserIds = [...new Set(positions.map((p) => p.userId))];
-  const positionUsers = await db.user.findMany({
-    where: { id: { in: positionUserIds } },
-    select: {
-      id: true,
-      username: true,
-      displayName: true,
-      profileImageUrl: true,
-      isActor: true,
-    },
-  });
-  const positionUsersMap = new Map(positionUsers.map((u) => [u.id, u]));
+  // NOTE: Position entries are excluded from the trades feed.
+  // Positions represent cumulative state (total shares, avg price) rather than
+  // discrete trading events. Individual trades are shown via:
+  // - balanceTransactions (pred_buy, pred_sell) for regular users
+  // - npcTrades for NPC actors (includes AI reasoning/sentiment)
+  // This prevents duplicate entries for the same trading activity.
 
   // Get perp positions for the user (if filtering)
   let perpPositions: Awaited<ReturnType<typeof db.perpPosition.findMany>> = [];
@@ -427,19 +384,25 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   const perpUsersMap = new Map(perpUsers.map((u) => [u.id, u]));
 
   // Merge and sort by timestamp
+  // Filter out balance transactions from NPC actors - they have npcTrades entries instead
   const allTrades = [
-    ...balanceTransactions.map((tx) => ({
-      type: 'balance' as const,
-      id: tx.id,
-      timestamp: tx.createdAt,
-      user: balanceUsersMap.get(tx.userId) || null,
-      amount: tx.amount.toString(),
-      balanceBefore: tx.balanceBefore.toString(),
-      balanceAfter: tx.balanceAfter.toString(),
-      transactionType: tx.type,
-      description: tx.description,
-      relatedId: tx.relatedId,
-    })),
+    ...balanceTransactions
+      .filter((tx) => {
+        const user = balanceUsersMap.get(tx.userId);
+        return !user?.isActor; // Exclude NPC actors
+      })
+      .map((tx) => ({
+        type: 'balance' as const,
+        id: tx.id,
+        timestamp: tx.createdAt,
+        user: balanceUsersMap.get(tx.userId) || null,
+        amount: tx.amount.toString(),
+        balanceBefore: tx.balanceBefore.toString(),
+        balanceAfter: tx.balanceAfter.toString(),
+        transactionType: tx.type,
+        description: tx.description,
+        relatedId: tx.relatedId,
+      })),
     ...pointTransfers.map((tx) => {
       const metadata = tx.metadata
         ? (JSON.parse(tx.metadata) as {
@@ -503,35 +466,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         reason: trade.reason,
       };
     }),
-    ...positionsWithMarkets.map((pos) => {
-      const posWithMarket = pos as typeof pos & {
-        Market?: {
-          id: string;
-          question: string;
-          resolved: boolean;
-          resolution: string | null;
-        } | null;
-      };
-      const market = posWithMarket.Market;
-      return {
-        type: 'position' as const,
-        id: pos.id,
-        timestamp: pos.updatedAt,
-        user: positionUsersMap.get(pos.userId) || null,
-        market: market
-          ? {
-              id: market.id,
-              question: market.question,
-              resolved: market.resolved,
-              resolution: market.resolution,
-            }
-          : null,
-        side: pos.side ? 'YES' : 'NO',
-        shares: pos.shares.toString(),
-        avgPrice: pos.avgPrice.toString(),
-        createdAt: pos.createdAt,
-      };
-    }),
+    // NOTE: Position entries removed - see comment above about avoiding duplicates
     ...perpPositions.map((pos) => {
       const organization = organizationsMap.get(pos.organizationId);
       return {

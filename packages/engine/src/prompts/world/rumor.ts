@@ -1,44 +1,88 @@
 import { definePrompt } from '../define-prompt';
-import { PARODY_NAME_RULES } from '../shared-sections';
+import { ANTI_REPETITION_RULES, PARODY_NAME_RULES } from '../shared-sections';
 
 /**
  * Prompt for generating rumors and unconfirmed information for game world.
  *
  * Creates speculative rumors circulating in the game world about events,
  * actors, or market movements. Adds intrigue and uncertainty while
- * maintaining narrative consistency.
+ * maintaining narrative consistency. Uses full narrative context to
+ * ensure rumors connect to ongoing storylines.
  *
  * Returns XML with rumor content.
  */
 export const rumor = definePrompt({
   id: 'rumor',
-  version: '2.0.0',
+  version: '4.0.0',
   category: 'world',
-  description: 'Generates rumors and unconfirmed information for game world',
+  description: 'Generates contextually-connected rumors with character context',
   temperature: 0.9,
-  maxTokens: 150,
+  maxTokens: 800,
   template: `{{realityGrounding}}
 
 The current date is {{currentDate}}. Always act as though it is the current date.
 
-Generate a rumor for Day {{day}} of a prediction market game.
+=== ALL CHARACTERS IN WORLD ===
+{{characterRoster}}
 
-Context:
-- Question: {{question}}
-- Real outcome: {{outcome}}
-- Recent events: {{recentEvents}}
+=== KEY CHARACTERS TO RUMOR ABOUT ===
+{{rumorTargetProfiles}}
+
+=== ORGANIZATIONS ===
+{{organizationRoster}}
+
+=== COMPLETE WORLD CONTEXT ===
+{{richGameContext}}
+
+=== PREVIOUS RUMORS (Don't repeat) ===
+{{previousRumors}}
+
+=== RUMOR GENERATION (Day {{day}}) ===
+Question context: {{question}}
+Real outcome: {{outcome}}
+Phase: {{phaseContext}}
+
+Recent events that could spawn rumors:
+{{recentEvents}}
+
+Active storylines to reference:
+{{ongoingNarratives}}
 
 ${PARODY_NAME_RULES}
 
-Generate a realistic rumor that:
-- Sounds like internet gossip or leaked information
-- May or may not be accurate
-- {{outcomeHint}}
-- Starts with "Rumor:" or "Unconfirmed:" or "Sources say:"
+=== RUMOR REQUIREMENTS ===
+Generate a rumor that:
+1. Sounds like authentic internet gossip or insider leak
+2. Connects to events or narratives in the context above
+3. May or may not be accurate (adds uncertainty)
+4. {{outcomeHint}}
+5. Introduces NEW information (check previous rumors above)
+6. References specific actors/companies by parody names
+
+${ANTI_REPETITION_RULES}
+
+RUMOR SOURCES (vary these):
+- "Rumor:"
+- "Unconfirmed:"  
+- "Sources say:"
+- "Insider claims:"
+- "Leaked memo suggests:"
+- "Anonymous tipster:"
+- "Industry whispers:"
+
+PHASE GUIDANCE:
+- WILD phase: Vague, mysterious rumors
+- CONNECTION phase: Rumors linking actors/events
+- CONVERGENCE phase: Rumors hinting at revelations
+- CLIMAX phase: Dramatic, high-stakes rumors
+- RESOLUTION phase: Rumors about aftermath
 
 Respond with XML:
 <response>
-  <rumor>...</rumor>
+  <rumor>The rumor text, starting with source attribution (max 200 chars)</rumor>
+  <credibility>high|medium|low - how believable</credibility>
+  <accuracy>true|false|mixed - does it align with real outcome?</accuracy>
+  <connectsTo>what storyline or question this relates to</connectsTo>
 </response>
 
 No other text.
