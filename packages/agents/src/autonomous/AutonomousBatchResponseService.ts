@@ -2,8 +2,7 @@
  * Autonomous Batch Response Service
  *
  * Handles batch evaluation and response to pending interactions:
- * - Comments to agent's posts
- * - Replies to agent's comments
+ * - Comment replies (unified: comments on agent's posts + replies to agent's comments)
  * - New messages in chats
  *
  * Instead of responding to everything, this service:
@@ -31,21 +30,44 @@ import {
   users,
 } from '@babylon/db';
 import type { IAgentRuntime } from '@elizaos/core';
+import { parseKeyValueXml } from '@elizaos/core';
 import { callGroqDirect } from '../llm/direct-groq';
 import { getAgentConfig } from '../shared/agent-config';
 import { logger } from '../shared/logger';
 import { generateSnowflakeId } from '../shared/snowflake';
 
-interface PendingInteraction {
-  type: 'comment_on_post' | 'comment_on_comment' | 'chat_message';
+// =============================================================================
+// Types
+// =============================================================================
+
+interface ThreadMessage {
+  authorName: string;
+  content: string;
+  isYou: boolean;
+  depth: number;
+}
+
+interface PostInfo {
   id: string;
-  chatId?: string;
+  content: string;
+  authorName: string;
+  isYourPost: boolean;
+}
+
+interface PendingInteraction {
+  type: 'comment_reply' | 'chat_message';
+  id: string;
+  // Comment reply fields
   postId?: string;
-  commentId?: string;
-  parentCommentId?: string;
+  targetCommentId?: string;
+  post?: PostInfo;
+  thread?: ThreadMessage[];
+  // Chat message fields
+  chatId?: string;
+  // Common fields
   author: string;
   content: string;
-  context: string;
+  context: string; // Formatted context string for prompt
   timestamp: Date;
 }
 
@@ -55,148 +77,417 @@ interface ResponseDecision {
   reasoning?: string;
 }
 
+// Internal type for comment processing
+interface CommentWithRelations {
+  id: string;
+  postId: string;
+  parentCommentId: string | null;
+  authorId: string;
+  content: string;
+  createdAt: Date;
+  author: {
+    id: string;
+    username: string | null;
+    displayName: string | null;
+  } | null;
+  post: {
+    id: string;
+    content: string;
+    authorId: string;
+    postAuthor?: {
+      id: string;
+      username: string | null;
+      displayName: string | null;
+    } | null;
+  } | null;
+}
+
+// =============================================================================
+// Service
+// =============================================================================
+
 export class AutonomousBatchResponseService {
+  // Configuration constants - adjust these to change behavior
+  private readonly MAX_THREAD_DEPTH = 10;
+  private readonly MAX_COMMENTS_PER_QUERY = 500;
+
   /**
-   * Gather all pending interactions that might need responses
-   *
-   * Collects comments on agent's posts, replies to agent's comments,
-   * and new chat messages that the agent hasn't responded to.
-   *
-   * @param agentUserId - Unique identifier for the agent
-   * @returns Array of pending interactions requiring potential responses
-   *
-   * @remarks
-   * - Limited to interactions from last 24 hours
-   * - Filters out interactions agent already responded to
-   * - Includes context for each interaction
+   * How far back to look for posts/comments to respond to.
+   * - 24 = 1 day (aggressive, fast)
+   * - 72 = 3 days (balanced)
+   * - 168 = 7 days (conservative)
    */
-  async gatherPendingInteractions(
+  private readonly INTERACTION_WINDOW_HOURS = 24;
+
+  // ===========================================================================
+  // Helper: Check if agent participated in the ancestor chain
+  // ===========================================================================
+  private hasAgentInAncestors(
+    comment: CommentWithRelations,
+    commentMap: Map<string, CommentWithRelations>,
+    agentUserId: string
+  ): boolean {
+    let currentId = comment.parentCommentId;
+    while (currentId) {
+      const parent = commentMap.get(currentId);
+      if (!parent) break;
+      if (parent.authorId === agentUserId) return true;
+      currentId = parent.parentCommentId;
+    }
+    return false;
+  }
+
+  // ===========================================================================
+  // Helper: Build thread context by walking UP from target (max depth)
+  // ===========================================================================
+  private buildThreadFromBottom(
+    target: CommentWithRelations,
+    commentMap: Map<string, CommentWithRelations>,
+    agentUserId: string
+  ): ThreadMessage[] {
+    const chain: CommentWithRelations[] = [target];
+    let currentId = target.parentCommentId;
+
+    // Walk UP the parent chain
+    while (currentId && chain.length < this.MAX_THREAD_DEPTH) {
+      const parent = commentMap.get(currentId);
+      if (!parent) break;
+      chain.unshift(parent); // prepend = oldest first
+      currentId = parent.parentCommentId;
+    }
+
+    return chain.map((c, i) => ({
+      authorName:
+        c.authorId === agentUserId
+          ? 'You'
+          : c.author?.displayName || c.author?.username || 'User',
+      content: c.content,
+      isYou: c.authorId === agentUserId,
+      depth: i,
+    }));
+  }
+
+  // ===========================================================================
+  // Helper: Format thread for prompt display
+  // ===========================================================================
+  private formatThreadForPrompt(
+    post: PostInfo,
+    thread: ThreadMessage[]
+  ): string {
+    const postAuthorLabel = post.isYourPost ? 'You' : post.authorName;
+
+    // Build text-based thread display
+    const threadLines = thread.map((msg, idx) => {
+      const isLast = idx === thread.length - 1;
+      const replyIndicator = isLast ? ' [REPLY TO THIS]' : '';
+      const depthLabel = idx === 0 ? 'Comment' : `Reply (depth ${msg.depth})`;
+      return `- ${depthLabel} by @${msg.authorName}: "${msg.content}"${replyIndicator}`;
+    });
+
+    return `POST by @${postAuthorLabel}:
+"${post.content}"
+
+CONVERSATION THREAD:
+${threadLines.join('\n')}`;
+  }
+
+  // ===========================================================================
+  // Helper: Format interactions grouped by post for evaluation prompt
+  // ===========================================================================
+  private formatInteractionsGroupedByPost(
+    interactions: PendingInteraction[]
+  ): string {
+    // Group interactions by postId
+    const byPost = new Map<string, PendingInteraction[]>();
+    const chatMessages: PendingInteraction[] = [];
+
+    for (const interaction of interactions) {
+      if (interaction.type === 'chat_message' || !interaction.postId) {
+        chatMessages.push(interaction);
+      } else {
+        const postInteractions = byPost.get(interaction.postId) || [];
+        postInteractions.push(interaction);
+        byPost.set(interaction.postId, postInteractions);
+      }
+    }
+
+    const sections: string[] = [];
+
+    // Format each post group
+    for (const [_postId, postInteractions] of byPost) {
+      const firstInteraction = postInteractions[0];
+      const post = firstInteraction?.post;
+      const postAuthor = post?.isYourPost
+        ? 'You'
+        : post?.authorName || 'Unknown';
+      const postContent = post?.content || '[Post content unavailable]';
+
+      // Count interactions per author on this post
+      const authorCounts = new Map<string, number>();
+      for (const i of postInteractions) {
+        authorCounts.set(i.author, (authorCounts.get(i.author) || 0) + 1);
+      }
+
+      const interactionLines = postInteractions.map((interaction) => {
+        const authorCount = authorCounts.get(interaction.author) || 1;
+        const authorNote =
+          authorCount > 1 ? ` (${authorCount} interactions on this post)` : '';
+
+        // Format thread without post info (since we're showing it at post level)
+        const threadLines =
+          interaction.thread?.map((msg, idx) => {
+            const isLast = idx === (interaction.thread?.length || 0) - 1;
+            const replyIndicator = isLast ? ' [REPLY TO THIS]' : '';
+            const depthLabel =
+              idx === 0 ? 'Comment' : `Reply (depth ${msg.depth})`;
+            return `    - ${depthLabel} by @${msg.authorName}: "${msg.content}"${replyIndicator}`;
+          }) || [];
+
+        return `  [ID: ${interaction.id}] @${interaction.author}${authorNote}
+  Time: ${new Date(interaction.timestamp).toLocaleString()}
+  Thread:
+${threadLines.join('\n')}`;
+      });
+
+      sections.push(`═══════════════════════════════════════════════════════════════
+POST by @${postAuthor}: "${postContent.substring(0, 200)}${postContent.length > 200 ? '...' : ''}"
+═══════════════════════════════════════════════════════════════
+
+${interactionLines.join('\n\n')}`);
+    }
+
+    // Format chat messages separately
+    if (chatMessages.length > 0) {
+      const chatLines = chatMessages.map(
+        (interaction) => `  [ID: ${interaction.id}] @${interaction.author}
+  Time: ${new Date(interaction.timestamp).toLocaleString()}
+  Message: "${interaction.content}"`
+      );
+
+      sections.push(`═══════════════════════════════════════════════════════════════
+DIRECT MESSAGES
+═══════════════════════════════════════════════════════════════
+
+${chatLines.join('\n\n')}`);
+    }
+
+    return sections.join('\n\n');
+  }
+
+  // ===========================================================================
+  // Gather all pending comment replies (UNIFIED)
+  // ===========================================================================
+  private async gatherPendingCommentReplies(
     agentUserId: string
   ): Promise<PendingInteraction[]> {
     const interactions: PendingInteraction[] = [];
+    const windowStart = new Date(
+      Date.now() - this.INTERACTION_WINDOW_HOURS * 60 * 60 * 1000
+    );
 
-    // Get comments on agent's posts
-    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    // =========================================================================
+    // STEP 1: Find all relevant post IDs (within time window)
+    // =========================================================================
 
-    // First get agent's posts
+    // 1a. Agent's recent posts (created within window)
     const agentPosts = await db
       .select({ id: posts.id })
       .from(posts)
-      .where(and(eq(posts.authorId, agentUserId), isNull(posts.deletedAt)));
-    const agentPostIds = agentPosts.map((p) => p.id);
+      .where(
+        and(
+          eq(posts.authorId, agentUserId),
+          isNull(posts.deletedAt),
+          gte(posts.createdAt, windowStart)
+        )
+      );
+    const agentPostIds = new Set(agentPosts.map((p) => p.id));
 
-    if (agentPostIds.length > 0) {
-      const commentsOnPostsRaw = await db.query.comments.findMany({
-        where: (
-          comments,
-          { and: andFn, ne: neFn, gte: gteFn, inArray: inArrayFn }
-        ) =>
-          andFn(
-            neFn(comments.authorId, agentUserId),
-            gteFn(comments.createdAt, oneDayAgo),
-            inArrayFn(comments.postId, agentPostIds)
-          ),
-        with: {
-          author: {
-            columns: {
-              id: true,
-              username: true,
-              displayName: true,
-            },
+    // 1b. Posts where agent recently commented (within window)
+    const agentCommentPosts = await db
+      .selectDistinct({ postId: comments.postId })
+      .from(comments)
+      .where(
+        and(
+          eq(comments.authorId, agentUserId),
+          gte(comments.createdAt, windowStart)
+        )
+      );
+    const commentedPostIds = new Set(
+      agentCommentPosts
+        .map((c) => c.postId)
+        .filter((id) => !agentPostIds.has(id)) // exclude agent's own posts (handled separately)
+    );
+
+    // 1c. Combine all relevant post IDs
+    const relevantPostIds = [...agentPostIds, ...commentedPostIds];
+
+    if (relevantPostIds.length === 0) {
+      return interactions;
+    }
+
+    // =========================================================================
+    // STEP 2: Batch fetch comments on relevant posts
+    // =========================================================================
+    // Fetch recent comments on relevant (recent) posts.
+    // Since posts are already bounded by INTERACTION_WINDOW_HOURS, we can fetch
+    // all comments on them without unbounded growth.
+
+    // Fetch ALL non-deleted comments on relevant posts.
+    // Since posts are bounded by INTERACTION_WINDOW_HOURS, comment count is naturally limited.
+    // We still apply a safety limit to prevent extreme cases.
+    const allCommentsRaw = await db.query.comments.findMany({
+      where: and(
+        inArray(comments.postId, relevantPostIds),
+        isNull(comments.deletedAt)
+      ),
+      with: {
+        author: {
+          columns: {
+            id: true,
+            username: true,
+            displayName: true,
           },
-          post: {
-            columns: {
-              id: true,
-              content: true,
+        },
+        post: {
+          columns: {
+            id: true,
+            content: true,
+            authorId: true,
+          },
+          with: {
+            User: {
+              columns: {
+                id: true,
+                username: true,
+                displayName: true,
+              },
             },
           },
         },
-        orderBy: (comments, { desc: descFn }) => [descFn(comments.createdAt)],
-        limit: 20,
-      });
+      },
+      orderBy: [desc(comments.createdAt)],
+      limit: this.MAX_COMMENTS_PER_QUERY,
+    });
 
-      for (const comment of commentsOnPostsRaw) {
-        if (!comment.post) continue;
-        interactions.push({
-          type: 'comment_on_post',
-          id: comment.id,
-          postId: comment.postId,
-          author:
-            comment.author?.displayName ||
-            comment.author?.username ||
-            'Unknown',
-          content: comment.content,
-          context: `Your post: "${comment.post.content}"`,
-          timestamp: comment.createdAt,
-        });
+    // Transform to our internal type
+    const allComments: CommentWithRelations[] = allCommentsRaw.map((c) => ({
+      id: c.id,
+      postId: c.postId,
+      parentCommentId: c.parentCommentId,
+      authorId: c.authorId,
+      content: c.content,
+      createdAt: c.createdAt,
+      author: c.author,
+      post: c.post
+        ? {
+            id: c.post.id,
+            content: c.post.content,
+            authorId: c.post.authorId,
+            postAuthor: c.post.User,
+          }
+        : null,
+    }));
+
+    // =========================================================================
+    // STEP 3: Build in-memory maps for fast lookup
+    // =========================================================================
+
+    const commentMap = new Map<string, CommentWithRelations>(
+      allComments.map((c) => [c.id, c])
+    );
+
+    // Build children map: parentId -> child comments
+    const childrenMap = new Map<string, CommentWithRelations[]>();
+    for (const comment of allComments) {
+      if (comment.parentCommentId) {
+        const siblings = childrenMap.get(comment.parentCommentId) || [];
+        siblings.push(comment);
+        childrenMap.set(comment.parentCommentId, siblings);
       }
     }
 
-    // Get replies to agent's comments
-    const myComments = await db
-      .select({ id: comments.id })
-      .from(comments)
-      .where(eq(comments.authorId, agentUserId))
-      .orderBy(desc(comments.createdAt))
-      .limit(50);
-    const myCommentIds = myComments.map((c) => c.id);
+    // =========================================================================
+    // STEP 4: Find comments needing response
+    // =========================================================================
+    // Posts are already bounded by INTERACTION_WINDOW_HOURS, so all comments
+    // on those posts are potential candidates for response.
 
-    if (myCommentIds.length > 0) {
-      const repliesToCommentsRaw = await db
-        .select({
-          reply: comments,
-          author: {
-            id: users.id,
-            username: users.username,
-            displayName: users.displayName,
-          },
-        })
-        .from(comments)
-        .leftJoin(users, eq(comments.authorId, users.id))
-        .where(
-          and(
-            inArray(comments.parentCommentId, myCommentIds),
-            ne(comments.authorId, agentUserId),
-            gte(comments.createdAt, oneDayAgo)
-          )
-        )
-        .orderBy(desc(comments.createdAt))
-        .limit(20);
+    for (const comment of allComments) {
+      // Skip agent's own comments
+      if (comment.authorId === agentUserId) continue;
 
-      // Get parent comment content separately
-      const parentCommentIds = [
-        ...new Set(
-          repliesToCommentsRaw
-            .map((r) => r.reply.parentCommentId)
-            .filter(Boolean)
-        ),
-      ] as string[];
-      const parentComments =
-        parentCommentIds.length > 0
-          ? await db
-              .select({ id: comments.id, content: comments.content })
-              .from(comments)
-              .where(inArray(comments.id, parentCommentIds))
-          : [];
-      const parentCommentMap = new Map(
-        parentComments.map((pc) => [pc.id, pc.content])
+      // Skip if no post data
+      if (!comment.post) continue;
+
+      // Skip if agent already replied to this comment
+      const replies = childrenMap.get(comment.id) || [];
+      const agentReplied = replies.some((r) => r.authorId === agentUserId);
+      if (agentReplied) continue;
+
+      // Check if agent should respond to this comment:
+      // - Either it's on agent's post
+      // - Or agent participated in the ancestor chain
+      const isOnAgentPost = agentPostIds.has(comment.postId);
+      const agentInAncestors = this.hasAgentInAncestors(
+        comment,
+        commentMap,
+        agentUserId
       );
 
-      for (const row of repliesToCommentsRaw) {
-        interactions.push({
-          type: 'comment_on_comment',
-          id: row.reply.id,
-          commentId: row.reply.id,
-          parentCommentId: row.reply.parentCommentId || undefined,
-          author: row.author?.displayName || row.author?.username || 'Unknown',
-          content: row.reply.content,
-          context: `Your comment: "${parentCommentMap.get(row.reply.parentCommentId || '') || ''}"`,
-          timestamp: row.reply.createdAt,
-        });
-      }
+      if (!isOnAgentPost && !agentInAncestors) continue;
+
+      // Build thread context (walk UP from this comment)
+      const thread = this.buildThreadFromBottom(
+        comment,
+        commentMap,
+        agentUserId
+      );
+
+      // Build post info
+      const postAuthor = comment.post.postAuthor;
+      const post: PostInfo = {
+        id: comment.post.id,
+        content: comment.post.content,
+        authorName:
+          comment.post.authorId === agentUserId
+            ? 'You'
+            : postAuthor?.displayName || postAuthor?.username || 'User',
+        isYourPost: isOnAgentPost,
+      };
+
+      // Format context for prompt
+      const context = this.formatThreadForPrompt(post, thread);
+
+      interactions.push({
+        type: 'comment_reply',
+        id: comment.id,
+        postId: comment.postId,
+        targetCommentId: comment.id,
+        post,
+        thread,
+        author:
+          comment.author?.displayName || comment.author?.username || 'User',
+        content: comment.content,
+        context,
+        timestamp: comment.createdAt,
+      });
     }
 
-    // Get unread chat messages
+    return interactions;
+  }
+
+  // ===========================================================================
+  // Gather pending chat messages
+  // ===========================================================================
+  private async gatherPendingChatMessages(
+    agentUserId: string
+  ): Promise<PendingInteraction[]> {
+    const interactions: PendingInteraction[] = [];
+    const windowStart = new Date(
+      Date.now() - this.INTERACTION_WINDOW_HOURS * 60 * 60 * 1000
+    );
+
+    // Get chats the agent is part of
     const agentChats = await db
       .select({
         chatId: chatParticipants.chatId,
@@ -218,13 +509,31 @@ export class AutonomousBatchResponseService {
           and(
             eq(messages.chatId, chat.id),
             ne(messages.senderId, agentUserId),
-            gte(messages.createdAt, oneDayAgo)
+            gte(messages.createdAt, windowStart)
           )
         )
         .orderBy(desc(messages.createdAt))
         .limit(3);
 
       if (chatMessages.length === 0) continue;
+
+      // Check if agent already responded to the latest message
+      const latestFromOther = chatMessages[0];
+      if (!latestFromOther) continue;
+
+      const agentResponses = await db
+        .select({ id: messages.id })
+        .from(messages)
+        .where(
+          and(
+            eq(messages.chatId, chat.id),
+            eq(messages.senderId, agentUserId),
+            gte(messages.createdAt, latestFromOther.createdAt)
+          )
+        )
+        .limit(1);
+
+      if (agentResponses.length > 0) continue; // Agent already responded
 
       // Get recent conversation context
       const recentMessages = await db
@@ -241,44 +550,42 @@ export class AutonomousBatchResponseService {
         )
         .join('\n');
 
-      const latestMessage = chatMessages[0];
-      if (latestMessage) {
-        interactions.push({
-          type: 'chat_message',
-          id: latestMessage.id,
-          chatId: chat.id,
-          author: 'User', // Simplified since we don't have sender relation
-          content: latestMessage.content,
-          context: `Chat: ${chat.name || (chat.isGroup ? 'Group' : 'DM')}\nRecent:\n${contextMessages}`,
-          timestamp: latestMessage.createdAt,
-        });
-      }
+      interactions.push({
+        type: 'chat_message',
+        id: latestFromOther.id,
+        chatId: chat.id,
+        author: 'User', // Simplified since we don't have sender relation
+        content: latestFromOther.content,
+        context: `CHAT: ${chat.name || (chat.isGroup ? 'Group Chat' : 'Direct Message')}\n\nRecent messages:\n${contextMessages}`,
+        timestamp: latestFromOther.createdAt,
+      });
     }
 
-    // Sort by timestamp (oldest first for fairness)
+    return interactions;
+  }
+
+  // ===========================================================================
+  // Main gather method (combines all interaction types)
+  // ===========================================================================
+  async gatherPendingInteractions(
+    agentUserId: string
+  ): Promise<PendingInteraction[]> {
+    // Gather all types in parallel
+    const [commentReplies, chatMessages] = await Promise.all([
+      this.gatherPendingCommentReplies(agentUserId),
+      this.gatherPendingChatMessages(agentUserId),
+    ]);
+
+    // Combine and sort by timestamp (oldest first for fairness)
+    const interactions = [...commentReplies, ...chatMessages];
     interactions.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
 
     return interactions;
   }
 
-  /**
-   * Evaluate which interactions warrant a response using AI
-   *
-   * Uses LLM to analyze pending interactions and determine which ones
-   * warrant a response based on agent personality and interaction quality.
-   *
-   * @param agentUserId - Unique identifier for the agent
-   * @param _runtime - Agent runtime (used for W&B model access)
-   * @param interactions - Array of pending interactions to evaluate
-   * @returns Array of response decisions (one per interaction)
-   * @throws Error if agent not found or LLM response parsing fails
-   *
-   * @remarks
-   * - Caps interactions at 30 to prevent context overflow
-   * - Uses small model for fast evaluation
-   * - Has 20 second timeout to prevent hanging
-   * - Returns boolean array indicating which interactions to respond to
-   */
+  // ===========================================================================
+  // Evaluate which interactions warrant a response
+  // ===========================================================================
   async evaluateInteractions(
     agentUserId: string,
     _runtime: IAgentRuntime,
@@ -297,7 +604,6 @@ export class AutonomousBatchResponseService {
         'AutonomousBatchResponse'
       );
     }
-    const evaluateInteractions = cappedInteractions;
 
     const [agent] = await db
       .select({
@@ -313,38 +619,49 @@ export class AutonomousBatchResponseService {
 
     const config = await getAgentConfig(agentUserId);
 
-    // Build evaluation prompt
+    // Build evaluation prompt - ask for IDs instead of positional true/false
+    // This is more robust as it doesn't rely on counting/ordering
     const prompt = `${config?.systemPrompt ?? 'You are an AI agent on Babylon.'}
 
 You are ${agent.displayName}, an AI agent on Babylon. You need to decide which interactions warrant a response.
 
-Guidelines:
-- Respond to direct questions or mentions
-- Respond to substantive comments that add value
-- Skip spam, simple acknowledgments, or low-value interactions
-- Consider your energy and focus - be selective
-- Prioritize meaningful conversations
+CRITICAL: Be VERY selective. Silence is often the best response.
 
-Pending Interactions (${evaluateInteractions.length}):
+RESPOND ONLY TO:
+- Direct questions asking for YOUR opinion or analysis
+- Requests for clarification on something YOU said
+- Comments where you have a genuinely DIFFERENT perspective to offer
 
-${evaluateInteractions
-  .map(
-    (interaction, idx) => `
-[${idx}] Type: ${interaction.type}
-Author: ${interaction.author}
-Content: "${interaction.content}"
-Context: ${interaction.context}
-Time: ${new Date(interaction.timestamp).toLocaleString()}
----`
-  )
-  .join('\n')}
+DO NOT RESPOND TO:
+- Agreement spirals - when everyone is making the same point, don't pile on
+- Threads that have reached consensus - let them conclude naturally
+- Comments adding more evidence to an already-established point
+- Back-and-forth going in circles with no new insights
+- Simple acknowledgments
+- Conversations where no one is asking questions
+- Threads that have drifted off-topic from the original post
+- Discussions no longer relevant to the post's core topic
 
-Task: For each interaction above, decide if you should respond.
+KEY QUESTION: Would my response add a NEW perspective, or just more of the same?
+If more of the same, SKIP.
 
-Output ONLY a JSON array of booleans, one per interaction in order.
-Example: [true, false, true, false, false, true, ...]
+IMPORTANT: If same author has multiple interactions on the same post, respond to AT MOST ONE.
 
-Array:`;
+Pending Interactions (grouped by post):
+
+${this.formatInteractionsGroupedByPost(cappedInteractions)}
+
+Task: Decide which interactions you want to respond to.
+
+# Required Output Format
+Return ONLY the IDs of interactions you want to respond to, comma-separated.
+Leave empty if you don't want to respond to any.
+
+<response>
+<respond_to>ID1, ID2, ID3 (or leave empty)</respond_to>
+</response>
+
+Do NOT include any explanations, only the XML format above.`;
 
     // Ensure prompt fits within 32K context limit (W&B trained models)
     const estimatedTokens = countTokensSync(prompt);
@@ -368,95 +685,145 @@ Array:`;
       );
     }
 
-    // Use large model for batch evaluation - better at consistent counting
-    // Add timeout to prevent hanging (30 seconds max for larger model)
-    const decisionText = await Promise.race([
-      callGroqDirect({
-        prompt: finalPrompt,
-        system: config?.systemPrompt ?? undefined,
-        modelSize: 'large', // Large model: Better at structured outputs and counting
-        runtime: _runtime, // Pass runtime to access W&B trained models AND trajectory context
-        temperature: 0.6,
-        maxTokens: 16384,
-        actionType: 'evaluate_interactions',
-        purpose: 'evaluation', // RLAIF: This is an evaluation/reasoning call
-      }),
-      new Promise<string>((resolve) => {
-        setTimeout(() => {
+    // Use large model for batch evaluation with retry loop
+    const MAX_ATTEMPTS = 3;
+    let respondToIds: Set<string> | null = null;
+
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      try {
+        const isRetry = attempt > 1;
+        const currentPrompt = isRetry
+          ? `${finalPrompt}\n\nREMINDER: You MUST output valid XML. Return the IDs you want to respond to in <respond_to> tags, or leave empty if you don't want to respond to any.`
+          : finalPrompt;
+
+        // Add timeout to prevent hanging (30 seconds max for larger model)
+        const decisionText = await Promise.race([
+          callGroqDirect({
+            prompt: currentPrompt,
+            system: config?.systemPrompt ?? undefined,
+            modelSize: 'large', // Large model: Better at structured outputs
+            runtime: _runtime, // Pass runtime to access W&B trained models AND trajectory context
+            temperature: isRetry ? 0.5 : 0.6,
+            maxTokens: 16384,
+            actionType: 'evaluate_interactions',
+            purpose: 'evaluation', // RLAIF: This is an evaluation/reasoning call
+          }),
+          new Promise<string>((_, reject) => {
+            setTimeout(() => {
+              reject(new Error('Timeout'));
+            }, 30000); // 30 second timeout
+          }),
+        ]);
+
+        // Extract <response>...</response> block before parsing
+        const responseMatch = decisionText.match(
+          /<response>([\s\S]*?)<\/response>/i
+        );
+        if (!responseMatch) {
           logger.warn(
-            `Interaction evaluation timeout for agent ${agentUserId}, defaulting to no responses`,
-            undefined,
+            'No <response> block found in batch evaluation',
+            {
+              agentUserId,
+              attempt,
+              raw: decisionText.substring(0, 500),
+            },
             'AutonomousBatchResponse'
           );
-          resolve('[]'); // Empty array = no responses
-        }, 30000); // 30 second timeout (larger model needs more time)
-      }),
-    ]);
+          continue;
+        }
 
-    // Parse the boolean array
-    const jsonMatch = decisionText.match(/\[[\s\S]*?\]/);
-    if (!jsonMatch) {
-      throw new Error(
-        `Failed to parse decision array from LLM response: ${decisionText.substring(0, 200)}`
-      );
-    }
+        // Parse the extracted XML response
+        const parsed = parseKeyValueXml(responseMatch[0]) as {
+          respond_to?: string;
+        } | null;
 
-    const decisionsRaw = JSON.parse(jsonMatch[0]) as boolean[];
+        if (!parsed || parsed.respond_to === undefined) {
+          logger.warn(
+            'Failed to parse respond_to from XML response',
+            {
+              agentUserId,
+              attempt,
+              raw: responseMatch[0].substring(0, 200),
+            },
+            'AutonomousBatchResponse'
+          );
+          continue;
+        }
 
-    // Ensure we have the right number of decisions (for capped interactions)
-    let decisions = decisionsRaw;
-    if (decisionsRaw.length !== evaluateInteractions.length) {
-      logger.warn(
-        `Decision count mismatch: ${decisionsRaw.length} vs ${evaluateInteractions.length}. Adjusting to match.`,
-        undefined,
-        'AutonomousBatchResponse'
-      );
+        // Parse the IDs - empty string means no responses
+        const responseValue = parsed.respond_to.trim();
 
-      if (decisionsRaw.length < evaluateInteractions.length) {
-        // Pad with false values for missing decisions (don't respond to remaining)
-        const paddingNeeded = evaluateInteractions.length - decisionsRaw.length;
-        decisions = [...decisionsRaw, ...Array(paddingNeeded).fill(false)];
+        if (responseValue === '') {
+          respondToIds = new Set();
+        } else {
+          // Parse comma-separated IDs
+          const ids = parsed.respond_to
+            .split(',')
+            .map((id) => id.trim())
+            .filter(Boolean);
+
+          // Validate that IDs exist in our interactions
+          const validIds = new Set(cappedInteractions.map((i) => i.id));
+          const parsedIds = new Set<string>();
+
+          for (const id of ids) {
+            if (validIds.has(id)) {
+              parsedIds.add(id);
+            } else {
+              logger.warn(
+                `LLM returned unknown interaction ID: ${id}`,
+                undefined,
+                'AutonomousBatchResponse'
+              );
+            }
+          }
+
+          respondToIds = parsedIds;
+        }
+
         logger.info(
-          `Padded ${paddingNeeded} missing decisions with false`,
+          `Agent selected ${respondToIds.size}/${cappedInteractions.length} interactions to respond to`,
           undefined,
           'AutonomousBatchResponse'
         );
-      } else {
-        // Truncate excess decisions
-        const excessCount = decisionsRaw.length - evaluateInteractions.length;
-        decisions = decisionsRaw.slice(0, evaluateInteractions.length);
-        logger.info(
-          `Truncated ${excessCount} excess decisions`,
-          undefined,
-          'AutonomousBatchResponse'
-        );
+        break;
+      } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        if (errorMsg === 'Timeout') {
+          logger.warn(
+            `Interaction evaluation timeout (attempt ${attempt}/${MAX_ATTEMPTS})`,
+            { agentUserId },
+            'AutonomousBatchResponse'
+          );
+        } else {
+          logger.warn(
+            `Interaction evaluation attempt ${attempt} failed`,
+            { agentUserId, error: errorMsg },
+            'AutonomousBatchResponse'
+          );
+        }
       }
     }
 
-    return decisions.map((shouldRespond) => ({ shouldRespond }));
+    // If all attempts failed, return all false (don't respond to anything)
+    if (!respondToIds) {
+      logger.error(
+        `Failed to evaluate interactions after ${MAX_ATTEMPTS} attempts, defaulting to no responses`,
+        { agentUserId },
+        'AutonomousBatchResponse'
+      );
+      respondToIds = new Set();
+    }
+
+    // Convert to ResponseDecision array (maintaining order of original interactions)
+    return cappedInteractions.map((interaction) => ({
+      shouldRespond: respondToIds!.has(interaction.id),
+    }));
   }
 
-  /**
-   * Generate and post responses for approved interactions
-   *
-   * Generates responses using LLM and posts them as comments or messages
-   * based on interaction type. Continues processing even if individual
-   * responses fail.
-   *
-   * @param agentUserId - Unique identifier for the agent
-   * @param _runtime - Agent runtime (used for W&B model access)
-   * @param interactions - Array of interactions to respond to
-   * @param decisions - Array of response decisions (from evaluateInteractions)
-   * @returns Number of responses successfully created
-   * @throws Error if agent not found
-   *
-   * @remarks
-   * - Only processes interactions marked with shouldRespond: true
-   * - Uses small model for fast response generation
-   * - Has 15 second timeout per response
-   * - Adds 1 second delay between responses to avoid spam
-   * - Continues processing even if individual responses fail
-   */
+  // ===========================================================================
+  // Execute responses for approved interactions
+  // ===========================================================================
   async executeResponses(
     agentUserId: string,
     _runtime: IAgentRuntime,
@@ -485,20 +852,42 @@ Array:`;
 
       if (!interaction || !decision || !decision.shouldRespond) continue;
 
-      // Generate response
+      // Generate response with retry loop
       const responsePrompt = `${respConfig?.systemPrompt ?? 'You are an AI agent on Babylon.'}
 
 You are ${agent.displayName}, responding to an interaction.
 
-Context: ${interaction.context}
+${interaction.context}
 
-${interaction.author} said: "${interaction.content}"
+Task: Write a response (1-2 sentences, under 200 characters) OR leave empty to skip.
 
-Task: Write a thoughtful, engaging response (1-2 sentences, under 200 characters).
-Be authentic to your personality.
-Add value to the conversation.
+CRITICAL QUESTION: Does this add a NEW perspective, or just more of the same?
 
-Generate ONLY the response text, nothing else.`;
+QUALITY REQUIREMENTS:
+- Offer a DIFFERENT viewpoint - don't just agree or add supporting evidence
+- Be specific and substantive - avoid generic responses
+- Challenge assumptions if you see a flaw
+- Match the energy/tone of the conversation
+- Be authentic to your personality
+
+DO NOT WRITE:
+- Empty acknowledgments (agreeing without adding value)
+- More evidence for an already-established conclusion
+- Generic advice without specifics
+- Questions just to keep conversation going
+
+LEAVE EMPTY IF:
+- You would just be agreeing or adding more evidence to same point
+- The thread has reached consensus - let it conclude
+- Conversation is going in circles
+- You have nothing genuinely different to contribute
+- The thread has drifted off-topic from the original post
+- Your response would not relate back to the post's core topic
+
+# Required Output Format
+<response>
+<text>your response here (or leave empty to skip)</text>
+</response>`;
 
       // Truncate if needed (unlikely for individual responses but safe)
       const respTokens = countTokensSync(responsePrompt);
@@ -510,36 +899,105 @@ Generate ONLY the response text, nothing else.`;
         finalRespPrompt = truncated.text;
       }
 
-      // Use large model for response generation - better quality responses
-      // Add timeout to prevent hanging (20 seconds max)
-      const responseContent = await Promise.race([
-        callGroqDirect({
-          prompt: finalRespPrompt,
-          system: respConfig?.systemPrompt ?? undefined,
-          modelSize: 'large', // Large model: Higher quality responses
-          runtime: _runtime, // Pass runtime to access W&B trained models AND trajectory context
-          temperature: 0.8,
-          maxTokens: 16384,
-          actionType: 'execute_response',
-          purpose: 'response', // RLAIF: This is a response generation call
-        }),
-        new Promise<string>((resolve) => {
-          setTimeout(() => {
+      // Use large model for response generation with retry
+      const RESPONSE_MAX_ATTEMPTS = 3;
+      let cleanContent: string | null = null;
+
+      for (let attempt = 1; attempt <= RESPONSE_MAX_ATTEMPTS; attempt++) {
+        try {
+          const isRetry = attempt > 1;
+          const currentPrompt = isRetry
+            ? `${finalRespPrompt}\n\nREMINDER: You MUST output valid XML. Start with <response> and include <text> with your response.`
+            : finalRespPrompt;
+
+          const responseContent = await Promise.race([
+            callGroqDirect({
+              prompt: currentPrompt,
+              system: respConfig?.systemPrompt ?? undefined,
+              modelSize: 'large', // Large model: Higher quality responses
+              runtime: _runtime, // Pass runtime to access W&B trained models AND trajectory context
+              temperature: isRetry ? 0.6 : 0.8,
+              maxTokens: 16384,
+              actionType: 'execute_response',
+              purpose: 'response', // RLAIF: This is a response generation call
+            }),
+            new Promise<string>((_, reject) => {
+              setTimeout(() => {
+                reject(new Error('Timeout'));
+              }, 20000); // 20 second timeout
+            }),
+          ]);
+
+          // Extract <response>...</response> block
+          const responseMatch = responseContent.match(
+            /<response>([\s\S]*?)<\/response>/i
+          );
+          if (!responseMatch) {
             logger.warn(
-              `Response generation timeout for interaction ${interaction.id}, skipping`,
+              'No <response> block found in response generation',
+              {
+                interactionId: interaction.id,
+                attempt,
+                raw: responseContent.substring(0, 300),
+              },
+              'AutonomousBatchResponse'
+            );
+            continue;
+          }
+
+          // Parse the extracted XML response
+          const parsed = parseKeyValueXml(responseMatch[0]) as {
+            text?: string;
+          } | null;
+
+          if (!parsed?.text || parsed.text.trim().length === 0) {
+            logger.warn(
+              'Failed to parse XML response in response generation',
+              {
+                interactionId: interaction.id,
+                attempt,
+                raw: responseContent.substring(0, 300),
+              },
+              'AutonomousBatchResponse'
+            );
+            continue;
+          }
+
+          // Success!
+          cleanContent = parsed.text.trim().replace(/^["']|["']$/g, '');
+
+          // Check if LLM decided to skip (empty response)
+          if (!cleanContent || cleanContent.length === 0) {
+            logger.info(
+              `LLM chose to skip interaction ${interaction.id} (empty response)`,
               undefined,
               'AutonomousBatchResponse'
             );
-            resolve(''); // Empty response = skip
-          }, 20000); // 20 second timeout (larger model needs more time)
-        }),
-      ]);
-
-      const cleanContent = responseContent.trim().replace(/^["']|["']$/g, '');
+            cleanContent = null; // Mark as skipped
+          }
+          break;
+        } catch (error) {
+          const errorMsg =
+            error instanceof Error ? error.message : String(error);
+          if (errorMsg === 'Timeout') {
+            logger.warn(
+              `Response generation timeout (attempt ${attempt}/${RESPONSE_MAX_ATTEMPTS})`,
+              { interactionId: interaction.id },
+              'AutonomousBatchResponse'
+            );
+          } else {
+            logger.warn(
+              `Response generation attempt ${attempt} failed`,
+              { interactionId: interaction.id, error: errorMsg },
+              'AutonomousBatchResponse'
+            );
+          }
+        }
+      }
 
       if (!cleanContent || cleanContent.length < 5) {
         logger.warn(
-          `Generated response too short for interaction ${interaction.id}`,
+          `Failed to generate valid response for interaction ${interaction.id}`,
           undefined,
           'AutonomousBatchResponse'
         );
@@ -547,50 +1005,27 @@ Generate ONLY the response text, nothing else.`;
       }
 
       // Post the response based on type
-      if (interaction.type === 'comment_on_post' && interaction.postId) {
-        // Reply to comment on post
+      if (
+        interaction.type === 'comment_reply' &&
+        interaction.postId &&
+        interaction.targetCommentId
+      ) {
+        // Reply to the target comment
         await db.insert(comments).values({
           id: await generateSnowflakeId(),
           content: cleanContent,
           postId: interaction.postId,
           authorId: agentUserId,
+          parentCommentId: interaction.targetCommentId,
           createdAt: new Date(),
           updatedAt: new Date(),
         });
         responsesCreated++;
         logger.info(
-          `Agent responded to comment on post ${interaction.postId}`,
+          `Agent replied to comment ${interaction.targetCommentId} on post ${interaction.postId}`,
           undefined,
           'AutonomousBatchResponse'
         );
-      } else if (
-        interaction.type === 'comment_on_comment' &&
-        interaction.commentId
-      ) {
-        // Reply to comment on comment
-        const [parentComment] = await db
-          .select({ postId: comments.postId })
-          .from(comments)
-          .where(eq(comments.id, interaction.commentId))
-          .limit(1);
-
-        if (parentComment) {
-          await db.insert(comments).values({
-            id: await generateSnowflakeId(),
-            content: cleanContent,
-            postId: parentComment.postId,
-            authorId: agentUserId,
-            parentCommentId: interaction.commentId,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          });
-          responsesCreated++;
-          logger.info(
-            `Agent responded to comment reply ${interaction.commentId}`,
-            undefined,
-            'AutonomousBatchResponse'
-          );
-        }
       } else if (interaction.type === 'chat_message' && interaction.chatId) {
         // Send chat message
         await db.insert(messages).values({
@@ -615,24 +1050,9 @@ Generate ONLY the response text, nothing else.`;
     return responsesCreated;
   }
 
-  /**
-   * Main entry point: Process all pending interactions in batch
-   *
-   * Orchestrates the complete batch response workflow:
-   * 1. Gathers all pending interactions
-   * 2. Evaluates which warrant responses
-   * 3. Executes responses for approved interactions
-   *
-   * @param agentUserId - Unique identifier for the agent
-   * @param _runtime - Agent runtime (used for W&B model access)
-   * @returns Number of responses successfully created
-   *
-   * @example
-   * ```typescript
-   * const count = await batchService.processBatch('agent-123', runtime);
-   * console.log(`Processed ${count} responses`);
-   * ```
-   */
+  // ===========================================================================
+  // Main entry point: Process all pending interactions in batch
+  // ===========================================================================
   async processBatch(
     agentUserId: string,
     _runtime: IAgentRuntime

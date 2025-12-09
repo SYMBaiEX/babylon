@@ -1,13 +1,9 @@
 'use client';
 
-import type {
-  CommentCardProps,
-  CommentData,
-  CommentWithReplies,
-} from '@babylon/shared';
+import type { CommentCardProps, CommentData } from '@babylon/shared';
 import { cn, getProfileUrl } from '@babylon/shared';
 import { formatDistanceToNow } from 'date-fns';
-import { Edit2, MoreVertical, Reply, Trash2 } from 'lucide-react';
+import { Edit2, MessageCircle, MoreVertical, Trash2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { Avatar } from '@/components/shared/Avatar';
@@ -16,20 +12,36 @@ import {
   isNpcIdentifier,
   VerifiedBadge,
 } from '@/components/shared/VerifiedBadge';
+import { MAX_REPLY_COUNT } from '@/lib/constants';
 import { CommentInput } from './CommentInput';
 import { LikeButton } from './LikeButton';
 
 /**
- * Maximum nesting depth for comment replies.
+ * Recursive reply type for counting
  */
-const MAX_DEPTH = 5; // Maximum nesting depth for replies
+interface ReplyWithReplies {
+  replies?: ReplyWithReplies[];
+}
 
 /**
- * Comment card component for displaying comments and nested replies.
+ * Count total replies recursively
+ */
+function countAllReplies(replies: ReplyWithReplies[]): number {
+  let count = replies.length;
+  for (const reply of replies) {
+    if (reply.replies && reply.replies.length > 0) {
+      count += countAllReplies(reply.replies);
+    }
+  }
+  return count;
+}
+
+/**
+ * Comment card component for displaying comments with Twitter-like threading.
  *
  * Displays a comment with user avatar, content, timestamp, and actions
- * (like, reply, edit, delete). Supports nested replies up to a maximum depth.
- * Includes inline editing and reply functionality.
+ * (like, reply, edit, delete). Uses page-based navigation for replies -
+ * clicking the reply count navigates to a dedicated comment thread page.
  *
  * @param props - CommentCard component props
  * @returns Comment card element
@@ -52,8 +64,6 @@ export function CommentCard({
   onEdit,
   onDelete,
   onReplySubmit,
-  depth = 0,
-  maxDepth = MAX_DEPTH,
   className,
 }: CommentCardProps) {
   const router = useRouter();
@@ -61,10 +71,9 @@ export function CommentCard({
   const [isReplying, setIsReplying] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState(comment.content);
-  const [showReplies, setShowReplies] = useState(true);
 
-  const isMaxDepth = depth >= maxDepth;
   const hasReplies = comment.replies && comment.replies.length > 0;
+  const replyCount = hasReplies ? countAllReplies(comment.replies) : 0;
 
   const showVerifiedBadge = isNpcIdentifier(comment.userId);
 
@@ -99,14 +108,13 @@ export function CommentCard({
     setShowActions(false);
   };
 
+  // Navigate to comment thread page
+  const handleNavigateToThread = () => {
+    router.push(`/comment/${comment.id}`);
+  };
+
   return (
-    <div
-      className={cn(
-        'flex gap-3',
-        depth > 0 && 'ml-8 border-border border-l-2 pl-4',
-        className
-      )}
-    >
+    <div className={cn('flex gap-3', className)}>
       {/* Avatar - Round */}
       <div className="shrink-0">
         <Avatar
@@ -196,7 +204,7 @@ export function CommentCard({
           </div>
         )}
 
-        {/* Comment body - Below name/handle row */}
+        {/* Comment body - Clickable to navigate to thread */}
         {isEditing ? (
           <div className="mb-2">
             <textarea
@@ -224,26 +232,54 @@ export function CommentCard({
             </div>
           </div>
         ) : (
-          <p className="mb-2 whitespace-pre-wrap break-words text-foreground text-sm">
-            <TaggedText
-              text={comment.content}
-              onTagClick={(tag) => {
-                if (tag.startsWith('@')) {
-                  // Handle @mentions - route to profile
-                  const username = tag.slice(1);
-                  router.push(getProfileUrl('', username));
-                } else if (tag.startsWith('$')) {
-                  // Handle $cashtags - route to markets
-                  const symbol = tag.slice(1);
-                  router.push(`/markets?search=${encodeURIComponent(symbol)}`);
-                }
-              }}
-            />
-          </p>
+          <button
+            type="button"
+            onClick={handleNavigateToThread}
+            className="mb-2 w-full cursor-pointer text-left transition-colors hover:text-muted-foreground"
+          >
+            <p className="whitespace-pre-wrap break-words text-foreground text-sm">
+              <TaggedText
+                text={comment.content}
+                onTagClick={(tag) => {
+                  if (tag.startsWith('@')) {
+                    // Handle @mentions - route to profile
+                    const username = tag.slice(1);
+                    router.push(getProfileUrl('', username));
+                  } else if (tag.startsWith('$')) {
+                    // Handle $cashtags - route to markets
+                    const symbol = tag.slice(1);
+                    router.push(
+                      `/markets?search=${encodeURIComponent(symbol)}`
+                    );
+                  }
+                }}
+              />
+            </p>
+          </button>
         )}
 
-        {/* Footer actions */}
-        <div className="flex items-center gap-4">
+        {/* Footer actions - Twitter-like layout */}
+        <div className="flex items-center gap-1">
+          {/* Message icon - always for reply to this comment */}
+          <button
+            type="button"
+            onClick={handleReply}
+            className={cn(
+              'flex items-center gap-1.5 rounded-full px-2 py-1 text-xs transition-colors',
+              'text-muted-foreground hover:bg-[#0066FF]/10 hover:text-[#0066FF]',
+              isReplying && 'bg-[#0066FF]/10 text-[#0066FF]'
+            )}
+          >
+            <MessageCircle size={14} />
+            <span>
+              {hasReplies
+                ? replyCount >= MAX_REPLY_COUNT
+                  ? `${MAX_REPLY_COUNT}+`
+                  : replyCount
+                : ''}
+            </span>
+          </button>
+
           {/* Like button */}
           <LikeButton
             targetId={comment.id}
@@ -253,30 +289,6 @@ export function CommentCard({
             size="sm"
             showCount
           />
-
-          {/* Reply button */}
-          {!isMaxDepth && (
-            <button
-              type="button"
-              onClick={handleReply}
-              className="flex items-center gap-1.5 rounded-md px-2 py-1 text-muted-foreground text-xs transition-colors hover:bg-muted hover:text-foreground"
-            >
-              <Reply size={14} />
-              <span>Reply</span>
-            </button>
-          )}
-
-          {/* Toggle replies button */}
-          {hasReplies && (
-            <button
-              type="button"
-              onClick={() => setShowReplies(!showReplies)}
-              className="text-muted-foreground text-xs transition-colors hover:text-foreground"
-            >
-              {showReplies ? 'Hide' : 'Show'} {comment.replies.length}{' '}
-              {comment.replies.length === 1 ? 'reply' : 'replies'}
-            </button>
-          )}
         </div>
 
         {/* Reply input */}
@@ -297,25 +309,6 @@ export function CommentCard({
               }}
               onCancel={() => setIsReplying(false)}
             />
-          </div>
-        )}
-
-        {/* Nested replies */}
-        {hasReplies && showReplies && (
-          <div className="mt-3 space-y-3">
-            {comment.replies.map((reply: CommentWithReplies) => (
-              <CommentCard
-                key={reply.id}
-                comment={reply}
-                postId={postId}
-                onReply={onReply}
-                onEdit={onEdit}
-                onDelete={onDelete}
-                onReplySubmit={onReplySubmit}
-                depth={depth + 1}
-                maxDepth={maxDepth}
-              />
-            ))}
           </div>
         )}
       </div>

@@ -215,7 +215,7 @@ export default function PostPage({ params }: PostPageProps) {
             <div className="px-6 py-4">
               <div className="flex items-center gap-4">
                 <button
-                  onClick={() => router.back()}
+                  onClick={() => router.push('/feed')}
                   className="rounded-md p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                 >
                   <ArrowLeft size={20} />
@@ -328,7 +328,7 @@ export default function PostPage({ params }: PostPageProps) {
         <div className="sticky top-0 z-10 shrink-0 border-border border-b bg-background">
           <div className="flex items-center gap-4 px-4 py-3">
             <button
-              onClick={() => router.back()}
+              onClick={() => router.push('/feed')}
               className="rounded-md p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             >
               <ArrowLeft size={20} />
