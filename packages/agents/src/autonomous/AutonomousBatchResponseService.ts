@@ -354,7 +354,11 @@ ${threadLines.join('\n')}`;
       if (!isOnAgentPost && !agentInAncestors) continue;
 
       // Build thread context (walk UP from this comment)
-      const thread = this.buildThreadFromBottom(comment, commentMap, agentUserId);
+      const thread = this.buildThreadFromBottom(
+        comment,
+        commentMap,
+        agentUserId
+      );
 
       // Build post info
       const postAuthor = comment.post.postAuthor;
@@ -378,7 +382,8 @@ ${threadLines.join('\n')}`;
         targetCommentId: comment.id,
         post,
         thread,
-        author: comment.author?.displayName || comment.author?.username || 'User',
+        author:
+          comment.author?.displayName || comment.author?.username || 'User',
         content: comment.content,
         context,
         timestamp: comment.createdAt,
