@@ -422,10 +422,10 @@ export default function CommentPage({ params }: CommentPageProps) {
               {error || 'The comment you are looking for does not exist.'}
             </p>
             <button
-              onClick={() => router.back()}
+              onClick={() => router.push('/feed')}
               className="rounded-md bg-primary px-4 py-2 text-primary-foreground transition-colors hover:bg-primary/90"
             >
-              Go Back
+              Go to Feed
             </button>
           </div>
         </div>
@@ -441,7 +441,16 @@ export default function CommentPage({ params }: CommentPageProps) {
           <div className="px-4 py-3 sm:px-6 sm:py-4">
             <div className="flex items-center gap-4">
               <button
-                onClick={() => router.back()}
+                onClick={() => {
+                  // Navigate to parent: immediate parent comment > post > feed
+                  if (parentChain.length > 0) {
+                    router.push(`/comment/${parentChain[parentChain.length - 1]?.id}`);
+                  } else if (post) {
+                    router.push(`/post/${post.id}`);
+                  } else {
+                    router.push('/feed');
+                  }
+                }}
                 className="rounded-md p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
               >
                 <ArrowLeft size={20} />
