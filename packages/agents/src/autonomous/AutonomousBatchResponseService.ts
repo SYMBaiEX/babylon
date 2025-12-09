@@ -2,8 +2,7 @@
  * Autonomous Batch Response Service
  *
  * Handles batch evaluation and response to pending interactions:
- * - Comments to agent's posts
- * - Replies to agent's comments
+ * - Comment replies (unified: comments on agent's posts + replies to agent's comments)
  * - New messages in chats
  *
  * Instead of responding to everything, this service:
@@ -23,6 +22,7 @@ import {
   desc,
   eq,
   gte,
+  inArray,
   isNull,
   messages,
   ne,
@@ -36,16 +36,38 @@ import { getAgentConfig } from '../shared/agent-config';
 import { logger } from '../shared/logger';
 import { generateSnowflakeId } from '../shared/snowflake';
 
-interface PendingInteraction {
-  type: 'comment_on_post' | 'comment_on_comment' | 'chat_message';
+// =============================================================================
+// Types
+// =============================================================================
+
+interface ThreadMessage {
+  authorName: string;
+  content: string;
+  isYou: boolean;
+  depth: number;
+}
+
+interface PostInfo {
   id: string;
-  chatId?: string;
+  content: string;
+  authorName: string;
+  isYourPost: boolean;
+}
+
+interface PendingInteraction {
+  type: 'comment_reply' | 'chat_message';
+  id: string;
+  // Comment reply fields
   postId?: string;
-  commentId?: string;
-  parentCommentId?: string;
+  targetCommentId?: string;
+  post?: PostInfo;
+  thread?: ThreadMessage[];
+  // Chat message fields
+  chatId?: string;
+  // Common fields
   author: string;
   content: string;
-  context: string;
+  context: string; // Formatted context string for prompt
   timestamp: Date;
 }
 
@@ -55,219 +77,202 @@ interface ResponseDecision {
   reasoning?: string;
 }
 
-export class AutonomousBatchResponseService {
-  /**
-   * Build a comment thread from a root comment
-   * Returns all comments in the thread in chronological order
-   */
-  private buildCommentThread(
-    rootCommentId: string,
-    allComments: Array<{
+// Internal type for comment processing
+interface CommentWithRelations {
+  id: string;
+  postId: string;
+  parentCommentId: string | null;
+  authorId: string;
+  content: string;
+  createdAt: Date;
+  author: {
+    id: string;
+    username: string | null;
+    displayName: string | null;
+  } | null;
+  post: {
+    id: string;
+    content: string;
+    authorId: string;
+    postAuthor?: {
       id: string;
-      parentCommentId: string | null;
-      authorId: string;
-      content: string;
-      createdAt: Date;
-      author?: { displayName: string | null; username: string | null } | null;
-    }>
-  ): typeof allComments {
-    const thread: typeof allComments = [];
+      username: string | null;
+      displayName: string | null;
+    } | null;
+  } | null;
+}
 
-    // Start with the root comment
-    const rootComment = allComments.find((c) => c.id === rootCommentId);
-    if (rootComment) {
-      thread.push(rootComment);
+// =============================================================================
+// Service
+// =============================================================================
+
+export class AutonomousBatchResponseService {
+  // Configuration constants - adjust these to change behavior
+  private readonly MAX_THREAD_DEPTH = 10;
+  private readonly MAX_COMMENTS_PER_QUERY = 500;
+
+  /**
+   * How far back to look for posts/comments to respond to.
+   * - 24 = 1 day (aggressive, fast)
+   * - 72 = 3 days (balanced)
+   * - 168 = 7 days (conservative)
+   */
+  private readonly INTERACTION_WINDOW_HOURS = 24;
+
+  // ===========================================================================
+  // Helper: Check if agent participated in the ancestor chain
+  // ===========================================================================
+  private hasAgentInAncestors(
+    comment: CommentWithRelations,
+    commentMap: Map<string, CommentWithRelations>,
+    agentUserId: string
+  ): boolean {
+    let currentId = comment.parentCommentId;
+    while (currentId) {
+      const parent = commentMap.get(currentId);
+      if (!parent) break;
+      if (parent.authorId === agentUserId) return true;
+      currentId = parent.parentCommentId;
     }
-
-    // Recursively find all replies in the thread
-    const findReplies = (parentId: string) => {
-      const replies = allComments
-        .filter((c) => c.parentCommentId === parentId)
-        .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
-
-      for (const reply of replies) {
-        thread.push(reply);
-        findReplies(reply.id); // Recursively get replies to replies
-      }
-    };
-
-    findReplies(rootCommentId);
-
-    return thread;
+    return false;
   }
 
-  /**
-   * Gather all pending interactions that might need responses
-   *
-   * Collects comments on agent's posts, replies to agent's comments,
-   * and new chat messages that the agent hasn't responded to.
-   *
-   * @param agentUserId - Unique identifier for the agent
-   * @returns Array of pending interactions requiring potential responses
-   *
-   * @remarks
-   * - Limited to interactions from last 24 hours
-   * - Filters out interactions agent already responded to
-   * - Includes context for each interaction
-   */
-  async gatherPendingInteractions(
+  // ===========================================================================
+  // Helper: Build thread context by walking UP from target (max depth)
+  // ===========================================================================
+  private buildThreadFromBottom(
+    target: CommentWithRelations,
+    commentMap: Map<string, CommentWithRelations>,
+    agentUserId: string
+  ): ThreadMessage[] {
+    const chain: CommentWithRelations[] = [target];
+    let currentId = target.parentCommentId;
+
+    // Walk UP the parent chain
+    while (currentId && chain.length < this.MAX_THREAD_DEPTH) {
+      const parent = commentMap.get(currentId);
+      if (!parent) break;
+      chain.unshift(parent); // prepend = oldest first
+      currentId = parent.parentCommentId;
+    }
+
+    return chain.map((c, i) => ({
+      authorName:
+        c.authorId === agentUserId
+          ? 'You'
+          : c.author?.displayName || c.author?.username || 'User',
+      content: c.content,
+      isYou: c.authorId === agentUserId,
+      depth: i,
+    }));
+  }
+
+  // ===========================================================================
+  // Helper: Format thread for prompt display
+  // ===========================================================================
+  private formatThreadForPrompt(
+    post: PostInfo,
+    thread: ThreadMessage[]
+  ): string {
+    const postAuthorLabel = post.isYourPost ? 'You' : post.authorName;
+
+    // Build text-based thread display
+    const threadLines = thread.map((msg, idx) => {
+      const isLast = idx === thread.length - 1;
+      const replyIndicator = isLast ? ' [REPLY TO THIS]' : '';
+      const depthLabel = idx === 0 ? 'Comment' : `Reply (depth ${msg.depth})`;
+      return `- ${depthLabel} by @${msg.authorName}: "${msg.content}"${replyIndicator}`;
+    });
+
+    return `POST by @${postAuthorLabel}:
+"${post.content}"
+
+CONVERSATION THREAD:
+${threadLines.join('\n')}`;
+  }
+
+  // ===========================================================================
+  // Gather all pending comment replies (UNIFIED)
+  // ===========================================================================
+  private async gatherPendingCommentReplies(
     agentUserId: string
   ): Promise<PendingInteraction[]> {
     const interactions: PendingInteraction[] = [];
+    const windowStart = new Date(
+      Date.now() - this.INTERACTION_WINDOW_HOURS * 60 * 60 * 1000
+    );
 
-    // Get comments on agent's posts
-    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    // =========================================================================
+    // STEP 1: Find all relevant post IDs (within time window)
+    // =========================================================================
 
-    // First get agent's posts
+    // 1a. Agent's recent posts (created within window)
     const agentPosts = await db
       .select({ id: posts.id })
       .from(posts)
-      .where(and(eq(posts.authorId, agentUserId), isNull(posts.deletedAt)));
-    const agentPostIds = agentPosts.map((p) => p.id);
-
-    if (agentPostIds.length > 0) {
-      // Get all comments on agent's posts (including agent's own replies for context)
-      const allCommentsOnPosts = await db.query.comments.findMany({
-        where: (comments, { and: andFn, gte: gteFn, inArray: inArrayFn }) =>
-          andFn(
-            gteFn(comments.createdAt, oneDayAgo),
-            inArrayFn(comments.postId, agentPostIds)
-          ),
-        with: {
-          author: {
-            columns: {
-              id: true,
-              username: true,
-              displayName: true,
-            },
-          },
-          post: {
-            columns: {
-              id: true,
-              content: true,
-            },
-          },
-        },
-        orderBy: (comments, { asc: ascFn }) => [ascFn(comments.createdAt)],
-      });
-
-      // Group comments by their root thread (top-level comments without parentCommentId)
-      // and build thread context
-      const topLevelComments = allCommentsOnPosts.filter(
-        (c) => !c.parentCommentId && c.authorId !== agentUserId
+      .where(
+        and(
+          eq(posts.authorId, agentUserId),
+          isNull(posts.deletedAt),
+          gte(posts.createdAt, windowStart)
+        )
       );
+    const agentPostIds = new Set(agentPosts.map((p) => p.id));
 
-      for (const topComment of topLevelComments) {
-        if (!topComment.post) continue;
+    // 1b. Posts where agent recently commented (within window)
+    const agentCommentPosts = await db
+      .selectDistinct({ postId: comments.postId })
+      .from(comments)
+      .where(
+        and(
+          eq(comments.authorId, agentUserId),
+          gte(comments.createdAt, windowStart)
+        )
+      );
+    const commentedPostIds = new Set(
+      agentCommentPosts
+        .map((c) => c.postId)
+        .filter((id) => !agentPostIds.has(id)) // exclude agent's own posts (handled separately)
+    );
 
-        // Build the full thread for this comment
-        const threadComments = this.buildCommentThread(
-          topComment.id,
-          allCommentsOnPosts
-        );
+    // 1c. Combine all relevant post IDs
+    const relevantPostIds = [...agentPostIds, ...commentedPostIds];
 
-        // Find the last message in the thread
-        const lastMessage = threadComments[threadComments.length - 1];
-
-        // Only add if the last message is from a user (not the agent)
-        // This means the thread is waiting for agent response
-        if (lastMessage && lastMessage.authorId !== agentUserId) {
-          // Build thread context showing the conversation flow
-          const threadContext = threadComments
-            .map((c) => {
-              const authorName =
-                c.authorId === agentUserId
-                  ? 'You'
-                  : c.author?.displayName || c.author?.username || 'User';
-              return `${authorName}: "${c.content}"`;
-            })
-            .join('\n→ ');
-
-          interactions.push({
-            type: 'comment_on_post',
-            id: lastMessage.id,
-            postId: topComment.postId,
-            commentId: lastMessage.id, // Reply to the last comment in thread
-            author:
-              lastMessage.author?.displayName ||
-              lastMessage.author?.username ||
-              'Unknown',
-            content: lastMessage.content,
-            context: `Your post: "${topComment.post.content}"\n\nThread:\n${threadContext}`,
-            timestamp: lastMessage.createdAt,
-          });
-        }
-      }
+    if (relevantPostIds.length === 0) {
+      return interactions;
     }
 
-    // Get replies to agent's comments on OTHER people's posts
-    // (replies on agent's own posts are already handled above with full thread context)
-    const myComments = await db
-      .select({
-        id: comments.id,
-        postId: comments.postId,
-        content: comments.content,
-        createdAt: comments.createdAt,
-      })
-      .from(comments)
-      .where(eq(comments.authorId, agentUserId))
-      .orderBy(desc(comments.createdAt))
-      .limit(50);
+    // =========================================================================
+    // STEP 2: Batch fetch comments on relevant posts
+    // =========================================================================
+    // Fetch recent comments on relevant (recent) posts.
+    // Since posts are already bounded by INTERACTION_WINDOW_HOURS, we can fetch
+    // all comments on them without unbounded growth.
 
-    // Filter to only comments on other people's posts
-    const myCommentsOnOthersPosts = myComments.filter(
-      (c) => !agentPostIds.includes(c.postId)
-    );
-    const myCommentIdsOnOthersPosts = myCommentsOnOthersPosts.map((c) => c.id);
-
-    if (myCommentIdsOnOthersPosts.length > 0) {
-      // Get ALL comments in threads starting from agent's comments recursively
-      // This handles unlimited depth of nested replies
-      const allCommentsInThreads: Array<{
-        id: string;
-        parentCommentId: string | null;
-        authorId: string;
-        content: string;
-        createdAt: Date;
+    // Fetch ALL non-deleted comments on relevant posts.
+    // Since posts are bounded by INTERACTION_WINDOW_HOURS, comment count is naturally limited.
+    // We still apply a safety limit to prevent extreme cases.
+    const allCommentsRaw = await db.query.comments.findMany({
+      where: and(
+        inArray(comments.postId, relevantPostIds),
+        isNull(comments.deletedAt)
+      ),
+      with: {
         author: {
-          id: string;
-          username: string | null;
-          displayName: string | null;
-        } | null;
-      }> = [];
-
-      // Start with agent's original comments
-      const agentComments = await db.query.comments.findMany({
-        where: (comments, { and: andFn, gte: gteFn, inArray: inArrayFn }) =>
-          andFn(
-            gteFn(comments.createdAt, oneDayAgo),
-            inArrayFn(comments.id, myCommentIdsOnOthersPosts)
-          ),
-        with: {
-          author: {
-            columns: {
-              id: true,
-              username: true,
-              displayName: true,
-            },
+          columns: {
+            id: true,
+            username: true,
+            displayName: true,
           },
         },
-        orderBy: (comments, { asc: ascFn }) => [ascFn(comments.createdAt)],
-      });
-      allCommentsInThreads.push(...agentComments);
-
-      // Recursively fetch all replies at any depth
-      let parentIds = myCommentIdsOnOthersPosts;
-      const MAX_DEPTH = 10; // Safety limit to prevent infinite loops
-      for (let depth = 0; depth < MAX_DEPTH && parentIds.length > 0; depth++) {
-        const replies = await db.query.comments.findMany({
-          where: (comments, { and: andFn, gte: gteFn, inArray: inArrayFn }) =>
-            andFn(
-              gteFn(comments.createdAt, oneDayAgo),
-              inArrayFn(comments.parentCommentId, parentIds)
-            ),
+        post: {
+          columns: {
+            id: true,
+            content: true,
+            authorId: true,
+          },
           with: {
-            author: {
+            User: {
               columns: {
                 id: true,
                 username: true,
@@ -275,69 +280,126 @@ export class AutonomousBatchResponseService {
               },
             },
           },
-          orderBy: (comments, { asc: ascFn }) => [ascFn(comments.createdAt)],
-        });
+        },
+      },
+      orderBy: [desc(comments.createdAt)],
+      limit: this.MAX_COMMENTS_PER_QUERY,
+    });
 
-        if (replies.length === 0) break;
+    // Transform to our internal type
+    const allComments: CommentWithRelations[] = allCommentsRaw.map((c) => ({
+      id: c.id,
+      postId: c.postId,
+      parentCommentId: c.parentCommentId,
+      authorId: c.authorId,
+      content: c.content,
+      createdAt: c.createdAt,
+      author: c.author,
+      post: c.post
+        ? {
+            id: c.post.id,
+            content: c.post.content,
+            authorId: c.post.authorId,
+            postAuthor: c.post.User,
+          }
+        : null,
+    }));
 
-        allCommentsInThreads.push(...replies);
-        parentIds = replies.map((r) => r.id);
-      }
+    // =========================================================================
+    // STEP 3: Build in-memory maps for fast lookup
+    // =========================================================================
 
-      // For each of agent's comments on other posts, build the thread and check if response needed
-      for (const agentComment of myCommentsOnOthersPosts) {
-        // Build the thread starting from this agent comment
-        const threadComments = this.buildCommentThread(
-          agentComment.id,
-          allCommentsInThreads.map((c) => ({
-            id: c.id,
-            parentCommentId: c.parentCommentId,
-            authorId: c.authorId,
-            content: c.content,
-            createdAt: c.createdAt,
-            author: c.author,
-          }))
-        );
+    const commentMap = new Map<string, CommentWithRelations>(
+      allComments.map((c) => [c.id, c])
+    );
 
-        // Find the last message in the thread
-        const lastMessage = threadComments[threadComments.length - 1];
-
-        // Only add if the last message is from a user (not the agent)
-        // AND the thread has more than just the agent's original comment
-        if (
-          lastMessage &&
-          lastMessage.authorId !== agentUserId &&
-          threadComments.length > 1
-        ) {
-          // Build thread context showing the conversation flow
-          const threadContext = threadComments
-            .map((c) => {
-              const authorName =
-                c.authorId === agentUserId
-                  ? 'You'
-                  : c.author?.displayName || c.author?.username || 'User';
-              return `${authorName}: "${c.content}"`;
-            })
-            .join('\n→ ');
-
-          interactions.push({
-            type: 'comment_on_comment',
-            id: lastMessage.id,
-            commentId: lastMessage.id, // Reply to the last comment in thread
-            parentCommentId: lastMessage.parentCommentId || undefined,
-            author:
-              lastMessage.author?.displayName ||
-              lastMessage.author?.username ||
-              'Unknown',
-            content: lastMessage.content,
-            context: `Thread on someone else's post:\n${threadContext}`,
-            timestamp: lastMessage.createdAt,
-          });
-        }
+    // Build children map: parentId -> child comments
+    const childrenMap = new Map<string, CommentWithRelations[]>();
+    for (const comment of allComments) {
+      if (comment.parentCommentId) {
+        const siblings = childrenMap.get(comment.parentCommentId) || [];
+        siblings.push(comment);
+        childrenMap.set(comment.parentCommentId, siblings);
       }
     }
 
-    // Get unread chat messages
+    // =========================================================================
+    // STEP 4: Find comments needing response
+    // =========================================================================
+    // Posts are already bounded by INTERACTION_WINDOW_HOURS, so all comments
+    // on those posts are potential candidates for response.
+
+    for (const comment of allComments) {
+      // Skip agent's own comments
+      if (comment.authorId === agentUserId) continue;
+
+      // Skip if no post data
+      if (!comment.post) continue;
+
+      // Skip if agent already replied to this comment
+      const replies = childrenMap.get(comment.id) || [];
+      const agentReplied = replies.some((r) => r.authorId === agentUserId);
+      if (agentReplied) continue;
+
+      // Check if agent should respond to this comment:
+      // - Either it's on agent's post
+      // - Or agent participated in the ancestor chain
+      const isOnAgentPost = agentPostIds.has(comment.postId);
+      const agentInAncestors = this.hasAgentInAncestors(
+        comment,
+        commentMap,
+        agentUserId
+      );
+
+      if (!isOnAgentPost && !agentInAncestors) continue;
+
+      // Build thread context (walk UP from this comment)
+      const thread = this.buildThreadFromBottom(comment, commentMap, agentUserId);
+
+      // Build post info
+      const postAuthor = comment.post.postAuthor;
+      const post: PostInfo = {
+        id: comment.post.id,
+        content: comment.post.content,
+        authorName:
+          comment.post.authorId === agentUserId
+            ? 'You'
+            : postAuthor?.displayName || postAuthor?.username || 'User',
+        isYourPost: isOnAgentPost,
+      };
+
+      // Format context for prompt
+      const context = this.formatThreadForPrompt(post, thread);
+
+      interactions.push({
+        type: 'comment_reply',
+        id: comment.id,
+        postId: comment.postId,
+        targetCommentId: comment.id,
+        post,
+        thread,
+        author: comment.author?.displayName || comment.author?.username || 'User',
+        content: comment.content,
+        context,
+        timestamp: comment.createdAt,
+      });
+    }
+
+    return interactions;
+  }
+
+  // ===========================================================================
+  // Gather pending chat messages
+  // ===========================================================================
+  private async gatherPendingChatMessages(
+    agentUserId: string
+  ): Promise<PendingInteraction[]> {
+    const interactions: PendingInteraction[] = [];
+    const windowStart = new Date(
+      Date.now() - this.INTERACTION_WINDOW_HOURS * 60 * 60 * 1000
+    );
+
+    // Get chats the agent is part of
     const agentChats = await db
       .select({
         chatId: chatParticipants.chatId,
@@ -359,13 +421,31 @@ export class AutonomousBatchResponseService {
           and(
             eq(messages.chatId, chat.id),
             ne(messages.senderId, agentUserId),
-            gte(messages.createdAt, oneDayAgo)
+            gte(messages.createdAt, windowStart)
           )
         )
         .orderBy(desc(messages.createdAt))
         .limit(3);
 
       if (chatMessages.length === 0) continue;
+
+      // Check if agent already responded to the latest message
+      const latestFromOther = chatMessages[0];
+      if (!latestFromOther) continue;
+
+      const agentResponses = await db
+        .select({ id: messages.id })
+        .from(messages)
+        .where(
+          and(
+            eq(messages.chatId, chat.id),
+            eq(messages.senderId, agentUserId),
+            gte(messages.createdAt, latestFromOther.createdAt)
+          )
+        )
+        .limit(1);
+
+      if (agentResponses.length > 0) continue; // Agent already responded
 
       // Get recent conversation context
       const recentMessages = await db
@@ -382,44 +462,42 @@ export class AutonomousBatchResponseService {
         )
         .join('\n');
 
-      const latestMessage = chatMessages[0];
-      if (latestMessage) {
-        interactions.push({
-          type: 'chat_message',
-          id: latestMessage.id,
-          chatId: chat.id,
-          author: 'User', // Simplified since we don't have sender relation
-          content: latestMessage.content,
-          context: `Chat: ${chat.name || (chat.isGroup ? 'Group' : 'DM')}\nRecent:\n${contextMessages}`,
-          timestamp: latestMessage.createdAt,
-        });
-      }
+      interactions.push({
+        type: 'chat_message',
+        id: latestFromOther.id,
+        chatId: chat.id,
+        author: 'User', // Simplified since we don't have sender relation
+        content: latestFromOther.content,
+        context: `CHAT: ${chat.name || (chat.isGroup ? 'Group Chat' : 'Direct Message')}\n\nRecent messages:\n${contextMessages}`,
+        timestamp: latestFromOther.createdAt,
+      });
     }
 
-    // Sort by timestamp (oldest first for fairness)
+    return interactions;
+  }
+
+  // ===========================================================================
+  // Main gather method (combines all interaction types)
+  // ===========================================================================
+  async gatherPendingInteractions(
+    agentUserId: string
+  ): Promise<PendingInteraction[]> {
+    // Gather all types in parallel
+    const [commentReplies, chatMessages] = await Promise.all([
+      this.gatherPendingCommentReplies(agentUserId),
+      this.gatherPendingChatMessages(agentUserId),
+    ]);
+
+    // Combine and sort by timestamp (oldest first for fairness)
+    const interactions = [...commentReplies, ...chatMessages];
     interactions.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
 
     return interactions;
   }
 
-  /**
-   * Evaluate which interactions warrant a response using AI
-   *
-   * Uses LLM to analyze pending interactions and determine which ones
-   * warrant a response based on agent personality and interaction quality.
-   *
-   * @param agentUserId - Unique identifier for the agent
-   * @param _runtime - Agent runtime (used for W&B model access)
-   * @param interactions - Array of pending interactions to evaluate
-   * @returns Array of response decisions (one per interaction)
-   * @throws Error if agent not found or LLM response parsing fails
-   *
-   * @remarks
-   * - Caps interactions at 30 to prevent context overflow
-   * - Uses small model for fast evaluation
-   * - Has 20 second timeout to prevent hanging
-   * - Returns boolean array indicating which interactions to respond to
-   */
+  // ===========================================================================
+  // Evaluate which interactions warrant a response
+  // ===========================================================================
   async evaluateInteractions(
     agentUserId: string,
     _runtime: IAgentRuntime,
@@ -438,7 +516,6 @@ export class AutonomousBatchResponseService {
         'AutonomousBatchResponse'
       );
     }
-    const evaluateInteractions = cappedInteractions;
 
     const [agent] = await db
       .select({
@@ -454,7 +531,8 @@ export class AutonomousBatchResponseService {
 
     const config = await getAgentConfig(agentUserId);
 
-    // Build evaluation prompt with XML output format
+    // Build evaluation prompt - ask for IDs instead of positional true/false
+    // This is more robust as it doesn't rely on counting/ordering
     const prompt = `${config?.systemPrompt ?? 'You are an AI agent on Babylon.'}
 
 You are ${agent.displayName}, an AI agent on Babylon. You need to decide which interactions warrant a response.
@@ -466,32 +544,40 @@ Guidelines:
 - Consider your energy and focus - be selective
 - Prioritize meaningful conversations
 
-Pending Interactions (${evaluateInteractions.length}):
+Pending Interactions:
 
-${evaluateInteractions
+${cappedInteractions
   .map(
-    (interaction, idx) => `
-Interaction ${idx}: Type: ${interaction.type}
-Author: ${interaction.author}
-Content: "${interaction.content}"
-Context: ${interaction.context}
+    (interaction) => `
+═══════════════════════════════════════════════════════════════
+ID: ${interaction.id}
+Type: ${interaction.type}
+Author: @${interaction.author}
 Time: ${new Date(interaction.timestamp).toLocaleString()}
----`
+
+${interaction.context}
+═══════════════════════════════════════════════════════════════`
   )
   .join('\n')}
 
-Task: For each interaction above (${evaluateInteractions.length} total), decide if you should respond (true or false).
+Task: Decide which interactions you want to respond to.
 
 # Required Output Format
-Return only this XML structure with comma-separated true/false values (one per interaction, in order):
+Return ONLY the IDs of interactions you want to respond to, comma-separated.
+If you don't want to respond to any, return "none".
 
 <response>
-<decisions>true, false, true, ...</decisions>
+<respond_to>ID1, ID2, ID3</respond_to>
 </response>
 
-Example for 5 interactions:
+Example (responding to some):
 <response>
-<decisions>true, false, true, false, true</decisions>
+<respond_to>abc123, def456</respond_to>
+</response>
+
+Example (responding to none):
+<response>
+<respond_to>none</respond_to>
 </response>
 
 Do NOT include any explanations, only the XML format above.`;
@@ -520,13 +606,13 @@ Do NOT include any explanations, only the XML format above.`;
 
     // Use large model for batch evaluation with retry loop
     const MAX_ATTEMPTS = 3;
-    let decisions: boolean[] | null = null;
+    let respondToIds: Set<string> | null = null;
 
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
       try {
         const isRetry = attempt > 1;
         const currentPrompt = isRetry
-          ? `${finalPrompt}\n\nREMINDER: You MUST output valid XML. Start with <response> and include <decisions> with comma-separated true/false values.`
+          ? `${finalPrompt}\n\nREMINDER: You MUST output valid XML. Return the IDs you want to respond to in <respond_to> tags, or "none" if you don't want to respond to any.`
           : finalPrompt;
 
         // Add timeout to prevent hanging (30 seconds max for larger model)
@@ -534,7 +620,7 @@ Do NOT include any explanations, only the XML format above.`;
           callGroqDirect({
             prompt: currentPrompt,
             system: config?.systemPrompt ?? undefined,
-            modelSize: 'large', // Large model: Better at structured outputs and counting
+            modelSize: 'large', // Large model: Better at structured outputs
             runtime: _runtime, // Pass runtime to access W&B trained models AND trajectory context
             temperature: isRetry ? 0.5 : 0.6,
             maxTokens: 16384,
@@ -567,12 +653,12 @@ Do NOT include any explanations, only the XML format above.`;
 
         // Parse the extracted XML response
         const parsed = parseKeyValueXml(responseMatch[0]) as {
-          decisions?: string;
+          respond_to?: string;
         } | null;
 
-        if (!parsed?.decisions) {
+        if (!parsed?.respond_to) {
           logger.warn(
-            'Failed to parse decisions from XML response',
+            'Failed to parse respond_to from XML response',
             {
               agentUserId,
               attempt,
@@ -583,47 +669,42 @@ Do NOT include any explanations, only the XML format above.`;
           continue;
         }
 
-        // Parse comma-separated true/false values
-        const decisionsRaw = parsed.decisions
-          .split(',')
-          .map((d) => d.trim().toLowerCase())
-          .filter(Boolean);
+        // Parse the IDs
+        const responseValue = parsed.respond_to.trim().toLowerCase();
 
-        // Convert to boolean array
-        let parsedDecisions = decisionsRaw.map((d) => d === 'true');
+        if (responseValue === 'none') {
+          respondToIds = new Set();
+        } else {
+          // Parse comma-separated IDs
+          const ids = parsed.respond_to
+            .split(',')
+            .map((id) => id.trim())
+            .filter(Boolean);
 
-        // Ensure we have the right number of decisions
-        if (parsedDecisions.length !== evaluateInteractions.length) {
-          logger.warn(
-            `Decision count mismatch: ${parsedDecisions.length} vs ${evaluateInteractions.length}. Adjusting to match.`,
-            undefined,
-            'AutonomousBatchResponse'
-          );
+          // Validate that IDs exist in our interactions
+          const validIds = new Set(cappedInteractions.map((i) => i.id));
+          const parsedIds = new Set<string>();
 
-          if (parsedDecisions.length < evaluateInteractions.length) {
-            // Pad with false values for missing decisions
-            const paddingNeeded =
-              evaluateInteractions.length - parsedDecisions.length;
-            parsedDecisions = [
-              ...parsedDecisions,
-              ...Array(paddingNeeded).fill(false),
-            ];
-            logger.info(
-              `Padded ${paddingNeeded} missing decisions with false`,
-              undefined,
-              'AutonomousBatchResponse'
-            );
-          } else {
-            // Truncate excess decisions
-            parsedDecisions = parsedDecisions.slice(
-              0,
-              evaluateInteractions.length
-            );
+          for (const id of ids) {
+            if (validIds.has(id)) {
+              parsedIds.add(id);
+            } else {
+              logger.warn(
+                `LLM returned unknown interaction ID: ${id}`,
+                undefined,
+                'AutonomousBatchResponse'
+              );
+            }
           }
+
+          respondToIds = parsedIds;
         }
 
-        // Success!
-        decisions = parsedDecisions;
+        logger.info(
+          `Agent selected ${respondToIds.size}/${cappedInteractions.length} interactions to respond to`,
+          undefined,
+          'AutonomousBatchResponse'
+        );
         break;
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : String(error);
@@ -644,39 +725,24 @@ Do NOT include any explanations, only the XML format above.`;
     }
 
     // If all attempts failed, return all false (don't respond to anything)
-    if (!decisions) {
+    if (!respondToIds) {
       logger.error(
         `Failed to evaluate interactions after ${MAX_ATTEMPTS} attempts, defaulting to no responses`,
         { agentUserId },
         'AutonomousBatchResponse'
       );
-      decisions = evaluateInteractions.map(() => false);
+      respondToIds = new Set();
     }
 
-    return decisions.map((shouldRespond) => ({ shouldRespond }));
+    // Convert to ResponseDecision array (maintaining order of original interactions)
+    return cappedInteractions.map((interaction) => ({
+      shouldRespond: respondToIds!.has(interaction.id),
+    }));
   }
 
-  /**
-   * Generate and post responses for approved interactions
-   *
-   * Generates responses using LLM and posts them as comments or messages
-   * based on interaction type. Continues processing even if individual
-   * responses fail.
-   *
-   * @param agentUserId - Unique identifier for the agent
-   * @param _runtime - Agent runtime (used for W&B model access)
-   * @param interactions - Array of interactions to respond to
-   * @param decisions - Array of response decisions (from evaluateInteractions)
-   * @returns Number of responses successfully created
-   * @throws Error if agent not found
-   *
-   * @remarks
-   * - Only processes interactions marked with shouldRespond: true
-   * - Uses small model for fast response generation
-   * - Has 15 second timeout per response
-   * - Adds 1 second delay between responses to avoid spam
-   * - Continues processing even if individual responses fail
-   */
+  // ===========================================================================
+  // Execute responses for approved interactions
+  // ===========================================================================
   async executeResponses(
     agentUserId: string,
     _runtime: IAgentRuntime,
@@ -710,9 +776,7 @@ Do NOT include any explanations, only the XML format above.`;
 
 You are ${agent.displayName}, responding to an interaction.
 
-Context: ${interaction.context}
-
-${interaction.author} said: "${interaction.content}"
+${interaction.context}
 
 Task: Write a thoughtful, engaging response (1-2 sentences, under 200 characters).
 Be authentic to your personality.
@@ -829,51 +893,27 @@ Add value to the conversation.
       }
 
       // Post the response based on type
-      if (interaction.type === 'comment_on_post' && interaction.postId) {
-        // Reply TO the specific comment (as a child comment in the thread)
+      if (
+        interaction.type === 'comment_reply' &&
+        interaction.postId &&
+        interaction.targetCommentId
+      ) {
+        // Reply to the target comment
         await db.insert(comments).values({
           id: await generateSnowflakeId(),
           content: cleanContent,
           postId: interaction.postId,
           authorId: agentUserId,
-          parentCommentId: interaction.commentId || interaction.id, // Reply to the specific comment
+          parentCommentId: interaction.targetCommentId,
           createdAt: new Date(),
           updatedAt: new Date(),
         });
         responsesCreated++;
         logger.info(
-          `Agent replied to comment ${interaction.commentId || interaction.id} on post ${interaction.postId}`,
+          `Agent replied to comment ${interaction.targetCommentId} on post ${interaction.postId}`,
           undefined,
           'AutonomousBatchResponse'
         );
-      } else if (
-        interaction.type === 'comment_on_comment' &&
-        interaction.commentId
-      ) {
-        // Reply to comment on comment
-        const [parentComment] = await db
-          .select({ postId: comments.postId })
-          .from(comments)
-          .where(eq(comments.id, interaction.commentId))
-          .limit(1);
-
-        if (parentComment) {
-          await db.insert(comments).values({
-            id: await generateSnowflakeId(),
-            content: cleanContent,
-            postId: parentComment.postId,
-            authorId: agentUserId,
-            parentCommentId: interaction.commentId,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          });
-          responsesCreated++;
-          logger.info(
-            `Agent responded to comment reply ${interaction.commentId}`,
-            undefined,
-            'AutonomousBatchResponse'
-          );
-        }
       } else if (interaction.type === 'chat_message' && interaction.chatId) {
         // Send chat message
         await db.insert(messages).values({
@@ -898,24 +938,9 @@ Add value to the conversation.
     return responsesCreated;
   }
 
-  /**
-   * Main entry point: Process all pending interactions in batch
-   *
-   * Orchestrates the complete batch response workflow:
-   * 1. Gathers all pending interactions
-   * 2. Evaluates which warrant responses
-   * 3. Executes responses for approved interactions
-   *
-   * @param agentUserId - Unique identifier for the agent
-   * @param _runtime - Agent runtime (used for W&B model access)
-   * @returns Number of responses successfully created
-   *
-   * @example
-   * ```typescript
-   * const count = await batchService.processBatch('agent-123', runtime);
-   * console.log(`Processed ${count} responses`);
-   * ```
-   */
+  // ===========================================================================
+  // Main entry point: Process all pending interactions in batch
+  // ===========================================================================
   async processBatch(
     agentUserId: string,
     _runtime: IAgentRuntime
