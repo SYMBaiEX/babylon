@@ -217,7 +217,9 @@ ${threadLines.join('\n')}`;
     for (const [_postId, postInteractions] of byPost) {
       const firstInteraction = postInteractions[0];
       const post = firstInteraction?.post;
-      const postAuthor = post?.isYourPost ? 'You' : post?.authorName || 'Unknown';
+      const postAuthor = post?.isYourPost
+        ? 'You'
+        : post?.authorName || 'Unknown';
       const postContent = post?.content || '[Post content unavailable]';
 
       // Count interactions per author on this post
@@ -228,15 +230,18 @@ ${threadLines.join('\n')}`;
 
       const interactionLines = postInteractions.map((interaction) => {
         const authorCount = authorCounts.get(interaction.author) || 1;
-        const authorNote = authorCount > 1 ? ` (${authorCount} interactions on this post)` : '';
+        const authorNote =
+          authorCount > 1 ? ` (${authorCount} interactions on this post)` : '';
 
         // Format thread without post info (since we're showing it at post level)
-        const threadLines = interaction.thread?.map((msg, idx) => {
-          const isLast = idx === (interaction.thread?.length || 0) - 1;
-          const replyIndicator = isLast ? ' [REPLY TO THIS]' : '';
-          const depthLabel = idx === 0 ? 'Comment' : `Reply (depth ${msg.depth})`;
-          return `    - ${depthLabel} by @${msg.authorName}: "${msg.content}"${replyIndicator}`;
-        }) || [];
+        const threadLines =
+          interaction.thread?.map((msg, idx) => {
+            const isLast = idx === (interaction.thread?.length || 0) - 1;
+            const replyIndicator = isLast ? ' [REPLY TO THIS]' : '';
+            const depthLabel =
+              idx === 0 ? 'Comment' : `Reply (depth ${msg.depth})`;
+            return `    - ${depthLabel} by @${msg.authorName}: "${msg.content}"${replyIndicator}`;
+          }) || [];
 
         return `  [ID: ${interaction.id}] @${interaction.author}${authorNote}
   Time: ${new Date(interaction.timestamp).toLocaleString()}
@@ -650,20 +655,10 @@ Task: Decide which interactions you want to respond to.
 
 # Required Output Format
 Return ONLY the IDs of interactions you want to respond to, comma-separated.
-If you don't want to respond to any, return "none".
+Leave empty if you don't want to respond to any.
 
 <response>
-<respond_to>ID1, ID2, ID3</respond_to>
-</response>
-
-Example (responding to some):
-<response>
-<respond_to>abc123, def456</respond_to>
-</response>
-
-Example (responding to none):
-<response>
-<respond_to>none</respond_to>
+<respond_to>ID1, ID2, ID3 (or leave empty)</respond_to>
 </response>
 
 Do NOT include any explanations, only the XML format above.`;
@@ -698,7 +693,7 @@ Do NOT include any explanations, only the XML format above.`;
       try {
         const isRetry = attempt > 1;
         const currentPrompt = isRetry
-          ? `${finalPrompt}\n\nREMINDER: You MUST output valid XML. Return the IDs you want to respond to in <respond_to> tags, or "none" if you don't want to respond to any.`
+          ? `${finalPrompt}\n\nREMINDER: You MUST output valid XML. Return the IDs you want to respond to in <respond_to> tags, or leave empty if you don't want to respond to any.`
           : finalPrompt;
 
         // Add timeout to prevent hanging (30 seconds max for larger model)
@@ -742,7 +737,7 @@ Do NOT include any explanations, only the XML format above.`;
           respond_to?: string;
         } | null;
 
-        if (!parsed?.respond_to) {
+        if (!parsed || parsed.respond_to === undefined) {
           logger.warn(
             'Failed to parse respond_to from XML response',
             {
@@ -755,10 +750,10 @@ Do NOT include any explanations, only the XML format above.`;
           continue;
         }
 
-        // Parse the IDs
-        const responseValue = parsed.respond_to.trim().toLowerCase();
+        // Parse the IDs - empty string means no responses
+        const responseValue = parsed.respond_to.trim();
 
-        if (responseValue === 'none') {
+        if (responseValue === '') {
           respondToIds = new Set();
         } else {
           // Parse comma-separated IDs
