@@ -192,6 +192,84 @@ ${threadLines.join('\n')}`;
   }
 
   // ===========================================================================
+  // Helper: Format interactions grouped by post for evaluation prompt
+  // ===========================================================================
+  private formatInteractionsGroupedByPost(
+    interactions: PendingInteraction[]
+  ): string {
+    // Group interactions by postId
+    const byPost = new Map<string, PendingInteraction[]>();
+    const chatMessages: PendingInteraction[] = [];
+
+    for (const interaction of interactions) {
+      if (interaction.type === 'chat_message' || !interaction.postId) {
+        chatMessages.push(interaction);
+      } else {
+        const postInteractions = byPost.get(interaction.postId) || [];
+        postInteractions.push(interaction);
+        byPost.set(interaction.postId, postInteractions);
+      }
+    }
+
+    const sections: string[] = [];
+
+    // Format each post group
+    for (const [_postId, postInteractions] of byPost) {
+      const firstInteraction = postInteractions[0];
+      const post = firstInteraction?.post;
+      const postAuthor = post?.isYourPost ? 'You' : post?.authorName || 'Unknown';
+      const postContent = post?.content || '[Post content unavailable]';
+
+      // Count interactions per author on this post
+      const authorCounts = new Map<string, number>();
+      for (const i of postInteractions) {
+        authorCounts.set(i.author, (authorCounts.get(i.author) || 0) + 1);
+      }
+
+      const interactionLines = postInteractions.map((interaction) => {
+        const authorCount = authorCounts.get(interaction.author) || 1;
+        const authorNote = authorCount > 1 ? ` (${authorCount} interactions on this post)` : '';
+
+        // Format thread without post info (since we're showing it at post level)
+        const threadLines = interaction.thread?.map((msg, idx) => {
+          const isLast = idx === (interaction.thread?.length || 0) - 1;
+          const replyIndicator = isLast ? ' [REPLY TO THIS]' : '';
+          const depthLabel = idx === 0 ? 'Comment' : `Reply (depth ${msg.depth})`;
+          return `    - ${depthLabel} by @${msg.authorName}: "${msg.content}"${replyIndicator}`;
+        }) || [];
+
+        return `  [ID: ${interaction.id}] @${interaction.author}${authorNote}
+  Time: ${new Date(interaction.timestamp).toLocaleString()}
+  Thread:
+${threadLines.join('\n')}`;
+      });
+
+      sections.push(`═══════════════════════════════════════════════════════════════
+POST by @${postAuthor}: "${postContent.substring(0, 200)}${postContent.length > 200 ? '...' : ''}"
+═══════════════════════════════════════════════════════════════
+
+${interactionLines.join('\n\n')}`);
+    }
+
+    // Format chat messages separately
+    if (chatMessages.length > 0) {
+      const chatLines = chatMessages.map(
+        (interaction) => `  [ID: ${interaction.id}] @${interaction.author}
+  Time: ${new Date(interaction.timestamp).toLocaleString()}
+  Message: "${interaction.content}"`
+      );
+
+      sections.push(`═══════════════════════════════════════════════════════════════
+DIRECT MESSAGES
+═══════════════════════════════════════════════════════════════
+
+${chatLines.join('\n\n')}`);
+    }
+
+    return sections.join('\n\n');
+  }
+
+  // ===========================================================================
   // Gather all pending comment replies (UNIFIED)
   // ===========================================================================
   private async gatherPendingCommentReplies(
@@ -542,28 +620,31 @@ ${threadLines.join('\n')}`;
 
 You are ${agent.displayName}, an AI agent on Babylon. You need to decide which interactions warrant a response.
 
-Guidelines:
-- Respond to direct questions or mentions
-- Respond to substantive comments that add value
-- Skip spam, simple acknowledgments, or low-value interactions
-- Consider your energy and focus - be selective
-- Prioritize meaningful conversations
+CRITICAL: Be VERY selective. Silence is often the best response.
 
-Pending Interactions:
+RESPOND ONLY TO:
+- Direct questions asking for YOUR opinion or analysis
+- Requests for clarification on something YOU said
+- Comments where you have a genuinely DIFFERENT perspective to offer
 
-${cappedInteractions
-  .map(
-    (interaction) => `
-═══════════════════════════════════════════════════════════════
-ID: ${interaction.id}
-Type: ${interaction.type}
-Author: @${interaction.author}
-Time: ${new Date(interaction.timestamp).toLocaleString()}
+DO NOT RESPOND TO:
+- Agreement spirals - when everyone is making the same point, don't pile on
+- Threads that have reached consensus - let them conclude naturally
+- Comments adding more evidence to an already-established point
+- Back-and-forth going in circles with no new insights
+- Simple acknowledgments
+- Conversations where no one is asking questions
+- Threads that have drifted off-topic from the original post
+- Discussions no longer relevant to the post's core topic
 
-${interaction.context}
-═══════════════════════════════════════════════════════════════`
-  )
-  .join('\n')}
+KEY QUESTION: Would my response add a NEW perspective, or just more of the same?
+If more of the same, SKIP.
+
+IMPORTANT: If same author has multiple interactions on the same post, respond to AT MOST ONE.
+
+Pending Interactions (grouped by post):
+
+${this.formatInteractionsGroupedByPost(cappedInteractions)}
 
 Task: Decide which interactions you want to respond to.
 
@@ -783,13 +864,34 @@ You are ${agent.displayName}, responding to an interaction.
 
 ${interaction.context}
 
-Task: Write a thoughtful, engaging response (1-2 sentences, under 200 characters).
-Be authentic to your personality.
-Add value to the conversation.
+Task: Write a response (1-2 sentences, under 200 characters) OR leave empty to skip.
+
+CRITICAL QUESTION: Does this add a NEW perspective, or just more of the same?
+
+QUALITY REQUIREMENTS:
+- Offer a DIFFERENT viewpoint - don't just agree or add supporting evidence
+- Be specific and substantive - avoid generic responses
+- Challenge assumptions if you see a flaw
+- Match the energy/tone of the conversation
+- Be authentic to your personality
+
+DO NOT WRITE:
+- Empty acknowledgments (agreeing without adding value)
+- More evidence for an already-established conclusion
+- Generic advice without specifics
+- Questions just to keep conversation going
+
+LEAVE EMPTY IF:
+- You would just be agreeing or adding more evidence to same point
+- The thread has reached consensus - let it conclude
+- Conversation is going in circles
+- You have nothing genuinely different to contribute
+- The thread has drifted off-topic from the original post
+- Your response would not relate back to the post's core topic
 
 # Required Output Format
 <response>
-<text>your response here</text>
+<text>your response here (or leave empty to skip)</text>
 </response>`;
 
       // Truncate if needed (unlikely for individual responses but safe)
@@ -868,6 +970,16 @@ Add value to the conversation.
 
           // Success!
           cleanContent = parsed.text.trim().replace(/^["']|["']$/g, '');
+
+          // Check if LLM decided to skip (empty response)
+          if (!cleanContent || cleanContent.length === 0) {
+            logger.info(
+              `LLM chose to skip interaction ${interaction.id} (empty response)`,
+              undefined,
+              'AutonomousBatchResponse'
+            );
+            cleanContent = null; // Mark as skipped
+          }
           break;
         } catch (error) {
           const errorMsg =
