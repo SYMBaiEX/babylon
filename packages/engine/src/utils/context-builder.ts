@@ -203,7 +203,7 @@ export async function buildComprehensiveNPCContext(
         );
         return domainMatch || affiliationMatch;
       })
-      : [];
+    : [];
 
   const shuffledQuestions = shuffleArray(relatedQuestionsRaw);
   const relatedQuestions = truncateArray(

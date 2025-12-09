@@ -3,30 +3,6 @@
  * Core game simulation, generation, and decision engines
  */
 
-// Article Generator
-export { type Article, ArticleGenerator } from './ArticleGenerator';
-
-// Emotion System
-export {
-  type EmotionalState,
-  generateActorContext,
-  getRelationshipModifier,
-  luckToDescription,
-  moodToEmotion,
-} from './EmotionSystem';
-
-// Feed Generator
-export { FeedGenerator } from './FeedGenerator';
-
-// Game Generator
-export {
-  createQuestionPrompt,
-  createScenarioPrompt,
-  GameGenerator,
-  OrganizationBehavior,
-  type OrganizationType,
-} from './GameGenerator';
-
 export {
   budgetTokens,
   countTokens,
@@ -37,6 +13,8 @@ export {
   truncateToTokenLimit,
   truncateToTokenLimitSync,
 } from '@babylon/api';
+// Article Generator
+export { type Article, ArticleGenerator } from './ArticleGenerator';
 // Actors Data Loader
 export {
   clearDataCache,
@@ -47,7 +25,6 @@ export {
   loadActorsData,
   loadOrganizationById,
 } from './actors-loader';
-
 // State Store Adapters
 export { DbStateStore, InMemoryStateStore } from './adapters';
 // Configuration
@@ -72,6 +49,16 @@ export {
   questionExamples,
 } from './data/question-examples';
 export { realityGroundingContent } from './data/reality-grounding';
+// Emotion System
+export {
+  type EmotionalState,
+  generateActorContext,
+  getRelationshipModifier,
+  luckToDescription,
+  moodToEmotion,
+} from './EmotionSystem';
+// Feed Generator
+export { FeedGenerator } from './FeedGenerator';
 // Bias Engine
 export {
   type BiasAdjustment,
@@ -81,6 +68,14 @@ export {
 } from './feedback/bias-engine';
 // Game Clock (injectable time abstraction)
 export { GameClock, type GameClockConfig, type GameTime } from './GameClock';
+// Game Generator
+export {
+  createQuestionPrompt,
+  createScenarioPrompt,
+  GameGenerator,
+  OrganizationBehavior,
+  type OrganizationType,
+} from './GameGenerator';
 // Game Tick (canonical tick executor)
 export {
   type ActiveMarket,
@@ -144,22 +139,6 @@ export {
   NPCPortfolioStrategy,
   type StrategyConfig,
 } from './npc/npc-portfolio-strategy';
-// Storage Bridge (database-agnostic storage abstraction)
-export {
-  db,
-  exportState,
-  getStorageMode,
-  initializeDatabaseMode,
-  initializeSimulationMode,
-  initializeTestMode,
-  isDatabaseMode,
-  isSimulationMode,
-  isTestMode,
-  loadSnapshot,
-  type StorageMode,
-  saveSnapshot,
-} from './storage-bridge';
-
 export {
   type ParsedPostMetadata,
   type ParseResult,
@@ -248,6 +227,21 @@ export {
 } from './reputation';
 // Services (all exported from services/index.ts)
 export * from './services';
+// Storage Bridge (database-agnostic storage abstraction)
+export {
+  db,
+  exportState,
+  getStorageMode,
+  initializeDatabaseMode,
+  initializeSimulationMode,
+  initializeTestMode,
+  isDatabaseMode,
+  isSimulationMode,
+  isTestMode,
+  loadSnapshot,
+  type StorageMode,
+  saveSnapshot,
+} from './storage-bridge';
 // Trending Topics Engine
 export {
   type TrendingTopic,
