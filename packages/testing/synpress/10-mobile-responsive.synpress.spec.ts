@@ -58,8 +58,9 @@ test.describe('Mobile Responsiveness', () => {
 
     // Check if page loaded correctly (not a 404)
     const pageContent = await page.locator('body').textContent();
-    const is404 = pageContent?.includes('404') || pageContent?.includes('not found');
-    
+    const is404 =
+      pageContent?.includes('404') || pageContent?.includes('not found');
+
     if (!is404) {
       // Should have either bottom nav, hamburger menu, or some navigation
       const bottomNav = page

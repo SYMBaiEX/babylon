@@ -51,7 +51,7 @@ test.describe('Settings - Navigation', () => {
         await page.waitForTimeout(500);
       }
     }
-    
+
     // Test passes - page loaded
     const pageContent = await page.locator('body').textContent();
     expect(pageContent?.length).toBeGreaterThan(0);
