@@ -445,7 +445,7 @@ export class FeedGenerator extends EventEmitter {
   private async buildRichCharacterContext(
     actor: Actor,
     day: number,
-    currentEvents: WorldEvent[] = []
+    _currentEvents: WorldEvent[] = []
   ): Promise<{
     characterInfo: string;
     comprehensiveContext: ComprehensiveNPCContext;
@@ -463,11 +463,9 @@ export class FeedGenerator extends EventEmitter {
 
     const persona = this._npcPersonas.get(actor.id);
 
-    // Build comprehensive context first (needed for relationship/position strings)
     const comprehensiveContext = await buildComprehensiveNPCContext(
       actor,
       day,
-      currentEvents,
       this._allPreviousEvents,
       this._allPreviousPosts,
       this._questions

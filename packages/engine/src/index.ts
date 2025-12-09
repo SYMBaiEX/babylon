@@ -27,9 +27,6 @@ export {
   type OrganizationType,
 } from './GameGenerator';
 
-// GameHistory, GeneratedGame types are re-exported from ./types/shared
-
-// Token Counter (re-exported from @babylon/api for convenience)
 export {
   budgetTokens,
   countTokens,
@@ -163,10 +160,6 @@ export {
   saveSnapshot,
 } from './storage-bridge';
 
-// Perps: Use @babylon/core/markets/perps for perpetuals trading
-// Legacy PerpetualsEngine, perps/, perps-service removed - functionality moved to core package
-
-// Post ID Parser
 export {
   type ParsedPostMetadata,
   type ParseResult,
@@ -334,7 +327,6 @@ export type {
   StockPrice,
   WorldEvent,
 } from './types/shared';
-// WorldContext export - use the one from prompts/world-context.ts (via prompts/index.ts)
 export {
   ACTOR_TIERS,
   DAY_RANGES,

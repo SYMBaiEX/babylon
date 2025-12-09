@@ -82,20 +82,17 @@ export interface ComprehensiveNPCContext {
 export async function buildComprehensiveNPCContext(
   actor: Actor,
   currentDay: number,
-  _currentEvents: WorldEvent[], // Currently unused but kept for future use
   allPreviousEvents?: WorldEvent[],
   previousPosts?: FeedPost[],
   questions?: Question[]
 ): Promise<ComprehensiveNPCContext> {
   const marketContextService = new MarketContextService();
 
-  // Get events specific to this NPC (from database)
   const personalEventsRaw = await marketContextService.getEventsForNPC(
     actor.id,
     actor.name
   );
 
-  // Truncate to limits and trim descriptions
   const personalEvents = truncateArray(
     personalEventsRaw,
     CONTEXT_LIMITS.MAX_EVENTS_PERSONAL
@@ -107,15 +104,12 @@ export async function buildComprehensiveNPCContext(
     ),
   }));
 
-  // Get all recent events (from database or provided)
-  // Shuffle events before slicing for entropy (different context each generation)
   let recentEvents;
   if (allPreviousEvents && allPreviousEvents.length > 0) {
     const filteredEvents = allPreviousEvents
       .filter((e) => e.day < currentDay)
-      .slice(-CONTEXT_LIMITS.MAX_EVENTS_RECENT * 2); // Get more, shuffle, then slice
+      .slice(-CONTEXT_LIMITS.MAX_EVENTS_RECENT * 2);
 
-    // Shuffle to add variety, then take the most recent N
     const shuffledEvents = shuffleArray(filteredEvents);
     recentEvents = truncateArray(
       shuffledEvents,
@@ -134,7 +128,6 @@ export async function buildComprehensiveNPCContext(
       pointsToward: e.pointsToward || undefined,
     }));
   } else {
-    // Fallback to database query if no events provided
     const now = new Date();
     const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
     const eventList = await db
@@ -164,7 +157,6 @@ export async function buildComprehensiveNPCContext(
     }));
   }
 
-  // Get NPC's previous posts (from database or provided)
   let npcPreviousPostsRaw: Array<{
     content: string;
     timestamp: string;
@@ -186,11 +178,10 @@ export async function buildComprehensiveNPCContext(
     npcPreviousPostsRaw = dbPosts.map((p) => ({
       content: p.content,
       timestamp: p.timestamp,
-      relatedEvent: undefined, // FeedPostContext doesn't have relatedEvent
+      relatedEvent: undefined,
     }));
   }
 
-  // Truncate to limits and trim content
   const mappedPreviousPosts = truncateArray(
     npcPreviousPostsRaw,
     CONTEXT_LIMITS.MAX_POSTS_PREVIOUS
@@ -200,7 +191,6 @@ export async function buildComprehensiveNPCContext(
     relatedEvent: p.relatedEvent,
   }));
 
-  // Filter questions related to this NPC's domain/affiliations
   const relatedQuestionsRaw = questions
     ? questions.filter((q) => {
         if (!actor.domain && !actor.affiliations) return false;
@@ -213,9 +203,8 @@ export async function buildComprehensiveNPCContext(
         );
         return domainMatch || affiliationMatch;
       })
-    : [];
+      : [];
 
-  // Shuffle and truncate - adds entropy to which questions appear
   const shuffledQuestions = shuffleArray(relatedQuestionsRaw);
   const relatedQuestions = truncateArray(
     shuffledQuestions,
@@ -226,11 +215,10 @@ export async function buildComprehensiveNPCContext(
     resolvedOutcome: q.resolvedOutcome ?? undefined,
   }));
 
-  // Fetch relationship context for this NPC
   const relationshipContext =
     await RelationshipEvolutionEngine.getActorRelationships(actor.id);
   const relationships = shuffleArray(relationshipContext)
-    .slice(0, 10) // Limit to 10 most relevant relationships
+    .slice(0, 10)
     .map((rel) => {
       const isActor1 = rel.actor1Id === actor.id;
       const otherActorId = isActor1 ? rel.actor2Id : rel.actor1Id;
@@ -248,7 +236,7 @@ export async function buildComprehensiveNPCContext(
             : 'weak';
 
       return {
-        otherActorName: otherActorId, // Will be resolved to name in formatting
+        otherActorName: otherActorId,
         type: rel.relationshipType,
         sentiment: sentimentDesc,
         strength: strengthDesc,
@@ -256,12 +244,11 @@ export async function buildComprehensiveNPCContext(
       };
     });
 
-  // Get market positions for this NPC
   const npcContext = await marketContextService.buildContextForNPC(actor.id);
   const marketPositions: Array<{ market: string; side: string; pnl?: number }> =
     npcContext?.currentPositions
       ? shuffleArray(npcContext.currentPositions)
-          .slice(0, 5) // Top 5 positions
+          .slice(0, 5)
           .map((pos) => ({
             market: ('ticker' in pos ? pos.ticker : 'unknown') as string,
             side: ('side' in pos ? pos.side : 'unknown') as string,
@@ -270,27 +257,26 @@ export async function buildComprehensiveNPCContext(
           }))
       : [];
 
-  // Shuffle personal events for variety (already truncated above)
   const shuffledPersonalEvents = shuffleArray(personalEvents);
 
   return {
     personalEvents: shuffledPersonalEvents.map((e) => ({
       type: e.type || 'unknown',
-      description: e.description, // Already truncated
+      description: e.description,
       timestamp: e.timestamp,
       pointsToward: e.pointsToward || undefined,
     })),
     recentEvents: recentEvents.map((e) => ({
       type: e.type || 'unknown',
-      description: e.description, // Already truncated
+      description: e.description,
       timestamp: e.timestamp,
-      actors: e.actors, // Already truncated
+      actors: e.actors,
       pointsToward: e.pointsToward || undefined,
     })),
-    previousPosts: mappedPreviousPosts, // Already truncated
-    relatedQuestions, // Already truncated
-    relationships, // Relationship dynamics
-    marketPositions, // Current trading positions
+    previousPosts: mappedPreviousPosts,
+    relatedQuestions,
+    relationships,
+    marketPositions,
   };
 }
 
@@ -324,7 +310,6 @@ export function formatComprehensiveContext(
 
   const sections: string[] = [];
 
-  // 1. PERSONAL EVENTS (highest priority - events NPC was directly involved in)
   if (includePersonalEvents && context.personalEvents.length > 0) {
     const personalEventsText = truncateArray(
       context.personalEvents,
@@ -351,7 +336,6 @@ export function formatComprehensiveContext(
     sections.push(truncateText(sectionText, CONTEXT_LIMITS.MAX_SECTION_LENGTH));
   }
 
-  // 2. RECENT WORLD EVENTS (general context - what's happening in the world)
   if (includeRecentEvents && context.recentEvents.length > 0) {
     const recentEventsText = truncateArray(
       context.recentEvents,
@@ -380,7 +364,6 @@ export function formatComprehensiveContext(
     sections.push(truncateText(sectionText, CONTEXT_LIMITS.MAX_SECTION_LENGTH));
   }
 
-  // 3. YOUR PREVIOUS POSTS (to prevent repetition)
   if (includePreviousPosts && context.previousPosts.length > 0) {
     const previousPostsText = truncateArray(
       context.previousPosts,
@@ -404,7 +387,6 @@ export function formatComprehensiveContext(
     sections.push(truncateText(sectionText, CONTEXT_LIMITS.MAX_SECTION_LENGTH));
   }
 
-  // 4. RELATED QUESTIONS (narrative context)
   if (
     includeQuestions &&
     context.relatedQuestions &&
@@ -435,8 +417,6 @@ export function formatComprehensiveContext(
     sections.push(truncateText(sectionText, CONTEXT_LIMITS.MAX_SECTION_LENGTH));
   }
 
-  // 5. YOUR RELATIONSHIPS (social dynamics - who to support/attack)
-  // Split allies and rivals into separate sections for more aggressive randomization
   if (context.relationships && context.relationships.length > 0) {
     const allies = context.relationships.filter(
       (r) => r.sentiment === 'respect'
@@ -446,7 +426,6 @@ export function formatComprehensiveContext(
       (r) => r.sentiment === 'neutral'
     );
 
-    // ALLIES - separate shufflable section
     if (allies.length > 0) {
       const alliesText = shuffleArray(allies)
         .map((r) => {
@@ -467,7 +446,6 @@ export function formatComprehensiveContext(
       );
     }
 
-    // RIVALS - separate shufflable section
     if (rivals.length > 0) {
       const rivalsText = shuffleArray(rivals)
         .map((r) => {
@@ -488,10 +466,9 @@ export function formatComprehensiveContext(
       );
     }
 
-    // NEUTRAL - combined section (less prominent)
     if (neutral.length > 0) {
       const neutralText = shuffleArray(neutral)
-        .slice(0, 5) // Limit neutral relationships
+        .slice(0, 5)
         .map((r) => `  🤝 ${r.otherActorName} (${r.type})`)
         .join('\n');
 
@@ -502,7 +479,6 @@ export function formatComprehensiveContext(
     }
   }
 
-  // 6. YOUR MARKET POSITIONS (skin in the game)
   if (context.marketPositions && context.marketPositions.length > 0) {
     const positionsText = shuffleArray(context.marketPositions)
       .map((p) => {
@@ -527,11 +503,7 @@ export function formatComprehensiveContext(
     sections.push(truncateText(sectionText, CONTEXT_LIMITS.MAX_SECTION_LENGTH));
   }
 
-  // SHUFFLE ALL SECTIONS for maximum entropy
-  // This means allies/rivals/events/posts all get randomly ordered each time
   const shuffledSections = shuffleArray(sections);
-
-  // Join sections and ensure total length is within limits
   const fullContext = shuffledSections.join('\n\n');
   return truncateText(fullContext, CONTEXT_LIMITS.MAX_TOTAL_CONTEXT_LENGTH);
 }

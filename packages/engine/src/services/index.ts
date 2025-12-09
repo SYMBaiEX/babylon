@@ -28,7 +28,6 @@ export * from './message-quality-checker';
 export * from './npc-group-dynamics-service';
 export * from './npc-interaction-tracker';
 export * from './npc-persona-generator';
-// RelationshipManager consolidated into RelationshipEvolutionEngine
 export * from './reply-rate-limiter';
 
 // =============================================================================
@@ -78,7 +77,6 @@ export {
   storeTrendingTags,
 } from './tag-service';
 
-// Trending Services (kept separate due to different concerns)
 export * from './trending-calculation-service';
 export * from './trending-grouping-service';
 
@@ -96,7 +94,6 @@ export {
 } from './game-bootstrap-service';
 export * from './market-context-service';
 export * from './market-impact-service';
-// Static data registry (actors/orgs)
 export * from './npc-wallet-adapter';
 export * from './rss-feed-service';
 export * from './static-data-registry';
