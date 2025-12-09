@@ -148,7 +148,7 @@ import { IdParamSchema, logger, UpdateCommentSchema } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 
 // Max reply count to return (for efficiency)
-const MAX_REPLY_COUNT = 99;
+import { MAX_REPLY_COUNT } from '@/lib/constants';
 
 // Max parent chain depth to prevent infinite loops
 const MAX_PARENT_DEPTH = 50;

@@ -8,6 +8,7 @@ import { useRouter } from 'next/navigation';
 import { use, useCallback, useEffect, useRef, useState } from 'react';
 import { CommentInput } from '@/components/interactions/CommentInput';
 import { LikeButton } from '@/components/interactions/LikeButton';
+import { MAX_REPLY_COUNT } from '@/lib/constants';
 import { Avatar } from '@/components/shared/Avatar';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { PageContainer } from '@/components/shared/PageContainer';
@@ -295,8 +296,8 @@ function ReplyCard({
             <MessageCircle size={14} />
             <span>
               {hasReplies
-                ? reply.replyCount >= 99
-                  ? '99+'
+                ? reply.replyCount >= MAX_REPLY_COUNT
+                  ? `${MAX_REPLY_COUNT}+`
                   : reply.replyCount
                 : ''}
             </span>
@@ -547,8 +548,8 @@ export default function CommentPage({ params }: CommentPageProps) {
                       <MessageCircle size={16} />
                       <span>
                         {comment.replyCount > 0
-                          ? comment.replyCount >= 99
-                            ? '99+'
+                          ? comment.replyCount >= MAX_REPLY_COUNT
+                            ? `${MAX_REPLY_COUNT}+`
                             : comment.replyCount
                           : ''}
                       </span>
