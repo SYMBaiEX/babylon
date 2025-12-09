@@ -8,7 +8,6 @@ import { useRouter } from 'next/navigation';
 import { use, useCallback, useEffect, useRef, useState } from 'react';
 import { CommentInput } from '@/components/interactions/CommentInput';
 import { LikeButton } from '@/components/interactions/LikeButton';
-import { MAX_REPLY_COUNT } from '@/lib/constants';
 import { Avatar } from '@/components/shared/Avatar';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { PageContainer } from '@/components/shared/PageContainer';
@@ -18,6 +17,7 @@ import {
   isNpcIdentifier,
   VerifiedBadge,
 } from '@/components/shared/VerifiedBadge';
+import { MAX_REPLY_COUNT } from '@/lib/constants';
 
 interface CommentPageProps {
   params: Promise<{ id: string }>;

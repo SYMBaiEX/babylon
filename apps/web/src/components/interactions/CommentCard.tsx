@@ -6,13 +6,13 @@ import { formatDistanceToNow } from 'date-fns';
 import { Edit2, MessageCircle, MoreVertical, Trash2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { MAX_REPLY_COUNT } from '@/lib/constants';
 import { Avatar } from '@/components/shared/Avatar';
 import { TaggedText } from '@/components/shared/TaggedText';
 import {
   isNpcIdentifier,
   VerifiedBadge,
 } from '@/components/shared/VerifiedBadge';
+import { MAX_REPLY_COUNT } from '@/lib/constants';
 import { CommentInput } from './CommentInput';
 import { LikeButton } from './LikeButton';
 
@@ -272,7 +272,11 @@ export function CommentCard({
           >
             <MessageCircle size={14} />
             <span>
-              {hasReplies ? (replyCount >= MAX_REPLY_COUNT ? `${MAX_REPLY_COUNT}+` : replyCount) : ''}
+              {hasReplies
+                ? replyCount >= MAX_REPLY_COUNT
+                  ? `${MAX_REPLY_COUNT}+`
+                  : replyCount
+                : ''}
             </span>
           </button>
 

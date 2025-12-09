@@ -7,4 +7,3 @@
  * Used for efficient BFS counting in deeply nested comment threads
  */
 export const MAX_REPLY_COUNT = 99;
-
