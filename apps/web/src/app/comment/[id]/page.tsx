@@ -4,7 +4,6 @@ import type { CommentData } from '@babylon/shared';
 import { cn } from '@babylon/shared';
 import { formatDistanceToNow } from 'date-fns';
 import { ArrowLeft, MessageCircle } from 'lucide-react';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { use, useCallback, useEffect, useRef, useState } from 'react';
 import { CommentInput } from '@/components/interactions/CommentInput';
@@ -72,6 +71,71 @@ interface ParentComment {
   authorUsername: string | null;
   authorProfileImageUrl: string | null;
   createdAt: string;
+}
+
+interface PostData {
+  id: string;
+  content: string;
+  authorId: string;
+  authorName: string;
+  authorUsername: string | null;
+  authorProfileImageUrl: string | null;
+  createdAt: string;
+}
+
+/**
+ * Original post card - shows at the top of the comment thread
+ * Clickable to navigate to the full post
+ * Has connector line to link to parent chain / main comment
+ */
+function OriginalPostCard({ post }: { post: PostData }) {
+  const router = useRouter();
+  const showVerifiedBadge = isNpcIdentifier(post.authorId);
+
+  return (
+    <div className="relative">
+      {/* Connector line - from avatar center down */}
+      <div className="absolute top-10 bottom-0 left-[1.625rem] w-0.5 bg-border sm:left-[1.875rem]" />
+
+      <div
+        className="flex cursor-pointer gap-3 px-4 py-3 transition-colors hover:bg-muted/50 sm:px-6"
+        onClick={() => router.push(`/post/${post.id}`)}
+      >
+        {/* Avatar */}
+        <div className="relative z-10 shrink-0">
+          <Avatar
+            id={post.authorId}
+            name={post.authorName}
+            size="sm"
+            imageUrl={post.authorProfileImageUrl || undefined}
+          />
+        </div>
+
+        {/* Content */}
+        <div className="min-w-0 flex-1">
+          {/* Header */}
+          <div className="mb-1 flex items-center gap-2">
+            <span className="truncate font-semibold text-sm">{post.authorName}</span>
+            {showVerifiedBadge && <VerifiedBadge size="sm" className="-ml-1" />}
+            <span className="truncate text-muted-foreground text-xs">
+              @{post.authorUsername || post.authorName}
+            </span>
+            <span className="text-muted-foreground text-xs">·</span>
+            <span className="text-muted-foreground text-xs">
+              {formatDistanceToNow(new Date(post.createdAt), {
+                addSuffix: true,
+              })}
+            </span>
+          </div>
+
+          {/* Content - truncated */}
+          <p className="line-clamp-3 text-foreground text-sm">
+            <TaggedText text={post.content} />
+          </p>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 /**
@@ -277,7 +341,7 @@ export default function CommentPage({ params }: CommentPageProps) {
   const [comment, setComment] = useState<CommentDetail | null>(null);
   const [replies, setReplies] = useState<Reply[]>([]);
   const [parentChain, setParentChain] = useState<ParentComment[]>([]);
-  const [postId, setPostId] = useState<string | null>(null);
+  const [post, setPost] = useState<PostData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isReplying, setIsReplying] = useState(false);
@@ -300,7 +364,7 @@ export default function CommentPage({ params }: CommentPageProps) {
     setComment(data.comment);
     setReplies(data.replies || []);
     setParentChain(data.parentChain || []);
-    setPostId(data.post?.id || data.comment?.postId || null);
+    setPost(data.post || null);
     setIsLoading(false);
   }, [commentId]);
 
@@ -390,17 +454,8 @@ export default function CommentPage({ params }: CommentPageProps) {
         {/* Content */}
         <div className="flex-1 overflow-y-auto">
           <div className="mx-auto w-full max-w-feed">
-            {/* Link to original post */}
-            {postId && (
-              <div className="border-border border-b px-4 py-2 sm:px-6">
-                <Link
-                  href={`/post/${postId}`}
-                  className="text-muted-foreground text-sm transition-colors hover:text-[#0066FF]"
-                >
-                  ← View original post
-                </Link>
-              </div>
-            )}
+            {/* Original post */}
+            {post && <OriginalPostCard post={post} />}
 
             {/* Parent chain - show all parent comments leading up to this one */}
             {parentChain.length > 0 && (
@@ -508,10 +563,10 @@ export default function CommentPage({ params }: CommentPageProps) {
                   </div>
 
                   {/* Reply input */}
-                  {isReplying && postId && (
+                  {isReplying && post && (
                     <div className="mt-4">
                       <CommentInput
-                        postId={postId}
+                        postId={post.id}
                         parentCommentId={comment.id}
                         placeholder={`Reply to ${comment.authorName}...`}
                         replyingToName={comment.authorName}
@@ -540,7 +595,7 @@ export default function CommentPage({ params }: CommentPageProps) {
                     <ReplyCard
                       key={reply.id}
                       reply={reply}
-                      postId={postId || ''}
+                      postId={post?.id || ''}
                       onReplySubmit={loadComment}
                     />
                   ))}

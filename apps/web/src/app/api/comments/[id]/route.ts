@@ -272,16 +272,31 @@ export const GET = withErrorHandling(
       throw new NotFoundError('Comment', commentId);
     }
 
-    // Get the post info
+    // Get the post info with author
     const [post] = await db
       .select({
         id: posts.id,
         content: posts.content,
         authorId: posts.authorId,
+        createdAt: posts.createdAt,
       })
       .from(posts)
       .where(eq(posts.id, comment.postId))
       .limit(1);
+
+    // Get post author info
+    const [postAuthor] = post
+      ? await db
+          .select({
+            id: users.id,
+            displayName: users.displayName,
+            username: users.username,
+            profileImageUrl: users.profileImageUrl,
+          })
+          .from(users)
+          .where(eq(users.id, post.authorId))
+          .limit(1)
+      : [null];
 
     // Get comment author info
     const [commentAuthor] = await db
@@ -451,6 +466,10 @@ export const GET = withErrorHandling(
             id: post.id,
             content: post.content,
             authorId: post.authorId,
+            authorName: postAuthor?.displayName || 'Unknown',
+            authorUsername: postAuthor?.username || null,
+            authorProfileImageUrl: postAuthor?.profileImageUrl || null,
+            createdAt: post.createdAt,
           }
         : null,
     });
