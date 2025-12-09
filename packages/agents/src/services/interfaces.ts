@@ -141,39 +141,6 @@ export interface ITrajectoryRecorder {
 }
 
 /**
- * Perp Trade Service Interface
- */
-export interface IPerpTradeService {
-  openPosition(params: {
-    userId: string;
-    ticker: string;
-    side: 'long' | 'short';
-    size: number;
-    leverage: number;
-  }): Promise<{
-    positionId: string;
-    entryPrice: number;
-  }>;
-
-  closePosition(params: { userId: string; positionId: string }): Promise<{
-    pnl: number;
-    exitPrice: number;
-  }>;
-
-  getPositions(userId: string): Promise<
-    Array<{
-      id: string;
-      ticker: string;
-      side: 'long' | 'short';
-      size: number;
-      entryPrice: number;
-      currentPrice: number;
-      unrealizedPnL: number;
-    }>
-  >;
-}
-
-/**
  * Prediction Pricing Interface
  */
 export interface IPredictionPricing {

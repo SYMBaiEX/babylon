@@ -1,17 +1,19 @@
-import { successResponse, withErrorHandling } from '@babylon/api';
+/**
+ * One-off funding step runner for perps.
+ *
+ * Usage:
+ *   bun packages/core/markets/perps/scripts/run-funding-step.ts
+ *
+ * This will process funding (8h period) across all open positions and update
+ * funding rates in PerpMarketSnapshot.
+ */
+
 import { PerpDbAdapter, PerpMarketService } from '@babylon/core/markets/perps';
 import { FEE_CONFIG, WalletService } from '@babylon/engine';
-import { logger } from '@babylon/shared';
-import type { NextRequest } from 'next/server';
 
-/**
- * GET /api/markets/perps
- * Returns perpetual markets snapshot (single source from PerpMarketService)
- */
-export const GET = withErrorHandling(async (_request: NextRequest) => {
-  const dbAdapter = new PerpDbAdapter();
+async function main() {
   const service = new PerpMarketService({
-    db: dbAdapter,
+    db: new PerpDbAdapter(),
     wallet: {
       debit: ({ userId, amount, reason, description, relatedId }) =>
         WalletService.debit(
@@ -42,17 +44,11 @@ export const GET = withErrorHandling(async (_request: NextRequest) => {
     },
   });
 
-  const markets = await service.getMarketsSnapshot();
+  await service.processFundingAndLiquidations();
+  console.log('Perp funding step processed.');
+}
 
-  logger.info(
-    'Perpetual markets fetched successfully (core service)',
-    { count: markets.length },
-    'GET /api/markets/perps'
-  );
-
-  return successResponse({
-    success: true,
-    markets,
-    count: markets.length,
-  });
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
 });

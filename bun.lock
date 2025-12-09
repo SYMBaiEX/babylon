@@ -1,5 +1,6 @@
 {
   "lockfileVersion": 1,
+  "configVersion": 0,
   "workspaces": {
     "": {
       "name": "babylon",
@@ -68,7 +69,7 @@
       "dependencies": {
         "@tailwindcss/postcss": "^4.1.17",
         "autoprefixer": "^10.4.22",
-        "next": "^16.0.5",
+        "next": "16.0.7",
         "nextra": "^4.6.0",
         "nextra-theme-docs": "^4.6.0",
         "react": "^19.2.0",
