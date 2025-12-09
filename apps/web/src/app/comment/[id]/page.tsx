@@ -115,7 +115,9 @@ function OriginalPostCard({ post }: { post: PostData }) {
         <div className="min-w-0 flex-1">
           {/* Header */}
           <div className="mb-1 flex items-center gap-2">
-            <span className="truncate font-semibold text-sm">{post.authorName}</span>
+            <span className="truncate font-semibold text-sm">
+              {post.authorName}
+            </span>
             {showVerifiedBadge && <VerifiedBadge size="sm" className="-ml-1" />}
             <span className="truncate text-muted-foreground text-xs">
               @{post.authorUsername || post.authorName}
