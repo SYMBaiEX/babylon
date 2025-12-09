@@ -1,9 +1,15 @@
 /**
  * JSON Storage Types
- * 
+ *
  * Internal types for the JSON file storage adapter.
  */
 
+import type {
+  AgentLogRecord,
+  AgentMessageRecord,
+  AgentPointsTransactionRecord,
+} from '../../ports/agents';
+import type { PointsTransactionRecord } from '../../ports/users';
 import type {
   ActorRecord,
   ActorStateRecord,
@@ -23,12 +29,6 @@ import type {
   UserRecord,
   WorldEventRecord,
 } from '../../types';
-import type {
-  AgentLogRecord,
-  AgentMessageRecord,
-  AgentPointsTransactionRecord,
-} from '../../ports/agents';
-import type { PointsTransactionRecord } from '../../ports/users';
 
 /**
  * Complete storage state that can be serialized to JSON.
@@ -40,13 +40,13 @@ export interface JsonStorageState {
     updatedAt: string;
     mode: 'simulation' | 'training' | 'debug';
   };
-  
+
   // Core entities
   actors: Record<string, ActorRecord>;
   actorStates: Record<string, ActorStateRecord>;
   organizations: Record<string, OrganizationRecord>;
   organizationStates: Record<string, OrganizationStateRecord>;
-  
+
   // Users and agents
   users: Record<string, UserRecord>;
   agentConfigs: Record<string, AgentConfigRecord>;
@@ -55,25 +55,25 @@ export interface JsonStorageState {
   agentPointsTransactions: AgentPointsTransactionRecord[];
   agentTrades: AgentTradeRecord[];
   pointsTransactions: PointsTransactionRecord[];
-  
+
   // Content
   posts: Record<string, PostRecord>;
-  
+
   // Questions and markets
   questions: Record<string, QuestionRecord>;
   markets: Record<string, PredictionMarketRecord>;
   marketSnapshots: MarketSnapshotRecord[];
-  
+
   // Trading
   pools: Record<string, PoolRecord>;
   positions: Record<string, PoolPositionRecord>;
   npcTrades: NpcTradeRecord[];
-  
+
   // Game state
   game: GameRecord | null;
   worldEvents: WorldEventRecord[];
   stockPrices: StockPriceRecord[];
-  
+
   // Counters for ID generation
   counters: {
     post: number;
@@ -135,4 +135,3 @@ export function createEmptyState(): JsonStorageState {
     },
   };
 }
-

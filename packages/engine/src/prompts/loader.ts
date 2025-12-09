@@ -73,7 +73,7 @@ export function renderPrompt(
       'relatedQuestionContext',
       'atmosphereContext',
       'emotionalContext',
-      
+
       // Character roster vars (optional until callers are updated)
       'characterRoster',
       'detailedCharacterProfiles',
@@ -88,7 +88,7 @@ export function renderPrompt(
       'originalAuthorProfile',
       'involvedCharacterProfiles',
       'affectedCharacterProfiles',
-      
+
       // Rich game context vars (optional)
       'richGameContext',
       'eventTimeline',

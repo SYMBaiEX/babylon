@@ -24,7 +24,8 @@ export const commentary = definePrompt({
   id: 'commentary',
   version: '6.0.0',
   category: 'feed',
-  description: 'Generates in-character reaction with full character context (per-character)',
+  description:
+    'Generates in-character reaction with full character context (per-character)',
   temperature: 1,
   maxTokens: 8000,
   template: `{{realityGrounding}}

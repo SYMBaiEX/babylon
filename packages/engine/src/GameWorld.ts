@@ -8,7 +8,6 @@ import { generateSnowflakeId, type WorldEvent } from '@babylon/shared';
 import { EventEmitter } from 'events';
 import { type FeedEvent, FeedGenerator } from './FeedGenerator';
 import type { BabylonLLMClient } from './llm/openai-client';
-import { TrendingTopicsEngine } from './TrendingTopicsEngine';
 import {
   daySummary,
   expertAnalysis,
@@ -18,6 +17,7 @@ import {
   rumor,
 } from './prompts';
 import { characterMappingService } from './services/character-mapping-service';
+import { TrendingTopicsEngine } from './TrendingTopicsEngine';
 import type { JsonValue } from './types/common';
 import type { FeedPost } from './types/shared';
 import {
@@ -435,7 +435,10 @@ export class GameWorld extends EventEmitter implements TypedGameWorldEmitter {
 
         // Update trending topics (engine handles interval internally)
         if (this.trendingTopics) {
-          await this.trendingTopics.updateTrends(this.recentPosts, this.tickCount);
+          await this.trendingTopics.updateTrends(
+            this.recentPosts,
+            this.tickCount
+          );
           this.feedGenerator.updateTrendContext();
         }
       }
@@ -590,7 +593,10 @@ export class GameWorld extends EventEmitter implements TypedGameWorldEmitter {
     if (shouldFireEvent(this.eventCooldowns.meeting, day)) {
       // Pick random subset of NPCs for the conversation
       const shuffledNpcs = secureShuffle(this.npcs);
-      const participants = shuffledNpcs.slice(0, 2 + Math.floor(secureRandom() * 2)); // 2-3 participants
+      const participants = shuffledNpcs.slice(
+        0,
+        2 + Math.floor(secureRandom() * 2)
+      ); // 2-3 participants
 
       const conversationText = await this.generateNPCConversation(
         day,
@@ -637,16 +643,23 @@ export class GameWorld extends EventEmitter implements TypedGameWorldEmitter {
     // Scandal/revelation events - more likely in late game
     const adjustedScandalState = {
       ...this.eventCooldowns.scandal,
-      baseProbability: this.eventCooldowns.scandal.baseProbability * urgencyMultiplier,
+      baseProbability:
+        this.eventCooldowns.scandal.baseProbability * urgencyMultiplier,
     };
 
     if (shouldFireEvent(adjustedScandalState, day)) {
       this.eventCooldowns.scandal.lastOccurrence = day;
 
-      const whistleblowers = this.npcs.filter((n) => n.role === 'whistleblower');
+      const whistleblowers = this.npcs.filter(
+        (n) => n.role === 'whistleblower'
+      );
       const journalists = this.npcs.filter((n) => n.role === 'journalist');
-      const whistleblower = whistleblowers.length > 0 ? secureShuffle(whistleblowers)[0] : undefined;
-      const journalist = journalists.length > 0 ? secureShuffle(journalists)[0] : undefined;
+      const whistleblower =
+        whistleblowers.length > 0
+          ? secureShuffle(whistleblowers)[0]
+          : undefined;
+      const journalist =
+        journalists.length > 0 ? secureShuffle(journalists)[0] : undefined;
 
       const whistleblowerReport = journalist
         ? await this.generateNewsReport(day, journalist, allWorldEvents)
@@ -677,7 +690,8 @@ export class GameWorld extends EventEmitter implements TypedGameWorldEmitter {
     // Development/revelation events - climactic moments
     const adjustedDevState = {
       ...this.eventCooldowns.development,
-      baseProbability: this.eventCooldowns.development.baseProbability * urgencyMultiplier,
+      baseProbability:
+        this.eventCooldowns.development.baseProbability * urgencyMultiplier,
     };
 
     if (shouldFireEvent(adjustedDevState, day)) {
@@ -726,9 +740,7 @@ export class GameWorld extends EventEmitter implements TypedGameWorldEmitter {
    * Convert a sentiment signal (-1 to 1) to a direction
    * Uses fuzzy threshold to avoid perfect correlation
    */
-  private sentimentToDirection(
-    sentiment: number
-  ): 'YES' | 'NO' | null {
+  private sentimentToDirection(sentiment: number): 'YES' | 'NO' | null {
     // Add slight randomness to threshold
     const threshold = 0.2 + secureRandom() * 0.15;
 
@@ -1078,7 +1090,8 @@ export class GameWorld extends EventEmitter implements TypedGameWorldEmitter {
     // Simple group messages (fallback for non-LLM mode)
     // NOTE: GameGenerator provides LLM-powered group messages for full game generation
     // Use probability instead of deterministic day check
-    const shouldGenerateGroupMessages = worldEvents.length > 0 && secureRandom() < 0.35;
+    const shouldGenerateGroupMessages =
+      worldEvents.length > 0 && secureRandom() < 0.35;
     if (shouldGenerateGroupMessages) {
       const firstEvent = worldEvents[0];
       if (firstEvent) {

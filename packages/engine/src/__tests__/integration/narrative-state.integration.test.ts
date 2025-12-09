@@ -10,7 +10,10 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import { db } from '@babylon/db';
 import { generateSnowflakeId } from '@babylon/shared';
-import { getArcPlan, saveArcPlan } from '../../services/narrative-state-service';
+import {
+  getArcPlan,
+  saveArcPlan,
+} from '../../services/narrative-state-service';
 import type { QuestionArcPlan } from '../../services/question-arc-planner';
 
 // Skip unless explicitly enabled with database running

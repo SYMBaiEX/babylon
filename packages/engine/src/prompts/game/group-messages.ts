@@ -1,5 +1,9 @@
 import { definePrompt } from '../define-prompt';
-import { characterVoiceGuidance, PARODY_NAME_RULES, ANTI_REPETITION_RULES } from '../shared-sections';
+import {
+  ANTI_REPETITION_RULES,
+  characterVoiceGuidance,
+  PARODY_NAME_RULES,
+} from '../shared-sections';
 
 /**
  * Prompt for generating private group chat messages for the day.

@@ -3,7 +3,11 @@
  */
 
 import type { PostPort } from '../../../ports/posts';
-import type { PaginatedResult, PaginationOptions, PostRecord } from '../../../types';
+import type {
+  PaginatedResult,
+  PaginationOptions,
+  PostRecord,
+} from '../../../types';
 import type { JsonIdGenerator } from '../id-generator';
 import type { JsonStorageState } from '../types';
 
@@ -18,7 +22,9 @@ export class JsonPostAdapter implements PostPort {
     return this.state.posts[id] ?? null;
   }
 
-  async getRecentPosts(options?: PaginationOptions): Promise<PaginatedResult<PostRecord>> {
+  async getRecentPosts(
+    options?: PaginationOptions
+  ): Promise<PaginatedResult<PostRecord>> {
     const limit = options?.limit ?? 100;
     const offset = options?.offset ?? 0;
 
@@ -33,7 +39,9 @@ export class JsonPostAdapter implements PostPort {
       items,
       total: posts.length,
       hasMore,
-      nextCursor: hasMore ? items[items.length - 1]?.timestamp.toISOString() : undefined,
+      nextCursor: hasMore
+        ? items[items.length - 1]?.timestamp.toISOString()
+        : undefined,
     };
   }
 
@@ -109,7 +117,10 @@ export class JsonPostAdapter implements PostPort {
     return { count: posts.length };
   }
 
-  async updatePost(id: string, updates: Partial<PostRecord>): Promise<PostRecord> {
+  async updatePost(
+    id: string,
+    updates: Partial<PostRecord>
+  ): Promise<PostRecord> {
     const existing = this.state.posts[id];
     if (!existing) {
       throw new Error(`Post not found: ${id}`);
@@ -189,4 +200,3 @@ export class JsonPostAdapter implements PostPort {
     return Object.values(this.state.posts).filter((p) => !p.deletedAt).length;
   }
 }
-

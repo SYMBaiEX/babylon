@@ -1,12 +1,16 @@
 import { definePrompt } from '../define-prompt';
-import { PARODY_NAME_RULES, EVENT_CONTINUITY_RULES, ANTI_REPETITION_RULES } from '../shared-sections';
+import {
+  ANTI_REPETITION_RULES,
+  EVENT_CONTINUITY_RULES,
+  PARODY_NAME_RULES,
+} from '../shared-sections';
 
 /**
  * Prompt for generating day-by-day event descriptions with narrative context.
  *
  * Creates detailed event descriptions for each day of the game, including
  * narrative context, actor involvement, and market impacts. Events drive
- * the game's story and affect prediction markets. Uses full narrative 
+ * the game's story and affect prediction markets. Uses full narrative
  * history for rich, connected storytelling.
  *
  * Returns XML with day event descriptions.

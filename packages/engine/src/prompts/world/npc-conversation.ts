@@ -1,12 +1,16 @@
 import { definePrompt } from '../define-prompt';
-import { PARODY_NAME_RULES, ANTI_REPETITION_RULES, characterVoiceGuidance } from '../shared-sections';
+import {
+  ANTI_REPETITION_RULES,
+  characterVoiceGuidance,
+  PARODY_NAME_RULES,
+} from '../shared-sections';
 
 /**
  * Prompt for generating brief conversations between NPCs about game events.
  *
  * Creates natural dialogue between NPCs discussing game events, market
  * movements, or rumors. Captures character voices and relationships while
- * providing world-building context. Uses full narrative history for 
+ * providing world-building context. Uses full narrative history for
  * contextually rich conversations.
  *
  * Returns XML with NPC conversation.

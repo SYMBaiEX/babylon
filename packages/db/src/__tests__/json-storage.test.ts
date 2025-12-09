@@ -5,12 +5,23 @@
  */
 
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
-import { db, initializeJsonMode, resetToPostgresMode, getStorageMode, isSimulationMode } from '../index';
+import {
+  db,
+  getStorageMode,
+  initializeJsonMode,
+  isSimulationMode,
+  resetToPostgresMode,
+} from '../index';
 
 describe('JSON Storage Backend', () => {
   beforeEach(async () => {
     // Use random suffix to avoid state collision
-    await initializeJsonMode('/tmp/babylon-test-' + Date.now() + '-' + Math.random().toString(36).slice(2));
+    await initializeJsonMode(
+      '/tmp/babylon-test-' +
+        Date.now() +
+        '-' +
+        Math.random().toString(36).slice(2)
+    );
   });
 
   afterEach(() => {
@@ -343,7 +354,12 @@ describe('Question Arc Plans in JSON Mode', () => {
 describe('Complex Queries in JSON Mode', () => {
   beforeEach(async () => {
     // Use random suffix to avoid state collision
-    await initializeJsonMode('/tmp/babylon-complex-test-' + Date.now() + '-' + Math.random().toString(36).slice(2));
+    await initializeJsonMode(
+      '/tmp/babylon-complex-test-' +
+        Date.now() +
+        '-' +
+        Math.random().toString(36).slice(2)
+    );
   });
 
   afterEach(() => {
@@ -480,7 +496,7 @@ describe('Complex Queries in JSON Mode', () => {
     expect(result.count).toBe(2);
 
     const agents = await db.user.findMany({ where: { isAgent: true } });
-    expect(agents.every(a => a.reputationPoints === 100)).toBe(true);
+    expect(agents.every((a) => a.reputationPoints === 100)).toBe(true);
   });
 
   test('handles deleteMany', async () => {
@@ -562,7 +578,11 @@ describe('Snapshot Operations', () => {
   let testDir: string;
 
   beforeEach(async () => {
-    testDir = '/tmp/babylon-snapshot-test-' + Date.now() + '-' + Math.random().toString(36).slice(2);
+    testDir =
+      '/tmp/babylon-snapshot-test-' +
+      Date.now() +
+      '-' +
+      Math.random().toString(36).slice(2);
     await initializeJsonMode(testDir);
   });
 
@@ -609,4 +629,3 @@ describe('Snapshot Operations', () => {
     expect(user!.username).toBe('snapshotuser');
   });
 });
-

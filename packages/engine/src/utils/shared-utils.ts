@@ -4,8 +4,8 @@
  * Consolidated utility functions used across the engine
  */
 
+import { CONTEXT_LIMITS, truncateText } from './context-limits';
 import { shuffleArray } from './randomization';
-import { truncateText, CONTEXT_LIMITS } from './context-limits';
 
 /**
  * Format actor voice context with postStyle and randomized postExample
@@ -90,7 +90,7 @@ export function formatActorVoiceContext(actor: {
  *
  * Shuffles order of elements, varies formatting, and includes all character details
  * to ensure each character gets full context when generating individually.
- * 
+ *
  * Includes:
  * - Core identity (description, personality, voice)
  * - Social dynamics (affiliations, allies, enemies)
@@ -202,25 +202,39 @@ export function formatCharacterInfoWithEntropy(actor: {
 
   // ======= CRITICAL: SOCIAL DYNAMICS (Randomized Order) =======
   // These sections are split up so they appear in different random positions
-  
+
   // ALLIES - separate section for maximum visibility
   if (actor.persona?.favorsActors && actor.persona.favorsActors.length > 0) {
-    const allyVerbs = shuffleArray(['defend', 'support', 'back up', 'co-sign', 'ride for', 'stand with']);
+    const allyVerbs = shuffleArray([
+      'defend',
+      'support',
+      'back up',
+      'co-sign',
+      'ride for',
+      'stand with',
+    ]);
     sections.push({
       type: 'allies',
       content: `🟢 YOUR ALLIES (${allyVerbs[0]}, ${allyVerbs[1]}): ${shuffleArray(actor.persona.favorsActors).join(', ')}\n→ When they post, you agree. When they're attacked, you defend.`,
     });
   }
-  
+
   // RIVALS - separate section for maximum visibility
   if (actor.persona?.opposesActors && actor.persona.opposesActors.length > 0) {
-    const rivalVerbs = shuffleArray(['attack', 'undermine', 'subtweet', 'ratio', 'dunk on', 'mock']);
+    const rivalVerbs = shuffleArray([
+      'attack',
+      'undermine',
+      'subtweet',
+      'ratio',
+      'dunk on',
+      'mock',
+    ]);
     sections.push({
       type: 'rivals',
       content: `🔴 YOUR RIVALS (${rivalVerbs[0]}, ${rivalVerbs[1]}): ${shuffleArray(actor.persona.opposesActors).join(', ')}\n→ You have BEEF. Look for opportunities to clown them.`,
     });
   }
-  
+
   // SUPPORTED ORGS - separate section
   if (actor.persona?.favorsOrgs && actor.persona.favorsOrgs.length > 0) {
     sections.push({
@@ -228,7 +242,7 @@ export function formatCharacterInfoWithEntropy(actor: {
       content: `🏢 ORGS YOU SUPPORT: ${shuffleArray(actor.persona.favorsOrgs).join(', ')}\n→ Shill subtly. Their wins are your wins.`,
     });
   }
-  
+
   // OPPOSED ORGS - separate section
   if (actor.persona?.opposesOrgs && actor.persona.opposesOrgs.length > 0) {
     sections.push({
@@ -236,7 +250,7 @@ export function formatCharacterInfoWithEntropy(actor: {
       content: `🚫 ORGS YOU OPPOSE: ${shuffleArray(actor.persona.opposesOrgs).join(', ')}\n→ Spread FUD. Their losses make you happy.`,
     });
   }
-  
+
   // ======= MOTIVATION - randomized framing =======
   if (actor.persona?.selfInterest) {
     const motivationFramings: Record<string, string[]> = {
@@ -258,26 +272,27 @@ export function formatCharacterInfoWithEntropy(actor: {
       chaos: [
         'Motivated by CHAOS 🔥 - stirs drama, provocative, loves to watch things burn',
         'PRIMARY DRIVER: ENTERTAINMENT - you post to get reactions, start fights, cause drama',
-        'AGENT OF CHAOS: You don\'t take sides consistently. You take whatever position causes the most drama.',
+        "AGENT OF CHAOS: You don't take sides consistently. You take whatever position causes the most drama.",
       ],
     };
     const framings = motivationFramings[actor.persona.selfInterest];
     if (framings && framings.length > 0) {
-      const randomFraming = framings[Math.floor(Math.random() * framings.length)];
+      const randomFraming =
+        framings[Math.floor(Math.random() * framings.length)];
       sections.push({
         type: 'motivation',
         content: randomFraming!,
       });
     }
   }
-  
+
   // ======= DECEPTION TENDENCY - split into separate section for visibility =======
   if (actor.persona?.willingToLie !== undefined) {
     if (actor.persona.willingToLie) {
       const deceptionFramings = shuffleArray([
         '🎭 DECEPTION: You LIE strategically. Say whatever benefits you, truth is optional.',
         '⚠️ WILLING TO DECEIVE: You spread FUD, exaggerate, mislead when it serves your interests.',
-        '🐍 STRATEGIC LIAR: Your statements aren\'t always sincere. You manipulate narrative.',
+        "🐍 STRATEGIC LIAR: Your statements aren't always sincere. You manipulate narrative.",
       ]);
       sections.push({
         type: 'deception',
@@ -286,7 +301,7 @@ export function formatCharacterInfoWithEntropy(actor: {
     } else {
       const honestyFramings = shuffleArray([
         '✓ HONEST: You tell the truth (as you see it). Your credibility matters to you.',
-        '📢 STRAIGHT SHOOTER: You don\'t BS. Your takes are genuine, even if unpopular.',
+        "📢 STRAIGHT SHOOTER: You don't BS. Your takes are genuine, even if unpopular.",
         '💎 AUTHENTIC: You say what you mean. People trust your word.',
       ]);
       sections.push({
@@ -297,8 +312,12 @@ export function formatCharacterInfoWithEntropy(actor: {
   }
 
   // Track record (if they have history)
-  if (actor.trackRecord && actor.trackRecord.totalPosts && actor.trackRecord.totalPosts > 0) {
-    const accuracy = actor.trackRecord.historicalAccuracy 
+  if (
+    actor.trackRecord &&
+    actor.trackRecord.totalPosts &&
+    actor.trackRecord.totalPosts > 0
+  ) {
+    const accuracy = actor.trackRecord.historicalAccuracy
       ? `${(actor.trackRecord.historicalAccuracy * 100).toFixed(0)}%`
       : 'unknown';
     sections.push({
@@ -326,7 +345,10 @@ export function formatCharacterInfoWithEntropy(actor: {
   // Post Examples (always include if available)
   if (actor.postExample && actor.postExample.length > 0) {
     const shuffledExamples = shuffleArray(actor.postExample);
-    const examples = shuffledExamples.slice(0, Math.min(5, shuffledExamples.length));
+    const examples = shuffledExamples.slice(
+      0,
+      Math.min(5, shuffledExamples.length)
+    );
 
     const avgLength = Math.round(
       examples.reduce((sum, ex) => sum + ex.length, 0) / examples.length
@@ -362,10 +384,14 @@ export function formatCharacterInfoWithEntropy(actor: {
   if (actor.persona) {
     const personaParts: string[] = [];
     if (actor.persona.reliability !== undefined) {
-      personaParts.push(`Reliability: ${(actor.persona.reliability * 100).toFixed(0)}%`);
+      personaParts.push(
+        `Reliability: ${(actor.persona.reliability * 100).toFixed(0)}%`
+      );
     }
     if (actor.persona.expertise && actor.persona.expertise.length > 0) {
-      personaParts.push(`Expert in: ${shuffleArray(actor.persona.expertise).join(', ')}`);
+      personaParts.push(
+        `Expert in: ${shuffleArray(actor.persona.expertise).join(', ')}`
+      );
     }
     if (personaParts.length > 0) {
       sections.push({
@@ -389,9 +415,13 @@ export function formatCharacterInfoWithEntropy(actor: {
   const shuffledNonExamples = shuffleArray(nonExampleSections);
 
   // Build final output with varied formatting
-  parts.push(`╔══════════════════════════════════════════════════════════════════╗`);
+  parts.push(
+    `╔══════════════════════════════════════════════════════════════════╗`
+  );
   parts.push(`║ CHARACTER: ${actorName.toUpperCase()}`);
-  parts.push(`╚══════════════════════════════════════════════════════════════════╝`);
+  parts.push(
+    `╚══════════════════════════════════════════════════════════════════╝`
+  );
 
   // Add shuffled sections
   shuffledNonExamples.forEach((section) => {
@@ -407,7 +437,12 @@ export function formatCharacterInfoWithEntropy(actor: {
 }
 
 /** Phase name constants */
-export type GamePhase = 'WILD' | 'CONNECTION' | 'CONVERGENCE' | 'CLIMAX' | 'RESOLUTION';
+export type GamePhase =
+  | 'WILD'
+  | 'CONNECTION'
+  | 'CONVERGENCE'
+  | 'CLIMAX'
+  | 'RESOLUTION';
 
 /** Get the current phase based on game day */
 export function getPhaseForDay(day: number): GamePhase {
@@ -419,62 +454,63 @@ export function getPhaseForDay(day: number): GamePhase {
 }
 
 /** Phase guidance content (shared between all phase context builders) */
-const PHASE_GUIDANCE: Record<GamePhase, { range: string; bullets: string[] }> = {
-  WILD: {
-    range: 'Days 1-10',
-    bullets: [
-      'Generate mysterious, disconnected events',
-      'Drop vague hints and rumors',
-      'Create speculation and uncertainty',
-      'Events feel random and chaotic',
-      'Minimal concrete information',
-      'Seeds of storylines being planted',
-    ],
-  },
-  CONNECTION: {
-    range: 'Days 11-20',
-    bullets: [
-      'Begin connecting previous events',
-      'Reveal relationships between actors',
-      'Provide more concrete information',
-      'Story threads start emerging',
-      'Patterns become visible',
-      'Narratives begin to take shape',
-    ],
-  },
-  CONVERGENCE: {
-    range: 'Days 21-25',
-    bullets: [
-      'Major storyline convergence',
-      'Big revelations about questions',
-      'Clear narrative threads',
-      'Dramatic developments accelerating',
-      'Truth starts emerging',
-      'Stakes are raised significantly',
-    ],
-  },
-  CLIMAX: {
-    range: 'Days 26-29',
-    bullets: [
-      'Maximum drama and uncertainty',
-      'Conflicting final clues',
-      'Rapid developments',
-      'High stakes moments',
-      'Resolution seems imminent',
-      'Tension at peak',
-    ],
-  },
-  RESOLUTION: {
-    range: 'Day 30',
-    bullets: [
-      'Definitive outcomes',
-      'All questions resolved',
-      'Epilogue content',
-      'Narrative closure',
-      'The story concludes with clear endings',
-    ],
-  },
-};
+const PHASE_GUIDANCE: Record<GamePhase, { range: string; bullets: string[] }> =
+  {
+    WILD: {
+      range: 'Days 1-10',
+      bullets: [
+        'Generate mysterious, disconnected events',
+        'Drop vague hints and rumors',
+        'Create speculation and uncertainty',
+        'Events feel random and chaotic',
+        'Minimal concrete information',
+        'Seeds of storylines being planted',
+      ],
+    },
+    CONNECTION: {
+      range: 'Days 11-20',
+      bullets: [
+        'Begin connecting previous events',
+        'Reveal relationships between actors',
+        'Provide more concrete information',
+        'Story threads start emerging',
+        'Patterns become visible',
+        'Narratives begin to take shape',
+      ],
+    },
+    CONVERGENCE: {
+      range: 'Days 21-25',
+      bullets: [
+        'Major storyline convergence',
+        'Big revelations about questions',
+        'Clear narrative threads',
+        'Dramatic developments accelerating',
+        'Truth starts emerging',
+        'Stakes are raised significantly',
+      ],
+    },
+    CLIMAX: {
+      range: 'Days 26-29',
+      bullets: [
+        'Maximum drama and uncertainty',
+        'Conflicting final clues',
+        'Rapid developments',
+        'High stakes moments',
+        'Resolution seems imminent',
+        'Tension at peak',
+      ],
+    },
+    RESOLUTION: {
+      range: 'Day 30',
+      bullets: [
+        'Definitive outcomes',
+        'All questions resolved',
+        'Epilogue content',
+        'Narrative closure',
+        'The story concludes with clear endings',
+      ],
+    },
+  };
 
 /**
  * Build phase-specific narrative context for LLM prompts
@@ -482,7 +518,7 @@ const PHASE_GUIDANCE: Record<GamePhase, { range: string; bullets: string[] }> = 
 export function buildPhaseContext(day: number): string {
   const phase = getPhaseForDay(day);
   const { range, bullets } = PHASE_GUIDANCE[phase];
-  return `Phase: ${phase} (${range})\n${bullets.map(b => `- ${b}`).join('\n')}`;
+  return `Phase: ${phase} (${range})\n${bullets.map((b) => `- ${b}`).join('\n')}`;
 }
 
 /**
@@ -522,10 +558,10 @@ export function generateBehavioralModifier(): string {
     '💡 THIS POST: Consider your allies. Can you co-sign or defend them?',
     '💡 THIS POST: Consider your rivals. Can you subtweet or dunk on them?',
     '💡 THIS POST: Be authentic to your voice. Short? Long? ALL CAPS? lowercase?',
-    '💡 THIS POST: Show your expertise. What do you know that others don\'t?',
+    "💡 THIS POST: Show your expertise. What do you know that others don't?",
     '💡 THIS POST: React emotionally. How does this make you FEEL?',
     '💡 THIS POST: Think about your bag. How does this affect your interests?',
-    '💡 THIS POST: Be provocative. What\'s the take that gets engagement?',
+    "💡 THIS POST: Be provocative. What's the take that gets engagement?",
     '💡 THIS POST: Connect to a broader narrative. What story is this part of?',
     '💡 THIS POST: Flex your position. What do you know from your org?',
   ]);
@@ -548,18 +584,24 @@ export function buildCharacterFeedContext(options: {
 }): string {
   // Build sections with randomized order for maximum entropy
   const sections: Array<{ priority: number; content: string }> = [];
-  
+
   // Character info gets random priority 1-3 (usually high but not always first!)
   sections.push({
     priority: 1 + Math.floor(Math.random() * 3),
-    content: truncateText(options.characterInfo, CONTEXT_LIMITS.MAX_SECTION_LENGTH),
+    content: truncateText(
+      options.characterInfo,
+      CONTEXT_LIMITS.MAX_SECTION_LENGTH
+    ),
   });
 
   // Comprehensive context (personal history) - random priority 2-5
   if (options.comprehensiveContext) {
     sections.push({
       priority: 2 + Math.floor(Math.random() * 4),
-      content: truncateText(options.comprehensiveContext, CONTEXT_LIMITS.MAX_SECTION_LENGTH),
+      content: truncateText(
+        options.comprehensiveContext,
+        CONTEXT_LIMITS.MAX_SECTION_LENGTH
+      ),
     });
   }
 
@@ -567,31 +609,43 @@ export function buildCharacterFeedContext(options: {
   if (options.trendingTopics) {
     sections.push({
       priority: 3 + Math.floor(Math.random() * 8),
-      content: truncateText(`\n=== TRENDING TOPICS ===\n${options.trendingTopics}`, CONTEXT_LIMITS.MAX_SECTION_LENGTH),
+      content: truncateText(
+        `\n=== TRENDING TOPICS ===\n${options.trendingTopics}`,
+        CONTEXT_LIMITS.MAX_SECTION_LENGTH
+      ),
     });
   }
 
   if (options.currentEvents) {
     sections.push({
       priority: 3 + Math.floor(Math.random() * 8),
-      content: truncateText(`\n=== TODAY'S EVENTS ===\n${options.currentEvents}`, CONTEXT_LIMITS.MAX_SECTION_LENGTH),
+      content: truncateText(
+        `\n=== TODAY'S EVENTS ===\n${options.currentEvents}`,
+        CONTEXT_LIMITS.MAX_SECTION_LENGTH
+      ),
     });
   }
 
   if (options.ongoingNarratives) {
     sections.push({
       priority: 3 + Math.floor(Math.random() * 8),
-      content: truncateText(`\n=== ONGOING NARRATIVES ===\n${options.ongoingNarratives}`, CONTEXT_LIMITS.MAX_SECTION_LENGTH),
+      content: truncateText(
+        `\n=== ONGOING NARRATIVES ===\n${options.ongoingNarratives}`,
+        CONTEXT_LIMITS.MAX_SECTION_LENGTH
+      ),
     });
   }
 
   if (options.recentPosts) {
     sections.push({
       priority: 3 + Math.floor(Math.random() * 8),
-      content: truncateText(`\n=== RECENT POSTS FROM OTHERS ===\n${options.recentPosts}`, CONTEXT_LIMITS.MAX_SECTION_LENGTH),
+      content: truncateText(
+        `\n=== RECENT POSTS FROM OTHERS ===\n${options.recentPosts}`,
+        CONTEXT_LIMITS.MAX_SECTION_LENGTH
+      ),
     });
   }
-  
+
   // Add behavioral modifier (helps vary which trait is emphasized)
   if (options.behavioralModifier !== false) {
     sections.push({
@@ -608,7 +662,7 @@ export function buildCharacterFeedContext(options: {
     return a.priority - b.priority;
   });
 
-  const fullContext = sortedSections.map(s => s.content).join('\n');
+  const fullContext = sortedSections.map((s) => s.content).join('\n');
   return truncateText(fullContext, CONTEXT_LIMITS.MAX_TOTAL_CONTEXT_LENGTH);
 }
 
@@ -630,9 +684,7 @@ export async function rateLimitedParallel<T>(
 
   for (let i = 0; i < tasks.length; i += batchSize) {
     const batch = tasks.slice(i, i + batchSize);
-    const batchResults = await Promise.allSettled(
-      batch.map((task) => task())
-    );
+    const batchResults = await Promise.allSettled(batch.map((task) => task()));
 
     for (const result of batchResults) {
       if (result.status === 'fulfilled') {

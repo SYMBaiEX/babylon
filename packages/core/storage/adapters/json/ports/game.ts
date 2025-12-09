@@ -3,7 +3,11 @@
  */
 
 import type { GamePort } from '../../../ports/game';
-import type { GameRecord, StockPriceRecord, WorldEventRecord } from '../../../types';
+import type {
+  GameRecord,
+  StockPriceRecord,
+  WorldEventRecord,
+} from '../../../types';
 import type { JsonIdGenerator } from '../id-generator';
 import type { JsonStorageState } from '../types';
 
@@ -115,7 +119,8 @@ export class JsonGameAdapter implements GamePort {
       organizationId,
       price: data.closePrice,
       change: data.closePrice - data.openPrice,
-      changePercent: ((data.closePrice - data.openPrice) / data.openPrice) * 100,
+      changePercent:
+        ((data.closePrice - data.openPrice) / data.openPrice) * 100,
       isSnapshot: true,
       openPrice: data.openPrice,
       highPrice: data.highPrice,
@@ -128,18 +133,23 @@ export class JsonGameAdapter implements GamePort {
     return record;
   }
 
-  async getPriceHistory(organizationId: string, limit = 1440): Promise<StockPriceRecord[]> {
+  async getPriceHistory(
+    organizationId: string,
+    limit = 1440
+  ): Promise<StockPriceRecord[]> {
     return this.state.stockPrices
       .filter((p) => p.organizationId === organizationId)
       .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
       .slice(0, limit);
   }
 
-  async getDailySnapshots(organizationId: string, days = 30): Promise<StockPriceRecord[]> {
+  async getDailySnapshots(
+    organizationId: string,
+    days = 30
+  ): Promise<StockPriceRecord[]> {
     return this.state.stockPrices
       .filter((p) => p.organizationId === organizationId && p.isSnapshot)
       .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
       .slice(0, days);
   }
 }
-

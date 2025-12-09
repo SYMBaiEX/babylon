@@ -1,5 +1,9 @@
 import { definePrompt } from '../define-prompt';
-import { PARODY_NAME_RULES, QUESTION_CONTINUITY_RULES, ANTI_REPETITION_RULES } from '../shared-sections';
+import {
+  ANTI_REPETITION_RULES,
+  PARODY_NAME_RULES,
+  QUESTION_CONTINUITY_RULES,
+} from '../shared-sections';
 
 /**
  * Prompt for generating new prediction market questions for daily gameplay.
@@ -15,7 +19,8 @@ export const questionGeneration = definePrompt({
   id: 'question-generation',
   version: '6.0.0',
   category: 'game',
-  description: 'Generates new questions with full character and narrative context',
+  description:
+    'Generates new questions with full character and narrative context',
   temperature: 0.9,
   maxTokens: 20000,
   template: `{{realityGrounding}}

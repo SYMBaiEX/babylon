@@ -8,7 +8,11 @@ import type {
   AgentPointsTransactionRecord,
   AgentPort,
 } from '../../../ports/agents';
-import type { AgentConfigRecord, AgentTradeRecord, PaginationOptions } from '../../../types';
+import type {
+  AgentConfigRecord,
+  AgentTradeRecord,
+  PaginationOptions,
+} from '../../../types';
 import type { JsonIdGenerator } from '../id-generator';
 import type { JsonStorageState } from '../types';
 
@@ -64,7 +68,9 @@ export class JsonAgentAdapter implements AgentPort {
     agentUserId: string,
     options?: PaginationOptions & { type?: string; level?: string }
   ): Promise<AgentLogRecord[]> {
-    let logs = this.state.agentLogs.filter((l) => l.agentUserId === agentUserId);
+    let logs = this.state.agentLogs.filter(
+      (l) => l.agentUserId === agentUserId
+    );
 
     if (options?.type) {
       logs = logs.filter((l) => l.type === options.type);
@@ -94,7 +100,10 @@ export class JsonAgentAdapter implements AgentPort {
     return record;
   }
 
-  async getAgentMessages(agentUserId: string, limit = 50): Promise<AgentMessageRecord[]> {
+  async getAgentMessages(
+    agentUserId: string,
+    limit = 50
+  ): Promise<AgentMessageRecord[]> {
     const messages = this.state.agentMessages
       .filter((m) => m.agentUserId === agentUserId)
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
@@ -138,7 +147,10 @@ export class JsonAgentAdapter implements AgentPort {
     return record;
   }
 
-  async getAgentTrades(agentUserId: string, limit = 100): Promise<AgentTradeRecord[]> {
+  async getAgentTrades(
+    agentUserId: string,
+    limit = 100
+  ): Promise<AgentTradeRecord[]> {
     return this.state.agentTrades
       .filter((t) => t.agentUserId === agentUserId)
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
@@ -164,4 +176,3 @@ export class JsonAgentAdapter implements AgentPort {
     );
   }
 }
-

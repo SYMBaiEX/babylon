@@ -66,11 +66,22 @@ export function weightedPick<T>(items: T[], weight: (item: T) => number): T {
 /** Weight by resolution urgency (higher = closer to resolution) */
 export const urgencyWeight = (multiplier = 5) => {
   const now = Date.now();
-  return <T extends { resolutionDate?: Date | string | null }>(q: T): number => {
+  return <T extends { resolutionDate?: Date | string | null }>(
+    q: T
+  ): number => {
     const rd = q.resolutionDate;
     if (!rd) return 1;
     const hours = (new Date(rd).getTime() - now) / 3600000;
-    const urgency = hours < 1 ? 1 : hours < 6 ? 0.8 : hours < 24 ? 0.6 : hours < 72 ? 0.4 : 0.2;
+    const urgency =
+      hours < 1
+        ? 1
+        : hours < 6
+          ? 0.8
+          : hours < 24
+            ? 0.6
+            : hours < 72
+              ? 0.4
+              : 0.2;
     return 1 + urgency * multiplier;
   };
 };
@@ -88,7 +99,10 @@ export interface EventCooldownState {
 }
 
 /** Check if event should fire (mutates lastOccurrence on true) */
-export function shouldFireEvent(state: EventCooldownState, now: number): boolean {
+export function shouldFireEvent(
+  state: EventCooldownState,
+  now: number
+): boolean {
   const elapsed = now - state.lastOccurrence;
   if (elapsed < state.minCooldown) return false;
 
@@ -109,8 +123,18 @@ export function shouldFireEvent(state: EventCooldownState, now: number): boolean
 // =============================================================================
 
 /** Generate noisy sentiment signal (-1 to 1) */
-export const generateSentimentSignal = (positive: boolean, strength: number, noise = 0.2): number =>
-  Math.max(-1, Math.min(1, (positive ? strength : -strength) + (secureRandom() - 0.5) * 2 * noise));
+export const generateSentimentSignal = (
+  positive: boolean,
+  strength: number,
+  noise = 0.2
+): number =>
+  Math.max(
+    -1,
+    Math.min(
+      1,
+      (positive ? strength : -strength) + (secureRandom() - 0.5) * 2 * noise
+    )
+  );
 
 // =============================================================================
 // Seeded PRNG (testing)
@@ -121,7 +145,10 @@ export class SeededRandom {
   private s: [number, number];
 
   constructor(seed: number | string) {
-    const n = typeof seed === 'string' ? seed.split('').reduce((a, c) => a + c.charCodeAt(0), 0) : seed;
+    const n =
+      typeof seed === 'string'
+        ? seed.split('').reduce((a, c) => a + c.charCodeAt(0), 0)
+        : seed;
     this.s = [n ^ 0xdeadbeef, n ^ 0x12345678];
   }
 

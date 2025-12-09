@@ -63,7 +63,13 @@ export interface StaticActor {
 }
 
 /** Organization type enum matching @babylon/shared */
-export type OrgType = 'company' | 'media' | 'government' | 'vc' | 'organization' | 'financial';
+export type OrgType =
+  | 'company'
+  | 'media'
+  | 'government'
+  | 'vc'
+  | 'organization'
+  | 'financial';
 
 /**
  * Static organization data - immutable properties
@@ -535,7 +541,9 @@ export class StaticDataRegistry {
       'organizations',
       `${orgId}.jpg`
     );
-    return existsSync(imagePath) ? `/images/organizations/${orgId}.jpg` : undefined;
+    return existsSync(imagePath)
+      ? `/images/organizations/${orgId}.jpg`
+      : undefined;
   }
 
   private static mapDomainToCategory(domains: string[]): string {

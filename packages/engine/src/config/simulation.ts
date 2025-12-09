@@ -122,4 +122,3 @@ export const SIMULATION_STRATEGIES: readonly SimulationStrategy[] = [
   'contrarian',
   'random',
 ] as const;
-

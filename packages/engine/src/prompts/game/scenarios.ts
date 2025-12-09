@@ -1,5 +1,8 @@
 import { definePrompt } from '../define-prompt';
-import { PARODY_NAME_RULES, NARRATIVE_CONTINUITY_RULES } from '../shared-sections';
+import {
+  NARRATIVE_CONTINUITY_RULES,
+  PARODY_NAME_RULES,
+} from '../shared-sections';
 
 /**
  * Prompt for generating 3 satirical scenarios for game setup.

@@ -1,5 +1,12 @@
 import { relations } from 'drizzle-orm';
-import { index, integer, jsonb, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
+import {
+  index,
+  integer,
+  jsonb,
+  pgTable,
+  text,
+  timestamp,
+} from 'drizzle-orm/pg-core';
 import { questions } from './markets';
 
 /**
@@ -33,12 +40,15 @@ export const questionArcPlans = pgTable(
   (t) => [index('QuestionArcPlan_questionId_idx').on(t.questionId)]
 );
 
-export const questionArcPlansRelations = relations(questionArcPlans, ({ one }) => ({
-  question: one(questions, {
-    fields: [questionArcPlans.questionId],
-    references: [questions.id],
-  }),
-}));
+export const questionArcPlansRelations = relations(
+  questionArcPlans,
+  ({ one }) => ({
+    question: one(questions, {
+      fields: [questionArcPlans.questionId],
+      references: [questions.id],
+    }),
+  })
+);
 
 export type QuestionArcPlan = typeof questionArcPlans.$inferSelect;
 export type NewQuestionArcPlan = typeof questionArcPlans.$inferInsert;

@@ -259,7 +259,10 @@ async function getTagDetails(
     .from(tags)
     .where(inArray(tags.id, tagIds));
 
-  const result = new Map<string, { name: string; displayName: string | null }>();
+  const result = new Map<
+    string,
+    { name: string; displayName: string | null }
+  >();
   for (const row of tagRows) {
     result.set(row.id, { name: row.name, displayName: row.displayName });
   }

@@ -6,12 +6,7 @@
  * managing balances in the actorState table.
  */
 import type { WalletPort } from '@babylon/core/markets/shared/common';
-import {
-  actorState,
-  db as defaultDb,
-  eq,
-  type Transaction,
-} from '@babylon/db';
+import { actorState, db as defaultDb, eq, type Transaction } from '@babylon/db';
 
 type DbClient = typeof defaultDb | Transaction;
 
@@ -110,4 +105,3 @@ export function createNpcWalletAdapter(
     },
   };
 }
-

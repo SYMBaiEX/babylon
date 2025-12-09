@@ -1,5 +1,5 @@
 import { definePrompt } from '../define-prompt';
-import { PARODY_NAME_RULES, ANTI_REPETITION_RULES } from '../shared-sections';
+import { ANTI_REPETITION_RULES, PARODY_NAME_RULES } from '../shared-sections';
 
 /**
  * Prompt for generating biased news articles about world events.

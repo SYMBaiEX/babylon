@@ -3,7 +3,10 @@
  */
 
 import type { MarketPort } from '../../../ports/markets';
-import type { MarketSnapshotRecord, PredictionMarketRecord } from '../../../types';
+import type {
+  MarketSnapshotRecord,
+  PredictionMarketRecord,
+} from '../../../types';
 import type { JsonIdGenerator } from '../id-generator';
 import type { JsonStorageState } from '../types';
 
@@ -22,8 +25,12 @@ export class JsonMarketAdapter implements MarketPort {
     return Object.values(this.state.markets).filter((m) => !m.resolved);
   }
 
-  async getMarketsByCategory(category: string): Promise<PredictionMarketRecord[]> {
-    return Object.values(this.state.markets).filter((m) => m.category === category);
+  async getMarketsByCategory(
+    category: string
+  ): Promise<PredictionMarketRecord[]> {
+    return Object.values(this.state.markets).filter(
+      (m) => m.category === category
+    );
   }
 
   async createMarket(
@@ -84,7 +91,10 @@ export class JsonMarketAdapter implements MarketPort {
     this.onChange();
   }
 
-  async getMarketSnapshots(marketId: string, limit = 100): Promise<MarketSnapshotRecord[]> {
+  async getMarketSnapshots(
+    marketId: string,
+    limit = 100
+  ): Promise<MarketSnapshotRecord[]> {
     return this.state.marketSnapshots
       .filter((s) => s.marketId === marketId)
       .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
@@ -104,4 +114,3 @@ export class JsonMarketAdapter implements MarketPort {
     return record;
   }
 }
-

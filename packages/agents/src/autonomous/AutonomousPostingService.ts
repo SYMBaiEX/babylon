@@ -9,9 +9,9 @@ import { agentTrades, db, desc, eq, posts, users } from '@babylon/db';
 import {
   characterMappingService,
   formatRandomContext,
+  type GeneratedTag,
   generateRandomMarketContext,
   generateTagsFromPost,
-  type GeneratedTag,
   generateWorldContext,
   storeTagsForPost,
 } from '@babylon/engine';

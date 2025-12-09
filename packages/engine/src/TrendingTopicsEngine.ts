@@ -116,8 +116,13 @@ export class TrendingTopicsEngine {
     }
 
     // Only update every N ticks (unless forced or first update)
-    const isFirstUpdate = this.lastUpdateTick === 0 && this.currentTrends.length === 0;
-    if (!forceUpdate && !isFirstUpdate && currentTick - this.lastUpdateTick < this.updateInterval) {
+    const isFirstUpdate =
+      this.lastUpdateTick === 0 && this.currentTrends.length === 0;
+    if (
+      !forceUpdate &&
+      !isFirstUpdate &&
+      currentTick - this.lastUpdateTick < this.updateInterval
+    ) {
       return;
     }
 
@@ -152,7 +157,11 @@ export class TrendingTopicsEngine {
     const newTopicsHash = this.computeTopicsHash(topTopics);
     const hasSignificantChange = this.hasTopicsChanged(topTopics);
 
-    if (!forceUpdate && !hasSignificantChange && this.currentTrends.length > 0) {
+    if (
+      !forceUpdate &&
+      !hasSignificantChange &&
+      this.currentTrends.length > 0
+    ) {
       logger.debug(
         `Skipping trend regeneration - topics unchanged (hash: ${newTopicsHash})`,
         { topTopics: topTopics.map((t) => t.tag) },
@@ -239,7 +248,10 @@ export class TrendingTopicsEngine {
     // Also check if scores have changed significantly
     const scoreChange = this.computeScoreChange(newTopics);
 
-    return changeRatio >= TrendingTopicsEngine.MIN_CHANGE_THRESHOLD || scoreChange >= 0.5;
+    return (
+      changeRatio >= TrendingTopicsEngine.MIN_CHANGE_THRESHOLD ||
+      scoreChange >= 0.5
+    );
   }
 
   /**
@@ -483,7 +495,8 @@ export class TrendingTopicsEngine {
 
         const posts = samplePosts
           .map((p) => {
-            const content = p.content.length > 80
+            const content =
+              p.content.length > 80
                 ? p.content.substring(0, 80) + '...'
                 : p.content;
             return `@${p.authorName}:"${content}"`;
@@ -497,11 +510,15 @@ export class TrendingTopicsEngine {
     const prompt = renderPrompt(trendingTopics, { topicsList });
     const params = getPromptParams(trendingTopics);
 
-    const rawResponse = await this.llm.generateJSON<Record<string, unknown>>(prompt, undefined, {
+    const rawResponse = await this.llm.generateJSON<Record<string, unknown>>(
+      prompt,
+      undefined,
+      {
         ...params,
         format: 'xml',
         promptType: 'trending_topics_generate',
-      });
+      }
+    );
 
     // Extract trend descriptions from XML response structure
     const trendDescriptions = this.extractTrendDescriptions(rawResponse);
@@ -517,12 +534,13 @@ export class TrendingTopicsEngine {
         recency: topic.recency,
         score: topic.score,
         trendName: trendName || topic.tag,
-        description: description || `${topic.count} posts discussing ${topic.tag}`,
+        description:
+          description || `${topic.count} posts discussing ${topic.tag}`,
         relatedQuestions: topic.relatedQuestions,
         samplePosts: topic.samplePosts,
       };
     });
-    }
+  }
 
   /**
    * Extract trend descriptions from LLM response (handles XML structure variations)
@@ -532,22 +550,34 @@ export class TrendingTopicsEngine {
   ): Array<{ trendName: string; description: string }> {
     // Direct trends array
     if ('trends' in rawResponse && Array.isArray(rawResponse.trends)) {
-      return rawResponse.trends as Array<{ trendName: string; description: string }>;
+      return rawResponse.trends as Array<{
+        trendName: string;
+        description: string;
+      }>;
     }
 
     // Wrapped in response object
     if ('response' in rawResponse && rawResponse.response) {
       const response = rawResponse.response as Record<string, unknown>;
       if ('trends' in response && Array.isArray(response.trends)) {
-        return response.trends as Array<{ trendName: string; description: string }>;
+        return response.trends as Array<{
+          trendName: string;
+          description: string;
+        }>;
       }
       // Single trend wrapped in object
-      if ('trends' in response && response.trends && typeof response.trends === 'object') {
+      if (
+        'trends' in response &&
+        response.trends &&
+        typeof response.trends === 'object'
+      ) {
         const trendsObj = response.trends as Record<string, unknown>;
         if ('trend' in trendsObj) {
           const trendData = trendsObj.trend;
-          return Array.isArray(trendData) ? trendData : [trendData as { trendName: string; description: string }];
-    }
+          return Array.isArray(trendData)
+            ? trendData
+            : [trendData as { trendName: string; description: string }];
+        }
       }
     }
 
@@ -576,7 +606,7 @@ export class TrendingTopicsEngine {
    */
   getUpdateInterval(): number {
     return this.updateInterval;
-      }
+  }
 
   /**
    * Force a trend update regardless of interval or change detection
@@ -589,7 +619,7 @@ export class TrendingTopicsEngine {
     currentTick: number
   ): Promise<void> {
     await this.updateTrends(recentPosts, currentTick, true);
-      }
+  }
 
   /**
    * Check if trends need updating (for external callers)

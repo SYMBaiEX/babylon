@@ -47,15 +47,15 @@
 
 import {
   db,
+  isSimulationMode as dbIsSimulationMode,
+  exportJsonState,
   getStorageMode,
   initializeJsonMode,
   initializeMemoryMode,
-  isSimulationMode as dbIsSimulationMode,
-  resetToPostgresMode,
-  saveJsonSnapshot,
-  exportJsonState,
   loadJsonSnapshot,
+  resetToPostgresMode,
   type StorageMode,
+  saveJsonSnapshot,
 } from '@babylon/db';
 
 // Re-export db for convenience
@@ -68,7 +68,9 @@ export { getStorageMode, type StorageMode };
  * Initialize the engine in simulation mode.
  * All data will be stored in JSON files, no database required.
  */
-export async function initializeSimulationMode(basePath = './simulation-data'): Promise<void> {
+export async function initializeSimulationMode(
+  basePath = './simulation-data'
+): Promise<void> {
   await initializeJsonMode(basePath);
 }
 

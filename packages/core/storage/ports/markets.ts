@@ -1,6 +1,6 @@
 /**
  * Market Storage Port
- * 
+ *
  * Defines the interface for prediction market data access.
  */
 
@@ -11,10 +11,15 @@ export interface MarketPort {
   getMarket(id: string): Promise<PredictionMarketRecord | null>;
   getActiveMarkets(): Promise<PredictionMarketRecord[]>;
   getMarketsByCategory(category: string): Promise<PredictionMarketRecord[]>;
-  createMarket(market: Omit<PredictionMarketRecord, 'createdAt'>): Promise<PredictionMarketRecord>;
-  updateMarket(id: string, updates: Partial<PredictionMarketRecord>): Promise<PredictionMarketRecord>;
+  createMarket(
+    market: Omit<PredictionMarketRecord, 'createdAt'>
+  ): Promise<PredictionMarketRecord>;
+  updateMarket(
+    id: string,
+    updates: Partial<PredictionMarketRecord>
+  ): Promise<PredictionMarketRecord>;
   resolveMarket(id: string, outcome: boolean): Promise<void>;
-  
+
   // Market shares update (for trading)
   updateMarketShares(
     id: string,
@@ -22,9 +27,13 @@ export interface MarketPort {
     noShares: string,
     liquidity: string
   ): Promise<void>;
-  
-  // Market Snapshots (price history)
-  getMarketSnapshots(marketId: string, limit?: number): Promise<MarketSnapshotRecord[]>;
-  recordMarketSnapshot(snapshot: Omit<MarketSnapshotRecord, 'id' | 'timestamp'>): Promise<MarketSnapshotRecord>;
-}
 
+  // Market Snapshots (price history)
+  getMarketSnapshots(
+    marketId: string,
+    limit?: number
+  ): Promise<MarketSnapshotRecord[]>;
+  recordMarketSnapshot(
+    snapshot: Omit<MarketSnapshotRecord, 'id' | 'timestamp'>
+  ): Promise<MarketSnapshotRecord>;
+}

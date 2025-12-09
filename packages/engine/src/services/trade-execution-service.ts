@@ -7,10 +7,7 @@
  * NPC perp trades now use PerpMarketService for consistency with user trades,
  * ensuring funding and liquidation logic applies uniformly.
  */
-import {
-  PerpDbAdapter,
-  PerpMarketService,
-} from '@babylon/core/markets/perps';
+import { PerpDbAdapter, PerpMarketService } from '@babylon/core/markets/perps';
 import {
   actorState,
   db,

@@ -9,11 +9,11 @@ import {
   biasedRandomCount,
   type EventCooldownState,
   generateSentimentSignal,
+  SeededRandom,
   securePickN,
   secureRandom,
   secureRandomInt,
   secureShuffle,
-  SeededRandom,
   shouldFireEvent,
   urgencyWeight,
   weightedPick,
@@ -111,7 +111,9 @@ describe('Entropy - Weighted Selection', () => {
 
   test('urgencyWeight returns higher weight for closer resolution', () => {
     const soon = { resolutionDate: new Date(Date.now() + 30 * 60 * 1000) }; // 30 min
-    const later = { resolutionDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) }; // 7 days
+    const later = {
+      resolutionDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+    }; // 7 days
 
     const weightFn = urgencyWeight(5);
     expect(weightFn(soon)).toBeGreaterThan(weightFn(later));
@@ -288,4 +290,3 @@ describe('Entropy - SeededRandom', () => {
     expect(rng1.shuffle(arr)).toEqual(rng2.shuffle(arr));
   });
 });
-

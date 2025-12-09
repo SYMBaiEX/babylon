@@ -48,8 +48,10 @@ export class JsonActorAdapter implements ActorPort {
 
     const updated: ActorStateRecord = {
       id: state.id,
-      tradingBalance: state.tradingBalance ?? existing?.tradingBalance ?? '10000',
-      reputationPoints: state.reputationPoints ?? existing?.reputationPoints ?? 10000,
+      tradingBalance:
+        state.tradingBalance ?? existing?.tradingBalance ?? '10000',
+      reputationPoints:
+        state.reputationPoints ?? existing?.reputationPoints ?? 10000,
       hasPool: state.hasPool ?? existing?.hasPool ?? false,
       updatedAt: now,
     };
@@ -94,10 +96,14 @@ export class JsonOrganizationAdapter implements OrganizationPort {
   }
 
   async getOrganizationsByType(type: string): Promise<OrganizationRecord[]> {
-    return Object.values(this.state.organizations).filter((o) => o.type === type);
+    return Object.values(this.state.organizations).filter(
+      (o) => o.type === type
+    );
   }
 
-  async getOrganizationByTicker(ticker: string): Promise<OrganizationRecord | null> {
+  async getOrganizationByTicker(
+    ticker: string
+  ): Promise<OrganizationRecord | null> {
     const upperTicker = ticker.toUpperCase();
     return (
       Object.values(this.state.organizations).find(
@@ -106,7 +112,9 @@ export class JsonOrganizationAdapter implements OrganizationPort {
     );
   }
 
-  async getOrganizationState(id: string): Promise<OrganizationStateRecord | null> {
+  async getOrganizationState(
+    id: string
+  ): Promise<OrganizationStateRecord | null> {
     return this.state.organizationStates[id] ?? null;
   }
 
@@ -134,4 +142,3 @@ export class JsonOrganizationAdapter implements OrganizationPort {
     await this.upsertOrganizationState(id, price);
   }
 }
-

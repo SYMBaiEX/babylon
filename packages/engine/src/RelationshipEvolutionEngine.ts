@@ -577,7 +577,8 @@ Return JSON: { "description": "...", "type": "...", "sentiment": 0.0 }`;
       id: rel.id,
       actor1Id: rel.actor1Id,
       actor2Id: rel.actor2Id,
-      relationshipType: rel.relationshipType as ActorRelationship['relationshipType'],
+      relationshipType:
+        rel.relationshipType as ActorRelationship['relationshipType'],
       strength: rel.strength,
       sentiment: rel.sentiment,
       isPublic: rel.isPublic,
@@ -618,7 +619,8 @@ Return JSON: { "description": "...", "type": "...", "sentiment": 0.0 }`;
       id: relationship.id,
       actor1Id: relationship.actor1Id,
       actor2Id: relationship.actor2Id,
-      relationshipType: relationship.relationshipType as ActorRelationship['relationshipType'],
+      relationshipType:
+        relationship.relationshipType as ActorRelationship['relationshipType'],
       strength: relationship.strength,
       sentiment: relationship.sentiment,
       isPublic: relationship.isPublic,

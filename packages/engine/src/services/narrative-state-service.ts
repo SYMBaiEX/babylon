@@ -13,7 +13,10 @@ import type { QuestionArcPlan as ArcPlanType } from './question-arc-planner';
 const ratio = (correct: number, wrong: number) => correct / (correct + wrong);
 
 /** Save arc plan for a question */
-export async function saveArcPlan(questionId: string, arc: ArcPlanType): Promise<void> {
+export async function saveArcPlan(
+  questionId: string,
+  arc: ArcPlanType
+): Promise<void> {
   await db.questionArcPlan.create({
     data: {
       id: await generateSnowflakeId(),
@@ -24,9 +27,18 @@ export async function saveArcPlan(questionId: string, arc: ArcPlanType): Promise
       insiderActorIds: arc.insiders,
       deceiverActorIds: arc.deceivers,
       phaseRatios: {
-        early: ratio(arc.phases.early.targetCorrectSignals, arc.phases.early.targetWrongSignals),
-        middle: ratio(arc.phases.middle.targetCorrectSignals, arc.phases.middle.targetWrongSignals),
-        late: ratio(arc.phases.late.targetCorrectSignals, arc.phases.late.targetWrongSignals),
+        early: ratio(
+          arc.phases.early.targetCorrectSignals,
+          arc.phases.early.targetWrongSignals
+        ),
+        middle: ratio(
+          arc.phases.middle.targetCorrectSignals,
+          arc.phases.middle.targetWrongSignals
+        ),
+        late: ratio(
+          arc.phases.late.targetCorrectSignals,
+          arc.phases.late.targetWrongSignals
+        ),
         climax: 1.0,
       },
       createdAt: new Date(),

@@ -1,10 +1,10 @@
 /**
  * JSON Storage Provider Tests
- * 
+ *
  * Tests the JSON-based storage implementation for simulation/training.
  */
 
-import { describe, test, expect, beforeEach } from 'bun:test';
+import { beforeEach, describe, expect, test } from 'bun:test';
 import { JsonStorageProvider } from '../adapters/json';
 
 describe('JsonStorageProvider', () => {
@@ -22,7 +22,7 @@ describe('JsonStorageProvider', () => {
   describe('Game Port', () => {
     test('initializes game state', async () => {
       const game = await provider.game.initializeGame();
-      
+
       expect(game).toBeDefined();
       expect(game.id).toBeDefined();
       expect(game.isContinuous).toBe(true);
@@ -32,18 +32,18 @@ describe('JsonStorageProvider', () => {
     test('returns existing game on re-initialization', async () => {
       const game1 = await provider.game.initializeGame();
       const game2 = await provider.game.initializeGame();
-      
+
       expect(game1.id).toBe(game2.id);
     });
 
     test('updates game state', async () => {
       await provider.game.initializeGame();
-      
+
       const updated = await provider.game.updateGameState({
         currentDay: 5,
         isRunning: false,
       });
-      
+
       expect(updated.currentDay).toBe(5);
       expect(updated.isRunning).toBe(false);
     });
@@ -59,10 +59,10 @@ describe('JsonStorageProvider', () => {
         relatedQuestion: 1,
         dayNumber: 1,
       });
-      
+
       expect(event.id).toBe('test-event-1');
       expect(event.timestamp).toBeInstanceOf(Date);
-      
+
       const events = await provider.game.getRecentEvents(10);
       expect(events.length).toBe(1);
       expect(events[0]!.id).toBe('test-event-1');
@@ -77,12 +77,12 @@ describe('JsonStorageProvider', () => {
         reputationPoints: 15000,
         hasPool: true,
       });
-      
+
       expect(state.id).toBe('test-actor');
       expect(state.tradingBalance).toBe('50000');
       expect(state.reputationPoints).toBe(15000);
       expect(state.hasPool).toBe(true);
-      
+
       const retrieved = await provider.actors.getActorState('test-actor');
       expect(retrieved).toEqual(state);
     });
@@ -94,9 +94,9 @@ describe('JsonStorageProvider', () => {
         reputationPoints: 10000,
         hasPool: false,
       });
-      
+
       await provider.actors.updateActorBalance('test-actor', 25000);
-      
+
       const state = await provider.actors.getActorState('test-actor');
       expect(state?.tradingBalance).toBe('25000');
     });
@@ -111,11 +111,11 @@ describe('JsonStorageProvider', () => {
         authorId: 'author-1',
         timestamp: new Date(),
       });
-      
+
       expect(post.id).toBe('post-1');
       expect(post.likeCount).toBe(0);
       expect(post.commentCount).toBe(0);
-      
+
       const retrieved = await provider.posts.getPost('post-1');
       expect(retrieved?.content).toBe('Test post content');
     });
@@ -128,10 +128,10 @@ describe('JsonStorageProvider', () => {
         authorId: 'author-1',
         timestamp: new Date(),
       });
-      
+
       await provider.posts.incrementLikeCount('post-2');
       await provider.posts.incrementLikeCount('post-2');
-      
+
       const post = await provider.posts.getPost('post-2');
       expect(post?.likeCount).toBe(2);
     });
@@ -146,12 +146,15 @@ describe('JsonStorageProvider', () => {
           timestamp: new Date(Date.now() + i * 1000),
         });
       }
-      
+
       const page1 = await provider.posts.getRecentPosts({ limit: 2 });
       expect(page1.items.length).toBe(2);
       expect(page1.hasMore).toBe(true);
-      
-      const page2 = await provider.posts.getRecentPosts({ limit: 2, offset: 2 });
+
+      const page2 = await provider.posts.getRecentPosts({
+        limit: 2,
+        offset: 2,
+      });
       expect(page2.items.length).toBe(2);
     });
   });
@@ -167,7 +170,7 @@ describe('JsonStorageProvider', () => {
         status: 'active',
         resolutionDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
       });
-      
+
       expect(question.id).toBeDefined();
       expect(question.text).toBe('Will the test pass?');
       expect(question.status).toBe('active');
@@ -183,8 +186,11 @@ describe('JsonStorageProvider', () => {
         status: 'active',
         resolutionDate: new Date(),
       });
-      
-      const resolved = await provider.questions.resolveQuestion(question.id, true);
+
+      const resolved = await provider.questions.resolveQuestion(
+        question.id,
+        true
+      );
       expect(resolved.status).toBe('resolved');
       expect(resolved.resolvedOutcome).toBe(true);
     });
@@ -199,7 +205,7 @@ describe('JsonStorageProvider', () => {
         status: 'active',
         resolutionDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
       });
-      
+
       const active = await provider.questions.getActiveQuestions();
       expect(active.length).toBe(1);
     });
@@ -218,10 +224,10 @@ describe('JsonStorageProvider', () => {
         resolved: false,
         endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
       });
-      
+
       expect(market.id).toBe('market-1');
       expect(market.title).toBe('Test Market');
-      
+
       const retrieved = await provider.markets.getMarket('market-1');
       expect(retrieved?.title).toBe('Test Market');
     });
@@ -236,7 +242,7 @@ describe('JsonStorageProvider', () => {
         resolved: false,
         endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
       });
-      
+
       const active = await provider.markets.getActiveMarkets();
       expect(active.length).toBe(1);
     });
@@ -251,9 +257,9 @@ describe('JsonStorageProvider', () => {
         resolved: false,
         endDate: new Date(),
       });
-      
+
       await provider.markets.resolveMarket('market-3', true);
-      
+
       const market = await provider.markets.getMarket('market-3');
       expect(market?.resolved).toBe(true);
       expect(market?.outcome).toBe(true);
@@ -274,9 +280,9 @@ describe('JsonStorageProvider', () => {
         shares: 1818,
         unrealizedPnL: 0,
       });
-      
+
       expect(position.id).toBe('position-1');
-      
+
       const retrieved = await provider.trading.getPosition('position-1');
       expect(retrieved?.side).toBe('YES');
     });
@@ -288,13 +294,13 @@ describe('JsonStorageProvider', () => {
         marketType: 'prediction',
         marketId: 'market-1',
         side: 'YES',
-        entryPrice: 0.50,
-        currentPrice: 0.60,
+        entryPrice: 0.5,
+        currentPrice: 0.6,
         size: 1000,
         shares: 2000,
         unrealizedPnL: 200,
       });
-      
+
       const closed = await provider.trading.closePosition('position-2', 200);
       expect(closed.closedAt).toBeInstanceOf(Date);
       expect(closed.realizedPnL).toBe(200);
@@ -313,10 +319,10 @@ describe('JsonStorageProvider', () => {
         sentiment: 0.8,
         reason: 'Bullish outlook',
       });
-      
+
       expect(trade.id).toBeDefined();
       expect(trade.npcActorId).toBe('npc-1');
-      
+
       const trades = await provider.trading.getNpcTrades('npc-1');
       expect(trades.length).toBe(1);
     });
@@ -334,10 +340,10 @@ describe('JsonStorageProvider', () => {
         reputationPoints: 1000,
         lifetimePnL: '0',
       });
-      
+
       expect(user.id).toBe('user-1');
       expect(user.username).toBe('testuser');
-      
+
       const retrieved = await provider.users.getUser('user-1');
       expect(retrieved?.displayName).toBe('Test User');
     });
@@ -352,7 +358,7 @@ describe('JsonStorageProvider', () => {
         reputationPoints: 1000,
         lifetimePnL: '0',
       });
-      
+
       const found = await provider.users.getUserByUsername('findme');
       expect(found?.id).toBe('user-2');
     });
@@ -368,7 +374,7 @@ describe('JsonStorageProvider', () => {
         reputationPoints: 500,
         lifetimePnL: '0',
       });
-      
+
       const agents = await provider.users.getAgentUsers();
       expect(agents.length).toBe(1);
       expect(agents[0]!.isAgent).toBe(true);
@@ -395,10 +401,10 @@ describe('JsonStorageProvider', () => {
         a2aEnabled: true,
         modelTier: 'pro',
       });
-      
+
       expect(config.id).toBe('config-1');
       expect(config.autonomousTrading).toBe(true);
-      
+
       const retrieved = await provider.agents.getAgentConfig('agent-1');
       expect(retrieved?.personality).toBe('aggressive');
     });
@@ -420,7 +426,7 @@ describe('JsonStorageProvider', () => {
         a2aEnabled: true,
         modelTier: 'free',
       });
-      
+
       await provider.agents.createAgentConfig({
         id: 'config-3',
         userId: 'agent-3',
@@ -437,8 +443,9 @@ describe('JsonStorageProvider', () => {
         a2aEnabled: false,
         modelTier: 'free',
       });
-      
-      const autonomousTraders = await provider.agents.listAgentsWithAutonomousTrading();
+
+      const autonomousTraders =
+        await provider.agents.listAgentsWithAutonomousTrading();
       expect(autonomousTraders.length).toBe(1);
       expect(autonomousTraders[0]!.userId).toBe('agent-2');
     });
@@ -451,10 +458,10 @@ describe('JsonStorageProvider', () => {
         message: 'Executed buy order',
         metadata: { marketId: 'market-1', amount: 1000 },
       });
-      
+
       expect(log.id).toBeDefined();
       expect(log.type).toBe('trade');
-      
+
       const logs = await provider.agents.getAgentLogs('agent-1');
       expect(logs.length).toBe(1);
     });
@@ -465,7 +472,7 @@ describe('JsonStorageProvider', () => {
       // Initialize game
       const game = await provider.game.initializeGame();
       expect(game.isRunning).toBe(true);
-      
+
       // Create actors
       await provider.actors.upsertActorState({
         id: 'marcus-chen',
@@ -473,7 +480,7 @@ describe('JsonStorageProvider', () => {
         reputationPoints: 10000,
         hasPool: false,
       });
-      
+
       // Create a market
       await provider.markets.createMarket({
         id: 'btc-100k',
@@ -484,7 +491,7 @@ describe('JsonStorageProvider', () => {
         resolved: false,
         endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
       });
-      
+
       // Actor makes a trade
       await provider.trading.createNpcTrade({
         npcActorId: 'marcus-chen',
@@ -497,15 +504,15 @@ describe('JsonStorageProvider', () => {
         sentiment: 0.9,
         reason: 'Bullish on BTC adoption',
       });
-      
+
       // Update market shares
       await provider.markets.updateMarketShares(
         'btc-100k',
-        '15000',  // More YES shares bought
+        '15000', // More YES shares bought
         '10000',
-        '25000'   // More liquidity
+        '25000' // More liquidity
       );
-      
+
       // Create position
       await provider.trading.createPosition({
         id: 'pos-marcus-1',
@@ -514,15 +521,15 @@ describe('JsonStorageProvider', () => {
         marketId: 'btc-100k',
         side: 'YES',
         entryPrice: 0.45,
-        currentPrice: 0.60,
+        currentPrice: 0.6,
         size: 5000,
         shares: 11111,
         unrealizedPnL: 1666,
       });
-      
+
       // Update actor balance
       await provider.actors.updateActorBalance('marcus-chen', 45000);
-      
+
       // Actor posts about their trade
       await provider.posts.createPost({
         id: 'post-marcus-1',
@@ -531,7 +538,7 @@ describe('JsonStorageProvider', () => {
         authorId: 'marcus-chen',
         timestamp: new Date(),
       });
-      
+
       // Create world event
       await provider.game.createEvent({
         id: 'event-1',
@@ -542,24 +549,24 @@ describe('JsonStorageProvider', () => {
         pointsToward: 'YES',
         dayNumber: 1,
       });
-      
+
       // Verify state
       const actorState = await provider.actors.getActorState('marcus-chen');
       expect(actorState?.tradingBalance).toBe('45000');
-      
+
       const positions = await provider.trading.getOpenPositions('marcus-chen');
       expect(positions.length).toBe(1);
       expect(positions[0]!.unrealizedPnL).toBe(1666);
-      
+
       const posts = await provider.posts.getRecentPosts();
       expect(posts.items.length).toBe(1);
-      
+
       const trades = await provider.trading.getNpcTrades('marcus-chen');
       expect(trades.length).toBe(1);
-      
+
       const events = await provider.game.getRecentEvents();
       expect(events.length).toBe(1);
-      
+
       // Get full state for inspection
       const state = provider.getState();
       console.log('\n=== Final Simulation State ===');
@@ -572,4 +579,3 @@ describe('JsonStorageProvider', () => {
     });
   });
 });
-

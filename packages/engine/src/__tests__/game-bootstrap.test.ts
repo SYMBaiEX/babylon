@@ -5,8 +5,8 @@
  * Uses the games table only (doesn't depend on ActorState/OrganizationState).
  */
 
-import { db, eq, games, generateSnowflakeId } from '@babylon/db';
 import { afterEach, describe, expect, it } from 'bun:test';
+import { db, eq, games, generateSnowflakeId } from '@babylon/db';
 
 // Test game creation/auto-start logic directly on games table
 describe('Game Auto-Start Logic', () => {
@@ -157,10 +157,7 @@ describe('Game Auto-Start Logic', () => {
       console.log('Created new game with isRunning: true');
 
       // Verify
-      const newGame = await db
-        .select()
-        .from(games)
-        .where(eq(games.id, gameId));
+      const newGame = await db.select().from(games).where(eq(games.id, gameId));
       expect(newGame[0]?.isRunning).toBe(true);
     } else {
       // Game exists

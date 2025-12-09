@@ -217,7 +217,8 @@ export class PerpMarketService {
     if (input.maxSlippage !== undefined && input.maxSlippage > 0) {
       // Use mark price as the reference (more stable), falling back to position's tracked price
       const referencePrice = market.markPrice ?? market.currentPrice;
-      const priceDeviation = Math.abs(exitPrice - referencePrice) / referencePrice;
+      const priceDeviation =
+        Math.abs(exitPrice - referencePrice) / referencePrice;
       if (priceDeviation > input.maxSlippage) {
         throw new Error(
           `Slippage exceeded: execution price ${exitPrice.toFixed(2)} deviates ` +

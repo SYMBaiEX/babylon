@@ -24,7 +24,9 @@ function createJsonRepo(tableName: string): any {
 export function createJsonClient(): DrizzleClient {
   // Stub implementations for Drizzle-specific methods
   const notSupported = () => {
-    throw new Error('This method is not supported in JSON mode. Use table repositories instead.');
+    throw new Error(
+      'This method is not supported in JSON mode. Use table repositories instead.'
+    );
   };
 
   const $connect = async (): Promise<void> => {
@@ -35,7 +37,9 @@ export function createJsonClient(): DrizzleClient {
     // No-op for JSON mode
   };
 
-  const $transaction = async <T>(callback: (tx: DrizzleClient) => Promise<T>): Promise<T> => {
+  const $transaction = async <T>(
+    callback: (tx: DrizzleClient) => Promise<T>
+  ): Promise<T> => {
     // JSON mode doesn't have real transactions, just execute the callback
     return callback(createJsonClient());
   };
@@ -158,4 +162,3 @@ export function createJsonClient(): DrizzleClient {
     questionArcPlan: createJsonRepo('questionArcPlans'),
   };
 }
-

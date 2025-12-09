@@ -160,7 +160,10 @@ Current Status:
 Available Prediction Markets:
 ${shuffledPredictions
   .slice(0, 5)
-  .map((m: (typeof predictionMarkets)[number]) => `- ${m.question} (YES: ${m.yesShares}, NO: ${m.noShares})`)
+  .map(
+    (m: (typeof predictionMarkets)[number]) =>
+      `- ${m.question} (YES: ${m.yesShares}, NO: ${m.noShares})`
+  )
   .join('\n')}
 
 Available Perp Markets:

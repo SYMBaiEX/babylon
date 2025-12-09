@@ -1,6 +1,6 @@
 /**
  * Comprehensive Context Builder for NPC Feed Generation
- * 
+ *
  * Builds rich, multi-layered context for NPCs using the full 128k context window.
  * Integrates:
  * - Character-specific events (events they were involved in)
@@ -12,13 +12,13 @@
  * - Relationship context
  */
 
-import type { Actor, WorldEvent, FeedPost, Question } from '../types/shared';
-import { MarketContextService } from '../services/market-context-service';
+import { and, db, desc, gte, lte, worldEvents } from '@babylon/db';
 import { RelationshipEvolutionEngine } from '../RelationshipEvolutionEngine';
-import { db, worldEvents, and, gte, lte, desc } from '@babylon/db';
-import { CONTEXT_LIMITS, truncateText, truncateArray } from './context-limits';
-import { shuffleArray } from './randomization';
+import { MarketContextService } from '../services/market-context-service';
+import type { Actor, FeedPost, Question, WorldEvent } from '../types/shared';
+import { CONTEXT_LIMITS, truncateArray, truncateText } from './context-limits';
 import { extractDayFromTimestamp } from './date-utils';
+import { shuffleArray } from './randomization';
 
 export interface ComprehensiveNPCContext {
   // Character-specific
@@ -28,7 +28,7 @@ export interface ComprehensiveNPCContext {
     timestamp: string;
     pointsToward?: string | null;
   }>;
-  
+
   // General world context
   recentEvents: Array<{
     type: string;
@@ -37,14 +37,14 @@ export interface ComprehensiveNPCContext {
     actors?: string[];
     pointsToward?: string | null;
   }>;
-  
+
   // Post history (to prevent repetition)
   previousPosts: Array<{
     content: string;
     timestamp: string;
     relatedEvent?: string;
   }>;
-  
+
   // Relationship context (who they like/dislike and history)
   relationships?: Array<{
     otherActorName: string;
@@ -53,7 +53,7 @@ export interface ComprehensiveNPCContext {
     strength: 'strong' | 'moderate' | 'weak';
     history?: string;
   }>;
-  
+
   // Narrative context
   ongoingNarratives?: string;
   relatedQuestions?: Array<{
@@ -61,7 +61,7 @@ export interface ComprehensiveNPCContext {
     status: string;
     resolvedOutcome?: boolean | null;
   }>;
-  
+
   // Market positions (what they're invested in)
   marketPositions?: Array<{
     market: string;
@@ -72,7 +72,7 @@ export interface ComprehensiveNPCContext {
 
 /**
  * Build comprehensive context for an NPC
- * 
+ *
  * Gathers all relevant context from multiple sources:
  * - Events the NPC was involved in (from MarketContextService)
  * - All recent events (general world state)
@@ -88,38 +88,51 @@ export async function buildComprehensiveNPCContext(
   questions?: Question[]
 ): Promise<ComprehensiveNPCContext> {
   const marketContextService = new MarketContextService();
-  
+
   // Get events specific to this NPC (from database)
   const personalEventsRaw = await marketContextService.getEventsForNPC(
     actor.id,
     actor.name
   );
-  
+
   // Truncate to limits and trim descriptions
-  const personalEvents = truncateArray(personalEventsRaw, CONTEXT_LIMITS.MAX_EVENTS_PERSONAL)
-    .map(e => ({
-      ...e,
-      description: truncateText(e.description, CONTEXT_LIMITS.MAX_EVENT_DESCRIPTION_LENGTH),
-    }));
-  
+  const personalEvents = truncateArray(
+    personalEventsRaw,
+    CONTEXT_LIMITS.MAX_EVENTS_PERSONAL
+  ).map((e) => ({
+    ...e,
+    description: truncateText(
+      e.description,
+      CONTEXT_LIMITS.MAX_EVENT_DESCRIPTION_LENGTH
+    ),
+  }));
+
   // Get all recent events (from database or provided)
   // Shuffle events before slicing for entropy (different context each generation)
   let recentEvents;
   if (allPreviousEvents && allPreviousEvents.length > 0) {
     const filteredEvents = allPreviousEvents
-      .filter(e => e.day < currentDay)
+      .filter((e) => e.day < currentDay)
       .slice(-CONTEXT_LIMITS.MAX_EVENTS_RECENT * 2); // Get more, shuffle, then slice
-    
+
     // Shuffle to add variety, then take the most recent N
     const shuffledEvents = shuffleArray(filteredEvents);
-    recentEvents = truncateArray(shuffledEvents, CONTEXT_LIMITS.MAX_EVENTS_RECENT)
-      .map(e => ({
-        type: e.type,
-        description: truncateText(e.description || e.type, CONTEXT_LIMITS.MAX_EVENT_DESCRIPTION_LENGTH),
-        timestamp: `2025-10-${String(e.day).padStart(2, '0')}T12:00:00Z`,
-        actors: truncateArray(shuffleArray(e.actors || []), CONTEXT_LIMITS.MAX_ACTORS_PER_EVENT),
-        pointsToward: e.pointsToward || undefined,
-      }));
+    recentEvents = truncateArray(
+      shuffledEvents,
+      CONTEXT_LIMITS.MAX_EVENTS_RECENT
+    ).map((e) => ({
+      type: e.type,
+      description: truncateText(
+        e.description || e.type,
+        CONTEXT_LIMITS.MAX_EVENT_DESCRIPTION_LENGTH
+      ),
+      timestamp: `2025-10-${String(e.day).padStart(2, '0')}T12:00:00Z`,
+      actors: truncateArray(
+        shuffleArray(e.actors || []),
+        CONTEXT_LIMITS.MAX_ACTORS_PER_EVENT
+      ),
+      pointsToward: e.pointsToward || undefined,
+    }));
   } else {
     // Fallback to database query if no events provided
     const now = new Date();
@@ -135,81 +148,105 @@ export async function buildComprehensiveNPCContext(
       )
       .orderBy(desc(worldEvents.timestamp))
       .limit(CONTEXT_LIMITS.MAX_EVENTS_RECENT);
-    
-    recentEvents = eventList.map(e => ({
+
+    recentEvents = eventList.map((e) => ({
       type: e.eventType || 'unknown',
-      description: truncateText(e.description || '', CONTEXT_LIMITS.MAX_EVENT_DESCRIPTION_LENGTH),
+      description: truncateText(
+        e.description || '',
+        CONTEXT_LIMITS.MAX_EVENT_DESCRIPTION_LENGTH
+      ),
       timestamp: e.timestamp.toISOString(),
-      actors: truncateArray((e.actors as string[]) || [], CONTEXT_LIMITS.MAX_ACTORS_PER_EVENT),
+      actors: truncateArray(
+        (e.actors as string[]) || [],
+        CONTEXT_LIMITS.MAX_ACTORS_PER_EVENT
+      ),
       pointsToward: e.pointsToward || undefined,
     }));
   }
-  
+
   // Get NPC's previous posts (from database or provided)
-  let npcPreviousPostsRaw: Array<{ content: string; timestamp: string; relatedEvent?: string }>;
-  
+  let npcPreviousPostsRaw: Array<{
+    content: string;
+    timestamp: string;
+    relatedEvent?: string;
+  }>;
+
   if (previousPosts) {
     npcPreviousPostsRaw = previousPosts
-      .filter(p => p.author === actor.id)
+      .filter((p) => p.author === actor.id)
       .slice(-CONTEXT_LIMITS.MAX_POSTS_PREVIOUS)
-      .map(p => ({
+      .map((p) => ({
         content: p.content,
         timestamp: p.timestamp,
-        relatedEvent: (p as { relatedEvent?: string }).relatedEvent || undefined,
+        relatedEvent:
+          (p as { relatedEvent?: string }).relatedEvent || undefined,
       }));
   } else {
     const dbPosts = await marketContextService.getRecentPostsByNPC(actor.id);
-    npcPreviousPostsRaw = dbPosts.map(p => ({
+    npcPreviousPostsRaw = dbPosts.map((p) => ({
       content: p.content,
       timestamp: p.timestamp,
       relatedEvent: undefined, // FeedPostContext doesn't have relatedEvent
     }));
   }
-  
+
   // Truncate to limits and trim content
-  const mappedPreviousPosts = truncateArray(npcPreviousPostsRaw, CONTEXT_LIMITS.MAX_POSTS_PREVIOUS)
-    .map(p => ({
-      content: truncateText(p.content, CONTEXT_LIMITS.MAX_POST_CONTENT_LENGTH),
-      timestamp: p.timestamp,
-      relatedEvent: p.relatedEvent,
-    }));
-  
+  const mappedPreviousPosts = truncateArray(
+    npcPreviousPostsRaw,
+    CONTEXT_LIMITS.MAX_POSTS_PREVIOUS
+  ).map((p) => ({
+    content: truncateText(p.content, CONTEXT_LIMITS.MAX_POST_CONTENT_LENGTH),
+    timestamp: p.timestamp,
+    relatedEvent: p.relatedEvent,
+  }));
+
   // Filter questions related to this NPC's domain/affiliations
   const relatedQuestionsRaw = questions
-    ? questions.filter(q => {
+    ? questions.filter((q) => {
         if (!actor.domain && !actor.affiliations) return false;
         const questionText = q.text.toLowerCase();
-        const domainMatch = actor.domain?.some(d => 
+        const domainMatch = actor.domain?.some((d) =>
           questionText.includes(d.toLowerCase())
         );
-        const affiliationMatch = actor.affiliations?.some(a =>
+        const affiliationMatch = actor.affiliations?.some((a) =>
           questionText.includes(a.toLowerCase())
         );
         return domainMatch || affiliationMatch;
       })
     : [];
-  
+
   // Shuffle and truncate - adds entropy to which questions appear
   const shuffledQuestions = shuffleArray(relatedQuestionsRaw);
-  const relatedQuestions = truncateArray(shuffledQuestions, CONTEXT_LIMITS.MAX_QUESTIONS_RELATED)
-    .map(q => ({
-      text: truncateText(q.text, CONTEXT_LIMITS.MAX_QUESTION_TEXT_LENGTH),
-      status: q.status || 'active',
-      resolvedOutcome: q.resolvedOutcome ?? undefined,
-    }));
-  
+  const relatedQuestions = truncateArray(
+    shuffledQuestions,
+    CONTEXT_LIMITS.MAX_QUESTIONS_RELATED
+  ).map((q) => ({
+    text: truncateText(q.text, CONTEXT_LIMITS.MAX_QUESTION_TEXT_LENGTH),
+    status: q.status || 'active',
+    resolvedOutcome: q.resolvedOutcome ?? undefined,
+  }));
+
   // Fetch relationship context for this NPC
-  const relationshipContext = await RelationshipEvolutionEngine.getActorRelationships(actor.id);
+  const relationshipContext =
+    await RelationshipEvolutionEngine.getActorRelationships(actor.id);
   const relationships = shuffleArray(relationshipContext)
     .slice(0, 10) // Limit to 10 most relevant relationships
-    .map(rel => {
+    .map((rel) => {
       const isActor1 = rel.actor1Id === actor.id;
       const otherActorId = isActor1 ? rel.actor2Id : rel.actor1Id;
-      const sentimentDesc: 'respect' | 'beef' | 'neutral' = 
-        rel.sentiment > 0.3 ? 'respect' : rel.sentiment < -0.3 ? 'beef' : 'neutral';
+      const sentimentDesc: 'respect' | 'beef' | 'neutral' =
+        rel.sentiment > 0.3
+          ? 'respect'
+          : rel.sentiment < -0.3
+            ? 'beef'
+            : 'neutral';
       const strengthDesc: 'strong' | 'moderate' | 'weak' =
-        rel.strength > 0.7 ? 'strong' : rel.strength > 0.4 ? 'moderate' : 'weak';
-      
+        rel.strength > 0.7
+          ? 'strong'
+          : rel.strength > 0.4
+            ? 'moderate'
+            : 'weak';
+
       return {
         otherActorName: otherActorId, // Will be resolved to name in formatting
         type: rel.relationshipType,
@@ -218,30 +255,32 @@ export async function buildComprehensiveNPCContext(
         history: rel.history ? truncateText(rel.history, 100) : undefined,
       };
     });
-  
+
   // Get market positions for this NPC
   const npcContext = await marketContextService.buildContextForNPC(actor.id);
-  const marketPositions: Array<{ market: string; side: string; pnl?: number }> = npcContext?.currentPositions
-    ? shuffleArray(npcContext.currentPositions)
-        .slice(0, 5) // Top 5 positions
-        .map(pos => ({
-          market: ('ticker' in pos ? pos.ticker : 'unknown') as string,
-          side: ('side' in pos ? pos.side : 'unknown') as string,
-          pnl: 'pnl' in pos && typeof pos.pnl === 'number' ? pos.pnl : undefined,
-        }))
-    : [];
-  
+  const marketPositions: Array<{ market: string; side: string; pnl?: number }> =
+    npcContext?.currentPositions
+      ? shuffleArray(npcContext.currentPositions)
+          .slice(0, 5) // Top 5 positions
+          .map((pos) => ({
+            market: ('ticker' in pos ? pos.ticker : 'unknown') as string,
+            side: ('side' in pos ? pos.side : 'unknown') as string,
+            pnl:
+              'pnl' in pos && typeof pos.pnl === 'number' ? pos.pnl : undefined,
+          }))
+      : [];
+
   // Shuffle personal events for variety (already truncated above)
   const shuffledPersonalEvents = shuffleArray(personalEvents);
-  
+
   return {
-    personalEvents: shuffledPersonalEvents.map(e => ({
+    personalEvents: shuffledPersonalEvents.map((e) => ({
       type: e.type || 'unknown',
       description: e.description, // Already truncated
       timestamp: e.timestamp,
       pointsToward: e.pointsToward || undefined,
     })),
-    recentEvents: recentEvents.map(e => ({
+    recentEvents: recentEvents.map((e) => ({
       type: e.type || 'unknown',
       description: e.description, // Already truncated
       timestamp: e.timestamp,
@@ -257,7 +296,7 @@ export async function buildComprehensiveNPCContext(
 
 /**
  * Format comprehensive context into a rich prompt string
- * 
+ *
  * Uses the full context window effectively by organizing information
  * hierarchically: most important (personal) → general → historical
  */
@@ -282,175 +321,217 @@ export function formatComprehensiveContext(
     maxRecentEvents = CONTEXT_LIMITS.MAX_EVENTS_RECENT,
     maxPreviousPosts = CONTEXT_LIMITS.MAX_POSTS_PREVIOUS,
   } = options || {};
-  
+
   const sections: string[] = [];
-  
+
   // 1. PERSONAL EVENTS (highest priority - events NPC was directly involved in)
   if (includePersonalEvents && context.personalEvents.length > 0) {
-    const personalEventsText = truncateArray(context.personalEvents, maxPersonalEvents)
+    const personalEventsText = truncateArray(
+      context.personalEvents,
+      maxPersonalEvents
+    )
       .map((e, i) => {
         const day = extractDayFromTimestamp(e.timestamp);
-        const pointsToward = e.pointsToward 
+        const pointsToward = e.pointsToward
           ? ` (points toward ${e.pointsToward})`
           : '';
-        const description = truncateText(e.description, CONTEXT_LIMITS.MAX_EVENT_DESCRIPTION_LENGTH);
+        const description = truncateText(
+          e.description,
+          CONTEXT_LIMITS.MAX_EVENT_DESCRIPTION_LENGTH
+        );
         return `${i + 1}. Day ${day}: [${e.type}] ${description}${pointsToward}`;
       })
       .join('\n');
-    
-    const sectionText = `=== EVENTS YOU WERE INVOLVED IN ===\n` +
+
+    const sectionText =
+      `=== EVENTS YOU WERE INVOLVED IN ===\n` +
       `These are events where you were directly involved or mentioned:\n${personalEventsText}\n` +
       `\nIMPORTANT: Reference these events naturally in your posts. Don't repeat the same take on the same event.`;
-    
+
     sections.push(truncateText(sectionText, CONTEXT_LIMITS.MAX_SECTION_LENGTH));
   }
-  
+
   // 2. RECENT WORLD EVENTS (general context - what's happening in the world)
   if (includeRecentEvents && context.recentEvents.length > 0) {
-    const recentEventsText = truncateArray(context.recentEvents, maxRecentEvents)
+    const recentEventsText = truncateArray(
+      context.recentEvents,
+      maxRecentEvents
+    )
       .map((e, i) => {
         const day = extractDayFromTimestamp(e.timestamp);
-        const actors = e.actors && e.actors.length > 0
-          ? ` (involved: ${truncateArray(e.actors, CONTEXT_LIMITS.MAX_ACTORS_PER_EVENT).join(', ')})`
-          : '';
-        const pointsToward = e.pointsToward
-          ? ` → ${e.pointsToward}`
-          : '';
-        const description = truncateText(e.description, CONTEXT_LIMITS.MAX_EVENT_DESCRIPTION_LENGTH);
+        const actors =
+          e.actors && e.actors.length > 0
+            ? ` (involved: ${truncateArray(e.actors, CONTEXT_LIMITS.MAX_ACTORS_PER_EVENT).join(', ')})`
+            : '';
+        const pointsToward = e.pointsToward ? ` → ${e.pointsToward}` : '';
+        const description = truncateText(
+          e.description,
+          CONTEXT_LIMITS.MAX_EVENT_DESCRIPTION_LENGTH
+        );
         return `${i + 1}. Day ${day}: [${e.type}] ${description}${actors}${pointsToward}`;
       })
       .join('\n');
-    
-    const sectionText = `=== RECENT WORLD EVENTS ===\n` +
+
+    const sectionText =
+      `=== RECENT WORLD EVENTS ===\n` +
       `What's been happening in the world (last ${maxRecentEvents} events):\n${recentEventsText}\n` +
       `\nUse this context to inform your posts. Reference ongoing storylines naturally.`;
-    
+
     sections.push(truncateText(sectionText, CONTEXT_LIMITS.MAX_SECTION_LENGTH));
   }
-  
+
   // 3. YOUR PREVIOUS POSTS (to prevent repetition)
   if (includePreviousPosts && context.previousPosts.length > 0) {
-    const previousPostsText = truncateArray(context.previousPosts, maxPreviousPosts)
+    const previousPostsText = truncateArray(
+      context.previousPosts,
+      maxPreviousPosts
+    )
       .map((p, i) => {
         const day = extractDayFromTimestamp(p.timestamp);
-        const content = truncateText(p.content, CONTEXT_LIMITS.MAX_POST_CONTENT_LENGTH);
+        const content = truncateText(
+          p.content,
+          CONTEXT_LIMITS.MAX_POST_CONTENT_LENGTH
+        );
         return `${i + 1}. Day ${day}: "${content}"`;
       })
       .join('\n');
-    
-    const sectionText = `=== YOUR RECENT POSTS ===\n` +
+
+    const sectionText =
+      `=== YOUR RECENT POSTS ===\n` +
       `What you've posted recently (avoid repeating these exact takes):\n${previousPostsText}\n` +
       `\nCRITICAL: Don't repeat the same post or take. Build on previous posts or pivot to new angles.`;
-    
+
     sections.push(truncateText(sectionText, CONTEXT_LIMITS.MAX_SECTION_LENGTH));
   }
-  
+
   // 4. RELATED QUESTIONS (narrative context)
-  if (includeQuestions && context.relatedQuestions && context.relatedQuestions.length > 0) {
-    const questionsText = truncateArray(context.relatedQuestions, CONTEXT_LIMITS.MAX_QUESTIONS_RELATED)
+  if (
+    includeQuestions &&
+    context.relatedQuestions &&
+    context.relatedQuestions.length > 0
+  ) {
+    const questionsText = truncateArray(
+      context.relatedQuestions,
+      CONTEXT_LIMITS.MAX_QUESTIONS_RELATED
+    )
       .map((q, i) => {
-        const status = q.status === 'resolved' && q.resolvedOutcome !== undefined
-          ? ` (resolved: ${q.resolvedOutcome ? 'YES' : 'NO'})`
-          : ` (${q.status})`;
-        const text = truncateText(q.text, CONTEXT_LIMITS.MAX_QUESTION_TEXT_LENGTH);
+        const status =
+          q.status === 'resolved' && q.resolvedOutcome !== undefined
+            ? ` (resolved: ${q.resolvedOutcome ? 'YES' : 'NO'})`
+            : ` (${q.status})`;
+        const text = truncateText(
+          q.text,
+          CONTEXT_LIMITS.MAX_QUESTION_TEXT_LENGTH
+        );
         return `${i + 1}. "${text}"${status}`;
       })
       .join('\n');
-    
-    const sectionText = `=== RELATED PREDICTION QUESTIONS ===\n` +
+
+    const sectionText =
+      `=== RELATED PREDICTION QUESTIONS ===\n` +
       `Questions related to your domain/affiliations:\n${questionsText}\n` +
       `\nThese questions inform the broader narrative context. Reference them naturally if relevant.`;
-    
+
     sections.push(truncateText(sectionText, CONTEXT_LIMITS.MAX_SECTION_LENGTH));
   }
-  
+
   // 5. YOUR RELATIONSHIPS (social dynamics - who to support/attack)
   // Split allies and rivals into separate sections for more aggressive randomization
   if (context.relationships && context.relationships.length > 0) {
-    const allies = context.relationships.filter(r => r.sentiment === 'respect');
-    const rivals = context.relationships.filter(r => r.sentiment === 'beef');
-    const neutral = context.relationships.filter(r => r.sentiment === 'neutral');
-    
+    const allies = context.relationships.filter(
+      (r) => r.sentiment === 'respect'
+    );
+    const rivals = context.relationships.filter((r) => r.sentiment === 'beef');
+    const neutral = context.relationships.filter(
+      (r) => r.sentiment === 'neutral'
+    );
+
     // ALLIES - separate shufflable section
     if (allies.length > 0) {
       const alliesText = shuffleArray(allies)
-        .map(r => {
+        .map((r) => {
           const historyNote = r.history ? ` - ${r.history}` : '';
           return `  🟢 ${r.otherActorName} (${r.strength} ${r.type})${historyNote}`;
         })
         .join('\n');
-      
+
       const allyFramings = shuffleArray([
-        'When they post, agree. When they\'re attacked, defend.',
+        "When they post, agree. When they're attacked, defend.",
         'Support their narratives. Their wins are your wins.',
         'Co-sign their takes. Back them up in threads.',
       ]);
-      
+
       const sectionText = `=== YOUR ALLIES (SUPPORT THEM) ===\n${alliesText}\n→ ${allyFramings[0]}`;
-      sections.push(truncateText(sectionText, CONTEXT_LIMITS.MAX_SECTION_LENGTH));
+      sections.push(
+        truncateText(sectionText, CONTEXT_LIMITS.MAX_SECTION_LENGTH)
+      );
     }
-    
+
     // RIVALS - separate shufflable section
     if (rivals.length > 0) {
       const rivalsText = shuffleArray(rivals)
-        .map(r => {
+        .map((r) => {
           const historyNote = r.history ? ` - ${r.history}` : '';
           return `  🔴 ${r.otherActorName} (${r.strength} ${r.type})${historyNote}`;
         })
         .join('\n');
-      
+
       const rivalFramings = shuffleArray([
         'Subtweet them. Dunk on them. Clown their takes.',
         'Look for opportunities to undermine them.',
-        'When they lose, celebrate. When they\'re wrong, ratio.',
+        "When they lose, celebrate. When they're wrong, ratio.",
       ]);
-      
+
       const sectionText = `=== YOUR RIVALS (ATTACK THEM) ===\n${rivalsText}\n→ ${rivalFramings[0]}`;
-      sections.push(truncateText(sectionText, CONTEXT_LIMITS.MAX_SECTION_LENGTH));
+      sections.push(
+        truncateText(sectionText, CONTEXT_LIMITS.MAX_SECTION_LENGTH)
+      );
     }
-    
+
     // NEUTRAL - combined section (less prominent)
     if (neutral.length > 0) {
       const neutralText = shuffleArray(neutral)
         .slice(0, 5) // Limit neutral relationships
-        .map(r => `  🤝 ${r.otherActorName} (${r.type})`)
+        .map((r) => `  🤝 ${r.otherActorName} (${r.type})`)
         .join('\n');
-      
+
       const sectionText = `=== OTHER RELATIONSHIPS ===\n${neutralText}`;
-      sections.push(truncateText(sectionText, CONTEXT_LIMITS.MAX_SECTION_LENGTH));
+      sections.push(
+        truncateText(sectionText, CONTEXT_LIMITS.MAX_SECTION_LENGTH)
+      );
     }
   }
-  
+
   // 6. YOUR MARKET POSITIONS (skin in the game)
   if (context.marketPositions && context.marketPositions.length > 0) {
     const positionsText = shuffleArray(context.marketPositions)
-      .map(p => {
-        const pnlNote = p.pnl !== undefined 
-          ? ` (${p.pnl >= 0 ? '+' : ''}${p.pnl.toFixed(2)} PnL)` 
-          : '';
+      .map((p) => {
+        const pnlNote =
+          p.pnl !== undefined
+            ? ` (${p.pnl >= 0 ? '+' : ''}${p.pnl.toFixed(2)} PnL)`
+            : '';
         return `- ${p.market}: ${p.side}${pnlNote}`;
       })
       .join('\n');
-    
+
     const positionFramings = shuffleArray([
       'Your positions influence your perspective - you WANT your bets to win.',
       'You have SKIN IN THE GAME. These positions shape your takes.',
       'Money talks. Your bag affects your beliefs (or at least your public takes).',
     ]);
-    
-    const sectionText = `=== YOUR POSITIONS (SKIN IN THE GAME) ===\n` +
+
+    const sectionText =
+      `=== YOUR POSITIONS (SKIN IN THE GAME) ===\n` +
       `${positionsText}\n→ ${positionFramings[0]}`;
-    
+
     sections.push(truncateText(sectionText, CONTEXT_LIMITS.MAX_SECTION_LENGTH));
   }
-  
+
   // SHUFFLE ALL SECTIONS for maximum entropy
   // This means allies/rivals/events/posts all get randomly ordered each time
   const shuffledSections = shuffleArray(sections);
-  
+
   // Join sections and ensure total length is within limits
   const fullContext = shuffledSections.join('\n\n');
   return truncateText(fullContext, CONTEXT_LIMITS.MAX_TOTAL_CONTEXT_LENGTH);
 }
-
-

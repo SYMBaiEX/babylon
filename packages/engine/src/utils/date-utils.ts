@@ -26,11 +26,16 @@ export function extractDayFromTimestamp(timestamp: string): number {
 /**
  * Extract day number from an event object (handles different formats)
  */
-export function extractDayFromEvent(event: { day?: number; timestamp?: Date | string }): number {
+export function extractDayFromEvent(event: {
+  day?: number;
+  timestamp?: Date | string;
+}): number {
   if (event.day) return event.day;
   if (event.timestamp) {
     return extractDayFromTimestamp(
-      typeof event.timestamp === 'string' ? event.timestamp : event.timestamp.toISOString()
+      typeof event.timestamp === 'string'
+        ? event.timestamp
+        : event.timestamp.toISOString()
     );
   }
   return 0;
@@ -39,13 +44,17 @@ export function extractDayFromEvent(event: { day?: number; timestamp?: Date | st
 /**
  * Extract day number from a post object
  */
-export function extractDayFromPost(post: { day?: number; createdAt?: Date | string }): number {
+export function extractDayFromPost(post: {
+  day?: number;
+  createdAt?: Date | string;
+}): number {
   if (post.day) return post.day;
   if (post.createdAt) {
     return extractDayFromTimestamp(
-      typeof post.createdAt === 'string' ? post.createdAt : post.createdAt.toISOString()
+      typeof post.createdAt === 'string'
+        ? post.createdAt
+        : post.createdAt.toISOString()
     );
   }
   return 0;
 }
-

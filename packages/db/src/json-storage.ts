@@ -53,7 +53,17 @@ interface FindOptions<T> {
 
 type WhereValue<T> =
   | T
-  | { equals?: T; not?: T; in?: T[]; notIn?: T[]; lt?: T; lte?: T; gt?: T; gte?: T; contains?: string }
+  | {
+      equals?: T;
+      not?: T;
+      in?: T[];
+      notIn?: T[];
+      lt?: T;
+      lte?: T;
+      gt?: T;
+      gte?: T;
+      contains?: string;
+    }
   | null
   | undefined;
 
@@ -118,7 +128,10 @@ function generateId(tableName: string): string {
 // Query Matching
 // ============================================================================
 
-function matchesWhere<T extends JsonRecord>(record: T, where: WhereInput<T> | undefined): boolean {
+function matchesWhere<T extends JsonRecord>(
+  record: T,
+  where: WhereInput<T> | undefined
+): boolean {
   if (!where) return true;
 
   // Handle AND
@@ -150,9 +163,14 @@ function matchesWhere<T extends JsonRecord>(record: T, where: WhereInput<T> | un
 
     if (condition === undefined) continue;
 
-    if (typeof condition === 'object' && condition !== null && !Array.isArray(condition) && !(condition instanceof Date)) {
+    if (
+      typeof condition === 'object' &&
+      condition !== null &&
+      !Array.isArray(condition) &&
+      !(condition instanceof Date)
+    ) {
       const ops = condition as Record<string, JsonValue>;
-      
+
       if ('equals' in ops) {
         if (value !== ops.equals) return false;
       }
@@ -166,19 +184,24 @@ function matchesWhere<T extends JsonRecord>(record: T, where: WhereInput<T> | un
         if (ops.notIn.includes(value as JsonValue)) return false;
       }
       if ('lt' in ops) {
-        if (typeof value !== 'number' || value >= (ops.lt as number)) return false;
+        if (typeof value !== 'number' || value >= (ops.lt as number))
+          return false;
       }
       if ('lte' in ops) {
-        if (typeof value !== 'number' || value > (ops.lte as number)) return false;
+        if (typeof value !== 'number' || value > (ops.lte as number))
+          return false;
       }
       if ('gt' in ops) {
-        if (typeof value !== 'number' || value <= (ops.gt as number)) return false;
+        if (typeof value !== 'number' || value <= (ops.gt as number))
+          return false;
       }
       if ('gte' in ops) {
-        if (typeof value !== 'number' || value < (ops.gte as number)) return false;
+        if (typeof value !== 'number' || value < (ops.gte as number))
+          return false;
       }
       if ('contains' in ops && typeof ops.contains === 'string') {
-        if (typeof value !== 'string' || !value.includes(ops.contains)) return false;
+        if (typeof value !== 'string' || !value.includes(ops.contains))
+          return false;
       }
     } else {
       // Direct equality
@@ -189,21 +212,26 @@ function matchesWhere<T extends JsonRecord>(record: T, where: WhereInput<T> | un
   return true;
 }
 
-function sortRecords<T extends JsonRecord>(records: T[], orderBy: OrderByInput<T> | OrderByInput<T>[] | undefined): T[] {
+function sortRecords<T extends JsonRecord>(
+  records: T[],
+  orderBy: OrderByInput<T> | OrderByInput<T>[] | undefined
+): T[] {
   if (!orderBy) return records;
 
   const orders = Array.isArray(orderBy) ? orderBy : [orderBy];
-  
+
   return [...records].sort((a, b) => {
     for (const order of orders) {
       for (const [key, direction] of Object.entries(order)) {
         const aVal = a[key];
         const bVal = b[key];
-        
+
         if (aVal === bVal) continue;
-        if (aVal === null || aVal === undefined) return direction === 'asc' ? 1 : -1;
-        if (bVal === null || bVal === undefined) return direction === 'asc' ? -1 : 1;
-        
+        if (aVal === null || aVal === undefined)
+          return direction === 'asc' ? 1 : -1;
+        if (bVal === null || bVal === undefined)
+          return direction === 'asc' ? -1 : 1;
+
         const comparison = aVal < bVal ? -1 : 1;
         return direction === 'desc' ? -comparison : comparison;
       }
@@ -219,7 +247,10 @@ function sortRecords<T extends JsonRecord>(records: T[], orderBy: OrderByInput<T
 /**
  * JSON-backed table repository that mirrors the PostgreSQL TableRepository interface.
  */
-export class JsonTableRepository<TSelect extends JsonRecord, TInsert extends JsonRecord> {
+export class JsonTableRepository<
+  TSelect extends JsonRecord,
+  TInsert extends JsonRecord,
+> {
   constructor(
     private readonly tableName: string,
     private readonly idField: string = 'id'
@@ -266,24 +297,27 @@ export class JsonTableRepository<TSelect extends JsonRecord, TInsert extends Jso
   async create(options: { data: TInsert }): Promise<TSelect> {
     const table = getTable(this.tableName);
     const data = { ...options.data } as JsonRecord;
-    
+
     // Generate ID if not provided
     if (!data[this.idField]) {
       data[this.idField] = generateId(this.tableName);
     }
-    
+
     // Set timestamps
     if (!data.createdAt) data.createdAt = new Date();
     if (!data.updatedAt) data.updatedAt = new Date();
-    
+
     const id = String(data[this.idField]);
     table[id] = data;
-    
+
     onStateChange();
     return data as TSelect;
   }
 
-  async createMany(options: { data: TInsert[]; skipDuplicates?: boolean }): Promise<{ count: number }> {
+  async createMany(options: {
+    data: TInsert[];
+    skipDuplicates?: boolean;
+  }): Promise<{ count: number }> {
     let count = 0;
     for (const item of options.data) {
       const id = item[this.idField as keyof TInsert];
@@ -297,17 +331,24 @@ export class JsonTableRepository<TSelect extends JsonRecord, TInsert extends Jso
     return { count };
   }
 
-  async update(options: { where: WhereInput<TSelect>; data: Partial<TInsert> }): Promise<TSelect> {
+  async update(options: {
+    where: WhereInput<TSelect>;
+    data: Partial<TInsert>;
+  }): Promise<TSelect> {
     const record = await this.findFirst({ where: options.where });
     if (!record) throw new Error(`Record not found in ${this.tableName}`);
-    
+
     const table = getTable(this.tableName);
     const id = String(record[this.idField as keyof TSelect]);
-    
+
     // Handle increment/decrement
     const updateData: JsonRecord = {};
     for (const [key, value] of Object.entries(options.data)) {
-      if (typeof value === 'object' && value !== null && !(value instanceof Date)) {
+      if (
+        typeof value === 'object' &&
+        value !== null &&
+        !(value instanceof Date)
+      ) {
         const ops = value as Record<string, number>;
         if ('increment' in ops) {
           const current = (record[key as keyof TSelect] as number) ?? 0;
@@ -322,18 +363,26 @@ export class JsonTableRepository<TSelect extends JsonRecord, TInsert extends Jso
         updateData[key] = value as JsonValue | Date;
       }
     }
-    
+
     const updated = { ...record, ...updateData, updatedAt: new Date() };
     table[id] = updated as JsonRecord;
-    
+
     onStateChange();
     return updated as TSelect;
   }
 
-  async updateMany(options: { where: WhereInput<TSelect>; data: Partial<TInsert> }): Promise<{ count: number }> {
+  async updateMany(options: {
+    where: WhereInput<TSelect>;
+    data: Partial<TInsert>;
+  }): Promise<{ count: number }> {
     const records = await this.findMany({ where: options.where });
     for (const record of records) {
-      await this.update({ where: { [this.idField]: record[this.idField as keyof TSelect] } as WhereInput<TSelect>, data: options.data });
+      await this.update({
+        where: {
+          [this.idField]: record[this.idField as keyof TSelect],
+        } as WhereInput<TSelect>,
+        data: options.data,
+      });
     }
     return { count: records.length };
   }
@@ -341,29 +390,35 @@ export class JsonTableRepository<TSelect extends JsonRecord, TInsert extends Jso
   async delete(options: { where: WhereInput<TSelect> }): Promise<TSelect> {
     const record = await this.findFirst({ where: options.where });
     if (!record) throw new Error(`Record not found in ${this.tableName}`);
-    
+
     const table = getTable(this.tableName);
     const id = String(record[this.idField as keyof TSelect]);
     delete table[id];
-    
+
     onStateChange();
     return record;
   }
 
-  async deleteMany(options: { where?: WhereInput<TSelect> } = {}): Promise<{ count: number }> {
+  async deleteMany(
+    options: { where?: WhereInput<TSelect> } = {}
+  ): Promise<{ count: number }> {
     const records = await this.findMany({ where: options.where });
     const table = getTable(this.tableName);
-    
+
     for (const record of records) {
       const id = String(record[this.idField as keyof TSelect]);
       delete table[id];
     }
-    
+
     onStateChange();
     return { count: records.length };
   }
 
-  async upsert(options: { where: WhereInput<TSelect>; create: TInsert; update: Partial<TInsert> }): Promise<TSelect> {
+  async upsert(options: {
+    where: WhereInput<TSelect>;
+    create: TInsert;
+    update: Partial<TInsert>;
+  }): Promise<TSelect> {
     const existing = await this.findFirst({ where: options.where });
     if (existing) {
       return this.update({ where: options.where, data: options.update });
@@ -386,11 +441,11 @@ export class JsonTableRepository<TSelect extends JsonRecord, TInsert extends Jso
   }): Promise<Record<string, JsonValue>> {
     const records = await this.findMany({ where: options.where });
     const result: Record<string, JsonValue> = {};
-    
+
     if (options._count) {
       result._count = { _all: records.length };
     }
-    
+
     if (options._sum) {
       const sums: Record<string, number | null> = {};
       for (const key of Object.keys(options._sum)) {
@@ -403,7 +458,7 @@ export class JsonTableRepository<TSelect extends JsonRecord, TInsert extends Jso
       }
       result._sum = sums;
     }
-    
+
     if (options._avg) {
       const avgs: Record<string, number | null> = {};
       for (const key of Object.keys(options._avg)) {
@@ -413,12 +468,15 @@ export class JsonTableRepository<TSelect extends JsonRecord, TInsert extends Jso
             const val = r[key as keyof TSelect];
             if (typeof val === 'number') nums.push(val);
           }
-          avgs[key] = nums.length > 0 ? nums.reduce((a, b) => a + b, 0) / nums.length : null;
+          avgs[key] =
+            nums.length > 0
+              ? nums.reduce((a, b) => a + b, 0) / nums.length
+              : null;
         }
       }
       result._avg = avgs;
     }
-    
+
     return result;
   }
 
@@ -429,25 +487,25 @@ export class JsonTableRepository<TSelect extends JsonRecord, TInsert extends Jso
   }): Promise<Array<Record<string, JsonValue>>> {
     const records = await this.findMany({ where: options.where });
     const groups = new Map<string, TSelect[]>();
-    
+
     for (const record of records) {
       const key = options.by.map((k) => String(record[k])).join('|');
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key)!.push(record);
     }
-    
+
     return Array.from(groups.entries()).map(([, groupRecords]) => {
       const result: Record<string, JsonValue> = {};
       const first = groupRecords[0]!;
-      
+
       for (const key of options.by) {
         result[key as string] = first[key] as JsonValue;
       }
-      
+
       if (options._count) {
         result._count = groupRecords.length;
       }
-      
+
       return result;
     });
   }
@@ -468,15 +526,18 @@ function onStateChange(): void {
 // ============================================================================
 
 /** Initialize JSON storage mode */
-export async function initJsonStorage(basePath: string, options: { autoSave?: boolean } = {}): Promise<void> {
+export async function initJsonStorage(
+  basePath: string,
+  options: { autoSave?: boolean } = {}
+): Promise<void> {
   storagePath = basePath;
   autoSave = options.autoSave ?? true;
-  
+
   // Ensure directory exists
   if (!existsSync(basePath)) {
     mkdirSync(basePath, { recursive: true });
   }
-  
+
   // Load existing state if available
   const statePath = join(basePath, 'state.json');
   if (existsSync(statePath)) {
@@ -490,7 +551,7 @@ export async function initJsonStorage(basePath: string, options: { autoSave?: bo
 /** Save current state to JSON file */
 export async function saveJsonSnapshot(): Promise<void> {
   if (!storagePath || !storageState) return;
-  
+
   const statePath = join(storagePath, 'state.json');
   storageState.metadata.updatedAt = new Date().toISOString();
   writeFileSync(statePath, JSON.stringify(storageState, null, 2));
@@ -524,4 +585,3 @@ export function clearJsonStorage(): void {
 export function getJsonState(): JsonStorageState | null {
   return storageState;
 }
-

@@ -53,23 +53,6 @@ export {
 
 // State Store Adapters
 export { DbStateStore, InMemoryStateStore } from './adapters';
-
-// Storage Bridge (database-agnostic storage abstraction)
-export {
-  db,
-  exportState,
-  getStorageMode,
-  initializeDatabaseMode,
-  initializeSimulationMode,
-  initializeTestMode,
-  isDatabaseMode,
-  isSimulationMode,
-  isTestMode,
-  loadSnapshot,
-  saveSnapshot,
-  type StorageMode,
-} from './storage-bridge';
-
 // Configuration
 export {
   FEE_CONFIG,
@@ -164,6 +147,21 @@ export {
   NPCPortfolioStrategy,
   type StrategyConfig,
 } from './npc/npc-portfolio-strategy';
+// Storage Bridge (database-agnostic storage abstraction)
+export {
+  db,
+  exportState,
+  getStorageMode,
+  initializeDatabaseMode,
+  initializeSimulationMode,
+  initializeTestMode,
+  isDatabaseMode,
+  isSimulationMode,
+  isTestMode,
+  loadSnapshot,
+  type StorageMode,
+  saveSnapshot,
+} from './storage-bridge';
 
 // Perps: Use @babylon/core/markets/perps for perpetuals trading
 // Legacy PerpetualsEngine, perps/, perps-service removed - functionality moved to core package
@@ -358,6 +356,20 @@ export {
   calculateEstimatedCost,
   TOKEN_COST_PER_MILLION,
 } from './types/token-stats';
+// Utils - Entropy (secure random, weighted picks, cooldowns)
+export {
+  biasedRandomCount,
+  type EventCooldownState,
+  generateSentimentSignal,
+  SeededRandom,
+  securePickN,
+  secureRandom,
+  secureRandomInt,
+  secureShuffle,
+  shouldFireEvent,
+  urgencyWeight,
+  weightedPick,
+} from './utils/entropy';
 // Utils - Prompt Logging
 export {
   isPromptLoggingEnabled,
@@ -372,20 +384,6 @@ export {
   sampleRandom,
   shuffleArray,
 } from './utils/randomization';
-// Utils - Entropy (secure random, weighted picks, cooldowns)
-export {
-  biasedRandomCount,
-  type EventCooldownState,
-  generateSentimentSignal,
-  securePickN,
-  secureRandom,
-  secureRandomInt,
-  secureShuffle,
-  SeededRandom,
-  shouldFireEvent,
-  urgencyWeight,
-  weightedPick,
-} from './utils/entropy';
 // World Facts Service
 export {
   type WorldFactsContext,

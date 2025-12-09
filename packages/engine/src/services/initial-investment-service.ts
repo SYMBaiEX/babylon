@@ -96,7 +96,10 @@ export class InitialInvestmentService {
           name: o.name,
           ticker: o.ticker ?? null,
           initialPrice: o.initialPrice,
-          currentPrice: currentPriceFromDb !== undefined ? currentPriceFromDb : o.initialPrice,
+          currentPrice:
+            currentPriceFromDb !== undefined
+              ? currentPriceFromDb
+              : o.initialPrice,
         };
       });
 

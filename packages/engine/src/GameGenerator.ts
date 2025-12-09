@@ -33,7 +33,6 @@ import { logger } from '@babylon/shared';
 import { generateActorContext } from './EmotionSystem';
 import { FeedGenerator } from './FeedGenerator';
 import { BabylonLLMClient } from './llm/openai-client';
-import { TrendingTopicsEngine } from './TrendingTopicsEngine';
 import {
   baselineEvent,
   dayEvents,
@@ -46,12 +45,9 @@ import {
   renderPrompt,
   scenarios as scenariosPrompt,
 } from './prompts';
-import {
-  buildRichGameContext,
-  formatRichGameContext,
-} from './utils/game-context-builder';
 import { NPCPersonaGenerator } from './services/npc-persona-generator';
 import { QuestionArcPlanner } from './services/question-arc-planner';
+import { TrendingTopicsEngine } from './TrendingTopicsEngine';
 import type {
   Actor,
   ActorConnection,
@@ -75,8 +71,12 @@ import type {
   SelectedActor,
   WorldEvent,
 } from './types/shared';
-import { toQuestionIdNumberOrNull } from './utils/shared-utils';
+import {
+  buildRichGameContext,
+  formatRichGameContext,
+} from './utils/game-context-builder';
 import { shuffleArray } from './utils/randomization';
+import { toQuestionIdNumberOrNull } from './utils/shared-utils';
 
 /**
  * Structure for actors selected for a game
@@ -793,7 +793,10 @@ export class GameGenerator {
       this.tickCount++;
       if (feedPosts.length > 0) {
         this.recentPosts = [...this.recentPosts, ...feedPosts].slice(-200);
-        await this.trendingTopics.updateTrends(this.recentPosts, this.tickCount);
+        await this.trendingTopics.updateTrends(
+          this.recentPosts,
+          this.tickCount
+        );
         this.feedGenerator.updateTrendContext();
       }
 
@@ -1086,7 +1089,12 @@ Key outcomes: ${h.keyOutcomes.map((o) => `${o.questionText} → ${o.outcome ? 'Y
       .slice(0, 3)
       .map((id) => allActors.find((a) => a.id === id)!)
       .map((a) =>
-        this.staticToSelectedActor(a, 'main', this.randomLuck(), this.randomMood())
+        this.staticToSelectedActor(
+          a,
+          'main',
+          this.randomLuck(),
+          this.randomMood()
+        )
       );
 
     // Create weighted pool for supporting (moderate favor for A/B tier)
@@ -1109,7 +1117,12 @@ Key outcomes: ${h.keyOutcomes.map((o) => `${o.questionText} → ${o.outcome ? 'Y
       .slice(0, 15)
       .map((id) => allActors.find((a) => a.id === id)!)
       .map((a) =>
-        this.staticToSelectedActor(a, 'supporting', this.randomLuck(), this.randomMood())
+        this.staticToSelectedActor(
+          a,
+          'supporting',
+          this.randomLuck(),
+          this.randomMood()
+        )
       );
 
     // Create weighted pool for extras (favor C/D tier)
@@ -1133,7 +1146,12 @@ Key outcomes: ${h.keyOutcomes.map((o) => `${o.questionText} → ${o.outcome ? 'Y
       .slice(0, 50)
       .map((id) => allActors.find((a) => a.id === id)!)
       .map((a) =>
-        this.staticToSelectedActor(a, 'extra', this.randomLuck(), this.randomMood())
+        this.staticToSelectedActor(
+          a,
+          'extra',
+          this.randomLuck(),
+          this.randomMood()
+        )
       );
 
     return {
@@ -1178,9 +1196,7 @@ Key outcomes: ${h.keyOutcomes.map((o) => `${o.questionText} → ${o.outcome ? 'Y
     // Get full organization objects and sort by weight
     const organizations = StaticDataRegistry.getAllOrganizations()
       .filter((org) => orgIds.has(org.id))
-      .sort(
-        (a, b) => (orgWeights.get(b.id) || 0) - (orgWeights.get(a.id) || 0)
-      )
+      .sort((a, b) => (orgWeights.get(b.id) || 0) - (orgWeights.get(a.id) || 0))
       .map((o) => this.staticToOrganization(o));
 
     logger.debug(
@@ -1222,7 +1238,11 @@ Key outcomes: ${h.keyOutcomes.map((o) => `${o.questionText} → ${o.outcome ? 'Y
       'Key moments:'
     );
 
-    const basePrompt = await createScenarioPrompt(mains, organizations, this.gameId);
+    const basePrompt = await createScenarioPrompt(
+      mains,
+      organizations,
+      this.gameId
+    );
     const prompt = `${basePrompt}
 
 PREVIOUS GAME HISTORY (Context only - do not repeat these questions):
@@ -1456,7 +1476,11 @@ REMINDER: Generate SCENARIOS only. Do NOT generate questions.`;
     scenarios: Scenario[],
     organizations: Organization[]
   ): Promise<Question[]> {
-    const prompt = await createQuestionPrompt(scenarios, organizations, this.gameId);
+    const prompt = await createQuestionPrompt(
+      scenarios,
+      organizations,
+      this.gameId
+    );
     // Accept both object and array response formats for flexibility
     const rawResult = await this.llm.generateJSON<
       { questions: Question[] } | Array<{ questions: Question[] }>
@@ -2205,16 +2229,12 @@ REMINDER: Generate SCENARIOS only. Do NOT generate questions.`;
       .join('\n');
 
     // Build rich game context for event generation
-    const richContext = await buildRichGameContext(
-      day,
-      gameId,
-      {
-        includeEventHistory: true,
-        includeFeedHistory: true,
-        maxEvents: 200,
-        maxPosts: 500,
-      }
-    );
+    const richContext = await buildRichGameContext(day, gameId, {
+      includeEventHistory: true,
+      includeFeedHistory: true,
+      maxEvents: 200,
+      maxPosts: 500,
+    });
     const richGameContextText = formatRichGameContext(richContext, {
       includeEventTimeline: true,
       includeFeedHistory: true,
@@ -2714,16 +2734,12 @@ ${req.members
       .join('\n');
 
     // Build rich game context for group messages
-    const richContext = await buildRichGameContext(
-      day,
-      gameId,
-      {
-        includeEventHistory: true,
-        includeFeedHistory: true,
-        maxEvents: 200,
-        maxPosts: 500,
-      }
-    );
+    const richContext = await buildRichGameContext(day, gameId, {
+      includeEventHistory: true,
+      includeFeedHistory: true,
+      maxEvents: 200,
+      maxPosts: 500,
+    });
     const richGameContextText = formatRichGameContext(richContext, {
       includeEventTimeline: true,
       includeFeedHistory: true,

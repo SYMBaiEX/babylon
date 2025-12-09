@@ -26,16 +26,39 @@ const OUTPUT_DIR = './simulation-output';
 
 // Example actors (normally loaded from static data)
 const ACTORS = [
-  { id: 'marcus-chen', name: 'Marcus Chen', tier: 'major' as const, tradingBalance: 100000, personality: 'aggressive trader' },
-  { id: 'elena-vega', name: 'Elena Vega', tier: 'major' as const, tradingBalance: 80000, personality: 'conservative analyst' },
-  { id: 'james-wright', name: 'James Wright', tier: 'minor' as const, tradingBalance: 30000, personality: 'tech enthusiast' },
+  {
+    id: 'marcus-chen',
+    name: 'Marcus Chen',
+    tier: 'major' as const,
+    tradingBalance: 100000,
+    personality: 'aggressive trader',
+  },
+  {
+    id: 'elena-vega',
+    name: 'Elena Vega',
+    tier: 'major' as const,
+    tradingBalance: 80000,
+    personality: 'conservative analyst',
+  },
+  {
+    id: 'james-wright',
+    name: 'James Wright',
+    tier: 'minor' as const,
+    tradingBalance: 30000,
+    personality: 'tech enthusiast',
+  },
 ];
 
 // Example organizations (markets)
 const ORGANIZATIONS = [
   { id: 'baymax-corp', name: 'BayMax Corp', ticker: 'BMAX', initialPrice: 150 },
   { id: 'nexus-ai', name: 'Nexus AI', ticker: 'NAIX', initialPrice: 200 },
-  { id: 'quantum-labs', name: 'Quantum Labs', ticker: 'QLBS', initialPrice: 85 },
+  {
+    id: 'quantum-labs',
+    name: 'Quantum Labs',
+    ticker: 'QLBS',
+    initialPrice: 85,
+  },
 ];
 
 // Event types for simulation
@@ -141,8 +164,10 @@ async function main() {
 
     // Generate events
     for (let e = 0; e < EVENTS_PER_DAY; e++) {
-      const eventType = EVENT_TYPES[Math.floor(Math.random() * EVENT_TYPES.length)]!;
-      const org = ORGANIZATIONS[Math.floor(Math.random() * ORGANIZATIONS.length)]!;
+      const eventType =
+        EVENT_TYPES[Math.floor(Math.random() * EVENT_TYPES.length)]!;
+      const org =
+        ORGANIZATIONS[Math.floor(Math.random() * ORGANIZATIONS.length)]!;
       const isPositive = Math.random() > 0.5;
 
       const eventId = await generateSnowflakeId();
@@ -169,7 +194,10 @@ async function main() {
       const question = questions[Math.floor(Math.random() * questions.length)]!;
       const side = Math.random() > 0.5 ? 'YES' : 'NO';
       const amount = Math.floor(Math.random() * 5000) + 1000;
-      const price = side === 'YES' ? 0.45 + Math.random() * 0.2 : 0.35 + Math.random() * 0.2;
+      const price =
+        side === 'YES'
+          ? 0.45 + Math.random() * 0.2
+          : 0.35 + Math.random() * 0.2;
 
       // Record the trade
       const tradeId = await generateSnowflakeId();
@@ -197,7 +225,9 @@ async function main() {
         data: { tradingBalance: String(newBalance) },
       });
 
-      console.log(`  Trade: ${actor.name} bought ${side} on ${question.id} for $${amount} @ ${(price * 100).toFixed(1)}%`);
+      console.log(
+        `  Trade: ${actor.name} bought ${side} on ${question.id} for $${amount} @ ${(price * 100).toFixed(1)}%`
+      );
     }
 
     // Actors post content
@@ -228,10 +258,21 @@ async function main() {
 
   // Summary statistics using db interface
   const allActorStates = await db.actorState.findMany();
-  const activeQuestions = await db.question.findMany({ where: { status: 'active' } });
-  const recentPosts = await db.post.findMany({ take: 100, orderBy: { createdAt: 'desc' } });
-  const recentEvents = await db.worldEvent.findMany({ take: 100, orderBy: { createdAt: 'desc' } });
-  const allTrades = await db.npcTrade.findMany({ take: 100, orderBy: { createdAt: 'desc' } });
+  const activeQuestions = await db.question.findMany({
+    where: { status: 'active' },
+  });
+  const recentPosts = await db.post.findMany({
+    take: 100,
+    orderBy: { createdAt: 'desc' },
+  });
+  const recentEvents = await db.worldEvent.findMany({
+    take: 100,
+    orderBy: { createdAt: 'desc' },
+  });
+  const allTrades = await db.npcTrade.findMany({
+    take: 100,
+    orderBy: { createdAt: 'desc' },
+  });
 
   console.log('Final State Summary:');
   console.log(`  - Days simulated: ${SIMULATION_DAYS}`);
@@ -246,7 +287,9 @@ async function main() {
   console.log('Actor Final Balances:');
   for (const actor of ACTORS) {
     const state = await db.actorState.findUnique({ where: { id: actor.id } });
-    console.log(`  - ${actor.name}: $${Number(state?.tradingBalance ?? 0).toLocaleString()}`);
+    console.log(
+      `  - ${actor.name}: $${Number(state?.tradingBalance ?? 0).toLocaleString()}`
+    );
   }
   console.log();
 

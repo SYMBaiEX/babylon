@@ -1,4 +1,5 @@
 #!/usr/bin/env bun
+
 /**
  * JSON Mode Benchmark
  *
@@ -9,10 +10,10 @@
  *   bun packages/training/scripts/json-mode-benchmark.ts
  */
 
-import { db, initializeSimulationMode, saveSnapshot } from '@babylon/engine';
-import { generateSnowflakeId } from '@babylon/shared';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { db, initializeSimulationMode, saveSnapshot } from '@babylon/engine';
+import { generateSnowflakeId } from '@babylon/shared';
 import { BenchmarkDataGenerator } from '../src/benchmark/BenchmarkDataGenerator';
 import type { AgentAction } from '../src/benchmark/SimulationEngine';
 
@@ -26,7 +27,9 @@ if (!existsSync(OUTPUT_DIR)) {
 console.log('═══════════════════════════════════════════════════════════════');
 console.log('  Babylon JSON Mode Benchmark');
 console.log('  No database required - all data stored in JSON');
-console.log('═══════════════════════════════════════════════════════════════\n');
+console.log(
+  '═══════════════════════════════════════════════════════════════\n'
+);
 
 async function runBenchmark() {
   const startTime = Date.now();
@@ -61,8 +64,12 @@ async function runBenchmark() {
 
   const snapshot = await generator.generate();
   console.log(`  ✅ Generated ${snapshot.ticks.length} ticks`);
-  console.log(`  Markets: ${snapshot.initialState.predictionMarkets.length} prediction, ${snapshot.initialState.perpetualMarkets.length} perpetual`);
-  console.log(`  Ground truth outcomes: ${Object.keys(snapshot.groundTruth.marketOutcomes).length} markets\n`);
+  console.log(
+    `  Markets: ${snapshot.initialState.predictionMarkets.length} prediction, ${snapshot.initialState.perpetualMarkets.length} perpetual`
+  );
+  console.log(
+    `  Ground truth outcomes: ${Object.keys(snapshot.groundTruth.marketOutcomes).length} markets\n`
+  );
 
   // Save benchmark data to JSON
   const benchmarkPath = join(OUTPUT_DIR, 'benchmark-snapshot.json');
@@ -102,7 +109,9 @@ async function runBenchmark() {
       metrics,
     });
 
-    console.log(`    ✅ ${archetype}: ${actions.length} actions, ${metrics.correctPredictions}/${metrics.correctPredictions + metrics.wrongPredictions} correct`);
+    console.log(
+      `    ✅ ${archetype}: ${actions.length} actions, ${metrics.correctPredictions}/${metrics.correctPredictions + metrics.wrongPredictions} correct`
+    );
   }
   console.log('');
 
@@ -172,7 +181,9 @@ async function runBenchmark() {
     });
 
     // Store sample trades
-    for (const action of result.actions.filter((a) => a.type.includes('prediction') || a.type.includes('perp'))) {
+    for (const action of result.actions.filter(
+      (a) => a.type.includes('prediction') || a.type.includes('perp')
+    )) {
       const side = action.data.side as string;
       const amount = action.data.amount as number;
       const tradeId = await generateSnowflakeId();
@@ -199,19 +210,31 @@ async function runBenchmark() {
     duration: Date.now() - startTime,
     config: {
       ticks: snapshot.ticks.length,
-      markets: snapshot.initialState.predictionMarkets.length + snapshot.initialState.perpetualMarkets.length,
+      markets:
+        snapshot.initialState.predictionMarkets.length +
+        snapshot.initialState.perpetualMarkets.length,
       agents: archetypes.length,
     },
     results: results.map((r) => ({
       archetype: r.archetype,
       totalActions: r.metrics.totalActions,
-      accuracy: (r.metrics.correctPredictions / (r.metrics.correctPredictions + r.metrics.wrongPredictions) * 100).toFixed(1) + '%',
+      accuracy:
+        (
+          (r.metrics.correctPredictions /
+            (r.metrics.correctPredictions + r.metrics.wrongPredictions)) *
+          100
+        ).toFixed(1) + '%',
       avgResponseTime: r.metrics.avgResponseTime.toFixed(2) + 'ms',
       profitableTrades: r.metrics.profitableTrades,
     })),
     rankings: results
-      .sort((a, b) => b.metrics.correctPredictions - a.metrics.correctPredictions)
-      .map((r, i) => `${i + 1}. ${r.archetype} (${r.metrics.correctPredictions} correct)`),
+      .sort(
+        (a, b) => b.metrics.correctPredictions - a.metrics.correctPredictions
+      )
+      .map(
+        (r, i) =>
+          `${i + 1}. ${r.archetype} (${r.metrics.correctPredictions} correct)`
+      ),
   };
 
   const reportPath = join(OUTPUT_DIR, 'benchmark-report.json');
@@ -223,20 +246,28 @@ async function runBenchmark() {
 
   // Summary
   const totalTime = Date.now() - startTime;
-  console.log('═══════════════════════════════════════════════════════════════');
+  console.log(
+    '═══════════════════════════════════════════════════════════════'
+  );
   console.log('  Benchmark Complete');
-  console.log('═══════════════════════════════════════════════════════════════');
+  console.log(
+    '═══════════════════════════════════════════════════════════════'
+  );
   console.log(`  Total time: ${(totalTime / 1000).toFixed(1)}s`);
   console.log(`  Ticks processed: ${snapshot.ticks.length}`);
   console.log(`  Agents tested: ${archetypes.length}`);
-  console.log(`  Total actions: ${results.reduce((sum, r) => sum + r.metrics.totalActions, 0)}`);
+  console.log(
+    `  Total actions: ${results.reduce((sum, r) => sum + r.metrics.totalActions, 0)}`
+  );
   console.log('');
   console.log('  Output files:');
   console.log(`    ${benchmarkPath}`);
   console.log(`    ${trainingPath}`);
   console.log(`    ${reportPath}`);
   console.log(`    ${OUTPUT_DIR}/state.json`);
-  console.log('═══════════════════════════════════════════════════════════════');
+  console.log(
+    '═══════════════════════════════════════════════════════════════'
+  );
 
   // Print rankings
   console.log('\n  Rankings by accuracy:');
@@ -248,36 +279,55 @@ async function runBenchmark() {
 /**
  * Simulate agent behavior based on archetype
  */
-function simulateAgentBehavior(archetype: string, snapshot: ReturnType<BenchmarkDataGenerator['generate']> extends Promise<infer T> ? T : never): AgentAction[] {
+function simulateAgentBehavior(
+  archetype: string,
+  snapshot: ReturnType<BenchmarkDataGenerator['generate']> extends Promise<
+    infer T
+  >
+    ? T
+    : never
+): AgentAction[] {
   const actions: AgentAction[] = [];
   const numTicks = snapshot.ticks.length;
 
   // Simulate different trading frequencies based on archetype
-  const tradingFrequency = {
-    trader: 0.3,      // 30% of ticks
-    researcher: 0.1,  // 10% of ticks
-    degenerate: 0.5,  // 50% of ticks
-    conservative: 0.05, // 5% of ticks
-  }[archetype] ?? 0.2;
+  const tradingFrequency =
+    {
+      trader: 0.3, // 30% of ticks
+      researcher: 0.1, // 10% of ticks
+      degenerate: 0.5, // 50% of ticks
+      conservative: 0.05, // 5% of ticks
+    }[archetype] ?? 0.2;
 
   // Simulate different accuracy based on archetype
-  const accuracy = {
-    trader: 0.6,
-    researcher: 0.7,
-    degenerate: 0.4,
-    conservative: 0.65,
-  }[archetype] ?? 0.5;
+  const accuracy =
+    {
+      trader: 0.6,
+      researcher: 0.7,
+      degenerate: 0.4,
+      conservative: 0.65,
+    }[archetype] ?? 0.5;
 
   for (let i = 0; i < numTicks; i++) {
     const tick = snapshot.ticks[i]!;
 
     // Decide if agent trades this tick
     if (Math.random() < tradingFrequency) {
-      const market = tick.state.predictionMarkets[Math.floor(Math.random() * tick.state.predictionMarkets.length)];
+      const market =
+        tick.state.predictionMarkets[
+          Math.floor(Math.random() * tick.state.predictionMarkets.length)
+        ];
       if (market) {
         const isCorrect = Math.random() < accuracy;
-        const actualOutcome = snapshot.groundTruth.marketOutcomes[market.id] ?? false;
-        const predictedSide = isCorrect ? (actualOutcome ? 'YES' : 'NO') : (actualOutcome ? 'NO' : 'YES');
+        const actualOutcome =
+          snapshot.groundTruth.marketOutcomes[market.id] ?? false;
+        const predictedSide = isCorrect
+          ? actualOutcome
+            ? 'YES'
+            : 'NO'
+          : actualOutcome
+            ? 'NO'
+            : 'YES';
 
         actions.push({
           tick: tick.number,
@@ -318,14 +368,19 @@ function simulateAgentBehavior(archetype: string, snapshot: ReturnType<Benchmark
  */
 function calculateAgentMetrics(actions: AgentAction[]) {
   const predictions = actions.filter((a) => a.type === 'buy_prediction');
-  const correct = predictions.filter((a) => a.correctness?.predictionCorrect).length;
-  const wrong = predictions.filter((a) => a.correctness && !a.correctness.predictionCorrect).length;
+  const correct = predictions.filter(
+    (a) => a.correctness?.predictionCorrect
+  ).length;
+  const wrong = predictions.filter(
+    (a) => a.correctness && !a.correctness.predictionCorrect
+  ).length;
 
   return {
     totalActions: actions.length,
     correctPredictions: correct,
     wrongPredictions: wrong,
-    avgResponseTime: actions.reduce((sum, a) => sum + a.duration, 0) / (actions.length || 1),
+    avgResponseTime:
+      actions.reduce((sum, a) => sum + a.duration, 0) / (actions.length || 1),
     profitableTrades: correct,
   };
 }

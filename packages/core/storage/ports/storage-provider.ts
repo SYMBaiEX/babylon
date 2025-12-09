@@ -1,6 +1,6 @@
 /**
  * Storage Provider Interface
- * 
+ *
  * The main interface that combines all storage ports.
  * Implementations can be PostgreSQL, JSON files, or in-memory.
  */
@@ -31,13 +31,13 @@ export interface StorageProviderConfig {
 
 /**
  * Complete storage provider interface.
- * 
+ *
  * This is the main abstraction that allows the engine to work with
  * different storage backends (Postgres, JSON files, in-memory).
  */
 export interface IStorageProvider {
   readonly mode: StorageMode;
-  
+
   // Domain Ports
   readonly actors: ActorPort;
   readonly organizations: OrganizationPort;
@@ -48,17 +48,19 @@ export interface IStorageProvider {
   readonly questions: QuestionPort;
   readonly trading: TradingPort;
   readonly users: UserPort;
-  
+
   // Lifecycle
   initialize(): Promise<void>;
   shutdown(): Promise<void>;
-  
+
   // Health check
   isHealthy(): Promise<boolean>;
-  
+
   // Transaction support (optional, not all backends support this)
-  withTransaction?<T>(fn: (provider: IStorageProvider) => Promise<T>): Promise<T>;
-  
+  withTransaction?<T>(
+    fn: (provider: IStorageProvider) => Promise<T>
+  ): Promise<T>;
+
   // Snapshot support for JSON/memory modes
   saveSnapshot?(): Promise<void>;
   loadSnapshot?(path: string): Promise<void>;
@@ -112,9 +114,18 @@ export function clearStorageProvider(): void {
 /**
  * Get a specific port from the storage provider.
  */
-export function getPort<K extends keyof Omit<IStorageProvider, 'mode' | 'initialize' | 'shutdown' | 'isHealthy' | 'withTransaction' | 'saveSnapshot' | 'loadSnapshot' | 'exportToJson'>>(
-  key: K
-): IStorageProvider[K] {
+export function getPort<
+  K extends keyof Omit<
+    IStorageProvider,
+    | 'mode'
+    | 'initialize'
+    | 'shutdown'
+    | 'isHealthy'
+    | 'withTransaction'
+    | 'saveSnapshot'
+    | 'loadSnapshot'
+    | 'exportToJson'
+  >,
+>(key: K): IStorageProvider[K] {
   return getStorageProvider()[key];
 }
-

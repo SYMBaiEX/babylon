@@ -1,5 +1,8 @@
 import { definePrompt } from '../define-prompt';
-import { PARODY_NAME_RULES, QUESTION_CONTINUITY_RULES } from '../shared-sections';
+import {
+  PARODY_NAME_RULES,
+  QUESTION_CONTINUITY_RULES,
+} from '../shared-sections';
 
 /**
  * Prompt for generating yes/no prediction market questions for each scenario.
@@ -15,7 +18,8 @@ export const questions = definePrompt({
   id: 'questions',
   version: '4.0.0',
   category: 'game',
-  description: 'Generates yes/no questions with full character and narrative context',
+  description:
+    'Generates yes/no questions with full character and narrative context',
   temperature: 0.7,
   maxTokens: 10000,
   template: `{{realityGrounding}}

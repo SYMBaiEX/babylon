@@ -72,19 +72,19 @@ export {
 // Reality grounding utilities
 export { getWorldEventExamples } from './reality-grounding';
 // Shared sections utilities
-export { 
-  getTimeOfDayEnergy,
+export {
   ANTI_REPETITION_RULES,
-  NARRATIVE_CONTINUITY_RULES,
-  QUESTION_CONTINUITY_RULES,
-  EVENT_CONTINUITY_RULES,
-  RICH_NARRATIVE_CONTEXT_HEADER,
+  buildStandardPromptSections,
   CHARACTER_ROSTER_HEADER,
+  characterVoiceGuidance,
+  EVENT_CONTINUITY_RULES,
   FULL_CONTEXT_HEADER,
+  getTimeOfDayEnergy,
+  NARRATIVE_CONTINUITY_RULES,
   PARODY_NAME_RULES,
   PRIVATE_CONTENT_GUIDANCE,
-  characterVoiceGuidance,
-  buildStandardPromptSections,
+  QUESTION_CONTINUITY_RULES,
+  RICH_NARRATIVE_CONTEXT_HEADER,
 } from './shared-sections';
 // System prompts
 export { xmlAssistant } from './system/json-assistant';

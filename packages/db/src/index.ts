@@ -237,7 +237,6 @@ async function withRetryInternal<T>(
   throw lastError;
 }
 
-
 // ============================================================================
 // Storage Mode Management
 // ============================================================================
@@ -307,12 +306,7 @@ export function isSimulationMode(): boolean {
 }
 
 // Re-export JSON storage utilities
-export {
-  exportJsonState,
-  getJsonState,
-  loadJsonSnapshot,
-  saveJsonSnapshot,
-};
+export { exportJsonState, getJsonState, loadJsonSnapshot, saveJsonSnapshot };
 
 // ============================================================================
 // Main Exports
@@ -342,7 +336,9 @@ function createModeAwareDbProxy(): DrizzleClient {
             }
           );
         }
-        throw new Error('Database not initialized. Check DATABASE_URL or use initializeJsonMode().');
+        throw new Error(
+          'Database not initialized. Check DATABASE_URL or use initializeJsonMode().'
+        );
       }
       return client[prop as keyof DrizzleClient];
     },

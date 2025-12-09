@@ -466,7 +466,9 @@ describe('Trending Topics & News Integration', () => {
       ];
 
       // LLM failures should propagate, not be swallowed
-      await expect(engine.updateTrends(posts, 10)).rejects.toThrow('LLM timeout');
+      await expect(engine.updateTrends(posts, 10)).rejects.toThrow(
+        'LLM timeout'
+      );
     });
   });
 

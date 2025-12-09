@@ -308,19 +308,21 @@ export async function executeGameTick(
         postExample: actor.postExample,
         tier: actor.tier!,
         role: actor.role ?? 'unknown',
-        initialLuck: (actor.initialLuck as 'low' | 'medium' | 'high') ?? 'medium',
+        initialLuck:
+          (actor.initialLuck as 'low' | 'medium' | 'high') ?? 'medium',
         initialMood: actor.initialMood ?? 0,
       }));
     // Map StaticOrganization to Organization type
-    const organizations: Organization[] = StaticDataRegistry.getAllOrganizations().map((o) => ({
-      id: o.id,
-      name: o.name,
-      ticker: o.ticker,
-      description: o.description,
-      type: o.type,
-      canBeInvolved: o.canBeInvolved,
-      initialPrice: o.initialPrice ?? undefined,
-    }));
+    const organizations: Organization[] =
+      StaticDataRegistry.getAllOrganizations().map((o) => ({
+        id: o.id,
+        name: o.name,
+        ticker: o.ticker,
+        description: o.description,
+        type: o.type,
+        canBeInvolved: o.canBeInvolved,
+        initialPrice: o.initialPrice ?? undefined,
+      }));
 
     // Get recent events for context
     const recentDbEvents = await db
@@ -500,15 +502,16 @@ export async function executeGameTick(
 
       if (discourseActors.length >= 2) {
         // Map to DiscourseActor type (only fields needed for reply generation)
-        const allActorsForDiscourse: DiscourseActor[] =
-          discourseActors.map((actor) => ({
+        const allActorsForDiscourse: DiscourseActor[] = discourseActors.map(
+          (actor) => ({
             id: actor.id,
             name: actor.name,
             description: actor.description,
             personality: actor.personality,
             postStyle: actor.postStyle,
             postExample: actor.postExample || [],
-          }));
+          })
+        );
 
         const npcRepliesCreated = await generateNPCRepliesFromPreviousTicks(
           llmClient,
@@ -1205,15 +1208,15 @@ async function generateMixedPosts(
   // Static data from registry, dynamic state from DB
   const [actorStates, worldFactsBase, trendingContext, sharedContext] =
     await Promise.all([
-    db
-      .select()
-      .from(actorState)
-      .orderBy(desc(actorState.reputationPoints))
-      .limit(15),
-    worldFactsService.generatePromptContext(),
+      db
+        .select()
+        .from(actorState)
+        .orderBy(desc(actorState.reputationPoints))
+        .limit(15),
+      worldFactsService.generatePromptContext(),
       getTrendingPromptContext(),
-    loadSharedPostContext(), // Load feed posts + events ONCE
-  ]);
+      loadSharedPostContext(), // Load feed posts + events ONCE
+    ]);
 
   // Combine world facts with trending context
   const worldFactsContext = worldFactsBase + trendingContext;

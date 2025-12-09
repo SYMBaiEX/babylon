@@ -22,7 +22,8 @@ export const reactions = definePrompt({
   id: 'reactions',
   version: '5.0.0',
   category: 'feed',
-  description: 'Generates actor reaction with full character context (per-character)',
+  description:
+    'Generates actor reaction with full character context (per-character)',
   temperature: 1,
   maxTokens: 8000,
   template: `{{realityGrounding}}

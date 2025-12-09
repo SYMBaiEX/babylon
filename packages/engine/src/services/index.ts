@@ -86,19 +86,19 @@ export * from './trending-grouping-service';
 // Core Services
 // =============================================================================
 
-export {
-  bootstrapGameIfNeeded,
-  GameBootstrapService,
-  type GameBootstrapResult,
-} from './game-bootstrap-service';
 export * from './character-mapping-service';
 export * from './earned-points-service';
 export * from './fee-service';
+export {
+  bootstrapGameIfNeeded,
+  type GameBootstrapResult,
+  GameBootstrapService,
+} from './game-bootstrap-service';
 export * from './market-context-service';
 export * from './market-impact-service';
-export * from './rss-feed-service';
 // Static data registry (actors/orgs)
 export * from './npc-wallet-adapter';
+export * from './rss-feed-service';
 export * from './static-data-registry';
 export * from './trade-cache-invalidation';
 export * from './trade-execution-service';

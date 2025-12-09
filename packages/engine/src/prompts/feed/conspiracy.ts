@@ -22,7 +22,8 @@ export const conspiracy = definePrompt({
   id: 'conspiracy',
   version: '5.0.0',
   category: 'feed',
-  description: 'Generates conspiracy takes with full character context (per-character)',
+  description:
+    'Generates conspiracy takes with full character context (per-character)',
   temperature: 1.1,
   maxTokens: 6000,
   template: `{{realityGrounding}}

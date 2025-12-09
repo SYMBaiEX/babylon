@@ -1,6 +1,6 @@
 /**
  * Storage Provider Factory
- * 
+ *
  * Creates and configures storage providers based on the specified mode.
  */
 
@@ -14,7 +14,7 @@ import { setStorageProvider } from './ports/storage-provider';
 
 /**
  * Create a storage provider based on configuration.
- * 
+ *
  * @example
  * ```typescript
  * // For simulation/training (no database needed)
@@ -22,7 +22,7 @@ import { setStorageProvider } from './ports/storage-provider';
  *   mode: 'json',
  *   jsonBasePath: './simulation-data',
  * });
- * 
+ *
  * // For production (PostgreSQL)
  * const provider = await createStorageProvider({ mode: 'postgres' });
  * ```
@@ -81,4 +81,3 @@ export async function createTestStorage(): Promise<IStorageProvider> {
     persistOnChange: false,
   });
 }
-

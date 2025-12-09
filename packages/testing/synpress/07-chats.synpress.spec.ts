@@ -62,7 +62,7 @@ test.describe('Chats Page - Updated Design', () => {
       pageContent?.toLowerCase().includes('message') ||
       pageContent?.toLowerCase().includes('chat') ||
       pageContent?.toLowerCase().includes('conversation') ||
-      pageContent?.length && pageContent.length > 200;
+      (pageContent?.length && pageContent.length > 200);
 
     expect(hasChatsContent).toBe(true);
 

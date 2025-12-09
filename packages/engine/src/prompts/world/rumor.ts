@@ -1,12 +1,12 @@
 import { definePrompt } from '../define-prompt';
-import { PARODY_NAME_RULES, ANTI_REPETITION_RULES } from '../shared-sections';
+import { ANTI_REPETITION_RULES, PARODY_NAME_RULES } from '../shared-sections';
 
 /**
  * Prompt for generating rumors and unconfirmed information for game world.
  *
  * Creates speculative rumors circulating in the game world about events,
  * actors, or market movements. Adds intrigue and uncertainty while
- * maintaining narrative consistency. Uses full narrative context to 
+ * maintaining narrative consistency. Uses full narrative context to
  * ensure rumors connect to ongoing storylines.
  *
  * Returns XML with rumor content.

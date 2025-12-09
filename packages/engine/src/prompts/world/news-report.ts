@@ -1,12 +1,15 @@
 import { definePrompt } from '../define-prompt';
-import { PARODY_NAME_RULES, NARRATIVE_CONTINUITY_RULES } from '../shared-sections';
+import {
+  NARRATIVE_CONTINUITY_RULES,
+  PARODY_NAME_RULES,
+} from '../shared-sections';
 
 /**
  * Prompt for generating news reports from journalists covering game events.
  *
  * Creates journalistic news reports covering game events with breaking
  * news urgency and objective reporting style. References specific events,
- * actors, and market impacts. Includes full narrative context for 
+ * actors, and market impacts. Includes full narrative context for
  * comprehensive, connected journalism.
  *
  * Returns XML with news report.

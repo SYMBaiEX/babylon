@@ -50,7 +50,10 @@ export class JsonUserAdapter implements UserPort {
     return record;
   }
 
-  async updateUser(id: string, updates: Partial<UserRecord>): Promise<UserRecord> {
+  async updateUser(
+    id: string,
+    updates: Partial<UserRecord>
+  ): Promise<UserRecord> {
     const user = this.state.users[id];
     if (!user) {
       throw new Error(`User not found: ${id}`);
@@ -127,4 +130,3 @@ export class JsonUserAdapter implements UserPort {
     return id in this.state.users;
   }
 }
-

@@ -18,7 +18,9 @@ export class JsonQuestionAdapter implements QuestionPort {
     return this.state.questions[id] ?? null;
   }
 
-  async getQuestionByNumber(questionNumber: number): Promise<QuestionRecord | null> {
+  async getQuestionByNumber(
+    questionNumber: number
+  ): Promise<QuestionRecord | null> {
     return (
       Object.values(this.state.questions).find(
         (q) => q.questionNumber === questionNumber
@@ -95,7 +97,10 @@ export class JsonQuestionAdapter implements QuestionPort {
     return record;
   }
 
-  async resolveQuestion(id: string, resolvedOutcome: boolean): Promise<QuestionRecord> {
+  async resolveQuestion(
+    id: string,
+    resolvedOutcome: boolean
+  ): Promise<QuestionRecord> {
     const question = this.state.questions[id];
     if (!question) {
       throw new Error(`Question not found: ${id}`);
@@ -128,4 +133,3 @@ export class JsonQuestionAdapter implements QuestionPort {
     ).length;
   }
 }
-

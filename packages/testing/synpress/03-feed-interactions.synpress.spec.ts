@@ -38,8 +38,7 @@ test.describe('Feed - Core Functionality', () => {
     } else {
       // Page should have some content (empty state, loading, or generating)
       const pageContent = await page.locator('body').textContent();
-      const hasContent =
-        pageContent?.length && pageContent.length > 100;
+      const hasContent = pageContent?.length && pageContent.length > 100;
       expect(hasContent).toBe(true);
     }
   });

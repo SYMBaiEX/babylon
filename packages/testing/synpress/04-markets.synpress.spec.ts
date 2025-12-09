@@ -53,7 +53,9 @@ test.describe('Markets Dashboard', () => {
       )
       .first();
 
-    if (await perpsTab.isVisible({ timeout: TIMEOUTS.SHORT }).catch(() => false)) {
+    if (
+      await perpsTab.isVisible({ timeout: TIMEOUTS.SHORT }).catch(() => false)
+    ) {
       await perpsTab.click({ force: true });
       await page.waitForTimeout(2000);
     }
@@ -68,7 +70,11 @@ test.describe('Markets Dashboard', () => {
       )
       .first();
 
-    if (await predictionsTab.isVisible({ timeout: TIMEOUTS.SHORT }).catch(() => false)) {
+    if (
+      await predictionsTab
+        .isVisible({ timeout: TIMEOUTS.SHORT })
+        .catch(() => false)
+    ) {
       await predictionsTab.click({ force: true });
       await page.waitForTimeout(2000);
     }

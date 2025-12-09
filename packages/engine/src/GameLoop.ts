@@ -16,7 +16,7 @@ import type { Actor, ActorTier, FeedPost } from './types/shared';
 /**
  * Result of a single simulation tick execution.
  * Used by GameLoop for offline/training game generation.
- * 
+ *
  * Note: This is distinct from GameTick's TickResult (for injectable architecture)
  * and game-tick.ts's GameTickResult (for production cron).
  */
@@ -189,7 +189,10 @@ export class GameLoop {
     if (!marketOnly) {
       // Update trending topics before feed generation (engine handles interval internally)
       if (this.trendingTopics && this.recentPosts.length > 0) {
-        await this.trendingTopics.updateTrends(this.recentPosts, this.tickCount);
+        await this.trendingTopics.updateTrends(
+          this.recentPosts,
+          this.tickCount
+        );
         this.feed.updateTrendContext();
       }
 
