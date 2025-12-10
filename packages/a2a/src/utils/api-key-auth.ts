@@ -85,7 +85,13 @@ export function validateApiKey(
   if (providedKey !== requiredApiKey) {
     logger.warn(
       'Invalid or missing A2A API key',
-      { headerPresent: Boolean(providedKey) },
+      {
+        headerPresent: Boolean(providedKey),
+        providedPrefix: providedKey?.slice(0, 6) || 'empty',
+        expectedPrefix: requiredApiKey?.slice(0, 6) || 'not-set',
+        providedLength: providedKey?.length || 0,
+        expectedLength: requiredApiKey?.length || 0,
+      },
       'A2AAuth'
     );
     return {
