@@ -9,22 +9,53 @@ import {
   TrendingDown,
   TrendingUp,
 } from 'lucide-react';
+import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CategoryPnLCard } from '@/components/markets/CategoryPnLCard';
-import { CategoryPnLShareModal } from '@/components/markets/CategoryPnLShareModal';
-import { MarketsWidgetSidebar } from '@/components/markets/MarketsWidgetSidebar';
 import { PerpPositionsList } from '@/components/markets/PerpPositionsList';
 import { PortfolioPnLCard } from '@/components/markets/PortfolioPnLCard';
-import { PortfolioPnLShareModal } from '@/components/markets/PortfolioPnLShareModal';
 import { PredictionPositionsList } from '@/components/markets/PredictionPositionsList';
-import { BuyPointsModal } from '@/components/points/BuyPointsModal';
 import { PageContainer } from '@/components/shared/PageContainer';
 import { Skeleton, WidgetPanelSkeleton } from '@/components/shared/Skeleton';
 import { useAuth } from '@/hooks/useAuth';
 import { usePortfolioPnL } from '@/hooks/usePortfolioPnL';
 import { useUserPositions } from '@/hooks/useUserPositions';
 import { type PerpMarket, usePerpMarkets } from '@/stores/perpMarketsStore';
+
+// Lazy load heavy modals - not needed for initial render
+const CategoryPnLShareModal = dynamic(
+  () =>
+    import('@/components/markets/CategoryPnLShareModal').then((m) => ({
+      default: m.CategoryPnLShareModal,
+    })),
+  { ssr: false }
+);
+
+const PortfolioPnLShareModal = dynamic(
+  () =>
+    import('@/components/markets/PortfolioPnLShareModal').then((m) => ({
+      default: m.PortfolioPnLShareModal,
+    })),
+  { ssr: false }
+);
+
+const BuyPointsModal = dynamic(
+  () =>
+    import('@/components/points/BuyPointsModal').then((m) => ({
+      default: m.BuyPointsModal,
+    })),
+  { ssr: false }
+);
+
+// Lazy load sidebar - only needed on desktop
+const MarketsWidgetSidebar = dynamic(
+  () =>
+    import('@/components/markets/MarketsWidgetSidebar').then((m) => ({
+      default: m.MarketsWidgetSidebar,
+    })),
+  { ssr: false }
+);
 
 interface PredictionUserPosition {
   id: string;
@@ -142,28 +173,35 @@ export default function MarketsPage() {
     const isAuth = authenticatedRef.current;
     const userId = userIdRef.current;
 
-    const predictionsRes = await fetch(
-      `/api/markets/predictions${isAuth && userId ? `?userId=${userId}` : ''}`
-    );
+    try {
+      const predictionsRes = await fetch(
+        `/api/markets/predictions${isAuth && userId ? `?userId=${userId}` : ''}`
+      );
 
-    if (!predictionsRes.ok) {
-      console.error('Failed to fetch predictions: Failed to fetch predictions');
-      setPredictionsLoading(false);
-      return;
-    }
-
-    const predictionsData = await predictionsRes.json();
-    setPredictions(predictionsData.questions || []);
-
-    if (isAuth && userId) {
-      if (refreshPositionsRef.current) {
-        await refreshPositionsRef.current();
+      if (!predictionsRes.ok) {
+        console.error(
+          'Failed to fetch predictions: Failed to fetch predictions'
+        );
+        setPredictionsLoading(false);
+        return;
       }
-    }
 
-    // Trigger balance refresh after data fetch (after trades)
-    setBalanceRefreshTrigger(Date.now());
-    setPredictionsLoading(false);
+      const predictionsData = await predictionsRes.json();
+      setPredictions(predictionsData.questions || []);
+
+      if (isAuth && userId) {
+        if (refreshPositionsRef.current) {
+          await refreshPositionsRef.current();
+        }
+      }
+
+      // Trigger balance refresh after data fetch (after trades)
+      setBalanceRefreshTrigger(Date.now());
+    } catch {
+      // Network error - ignore, just stop loading
+    } finally {
+      setPredictionsLoading(false);
+    }
   }, []); // Empty dependency array - fetchData never changes
 
   // Store fetchData in ref (fetchData is stable with empty deps)
@@ -1691,13 +1729,16 @@ export default function MarketsPage() {
         )}
       </div>
 
-      <PortfolioPnLShareModal
-        isOpen={showPnLShareModal}
-        onClose={() => setShowPnLShareModal(false)}
-        data={portfolioPnL}
-        user={user ?? null}
-        lastUpdated={portfolioUpdatedAt}
-      />
+      {/* Lazy loaded modals - only mount when needed */}
+      {showPnLShareModal && (
+        <PortfolioPnLShareModal
+          isOpen={showPnLShareModal}
+          onClose={() => setShowPnLShareModal(false)}
+          data={portfolioPnL}
+          user={user ?? null}
+          lastUpdated={portfolioUpdatedAt}
+        />
+      )}
 
       {/* Category P&L Share Modals */}
       {showCategoryPnLShareModal === 'perps' && (
@@ -1722,15 +1763,17 @@ export default function MarketsPage() {
         />
       )}
 
-      {/* Buy Points Modal */}
-      <BuyPointsModal
-        isOpen={showBuyPointsModal}
-        onClose={() => setShowBuyPointsModal(false)}
-        onSuccess={() => {
-          setBalanceRefreshTrigger(Date.now());
-          fetchData();
-        }}
-      />
+      {/* Buy Points Modal - lazy loaded */}
+      {showBuyPointsModal && (
+        <BuyPointsModal
+          isOpen={showBuyPointsModal}
+          onClose={() => setShowBuyPointsModal(false)}
+          onSuccess={() => {
+            setBalanceRefreshTrigger(Date.now());
+            fetchData();
+          }}
+        />
+      )}
     </PageContainer>
   );
 }

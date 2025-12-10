@@ -2,6 +2,7 @@
 
 import { cn } from '@babylon/shared';
 import { Loader2, MessageCircle } from 'lucide-react';
+import { LoginButton } from '@/components/auth/LoginButton';
 import {
   ChatHeader,
   ChatList,
@@ -101,26 +102,18 @@ export default function ChatsPage() {
     sendMessage,
   } = useChatPage();
 
-  // Not ready state
-  if (!ready && !authenticated) {
+  // Auth required state
+  if (ready && !authenticated) {
     return (
       <PageContainer noPadding className="flex flex-col">
-        <div className="flex flex-1 items-center justify-center">
-          <div className="mx-auto max-w-md p-8 text-center">
+        <div className="flex flex-1 items-center justify-center p-8">
+          <div className="max-w-md text-center">
             <MessageCircle className="mx-auto mb-4 h-16 w-16 text-muted-foreground" />
-            <h2 className="mb-2 font-bold text-foreground text-xl">
-              No Chats Yet
-            </h2>
-            <p className="mb-4 text-muted-foreground">
-              Game is auto-generating in the background...
+            <h2 className="mb-2 font-bold text-foreground text-xl">log in</h2>
+            <p className="mb-6 text-muted-foreground">
+              Sign in to view and send messages
             </p>
-            <div className="space-y-2 text-muted-foreground text-sm">
-              <p>This happens automatically on first run.</p>
-              <p>Check the terminal logs for progress.</p>
-              <p className="rounded bg-muted p-2 font-mono text-xs">
-                First generation takes 3-5 minutes
-              </p>
-            </div>
+            <LoginButton />
           </div>
         </div>
       </PageContainer>

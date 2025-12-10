@@ -180,6 +180,10 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
                 authorId: posts.authorId,
                 timestamp: posts.timestamp,
                 type: posts.type,
+                articleTitle: posts.articleTitle,
+                byline: posts.byline,
+                biasScore: posts.biasScore,
+                category: posts.category,
               },
             })
             .from(postTags)
@@ -202,6 +206,10 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
                 authorId: posts.authorId,
                 timestamp: posts.timestamp,
                 type: posts.type,
+                articleTitle: posts.articleTitle,
+                byline: posts.byline,
+                biasScore: posts.biasScore,
+                category: posts.category,
               },
             })
             .from(postTags)
@@ -346,6 +354,10 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       commentCount: commentMap.get(pt.post.id) || 0,
       shareCount: shareMap.get(pt.post.id) || 0,
       type: pt.post.type,
+      articleTitle: pt.post.articleTitle,
+      byline: pt.post.byline,
+      biasScore: pt.post.biasScore,
+      category: pt.post.category,
     };
   });
 

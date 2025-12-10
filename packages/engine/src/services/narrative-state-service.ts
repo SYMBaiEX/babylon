@@ -53,3 +53,100 @@ export async function getArcPlan(questionId: string) {
     where: { questionId },
   });
 }
+
+/** Type for the database arc plan record */
+export type DatabaseArcPlan = NonNullable<
+  Awaited<ReturnType<typeof getArcPlan>>
+>;
+
+/**
+ * Determine the narrative phase for a given day based on arc plan timing
+ *
+ * @param day - Current game day (0-indexed from game start)
+ * @param arcPlan - The arc plan for the question
+ * @returns The current phase: 'early', 'middle', 'late', or 'climax'
+ */
+export function getPhaseForDay(
+  day: number,
+  arcPlan: DatabaseArcPlan
+): 'early' | 'middle' | 'late' | 'climax' {
+  if (day < arcPlan.uncertaintyPeakDay) return 'early';
+  if (day < arcPlan.clarityOnsetDay) return 'middle';
+  if (day < arcPlan.verificationDay) return 'late';
+  return 'climax';
+}
+
+/**
+ * Determine signal direction for an actor based on arc plan and phase
+ *
+ * @description
+ * Returns what direction a signal should point based on:
+ * - Insiders: Always point toward the truth (correct answer)
+ * - Deceivers: Always point away from the truth (wrong answer)
+ * - Regular NPCs: Follow phase-appropriate signal distribution
+ *
+ * @param arcPlan - The arc plan for the question
+ * @param phase - Current narrative phase
+ * @param actorId - ID of the actor generating content (empty string for events)
+ * @param questionOutcome - The predetermined outcome (true = YES, false = NO)
+ * @returns Signal direction and reasoning
+ */
+export function getSignalDirection(
+  arcPlan: DatabaseArcPlan,
+  phase: 'early' | 'middle' | 'late' | 'climax',
+  actorId: string,
+  questionOutcome: boolean
+): {
+  direction: 'YES' | 'NO' | 'NEUTRAL';
+  reason: 'insider' | 'deceiver' | 'phase';
+} {
+  const insiderIds = arcPlan.insiderActorIds ?? [];
+  const deceiverIds = arcPlan.deceiverActorIds ?? [];
+
+  // Insiders always point toward truth
+  if (actorId && insiderIds.includes(actorId)) {
+    return { direction: questionOutcome ? 'YES' : 'NO', reason: 'insider' };
+  }
+
+  // Deceivers always point away from truth
+  if (actorId && deceiverIds.includes(actorId)) {
+    return { direction: questionOutcome ? 'NO' : 'YES', reason: 'deceiver' };
+  }
+
+  // Regular NPCs/events follow phase distribution
+  // phaseRatios contains the ratio of correct signals for each phase
+  const phaseRatios = arcPlan.phaseRatios ?? {
+    early: 0.43,
+    middle: 0.55,
+    late: 0.78,
+    climax: 1.0,
+  };
+  const correctSignalRatio = phaseRatios[phase];
+
+  const shouldBeCorrect = Math.random() < correctSignalRatio;
+  if (shouldBeCorrect) {
+    return { direction: questionOutcome ? 'YES' : 'NO', reason: 'phase' };
+  }
+  return { direction: questionOutcome ? 'NO' : 'YES', reason: 'phase' };
+}
+
+/**
+ * Get phase-appropriate prompt guidance for NPCs
+ *
+ * @param phase - Current narrative phase
+ * @returns LLM prompt guidance for the phase
+ */
+export function getPhaseGuidance(
+  phase: 'early' | 'middle' | 'late' | 'climax'
+): string {
+  const phasePrompts = {
+    early:
+      '[INTERNAL: Information is murky and uncertain. Express confusion, speculation, or skepticism.]',
+    middle:
+      '[INTERNAL: Conflicting signals are emerging. Take a tentative position but acknowledge uncertainty.]',
+    late: '[INTERNAL: A pattern is becoming clearer. Show growing confidence in your assessment.]',
+    climax:
+      '[INTERNAL: The answer is becoming obvious. State your position with confidence.]',
+  };
+  return phasePrompts[phase];
+}

@@ -26,6 +26,7 @@ import {
   db,
   desc,
   eq,
+  games,
   gte,
   isNull,
   lt,
@@ -165,38 +166,32 @@ export async function generateAheadIfNeeded(
     Math.ceil(minutesNeeded / GENERATION_BATCH_MINUTES)
   );
 
-  // Start from latest timestamp or now
-  let currentTimestamp = status.latestTimestamp || new Date();
+  // Start from whichever is later: now or last content timestamp
   const now = new Date();
-
-  // If latest is in the past, start from now
-  if (currentTimestamp < now) {
-    currentTimestamp = now;
-  }
+  const baseTimestamp =
+    status.latestTimestamp && status.latestTimestamp > now
+      ? status.latestTimestamp
+      : now;
 
   let windowsGenerated = 0;
 
   for (let i = 0; i < windowsToGenerate; i++) {
-    // Calculate window boundaries
-    // If starting from latest timestamp, first window starts immediately after it
-    // Otherwise, start from current timestamp
-    const windowStart =
-      i === 0 && currentTimestamp > now
-        ? currentTimestamp
-        : new Date(
-            currentTimestamp.getTime() +
-              i * GENERATION_BATCH_MINUTES * 60 * 1000
-          );
+    // Calculate window boundaries consistently from baseTimestamp
+    // Each window is exactly GENERATION_BATCH_MINUTES long with no overlaps
+    const windowStart = new Date(
+      baseTimestamp.getTime() + i * GENERATION_BATCH_MINUTES * 60 * 1000
+    );
     const windowEnd = new Date(
       windowStart.getTime() + GENERATION_BATCH_MINUTES * 60 * 1000
     );
 
-    // Skip if window is in the past (shouldn't happen, but safety check)
-    if (windowStart < now) {
+    // Safety: skip if window end is somehow in the past
+    if (windowEnd < now) {
       logger.warn(
         'Skipping window in the past',
         {
           windowStart: windowStart.toISOString(),
+          windowEnd: windowEnd.toISOString(),
           now: now.toISOString(),
         },
         'LookaheadGeneration'
@@ -291,6 +286,22 @@ async function generateContentWindow(
     return;
   }
 
+  // Get the continuous game to calculate current day for arc plan phase detection
+  const game = await db
+    .select({ startedAt: games.startedAt })
+    .from(games)
+    .where(eq(games.isContinuous, true))
+    .limit(1);
+
+  // Calculate current game day (0-indexed from game start)
+  const gameStartedAt = game[0]?.startedAt;
+  const currentDay = gameStartedAt
+    ? Math.floor(
+        (windowStart.getTime() - gameStartedAt.getTime()) /
+          (24 * 60 * 60 * 1000)
+      )
+    : undefined;
+
   // Get active questions
   const activeQuestions = await db
     .select()
@@ -318,12 +329,18 @@ async function generateContentWindow(
     const randomOffset = secureRandom() * windowDuration;
     const eventTimestamp = new Date(windowStart.getTime() + randomOffset);
 
-    const eventsCreated = await generateEvents(activeQuestions, eventTimestamp);
+    // Pass currentDay for arc plan phase detection and signal direction
+    const eventsCreated = await generateEvents(
+      activeQuestions,
+      eventTimestamp,
+      currentDay
+    );
     if (eventsCreated > 0) {
       logger.info(
         `Generated ${eventsCreated} events in lookahead window`,
         {
           timestamp: eventTimestamp.toISOString(),
+          currentDay,
         },
         'LookaheadGeneration'
       );
@@ -416,7 +433,8 @@ async function generateContentWindow(
         question,
         worldFactsContext,
         postTimestamp,
-        sharedContext // Pass pre-loaded context to avoid N+1 queries
+        sharedContext, // Pass pre-loaded context to avoid N+1 queries
+        currentDay // Pass currentDay for arc plan phase detection and signal guidance
       );
       if (success) {
         logger.debug(
@@ -425,6 +443,7 @@ async function generateContentWindow(
             actor: actor.name,
             timestamp: postTimestamp.toISOString(),
             questionId: question.id,
+            currentDay,
           },
           'LookaheadGeneration'
         );

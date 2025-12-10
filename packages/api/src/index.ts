@@ -110,6 +110,8 @@ export {
 } from './errors';
 // Fetch utilities
 export { type ApiFetchOptions, apiFetch, getPrivyAccessToken } from './fetch';
+// Monitoring
+export { cronMetrics, recordCronExecution } from './monitoring/cron-metrics';
 export * from './monitoring/monitored-cache';
 export * from './monitoring/monitored-storage';
 // Performance monitoring (moved from @babylon/shared)

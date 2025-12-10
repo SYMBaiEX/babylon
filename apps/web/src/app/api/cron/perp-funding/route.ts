@@ -1,6 +1,7 @@
 import {
-  AuthorizationError,
+  recordCronExecution,
   relayCronToStaging,
+  requireCronAuth,
   successResponse,
   withErrorHandling,
 } from '@babylon/api';
@@ -11,29 +12,11 @@ import type { NextRequest } from 'next/server';
 
 export const maxDuration = 300;
 
-function verifyCron(request: NextRequest): void {
-  const authHeader = request.headers.get('authorization');
-  const cronSecret = process.env.CRON_SECRET;
-
-  if (process.env.NODE_ENV === 'development') {
-    if (!cronSecret) return;
-    if (
-      authHeader === 'Bearer development' ||
-      authHeader === `Bearer ${cronSecret}`
-    ) {
-      return;
-    }
-  }
-
-  if (!cronSecret) return;
-
-  if (authHeader !== `Bearer ${cronSecret}`) {
-    throw new AuthorizationError('Invalid cron secret', 'cron', 'execute');
-  }
-}
-
 export const POST = withErrorHandling(async (request: NextRequest) => {
-  verifyCron(request);
+  const startTime = new Date();
+
+  // Use centralized cron auth (fail-closed in production)
+  requireCronAuth(request, { jobName: 'PerpFunding' });
 
   // Relay to staging if configured (Vercel cron runs only on production)
   // but still execute locally (fan-out).
@@ -85,6 +68,9 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     undefined,
     'Cron:perp-funding'
   );
+
+  // Record metrics
+  recordCronExecution('perp-funding', startTime, { success: true });
 
   return successResponse({ success: true });
 });

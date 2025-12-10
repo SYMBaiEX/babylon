@@ -17,6 +17,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ArticleCard } from '@/components/articles/ArticleCard';
+import { LoginButton } from '@/components/auth/LoginButton';
 import { PostCard } from '@/components/posts/PostCard';
 import { LinkSocialAccountsModal } from '@/components/profile/LinkSocialAccountsModal';
 import { OnChainBadge } from '@/components/profile/OnChainBadge';
@@ -972,28 +973,15 @@ export default function ProfilePage() {
   if (!authenticated || !user) {
     return (
       <PageContainer noPadding className="flex flex-col">
-        <div className="sticky top-0 z-10 bg-background">
-          <div className="flex items-center gap-4 px-4 py-3">
-            <Link
-              href="/feed"
-              className="rounded-full p-2 transition-colors hover:bg-muted/50"
-            >
-              <ArrowLeft className="h-5 w-5" />
-            </Link>
-            <h1 className="font-bold text-xl">Profile</h1>
+        <div className="flex flex-1 items-center justify-center p-8">
+          <div className="max-w-md text-center">
+            <User className="mx-auto mb-4 h-16 w-16 text-muted-foreground" />
+            <h2 className="mb-2 font-bold text-foreground text-xl">log in</h2>
+            <p className="mb-6 text-muted-foreground">
+              Sign in to view and edit your profile
+            </p>
+            <LoginButton />
           </div>
-        </div>
-        <div className="flex flex-1 flex-col items-center justify-center gap-4">
-          <User className="h-12 w-12 text-muted-foreground opacity-50" />
-          <p className="text-muted-foreground">
-            Please log in to view your profile.
-          </p>
-          <Link
-            href="/feed"
-            className="rounded-lg bg-primary px-6 py-3 font-semibold text-primary-foreground transition-all hover:bg-primary/90"
-          >
-            Back to Feed
-          </Link>
         </div>
       </PageContainer>
     );

@@ -5,7 +5,7 @@
  * This allows NPC trades to use the core PerpMarketService while
  * managing balances in the actorState table.
  */
-import type { WalletPort } from '@babylon/core/markets/shared/common';
+import type { WalletPort } from '@babylon/core/markets/shared';
 import { actorState, db as defaultDb, eq, type Transaction } from '@babylon/db';
 
 type DbClient = typeof defaultDb | Transaction;
@@ -21,7 +21,7 @@ export function createNpcWalletAdapter(
   const db = dbClient ?? defaultDb;
 
   return {
-    async debit({ amount, reason }) {
+    async debit({ amount, reason }: { amount: number; reason: string }) {
       const [actor] = await db
         .select({ tradingBalance: actorState.tradingBalance })
         .from(actorState)
@@ -48,7 +48,7 @@ export function createNpcWalletAdapter(
         .where(eq(actorState.id, actorId));
     },
 
-    async credit({ amount }) {
+    async credit({ amount }: { amount: number }) {
       const [actor] = await db
         .select({ tradingBalance: actorState.tradingBalance })
         .from(actorState)
@@ -70,7 +70,7 @@ export function createNpcWalletAdapter(
         .where(eq(actorState.id, actorId));
     },
 
-    async recordPnL({ pnl, reason }) {
+    async recordPnL({ pnl, reason }: { pnl: number; reason: string }) {
       // For NPCs, we just update the trading balance directly
       // No separate PnL tracking like user wallets
       const [actor] = await db

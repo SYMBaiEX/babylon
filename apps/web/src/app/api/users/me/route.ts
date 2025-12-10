@@ -145,6 +145,7 @@ import {
   authenticate,
   cachedDb,
   getPrivyClient,
+  InternalServerError,
   successResponse,
   withErrorHandling,
 } from '@babylon/api';
@@ -438,7 +439,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       .returning(userSelectFields);
 
     if (!newUser) {
-      throw new Error('Failed to create user record');
+      throw new InternalServerError('Failed to create user record');
     }
     dbUser = newUser;
 
@@ -483,7 +484,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         .returning(userSelectFields);
 
       if (!updatedUser) {
-        throw new Error('Failed to update user record');
+        throw new InternalServerError('Failed to update user record');
       }
       dbUser = updatedUser;
 
@@ -529,7 +530,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
   // At this point dbUser should always be defined (either fetched or created)
   if (!dbUser) {
-    throw new Error('Failed to create or find user record');
+    throw new InternalServerError('Failed to create or find user record');
   }
 
   // Get cached profile stats

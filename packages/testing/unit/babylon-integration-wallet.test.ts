@@ -8,6 +8,8 @@ const findUniqueMock = mock(async () => ({
   id: 'agent-1',
   isAgent: true,
   walletAddress: null as string | null,
+  agent0TokenId: null as number | null,
+  displayName: 'Test Agent',
 }));
 
 const createWalletMock = mock(async () => ({
@@ -21,6 +23,41 @@ const sdkFromCardMock = mock(async () => new MockA2AClient());
 class MockA2AClient {
   static fromCardUrl = sdkFromCardMock;
 }
+
+// Mock fetch to return a valid agent card
+const originalFetch = globalThis.fetch;
+
+/**
+ * Create a typed fetch mock that satisfies Bun's fetch signature
+ * Bun's fetch has a preconnect property that must be present
+ */
+function createFetchMock(): typeof fetch {
+  const mockImpl = async (
+    url: string | URL | Request,
+    init?: RequestInit
+  ): Promise<Response> => {
+    const urlStr =
+      typeof url === 'string'
+        ? url
+        : url instanceof URL
+          ? url.toString()
+          : url.url;
+    if (urlStr.includes('agent-card.json')) {
+      return new Response(JSON.stringify({ name: 'test-agent', skills: [] }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+    return originalFetch(url, init);
+  };
+
+  // Use Object.assign to copy preconnect from original fetch
+  return Object.assign(mockImpl, {
+    preconnect: originalFetch.preconnect,
+  }) as typeof fetch;
+}
+
+const mockFetch = createFetchMock();
 
 mock.module('@babylon/db', () => ({
   db: {
@@ -62,6 +99,9 @@ describeTests('initializeAgentA2AClient wallet provisioning', () => {
     findUniqueMock.mockClear();
     createWalletMock.mockClear();
     sdkFromCardMock.mockClear();
+    // Reset mock call counts (mockFetch is already properly typed)
+    // Mock global fetch to return agent card
+    globalThis.fetch = mockFetch;
     process.env.AUTO_CREATE_AGENT_WALLETS = 'true';
     process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000';
   });
@@ -71,6 +111,8 @@ describeTests('initializeAgentA2AClient wallet provisioning', () => {
       id: 'agent-1',
       isAgent: true,
       walletAddress: null,
+      agent0TokenId: null,
+      displayName: 'Test Agent 1',
     });
 
     await initializeAgentA2AClient('agent-1');
@@ -84,6 +126,8 @@ describeTests('initializeAgentA2AClient wallet provisioning', () => {
       id: 'agent-2',
       isAgent: true,
       walletAddress: '0xexisting',
+      agent0TokenId: 123,
+      displayName: 'Test Agent 2',
     });
 
     await initializeAgentA2AClient('agent-2');

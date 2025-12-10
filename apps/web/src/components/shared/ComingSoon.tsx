@@ -342,43 +342,49 @@ export function ComingSoon() {
     if (!dbUser?.id) return;
 
     setIsVerifyingFollow(true);
-    const token = await getAccessToken();
-    const response = await fetch(
-      `/api/users/${encodeURIComponent(dbUser.id)}/verify-farcaster-follow`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-      }
-    );
 
-    const data = await response.json();
-
-    if (response.ok && data.verified) {
-      setHasFarcasterFollow(true);
-      setShowVerifyFollowButton(false);
-
-      // Refresh waitlist position to update points
-      await fetchWaitlistPosition(dbUser.id);
-
-      if (data.points?.awarded > 0) {
-        toast.success(
-          `Follow verified! +${data.points.awarded} points awarded`
-        );
-      } else {
-        toast.success(
-          'Follow verified! You already received points for this action.'
-        );
-      }
-    } else {
-      toast.error(
-        data.message ||
-          'Could not verify follow. Please make sure you followed @playbabylon on Farcaster.'
+    try {
+      const token = await getAccessToken();
+      const response = await fetch(
+        `/api/users/${encodeURIComponent(dbUser.id)}/verify-farcaster-follow`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+        }
       );
+
+      const data = await response.json();
+
+      if (response.ok && data.verified) {
+        setHasFarcasterFollow(true);
+        setShowVerifyFollowButton(false);
+
+        // Refresh waitlist position to update points
+        await fetchWaitlistPosition(dbUser.id);
+
+        if (data.points?.awarded > 0) {
+          toast.success(
+            `Follow verified! +${data.points.awarded} points awarded`
+          );
+        } else {
+          toast.success(
+            'Follow verified! You already received points for this action.'
+          );
+        }
+      } else {
+        toast.error(
+          data.message ||
+            'Could not verify follow. Please make sure you followed @playbabylon on Farcaster.'
+        );
+      }
+    } catch {
+      toast.error('Network error. Please try again.');
+    } finally {
+      setIsVerifyingFollow(false);
     }
-    setIsVerifyingFollow(false);
   };
 
   // Handle Twitter Follow - just open the follow intent link
@@ -414,38 +420,46 @@ export function ComingSoon() {
     if (!dbUser?.id) return;
 
     setIsVerifyingTwitterFollow(true);
-    const token = await getAccessToken();
-    const response = await fetch(
-      `/api/users/${encodeURIComponent(dbUser.id)}/verify-twitter-follow`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-      }
-    );
 
-    const data = await response.json();
+    try {
+      const token = await getAccessToken();
+      const response = await fetch(
+        `/api/users/${encodeURIComponent(dbUser.id)}/verify-twitter-follow`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+        }
+      );
 
-    if (response.ok && data.verified) {
-      setHasTwitterFollow(true);
-      setShowVerifyTwitterFollowButton(false);
+      const data = await response.json();
 
-      // Refresh waitlist position to update points
-      await fetchWaitlistPosition(dbUser.id);
+      if (response.ok && data.verified) {
+        setHasTwitterFollow(true);
+        setShowVerifyTwitterFollowButton(false);
 
-      if (data.points?.awarded > 0) {
-        toast.success(
-          `Thank you for following! +${data.points.awarded} points awarded`
-        );
+        // Refresh waitlist position to update points
+        await fetchWaitlistPosition(dbUser.id);
+
+        if (data.points?.awarded > 0) {
+          toast.success(
+            `Thank you for following! +${data.points.awarded} points awarded`
+          );
+        } else {
+          toast.success('You already received points for this action.');
+        }
       } else {
-        toast.success('You already received points for this action.');
+        toast.error(
+          data.message || 'Could not claim reward. Please try again.'
+        );
       }
-    } else {
-      toast.error(data.message || 'Could not claim reward. Please try again.');
+    } catch {
+      toast.error('Network error. Please try again.');
+    } finally {
+      setIsVerifyingTwitterFollow(false);
     }
-    setIsVerifyingTwitterFollow(false);
   };
 
   // Handle Discord Join - open invite link
@@ -481,43 +495,49 @@ export function ComingSoon() {
     if (!dbUser?.id) return;
 
     setIsVerifyingDiscordJoin(true);
-    const token = await getAccessToken();
-    const response = await fetch(
-      `/api/users/${encodeURIComponent(dbUser.id)}/verify-discord-join`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-      }
-    );
 
-    const data = await response.json();
-
-    if (response.ok && data.verified) {
-      setHasDiscordJoin(true);
-      setShowVerifyDiscordJoinButton(false);
-
-      // Refresh waitlist position to update points
-      await fetchWaitlistPosition(dbUser.id);
-
-      if (data.points?.awarded > 0) {
-        toast.success(
-          `Discord membership verified! +${data.points.awarded} points awarded`
-        );
-      } else {
-        toast.success(
-          'Membership verified! You already received points for this action.'
-        );
-      }
-    } else {
-      toast.error(
-        data.message ||
-          'Could not verify membership. Please make sure you joined the Babylon Discord server.'
+    try {
+      const token = await getAccessToken();
+      const response = await fetch(
+        `/api/users/${encodeURIComponent(dbUser.id)}/verify-discord-join`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+        }
       );
+
+      const data = await response.json();
+
+      if (response.ok && data.verified) {
+        setHasDiscordJoin(true);
+        setShowVerifyDiscordJoinButton(false);
+
+        // Refresh waitlist position to update points
+        await fetchWaitlistPosition(dbUser.id);
+
+        if (data.points?.awarded > 0) {
+          toast.success(
+            `Discord membership verified! +${data.points.awarded} points awarded`
+          );
+        } else {
+          toast.success(
+            'Membership verified! You already received points for this action.'
+          );
+        }
+      } else {
+        toast.error(
+          data.message ||
+            'Could not verify membership. Please make sure you joined the Babylon Discord server.'
+        );
+      }
+    } catch {
+      toast.error('Network error. Please try again.');
+    } finally {
+      setIsVerifyingDiscordJoin(false);
     }
-    setIsVerifyingDiscordJoin(false);
   };
 
   // Check if user has already been awarded follow rewards on page load
@@ -730,40 +750,49 @@ export function ComingSoon() {
 
   const awardWalletBonus = useCallback(
     async (userId: string, walletAddress: string) => {
-      const response = await fetch('/api/waitlist/bonus/wallet', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, walletAddress }),
-      });
+      try {
+        const response = await fetch('/api/waitlist/bonus/wallet', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId, walletAddress }),
+        });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        logger.error(
-          'Failed to award wallet bonus',
+        if (!response.ok) {
+          const errorText = await response.text();
+          logger.error(
+            'Failed to award wallet bonus',
+            {
+              userId,
+              walletAddress,
+              status: response.status,
+              errorText,
+            },
+            'ComingSoon'
+          );
+          return;
+        }
+
+        const result = await response.json();
+        logger.info(
+          'Wallet bonus awarded',
           {
             userId,
-            walletAddress,
-            status: response.status,
-            errorText,
+            awarded: result.awarded,
+            bonusAmount: result.bonusAmount,
           },
           'ComingSoon'
         );
-        return;
+
+        // Refresh position to show updated points
+        await fetchWaitlistPosition(userId);
+      } catch {
+        // Network error - silently fail (non-critical)
+        logger.warn(
+          'Network error awarding wallet bonus',
+          { userId },
+          'ComingSoon'
+        );
       }
-
-      const result = await response.json();
-      logger.info(
-        'Wallet bonus awarded',
-        {
-          userId,
-          awarded: result.awarded,
-          bonusAmount: result.bonusAmount,
-        },
-        'ComingSoon'
-      );
-
-      // Refresh position to show updated points
-      await fetchWaitlistPosition(userId);
     },
     [fetchWaitlistPosition]
   );
@@ -913,24 +942,29 @@ export function ComingSoon() {
     page: number,
     tab: 'leaderboard' | 'inviters' = leaderboardTab
   ) => {
-    const pointsType = getPointsTypeForTab(tab);
-    const response = await fetch(
-      `/api/waitlist/leaderboard?page=${page}&limit=10&pointsType=${pointsType}`
-    );
-    if (!response.ok) {
-      logger.warn(
-        'Failed to fetch leaderboard page',
-        { page, status: response.status },
-        'ComingSoon'
+    try {
+      const pointsType = getPointsTypeForTab(tab);
+      const response = await fetch(
+        `/api/waitlist/leaderboard?page=${page}&limit=10&pointsType=${pointsType}`
       );
+      if (!response.ok) {
+        logger.warn(
+          'Failed to fetch leaderboard page',
+          { page, status: response.status },
+          'ComingSoon'
+        );
+        return false;
+      }
+
+      const data = await response.json();
+      setTopUsers(data.leaderboard || []);
+      setLeaderboardTotalPages(data.totalPages || 10);
+      setLeaderboardLastFetched(Date.now());
+      return true;
+    } catch {
+      // Network error - silently fail
       return false;
     }
-
-    const data = await response.json();
-    setTopUsers(data.leaderboard || []);
-    setLeaderboardTotalPages(data.totalPages || 10);
-    setLeaderboardLastFetched(Date.now());
-    return true;
   };
 
   const handleCopyInviteCode = useCallback(() => {
@@ -972,50 +1006,55 @@ export function ComingSoon() {
     }
 
     setIsSavingProfile(true);
-    const token = await getAccessToken();
-    const response = await fetch(
-      `/api/users/${encodeURIComponent(dbUser.id)}/update-profile`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({
-          username: trimmedUsername,
-          displayName: trimmedDisplayName,
-          bio: trimmedBio,
-          profileImageUrl,
-          coverImageUrl,
-        }),
-      }
-    );
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      const errorMessage =
-        errorData?.error?.message ||
-        errorData?.message ||
-        'Failed to update profile';
-      logger.error(
-        'Failed to update profile',
+    try {
+      const token = await getAccessToken();
+      const response = await fetch(
+        `/api/users/${encodeURIComponent(dbUser.id)}/update-profile`,
         {
-          userId: dbUser.id,
-          status: response.status,
-          error: errorMessage,
-        },
-        'ComingSoon'
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({
+            username: trimmedUsername,
+            displayName: trimmedDisplayName,
+            bio: trimmedBio,
+            profileImageUrl,
+            coverImageUrl,
+          }),
+        }
       );
-      toast.error(errorMessage);
-      setIsSavingProfile(false);
-      return;
-    }
 
-    await refresh();
-    await fetchWaitlistPosition(dbUser.id);
-    setShowProfileModal(false);
-    toast.success('Profile updated successfully!');
-    setIsSavingProfile(false);
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        const errorMessage =
+          errorData?.error?.message ||
+          errorData?.message ||
+          'Failed to update profile';
+        logger.error(
+          'Failed to update profile',
+          {
+            userId: dbUser.id,
+            status: response.status,
+            error: errorMessage,
+          },
+          'ComingSoon'
+        );
+        toast.error(errorMessage);
+        return;
+      }
+
+      await refresh();
+      await fetchWaitlistPosition(dbUser.id);
+      setShowProfileModal(false);
+      toast.success('Profile updated successfully!');
+    } catch {
+      toast.error('Network error. Please try again.');
+    } finally {
+      setIsSavingProfile(false);
+    }
   };
 
   // Sync profile form with dbUser when modal opens (only on modal open, not on dbUser changes)

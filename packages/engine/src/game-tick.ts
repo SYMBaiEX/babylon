@@ -398,67 +398,86 @@ export async function executeGameTick(
     const questionManager = new QuestionManager(llmClient);
 
     // Resolve payouts
-    // Question status is updated atomically within resolveQuestionPayouts
+    // Each question resolution is wrapped in try/catch to prevent partial failures
+    // from breaking the entire tick. Failed resolutions will be retried next tick.
     for (const question of questionsToResolve) {
-      // Generate resolution proof content
-      // We cast question to Question type - database question fields are compatible
-      const questionForManager: Question = {
-        id: question.questionNumber,
-        text: question.text,
-        scenario: question.scenarioId || 1,
-        outcome: question.outcome,
-        rank: question.rank || 1,
-        status: 'active',
-      };
+      try {
+        // Generate resolution proof content
+        // We cast question to Question type - database question fields are compatible
+        const questionForManager: Question = {
+          id: question.questionNumber,
+          text: question.text,
+          scenario: question.scenarioId || 1,
+          outcome: question.outcome,
+          rank: question.rank || 1,
+          status: 'active',
+        };
 
-      const { description, proof } =
-        await questionManager.generateResolutionWithProof(
-          questionForManager,
-          allActors,
-          organizations,
-          recentTimelines
-        );
+        const { description, proof } =
+          await questionManager.generateResolutionWithProof(
+            questionForManager,
+            allActors,
+            organizations,
+            recentTimelines
+          );
 
-      // Save proof article if exists
-      if (proof && proof.type === 'article') {
-        // Create article in database
-        await db.insert(posts).values({
-          id: proof.article.id,
-          type: 'article',
-          content: proof.article.summary, // Use summary for content preview
-          fullContent: proof.article.content,
-          articleTitle: proof.article.title,
-          authorId: proof.article.authorOrgId,
-          gameId: 'continuous',
-          timestamp: new Date(),
-          category: proof.article.category,
-          sentiment: proof.article.sentiment,
-          slant: proof.article.slant,
-          biasScore: proof.article.biasScore,
-        });
+        // Save proof article and update question atomically if proof exists
+        if (proof && proof.type === 'article') {
+          await db.transaction(async (tx) => {
+            // Create article in database
+            await tx.insert(posts).values({
+              id: proof.article.id,
+              type: 'article',
+              content: proof.article.summary, // Use summary for content preview
+              fullContent: proof.article.content,
+              articleTitle: proof.article.title,
+              authorId: proof.article.authorOrgId,
+              gameId: 'continuous',
+              timestamp: new Date(),
+              category: proof.article.category,
+              sentiment: proof.article.sentiment,
+              slant: proof.article.slant,
+              biasScore: proof.article.biasScore,
+            });
 
-        // Update question with proof URL
-        await db
-          .update(questionsSchema)
-          .set({
-            resolutionDescription: description,
-            resolutionProofUrl: proof.url,
-            updatedAt: new Date(),
-          })
-          .where(eq(questionsSchema.id, question.id));
+            // Update question with proof URL
+            await tx
+              .update(questionsSchema)
+              .set({
+                resolutionDescription: description,
+                resolutionProofUrl: proof.url,
+                updatedAt: new Date(),
+              })
+              .where(eq(questionsSchema.id, question.id));
+          });
 
-        logger.info(
-          `Generated resolution proof for Q${question.questionNumber}`,
+          logger.info(
+            `Generated resolution proof for Q${question.questionNumber}`,
+            {
+              proofUrl: proof.url,
+              articleId: proof.article.id,
+            },
+            'GameTick'
+          );
+        }
+
+        // resolveQuestionPayouts has its own internal transaction for payout operations
+        // and updates question status to 'resolved' atomically
+        await resolveQuestionPayouts(question.questionNumber);
+        result.questionsResolved++;
+      } catch (error) {
+        // Log error but continue with other questions
+        // Failed question will remain in 'active' status and be retried next tick
+        logger.error(
+          `Question resolution failed - will retry next tick`,
           {
-            proofUrl: proof.url,
-            articleId: proof.article.id,
+            questionId: question.id,
+            questionNumber: question.questionNumber,
+            error: error instanceof Error ? error.message : String(error),
           },
           'GameTick'
         );
       }
-
-      await resolveQuestionPayouts(question.questionNumber);
-      result.questionsResolved++;
     }
 
     // Publish reveals to blockchain oracle
@@ -2415,8 +2434,14 @@ async function updateMarketPricesFromTrades(
 
     // Price = marketCap / supply, with floor and ceiling
     const rawPrice = newMarketCap / syntheticSupply;
-    const minPrice = initialPrice * 0.1; // Floor: 90% max drop
-    const maxPrice = currentPrice * 2.0; // Cap: 100% max gain per tick
+
+    // Price change limits: ±20% per tick, with absolute bounds
+    const maxChangePerTick = currentPrice * 0.2; // Max 20% move per tick
+    const absoluteMin = initialPrice * 0.25; // Never below 25% of initial
+    const absoluteMax = initialPrice * 4.0; // Never above 400% of initial
+
+    const minPrice = Math.max(absoluteMin, currentPrice - maxChangePerTick);
+    const maxPrice = Math.min(absoluteMax, currentPrice + maxChangePerTick);
     const newPrice = Math.max(minPrice, Math.min(rawPrice, maxPrice));
 
     const change = newPrice - currentPrice;
@@ -2454,19 +2479,39 @@ async function updateMarketPricesFromTrades(
 
   // Publish all price updates to blockchain in batch
   if (priceUpdatesForChain.length > 0) {
-    await PriceUpdateService.applyUpdates(
-      priceUpdatesForChain.map((u) => ({
-        ...u,
-        source: 'npc_trade',
-        reason: 'NPC trading price impact',
-      }))
-    ).catch((error: Error) => {
+    try {
+      await PriceUpdateService.applyUpdates(
+        priceUpdatesForChain.map((u) => ({
+          ...u,
+          source: 'npc_trade',
+          reason: 'NPC trading price impact',
+        }))
+      );
+    } catch (error) {
+      // Log with special marker for monitoring/retry systems
       logger.error(
-        'Failed to publish prices to blockchain',
-        { error, count: priceUpdatesForChain.length },
+        'PRICE_SYNC_FAILED: Failed to publish prices to blockchain - queueing for retry',
+        {
+          error: error instanceof Error ? error.message : String(error),
+          count: priceUpdatesForChain.length,
+          retryable: true,
+        },
         'GameTick'
       );
-    });
+
+      // Log each failed update for potential manual recovery
+      for (const update of priceUpdatesForChain) {
+        logger.warn(
+          'PRICE_SYNC_FAILED',
+          {
+            organizationId: update.organizationId,
+            newPrice: update.newPrice,
+            retryable: true,
+          },
+          'GameTick'
+        );
+      }
+    }
   }
 
   return updates;

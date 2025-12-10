@@ -112,3 +112,120 @@ Currently migrating architecture while keeping new code portable:
 - Don't use bash for file operations (use dedicated Read/Write/Edit tools)
 - Don't ignore linter issues from other work-in-progress
 - Always check existing code before writing new implementations
+
+## Production Operations
+
+### Game Control
+
+**Pause/Resume via Environment:**
+```bash
+# Pause game (skips all ticks)
+GAME_START=false
+
+# Resume game (default behavior)
+GAME_START=true  # or unset
+```
+
+**Pause/Resume via Database:**
+```sql
+-- Pause game
+UPDATE "Game" SET "isRunning" = false, "pausedAt" = NOW() WHERE "isContinuous" = true;
+
+-- Resume game
+UPDATE "Game" SET "isRunning" = true, "pausedAt" = NULL WHERE "isContinuous" = true;
+```
+
+**Via API:**
+```bash
+# Control game state
+curl -X POST https://your-domain/api/game/control \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"action": "pause"}'  # or "start"
+```
+
+### Cron Job Configuration
+
+All cron jobs are defined in [`vercel.json`](vercel.json):
+
+| Job | Schedule | Purpose |
+|-----|----------|---------|
+| `game-tick` | Every minute | Content generation, NPC trading, question resolution |
+| `agent-tick` | Every minute | Autonomous agent actions |
+| `realtime-drain` | Every minute | Flush SSE outbox to Redis |
+| `reputation-sync` | Daily 2am | Sync reputation to blockchain |
+| `perp-funding` | Every 8 hours | Calculate perpetual funding rates |
+| `world-facts` | Every 6 hours | Fetch RSS feeds, generate parody headlines |
+
+**Relay to Staging:**
+Set `REDIRECT_CRON_STAGING=true` to forward production cron calls to staging for testing.
+
+### Health Checks
+
+**Verify cron health:**
+```bash
+curl -X GET https://your-domain/api/cron/health-check \
+  -H "Authorization: Bearer $CRON_SECRET"
+```
+
+**Check game state:**
+```bash
+curl -s https://your-domain/api/health
+# Returns: {"status":"ok","timestamp":"...","env":"production"}
+```
+
+**View cron metrics (admin):**
+```bash
+curl -X GET https://your-domain/api/admin/cron-metrics \
+  -H "x-admin-token: $ADMIN_TOKEN"
+```
+
+### Troubleshooting Runbook
+
+**Cron not firing:**
+1. Check `vercel.json` has the cron entry
+2. Verify `CRON_SECRET` is set in Vercel environment
+3. Check Vercel dashboard → Cron Jobs tab for execution history
+4. Review function logs for auth failures
+
+**Content not generating:**
+1. Check game is running: `SELECT "isRunning" FROM "Game" WHERE "isContinuous" = true`
+2. Verify active questions exist: `SELECT COUNT(*) FROM "Question" WHERE status = 'active'`
+3. Check lookahead buffer: `SELECT MAX(timestamp) FROM "Post"` should be 15+ min ahead
+4. Review game-tick logs for errors
+
+**Agents not trading:**
+1. Verify game is running (see above)
+2. Check agent configs: `SELECT * FROM "UserAgentConfig" WHERE "autonomousTrading" = true`
+3. Verify agent has sufficient points: `pointsBalance >= 1`
+4. Check agent-tick logs for lock contention or errors
+
+**Lock contention (frequent "lock held" messages):**
+1. This is expected if ticks take > 1 minute
+2. Check tick duration in logs
+3. If consistently slow, investigate which phase is slow:
+   - Content generation (LLM calls)
+   - NPC trading decisions
+   - Question resolution
+4. Consider increasing tick interval or optimizing slow operations
+
+### Critical Environment Variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `CRON_SECRET` | Production | Cron auth (fail-closed if missing) |
+| `DATABASE_URL` | Yes | Postgres connection string |
+| `DIRECT_DATABASE_URL` | Recommended | Direct DB connection (bypasses pooler) |
+| `GAME_START` | No | Set to `false` to pause all game activity |
+| `REDIRECT_CRON_STAGING` | No | Set to `true` to relay crons to staging |
+| `GROQ_API_KEY` | Yes | LLM provider for content generation |
+| `OPENAI_API_KEY` | Fallback | Alternative LLM provider |
+
+### Monitoring Alerts
+
+Configure alerts for:
+- **Game tick failure:** 3+ consecutive failures → critical
+- **Agent tick timeout:** > 600s execution → warning
+- **No content generated:** 30+ minutes without new posts → warning
+- **Lookahead buffer low:** < 5 minutes ahead → critical
+- **Database connection failures:** Any connection error → critical
