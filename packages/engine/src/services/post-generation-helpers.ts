@@ -37,12 +37,21 @@ import type { BabylonLLMClient } from '../llm/openai-client';
 import type { EventContext, FeedPostContext } from '../types/market-context';
 import { stripHashtagsAndEmojis } from '../utils/shared-utils';
 import { characterMappingService } from './character-mapping-service';
+import {
+  getArcPlan,
+  getPhaseForDay,
+  getPhaseGuidance,
+  getSignalDirection,
+} from './narrative-state-service';
 import { StaticDataRegistry } from './static-data-registry';
 import type { GeneratedTag } from './tag-service';
 import { generateTagsFromPost, storeTagsForPost } from './tag-service';
 
 // Minimal question type for post generation (only fields actually used)
-type QuestionForPost = Pick<Question, 'id' | 'text' | 'questionNumber'>;
+// outcome is optional - only used for arc plan signal direction, and the code handles missing outcome
+type QuestionForPost = Pick<Question, 'id' | 'text' | 'questionNumber'> & {
+  outcome?: boolean | null;
+};
 
 // Minimal actor type for post generation
 interface ActorForPost {
@@ -349,6 +358,7 @@ async function getNPCPositions(
  * @param worldFactsContext - Shared world facts (parody names, etc)
  * @param timestamp - Timestamp for the post
  * @param sharedContext - Pre-loaded shared context (optional, will load if not provided)
+ * @param currentDay - Current game day (optional, used for arc plan signal guidance)
  */
 export async function generateNPCPost(
   llmClient: BabylonLLMClient,
@@ -356,7 +366,8 @@ export async function generateNPCPost(
   question: QuestionForPost,
   worldFactsContext: string,
   timestamp: Date,
-  sharedContext?: SharedPostContext
+  sharedContext?: SharedPostContext,
+  currentDay?: number
 ): Promise<boolean> {
   // Use provided shared context or load it (fallback for backward compatibility)
   const context = sharedContext || (await loadSharedPostContext());
@@ -387,7 +398,43 @@ export async function generateNPCPost(
           .join('\n')}`
       : '';
 
-  const prompt = `You ARE ${actor.name}. Post EXACTLY as they would.
+  // Build signal guidance from arc plan if available
+  let signalGuidance = '';
+  if (currentDay !== undefined) {
+    const arcPlan = await getArcPlan(question.id);
+    if (arcPlan) {
+      const phase = getPhaseForDay(currentDay, arcPlan);
+      const outcome = question.outcome ?? true;
+      const signal = getSignalDirection(arcPlan, phase, actor.id, outcome);
+
+      if (signal.reason === 'insider') {
+        signalGuidance = `[INTERNAL: You have insider knowledge that the answer is likely ${signal.direction}.
+          Subtly reflect this confidence in your post without being too obvious or explicit about predictions.]`;
+      } else if (signal.reason === 'deceiver') {
+        signalGuidance = `[INTERNAL: You believe (perhaps incorrectly) that the answer is ${signal.direction}.
+          Post with confidence in this direction. You might be spreading misinformation.]`;
+      } else {
+        // Regular NPC - phase-appropriate guidance
+        signalGuidance = getPhaseGuidance(phase);
+      }
+
+      logger.debug(
+        'NPC signal guidance determined',
+        {
+          actorId: actor.id,
+          actorName: actor.name,
+          questionId: question.id,
+          currentDay,
+          phase,
+          signalDirection: signal.direction,
+          signalReason: signal.reason,
+        },
+        'PostGeneration'
+      );
+    }
+  }
+
+  const prompt = `${signalGuidance ? `${signalGuidance}\n\n` : ''}You ARE ${actor.name}. Post EXACTLY as they would.
 
 === YOUR CHARACTER ===
 ${actor.description || ''}

@@ -129,4 +129,89 @@ describe.skipIf(SKIP)('Narrative State Service - Integration', () => {
     const result = await getArcPlan('non-existent-id');
     expect(result).toBeNull();
   });
+
+  test('getPhaseForDay returns correct phase based on arc plan timing', async () => {
+    const { getPhaseForDay } = await import(
+      '../../services/narrative-state-service'
+    );
+
+    // Get the arc plan we created in the previous test
+    const arcPlan = await getArcPlan(testQuestionId);
+    expect(arcPlan).toBeDefined();
+    if (!arcPlan) return;
+
+    // Test phase transitions based on arc plan days
+    // uncertaintyPeakDay: 10, clarityOnsetDay: 20, verificationDay: 28
+    expect(getPhaseForDay(1, arcPlan)).toBe('early');
+    expect(getPhaseForDay(9, arcPlan)).toBe('early');
+    expect(getPhaseForDay(10, arcPlan)).toBe('middle');
+    expect(getPhaseForDay(15, arcPlan)).toBe('middle');
+    expect(getPhaseForDay(19, arcPlan)).toBe('middle');
+    expect(getPhaseForDay(20, arcPlan)).toBe('late');
+    expect(getPhaseForDay(27, arcPlan)).toBe('late');
+    expect(getPhaseForDay(28, arcPlan)).toBe('climax');
+    expect(getPhaseForDay(30, arcPlan)).toBe('climax');
+  });
+
+  test('getSignalDirection returns correct direction for insiders/deceivers', async () => {
+    const { getSignalDirection } = await import(
+      '../../services/narrative-state-service'
+    );
+
+    const arcPlan = await getArcPlan(testQuestionId);
+    expect(arcPlan).toBeDefined();
+    if (!arcPlan) return;
+
+    // Insiders always point toward truth (outcome=true means YES)
+    const insiderDirection = getSignalDirection(
+      arcPlan,
+      'early',
+      'actor-1',
+      true
+    );
+    expect(insiderDirection.direction).toBe('YES');
+    expect(insiderDirection.reason).toBe('insider');
+
+    // Deceivers always point away from truth
+    const deceiverDirection = getSignalDirection(
+      arcPlan,
+      'early',
+      'actor-3',
+      true
+    );
+    expect(deceiverDirection.direction).toBe('NO');
+    expect(deceiverDirection.reason).toBe('deceiver');
+
+    // Regular actors follow phase distribution
+    const regularDirection = getSignalDirection(
+      arcPlan,
+      'early',
+      'regular-actor',
+      true
+    );
+    expect(['YES', 'NO']).toContain(regularDirection.direction);
+    expect(regularDirection.reason).toBe('phase');
+  });
+
+  test('phase signal ratios follow expected progression', async () => {
+    const arcPlan = await getArcPlan(testQuestionId);
+    expect(arcPlan).toBeDefined();
+    if (!arcPlan) return;
+
+    const ratios = arcPlan.phaseRatios as {
+      early: number;
+      middle: number;
+      late: number;
+      climax: number;
+    };
+
+    // Signal accuracy should increase as we progress through phases
+    // early < middle < late < climax
+    expect(ratios.early).toBeLessThan(ratios.middle);
+    expect(ratios.middle).toBeLessThan(ratios.late);
+    expect(ratios.late).toBeLessThan(ratios.climax);
+
+    // Climax should have 100% correct signals
+    expect(ratios.climax).toBe(1.0);
+  });
 });
