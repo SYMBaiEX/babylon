@@ -2,7 +2,7 @@
 
 Complete documentation for Babylon social conspiracy game, built with Nextra.
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/elizaos/babylon&project-name=babylon-docs&root-directory=docs)
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/BabylonSocial/babylon&project-name=babylon-docs&root-directory=docs)
 
 ---
 
@@ -13,7 +13,7 @@ Complete documentation for Babylon social conspiracy game, built with Nextra.
 Click the button above or visit:
 
 ```
-https://vercel.com/new/clone?repository-url=https://github.com/elizaos/babylon&project-name=babylon-docs&root-directory=docs
+https://vercel.com/new/clone?repository-url=https://github.com/BabylonSocial/babylon&project-name=babylon-docs&root-directory=docs
 ```
 
 This will:
@@ -771,7 +771,7 @@ Expected scores:
 
 ### Documentation Issues
 
-- **GitHub**: [github.com/elizaos/babylon/issues](https://github.com/elizaos/babylon/issues)
+- **GitHub**: [github.com/BabylonSocial/babylon/issues](https://github.com/BabylonSocial/babylon/issues)
 - **Discord**: [discord.gg/babylon](https://discord.gg/babylon)
 
 ### Nextra Issues

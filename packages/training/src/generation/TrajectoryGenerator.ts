@@ -328,14 +328,15 @@ export class TrajectoryGenerator {
     // Calculate stats
     for (const trajId of result.trajectoryIds) {
       // Get trajectory to determine archetype
-      const trajectory = await db
+      const trajectoryResult = await db
         .select()
         .from(trajectories)
         .where(eq(trajectories.trajectoryId, trajId))
         .limit(1);
+      const trajectory = trajectoryResult[0];
 
-      if (trajectory[0]) {
-        const agentInfo = this.agents.get(trajectory[0].agentId);
+      if (trajectory) {
+        const agentInfo = this.agents.get(trajectory.agentId);
         if (agentInfo) {
           const stat = result.archetypeStats[agentInfo.archetype];
           if (stat) {

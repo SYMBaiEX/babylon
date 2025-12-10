@@ -1815,7 +1815,7 @@ export function ComingSoon() {
 
                 {/* Develop and Deploy */}
                 <a
-                  href="https://github.com/elizaOS/babylon"
+                  href="https://github.com/BabylonSocial/babylon"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="group block touch-manipulation rounded-none border border-primary/20 bg-primary p-6 text-center backdrop-blur-md transition-all duration-300 hover:bg-primary/90 active:scale-95 sm:p-8 md:p-10"
@@ -1984,7 +1984,7 @@ export function ComingSoon() {
                       Documentation
                     </a>
                     <a
-                      href="https://github.com/elizaOS/babylon"
+                      href="https://github.com/BabylonSocial/babylon"
                       target="_blank"
                       rel="noopener noreferrer"
                       className="touch-manipulation transition-colors duration-200 hover:text-primary"

@@ -1,87 +1,216 @@
 'use client';
 
-import { useState } from 'react';
+import type { ISeriesApi, Time } from 'lightweight-charts';
+import { AreaSeries, LineSeries } from 'lightweight-charts';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Area,
-  AreaChart,
-  Brush,
-  CartesianGrid,
-  ReferenceArea,
-  ReferenceLine,
-  XAxis,
-  YAxis,
-} from 'recharts';
-import type { ChartConfig } from '@/components/ui/chart';
-import {
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-} from '@/components/ui/chart';
+  AREA_STYLES,
+  formatChartTime,
+  LINE_STYLES,
+  useLightweightChart,
+} from '@/components/charts/LightweightChartBase';
 
 /**
  * Price point structure for prediction chart data.
  */
 interface PricePoint {
+  /** Timestamp in milliseconds */
   time: number;
+  /** YES outcome price (0-1) */
   yesPrice: number;
+  /** NO outcome price (0-1) */
   noPrice: number;
+  /** Trading volume */
   volume: number;
 }
 
 /**
- * Prediction probability chart component for displaying YES/NO probability history.
- *
- * Displays an area chart showing the historical probability of YES vs NO outcomes
- * for a prediction market. Shows both YES and NO probability lines, current
- * probability percentages, and includes zoom functionality.
- *
- * Features:
- * - Dual area chart (YES and NO probabilities)
- * - Current probability display
- * - Zoom and brush controls
- * - Color-coded by favored outcome
- * - Responsive tooltips
- * - Loading state handling
- *
- * @param props - PredictionProbabilityChart component props
- * @returns Prediction probability chart element
- *
- * @example
- * ```tsx
- * <PredictionProbabilityChart
- *   data={probabilityHistory}
- *   marketId="market-123"
- *   showBrush={false}
- * />
- * ```
+ * Chart data point for Lightweight Charts series.
+ */
+interface ChartDataPoint {
+  time: Time;
+  value: number;
+}
+
+/**
+ * Props for PredictionProbabilityChart component.
  */
 interface PredictionProbabilityChartProps {
+  /** Array of price history points */
   data: PricePoint[];
+  /** Market identifier for keying */
   marketId: string;
+  /** Whether to show brush selector (unused, for future) */
   showBrush?: boolean;
 }
 
-const chartConfig = {
-  probability: {
-    label: 'YES Probability',
-    color: '#16a34a',
-  },
-  noProbability: {
-    label: 'NO Probability',
-    color: '#dc2626',
-  },
-} satisfies ChartConfig;
+/**
+ * Time range options for chart filtering.
+ */
+type TimeRange = '1H' | '4H' | '1D' | '1W' | 'ALL';
 
+const TIME_RANGES: TimeRange[] = ['1H', '4H', '1D', '1W', 'ALL'];
+
+/**
+ * Prediction probability chart using TradingView Lightweight Charts.
+ *
+ * Displays YES/NO probability history with area chart for YES and
+ * line chart for NO. Includes time range filtering and current
+ * probability display.
+ *
+ * Features:
+ * - Area chart for YES probability (filled green)
+ * - Line chart for NO probability (red line)
+ * - Time range filtering (1H, 4H, 1D, 1W, ALL)
+ * - Current probability percentages display
+ * - Interactive crosshair with tooltips
+ * - Auto-resize to container
+ *
+ * @param props - PredictionProbabilityChart component props
+ * @returns Prediction probability chart element
+ */
 export function PredictionProbabilityChart({
   data,
   marketId,
-  showBrush = false,
 }: PredictionProbabilityChartProps) {
-  const [zoomDomain, setZoomDomain] = useState<[number, number] | undefined>(
-    undefined
-  );
+  const [timeRange, setTimeRange] = useState<TimeRange>('ALL');
+  const yesSeries = useRef<ISeriesApi<'Area'> | null>(null);
+  const noSeries = useRef<ISeriesApi<'Line'> | null>(null);
+  const seriesInitialized = useRef(false);
 
-  if (data.length === 0) {
+  const { chartContainerRef, chart } = useLightweightChart({
+    rightPriceScale: {
+      scaleMargins: { top: 0.1, bottom: 0.1 },
+      autoScale: true,
+    },
+    localization: {
+      priceFormatter: (price: number) => `${price.toFixed(0)}%`,
+    },
+  });
+
+  // Filter and prepare data based on time range
+  const chartData = useMemo(() => {
+    if (!data.length) return { yes: [], no: [] };
+
+    // Filter valid data points and sort by time
+    const validData = data
+      .filter(
+        (point) =>
+          Number.isFinite(point.time) &&
+          Number.isFinite(point.yesPrice) &&
+          Number.isFinite(point.noPrice) &&
+          point.yesPrice >= 0 &&
+          point.noPrice >= 0
+      )
+      .sort((a, b) => a.time - b.time);
+
+    // Apply time range filter
+    let filtered = validData;
+    if (timeRange !== 'ALL') {
+      const now = Date.now();
+      const ranges: Record<TimeRange, number> = {
+        '1H': 60 * 60 * 1000,
+        '4H': 4 * 60 * 60 * 1000,
+        '1D': 24 * 60 * 60 * 1000,
+        '1W': 7 * 24 * 60 * 60 * 1000,
+        ALL: 0,
+      };
+      const cutoff = now - ranges[timeRange];
+      filtered = validData.filter((d) => d.time >= cutoff);
+    }
+
+    // Convert to chart format with deduplication by timestamp
+    // Lightweight Charts requires unique, ascending timestamps
+    const seenTimes = new Set<number>();
+    const yes: ChartDataPoint[] = [];
+    const no: ChartDataPoint[] = [];
+
+    for (const point of filtered) {
+      const time = formatChartTime(point.time);
+      const timeNum = time as number;
+      if (seenTimes.has(timeNum)) continue;
+      seenTimes.add(timeNum);
+
+      yes.push({ time, value: point.yesPrice * 100 });
+      no.push({ time, value: point.noPrice * 100 });
+    }
+
+    return { yes, no };
+  }, [data, timeRange]);
+
+  // Current probability from latest data point (always use ALL data, not filtered)
+  const currentProbability = useMemo(() => {
+    if (!data.length) return 50;
+    // Get the most recent point from the original data
+    const sorted = [...data]
+      .filter((p) => Number.isFinite(p.yesPrice) && p.yesPrice >= 0)
+      .sort((a, b) => b.time - a.time);
+    const latest = sorted[0];
+    return latest ? latest.yesPrice * 100 : 50;
+  }, [data]);
+
+  const isYesFavored = currentProbability >= 50;
+
+  // Initialize series when chart is ready
+  useEffect(() => {
+    if (!chart || seriesInitialized.current) return;
+
+    // Add YES area series (green filled area)
+    yesSeries.current = chart.addSeries(AreaSeries, {
+      ...AREA_STYLES.green,
+      priceFormat: {
+        type: 'custom',
+        formatter: (price: number) => `${price.toFixed(1)}%`,
+        minMove: 0.01,
+      },
+    });
+
+    // Add NO line series (red line overlay)
+    noSeries.current = chart.addSeries(LineSeries, {
+      ...LINE_STYLES.red,
+      priceFormat: {
+        type: 'custom',
+        formatter: (price: number) => `${price.toFixed(1)}%`,
+        minMove: 0.01,
+      },
+    });
+
+    seriesInitialized.current = true;
+
+    return () => {
+      yesSeries.current = null;
+      noSeries.current = null;
+      seriesInitialized.current = false;
+    };
+  }, [chart]);
+
+  // Update data when chart data changes
+  useEffect(() => {
+    if (!yesSeries.current || !noSeries.current || !chart) return;
+
+    if (!chartData.yes.length || !chartData.no.length) {
+      // Clear data when no points in range
+      yesSeries.current.setData([]);
+      noSeries.current.setData([]);
+      return;
+    }
+
+    yesSeries.current.setData(chartData.yes);
+    noSeries.current.setData(chartData.no);
+
+    // Fit content to show all data points properly
+    chart.timeScale().fitContent();
+  }, [chart, chartData]);
+
+  // Update series colors based on YES/NO favorability
+  useEffect(() => {
+    if (!yesSeries.current) return;
+    const style = isYesFavored ? AREA_STYLES.green : AREA_STYLES.red;
+    yesSeries.current.applyOptions(style);
+  }, [isYesFavored]);
+
+  // Loading state when no data
+  if (!data.length) {
     return (
       <div className="flex h-[400px] items-center justify-center text-muted-foreground">
         <div className="text-center">
@@ -91,295 +220,74 @@ export function PredictionProbabilityChart({
     );
   }
 
-  // Format data for recharts - convert to percentages
-  // Include both YES and NO for better visualization
-  const chartData = data
-    .filter(
-      (point) =>
-        Number.isFinite(point.time) &&
-        Number.isFinite(point.yesPrice) &&
-        Number.isFinite(point.noPrice)
-    )
-    .sort((a, b) => a.time - b.time)
-    .map((point) => ({
-      timestamp: point.time,
-      probability: point.yesPrice * 100,
-      noProbability: point.noPrice * 100,
-      volume: point.volume,
-      date: new Date(point.time).toLocaleString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-      }),
-    }));
-
-  const getEvenlySpacedTimeTicks = (count: number): number[] => {
-    if (chartData.length === 0) return [];
-    const first = chartData[0];
-    const last = chartData[chartData.length - 1];
-    if (!first || !last) return [];
-    const min = first.timestamp;
-    const max = last.timestamp;
-    if (count <= 1 || min === max) return [min];
-    const step = (max - min) / (count - 1);
-    return Array.from({ length: count }, (_, i) => Math.round(min + i * step));
-  };
-
-  // Determine color based on current probability
-  const currentProbability = chartData[chartData.length - 1]?.probability ?? 50;
-  const isYesFavored = currentProbability >= 50;
-  const lineColor = isYesFavored ? '#16a34a' : '#dc2626'; // Green if YES favored, red if NO favored
-
-  // Reset zoom handler
-  const handleResetZoom = () => {
-    setZoomDomain(undefined);
-  };
-
   return (
-    <div className="w-full space-y-2">
-      {/* Outcome indicator */}
-      <div className="flex items-center justify-between px-3">
+    <div className="w-full space-y-3" key={marketId}>
+      {/* Header with probabilities and time range selector */}
+      <div className="flex flex-wrap items-center justify-between gap-3 px-1">
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
             <div className="h-3 w-3 rounded-full bg-green-600" />
-            <span className="font-medium text-sm">
+            <span className="font-semibold text-sm">
               YES {currentProbability.toFixed(1)}%
             </span>
           </div>
           <div className="flex items-center gap-2">
             <div className="h-3 w-3 rounded-full bg-red-600" />
-            <span className="font-medium text-sm">
+            <span className="font-semibold text-sm">
               NO {(100 - currentProbability).toFixed(1)}%
             </span>
           </div>
         </div>
-        {zoomDomain && (
-          <button
-            onClick={handleResetZoom}
-            className="text-muted-foreground text-xs transition-colors hover:text-foreground"
-          >
-            Reset Zoom
-          </button>
+
+        {/* Time range selector */}
+        <div className="flex items-center gap-1 rounded-md bg-muted/30 p-1">
+          {TIME_RANGES.map((range) => (
+            <button
+              key={range}
+              onClick={() => setTimeRange(range)}
+              className={`cursor-pointer rounded px-2 py-1 text-xs transition-colors ${
+                timeRange === range
+                  ? 'bg-primary text-primary-foreground'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              {range}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Chart container */}
+      <div className="relative">
+        <div
+          ref={chartContainerRef}
+          className="h-[400px] w-full rounded-lg bg-muted/10"
+        />
+        {chartData.yes.length === 0 && data.length > 0 && (
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+            <div className="rounded-lg bg-card/90 px-4 py-2 text-muted-foreground text-sm">
+              No data in selected time range
+            </div>
+          </div>
         )}
       </div>
 
-      <div className="rounded-lg bg-muted/20 p-3">
-        <ChartContainer
-          key={marketId}
-          config={chartConfig}
-          className="aspect-auto h-[400px] w-full"
-        >
-          <AreaChart
-            accessibilityLayer
-            data={chartData}
-            margin={{
-              left: 12,
-              right: 12,
-              top: 12,
-              bottom: showBrush ? 32 : 12,
-            }}
-          >
-            <defs>
-              <linearGradient
-                id={`fillProbabilityYes-${marketId}`}
-                x1="0"
-                y1="0"
-                x2="0"
-                y2="1"
-              >
-                <stop offset="5%" stopColor="#16a34a" stopOpacity={0.8} />
-                <stop offset="95%" stopColor="#16a34a" stopOpacity={0.05} />
-              </linearGradient>
-              <linearGradient
-                id={`fillProbabilityNo-${marketId}`}
-                x1="0"
-                y1="0"
-                x2="0"
-                y2="1"
-              >
-                <stop offset="5%" stopColor="#dc2626" stopOpacity={0.8} />
-                <stop offset="95%" stopColor="#dc2626" stopOpacity={0.05} />
-              </linearGradient>
-              {/* YES zone gradient (green, top half) */}
-              <linearGradient
-                id={`yesZone-${marketId}`}
-                x1="0"
-                y1="0"
-                x2="0"
-                y2="1"
-              >
-                <stop offset="0%" stopColor="#16a34a" stopOpacity={0.05} />
-                <stop offset="100%" stopColor="#16a34a" stopOpacity={0.02} />
-              </linearGradient>
-              {/* NO zone gradient (red, bottom half) */}
-              <linearGradient
-                id={`noZone-${marketId}`}
-                x1="0"
-                y1="0"
-                x2="0"
-                y2="1"
-              >
-                <stop offset="0%" stopColor="#dc2626" stopOpacity={0.02} />
-                <stop offset="100%" stopColor="#dc2626" stopOpacity={0.05} />
-              </linearGradient>
-            </defs>
-
-            {/* Background zones for YES (>50%) and NO (<50%) */}
-            <ReferenceArea
-              y1={50}
-              y2={100}
-              fill={`url(#yesZone-${marketId})`}
-              fillOpacity={1}
-            />
-            <ReferenceArea
-              y1={0}
-              y2={50}
-              fill={`url(#noZone-${marketId})`}
-              fillOpacity={1}
-            />
-
-            <CartesianGrid
-              horizontal={true}
-              vertical={false}
-              strokeDasharray="8 8"
-              strokeWidth={1}
-              stroke="hsl(var(--muted-foreground))"
-              opacity={0.2}
-            />
-            <XAxis
-              dataKey="timestamp"
-              type="number"
-              scale="time"
-              domain={zoomDomain || ['dataMin', 'dataMax']}
-              ticks={getEvenlySpacedTimeTicks(6)}
-              tickFormatter={(ts) => {
-                const d = new Date(ts);
-                return d.toLocaleDateString('en-US', {
-                  month: 'short',
-                  day: 'numeric',
-                });
-              }}
-              interval={0}
-              tickLine={false}
-              tickMargin={12}
-              strokeWidth={1.5}
-              className="fill-muted-foreground text-xs"
-            />
-            <YAxis
-              orientation="right"
-              tickLine={false}
-              axisLine={false}
-              tickMargin={0}
-              tickCount={6}
-              className="fill-muted-foreground text-xs"
-              tickFormatter={(value) => `${value.toFixed(0)}%`}
-              domain={[0, 100]}
-            />
-            {/* YES probability - filled from 50% line up to value when above 50%, line only otherwise */}
-            <Area
-              type="monotone"
-              dataKey="probability"
-              stroke="#16a34a"
-              strokeWidth={2}
-              fill={`url(#fillProbabilityYes-${marketId})`}
-              fillOpacity={0.6}
-              isAnimationActive={false}
-              name="YES"
-              connectNulls
-              baseLine={50}
-            />
-            {/* NO probability - shown as line only for reference */}
-            <Area
-              type="monotone"
-              dataKey="noProbability"
-              stroke="#dc2626"
-              strokeWidth={2}
-              fill="none"
-              isAnimationActive={false}
-              name="NO"
-              connectNulls
-            />
-            <ChartTooltip
-              cursor={{
-                stroke: lineColor,
-                strokeWidth: 1,
-                strokeDasharray: '4 4',
-              }}
-              content={
-                <ChartTooltipContent
-                  indicator="dot"
-                  className="min-w-[200px] px-3 py-2"
-                  labelFormatter={(_, items) => {
-                    const first =
-                      Array.isArray(items) && items.length > 0
-                        ? items[0]
-                        : undefined;
-                    const p =
-                      first && typeof first === 'object' && 'payload' in first
-                        ? (first.payload as { date?: string })
-                        : undefined;
-                    return p?.date ?? '';
-                  }}
-                  formatter={(value, name) => {
-                    if (typeof value !== 'number') return value;
-                    const displayName =
-                      name === 'probability'
-                        ? 'YES'
-                        : name === 'noProbability'
-                          ? 'NO'
-                          : name;
-                    const color = displayName === 'YES' ? '#16a34a' : '#dc2626';
-                    return (
-                      <div className="flex items-center gap-2">
-                        <div
-                          className="h-2 w-2 rounded-full"
-                          style={{ backgroundColor: color }}
-                        />
-                        <span>
-                          {displayName}: {value.toFixed(1)}%
-                        </span>
-                      </div>
-                    );
-                  }}
-                />
-              }
-            />
-
-            {/* 50% reference line */}
-            <ReferenceLine
-              y={50}
-              stroke="hsl(var(--muted-foreground))"
-              strokeDasharray="4 4"
-              strokeWidth={2}
-              strokeOpacity={0.6}
-              label={{
-                value: '50% Line',
-                position: 'insideTopRight',
-                fill: 'hsl(var(--muted-foreground))',
-                fontSize: 11,
-                fontWeight: 'bold',
-              }}
-            />
-
-            {showBrush && (
-              <Brush
-                dataKey="timestamp"
-                height={20}
-                stroke={lineColor}
-                fill="hsl(var(--muted))"
-                onChange={(e) => {
-                  if (e.startIndex !== undefined && e.endIndex !== undefined) {
-                    const start = chartData[e.startIndex]?.timestamp;
-                    const end = chartData[e.endIndex]?.timestamp;
-                    if (start && end) {
-                      setZoomDomain([start, end]);
-                    }
-                  }
-                }}
-              />
-            )}
-          </AreaChart>
-        </ChartContainer>
+      {/* Legend */}
+      <div className="flex items-center justify-center gap-6 px-1 text-muted-foreground text-xs">
+        <div className="flex items-center gap-2">
+          <div
+            className="h-0.5 w-4 rounded"
+            style={{ backgroundColor: '#22c55e' }}
+          />
+          <span>YES Probability</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div
+            className="h-0.5 w-4 rounded"
+            style={{ backgroundColor: '#ef4444' }}
+          />
+          <span>NO Probability</span>
+        </div>
       </div>
     </div>
   );

@@ -50,7 +50,7 @@ Base OpenAPI specification definition
 
 #### swaggerDefinition.info.contact.url
 
-> **url**: `string` = `'https://github.com/elizaos/babylon'`
+> **url**: `string` = `'https://github.com/BabylonSocial/babylon'`
 
 #### swaggerDefinition.servers
 

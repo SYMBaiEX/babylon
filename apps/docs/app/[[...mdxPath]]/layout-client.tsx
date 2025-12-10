@@ -119,7 +119,7 @@ export default function DocsLayoutClient({
           logo={
             <Image src={logo_full} alt="Babylon Logo" width={160} height={38} />
           }
-          projectLink="https://github.com/elizaos/babylon"
+          projectLink="https://github.com/BabylonSocial/babylon"
         >
           <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'center' }}>
             <Link
@@ -159,7 +159,7 @@ export default function DocsLayoutClient({
         </Navbar>
       }
       pageMap={filteredPageMap}
-      docsRepositoryBase="https://github.com/elizaos/babylon/tree/main/docs"
+      docsRepositoryBase="https://github.com/BabylonSocial/babylon/tree/main/docs"
       editLink="Edit this page on GitHub →"
       sidebar={{
         defaultMenuCollapseLevel: 1,

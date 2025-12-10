@@ -24,16 +24,12 @@ import { PageContainer } from '@/components/shared/PageContainer';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { useAuth } from '@/hooks/useAuth';
 import { useMarketPrices } from '@/hooks/useMarketPrices';
+import { usePerpHistory } from '@/hooks/usePerpHistory';
 import { usePerpTrade } from '@/hooks/usePerpTrade';
 import { useMarketTracking } from '@/hooks/usePostHog';
 import { useUserPositions } from '@/hooks/useUserPositions';
 import { useWalletBalance } from '@/hooks/useWalletBalance';
 import { usePerpMarket } from '@/stores/perpMarketsStore';
-
-interface PricePoint {
-  time: number;
-  price: number;
-}
 
 export default function PerpDetailPage() {
   const params = useParams();
@@ -47,7 +43,6 @@ export default function PerpDetailPage() {
   // Use shared perp markets store
   const { market, loading, refetch } = usePerpMarket(ticker);
 
-  const [priceHistory, setPriceHistory] = useState<PricePoint[]>([]);
   const [side, setSide] = useState<'long' | 'short'>('long');
   const [size, setSize] = useState('100');
   const [leverage, setLeverage] = useState(10);
@@ -78,6 +73,11 @@ export default function PerpDetailPage() {
   const livePrice = trackedTicker ? livePrices.get(trackedTicker) : undefined;
   const displayPrice = livePrice?.price ?? market?.currentPrice ?? 0;
 
+  // Fetch real price history from API
+  const { history: priceHistory } = usePerpHistory(ticker, {
+    seed: market ? { currentPrice: market.currentPrice } : undefined,
+  });
+
   // Track market view
   useEffect(() => {
     if (ticker && market) {
@@ -92,27 +92,6 @@ export default function PerpDetailPage() {
       router.push(from === 'dashboard' ? '/markets' : '/markets/perps');
     }
   }, [loading, market, router, from]);
-
-  // Generate price history when market loads
-  useEffect(() => {
-    if (!market) return;
-
-    // Generate mock price history (you'll want to replace this with real data)
-    const now = Date.now();
-    const history: PricePoint[] = [];
-    const basePrice = market.currentPrice;
-    const volatility = basePrice * 0.02; // 2% volatility
-
-    for (let i = 100; i >= 0; i--) {
-      const time = now - i * 15 * 60 * 1000; // 15 min intervals for last ~25 hours
-      const randomChange = (Math.random() - 0.5) * volatility;
-      const price =
-        basePrice + randomChange + ((market.change24h / 100) * (100 - i)) / 100;
-      history.push({ time, price });
-    }
-
-    setPriceHistory(history);
-  }, [market]);
 
   const handlePositionClosed = useCallback(async () => {
     await Promise.all([
@@ -199,19 +178,6 @@ export default function PerpDetailPage() {
   const hasSufficientBalance = !authenticated || balance >= totalRequired;
   const showBalanceWarning =
     authenticated && sizeNum > 0 && !hasSufficientBalance;
-  // Update price history when live price changes
-  useEffect(() => {
-    if (!livePrice) return;
-    setPriceHistory((prev) => {
-      const last = prev[prev.length - 1];
-      if (last && Math.abs(last.price - livePrice.price) < 1e-6) {
-        return prev;
-      }
-      const next = [...prev, { time: Date.now(), price: livePrice.price }];
-      const maxPoints = 200;
-      return next.slice(Math.max(0, next.length - maxPoints));
-    });
-  }, [livePrice]);
 
   const liquidationPrice =
     side === 'long'

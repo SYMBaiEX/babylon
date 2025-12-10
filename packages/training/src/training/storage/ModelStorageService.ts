@@ -74,7 +74,7 @@ export class ModelStorageService {
       size: (blob as { size?: number }).size || 0,
     });
 
-    // Save to database using Drizzle
+    // Save to database using native Drizzle
     await db.insert(trainedModels).values({
       id: `model-${Date.now()}`,
       modelId: `babylon-agent-${options.version}`,
@@ -235,7 +235,7 @@ export class ModelStorageService {
       await del(blob.url);
     }
 
-    // Update database using Drizzle
+    // Update database using native Drizzle
     await db
       .update(trainedModels)
       .set({

@@ -15,7 +15,7 @@ export const swaggerDefinition = {
     description: 'API documentation for Babylon social conspiracy game',
     contact: {
       name: 'API Support',
-      url: 'https://github.com/elizaos/babylon',
+      url: 'https://github.com/BabylonSocial/babylon',
     },
   },
   servers: [
