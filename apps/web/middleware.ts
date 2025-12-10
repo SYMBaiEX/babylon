@@ -59,6 +59,7 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  // Run on everything (assets/API are allowed through in handler)
-  matcher: ['/(.*)'],
+  // Run on everything including root path
+  // '/' matches root, '/:path*' matches everything else
+  matcher: ['/', '/:path*'],
 };
