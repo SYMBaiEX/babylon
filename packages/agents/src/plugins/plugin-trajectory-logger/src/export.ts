@@ -25,7 +25,7 @@ import type { Trajectory } from './types';
 
 export interface ExportOptions {
   // Dataset configuration
-  datasetName: string; // e.g., 'elizaos/babylon-agent-trajectories'
+  datasetName: string; // e.g., 'BabylonSocial/babylon-agent-trajectories'
   huggingFaceToken?: string;
 
   // Data filtering

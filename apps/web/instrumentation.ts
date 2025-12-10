@@ -37,11 +37,18 @@ export async function register() {
 
     // Initialize agent service container with required services
     // Uses globalThis to persist across module instances
-    const { setServiceContainer, agentRegistry } = await import(
-      '@babylon/agents'
-    );
+    const { setServiceContainer, agentRegistry, npcBootstrapService } =
+      await import('@babylon/agents');
     setServiceContainer({
       agentRegistry,
+    });
+
+    // Bootstrap NPC agents so they're registered for agent-tick processing
+    // Runs asynchronously to avoid blocking server startup
+    npcBootstrapService.bootstrapAllNpcs().then((result) => {
+      console.info(
+        `[NPCBootstrap] Initialized ${result.initialized}/${result.totalNpcs} NPCs`
+      );
     });
 
     // Initialize shared moderation services with web app implementations

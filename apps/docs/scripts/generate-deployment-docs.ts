@@ -115,7 +115,7 @@ function generateMarkdown(deployments: DeploymentInfo[]): string {
 
   md += '### Contract ABIs\n\n';
   md +=
-    'Contract ABIs are available in the [`contracts/` directory](https://github.com/elizaos/babylon/tree/main/contracts) or can be fetched from the block explorer.\n\n';
+    'Contract ABIs are available in the [`contracts/` directory](https://github.com/BabylonSocial/babylon/tree/main/contracts) or can be fetched from the block explorer.\n\n';
 
   return md;
 }

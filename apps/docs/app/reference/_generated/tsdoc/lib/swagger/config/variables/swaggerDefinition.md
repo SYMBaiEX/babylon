@@ -44,7 +44,7 @@ Base OpenAPI specification definition
 
 #### info.contact.url
 
-> **url**: `string` = `'https://github.com/elizaos/babylon'`
+> **url**: `string` = `'https://github.com/BabylonSocial/babylon'`
 
 ### servers
 
