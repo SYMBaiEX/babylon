@@ -23,11 +23,12 @@ interface LightweightChartBaseProps {
 
 /**
  * Dark theme configuration for charts.
+ * Uses explicit colors for consistent rendering on dark backgrounds.
  */
 export const DARK_CHART_THEME: DeepPartial<ChartOptions> = {
   layout: {
     background: { type: ColorType.Solid, color: 'transparent' },
-    textColor: 'hsl(var(--muted-foreground))',
+    textColor: '#a1a1aa', // zinc-400 - readable on dark backgrounds
     fontSize: 11,
     fontFamily:
       'ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji"',
@@ -35,25 +36,26 @@ export const DARK_CHART_THEME: DeepPartial<ChartOptions> = {
   },
   grid: {
     vertLines: { visible: false },
-    horzLines: { color: 'hsl(var(--border) / 0.3)', style: 1 },
+    horzLines: { color: 'rgba(63, 63, 70, 0.5)', style: 1 }, // zinc-700 with opacity
   },
   crosshair: {
     vertLine: {
-      color: 'hsl(var(--muted-foreground) / 0.5)',
+      color: 'rgba(161, 161, 170, 0.5)', // zinc-400 with opacity
       width: 1,
       style: 2,
-      labelBackgroundColor: 'hsl(var(--muted))',
+      labelBackgroundColor: '#27272a', // zinc-800
     },
     horzLine: {
-      color: 'hsl(var(--muted-foreground) / 0.5)',
+      color: 'rgba(161, 161, 170, 0.5)', // zinc-400 with opacity
       width: 1,
       style: 2,
-      labelBackgroundColor: 'hsl(var(--muted))',
+      labelBackgroundColor: '#27272a', // zinc-800
     },
   },
   rightPriceScale: {
     borderVisible: false,
     scaleMargins: { top: 0.1, bottom: 0.1 },
+    textColor: '#a1a1aa', // zinc-400
   },
   timeScale: {
     borderVisible: false,
@@ -71,30 +73,30 @@ export const DARK_CHART_THEME: DeepPartial<ChartOptions> = {
  */
 export const AREA_STYLES = {
   green: {
-    lineColor: '#16a34a',
-    topColor: 'rgba(22, 163, 74, 0.4)',
-    bottomColor: 'rgba(22, 163, 74, 0.02)',
+    lineColor: '#22c55e', // green-500 - brighter for visibility
+    topColor: 'rgba(34, 197, 94, 0.25)',
+    bottomColor: 'rgba(34, 197, 94, 0.02)',
     lineWidth: 2,
     crosshairMarkerVisible: true,
     crosshairMarkerRadius: 4,
-    crosshairMarkerBackgroundColor: '#16a34a',
+    crosshairMarkerBackgroundColor: '#22c55e',
     crosshairMarkerBorderColor: '#ffffff',
     crosshairMarkerBorderWidth: 2,
   } satisfies DeepPartial<AreaSeriesOptions>,
   red: {
-    lineColor: '#dc2626',
-    topColor: 'rgba(220, 38, 38, 0.4)',
-    bottomColor: 'rgba(220, 38, 38, 0.02)',
+    lineColor: '#ef4444', // red-500 - brighter for visibility
+    topColor: 'rgba(239, 68, 68, 0.25)',
+    bottomColor: 'rgba(239, 68, 68, 0.02)',
     lineWidth: 2,
     crosshairMarkerVisible: true,
     crosshairMarkerRadius: 4,
-    crosshairMarkerBackgroundColor: '#dc2626',
+    crosshairMarkerBackgroundColor: '#ef4444',
     crosshairMarkerBorderColor: '#ffffff',
     crosshairMarkerBorderWidth: 2,
   } satisfies DeepPartial<AreaSeriesOptions>,
   blue: {
     lineColor: '#3b82f6',
-    topColor: 'rgba(59, 130, 246, 0.4)',
+    topColor: 'rgba(59, 130, 246, 0.25)',
     bottomColor: 'rgba(59, 130, 246, 0.02)',
     lineWidth: 2,
     crosshairMarkerVisible: true,
@@ -110,20 +112,20 @@ export const AREA_STYLES = {
  */
 export const LINE_STYLES = {
   green: {
-    color: '#16a34a',
+    color: '#22c55e', // green-500
     lineWidth: 2,
     crosshairMarkerVisible: true,
     crosshairMarkerRadius: 4,
-    crosshairMarkerBackgroundColor: '#16a34a',
+    crosshairMarkerBackgroundColor: '#22c55e',
     crosshairMarkerBorderColor: '#ffffff',
     crosshairMarkerBorderWidth: 2,
   } satisfies DeepPartial<LineSeriesOptions>,
   red: {
-    color: '#dc2626',
+    color: '#ef4444', // red-500
     lineWidth: 2,
     crosshairMarkerVisible: true,
     crosshairMarkerRadius: 4,
-    crosshairMarkerBackgroundColor: '#dc2626',
+    crosshairMarkerBackgroundColor: '#ef4444',
     crosshairMarkerBorderColor: '#ffffff',
     crosshairMarkerBorderWidth: 2,
   } satisfies DeepPartial<LineSeriesOptions>,

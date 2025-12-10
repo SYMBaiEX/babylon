@@ -72,7 +72,7 @@ export function PerpPriceChart({
   currentPrice,
   ticker,
 }: PerpPriceChartProps) {
-  const [timeRange, setTimeRange] = useState<TimeRange>('ALL');
+  const [timeRange, setTimeRange] = useState<TimeRange>('1D');
   const priceSeries = useRef<ISeriesApi<'Area'> | null>(null);
   const lastPriceLineRef = useRef<ReturnType<
     ISeriesApi<'Area'>['createPriceLine']
@@ -184,10 +184,16 @@ export function PerpPriceChart({
 
   // Update data when chart data changes
   useEffect(() => {
-    if (!priceSeries.current || !chartData.length) return;
+    if (!priceSeries.current || !chart) return;
+
+    if (!chartData.length) {
+      // Clear data when no points in range
+      priceSeries.current.setData([]);
+      return;
+    }
 
     priceSeries.current.setData(chartData);
-    chart?.timeScale().fitContent();
+    chart.timeScale().fitContent();
   }, [chart, chartData]);
 
   // Update current price reference line
@@ -260,10 +266,19 @@ export function PerpPriceChart({
       </div>
 
       {/* Chart container */}
-      <div
-        ref={chartContainerRef}
-        className="h-[400px] w-full rounded-lg bg-muted/10"
-      />
+      <div className="relative">
+        <div
+          ref={chartContainerRef}
+          className="h-[400px] w-full rounded-lg bg-muted/10"
+        />
+        {chartData.length === 0 && data.length > 0 && (
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+            <div className="rounded-lg bg-card/90 px-4 py-2 text-muted-foreground text-sm">
+              No data in selected time range
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

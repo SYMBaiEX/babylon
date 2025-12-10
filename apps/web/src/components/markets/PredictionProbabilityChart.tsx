@@ -73,17 +73,18 @@ export function PredictionProbabilityChart({
   data,
   marketId,
 }: PredictionProbabilityChartProps) {
-  const [timeRange, setTimeRange] = useState<TimeRange>('ALL');
+  const [timeRange, setTimeRange] = useState<TimeRange>('1D');
   const yesSeries = useRef<ISeriesApi<'Area'> | null>(null);
   const noSeries = useRef<ISeriesApi<'Line'> | null>(null);
   const seriesInitialized = useRef(false);
 
   const { chartContainerRef, chart } = useLightweightChart({
     rightPriceScale: {
-      scaleMargins: { top: 0.05, bottom: 0.05 },
+      scaleMargins: { top: 0.1, bottom: 0.1 },
+      autoScale: true,
     },
     localization: {
-      priceFormatter: (price: number) => `${price.toFixed(1)}%`,
+      priceFormatter: (price: number) => `${price.toFixed(0)}%`,
     },
   });
 
@@ -137,11 +138,16 @@ export function PredictionProbabilityChart({
     return { yes, no };
   }, [data, timeRange]);
 
-  // Current probability from latest data point
+  // Current probability from latest data point (always use ALL data, not filtered)
   const currentProbability = useMemo(() => {
-    if (!chartData.yes.length) return 50;
-    return chartData.yes[chartData.yes.length - 1]?.value ?? 50;
-  }, [chartData.yes]);
+    if (!data.length) return 50;
+    // Get the most recent point from the original data
+    const sorted = [...data]
+      .filter((p) => Number.isFinite(p.yesPrice) && p.yesPrice >= 0)
+      .sort((a, b) => b.time - a.time);
+    const latest = sorted[0];
+    return latest ? latest.yesPrice * 100 : 50;
+  }, [data]);
 
   const isYesFavored = currentProbability >= 50;
 
@@ -180,12 +186,20 @@ export function PredictionProbabilityChart({
 
   // Update data when chart data changes
   useEffect(() => {
-    if (!yesSeries.current || !noSeries.current) return;
-    if (!chartData.yes.length || !chartData.no.length) return;
+    if (!yesSeries.current || !noSeries.current || !chart) return;
+
+    if (!chartData.yes.length || !chartData.no.length) {
+      // Clear data when no points in range
+      yesSeries.current.setData([]);
+      noSeries.current.setData([]);
+      return;
+    }
 
     yesSeries.current.setData(chartData.yes);
     noSeries.current.setData(chartData.no);
-    chart?.timeScale().fitContent();
+
+    // Fit content to show all data points properly
+    chart.timeScale().fitContent();
   }, [chart, chartData]);
 
   // Update series colors based on YES/NO favorability
@@ -244,24 +258,33 @@ export function PredictionProbabilityChart({
       </div>
 
       {/* Chart container */}
-      <div
-        ref={chartContainerRef}
-        className="h-[400px] w-full rounded-lg bg-muted/10"
-      />
+      <div className="relative">
+        <div
+          ref={chartContainerRef}
+          className="h-[400px] w-full rounded-lg bg-muted/10"
+        />
+        {chartData.yes.length === 0 && data.length > 0 && (
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+            <div className="rounded-lg bg-card/90 px-4 py-2 text-muted-foreground text-sm">
+              No data in selected time range
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Legend */}
       <div className="flex items-center justify-center gap-6 px-1 text-muted-foreground text-xs">
         <div className="flex items-center gap-2">
           <div
             className="h-0.5 w-4 rounded"
-            style={{ backgroundColor: '#16a34a' }}
+            style={{ backgroundColor: '#22c55e' }}
           />
           <span>YES Probability</span>
         </div>
         <div className="flex items-center gap-2">
           <div
             className="h-0.5 w-4 rounded"
-            style={{ backgroundColor: '#dc2626' }}
+            style={{ backgroundColor: '#ef4444' }}
           />
           <span>NO Probability</span>
         </div>
