@@ -521,19 +521,38 @@ ${chatLines.join('\n\n')}`);
       const latestFromOther = chatMessages[0];
       if (!latestFromOther) continue;
 
-      const agentResponses = await db
-        .select({ id: messages.id })
+      // Get the agent's most recent message in this chat
+      // We compare Snowflake IDs (monotonically increasing) rather than timestamps
+      // to avoid precision issues with timestamp comparison
+      const agentLastMessage = await db
+        .select({ id: messages.id, createdAt: messages.createdAt })
         .from(messages)
         .where(
-          and(
-            eq(messages.chatId, chat.id),
-            eq(messages.senderId, agentUserId),
-            gte(messages.createdAt, latestFromOther.createdAt)
-          )
+          and(eq(messages.chatId, chat.id), eq(messages.senderId, agentUserId))
         )
+        .orderBy(desc(messages.createdAt))
         .limit(1);
 
-      if (agentResponses.length > 0) continue; // Agent already responded
+      // If agent's last message ID is greater than user's last message ID,
+      // the agent has already responded (Snowflake IDs are monotonically increasing)
+      if (
+        agentLastMessage.length > 0 &&
+        agentLastMessage[0] &&
+        BigInt(agentLastMessage[0].id) > BigInt(latestFromOther.id)
+      ) {
+        logger.info(
+          `Agent already responded to message in chat ${chat.id} - skipping`,
+          {
+            chatId: chat.id,
+            lastUserMessageId: latestFromOther.id,
+            lastUserMessageAt: latestFromOther.createdAt.toISOString(),
+            agentLastMessageId: agentLastMessage[0].id,
+            agentLastMessageAt: agentLastMessage[0].createdAt?.toISOString(),
+          },
+          'AutonomousBatchResponse'
+        );
+        continue; // Agent already responded
+      }
 
       // Get recent conversation context
       const recentMessages = await db
