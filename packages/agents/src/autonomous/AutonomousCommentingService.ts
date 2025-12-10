@@ -36,6 +36,21 @@ import { generateSnowflakeId } from '../shared/snowflake';
 
 // Max characters for comment content in prompts
 const MAX_COMMENT_CHARS = 200;
+// Max thread depth to walk up when building context
+const MAX_THREAD_DEPTH = 5;
+
+interface ThreadMessage {
+  id: string;
+  authorName: string;
+  content: string;
+  depth: number;
+}
+
+interface CommentThread {
+  targetCommentId: string; // The comment to potentially reply to
+  thread: ThreadMessage[]; // Conversation path from root to target
+  likeCount: number;
+}
 
 interface PostWithComments {
   id: string;
@@ -44,12 +59,7 @@ interface PostWithComments {
   authorName: string;
   createdAt: Date;
   commentCount: number;
-  topComments: {
-    id: string;
-    content: string;
-    authorName: string;
-    createdAt: Date;
-  }[];
+  commentThreads: CommentThread[]; // Threads built from bottom up
 }
 
 export class AutonomousCommentingService {
@@ -117,7 +127,7 @@ export class AutonomousCommentingService {
       return null;
     }
 
-    // Get comments for these posts
+    // Get comments for these posts (including parentCommentId for threading)
     const postIds = uncommentedPosts.map((p) => p.id);
     const allComments = await db
       .select({
@@ -125,12 +135,13 @@ export class AutonomousCommentingService {
         content: comments.content,
         postId: comments.postId,
         authorId: comments.authorId,
+        parentCommentId: comments.parentCommentId,
         createdAt: comments.createdAt,
       })
       .from(comments)
       .where(isNull(comments.deletedAt))
       .orderBy(desc(comments.createdAt))
-      .limit(100);
+      .limit(200); // Increased to capture more thread context
 
     // Filter comments to our posts
     const postComments = allComments.filter(
@@ -204,14 +215,109 @@ export class AutonomousCommentingService {
       }
     }
 
-    // Build posts with comments (sorted by popularity/likes)
+    // Helper: Build thread from bottom by walking UP from target comment
+    const buildThreadFromBottom = (
+      targetComment: (typeof postCommentsWithLikes)[0],
+      commentMap: Map<string, (typeof postCommentsWithLikes)[0]>
+    ): ThreadMessage[] => {
+      const chain: (typeof postCommentsWithLikes)[0][] = [targetComment];
+      let currentParentId = targetComment.parentCommentId;
+
+      // Walk UP the parent chain
+      while (currentParentId && chain.length < MAX_THREAD_DEPTH) {
+        const parent = commentMap.get(currentParentId);
+        if (!parent) break;
+        chain.unshift(parent); // prepend = oldest first
+        currentParentId = parent.parentCommentId;
+      }
+
+      return chain.map((c, i) => ({
+        id: c.id,
+        authorName: authorMap.get(c.authorId) || 'User',
+        content: c.content,
+        depth: i,
+      }));
+    };
+
+    // Build thread structure for each post (from bottom up)
+    const buildCommentThreads = (
+      postId: string
+    ): { commentThreads: CommentThread[]; totalCount: number } => {
+      const postCommentsList = postCommentsWithLikes.filter(
+        (c) => c.postId === postId
+      );
+      const totalCount = postCommentsList.length;
+
+      if (totalCount === 0) {
+        return { commentThreads: [], totalCount: 0 };
+      }
+
+      // Create a map of comments by ID
+      const commentMap = new Map(postCommentsList.map((c) => [c.id, c]));
+
+      // Find which comments have replies (children)
+      const hasReplies = new Set<string>();
+      for (const c of postCommentsList) {
+        if (c.parentCommentId) {
+          hasReplies.add(c.parentCommentId);
+        }
+      }
+
+      // Identify "interesting" comments to show threads for:
+      // 1. Leaf comments (no replies) - end of conversation
+      // 2. Top-level comments with high engagement
+      // Sort by: leaf status, then popularity
+      const candidateComments = postCommentsList
+        .map((c) => ({
+          ...c,
+          isLeaf: !hasReplies.has(c.id),
+        }))
+        .sort((a, b) => {
+          // Prioritize leaf comments, then by likes
+          if (a.isLeaf !== b.isLeaf) return a.isLeaf ? -1 : 1;
+          return b.likeCount - a.likeCount;
+        });
+
+      // Build threads for top 5 candidate comments
+      const commentThreads: CommentThread[] = [];
+      const seenCommentIds = new Set<string>(); // Track all comments we've shown
+
+      for (const candidate of candidateComments.slice(0, 8)) {
+        // Skip if we've already shown this comment in another thread
+        if (seenCommentIds.has(candidate.id)) {
+          continue;
+        }
+
+        const thread = buildThreadFromBottom(candidate, commentMap);
+
+        // Skip if any comment in this thread was already shown
+        const hasOverlap = thread.some((msg) => seenCommentIds.has(msg.id));
+        if (hasOverlap) {
+          continue;
+        }
+
+        // Mark all comments in this thread as seen
+        for (const msg of thread) {
+          seenCommentIds.add(msg.id);
+        }
+
+        commentThreads.push({
+          targetCommentId: candidate.id,
+          thread,
+          likeCount: candidate.likeCount,
+        });
+
+        if (commentThreads.length >= 5) break;
+      }
+
+      return { commentThreads, totalCount };
+    };
+
+    // Build posts with threaded comments (built from bottom up)
     const postsWithComments: PostWithComments[] = uncommentedPosts
       .slice(0, 8)
       .map((post) => {
-        // Get top 5 most popular comments for this post (already sorted by likes)
-        const topCommentsForPost = postCommentsWithLikes
-          .filter((c) => c.postId === post.id)
-          .slice(0, 5);
+        const { commentThreads, totalCount } = buildCommentThreads(post.id);
 
         return {
           id: post.id,
@@ -219,15 +325,8 @@ export class AutonomousCommentingService {
           authorId: post.authorId,
           authorName: authorMap.get(post.authorId) || 'User',
           createdAt: post.createdAt,
-          commentCount: postCommentsWithLikes.filter(
-            (c) => c.postId === post.id
-          ).length,
-          topComments: topCommentsForPost.map((c) => ({
-            id: c.id,
-            content: c.content,
-            authorName: authorMap.get(c.authorId) || 'User',
-            createdAt: c.createdAt,
-          })),
+          commentCount: totalCount,
+          commentThreads,
         };
       });
 
@@ -257,22 +356,34 @@ export class AutonomousCommentingService {
 
     const config = await getAgentConfig(agentUserId);
 
+    // Helper to format a comment thread (built from bottom, shows conversation path)
+    const formatCommentThread = (commentThread: CommentThread): string => {
+      const { thread } = commentThread;
+
+      const threadLines = thread.map((msg, idx) => {
+        const depthLabel =
+          idx === 0 ? 'Comment' : `Reply (depth ${msg.depth})`;
+        const truncatedContent =
+          msg.content.substring(0, MAX_COMMENT_CHARS) +
+          (msg.content.length > MAX_COMMENT_CHARS ? '...' : '');
+
+        return `    - ${depthLabel} [comment_id: ${msg.id}] @${msg.authorName}: "${truncatedContent}"`;
+      });
+
+      return threadLines.join('\n');
+    };
+
     // Build the evaluation prompt
     const postsContext = postsWithComments
       .map((post, idx) => {
-        const commentsText =
-          post.topComments.length > 0
-            ? `\n  Recent comments:\n${post.topComments
-                .map(
-                  (c) =>
-                    `    - [comment_id: ${c.id}] @${c.authorName}: "${c.content.substring(0, MAX_COMMENT_CHARS)}${c.content.length > MAX_COMMENT_CHARS ? '...' : ''}"`
-                )
-                .join('\n')}`
+        const threadsText =
+          post.commentThreads.length > 0
+            ? `\n  Conversation threads:\n${post.commentThreads.map((ct) => formatCommentThread(ct)).join('\n\n')}`
             : '\n  No comments yet';
 
         return `[${idx + 1}] Post by @${post.authorName}:
 "${post.content.substring(0, 300)}${post.content.length > 300 ? '...' : ''}"
-  (${post.commentCount} comments)${commentsText}`;
+  (${post.commentCount} comments)${threadsText}`;
       })
       .join('\n\n');
 
@@ -465,21 +576,23 @@ If you want to skip (no relevant posts):
       }
 
       // Validate reply_to_comment_id if provided
+      // Collect all comment IDs from comment threads
+      const allCommentIds = selectedPost.commentThreads.flatMap((ct) =>
+        ct.thread.map((msg) => msg.id)
+      );
+
       let parentCommentId: string | null = null;
       if (decision.replyToCommentId) {
-        const validComment = selectedPost.topComments.find(
-          (c) => c.id === decision.replyToCommentId
-        );
-        if (validComment) {
+        if (allCommentIds.includes(decision.replyToCommentId)) {
           parentCommentId = decision.replyToCommentId;
         } else {
-          // LLM returned an ID but it wasn't in our topComments - log this
+          // LLM returned an ID but it wasn't in our comment threads - log this
           logger.warn(
-            `LLM returned replyToCommentId "${decision.replyToCommentId}" but it wasn't found in topComments. Creating top-level comment instead.`,
+            `LLM returned replyToCommentId "${decision.replyToCommentId}" but it wasn't found in comment threads. Creating top-level comment instead.`,
             {
               agentUserId,
               postId: selectedPost.id,
-              availableIds: selectedPost.topComments.map((c) => c.id),
+              availableIds: allCommentIds,
             },
             'AutonomousCommenting'
           );
