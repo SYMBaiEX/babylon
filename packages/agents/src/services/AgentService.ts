@@ -229,7 +229,7 @@ export class AgentServiceV2 {
       'AgentService'
     );
 
-    // Register agent in registry (direct import, always available)
+    // Register agent in registry
     if (agentRegistry) {
       const capabilities: AgentCapabilities = {
         strategies: [
