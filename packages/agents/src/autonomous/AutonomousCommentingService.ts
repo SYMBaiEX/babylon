@@ -361,8 +361,7 @@ export class AutonomousCommentingService {
       const { thread } = commentThread;
 
       const threadLines = thread.map((msg, idx) => {
-        const depthLabel =
-          idx === 0 ? 'Comment' : `Reply (depth ${msg.depth})`;
+        const depthLabel = idx === 0 ? 'Comment' : `Reply (depth ${msg.depth})`;
         const truncatedContent =
           msg.content.substring(0, MAX_COMMENT_CHARS) +
           (msg.content.length > MAX_COMMENT_CHARS ? '...' : '');
