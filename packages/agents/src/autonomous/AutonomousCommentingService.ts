@@ -22,6 +22,7 @@ import {
   perpPositions,
   positions,
   posts,
+  reactions,
   users,
 } from '@babylon/db';
 import type { IAgentRuntime } from '@elizaos/core';
@@ -122,31 +123,55 @@ export class AutonomousCommentingService {
         createdAt: comments.createdAt,
       })
       .from(comments)
-      .where(
-        and(
-          isNull(comments.deletedAt),
-          // Only get comments for our posts - filter in memory since inArray might not work
-        )
-      )
+      .where(isNull(comments.deletedAt))
       .orderBy(desc(comments.createdAt))
       .limit(100);
 
     // Filter comments to our posts
-    const postComments = allComments.filter((c) => c.postId && postIds.includes(c.postId));
+    const postComments = allComments.filter(
+      (c) => c.postId && postIds.includes(c.postId)
+    );
+
+    // Get like counts for these comments
+    const commentIds = postComments.map((c) => c.id);
+    const likeCountsRaw = await db
+      .select({
+        commentId: reactions.commentId,
+      })
+      .from(reactions)
+      .where(and(eq(reactions.type, 'like')));
+
+    // Count likes per comment (filter in memory since inArray might not work)
+    const likeCounts = new Map<string, number>();
+    for (const r of likeCountsRaw) {
+      if (r.commentId && commentIds.includes(r.commentId)) {
+        likeCounts.set(r.commentId, (likeCounts.get(r.commentId) || 0) + 1);
+      }
+    }
+
+    // Add like counts to comments and sort by popularity
+    const postCommentsWithLikes = postComments
+      .map((c) => ({
+        ...c,
+        likeCount: likeCounts.get(c.id) || 0,
+      }))
+      .sort((a, b) => b.likeCount - a.likeCount);
 
     // Get author names for posts and comments
     const authorIds = new Set([
       ...uncommentedPosts.map((p) => p.authorId),
       ...postComments.map((c) => c.authorId),
     ]);
+    // Get all authors - filter in memory since we have a set of IDs
     const authorUsers = await db
-      .select({ id: users.id, displayName: users.displayName, username: users.username })
+      .select({
+        id: users.id,
+        displayName: users.displayName,
+        username: users.username,
+      })
       .from(users)
-      .where(
-        // Filter in memory
-      )
-      .limit(50);
-    
+      .limit(100);
+
     // Filter to only the authors we need
     const authorMap = new Map(
       authorUsers
@@ -154,27 +179,30 @@ export class AutonomousCommentingService {
         .map((u) => [u.id, u.displayName || u.username || 'User'])
     );
 
-    // Build posts with comments
-    const postsWithComments: PostWithComments[] = uncommentedPosts.slice(0, 8).map((post) => {
-      const postCommentsFiltered = postComments
-        .filter((c) => c.postId === post.id)
-        .slice(0, 5);
-      
-      return {
-        id: post.id,
-        content: post.content,
-        authorId: post.authorId,
-        authorName: authorMap.get(post.authorId) || 'User',
-        createdAt: post.createdAt,
-        commentCount: postComments.filter((c) => c.postId === post.id).length,
-        topComments: postCommentsFiltered.map((c) => ({
-          id: c.id,
-          content: c.content,
-          authorName: authorMap.get(c.authorId) || 'User',
-          createdAt: c.createdAt,
-        })),
-      };
-    });
+    // Build posts with comments (sorted by popularity/likes)
+    const postsWithComments: PostWithComments[] = uncommentedPosts
+      .slice(0, 8)
+      .map((post) => {
+        // Get top 5 most popular comments for this post (already sorted by likes)
+        const topCommentsForPost = postCommentsWithLikes
+          .filter((c) => c.postId === post.id)
+          .slice(0, 5);
+
+        return {
+          id: post.id,
+          content: post.content,
+          authorId: post.authorId,
+          authorName: authorMap.get(post.authorId) || 'User',
+          createdAt: post.createdAt,
+          commentCount: postCommentsWithLikes.filter((c) => c.postId === post.id).length,
+          topComments: topCommentsForPost.map((c) => ({
+            id: c.id,
+            content: c.content,
+            authorName: authorMap.get(c.authorId) || 'User',
+            createdAt: c.createdAt,
+          })),
+        };
+      });
 
     if (postsWithComments.length === 0) {
       return null;
@@ -205,11 +233,15 @@ export class AutonomousCommentingService {
     // Build the evaluation prompt
     const postsContext = postsWithComments
       .map((post, idx) => {
-        const commentsText = post.topComments.length > 0
-          ? `\n  Recent comments:\n${post.topComments
-              .map((c) => `    - @${c.authorName}: "${c.content.substring(0, 100)}${c.content.length > 100 ? '...' : ''}"`)
-              .join('\n')}`
-          : '\n  No comments yet';
+        const commentsText =
+          post.topComments.length > 0
+            ? `\n  Recent comments:\n${post.topComments
+                .map(
+                  (c) =>
+                    `    - [comment_id: ${c.id}] @${c.authorName}: "${c.content.substring(0, 100)}${c.content.length > 100 ? '...' : ''}"`
+                )
+                .join('\n')}`
+            : '\n  No comments yet';
 
         return `[${idx + 1}] Post by @${post.authorName}:
 "${post.content.substring(0, 300)}${post.content.length > 300 ? '...' : ''}"
@@ -246,13 +278,26 @@ DECISION CRITERIA:
 - Engagement: Are there interesting threads to join?
 - Avoid: Posts where you have nothing meaningful to add
 
+IMPORTANT THREADING RULE:
+- If you want to respond to/agree with/reference another user's comment, you MUST use reply_to_comment_id to reply to their comment
+- Do NOT make a top-level comment that mentions another commenter - that creates duplicate threads
+- Only leave reply_to_comment_id empty if your comment is a NEW perspective on the post itself
+
 OUTPUT FORMAT:
-If you want to comment:
+If commenting directly on a post:
 <response>
 <action>comment</action>
 <post_index>1-${postsWithComments.length}</post_index>
-<reply_to_comment_id>comment_id or empty if commenting on post directly</reply_to_comment_id>
+<reply_to_comment_id></reply_to_comment_id>
 <content>Your comment here (1-2 sentences, under 200 chars)</content>
+</response>
+
+If replying to an existing comment (use the comment_id shown in brackets):
+<response>
+<action>comment</action>
+<post_index>1-${postsWithComments.length}</post_index>
+<reply_to_comment_id>the_comment_id_from_brackets</reply_to_comment_id>
+<content>Your reply here (1-2 sentences, under 200 chars)</content>
 </response>
 
 If you want to skip (no relevant posts):
@@ -332,7 +377,9 @@ If you want to skip (no relevant posts):
 
         decision = {
           action: parsed.action,
-          postIndex: parsed.post_index ? parseInt(parsed.post_index, 10) : undefined,
+          postIndex: parsed.post_index
+            ? parseInt(parsed.post_index, 10)
+            : undefined,
           replyToCommentId: parsed.reply_to_comment_id || undefined,
           content: parsed.content,
           reason: parsed.reason,
@@ -368,7 +415,11 @@ If you want to skip (no relevant posts):
     }
 
     // Handle comment
-    if (decision.action === 'comment' && decision.postIndex && decision.content) {
+    if (
+      decision.action === 'comment' &&
+      decision.postIndex &&
+      decision.content
+    ) {
       const selectedPost = postsWithComments[decision.postIndex - 1];
       if (!selectedPost) {
         logger.warn(
@@ -392,6 +443,17 @@ If you want to skip (no relevant posts):
         );
         if (validComment) {
           parentCommentId = decision.replyToCommentId;
+        } else {
+          // LLM returned an ID but it wasn't in our topComments - log this
+          logger.warn(
+            `LLM returned replyToCommentId "${decision.replyToCommentId}" but it wasn't found in topComments. Creating top-level comment instead.`,
+            { 
+              agentUserId, 
+              postId: selectedPost.id,
+              availableIds: selectedPost.topComments.map(c => c.id)
+            },
+            'AutonomousCommenting'
+          );
         }
       }
 
