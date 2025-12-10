@@ -139,15 +139,12 @@ export function PerpPriceChart({
       priceLineVisible: false,
     });
 
+    // Cleanup: chart.remove() in base hook already cleans up all series,
+    // so we only need to null the refs. Calling removeSeries after chart
+    // is destroyed causes "Value is undefined" errors.
     return () => {
-      if (priceSeries.current) {
-        if (lastPriceLineRef.current) {
-          priceSeries.current.removePriceLine(lastPriceLineRef.current);
-          lastPriceLineRef.current = null;
-        }
-        chart.removeSeries(priceSeries.current);
-        priceSeries.current = null;
-      }
+      lastPriceLineRef.current = null;
+      priceSeries.current = null;
     };
   }, [chart]);
 
@@ -163,7 +160,17 @@ export function PerpPriceChart({
   useEffect(() => {
     if (!priceSeries.current || !filteredData.length) return;
 
-    const chartData: ChartDataPoint[] = filteredData.map((point) => ({
+    // Filter out any points with invalid values to prevent "Value is null" errors
+    const validPoints = filteredData.filter(
+      (point) =>
+        point.price !== null &&
+        point.price !== undefined &&
+        Number.isFinite(point.price)
+    );
+
+    if (!validPoints.length) return;
+
+    const chartData: ChartDataPoint[] = validPoints.map((point) => ({
       time: formatChartTime(point.time),
       value: point.price,
     }));

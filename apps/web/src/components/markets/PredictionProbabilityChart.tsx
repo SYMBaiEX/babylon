@@ -140,15 +140,12 @@ export function PredictionProbabilityChart({
       },
     });
 
+    // Cleanup: chart.remove() in base hook already cleans up all series,
+    // so we only need to null the refs. Calling removeSeries after chart
+    // is destroyed causes "Value is undefined" errors.
     return () => {
-      if (yesSeries.current) {
-        chart.removeSeries(yesSeries.current);
-        yesSeries.current = null;
-      }
-      if (noSeries.current) {
-        chart.removeSeries(noSeries.current);
-        noSeries.current = null;
-      }
+      yesSeries.current = null;
+      noSeries.current = null;
     };
   }, [chart]);
 
@@ -156,12 +153,25 @@ export function PredictionProbabilityChart({
   useEffect(() => {
     if (!yesSeries.current || !noSeries.current || !filteredData.length) return;
 
-    const yesData: ChartDataPoint[] = filteredData.map((point) => ({
+    // Filter out any points with invalid values to prevent "Value is null" errors
+    const validPoints = filteredData.filter(
+      (point) =>
+        point.yesPrice !== null &&
+        point.yesPrice !== undefined &&
+        point.noPrice !== null &&
+        point.noPrice !== undefined &&
+        Number.isFinite(point.yesPrice) &&
+        Number.isFinite(point.noPrice)
+    );
+
+    if (!validPoints.length) return;
+
+    const yesData: ChartDataPoint[] = validPoints.map((point) => ({
       time: formatChartTime(point.time),
       value: point.yesPrice * 100,
     }));
 
-    const noData: ChartDataPoint[] = filteredData.map((point) => ({
+    const noData: ChartDataPoint[] = validPoints.map((point) => ({
       time: formatChartTime(point.time),
       value: point.noPrice * 100,
     }));

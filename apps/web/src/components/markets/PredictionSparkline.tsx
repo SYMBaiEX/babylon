@@ -63,13 +63,27 @@ function PredictionSparklineBase({
     const no: SparklineDataPoint[] = [];
 
     for (const point of sliced) {
-      const time = Math.floor(point.time / 1000) as Time;
-      const yesVal = (point.yesPrice ?? 0.5) * 100;
-      const noVal =
-        point.noPrice !== undefined ? point.noPrice * 100 : 100 - yesVal;
+      // Skip points with invalid data to prevent "Value is null" errors
+      if (
+        !Number.isFinite(point.time) ||
+        point.yesPrice === null ||
+        point.yesPrice === undefined
+      ) {
+        continue;
+      }
 
-      yes.push({ time, value: yesVal });
-      no.push({ time, value: noVal });
+      const time = Math.floor(point.time / 1000) as Time;
+      const yesVal = point.yesPrice * 100;
+      const noVal =
+        point.noPrice !== undefined && point.noPrice !== null
+          ? point.noPrice * 100
+          : 100 - yesVal;
+
+      // Final validation before adding
+      if (Number.isFinite(yesVal) && Number.isFinite(noVal)) {
+        yes.push({ time, value: yesVal });
+        no.push({ time, value: noVal });
+      }
     }
 
     return { yes, no };
