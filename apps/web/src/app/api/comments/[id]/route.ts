@@ -144,6 +144,7 @@ import {
   reactions,
   users,
 } from '@babylon/db';
+import { StaticDataRegistry } from '@babylon/engine';
 import { IdParamSchema, logger, UpdateCommentSchema } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 
@@ -284,19 +285,46 @@ export const GET = withErrorHandling(
       .where(eq(posts.id, comment.postId))
       .limit(1);
 
-    // Get post author info
-    const [postAuthor] = post
-      ? await db
-          .select({
-            id: users.id,
-            displayName: users.displayName,
-            username: users.username,
-            profileImageUrl: users.profileImageUrl,
-          })
-          .from(users)
-          .where(eq(users.id, post.authorId))
-          .limit(1)
-      : [null];
+    // Get post author info - check StaticDataRegistry first (for actors/orgs), then database
+    let postAuthorName = post?.authorId || 'Unknown';
+    let postAuthorUsername: string | null = null;
+    let postAuthorProfileImageUrl: string | null = null;
+
+    if (post) {
+      // Check if it's an actor (NPC/agent)
+      const actor = StaticDataRegistry.getActor(post.authorId);
+      if (actor) {
+        postAuthorName = actor.name;
+        postAuthorProfileImageUrl =
+          actor.profileImageUrl || `/images/actors/${actor.id}.jpg`;
+      } else {
+        // Check if it's an organization
+        const org = StaticDataRegistry.getOrganization(post.authorId);
+        if (org) {
+          postAuthorName = org.name;
+          postAuthorProfileImageUrl =
+            org.imageUrl || `/images/organizations/${org.id}.jpg`;
+        } else {
+          // Fall back to database user lookup
+          const [userRecord] = await db
+            .select({
+              displayName: users.displayName,
+              username: users.username,
+              profileImageUrl: users.profileImageUrl,
+            })
+            .from(users)
+            .where(eq(users.id, post.authorId))
+            .limit(1);
+
+          if (userRecord) {
+            postAuthorName =
+              userRecord.displayName || userRecord.username || post.authorId;
+            postAuthorUsername = userRecord.username || null;
+            postAuthorProfileImageUrl = userRecord.profileImageUrl || null;
+          }
+        }
+      }
+    }
 
     // Get comment author info
     const [commentAuthor] = await db
@@ -466,9 +494,9 @@ export const GET = withErrorHandling(
             id: post.id,
             content: post.content,
             authorId: post.authorId,
-            authorName: postAuthor?.displayName || 'Unknown',
-            authorUsername: postAuthor?.username || null,
-            authorProfileImageUrl: postAuthor?.profileImageUrl || null,
+            authorName: postAuthorName,
+            authorUsername: postAuthorUsername,
+            authorProfileImageUrl: postAuthorProfileImageUrl,
             createdAt: post.createdAt,
           }
         : null,
