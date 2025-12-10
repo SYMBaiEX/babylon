@@ -121,9 +121,7 @@ export default function CreateAgentPage() {
     }
 
     // Split personality by newlines for bio array (original behavior)
-    const bioArray = agentData.personality
-      .split('\n')
-      .filter((b) => b.trim());
+    const bioArray = agentData.personality.split('\n').filter((b) => b.trim());
 
     // Append trading strategy to system prompt (original behavior)
     const systemPrompt = agentData.tradingStrategy.trim()
