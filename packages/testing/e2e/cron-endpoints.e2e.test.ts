@@ -405,4 +405,3 @@ describe('Cron Endpoints E2E', () => {
     );
   });
 });
-

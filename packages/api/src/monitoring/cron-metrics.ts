@@ -371,4 +371,3 @@ export function recordCronExecution(
     metadata: result,
   });
 }
-
