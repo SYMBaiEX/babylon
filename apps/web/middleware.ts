@@ -59,7 +59,7 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  // Run on everything including root path
-  // '/' matches root, '/:path*' matches everything else
-  matcher: ['/', '/:path*'],
+  // Match all routes including root path
+  // Using regex pattern that matches empty string and any path
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|api/).*)'],
 };
