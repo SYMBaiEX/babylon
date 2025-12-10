@@ -4,10 +4,8 @@
  * Creates test user and generates auth tokens for load testing
  */
 
-import { db } from '@babylon/db';
-import { users } from '@babylon/db/schema';
+import { db, inArray, users } from '@babylon/db';
 import { generateSnowflakeId } from '@babylon/shared';
-import { inArray } from 'drizzle-orm';
 
 export interface TestUser {
   userId: string;
@@ -22,7 +20,7 @@ export interface TestUser {
 export async function createTestUser(username: string): Promise<TestUser> {
   const userId = await generateSnowflakeId();
 
-  // Create user in database using Drizzle
+  // Create user in database using native Drizzle
   await db.insert(users).values({
     id: userId,
     username,
@@ -50,15 +48,15 @@ export async function createTestUser(username: string): Promise<TestUser> {
  * Create multiple test users for load testing
  */
 export async function createTestUsers(count: number): Promise<TestUser[]> {
-  const users: TestUser[] = [];
+  const testUsers: TestUser[] = [];
 
   for (let i = 0; i < count; i++) {
     const username = `loadtest_user_${Date.now()}_${i}`;
     const user = await createTestUser(username);
-    users.push(user);
+    testUsers.push(user);
   }
 
-  return users;
+  return testUsers;
 }
 
 /**

@@ -92,16 +92,12 @@ export async function authenticate(
   const privy = getPrivyClient();
   const claims = await privy.verifyAuthToken(token);
 
-  const result = await db
-    .select({
-      id: users.id,
-      walletAddress: users.walletAddress,
-    })
+  const dbUserResult = await db
+    .select({ id: users.id, walletAddress: users.walletAddress })
     .from(users)
     .where(eq(users.privyId, claims.userId))
     .limit(1);
-
-  const dbUser = result[0];
+  const dbUser = dbUserResult[0];
 
   return {
     userId: dbUser?.id ?? claims.userId,
@@ -165,16 +161,12 @@ export async function optionalAuth(
   const privy = getPrivyClient();
   const claims = await privy.verifyAuthToken(token);
 
-  const result = await db
-    .select({
-      id: users.id,
-      walletAddress: users.walletAddress,
-    })
+  const dbUserResult = await db
+    .select({ id: users.id, walletAddress: users.walletAddress })
     .from(users)
     .where(eq(users.privyId, claims.userId))
     .limit(1);
-
-  const dbUser = result[0];
+  const dbUser = dbUserResult[0];
 
   return {
     userId: dbUser?.id ?? claims.userId,

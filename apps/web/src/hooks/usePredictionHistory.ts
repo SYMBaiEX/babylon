@@ -77,6 +77,7 @@ export function usePredictionHistory(
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Keep seed ref in sync with options
   useEffect(() => {
     seedRef.current = options?.seed;
   }, [
@@ -86,6 +87,10 @@ export function usePredictionHistory(
     options?.seed,
   ]);
 
+  /**
+   * Transform API response to history point format.
+   * Calculates volume from liquidity changes.
+   */
   const formatHistory = useCallback(
     (
       points: Array<{
@@ -115,6 +120,9 @@ export function usePredictionHistory(
     []
   );
 
+  /**
+   * Generate fallback history from seed data when API returns no data.
+   */
   const fallbackFromSeed = useCallback(() => {
     const seed = seedRef.current;
     if (!seed) return [];
@@ -133,6 +141,9 @@ export function usePredictionHistory(
     ];
   }, []);
 
+  /**
+   * Fetch price history from the API.
+   */
   const fetchHistory = useCallback(async () => {
     if (!marketId) {
       setHistory([]);
@@ -157,10 +168,15 @@ export function usePredictionHistory(
     setLoading(false);
   }, [marketId, limit, formatHistory, fallbackFromSeed]);
 
+  // Fetch history on mount and when marketId changes
   useEffect(() => {
     void fetchHistory();
   }, [fetchHistory]);
 
+  /**
+   * Append a new price point to the history.
+   * Maintains the rolling window by removing oldest points when limit exceeded.
+   */
   const appendPoint = useCallback(
     (
       yesPrice: number,
@@ -195,6 +211,7 @@ export function usePredictionHistory(
     [limit]
   );
 
+  // Subscribe to real-time updates via SSE
   usePredictionMarketStream(marketId, {
     onTrade: (event) => {
       const timestamp = new Date(

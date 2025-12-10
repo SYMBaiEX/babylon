@@ -14,7 +14,9 @@ import {
  * Price point structure for chart data.
  */
 interface PricePoint {
+  /** Timestamp in milliseconds */
   time: number;
+  /** Price value */
   price: number;
 }
 
@@ -30,9 +32,13 @@ interface ChartDataPoint {
  * Props for PerpPriceChart component.
  */
 interface PerpPriceChartProps {
+  /** Array of price history points */
   data: PricePoint[];
+  /** Current live price */
   currentPrice: number;
+  /** Market ticker symbol */
   ticker: string;
+  /** Whether to show brush selector (unused, for future) */
   showBrush?: boolean;
 }
 
@@ -71,6 +77,7 @@ export function PerpPriceChart({
   const lastPriceLineRef = useRef<ReturnType<
     ISeriesApi<'Area'>['createPriceLine']
   > | null>(null);
+  const seriesInitialized = useRef(false);
 
   const { chartContainerRef, chart } = useLightweightChart({
     crosshair: {
@@ -81,52 +88,72 @@ export function PerpPriceChart({
     },
   });
 
-  // Filter data based on time range
-  const filteredData = useMemo(() => {
+  // Filter and prepare data based on time range
+  const chartData = useMemo(() => {
     if (!data.length) return [];
 
+    // Filter valid data points and sort by time
     const validData = data
       .filter(
-        (point) => Number.isFinite(point.time) && Number.isFinite(point.price)
+        (point) =>
+          Number.isFinite(point.time) &&
+          Number.isFinite(point.price) &&
+          point.price > 0
       )
       .sort((a, b) => a.time - b.time);
 
-    if (timeRange === 'ALL') return validData;
+    // Apply time range filter
+    let filtered = validData;
+    if (timeRange !== 'ALL') {
+      const now = Date.now();
+      const ranges: Record<TimeRange, number> = {
+        '1H': 60 * 60 * 1000,
+        '4H': 4 * 60 * 60 * 1000,
+        '1D': 24 * 60 * 60 * 1000,
+        '1W': 7 * 24 * 60 * 60 * 1000,
+        ALL: 0,
+      };
+      const cutoff = now - ranges[timeRange];
+      filtered = validData.filter((d) => d.time >= cutoff);
+    }
 
-    const now = Date.now();
-    const ranges: Record<TimeRange, number> = {
-      '1H': 60 * 60 * 1000,
-      '4H': 4 * 60 * 60 * 1000,
-      '1D': 24 * 60 * 60 * 1000,
-      '1W': 7 * 24 * 60 * 60 * 1000,
-      ALL: 0,
-    };
+    // Convert to chart format with deduplication by timestamp
+    // Lightweight Charts requires unique, ascending timestamps
+    const seenTimes = new Set<number>();
+    const result: ChartDataPoint[] = [];
 
-    const cutoff = now - ranges[timeRange];
-    return validData.filter((d) => d.time >= cutoff);
+    for (const point of filtered) {
+      const time = formatChartTime(point.time);
+      const timeNum = time as number;
+      if (seenTimes.has(timeNum)) continue;
+      seenTimes.add(timeNum);
+      result.push({ time, value: point.price });
+    }
+
+    return result;
   }, [data, timeRange]);
 
-  // Calculate price change
+  // Calculate price change from first to last point in filtered range
   const { priceChange, priceChangePercent, isPositive } = useMemo(() => {
-    if (filteredData.length < 2) {
+    if (chartData.length < 2) {
       return { priceChange: 0, priceChangePercent: 0, isPositive: true };
     }
 
-    const first = filteredData[0];
-    const last = filteredData[filteredData.length - 1];
-    const change = (last?.price ?? 0) - (first?.price ?? 0);
-    const percent = first?.price ? (change / first.price) * 100 : 0;
+    const first = chartData[0];
+    const last = chartData[chartData.length - 1];
+    const change = (last?.value ?? 0) - (first?.value ?? 0);
+    const percent = first?.value ? (change / first.value) * 100 : 0;
 
     return {
       priceChange: change,
       priceChangePercent: percent,
       isPositive: change >= 0,
     };
-  }, [filteredData]);
+  }, [chartData]);
 
-  // Initialize series
+  // Initialize series when chart is ready
   useEffect(() => {
-    if (!chart) return;
+    if (!chart || seriesInitialized.current) return;
 
     priceSeries.current = chart.addSeries(AreaSeries, {
       ...AREA_STYLES.green,
@@ -139,58 +166,40 @@ export function PerpPriceChart({
       priceLineVisible: false,
     });
 
-    // Cleanup: chart.remove() in base hook already cleans up all series,
-    // so we only need to null the refs. Calling removeSeries after chart
-    // is destroyed causes "Value is undefined" errors.
+    seriesInitialized.current = true;
+
     return () => {
       lastPriceLineRef.current = null;
       priceSeries.current = null;
+      seriesInitialized.current = false;
     };
   }, [chart]);
 
   // Update series color based on price direction
   useEffect(() => {
     if (!priceSeries.current) return;
-
     const style = isPositive ? AREA_STYLES.green : AREA_STYLES.red;
     priceSeries.current.applyOptions(style);
   }, [isPositive]);
 
-  // Update data
+  // Update data when chart data changes
   useEffect(() => {
-    if (!priceSeries.current || !filteredData.length) return;
-
-    // Filter out any points with invalid values to prevent "Value is null" errors
-    const validPoints = filteredData.filter(
-      (point) =>
-        point.price !== null &&
-        point.price !== undefined &&
-        Number.isFinite(point.price)
-    );
-
-    if (!validPoints.length) return;
-
-    const chartData: ChartDataPoint[] = validPoints.map((point) => ({
-      time: formatChartTime(point.time),
-      value: point.price,
-    }));
+    if (!priceSeries.current || !chartData.length) return;
 
     priceSeries.current.setData(chartData);
-
-    // Fit content
     chart?.timeScale().fitContent();
-  }, [chart, filteredData]);
+  }, [chart, chartData]);
 
-  // Update current price line
+  // Update current price reference line
   useEffect(() => {
     if (!priceSeries.current || !currentPrice) return;
 
-    // Remove existing price line
+    // Remove existing price line before creating new one
     if (lastPriceLineRef.current) {
       priceSeries.current.removePriceLine(lastPriceLineRef.current);
     }
 
-    // Add new price line
+    // Add horizontal line at current price
     lastPriceLineRef.current = priceSeries.current.createPriceLine({
       price: currentPrice,
       color: '#0066FF',
@@ -201,6 +210,7 @@ export function PerpPriceChart({
     });
   }, [currentPrice]);
 
+  // Loading state when no data
   if (!data.length) {
     return (
       <div className="flex h-[400px] items-center justify-center text-muted-foreground">
@@ -213,7 +223,7 @@ export function PerpPriceChart({
 
   return (
     <div className="w-full space-y-3" key={ticker}>
-      {/* Header with price info and time range */}
+      {/* Header with price info and time range selector */}
       <div className="flex flex-wrap items-center justify-between gap-3 px-1">
         <div className="flex items-center gap-3">
           <div>

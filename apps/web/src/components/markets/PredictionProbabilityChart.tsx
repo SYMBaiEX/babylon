@@ -14,9 +14,13 @@ import {
  * Price point structure for prediction chart data.
  */
 interface PricePoint {
+  /** Timestamp in milliseconds */
   time: number;
+  /** YES outcome price (0-1) */
   yesPrice: number;
+  /** NO outcome price (0-1) */
   noPrice: number;
+  /** Trading volume */
   volume: number;
 }
 
@@ -32,8 +36,11 @@ interface ChartDataPoint {
  * Props for PredictionProbabilityChart component.
  */
 interface PredictionProbabilityChartProps {
+  /** Array of price history points */
   data: PricePoint[];
+  /** Market identifier for keying */
   marketId: string;
+  /** Whether to show brush selector (unused, for future) */
   showBrush?: boolean;
 }
 
@@ -69,6 +76,7 @@ export function PredictionProbabilityChart({
   const [timeRange, setTimeRange] = useState<TimeRange>('ALL');
   const yesSeries = useRef<ISeriesApi<'Area'> | null>(null);
   const noSeries = useRef<ISeriesApi<'Line'> | null>(null);
+  const seriesInitialized = useRef(false);
 
   const { chartContainerRef, chart } = useLightweightChart({
     rightPriceScale: {
@@ -79,48 +87,69 @@ export function PredictionProbabilityChart({
     },
   });
 
-  // Filter data based on time range
-  const filteredData = useMemo(() => {
-    if (!data.length) return [];
+  // Filter and prepare data based on time range
+  const chartData = useMemo(() => {
+    if (!data.length) return { yes: [], no: [] };
 
+    // Filter valid data points and sort by time
     const validData = data
       .filter(
         (point) =>
           Number.isFinite(point.time) &&
           Number.isFinite(point.yesPrice) &&
-          Number.isFinite(point.noPrice)
+          Number.isFinite(point.noPrice) &&
+          point.yesPrice >= 0 &&
+          point.noPrice >= 0
       )
       .sort((a, b) => a.time - b.time);
 
-    if (timeRange === 'ALL') return validData;
+    // Apply time range filter
+    let filtered = validData;
+    if (timeRange !== 'ALL') {
+      const now = Date.now();
+      const ranges: Record<TimeRange, number> = {
+        '1H': 60 * 60 * 1000,
+        '4H': 4 * 60 * 60 * 1000,
+        '1D': 24 * 60 * 60 * 1000,
+        '1W': 7 * 24 * 60 * 60 * 1000,
+        ALL: 0,
+      };
+      const cutoff = now - ranges[timeRange];
+      filtered = validData.filter((d) => d.time >= cutoff);
+    }
 
-    const now = Date.now();
-    const ranges: Record<TimeRange, number> = {
-      '1H': 60 * 60 * 1000,
-      '4H': 4 * 60 * 60 * 1000,
-      '1D': 24 * 60 * 60 * 1000,
-      '1W': 7 * 24 * 60 * 60 * 1000,
-      ALL: 0,
-    };
+    // Convert to chart format with deduplication by timestamp
+    // Lightweight Charts requires unique, ascending timestamps
+    const seenTimes = new Set<number>();
+    const yes: ChartDataPoint[] = [];
+    const no: ChartDataPoint[] = [];
 
-    const cutoff = now - ranges[timeRange];
-    return validData.filter((d) => d.time >= cutoff);
+    for (const point of filtered) {
+      const time = formatChartTime(point.time);
+      const timeNum = time as number;
+      if (seenTimes.has(timeNum)) continue;
+      seenTimes.add(timeNum);
+
+      yes.push({ time, value: point.yesPrice * 100 });
+      no.push({ time, value: point.noPrice * 100 });
+    }
+
+    return { yes, no };
   }, [data, timeRange]);
 
-  // Current probability
+  // Current probability from latest data point
   const currentProbability = useMemo(() => {
-    if (!filteredData.length) return 50;
-    const last = filteredData[filteredData.length - 1];
-    return last ? last.yesPrice * 100 : 50;
-  }, [filteredData]);
+    if (!chartData.yes.length) return 50;
+    return chartData.yes[chartData.yes.length - 1]?.value ?? 50;
+  }, [chartData.yes]);
 
   const isYesFavored = currentProbability >= 50;
 
-  // Initialize series
+  // Initialize series when chart is ready
   useEffect(() => {
-    if (!chart) return;
+    if (!chart || seriesInitialized.current) return;
 
-    // Add YES area series (green)
+    // Add YES area series (green filled area)
     yesSeries.current = chart.addSeries(AreaSeries, {
       ...AREA_STYLES.green,
       priceFormat: {
@@ -130,7 +159,7 @@ export function PredictionProbabilityChart({
       },
     });
 
-    // Add NO line series (red) - overlay
+    // Add NO line series (red line overlay)
     noSeries.current = chart.addSeries(LineSeries, {
       ...LINE_STYLES.red,
       priceFormat: {
@@ -140,57 +169,33 @@ export function PredictionProbabilityChart({
       },
     });
 
-    // Cleanup: chart.remove() in base hook already cleans up all series,
-    // so we only need to null the refs. Calling removeSeries after chart
-    // is destroyed causes "Value is undefined" errors.
+    seriesInitialized.current = true;
+
     return () => {
       yesSeries.current = null;
       noSeries.current = null;
+      seriesInitialized.current = false;
     };
   }, [chart]);
 
-  // Update data
+  // Update data when chart data changes
   useEffect(() => {
-    if (!yesSeries.current || !noSeries.current || !filteredData.length) return;
+    if (!yesSeries.current || !noSeries.current) return;
+    if (!chartData.yes.length || !chartData.no.length) return;
 
-    // Filter out any points with invalid values to prevent "Value is null" errors
-    const validPoints = filteredData.filter(
-      (point) =>
-        point.yesPrice !== null &&
-        point.yesPrice !== undefined &&
-        point.noPrice !== null &&
-        point.noPrice !== undefined &&
-        Number.isFinite(point.yesPrice) &&
-        Number.isFinite(point.noPrice)
-    );
-
-    if (!validPoints.length) return;
-
-    const yesData: ChartDataPoint[] = validPoints.map((point) => ({
-      time: formatChartTime(point.time),
-      value: point.yesPrice * 100,
-    }));
-
-    const noData: ChartDataPoint[] = validPoints.map((point) => ({
-      time: formatChartTime(point.time),
-      value: point.noPrice * 100,
-    }));
-
-    yesSeries.current.setData(yesData);
-    noSeries.current.setData(noData);
-
-    // Fit content
+    yesSeries.current.setData(chartData.yes);
+    noSeries.current.setData(chartData.no);
     chart?.timeScale().fitContent();
-  }, [chart, filteredData]);
+  }, [chart, chartData]);
 
   // Update series colors based on YES/NO favorability
   useEffect(() => {
     if (!yesSeries.current) return;
-
     const style = isYesFavored ? AREA_STYLES.green : AREA_STYLES.red;
     yesSeries.current.applyOptions(style);
   }, [isYesFavored]);
 
+  // Loading state when no data
   if (!data.length) {
     return (
       <div className="flex h-[400px] items-center justify-center text-muted-foreground">
@@ -203,7 +208,7 @@ export function PredictionProbabilityChart({
 
   return (
     <div className="w-full space-y-3" key={marketId}>
-      {/* Header with probabilities and time range */}
+      {/* Header with probabilities and time range selector */}
       <div className="flex flex-wrap items-center justify-between gap-3 px-1">
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
