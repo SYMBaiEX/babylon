@@ -169,11 +169,7 @@ async function fetchAgentCard(): Promise<CachedAgentCard | null> {
       fetchedAt: Date.now(),
     };
 
-    logger.info(
-      '✅ Agent card cached',
-      { agentCardUrl },
-      'BabylonIntegration'
-    );
+    logger.info('✅ Agent card cached', { agentCardUrl }, 'BabylonIntegration');
 
     return cachedAgentCard;
   } catch (error) {
@@ -1085,10 +1081,13 @@ export async function enhanceRuntimeWithBabylon(
   const result = await initializeA2ASdkClient(agentUserId);
 
   if (!result) {
-    logger.warn('A2A client initialization failed - plugin will have limited functionality', {
-      agentUserId,
-      pluginName: plugin.name,
-    });
+    logger.warn(
+      'A2A client initialization failed - plugin will have limited functionality',
+      {
+        agentUserId,
+        pluginName: plugin.name,
+      }
+    );
     // Create a disconnected client for graceful degradation
     const fallbackIdentity: CachedAgentIdentity = {
       agentUserId,
@@ -1097,7 +1096,11 @@ export async function enhanceRuntimeWithBabylon(
       displayName: null,
       cachedAt: Date.now(),
     };
-    babylonRuntime.a2aClient = new BabylonA2AClient(null, agentUserId, fallbackIdentity);
+    babylonRuntime.a2aClient = new BabylonA2AClient(
+      null,
+      agentUserId,
+      fallbackIdentity
+    );
   } else {
     babylonRuntime.a2aClient = new BabylonA2AClient(
       result.client,

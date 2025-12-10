@@ -444,7 +444,9 @@ export default function CommentPage({ params }: CommentPageProps) {
                 onClick={() => {
                   // Navigate to parent: immediate parent comment > post > feed
                   if (parentChain.length > 0) {
-                    router.push(`/comment/${parentChain[parentChain.length - 1]?.id}`);
+                    router.push(
+                      `/comment/${parentChain[parentChain.length - 1]?.id}`
+                    );
                   } else if (post) {
                     router.push(`/post/${post.id}`);
                   } else {
