@@ -1,17 +1,54 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 
-// Middleware for runtime checks only
-// Static redirects (/ -> /feed) are handled by next.config.ts redirects() for reliability
+const ALLOWED_PATHS = new Set([
+  '/',
+  '/favicon.ico',
+  '/robots.txt',
+  '/sitemap.xml',
+  '/manifest.webmanifest',
+]);
 
-export function middleware(_request: NextRequest) {
-  // Currently no runtime middleware logic needed
-  // Waitlist redirects and homepage redirect are handled by next.config.ts
-  return NextResponse.next();
+function isAssetRequest(pathname: string) {
+  return (
+    pathname.startsWith('/_next') ||
+    pathname.startsWith('/api') ||
+    pathname.startsWith('/assets') ||
+    pathname.startsWith('/static') ||
+    pathname.startsWith('/images') ||
+    pathname.startsWith('/fonts') ||
+    pathname.startsWith('/.well-known') ||
+    pathname.startsWith('/_vercel') ||
+    pathname.startsWith('/monitoring') ||
+    /\.[^/]+$/.test(pathname)
+  );
+}
+
+export function middleware(request: NextRequest) {
+  const waitlistFlag =
+    process.env.WAITLIST_MODE ?? process.env.NEXT_PUBLIC_WAITLIST_MODE ?? '';
+  const waitlistEnabled = ['true', '1', 'yes', 'on'].includes(
+    waitlistFlag.toLowerCase()
+  );
+
+  if (!waitlistEnabled) {
+    return NextResponse.next();
+  }
+
+  const { pathname, search } = request.nextUrl;
+
+  if (ALLOWED_PATHS.has(pathname) || isAssetRequest(pathname)) {
+    return NextResponse.next();
+  }
+
+  const redirectUrl = request.nextUrl.clone();
+  redirectUrl.pathname = '/';
+  redirectUrl.search = search;
+
+  return NextResponse.redirect(redirectUrl);
 }
 
 export const config = {
-  // Only run on paths that need runtime middleware logic
-  // Currently disabled since redirects are in next.config.ts
-  matcher: [],
+  // Run on everything (assets/API are allowed through in handler)
+  matcher: ['/(.*)'],
 };

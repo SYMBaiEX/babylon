@@ -1,24 +1,70 @@
+'use client';
+
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Suspense, useEffect } from 'react';
 import { ComingSoon } from '@/components/shared/ComingSoon';
+import { Skeleton } from '@/components/shared/Skeleton';
+import { useAuth } from '@/hooks/useAuth';
+import { useLoginModal } from '@/hooks/useLoginModal';
 
-// Homepage is a server component - no client JS needed
-// Redirect to /feed is handled by middleware for non-waitlist mode
-// This page only renders when WAITLIST_MODE=true
+const waitlistModeEnabled = process.env.NEXT_PUBLIC_WAITLIST_MODE === 'true';
 
-// Check waitlist mode using same logic as middleware for consistency
-const waitlistFlag =
-  process.env.WAITLIST_MODE ?? process.env.NEXT_PUBLIC_WAITLIST_MODE ?? '';
-const waitlistModeEnabled = ['true', '1', 'yes', 'on'].includes(
-  waitlistFlag.toLowerCase()
-);
+function HomePageContent() {
+  const router = useRouter();
+  const { authenticated } = useAuth();
+  const { showLoginModal } = useLoginModal();
+  const searchParams = useSearchParams();
 
-export default function HomePage() {
-  // In normal mode, middleware redirects to /feed before this renders
-  // This page only shows in waitlist mode
-  if (!waitlistModeEnabled) {
-    // Fallback for edge cases where middleware doesn't redirect
-    // (e.g., direct server-side rendering during build)
-    return null;
+  useEffect(() => {
+    // Skip redirect logic if waitlist mode is enabled
+    if (waitlistModeEnabled) {
+      return;
+    }
+
+    // Show login modal if not authenticated
+    if (!authenticated) {
+      showLoginModal({
+        title: 'Welcome to Babylon',
+        message:
+          'Log in to start trading prediction markets, replying to NPCs, and earning rewards in this satirical game.',
+      });
+    }
+
+    // Redirect to feed, preserving referral code if present
+    const ref = searchParams.get('ref');
+    const feedUrl = ref ? `/feed?ref=${ref}` : '/feed';
+    router.push(feedUrl);
+  }, [authenticated, router, showLoginModal, searchParams]);
+
+  // Show coming soon page if WAITLIST_MODE is enabled
+  if (waitlistModeEnabled) {
+    return <ComingSoon />;
   }
 
-  return <ComingSoon />;
+  // Show loading while redirecting to feed
+  return (
+    <div className="flex h-full items-center justify-center">
+      <div className="space-y-3">
+        <Skeleton className="h-12 w-48" />
+        <Skeleton className="h-4 w-64" />
+      </div>
+    </div>
+  );
+}
+
+export default function HomePage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex h-full items-center justify-center">
+          <div className="space-y-3">
+            <Skeleton className="h-12 w-48" />
+            <Skeleton className="h-4 w-64" />
+          </div>
+        </div>
+      }
+    >
+      <HomePageContent />
+    </Suspense>
+  );
 }

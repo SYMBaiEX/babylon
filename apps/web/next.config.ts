@@ -48,20 +48,11 @@ const nextConfig: NextConfig = {
     WAITLIST_MODE: process.env.WAITLIST_MODE ?? 'false',
   },
   async redirects() {
-    // When waitlist is disabled, redirect homepage to feed
-    if (!waitlistEnabled) {
-      return [
-        {
-          source: '/',
-          destination: '/feed',
-          permanent: false,
-        },
-      ];
-    }
+    if (!waitlistEnabled) return [];
 
-    // When waitlist is enabled, redirect everything except allowed paths to home
     return [
       {
+        // Redirect everything except root and static/API assets to home during waitlist
         source:
           '/:path((?!$|_next|api|assets|static|images|fonts|favicon\\.ico|robots\\.txt|sitemap\\.xml|manifest\\.webmanifest|\\.well-known|monitoring).*)',
         destination: '/',
