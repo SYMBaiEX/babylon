@@ -75,6 +75,7 @@
 
 import { submitFeedbackToAgent0 } from '@babylon/agents';
 import {
+  InternalServerError,
   requireCronAuth,
   requireUserByIdentifier,
   withErrorHandling,
@@ -145,7 +146,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     );
 
     if (!feedback) {
-      throw new Error('Failed to create game feedback');
+      throw new InternalServerError('Failed to create game feedback');
     }
 
     // Submit to Agent0 network (fire-and-forget with error handling)
@@ -176,7 +177,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   );
 
   if (!feedback) {
-    throw new Error('Failed to create trade feedback');
+    throw new InternalServerError('Failed to create trade feedback');
   }
 
   // Submit to Agent0 network (fire-and-forget with error handling)

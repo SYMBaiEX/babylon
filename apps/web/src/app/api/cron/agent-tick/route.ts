@@ -61,7 +61,11 @@ import {
   getAgentConfig,
   releaseAgentLock,
 } from '@babylon/agents';
-import { relayCronToStaging, verifyCronAuth } from '@babylon/api';
+import {
+  recordCronExecution,
+  relayCronToStaging,
+  verifyCronAuth,
+} from '@babylon/api';
 import type { User, UserAgentConfig } from '@babylon/db';
 import { db, eq, userAgentConfigs, users } from '@babylon/db';
 import { logger } from '@babylon/shared';
@@ -578,6 +582,14 @@ export async function POST(_req: NextRequest) {
       'AgentTick'
     );
   }
+
+  // Record metrics
+  recordCronExecution('agent-tick', new Date(startTime), {
+    success: true,
+    processed: results.length - skippedDueToLock,
+    totalActions: totalActionsExecuted,
+    errorCount: errors,
+  });
 
   return NextResponse.json({
     success: true,

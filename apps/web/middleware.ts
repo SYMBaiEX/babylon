@@ -31,21 +31,31 @@ export function middleware(request: NextRequest) {
     waitlistFlag.toLowerCase()
   );
 
-  if (!waitlistEnabled) {
-    return NextResponse.next();
-  }
-
   const { pathname, search } = request.nextUrl;
 
-  if (ALLOWED_PATHS.has(pathname) || isAssetRequest(pathname)) {
-    return NextResponse.next();
+  // Waitlist mode: redirect everything except allowed paths to home
+  if (waitlistEnabled) {
+    if (ALLOWED_PATHS.has(pathname) || isAssetRequest(pathname)) {
+      return NextResponse.next();
+    }
+
+    const redirectUrl = request.nextUrl.clone();
+    redirectUrl.pathname = '/';
+    redirectUrl.search = search;
+    return NextResponse.redirect(redirectUrl);
   }
 
-  const redirectUrl = request.nextUrl.clone();
-  redirectUrl.pathname = '/';
-  redirectUrl.search = search;
+  // Normal mode: redirect homepage to /feed (server-side for better performance)
+  // This eliminates client-side JS entirely for the homepage redirect
+  if (pathname === '/') {
+    const redirectUrl = request.nextUrl.clone();
+    redirectUrl.pathname = '/feed';
+    // Preserve query params (e.g., ?ref=xxx for referral codes)
+    redirectUrl.search = search;
+    return NextResponse.redirect(redirectUrl);
+  }
 
-  return NextResponse.redirect(redirectUrl);
+  return NextResponse.next();
 }
 
 export const config = {
