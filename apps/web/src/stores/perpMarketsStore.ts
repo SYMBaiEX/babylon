@@ -100,20 +100,27 @@ export const usePerpMarketsStore = create<PerpMarketsState>((set, get) => ({
       }
       set({ error: null });
 
-      const response = await fetch('/api/markets/perps');
-      if (!response.ok) {
-        throw new Error(`Failed to fetch perp markets: ${response.status}`);
-      }
+      try {
+        const response = await fetch('/api/markets/perps');
+        if (!response.ok) {
+          throw new Error(`Failed to fetch perp markets: ${response.status}`);
+        }
 
-      const data = await response.json();
-      if (data.markets && Array.isArray(data.markets)) {
-        set({
-          markets: data.markets,
-          lastFetchedAt: Date.now(),
-          error: null,
-        });
+        const data = await response.json();
+        if (data.markets && Array.isArray(data.markets)) {
+          set({
+            markets: data.markets,
+            lastFetchedAt: Date.now(),
+            error: null,
+          });
+        }
+      } catch (err) {
+        const errorMessage =
+          err instanceof Error ? err.message : 'Failed to fetch markets';
+        set({ error: errorMessage });
+      } finally {
+        set({ loading: false, fetchPromise: null });
       }
-      set({ loading: false, fetchPromise: null });
     })();
 
     set({ fetchPromise });

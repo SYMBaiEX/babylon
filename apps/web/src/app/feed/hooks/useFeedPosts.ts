@@ -35,13 +35,14 @@ export function useFeedPosts(
 
   const [posts, setPosts] = useState<FeedPost[]>([]);
   const [localPosts, setLocalPosts] = useState<FeedPost[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [cursor, setCursor] = useState<string | null>(null);
 
-  // Prevent race conditions
+  // Prevent race conditions and duplicate fetches
   const loadingMoreRef = useRef(false);
+  const initialFetchDone = useRef(false);
 
   useEffect(() => {
     loadingMoreRef.current = loadingMore;
@@ -54,7 +55,6 @@ export function useFeedPosts(
       skipLoadingState = false,
       forceNoStore = false
     ) => {
-      if (!enabled) return;
       if (append && loadingMoreRef.current) return;
 
       if (append) {
@@ -64,22 +64,33 @@ export function useFeedPosts(
         setLoading(true);
       }
 
-      const url = requestCursor
-        ? `/api/posts?limit=${PAGE_SIZE}&cursor=${encodeURIComponent(requestCursor)}`
-        : `/api/posts?limit=${PAGE_SIZE}`;
-
-      const response = await fetch(url, {
-        cache: forceNoStore ? 'no-store' : undefined,
-      });
-
-      if (!response.ok) {
-        if (append) setHasMore(false);
+      // Helper to reset loading state
+      const stopLoading = () => {
         if (append) {
           setLoadingMore(false);
           loadingMoreRef.current = false;
         } else if (!skipLoadingState) {
           setLoading(false);
         }
+      };
+
+      const url = requestCursor
+        ? `/api/posts?limit=${PAGE_SIZE}&cursor=${encodeURIComponent(requestCursor)}`
+        : `/api/posts?limit=${PAGE_SIZE}`;
+
+      let response: Response;
+      try {
+        response = await fetch(url, {
+          cache: forceNoStore ? 'no-store' : undefined,
+        });
+      } catch {
+        stopLoading();
+        return;
+      }
+
+      if (!response.ok) {
+        if (append) setHasMore(false);
+        stopLoading();
         return;
       }
 
@@ -115,15 +126,9 @@ export function useFeedPosts(
       }
 
       setHasMore(hasMoreFromAPI && newPosts.length > 0);
-
-      if (append) {
-        setLoadingMore(false);
-        loadingMoreRef.current = false;
-      } else if (!skipLoadingState) {
-        setLoading(false);
-      }
+      stopLoading();
     },
-    [enabled]
+    []
   );
 
   const refresh = useCallback(async () => {
@@ -134,14 +139,23 @@ export function useFeedPosts(
     setLocalPosts((prev) => [post, ...prev]);
   }, []);
 
-  // Initial fetch
+  // Initial fetch - only run once when enabled
   useEffect(() => {
-    if (enabled) {
+    if (enabled && !initialFetchDone.current) {
+      initialFetchDone.current = true;
+      setLoading(true);
       setCursor(null);
       setHasMore(true);
       fetchPosts(null, false);
     }
   }, [enabled, fetchPosts]);
+
+  // Reset when disabled then re-enabled
+  useEffect(() => {
+    if (!enabled) {
+      initialFetchDone.current = false;
+    }
+  }, [enabled]);
 
   // SSE real-time updates
   useSSEChannel('feed', () => {

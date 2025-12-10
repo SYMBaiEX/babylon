@@ -1,5 +1,5 @@
 import type { FeedPost } from '@babylon/shared';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useAuthStore } from '@/stores/authStore';
 
@@ -30,44 +30,53 @@ export function useFollowingPosts(
 
   const [posts, setPosts] = useState<FeedPost[]>([]);
   const [loading, setLoading] = useState(false);
+  const fetchInProgress = useRef(false);
 
   const fetchFollowingPosts = useCallback(async () => {
-    if (!enabled || !authenticated || !user) {
+    const userId = user?.id;
+    if (!enabled || !authenticated || !userId) {
       setPosts([]);
-      setLoading(false);
       return;
     }
 
+    // Prevent duplicate fetches
+    if (fetchInProgress.current) return;
+    fetchInProgress.current = true;
     setLoading(true);
-    const token = await getAccessToken();
 
-    const headers: HeadersInit = { 'Content-Type': 'application/json' };
-    if (token) headers['Authorization'] = `Bearer ${token}`;
+    try {
+      const token = await getAccessToken();
 
-    const response = await fetch(
-      `/api/posts?following=true&userId=${user.id}&limit=${PAGE_SIZE}&offset=0`,
-      { headers }
-    );
+      const headers: HeadersInit = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
 
-    if (!response.ok) {
+      const response = await fetch(
+        `/api/posts?following=true&userId=${userId}&limit=${PAGE_SIZE}&offset=0`,
+        { headers }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        setPosts(data.posts as FeedPost[]);
+      }
+    } catch {
+      // Network error - no action needed
+    } finally {
       setLoading(false);
-      return;
+      fetchInProgress.current = false;
     }
-
-    const data = await response.json();
-    setPosts(data.posts as FeedPost[]);
-    setLoading(false);
-  }, [enabled, authenticated, user, getAccessToken]);
+  }, [enabled, authenticated, user?.id, getAccessToken]);
 
   const refresh = useCallback(async () => {
     await fetchFollowingPosts();
   }, [fetchFollowingPosts]);
 
+  // Fetch on mount when enabled and authenticated
   useEffect(() => {
-    if (enabled) {
+    if (enabled && authenticated && user?.id) {
       fetchFollowingPosts();
     }
-  }, [enabled, fetchFollowingPosts]);
+  }, [enabled, authenticated, user?.id, fetchFollowingPosts]);
 
   return {
     posts,

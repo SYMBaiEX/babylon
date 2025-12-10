@@ -173,28 +173,35 @@ export default function MarketsPage() {
     const isAuth = authenticatedRef.current;
     const userId = userIdRef.current;
 
-    const predictionsRes = await fetch(
-      `/api/markets/predictions${isAuth && userId ? `?userId=${userId}` : ''}`
-    );
+    try {
+      const predictionsRes = await fetch(
+        `/api/markets/predictions${isAuth && userId ? `?userId=${userId}` : ''}`
+      );
 
-    if (!predictionsRes.ok) {
-      console.error('Failed to fetch predictions: Failed to fetch predictions');
-      setPredictionsLoading(false);
-      return;
-    }
-
-    const predictionsData = await predictionsRes.json();
-    setPredictions(predictionsData.questions || []);
-
-    if (isAuth && userId) {
-      if (refreshPositionsRef.current) {
-        await refreshPositionsRef.current();
+      if (!predictionsRes.ok) {
+        console.error(
+          'Failed to fetch predictions: Failed to fetch predictions'
+        );
+        setPredictionsLoading(false);
+        return;
       }
-    }
 
-    // Trigger balance refresh after data fetch (after trades)
-    setBalanceRefreshTrigger(Date.now());
-    setPredictionsLoading(false);
+      const predictionsData = await predictionsRes.json();
+      setPredictions(predictionsData.questions || []);
+
+      if (isAuth && userId) {
+        if (refreshPositionsRef.current) {
+          await refreshPositionsRef.current();
+        }
+      }
+
+      // Trigger balance refresh after data fetch (after trades)
+      setBalanceRefreshTrigger(Date.now());
+    } catch {
+      // Network error - ignore, just stop loading
+    } finally {
+      setPredictionsLoading(false);
+    }
   }, []); // Empty dependency array - fetchData never changes
 
   // Store fetchData in ref (fetchData is stable with empty deps)
