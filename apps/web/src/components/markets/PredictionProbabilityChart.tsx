@@ -73,7 +73,7 @@ export function PredictionProbabilityChart({
   data,
   marketId,
 }: PredictionProbabilityChartProps) {
-  const [timeRange, setTimeRange] = useState<TimeRange>('1D');
+  const [timeRange, setTimeRange] = useState<TimeRange>('ALL');
   const yesSeries = useRef<ISeriesApi<'Area'> | null>(null);
   const noSeries = useRef<ISeriesApi<'Line'> | null>(null);
   const seriesInitialized = useRef(false);

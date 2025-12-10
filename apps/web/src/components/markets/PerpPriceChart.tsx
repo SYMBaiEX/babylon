@@ -72,7 +72,7 @@ export function PerpPriceChart({
   currentPrice,
   ticker,
 }: PerpPriceChartProps) {
-  const [timeRange, setTimeRange] = useState<TimeRange>('1D');
+  const [timeRange, setTimeRange] = useState<TimeRange>('ALL');
   const priceSeries = useRef<ISeriesApi<'Area'> | null>(null);
   const lastPriceLineRef = useRef<ReturnType<
     ISeriesApi<'Area'>['createPriceLine']
