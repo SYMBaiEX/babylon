@@ -1,7 +1,16 @@
 'use client';
 
-import { memo, useMemo } from 'react';
-import { Line, LineChart } from 'recharts';
+import type { ISeriesApi, Time } from 'lightweight-charts';
+import { ColorType, createChart, LineSeries } from 'lightweight-charts';
+import { memo, useEffect, useMemo, useRef } from 'react';
+
+/**
+ * Chart data point for sparkline series.
+ */
+interface SparklineDataPoint {
+  time: Time;
+  value: number;
+}
 
 /**
  * Prediction sparkline component for displaying mini price trend charts.
@@ -16,6 +25,7 @@ import { Line, LineChart } from 'recharts';
  * - Dual lines (YES and NO)
  * - Color-coded (green YES, red NO)
  * - Empty state handling
+ * - Uses TradingView Lightweight Charts
  *
  * @param props - PredictionSparkline component props
  * @returns Prediction sparkline element or empty state
@@ -40,47 +50,106 @@ function PredictionSparklineBase({
   width = 120,
   height = 32,
 }: PredictionSparklineProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const chartRef = useRef<ReturnType<typeof createChart> | null>(null);
+  const yesSeriesRef = useRef<ISeriesApi<'Line'> | null>(null);
+  const noSeriesRef = useRef<ISeriesApi<'Line'> | null>(null);
+
   const chartData = useMemo(() => {
-    if (!data || data.length === 0) return [];
-    return data.slice(-20).map((point) => {
-      const yes = (point.yesPrice ?? 0.5) * 100;
-      const no = point.noPrice !== undefined ? point.noPrice * 100 : 100 - yes;
-      return {
-        yesProbability: yes,
-        noProbability: no,
-        timestamp: point.time,
-      };
-    });
+    if (!data || data.length === 0) return { yes: [], no: [] };
+
+    const sliced = data.slice(-20);
+    const yes: SparklineDataPoint[] = [];
+    const no: SparklineDataPoint[] = [];
+
+    for (const point of sliced) {
+      const time = Math.floor(point.time / 1000) as Time;
+      const yesVal = (point.yesPrice ?? 0.5) * 100;
+      const noVal =
+        point.noPrice !== undefined ? point.noPrice * 100 : 100 - yesVal;
+
+      yes.push({ time, value: yesVal });
+      no.push({ time, value: noVal });
+    }
+
+    return { yes, no };
   }, [data]);
 
-  if (chartData.length === 0) {
+  // Initialize chart
+  useEffect(() => {
+    if (!containerRef.current) return;
+
+    const chart = createChart(containerRef.current, {
+      width,
+      height,
+      layout: {
+        background: { type: ColorType.Solid, color: 'transparent' },
+        textColor: 'transparent',
+        attributionLogo: false,
+      },
+      grid: {
+        vertLines: { visible: false },
+        horzLines: { visible: false },
+      },
+      rightPriceScale: { visible: false },
+      timeScale: { visible: false },
+      handleScroll: false,
+      handleScale: false,
+      crosshair: {
+        vertLine: { visible: false },
+        horzLine: { visible: false },
+      },
+    });
+
+    chartRef.current = chart;
+
+    // YES series (green)
+    yesSeriesRef.current = chart.addSeries(LineSeries, {
+      color: '#22c55e',
+      lineWidth: 1,
+      priceLineVisible: false,
+      lastValueVisible: false,
+      crosshairMarkerVisible: false,
+    });
+
+    // NO series (red)
+    noSeriesRef.current = chart.addSeries(LineSeries, {
+      color: '#ef4444',
+      lineWidth: 1,
+      priceLineVisible: false,
+      lastValueVisible: false,
+      crosshairMarkerVisible: false,
+    });
+
+    return () => {
+      chart.remove();
+      chartRef.current = null;
+      yesSeriesRef.current = null;
+      noSeriesRef.current = null;
+    };
+  }, [width, height]);
+
+  // Update data
+  useEffect(() => {
+    if (!yesSeriesRef.current || !noSeriesRef.current) return;
+    if (chartData.yes.length === 0) return;
+
+    yesSeriesRef.current.setData(chartData.yes);
+    noSeriesRef.current.setData(chartData.no);
+
+    chartRef.current?.timeScale().fitContent();
+  }, [chartData]);
+
+  if (!data || data.length === 0) {
     return <div className="text-muted-foreground text-xs">–</div>;
   }
 
   return (
-    <LineChart
-      width={width}
-      height={height}
-      data={chartData}
-      margin={{ top: 2, right: 0, bottom: 2, left: 0 }}
-    >
-      <Line
-        type="monotone"
-        dataKey="yesProbability"
-        stroke="#22c55e"
-        strokeWidth={1.5}
-        dot={false}
-        isAnimationActive={false}
-      />
-      <Line
-        type="monotone"
-        dataKey="noProbability"
-        stroke="#ef4444"
-        strokeWidth={1.5}
-        dot={false}
-        isAnimationActive={false}
-      />
-    </LineChart>
+    <div
+      ref={containerRef}
+      style={{ width, height }}
+      className="overflow-hidden"
+    />
   );
 }
 

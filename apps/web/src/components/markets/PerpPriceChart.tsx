@@ -1,21 +1,14 @@
 'use client';
 
-import { useState } from 'react';
+import type { ISeriesApi, Time } from 'lightweight-charts';
+import { AreaSeries, CrosshairMode } from 'lightweight-charts';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Area,
-  AreaChart,
-  Brush,
-  CartesianGrid,
-  ReferenceLine,
-  XAxis,
-  YAxis,
-} from 'recharts';
-import type { ChartConfig } from '@/components/ui/chart';
-import {
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-} from '@/components/ui/chart';
+  AREA_STYLES,
+  formatChartPrice,
+  formatChartTime,
+  useLightweightChart,
+} from '@/components/charts/LightweightChartBase';
 
 /**
  * Price point structure for chart data.
@@ -26,33 +19,15 @@ interface PricePoint {
 }
 
 /**
- * Perpetual price chart component for displaying price history.
- *
- * Displays an area chart of perpetual market price history with time range
- * filtering (1H, 4H, 1D, 1W, ALL). Includes zoom functionality, price change
- * indicators, and tooltips. Color-codes the chart based on price direction.
- *
- * Features:
- * - Area chart with price history
- * - Time range filtering
- * - Zoom and brush controls
- * - Price change display
- * - Color-coded by direction (green up, red down)
- * - Responsive tooltips
- * - Loading state handling
- *
- * @param props - PerpPriceChart component props
- * @returns Perpetual price chart element
- *
- * @example
- * ```tsx
- * <PerpPriceChart
- *   data={priceHistory}
- *   currentPrice={100.50}
- *   ticker="AAPL"
- *   showBrush={true}
- * />
- * ```
+ * Chart data point for Lightweight Charts series.
+ */
+interface ChartDataPoint {
+  time: Time;
+  value: number;
+}
+
+/**
+ * Props for PerpPriceChart component.
  */
 interface PerpPriceChartProps {
   data: PricePoint[];
@@ -62,61 +37,61 @@ interface PerpPriceChartProps {
 }
 
 /**
- * Available time range options for chart filtering.
+ * Time range options for chart filtering.
  */
 type TimeRange = '1H' | '4H' | '1D' | '1W' | 'ALL';
 
-const chartConfig = {
-  price: {
-    label: 'Price',
-    color: 'hsl(var(--chart-1))',
-  },
-  priceUp: {
-    label: 'Price Up',
-    color: '#16a34a',
-  },
-  priceDown: {
-    label: 'Price Down',
-    color: '#dc2626',
-  },
-} satisfies ChartConfig;
+const TIME_RANGES: TimeRange[] = ['1H', '4H', '1D', '1W', 'ALL'];
 
+/**
+ * Perpetual price chart using TradingView Lightweight Charts.
+ *
+ * Displays price history with area chart, time range filtering,
+ * and price change indicators. Color-coded based on price direction.
+ *
+ * Features:
+ * - Area chart with gradient fill
+ * - Time range filtering (1H, 4H, 1D, 1W, ALL)
+ * - Price change display with percentage
+ * - Color-coded by direction (green up, red down)
+ * - Interactive crosshair with tooltips
+ * - Auto-resize to container
+ * - Current price reference line
+ *
+ * @param props - PerpPriceChart component props
+ * @returns Perpetual price chart element
+ */
 export function PerpPriceChart({
   data,
   currentPrice,
   ticker,
-  showBrush = true,
 }: PerpPriceChartProps) {
   const [timeRange, setTimeRange] = useState<TimeRange>('ALL');
-  const [zoomDomain, setZoomDomain] = useState<[number, number] | undefined>(
-    undefined
-  );
+  const priceSeries = useRef<ISeriesApi<'Area'> | null>(null);
+  const lastPriceLineRef = useRef<ReturnType<
+    ISeriesApi<'Area'>['createPriceLine']
+  > | null>(null);
 
-  if (data.length === 0) {
-    return (
-      <div className="flex h-[400px] items-center justify-center text-muted-foreground">
-        <div className="text-center">
-          <div className="text-sm">Loading chart data...</div>
-        </div>
-      </div>
-    );
-  }
-
-  // Format data for recharts
-  const allChartData = data.map((point) => ({
-    timestamp: point.time,
-    price: point.price,
-    date: new Date(point.time).toLocaleString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    }),
-  }));
+  const { chartContainerRef, chart } = useLightweightChart({
+    crosshair: {
+      mode: CrosshairMode.Normal,
+    },
+    localization: {
+      priceFormatter: (price: number) => formatChartPrice(price, true),
+    },
+  });
 
   // Filter data based on time range
-  const getFilteredData = () => {
-    if (timeRange === 'ALL' || allChartData.length === 0) return allChartData;
+  const filteredData = useMemo(() => {
+    if (!data.length) return [];
+
+    const validData = data
+      .filter(
+        (point) => Number.isFinite(point.time) && Number.isFinite(point.price)
+      )
+      .sort((a, b) => a.time - b.time);
+
+    if (timeRange === 'ALL') return validData;
 
     const now = Date.now();
     const ranges: Record<TimeRange, number> = {
@@ -128,260 +103,150 @@ export function PerpPriceChart({
     };
 
     const cutoff = now - ranges[timeRange];
-    return allChartData.filter((d) => d.timestamp >= cutoff);
-  };
-
-  const chartData = getFilteredData();
-
-  // Determine if the price is going up or down for color
-  const isPositive =
-    (chartData[chartData.length - 1]?.price ?? 0) >= (chartData[0]?.price ?? 0);
-  const priceColor = isPositive
-    ? 'var(--color-priceUp)'
-    : 'var(--color-priceDown)';
+    return validData.filter((d) => d.time >= cutoff);
+  }, [data, timeRange]);
 
   // Calculate price change
-  const priceChange =
-    chartData.length > 1
-      ? (chartData[chartData.length - 1]?.price ?? 0) -
-        (chartData[0]?.price ?? 0)
-      : 0;
-  const priceChangePercent =
-    chartData.length > 1 && chartData[0]?.price
-      ? (priceChange / chartData[0].price) * 100
-      : 0;
+  const { priceChange, priceChangePercent, isPositive } = useMemo(() => {
+    if (filteredData.length < 2) {
+      return { priceChange: 0, priceChangePercent: 0, isPositive: true };
+    }
 
-  // Format value for display
-  const formatValue = (value: number, includeSymbol = false): string => {
-    const prefix = includeSymbol ? '$' : '';
+    const first = filteredData[0];
+    const last = filteredData[filteredData.length - 1];
+    const change = (last?.price ?? 0) - (first?.price ?? 0);
+    const percent = first?.price ? (change / first.price) * 100 : 0;
 
-    if (value === 0) return '';
-    if (value >= 1000000000)
-      return `${prefix}${(value / 1000000000).toFixed(2)}B`;
-    if (value >= 1000000) return `${prefix}${(value / 1000000).toFixed(2)}M`;
-    if (value >= 1000) return `${prefix}${(value / 1000).toFixed(2)}K`;
-    if (value >= 1) return `${prefix}${value.toFixed(2)}`;
-    if (value >= 0.01) return `${prefix}${value.toFixed(4)}`;
-    if (value >= 0.0001) return `${prefix}${value.toFixed(6)}`;
-    return `${prefix}${value.toFixed(8)}`;
-  };
+    return {
+      priceChange: change,
+      priceChangePercent: percent,
+      isPositive: change >= 0,
+    };
+  }, [filteredData]);
 
-  const formatYAxisValue = (value: number): string => formatValue(value, true);
+  // Initialize series
+  useEffect(() => {
+    if (!chart) return;
 
-  const getEvenlySpacedTimeTicks = (count: number): number[] => {
-    if (chartData.length === 0) return [];
-    const first = chartData[0];
-    const last = chartData[chartData.length - 1];
-    if (!first || !last) return [];
-    const min = first.timestamp;
-    const max = last.timestamp;
-    if (count <= 1 || min === max) return [min];
-    const step = (max - min) / (count - 1);
-    return Array.from({ length: count }, (_, i) => Math.round(min + i * step));
-  };
+    priceSeries.current = chart.addSeries(AreaSeries, {
+      ...AREA_STYLES.green,
+      priceFormat: {
+        type: 'custom',
+        formatter: (price: number) => formatChartPrice(price, true),
+        minMove: 0.00000001,
+      },
+      lastValueVisible: true,
+      priceLineVisible: false,
+    });
 
-  const handleResetZoom = () => {
-    setZoomDomain(undefined);
-  };
+    return () => {
+      if (priceSeries.current) {
+        if (lastPriceLineRef.current) {
+          priceSeries.current.removePriceLine(lastPriceLineRef.current);
+          lastPriceLineRef.current = null;
+        }
+        chart.removeSeries(priceSeries.current);
+        priceSeries.current = null;
+      }
+    };
+  }, [chart]);
 
-  const timeRangeButtons: TimeRange[] = ['1H', '4H', '1D', '1W', 'ALL'];
+  // Update series color based on price direction
+  useEffect(() => {
+    if (!priceSeries.current) return;
+
+    const style = isPositive ? AREA_STYLES.green : AREA_STYLES.red;
+    priceSeries.current.applyOptions(style);
+  }, [isPositive]);
+
+  // Update data
+  useEffect(() => {
+    if (!priceSeries.current || !filteredData.length) return;
+
+    const chartData: ChartDataPoint[] = filteredData.map((point) => ({
+      time: formatChartTime(point.time),
+      value: point.price,
+    }));
+
+    priceSeries.current.setData(chartData);
+
+    // Fit content
+    chart?.timeScale().fitContent();
+  }, [chart, filteredData]);
+
+  // Update current price line
+  useEffect(() => {
+    if (!priceSeries.current || !currentPrice) return;
+
+    // Remove existing price line
+    if (lastPriceLineRef.current) {
+      priceSeries.current.removePriceLine(lastPriceLineRef.current);
+    }
+
+    // Add new price line
+    lastPriceLineRef.current = priceSeries.current.createPriceLine({
+      price: currentPrice,
+      color: '#0066FF',
+      lineWidth: 2,
+      lineStyle: 2, // Dashed
+      axisLabelVisible: true,
+      title: 'Current',
+    });
+  }, [currentPrice]);
+
+  if (!data.length) {
+    return (
+      <div className="flex h-[400px] items-center justify-center text-muted-foreground">
+        <div className="text-center">
+          <div className="text-sm">Loading chart data...</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="w-full space-y-2">
-      {/* Price info and controls */}
-      <div className="flex flex-col items-start justify-between gap-3 px-3 sm:flex-row sm:items-center">
+    <div className="w-full space-y-3" key={ticker}>
+      {/* Header with price info and time range */}
+      <div className="flex flex-wrap items-center justify-between gap-3 px-1">
         <div className="flex items-center gap-3">
           <div>
             <div className="font-bold text-2xl">
-              {formatValue(currentPrice, true)}
+              {formatChartPrice(currentPrice, true)}
             </div>
             <div
-              className={`text-sm ${isPositive ? 'text-green-600' : 'text-red-600'}`}
+              className={`font-medium text-sm ${isPositive ? 'text-green-600' : 'text-red-600'}`}
             >
               {isPositive ? '↑' : '↓'}{' '}
-              {formatValue(Math.abs(priceChange), true)} (
+              {formatChartPrice(Math.abs(priceChange), true)} (
               {priceChangePercent >= 0 ? '+' : ''}
               {priceChangePercent.toFixed(2)}%)
             </div>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          {/* Time range selector */}
-          <div className="flex items-center gap-1 rounded-md bg-muted/30 p-1">
-            {timeRangeButtons.map((range) => (
-              <button
-                key={range}
-                onClick={() => {
-                  setTimeRange(range);
-                  setZoomDomain(undefined);
-                }}
-                className={`rounded px-2 py-1 text-xs transition-colors ${
-                  timeRange === range
-                    ? 'bg-primary text-primary-foreground'
-                    : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                {range}
-              </button>
-            ))}
-          </div>
-
-          {zoomDomain && (
+        {/* Time range selector */}
+        <div className="flex items-center gap-1 rounded-md bg-muted/30 p-1">
+          {TIME_RANGES.map((range) => (
             <button
-              onClick={handleResetZoom}
-              className="px-2 py-1 text-muted-foreground text-xs transition-colors hover:text-foreground"
+              key={range}
+              onClick={() => setTimeRange(range)}
+              className={`cursor-pointer rounded px-2 py-1 text-xs transition-colors ${
+                timeRange === range
+                  ? 'bg-primary text-primary-foreground'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
             >
-              Reset Zoom
+              {range}
             </button>
-          )}
+          ))}
         </div>
       </div>
 
-      <div className="rounded-lg bg-muted/20 p-3">
-        <ChartContainer
-          config={chartConfig}
-          className="aspect-auto h-[400px] w-full"
-        >
-          <AreaChart
-            accessibilityLayer
-            data={chartData}
-            margin={{
-              left: 12,
-              right: 12,
-              top: 12,
-              bottom: showBrush ? 32 : 12,
-            }}
-          >
-            <defs>
-              <linearGradient
-                id={`fillPrice-${ticker}`}
-                x1="0"
-                y1="0"
-                x2="0"
-                y2="1"
-              >
-                <stop offset="5%" stopColor={priceColor} stopOpacity={0.8} />
-                <stop offset="95%" stopColor={priceColor} stopOpacity={0.1} />
-              </linearGradient>
-            </defs>
-            <CartesianGrid
-              horizontal={true}
-              vertical={false}
-              strokeDasharray="8 8"
-              strokeWidth={1}
-              stroke="hsl(var(--muted-foreground))"
-              opacity={0.2}
-            />
-            <XAxis
-              dataKey="timestamp"
-              type="number"
-              scale="time"
-              domain={zoomDomain || ['dataMin', 'dataMax']}
-              ticks={getEvenlySpacedTimeTicks(6)}
-              tickFormatter={(ts) => {
-                const d = new Date(ts);
-                // Show different format based on time range
-                if (timeRange === '1H' || timeRange === '4H') {
-                  return d.toLocaleTimeString('en-US', {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  });
-                }
-                return d.toLocaleDateString('en-US', {
-                  month: 'short',
-                  day: 'numeric',
-                });
-              }}
-              interval={0}
-              tickLine={false}
-              tickMargin={12}
-              strokeWidth={1.5}
-              className="fill-muted-foreground text-xs"
-            />
-            <YAxis
-              orientation="right"
-              tickLine={false}
-              axisLine={false}
-              tickMargin={0}
-              tickCount={6}
-              className="fill-muted-foreground text-xs"
-              tickFormatter={formatYAxisValue}
-              domain={['auto', 'auto']}
-            />
-            <ChartTooltip
-              cursor={{
-                stroke: priceColor,
-                strokeWidth: 1,
-                strokeDasharray: '4 4',
-              }}
-              content={
-                <ChartTooltipContent
-                  indicator="dot"
-                  className="min-w-[200px] px-3 py-2"
-                  labelFormatter={(_, items) => {
-                    const first =
-                      Array.isArray(items) && items.length > 0
-                        ? items[0]
-                        : undefined;
-                    const p =
-                      first && typeof first === 'object' && 'payload' in first
-                        ? (first.payload as { date?: string })
-                        : undefined;
-                    return p?.date ?? '';
-                  }}
-                  formatter={(value) => {
-                    if (typeof value !== 'number') return value;
-                    return formatValue(value, true);
-                  }}
-                />
-              }
-            />
-            <Area
-              dataKey="price"
-              type="monotone"
-              fill={`url(#fillPrice-${ticker})`}
-              fillOpacity={0.4}
-              stroke={priceColor}
-              strokeWidth={2.5}
-              dot={false}
-              activeDot={{ r: 5, strokeWidth: 2 }}
-              isAnimationActive={false}
-            />
-            <ReferenceLine
-              y={currentPrice}
-              stroke="#0066FF"
-              strokeDasharray="4 4"
-              strokeWidth={2}
-              label={{
-                value: formatValue(currentPrice, true),
-                position: 'insideTopLeft',
-                fill: '#0066FF',
-                fontSize: 12,
-                fontWeight: 'bold',
-              }}
-            />
-
-            {showBrush && chartData.length > 10 && (
-              <Brush
-                dataKey="timestamp"
-                height={20}
-                stroke={priceColor}
-                fill="hsl(var(--muted))"
-                onChange={(e: { startIndex?: number; endIndex?: number }) => {
-                  if (e.startIndex !== undefined && e.endIndex !== undefined) {
-                    const start = chartData[e.startIndex]?.timestamp;
-                    const end = chartData[e.endIndex]?.timestamp;
-                    if (start && end) {
-                      setZoomDomain([start, end]);
-                    }
-                  }
-                }}
-              />
-            )}
-          </AreaChart>
-        </ChartContainer>
-      </div>
+      {/* Chart container */}
+      <div
+        ref={chartContainerRef}
+        className="h-[400px] w-full rounded-lg bg-muted/10"
+      />
     </div>
   );
 }
