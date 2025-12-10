@@ -4,6 +4,7 @@ import { cn } from '@babylon/shared';
 import { Activity, Bot, Plus, TrendingUp } from 'lucide-react';
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
+import { LoginButton } from '@/components/auth/LoginButton';
 import { Avatar } from '@/components/shared/Avatar';
 import { PageContainer } from '@/components/shared/PageContainer';
 import { Skeleton } from '@/components/shared/Skeleton';
@@ -75,17 +76,18 @@ export default function AgentsPage() {
     }
   }, [ready, authenticated, fetchAgents]);
 
-  if (!ready || !authenticated) {
+  if (ready && !authenticated) {
     return (
-      <PageContainer>
-        <div className="p-4">
-          <div className="flex flex-col items-center justify-center rounded-lg border border-[#0066FF]/20 bg-gradient-to-br from-[#0066FF]/10 to-purple-500/10 px-4 py-16">
-            <Bot className="mb-4 h-16 w-16 text-[#0066FF]" />
-            <h3 className="mb-2 font-bold text-2xl">AI Agents</h3>
-            <p className="mb-6 max-w-md text-center text-muted-foreground text-sm">
+      <PageContainer noPadding className="flex flex-col">
+        <div className="flex flex-1 items-center justify-center p-8">
+          <div className="max-w-md text-center">
+            <Bot className="mx-auto mb-4 h-16 w-16 text-muted-foreground" />
+            <h2 className="mb-2 font-bold text-foreground text-xl">log in</h2>
+            <p className="mb-6 text-muted-foreground">
               Sign in to create and manage AI agents that can chat and trade
               autonomously
             </p>
+            <LoginButton />
           </div>
         </div>
       </PageContainer>

@@ -20,6 +20,10 @@ interface PostData {
   shareCount?: number;
   type?: string;
   isShared?: boolean;
+  articleTitle?: string | null;
+  byline?: string | null;
+  biasScore?: number | null;
+  category?: string | null;
 }
 
 interface TagInfo {
