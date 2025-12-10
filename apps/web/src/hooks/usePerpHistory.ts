@@ -195,4 +195,3 @@ export function usePerpHistory(
     refresh: fetchHistory,
   };
 }
-
