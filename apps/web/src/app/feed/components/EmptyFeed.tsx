@@ -59,11 +59,10 @@ export function EmptyFeed({ variant, isLoading = false }: EmptyFeedProps) {
           ⏱️ No Posts Yet
         </h2>
         <p className="mb-4 text-sm sm:text-base">
-          Game tick runs every 60 seconds. Content will appear here as
-          it&apos;s generated.
+          Game tick runs every 60 seconds. Content will appear here as it&apos;s
+          generated.
         </p>
       </div>
     </div>
   );
 }
-

@@ -28,7 +28,9 @@ interface UseFeedPostsResult {
  * - Optimistic post support
  * - Race condition prevention
  */
-export function useFeedPosts(options: UseFeedPostsOptions = {}): UseFeedPostsResult {
+export function useFeedPosts(
+  options: UseFeedPostsOptions = {}
+): UseFeedPostsResult {
   const { enabled = true } = options;
 
   const [posts, setPosts] = useState<FeedPost[]>([]);
@@ -173,4 +175,3 @@ export function useFeedPosts(options: UseFeedPostsOptions = {}): UseFeedPostsRes
     addOptimisticPost,
   };
 }
-
