@@ -43,7 +43,7 @@ import { logger } from '../shared/logger';
 import { generateSnowflakeId } from '../shared/snowflake';
 import type { AgentPerformance, CreateAgentParams } from '../types';
 import type { JsonValue } from '../types/common';
-import { getService } from './interfaces';
+import { agentRegistry } from './agent-registry.service';
 
 /** User with agent configuration */
 export type UserWithConfig = User & { agentConfig: UserAgentConfig | null };
@@ -229,8 +229,7 @@ export class AgentServiceV2 {
       'AgentService'
     );
 
-    // Register agent in registry if service is available
-    const agentRegistry = getService('agentRegistry');
+    // Register agent in registry
     if (agentRegistry) {
       const capabilities: AgentCapabilities = {
         strategies: [
