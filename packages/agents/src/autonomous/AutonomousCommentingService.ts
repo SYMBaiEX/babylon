@@ -16,6 +16,7 @@ import {
   desc,
   eq,
   gte,
+  inArray,
   isNull,
   lte,
   ne,
@@ -25,12 +26,16 @@ import {
   reactions,
   users,
 } from '@babylon/db';
+import { StaticDataRegistry } from '@babylon/engine';
 import type { IAgentRuntime } from '@elizaos/core';
 import { parseKeyValueXml } from '@elizaos/core';
 import { callGroqDirect } from '../llm/direct-groq';
 import { getAgentConfig } from '../shared/agent-config';
 import { logger } from '../shared/logger';
 import { generateSnowflakeId } from '../shared/snowflake';
+
+// Max characters for comment content in prompts
+const MAX_COMMENT_CHARS = 200;
 
 interface PostWithComments {
   id: string;
@@ -158,26 +163,46 @@ export class AutonomousCommentingService {
       .sort((a, b) => b.likeCount - a.likeCount);
 
     // Get author names for posts and comments
-    const authorIds = new Set([
-      ...uncommentedPosts.map((p) => p.authorId),
-      ...postComments.map((c) => c.authorId),
-    ]);
-    // Get all authors - filter in memory since we have a set of IDs
-    const authorUsers = await db
-      .select({
-        id: users.id,
-        displayName: users.displayName,
-        username: users.username,
-      })
-      .from(users)
-      .limit(100);
+    const authorIds = [
+      ...new Set([
+        ...uncommentedPosts.map((p) => p.authorId),
+        ...postComments.map((c) => c.authorId),
+      ]),
+    ];
 
-    // Filter to only the authors we need
-    const authorMap = new Map(
-      authorUsers
-        .filter((u) => authorIds.has(u.id))
-        .map((u) => [u.id, u.displayName || u.username || 'User'])
-    );
+    // First check StaticDataRegistry for actors/organizations
+    const authorMap = new Map<string, string>();
+    const missingAuthorIds: string[] = [];
+
+    for (const authorId of authorIds) {
+      const actor = StaticDataRegistry.getActor(authorId);
+      if (actor) {
+        authorMap.set(authorId, actor.name);
+        continue;
+      }
+      const org = StaticDataRegistry.getOrganization(authorId);
+      if (org) {
+        authorMap.set(authorId, org.name);
+        continue;
+      }
+      missingAuthorIds.push(authorId);
+    }
+
+    // Fetch remaining authors from database
+    if (missingAuthorIds.length > 0) {
+      const authorUsers = await db
+        .select({
+          id: users.id,
+          displayName: users.displayName,
+          username: users.username,
+        })
+        .from(users)
+        .where(inArray(users.id, missingAuthorIds));
+
+      for (const u of authorUsers) {
+        authorMap.set(u.id, u.displayName || u.username || 'User');
+      }
+    }
 
     // Build posts with comments (sorted by popularity/likes)
     const postsWithComments: PostWithComments[] = uncommentedPosts
@@ -194,7 +219,9 @@ export class AutonomousCommentingService {
           authorId: post.authorId,
           authorName: authorMap.get(post.authorId) || 'User',
           createdAt: post.createdAt,
-          commentCount: postCommentsWithLikes.filter((c) => c.postId === post.id).length,
+          commentCount: postCommentsWithLikes.filter(
+            (c) => c.postId === post.id
+          ).length,
           topComments: topCommentsForPost.map((c) => ({
             id: c.id,
             content: c.content,
@@ -238,7 +265,7 @@ export class AutonomousCommentingService {
             ? `\n  Recent comments:\n${post.topComments
                 .map(
                   (c) =>
-                    `    - [comment_id: ${c.id}] @${c.authorName}: "${c.content.substring(0, 100)}${c.content.length > 100 ? '...' : ''}"`
+                    `    - [comment_id: ${c.id}] @${c.authorName}: "${c.content.substring(0, MAX_COMMENT_CHARS)}${c.content.length > MAX_COMMENT_CHARS ? '...' : ''}"`
                 )
                 .join('\n')}`
             : '\n  No comments yet';
@@ -258,7 +285,9 @@ export class AutonomousCommentingService {
         : 'No perp positions',
     ].join('\n');
 
-    const prompt = `${config?.systemPrompt ?? 'You are an AI agent on Babylon.'}
+    const prompt = `CRITICAL: Your response MUST start with <response> immediately. No <think> tags. No reasoning. Output only the XML.
+
+${config?.systemPrompt ?? 'You are an AI agent on Babylon.'}
 
 You are ${agent.displayName}, an AI agent on Babylon.
 
@@ -289,7 +318,7 @@ If commenting directly on a post:
 <action>comment</action>
 <post_index>1-${postsWithComments.length}</post_index>
 <reply_to_comment_id></reply_to_comment_id>
-<content>Your comment here (1-2 sentences, under 200 chars)</content>
+<content>Your comment here (1-2 sentences, under ${MAX_COMMENT_CHARS} chars)</content>
 </response>
 
 If replying to an existing comment (use the comment_id shown in brackets):
@@ -297,7 +326,7 @@ If replying to an existing comment (use the comment_id shown in brackets):
 <action>comment</action>
 <post_index>1-${postsWithComments.length}</post_index>
 <reply_to_comment_id>the_comment_id_from_brackets</reply_to_comment_id>
-<content>Your reply here (1-2 sentences, under 200 chars)</content>
+<content>Your reply here (1-2 sentences, under ${MAX_COMMENT_CHARS} chars)</content>
 </response>
 
 If you want to skip (no relevant posts):
@@ -331,17 +360,17 @@ If you want to skip (no relevant posts):
       try {
         const isRetry = attempt > 1;
         const currentPrompt = isRetry
-          ? `${finalPrompt}\n\nREMINDER: You MUST output valid XML in <response> tags.`
+          ? `${finalPrompt}\n\nREMINDER: No <think> tags. Start DIRECTLY with <response>. Output only valid XML.`
           : finalPrompt;
 
         const responseText = await Promise.race([
           callGroqDirect({
             prompt: currentPrompt,
             system: config?.systemPrompt ?? undefined,
-            modelSize: 'small',
+            modelSize: 'large',
             runtime: _runtime,
             temperature: isRetry ? 0.5 : 0.7,
-            maxTokens: 500,
+            maxTokens: 16384,
             actionType: 'evaluate_comment_opportunity',
             purpose: 'evaluation',
           }),
@@ -447,10 +476,10 @@ If you want to skip (no relevant posts):
           // LLM returned an ID but it wasn't in our topComments - log this
           logger.warn(
             `LLM returned replyToCommentId "${decision.replyToCommentId}" but it wasn't found in topComments. Creating top-level comment instead.`,
-            { 
-              agentUserId, 
+            {
+              agentUserId,
               postId: selectedPost.id,
-              availableIds: selectedPost.topComments.map(c => c.id)
+              availableIds: selectedPost.topComments.map((c) => c.id),
             },
             'AutonomousCommenting'
           );
