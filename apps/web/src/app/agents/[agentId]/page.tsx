@@ -38,21 +38,70 @@ import {
   Settings,
   TrendingUp,
 } from 'lucide-react';
+import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { AgentChat } from '@/components/agents/AgentChat';
-import { AgentLogs } from '@/components/agents/AgentLogs';
-import { AgentPerformance } from '@/components/agents/AgentPerformance';
-import { AgentSettings } from '@/components/agents/AgentSettings';
-import { AgentWallet } from '@/components/agents/AgentWallet';
 import { Avatar } from '@/components/shared/Avatar';
 import { PageContainer } from '@/components/shared/PageContainer';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/hooks/useAuth';
+
+// Performance: Lazy load tab components - only one is visible at a time
+// Each tab component is ~10-30KB, lazy loading reduces initial bundle significantly
+const AgentChat = dynamic(
+  () =>
+    import('@/components/agents/AgentChat').then((m) => ({
+      default: m.AgentChat,
+    })),
+  { ssr: false, loading: () => <TabLoadingSkeleton /> }
+);
+
+const AgentLogs = dynamic(
+  () =>
+    import('@/components/agents/AgentLogs').then((m) => ({
+      default: m.AgentLogs,
+    })),
+  { ssr: false, loading: () => <TabLoadingSkeleton /> }
+);
+
+const AgentPerformance = dynamic(
+  () =>
+    import('@/components/agents/AgentPerformance').then((m) => ({
+      default: m.AgentPerformance,
+    })),
+  { ssr: false, loading: () => <TabLoadingSkeleton /> }
+);
+
+const AgentSettings = dynamic(
+  () =>
+    import('@/components/agents/AgentSettings').then((m) => ({
+      default: m.AgentSettings,
+    })),
+  { ssr: false, loading: () => <TabLoadingSkeleton /> }
+);
+
+const AgentWallet = dynamic(
+  () =>
+    import('@/components/agents/AgentWallet').then((m) => ({
+      default: m.AgentWallet,
+    })),
+  { ssr: false, loading: () => <TabLoadingSkeleton /> }
+);
+
+// Loading skeleton for tab content
+function TabLoadingSkeleton() {
+  return (
+    <div className="space-y-4 p-4">
+      <Skeleton className="h-8 w-48" />
+      <Skeleton className="h-32 w-full" />
+      <Skeleton className="h-32 w-full" />
+    </div>
+  );
+}
 
 /**
  * Agent data structure
