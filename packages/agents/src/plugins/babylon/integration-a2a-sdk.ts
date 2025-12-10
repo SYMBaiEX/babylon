@@ -214,7 +214,7 @@ function createAuthenticatedFetchForAgent(
     }
 
     // Add API key if configured
-    const apiKey = process.env.BABYLON_API_KEY;
+    const apiKey = process.env.BABYLON_A2A_API_KEY;
     if (apiKey) {
       headers.set('x-babylon-api-key', apiKey);
     }
