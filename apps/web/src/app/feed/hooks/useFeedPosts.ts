@@ -35,7 +35,8 @@ export function useFeedPosts(
 
   const [posts, setPosts] = useState<FeedPost[]>([]);
   const [localPosts, setLocalPosts] = useState<FeedPost[]>([]);
-  const [loading, setLoading] = useState(false);
+  // Start with loading=true when enabled to show skeleton immediately
+  const [loading, setLoading] = useState(enabled);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [cursor, setCursor] = useState<string | null>(null);
@@ -43,6 +44,15 @@ export function useFeedPosts(
   // Prevent race conditions and duplicate fetches
   const loadingMoreRef = useRef(false);
   const initialFetchDone = useRef(false);
+  const isMounted = useRef(true);
+
+  // Track mount state to prevent state updates on unmounted component
+  useEffect(() => {
+    isMounted.current = true;
+    return () => {
+      isMounted.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     loadingMoreRef.current = loadingMore;
@@ -64,8 +74,9 @@ export function useFeedPosts(
         setLoading(true);
       }
 
-      // Helper to reset loading state
+      // Helper to reset loading state (only if still mounted)
       const stopLoading = () => {
+        if (!isMounted.current) return;
         if (append) {
           setLoadingMore(false);
           loadingMoreRef.current = false;
@@ -89,12 +100,16 @@ export function useFeedPosts(
       }
 
       if (!response.ok) {
-        if (append) setHasMore(false);
+        if (append && isMounted.current) setHasMore(false);
         stopLoading();
         return;
       }
 
       const data = await response.json();
+
+      // Check if still mounted before updating state
+      if (!isMounted.current) return;
+
       const newPosts = data.posts as FeedPost[];
       const nextCursor = data.cursor as string | null;
       const hasMoreFromAPI = data.hasMore as boolean;
@@ -141,21 +156,19 @@ export function useFeedPosts(
 
   // Initial fetch - only run once when enabled
   useEffect(() => {
-    if (enabled && !initialFetchDone.current) {
-      initialFetchDone.current = true;
-      setLoading(true);
-      setCursor(null);
-      setHasMore(true);
-      fetchPosts(null, false);
-    }
-  }, [enabled, fetchPosts]);
-
-  // Reset when disabled then re-enabled
-  useEffect(() => {
     if (!enabled) {
+      // Reset state when disabled
       initialFetchDone.current = false;
+      setLoading(false);
+      return;
     }
-  }, [enabled]);
+
+    if (initialFetchDone.current) return;
+    initialFetchDone.current = true;
+
+    // Fetch posts - loading is already true from initial state
+    void fetchPosts(null, false);
+  }, [enabled, fetchPosts]);
 
   // SSE real-time updates
   useSSEChannel('feed', () => {
