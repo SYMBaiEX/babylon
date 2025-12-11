@@ -26,7 +26,6 @@ export default function CreateAgentPage() {
   const { user } = useAuthStore();
   const { ready, authenticated, getAccessToken } = useAuth();
 
-  // Use reputation points as the user's balance (same as rewards page)
   const balance = user?.reputationPoints ?? 0;
 
   // Show sign-in prompt for unauthenticated users
