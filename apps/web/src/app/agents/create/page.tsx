@@ -9,7 +9,6 @@ import { LoginButton } from '@/components/auth/LoginButton';
 import { PageContainer } from '@/components/shared/PageContainer';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { useAuth } from '@/hooks/useAuth';
-import { useWalletBalance } from '@/hooks/useWalletBalance';
 import { useAuthStore } from '@/stores/authStore';
 import {
   AgentConfigForm,
@@ -26,7 +25,9 @@ export default function CreateAgentPage() {
   const router = useRouter();
   const { user } = useAuthStore();
   const { ready, authenticated, getAccessToken } = useAuth();
-  const { balance } = useWalletBalance(user?.id ?? null);
+
+  // Use reputation points as the user's balance (same as rewards page)
+  const balance = user?.reputationPoints ?? 0;
 
   // Show sign-in prompt for unauthenticated users
   if (!ready || !authenticated) {
