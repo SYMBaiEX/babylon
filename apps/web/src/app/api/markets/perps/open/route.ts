@@ -1,6 +1,6 @@
 import { authenticate, successResponse, withErrorHandling } from '@babylon/api';
 import { PerpDbAdapter, PerpMarketService } from '@babylon/core/markets/perps';
-import { FEE_CONFIG, WalletService } from '@babylon/engine';
+import { FEE_CONFIG, FeeService, WalletService } from '@babylon/engine';
 import { PerpOpenPositionSchema } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { trackServerEvent } from '@/lib/posthog/server';
@@ -47,6 +47,16 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       platformShare: FEE_CONFIG.PLATFORM_SHARE,
       referrerShare: FEE_CONFIG.REFERRER_SHARE,
       minFeeAmount: FEE_CONFIG.MIN_FEE_AMOUNT,
+    },
+    feeProcessor: {
+      processTradingFee: ({ userId, amount, type, relatedId, positionId }) =>
+        FeeService.processTradingFee(
+          userId,
+          type as (typeof FEE_CONFIG.FEE_TYPES)[keyof typeof FEE_CONFIG.FEE_TYPES],
+          amount,
+          positionId,
+          relatedId
+        ),
     },
   });
 

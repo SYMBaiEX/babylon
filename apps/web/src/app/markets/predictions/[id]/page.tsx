@@ -3,7 +3,7 @@
 import {
   calculateExpectedPayout,
   PredictionPricing,
-} from '@babylon/engine/client';
+} from '@babylon/core/markets/prediction';
 import { cn } from '@babylon/shared';
 import {
   ArrowLeft,

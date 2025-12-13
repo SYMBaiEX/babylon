@@ -9,6 +9,6 @@ Include:
 
 Steps:
 1) Define DTOs (buy/sell/resolve).
-2) Reuse `prediction-pricing` (move/copy here).
-3) Move resolution/payout from tick/handlers into the service.
-4) Adapt Next handlers to call this service.
+2) Reuse `prediction-pricing` (moved here).
+3) Move resolution/payout from handlers into the service.
+4) Adapt Next handlers + NPC flows to call this service.

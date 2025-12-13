@@ -46,8 +46,8 @@
  * ```
  */
 
+import { PredictionPricing } from '@babylon/core/markets/prediction';
 import { db } from '@babylon/db';
-import { PredictionPricing } from '@babylon/engine';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 

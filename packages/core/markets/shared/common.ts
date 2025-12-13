@@ -7,6 +7,16 @@ export interface FeeConfig {
   minFeeAmount: number;
 }
 
+export interface FeeProcessor {
+  processTradingFee: (params: {
+    userId: string;
+    amount: number;
+    type: string;
+    relatedId?: string;
+    positionId?: string;
+  }) => Promise<{ feeCharged: number; referrerPaid?: number }>;
+}
+
 export interface WalletPort {
   debit(params: {
     userId: string;

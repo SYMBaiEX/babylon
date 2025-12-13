@@ -9,6 +9,13 @@
  * import { PredictionPricing } from '@babylon/engine/client';
  */
 
+// Prediction Pricing (pure math, no server dependencies)
+export {
+  calculateExpectedPayout,
+  PredictionPricing,
+  type ShareCalculation,
+  type ShareCalculationWithFees,
+} from '@babylon/core/markets/prediction';
 // Fee Configuration (pure constants, no dependencies)
 export {
   FEE_CONFIG,
@@ -28,13 +35,6 @@ export {
   type PoolState,
   type RemovePositionResult,
 } from './prediction-concentrated-liquidity';
-// Prediction Pricing (pure math, no server dependencies)
-export {
-  calculateExpectedPayout,
-  PredictionPricing,
-  type ShareCalculation,
-  type ShareCalculationWithFees,
-} from './prediction-pricing';
 // Reputation calculations that are pure functions (no DB)
 // Import directly from the pnl-normalizer file to avoid pulling in server-side deps from the barrel export
 export {
