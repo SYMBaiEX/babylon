@@ -18,8 +18,8 @@ import {
   desc,
   eq,
   gte,
-  trajectories,
   trainedModels,
+  trajectories,
 } from '@babylon/db';
 import { HuggingFaceModelUploader } from '@babylon/training';
 import { promises as fs } from 'fs';

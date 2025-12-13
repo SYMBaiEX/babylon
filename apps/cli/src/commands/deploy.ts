@@ -142,8 +142,9 @@ async function deployToNetwork(
 
   // For local, check Hardhat is running
   if (network === 'local') {
-    const blockCheck =
-      await $`cast block-number --rpc-url ${config.rpcUrl}`.quiet().nothrow();
+    const blockCheck = await $`cast block-number --rpc-url ${config.rpcUrl}`
+      .quiet()
+      .nothrow();
     if (blockCheck.exitCode !== 0) {
       logger.fail('Hardhat node is not running');
       console.log('\nStart it with: bunx hardhat node');
@@ -155,12 +156,15 @@ async function deployToNetwork(
 
   // Compile contracts (run from contracts directory where foundry.toml is)
   logger.step('Compiling contracts...');
-  const compileResult =
-    await $`cd ${CONTRACTS_DIR} && bunx hardhat compile`.quiet().nothrow();
+  const compileResult = await $`cd ${CONTRACTS_DIR} && bunx hardhat compile`
+    .quiet()
+    .nothrow();
   if (compileResult.exitCode !== 0) {
     logger.fail('Contract compilation failed');
     console.log('\nCompilation output:');
-    console.log(compileResult.stderr.toString() || compileResult.stdout.toString());
+    console.log(
+      compileResult.stderr.toString() || compileResult.stdout.toString()
+    );
     process.exit(1);
   }
   logger.success('Contracts compiled');
