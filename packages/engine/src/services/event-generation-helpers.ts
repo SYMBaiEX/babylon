@@ -5,6 +5,7 @@ import {
   getPhaseForDay,
   getSignalDirection,
 } from './narrative-state-service';
+import { toSafeDayNumber } from '../utils/date-utils';
 
 // Minimal question type for event generation (only fields actually used)
 // outcome is optional - only used for arc plan signal direction, and the code handles missing outcome
@@ -51,9 +52,8 @@ export async function generateEvents(
         ? question.questionNumber
         : undefined;
 
-    const dayNum = Math.floor(Date.now() / (1000 * 60 * 60 * 24));
     const safeDayNumber =
-      dayNum >= 0 && dayNum <= 2147483647 ? dayNum : undefined;
+      typeof currentDay === 'number' ? toSafeDayNumber(currentDay) : undefined;
 
     // Get arc plan for signal direction
     let pointsToward: 'YES' | 'NO' | null = null;

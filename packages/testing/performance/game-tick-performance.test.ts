@@ -165,3 +165,4 @@ describe('Game Tick Performance', () => {
     expect(variance).toBeLessThan(PERFORMANCE_THRESHOLDS.noContentMaxMs / 2);
   }, 120000); // 2 minute test timeout
 });
+

@@ -110,10 +110,11 @@ const MAX_ARTICLE_TOKENS = 16384; // No practical limit
  * Call this ONCE in game-tick.ts, then pass the result to generateNPCPost()
  * This eliminates N+1 query problems where each NPC would fetch the same data
  */
-export async function loadSharedPostContext(): Promise<SharedPostContext> {
-  const twelveHoursAgo = new Date(Date.now() - 12 * 60 * 60 * 1000);
-  const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
-  const now = new Date();
+export async function loadSharedPostContext(
+  asOf: Date
+): Promise<SharedPostContext> {
+  const twelveHoursAgo = new Date(asOf.getTime() - 12 * 60 * 60 * 1000);
+  const threeDaysAgo = new Date(asOf.getTime() - 3 * 24 * 60 * 60 * 1000);
 
   // Fetch feed posts and events in parallel - ONE query each
   const [recentPostsRaw, recentEventsRaw] = await Promise.all([
@@ -123,11 +124,12 @@ export async function loadSharedPostContext(): Promise<SharedPostContext> {
       .where(
         and(
           eq(posts.type, 'post'),
-          gte(posts.createdAt, twelveHoursAgo),
+          gte(posts.timestamp, twelveHoursAgo),
+          lte(posts.timestamp, asOf),
           isNull(posts.deletedAt)
         )
       )
-      .orderBy(desc(posts.createdAt))
+      .orderBy(desc(posts.timestamp))
       .limit(50),
     db
       .select()
@@ -135,7 +137,7 @@ export async function loadSharedPostContext(): Promise<SharedPostContext> {
       .where(
         and(
           gte(worldEvents.timestamp, threeDaysAgo),
-          lte(worldEvents.timestamp, now), // Don't include future events
+          lte(worldEvents.timestamp, asOf), // Don't include future events
           eq(worldEvents.visibility, 'public')
         )
       )
@@ -156,7 +158,7 @@ export async function loadSharedPostContext(): Promise<SharedPostContext> {
         post.content.length > 150
           ? post.content.slice(0, 150) + '...'
           : post.content,
-      timestamp: post.createdAt.toISOString(),
+      timestamp: post.timestamp.toISOString(),
       articleTitle: post.articleTitle || undefined,
     };
   });
@@ -370,7 +372,7 @@ export async function generateNPCPost(
   currentDay?: number
 ): Promise<boolean> {
   // Use provided shared context or load it (fallback for backward compatibility)
-  const context = sharedContext || (await loadSharedPostContext());
+  const context = sharedContext || (await loadSharedPostContext(timestamp));
 
   // Build NPC-specific context from shared data (NO DB CALLS)
   const npcContext = buildNPCContext(actor, context);
@@ -527,7 +529,7 @@ Return as XML:
     content: transformed.transformedText,
     authorId: actor.id,
     gameId: 'continuous',
-    dayNumber: Math.floor(Date.now() / (1000 * 60 * 60 * 24)),
+    dayNumber: currentDay,
     timestamp,
   });
 
@@ -542,7 +544,8 @@ export async function generateOrgPost(
   org: OrganizationForPost,
   question: QuestionForPost,
   worldFactsContext: string,
-  timestamp: Date
+  timestamp: Date,
+  currentDay?: number
 ): Promise<boolean> {
   const orgName = org.name || 'Unknown Org';
 
@@ -624,7 +627,7 @@ Return your response as XML in this exact format:
     content: transformed.transformedText,
     authorId: org.id,
     gameId: 'continuous',
-    dayNumber: Math.floor(Date.now() / (1000 * 60 * 60 * 24)),
+    dayNumber: currentDay,
     timestamp,
   });
 
@@ -639,7 +642,8 @@ export async function generateOrgArticle(
   org: OrganizationForPost,
   question: QuestionForPost,
   worldFactsContext: string,
-  timestamp: Date
+  timestamp: Date,
+  currentDay?: number
 ): Promise<boolean> {
   const orgName = org.name || 'Unknown Org';
 
@@ -760,7 +764,7 @@ Return your response as XML in this exact format:
     articleTitle: articleTitle,
     authorId: org.id,
     gameId: 'continuous',
-    dayNumber: Math.floor(Date.now() / (1000 * 60 * 60 * 24)),
+    dayNumber: currentDay,
     timestamp,
   });
 
@@ -840,7 +844,8 @@ export async function generateNPCRepliesFromPreviousTicks(
   actors: DiscourseActor[],
   worldFactsContext: string,
   timestamp: Date,
-  maxReplies = 4
+  maxReplies = 4,
+  currentDay?: number
 ): Promise<number> {
   if (actors.length < 2) {
     logger.debug(
@@ -964,7 +969,8 @@ export async function generateNPCRepliesFromPreviousTicks(
         engager,
         originalPost,
         worldFactsContext,
-        timestamp
+        timestamp,
+        currentDay
       );
       return { type: 'quote' as const, success };
     } else {
@@ -973,7 +979,8 @@ export async function generateNPCRepliesFromPreviousTicks(
         engager,
         originalPost,
         worldFactsContext,
-        timestamp
+        timestamp,
+        currentDay
       );
       return { type: 'reply' as const, success };
     }
@@ -1017,7 +1024,8 @@ async function generateNPCReplyToPost(
   replier: DiscourseActor,
   originalPost: PostForReply,
   worldFactsContext: string,
-  timestamp: Date
+  timestamp: Date,
+  currentDay?: number
 ): Promise<boolean> {
   // Build replier's personality context
   const personalityContext = replier.personality
@@ -1143,7 +1151,7 @@ Return your response as XML in this exact format:
     commentOnPostId: originalPost.id,
     originalPostId: rootPostId ?? originalPost.id, // Root of the chain
     gameId: 'continuous',
-    dayNumber: Math.floor(Date.now() / (1000 * 60 * 60 * 24)),
+    dayNumber: currentDay,
     timestamp,
   });
 
@@ -1169,7 +1177,8 @@ async function generateNPCQuotePost(
   quoter: DiscourseActor,
   originalPost: PostForReply,
   worldFactsContext: string,
-  timestamp: Date
+  timestamp: Date,
+  currentDay?: number
 ): Promise<boolean> {
   // Build quoter's personality context
   const personalityContext = quoter.personality
@@ -1282,7 +1291,7 @@ Return your response as XML in this exact format:
     authorId: quoter.id,
     originalPostId: originalPost.id, // The post being quoted
     gameId: 'continuous',
-    dayNumber: Math.floor(Date.now() / (1000 * 60 * 60 * 24)),
+    dayNumber: currentDay,
     timestamp,
   });
 

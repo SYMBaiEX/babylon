@@ -501,7 +501,7 @@ export class MarketContextService {
       .select()
       .from(posts)
       .where(and(isNull(posts.deletedAt), lte(posts.timestamp, now)))
-      .orderBy(desc(posts.createdAt))
+      .orderBy(desc(posts.timestamp))
       .limit(50);
 
     return postList.map((post) => {
@@ -522,7 +522,7 @@ export class MarketContextService {
         author: post.authorId,
         authorName: post.authorId,
         content,
-        timestamp: post.createdAt.toISOString(),
+        timestamp: post.timestamp.toISOString(),
         articleTitle: articleTitle || undefined,
       };
     });
@@ -644,7 +644,8 @@ export class MarketContextService {
    * @returns Array of the NPC's recent posts
    */
   async getRecentPostsByNPC(npcId: string): Promise<FeedPostContext[]> {
-    const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
+    const now = new Date();
+    const threeDaysAgo = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
 
     const npcPosts = await db
       .select()
@@ -652,11 +653,12 @@ export class MarketContextService {
       .where(
         and(
           eq(posts.authorId, npcId),
-          gte(posts.createdAt, threeDaysAgo),
+          gte(posts.timestamp, threeDaysAgo),
+          lte(posts.timestamp, now),
           isNull(posts.deletedAt)
         )
       )
-      .orderBy(desc(posts.createdAt))
+      .orderBy(desc(posts.timestamp))
       .limit(10);
 
     return npcPosts.map((post) => {
@@ -670,7 +672,7 @@ export class MarketContextService {
         author: post.authorId,
         authorName: post.authorId,
         content,
-        timestamp: post.createdAt.toISOString(),
+        timestamp: post.timestamp.toISOString(),
         articleTitle: post.articleTitle || undefined,
       };
     });

@@ -32,7 +32,7 @@
  * - Shorter timespans for urgent developments (announcements, scandals)
  * - Resolution event generated to prove outcome definitively
  *
- * @see {@link GameEngine} - Uses QuestionManager to generate daily questions
+ * @see {@link executeGameTick} - Production tick uses QuestionManager to generate questions and resolution proofs
  * @see {@link FeedGenerator} - Creates posts and discussions about active questions
  *
  * @example

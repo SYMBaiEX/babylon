@@ -42,6 +42,7 @@ import {
   urgencyWeight,
   weightedPick,
 } from '../utils/entropy';
+import { getGameDayNumber, toSafeDayNumber } from '../utils/date-utils';
 import { worldFactsService } from '../world-facts-service';
 import { generateEvents } from './event-generation-helpers';
 import {
@@ -293,14 +294,14 @@ async function generateContentWindow(
     .where(eq(games.isContinuous, true))
     .limit(1);
 
-  // Calculate current game day (0-indexed from game start)
-  const gameStartedAt = game[0]?.startedAt;
-  const currentDay = gameStartedAt
-    ? Math.floor(
-        (windowStart.getTime() - gameStartedAt.getTime()) /
-          (24 * 60 * 60 * 1000)
-      )
-    : undefined;
+  const gameStartedAt = game[0]?.startedAt ?? null;
+  const dayNumberForTimestamp = (t: Date): number | undefined => {
+    if (!gameStartedAt) return undefined;
+    return toSafeDayNumber(getGameDayNumber(gameStartedAt, t));
+  };
+
+  // Game-relative day for this window (0-indexed since game start)
+  const currentDay = dayNumberForTimestamp(windowStart);
 
   // Get active questions
   const activeQuestions = await db
@@ -333,14 +334,14 @@ async function generateContentWindow(
     const eventsCreated = await generateEvents(
       activeQuestions,
       eventTimestamp,
-      currentDay
+      dayNumberForTimestamp(eventTimestamp)
     );
     if (eventsCreated > 0) {
       logger.info(
         `Generated ${eventsCreated} events in lookahead window`,
         {
           timestamp: eventTimestamp.toISOString(),
-          currentDay,
+          currentDay: dayNumberForTimestamp(eventTimestamp),
         },
         'LookaheadGeneration'
       );
@@ -356,7 +357,7 @@ async function generateContentWindow(
       .orderBy(desc(actorState.reputationPoints))
       .limit(15),
     worldFactsService.generatePromptContext(),
-    loadSharedPostContext(), // Load ONCE for all NPC posts
+    loadSharedPostContext(windowStart), // Load ONCE for all NPC posts
   ]);
 
   // Combine static actor data with dynamic state
@@ -399,6 +400,7 @@ async function generateContentWindow(
     // Distribute timestamps naturally across window using secure random
     const randomOffset = secureRandom() * windowDuration;
     const postTimestamp = new Date(windowStart.getTime() + randomOffset);
+    const postDayNumber = dayNumberForTimestamp(postTimestamp);
 
     // Weighted random choice between actor and org (70% actor, 30% org if both available)
     const useActor =
@@ -434,7 +436,7 @@ async function generateContentWindow(
         worldFactsContext,
         postTimestamp,
         sharedContext, // Pass pre-loaded context to avoid N+1 queries
-        currentDay // Pass currentDay for arc plan phase detection and signal guidance
+        postDayNumber // Pass currentDay for arc plan phase detection, signal guidance, and dayNumber storage
       );
       if (success) {
         logger.debug(
@@ -462,7 +464,8 @@ async function generateContentWindow(
         org,
         question,
         worldFactsContext,
-        postTimestamp
+        postTimestamp,
+        postDayNumber
       );
       if (success) {
         logger.debug(
@@ -481,7 +484,8 @@ async function generateContentWindow(
         org,
         question,
         worldFactsContext,
-        postTimestamp
+        postTimestamp,
+        postDayNumber
       );
       if (success) {
         logger.debug(
