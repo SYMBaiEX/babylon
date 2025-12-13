@@ -1,11 +1,11 @@
 import { db, type Question, worldEvents } from '@babylon/db';
 import { generateSnowflakeId, logger } from '@babylon/shared';
+import { toSafeDayNumber } from '../utils/date-utils';
 import {
   getArcPlan,
   getPhaseForDay,
   getSignalDirection,
 } from './narrative-state-service';
-import { toSafeDayNumber } from '../utils/date-utils';
 
 // Minimal question type for event generation (only fields actually used)
 // outcome is optional - only used for arc plan signal direction, and the code handles missing outcome

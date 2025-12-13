@@ -79,28 +79,40 @@ describe('Context integrity regressions', () => {
 
     // Strong invariant: prompt context must not include any future posts.
     for (const post of context.recentFeedPosts) {
-      expect(new Date(post.timestamp).getTime()).toBeLessThanOrEqual(asOf.getTime());
+      expect(new Date(post.timestamp).getTime()).toBeLessThanOrEqual(
+        asOf.getTime()
+      );
     }
 
     // Our explicit future post must not appear.
-    expect(context.recentFeedPosts.some((p) => p.content.includes(futureContent))).toBe(false);
+    expect(
+      context.recentFeedPosts.some((p) => p.content.includes(futureContent))
+    ).toBe(false);
 
     // Our past posts should appear, and their timestamps must reflect posts.timestamp (not createdAt).
-    const foundA = context.recentFeedPosts.find((p) => p.content.includes(postAContent));
-    const foundB = context.recentFeedPosts.find((p) => p.content.includes(postBContent));
+    const foundA = context.recentFeedPosts.find((p) =>
+      p.content.includes(postAContent)
+    );
+    const foundB = context.recentFeedPosts.find((p) =>
+      p.content.includes(postBContent)
+    );
     expect(foundA).toBeTruthy();
     expect(foundB).toBeTruthy();
 
-    expect(Math.abs(new Date(foundA!.timestamp).getTime() - postATimestamp.getTime())).toBeLessThan(
-      1_000
-    );
-    expect(Math.abs(new Date(foundB!.timestamp).getTime() - postBTimestamp.getTime())).toBeLessThan(
-      1_000
-    );
+    expect(
+      Math.abs(new Date(foundA!.timestamp).getTime() - postATimestamp.getTime())
+    ).toBeLessThan(1_000);
+    expect(
+      Math.abs(new Date(foundB!.timestamp).getTime() - postBTimestamp.getTime())
+    ).toBeLessThan(1_000);
 
     // Ordering should be by posts.timestamp desc (A is newer than B).
-    const indexA = context.recentFeedPosts.findIndex((p) => p.content.includes(postAContent));
-    const indexB = context.recentFeedPosts.findIndex((p) => p.content.includes(postBContent));
+    const indexA = context.recentFeedPosts.findIndex((p) =>
+      p.content.includes(postAContent)
+    );
+    const indexB = context.recentFeedPosts.findIndex((p) =>
+      p.content.includes(postBContent)
+    );
     expect(indexA).toBeGreaterThanOrEqual(0);
     expect(indexB).toBeGreaterThanOrEqual(0);
     expect(indexA).toBeLessThan(indexB);
@@ -151,5 +163,3 @@ describe('Context integrity regressions', () => {
     });
   });
 });
-
-

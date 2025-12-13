@@ -35,6 +35,7 @@ import {
 } from '@babylon/db';
 import type { BabylonLLMClient } from '@babylon/engine';
 import { logger } from '@babylon/shared';
+import { getGameDayNumber, toSafeDayNumber } from '../utils/date-utils';
 import {
   biasedRandomCount,
   secureRandom,
@@ -42,7 +43,6 @@ import {
   urgencyWeight,
   weightedPick,
 } from '../utils/entropy';
-import { getGameDayNumber, toSafeDayNumber } from '../utils/date-utils';
 import { worldFactsService } from '../world-facts-service';
 import { generateEvents } from './event-generation-helpers';
 import {

@@ -101,8 +101,8 @@ import type {
   WorldEvent,
 } from './types/shared';
 import { calculateEstimatedCost } from './types/token-stats';
-import { worldFactsService } from './world-facts-service';
 import { getGameDayNumber, toSafeDayNumber } from './utils/date-utils';
+import { worldFactsService } from './world-facts-service';
 
 // Services that are still in the web app (Web3/Oracle specific - use dynamic imports)
 
