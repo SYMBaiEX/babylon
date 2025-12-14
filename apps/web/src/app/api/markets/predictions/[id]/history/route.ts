@@ -1,5 +1,5 @@
 import { successResponse, withErrorHandling } from '@babylon/api';
-import { PredictionMarketService } from '@babylon/engine';
+import { db, desc, eq, predictionPriceHistories } from '@babylon/db';
 import { PredictionMarketIdSchema } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { z } from 'zod';
@@ -25,14 +25,19 @@ export const GET = withErrorHandling(
     const { searchParams } = new URL(request.url);
     const { limit } = QuerySchema.parse({ limit: searchParams.get('limit') });
 
-    const history = await PredictionMarketService.getHistory(marketId, limit);
+    const history = await db
+      .select()
+      .from(predictionPriceHistories)
+      .where(eq(predictionPriceHistories.marketId, marketId))
+      .orderBy(desc(predictionPriceHistories.createdAt))
+      .limit(limit);
 
     return successResponse({
       marketId,
       history: history.reverse().map((point) => ({
         id: point.id,
-        yesPrice: point.yesPrice,
-        noPrice: point.noPrice,
+        yesPrice: Number(point.yesPrice),
+        noPrice: Number(point.noPrice),
         yesShares: Number(point.yesShares),
         noShares: Number(point.noShares),
         liquidity: Number(point.liquidity),

@@ -173,9 +173,13 @@ export class PredictionDbAdapter implements PredictionDbPort {
       .onConflictDoNothing()
       .returning();
 
-    const marketRow = inserted ?? (await this.getMarketById(question.id));
-    if (!marketRow) throw new Error('Failed to create market');
-    return marketRow;
+    if (inserted) {
+      return mapMarket(inserted);
+    }
+
+    const existing = await this.getMarketById(question.id);
+    if (!existing) throw new Error('Failed to create market');
+    return existing;
   }
 
   async updateMarketState(
@@ -277,6 +281,9 @@ export class PredictionDbAdapter implements PredictionDbPort {
       })
       .returning();
 
+    if (!result) {
+      throw new Error(`Failed to upsert position for user ${position.userId} market ${position.marketId}`);
+    }
     return mapPosition(result);
   }
 

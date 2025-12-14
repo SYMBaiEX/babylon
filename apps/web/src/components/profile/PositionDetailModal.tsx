@@ -3,7 +3,7 @@
 import {
   calculateExpectedPayout,
   PredictionPricing,
-} from '@babylon/core/markets/prediction';
+} from '@babylon/core/markets/prediction/client';
 import type { PerpPositionFromAPI, PredictionPosition } from '@babylon/shared';
 import { cn, type JsonValue } from '@babylon/shared';
 import {

@@ -31,12 +31,12 @@ export function EditProfileModal({
   const [profilePictureIndex, setProfilePictureIndex] = useState(() => {
     // Extract index from URL if it's a local asset
     const match = profileData.profileImageUrl?.match(/profile-(\d+)\.jpg/);
-    return match ? parseInt(match[1], 10) : 1;
+    return match?.[1] ? parseInt(match[1], 10) : 1;
   });
   const [bannerIndex, setBannerIndex] = useState(() => {
     // Extract index from URL if it's a local asset
     const match = profileData.coverImageUrl?.match(/banner-(\d+)\.jpg/);
-    return match ? parseInt(match[1], 10) : 1;
+    return match?.[1] ? parseInt(match[1], 10) : 1;
   });
   const [uploadedProfileImage, setUploadedProfileImage] = useState<
     string | null

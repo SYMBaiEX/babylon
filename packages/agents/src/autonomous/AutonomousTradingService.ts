@@ -347,12 +347,14 @@ ${contextString}`;
 
           // Execute buy via internal service
           const result = await asUser({ userId: agentUserId }, async (txDb) => {
-            // Calculate shares and pricing
+            // Calculate shares and pricing (0.1% fee rate)
+            const TRADING_FEE_RATE = 0.001;
             const calculation = PredictionPricing.calculateBuyWithFees(
               Number(market.yesShares),
               Number(market.noShares),
               side ? 'yes' : 'no',
-              trade.amount
+              trade.amount,
+              TRADING_FEE_RATE
             );
 
             // Debit amount from balance

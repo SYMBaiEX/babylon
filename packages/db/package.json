@@ -22,12 +22,12 @@
   "scripts": {
     "lint": "biome lint .",
     "typecheck": "tsc -b .",
-    "db:generate": "bun --bun drizzle-kit generate",
-    "db:migrate": "bun --bun drizzle-kit migrate",
-    "db:push": "bun --bun drizzle-kit push",
-    "db:pull": "bun --bun drizzle-kit pull",
-    "db:studio": "bun --bun drizzle-kit studio",
-    "db:check": "bun --bun drizzle-kit check"
+    "db:generate": "tsx ../../node_modules/drizzle-kit/bin.cjs generate",
+    "db:migrate": "tsx ../../node_modules/drizzle-kit/bin.cjs migrate",
+    "db:push": "tsx ../../node_modules/drizzle-kit/bin.cjs push",
+    "db:pull": "tsx ../../node_modules/drizzle-kit/bin.cjs pull",
+    "db:studio": "tsx ../../node_modules/drizzle-kit/bin.cjs studio",
+    "db:check": "tsx ../../node_modules/drizzle-kit/bin.cjs check"
   },
   "dependencies": {
     "@babylon/shared": "workspace:*",
@@ -40,7 +40,8 @@
   },
   "devDependencies": {
     "@types/node": "^24.10.0",
-    "drizzle-kit": "^0.31.4",
+    "drizzle-kit": "^0.31.8",
+    "tsx": "^4.19.4",
     "typescript": "^5.9.3"
   }
 }

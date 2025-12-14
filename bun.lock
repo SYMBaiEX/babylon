@@ -348,7 +348,8 @@
       },
       "devDependencies": {
         "@types/node": "^24.10.0",
-        "drizzle-kit": "^0.31.4",
+        "drizzle-kit": "^0.31.8",
+        "tsx": "^4.19.4",
         "typescript": "^5.9.3",
       },
       "peerDependencies": {
