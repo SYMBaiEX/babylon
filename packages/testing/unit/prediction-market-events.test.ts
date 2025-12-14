@@ -1,5 +1,4 @@
 import { beforeEach, describe, expect, mock, test } from 'bun:test';
-import { PredictionMarketService } from '@babylon/core/markets/prediction';
 import type {
   PredictionDbPort,
   PredictionMarketRecord,
@@ -7,10 +6,13 @@ import type {
   PredictionServiceDeps,
   QuestionRecord,
 } from '@babylon/core/markets/prediction';
+import { PredictionMarketService } from '@babylon/core/markets/prediction';
 
 describe('PredictionMarketService broadcast events', () => {
   const mockBroadcast = {
-    emit: mock(async (_channel: string, _payload: Record<string, unknown>) => {}),
+    emit: mock(
+      async (_channel: string, _payload: Record<string, unknown>) => {}
+    ),
   };
 
   const createMockMarket = (

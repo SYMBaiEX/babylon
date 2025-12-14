@@ -208,28 +208,25 @@ export function useAuth(): UseAuthReturn {
 
         const response = await apiFetch(url);
 
-        // Handle non-OK responses gracefully
+        // 401 is expected when not authenticated - exit early without error
+        if (response.status === 401) {
+          logger.debug(
+            'Not authenticated yet, skipping user fetch',
+            { userId: privyUser.id },
+            'useAuth'
+          );
+          return;
+        }
+
+        // For other HTTP errors, fail fast - don't silently swallow
         if (!response.ok) {
-          // 401 is expected when not authenticated - just skip user fetch
-          if (response.status === 401) {
-            console.debug(
-              '[useAuth] Not authenticated yet, skipping user fetch'
-            );
-            return;
-          }
-          // For other errors, log and skip
-          console.warn(`[useAuth] Failed to fetch user: ${response.status}`);
-          return;
+          const errorBody = await response.text().catch(() => '');
+          throw new Error(
+            `Failed to fetch user profile: HTTP ${response.status}${errorBody ? ` - ${errorBody}` : ''}`
+          );
         }
 
-        // Check if response has content before parsing
-        const text = await response.text();
-        if (!text) {
-          console.warn('[useAuth] Empty response from /api/users/me');
-          return;
-        }
-
-        const data = JSON.parse(text);
+        const data = await response.json();
 
         const me = data as {
           authenticated: boolean;
