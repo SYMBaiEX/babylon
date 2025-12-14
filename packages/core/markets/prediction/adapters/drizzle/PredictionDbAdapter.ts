@@ -173,8 +173,8 @@ export class PredictionDbAdapter implements PredictionDbPort {
       .onConflictDoNothing()
       .returning();
 
-    if (inserted) {
-      return mapMarket(inserted);
+    if (inserted.length > 0) {
+      return mapMarket(inserted[0]);
     }
 
     const existing = await this.getMarketById(question.id);
