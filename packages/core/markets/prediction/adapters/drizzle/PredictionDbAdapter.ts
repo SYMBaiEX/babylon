@@ -282,7 +282,9 @@ export class PredictionDbAdapter implements PredictionDbPort {
       .returning();
 
     if (!result) {
-      throw new Error(`Failed to upsert position for user ${position.userId} market ${position.marketId}`);
+      throw new Error(
+        `Failed to upsert position for user ${position.userId} market ${position.marketId}`
+      );
     }
     return mapPosition(result);
   }

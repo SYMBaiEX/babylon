@@ -207,12 +207,14 @@ export function useAuth(): UseAuthReturn {
           : '/api/users/me';
 
         const response = await apiFetch(url);
-        
+
         // Handle non-OK responses gracefully
         if (!response.ok) {
           // 401 is expected when not authenticated - just skip user fetch
           if (response.status === 401) {
-            console.debug('[useAuth] Not authenticated yet, skipping user fetch');
+            console.debug(
+              '[useAuth] Not authenticated yet, skipping user fetch'
+            );
             return;
           }
           // For other errors, log and skip
