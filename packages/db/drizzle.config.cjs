@@ -9,11 +9,17 @@ const isLocalDev =
 const LOCAL_DATABASE_URL =
   'postgresql://babylon:babylon_dev_password@localhost:5433/babylon';
 
+// In non-local environments, require explicit database URL - never fall back to localhost
 const databaseUrl = isLocalDev
   ? process.env.DATABASE_URL || LOCAL_DATABASE_URL
-  : process.env.DIRECT_DATABASE_URL ||
-    process.env.DATABASE_URL ||
-    LOCAL_DATABASE_URL;
+  : process.env.DIRECT_DATABASE_URL || process.env.DATABASE_URL;
+
+if (!databaseUrl) {
+  throw new Error(
+    'Missing DIRECT_DATABASE_URL or DATABASE_URL in non-local environment. ' +
+      'Refusing to default to LOCAL_DATABASE_URL to prevent accidental migrations against wrong database.'
+  );
+}
 
 /** @type {import('drizzle-kit').Config} */
 module.exports = {
