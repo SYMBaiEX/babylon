@@ -167,14 +167,16 @@ export class PredictionDbAdapter implements PredictionDbPort {
       resolutionDescription: null,
     };
 
+    // Note: Destructuring [inserted] extracts the first element directly
+    // So `inserted` is a single market object or undefined, not an array
     const [inserted] = await this.client
       .insert(markets)
       .values(data)
       .onConflictDoNothing()
       .returning();
 
-    if (inserted.length > 0) {
-      return mapMarket(inserted[0]);
+    if (inserted) {
+      return mapMarket(inserted);
     }
 
     const existing = await this.getMarketById(question.id);
