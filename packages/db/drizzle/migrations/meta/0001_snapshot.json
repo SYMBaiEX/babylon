@@ -1,6 +1,6 @@
 {
-  "id": "124b8538-c688-4a9e-891d-4bfe73d95f66",
-  "prevId": "00000000-0000-0000-0000-000000000000",
+  "id": "b449817d-4ba5-4244-ae3b-0c0f1be5c302",
+  "prevId": "124b8538-c688-4a9e-891d-4bfe73d95f66",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -6574,19 +6574,6 @@
           "notNull": true,
           "default": "'system'"
         },
-        "wandbModel": {
-          "name": "wandbModel",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "wandbEnabled": {
-          "name": "wandbEnabled",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
         "createdAt": {
           "name": "createdAt",
           "type": "timestamp",
@@ -11568,6 +11555,13 @@
           "primaryKey": false,
           "notNull": false
         },
+        "signupPointsAwarded": {
+          "name": "signupPointsAwarded",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
         "suspiciousReferralFlags": {
           "name": "suspiciousReferralFlags",
           "type": "json",
@@ -11647,6 +11641,66 @@
           "columns": [
             {
               "expression": "qualifiedAt",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "Referral_referrerId_status_qualifiedAt_signupPointsAwarded_idx": {
+          "name": "Referral_referrerId_status_qualifiedAt_signupPointsAwarded_idx",
+          "columns": [
+            {
+              "expression": "referrerId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "qualifiedAt",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "signupPointsAwarded",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "Referral_referrerId_signupPointsAwarded_completedAt_idx": {
+          "name": "Referral_referrerId_signupPointsAwarded_completedAt_idx",
+          "columns": [
+            {
+              "expression": "referrerId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "signupPointsAwarded",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "completedAt",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -11820,6 +11874,120 @@
           "columns": ["userId", "actorId"]
         }
       },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.UserApiKey": {
+      "name": "UserApiKey",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "userId": {
+          "name": "userId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "keyHash": {
+          "name": "keyHash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "lastUsedAt": {
+          "name": "lastUsedAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "expiresAt": {
+          "name": "expiresAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "revokedAt": {
+          "name": "revokedAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "UserApiKey_userId_idx": {
+          "name": "UserApiKey_userId_idx",
+          "columns": [
+            {
+              "expression": "userId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "UserApiKey_keyHash_idx": {
+          "name": "UserApiKey_keyHash_idx",
+          "columns": [
+            {
+              "expression": "keyHash",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "UserApiKey_userId_revokedAt_idx": {
+          "name": "UserApiKey_userId_revokedAt_idx",
+          "columns": [
+            {
+              "expression": "userId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "revokedAt",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
