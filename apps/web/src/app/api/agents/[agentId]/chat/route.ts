@@ -98,7 +98,7 @@ None yet - this is the first step.
 </response>
 </output>`;
 
-const multiStepSummaryTemplate = `Generate a SHORT response to the user. Stay in character.
+const multiStepSummaryTemplate = `Generate a response to the user. Stay in character.
 
 # Your Character
 {{system}}
@@ -114,16 +114,15 @@ Personality: {{personality}}
 {{actionResults}}
 
 # Rules
-- 1-2 sentences ONLY
-- Be casual, not formal
-- Don't repeat action details
+- Be conversational and natural
 - Stay in character
+- Include relevant details from actions when appropriate
 
 IMPORTANT: Output ONLY the XML below. No thinking, no explanation.
 
 <response>
-<thought>one line reasoning</thought>
-<text>your short reply</text>
+<thought>brief reasoning</thought>
+<text>your reply to the user</text>
 </response>`;
 
 // =============================================================================
@@ -283,8 +282,8 @@ export const POST = withErrorHandling(
       logger.info(
         `[MultiStep] Executing action: ${action}`,
         { parameters },
-          'AgentChat'
-        );
+        'AgentChat'
+      );
 
       // Parse parameters
       let actionParams = {};
@@ -370,7 +369,7 @@ export const POST = withErrorHandling(
 
       // Check if done - always go to summary phase for proper response
       if (isFinish === 'true' || isFinish === true) {
-      break;
+        break;
       }
     }
 
