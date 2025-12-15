@@ -5,6 +5,7 @@
  */
 
 import { and, db, desc, eq, gte, messages, ne, users } from '@babylon/db';
+import { StaticDataRegistry } from '@babylon/engine';
 import type { IAgentRuntime } from '@elizaos/core';
 import { callGroqDirect } from '../llm/direct-groq';
 import { getAgentConfig } from '../shared/agent-config';
@@ -27,13 +28,28 @@ export class AutonomousDMService {
     agentUserId: string,
     _runtime: IAgentRuntime
   ): Promise<number> {
-    const [agent] = await db
-      .select()
-      .from(users)
-      .where(eq(users.id, agentUserId))
-      .limit(1);
-    if (!agent?.isAgent) {
-      throw new Error('Agent not found');
+    // Check if this is an NPC (has entry in StaticDataRegistry)
+    const npcActor = StaticDataRegistry.getActor(agentUserId);
+    const isNpc = !!npcActor;
+
+    let agentDisplayName: string;
+
+    if (isNpc) {
+      // NPC: Get name from StaticDataRegistry
+      agentDisplayName = npcActor.name;
+    } else {
+      // USER_CONTROLLED: Get from User table
+      const [agent] = await db
+        .select()
+        .from(users)
+        .where(eq(users.id, agentUserId))
+        .limit(1);
+
+      if (!agent?.isAgent) {
+        throw new Error('Agent not found');
+      }
+
+      agentDisplayName = agent.displayName ?? agentUserId;
     }
 
     const config = await getAgentConfig(agentUserId);
@@ -83,7 +99,7 @@ export class AutonomousDMService {
       // Generate response
       const prompt = `${config?.systemPrompt ?? 'You are an AI agent on Babylon.'}
 
-You are ${agent.displayName} in a direct message conversation.
+You are ${agentDisplayName} in a direct message conversation.
 
 Recent conversation:
 ${allMessages
@@ -131,7 +147,7 @@ Generate ONLY the response text, nothing else.`;
 
       responsesCreated++;
       logger.info(
-        `Agent ${agent.displayName} responded to DM in chat ${chat.id}`,
+        `Agent ${agentDisplayName} responded to DM in chat ${chat.id}`,
         undefined,
         'AutonomousDM'
       );

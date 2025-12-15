@@ -7,6 +7,7 @@
 import { countTokensSync, truncateToTokenLimitSync } from '@babylon/api';
 import { PerpDbAdapter, PerpMarketService } from '@babylon/core/markets/perps';
 import {
+  actorState,
   and,
   asUser,
   db,
@@ -70,6 +71,10 @@ export class AutonomousTradingService {
     side?: string;
     marketType?: 'prediction' | 'perp';
   }> {
+    // Check if this is an NPC (has entry in StaticDataRegistry)
+    const npcActor = StaticDataRegistry.getActor(agentUserId);
+    const isNpc = !!npcActor;
+
     // Get agent from User table (will be null for NPCs)
     const agentResult = await db
       .select()
@@ -79,7 +84,9 @@ export class AutonomousTradingService {
     const agent = agentResult[0];
 
     // Fallback values for NPCs (who don't have User records)
-    const agentDisplayName = agent?.displayName ?? agentUserId;
+    const agentDisplayName = isNpc
+      ? npcActor.name
+      : (agent?.displayName ?? agentUserId);
     const agentLifetimePnL = agent?.lifetimePnL ?? 0;
     const agentManagedBy = agent?.managedBy ?? agentUserId;
 
@@ -129,7 +136,25 @@ export class AutonomousTradingService {
         (o): o is NonNullable<typeof o> => o !== null && o.type === 'company'
       );
 
-    const balance = await WalletService.getBalance(agentUserId);
+    // Get balance - NPCs use ActorState, Users use WalletService
+    let balance: { balance: number; lifetimePnL: number };
+    if (isNpc) {
+      const [actor] = await db
+        .select({ tradingBalance: actorState.tradingBalance })
+        .from(actorState)
+        .where(eq(actorState.id, agentUserId))
+        .limit(1);
+      balance = {
+        balance: Number(actor?.tradingBalance ?? 10000),
+        lifetimePnL: 0, // NPCs don't track lifetimePnL
+      };
+    } else {
+      const walletBalance = await WalletService.getBalance(agentUserId);
+      balance = {
+        balance: walletBalance.balance,
+        lifetimePnL: walletBalance.lifetimePnL,
+      };
+    }
 
     // Shuffle markets to add variety to prompts
     const shuffledPredictions = shuffleArray(predictionMarkets);
@@ -359,14 +384,23 @@ ${contextString}`;
               TRADING_FEE_RATE
             );
 
-            // Debit amount from balance
-            await WalletService.debit(
-              agentUserId,
-              trade.amount,
-              'pred_buy',
-              `Bought ${calculation.sharesBought} ${side ? 'YES' : 'NO'} shares: ${market.question}`,
-              market.id
-            );
+            // Debit amount from balance (NPCs use ActorState, Users use WalletService)
+            if (isNpc) {
+              await txDb
+                .update(actorState)
+                .set({
+                  tradingBalance: sql`${actorState.tradingBalance} - ${trade.amount}`,
+                })
+                .where(eq(actorState.id, agentUserId));
+            } else {
+              await WalletService.debit(
+                agentUserId,
+                trade.amount,
+                'pred_buy',
+                `Bought ${calculation.sharesBought} ${side ? 'YES' : 'NO'} shares: ${market.question}`,
+                market.id
+              );
+            }
 
             // Update market shares
             await txDb
@@ -467,31 +501,125 @@ ${contextString}`;
           const ticker = org.ticker || org.name;
 
           await asUser({ userId: agentUserId }, async () => {
+            // Create wallet adapter - NPCs use ActorState, Users use WalletService
+            const walletAdapter = isNpc
+              ? {
+                  debit: async ({
+                    userId: uid,
+                    amount,
+                  }: {
+                    userId: string;
+                    amount: number;
+                    reason: string;
+                    description?: string;
+                    relatedId?: string;
+                  }) => {
+                    await db
+                      .update(actorState)
+                      .set({
+                        tradingBalance: sql`${actorState.tradingBalance} - ${amount}`,
+                      })
+                      .where(eq(actorState.id, uid));
+                  },
+                  credit: async ({
+                    userId: uid,
+                    amount,
+                  }: {
+                    userId: string;
+                    amount: number;
+                    reason: string;
+                    description?: string;
+                    relatedId?: string;
+                  }) => {
+                    await db
+                      .update(actorState)
+                      .set({
+                        tradingBalance: sql`${actorState.tradingBalance} + ${amount}`,
+                      })
+                      .where(eq(actorState.id, uid));
+                  },
+                  recordPnL: async (_args: {
+                    userId: string;
+                    pnl: number;
+                    reason: string;
+                    relatedId?: string;
+                  }) => {
+                    // NPCs don't track PnL - no-op
+                  },
+                  getBalance: async (uid: string) => {
+                    const [actor] = await db
+                      .select({ tradingBalance: actorState.tradingBalance })
+                      .from(actorState)
+                      .where(eq(actorState.id, uid))
+                      .limit(1);
+                    return {
+                      balance: Number(actor?.tradingBalance ?? 10000),
+                      totalDeposited: 0,
+                      totalWithdrawn: 0,
+                      lifetimePnL: 0,
+                    };
+                  },
+                }
+              : {
+                  debit: ({
+                    userId: uid,
+                    amount,
+                    reason,
+                    description,
+                    relatedId,
+                  }: {
+                    userId: string;
+                    amount: number;
+                    reason: string;
+                    description?: string;
+                    relatedId?: string;
+                  }) =>
+                    WalletService.debit(
+                      uid,
+                      amount,
+                      reason,
+                      description ?? '',
+                      relatedId
+                    ),
+                  credit: ({
+                    userId: uid,
+                    amount,
+                    reason,
+                    description,
+                    relatedId,
+                  }: {
+                    userId: string;
+                    amount: number;
+                    reason: string;
+                    description?: string;
+                    relatedId?: string;
+                  }) =>
+                    WalletService.credit(
+                      uid,
+                      amount,
+                      reason,
+                      description ?? '',
+                      relatedId
+                    ),
+                  recordPnL: async ({
+                    userId: uid,
+                    pnl,
+                    reason,
+                    relatedId,
+                  }: {
+                    userId: string;
+                    pnl: number;
+                    reason: string;
+                    relatedId?: string;
+                  }) => {
+                    await WalletService.recordPnL(uid, pnl, reason, relatedId);
+                  },
+                  getBalance: (uid: string) => WalletService.getBalance(uid),
+                };
+
             const service = new PerpMarketService({
               db: new PerpDbAdapter(),
-              wallet: {
-                debit: ({ userId, amount, reason, description, relatedId }) =>
-                  WalletService.debit(
-                    userId,
-                    amount,
-                    reason,
-                    description ?? '',
-                    relatedId
-                  ),
-                credit: ({ userId, amount, reason, description, relatedId }) =>
-                  WalletService.credit(
-                    userId,
-                    amount,
-                    reason,
-                    description ?? '',
-                    relatedId
-                  ),
-                recordPnL: async ({ userId, pnl, reason, relatedId }) => {
-                  await WalletService.recordPnL(userId, pnl, reason, relatedId);
-                },
-                getBalance: (userId: string) =>
-                  WalletService.getBalance(userId),
-              },
+              wallet: walletAdapter,
               fees: {
                 tradingFeeRate: 0.001,
                 platformShare: 0.5,

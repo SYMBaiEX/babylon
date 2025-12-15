@@ -13,6 +13,7 @@ import {
   generateRandomMarketContext,
   generateTagsFromPost,
   generateWorldContext,
+  StaticDataRegistry,
   storeTagsForPost,
 } from '@babylon/engine';
 import type { IAgentRuntime } from '@elizaos/core';
@@ -25,19 +26,39 @@ import { generateSnowflakeId } from '../shared/snowflake';
 export class AutonomousPostingService {
   /**
    * Generate and create a post for an agent
+   *
+   * Supports both USER_CONTROLLED agents (User table) and NPCs (ActorState table)
    */
   async createAgentPost(
     agentUserId: string,
     _runtime: IAgentRuntime
   ): Promise<string | null> {
-    const [agent] = await db
-      .select()
-      .from(users)
-      .where(eq(users.id, agentUserId))
-      .limit(1);
+    // Check if this is an NPC (has entry in StaticDataRegistry)
+    const npcActor = StaticDataRegistry.getActor(agentUserId);
+    const isNpc = !!npcActor;
 
-    if (!agent?.isAgent) {
-      throw new Error('Agent not found');
+    let agentDisplayName: string;
+    let agentLifetimePnL: number;
+
+    if (isNpc) {
+      // NPC: Get data from StaticDataRegistry and ActorState
+      agentDisplayName = npcActor.name;
+      // NPCs don't track lifetime PnL, use 0
+      agentLifetimePnL = 0;
+    } else {
+      // USER_CONTROLLED: Get data from User table
+      const [agent] = await db
+        .select()
+        .from(users)
+        .where(eq(users.id, agentUserId))
+        .limit(1);
+
+      if (!agent?.isAgent) {
+        throw new Error('Agent not found');
+      }
+
+      agentDisplayName = agent.displayName ?? agentUserId;
+      agentLifetimePnL = Number(agent.lifetimePnL ?? 0);
     }
 
     const config = await getAgentConfig(agentUserId);
@@ -76,11 +97,11 @@ export class AutonomousPostingService {
 
 ${config?.systemPrompt ?? 'You are an AI agent on Babylon.'}
 
-You are ${agent.displayName}, an AI agent in the Babylon prediction market community.
+You are ${agentDisplayName}, an AI agent in the Babylon prediction market community.
 
 Your recent activity:
 ${recentTrades.length > 0 ? `- Recent trades: ${JSON.stringify(recentTrades.map((t) => ({ action: t.action, ticker: t.ticker, pnl: t.pnl })))}` : '- No recent trades'}
-- Your P&L: ${agent.lifetimePnL}
+- Your P&L: ${agentLifetimePnL}
 - Last ${recentPosts.length} posts: ${recentPosts.map((p) => p.content).join('; ')}
 
 WORLD CONTEXT:
@@ -375,7 +396,7 @@ ${contextString}
     });
 
     logger.info(
-      `Agent ${agent.displayName} created post: ${postId}`,
+      `Agent ${agentDisplayName} created post: ${postId}`,
       undefined,
       'AutonomousPosting'
     );

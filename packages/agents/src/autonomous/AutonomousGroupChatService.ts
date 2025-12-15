@@ -7,6 +7,7 @@
  */
 
 import { and, db, desc, eq, gte, messages, users } from '@babylon/db';
+import { StaticDataRegistry } from '@babylon/engine';
 import type { IAgentRuntime } from '@elizaos/core';
 import { callGroqDirect } from '../llm/direct-groq';
 import { getAgentConfig } from '../shared/agent-config';
@@ -29,13 +30,28 @@ export class AutonomousGroupChatService {
     agentUserId: string,
     _runtime: IAgentRuntime
   ): Promise<number> {
-    const [agent] = await db
-      .select()
-      .from(users)
-      .where(eq(users.id, agentUserId))
-      .limit(1);
-    if (!agent?.isAgent) {
-      throw new Error('Agent not found');
+    // Check if this is an NPC (has entry in StaticDataRegistry)
+    const npcActor = StaticDataRegistry.getActor(agentUserId);
+    const isNpc = !!npcActor;
+
+    let agentDisplayName: string;
+
+    if (isNpc) {
+      // NPC: Get name from StaticDataRegistry
+      agentDisplayName = npcActor.name;
+    } else {
+      // USER_CONTROLLED: Get from User table
+      const [agent] = await db
+        .select()
+        .from(users)
+        .where(eq(users.id, agentUserId))
+        .limit(1);
+
+      if (!agent?.isAgent) {
+        throw new Error('Agent not found');
+      }
+
+      agentDisplayName = agent.displayName ?? agentUserId;
     }
 
     const config = await getAgentConfig(agentUserId);
@@ -71,12 +87,7 @@ export class AutonomousGroupChatService {
       // Check if agent was mentioned or should respond
       const agentMentioned = recentMessages.some(
         (m: { content: string; senderId: string }) =>
-          m.content
-            .toLowerCase()
-            .includes(agent.username?.toLowerCase() || 'agent') ||
-          m.content
-            .toLowerCase()
-            .includes(agent.displayName?.toLowerCase() || 'agent')
+          m.content.toLowerCase().includes(agentDisplayName.toLowerCase())
       );
 
       // Don't spam - only respond if mentioned or if it's been a while
@@ -90,7 +101,7 @@ export class AutonomousGroupChatService {
       // Generate contextual response
       const prompt = `${config?.systemPrompt ?? 'You are an AI agent on Babylon.'}
 
-You are ${agent.displayName} in a group chat.
+You are ${agentDisplayName} in a group chat.
 
 Recent conversation:
 ${recentMessages
@@ -137,7 +148,7 @@ Generate ONLY the message text, or "SKIP" if you shouldn't respond.`;
 
       messagesCreated++;
       logger.info(
-        `Agent ${agent.displayName} participated in group chat ${chat.id}`,
+        `Agent ${agentDisplayName} participated in group chat ${chat.id}`,
         undefined,
         'AutonomousGroupChat'
       );
