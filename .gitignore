@@ -73,3 +73,8 @@ debug/
 
 # Test output directory
 .output/
+
+# Training simulation output
+packages/engine/training-data-output
+packages/training/data/scored_trajectories.csv
+simulation-output/state.json
