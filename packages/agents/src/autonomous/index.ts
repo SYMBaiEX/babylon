@@ -18,8 +18,22 @@ export {
 export { autonomousDMService } from './AutonomousDMService';
 export { autonomousGroupChatService } from './AutonomousGroupChatService';
 export {
+  MultiStepExecutor,
+  multiStepExecutor,
+  type MultiStepExecutorResult,
+} from './MultiStepExecutor';
+export {
   autonomousPlanningCoordinator,
   type PlannedAction,
 } from './AutonomousPlanningCoordinator';
 export { autonomousPostingService } from './AutonomousPostingService';
 export { autonomousTradingService } from './AutonomousTradingService';
+
+// Multi-step decision templates
+export {
+  type ActionTraceResult,
+  type AgentTickContext,
+  type MultiStepDecision,
+  buildMultiStepDecisionPrompt,
+  buildMultiStepSummaryPrompt,
+} from './templates/multi-step-decision';

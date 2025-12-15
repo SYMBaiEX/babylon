@@ -52,9 +52,8 @@ export async function callGroqDirect(params: {
     baseURL: 'https://api.groq.com/openai/v1',
   });
 
-  // Model selection based on task complexity
-  const model =
-    params.modelSize === 'large' ? 'qwen/qwen3-32b' : 'llama-3.1-8b-instant';
+  // Model selection: Use Kimi K2 for agent decisions (excellent reasoning)
+  const model = 'moonshotai/kimi-k2-instruct-0905';
 
   const startTime = Date.now();
 
