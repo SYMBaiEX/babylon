@@ -32,7 +32,7 @@ import { parseKeyValueXml } from '@elizaos/core';
 import { callGroqDirect } from '../llm/direct-groq';
 import { getAgentConfig } from '../shared/agent-config';
 import { logger } from '../shared/logger';
-import { generateSnowflakeId } from '../shared/snowflake';
+import { executeDirectComment } from './DirectExecutors';
 
 // Max characters for comment content in prompts
 const MAX_COMMENT_CHARS = 200;
@@ -619,17 +619,22 @@ If you want to skip (no relevant posts):
         }
       }
 
-      // Create the comment
-      const commentId = await generateSnowflakeId();
-      await db.insert(comments).values({
-        id: commentId,
-        content: cleanContent,
+      // Execute via DirectExecutors (handles DB insert)
+      const result = await executeDirectComment({
+        agentUserId,
         postId: selectedPost.id,
-        authorId: agentUserId,
-        parentCommentId,
-        createdAt: new Date(),
-        updatedAt: new Date(),
+        content: cleanContent,
+        parentCommentId: parentCommentId ?? undefined,
       });
+
+      if (!result.success) {
+        logger.warn(
+          `Failed to create comment: ${result.error}`,
+          { agentUserId },
+          'AutonomousCommenting'
+        );
+        return null;
+      }
 
       logger.info(
         `Agent ${agentDisplayName} commented on post ${selectedPost.id}${parentCommentId ? ` (reply to ${parentCommentId})` : ''}`,
@@ -637,7 +642,7 @@ If you want to skip (no relevant posts):
         'AutonomousCommenting'
       );
 
-      return commentId;
+      return result.commentId ?? null;
     }
 
     return null;

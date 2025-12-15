@@ -9,19 +9,16 @@ import { agentTrades, db, desc, eq, posts, users } from '@babylon/db';
 import {
   characterMappingService,
   formatRandomContext,
-  type GeneratedTag,
   generateRandomMarketContext,
-  generateTagsFromPost,
   generateWorldContext,
   StaticDataRegistry,
-  storeTagsForPost,
 } from '@babylon/engine';
 import type { IAgentRuntime } from '@elizaos/core';
 import { parseKeyValueXml } from '@elizaos/core';
 import { callGroqDirect } from '../llm/direct-groq';
 import { getAgentConfig } from '../shared/agent-config';
 import { logger } from '../shared/logger';
-import { generateSnowflakeId } from '../shared/snowflake';
+import { executeDirectPost } from './DirectExecutors';
 
 /**
  * Format relative time for recent posts (e.g., "2h ago", "15m ago")
@@ -431,46 +428,28 @@ To skip (if you've recently covered this topic or have nothing new to add):
       return null;
     }
 
-    // Create the post
-    const postId = await generateSnowflakeId();
-    await db.insert(posts).values({
-      id: postId,
+    // Execute via DirectExecutors (handles DB insert and tagging)
+    const result = await executeDirectPost({
+      agentUserId,
       content: cleanContent,
-      authorId: agentUserId,
-      type: 'post',
-      timestamp: new Date(),
-      createdAt: new Date(),
     });
 
+    if (!result.success) {
+      logger.warn(
+        `Failed to create post: ${result.error}`,
+        { agentUserId },
+        'AutonomousPosting'
+      );
+      return null;
+    }
+
     logger.info(
-      `Agent ${agentDisplayName} created post: ${postId}`,
+      `Agent ${agentDisplayName} created post: ${result.postId}`,
       undefined,
       'AutonomousPosting'
     );
 
-    // Generate and store tags asynchronously
-    void generateTagsFromPost(cleanContent)
-      .then((generatedTags: GeneratedTag[]) => {
-        if (generatedTags.length > 0) {
-          return storeTagsForPost(postId, generatedTags).then(() => {
-            logger.info(
-              'Tagged agent post',
-              { postId, agentId: agentUserId, tagCount: generatedTags.length },
-              'AutonomousPosting'
-            );
-          });
-        }
-        return Promise.resolve();
-      })
-      .catch((tagError: Error) => {
-        logger.warn(
-          'Failed to tag agent post',
-          { postId, agentId: agentUserId, error: tagError },
-          'AutonomousPosting'
-        );
-      });
-
-    return postId;
+    return result.postId ?? null;
   }
 }
 
