@@ -195,7 +195,8 @@ export class AutonomousCoordinator {
 
     const multiStepResult = await multiStepExecutor.execute(
       agentUserId,
-      runtime
+      runtime,
+      isNpc
     );
 
     // Map multi-step results to standard format
