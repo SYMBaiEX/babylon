@@ -57,10 +57,15 @@ export class MultiStepExecutor {
    *
    * The LLM decides what action to take at each step, seeing the results
    * of previous actions to make informed decisions.
+   *
+   * @param agentUserId - User ID for USER_CONTROLLED agents, or agentId for NPCs
+   * @param runtime - Agent runtime
+   * @param isNpc - Whether this is an NPC agent (skips User table lookup)
    */
   async execute(
     agentUserId: string,
-    runtime: IAgentRuntime
+    runtime: IAgentRuntime,
+    isNpc = false
   ): Promise<MultiStepExecutorResult> {
     const startTime = Date.now();
     const trace: ActionTraceResult[] = [];
@@ -71,27 +76,38 @@ export class MultiStepExecutor {
       'MultiStepExecutor'
     );
 
-    // Get agent info
-    const [agent] = await db
-      .select()
-      .from(users)
-      .where(eq(users.id, agentUserId))
-      .limit(1);
+    // Get agent info (for USER_CONTROLLED agents)
+    // NPCs don't have User records - they're validated by AgentRegistry
+    let agent: typeof users.$inferSelect | undefined;
+    if (!isNpc) {
+      const [userAgent] = await db
+        .select()
+        .from(users)
+        .where(eq(users.id, agentUserId))
+        .limit(1);
 
-    if (!agent) {
-      throw new Error('Agent not found');
+      if (!userAgent) {
+        throw new Error('Agent not found');
+      }
+      agent = userAgent;
     }
 
+    // Get agent config (may be null for NPCs)
     const config = await getAgentConfig(agentUserId);
     const systemPrompt =
       config?.systemPrompt ?? 'You are an autonomous trading agent on Babylon.';
 
-    // Determine enabled features
+    // Determine enabled features - NPCs have all features enabled by default
     const enabledFeatures: string[] = [];
-    if (config?.autonomousTrading) enabledFeatures.push('trading');
-    if (config?.autonomousPosting) enabledFeatures.push('posting');
-    if (config?.autonomousCommenting) enabledFeatures.push('commenting');
-    if (config?.autonomousDMs) enabledFeatures.push('DMs');
+    if (isNpc) {
+      // NPCs have all autonomous features enabled
+      enabledFeatures.push('trading', 'posting', 'commenting', 'DMs');
+    } else {
+      if (config?.autonomousTrading) enabledFeatures.push('trading');
+      if (config?.autonomousPosting) enabledFeatures.push('posting');
+      if (config?.autonomousCommenting) enabledFeatures.push('commenting');
+      if (config?.autonomousDMs) enabledFeatures.push('DMs');
+    }
 
     // Main iteration loop
     for (let iteration = 1; iteration <= this.maxIterations; iteration++) {
@@ -105,8 +121,10 @@ export class MultiStepExecutor {
       const context = await this.gatherContext(agentUserId, enabledFeatures);
 
       // Build decision prompt
+      // For NPCs, use agentUserId as the name (e.g., "aellai")
+      const agentName = agent?.displayName ?? agentUserId;
       const prompt = buildMultiStepDecisionPrompt({
-        agentName: agent.displayName ?? 'Agent',
+        agentName,
         systemPrompt,
         iterationCount: iteration,
         maxIterations: this.maxIterations,
