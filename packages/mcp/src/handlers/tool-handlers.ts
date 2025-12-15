@@ -12,7 +12,7 @@ import {
   handleRefundEscrowPayment,
   handleVerifyEscrowPayment,
 } from '@babylon/a2a';
-import { db, eq, users } from '@babylon/db';
+import { db, eq, perpMarketSnapshots, users } from '@babylon/db';
 import { StaticDataRegistry } from '@babylon/engine';
 import type { JsonValue, StringRecord } from '@babylon/shared';
 import { generateSnowflakeId, getAPIBaseUrl, logger } from '@babylon/shared';
@@ -599,13 +599,23 @@ export async function executeGetMarketPrices(
 
 /**
  * Execute get_perpetuals tool
+ *
+ * Returns all available perpetual markets with current prices and 24h metrics.
  */
 export async function executeGetPerpetuals(
   _agent: AuthenticatedAgent,
   _args: GetPerpetualsArgs
 ): Promise<GetPerpetualsResult> {
-  // Perpetuals not fully implemented yet
-  return { markets: [] };
+  const snapshots = await db.select().from(perpMarketSnapshots);
+
+  return {
+    markets: snapshots.map((snapshot) => ({
+      ticker: snapshot.ticker,
+      currentPrice: snapshot.currentPrice,
+      priceChange24h: snapshot.changePercent24h,
+      volume24h: snapshot.volume24h,
+    })),
+  };
 }
 
 /**

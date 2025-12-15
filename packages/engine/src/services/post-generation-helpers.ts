@@ -47,6 +47,44 @@ import { StaticDataRegistry } from './static-data-registry';
 import type { GeneratedTag } from './tag-service';
 import { generateTagsFromPost, storeTagsForPost } from './tag-service';
 
+/**
+ * NPC-to-NPC interaction cooldown tracking (in-memory for simplicity)
+ * Key: "replierNpcId:targetNpcId", Value: last interaction timestamp
+ */
+const npcInteractionCooldowns = new Map<string, Date>();
+
+/** Minimum cooldown between NPC interactions with same target NPC (2 hours) */
+const NPC_INTERACTION_COOLDOWN_MS = 2 * 60 * 60 * 1000;
+
+/**
+ * Check if an NPC can reply to another NPC (cooldown check)
+ */
+function canNPCReplyToNPC(replierNpcId: string, targetNpcId: string): boolean {
+  const key = `${replierNpcId}:${targetNpcId}`;
+  const lastInteraction = npcInteractionCooldowns.get(key);
+
+  if (!lastInteraction) return true;
+
+  const timeSince = Date.now() - lastInteraction.getTime();
+  return timeSince >= NPC_INTERACTION_COOLDOWN_MS;
+}
+
+/**
+ * Record an NPC-to-NPC interaction for cooldown tracking
+ */
+function recordNPCInteraction(replierNpcId: string, targetNpcId: string): void {
+  const key = `${replierNpcId}:${targetNpcId}`;
+  npcInteractionCooldowns.set(key, new Date());
+
+  // Clean up old entries (older than 24 hours) to prevent memory leak
+  const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  for (const [k, v] of npcInteractionCooldowns.entries()) {
+    if (v < oneDayAgo) {
+      npcInteractionCooldowns.delete(k);
+    }
+  }
+}
+
 // Minimal question type for post generation (only fields actually used)
 // outcome is optional - only used for arc plan signal direction, and the code handles missing outcome
 type QuestionForPost = Pick<Question, 'id' | 'text' | 'questionNumber'> & {
@@ -948,11 +986,21 @@ export async function generateNPCRepliesFromPreviousTicks(
   // 70% chance of reply, 30% chance of quote post for variety
   const discoursePromises = postsToReplyTo.map(async (originalPost) => {
     // Pick a random actor to engage (not the original author)
+    // Filter by cooldown to prevent repetitive interactions
     const availableEngagers = actors.filter(
-      (a) => a.id !== originalPost.authorId
+      (a) =>
+        a.id !== originalPost.authorId &&
+        canNPCReplyToNPC(a.id, originalPost.authorId)
     );
-    if (availableEngagers.length === 0)
+
+    if (availableEngagers.length === 0) {
+      logger.debug(
+        'No eligible engagers for post (all on cooldown or same author)',
+        { postAuthor: originalPost.authorName },
+        'PostGeneration'
+      );
       return { type: 'none' as const, success: false };
+    }
 
     const engager =
       availableEngagers[Math.floor(Math.random() * availableEngagers.length)];
@@ -963,8 +1011,9 @@ export async function generateNPCRepliesFromPreviousTicks(
     const shouldQuote =
       originalPost.commentOnPostId === null && Math.random() < 0.3;
 
+    let success = false;
     if (shouldQuote) {
-      const success = await generateNPCQuotePost(
+      success = await generateNPCQuotePost(
         llmClient,
         engager,
         originalPost,
@@ -972,9 +1021,8 @@ export async function generateNPCRepliesFromPreviousTicks(
         timestamp,
         currentDay
       );
-      return { type: 'quote' as const, success };
     } else {
-      const success = await generateNPCReplyToPost(
+      success = await generateNPCReplyToPost(
         llmClient,
         engager,
         originalPost,
@@ -982,8 +1030,26 @@ export async function generateNPCRepliesFromPreviousTicks(
         timestamp,
         currentDay
       );
-      return { type: 'reply' as const, success };
     }
+
+    // Record interaction for cooldown tracking if successful
+    if (success) {
+      recordNPCInteraction(engager.id, originalPost.authorId);
+      logger.debug(
+        'Recorded NPC interaction for cooldown',
+        {
+          replier: engager.name,
+          target: originalPost.authorName,
+          type: shouldQuote ? 'quote' : 'reply',
+        },
+        'PostGeneration'
+      );
+    }
+
+    return {
+      type: shouldQuote ? ('quote' as const) : ('reply' as const),
+      success,
+    };
   });
 
   const results = await Promise.allSettled(discoursePromises);
