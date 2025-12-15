@@ -913,6 +913,7 @@ QUALITY REQUIREMENTS:
 - Challenge assumptions if you see a flaw
 - Match the energy/tone of the conversation
 - Be authentic to your personality
+- If mentioning markets, use SHORT SUMMARIES (e.g., "the TeslAI bet") not full questions
 
 DO NOT WRITE:
 - Empty acknowledgments (agreeing without adding value)

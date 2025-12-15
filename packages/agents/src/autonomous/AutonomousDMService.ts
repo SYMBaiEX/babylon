@@ -113,6 +113,7 @@ Latest message from them:
 Task: Generate a helpful, friendly response (1-2 sentences).
 Be authentic to your personality.
 Keep it under 200 characters.
+If mentioning markets, use SHORT SUMMARIES (e.g., "the TeslAI bet") not full questions.
 
 Generate ONLY the response text, nothing else.`;
 
