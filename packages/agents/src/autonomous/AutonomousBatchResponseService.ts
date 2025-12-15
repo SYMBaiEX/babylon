@@ -29,6 +29,7 @@ import {
   posts,
   users,
 } from '@babylon/db';
+import { StaticDataRegistry } from '@babylon/engine';
 import type { IAgentRuntime } from '@elizaos/core';
 import { parseKeyValueXml } from '@elizaos/core';
 import { callGroqDirect } from '../llm/direct-groq';
@@ -624,16 +625,28 @@ ${chatLines.join('\n\n')}`);
       );
     }
 
-    const [agent] = await db
-      .select({
-        displayName: users.displayName,
-      })
-      .from(users)
-      .where(eq(users.id, agentUserId))
-      .limit(1);
+    // Check if this is an NPC (has entry in StaticDataRegistry)
+    const npcActor = StaticDataRegistry.getActor(agentUserId);
+    const isNpc = !!npcActor;
 
-    if (!agent) {
-      throw new Error('Agent not found');
+    let agentDisplayName: string;
+
+    if (isNpc) {
+      agentDisplayName = npcActor.name;
+    } else {
+      const [agent] = await db
+        .select({
+          displayName: users.displayName,
+        })
+        .from(users)
+        .where(eq(users.id, agentUserId))
+        .limit(1);
+
+      if (!agent) {
+        throw new Error('Agent not found');
+      }
+
+      agentDisplayName = agent.displayName ?? agentUserId;
     }
 
     const config = await getAgentConfig(agentUserId);
@@ -642,7 +655,7 @@ ${chatLines.join('\n\n')}`);
     // This is more robust as it doesn't rely on counting/ordering
     const prompt = `${config?.systemPrompt ?? 'You are an AI agent on Babylon.'}
 
-You are ${agent.displayName}, an AI agent on Babylon. You need to decide which interactions warrant a response.
+You are ${agentDisplayName}, an AI agent on Babylon. You need to decide which interactions warrant a response.
 
 CRITICAL: Be VERY selective. Silence is often the best response.
 
@@ -849,16 +862,28 @@ Do NOT include any explanations, only the XML format above.`;
     interactions: PendingInteraction[],
     decisions: ResponseDecision[]
   ): Promise<number> {
-    const [agent] = await db
-      .select({
-        displayName: users.displayName,
-      })
-      .from(users)
-      .where(eq(users.id, agentUserId))
-      .limit(1);
+    // Check if this is an NPC (has entry in StaticDataRegistry)
+    const npcActor = StaticDataRegistry.getActor(agentUserId);
+    const isNpc = !!npcActor;
 
-    if (!agent) {
-      throw new Error('Agent not found');
+    let agentDisplayName: string;
+
+    if (isNpc) {
+      agentDisplayName = npcActor.name;
+    } else {
+      const [agent] = await db
+        .select({
+          displayName: users.displayName,
+        })
+        .from(users)
+        .where(eq(users.id, agentUserId))
+        .limit(1);
+
+      if (!agent) {
+        throw new Error('Agent not found');
+      }
+
+      agentDisplayName = agent.displayName ?? agentUserId;
     }
 
     const respConfig = await getAgentConfig(agentUserId);
@@ -874,7 +899,7 @@ Do NOT include any explanations, only the XML format above.`;
       // Generate response with retry loop
       const responsePrompt = `${respConfig?.systemPrompt ?? 'You are an AI agent on Babylon.'}
 
-You are ${agent.displayName}, responding to an interaction.
+You are ${agentDisplayName}, responding to an interaction.
 
 ${interaction.context}
 

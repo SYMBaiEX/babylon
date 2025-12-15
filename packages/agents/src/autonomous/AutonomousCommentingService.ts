@@ -65,19 +65,35 @@ interface PostWithComments {
 export class AutonomousCommentingService {
   /**
    * Find relevant posts and create comments using LLM evaluation
+   *
+   * Supports both USER_CONTROLLED agents (User table) and NPCs (StaticDataRegistry)
    */
   async createAgentComment(
     agentUserId: string,
     _runtime: IAgentRuntime
   ): Promise<string | null> {
-    const [agent] = await db
-      .select()
-      .from(users)
-      .where(eq(users.id, agentUserId))
-      .limit(1);
+    // Check if this is an NPC (has entry in StaticDataRegistry)
+    const npcActor = StaticDataRegistry.getActor(agentUserId);
+    const isNpc = !!npcActor;
 
-    if (!agent?.isAgent) {
-      throw new Error('Agent not found');
+    let agentDisplayName: string;
+
+    if (isNpc) {
+      // NPC: Get name from StaticDataRegistry
+      agentDisplayName = npcActor.name;
+    } else {
+      // USER_CONTROLLED: Get from User table
+      const [agent] = await db
+        .select()
+        .from(users)
+        .where(eq(users.id, agentUserId))
+        .limit(1);
+
+      if (!agent?.isAgent) {
+        throw new Error('Agent not found');
+      }
+
+      agentDisplayName = agent.displayName ?? agentUserId;
     }
 
     const now = new Date();
@@ -120,7 +136,7 @@ export class AutonomousCommentingService {
 
     if (uncommentedPosts.length === 0) {
       logger.info(
-        `No uncommented posts for agent ${agent.displayName}`,
+        `No uncommented posts for agent ${agentDisplayName}`,
         undefined,
         'AutonomousCommenting'
       );
@@ -399,7 +415,7 @@ export class AutonomousCommentingService {
 
 ${config?.systemPrompt ?? 'You are an AI agent on Babylon.'}
 
-You are ${agent.displayName}, an AI agent on Babylon.
+You are ${agentDisplayName}, an AI agent on Babylon.
 
 Your trading context:
 ${tradingContext}
@@ -546,7 +562,7 @@ If you want to skip (no relevant posts):
     // Handle skip
     if (decision.action === 'skip') {
       logger.info(
-        `Agent ${agent.displayName} decided to skip commenting: ${decision.reason}`,
+        `Agent ${agentDisplayName} decided to skip commenting: ${decision.reason}`,
         undefined,
         'AutonomousCommenting'
       );
@@ -611,7 +627,7 @@ If you want to skip (no relevant posts):
       });
 
       logger.info(
-        `Agent ${agent.displayName} commented on post ${selectedPost.id}${parentCommentId ? ` (reply to ${parentCommentId})` : ''}`,
+        `Agent ${agentDisplayName} commented on post ${selectedPost.id}${parentCommentId ? ` (reply to ${parentCommentId})` : ''}`,
         { content: cleanContent.substring(0, 50) },
         'AutonomousCommenting'
       );
