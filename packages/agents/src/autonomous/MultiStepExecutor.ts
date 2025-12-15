@@ -7,7 +7,14 @@
  * Inspired by Otaku's multi-step pattern, adapted for Babylon prediction markets.
  */
 
-import { db, eq, perpPositions, positions, users } from '@babylon/db';
+import {
+  actorState,
+  db,
+  eq,
+  perpPositions,
+  positions,
+  users,
+} from '@babylon/db';
 import type { IAgentRuntime } from '@elizaos/core';
 import { callGroqDirect } from '../llm/direct-groq';
 import { getAgentConfig } from '../shared/agent-config';
@@ -118,7 +125,11 @@ export class MultiStepExecutor {
       );
 
       // Gather fresh context (state refreshes after each action)
-      const context = await this.gatherContext(agentUserId, enabledFeatures);
+      const context = await this.gatherContext(
+        agentUserId,
+        enabledFeatures,
+        isNpc
+      );
 
       // Build decision prompt
       // For NPCs, use agentUserId as the name (e.g., "aellai")
@@ -197,22 +208,47 @@ export class MultiStepExecutor {
 
   /**
    * Gather current context for decision making
+   *
+   * @param agentUserId - User ID for USER_CONTROLLED agents, or actorId for NPCs
+   * @param enabledFeatures - List of enabled features for this agent
+   * @param isNpc - Whether this is an NPC agent (uses ActorState instead of User)
    */
   private async gatherContext(
     agentUserId: string,
-    enabledFeatures: string[]
+    enabledFeatures: string[],
+    isNpc: boolean
   ): Promise<AgentTickContext> {
-    // Get agent balance and P&L
-    const [agent] = await db
-      .select({
-        virtualBalance: users.virtualBalance,
-        lifetimePnL: users.lifetimePnL,
-      })
-      .from(users)
-      .where(eq(users.id, agentUserId))
-      .limit(1);
+    let balance = 0;
+    let pnl = 0;
 
-    // Get open positions count
+    if (isNpc) {
+      // NPCs use ActorState table (no lifetimePnL tracking for NPCs)
+      const [actor] = await db
+        .select({
+          tradingBalance: actorState.tradingBalance,
+        })
+        .from(actorState)
+        .where(eq(actorState.id, agentUserId))
+        .limit(1);
+
+      balance = Number(actor?.tradingBalance ?? 10000);
+      pnl = 0; // NPCs don't track lifetimePnL
+    } else {
+      // USER_CONTROLLED agents use User table
+      const [agent] = await db
+        .select({
+          virtualBalance: users.virtualBalance,
+          lifetimePnL: users.lifetimePnL,
+        })
+        .from(users)
+        .where(eq(users.id, agentUserId))
+        .limit(1);
+
+      balance = Number(agent?.virtualBalance ?? 0);
+      pnl = Number(agent?.lifetimePnL ?? 0);
+    }
+
+    // Get open positions count (positions table uses userId for both User and NPC)
     const predPositions = await db
       .select()
       .from(positions)
@@ -239,8 +275,8 @@ export class MultiStepExecutor {
     const opportunities = await this.detectOpportunities(agentUserId);
 
     return {
-      balance: Number(agent?.virtualBalance ?? 0),
-      pnl: Number(agent?.lifetimePnL ?? 0),
+      balance,
+      pnl,
       openPositions: activePositions + openPerpPositions,
       pendingInteractions: pendingInteractions.length,
       pendingInteractionDetails: pendingInteractions.slice(0, 5).map((i) => ({
