@@ -154,7 +154,14 @@ ${formatAvailableActions(context.enabledFeatures)}
 2. **One Action**: Choose ONE action per iteration
 3. **No Duplicates**: Don't repeat the same action on the same target
 4. **Know When to Stop**: Set isFinish=true after 2-3 meaningful actions or when done
-5. **NEVER include raw IDs in post/comment content** - IDs are ONLY for parameters. In content, describe markets by their question or use natural language
+5. **NEVER include raw IDs or full market questions in post/comment content**
+   - IDs are ONLY for parameters
+   - In content, use SHORT SUMMARIES of markets, not full question text
+   
+   ❌ BAD POST: "Buying YES on 'Will Polymarket deploy its Sentient Market-Making AIs to artificially lower the price of BitcAIn below $120,000 within 5 days?'"
+   ✅ GOOD POST: "Loading up on the Polymarket BitcAIn manipulation bet"
+   ✅ GOOD POST: "Going long on the TeslAI readiness prediction"
+   ✅ GOOD POST: "Shorting OpenAGI here. This rally doesn't hold."
 
 # Output Format (JSON only, no markdown)
 {
@@ -186,7 +193,7 @@ TRADE (perp):
 
 POST:
 {
-  "content": "Your post content (1-2 sentences, engaging, specific - NO raw IDs, use market names/descriptions)"
+  "content": "Short post (1-2 sentences). NO full market questions! Use summaries like 'the TeslAI bet' or 'BitcAIn drop prediction'"
 }
 
 COMMENT:
