@@ -2,7 +2,6 @@
  * Agent Core Providers
  */
 
-export { actionsProvider } from './actions';
 export { actionStateProvider } from './action-state';
+export { actionsProvider } from './actions';
 export { recentMessagesProvider } from './recent-messages';
-

@@ -11,12 +11,12 @@
  */
 
 import type { Plugin } from '@elizaos/core';
-import { toggleAutonomyAction } from './actions/toggle-autonomy';
 import { checkAutonomyAction } from './actions/check-autonomy';
 import { createPostAction } from './actions/create-post';
+import { toggleAutonomyAction } from './actions/toggle-autonomy';
 import {
-  actionsProvider,
   actionStateProvider,
+  actionsProvider,
   recentMessagesProvider,
 } from './providers';
 
@@ -33,11 +33,11 @@ export const agentCorePlugin: Plugin = {
   providers: [actionsProvider, recentMessagesProvider, actionStateProvider],
 };
 
-// Export individual components
-export { toggleAutonomyAction } from './actions/toggle-autonomy';
+export * from './actions';
 export { checkAutonomyAction } from './actions/check-autonomy';
 export { createPostAction } from './actions/create-post';
-export * from './actions';
+// Export individual components
+export { toggleAutonomyAction } from './actions/toggle-autonomy';
 export * from './providers';
 export * from './types';
 

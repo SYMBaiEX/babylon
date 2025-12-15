@@ -293,7 +293,10 @@ export const POST = withErrorHandling(
         break;
       }
 
-      const { thought, action, parameters, isFinish } = parsedStep;
+      const thought = (parsedStep.thought as string) ?? '';
+      const action = (parsedStep.action as string) ?? '';
+      const parameters = parsedStep.parameters;
+      const isFinish = parsedStep.isFinish;
 
       // No action - go to summary phase
       if (!action || action === '') {
@@ -354,9 +357,15 @@ export const POST = withErrorHandling(
         );
 
         // Get result from state cache
-        const cachedState = (runtime as unknown as { stateCache?: Map<string, unknown> }).stateCache?.get(
-          `${elizaMessage.id}_action_results`
-        );
+        const cachedState = (
+          runtime as unknown as { stateCache?: Map<string, unknown> }
+        ).stateCache?.get(`${elizaMessage.id}_action_results`) as
+          | {
+              values?: {
+                actionResults?: Array<{ success?: boolean; text?: string }>;
+              };
+            }
+          | undefined;
         const actionResultsFromCache = cachedState?.values?.actionResults || [];
         const result =
           actionResultsFromCache.length > 0 ? actionResultsFromCache[0] : null;

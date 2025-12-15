@@ -11,8 +11,6 @@ import {
   generateTagsFromPost,
   storeTagsForPost,
 } from '@babylon/engine';
-import { logger } from '../../../../shared/logger';
-import { generateSnowflakeId } from '../../../../shared/snowflake';
 import type {
   Action,
   ActionResult,
@@ -21,6 +19,8 @@ import type {
   Memory,
   State,
 } from '@elizaos/core';
+import { logger } from '../../../../shared/logger';
+import { generateSnowflakeId } from '../../../../shared/snowflake';
 
 export interface CreatePostParams {
   content: string;
@@ -69,7 +69,7 @@ export const createPostAction: Action = {
       {
         name: 'Agent',
         content: {
-          text: 'I\'ll share my thoughts on BitcAIn...',
+          text: "I'll share my thoughts on BitcAIn...",
           actions: ['CREATE_POST'],
         },
       },
@@ -196,4 +196,3 @@ export const createPostAction: Action = {
     }
   },
 };
-

@@ -60,4 +60,3 @@ declare module '@elizaos/core' {
 export const AgentCoreServiceType = {
   AGENT_CORE: 'AGENT_CORE' as const,
 } satisfies Partial<ServiceTypeRegistry>;
-

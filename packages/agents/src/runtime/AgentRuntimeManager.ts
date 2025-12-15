@@ -269,7 +269,10 @@ export class AgentRuntimeManager {
       }): Promise<void> => {
         // No-op - Babylon uses its own logging
       },
-      createMemory: async (memory: unknown, _tableName?: string): Promise<UUID> => {
+      createMemory: async (
+        memory: unknown,
+        _tableName?: string
+      ): Promise<UUID> => {
         // No-op - Babylon uses its own DB for message storage
         // Return the memory ID or generate one
         const memoryObj = memory as { id?: string } | null;
@@ -570,7 +573,10 @@ export class AgentRuntimeManager {
       }): Promise<void> => {
         // No-op - Babylon uses its own logging
       },
-      createMemory: async (memory: unknown, _tableName?: string): Promise<UUID> => {
+      createMemory: async (
+        memory: unknown,
+        _tableName?: string
+      ): Promise<UUID> => {
         // No-op - Babylon uses its own DB for message storage
         // Return the memory ID or generate one
         const memoryObj = memory as { id?: string } | null;

@@ -4,8 +4,6 @@
  * Returns the current status of all autonomous features for the agent.
  */
 
-import { getAgentConfig } from '../../../../shared/agent-config';
-import { logger } from '../../../../shared/logger';
 import type {
   Action,
   ActionResult,
@@ -14,6 +12,8 @@ import type {
   Memory,
   State,
 } from '@elizaos/core';
+import { getAgentConfig } from '../../../../shared/agent-config';
+import { logger } from '../../../../shared/logger';
 import type { AutonomyStatus } from '../types';
 
 /**
@@ -162,4 +162,3 @@ export const checkAutonomyAction: Action = {
     }
   },
 };
-

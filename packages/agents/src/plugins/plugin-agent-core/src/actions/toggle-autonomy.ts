@@ -5,8 +5,6 @@
  * Uses agentService.updateAgent() for proper logging and cache management.
  */
 
-import { agentService } from '../../../../services/AgentService';
-import { logger } from '../../../../shared/logger';
 import type {
   Action,
   ActionResult,
@@ -15,6 +13,8 @@ import type {
   Memory,
   State,
 } from '@elizaos/core';
+import { agentService } from '../../../../services/AgentService';
+import { logger } from '../../../../shared/logger';
 import type {
   AutonomyFeature,
   AutonomyStatus,
@@ -204,7 +204,8 @@ export const toggleAutonomyAction: Action = {
       // Use agentService.updateAgent for proper logging and cache management
       await agentService.updateAgent(agentUserId, managerUserId, updates);
 
-      const featureDisplay = feature === 'all' ? 'all autonomous features' : `autonomous ${feature}`;
+      const featureDisplay =
+        feature === 'all' ? 'all autonomous features' : `autonomous ${feature}`;
       const statusDisplay = enabled ? 'enabled' : 'disabled';
 
       logger.info(
@@ -248,4 +249,3 @@ export const toggleAutonomyAction: Action = {
     }
   },
 };
-
