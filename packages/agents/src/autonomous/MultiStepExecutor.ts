@@ -78,7 +78,7 @@ export class MultiStepExecutor {
 
     // Get agent info (for USER_CONTROLLED agents)
     // NPCs don't have User records - they're validated by AgentRegistry
-    let agent: (typeof users.$inferSelect) | undefined;
+    let agent: typeof users.$inferSelect | undefined;
     if (!isNpc) {
       const [userAgent] = await db
         .select()
