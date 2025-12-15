@@ -83,6 +83,8 @@ export {
   OrganizationBehavior,
   type OrganizationType,
 } from './GameGenerator';
+// Game Loop (tick-based simulation orchestrator)
+export { GameLoop } from './GameLoop';
 // Game Simulator (standalone simulation engine)
 export {
   type GameConfig,
@@ -124,7 +126,6 @@ export {
   type GameTickResult as ExecuteGameTickResult,
   resolveQuestionPayouts,
 } from './game-tick';
-export { GameLoop } from './GameLoop'
 export {
   cleanMarkdownCodeBlocks,
   extractJsonFromText,
