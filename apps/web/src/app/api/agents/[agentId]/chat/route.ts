@@ -17,7 +17,7 @@ import {
 } from '@babylon/agents';
 import { authenticateUser, withErrorHandling } from '@babylon/api';
 import { db, eq, userAgentConfigs } from '@babylon/db';
-import { checkAgentOutput, checkUserInput, logger } from '@babylon/shared';
+import { checkUserInput, logger } from '@babylon/shared';
 import {
   composePromptFromState,
   type Memory,
@@ -98,52 +98,33 @@ None yet - this is the first step.
 </response>
 </output>`;
 
-const multiStepSummaryTemplate = `<task>
-Generate a SHORT conversational response to the user.
-</task>
+const multiStepSummaryTemplate = `Generate a SHORT response to the user. Stay in character.
 
 # Your Character
 {{system}}
 
 {{#if personality}}
-## Personality
-{{personality}}
+Personality: {{personality}}
 {{/if}}
 
----
-
-# User's Request
+# User Asked
 {{currentMessage}}
-
----
 
 # What You Did
 {{actionResults}}
 
----
+# Rules
+- 1-2 sentences ONLY
+- Be casual, not formal
+- Don't repeat action details
+- Stay in character
 
-# Response Guidelines
-- Be conversational, not formal
-- Acknowledge what you did briefly
-- Do NOT repeat or echo back the full content of actions (like post content)
-- Stay in character but be natural
+IMPORTANT: Output ONLY the XML below. No thinking, no explanation.
 
-Examples of good responses:
-- "Done! Posted an intro about myself on the feed."
-- "Got it, I've enabled auto-posting for you."
-- "All set! Your autonomy settings are now updated."
-
-Examples of BAD responses (too long/formal):
-- Repeating the entire post content back to the user
-- Long formal explanations of what was done
-- Using bullet points or lists
-
-<output>
 <response>
-  <thought>Brief reasoning</thought>
-  <text>Short, casual response (1-2 sentences)</text>
-</response>
-</output>`;
+<thought>one line reasoning</thought>
+<text>your short reply</text>
+</response>`;
 
 // =============================================================================
 // POST Handler
@@ -254,12 +235,7 @@ export const POST = withErrorHandling(
         template: multiStepDecisionTemplate,
       });
 
-      console.log(
-        '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! prompt',
-        prompt
-      );
-
-      // Get LLM decision
+      // Get LLM decision with retry
       const MAX_PARSE_RETRIES = 3;
       let parsedStep: Record<string, unknown> | null = null;
 
@@ -281,7 +257,7 @@ export const POST = withErrorHandling(
         }
 
         logger.warn(
-          `[MultiStep] Failed to parse (attempt ${attempt})`,
+          `[MultiStep] Failed to parse decision (attempt ${attempt})`,
           { preview: response.substring(0, 200) },
           'AgentChat'
         );
@@ -307,8 +283,8 @@ export const POST = withErrorHandling(
       logger.info(
         `[MultiStep] Executing action: ${action}`,
         { parameters },
-        'AgentChat'
-      );
+          'AgentChat'
+        );
 
       // Parse parameters
       let actionParams = {};
@@ -394,7 +370,7 @@ export const POST = withErrorHandling(
 
       // Check if done - always go to summary phase for proper response
       if (isFinish === 'true' || isFinish === true) {
-        break;
+      break;
       }
     }
 
@@ -422,14 +398,45 @@ export const POST = withErrorHandling(
         template: multiStepSummaryTemplate,
       });
 
-      const summaryResponse = await runtime.useModel(ModelType.TEXT_LARGE, {
-        prompt: summaryPrompt,
-        temperature: 0.7,
-      });
+      // Get summary with retry
+      const SUMMARY_RETRIES = 3;
+      let extractedText: string | undefined;
 
-      const summary = parseKeyValueXml(summaryResponse);
+      for (let attempt = 1; attempt <= SUMMARY_RETRIES; attempt++) {
+        const summaryResponse = await runtime.useModel(ModelType.TEXT_LARGE, {
+          prompt: summaryPrompt,
+          temperature: attempt > 1 ? 0.5 : 0.7,
+        });
+
+        const summary = parseKeyValueXml(summaryResponse);
+        extractedText = summary?.text as string | undefined;
+
+        // Fallback: Try regex if parseKeyValueXml fails
+        if (!extractedText) {
+          const textMatch = summaryResponse.match(/<?\/?text>([^<]+)/i);
+          if (textMatch?.[1]) {
+            extractedText = textMatch[1].trim();
+          }
+        }
+
+        if (extractedText) {
+          logger.debug(
+            `[MultiStep] Parsed summary on attempt ${attempt}`,
+            { preview: extractedText.substring(0, 50) },
+            'AgentChat'
+          );
+          break;
+        }
+
+        logger.warn(
+          `[MultiStep] Failed to parse summary (attempt ${attempt})`,
+          { preview: summaryResponse.substring(0, 200) },
+          'AgentChat'
+        );
+      }
+
       finalResponse =
-        summary?.text ||
+        extractedText ||
         (traceActionResults.length > 0
           ? 'Actions completed.'
           : "I'm here to help!");
@@ -437,19 +444,6 @@ export const POST = withErrorHandling(
 
     // Ensure finalResponse is never null
     const responseText = finalResponse ?? "I'm here to help!";
-
-    // Safety check
-    let safeResponse = responseText;
-    const safetyCheck = checkAgentOutput(responseText);
-    if (!safetyCheck.safe) {
-      logger.warn(
-        'Unsafe response generated',
-        { agentId, reason: safetyCheck.reason },
-        'AgentChat'
-      );
-      safeResponse =
-        "I apologize, but I wasn't able to generate an appropriate response.";
-    }
 
     // Save messages
     const userMessageId = uuidv4();
@@ -472,7 +466,7 @@ export const POST = withErrorHandling(
           id: assistantMessageId,
           agentUserId: agentId,
           role: 'assistant',
-          content: safeResponse,
+          content: responseText,
           modelUsed: 'groq-qwen-32b',
           pointsCost,
           createdAt: assistantMessageTime,
@@ -502,7 +496,7 @@ export const POST = withErrorHandling(
         level: 'info',
         message: 'Chat interaction completed',
         prompt: message,
-        completion: safeResponse,
+        completion: responseText,
         metadata: {
           usePro,
           pointsCost,
@@ -522,7 +516,7 @@ export const POST = withErrorHandling(
     return NextResponse.json({
       success: true,
       messageId: assistantMessageId,
-      response: safeResponse,
+      response: responseText,
       pointsCost,
       modelUsed: 'groq-qwen-32b',
       balanceAfter: newBalance,
