@@ -150,10 +150,11 @@ ${actionsCompletedText}
 ${formatAvailableActions(context.enabledFeatures)}
 
 # Decision Rules
-1. **Be Specific**: Provide exact IDs, amounts, and content in parameters
+1. **Be Specific**: Provide exact IDs (from "id: xxx") in parameters, amounts, and content
 2. **One Action**: Choose ONE action per iteration
 3. **No Duplicates**: Don't repeat the same action on the same target
 4. **Know When to Stop**: Set isFinish=true after 2-3 meaningful actions or when done
+5. **NEVER include raw IDs in post/comment content** - IDs are ONLY for parameters. In content, describe markets by their question or use natural language
 
 # Output Format (JSON only, no markdown)
 {
@@ -185,7 +186,7 @@ TRADE (perp):
 
 POST:
 {
-  "content": "Your post content (1-2 sentences, engaging, specific)"
+  "content": "Your post content (1-2 sentences, engaging, specific - NO raw IDs, use market names/descriptions)"
 }
 
 COMMENT:
@@ -241,10 +242,11 @@ function formatPredictionMarkets(markets: PredictionMarketContext[]): string {
   if (markets.length === 0) return 'No active prediction markets.';
 
   return markets
-    .map((m) => {
+    .map((m, idx) => {
       const yesPct = (m.yesPrice * 100).toFixed(0);
       const noPct = (m.noPrice * 100).toFixed(0);
-      return `- [${m.id}] "${m.question.substring(0, 60)}${m.question.length > 60 ? '...' : ''}"
+      // Use short index for display, store real ID for parameters
+      return `- Market #${idx + 1} (id: ${m.id}): "${m.question.substring(0, 60)}${m.question.length > 60 ? '...' : ''}"
     YES: ${yesPct}% | NO: ${noPct}% | Ends: ${m.endDate}`;
     })
     .join('\n');
@@ -267,8 +269,9 @@ function formatRecentPosts(posts: PostContext[]): string {
 
   return posts
     .map(
-      (p) =>
-        `- [${p.id}] @${p.authorName} (${p.timeAgo}): "${p.content.substring(0, 80)}${p.content.length > 80 ? '...' : ''}" (${p.commentCount} comments)`
+      (p, idx) =>
+        // Use short index for display, store real ID for parameters
+        `- Post #${idx + 1} (id: ${p.id}) @${p.authorName} (${p.timeAgo}): "${p.content.substring(0, 80)}${p.content.length > 80 ? '...' : ''}" (${p.commentCount} comments)`
     )
     .join('\n');
 }

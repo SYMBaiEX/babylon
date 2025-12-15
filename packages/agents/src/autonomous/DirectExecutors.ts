@@ -180,11 +180,12 @@ async function executePredictionTrade(params: {
         })
         .where(eq(actorState.id, agentUserId));
     } else {
+      const sharesRounded = Math.round(calculation.sharesBought * 100) / 100;
       await WalletService.debit(
         agentUserId,
         amount,
         'pred_buy',
-        `Bought ${calculation.sharesBought} ${isBuyYes ? 'YES' : 'NO'} shares: ${market.question}`,
+        `Bought ${sharesRounded} ${isBuyYes ? 'YES' : 'NO'} shares: ${market.question}`,
         market.id
       );
     }
@@ -260,9 +261,11 @@ async function executePredictionTrade(params: {
     reasoning,
   });
 
+  const sharesRounded = Math.round(result.calculation.sharesBought * 100) / 100;
+
   logger.info(
     `[DirectExecutor] Prediction trade executed: ${isBuyYes ? 'YES' : 'NO'} on ${market.question.substring(0, 50)}`,
-    { shares: result.calculation.sharesBought },
+    { shares: sharesRounded },
     'DirectExecutors'
   );
 
@@ -270,7 +273,7 @@ async function executePredictionTrade(params: {
     success: true,
     marketId: market.id,
     side: isBuyYes ? 'YES' : 'NO',
-    shares: result.calculation.sharesBought,
+    shares: sharesRounded,
   };
 }
 
