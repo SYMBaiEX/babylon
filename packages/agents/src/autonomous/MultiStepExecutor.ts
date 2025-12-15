@@ -19,9 +19,9 @@ import { autonomousTradingService } from './AutonomousTradingService';
 import {
   type ActionTraceResult,
   type AgentTickContext,
+  buildMultiStepDecisionPrompt,
   type MarketOpportunity,
   type MultiStepDecision,
-  buildMultiStepDecisionPrompt,
 } from './templates/multi-step-decision';
 
 // =============================================================================
@@ -206,9 +206,7 @@ export class MultiStepExecutor {
     const perpPositionsList = await db
       .select()
       .from(perpPositions)
-      .where(
-        eq(perpPositions.userId, agentUserId)
-      );
+      .where(eq(perpPositions.userId, agentUserId));
     const openPerpPositions = perpPositionsList.filter(
       (p) => p.closedAt === null
     ).length;
@@ -371,9 +369,10 @@ export class MultiStepExecutor {
           return {
             actionType: 'TRADE',
             success: tradeResult.tradesExecuted > 0,
-            summary: tradeResult.tradesExecuted > 0
-              ? `Executed ${tradeResult.tradesExecuted} trade(s) on ${tradeResult.marketType || 'market'}`
-              : 'Decided to hold - no trade executed',
+            summary:
+              tradeResult.tradesExecuted > 0
+                ? `Executed ${tradeResult.tradesExecuted} trade(s) on ${tradeResult.marketType || 'market'}`
+                : 'Decided to hold - no trade executed',
             result: {
               tradesExecuted: tradeResult.tradesExecuted,
               marketId: tradeResult.marketId,
@@ -393,7 +392,9 @@ export class MultiStepExecutor {
           return {
             actionType: 'POST',
             success: !!postId,
-            summary: postId ? `Created post ${postId}` : 'Failed to create post',
+            summary: postId
+              ? `Created post ${postId}`
+              : 'Failed to create post',
             result: postId ? { postId } : undefined,
             parameters,
             timestamp: Date.now(),
@@ -419,11 +420,10 @@ export class MultiStepExecutor {
         }
 
         case 'RESPOND': {
-          const responses =
-            await autonomousBatchResponseService.processBatch(
-              agentUserId,
-              runtime
-            );
+          const responses = await autonomousBatchResponseService.processBatch(
+            agentUserId,
+            runtime
+          );
           return {
             actionType: 'RESPOND',
             success: responses > 0,
@@ -514,7 +514,9 @@ export class MultiStepExecutor {
       }
     }
 
-    const hasSuccessfulActions = trace.some((r) => r.success && r.actionType !== 'WAIT');
+    const hasSuccessfulActions = trace.some(
+      (r) => r.success && r.actionType !== 'WAIT'
+    );
 
     return {
       success: hasSuccessfulActions,

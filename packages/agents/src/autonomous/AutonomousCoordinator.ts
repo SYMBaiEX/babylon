@@ -22,8 +22,8 @@ import { logger } from '../shared/logger';
 
 // Import services
 import { autonomousGroupChatService } from './AutonomousGroupChatService';
-import { multiStepExecutor } from './MultiStepExecutor';
 import { autonomousPlanningCoordinator } from './AutonomousPlanningCoordinator';
+import { multiStepExecutor } from './MultiStepExecutor';
 
 export interface AutonomousTickResult {
   success: boolean;
