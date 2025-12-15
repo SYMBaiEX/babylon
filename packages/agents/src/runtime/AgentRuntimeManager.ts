@@ -413,7 +413,12 @@ export class AgentRuntimeManager {
     };
 
     // Create runtime with standard plugins
-    return this.createRuntimeWithPlugins(registration.agentId, character);
+    // Pass userId for Babylon integration (User table lookup)
+    return this.createRuntimeWithPlugins(
+      registration.agentId,
+      character,
+      registration.userId
+    );
   }
 
   /**
@@ -490,10 +495,15 @@ export class AgentRuntimeManager {
   /**
    * Create AgentRuntime with standard plugin configuration
    * Shared logic for all agent types
+   *
+   * @param agentId - The agent's unique identifier (used for Eliza runtime)
+   * @param character - Character configuration
+   * @param userId - Optional User table ID for USER_CONTROLLED agents (used for Babylon integration)
    */
   private async createRuntimeWithPlugins(
     agentId: string,
-    character: Character
+    character: Character,
+    userId?: string
   ): Promise<AgentRuntime> {
     // Database configuration
     const dbPort = process.env.POSTGRES_DEV_PORT || 5432;
@@ -562,7 +572,9 @@ export class AgentRuntimeManager {
     await Promise.all(pluginRegistrationPromises);
 
     // Wrap and enhance with Babylon plugin
-    await this.enhanceWithBabylon(runtime, agentId, trajectoryLogger);
+    // Use userId for USER_CONTROLLED agents (User table lookup), agentId for NPCs
+    const babylonAgentId = userId || agentId;
+    await this.enhanceWithBabylon(runtime, babylonAgentId, trajectoryLogger);
 
     // Store trajectory logger reference on runtime
     runtime.trajectoryLogger = trajectoryLogger;
