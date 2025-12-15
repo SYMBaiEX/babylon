@@ -563,7 +563,9 @@ export class GameBootstrapService {
     const now = new Date();
     const defaultFundingRate = {
       rate: 0.01, // 1% APR base
-      nextFundingTime: new Date(now.getTime() + 8 * 60 * 60 * 1000).toISOString(), // 8 hours
+      nextFundingTime: new Date(
+        now.getTime() + 8 * 60 * 60 * 1000
+      ).toISOString(), // 8 hours
       predictedRate: 0.01,
     };
 
@@ -573,8 +575,7 @@ export class GameBootstrapService {
       }
 
       // Use current price from state, or initial price, or default
-      const currentPrice =
-        priceMap.get(org.id) ?? org.initialPrice ?? 100;
+      const currentPrice = priceMap.get(org.id) ?? org.initialPrice ?? 100;
 
       await db.insert(perpMarketSnapshots).values({
         ticker: org.ticker,
