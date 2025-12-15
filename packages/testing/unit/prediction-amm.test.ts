@@ -100,8 +100,8 @@ describe('PredictionPricing CPMM', () => {
       const initialYesPrice = 500 / 1000; // 0.5
 
       expect(result.newYesPrice).toBeLessThan(initialYesPrice);
-      // Price impact is positive (slippage against you) when selling
-      expect(result.priceImpact).toBeGreaterThan(0);
+      // Price impact is negative when selling YES (price decreases)
+      expect(result.priceImpact).toBeLessThan(0);
     });
 
     test('larger trades have larger price impact', () => {
