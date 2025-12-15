@@ -364,12 +364,39 @@ ${contextString}`;
     let lastSide: string | undefined;
     let lastMarketType: 'prediction' | 'perp' | undefined;
 
+    // Cap trade amount to available balance (prevent runaway agents)
+    const availableBalance = Number(balance.balance);
+    if (trade.amount > availableBalance) {
+      logger.warn(
+        `[AutonomousTrading] Trade amount capped: $${trade.amount} -> $${availableBalance}`,
+        { agentUserId, isNpc },
+        'AutonomousTrading'
+      );
+      trade.amount = availableBalance;
+    }
+
+    // Reject if insufficient funds
+    if (trade.amount < 1) {
+      logger.info(
+        `[AutonomousTrading] Insufficient balance for trade`,
+        { agentUserId, balance: availableBalance },
+        'AutonomousTrading'
+      );
+      return {
+        tradesExecuted: 0,
+        marketId: undefined,
+        ticker: undefined,
+        side: undefined,
+        marketType: undefined,
+      };
+    }
+
     // Execute the trade based on type
     if (trade.type === 'prediction' && predictionMarkets.length > 0) {
       const market = predictionMarkets.find(
         (m) => m.id === trade.market || m.question.includes(trade.market)
       );
-      if (market && trade.amount <= Number(balance.balance)) {
+      if (market && trade.amount <= availableBalance) {
         if (trade.action === 'buy_yes' || trade.action === 'buy_no') {
           const side = trade.action === 'buy_yes';
 
@@ -503,7 +530,7 @@ ${contextString}`;
           o.id === trade.market ||
           o.ticker === trade.market
       );
-      if (org && trade.amount <= Number(balance.balance)) {
+      if (org && trade.amount <= availableBalance) {
         if (trade.action === 'open_long' || trade.action === 'open_short') {
           const side = trade.action === 'open_long' ? 'long' : 'short';
           // Use org.ticker for PerpMarketSnapshot lookup, fallback to org.name
