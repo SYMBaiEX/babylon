@@ -23,6 +23,22 @@ import { getAgentConfig } from '../shared/agent-config';
 import { logger } from '../shared/logger';
 import { generateSnowflakeId } from '../shared/snowflake';
 
+/**
+ * Format relative time for recent posts (e.g., "2h ago", "15m ago")
+ */
+function getTimeAgo(date: Date): string {
+  const now = Date.now();
+  const diffMs = now - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+
+  if (diffMins < 1) return 'just now';
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  return `${diffDays}d ago`;
+}
+
 export class AutonomousPostingService {
   /**
    * Generate and create a post for an agent
@@ -72,11 +88,15 @@ export class AutonomousPostingService {
       .limit(5);
 
     const recentPosts = await db
-      .select()
+      .select({
+        id: posts.id,
+        content: posts.content,
+        createdAt: posts.createdAt,
+      })
       .from(posts)
       .where(eq(posts.authorId, agentUserId))
       .orderBy(desc(posts.createdAt))
-      .limit(3);
+      .limit(5);
 
     // Get random market context for variety
     const marketContext = await generateRandomMarketContext({
@@ -102,7 +122,9 @@ You are ${agentDisplayName}, an AI agent in the Babylon prediction market commun
 Your recent activity:
 ${recentTrades.length > 0 ? `- Recent trades: ${JSON.stringify(recentTrades.map((t) => ({ action: t.action, ticker: t.ticker, pnl: t.pnl })))}` : '- No recent trades'}
 - Your P&L: ${agentLifetimePnL}
-- Last ${recentPosts.length} posts: ${recentPosts.map((p) => p.content).join('; ')}
+
+YOUR RECENT POSTS (avoid repeating themes/openings):
+${recentPosts.length > 0 ? recentPosts.map((p, i) => `[${i + 1}] "${p.content}" (${getTimeAgo(p.createdAt)})`).join('\n') : 'No recent posts'}
 
 WORLD CONTEXT:
 ${worldContext.worldActors}
@@ -238,17 +260,27 @@ FINAL REQUIREMENTS:
 - Valuable to the community
 
 CRITICAL SCORING CHECK:
-1. Review your last 3 posts below - note their opening words and structure
+1. Review YOUR RECENT POSTS above - note their opening words and structure
 2. Pick a DIFFERENT strategy and opening than you've used recently
 3. Mentally calculate your score using the rubric above
 4. TARGET: 90+ points (must get variation bonuses!)
 5. If below 70 points, try a completely different approach
 6. NEVER post anything with banned patterns (-100 pts = instant fail)
+7. NEVER repeat the same topic/market you just posted about
 ${contextString}
 
 # Required Output Format (use exactly this structure)
+
+To post:
 <response>
+<action>post</action>
 <text>your post content here</text>
+</response>
+
+To skip (if you've recently covered this topic or have nothing new to add):
+<response>
+<action>skip</action>
+<reason>brief reason why you're skipping</reason>
 </response>`;
 
     // Ensure prompt fits within 32K context limit (W&B trained models)
@@ -276,7 +308,7 @@ ${contextString}
       try {
         const isRetry = attempt > 1;
         const currentPrompt = isRetry
-          ? `${finalPrompt}\n\nREMINDER: You MUST output valid XML. Start with <response> and include <text> with your post content. No <think> tags.`
+          ? `${finalPrompt}\n\nREMINDER: You MUST output valid XML. Start with <response>, include <action> (post or skip), and <text> for posts. No <think> tags.`
           : finalPrompt;
 
         const postContent = await callGroqDirect({
@@ -309,8 +341,23 @@ ${contextString}
 
         // Parse the extracted XML response
         const parsed = parseKeyValueXml(responseMatch[0]) as {
+          action?: string;
           text?: string;
+          reason?: string;
         } | null;
+
+        // Check if agent chose to skip
+        if (parsed?.action === 'skip') {
+          logger.info(
+            `Agent ${agentDisplayName} chose to skip posting`,
+            {
+              agentUserId,
+              reason: parsed.reason || 'No reason given',
+            },
+            'AutonomousPosting'
+          );
+          return null;
+        }
 
         // Check if we got valid text
         if (!parsed?.text || parsed.text.trim().length === 0) {
