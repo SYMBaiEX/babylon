@@ -11,7 +11,7 @@
 
 import type { Message, Task } from '@a2a-js/sdk';
 import { A2AClient } from '@a2a-js/sdk/client';
-import { db } from '@babylon/db';
+import { db, executeRaw, sql } from '@babylon/db';
 import type { AgentRuntime, Plugin } from '@elizaos/core';
 import { agentWalletService } from '../../identity/AgentWalletService';
 import { logger } from '../../shared/logger';
@@ -45,6 +45,7 @@ const AGENT_IDENTITY_MAX_SIZE = 10000;
 /**
  * Get agent identity from cache or database
  * Optimized for high concurrency with lazy refresh
+ * Supports both USER_CONTROLLED agents (User table) and NPCs (Actor table)
  */
 async function getCachedAgentIdentity(
   agentUserId: string
@@ -57,8 +58,8 @@ async function getCachedAgentIdentity(
     return cached;
   }
 
-  // Fetch from database
-  const agent = await db.user.findUnique({
+  // First try User table (USER_CONTROLLED agents)
+  const user = await db.user.findUnique({
     where: { id: agentUserId },
     select: {
       id: true,
@@ -69,18 +70,50 @@ async function getCachedAgentIdentity(
     },
   });
 
-  if (!agent || !agent.isAgent) {
-    return null;
+  if (user && user.isAgent) {
+    const identity: CachedAgentIdentity = {
+      agentUserId,
+      walletAddress: user.walletAddress,
+      agent0TokenId: user.agent0TokenId,
+      displayName: user.displayName,
+      cachedAt: now,
+    };
+
+    cacheIdentity(agentUserId, identity);
+    return identity;
   }
 
-  const identity: CachedAgentIdentity = {
-    agentUserId,
-    walletAddress: agent.walletAddress,
-    agent0TokenId: agent.agent0TokenId,
-    displayName: agent.displayName,
-    cachedAt: now,
-  };
+  // Fall back to Actor table (NPC agents) using raw SQL
+  // Actor table is a legacy table not in Drizzle schema
+  const actorResult = await executeRaw<{ id: string; name: string }>(
+    sql`SELECT id, name FROM "Actor" WHERE id = ${agentUserId} LIMIT 1`
+  );
 
+  const actor = actorResult[0];
+  if (actor) {
+    // NPCs don't have wallets or tokens - create minimal identity
+    const identity: CachedAgentIdentity = {
+      agentUserId,
+      walletAddress: null,
+      agent0TokenId: null,
+      displayName: actor.name,
+      cachedAt: now,
+    };
+
+    cacheIdentity(agentUserId, identity);
+    return identity;
+  }
+
+  return null;
+}
+
+/**
+ * Helper to cache identity with LRU eviction
+ */
+function cacheIdentity(
+  agentUserId: string,
+  identity: CachedAgentIdentity
+): void {
   // LRU eviction if at capacity
   if (AGENT_IDENTITY_CACHE.size >= AGENT_IDENTITY_MAX_SIZE) {
     const oldestKey = AGENT_IDENTITY_CACHE.keys().next().value;
@@ -90,7 +123,6 @@ async function getCachedAgentIdentity(
   }
 
   AGENT_IDENTITY_CACHE.set(agentUserId, identity);
-  return identity;
 }
 
 /**
