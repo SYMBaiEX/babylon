@@ -6,143 +6,149 @@
  * @access Authenticated (owner only)
  *
  * @description
- * Real-time chat interface with autonomous agents. Agents respond using
- * their configured personality, system prompts, and conversation history.
- * Includes content safety checks, automatic retry logic, and points-based
- * usage tracking.
- *
- * @openapi
- * /api/agents/{agentId}/chat:
- *   post:
- *     tags:
- *       - Agents
- *     summary: Send message to agent
- *     description: Initiates chat interaction with agent (owner only)
- *     security:
- *       - PrivyAuth: []
- *     parameters:
- *       - in: path
- *         name: agentId
- *         required: true
- *         schema:
- *           type: string
- *         description: Agent user ID
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - message
- *             properties:
- *               message:
- *                 type: string
- *                 maxLength: 1000
- *               usePro:
- *                 type: boolean
- *                 description: Use pro-tier model
- *     responses:
- *       200:
- *         description: Agent responded successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                 messageId:
- *                   type: string
- *                 response:
- *                   type: string
- *                 pointsCost:
- *                   type: number
- *                 modelUsed:
- *                   type: string
- *                 balanceAfter:
- *                   type: number
- *       401:
- *         description: Unauthorized
- *       403:
- *         description: Not agent owner
- *       404:
- *         description: Agent not found
- *   get:
- *     tags:
- *       - Agents
- *     summary: Get chat history
- *     description: Returns conversation history with agent (owner only)
- *     security:
- *       - PrivyAuth: []
- *     parameters:
- *       - in: path
- *         name: agentId
- *         required: true
- *         schema:
- *           type: string
- *         description: Agent user ID
- *       - in: query
- *         name: limit
- *         schema:
- *           type: integer
- *         description: Maximum messages to return
- *     responses:
- *       200:
- *         description: Chat history retrieved successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 messages:
- *                   type: array
- *       401:
- *         description: Unauthorized
- *       403:
- *         description: Not agent owner
- *       404:
- *         description: Agent not found
- *
- * @example
- * ```typescript
- * // Send message
- * const response = await fetch(`/api/agents/${agentId}/chat`, {
- *   method: 'POST',
- *   headers: { 'Authorization': `Bearer ${token}` },
- *   body: JSON.stringify({ message: 'Hello!' })
- * });
- *
- * // Get history
- * const { messages } = await fetch(`/api/agents/${agentId}/chat`, {
- *   headers: { 'Authorization': `Bearer ${token}` }
- * }).then(r => r.json());
- * ```
+ * Real-time chat interface with autonomous agents using multi-step execution.
+ * Uses runtime.composeState() for providers and runtime.processActions() for execution.
  */
 
-import { agentRuntimeManager, agentService } from '@babylon/agents';
+import {
+  type ActionTraceResult,
+  agentRuntimeManager,
+  agentService,
+} from '@babylon/agents';
 import { authenticateUser, withErrorHandling } from '@babylon/api';
 import { db, eq, userAgentConfigs } from '@babylon/db';
 import { checkAgentOutput, checkUserInput, logger } from '@babylon/shared';
-import { ModelType, parseKeyValueXml } from '@elizaos/core';
+import {
+  composePromptFromState,
+  type Memory,
+  ModelType,
+  parseKeyValueXml,
+  type State,
+} from '@elizaos/core';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
 
-/**
- * POST /api/agents/[agentId]/chat
- *
- * Sends a message to an autonomous agent and receives a response. Validates input safety,
- * checks agent ownership, deducts points, generates agent response using LLM, checks output
- * safety, and stores conversation history. Supports both standard and pro-tier models.
- *
- * @param req - Next.js request containing message content and optional usePro flag
- * @param params - Route parameters with agentId
- * @returns Agent response with message ID, content, points cost, model used, and balance
- * @throws {400} Invalid message content, unsafe input, or insufficient points
- * @throws {401} Unauthorized
- * @throws {404} Agent not found or user doesn't own agent
- */
+// =============================================================================
+// Multi-Step Decision Template
+// =============================================================================
+
+const multiStepDecisionTemplate = `<task>
+Determine the next step to take in this conversation.
+</task>
+
+# Your Character
+{{system}}
+
+{{#if personality}}
+## Personality
+{{personality}}
+{{/if}}
+
+{{#if tradingStrategy}}
+## Trading Strategy
+{{tradingStrategy}}
+{{/if}}
+
+---
+
+# Conversation History
+{{recentMessages}}
+
+---
+
+# Current User Message
+{{currentMessage}}
+
+---
+
+# Execution Context
+Step {{iterationCount}} of {{maxIterations}}
+Actions taken this round: {{actionCount}}
+
+---
+
+{{actionsWithParams}}
+
+---
+
+# Actions Already Completed This Round
+{{#if actionCount}}
+{{actionResults}}
+{{else}}
+None yet - this is the first step.
+{{/if}}
+
+---
+
+# Decision Rules
+1. **User wants to enable/disable a feature?** → Use TOGGLE_AUTONOMY action
+2. **User wants to check autonomy status?** → Use CHECK_AUTONOMY action
+3. **Just chatting or question?** → Set action to "" and isFinish to true
+4. **Action completed?** → Set action to "" and isFinish to true
+5. **Multiple features requested?** → Execute one at a time
+6. **Never repeat** the same action with same parameters
+
+<output>
+<response>
+  <thought>What does user want? What should I do?</thought>
+  <action>ACTION_NAME or "" if done/no action</action>
+  <parameters>JSON parameters or {}</parameters>
+  <isFinish>true or false</isFinish>
+</response>
+</output>`;
+
+const multiStepSummaryTemplate = `<task>
+Generate a SHORT conversational response to the user.
+</task>
+
+# Your Character
+{{system}}
+
+{{#if personality}}
+## Personality
+{{personality}}
+{{/if}}
+
+---
+
+# User's Request
+{{currentMessage}}
+
+---
+
+# What You Did
+{{actionResults}}
+
+---
+
+# Response Guidelines
+- Be conversational, not formal
+- Acknowledge what you did briefly
+- Do NOT repeat or echo back the full content of actions (like post content)
+- Stay in character but be natural
+
+Examples of good responses:
+- "Done! Posted an intro about myself on the feed."
+- "Got it, I've enabled auto-posting for you."
+- "All set! Your autonomy settings are now updated."
+
+Examples of BAD responses (too long/formal):
+- Repeating the entire post content back to the user
+- Long formal explanations of what was done
+- Using bullet points or lists
+
+<output>
+<response>
+  <thought>Brief reasoning</thought>
+  <text>Short, casual response (1-2 sentences)</text>
+</response>
+</output>`;
+
+// =============================================================================
+// POST Handler
+// =============================================================================
+
 export const POST = withErrorHandling(
   async (
     req: NextRequest,
@@ -151,11 +157,11 @@ export const POST = withErrorHandling(
     const { agentId } = await params;
     logger.info('Agent chat endpoint hit', { agentId }, 'AgentChat');
 
-    const body = (await req.json()) as { message: string; usePro: boolean };
+    const body = (await req.json()) as { message: string; usePro?: boolean };
     const message = body.message;
-    const usePro = body.usePro;
+    const usePro = body.usePro ?? false;
 
-    // Validate and block unsafe input
+    // Validate input
     const inputCheck = checkUserInput(message);
     if (!inputCheck.safe) {
       logger.warn(
@@ -171,7 +177,7 @@ export const POST = withErrorHandling(
 
     const user = await authenticateUser(req);
 
-    // Verify user owns this agent before allowing chat
+    // Verify ownership
     const agentWithConfig = await agentService.getAgentWithConfig(
       agentId,
       user.id
@@ -182,12 +188,9 @@ export const POST = withErrorHandling(
         { status: 404 }
       );
     }
-    const agent = agentWithConfig;
     const agentConfig = agentWithConfig.agentConfig;
 
-    const pointsCost = usePro ? 1 : 1;
-
-    // Deduct points before generating response
+    const pointsCost = 1;
     const newBalance = await agentService.deductPoints(
       agentId,
       pointsCost,
@@ -195,140 +198,255 @@ export const POST = withErrorHandling(
       undefined
     );
 
-    // Fetch conversation history BEFORE saving the new message (to avoid duplicates)
-    const recentMessages = await db.agentMessage.findMany({
-      where: { agentUserId: agentId },
-      orderBy: { createdAt: 'desc' },
-      take: 10,
-      select: {
-        role: true,
-        content: true,
-        createdAt: true,
-      },
-    });
-
-    // Build conversation history and append the current user message
-    const historyPart = recentMessages
-      .reverse()
-      .map((m) => {
-        const speaker = m.role === 'user' ? 'User' : agent.displayName;
-        return `${speaker}: ${m.content}`;
-      })
-      .join('\n');
-
-    const conversationHistory = historyPart
-      ? `${historyPart}\nUser: ${message}`
-      : `User: ${message}`;
-
-    // Prepare runtime
+    // Get runtime
     const runtime = await agentRuntimeManager.getRuntime(agentId);
 
-    // Always use qwen 32b (TEXT_LARGE) - free chat, 1pt per tick
-    const modelType = ModelType.TEXT_LARGE;
-    const MAX_TOKENS = 200;
+    // Create message object for ElizaOS
+    const elizaMessage: Memory = {
+      id: uuidv4() as `${string}-${string}-${string}-${string}-${string}`,
+      entityId: user.id as `${string}-${string}-${string}-${string}-${string}`,
+      roomId: agentId as `${string}-${string}-${string}-${string}-${string}`,
+      content: { text: message },
+      createdAt: Date.now(),
+    };
 
-    const prompt = `CRITICAL: You have only ${MAX_TOKENS} tokens. Your response MUST start with <response> immediately. No <think> tags. No reasoning.
+    // Multi-step execution
+    const MAX_ITERATIONS = 3;
+    const traceActionResults: ActionTraceResult[] = [];
+    let finalResponse: string | null = null;
 
-# System
-${agentConfig?.systemPrompt ?? 'You are a helpful AI assistant.'}
+    for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
+      logger.info(
+        `[MultiStep] Iteration ${iteration}/${MAX_ITERATIONS}`,
+        { agentId, actionsCompleted: traceActionResults.length },
+        'AgentChat'
+      );
 
-# Conversation
-${conversationHistory}
+      // Compose state with providers
+      const state: State = await runtime.composeState(elizaMessage, [
+        'RECENT_MESSAGES',
+        'ACTION_STATE',
+        'ACTIONS',
+      ]);
 
-# Task
-Generate ${agent.displayName}'s response. Stay in character.
+      // Add custom values to state
+      state.values = {
+        ...state.values,
+        agentId, // Pass agentId for actions that need it
+        system: agentConfig?.systemPrompt ?? 'You are a helpful AI assistant.',
+        personality: agentConfig?.personality ?? '',
+        tradingStrategy: agentConfig?.tradingStrategy ?? '',
+        currentMessage: message,
+        iterationCount: iteration,
+        maxIterations: MAX_ITERATIONS,
+        actionCount: traceActionResults.length,
+      };
 
-# Required Output Format (use exactly this structure)
-<response>
-<text>your message to user</text>
-</response>`;
+      // Add action results to state data
+      state.data = {
+        ...state.data,
+        actionResults: traceActionResults,
+      };
 
-    // Generate response with retry loop (max 3 attempts)
-    const MAX_ATTEMPTS = 3;
-    let response: string | null = null;
-
-    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-      const isRetry = attempt > 1;
-      const currentPrompt = isRetry
-        ? `${prompt}\n\nIMPORTANT: Keep your response professional, helpful, and appropriate. No profanity or inappropriate content.\n\nREMINDER: You MUST output valid XML. Start with <response> and include <text> with your message.`
-        : prompt;
-
-      const generated = await runtime.useModel(modelType, {
-        prompt: currentPrompt,
-        temperature: isRetry ? 0.6 : 0.8,
-        maxTokens: MAX_TOKENS,
+      // Build prompt from template
+      const prompt = composePromptFromState({
+        state,
+        template: multiStepDecisionTemplate,
       });
 
-      // Extract <response>...</response> block before parsing
-      const responseMatch = generated.match(
-        /<response>([\s\S]*?)<\/response>/i
+      console.log(
+        '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! prompt',
+        prompt
       );
-      if (!responseMatch) {
+
+      // Get LLM decision
+      const MAX_PARSE_RETRIES = 3;
+      let parsedStep: Record<string, unknown> | null = null;
+
+      for (let attempt = 1; attempt <= MAX_PARSE_RETRIES; attempt++) {
+        const response = await runtime.useModel(ModelType.TEXT_LARGE, {
+          prompt,
+          temperature: attempt > 1 ? 0.5 : 0.7,
+        });
+
+        parsedStep = parseKeyValueXml(response);
+
+        if (parsedStep) {
+          logger.debug(
+            `[MultiStep] Parsed decision on attempt ${attempt}`,
+            { action: parsedStep.action, isFinish: parsedStep.isFinish },
+            'AgentChat'
+          );
+          break;
+        }
+
         logger.warn(
-          'No <response> block found',
-          { agentId, attempt, raw: generated.substring(0, 300) },
+          `[MultiStep] Failed to parse (attempt ${attempt})`,
+          { preview: response.substring(0, 200) },
           'AgentChat'
         );
-        continue;
       }
 
-      // Parse the extracted XML response
-      const parsed = parseKeyValueXml(responseMatch[0]) as {
-        text?: string;
-      } | null;
+      if (!parsedStep) {
+        finalResponse =
+          "I'm having trouble processing your request. Could you try rephrasing?";
+        break;
+      }
 
-      // Check if we got valid text
-      if (!parsed?.text || parsed.text.trim().length === 0) {
-        logger.warn(
-          'Failed to parse XML response',
-          { agentId, attempt, raw: generated.substring(0, 300) },
-          'AgentChat'
+      const { thought, action, parameters, isFinish } = parsedStep;
+
+      // No action - go to summary phase
+      if (!action || action === '') {
+        break;
+      }
+
+      // Execute action via runtime.processActions
+      logger.info(
+        `[MultiStep] Executing action: ${action}`,
+        { parameters },
+        'AgentChat'
+      );
+
+      // Parse parameters
+      let actionParams = {};
+      if (parameters) {
+        if (typeof parameters === 'string') {
+          try {
+            actionParams = JSON.parse(parameters);
+          } catch {
+            logger.warn(
+              `[MultiStep] Failed to parse parameters: ${parameters}`
+            );
+          }
+        } else if (typeof parameters === 'object') {
+          actionParams = parameters;
+        }
+      }
+
+      // Store params in state for action handler
+      state.data = {
+        ...state.data,
+        actionParams,
+      };
+
+      // Build action content for processActions
+      const actionContent = {
+        text: `Executing action: ${action}`,
+        actions: [action],
+        thought: thought ?? '',
+      };
+
+      const actionMessage: Memory = {
+        id: uuidv4() as `${string}-${string}-${string}-${string}-${string}`,
+        entityId: runtime.agentId,
+        roomId: elizaMessage.roomId,
+        createdAt: Date.now(),
+        content: actionContent,
+      };
+
+      try {
+        // Use runtime.processActions - adapter.createMemory is now stubbed
+        await runtime.processActions(
+          elizaMessage,
+          [actionMessage],
+          state,
+          async () => []
         );
-        continue;
-      }
 
-      const extractedText = parsed.text.trim();
-
-      // Check safety
-      const safetyCheck = checkAgentOutput(extractedText);
-      if (!safetyCheck.safe) {
-        logger.warn(
-          'Unsafe response generated',
-          {
-            agentId,
-            attempt,
-            reason: safetyCheck.reason,
-            preview: extractedText.substring(0, 100),
-          },
-          'AgentChat'
+        // Get result from state cache
+        const cachedState = (runtime as unknown as { stateCache?: Map<string, unknown> }).stateCache?.get(
+          `${elizaMessage.id}_action_results`
         );
-        continue;
-      }
+        const actionResultsFromCache = cachedState?.values?.actionResults || [];
+        const result =
+          actionResultsFromCache.length > 0 ? actionResultsFromCache[0] : null;
+        const success = result?.success ?? true;
 
-      // Success!
-      response = extractedText;
-      break;
-    }
-
-    // If all attempts failed, refund points and return error
-    if (!response) {
-      await agentService.depositPoints(agentId, user.id, pointsCost);
-      return NextResponse.json(
-        {
+        traceActionResults.push({
+          actionType: action,
+          success,
+          summary: result?.text || `${action} executed`,
+          error: success ? undefined : result?.text,
+          parameters: actionParams,
+          timestamp: Date.now(),
+        });
+      } catch (error) {
+        const errorMsg =
+          error instanceof Error ? error.message : 'Unknown error';
+        traceActionResults.push({
+          actionType: action,
           success: false,
-          error:
-            'Failed to generate a valid response after multiple attempts. Points have been refunded.',
-        },
-        { status: 500 }
-      );
+          summary: `Action failed: ${errorMsg}`,
+          error: errorMsg,
+          parameters: actionParams,
+          timestamp: Date.now(),
+        });
+      }
+
+      // Check if done - always go to summary phase for proper response
+      if (isFinish === 'true' || isFinish === true) {
+        break;
+      }
     }
 
-    // Success: save both messages now
-    // Use explicit timestamps to ensure correct ordering (user message before assistant)
+    // Generate summary/response - always run to get proper user-facing message
+    {
+      const state = await runtime.composeState(elizaMessage, [
+        'RECENT_MESSAGES',
+        'ACTION_STATE',
+      ]);
+      state.values = {
+        ...state.values,
+        agentId, // Pass agentId for actions that need it
+        system: agentConfig?.systemPrompt ?? 'You are a helpful AI assistant.',
+        personality: agentConfig?.personality ?? '',
+        tradingStrategy: agentConfig?.tradingStrategy ?? '',
+        currentMessage: message,
+      };
+      state.data = {
+        ...state.data,
+        actionResults: traceActionResults,
+      };
+
+      const summaryPrompt = composePromptFromState({
+        state,
+        template: multiStepSummaryTemplate,
+      });
+
+      const summaryResponse = await runtime.useModel(ModelType.TEXT_LARGE, {
+        prompt: summaryPrompt,
+        temperature: 0.7,
+      });
+
+      const summary = parseKeyValueXml(summaryResponse);
+      finalResponse =
+        summary?.text ||
+        (traceActionResults.length > 0
+          ? 'Actions completed.'
+          : "I'm here to help!");
+    }
+
+    // Ensure finalResponse is never null
+    const responseText = finalResponse ?? "I'm here to help!";
+
+    // Safety check
+    let safeResponse = responseText;
+    const safetyCheck = checkAgentOutput(responseText);
+    if (!safetyCheck.safe) {
+      logger.warn(
+        'Unsafe response generated',
+        { agentId, reason: safetyCheck.reason },
+        'AgentChat'
+      );
+      safeResponse =
+        "I apologize, but I wasn't able to generate an appropriate response.";
+    }
+
+    // Save messages
     const userMessageId = uuidv4();
     const assistantMessageId = uuidv4();
     const userMessageTime = new Date();
-    const assistantMessageTime = new Date(userMessageTime.getTime() + 1); // 1ms later
+    const assistantMessageTime = new Date(userMessageTime.getTime() + 1);
 
     await db.agentMessage.createMany({
       data: [
@@ -345,16 +463,23 @@ Generate ${agent.displayName}'s response. Stay in character.
           id: assistantMessageId,
           agentUserId: agentId,
           role: 'assistant',
-          content: response,
-          modelUsed: usePro ? 'groq-70b' : 'groq-8b',
+          content: safeResponse,
+          modelUsed: 'groq-qwen-32b',
           pointsCost,
           createdAt: assistantMessageTime,
-          metadata: {},
+          metadata: {
+            multiStep: true,
+            actionsExecuted: traceActionResults.length,
+            actions: traceActionResults.map((a) => ({
+              type: a.actionType,
+              success: a.success,
+            })),
+          },
         },
       ],
     });
 
-    // Update lastChatAt in agent config
+    // Update lastChatAt
     await db
       .update(userAgentConfigs)
       .set({ lastChatAt: new Date(), updatedAt: new Date() })
@@ -368,40 +493,46 @@ Generate ${agent.displayName}'s response. Stay in character.
         level: 'info',
         message: 'Chat interaction completed',
         prompt: message,
-        completion: response,
+        completion: safeResponse,
         metadata: {
           usePro,
           pointsCost,
-          modelUsed: usePro ? 'groq-70b' : 'groq-8b',
+          modelUsed: 'groq-qwen-32b',
+          multiStep: true,
+          actionsExecuted: traceActionResults.length,
         },
       },
     });
 
-    logger.info(`Chat completed for agent ${agentId}`, undefined, 'AgentsAPI');
+    logger.info(
+      `Chat completed for agent ${agentId}`,
+      { actionsExecuted: traceActionResults.length },
+      'AgentsAPI'
+    );
 
     return NextResponse.json({
       success: true,
       messageId: assistantMessageId,
-      response,
+      response: safeResponse,
       pointsCost,
-      modelUsed: usePro ? 'groq-70b' : 'groq-8b',
+      modelUsed: 'groq-qwen-32b',
       balanceAfter: newBalance,
+      multiStep: {
+        actionsExecuted: traceActionResults.length,
+        actions: traceActionResults.map((a) => ({
+          type: a.actionType,
+          success: a.success,
+          summary: a.summary,
+        })),
+      },
     });
   }
 );
 
-/**
- * GET /api/agents/[agentId]/chat
- *
- * Retrieves chat history with an autonomous agent. Returns paginated conversation messages
- * with timestamps, model used, and points cost for each message. Verifies agent ownership.
- *
- * @param req - Next.js request with optional limit query parameter (default: 50)
- * @param params - Route parameters with agentId
- * @returns Chat history with array of message objects
- * @throws {401} Unauthorized
- * @throws {404} Agent not found or user doesn't own agent
- */
+// =============================================================================
+// GET Handler
+// =============================================================================
+
 export const GET = withErrorHandling(
   async (
     req: NextRequest,
@@ -419,7 +550,7 @@ export const GET = withErrorHandling(
     }
 
     const { searchParams } = new URL(req.url);
-    const limit = Number.parseInt(searchParams.get('limit')!);
+    const limit = Number.parseInt(searchParams.get('limit') || '50');
 
     const messages = await agentService.getChatHistory(agentId, limit);
 

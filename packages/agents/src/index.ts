@@ -42,6 +42,7 @@ export {
 export type { BabylonRuntime } from './plugins/babylon/types';
 // Plugin utilities
 export { groqPlugin } from './plugins/groq';
+export * from './plugins/plugin-agent-core/src';
 export * from './plugins/plugin-autonomy/src';
 export * from './plugins/plugin-experience/src';
 // Plugin sub-exports for trajectory logging, autonomy, experience
