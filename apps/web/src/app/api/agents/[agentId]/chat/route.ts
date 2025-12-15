@@ -171,6 +171,7 @@ export const POST = withErrorHandling(
     const agentConfig = agentWithConfig.agentConfig;
 
     const pointsCost = 1;
+    const modelUsed = usePro ? 'groq-70b' : 'groq-8b';
     const newBalance = await agentService.deductPoints(
       agentId,
       pointsCost,
@@ -466,7 +467,7 @@ export const POST = withErrorHandling(
           agentUserId: agentId,
           role: 'assistant',
           content: responseText,
-          modelUsed: 'groq-qwen-32b',
+          modelUsed,
           pointsCost,
           createdAt: assistantMessageTime,
           metadata: {
@@ -499,7 +500,7 @@ export const POST = withErrorHandling(
         metadata: {
           usePro,
           pointsCost,
-          modelUsed: 'groq-qwen-32b',
+          modelUsed,
           multiStep: true,
           actionsExecuted: traceActionResults.length,
         },
@@ -517,7 +518,7 @@ export const POST = withErrorHandling(
       messageId: assistantMessageId,
       response: responseText,
       pointsCost,
-      modelUsed: 'groq-qwen-32b',
+      modelUsed,
       balanceAfter: newBalance,
       multiStep: {
         actionsExecuted: traceActionResults.length,
