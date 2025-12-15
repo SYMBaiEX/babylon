@@ -9,6 +9,7 @@ import { PerpDbAdapter, PerpMarketService } from '@babylon/core/markets/perps';
 import {
   actorState,
   and,
+  asSystem,
   asUser,
   db,
   desc,
@@ -373,7 +374,10 @@ ${contextString}`;
           const side = trade.action === 'buy_yes';
 
           // Execute buy via internal service
-          const result = await asUser({ userId: agentUserId }, async (txDb) => {
+          // NPCs use asSystem (their IDs don't match userId format), Users use asUser
+          const tradeOperation = async (
+            txDb: Parameters<Parameters<typeof asUser>[1]>[0]
+          ) => {
             // Calculate shares and pricing (0.1% fee rate)
             const TRADING_FEE_RATE = 0.001;
             const calculation = PredictionPricing.calculateBuyWithFees(
@@ -460,7 +464,12 @@ ${contextString}`;
             }
 
             return { position, calculation };
-          });
+          };
+
+          // Execute with appropriate context (NPCs use asSystem, Users use asUser)
+          const result = isNpc
+            ? await asSystem(tradeOperation, 'npc_prediction_trade')
+            : await asUser({ userId: agentUserId }, tradeOperation);
 
           // Record in AgentTrade
           await agentPnLService.recordTrade({
@@ -500,7 +509,8 @@ ${contextString}`;
           // Use org.ticker for PerpMarketSnapshot lookup, fallback to org.name
           const ticker = org.ticker || org.name;
 
-          await asUser({ userId: agentUserId }, async () => {
+          // Execute perp trade with appropriate context
+          const perpTradeOperation = async () => {
             // Create wallet adapter - NPCs use ActorState, Users use WalletService
             const walletAdapter = isNpc
               ? {
@@ -635,7 +645,14 @@ ${contextString}`;
               size: trade.amount,
               leverage: 1,
             });
-          });
+          };
+
+          // Execute with appropriate context (NPCs use asSystem, Users use asUser)
+          if (isNpc) {
+            await asSystem(perpTradeOperation, 'npc_perp_trade');
+          } else {
+            await asUser({ userId: agentUserId }, perpTradeOperation);
+          }
 
           await agentPnLService.recordTrade({
             agentId: agentUserId,
