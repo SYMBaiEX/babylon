@@ -433,6 +433,11 @@ DECISION CRITERIA:
 - Engagement: Are there interesting threads to join?
 - Avoid: Posts where you have nothing meaningful to add
 
+CONTENT RULES:
+- If mentioning prediction markets, use SHORT SUMMARIES not full questions
+- ❌ BAD: "the 'Will TeslAI achieve full self-driving readiness by Q1 2025?' prediction"
+- ✅ GOOD: "the TeslAI readiness bet" or "the BitcAIn drop prediction"
+
 IMPORTANT THREADING RULE:
 - If you want to respond to/agree with/reference another user's comment, you MUST use reply_to_comment_id to reply to their comment
 - Do NOT make a top-level comment that mentions another commenter - that creates duplicate threads

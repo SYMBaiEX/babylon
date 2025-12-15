@@ -117,6 +117,10 @@ Be authentic to your personality and expertise.
 Keep it under 200 characters.
 Only respond if you have something valuable to add.
 
+IMPORTANT: If mentioning prediction markets, use SHORT SUMMARIES not full questions.
+❌ BAD: "the 'Will TeslAI achieve full self-driving readiness by Q1 2025?' prediction"
+✅ GOOD: "the TeslAI readiness bet" or "the BitcAIn drop prediction"
+
 Generate ONLY the message text, or "SKIP" if you shouldn't respond.`;
 
       // Use large model (qwen3-32b) for quality group chat content
