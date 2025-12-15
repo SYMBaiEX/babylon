@@ -16,6 +16,7 @@ import { CategoryPnLCard } from '@/components/markets/CategoryPnLCard';
 import { PerpPositionsList } from '@/components/markets/PerpPositionsList';
 import { PortfolioPnLCard } from '@/components/markets/PortfolioPnLCard';
 import { PredictionPositionsList } from '@/components/markets/PredictionPositionsList';
+import { MarketsToggle } from '@/components/shared/MarketsToggle';
 import { PageContainer } from '@/components/shared/PageContainer';
 import { Skeleton, WidgetPanelSkeleton } from '@/components/shared/Skeleton';
 import { useAuth } from '@/hooks/useAuth';
@@ -89,7 +90,7 @@ interface PredictionMarket {
   oraclePublishedAt?: string | null;
 }
 
-type MarketTab = 'dashboard' | 'futures' | 'predictions';
+type MarketTab = 'dashboard' | 'perps' | 'predictions';
 
 type PredictionSort = 'trending' | 'newest' | 'ending-soon' | 'volume';
 
@@ -447,62 +448,15 @@ export default function MarketsPage() {
       {/* Desktop: Content + Widgets layout */}
       <div className="hidden flex-1 overflow-hidden xl:flex">
         {/* Main content */}
-        <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+        <div className="flex min-w-0 flex-1 flex-col overflow-hidden border-[rgba(120,120,120,0.5)] lg:border-r lg:border-l">
           {/* Header */}
           <div className="sticky top-0 z-10 flex-shrink-0 bg-background shadow-sm">
-            <div className="space-y-3 p-3 sm:space-y-4 sm:p-4">
-              {/* Tabs */}
-              <div
-                role="tablist"
-                aria-label="Market sections"
-                className="scrollbar-hide flex gap-0 overflow-x-auto"
-              >
-                <button
-                  role="tab"
-                  aria-selected={activeTab === 'dashboard'}
-                  aria-controls="dashboard-panel"
-                  onClick={() => setActiveTab('dashboard')}
-                  className={cn(
-                    'flex-1 cursor-pointer whitespace-nowrap px-3 py-2.5 text-sm transition-all sm:px-4 sm:text-base',
-                    activeTab === 'dashboard'
-                      ? 'font-bold text-foreground'
-                      : 'text-muted-foreground hover:text-foreground'
-                  )}
-                >
-                  Dashboard
-                </button>
-                <button
-                  role="tab"
-                  aria-selected={activeTab === 'futures'}
-                  aria-controls="futures-panel"
-                  onClick={() => router.push('/markets/perps')}
-                  className={cn(
-                    'flex-1 cursor-pointer whitespace-nowrap px-3 py-2.5 text-sm transition-all sm:px-4 sm:text-base',
-                    activeTab === 'futures'
-                      ? 'font-bold text-foreground'
-                      : 'text-muted-foreground hover:text-foreground'
-                  )}
-                >
-                  Perps
-                </button>
-                <button
-                  role="tab"
-                  aria-selected={activeTab === 'predictions'}
-                  aria-controls="predictions-panel"
-                  onClick={() => router.push('/markets/predictions')}
-                  className={cn(
-                    'flex-1 cursor-pointer whitespace-nowrap px-3 py-2.5 text-sm transition-all sm:px-4 sm:text-base',
-                    activeTab === 'predictions'
-                      ? 'font-bold text-foreground'
-                      : 'text-muted-foreground hover:text-foreground'
-                  )}
-                >
-                  Predictions
-                </button>
-              </div>
-
-              {/* Search - hide on dashboard */}
-              {activeTab !== 'dashboard' && (
+            <div className="px-3 sm:px-4 lg:px-6">
+              <MarketsToggle activeTab={activeTab} onTabChange={setActiveTab} />
+            </div>
+            {/* Search - hide on dashboard */}
+            {activeTab !== 'dashboard' && (
+              <div className="px-3 pb-3 sm:px-4 lg:px-6">
                 <div className="relative">
                   <Search
                     className="-translate-y-1/2 absolute top-1/2 left-3 h-5 w-5 text-muted-foreground"
@@ -511,12 +465,12 @@ export default function MarketsPage() {
                   <input
                     type="search"
                     aria-label={
-                      activeTab === 'futures'
+                      activeTab === 'perps'
                         ? 'Search tickers'
                         : 'Search questions'
                     }
                     placeholder={
-                      activeTab === 'futures'
+                      activeTab === 'perps'
                         ? 'Search tickers...'
                         : 'Search questions...'
                     }
@@ -525,8 +479,8 @@ export default function MarketsPage() {
                     className="w-full rounded bg-muted/50 py-3 pr-4 pl-10 text-foreground placeholder:text-muted-foreground focus:bg-muted focus:outline-none focus:ring-2 focus:ring-[#0066FF]/30"
                   />
                 </div>
-              )}
-            </div>
+              </div>
+            )}
           </div>
 
           {/* Content */}
@@ -734,11 +688,11 @@ export default function MarketsPage() {
                   </div>
                 )}
               </div>
-            ) : activeTab === 'futures' ? (
+            ) : activeTab === 'perps' ? (
               <div
-                id="futures-panel"
+                id="perps-panel"
                 role="tabpanel"
-                aria-labelledby="futures-tab"
+                aria-labelledby="perps-tab"
                 className="p-4"
               >
                 {/* Category P&L Card */}
@@ -1103,59 +1057,12 @@ export default function MarketsPage() {
       <div className="flex flex-1 flex-col overflow-hidden xl:hidden">
         {/* Header */}
         <div className="sticky top-0 z-10 flex-shrink-0 bg-background shadow-sm">
-          <div className="space-y-3 p-3 sm:space-y-4 sm:p-4">
-            {/* Tabs */}
-            <div
-              role="tablist"
-              aria-label="Market sections"
-              className="scrollbar-hide flex gap-0 overflow-x-auto"
-            >
-              <button
-                role="tab"
-                aria-selected={activeTab === 'dashboard'}
-                aria-controls="dashboard-panel"
-                onClick={() => setActiveTab('dashboard')}
-                className={cn(
-                  'flex-1 cursor-pointer whitespace-nowrap px-3 py-2.5 text-sm transition-all sm:px-4 sm:text-base',
-                  activeTab === 'dashboard'
-                    ? 'font-bold text-foreground'
-                    : 'text-muted-foreground hover:text-foreground'
-                )}
-              >
-                Dashboard
-              </button>
-              <button
-                role="tab"
-                aria-selected={activeTab === 'futures'}
-                aria-controls="futures-panel"
-                onClick={() => router.push('/markets/perps')}
-                className={cn(
-                  'flex-1 cursor-pointer whitespace-nowrap px-3 py-2.5 text-sm transition-all sm:px-4 sm:text-base',
-                  activeTab === 'futures'
-                    ? 'font-bold text-foreground'
-                    : 'text-muted-foreground hover:text-foreground'
-                )}
-              >
-                Perps
-              </button>
-              <button
-                role="tab"
-                aria-selected={activeTab === 'predictions'}
-                aria-controls="predictions-panel"
-                onClick={() => router.push('/markets/predictions')}
-                className={cn(
-                  'flex-1 cursor-pointer whitespace-nowrap px-3 py-2.5 text-sm transition-all sm:px-4 sm:text-base',
-                  activeTab === 'predictions'
-                    ? 'font-bold text-foreground'
-                    : 'text-muted-foreground hover:text-foreground'
-                )}
-              >
-                Predictions
-              </button>
-            </div>
-
-            {/* Search - hide on dashboard */}
-            {activeTab !== 'dashboard' && (
+          <div className="px-3 sm:px-4">
+            <MarketsToggle activeTab={activeTab} onTabChange={setActiveTab} />
+          </div>
+          {/* Search - hide on dashboard */}
+          {activeTab !== 'dashboard' && (
+            <div className="px-3 pb-3 sm:px-4">
               <div className="relative">
                 <Search
                   className="-translate-y-1/2 absolute top-1/2 left-3 h-5 w-5 text-muted-foreground"
@@ -1164,12 +1071,12 @@ export default function MarketsPage() {
                 <input
                   type="search"
                   aria-label={
-                    activeTab === 'futures'
+                    activeTab === 'perps'
                       ? 'Search tickers'
                       : 'Search questions'
                   }
                   placeholder={
-                    activeTab === 'futures'
+                    activeTab === 'perps'
                       ? 'Search tickers...'
                       : 'Search questions...'
                   }
@@ -1178,8 +1085,8 @@ export default function MarketsPage() {
                   className="w-full rounded bg-muted/50 py-3 pr-4 pl-10 text-foreground placeholder:text-muted-foreground focus:bg-muted focus:outline-none focus:ring-2 focus:ring-[#0066FF]/30"
                 />
               </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
 
         {/* Content */}
@@ -1379,11 +1286,11 @@ export default function MarketsPage() {
                 </div>
               )}
             </div>
-          ) : activeTab === 'futures' ? (
+          ) : activeTab === 'perps' ? (
             <div
-              id="futures-panel"
+              id="perps-panel"
               role="tabpanel"
-              aria-labelledby="futures-tab"
+              aria-labelledby="perps-tab"
               className="p-4"
             >
               {/* Category P&L Card */}
