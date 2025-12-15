@@ -70,6 +70,7 @@ export class AutonomousTradingService {
     side?: string;
     marketType?: 'prediction' | 'perp';
   }> {
+    // Get agent from User table (will be null for NPCs)
     const agentResult = await db
       .select()
       .from(users)
@@ -77,11 +78,12 @@ export class AutonomousTradingService {
       .limit(1);
     const agent = agentResult[0];
 
-    if (!agent?.isAgent) {
-      logger.error('Agent not found or not an agent', { agentUserId });
-      throw new Error('Agent not found');
-    }
+    // Fallback values for NPCs (who don't have User records)
+    const agentDisplayName = agent?.displayName ?? agentUserId;
+    const agentLifetimePnL = agent?.lifetimePnL ?? 0;
+    const agentManagedBy = agent?.managedBy ?? agentUserId;
 
+    // Get agent config (may be null for NPCs)
     const config = await getAgentConfig(agentUserId);
 
     // Get agent's positions separately
@@ -148,13 +150,13 @@ export class AutonomousTradingService {
     // and appear in agent context automatically via providers
     const prompt = `${config?.systemPrompt ?? 'You are an autonomous trading agent on Babylon.'}
 
-You are ${agent.displayName}, an autonomous trading agent.
+You are ${agentDisplayName}, an autonomous trading agent.
 
 Trading Strategy: ${config?.tradingStrategy ?? 'General market analysis'}
 
 Current Status:
 - Balance: $${balance.balance}
-- P&L: ${agent.lifetimePnL}
+- P&L: ${agentLifetimePnL}
 - Open Positions: ${positionsResult.length + perpPositionsResult.length}
 
 Available Prediction Markets:
@@ -429,7 +431,7 @@ ${contextString}`;
           // Record in AgentTrade
           await agentPnLService.recordTrade({
             agentId: agentUserId,
-            userId: agent.managedBy || agentUserId,
+            userId: agentManagedBy,
             marketType: 'prediction',
             marketId: market.id,
             action: 'open',
@@ -445,7 +447,7 @@ ${contextString}`;
           lastSide = side ? 'YES' : 'NO';
           lastMarketType = 'prediction';
           logger.info(
-            `Agent ${agent.displayName} bought ${side ? 'YES' : 'NO'} on ${market.question}`,
+            `Agent ${agentDisplayName} bought ${side ? 'YES' : 'NO'} on ${market.question}`,
             undefined,
             'AutonomousTrading'
           );
@@ -509,7 +511,7 @@ ${contextString}`;
 
           await agentPnLService.recordTrade({
             agentId: agentUserId,
-            userId: agent.managedBy || agentUserId,
+            userId: agentManagedBy,
             marketType: 'perp',
             ticker,
             action: 'open',
@@ -524,7 +526,7 @@ ${contextString}`;
           lastSide = side;
           lastMarketType = 'perp';
           logger.info(
-            `Agent ${agent.displayName} opened ${side} position on ${org.name}`,
+            `Agent ${agentDisplayName} opened ${side} position on ${org.name}`,
             undefined,
             'AutonomousTrading'
           );
