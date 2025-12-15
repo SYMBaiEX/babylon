@@ -155,7 +155,12 @@ export class MultiStepExecutor {
       });
 
       // Get LLM decision
-      const decision = await this.getDecision(prompt, runtime, iteration, systemPrompt);
+      const decision = await this.getDecision(
+        prompt,
+        runtime,
+        iteration,
+        systemPrompt
+      );
 
       if (!decision) {
         logger.warn(

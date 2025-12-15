@@ -84,23 +84,56 @@ export interface DirectCommentResult {
 
 /**
  * Execute a trade directly without LLM decision-making.
- * Just executes the given parameters.
+ * Validates balance - cannot trade more than you have.
  */
 export async function executeDirectTrade(
   params: DirectTradeParams
 ): Promise<DirectTradeResult> {
-  const { agentUserId, marketType, marketId, side, amount, reasoning } = params;
+  const { agentUserId, marketType, marketId, side, reasoning } = params;
+  let { amount } = params;
 
   // Check if this is an NPC
   const npcActor = StaticDataRegistry.getActor(agentUserId);
   const isNpc = !!npcActor;
+
+  // Get current balance
+  let balance = 0;
+  if (isNpc) {
+    const [actor] = await db
+      .select({ tradingBalance: actorState.tradingBalance })
+      .from(actorState)
+      .where(eq(actorState.id, agentUserId))
+      .limit(1);
+    balance = Number(actor?.tradingBalance ?? 0);
+  } else {
+    const walletBalance = await WalletService.getBalance(agentUserId);
+    balance = walletBalance.balance;
+  }
+
+  // Cannot trade more than balance
+  if (amount > balance) {
+    logger.warn(
+      `[DirectExecutor] Trade capped to balance: $${amount} -> $${balance}`,
+      { agentUserId, isNpc },
+      'DirectExecutors'
+    );
+    amount = balance;
+  }
+
+  // Reject if insufficient funds
+  if (amount < 1) {
+    return {
+      success: false,
+      error: `Insufficient balance: $${balance.toFixed(2)}`,
+    };
+  }
 
   // Get agent's managed by for recording (for USER_CONTROLLED agents)
   const agentManagedBy = agentUserId;
 
   logger.info(
     `[DirectExecutor] Executing ${marketType} trade: ${side} $${amount} on ${marketId}`,
-    { agentUserId, isNpc },
+    { agentUserId, isNpc, balance },
     'DirectExecutors'
   );
 
