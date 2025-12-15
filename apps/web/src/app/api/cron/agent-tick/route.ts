@@ -400,10 +400,19 @@ export async function POST(_req: NextRequest) {
       }
 
       // Always record trajectories for RL training data collection
+      // For USER_CONTROLLED agents, pass user.id (userId for User table lookup)
+      // For NPCs, pass agentId (they don't have User records)
+      const isNpc = eligibleAgent.type === AgentType.NPC;
+      const tickAgentId =
+        eligibleAgent.type === AgentType.USER_CONTROLLED && eligibleAgent.user
+          ? eligibleAgent.user.id
+          : eligibleAgent.agentId;
+
       const tickResult = await autonomousCoordinator.executeAutonomousTick(
-        eligibleAgent.agentId,
+        tickAgentId,
         runtime,
-        true // Always record trajectories
+        true, // Always record trajectories
+        isNpc
       );
 
       // Validation: Verify tick executed successfully

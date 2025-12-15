@@ -48,11 +48,13 @@ export class AutonomousCoordinator {
    * @param agentUserId - Agent user ID
    * @param runtime - Agent runtime
    * @param recordTrajectories - Enable trajectory recording for RL training (default: false)
+   * @param isNpc - Whether this is an NPC agent (skips User table lookup)
    */
   async executeAutonomousTick(
     agentUserId: string,
     runtime: IAgentRuntime,
-    recordTrajectories = false
+    recordTrajectories = false,
+    isNpc = false
   ): Promise<AutonomousTickResult> {
     const startTime = Date.now();
 
@@ -99,20 +101,23 @@ export class AutonomousCoordinator {
       'AutonomousCoordinator'
     );
 
-    // Get agent user
-    const agentResult = await db
-      .select({ id: users.id, isAgent: users.isAgent })
-      .from(users)
-      .where(eq(users.id, agentUserId))
-      .limit(1);
+    // For NPCs, skip User table lookup (they don't have User records)
+    // For USER_CONTROLLED agents, verify they exist in User table
+    if (!isNpc) {
+      const agentResult = await db
+        .select({ id: users.id, isAgent: users.isAgent })
+        .from(users)
+        .where(eq(users.id, agentUserId))
+        .limit(1);
 
-    const agent = agentResult[0];
-    if (!agent || !agent.isAgent) {
-      throw new Error('Agent not found or not an agent');
+      const agent = agentResult[0];
+      if (!agent || !agent.isAgent) {
+        throw new Error('Agent not found or not an agent');
+      }
     }
 
-    // Get agent config
-    const config = await getAgentConfig(agentUserId);
+    // Get agent config (only for USER_CONTROLLED agents, NPCs don't have UserAgentConfig)
+    const config = isNpc ? null : await getAgentConfig(agentUserId);
 
     // Check if agent has goals configured
     const hasGoals =
