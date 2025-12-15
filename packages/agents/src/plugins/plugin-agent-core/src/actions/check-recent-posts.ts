@@ -5,7 +5,6 @@
  */
 
 import { db, desc, eq, posts } from '@babylon/db';
-import { logger } from '../../../../shared/logger';
 import type {
   Action,
   ActionResult,
@@ -14,6 +13,7 @@ import type {
   Memory,
   State,
 } from '@elizaos/core';
+import { logger } from '../../../../shared/logger';
 
 /**
  * Format relative time (e.g., "2h ago", "15m ago")
@@ -95,7 +95,9 @@ export const checkRecentPostsAction: Action = {
     const agentId = runtime.agentId;
 
     // Get limit from params (default 5, max 20)
-    const actionParams = state?.data?.actionParams as { limit?: number } | undefined;
+    const actionParams = state?.data?.actionParams as
+      | { limit?: number }
+      | undefined;
     const limit = Math.min(Math.max(actionParams?.limit ?? 5, 1), 20);
 
     try {
@@ -163,4 +165,3 @@ export const checkRecentPostsAction: Action = {
     }
   },
 };
-

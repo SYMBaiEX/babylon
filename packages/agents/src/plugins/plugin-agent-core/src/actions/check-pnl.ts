@@ -16,7 +16,6 @@ import {
   users,
 } from '@babylon/db';
 import { WalletService } from '@babylon/engine';
-import { logger } from '../../../../shared/logger';
 import type {
   Action,
   ActionResult,
@@ -25,12 +24,15 @@ import type {
   Memory,
   State,
 } from '@elizaos/core';
+import { logger } from '../../../../shared/logger';
 
 /**
  * Format currency values
  */
 function formatCurrency(value: number): string {
-  return value >= 0 ? `+$${value.toFixed(2)}` : `-$${Math.abs(value).toFixed(2)}`;
+  return value >= 0
+    ? `+$${value.toFixed(2)}`
+    : `-$${Math.abs(value).toFixed(2)}`;
 }
 
 /**
@@ -131,13 +133,17 @@ export const checkPnlAction: Action = {
       const activePositions = await db
         .select()
         .from(positions)
-        .where(and(eq(positions.userId, agentId), eq(positions.status, 'active')));
+        .where(
+          and(eq(positions.userId, agentId), eq(positions.status, 'active'))
+        );
 
       // Get active perp positions
       const activePerpPositions = await db
         .select()
         .from(perpPositions)
-        .where(and(eq(perpPositions.userId, agentId), isNull(perpPositions.closedAt)));
+        .where(
+          and(eq(perpPositions.userId, agentId), isNull(perpPositions.closedAt))
+        );
 
       // Get recent trades
       const recentTrades = await db
@@ -163,15 +169,19 @@ export const checkPnlAction: Action = {
       // Active Positions
       if (activePositions.length > 0 || activePerpPositions.length > 0) {
         sections.push('\n**Active Positions:**');
-        
+
         for (const pos of activePositions) {
           const posType = pos.outcome ? 'YES' : 'NO';
-          sections.push(`- ${pos.marketId}: ${posType} (${pos.shares} shares @ $${Number(pos.avgPrice).toFixed(2)})`);
+          sections.push(
+            `- ${pos.marketId}: ${posType} (${pos.shares} shares @ $${Number(pos.avgPrice).toFixed(2)})`
+          );
         }
-        
+
         for (const pos of activePerpPositions) {
           const direction = pos.side === 'long' ? 'LONG' : 'SHORT';
-          sections.push(`- ${pos.ticker}: ${direction} ${pos.size} @ $${Number(pos.entryPrice).toFixed(2)}`);
+          sections.push(
+            `- ${pos.ticker}: ${direction} ${pos.size} @ $${Number(pos.entryPrice).toFixed(2)}`
+          );
         }
       } else {
         sections.push('\n**Active Positions:** None');
@@ -181,8 +191,12 @@ export const checkPnlAction: Action = {
       if (recentTrades.length > 0) {
         sections.push('\n**Recent Trades:**');
         for (const trade of recentTrades) {
-          const pnlStr = trade.pnl ? ` (${formatCurrency(Number(trade.pnl))})` : '';
-          sections.push(`- ${trade.action} ${trade.ticker}: $${Number(trade.amount).toFixed(2)}${pnlStr}`);
+          const pnlStr = trade.pnl
+            ? ` (${formatCurrency(Number(trade.pnl))})`
+            : '';
+          sections.push(
+            `- ${trade.action} ${trade.ticker}: $${Number(trade.amount).toFixed(2)}${pnlStr}`
+          );
         }
       } else {
         sections.push('\n**Recent Trades:** None');
@@ -190,11 +204,7 @@ export const checkPnlAction: Action = {
 
       const responseText = sections.join('\n');
 
-      logger.info(
-        `[CHECK_PNL] Retrieved P&L for agent`,
-        undefined,
-        'CheckPnL'
-      );
+      logger.info(`[CHECK_PNL] Retrieved P&L for agent`, undefined, 'CheckPnL');
 
       return {
         success: true,
@@ -209,7 +219,8 @@ export const checkPnlAction: Action = {
         values: {
           balance,
           lifetimePnL,
-          activePositionCount: activePositions.length + activePerpPositions.length,
+          activePositionCount:
+            activePositions.length + activePerpPositions.length,
           recentTradesCount: recentTrades.length,
           isProfitable: lifetimePnL > 0,
         },
@@ -227,4 +238,3 @@ export const checkPnlAction: Action = {
     }
   },
 };
-
