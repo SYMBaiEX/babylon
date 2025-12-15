@@ -35,7 +35,7 @@ import { parseKeyValueXml } from '@elizaos/core';
 import { callGroqDirect } from '../llm/direct-groq';
 import { getAgentConfig } from '../shared/agent-config';
 import { logger } from '../shared/logger';
-import { generateSnowflakeId } from '../shared/snowflake';
+import { executeDirectComment, executeDirectMessage } from './DirectExecutors';
 
 // =============================================================================
 // Types
@@ -1056,36 +1056,49 @@ LEAVE EMPTY IF:
         interaction.targetCommentId
       ) {
         // Reply to the target comment
-        await db.insert(comments).values({
-          id: await generateSnowflakeId(),
-          content: cleanContent,
+        const commentResult = await executeDirectComment({
+          agentUserId,
           postId: interaction.postId,
-          authorId: agentUserId,
+          content: cleanContent,
           parentCommentId: interaction.targetCommentId,
-          createdAt: new Date(),
-          updatedAt: new Date(),
         });
-        responsesCreated++;
-        logger.info(
-          `Agent replied to comment ${interaction.targetCommentId} on post ${interaction.postId}`,
-          undefined,
-          'AutonomousBatchResponse'
-        );
+
+        if (commentResult.success) {
+          responsesCreated++;
+          logger.info(
+            `Agent replied to comment ${interaction.targetCommentId} on post ${interaction.postId}`,
+            undefined,
+            'AutonomousBatchResponse'
+          );
+        } else {
+          logger.warn(
+            `Failed to create comment reply: ${commentResult.error}`,
+            { interactionId: interaction.id },
+            'AutonomousBatchResponse'
+          );
+        }
       } else if (interaction.type === 'chat_message' && interaction.chatId) {
         // Send chat message
-        await db.insert(messages).values({
-          id: await generateSnowflakeId(),
+        const messageResult = await executeDirectMessage({
+          agentUserId,
           chatId: interaction.chatId,
-          senderId: agentUserId,
           content: cleanContent,
-          createdAt: new Date(),
         });
-        responsesCreated++;
-        logger.info(
-          `Agent responded in chat ${interaction.chatId}`,
-          undefined,
-          'AutonomousBatchResponse'
-        );
+
+        if (messageResult.success) {
+          responsesCreated++;
+          logger.info(
+            `Agent responded in chat ${interaction.chatId}`,
+            undefined,
+            'AutonomousBatchResponse'
+          );
+        } else {
+          logger.warn(
+            `Failed to create chat message: ${messageResult.error}`,
+            { interactionId: interaction.id },
+            'AutonomousBatchResponse'
+          );
+        }
       }
 
       // Small delay to avoid spam

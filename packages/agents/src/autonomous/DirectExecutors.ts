@@ -12,10 +12,12 @@ import {
   and,
   asSystem,
   asUser,
+  chats,
   comments,
   db,
   eq,
   markets,
+  messages,
   positions,
   posts,
   sql,
@@ -75,6 +77,18 @@ export interface DirectCommentParams {
 export interface DirectCommentResult {
   success: boolean;
   commentId?: string;
+  error?: string;
+}
+
+export interface DirectMessageParams {
+  agentUserId: string;
+  chatId: string;
+  content: string;
+}
+
+export interface DirectMessageResult {
+  success: boolean;
+  messageId?: string;
   error?: string;
 }
 
@@ -633,5 +647,64 @@ export async function executeDirectComment(
   return {
     success: true,
     commentId,
+  };
+}
+
+// =============================================================================
+// Direct Message Executor
+// =============================================================================
+
+/**
+ * Send a message directly without LLM decision-making.
+ * Just creates the message with the given content.
+ */
+export async function executeDirectMessage(
+  params: DirectMessageParams
+): Promise<DirectMessageResult> {
+  const { agentUserId, chatId, content } = params;
+
+  if (!content || content.trim().length < 3) {
+    return { success: false, error: 'Content too short' };
+  }
+
+  const cleanContent = content.trim();
+
+  // Verify chat exists
+  const [chat] = await db
+    .select({ id: chats.id })
+    .from(chats)
+    .where(eq(chats.id, chatId))
+    .limit(1);
+
+  if (!chat) {
+    return { success: false, error: `Chat not found: ${chatId}` };
+  }
+
+  logger.info(
+    `[DirectExecutor] Creating message in chat ${chatId}`,
+    { contentPreview: cleanContent.substring(0, 50) },
+    'DirectExecutors'
+  );
+
+  const messageId = await generateSnowflakeId();
+  const now = new Date();
+
+  await db.insert(messages).values({
+    id: messageId,
+    chatId,
+    senderId: agentUserId,
+    content: cleanContent,
+    createdAt: now,
+  });
+
+  logger.info(
+    `[DirectExecutor] Message created: ${messageId}`,
+    undefined,
+    'DirectExecutors'
+  );
+
+  return {
+    success: true,
+    messageId,
   };
 }

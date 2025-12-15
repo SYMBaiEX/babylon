@@ -10,7 +10,7 @@ import type { IAgentRuntime } from '@elizaos/core';
 import { callGroqDirect } from '../llm/direct-groq';
 import { getAgentConfig } from '../shared/agent-config';
 import { logger } from '../shared/logger';
-import { generateSnowflakeId } from '../shared/snowflake';
+import { executeDirectMessage } from './DirectExecutors';
 
 /**
  * Service for autonomous direct message responses
@@ -136,15 +136,20 @@ Generate ONLY the response text, nothing else.`;
       }
 
       // Create response message
-      await db.message.create({
-        data: {
-          id: await generateSnowflakeId(),
-          chatId: chat.id,
-          senderId: agentUserId,
-          content: cleanContent,
-          createdAt: new Date(),
-        },
+      const result = await executeDirectMessage({
+        agentUserId,
+        chatId: chat.id,
+        content: cleanContent,
       });
+
+      if (!result.success) {
+        logger.warn(
+          `Failed to create DM response: ${result.error}`,
+          undefined,
+          'AutonomousDM'
+        );
+        continue;
+      }
 
       responsesCreated++;
       logger.info(

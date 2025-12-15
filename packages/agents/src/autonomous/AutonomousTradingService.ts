@@ -115,7 +115,9 @@ export class AutonomousTradingService {
     // Format positions and markets for prompt
     const positionsStr =
       positionsResult.length > 0
-        ? positionsResult.map((p) => `${p.side ? 'YES' : 'NO'} on ${p.marketId}`).join(', ')
+        ? positionsResult
+            .map((p) => `${p.side ? 'YES' : 'NO'} on ${p.marketId}`)
+            .join(', ')
         : 'None';
 
     const perpPositionsStr =
@@ -299,16 +301,14 @@ If holding:
       side = trade.action as 'buy_yes' | 'buy_no';
     } else if (trade.type === 'perp') {
       // Find matching perp market
-      const org = perpCompanies.find(
-        (o) => {
-          const staticOrg = StaticDataRegistry.getOrganization(o.id);
-          return (
-            staticOrg?.name === trade.market ||
-            o.id === trade.market ||
-            staticOrg?.ticker === trade.market
-          );
-        }
-      );
+      const org = perpCompanies.find((o) => {
+        const staticOrg = StaticDataRegistry.getOrganization(o.id);
+        return (
+          staticOrg?.name === trade.market ||
+          o.id === trade.market ||
+          staticOrg?.ticker === trade.market
+        );
+      });
       if (!org) {
         logger.info(
           `[AutonomousTrading] Perp market not found: ${trade.market}`,

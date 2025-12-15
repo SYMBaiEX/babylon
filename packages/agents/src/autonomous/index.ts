@@ -26,11 +26,14 @@ export { autonomousTradingService } from './AutonomousTradingService';
 export {
   type DirectCommentParams,
   type DirectCommentResult,
+  type DirectMessageParams,
+  type DirectMessageResult,
   type DirectPostParams,
   type DirectPostResult,
   type DirectTradeParams,
   type DirectTradeResult,
   executeDirectComment,
+  executeDirectMessage,
   executeDirectPost,
   executeDirectTrade,
 } from './DirectExecutors';

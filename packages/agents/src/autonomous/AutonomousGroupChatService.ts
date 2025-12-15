@@ -12,7 +12,7 @@ import type { IAgentRuntime } from '@elizaos/core';
 import { callGroqDirect } from '../llm/direct-groq';
 import { getAgentConfig } from '../shared/agent-config';
 import { logger } from '../shared/logger';
-import { generateSnowflakeId } from '../shared/snowflake';
+import { executeDirectMessage } from './DirectExecutors';
 
 /**
  * Service for autonomous group chat participation
@@ -142,13 +142,20 @@ Generate ONLY the message text, or "SKIP" if you shouldn't respond.`;
       }
 
       // Create group message
-      await db.insert(messages).values({
-        id: await generateSnowflakeId(),
+      const result = await executeDirectMessage({
+        agentUserId,
         chatId: chat.id,
-        senderId: agentUserId,
         content: cleanContent,
-        createdAt: new Date(),
       });
+
+      if (!result.success) {
+        logger.warn(
+          `Failed to create group chat message: ${result.error}`,
+          undefined,
+          'AutonomousGroupChat'
+        );
+        continue;
+      }
 
       messagesCreated++;
       logger.info(
