@@ -8,13 +8,13 @@
  * This eliminates double LLM calls and makes execution faster.
  */
 
-import { getDbInstance } from '@babylon/db';
 import {
   actorState,
   and,
   db,
   desc,
   eq,
+  getDbInstance,
   gte,
   isNull,
   lte,
@@ -144,11 +144,10 @@ export class MultiStepExecutor {
         isNpc
       );
 
-      // Build decision prompt
+      // Build decision prompt (systemPrompt passed separately to LLM system role)
       const agentName = agent?.displayName ?? agentUserId;
       const prompt = buildMultiStepDecisionPrompt({
         agentName,
-        systemPrompt,
         iterationCount: iteration,
         maxIterations: this.maxIterations,
         traceActionResults: trace,
@@ -156,7 +155,7 @@ export class MultiStepExecutor {
       });
 
       // Get LLM decision
-      const decision = await this.getDecision(prompt, runtime, iteration);
+      const decision = await this.getDecision(prompt, runtime, iteration, systemPrompt);
 
       if (!decision) {
         logger.warn(
@@ -258,7 +257,9 @@ export class MultiStepExecutor {
 
     // Get pending interactions
     const pendingInteractions =
-      await autonomousBatchResponseService.gatherPendingInteractions(agentUserId);
+      await autonomousBatchResponseService.gatherPendingInteractions(
+        agentUserId
+      );
 
     return {
       balance,
@@ -319,9 +320,11 @@ export class MultiStepExecutor {
         const staticOrg = StaticDataRegistry.getOrganization(state.id);
         if (!staticOrg || staticOrg.type !== 'company') return null;
 
-        const currentPrice = state.currentPrice ?? staticOrg.initialPrice ?? 100;
+        const currentPrice =
+          state.currentPrice ?? staticOrg.initialPrice ?? 100;
         const initialPrice = staticOrg.initialPrice ?? 100;
-        const changePercent = ((currentPrice - initialPrice) / initialPrice) * 100;
+        const changePercent =
+          ((currentPrice - initialPrice) / initialPrice) * 100;
 
         return {
           ticker: staticOrg.ticker,
@@ -338,7 +341,12 @@ export class MultiStepExecutor {
    * Get agent's current positions
    */
   private async getAgentPositions(agentUserId: string): Promise<{
-    predictions: { marketId: string; question: string; side: string; shares: number }[];
+    predictions: {
+      marketId: string;
+      question: string;
+      side: string;
+      shares: number;
+    }[];
     perps: { ticker: string; side: string; size: number; pnl: number }[];
   }> {
     // Prediction positions
@@ -349,11 +357,15 @@ export class MultiStepExecutor {
         shares: positions.shares,
       })
       .from(positions)
-      .where(and(eq(positions.userId, agentUserId), eq(positions.status, 'active')))
+      .where(
+        and(eq(positions.userId, agentUserId), eq(positions.status, 'active'))
+      )
       .limit(10);
 
     // Get market questions for positions
-    const marketIds = predPositions.map((p) => p.marketId).filter(Boolean) as string[];
+    const marketIds = predPositions
+      .map((p) => p.marketId)
+      .filter(Boolean) as string[];
     const marketQuestions = new Map<string, string>();
     if (marketIds.length > 0) {
       const marketData = await db
@@ -385,7 +397,10 @@ export class MultiStepExecutor {
       })
       .from(perpPositions)
       .where(
-        and(eq(perpPositions.userId, agentUserId), isNull(perpPositions.closedAt))
+        and(
+          eq(perpPositions.userId, agentUserId),
+          isNull(perpPositions.closedAt)
+        )
       )
       .limit(10);
 
@@ -447,7 +462,11 @@ export class MultiStepExecutor {
     const missingIds = authorIds.filter((id) => !authorNames.has(id));
     if (missingIds.length > 0) {
       const dbUsers = await db
-        .select({ id: users.id, displayName: users.displayName, username: users.username })
+        .select({
+          id: users.id,
+          displayName: users.displayName,
+          username: users.username,
+        })
         .from(users);
       for (const u of dbUsers) {
         if (missingIds.includes(u.id)) {
@@ -471,15 +490,20 @@ export class MultiStepExecutor {
   private async getDecision(
     prompt: string,
     runtime: IAgentRuntime,
-    _iteration: number
+    _iteration: number,
+    systemPrompt?: string
   ): Promise<MultiStepDecision | null> {
     const maxRetries = 3;
+
+    // Use agent's system prompt + JSON instruction
+    const system = systemPrompt
+      ? `${systemPrompt}\n\nIMPORTANT: Output valid JSON only. No markdown, no explanations.`
+      : 'You are a decision-making agent. Output valid JSON only. No markdown, no explanations.';
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       const response = await callGroqDirect({
         prompt,
-        system:
-          'You are a decision-making agent. Output valid JSON only. No markdown, no explanations.',
+        system,
         runtime,
         temperature: attempt > 1 ? 0.5 : 0.7,
         maxTokens: 1000,
@@ -633,7 +657,9 @@ export class MultiStepExecutor {
       case 'COMMENT': {
         const postId = parameters.postId as string;
         const content = parameters.content as string;
-        const parentCommentId = parameters.parentCommentId as string | undefined;
+        const parentCommentId = parameters.parentCommentId as
+          | string
+          | undefined;
 
         if (!postId || !content) {
           return {

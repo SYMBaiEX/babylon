@@ -66,7 +66,12 @@ export interface AgentTickContext {
   perpMarkets: PerpMarketContext[];
   recentPosts: PostContext[];
   agentPositions: {
-    predictions: { marketId: string; question: string; side: string; shares: number }[];
+    predictions: {
+      marketId: string;
+      question: string;
+      side: string;
+      shares: number;
+    }[];
     perps: { ticker: string; side: string; size: number; pnl: number }[];
   };
 }
@@ -84,10 +89,10 @@ export interface MultiStepDecision {
 
 /**
  * Build the multi-step decision prompt for an agent tick
+ * Note: systemPrompt is passed separately to the LLM's system role
  */
 export function buildMultiStepDecisionPrompt(params: {
   agentName: string;
-  systemPrompt: string;
   iterationCount: number;
   maxIterations: number;
   traceActionResults: ActionTraceResult[];
@@ -95,7 +100,6 @@ export function buildMultiStepDecisionPrompt(params: {
 }): string {
   const {
     agentName,
-    systemPrompt,
     iterationCount,
     maxIterations,
     traceActionResults,
@@ -112,9 +116,7 @@ export function buildMultiStepDecisionPrompt(params: {
           .join('\n')
       : 'No actions taken yet this tick.';
 
-  return `${systemPrompt}
-
-You are ${agentName}, an autonomous agent on Babylon prediction markets.
+  return `You are ${agentName}, an autonomous agent on Babylon prediction markets.
 
 # Current Execution Context
 **Step**: ${iterationCount}/${maxIterations}
@@ -209,20 +211,26 @@ Your decision (JSON only):`;
 // Formatters
 // =============================================================================
 
-function formatAgentPositions(positions: AgentTickContext['agentPositions']): string {
+function formatAgentPositions(
+  positions: AgentTickContext['agentPositions']
+): string {
   const lines: string[] = [];
 
   if (positions.predictions.length > 0) {
     lines.push('Prediction positions:');
     for (const p of positions.predictions) {
-      lines.push(`  - ${p.side} on "${p.question.substring(0, 50)}..." (${p.shares} shares)`);
+      lines.push(
+        `  - ${p.side} on "${p.question.substring(0, 50)}..." (${p.shares} shares)`
+      );
     }
   }
 
   if (positions.perps.length > 0) {
     lines.push('Perp positions:');
     for (const p of positions.perps) {
-      lines.push(`  - ${p.side} ${p.ticker}: $${p.size} (P&L: ${p.pnl >= 0 ? '+' : ''}$${p.pnl.toFixed(2)})`);
+      lines.push(
+        `  - ${p.side} ${p.ticker}: $${p.size} (P&L: ${p.pnl >= 0 ? '+' : ''}$${p.pnl.toFixed(2)})`
+      );
     }
   }
 
@@ -247,7 +255,8 @@ function formatPerpMarkets(markets: PerpMarketContext[]): string {
 
   return markets
     .map((m) => {
-      const direction = m.changePercent > 0 ? '📈' : m.changePercent < 0 ? '📉' : '➡️';
+      const direction =
+        m.changePercent > 0 ? '📈' : m.changePercent < 0 ? '📉' : '➡️';
       return `- ${m.ticker}: ${m.name} @ $${m.currentPrice.toFixed(2)} ${direction} ${m.changePercent > 0 ? '+' : ''}${m.changePercent.toFixed(1)}%`;
     })
     .join('\n');
@@ -308,11 +317,10 @@ function formatAvailableActions(enabledFeatures: string[]): string {
 
 export function buildMultiStepSummaryPrompt(params: {
   agentName: string;
-  systemPrompt: string;
   traceActionResults: ActionTraceResult[];
   context: AgentTickContext;
 }): string {
-  const { agentName, systemPrompt, traceActionResults, context } = params;
+  const { agentName, traceActionResults, context } = params;
 
   const resultsText = traceActionResults
     .map(
@@ -323,9 +331,7 @@ export function buildMultiStepSummaryPrompt(params: {
     )
     .join('\n\n');
 
-  return `${systemPrompt}
-
-You are ${agentName}. You just completed an autonomous tick with the following actions:
+  return `You are ${agentName}. You just completed an autonomous tick with the following actions:
 
 # Actions Taken
 ${resultsText || 'No actions were taken this tick.'}

@@ -283,8 +283,15 @@ async function executePerpTrade(params: {
   isNpc: boolean;
   agentManagedBy: string;
 }): Promise<DirectTradeResult> {
-  const { agentUserId, ticker, side, amount, reasoning, isNpc, agentManagedBy } =
-    params;
+  const {
+    agentUserId,
+    ticker,
+    side,
+    amount,
+    reasoning,
+    isNpc,
+    agentManagedBy,
+  } = params;
 
   const perpSide = side === 'open_long' ? 'long' : 'short';
 
@@ -381,7 +388,13 @@ async function executePerpTrade(params: {
             description?: string;
             relatedId?: string;
           }) =>
-            WalletService.credit(uid, amt, reason, description ?? '', relatedId),
+            WalletService.credit(
+              uid,
+              amt,
+              reason,
+              description ?? '',
+              relatedId
+            ),
           recordPnL: async ({
             userId: uid,
             pnl,
@@ -549,7 +562,10 @@ export async function executeDirectComment(
       .limit(1);
 
     if (!parentComment) {
-      return { success: false, error: `Parent comment not found: ${parentCommentId}` };
+      return {
+        success: false,
+        error: `Parent comment not found: ${parentCommentId}`,
+      };
     }
   }
 
@@ -583,4 +599,3 @@ export async function executeDirectComment(
     commentId,
   };
 }
-
