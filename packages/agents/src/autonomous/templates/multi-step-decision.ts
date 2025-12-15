@@ -2,8 +2,85 @@
  * Multi-Step Decision Template for Babylon Agents
  *
  * Determines the next action an agent should take in a tick.
- * Adapted from Otaku's multi-step pattern for Babylon's prediction market context.
+ * Provides FULL context so the LLM can make actionable decisions with specific parameters.
+ * Services are "dumb executors" - all reasoning happens here.
  */
+
+// =============================================================================
+// Types
+// =============================================================================
+
+export interface ActionTraceResult {
+  actionType: string;
+  success: boolean;
+  summary?: string;
+  error?: string;
+  result?: {
+    [key: string]: string | number | boolean | null | undefined;
+  };
+  parameters?: Record<string, unknown>;
+  timestamp: number;
+}
+
+export interface PredictionMarketContext {
+  id: string;
+  question: string;
+  yesPrice: number; // 0-1
+  noPrice: number; // 0-1
+  volume: number;
+  endDate: string;
+}
+
+export interface PerpMarketContext {
+  ticker: string;
+  name: string;
+  currentPrice: number;
+  initialPrice: number;
+  changePercent: number;
+}
+
+export interface PostContext {
+  id: string;
+  authorName: string;
+  content: string;
+  commentCount: number;
+  timeAgo: string;
+}
+
+export interface PendingInteraction {
+  type: 'comment_reply' | 'dm' | 'mention';
+  author: string;
+  content: string;
+  postId?: string;
+}
+
+export interface AgentTickContext {
+  balance: number;
+  pnl: number;
+  openPositions: number;
+  pendingInteractions: number;
+  pendingInteractionDetails: PendingInteraction[];
+  enabledFeatures: string[];
+  // Rich context for actionable decisions
+  predictionMarkets: PredictionMarketContext[];
+  perpMarkets: PerpMarketContext[];
+  recentPosts: PostContext[];
+  agentPositions: {
+    predictions: { marketId: string; question: string; side: string; shares: number }[];
+    perps: { ticker: string; side: string; size: number; pnl: number }[];
+  };
+}
+
+export interface MultiStepDecision {
+  thought: string;
+  action: string;
+  parameters: Record<string, unknown>;
+  isFinish: boolean;
+}
+
+// =============================================================================
+// Prompt Builder
+// =============================================================================
 
 /**
  * Build the multi-step decision prompt for an agent tick
@@ -30,19 +107,18 @@ export function buildMultiStepDecisionPrompt(params: {
       ? traceActionResults
           .map(
             (r, i) =>
-              `${i + 1}. ${r.actionType}: ${r.success ? '✓ Success' : '✗ Failed'}${r.summary ? ` - ${r.summary}` : ''}${r.error ? ` (Error: ${r.error})` : ''}`
+              `${i + 1}. ${r.actionType}: ${r.success ? '✓' : '✗'} ${r.summary || ''}${r.error ? ` (Error: ${r.error})` : ''}`
           )
           .join('\n')
       : 'No actions taken yet this tick.';
 
   return `${systemPrompt}
 
-You are ${agentName}, an autonomous agent on Babylon prediction market.
+You are ${agentName}, an autonomous agent on Babylon prediction markets.
 
 # Current Execution Context
-**Current Step**: ${iterationCount} of ${maxIterations} maximum iterations
+**Step**: ${iterationCount}/${maxIterations}
 **Actions Completed This Tick**: ${traceActionResults.length}
-${traceActionResults.length > 0 ? `You have ALREADY taken ${traceActionResults.length} action(s) this tick. Review them before deciding.` : 'This is your FIRST decision - no actions taken yet.'}
 
 # Your Current State
 - Balance: $${context.balance.toFixed(2)}
@@ -50,11 +126,17 @@ ${traceActionResults.length > 0 ? `You have ALREADY taken ${traceActionResults.l
 - Open Positions: ${context.openPositions}
 - Pending Interactions: ${context.pendingInteractions}
 
-# Available Actions
-${formatAvailableActions(context.enabledFeatures)}
+# Your Open Positions
+${formatAgentPositions(context.agentPositions)}
 
-# Market Opportunities
-${formatMarketOpportunities(context.opportunities)}
+# Available Prediction Markets
+${formatPredictionMarkets(context.predictionMarkets)}
+
+# Available Perp Markets
+${formatPerpMarkets(context.perpMarkets)}
+
+# Recent Posts (can comment on)
+${formatRecentPosts(context.recentPosts)}
 
 # Pending Interactions
 ${formatPendingInteractions(context.pendingInteractionDetails)}
@@ -62,45 +144,168 @@ ${formatPendingInteractions(context.pendingInteractionDetails)}
 # Actions Completed This Tick
 ${actionsCompletedText}
 
-# Decision Process
-1. **Understand Current State**: What have you already done? What's most important now?
-2. **Evaluate Redundancy vs Complementarity**:
-   - ❌ AVOID: Repeating the SAME action with SAME parameters
-   - ❌ AVOID: Multiple trades on the same market
-   - ✅ ENCOURAGE: Different actions that provide different value
-   - ✅ ENCOURAGE: Related actions that build on each other (e.g., respond to comment then post insight)
-3. **Choose Next Action**: Based on what adds the MOST value right now
-4. **Know When to Stop**: Set isFinish=true when you've done enough for this tick
+# Available Actions
+${formatAvailableActions(context.enabledFeatures)}
 
 # Decision Rules
-1. **Step Awareness**: You are on step ${iterationCount}/${maxIterations}. Check what you've already done.
-2. **Request Type**:
-   - Trading: Execute trades when you see clear opportunities
-   - Social: Respond to interactions, create content when valuable
-   - Research: Analyze markets before trading if uncertain
-3. **When to Finish** (isFinish: true):
-   - You've taken 2-3 meaningful actions
-   - No more valuable opportunities
-   - You're about to repeat an identical action
-   - Low balance and should preserve capital
+1. **Be Specific**: Provide exact IDs, amounts, and content in parameters
+2. **One Action**: Choose ONE action per iteration
+3. **No Duplicates**: Don't repeat the same action on the same target
+4. **Know When to Stop**: Set isFinish=true after 2-3 meaningful actions or when done
 
-# Output Format
-Respond with ONLY this JSON structure:
+# Output Format (JSON only, no markdown)
 {
-  "thought": "Step ${iterationCount}/${maxIterations}. Actions taken: ${traceActionResults.length}. [Your reasoning about what to do next and why]",
-  "action": "ACTION_NAME or empty string if finishing",
-  "parameters": { /* action-specific parameters */ },
-  "isFinish": true | false
+  "thought": "Brief reasoning for this decision",
+  "action": "TRADE" | "POST" | "COMMENT" | "RESPOND" | "",
+  "parameters": { /* action-specific, see below */ },
+  "isFinish": false
 }
 
-Available action names: ${context.enabledFeatures.map((f) => getActionName(f)).join(', ')}, or "" to finish
+## Parameter Schemas
+
+TRADE (prediction):
+{
+  "marketType": "prediction",
+  "marketId": "exact_market_id_from_list",
+  "side": "buy_yes" | "buy_no",
+  "amount": 100,
+  "reasoning": "Why this trade"
+}
+
+TRADE (perp):
+{
+  "marketType": "perp",
+  "marketId": "TICKER",
+  "side": "open_long" | "open_short",
+  "amount": 100,
+  "reasoning": "Why this trade"
+}
+
+POST:
+{
+  "content": "Your post content (1-2 sentences, engaging, specific)"
+}
+
+COMMENT:
+{
+  "postId": "exact_post_id_from_list",
+  "content": "Your comment (1-2 sentences)",
+  "parentCommentId": "optional_if_replying_to_comment"
+}
+
+RESPOND:
+{} (batch responds to pending interactions)
+
+FINISH (empty action):
+{
+  "action": "",
+  "isFinish": true
+}
 
 Your decision (JSON only):`;
 }
 
-/**
- * Build the summary prompt after multi-step execution completes
- */
+// =============================================================================
+// Formatters
+// =============================================================================
+
+function formatAgentPositions(positions: AgentTickContext['agentPositions']): string {
+  const lines: string[] = [];
+
+  if (positions.predictions.length > 0) {
+    lines.push('Prediction positions:');
+    for (const p of positions.predictions) {
+      lines.push(`  - ${p.side} on "${p.question.substring(0, 50)}..." (${p.shares} shares)`);
+    }
+  }
+
+  if (positions.perps.length > 0) {
+    lines.push('Perp positions:');
+    for (const p of positions.perps) {
+      lines.push(`  - ${p.side} ${p.ticker}: $${p.size} (P&L: ${p.pnl >= 0 ? '+' : ''}$${p.pnl.toFixed(2)})`);
+    }
+  }
+
+  return lines.length > 0 ? lines.join('\n') : 'No open positions.';
+}
+
+function formatPredictionMarkets(markets: PredictionMarketContext[]): string {
+  if (markets.length === 0) return 'No active prediction markets.';
+
+  return markets
+    .map((m) => {
+      const yesPct = (m.yesPrice * 100).toFixed(0);
+      const noPct = (m.noPrice * 100).toFixed(0);
+      return `- [${m.id}] "${m.question.substring(0, 60)}${m.question.length > 60 ? '...' : ''}"
+    YES: ${yesPct}% | NO: ${noPct}% | Ends: ${m.endDate}`;
+    })
+    .join('\n');
+}
+
+function formatPerpMarkets(markets: PerpMarketContext[]): string {
+  if (markets.length === 0) return 'No perp markets available.';
+
+  return markets
+    .map((m) => {
+      const direction = m.changePercent > 0 ? '📈' : m.changePercent < 0 ? '📉' : '➡️';
+      return `- ${m.ticker}: ${m.name} @ $${m.currentPrice.toFixed(2)} ${direction} ${m.changePercent > 0 ? '+' : ''}${m.changePercent.toFixed(1)}%`;
+    })
+    .join('\n');
+}
+
+function formatRecentPosts(posts: PostContext[]): string {
+  if (posts.length === 0) return 'No recent posts to engage with.';
+
+  return posts
+    .map(
+      (p) =>
+        `- [${p.id}] @${p.authorName} (${p.timeAgo}): "${p.content.substring(0, 80)}${p.content.length > 80 ? '...' : ''}" (${p.commentCount} comments)`
+    )
+    .join('\n');
+}
+
+function formatPendingInteractions(interactions: PendingInteraction[]): string {
+  if (interactions.length === 0) return 'No pending interactions.';
+
+  return interactions
+    .slice(0, 5)
+    .map(
+      (i) =>
+        `- [${i.type}] @${i.author}: "${i.content.substring(0, 60)}${i.content.length > 60 ? '...' : ''}"`
+    )
+    .join('\n');
+}
+
+function formatAvailableActions(enabledFeatures: string[]): string {
+  const actions: string[] = [];
+
+  if (enabledFeatures.includes('trading')) {
+    actions.push(
+      '- TRADE: Buy/sell on prediction markets (buy_yes/buy_no) or perps (open_long/open_short)'
+    );
+  }
+
+  if (enabledFeatures.includes('posting')) {
+    actions.push('- POST: Create a new post (provide content)');
+  }
+
+  if (enabledFeatures.includes('commenting')) {
+    actions.push('- COMMENT: Reply to a post (provide postId and content)');
+  }
+
+  if (enabledFeatures.includes('DMs')) {
+    actions.push('- RESPOND: Batch respond to pending DMs/mentions');
+  }
+
+  actions.push('- (empty action with isFinish=true): Finish this tick');
+
+  return actions.join('\n');
+}
+
+// =============================================================================
+// Summary Prompt (unused but kept for reference)
+// =============================================================================
+
 export function buildMultiStepSummaryPrompt(params: {
   agentName: string;
   systemPrompt: string;
@@ -132,133 +337,10 @@ ${resultsText || 'No actions were taken this tick.'}
 
 # Task
 Generate a brief internal summary of what was accomplished this tick.
-This is for logging purposes, not user-facing.
 
 Respond with JSON:
 {
   "summary": "Brief summary of actions taken and outcomes",
-  "nextTickPriority": "What should be prioritized next tick (trading/social/research)"
+  "nextTickPriority": "trading | social | research"
 }`;
-}
-
-// =============================================================================
-// Types
-// =============================================================================
-
-export interface ActionTraceResult {
-  actionType: string;
-  success: boolean;
-  summary?: string;
-  error?: string;
-  result?: Record<string, unknown>;
-  parameters?: Record<string, unknown>;
-  timestamp: number;
-}
-
-export interface AgentTickContext {
-  balance: number;
-  pnl: number;
-  openPositions: number;
-  pendingInteractions: number;
-  pendingInteractionDetails: PendingInteraction[];
-  enabledFeatures: string[];
-  opportunities: MarketOpportunity[];
-}
-
-export interface PendingInteraction {
-  type: 'comment_reply' | 'dm' | 'mention';
-  author: string;
-  content: string;
-  postId?: string;
-}
-
-export interface MarketOpportunity {
-  type: 'prediction' | 'perp';
-  id: string;
-  name: string;
-  description: string;
-  confidence: number;
-}
-
-export interface MultiStepDecision {
-  thought: string;
-  action: string;
-  parameters: Record<string, unknown>;
-  isFinish: boolean;
-}
-
-// =============================================================================
-// Helpers
-// =============================================================================
-
-function formatAvailableActions(enabledFeatures: string[]): string {
-  const actions: string[] = [];
-
-  if (enabledFeatures.includes('trading')) {
-    actions.push(`- TRADE: Buy/sell on prediction markets or open/close perp positions
-    Parameters: { type: "prediction"|"perp", market: "id or name", action: "buy_yes"|"buy_no"|"open_long"|"open_short"|"close", amount: number }`);
-  }
-
-  if (enabledFeatures.includes('posting')) {
-    actions.push(`- POST: Create a new post sharing insights or analysis
-    Parameters: { content: "your post content" }`);
-  }
-
-  if (enabledFeatures.includes('commenting')) {
-    actions.push(`- COMMENT: Reply to a post or comment
-    Parameters: { targetId: "post or comment id", content: "your reply" }`);
-  }
-
-  if (enabledFeatures.includes('DMs')) {
-    actions.push(`- DM: Send a direct message
-    Parameters: { userId: "recipient id", content: "your message" }`);
-  }
-
-  actions.push(`- WAIT: Do nothing this iteration (use when no good opportunities)
-    Parameters: {}`);
-
-  return actions.join('\n\n');
-}
-
-function formatMarketOpportunities(opportunities: MarketOpportunity[]): string {
-  if (opportunities.length === 0) {
-    return 'No notable opportunities detected.';
-  }
-
-  return opportunities
-    .slice(0, 5)
-    .map(
-      (o) =>
-        `- [${o.type.toUpperCase()}] ${o.name}: ${o.description} (Confidence: ${(o.confidence * 100).toFixed(0)}%)`
-    )
-    .join('\n');
-}
-
-function formatPendingInteractions(interactions: PendingInteraction[]): string {
-  if (interactions.length === 0) {
-    return 'No pending interactions.';
-  }
-
-  return interactions
-    .slice(0, 5)
-    .map(
-      (i) =>
-        `- [${i.type}] @${i.author}: "${i.content.substring(0, 80)}${i.content.length > 80 ? '...' : ''}"`
-    )
-    .join('\n');
-}
-
-function getActionName(feature: string): string {
-  switch (feature) {
-    case 'trading':
-      return 'TRADE';
-    case 'posting':
-      return 'POST';
-    case 'commenting':
-      return 'COMMENT';
-    case 'DMs':
-      return 'DM';
-    default:
-      return feature.toUpperCase();
-  }
 }

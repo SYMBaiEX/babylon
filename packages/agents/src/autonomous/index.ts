@@ -24,6 +24,17 @@ export {
 export { autonomousPostingService } from './AutonomousPostingService';
 export { autonomousTradingService } from './AutonomousTradingService';
 export {
+  type DirectCommentParams,
+  type DirectCommentResult,
+  type DirectPostParams,
+  type DirectPostResult,
+  type DirectTradeParams,
+  type DirectTradeResult,
+  executeDirectComment,
+  executeDirectPost,
+  executeDirectTrade,
+} from './DirectExecutors';
+export {
   MultiStepExecutor,
   type MultiStepExecutorResult,
   multiStepExecutor,
@@ -36,4 +47,8 @@ export {
   buildMultiStepDecisionPrompt,
   buildMultiStepSummaryPrompt,
   type MultiStepDecision,
+  type PendingInteraction,
+  type PerpMarketContext,
+  type PostContext,
+  type PredictionMarketContext,
 } from './templates/multi-step-decision';

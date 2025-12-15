@@ -4,31 +4,46 @@
  * Implements an iterative decision loop where the LLM decides what action to take
  * based on current state and previous actions taken this tick.
  *
- * Inspired by Otaku's multi-step pattern, adapted for Babylon prediction markets.
+ * Key design: Services are "dumb executors" - all LLM reasoning happens HERE.
+ * This eliminates double LLM calls and makes execution faster.
  */
 
+import { getDbInstance } from '@babylon/db';
 import {
   actorState,
+  and,
   db,
+  desc,
   eq,
+  gte,
+  isNull,
+  lte,
+  markets,
+  ne,
   perpPositions,
   positions,
+  posts,
   users,
 } from '@babylon/db';
+import { StaticDataRegistry, WalletService } from '@babylon/engine';
 import type { IAgentRuntime } from '@elizaos/core';
 import { callGroqDirect } from '../llm/direct-groq';
 import { getAgentConfig } from '../shared/agent-config';
 import { logger } from '../shared/logger';
 import { autonomousBatchResponseService } from './AutonomousBatchResponseService';
-import { autonomousCommentingService } from './AutonomousCommentingService';
-import { autonomousPostingService } from './AutonomousPostingService';
-import { autonomousTradingService } from './AutonomousTradingService';
+import {
+  executeDirectComment,
+  executeDirectPost,
+  executeDirectTrade,
+} from './DirectExecutors';
 import {
   type ActionTraceResult,
   type AgentTickContext,
   buildMultiStepDecisionPrompt,
-  type MarketOpportunity,
   type MultiStepDecision,
+  type PerpMarketContext,
+  type PostContext,
+  type PredictionMarketContext,
 } from './templates/multi-step-decision';
 
 // =============================================================================
@@ -84,7 +99,6 @@ export class MultiStepExecutor {
     );
 
     // Get agent info (for USER_CONTROLLED agents)
-    // NPCs don't have User records - they're validated by AgentRegistry
     let agent: typeof users.$inferSelect | undefined;
     if (!isNpc) {
       const [userAgent] = await db
@@ -107,7 +121,6 @@ export class MultiStepExecutor {
     // Determine enabled features - NPCs have all features enabled by default
     const enabledFeatures: string[] = [];
     if (isNpc) {
-      // NPCs have all autonomous features enabled
       enabledFeatures.push('trading', 'posting', 'commenting', 'DMs');
     } else {
       if (config?.autonomousTrading) enabledFeatures.push('trading');
@@ -132,7 +145,6 @@ export class MultiStepExecutor {
       );
 
       // Build decision prompt
-      // For NPCs, use agentUserId as the name (e.g., "aellai")
       const agentName = agent?.displayName ?? agentUserId;
       const prompt = buildMultiStepDecisionPrompt({
         agentName,
@@ -174,19 +186,17 @@ export class MultiStepExecutor {
         break;
       }
 
-      // Execute the chosen action
+      // Execute the chosen action with parameters
       const actionResult = await this.executeAction(
         agentUserId,
-        runtime,
         decision.action,
-        decision.parameters,
-        decision.thought
+        decision.parameters
       );
 
       trace.push(actionResult);
 
-      // Small delay between iterations
-      await new Promise((resolve) => setTimeout(resolve, 500));
+      // Small delay between iterations (reduced since no double LLM calls)
+      await new Promise((resolve) => setTimeout(resolve, 200));
     }
 
     // Aggregate results
@@ -208,76 +218,53 @@ export class MultiStepExecutor {
 
   /**
    * Gather current context for decision making
-   *
-   * @param agentUserId - User ID for USER_CONTROLLED agents, or actorId for NPCs
-   * @param enabledFeatures - List of enabled features for this agent
-   * @param isNpc - Whether this is an NPC agent (uses ActorState instead of User)
+   * Includes FULL market data so LLM can make specific decisions
    */
   private async gatherContext(
     agentUserId: string,
     enabledFeatures: string[],
     isNpc: boolean
   ): Promise<AgentTickContext> {
+    // Get balance and PnL
     let balance = 0;
     let pnl = 0;
 
     if (isNpc) {
-      // NPCs use ActorState table (no lifetimePnL tracking for NPCs)
       const [actor] = await db
-        .select({
-          tradingBalance: actorState.tradingBalance,
-        })
+        .select({ tradingBalance: actorState.tradingBalance })
         .from(actorState)
         .where(eq(actorState.id, agentUserId))
         .limit(1);
 
       balance = Number(actor?.tradingBalance ?? 10000);
-      pnl = 0; // NPCs don't track lifetimePnL
+      pnl = 0;
     } else {
-      // USER_CONTROLLED agents use User table
-      const [agent] = await db
-        .select({
-          virtualBalance: users.virtualBalance,
-          lifetimePnL: users.lifetimePnL,
-        })
-        .from(users)
-        .where(eq(users.id, agentUserId))
-        .limit(1);
-
-      balance = Number(agent?.virtualBalance ?? 0);
-      pnl = Number(agent?.lifetimePnL ?? 0);
+      const walletBalance = await WalletService.getBalance(agentUserId);
+      balance = walletBalance.balance;
+      pnl = walletBalance.lifetimePnL;
     }
 
-    // Get open positions count (positions table uses userId for both User and NPC)
-    const predPositions = await db
-      .select()
-      .from(positions)
-      .where(eq(positions.userId, agentUserId));
-    const activePositions = predPositions.filter(
-      (p) => p.status === 'active'
-    ).length;
+    // Get prediction markets
+    const predictionMarkets = await this.getPredictionMarkets();
 
-    const perpPositionsList = await db
-      .select()
-      .from(perpPositions)
-      .where(eq(perpPositions.userId, agentUserId));
-    const openPerpPositions = perpPositionsList.filter(
-      (p) => p.closedAt === null
-    ).length;
+    // Get perp markets
+    const perpMarkets = await this.getPerpMarkets();
+
+    // Get agent's positions
+    const agentPositions = await this.getAgentPositions(agentUserId);
+
+    // Get recent posts to engage with
+    const recentPosts = await this.getRecentPosts(agentUserId);
 
     // Get pending interactions
     const pendingInteractions =
-      await autonomousBatchResponseService.gatherPendingInteractions(
-        agentUserId
-      );
-
-    // Get market opportunities (simplified for now)
-    const opportunities = await this.detectOpportunities(agentUserId);
+      await autonomousBatchResponseService.gatherPendingInteractions(agentUserId);
 
     return {
       balance,
       pnl,
-      openPositions: activePositions + openPerpPositions,
+      openPositions:
+        agentPositions.predictions.length + agentPositions.perps.length,
       pendingInteractions: pendingInteractions.length,
       pendingInteractionDetails: pendingInteractions.slice(0, 5).map((i) => ({
         type: i.type as 'comment_reply' | 'dm' | 'mention',
@@ -286,50 +273,196 @@ export class MultiStepExecutor {
         postId: i.postId,
       })),
       enabledFeatures,
-      opportunities,
+      predictionMarkets,
+      perpMarkets,
+      recentPosts,
+      agentPositions,
     };
   }
 
   /**
-   * Detect market opportunities for the agent
+   * Get active prediction markets with pricing
    */
-  private async detectOpportunities(
-    _agentUserId: string
-  ): Promise<MarketOpportunity[]> {
-    const opportunities: MarketOpportunity[] = [];
+  private async getPredictionMarkets(): Promise<PredictionMarketContext[]> {
+    const activeMarkets = await db
+      .select()
+      .from(markets)
+      .where(and(eq(markets.resolved, false), gte(markets.endDate, new Date())))
+      .orderBy(desc(markets.createdAt))
+      .limit(8);
 
-    // Get active prediction markets
-    const activeMarkets = await db.market.findMany({
-      where: {
-        resolved: false,
-        endDate: { gte: new Date() },
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 5,
+    return activeMarkets.map((m) => {
+      const yesShares = Number(m.yesShares || 1);
+      const noShares = Number(m.noShares || 1);
+      const total = yesShares + noShares;
+
+      return {
+        id: m.id,
+        question: m.question,
+        yesPrice: yesShares / total,
+        noPrice: noShares / total,
+        volume: total,
+        endDate: m.endDate?.toISOString().split('T')[0] ?? 'Unknown',
+      };
     });
+  }
 
-    for (const market of activeMarkets) {
-      const yesShares = Number(market.yesShares || 0);
-      const noShares = Number(market.noShares || 0);
-      const totalShares = yesShares + noShares;
+  /**
+   * Get perp markets with current prices
+   */
+  private async getPerpMarkets(): Promise<PerpMarketContext[]> {
+    const orgStates = await getDbInstance().getOrganizationsByPrice();
 
-      if (totalShares > 0) {
-        const yesPrice = yesShares / totalShares;
+    return orgStates
+      .slice(0, 8)
+      .map((state) => {
+        const staticOrg = StaticDataRegistry.getOrganization(state.id);
+        if (!staticOrg || staticOrg.type !== 'company') return null;
 
-        // Flag mispriced markets
-        if (yesPrice < 0.25 || yesPrice > 0.75) {
-          opportunities.push({
-            type: 'prediction',
-            id: market.id,
-            name: market.question.substring(0, 50),
-            description: `YES at ${(yesPrice * 100).toFixed(0)}% - ${yesPrice < 0.5 ? 'potential undervalued' : 'potential overvalued'}`,
-            confidence: Math.abs(yesPrice - 0.5) * 2,
-          });
+        const currentPrice = state.currentPrice ?? staticOrg.initialPrice ?? 100;
+        const initialPrice = staticOrg.initialPrice ?? 100;
+        const changePercent = ((currentPrice - initialPrice) / initialPrice) * 100;
+
+        return {
+          ticker: staticOrg.ticker,
+          name: staticOrg.name,
+          currentPrice,
+          initialPrice,
+          changePercent,
+        };
+      })
+      .filter((m): m is PerpMarketContext => m !== null);
+  }
+
+  /**
+   * Get agent's current positions
+   */
+  private async getAgentPositions(agentUserId: string): Promise<{
+    predictions: { marketId: string; question: string; side: string; shares: number }[];
+    perps: { ticker: string; side: string; size: number; pnl: number }[];
+  }> {
+    // Prediction positions
+    const predPositions = await db
+      .select({
+        marketId: positions.marketId,
+        side: positions.side,
+        shares: positions.shares,
+      })
+      .from(positions)
+      .where(and(eq(positions.userId, agentUserId), eq(positions.status, 'active')))
+      .limit(10);
+
+    // Get market questions for positions
+    const marketIds = predPositions.map((p) => p.marketId).filter(Boolean) as string[];
+    const marketQuestions = new Map<string, string>();
+    if (marketIds.length > 0) {
+      const marketData = await db
+        .select({ id: markets.id, question: markets.question })
+        .from(markets);
+      for (const m of marketData) {
+        if (marketIds.includes(m.id)) {
+          marketQuestions.set(m.id, m.question);
         }
       }
     }
 
-    return opportunities.slice(0, 5);
+    const predictions = predPositions
+      .filter((p) => p.marketId)
+      .map((p) => ({
+        marketId: p.marketId as string,
+        question: marketQuestions.get(p.marketId as string) ?? 'Unknown',
+        side: p.side ? 'YES' : 'NO',
+        shares: Number(p.shares || 0),
+      }));
+
+    // Perp positions
+    const perpPositionsList = await db
+      .select({
+        ticker: perpPositions.ticker,
+        side: perpPositions.side,
+        size: perpPositions.size,
+        unrealizedPnL: perpPositions.unrealizedPnL,
+      })
+      .from(perpPositions)
+      .where(
+        and(eq(perpPositions.userId, agentUserId), isNull(perpPositions.closedAt))
+      )
+      .limit(10);
+
+    const perps = perpPositionsList.map((p) => ({
+      ticker: p.ticker,
+      side: p.side,
+      size: Number(p.size || 0),
+      pnl: Number(p.unrealizedPnL || 0),
+    }));
+
+    return { predictions, perps };
+  }
+
+  /**
+   * Get recent posts to potentially engage with
+   */
+  private async getRecentPosts(agentUserId: string): Promise<PostContext[]> {
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const now = new Date();
+
+    const recentPostsRaw = await db
+      .select({
+        id: posts.id,
+        content: posts.content,
+        authorId: posts.authorId,
+        createdAt: posts.createdAt,
+      })
+      .from(posts)
+      .where(
+        and(
+          ne(posts.authorId, agentUserId),
+          isNull(posts.deletedAt),
+          gte(posts.timestamp, oneDayAgo),
+          lte(posts.timestamp, now)
+        )
+      )
+      .orderBy(desc(posts.createdAt))
+      .limit(8);
+
+    // Get author names
+    const authorIds = [...new Set(recentPostsRaw.map((p) => p.authorId))];
+    const authorNames = new Map<string, string>();
+
+    for (const authorId of authorIds) {
+      // Check static registry first
+      const actor = StaticDataRegistry.getActor(authorId);
+      if (actor) {
+        authorNames.set(authorId, actor.name);
+        continue;
+      }
+      const org = StaticDataRegistry.getOrganization(authorId);
+      if (org) {
+        authorNames.set(authorId, org.name);
+        continue;
+      }
+    }
+
+    // Fetch remaining from DB
+    const missingIds = authorIds.filter((id) => !authorNames.has(id));
+    if (missingIds.length > 0) {
+      const dbUsers = await db
+        .select({ id: users.id, displayName: users.displayName, username: users.username })
+        .from(users);
+      for (const u of dbUsers) {
+        if (missingIds.includes(u.id)) {
+          authorNames.set(u.id, u.displayName || u.username || 'User');
+        }
+      }
+    }
+
+    return recentPostsRaw.map((p) => ({
+      id: p.id,
+      authorName: authorNames.get(p.authorId) || 'User',
+      content: p.content,
+      commentCount: 0, // Simplified - could add actual count if needed
+      timeAgo: getTimeAgo(p.createdAt),
+    }));
   }
 
   /**
@@ -348,7 +481,7 @@ export class MultiStepExecutor {
         system:
           'You are a decision-making agent. Output valid JSON only. No markdown, no explanations.',
         runtime,
-        temperature: attempt > 1 ? 0.5 : 0.7, // Lower temperature on retry
+        temperature: attempt > 1 ? 0.5 : 0.7,
         maxTokens: 1000,
         actionType: 'multi_step_decision',
         purpose: 'action',
@@ -396,14 +529,12 @@ export class MultiStepExecutor {
   }
 
   /**
-   * Execute a single action based on LLM decision
+   * Execute a single action using DIRECT executors (no LLM calls)
    */
   private async executeAction(
     agentUserId: string,
-    runtime: IAgentRuntime,
     action: string,
-    parameters: Record<string, unknown>,
-    _thought: string
+    parameters: Record<string, unknown>
   ): Promise<ActionTraceResult> {
     const normalizedAction = action.toUpperCase();
 
@@ -413,124 +544,176 @@ export class MultiStepExecutor {
       'MultiStepExecutor'
     );
 
-    try {
-      switch (normalizedAction) {
-        case 'TRADE': {
-          const tradeResult = await autonomousTradingService.executeTrades(
-            agentUserId,
-            runtime
-          );
+    switch (normalizedAction) {
+      case 'TRADE': {
+        const marketType = parameters.marketType as 'prediction' | 'perp';
+        const marketId = parameters.marketId as string;
+        const side = parameters.side as
+          | 'buy_yes'
+          | 'buy_no'
+          | 'open_long'
+          | 'open_short';
+        const amount = Number(parameters.amount || 100);
+        const reasoning = parameters.reasoning as string | undefined;
+
+        if (!marketId || !side) {
           return {
             actionType: 'TRADE',
-            success: tradeResult.tradesExecuted > 0,
-            summary:
-              tradeResult.tradesExecuted > 0
-                ? `Executed ${tradeResult.tradesExecuted} trade(s) on ${tradeResult.marketType || 'market'}`
-                : 'Decided to hold - no trade executed',
-            result: {
-              tradesExecuted: tradeResult.tradesExecuted,
-              marketId: tradeResult.marketId,
-              ticker: tradeResult.ticker,
-              side: tradeResult.side,
-            },
+            success: false,
+            summary: 'Missing required parameters (marketId, side)',
+            error: 'Invalid parameters',
             parameters,
             timestamp: Date.now(),
           };
         }
 
-        case 'POST': {
-          const postId = await autonomousPostingService.createAgentPost(
-            agentUserId,
-            runtime
-          );
+        const tradeResult = await executeDirectTrade({
+          agentUserId,
+          marketType: marketType || 'prediction',
+          marketId,
+          side,
+          amount,
+          reasoning,
+        });
+
+        return {
+          actionType: 'TRADE',
+          success: tradeResult.success,
+          summary: tradeResult.success
+            ? `Traded ${side} $${amount} on ${tradeResult.marketId || tradeResult.ticker}`
+            : `Trade failed: ${tradeResult.error}`,
+          result: {
+            success: tradeResult.success,
+            marketId: tradeResult.marketId,
+            ticker: tradeResult.ticker,
+            side: tradeResult.side,
+            shares: tradeResult.shares,
+            error: tradeResult.error,
+          },
+          parameters,
+          timestamp: Date.now(),
+        };
+      }
+
+      case 'POST': {
+        const content = parameters.content as string;
+
+        if (!content) {
           return {
             actionType: 'POST',
-            success: !!postId,
-            summary: postId
-              ? `Created post ${postId}`
-              : 'Failed to create post',
-            result: postId ? { postId } : undefined,
+            success: false,
+            summary: 'Missing content parameter',
+            error: 'No content provided',
             parameters,
             timestamp: Date.now(),
           };
         }
 
-        case 'COMMENT': {
-          const commentId =
-            await autonomousCommentingService.createAgentComment(
-              agentUserId,
-              runtime
-            );
+        const postResult = await executeDirectPost({
+          agentUserId,
+          content,
+        });
+
+        return {
+          actionType: 'POST',
+          success: postResult.success,
+          summary: postResult.success
+            ? `Created post ${postResult.postId}`
+            : `Post failed: ${postResult.error}`,
+          result: {
+            success: postResult.success,
+            postId: postResult.postId,
+            error: postResult.error,
+          },
+          parameters,
+          timestamp: Date.now(),
+        };
+      }
+
+      case 'COMMENT': {
+        const postId = parameters.postId as string;
+        const content = parameters.content as string;
+        const parentCommentId = parameters.parentCommentId as string | undefined;
+
+        if (!postId || !content) {
           return {
             actionType: 'COMMENT',
-            success: !!commentId,
-            summary: commentId
-              ? `Created comment ${commentId}`
-              : 'Failed to create comment',
-            result: commentId ? { commentId } : undefined,
-            parameters,
-            timestamp: Date.now(),
-          };
-        }
-
-        case 'RESPOND': {
-          const responses = await autonomousBatchResponseService.processBatch(
-            agentUserId,
-            runtime
-          );
-          return {
-            actionType: 'RESPOND',
-            success: responses > 0,
-            summary: `Responded to ${responses} interaction(s)`,
-            result: { responsesCreated: responses },
-            parameters,
-            timestamp: Date.now(),
-          };
-        }
-
-        case 'WAIT':
-        case '': {
-          return {
-            actionType: 'WAIT',
-            success: true,
-            summary: 'Agent decided to wait',
-            parameters,
-            timestamp: Date.now(),
-          };
-        }
-
-        default: {
-          logger.warn(
-            `[MultiStep] Unknown action: ${normalizedAction}`,
-            undefined,
-            'MultiStepExecutor'
-          );
-          return {
-            actionType: normalizedAction,
             success: false,
-            summary: `Unknown action: ${normalizedAction}`,
-            error: `Action "${normalizedAction}" is not recognized`,
+            summary: 'Missing required parameters (postId, content)',
+            error: 'Invalid parameters',
             parameters,
             timestamp: Date.now(),
           };
         }
+
+        const commentResult = await executeDirectComment({
+          agentUserId,
+          postId,
+          content,
+          parentCommentId,
+        });
+
+        return {
+          actionType: 'COMMENT',
+          success: commentResult.success,
+          summary: commentResult.success
+            ? `Created comment ${commentResult.commentId}`
+            : `Comment failed: ${commentResult.error}`,
+          result: {
+            success: commentResult.success,
+            commentId: commentResult.commentId,
+            error: commentResult.error,
+          },
+          parameters,
+          timestamp: Date.now(),
+        };
       }
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-      logger.error(
-        `[MultiStep] Error executing ${normalizedAction}: ${errorMessage}`,
-        undefined,
-        'MultiStepExecutor'
-      );
-      return {
-        actionType: normalizedAction,
-        success: false,
-        summary: `Error: ${errorMessage}`,
-        error: errorMessage,
-        parameters,
-        timestamp: Date.now(),
-      };
+
+      case 'RESPOND': {
+        // RESPOND still uses the batch service which has its own LLM
+        // for deciding WHICH interactions to respond to
+        // This is acceptable as it's a different kind of decision
+        const responses = await autonomousBatchResponseService.processBatch(
+          agentUserId,
+          {} as IAgentRuntime // Runtime not needed for batch response
+        );
+
+        return {
+          actionType: 'RESPOND',
+          success: responses > 0,
+          summary: `Responded to ${responses} interaction(s)`,
+          result: { responsesCreated: responses },
+          parameters,
+          timestamp: Date.now(),
+        };
+      }
+
+      case 'WAIT':
+      case '': {
+        return {
+          actionType: 'WAIT',
+          success: true,
+          summary: 'Agent decided to wait',
+          parameters,
+          timestamp: Date.now(),
+        };
+      }
+
+      default: {
+        logger.warn(
+          `[MultiStep] Unknown action: ${normalizedAction}`,
+          undefined,
+          'MultiStepExecutor'
+        );
+        return {
+          actionType: normalizedAction,
+          success: false,
+          summary: `Unknown action: ${normalizedAction}`,
+          error: `Action "${normalizedAction}" is not recognized`,
+          parameters,
+          timestamp: Date.now(),
+        };
+      }
     }
   }
 
@@ -553,12 +736,14 @@ export class MultiStepExecutor {
 
       switch (result.actionType) {
         case 'TRADE':
-          counts.trades += (result.result?.tradesExecuted as number) || 1;
+          counts.trades++;
           break;
         case 'POST':
           counts.posts++;
           break;
         case 'COMMENT':
+          counts.comments++;
+          break;
         case 'RESPOND':
           counts.comments += (result.result?.responsesCreated as number) || 1;
           break;
@@ -580,6 +765,23 @@ export class MultiStepExecutor {
       duration: Date.now() - startTime,
     };
   }
+}
+
+// =============================================================================
+// Helpers
+// =============================================================================
+
+function getTimeAgo(date: Date): string {
+  const now = Date.now();
+  const diffMs = now - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+
+  if (diffMins < 1) return 'just now';
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  return `${diffDays}d ago`;
 }
 
 // Export singleton instance
