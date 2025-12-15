@@ -49,15 +49,16 @@ bun run db:push
 bun install
 
 # 2. Configure environment
-cp .env.example .env.local
-# Edit .env.local with your Privy credentials + GROQ_API_KEY
+cp .env.example .env
+# (Optional) Create .env.local for Next.js-only overrides
+# Edit .env (and optionally .env.local) with your Privy credentials + GROQ_API_KEY
 
 # 3. Setup database
 bun run db:push
 bun run db:seed
 
 # 4. (Optional) Enable Agent0 Integration
-# Add to .env.local:
+# Add to .env:
 # AGENT0_ENABLED=true
 # BASE_SEPOLIA_RPC_URL=...
 # BABYLON_GAME_PRIVATE_KEY=...
@@ -77,19 +78,19 @@ Visit `http://localhost:3000` - everything runs and generates content automatica
 ```bash
 bun run dev   # ← Web + Game Engine (both automatically!)
 ```
-Runs both web server AND game daemon. Content generates every 60 seconds.
+Runs web server plus the local cron simulator. Content is generated via cron endpoints every 60 seconds.
 
-**Web Only** (No Content Generation):
+**Web Only** (UI/API only, no local cron simulator):
 ```bash
-bun run dev:web-only   # Just Next.js, no daemon
+bun run dev:web
 ```
-Use if you're only working on frontend and don't need live content.
+Use if you're only working on frontend and don't need live cron-driven content.
 
-**Serverless Mode** (Test Vercel Cron Locally):
+**Next.js Only** (Run Next directly):
 ```bash
-bun run dev:cron-mode   # Web + Cron simulator (not daemon)
+bun run dev:next-only
 ```
-Tests the serverless cron endpoint instead of daemon. Good for verifying Vercel behavior.
+Useful if you want to bypass Turbo and run the Next dev flow directly.
 
 ### Real-Time Updates
 

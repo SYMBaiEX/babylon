@@ -86,6 +86,7 @@ describe('Relationship Context Efficiency', () => {
           { actor2Id: 'efficiency-test-1' },
           { actor1Id: 'efficiency-test-2' },
           { actor2Id: 'efficiency-test-2' },
+          { actor2Id: 'ailon-musk', actor1Id: 'efficiency-test-1' },
         ],
       },
     });
@@ -127,11 +128,12 @@ describe('Relationship Context Efficiency', () => {
     // Create a relationship for testing
     const engine = new RelationshipEvolutionEngine();
 
+    // Use actual static actor ID so StaticDataRegistry can resolve the name
     await db.actorRelationship.create({
       data: {
         id: 'test-rel-1',
         actor1Id: 'efficiency-test-1',
-        actor2Id: 'efficiency-test-2',
+        actor2Id: 'ailon-musk', // Real static actor ID
         relationshipType: 'allies',
         strength: 0.8,
         sentiment: 0.7,

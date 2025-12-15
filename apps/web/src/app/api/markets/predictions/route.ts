@@ -67,8 +67,9 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
           description ?? '',
           relatedId
         ),
-      recordPnL: ({ userId, pnl, reason, relatedId }) =>
-        WalletService.recordPnL(userId, pnl, reason, relatedId),
+      recordPnL: async ({ userId, pnl, reason, relatedId }) => {
+        await WalletService.recordPnL(userId, pnl, reason, relatedId);
+      },
       getBalance: (uid: string) => WalletService.getBalance(uid),
     },
     fees: {
@@ -106,7 +107,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       );
       const costBasis = shares * p.avgPrice;
       const currentValue = pricePreview.totalCost;
-      const positionSnapshot = {
+      const positionSnapshot: UserPositionSnapshot = {
         id: p.id,
         marketId: p.marketId,
         side: p.side === 'yes' ? 'YES' : 'NO',
@@ -137,10 +138,16 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
     return {
       id: m.id,
-      question: m.question,
+      // Frontend expects 'text' field for the question text
+      text: m.question,
+      question: m.question, // Also include as 'question' for backward compatibility
       status: m.status ?? (m.resolved ? 'resolved' : 'active'),
       resolution: m.resolution,
-      endDate: m.endDate,
+      resolved: m.resolved,
+      // Frontend expects 'resolutionDate' for the end date
+      resolutionDate: m.endDate?.toISOString() ?? null,
+      endDate: m.endDate?.toISOString() ?? null, // Also include as 'endDate'
+      createdDate: m.createdAt?.toISOString() ?? null,
       yesShares,
       noShares,
       yesProbability: yesProb,

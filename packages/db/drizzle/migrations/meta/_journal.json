@@ -29,6 +29,13 @@
       "when": 1765097167382,
       "tag": "0003_amusing_wrecking_crew",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1734249420000,
+      "tag": "0004_add_market_resolution_columns",
+      "breakpoints": true
     }
   ]
 }

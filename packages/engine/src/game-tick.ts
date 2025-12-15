@@ -101,6 +101,7 @@ import type {
   WorldEvent,
 } from './types/shared';
 import { calculateEstimatedCost } from './types/token-stats';
+import { getGameDayNumber, toSafeDayNumber } from './utils/date-utils';
 import { worldFactsService } from './world-facts-service';
 
 // Services that are still in the web app (Web3/Oracle specific - use dynamic imports)
@@ -213,6 +214,18 @@ export async function executeGameTick(
       );
     }
   }
+
+  // Compute game-relative day numbers for new writes (forward-only)
+  const [continuousGame] = await db
+    .select({ startedAt: games.startedAt })
+    .from(games)
+    .where(eq(games.isContinuous, true))
+    .limit(1);
+  const gameStartedAt = continuousGame?.startedAt ?? null;
+  const dayNumberForTimestamp = (t: Date): number | undefined => {
+    if (!gameStartedAt) return undefined;
+    return toSafeDayNumber(getGameDayNumber(gameStartedAt, t));
+  };
 
   // Bootstrap initial content if this is a fresh setup
   await bootstrapContentIfNeeded(timestamp);
@@ -496,7 +509,8 @@ export async function executeGameTick(
         currentActiveQuestions.slice(0, 3),
         timestamp,
         llmClient,
-        criticalOpsDeadline
+        criticalOpsDeadline,
+        dayNumberForTimestamp
       );
       result.postsCreated = posts;
       result.articlesCreated = articles;
@@ -510,7 +524,8 @@ export async function executeGameTick(
 
     const eventsGenerated = await generateEvents(
       currentActiveQuestions.slice(0, 3),
-      timestamp
+      timestamp,
+      dayNumberForTimestamp(timestamp)
     );
     result.eventsCreated = eventsGenerated;
 
@@ -539,7 +554,8 @@ export async function executeGameTick(
           allActorsForDiscourse,
           discourseWorldFacts,
           timestamp,
-          4 // Generate up to 4 NPC replies per tick
+          4, // Generate up to 4 NPC replies per tick
+          dayNumberForTimestamp(timestamp)
         );
 
         result.discourseReplies = npcRepliesCreated;
@@ -654,7 +670,8 @@ export async function executeGameTick(
       const articlesGenerated = await generateArticles(
         timestamp,
         llmClient,
-        deadline
+        deadline,
+        dayNumberForTimestamp
       );
       result.articlesCreated += articlesGenerated; // Add to existing count from mixed posts
     } else {
@@ -1215,7 +1232,8 @@ async function generateMixedPosts(
   questions: Array<{ id: string; text: string; questionNumber: number }>,
   timestamp: Date,
   llm: BabylonLLMClient,
-  deadlineMs: number
+  deadlineMs: number,
+  dayNumberForTimestamp: (t: Date) => number | undefined
 ): Promise<{ posts: number; articles: number }> {
   const postsToGenerate = 8; // Mix of NPC posts and org articles
 
@@ -1236,7 +1254,7 @@ async function generateMixedPosts(
         .limit(15),
       worldFactsService.generatePromptContext(),
       getTrendingPromptContext(),
-      loadSharedPostContext(), // Load feed posts + events ONCE
+      loadSharedPostContext(timestamp), // Load feed posts + events ONCE
     ]);
 
   // Combine world facts with trending context
@@ -1342,6 +1360,7 @@ async function generateMixedPosts(
       const timestampWithOffset = new Date(
         timestamp.getTime() + slotOffset + randomJitter
       );
+      const postDayNumber = dayNumberForTimestamp(timestampWithOffset);
 
       if (creator.type === 'actor') {
         const actor = creator.data as (typeof actorsList)[number];
@@ -1351,7 +1370,8 @@ async function generateMixedPosts(
           question,
           worldFactsContext,
           timestampWithOffset,
-          sharedContext // Pass pre-loaded context to avoid N+1 queries
+          sharedContext, // Pass pre-loaded context to avoid N+1 queries
+          postDayNumber
         );
         return { posts: success ? 1 : 0, articles: 0 };
       }
@@ -1364,7 +1384,8 @@ async function generateMixedPosts(
           org,
           question,
           worldFactsContext,
-          timestampWithOffset
+          timestampWithOffset,
+          postDayNumber
         );
         return { posts: success ? 1 : 0, articles: success ? 1 : 0 };
       }
@@ -1373,7 +1394,8 @@ async function generateMixedPosts(
         org,
         question,
         worldFactsContext,
-        timestampWithOffset
+        timestampWithOffset,
+        postDayNumber
       );
       return { posts: success ? 1 : 0, articles: 0 };
     }
@@ -1416,7 +1438,8 @@ async function generateMixedPosts(
 async function generateArticles(
   timestamp: Date,
   llm: BabylonLLMClient,
-  deadlineMs: number
+  deadlineMs: number,
+  dayNumberForTimestamp: (t: Date) => number | undefined
 ): Promise<number> {
   // Get recent events (from last 2 hours, up to current time)
   const now = new Date();
@@ -1437,7 +1460,8 @@ async function generateArticles(
   // CRITICAL: Ensure each active question has 1-3 articles
   const questionArticlesCreated = await generateArticlesForActiveQuestions(
     llm,
-    deadlineMs
+    deadlineMs,
+    dayNumberForTimestamp
   );
 
   // If no recent events, generate baseline articles about general topics
@@ -1465,7 +1489,8 @@ async function generateArticles(
       newsOrgs,
       timestamp,
       llm,
-      deadlineMs
+      deadlineMs,
+      dayNumberForTimestamp
     );
     return questionArticlesCreated + baselineArticlesCreated;
   }
@@ -1663,6 +1688,7 @@ async function generateArticles(
           );
         }
 
+        const articleTimestamp = article.publishedAt || new Date();
         await dbService().createPostWithAllFields({
           id: await generateSnowflakeId(),
           type: 'article',
@@ -1676,8 +1702,8 @@ async function generateArticles(
           category: article.category || undefined,
           authorId: article.authorOrgId,
           gameId: 'continuous',
-          dayNumber: Math.floor(Date.now() / (1000 * 60 * 60 * 24)),
-          timestamp: article.publishedAt || new Date(),
+          dayNumber: dayNumberForTimestamp(articleTimestamp),
+          timestamp: articleTimestamp,
         });
         created++;
       }
@@ -1721,7 +1747,8 @@ async function generateArticles(
  */
 async function generateArticlesForActiveQuestions(
   llm: BabylonLLMClient,
-  deadlineMs: number
+  deadlineMs: number,
+  dayNumberForTimestamp: (t: Date) => number | undefined
 ): Promise<number> {
   // Get all active questions
   const activeQuestions = await db
@@ -1944,6 +1971,7 @@ async function generateArticlesForActiveQuestions(
           );
         }
 
+        const articleTimestamp = article.publishedAt || new Date();
         await dbService().createPostWithAllFields({
           id: await generateSnowflakeId(),
           type: 'article',
@@ -1957,8 +1985,8 @@ async function generateArticlesForActiveQuestions(
           category: article.category || undefined,
           authorId: article.authorOrgId,
           gameId: 'continuous',
-          dayNumber: Math.floor(Date.now() / (1000 * 60 * 60 * 24)),
-          timestamp: article.publishedAt || new Date(),
+          dayNumber: dayNumberForTimestamp(articleTimestamp),
+          timestamp: articleTimestamp,
         });
 
         logger.debug(
@@ -2021,7 +2049,8 @@ async function generateBaselineArticlesParallel(
   }>,
   timestamp: Date,
   llm: BabylonLLMClient,
-  deadlineMs: number
+  deadlineMs: number,
+  dayNumberForTimestamp: (t: Date) => number | undefined
 ): Promise<number> {
   // Gather game context for relevant articles
   // NOTE: Question articles are handled by generateArticlesForActiveQuestions()
@@ -2309,7 +2338,7 @@ Return your response as XML in this exact format:
         category: topicData.category,
         authorId: org.id,
         gameId: 'continuous',
-        dayNumber: Math.floor(Date.now() / (1000 * 60 * 60 * 24)),
+        dayNumber: dayNumberForTimestamp(timestampWithOffset),
         timestamp: timestampWithOffset,
       });
 

@@ -207,6 +207,25 @@ export function useAuth(): UseAuthReturn {
           : '/api/users/me';
 
         const response = await apiFetch(url);
+
+        // 401 is expected when not authenticated - exit early without error
+        if (response.status === 401) {
+          logger.debug(
+            'Not authenticated yet, skipping user fetch',
+            { userId: privyUser.id },
+            'useAuth'
+          );
+          return;
+        }
+
+        // For other HTTP errors, fail fast - don't silently swallow
+        if (!response.ok) {
+          const errorBody = await response.text().catch(() => '');
+          throw new Error(
+            `Failed to fetch user profile: HTTP ${response.status}${errorBody ? ` - ${errorBody}` : ''}`
+          );
+        }
+
         const data = await response.json();
 
         const me = data as {

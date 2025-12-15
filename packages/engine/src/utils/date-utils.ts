@@ -58,3 +58,25 @@ export function extractDayFromPost(post: {
   }
   return 0;
 }
+
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+/**
+ * Compute a game-relative day number (0-indexed) from a game start time.
+ *
+ * @param startedAt - The continuous game's start timestamp
+ * @param timestamp - The content/event timestamp
+ * @returns 0-indexed day number since startedAt (can be negative if timestamp < startedAt)
+ */
+export function getGameDayNumber(startedAt: Date, timestamp: Date): number {
+  return Math.floor((timestamp.getTime() - startedAt.getTime()) / MS_PER_DAY);
+}
+
+/**
+ * Validate a dayNumber for storage in Post/WorldEvent int columns.
+ */
+export function toSafeDayNumber(dayNumber: number): number | undefined {
+  return Number.isFinite(dayNumber) && dayNumber >= 0 && dayNumber <= 2147483647
+    ? dayNumber
+    : undefined;
+}

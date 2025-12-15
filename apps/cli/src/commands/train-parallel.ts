@@ -5,7 +5,7 @@
  * This is the proper way to generate training data at scale.
  */
 
-import { db, eq, users } from '@babylon/db';
+import { closeDatabase, db, eq, users } from '@babylon/db';
 import {
   ArchetypeConfigService,
   createParallelGenerator,
@@ -126,6 +126,7 @@ export async function runParallelGeneration(
 
       if (!anyUser[0]) {
         logger.fail('No users found. Please create a user first.');
+        await closeDatabase();
         process.exit(1);
       }
       managerId = anyUser[0].id;
@@ -206,5 +207,6 @@ export async function runParallelGeneration(
   console.log('  1. Score trajectories: babylon train score');
   console.log('  2. Export for training: babylon train export');
   console.log('  3. Train model: babylon train pipeline');
-  // Database connection cleanup handled by drizzle
+
+  await closeDatabase();
 }

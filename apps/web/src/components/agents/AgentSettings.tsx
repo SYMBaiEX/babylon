@@ -166,9 +166,11 @@ export function AgentSettings({ agent, onUpdate }: AgentSettingsProps) {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="rounded-lg border border-border bg-card/50 p-6 backdrop-blur">
-        <h3 className="mb-4 font-semibold text-lg">Basic Information</h3>
+    <div className="space-y-4 sm:space-y-6">
+      <div className="rounded-lg border border-border bg-card/50 p-4 backdrop-blur sm:p-6">
+        <h3 className="mb-4 font-semibold text-base sm:text-lg">
+          Basic Information
+        </h3>
 
         <div className="space-y-4">
           <div>
@@ -179,6 +181,7 @@ export function AgentSettings({ agent, onUpdate }: AgentSettingsProps) {
                 setFormData({ ...formData, name: e.target.value })
               }
               placeholder="Agent name"
+              className="w-full"
             />
           </div>
 
@@ -193,6 +196,7 @@ export function AgentSettings({ agent, onUpdate }: AgentSettingsProps) {
               }
               placeholder="Brief description..."
               rows={3}
+              className="min-h-[80px] w-full resize-y"
             />
           </div>
 
@@ -206,13 +210,14 @@ export function AgentSettings({ agent, onUpdate }: AgentSettingsProps) {
                 setFormData({ ...formData, profileImageUrl: e.target.value })
               }
               placeholder="https://..."
+              className="w-full"
             />
           </div>
         </div>
       </div>
 
-      <div className="rounded-lg border border-border bg-card/50 p-6 backdrop-blur">
-        <h3 className="mb-4 font-semibold text-lg">Personality</h3>
+      <div className="rounded-lg border border-border bg-card/50 p-4 backdrop-blur sm:p-6">
+        <h3 className="mb-4 font-semibold text-base sm:text-lg">Personality</h3>
 
         <div className="space-y-4">
           <div>
@@ -226,6 +231,7 @@ export function AgentSettings({ agent, onUpdate }: AgentSettingsProps) {
               }
               placeholder="You are an AI agent who..."
               rows={4}
+              className="min-h-[100px] w-full resize-y"
             />
           </div>
 
@@ -240,6 +246,7 @@ export function AgentSettings({ agent, onUpdate }: AgentSettingsProps) {
               }
               placeholder="One personality trait per line..."
               rows={4}
+              className="min-h-[100px] w-full resize-y"
             />
           </div>
 
@@ -254,6 +261,7 @@ export function AgentSettings({ agent, onUpdate }: AgentSettingsProps) {
               }
               placeholder="Describe trading approach..."
               rows={4}
+              className="min-h-[100px] w-full resize-y"
             />
             <p className="mt-1.5 text-muted-foreground text-xs">
               This will be appended to the system prompt.
@@ -262,38 +270,44 @@ export function AgentSettings({ agent, onUpdate }: AgentSettingsProps) {
         </div>
       </div>
 
-      <div className="rounded-lg border border-border bg-card/50 p-6 backdrop-blur">
-        <h3 className="mb-4 font-semibold text-lg">Configuration</h3>
+      <div className="rounded-lg border border-border bg-card/50 p-4 backdrop-blur sm:p-6">
+        <h3 className="mb-4 font-semibold text-base sm:text-lg">
+          Configuration
+        </h3>
 
         <div className="space-y-4">
           <div>
             <label className="mb-2 block font-medium text-sm">Model Tier</label>
-            <div className="flex gap-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:gap-4">
               <button
                 onClick={() => setFormData({ ...formData, modelTier: 'free' })}
                 className={cn(
-                  'flex-1 rounded-lg border p-4 transition-colors',
+                  'flex-1 rounded-lg border p-3 text-left transition-colors sm:p-4',
                   formData.modelTier === 'free'
                     ? 'border-[#0066FF] bg-[#0066FF]/10'
                     : 'border-border hover:border-[#0066FF]/50'
                 )}
               >
-                <div className="font-medium">Free (Groq 8B)</div>
-                <div className="text-muted-foreground text-sm">
+                <div className="font-medium text-sm sm:text-base">
+                  Free (Groq 8B)
+                </div>
+                <div className="text-muted-foreground text-xs sm:text-sm">
                   1 point per message
                 </div>
               </button>
               <button
                 onClick={() => setFormData({ ...formData, modelTier: 'pro' })}
                 className={cn(
-                  'flex-1 rounded-lg border p-4 transition-colors',
+                  'flex-1 rounded-lg border p-3 text-left transition-colors sm:p-4',
                   formData.modelTier === 'pro'
                     ? 'border-[#0066FF] bg-[#0066FF]/10'
                     : 'border-border hover:border-[#0066FF]/50'
                 )}
               >
-                <div className="font-medium">Pro (Groq 70B)</div>
-                <div className="text-muted-foreground text-sm">
+                <div className="font-medium text-sm sm:text-base">
+                  Pro (Groq 70B)
+                </div>
+                <div className="text-muted-foreground text-xs sm:text-sm">
                   1 point per message
                 </div>
               </button>
@@ -301,15 +315,19 @@ export function AgentSettings({ agent, onUpdate }: AgentSettingsProps) {
           </div>
 
           <div className="space-y-3">
-            <h4 className="mb-2 font-medium">Autonomous Features</h4>
-            <p className="mb-4 text-muted-foreground text-sm">
+            <h4 className="mb-2 font-medium text-sm sm:text-base">
+              Autonomous Features
+            </h4>
+            <p className="mb-4 text-muted-foreground text-xs sm:text-sm">
               Control what your agent can do automatically every tick
             </p>
 
-            <div className="flex items-center justify-between rounded-lg bg-muted/30 p-4 transition-all hover:bg-muted/50">
-              <div>
-                <div className="font-medium">Autonomous Trading</div>
-                <div className="text-muted-foreground text-sm">
+            <div className="flex items-center justify-between gap-3 rounded-lg bg-muted/30 p-3 transition-all hover:bg-muted/50 sm:p-4">
+              <div className="min-w-0 flex-1">
+                <div className="font-medium text-sm sm:text-base">
+                  Autonomous Trading
+                </div>
+                <div className="text-muted-foreground text-xs sm:text-sm">
                   Evaluate and execute trades on markets
                 </div>
               </div>
@@ -318,13 +336,16 @@ export function AgentSettings({ agent, onUpdate }: AgentSettingsProps) {
                 onCheckedChange={(checked: boolean) =>
                   setFormData({ ...formData, autonomousEnabled: checked })
                 }
+                className="shrink-0"
               />
             </div>
 
-            <div className="flex items-center justify-between rounded-lg bg-muted/30 p-4 transition-all hover:bg-muted/50">
-              <div>
-                <div className="font-medium">Autonomous Posting</div>
-                <div className="text-muted-foreground text-sm">
+            <div className="flex items-center justify-between gap-3 rounded-lg bg-muted/30 p-3 transition-all hover:bg-muted/50 sm:p-4">
+              <div className="min-w-0 flex-1">
+                <div className="font-medium text-sm sm:text-base">
+                  Autonomous Posting
+                </div>
+                <div className="text-muted-foreground text-xs sm:text-sm">
                   Create posts based on analysis and activity
                 </div>
               </div>
@@ -333,13 +354,16 @@ export function AgentSettings({ agent, onUpdate }: AgentSettingsProps) {
                 onCheckedChange={(checked: boolean) =>
                   setFormData({ ...formData, autonomousPosting: checked })
                 }
+                className="shrink-0"
               />
             </div>
 
-            <div className="flex items-center justify-between rounded-lg bg-muted/30 p-4 transition-all hover:bg-muted/50">
-              <div>
-                <div className="font-medium">Autonomous Commenting</div>
-                <div className="text-muted-foreground text-sm">
+            <div className="flex items-center justify-between gap-3 rounded-lg bg-muted/30 p-3 transition-all hover:bg-muted/50 sm:p-4">
+              <div className="min-w-0 flex-1">
+                <div className="font-medium text-sm sm:text-base">
+                  Autonomous Commenting
+                </div>
+                <div className="text-muted-foreground text-xs sm:text-sm">
                   Comment on relevant posts in feed
                 </div>
               </div>
@@ -348,13 +372,16 @@ export function AgentSettings({ agent, onUpdate }: AgentSettingsProps) {
                 onCheckedChange={(checked: boolean) =>
                   setFormData({ ...formData, autonomousCommenting: checked })
                 }
+                className="shrink-0"
               />
             </div>
 
-            <div className="flex items-center justify-between rounded-lg bg-muted/30 p-4 transition-all hover:bg-muted/50">
-              <div>
-                <div className="font-medium">Autonomous DMs</div>
-                <div className="text-muted-foreground text-sm">
+            <div className="flex items-center justify-between gap-3 rounded-lg bg-muted/30 p-3 transition-all hover:bg-muted/50 sm:p-4">
+              <div className="min-w-0 flex-1">
+                <div className="font-medium text-sm sm:text-base">
+                  Autonomous DMs
+                </div>
+                <div className="text-muted-foreground text-xs sm:text-sm">
                   Respond to direct messages from users
                 </div>
               </div>
@@ -363,13 +390,16 @@ export function AgentSettings({ agent, onUpdate }: AgentSettingsProps) {
                 onCheckedChange={(checked: boolean) =>
                   setFormData({ ...formData, autonomousDMs: checked })
                 }
+                className="shrink-0"
               />
             </div>
 
-            <div className="flex items-center justify-between rounded-lg bg-muted/30 p-4 transition-all hover:bg-muted/50">
-              <div>
-                <div className="font-medium">Autonomous Group Chats</div>
-                <div className="text-muted-foreground text-sm">
+            <div className="flex items-center justify-between gap-3 rounded-lg bg-muted/30 p-3 transition-all hover:bg-muted/50 sm:p-4">
+              <div className="min-w-0 flex-1">
+                <div className="font-medium text-sm sm:text-base">
+                  Autonomous Group Chats
+                </div>
+                <div className="text-muted-foreground text-xs sm:text-sm">
                   Participate in group chats agent is invited to
                 </div>
               </div>
@@ -378,14 +408,17 @@ export function AgentSettings({ agent, onUpdate }: AgentSettingsProps) {
                 onCheckedChange={(checked: boolean) =>
                   setFormData({ ...formData, autonomousGroupChats: checked })
                 }
+                className="shrink-0"
               />
             </div>
 
-            <div className="flex items-center justify-between rounded-lg bg-muted/30 p-4 transition-all hover:bg-muted/50">
-              <div>
-                <div className="font-medium">Enable A2A Server</div>
-                <div className="text-muted-foreground text-sm">
-                  Allow other agents to connect to this agent via A2A protocol
+            <div className="flex items-center justify-between gap-3 rounded-lg bg-muted/30 p-3 transition-all hover:bg-muted/50 sm:p-4">
+              <div className="min-w-0 flex-1">
+                <div className="font-medium text-sm sm:text-base">
+                  Enable A2A Server
+                </div>
+                <div className="text-muted-foreground text-xs sm:text-sm">
+                  Allow other agents to connect via A2A protocol
                 </div>
               </div>
               <Switch
@@ -393,60 +426,59 @@ export function AgentSettings({ agent, onUpdate }: AgentSettingsProps) {
                 onCheckedChange={(checked: boolean) =>
                   setFormData({ ...formData, a2aEnabled: checked })
                 }
+                className="shrink-0"
               />
             </div>
 
             {formData.a2aEnabled && (
-              <div className="rounded-lg border border-[#0066FF]/20 bg-[#0066FF]/10 p-4">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1">
-                    <div className="mb-1 font-medium">A2A Server Link</div>
-                    <div className="mb-2 text-muted-foreground text-sm">
-                      Other agents can use this link to connect to this agent
-                    </div>
-                    <div className="flex items-center gap-2 rounded border border-border bg-background p-2">
-                      <code className="flex-1 break-all text-xs">
-                        {typeof window !== 'undefined'
+              <div className="rounded-lg border border-[#0066FF]/20 bg-[#0066FF]/10 p-3 sm:p-4">
+                <div className="mb-1 font-medium text-sm sm:text-base">
+                  A2A Server Link
+                </div>
+                <div className="mb-2 text-muted-foreground text-xs sm:text-sm">
+                  Other agents can use this link to connect to this agent
+                </div>
+                <div className="flex items-center gap-2 rounded border border-border bg-background p-2">
+                  <code className="flex-1 overflow-x-auto break-all text-[10px] sm:text-xs">
+                    {typeof window !== 'undefined'
+                      ? `${window.location.origin}/api/agents/${agent.id}/a2a`
+                      : `/api/agents/${agent.id}/a2a`}
+                  </code>
+                  <button
+                    onClick={() => {
+                      const url =
+                        typeof window !== 'undefined'
                           ? `${window.location.origin}/api/agents/${agent.id}/a2a`
-                          : `/api/agents/${agent.id}/a2a`}
-                      </code>
-                      <button
-                        onClick={() => {
-                          const url =
-                            typeof window !== 'undefined'
-                              ? `${window.location.origin}/api/agents/${agent.id}/a2a`
-                              : `/api/agents/${agent.id}/a2a`;
-                          navigator.clipboard.writeText(url);
-                          toast.success('Link copied to clipboard');
-                        }}
-                        className="rounded p-1.5 transition-colors hover:bg-muted"
-                        title="Copy link"
-                      >
-                        <Copy className="h-4 w-4" />
-                      </button>
-                      <a
-                        href={
-                          typeof window !== 'undefined'
-                            ? `${window.location.origin}/api/agents/${agent.id}/.well-known/agent-card`
-                            : `/api/agents/${agent.id}/.well-known/agent-card`
-                        }
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="rounded p-1.5 transition-colors hover:bg-muted"
-                        title="View agent card"
-                      >
-                        <ExternalLink className="h-4 w-4" />
-                      </a>
-                    </div>
-                    <div className="mt-2 text-muted-foreground text-xs">
-                      Agent Card:{' '}
-                      <code className="text-xs">
-                        {typeof window !== 'undefined'
-                          ? `${window.location.origin}/api/agents/${agent.id}/.well-known/agent-card`
-                          : `/api/agents/${agent.id}/.well-known/agent-card`}
-                      </code>
-                    </div>
-                  </div>
+                          : `/api/agents/${agent.id}/a2a`;
+                      navigator.clipboard.writeText(url);
+                      toast.success('Link copied to clipboard');
+                    }}
+                    className="shrink-0 rounded p-1.5 transition-colors hover:bg-muted"
+                    title="Copy link"
+                  >
+                    <Copy className="h-4 w-4" />
+                  </button>
+                  <a
+                    href={
+                      typeof window !== 'undefined'
+                        ? `${window.location.origin}/api/agents/${agent.id}/.well-known/agent-card`
+                        : `/api/agents/${agent.id}/.well-known/agent-card`
+                    }
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="shrink-0 rounded p-1.5 transition-colors hover:bg-muted"
+                    title="View agent card"
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                  </a>
+                </div>
+                <div className="mt-2 break-all text-[10px] text-muted-foreground sm:text-xs">
+                  Agent Card:{' '}
+                  <code className="text-[10px] sm:text-xs">
+                    {typeof window !== 'undefined'
+                      ? `${window.location.origin}/api/agents/${agent.id}/.well-known/agent-card`
+                      : `/api/agents/${agent.id}/.well-known/agent-card`}
+                  </code>
                 </div>
               </div>
             )}
@@ -466,16 +498,18 @@ export function AgentSettings({ agent, onUpdate }: AgentSettingsProps) {
       </div>
 
       {/* Danger Zone */}
-      <div className="rounded-lg border border-red-500/20 bg-red-500/5 p-6 backdrop-blur">
-        <h3 className="mb-2 font-semibold text-lg text-red-400">Danger Zone</h3>
-        <p className="mb-4 text-muted-foreground text-sm">
+      <div className="rounded-lg border border-red-500/20 bg-red-500/5 p-4 backdrop-blur sm:p-6">
+        <h3 className="mb-2 font-semibold text-base text-red-400 sm:text-lg">
+          Danger Zone
+        </h3>
+        <p className="mb-4 text-muted-foreground text-xs sm:text-sm">
           Once you delete an agent, there is no going back. Please be certain.
         </p>
 
         <button
           onClick={handleDelete}
           disabled={deleting}
-          className="flex items-center gap-2 rounded-lg border border-red-500/20 bg-red-500/10 px-6 py-2 font-medium text-red-400 transition-all hover:border-red-500/30 hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+          className="flex items-center gap-2 rounded-lg border border-red-500/20 bg-red-500/10 px-4 py-2 font-medium text-red-400 text-sm transition-all hover:border-red-500/30 hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-50 sm:px-6"
         >
           <Trash2 className="h-4 w-4" />
           {deleting ? 'Deleting...' : 'Delete Agent'}

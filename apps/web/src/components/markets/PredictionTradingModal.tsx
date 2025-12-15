@@ -3,7 +3,7 @@
 import {
   calculateExpectedPayout,
   PredictionPricing,
-} from '@babylon/core/markets/prediction';
+} from '@babylon/core/markets/prediction/client';
 import { cn } from '@babylon/shared';
 import { CheckCircle, Clock, X, XCircle } from 'lucide-react';
 import { useEffect, useState } from 'react';

@@ -47,7 +47,7 @@
  *
  * @see {@link TradeExecutionService} - Executes validated decisions
  * @see {@link MarketContextService} - Builds NPC context
- * @see {@link GameEngine} - Calls generateBatchDecisions() each tick
+ * @see {@link executeGameTick} - Production tick calls generateBatchDecisions() each tick
  *
  * @example
  * ```typescript

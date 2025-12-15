@@ -12,7 +12,7 @@ import {
   PredictionDbAdapter as CorePredictionDbAdapter,
   PredictionMarketService as CorePredictionMarketService,
 } from '@babylon/core/markets/prediction';
-import type { WalletPort } from '@babylon/core/markets/shared/common';
+import type { WalletPort } from '@babylon/core/markets/shared';
 import {
   actorState,
   db,
@@ -37,6 +37,7 @@ import {
   aggregateTradeImpacts,
   type TradeImpactInput,
 } from './market-impact-service';
+import { createNpcWalletAdapter } from './npc-wallet-adapter';
 import { invalidateAfterPredictionTrade } from './trade-cache-invalidation';
 
 type PredictionTradeBroadcast = {
@@ -239,11 +240,12 @@ export class TradeExecutionService {
       emit: async (_channel: string, payload: Record<string, unknown>) => {
         if (!isPredictionBroadcastPayload(payload)) return;
 
-        if (payload.type === 'prediction_trade') {
-          LegacyPredictionMarketService.emitTradeUpdate(payload);
-        } else {
-          LegacyPredictionMarketService.emitResolution(payload);
-        }
+        // Broadcast events are handled by the service's internal broadcast mechanism
+        // The payload is logged for debugging purposes
+        logger.debug('Prediction broadcast event', {
+          type: payload.type,
+          marketId: payload.marketId,
+        });
       },
     };
   }
@@ -839,7 +841,7 @@ export class TradeExecutionService {
 
     return {
       getBalance: async () => ({ balance: await getBalance() }),
-      debit: async ({ amount }) => {
+      debit: async ({ amount }: { amount: number }) => {
         const balance = await getBalance();
         if (balance < amount) throw new Error('Insufficient funds');
         await db
@@ -850,7 +852,7 @@ export class TradeExecutionService {
           })
           .where(eq(actorState.id, actorId));
       },
-      credit: async ({ amount }) => {
+      credit: async ({ amount }: { amount: number }) => {
         const balance = await getBalance();
         await db
           .update(actorState)

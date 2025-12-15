@@ -1,12 +1,16 @@
 'use client';
 
 import { cn } from '@babylon/shared';
-import { ArrowLeft, Search, TrendingDown, TrendingUp } from 'lucide-react';
+import { Search, TrendingDown, TrendingUp } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CategoryPnLCard } from '@/components/markets/CategoryPnLCard';
 import { CategoryPnLShareModal } from '@/components/markets/CategoryPnLShareModal';
 import { PerpPositionsList } from '@/components/markets/PerpPositionsList';
+import {
+  MarketsToggle,
+  type MarketTab,
+} from '@/components/shared/MarketsToggle';
 import { PageContainer } from '@/components/shared/PageContainer';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { useAuth } from '@/hooks/useAuth';
@@ -20,6 +24,14 @@ export default function PerpsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [showCategoryPnLShareModal, setShowCategoryPnLShareModal] =
     useState(false);
+
+  const handleTabChange = (tab: MarketTab) => {
+    if (tab === 'dashboard') {
+      router.push('/markets');
+    } else if (tab === 'predictions') {
+      router.push('/markets/predictions');
+    }
+  };
 
   // Use shared perp markets store
   const {
@@ -127,36 +139,32 @@ export default function PerpsPage() {
   }
 
   return (
-    <PageContainer>
-      <div className="space-y-6 p-4">
-        {/* Header */}
-        <div>
-          <button
-            onClick={() => router.push('/markets')}
-            className="mb-4 flex items-center gap-2 text-muted-foreground transition-colors hover:text-foreground"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Back to Markets
-          </button>
-          <h1 className="font-bold text-3xl">Perpetual Futures</h1>
+    <PageContainer noPadding className="flex flex-col">
+      {/* Header with tabs */}
+      <div className="sticky top-0 z-10 flex-shrink-0 bg-background shadow-sm">
+        <div className="px-3 sm:px-4 lg:px-6">
+          <MarketsToggle activeTab="perps" onTabChange={handleTabChange} />
         </div>
-
         {/* Search */}
-        <div className="relative">
-          <Search
-            className="-translate-y-1/2 absolute top-1/2 left-3 h-5 w-5 text-muted-foreground"
-            aria-hidden="true"
-          />
-          <input
-            type="search"
-            aria-label="Search tickers"
-            placeholder="Search tickers..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full rounded bg-muted/50 py-3 pr-4 pl-10 text-foreground placeholder:text-muted-foreground focus:bg-muted focus:outline-none focus:ring-2 focus:ring-[#0066FF]/30"
-          />
+        <div className="px-3 pb-3 sm:px-4 lg:px-6">
+          <div className="relative">
+            <Search
+              className="-translate-y-1/2 absolute top-1/2 left-3 h-5 w-5 text-muted-foreground"
+              aria-hidden="true"
+            />
+            <input
+              type="search"
+              aria-label="Search tickers"
+              placeholder="Search tickers..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full rounded bg-muted/50 py-3 pr-4 pl-10 text-foreground placeholder:text-muted-foreground focus:bg-muted focus:outline-none focus:ring-2 focus:ring-[#0066FF]/30"
+            />
+          </div>
         </div>
+      </div>
 
+      <div className="flex-1 space-y-6 overflow-y-auto p-4">
         {/* Category P&L Card */}
         {authenticated && perpPnLData && (
           <CategoryPnLCard

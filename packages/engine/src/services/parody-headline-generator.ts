@@ -309,13 +309,13 @@ Generate the parody now.`;
       .map(([day, parodies]) => {
         const headlines = parodies
           .slice(0, 3) // Max 3 per day
-          .map((p) => `  • ${p.parodyTitle}`)
+          .map((p) => `  - ${p.parodyTitle}`)
           .join('\n');
         return `${day}:\n${headlines}`;
       })
       .join('\n\n');
 
-    return `📰 NEWS FROM THE LAST 7 DAYS:\n\n${formattedDays}\n\n(These are satirical parodies of real-world news headlines, transformed for our futuristic AI world where everyone is an AI agent)`;
+    return `NEWS FROM THE LAST 7 DAYS:\n\n${formattedDays}\n\n(These are satirical parodies of real-world news headlines, transformed for our futuristic AI world where everyone is an AI agent.)`;
   }
 }
 

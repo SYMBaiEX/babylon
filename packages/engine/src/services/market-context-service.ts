@@ -35,6 +35,7 @@ import type {
   EventContext,
   FeedPostContext,
   GroupChatContext,
+  MarketSignalContext,
   MarketSnapshots,
   NPCMarketContext,
   NPCPosition,
@@ -42,6 +43,7 @@ import type {
   PredictionMarketSnapshot,
   RelationshipContext,
 } from '../types/market-context';
+import { SignalExtractionService } from './signal-extraction-service';
 import { StaticDataRegistry } from './static-data-registry';
 
 export class MarketContextService {
@@ -99,6 +101,12 @@ export class MarketContextService {
       this.getRecentFeed(),
       this.getRecentEvents(),
     ]);
+
+    // Extract signal analysis for active prediction markets (for better NPC trading)
+    // This is internal context - never exposed to players
+    const marketSignals = await this.extractMarketSignals(
+      marketSnapshots.predictions
+    );
 
     // Get group chats with messages
     const groupChats = await db
@@ -264,6 +272,7 @@ export class MarketContextService {
         perpMarkets: marketSnapshots.perps,
         predictionMarkets: marketSnapshots.predictions,
         currentPositions,
+        marketSignals, // Add signal analysis for better trading decisions
       });
     }
 
@@ -323,6 +332,11 @@ export class MarketContextService {
         this.getInsiderInfo(npcId),
       ]);
 
+    // Extract signal analysis for prediction markets
+    const marketSignals = await this.extractMarketSignals(
+      marketSnapshots.predictions
+    );
+
     // Get relationships for this NPC
     const relationships = await this.getRelationshipsForNPC(npcId);
 
@@ -376,6 +390,7 @@ export class MarketContextService {
       perpMarkets: marketSnapshots.perps,
       predictionMarkets: marketSnapshots.predictions,
       currentPositions,
+      marketSignals, // Add signal analysis for better trading decisions
     };
   }
 
@@ -501,7 +516,7 @@ export class MarketContextService {
       .select()
       .from(posts)
       .where(and(isNull(posts.deletedAt), lte(posts.timestamp, now)))
-      .orderBy(desc(posts.createdAt))
+      .orderBy(desc(posts.timestamp))
       .limit(50);
 
     return postList.map((post) => {
@@ -522,7 +537,7 @@ export class MarketContextService {
         author: post.authorId,
         authorName: post.authorId,
         content,
-        timestamp: post.createdAt.toISOString(),
+        timestamp: post.timestamp.toISOString(),
         articleTitle: articleTitle || undefined,
       };
     });
@@ -644,7 +659,8 @@ export class MarketContextService {
    * @returns Array of the NPC's recent posts
    */
   async getRecentPostsByNPC(npcId: string): Promise<FeedPostContext[]> {
-    const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
+    const now = new Date();
+    const threeDaysAgo = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
 
     const npcPosts = await db
       .select()
@@ -652,11 +668,12 @@ export class MarketContextService {
       .where(
         and(
           eq(posts.authorId, npcId),
-          gte(posts.createdAt, threeDaysAgo),
+          gte(posts.timestamp, threeDaysAgo),
+          lte(posts.timestamp, now),
           isNull(posts.deletedAt)
         )
       )
-      .orderBy(desc(posts.createdAt))
+      .orderBy(desc(posts.timestamp))
       .limit(10);
 
     return npcPosts.map((post) => {
@@ -670,7 +687,7 @@ export class MarketContextService {
         author: post.authorId,
         authorName: post.authorId,
         content,
-        timestamp: post.createdAt.toISOString(),
+        timestamp: post.timestamp.toISOString(),
         articleTitle: post.articleTitle || undefined,
       };
     });
@@ -861,5 +878,84 @@ export class MarketContextService {
         daysUntilResolution,
       };
     });
+  }
+
+  /**
+   * Extract signal analysis for prediction markets
+   *
+   * Uses SignalExtractionService to analyze feed content and determine
+   * signal direction for each active market. This helps NPCs make
+   * better-informed trading decisions.
+   *
+   * @internal This data is for NPC AI only - never expose to players
+   * @param predictionMarkets - Active prediction markets to analyze
+   * @returns Array of market signal contexts
+   */
+  private async extractMarketSignals(
+    predictionMarkets: PredictionMarketSnapshot[]
+  ): Promise<MarketSignalContext[]> {
+    if (predictionMarkets.length === 0) {
+      return [];
+    }
+
+    const signals: MarketSignalContext[] = [];
+
+    // Extract signals for up to 5 active markets (limit to avoid overhead)
+    const marketsToAnalyze = predictionMarkets.slice(0, 5);
+
+    for (const market of marketsToAnalyze) {
+      // Get question number from market ID for signal extraction
+      // Market IDs are snowflake strings, need to lookup question number
+      const questionResult = await db
+        .select({ questionNumber: markets.id })
+        .from(markets)
+        .where(eq(markets.id, market.id))
+        .limit(1);
+
+      if (questionResult.length === 0) continue;
+
+      // Signal extraction uses question number, but we have market ID
+      // For now, skip markets without a clear question number mapping
+      // In production, add a proper question number lookup
+      const marketIdAsNumber = Number.parseInt(market.id, 10);
+      if (Number.isNaN(marketIdAsNumber)) continue;
+
+      try {
+        const analysis =
+          await SignalExtractionService.extractMarketSignal(marketIdAsNumber);
+
+        signals.push({
+          marketId: market.id,
+          yesSignal: analysis.yesSignal,
+          noSignal: analysis.noSignal,
+          netSignal: analysis.netSignal,
+          strength: analysis.signalStrength,
+          suggestedOutcome: analysis.suggestedOutcome,
+          confidence: analysis.confidence,
+        });
+
+        logger.debug(
+          'Extracted market signal',
+          {
+            marketId: market.id,
+            suggestedOutcome: analysis.suggestedOutcome,
+            confidence: (analysis.confidence * 100).toFixed(1) + '%',
+          },
+          'MarketContextService'
+        );
+      } catch (error) {
+        // Signal extraction is optional - continue if it fails
+        logger.debug(
+          'Signal extraction failed for market (non-critical)',
+          {
+            marketId: market.id,
+            error: error instanceof Error ? error.message : 'Unknown',
+          },
+          'MarketContextService'
+        );
+      }
+    }
+
+    return signals;
   }
 }

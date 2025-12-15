@@ -281,9 +281,10 @@ async function runMigrations(): Promise<void> {
     // Run with --force to skip interactive prompts (safe for development)
     // The --force flag auto-accepts all changes without confirmation
     // Explicitly set DATABASE_URL and DIRECT_DATABASE_URL to local for the subprocess
+    // Using tsx to run drizzle-kit for proper ESM support
     // Using yes | ... as a fallback for any remaining prompts
     const result =
-      await $`yes | DATABASE_URL=${LOCAL_DATABASE_URL} DIRECT_DATABASE_URL=${LOCAL_DATABASE_URL} DEPLOYMENT_ENV=localnet bunx drizzle-kit push --force --config=drizzle.config.ts`
+      await $`yes | DATABASE_URL=${LOCAL_DATABASE_URL} DIRECT_DATABASE_URL=${LOCAL_DATABASE_URL} DEPLOYMENT_ENV=localnet npx tsx ../../node_modules/drizzle-kit/bin.cjs push --force --config=drizzle.config.ts`
         .cwd('packages/db')
         .nothrow();
     if (result.exitCode !== 0 && result.exitCode !== 141) {

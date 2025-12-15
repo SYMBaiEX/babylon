@@ -35,7 +35,7 @@
  * - Insider quotes from affiliated journalists
  *
  * @see {@link FeedGenerator} - Also generates short-form posts
- * @see {@link GameEngine} - Uses ArticleGenerator for mixed content
+ * @see {@link executeGameTick} - Production tick uses ArticleGenerator for mixed content
  *
  * @example
  * ```typescript

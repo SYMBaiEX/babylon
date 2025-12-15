@@ -37,6 +37,8 @@ export const markets = pgTable(
     onChainResolutionTxHash: text('onChainResolutionTxHash'),
     onChainResolved: boolean('onChainResolved').notNull().default(false),
     oracleAddress: text('oracleAddress'),
+    resolutionProofUrl: text('resolutionProofUrl'),
+    resolutionDescription: text('resolutionDescription'),
   },
   (table) => [
     index('Market_createdAt_idx').on(table.createdAt),

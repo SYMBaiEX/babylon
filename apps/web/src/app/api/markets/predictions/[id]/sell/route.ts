@@ -99,13 +99,13 @@ export const POST = withErrorHandling(
     trackServerEvent(user.userId, 'prediction_sold', {
       marketId,
       sharesSold: shares,
-      grossProceeds: result.totalProceeds ?? result.netProceeds,
-      netProceeds: result.netProceeds,
-      pnl: result.pnl,
+      grossProceeds: result.totalProceeds ?? result.netProceeds ?? 0,
+      netProceeds: result.netProceeds ?? 0,
+      pnl: result.pnl ?? 0,
       priceImpact: result.market.priceImpact,
       feeCharged: result.feePaid,
       positionId: result.positionId,
-    }).catch((error) => {
+    } as Record<string, JsonValue>).catch((error) => {
       logger.warn('Failed to track prediction_sold event', { error });
     });
 

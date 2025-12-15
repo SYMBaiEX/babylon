@@ -3,13 +3,26 @@
  *
  * For production use with PostgreSQL database.
  *
- * NOTE: For simulation/training without database, use JsonStorageProvider instead.
+ * ARCHITECTURE NOTE:
+ * This provider is intentionally a thin wrapper that delegates to @babylon/db.
+ * The port-based abstraction is primarily useful for:
+ * - JSON mode: Simulation/training without a database
+ * - Memory mode: Fast unit testing
  *
- * This is a placeholder that throws helpful errors directing users to use
- * @babylon/db directly for now. A full implementation will require aligning
- * the storage types with the actual database schema.
+ * For production PostgreSQL access, most code uses @babylon/db directly because:
+ * 1. The Drizzle ORM provides excellent type safety
+ * 2. Complex queries benefit from direct SQL access
+ * 3. The db client has built-in connection pooling, retries, and RLS support
+ *
+ * If you need the port abstraction for production, consider:
+ * - Using @babylon/db directly (recommended)
+ * - Implementing specific adapters as needed
+ *
+ * The JSON storage provider (packages/core/storage/adapters/json) provides a
+ * complete implementation of all ports for offline simulation and training.
  */
 
+import { checkDatabaseHealth, closeDatabase } from '@babylon/db';
 import type { ActorPort, OrganizationPort } from '../../ports/actors';
 import type { AgentPort } from '../../ports/agents';
 import type { GamePort } from '../../ports/game';
@@ -24,11 +37,15 @@ import type { TradingPort } from '../../ports/trading';
 import type { UserPort } from '../../ports/users';
 
 const NOT_IMPLEMENTED_MSG =
-  'PostgresStorageProvider not yet fully implemented. ' +
-  'For production, continue using @babylon/db directly. ' +
+  'PostgresStorageProvider port methods are not implemented. ' +
+  'For production, use @babylon/db directly which provides: ' +
+  '• Full Drizzle ORM type safety ' +
+  '• Connection pooling and retries ' +
+  '• RLS context support (asUser, asSystem) ' +
+  '• Direct SQL for complex queries. ' +
   'For simulation/training, use createStorageProvider({ mode: "json" }).';
 
-// Stub implementations that throw helpful errors
+// Stub implementations that provide helpful guidance
 class StubActorPort implements ActorPort {
   getActor(): Promise<null> {
     throw new Error(NOT_IMPLEMENTED_MSG);
@@ -367,17 +384,21 @@ export class PostgresStorageProvider implements IStorageProvider {
   readonly users: UserPort = new StubUserPort();
 
   async initialize(): Promise<void> {
-    // In postgres mode, the database is managed by @babylon/db
-    // This provider exists mainly for interface compatibility
+    // Verify database connection is healthy
+    const healthy = await checkDatabaseHealth();
+    if (!healthy) {
+      throw new Error(
+        'PostgresStorageProvider: Database connection failed. ' +
+          'Check DATABASE_URL environment variable.'
+      );
+    }
   }
 
   async shutdown(): Promise<void> {
-    // Database connection managed by @babylon/db
+    await closeDatabase();
   }
 
   async isHealthy(): Promise<boolean> {
-    // Would need to import @babylon/db to check health
-    // For now, assume healthy if we got this far
-    return true;
+    return checkDatabaseHealth();
   }
 }

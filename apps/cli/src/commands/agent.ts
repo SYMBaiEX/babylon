@@ -343,7 +343,23 @@ async function toggleAgentFeatures(
     process.exit(1);
   }
 
-  await db.update(users).set(updates).where(eq(users.id, agentId));
+  // Check if agent config exists
+  const configResult = await db
+    .select()
+    .from(userAgentConfigs)
+    .where(eq(userAgentConfigs.userId, agentId))
+    .limit(1);
+
+  if (!configResult[0]) {
+    logger.fail(`Agent config not found for: ${agentId}`);
+    console.log('\nThe agent may not have been properly initialized.');
+    process.exit(1);
+  }
+
+  await db
+    .update(userAgentConfigs)
+    .set(updates)
+    .where(eq(userAgentConfigs.userId, agentId));
 
   const action = enable ? 'Enabled' : 'Disabled';
   logger.success(`${action} features for ${agent.username || agentId}`);
