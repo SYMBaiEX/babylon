@@ -312,7 +312,7 @@ export async function POST(_req: NextRequest) {
     pointsDeducted?: number;
     duration: number;
     actions?: number;
-    method?: 'database' | 'a2a' | 'planning_coordinator';
+    method?: 'database' | 'a2a' | 'planning_coordinator' | 'multi_step';
   }> = [];
   let totalActionsExecuted = 0;
   let errors = 0;
