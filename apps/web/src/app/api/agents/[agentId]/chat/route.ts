@@ -72,29 +72,30 @@ Actions taken this round: {{actionCount}}
 
 ---
 
-# Actions Already Completed This Round
+# Actions Completed This Round
 {{#if actionCount}}
 {{actionResults}}
+**IMPORTANT**: Use IDs/data from these results for follow-up actions.
 {{else}}
-None yet - this is the first step.
+No actions taken yet.
 {{/if}}
 
 ---
 
 # Decision Rules
-1. **Complete the user's FULL request** - If user asks to "check X and buy Y", do BOTH actions
-2. **Multi-step tasks**: After getting info (CHECK_*), use that info to take action if requested
-3. **Use IDs from results**: When CHECK_PREDICTIONS returns [ID: xxx], use that ID for BUY_PREDICTION
-4. **Just chatting/greeting?** → Set action to "" and isFinish to true
-5. **All requested actions done?** → Set action to "" and isFinish to true
-6. **Never repeat** the same action with same parameters
+1. **Complete the FULL request** - If user asks to "check X and do Y", execute BOTH actions
+2. **Use results from prior actions** - IDs, prices, data from completed actions should inform next action parameters
+3. **Avoid redundancy** - Don't repeat the same action with same parameters
+4. **Encourage complementarity** - Related actions that add new value are good
+5. **Just chatting?** → Set action to "" and isFinish to true
+6. **All requested actions done?** → Set action to "" and isFinish to true
 
 <output>
 <response>
-  <thought>What did user ask for? What have I done? What's still needed?</thought>
-  <action>ACTION_NAME or "" if done/no action needed</action>
-  <parameters>JSON parameters using IDs from previous action results, or {}</parameters>
-  <isFinish>true if ALL user requests fulfilled, false if more actions needed</isFinish>
+  <thought>Step {{iterationCount}}/{{maxIterations}}. What did user ask? What have I done? What's next?</thought>
+  <action>ACTION_NAME or "" if done</action>
+  <parameters>{"param": "value"} - use IDs/data from action results above</parameters>
+  <isFinish>true if ALL requests fulfilled, false if more needed</isFinish>
 </response>
 </output>`;
 
@@ -273,9 +274,6 @@ export const POST = withErrorHandling(
       const action = (parsedStep.action as string) ?? '';
       const parameters = parsedStep.parameters;
       const isFinish = parsedStep.isFinish;
-
-
-      console.log('parsedStep', parsedStep);
 
       // No action - go to summary phase
       if (!action || action === '') {
