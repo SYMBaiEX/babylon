@@ -8,8 +8,8 @@
  * - Funding rate
  */
 
-import { getDbInstance } from '@babylon/db';
-import { StaticDataRegistry } from '@babylon/engine';
+import { PerpDbAdapter, PerpMarketService } from '@babylon/core/markets/perps';
+import { FEE_CONFIG, WalletService } from '@babylon/engine';
 import type {
   Action,
   ActionResult,
@@ -25,7 +25,7 @@ type SortOption = 'price' | 'change' | 'volume' | 'name';
 export const checkPerpsAction: Action = {
   name: 'CHECK_PERPS',
   description:
-    'Check perpetual/stock market data - prices, 24h changes, volume, funding rates',
+    'Check perpetual/stock market data - prices, 24h changes, volume, funding rates. Use ticker from results for OPEN_PERP.',
   parameters: {
     limit: {
       type: 'number',
@@ -94,56 +94,29 @@ export const checkPerpsAction: Action = {
     const sortBy = (actionParams?.sortBy as SortOption) ?? 'volume';
 
     try {
-      // Get perpetual markets from static registry with dynamic prices
-      const orgStates = await getDbInstance().getOrganizationsByPrice();
-      const allOrgs = StaticDataRegistry.getAllOrganizations();
+      // Create wallet adapter (needed for PerpMarketService but we won't use it for reads)
+      const walletAdapter = {
+        debit: async () => {},
+        credit: async () => {},
+        recordPnL: async () => {},
+        getBalance: WalletService.getBalance,
+      };
 
-      const perpMarkets = orgStates
-        .map((state) => {
-          const staticOrg = allOrgs.find((o) => o.id === state.id);
-          if (!staticOrg || staticOrg.type !== 'company') return null;
-
-          const currentPrice =
-            state.currentPrice ?? staticOrg.initialPrice ?? 0;
-          const initialPrice = staticOrg.initialPrice ?? 0;
-          const change24h = currentPrice - initialPrice;
-          const changePercent =
-            initialPrice > 0 ? (change24h / initialPrice) * 100 : 0;
-
-          return {
-            ticker: staticOrg.ticker ?? staticOrg.id,
-            name: staticOrg.name,
-            currentPrice,
-            initialPrice,
-            change24h,
-            changePercent,
-            // These would come from actual market data in production
-            volume24h: Math.abs(change24h) * 1000, // Simulated
-            openInterest: currentPrice * 100, // Simulated
-            fundingRate: changePercent > 0 ? 0.01 : -0.01, // Simulated
-          };
-        })
-        .filter((m): m is NonNullable<typeof m> => m !== null);
-
-      // Sort markets
-      const sortedMarkets = [...perpMarkets].sort((a, b) => {
-        switch (sortBy) {
-          case 'price':
-            return b.currentPrice - a.currentPrice;
-          case 'change':
-            return Math.abs(b.changePercent) - Math.abs(a.changePercent);
-          case 'volume':
-            return b.volume24h - a.volume24h;
-          case 'name':
-            return a.name.localeCompare(b.name);
-          default:
-            return b.volume24h - a.volume24h;
-        }
+      const service = new PerpMarketService({
+        db: new PerpDbAdapter(),
+        wallet: walletAdapter,
+        fees: {
+          tradingFeeRate: FEE_CONFIG.TRADING_FEE_RATE,
+          platformShare: FEE_CONFIG.PLATFORM_SHARE,
+          referrerShare: FEE_CONFIG.REFERRER_SHARE,
+          minFeeAmount: FEE_CONFIG.MIN_FEE_AMOUNT,
+        },
       });
 
-      const displayedMarkets = sortedMarkets.slice(0, limit);
+      // Get markets from the same source OPEN_PERP uses
+      const perpMarkets = await service.getMarketsSnapshot();
 
-      if (displayedMarkets.length === 0) {
+      if (perpMarkets.length === 0) {
         return {
           success: true,
           text: 'No perpetual markets available at the moment.',
@@ -152,50 +125,72 @@ export const checkPerpsAction: Action = {
         };
       }
 
-      // Format response
+      // Sort markets
+      const sortedMarkets = [...perpMarkets].sort((a, b) => {
+        switch (sortBy) {
+          case 'price':
+            return b.currentPrice - a.currentPrice;
+          case 'change':
+            return Math.abs(b.changePercent24h) - Math.abs(a.changePercent24h);
+          case 'volume':
+            return b.volume24h - a.volume24h;
+          case 'name':
+            return (a.name ?? a.ticker).localeCompare(b.name ?? b.ticker);
+          default:
+            return b.volume24h - a.volume24h;
+        }
+      });
+
+      const displayedMarkets = sortedMarkets.slice(0, limit);
+
+      // Format response - use ticker for trading (same as OPEN_PERP expects)
       const marketsList = displayedMarkets
         .map((m, i) => {
           const changeStr =
-            m.changePercent >= 0
-              ? `+${m.changePercent.toFixed(2)}%`
-              : `${m.changePercent.toFixed(2)}%`;
-          const changeIcon = m.changePercent >= 0 ? '📈' : '📉';
-          return `${i + 1}. **${m.ticker}** (${m.name})\n   $${m.currentPrice.toFixed(2)} ${changeIcon} ${changeStr}`;
+            m.changePercent24h >= 0
+              ? `+${m.changePercent24h.toFixed(2)}%`
+              : `${m.changePercent24h.toFixed(2)}%`;
+          const changeIcon = m.changePercent24h >= 0 ? '📈' : '📉';
+          return `${i + 1}. **${m.ticker}** (${m.name ?? m.ticker})\n   Price: $${m.currentPrice.toFixed(2)} ${changeIcon} ${changeStr}`;
         })
         .join('\n');
 
       const topGainer = displayedMarkets.reduce((max, m) =>
-        m.changePercent > max.changePercent ? m : max
+        m.changePercent24h > max.changePercent24h ? m : max
       );
       const topLoser = displayedMarkets.reduce((min, m) =>
-        m.changePercent < min.changePercent ? m : min
+        m.changePercent24h < min.changePercent24h ? m : min
       );
 
-      const summary = `Top Gainer: ${topGainer.ticker} (+${topGainer.changePercent.toFixed(2)}%) | Top Loser: ${topLoser.ticker} (${topLoser.changePercent.toFixed(2)}%)`;
+      const summary = `Top Gainer: ${topGainer.ticker} (+${topGainer.changePercent24h.toFixed(2)}%) | Top Loser: ${topLoser.ticker} (${topLoser.changePercent24h.toFixed(2)}%)`;
 
-      const responseText = `**Perpetual Markets (${displayedMarkets.length}):**\n${marketsList}\n\n${summary}`;
+      const responseText = `**Perpetual Markets (${displayedMarkets.length}):**\n${marketsList}\n\n${summary}\n\nTo trade, use OPEN_PERP with ticker (e.g., "${displayedMarkets[0]?.ticker}").`;
 
       logger.info(
         `[CHECK_PERPS] Retrieved ${displayedMarkets.length} markets`,
-        undefined,
-        'CheckPerps'
+        { sortBy, limit },
+        'check-perps'
       );
 
       return {
         success: true,
         text: responseText,
         data: {
-          markets: displayedMarkets,
+          markets: displayedMarkets.map((m) => ({
+            ticker: m.ticker,
+            name: m.name,
+            currentPrice: m.currentPrice,
+            changePercent24h: m.changePercent24h,
+            volume24h: m.volume24h,
+          })),
           count: displayedMarkets.length,
           topGainer: topGainer.ticker,
           topLoser: topLoser.ticker,
         },
         values: {
-          markets: displayedMarkets,
+          markets: displayedMarkets.map((m) => m.ticker),
           count: displayedMarkets.length,
           hasMarkets: true,
-          marketsList,
-          summary,
         },
       };
     } catch (error) {
@@ -203,7 +198,7 @@ export const checkPerpsAction: Action = {
       logger.error('[CHECK_PERPS] Error:', errorMsg);
       return {
         success: false,
-        text: `Failed to retrieve perp markets: ${errorMsg}`,
+        text: `Failed to fetch perp markets: ${errorMsg}`,
         data: { error: errorMsg },
         values: { error: errorMsg },
       };

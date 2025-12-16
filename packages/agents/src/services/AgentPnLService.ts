@@ -16,6 +16,7 @@ import {
   users,
   withTransaction,
 } from '@babylon/db';
+import { updateTradingMetrics } from '@babylon/engine';
 import { v4 as uuidv4 } from 'uuid';
 import { logger } from '../shared/logger';
 import { generateSnowflakeId } from '../shared/snowflake';
@@ -120,6 +121,19 @@ export class AgentPnLService {
         } as JsonValue,
       });
     });
+
+    // Update performance metrics (totalTrades, profitableTrades, winRate)
+    // This is needed for the Performance tab to show correct stats
+    try {
+      const isProfitable = (pnl ?? 0) > 0;
+      await updateTradingMetrics(agentId, pnl ?? 0, amount, isProfitable);
+    } catch (metricsError) {
+      logger.warn(
+        `Failed to update trading metrics for agent ${agentId}: ${metricsError}`,
+        undefined,
+        'AgentPnLService'
+      );
+    }
 
     logger.info(
       `Trade recorded for agent ${agentId}`,

@@ -14,7 +14,10 @@ import type {
   Memory,
   State,
 } from '@elizaos/core';
+import { AgentPnLService } from '../../../../services/AgentPnLService';
 import { logger } from '../../../../shared/logger';
+
+const agentPnLService = new AgentPnLService();
 
 export const openPerpAction: Action = {
   name: 'OPEN_PERP',
@@ -92,7 +95,7 @@ export const openPerpAction: Action = {
         }
       | undefined;
 
-    const ticker = actionParams?.ticker?.toUpperCase();
+    const ticker = actionParams?.ticker?.toLowerCase();
     const side = actionParams?.side?.toUpperCase() as
       | 'LONG'
       | 'SHORT'
@@ -233,6 +236,19 @@ export const openPerpAction: Action = {
         side: side.toLowerCase() as 'long' | 'short',
         size: amount,
         leverage,
+      });
+
+      // Record trade for UI/performance tracking
+      await agentPnLService.recordTrade({
+        agentId: agentUserId,
+        userId: agentUserId,
+        marketType: 'perp',
+        ticker,
+        action: 'open',
+        side: side.toLowerCase() as 'long' | 'short',
+        amount,
+        price: tradeResult.entryPrice,
+        reasoning: (state?.data?.thought as string) || 'Chat-initiated perp trade',
       });
 
       const responseText = `Opened ${leverage}x ${side} position on ${ticker} at $${tradeResult.entryPrice.toFixed(2)}. Size: $${amount}. Position ID: ${tradeResult.positionId}`;

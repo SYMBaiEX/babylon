@@ -1,9 +1,10 @@
 /**
- * Check P&L Action
+ * CHECK_PNL Action
  *
- * Returns the agent's profit/loss, balance, and trading activity.
+ * Returns the agent's balance, P&L, open positions (with IDs), and recent trades.
  */
 
+import { PerpDbAdapter, PerpMarketService } from '@babylon/core/markets/perps';
 import {
   agentTrades,
   and,
@@ -11,11 +12,12 @@ import {
   desc,
   eq,
   isNull,
+  markets,
   perpPositions,
   positions,
   users,
 } from '@babylon/db';
-import { WalletService } from '@babylon/engine';
+import { FEE_CONFIG, WalletService } from '@babylon/engine';
 import type {
   Action,
   ActionResult,
@@ -35,56 +37,42 @@ function formatCurrency(value: number): string {
     : `-$${Math.abs(value).toFixed(2)}`;
 }
 
-/**
- * CHECK_PNL Action
- *
- * Returns the agent's P&L, positions, and recent trades.
- */
 export const checkPnlAction: Action = {
   name: 'CHECK_PNL',
   description:
-    "Check the agent's profit/loss, current positions, and recent trading activity",
+    "Check balance, P&L, open positions (with IDs for trading), and recent trades. Use position IDs with SELL_PREDICTION or CLOSE_PERP.",
 
   parameters: {},
 
   examples: [
     [
       {
-        name: 'User',
+        name: 'user',
         content: { text: "What's your P&L?" },
       },
       {
-        name: 'Agent',
-        content: {
-          text: 'Let me check my trading performance...',
-          actions: ['CHECK_PNL'],
-        },
+        name: 'assistant',
+        content: { text: 'Let me check my trading performance...' },
       },
     ],
     [
       {
-        name: 'User',
-        content: { text: 'How are you doing on trades?' },
-      },
-      {
-        name: 'Agent',
-        content: {
-          text: 'Checking my trading stats...',
-          actions: ['CHECK_PNL'],
-        },
-      },
-    ],
-    [
-      {
-        name: 'User',
+        name: 'user',
         content: { text: 'Show me your positions' },
       },
       {
-        name: 'Agent',
-        content: {
-          text: 'Let me pull up my current positions...',
-          actions: ['CHECK_PNL'],
-        },
+        name: 'assistant',
+        content: { text: 'Let me pull up my current positions...' },
+      },
+    ],
+    [
+      {
+        name: 'user',
+        content: { text: 'How are you doing on trades?' },
+      },
+      {
+        name: 'assistant',
+        content: { text: 'Checking my trading stats...' },
       },
     ],
   ],
@@ -93,9 +81,7 @@ export const checkPnlAction: Action = {
     _runtime: IAgentRuntime,
     _message: Memory,
     _state?: State
-  ): Promise<boolean> => {
-    return true;
-  },
+  ): Promise<boolean> => true,
 
   handler: async (
     runtime: IAgentRuntime,
@@ -125,31 +111,66 @@ export const checkPnlAction: Action = {
         balance = walletBalance.balance;
         lifetimePnL = walletBalance.lifetimePnL;
       } catch {
-        // Use agent's stored lifetimePnL if wallet service fails
         lifetimePnL = Number(agent?.lifetimePnL ?? 0);
       }
 
-      // Get active prediction market positions
-      const activePositions = await db
-        .select()
+      // Get active prediction positions with market details
+      const predictionPositions = await db
+        .select({
+          id: positions.id,
+          marketId: positions.marketId,
+          side: positions.side,
+          shares: positions.shares,
+          avgPrice: positions.avgPrice,
+          amount: positions.amount,
+          question: markets.question,
+          yesShares: markets.yesShares,
+          noShares: markets.noShares,
+        })
         .from(positions)
+        .leftJoin(markets, eq(positions.marketId, markets.id))
         .where(
           and(eq(positions.userId, agentId), eq(positions.status, 'active'))
         );
 
       // Get active perp positions
-      const activePerpPositions = await db
+      const perpPositionsList = await db
         .select()
         .from(perpPositions)
         .where(
           and(eq(perpPositions.userId, agentId), isNull(perpPositions.closedAt))
         );
 
+      // Get current perp prices for P&L calculation
+      const walletAdapter = {
+        debit: async () => {},
+        credit: async () => {},
+        recordPnL: async () => {},
+        getBalance: WalletService.getBalance,
+      };
+
+      const perpService = new PerpMarketService({
+        db: new PerpDbAdapter(),
+        wallet: walletAdapter,
+        fees: {
+          tradingFeeRate: FEE_CONFIG.TRADING_FEE_RATE,
+          platformShare: FEE_CONFIG.PLATFORM_SHARE,
+          referrerShare: FEE_CONFIG.REFERRER_SHARE,
+          minFeeAmount: FEE_CONFIG.MIN_FEE_AMOUNT,
+        },
+      });
+
+      const perpMarkets = await perpService.getMarketsSnapshot();
+      const priceMap = new Map(
+        perpMarkets.map((m) => [m.ticker, m.currentPrice])
+      );
+
       // Get recent trades
       const recentTrades = await db
         .select({
           action: agentTrades.action,
           ticker: agentTrades.ticker,
+          marketId: agentTrades.marketId,
           amount: agentTrades.amount,
           pnl: agentTrades.pnl,
           executedAt: agentTrades.executedAt,
@@ -162,49 +183,98 @@ export const checkPnlAction: Action = {
       // Build response
       const sections: string[] = [];
 
-      // P&L Summary
+      // Summary
       sections.push(`💰 **Balance**: $${balance.toFixed(2)}`);
       sections.push(`📊 **Lifetime P&L**: ${formatCurrency(lifetimePnL)}`);
 
-      // Active Positions
-      if (activePositions.length > 0 || activePerpPositions.length > 0) {
-        sections.push('\n**Active Positions:**');
+      // Prediction Positions
+      if (predictionPositions.length > 0) {
+        sections.push('\n**📊 Prediction Positions:**');
+        for (const pos of predictionPositions) {
+          const side = pos.side ? 'YES' : 'NO';
+          const shares = Number(pos.shares);
+          const avgPrice = Number(pos.avgPrice);
+          const cost = Number(pos.amount);
 
-        for (const pos of activePositions) {
-          const posType = pos.outcome ? 'YES' : 'NO';
+          // Calculate current probability and value
+          const yesShares = Number(pos.yesShares ?? 0);
+          const noShares = Number(pos.noShares ?? 0);
+          const totalShares = yesShares + noShares;
+          const currentProb =
+            totalShares > 0
+              ? pos.side
+                ? yesShares / totalShares
+                : noShares / totalShares
+              : 0.5;
+          const currentValue = shares * currentProb;
+          const unrealizedPnL = currentValue - cost;
+          const pnlStr = formatCurrency(unrealizedPnL);
+
+          const question =
+            pos.question && pos.question.length > 40
+              ? pos.question.substring(0, 37) + '...'
+              : pos.question ?? 'Unknown';
+
           sections.push(
-            `- ${pos.marketId}: ${posType} (${pos.shares} shares @ $${Number(pos.avgPrice).toFixed(2)})`
+            `• **${side}** "${question}"\n` +
+              `  ${shares.toFixed(1)} shares @ $${avgPrice.toFixed(3)} | Value: $${currentValue.toFixed(2)} | P&L: ${pnlStr}\n` +
+              `  ID: \`${pos.id}\``
           );
         }
+      }
 
-        for (const pos of activePerpPositions) {
-          const direction = pos.side === 'long' ? 'LONG' : 'SHORT';
+      // Perp Positions
+      if (perpPositionsList.length > 0) {
+        sections.push('\n**📈 Perp Positions:**');
+        for (const pos of perpPositionsList) {
+          const side = pos.side.toUpperCase();
+          const size = Number(pos.size);
+          const entryPrice = Number(pos.entryPrice);
+          const leverage = pos.leverage ?? 1;
+          const currentPrice = priceMap.get(pos.ticker) ?? entryPrice;
+
+          // Calculate P&L
+          const priceDiff = currentPrice - entryPrice;
+          const direction = pos.side === 'long' ? 1 : -1;
+          const unrealizedPnL =
+            (priceDiff / entryPrice) * size * leverage * direction;
+          const pnlStr = formatCurrency(unrealizedPnL);
+          const pnlPercent = ((unrealizedPnL / size) * 100).toFixed(1);
+
           sections.push(
-            `- ${pos.ticker}: ${direction} ${pos.size} @ $${Number(pos.entryPrice).toFixed(2)}`
+            `• **${pos.ticker}** ${side} ${leverage}x\n` +
+              `  $${size.toFixed(2)} @ $${entryPrice.toFixed(2)} → $${currentPrice.toFixed(2)} | P&L: ${pnlStr} (${pnlPercent}%)\n` +
+              `  ID: \`${pos.id}\``
           );
         }
-      } else {
-        sections.push('\n**Active Positions:** None');
+      }
+
+      // No positions
+      if (predictionPositions.length === 0 && perpPositionsList.length === 0) {
+        sections.push('\n**Open Positions:** None');
       }
 
       // Recent Trades
       if (recentTrades.length > 0) {
         sections.push('\n**Recent Trades:**');
         for (const trade of recentTrades) {
-          const pnlStr = trade.pnl
-            ? ` (${formatCurrency(Number(trade.pnl))})`
-            : '';
+          const pnlStr = trade.pnl ? ` ${formatCurrency(Number(trade.pnl))}` : '';
+          const identifier = trade.ticker || trade.marketId || 'unknown';
           sections.push(
-            `- ${trade.action} ${trade.ticker}: $${Number(trade.amount).toFixed(2)}${pnlStr}`
+            `• ${trade.action} ${identifier}: $${Number(trade.amount).toFixed(2)}${pnlStr}`
           );
         }
-      } else {
-        sections.push('\n**Recent Trades:** None');
       }
 
       const responseText = sections.join('\n');
+      const totalPositions =
+        predictionPositions.length + perpPositionsList.length;
 
-      logger.info(`[CHECK_PNL] Retrieved P&L for agent`, undefined, 'CheckPnL');
+      logger.info(
+        `[CHECK_PNL] Retrieved P&L for agent`,
+        { positions: totalPositions, trades: recentTrades.length },
+        'CheckPnL'
+      );
 
       return {
         success: true,
@@ -212,16 +282,30 @@ export const checkPnlAction: Action = {
         data: {
           balance,
           lifetimePnL,
-          activePositions: activePositions.length,
-          activePerpPositions: activePerpPositions.length,
-          recentTradesCount: recentTrades.length,
+          predictionPositions: predictionPositions.map((p) => ({
+            id: p.id,
+            marketId: p.marketId,
+            side: p.side ? 'YES' : 'NO',
+            shares: Number(p.shares),
+            avgPrice: Number(p.avgPrice),
+          })),
+          perpPositions: perpPositionsList.map((p) => ({
+            id: p.id,
+            ticker: p.ticker,
+            side: p.side,
+            size: Number(p.size),
+            entryPrice: Number(p.entryPrice),
+            leverage: p.leverage,
+          })),
+          recentTrades: recentTrades.length,
         },
         values: {
           balance,
           lifetimePnL,
-          activePositionCount:
-            activePositions.length + activePerpPositions.length,
-          recentTradesCount: recentTrades.length,
+          predictionCount: predictionPositions.length,
+          perpCount: perpPositionsList.length,
+          totalPositions,
+          hasPositions: totalPositions > 0,
           isProfitable: lifetimePnL > 0,
         },
       };

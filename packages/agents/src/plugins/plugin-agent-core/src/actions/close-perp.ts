@@ -15,7 +15,10 @@ import type {
   Memory,
   State,
 } from '@elizaos/core';
+import { AgentPnLService } from '../../../../services/AgentPnLService';
 import { logger } from '../../../../shared/logger';
+
+const agentPnLService = new AgentPnLService();
 
 export const closePerpAction: Action = {
   name: 'CLOSE_PERP',
@@ -190,6 +193,21 @@ export const closePerpAction: Action = {
       const pnl = result.realizedPnL ?? 0;
       const pnlStr =
         pnl >= 0 ? `+$${pnl.toFixed(2)}` : `-$${Math.abs(pnl).toFixed(2)}`;
+
+      // Record trade for UI/performance tracking
+      await agentPnLService.recordTrade({
+        agentId: agentUserId,
+        userId: agentUserId,
+        marketType: 'perp',
+        ticker: position.ticker,
+        action: 'close',
+        side: position.side as 'long' | 'short',
+        amount: Number(position.size),
+        price: exitPrice,
+        pnl,
+        reasoning: (state?.data?.thought as string) || 'Chat-initiated perp close',
+      });
+
       const responseText = `Closed ${position.side.toUpperCase()} position on ${position.ticker} at $${exitPrice.toFixed(2)}. P&L: ${pnlStr}`;
 
       logger.info('[CLOSE_PERP] Position closed', {

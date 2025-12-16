@@ -90,12 +90,24 @@ No actions taken yet.
 5. **Just chatting?** → Set action to "" and isFinish to true
 6. **All requested actions done?** → Set action to "" and isFinish to true
 
+<keys>
+"thought" Step count, what user asked, what you've done, what's next
+"action" Name of the action to execute, or empty string "" if no action needed
+"parameters" JSON object with exact parameter names from action results. Empty object {} if no parameters.
+"isFinish" Set to true when user's request is fully satisfied
+</keys>
+
 <output>
 <response>
-  <thought>Step {{iterationCount}}/{{maxIterations}}. What did user ask? What have I done? What's next?</thought>
-  <action>ACTION_NAME or "" if done</action>
-  <parameters>{"param": "value"} - use IDs/data from action results above</parameters>
-  <isFinish>true if ALL requests fulfilled, false if more needed</isFinish>
+  <thought>Step {{iterationCount}}/{{maxIterations}}. [Your reasoning]</thought>
+  <action>ACTION_NAME or ""</action>
+  <parameters>
+    {
+      "param1": "value1",
+      "param2": "value2"
+    }
+  </parameters>
+  <isFinish>true | false</isFinish>
 </response>
 </output>`;
 

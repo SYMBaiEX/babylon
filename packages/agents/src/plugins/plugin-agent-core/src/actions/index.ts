@@ -4,6 +4,7 @@
 
 export { buyPredictionAction } from './buy-prediction';
 export { checkAutonomyAction } from './check-autonomy';
+export { checkBalanceAction } from './check-balance';
 export { checkPerpsAction } from './check-perps';
 export { checkPnlAction } from './check-pnl';
 export { checkPredictionsAction } from './check-predictions';

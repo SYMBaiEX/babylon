@@ -14,8 +14,11 @@ import type {
   Memory,
   State,
 } from '@elizaos/core';
+import { AgentPnLService } from '../../../../services/AgentPnLService';
 import { logger } from '../../../../shared/logger';
 import { generateSnowflakeId } from '../../../../shared/snowflake';
+
+const agentPnLService = new AgentPnLService();
 
 const TRADING_FEE_RATE = 0.001; // 0.1% fee
 
@@ -231,6 +234,19 @@ export const buyPredictionAction: Action = {
         }
 
         return { position, calculation };
+      });
+
+      // Record trade for UI/performance tracking
+      await agentPnLService.recordTrade({
+        agentId: agentUserId,
+        userId: agentUserId,
+        marketType: 'prediction',
+        marketId,
+        action: 'open',
+        side: side.toLowerCase() as 'yes' | 'no',
+        amount,
+        price: result.calculation.avgPrice,
+        reasoning: (state?.data?.thought as string) || 'Chat-initiated trade',
       });
 
       const responseText = `Bought ${result.calculation.sharesBought.toFixed(2)} ${side} shares at avg price $${result.calculation.avgPrice.toFixed(4)}. Cost: $${amount.toFixed(2)}`;

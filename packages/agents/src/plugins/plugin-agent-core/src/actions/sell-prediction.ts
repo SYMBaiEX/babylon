@@ -14,9 +14,11 @@ import type {
   Memory,
   State,
 } from '@elizaos/core';
+import { AgentPnLService } from '../../../../services/AgentPnLService';
 import { logger } from '../../../../shared/logger';
 
 const TRADING_FEE_RATE = 0.001; // 0.1% fee
+const agentPnLService = new AgentPnLService();
 
 export const sellPredictionAction: Action = {
   name: 'SELL_PREDICTION',
@@ -210,6 +212,20 @@ export const sellPredictionAction: Action = {
 
       const proceeds =
         result.calculation.netProceeds ?? result.calculation.netAmount;
+
+      // Record trade for UI/performance tracking
+      await agentPnLService.recordTrade({
+        agentId: agentUserId,
+        userId: agentUserId,
+        marketType: 'prediction',
+        marketId: position.marketId,
+        action: 'close',
+        side: isSellYes ? 'yes' : 'no',
+        amount: sharesToSell,
+        price: result.calculation.avgPrice ?? (proceeds / sharesToSell),
+        reasoning: (state?.data?.thought as string) || 'Chat-initiated sell',
+      });
+
       const responseText = `Sold ${sharesToSell} ${isSellYes ? 'YES' : 'NO'} shares. Proceeds: $${proceeds.toFixed(2)}. Remaining: ${result.remainingShares} shares.`;
 
       logger.info('[SELL_PREDICTION] Trade successful', {
