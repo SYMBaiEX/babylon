@@ -19,7 +19,7 @@ import { logger } from '../../../../shared/logger';
 export const openPerpAction: Action = {
   name: 'OPEN_PERP',
   description:
-    'Open a leveraged perpetual position on a stock/company. Requires ticker, side (LONG/SHORT), amount, and optional leverage.',
+    'Open a leveraged perpetual position on a stock/company. Use CHECK_PERPS first to see available markets and tickers. Requires ticker (e.g. AAPL, TSLA), side (LONG/SHORT), amount in dollars, and optional leverage (1-10x).',
   parameters: {
     ticker: {
       type: 'string',

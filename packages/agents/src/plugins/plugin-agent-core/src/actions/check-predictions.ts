@@ -105,9 +105,7 @@ export const checkPredictionsAction: Action = {
       let query = db.select().from(markets);
 
       if (statusFilter === 'active') {
-        query = query.where(
-          eq(markets.resolved, false)
-        ) as typeof query;
+        query = query.where(eq(markets.resolved, false)) as typeof query;
         // Also filter for markets that haven't ended
         const now = new Date();
         query = query.where(gte(markets.endDate, now)) as typeof query;
@@ -121,8 +119,7 @@ export const checkPredictionsAction: Action = {
         .limit(limit);
 
       if (predictions.length === 0) {
-        const statusText =
-          statusFilter === 'all' ? '' : ` ${statusFilter}`;
+        const statusText = statusFilter === 'all' ? '' : ` ${statusFilter}`;
         return {
           success: true,
           text: `No${statusText} predictions found.`,
@@ -159,12 +156,12 @@ export const checkPredictionsAction: Action = {
         };
       });
 
-      // Build response text
+      // Build response text - include market ID for trading
       const predictionsList = formattedPredictions
         .map((p) => {
           if (p.resolved) {
             const outcomeIcon = p.resolution ? '✅ YES' : '❌ NO';
-            return `${p.index}. "${p.question}"\n   Resolved: ${outcomeIcon}`;
+            return `${p.index}. [ID: ${p.id}] "${p.question}"\n   Resolved: ${outcomeIcon}`;
           }
           const timeStr =
             p.daysUntil !== null
@@ -172,7 +169,7 @@ export const checkPredictionsAction: Action = {
                 ? `${p.daysUntil}d left`
                 : 'Ending soon'
               : 'No deadline';
-          return `${p.index}. "${p.question}"\n   YES: ${p.yesPercent}% | NO: ${p.noPercent}% (${timeStr})`;
+          return `${p.index}. [ID: ${p.id}] "${p.question}"\n   YES: ${p.yesPercent}% | NO: ${p.noPercent}% (${timeStr})`;
         })
         .join('\n');
 
@@ -216,4 +213,3 @@ export const checkPredictionsAction: Action = {
     }
   },
 };
-

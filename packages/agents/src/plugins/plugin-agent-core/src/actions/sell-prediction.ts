@@ -4,7 +4,7 @@
  * (Same pattern as AutonomousTradingService)
  */
 
-import { and, asUser, db, eq, positions, markets, sql } from '@babylon/db';
+import { and, asUser, db, eq, markets, positions, sql } from '@babylon/db';
 import { PredictionPricing, WalletService } from '@babylon/engine';
 import type {
   Action,
@@ -21,7 +21,7 @@ const TRADING_FEE_RATE = 0.001; // 0.1% fee
 export const sellPredictionAction: Action = {
   name: 'SELL_PREDICTION',
   description:
-    'Sell shares from an existing prediction market position. Requires position ID and number of shares.',
+    'Sell shares from an existing prediction market position. Use CHECK_PNL first to see your positions and get position IDs. Requires positionId and number of shares to sell.',
   parameters: {
     positionId: {
       type: 'string',
@@ -158,60 +158,58 @@ export const sellPredictionAction: Action = {
       );
 
       // Execute sell in transaction
-      const result = await asUser(
-        { userId: agentUserId },
-        async (txDb) => {
-          // Credit proceeds to balance
-          await WalletService.credit(
-            agentUserId,
-            calculation.netProceeds ?? calculation.netAmount,
-            'pred_sell',
-            `Sold ${sharesToSell} ${isSellYes ? 'YES' : 'NO'} shares: ${market.question.substring(0, 50)}...`,
-            market.id
-          );
+      const result = await asUser({ userId: agentUserId }, async (txDb) => {
+        // Credit proceeds to balance
+        await WalletService.credit(
+          agentUserId,
+          calculation.netProceeds ?? calculation.netAmount,
+          'pred_sell',
+          `Sold ${sharesToSell} ${isSellYes ? 'YES' : 'NO'} shares: ${market.question.substring(0, 50)}...`,
+          market.id
+        );
 
-          // Update market shares
+        // Update market shares
+        await txDb
+          .update(markets)
+          .set({
+            yesShares: isSellYes
+              ? sql`${markets.yesShares} - ${sharesToSell}`
+              : String(calculation.newYesShares),
+            noShares: isSellYes
+              ? String(calculation.newNoShares)
+              : sql`${markets.noShares} - ${sharesToSell}`,
+            updatedAt: new Date(),
+          })
+          .where(eq(markets.id, market.id));
+
+        // Update or close position
+        const remainingShares = currentShares - sharesToSell;
+        if (remainingShares <= 0) {
+          // Close position
           await txDb
-            .update(markets)
+            .update(positions)
             .set({
-              yesShares: isSellYes
-                ? sql`${markets.yesShares} - ${sharesToSell}`
-                : String(calculation.newYesShares),
-              noShares: isSellYes
-                ? String(calculation.newNoShares)
-                : sql`${markets.noShares} - ${sharesToSell}`,
+              shares: '0',
+              status: 'closed',
               updatedAt: new Date(),
             })
-            .where(eq(markets.id, market.id));
-
-          // Update or close position
-          const remainingShares = currentShares - sharesToSell;
-          if (remainingShares <= 0) {
-            // Close position
-            await txDb
-              .update(positions)
-              .set({
-                shares: '0',
-                status: 'closed',
-                updatedAt: new Date(),
-              })
-              .where(eq(positions.id, position.id));
-          } else {
-            // Update position
-            await txDb
-              .update(positions)
-              .set({
-                shares: String(remainingShares),
-                updatedAt: new Date(),
-              })
-              .where(eq(positions.id, position.id));
-          }
-
-          return { remainingShares, calculation };
+            .where(eq(positions.id, position.id));
+        } else {
+          // Update position
+          await txDb
+            .update(positions)
+            .set({
+              shares: String(remainingShares),
+              updatedAt: new Date(),
+            })
+            .where(eq(positions.id, position.id));
         }
-      );
 
-      const proceeds = result.calculation.netProceeds ?? result.calculation.netAmount;
+        return { remainingShares, calculation };
+      });
+
+      const proceeds =
+        result.calculation.netProceeds ?? result.calculation.netAmount;
       const responseText = `Sold ${sharesToSell} ${isSellYes ? 'YES' : 'NO'} shares. Proceeds: $${proceeds.toFixed(2)}. Remaining: ${result.remainingShares} shares.`;
 
       logger.info('[SELL_PREDICTION] Trade successful', {

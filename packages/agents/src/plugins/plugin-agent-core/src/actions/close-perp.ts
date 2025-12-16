@@ -5,7 +5,7 @@
  */
 
 import { PerpDbAdapter, PerpMarketService } from '@babylon/core/markets/perps';
-import { db, eq, isNull, perpPositions, and } from '@babylon/db';
+import { and, db, eq, isNull, perpPositions } from '@babylon/db';
 import { FEE_CONFIG, WalletService } from '@babylon/engine';
 import type {
   Action,
@@ -19,7 +19,8 @@ import { logger } from '../../../../shared/logger';
 
 export const closePerpAction: Action = {
   name: 'CLOSE_PERP',
-  description: 'Close an open perpetual position. Requires the position ID.',
+  description:
+    'Close an open perpetual position. Use CHECK_PNL first to see your open perp positions and get position IDs. Requires positionId.',
   parameters: {
     positionId: {
       type: 'string',

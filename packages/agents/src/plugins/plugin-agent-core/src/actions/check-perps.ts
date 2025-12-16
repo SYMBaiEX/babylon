@@ -103,7 +103,8 @@ export const checkPerpsAction: Action = {
           const staticOrg = allOrgs.find((o) => o.id === state.id);
           if (!staticOrg || staticOrg.type !== 'company') return null;
 
-          const currentPrice = state.currentPrice ?? staticOrg.initialPrice ?? 0;
+          const currentPrice =
+            state.currentPrice ?? staticOrg.initialPrice ?? 0;
           const initialPrice = staticOrg.initialPrice ?? 0;
           const change24h = currentPrice - initialPrice;
           const changePercent =
@@ -209,4 +210,3 @@ export const checkPerpsAction: Action = {
     }
   },
 };
-

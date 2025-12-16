@@ -4,16 +4,7 @@
  * (Same pattern as AutonomousTradingService)
  */
 
-import {
-  and,
-  asUser,
-  db,
-  eq,
-  gte,
-  markets,
-  positions,
-  sql,
-} from '@babylon/db';
+import { and, asUser, db, eq, gte, markets, positions, sql } from '@babylon/db';
 import { PredictionPricing, WalletService } from '@babylon/engine';
 import type {
   Action,
@@ -31,7 +22,7 @@ const TRADING_FEE_RATE = 0.001; // 0.1% fee
 export const buyPredictionAction: Action = {
   name: 'BUY_PREDICTION',
   description:
-    'Buy YES or NO shares in a prediction market. Requires market ID, side (YES/NO), and amount.',
+    'Buy YES or NO shares in a prediction market. Use CHECK_PREDICTIONS first to get the market ID. Requires marketId (from CHECK_PREDICTIONS), side (YES/NO), and amount in dollars.',
   parameters: {
     marketId: {
       type: 'string',
@@ -169,81 +160,78 @@ export const buyPredictionAction: Action = {
       );
 
       // Execute trade in transaction
-      const result = await asUser(
-        { userId: agentUserId },
-        async (txDb) => {
-          // Debit balance
-          await WalletService.debit(
-            agentUserId,
-            amount,
-            'pred_buy',
-            `Bought ${calculation.sharesBought.toFixed(2)} ${side} shares: ${market.question.substring(0, 50)}...`,
-            market.id
-          );
+      const result = await asUser({ userId: agentUserId }, async (txDb) => {
+        // Debit balance
+        await WalletService.debit(
+          agentUserId,
+          amount,
+          'pred_buy',
+          `Bought ${calculation.sharesBought.toFixed(2)} ${side} shares: ${market.question.substring(0, 50)}...`,
+          market.id
+        );
 
-          // Update market shares
-          await txDb
-            .update(markets)
+        // Update market shares
+        await txDb
+          .update(markets)
+          .set({
+            yesShares: isBuyYes
+              ? sql`${markets.yesShares} + ${calculation.sharesBought}`
+              : String(calculation.newYesShares),
+            noShares: isBuyYes
+              ? String(calculation.newNoShares)
+              : sql`${markets.noShares} + ${calculation.sharesBought}`,
+            updatedAt: new Date(),
+          })
+          .where(eq(markets.id, market.id));
+
+        // Check for existing position
+        const [existingPosition] = await txDb
+          .select()
+          .from(positions)
+          .where(
+            and(
+              eq(positions.userId, agentUserId),
+              eq(positions.marketId, market.id),
+              eq(positions.side, isBuyYes)
+            )
+          )
+          .limit(1);
+
+        let position;
+        if (existingPosition) {
+          // Update existing position
+          const [updated] = await txDb
+            .update(positions)
             .set({
-              yesShares: isBuyYes
-                ? sql`${markets.yesShares} + ${calculation.sharesBought}`
-                : String(calculation.newYesShares),
-              noShares: isBuyYes
-                ? String(calculation.newNoShares)
-                : sql`${markets.noShares} + ${calculation.sharesBought}`,
+              shares: sql`${positions.shares} + ${calculation.sharesBought}`,
+              amount: sql`${positions.amount} + ${amount}`,
               updatedAt: new Date(),
             })
-            .where(eq(markets.id, market.id));
-
-          // Check for existing position
-          const [existingPosition] = await txDb
-            .select()
-            .from(positions)
-            .where(
-              and(
-                eq(positions.userId, agentUserId),
-                eq(positions.marketId, market.id),
-                eq(positions.side, isBuyYes)
-              )
-            )
-            .limit(1);
-
-          let position;
-          if (existingPosition) {
-            // Update existing position
-            const [updated] = await txDb
-              .update(positions)
-              .set({
-                shares: sql`${positions.shares} + ${calculation.sharesBought}`,
-                amount: sql`${positions.amount} + ${amount}`,
-                updatedAt: new Date(),
-              })
-              .where(eq(positions.id, existingPosition.id))
-              .returning();
-            position = updated;
-          } else {
-            // Create new position
-            const [inserted] = await txDb
-              .insert(positions)
-              .values({
-                id: await generateSnowflakeId(),
-                userId: agentUserId,
-                marketId: market.id,
-                side: isBuyYes,
-                shares: String(calculation.sharesBought),
-                avgPrice: String(calculation.avgPrice),
-                amount: String(amount),
-                status: 'active',
-                createdAt: new Date(),
-                updatedAt: new Date(),
-              })
-              .returning();
-            position = inserted;
-          }
-
-          return { position, calculation };
+            .where(eq(positions.id, existingPosition.id))
+            .returning();
+          position = updated;
+        } else {
+          // Create new position
+          const [inserted] = await txDb
+            .insert(positions)
+            .values({
+              id: await generateSnowflakeId(),
+              userId: agentUserId,
+              marketId: market.id,
+              side: isBuyYes,
+              shares: String(calculation.sharesBought),
+              avgPrice: String(calculation.avgPrice),
+              amount: String(amount),
+              status: 'active',
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            })
+            .returning();
+          position = inserted;
         }
-      );
+
+        return { position, calculation };
+      });
 
       const responseText = `Bought ${result.calculation.sharesBought.toFixed(2)} ${side} shares at avg price $${result.calculation.avgPrice.toFixed(4)}. Cost: $${amount.toFixed(2)}`;
 
