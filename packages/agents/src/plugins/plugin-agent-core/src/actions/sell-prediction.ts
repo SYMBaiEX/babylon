@@ -1,8 +1,11 @@
 /**
  * Sell Prediction Action
- * Sell shares in a prediction market via A2A client
+ * Sell shares from a prediction market position via direct DB operations
+ * (Same pattern as AutonomousTradingService)
  */
 
+import { and, asUser, db, eq, positions, markets, sql } from '@babylon/db';
+import { PredictionPricing, WalletService } from '@babylon/engine';
 import type {
   Action,
   ActionResult,
@@ -11,8 +14,9 @@ import type {
   Memory,
   State,
 } from '@elizaos/core';
-import type { BabylonRuntime } from '../../../babylon/types';
 import { logger } from '../../../../shared/logger';
+
+const TRADING_FEE_RATE = 0.001; // 0.1% fee
 
 export const sellPredictionAction: Action = {
   name: 'SELL_PREDICTION',
@@ -66,18 +70,7 @@ export const sellPredictionAction: Action = {
     _options?: Record<string, unknown>,
     _callback?: HandlerCallback
   ): Promise<ActionResult> => {
-    const babylonRuntime = runtime as BabylonRuntime;
-
-    // Check A2A connectivity
-    if (!babylonRuntime.a2aClient?.isConnected()) {
-      logger.warn('[SELL_PREDICTION] A2A client not connected');
-      return {
-        success: false,
-        text: 'Trading is not available right now. A2A client not connected.',
-        data: { error: 'A2A not connected' },
-        values: { error: 'A2A not connected' },
-      };
-    }
+    const agentUserId = runtime.agentId;
 
     // Get parameters from state
     const actionParams = state?.data?.actionParams as
@@ -85,9 +78,9 @@ export const sellPredictionAction: Action = {
       | undefined;
 
     const positionId = actionParams?.positionId;
-    const shares = actionParams?.shares;
+    const sharesToSell = actionParams?.shares;
 
-    if (!positionId || !shares) {
+    if (!positionId || !sharesToSell) {
       return {
         success: false,
         text: 'Missing required parameters. Need positionId and shares.',
@@ -96,7 +89,7 @@ export const sellPredictionAction: Action = {
       };
     }
 
-    if (shares <= 0) {
+    if (sharesToSell <= 0) {
       return {
         success: false,
         text: 'Shares must be greater than 0.',
@@ -106,32 +99,126 @@ export const sellPredictionAction: Action = {
     }
 
     try {
-      const result = (await babylonRuntime.a2aClient.sellShares(
-        positionId,
-        shares
-      )) as {
-        success?: boolean;
-        remainingShares?: number;
-        proceeds?: number;
-        message?: string;
-      };
+      // Get position
+      const [position] = await db
+        .select()
+        .from(positions)
+        .where(
+          and(
+            eq(positions.id, positionId),
+            eq(positions.userId, agentUserId),
+            eq(positions.status, 'active')
+          )
+        )
+        .limit(1);
 
-      if (result.success === false) {
-        logger.warn('[SELL_PREDICTION] Trade failed', { message: result.message });
+      if (!position) {
         return {
           success: false,
-          text: `Failed to sell shares: ${result.message || 'Unknown error'}`,
-          data: { error: result.message },
-          values: { error: result.message },
+          text: 'Position not found or not owned by you.',
+          data: { error: 'Position not found' },
+          values: { error: 'Position not found' },
         };
       }
 
-      const responseText = `Sold ${shares} shares. Proceeds: $${(result.proceeds ?? 0).toFixed(2)}. Remaining: ${result.remainingShares ?? 0} shares`;
+      const currentShares = Number(position.shares);
+      if (sharesToSell > currentShares) {
+        return {
+          success: false,
+          text: `Cannot sell ${sharesToSell} shares. You only have ${currentShares} shares.`,
+          data: { error: 'Insufficient shares', currentShares },
+          values: { error: 'Insufficient shares', currentShares },
+        };
+      }
+
+      // Get market
+      const [market] = await db
+        .select()
+        .from(markets)
+        .where(eq(markets.id, position.marketId))
+        .limit(1);
+
+      if (!market) {
+        return {
+          success: false,
+          text: 'Market not found.',
+          data: { error: 'Market not found' },
+          values: { error: 'Market not found' },
+        };
+      }
+
+      // Calculate sell proceeds
+      const isSellYes = position.side;
+      const calculation = PredictionPricing.calculateSellWithFees(
+        Number(market.yesShares),
+        Number(market.noShares),
+        isSellYes ? 'yes' : 'no',
+        sharesToSell,
+        TRADING_FEE_RATE
+      );
+
+      // Execute sell in transaction
+      const result = await asUser(
+        { userId: agentUserId },
+        async (txDb) => {
+          // Credit proceeds to balance
+          await WalletService.credit(
+            agentUserId,
+            calculation.netProceeds ?? calculation.netAmount,
+            'pred_sell',
+            `Sold ${sharesToSell} ${isSellYes ? 'YES' : 'NO'} shares: ${market.question.substring(0, 50)}...`,
+            market.id
+          );
+
+          // Update market shares
+          await txDb
+            .update(markets)
+            .set({
+              yesShares: isSellYes
+                ? sql`${markets.yesShares} - ${sharesToSell}`
+                : String(calculation.newYesShares),
+              noShares: isSellYes
+                ? String(calculation.newNoShares)
+                : sql`${markets.noShares} - ${sharesToSell}`,
+              updatedAt: new Date(),
+            })
+            .where(eq(markets.id, market.id));
+
+          // Update or close position
+          const remainingShares = currentShares - sharesToSell;
+          if (remainingShares <= 0) {
+            // Close position
+            await txDb
+              .update(positions)
+              .set({
+                shares: '0',
+                status: 'closed',
+                updatedAt: new Date(),
+              })
+              .where(eq(positions.id, position.id));
+          } else {
+            // Update position
+            await txDb
+              .update(positions)
+              .set({
+                shares: String(remainingShares),
+                updatedAt: new Date(),
+              })
+              .where(eq(positions.id, position.id));
+          }
+
+          return { remainingShares, calculation };
+        }
+      );
+
+      const proceeds = result.calculation.netProceeds ?? result.calculation.netAmount;
+      const responseText = `Sold ${sharesToSell} ${isSellYes ? 'YES' : 'NO'} shares. Proceeds: $${proceeds.toFixed(2)}. Remaining: ${result.remainingShares} shares.`;
 
       logger.info('[SELL_PREDICTION] Trade successful', {
+        agentUserId,
         positionId,
-        shares,
-        proceeds: result.proceeds,
+        sharesSold: sharesToSell,
+        proceeds,
         remainingShares: result.remainingShares,
       });
 
@@ -140,14 +227,16 @@ export const sellPredictionAction: Action = {
         text: responseText,
         data: {
           positionId,
-          sharesSold: shares,
-          proceeds: result.proceeds,
+          marketId: position.marketId,
+          side: isSellYes ? 'YES' : 'NO',
+          sharesSold: sharesToSell,
+          proceeds,
           remainingShares: result.remainingShares,
         },
         values: {
           positionId,
-          sharesSold: shares,
-          proceeds: result.proceeds,
+          sharesSold: sharesToSell,
+          proceeds,
           remainingShares: result.remainingShares,
         },
       };
@@ -163,4 +252,3 @@ export const sellPredictionAction: Action = {
     }
   },
 };
-

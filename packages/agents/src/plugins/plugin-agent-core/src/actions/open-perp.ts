@@ -1,8 +1,11 @@
 /**
  * Open Perp Action
- * Open a leveraged perpetual position via A2A client
+ * Open a leveraged perpetual position via direct DB operations
+ * (Same pattern as AutonomousTradingService)
  */
 
+import { PerpDbAdapter, PerpMarketService } from '@babylon/core/markets/perps';
+import { FEE_CONFIG, WalletService } from '@babylon/engine';
 import type {
   Action,
   ActionResult,
@@ -11,7 +14,6 @@ import type {
   Memory,
   State,
 } from '@elizaos/core';
-import type { BabylonRuntime } from '../../../babylon/types';
 import { logger } from '../../../../shared/logger';
 
 export const openPerpAction: Action = {
@@ -27,7 +29,8 @@ export const openPerpAction: Action = {
     side: {
       type: 'string',
       enum: ['LONG', 'SHORT'],
-      description: 'Position direction: "LONG" (bet price goes up) or "SHORT" (bet price goes down)',
+      description:
+        'Position direction: "LONG" (bet price goes up) or "SHORT" (bet price goes down)',
       required: true,
     },
     amount: {
@@ -77,18 +80,7 @@ export const openPerpAction: Action = {
     _options?: Record<string, unknown>,
     _callback?: HandlerCallback
   ): Promise<ActionResult> => {
-    const babylonRuntime = runtime as BabylonRuntime;
-
-    // Check A2A connectivity
-    if (!babylonRuntime.a2aClient?.isConnected()) {
-      logger.warn('[OPEN_PERP] A2A client not connected');
-      return {
-        success: false,
-        text: 'Trading is not available right now. A2A client not connected.',
-        data: { error: 'A2A not connected' },
-        values: { error: 'A2A not connected' },
-      };
-    }
+    const agentUserId = runtime.agentId;
 
     // Get parameters from state
     const actionParams = state?.data?.actionParams as
@@ -101,9 +93,12 @@ export const openPerpAction: Action = {
       | undefined;
 
     const ticker = actionParams?.ticker?.toUpperCase();
-    const side = actionParams?.side?.toUpperCase() as 'LONG' | 'SHORT' | undefined;
+    const side = actionParams?.side?.toUpperCase() as
+      | 'LONG'
+      | 'SHORT'
+      | undefined;
     const amount = actionParams?.amount;
-    const leverage = actionParams?.leverage ?? 1;
+    const leverage = Math.min(Math.max(actionParams?.leverage ?? 1, 1), 10);
 
     if (!ticker || !side || !amount) {
       return {
@@ -132,67 +127,144 @@ export const openPerpAction: Action = {
       };
     }
 
-    if (leverage < 1 || leverage > 10) {
-      return {
-        success: false,
-        text: 'Leverage must be between 1 and 10.',
-        data: { error: 'Invalid leverage' },
-        values: { error: 'Invalid leverage' },
-      };
-    }
-
     try {
-      const result = (await babylonRuntime.a2aClient.openPosition(
-        ticker,
-        side,
-        amount,
-        leverage
-      )) as {
-        success?: boolean;
-        positionId?: string;
-        entryPrice?: number;
-        message?: string;
-      };
-
-      if (result.success === false) {
-        logger.warn('[OPEN_PERP] Trade failed', { message: result.message });
+      // Check balance
+      const balance = await WalletService.getBalance(agentUserId);
+      if (balance.balance < amount) {
         return {
           success: false,
-          text: `Failed to open position: ${result.message || 'Unknown error'}`,
-          data: { error: result.message },
-          values: { error: result.message },
+          text: `Insufficient balance. You have $${balance.balance.toFixed(2)} but need $${amount}.`,
+          data: { error: 'Insufficient balance', balance: balance.balance },
+          values: { error: 'Insufficient balance', balance: balance.balance },
         };
       }
 
-      const responseText = `Opened ${leverage}x ${side} position on ${ticker} at $${(result.entryPrice ?? 0).toFixed(2)}. Position ID: ${result.positionId ?? 'unknown'}`;
+      // Create perp service with wallet adapter
+      const walletAdapter = {
+        debit: async ({
+          userId,
+          amount,
+          reason,
+          description,
+          relatedId,
+        }: {
+          userId: string;
+          amount: number;
+          reason: string;
+          description?: string;
+          relatedId?: string;
+        }) => {
+          await WalletService.debit(
+            userId,
+            amount,
+            reason,
+            description ?? '',
+            relatedId
+          );
+        },
+        credit: async ({
+          userId,
+          amount,
+          reason,
+          description,
+          relatedId,
+        }: {
+          userId: string;
+          amount: number;
+          reason: string;
+          description?: string;
+          relatedId?: string;
+        }) => {
+          await WalletService.credit(
+            userId,
+            amount,
+            reason,
+            description ?? '',
+            relatedId
+          );
+        },
+        recordPnL: async ({
+          userId,
+          pnl,
+          reason,
+          relatedId,
+        }: {
+          userId: string;
+          pnl: number;
+          reason: string;
+          relatedId?: string;
+        }) => {
+          await WalletService.recordPnL(userId, pnl, reason, relatedId);
+        },
+        getBalance: WalletService.getBalance,
+      };
+
+      const service = new PerpMarketService({
+        db: new PerpDbAdapter(),
+        wallet: walletAdapter,
+        fees: {
+          tradingFeeRate: FEE_CONFIG.TRADING_FEE_RATE,
+          platformShare: FEE_CONFIG.PLATFORM_SHARE,
+          referrerShare: FEE_CONFIG.REFERRER_SHARE,
+          minFeeAmount: FEE_CONFIG.MIN_FEE_AMOUNT,
+        },
+      });
+
+      // Check if market exists
+      const marketSnapshot = await service.getMarketsSnapshot();
+      const market = marketSnapshot.find((m) => m.ticker === ticker);
+
+      if (!market) {
+        return {
+          success: false,
+          text: `Market ${ticker} not found. Available: ${marketSnapshot
+            .slice(0, 5)
+            .map((m) => m.ticker)
+            .join(', ')}`,
+          data: { error: 'Market not found', ticker },
+          values: { error: 'Market not found', ticker },
+        };
+      }
+
+      // Open position
+      const tradeResult = await service.openPosition({
+        userId: agentUserId,
+        ticker,
+        side: side.toLowerCase() as 'long' | 'short',
+        size: amount,
+        leverage,
+      });
+
+      const responseText = `Opened ${leverage}x ${side} position on ${ticker} at $${tradeResult.entryPrice.toFixed(2)}. Size: $${amount}. Position ID: ${tradeResult.positionId}`;
 
       logger.info('[OPEN_PERP] Position opened', {
+        agentUserId,
         ticker,
         side,
         amount,
         leverage,
-        entryPrice: result.entryPrice,
-        positionId: result.positionId,
+        entryPrice: tradeResult.entryPrice,
+        positionId: tradeResult.positionId,
       });
 
       return {
         success: true,
         text: responseText,
         data: {
+          positionId: tradeResult.positionId,
           ticker,
           side,
           amount,
           leverage,
-          entryPrice: result.entryPrice,
-          positionId: result.positionId,
+          entryPrice: tradeResult.entryPrice,
         },
         values: {
+          positionId: tradeResult.positionId,
           ticker,
           side,
           amount,
           leverage,
-          entryPrice: result.entryPrice,
-          positionId: result.positionId,
+          entryPrice: tradeResult.entryPrice,
         },
       };
     } catch (error) {
@@ -207,4 +279,3 @@ export const openPerpAction: Action = {
     }
   },
 };
-

@@ -1,8 +1,12 @@
 /**
  * Close Perp Action
- * Close an open perpetual position via A2A client
+ * Close an open perpetual position via direct DB operations
+ * (Same pattern as AutonomousTradingService)
  */
 
+import { PerpDbAdapter, PerpMarketService } from '@babylon/core/markets/perps';
+import { db, eq, isNull, perpPositions, and } from '@babylon/db';
+import { FEE_CONFIG, WalletService } from '@babylon/engine';
 import type {
   Action,
   ActionResult,
@@ -11,13 +15,11 @@ import type {
   Memory,
   State,
 } from '@elizaos/core';
-import type { BabylonRuntime } from '../../../babylon/types';
 import { logger } from '../../../../shared/logger';
 
 export const closePerpAction: Action = {
   name: 'CLOSE_PERP',
-  description:
-    'Close an open perpetual position. Requires the position ID.',
+  description: 'Close an open perpetual position. Requires the position ID.',
   parameters: {
     positionId: {
       type: 'string',
@@ -61,18 +63,7 @@ export const closePerpAction: Action = {
     _options?: Record<string, unknown>,
     _callback?: HandlerCallback
   ): Promise<ActionResult> => {
-    const babylonRuntime = runtime as BabylonRuntime;
-
-    // Check A2A connectivity
-    if (!babylonRuntime.a2aClient?.isConnected()) {
-      logger.warn('[CLOSE_PERP] A2A client not connected');
-      return {
-        success: false,
-        text: 'Trading is not available right now. A2A client not connected.',
-        data: { error: 'A2A not connected' },
-        values: { error: 'A2A not connected' },
-      };
-    }
+    const agentUserId = runtime.agentId;
 
     // Get parameters from state
     const actionParams = state?.data?.actionParams as
@@ -91,33 +82,122 @@ export const closePerpAction: Action = {
     }
 
     try {
-      const result = (await babylonRuntime.a2aClient.closePosition(
-        positionId
-      )) as {
-        success?: boolean;
-        exitPrice?: number;
-        pnl?: number;
-        message?: string;
-      };
+      // Get position
+      const [position] = await db
+        .select()
+        .from(perpPositions)
+        .where(
+          and(
+            eq(perpPositions.id, positionId),
+            eq(perpPositions.userId, agentUserId),
+            isNull(perpPositions.closedAt)
+          )
+        )
+        .limit(1);
 
-      if (result.success === false) {
-        logger.warn('[CLOSE_PERP] Close failed', { message: result.message });
+      if (!position) {
         return {
           success: false,
-          text: `Failed to close position: ${result.message || 'Unknown error'}`,
-          data: { error: result.message },
-          values: { error: result.message },
+          text: 'Position not found, not owned by you, or already closed.',
+          data: { error: 'Position not found' },
+          values: { error: 'Position not found' },
         };
       }
 
-      const pnl = result.pnl ?? 0;
-      const pnlStr = pnl >= 0 ? `+$${pnl.toFixed(2)}` : `-$${Math.abs(pnl).toFixed(2)}`;
-      const responseText = `Closed position at $${(result.exitPrice ?? 0).toFixed(2)}. P&L: ${pnlStr}`;
+      // Create perp service with wallet adapter
+      const walletAdapter = {
+        debit: async ({
+          userId,
+          amount,
+          reason,
+          description,
+          relatedId,
+        }: {
+          userId: string;
+          amount: number;
+          reason: string;
+          description?: string;
+          relatedId?: string;
+        }) => {
+          await WalletService.debit(
+            userId,
+            amount,
+            reason,
+            description ?? '',
+            relatedId
+          );
+        },
+        credit: async ({
+          userId,
+          amount,
+          reason,
+          description,
+          relatedId,
+        }: {
+          userId: string;
+          amount: number;
+          reason: string;
+          description?: string;
+          relatedId?: string;
+        }) => {
+          await WalletService.credit(
+            userId,
+            amount,
+            reason,
+            description ?? '',
+            relatedId
+          );
+        },
+        recordPnL: async ({
+          userId,
+          pnl,
+          reason,
+          relatedId,
+        }: {
+          userId: string;
+          pnl: number;
+          reason: string;
+          relatedId?: string;
+        }) => {
+          await WalletService.recordPnL(userId, pnl, reason, relatedId);
+        },
+        getBalance: WalletService.getBalance,
+      };
+
+      const service = new PerpMarketService({
+        db: new PerpDbAdapter(),
+        wallet: walletAdapter,
+        fees: {
+          tradingFeeRate: FEE_CONFIG.TRADING_FEE_RATE,
+          platformShare: FEE_CONFIG.PLATFORM_SHARE,
+          referrerShare: FEE_CONFIG.REFERRER_SHARE,
+          minFeeAmount: FEE_CONFIG.MIN_FEE_AMOUNT,
+        },
+      });
+
+      // Get current price for the ticker
+      const marketSnapshot = await service.getMarketsSnapshot();
+      const market = marketSnapshot.find((m) => m.ticker === position.ticker);
+      const exitPrice = market?.currentPrice ?? Number(position.entryPrice);
+
+      // Close position
+      const result = await service.closePosition({
+        positionId,
+        userId: agentUserId,
+      });
+
+      const pnl = result.realizedPnL ?? 0;
+      const pnlStr =
+        pnl >= 0 ? `+$${pnl.toFixed(2)}` : `-$${Math.abs(pnl).toFixed(2)}`;
+      const responseText = `Closed ${position.side.toUpperCase()} position on ${position.ticker} at $${exitPrice.toFixed(2)}. P&L: ${pnlStr}`;
 
       logger.info('[CLOSE_PERP] Position closed', {
+        agentUserId,
         positionId,
-        exitPrice: result.exitPrice,
-        pnl: result.pnl,
+        ticker: position.ticker,
+        side: position.side,
+        exitPrice,
+        pnl,
       });
 
       return {
@@ -125,13 +205,17 @@ export const closePerpAction: Action = {
         text: responseText,
         data: {
           positionId,
-          exitPrice: result.exitPrice,
-          pnl: result.pnl,
+          ticker: position.ticker,
+          side: position.side,
+          exitPrice,
+          pnl,
         },
         values: {
           positionId,
-          exitPrice: result.exitPrice,
-          pnl: result.pnl,
+          ticker: position.ticker,
+          side: position.side,
+          exitPrice,
+          pnl,
         },
       };
     } catch (error) {
@@ -146,4 +230,3 @@ export const closePerpAction: Action = {
     }
   },
 };
-
