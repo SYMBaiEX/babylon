@@ -222,7 +222,7 @@ export const sellPredictionAction: Action = {
         action: 'close',
         side: isSellYes ? 'yes' : 'no',
         amount: sharesToSell,
-        price: result.calculation.avgPrice ?? (proceeds / sharesToSell),
+        price: result.calculation.avgPrice ?? proceeds / sharesToSell,
         reasoning: (state?.data?.thought as string) || 'Chat-initiated sell',
       });
 

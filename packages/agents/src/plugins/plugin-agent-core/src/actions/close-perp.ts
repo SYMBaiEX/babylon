@@ -205,7 +205,8 @@ export const closePerpAction: Action = {
         amount: Number(position.size),
         price: exitPrice,
         pnl,
-        reasoning: (state?.data?.thought as string) || 'Chat-initiated perp close',
+        reasoning:
+          (state?.data?.thought as string) || 'Chat-initiated perp close',
       });
 
       const responseText = `Closed ${position.side.toUpperCase()} position on ${position.ticker} at $${exitPrice.toFixed(2)}. P&L: ${pnlStr}`;

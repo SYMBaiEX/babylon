@@ -40,7 +40,7 @@ function formatCurrency(value: number): string {
 export const checkPnlAction: Action = {
   name: 'CHECK_PNL',
   description:
-    "Check balance, P&L, open positions (with IDs for trading), and recent trades. Use position IDs with SELL_PREDICTION or CLOSE_PERP.",
+    'Check balance, P&L, open positions (with IDs for trading), and recent trades. Use position IDs with SELL_PREDICTION or CLOSE_PERP.',
 
   parameters: {},
 
@@ -213,7 +213,7 @@ export const checkPnlAction: Action = {
           const question =
             pos.question && pos.question.length > 40
               ? pos.question.substring(0, 37) + '...'
-              : pos.question ?? 'Unknown';
+              : (pos.question ?? 'Unknown');
 
           sections.push(
             `• **${side}** "${question}"\n` +
@@ -258,7 +258,9 @@ export const checkPnlAction: Action = {
       if (recentTrades.length > 0) {
         sections.push('\n**Recent Trades:**');
         for (const trade of recentTrades) {
-          const pnlStr = trade.pnl ? ` ${formatCurrency(Number(trade.pnl))}` : '';
+          const pnlStr = trade.pnl
+            ? ` ${formatCurrency(Number(trade.pnl))}`
+            : '';
           const identifier = trade.ticker || trade.marketId || 'unknown';
           sections.push(
             `• ${trade.action} ${identifier}: $${Number(trade.amount).toFixed(2)}${pnlStr}`

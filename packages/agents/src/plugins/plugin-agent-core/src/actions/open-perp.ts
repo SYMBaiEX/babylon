@@ -248,7 +248,8 @@ export const openPerpAction: Action = {
         side: side.toLowerCase() as 'long' | 'short',
         amount,
         price: tradeResult.entryPrice,
-        reasoning: (state?.data?.thought as string) || 'Chat-initiated perp trade',
+        reasoning:
+          (state?.data?.thought as string) || 'Chat-initiated perp trade',
       });
 
       const responseText = `Opened ${leverage}x ${side} position on ${ticker} at $${tradeResult.entryPrice.toFixed(2)}. Size: $${amount}. Position ID: ${tradeResult.positionId}`;

@@ -16,7 +16,8 @@ import { logger } from '../../../../shared/logger';
 
 export const checkBalanceAction: Action = {
   name: 'CHECK_BALANCE',
-  description: 'Check the agent wallet balance. Use this before making trades to ensure sufficient funds.',
+  description:
+    'Check the agent wallet balance. Use this before making trades to ensure sufficient funds.',
   parameters: {},
   examples: [
     [
@@ -92,4 +93,3 @@ export const checkBalanceAction: Action = {
     }
   },
 };
-
