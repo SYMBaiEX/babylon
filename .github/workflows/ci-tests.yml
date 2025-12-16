@@ -17,7 +17,7 @@ env:
 jobs:
   test-all:
     name: Run All Tests
-    runs-on: blacksmith-8vcpu-ubuntu-2404
+    runs-on: ubuntu-latest
     timeout-minutes: 60
 
     services:
