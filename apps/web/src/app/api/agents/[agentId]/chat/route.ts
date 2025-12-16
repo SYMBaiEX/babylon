@@ -82,19 +82,19 @@ None yet - this is the first step.
 ---
 
 # Decision Rules
-1. **User wants to enable/disable a feature?** → Use TOGGLE_AUTONOMY action
-2. **User wants to check autonomy status?** → Use CHECK_AUTONOMY action
-3. **Just chatting or question?** → Set action to "" and isFinish to true
-4. **Action completed?** → Set action to "" and isFinish to true
-5. **Multiple features requested?** → Execute one at a time
+1. **Complete the user's FULL request** - If user asks to "check X and buy Y", do BOTH actions
+2. **Multi-step tasks**: After getting info (CHECK_*), use that info to take action if requested
+3. **Use IDs from results**: When CHECK_PREDICTIONS returns [ID: xxx], use that ID for BUY_PREDICTION
+4. **Just chatting/greeting?** → Set action to "" and isFinish to true
+5. **All requested actions done?** → Set action to "" and isFinish to true
 6. **Never repeat** the same action with same parameters
 
 <output>
 <response>
-  <thought>What does user want? What should I do?</thought>
-  <action>ACTION_NAME or "" if done/no action</action>
-  <parameters>JSON parameters or {}</parameters>
-  <isFinish>true or false</isFinish>
+  <thought>What did user ask for? What have I done? What's still needed?</thought>
+  <action>ACTION_NAME or "" if done/no action needed</action>
+  <parameters>JSON parameters using IDs from previous action results, or {}</parameters>
+  <isFinish>true if ALL user requests fulfilled, false if more actions needed</isFinish>
 </response>
 </output>`;
 
@@ -273,6 +273,9 @@ export const POST = withErrorHandling(
       const action = (parsedStep.action as string) ?? '';
       const parameters = parsedStep.parameters;
       const isFinish = parsedStep.isFinish;
+
+
+      console.log('parsedStep', parsedStep);
 
       // No action - go to summary phase
       if (!action || action === '') {
