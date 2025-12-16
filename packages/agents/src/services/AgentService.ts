@@ -779,24 +779,22 @@ export class AgentServiceV2 {
       .from(agentTrades)
       .where(eq(agentTrades.agentUserId, agentUserId));
 
-    // Count all trades (not just closed ones with pnl)
-    const totalTrades = trades.length;
     const tradesWithPnl = trades.filter((t) => t.pnl !== null);
-    const profitableTrades = tradesWithPnl.filter(
-      (t) => t.pnl && t.pnl > 0
-    ).length;
-
     const avgTradeSize =
-      trades.length > 0
-        ? trades.reduce((sum, t) => sum + t.amount, 0) / trades.length
+      tradesWithPnl.length > 0
+        ? tradesWithPnl.reduce((sum, t) => sum + t.amount, 0) /
+          tradesWithPnl.length
         : 0;
 
     return {
       lifetimePnL: Number(agent.lifetimePnL),
-      totalTrades,
-      profitableTrades,
+      totalTrades: tradesWithPnl.length,
+      profitableTrades: tradesWithPnl.filter((t) => t.pnl && t.pnl > 0).length,
       winRate:
-        tradesWithPnl.length > 0 ? profitableTrades / tradesWithPnl.length : 0,
+        tradesWithPnl.length > 0
+          ? tradesWithPnl.filter((t) => t.pnl && t.pnl > 0).length /
+            tradesWithPnl.length
+          : 0,
       avgTradeSize,
     };
   }
