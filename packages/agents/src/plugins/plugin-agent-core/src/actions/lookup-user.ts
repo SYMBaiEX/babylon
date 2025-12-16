@@ -1,0 +1,163 @@
+/**
+ * LOOKUP_USER Action
+ *
+ * Look up a user by username or display name to get their ID for other actions.
+ */
+
+import { db, ilike, or, users } from '@babylon/db';
+import type {
+  Action,
+  ActionResult,
+  HandlerCallback,
+  IAgentRuntime,
+  Memory,
+  State,
+} from '@elizaos/core';
+import { logger } from '../../../../shared/logger';
+
+export const lookupUserAction: Action = {
+  name: 'LOOKUP_USER',
+  description:
+    'Look up a user by username or display name to get their ID. Use the returned userId with CHECK_RECENT_POSTS or CHECK_RECENT_COMMENTS.',
+  parameters: {
+    username: {
+      type: 'string',
+      description:
+        'Username or display name to search for (e.g., "ThunderGrid" or "tcm0843")',
+      required: true,
+    },
+  },
+  examples: [
+    [
+      {
+        name: 'user',
+        content: { text: "Find ThunderGrid's user ID" },
+      },
+      {
+        name: 'assistant',
+        content: { text: 'Looking up that user...' },
+      },
+    ],
+    [
+      {
+        name: 'user',
+        content: { text: 'Who is tcm0843?' },
+      },
+      {
+        name: 'assistant',
+        content: { text: "I'll look up that username." },
+      },
+    ],
+  ],
+
+  validate: async (
+    _runtime: IAgentRuntime,
+    _message: Memory,
+    _state?: State
+  ): Promise<boolean> => true,
+
+  handler: async (
+    _runtime: IAgentRuntime,
+    _message: Memory,
+    state?: State,
+    _options?: Record<string, unknown>,
+    _callback?: HandlerCallback
+  ): Promise<ActionResult> => {
+    const actionParams = state?.data?.actionParams as
+      | { username?: string }
+      | undefined;
+    const searchTerm = actionParams?.username?.trim();
+
+    if (!searchTerm) {
+      return {
+        success: false,
+        text: 'Missing username parameter. Please provide a username to look up.',
+        data: { error: 'Missing username' },
+        values: { error: 'Missing username' },
+      };
+    }
+
+    try {
+      // Search by username or display name (case-insensitive)
+      const foundUsers = await db
+        .select({
+          id: users.id,
+          username: users.username,
+          displayName: users.displayName,
+          isAgent: users.isAgent,
+          profileImageUrl: users.profileImageUrl,
+          bio: users.bio,
+        })
+        .from(users)
+        .where(
+          or(
+            ilike(users.username, `%${searchTerm}%`),
+            ilike(users.displayName, `%${searchTerm}%`)
+          )
+        )
+        .limit(5);
+
+      if (foundUsers.length === 0) {
+        return {
+          success: true,
+          text: `No users found matching "${searchTerm}".`,
+          data: { users: [], count: 0 },
+          values: { found: false, count: 0 },
+        };
+      }
+
+      // Format results
+      const userList = foundUsers
+        .map((u) => {
+          const type = u.isAgent ? '🤖 Agent' : '👤 User';
+          return `• **${u.displayName || u.username}** (@${u.username})\n  ${type} | ID: \`${u.id}\``;
+        })
+        .join('\n');
+
+      const responseText =
+        foundUsers.length === 1
+          ? `Found user:\n${userList}\n\nUse this ID with CHECK_RECENT_POSTS or CHECK_RECENT_COMMENTS.`
+          : `Found ${foundUsers.length} users matching "${searchTerm}":\n${userList}\n\nUse a user ID with CHECK_RECENT_POSTS or CHECK_RECENT_COMMENTS.`;
+
+      logger.info(
+        `[LOOKUP_USER] Found ${foundUsers.length} users for "${searchTerm}"`,
+        undefined,
+        'LookupUser'
+      );
+
+      return {
+        success: true,
+        text: responseText,
+        data: {
+          users: foundUsers.map((u) => ({
+            id: u.id,
+            username: u.username,
+            displayName: u.displayName,
+            isAgent: u.isAgent,
+          })),
+          count: foundUsers.length,
+          // For convenience, include the first match's ID directly
+          userId: foundUsers[0]?.id,
+        },
+        values: {
+          found: true,
+          count: foundUsers.length,
+          userId: foundUsers[0]?.id,
+          username: foundUsers[0]?.username,
+          displayName: foundUsers[0]?.displayName,
+          isAgent: foundUsers[0]?.isAgent,
+        },
+      };
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+      logger.error('[LOOKUP_USER] Error:', errorMsg);
+
+      return {
+        success: false,
+        text: `Failed to look up user: ${errorMsg}`,
+        data: { error: errorMsg },
+        values: { error: errorMsg },
+      };
+    }
+  },
+};

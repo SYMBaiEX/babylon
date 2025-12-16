@@ -6,12 +6,12 @@
  * - CHECK_AUTONOMY action for viewing current autonomous feature status
  * - CHECK_BALANCE action for checking wallet balance
  * - CHECK_PNL action for balance, P&L, positions (with IDs), and recent trades
- * - CHECK_RECENT_POSTS action for viewing recent posts
- * - CHECK_RECENT_COMMENTS action for viewing recent comments
+ * - CHECK_RECENT_POSTS action for viewing recent posts (self or by userId)
+ * - CHECK_RECENT_COMMENTS action for viewing recent comments (self or by userId)
+ * - LOOKUP_USER action for finding a user ID by username
  * - CHECK_PERPS action for viewing perpetual market data
  * - CHECK_PREDICTIONS action for viewing prediction markets (active/resolved)
  * - CHECK_RECENT_MARKET_TRADES action for viewing recent trading activity
- * - CHECK_WORLD_ACTORS action for viewing world actors (parody names)
  * - CREATE_POST action for creating posts on the Babylon feed
  * - BUY_PREDICTION action for buying prediction market shares
  * - SELL_PREDICTION action for selling prediction market shares
@@ -32,9 +32,9 @@ import { checkPredictionsAction } from './actions/check-predictions';
 import { checkRecentCommentsAction } from './actions/check-recent-comments';
 import { checkRecentMarketTradesAction } from './actions/check-recent-market-trades';
 import { checkRecentPostsAction } from './actions/check-recent-posts';
-import { checkWorldActorsAction } from './actions/check-world-actors';
 import { closePerpAction } from './actions/close-perp';
 import { createPostAction } from './actions/create-post';
+import { lookupUserAction } from './actions/lookup-user';
 import { openPerpAction } from './actions/open-perp';
 import { sellPredictionAction } from './actions/sell-prediction';
 import { toggleAutonomyAction } from './actions/toggle-autonomy';
@@ -64,7 +64,8 @@ export const agentCorePlugin: Plugin = {
     checkPerpsAction,
     checkPredictionsAction,
     checkRecentMarketTradesAction,
-    checkWorldActorsAction,
+    // User lookup
+    lookupUserAction,
     // Social actions
     createPostAction,
     // Trading actions (require A2A)
