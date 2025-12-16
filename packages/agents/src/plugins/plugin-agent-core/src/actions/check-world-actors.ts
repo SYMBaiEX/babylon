@@ -187,4 +187,3 @@ export const checkWorldActorsAction: Action = {
     }
   },
 };
-

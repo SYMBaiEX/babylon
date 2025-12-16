@@ -7,8 +7,8 @@
  * - CHECK_PNL action for checking trading performance
  * - CHECK_RECENT_POSTS action for viewing recent posts
  * - CHECK_RECENT_COMMENTS action for viewing recent comments
- * - CHECK_MARKETS action for viewing current market data
- * - CHECK_ACTIVE_PREDICTIONS action for viewing active prediction questions
+ * - CHECK_PERPS action for viewing perpetual market data
+ * - CHECK_PREDICTIONS action for viewing prediction markets (active/resolved)
  * - CHECK_RECENT_MARKET_TRADES action for viewing recent trading activity
  * - CHECK_WORLD_ACTORS action for viewing world actors (parody names)
  * - CREATE_POST action for creating posts on the Babylon feed
@@ -18,10 +18,10 @@
  */
 
 import type { Plugin } from '@elizaos/core';
-import { checkActivePredictionsAction } from './actions/check-active-predictions';
 import { checkAutonomyAction } from './actions/check-autonomy';
-import { checkMarketsAction } from './actions/check-markets';
+import { checkPerpsAction } from './actions/check-perps';
 import { checkPnlAction } from './actions/check-pnl';
+import { checkPredictionsAction } from './actions/check-predictions';
 import { checkRecentCommentsAction } from './actions/check-recent-comments';
 import { checkRecentMarketTradesAction } from './actions/check-recent-market-trades';
 import { checkRecentPostsAction } from './actions/check-recent-posts';
@@ -48,8 +48,8 @@ export const agentCorePlugin: Plugin = {
     checkPnlAction,
     checkRecentPostsAction,
     checkRecentCommentsAction,
-    checkMarketsAction,
-    checkActivePredictionsAction,
+    checkPerpsAction,
+    checkPredictionsAction,
     checkRecentMarketTradesAction,
     checkWorldActorsAction,
     createPostAction,

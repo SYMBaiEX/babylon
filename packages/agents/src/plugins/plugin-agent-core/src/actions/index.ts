@@ -2,10 +2,10 @@
  * Agent Core Actions
  */
 
-export { checkActivePredictionsAction } from './check-active-predictions';
 export { checkAutonomyAction } from './check-autonomy';
-export { checkMarketsAction } from './check-markets';
+export { checkPerpsAction } from './check-perps';
 export { checkPnlAction } from './check-pnl';
+export { checkPredictionsAction } from './check-predictions';
 export { checkRecentCommentsAction } from './check-recent-comments';
 export { checkRecentMarketTradesAction } from './check-recent-market-trades';
 export { checkRecentPostsAction } from './check-recent-posts';

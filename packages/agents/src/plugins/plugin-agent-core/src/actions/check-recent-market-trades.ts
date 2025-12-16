@@ -48,7 +48,7 @@ export const checkRecentMarketTradesAction: Action = {
     [
       {
         name: 'user',
-        content: { text: "What trades are happening?" },
+        content: { text: 'What trades are happening?' },
       },
       {
         name: 'assistant',
@@ -208,4 +208,3 @@ export const checkRecentMarketTradesAction: Action = {
     }
   },
 };
-
