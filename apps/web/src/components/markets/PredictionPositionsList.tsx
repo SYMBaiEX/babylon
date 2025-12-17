@@ -1,7 +1,7 @@
 'use client';
 
 import { cn } from '@babylon/shared';
-import { CheckCircle, Trash2, XCircle } from 'lucide-react';
+import { CheckCircle, XCircle } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import {
@@ -63,7 +63,6 @@ export function PredictionPositionsList({
   onPositionSold,
 }: PredictionPositionsListProps) {
   const [sellingId, setSellingId] = useState<string | null>(null);
-  const [dismissingId, setDismissingId] = useState<string | null>(null);
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
   const [pendingSell, setPendingSell] = useState<{
     position: PredictionPosition;
@@ -133,48 +132,6 @@ export function PredictionPositionsList({
     setPendingSell(null);
   };
 
-  const handleDismiss = async (position: PredictionPosition) => {
-    if (
-      !confirm(
-        'Are you sure you want to dismiss this position? This will remove it from your portfolio without any payout.'
-      )
-    ) {
-      return;
-    }
-
-    setDismissingId(position.id);
-
-    const response = await fetch(
-      `/api/markets/predictions/positions/${position.id}/dismiss`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${window.__privyAccessToken || ''}`,
-        },
-      }
-    );
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      const errorMessage =
-        typeof data.error === 'object'
-          ? data.error.message || 'Failed to dismiss position'
-          : data.error || data.message || 'Failed to dismiss position';
-      setDismissingId(null);
-      toast.error(errorMessage);
-      return;
-    }
-
-    toast.success('Position dismissed', {
-      description: 'The position has been removed from your portfolio.',
-    });
-
-    if (onPositionSold) onPositionSold();
-    setDismissingId(null);
-  };
-
   const formatPrice = (price: number) => `$${price.toFixed(3)}`;
 
   if (positions.length === 0) {
@@ -198,12 +155,6 @@ export function PredictionPositionsList({
         const pnlPercent =
           costBasis !== 0 ? (unrealizedPnL / costBasis) * 100 : 0;
         const isSelling = sellingId === position.id;
-        const isDismissing = dismissingId === position.id;
-        // Show dismiss option for positions with issues (very small shares, crazy prices, etc.)
-        const hasIssues =
-          position.shares < 0.01 ||
-          position.currentPrice > 1000 ||
-          position.currentValue > 1000000;
 
         return (
           <div key={position.id} className="rounded bg-muted/40 p-4">
@@ -278,36 +229,24 @@ export function PredictionPositionsList({
             </div>
 
             {!position.resolved ? (
-              <div className="flex gap-2">
-                <button
-                  onClick={() =>
-                    handleSellClick(
-                      position,
-                      currentValue,
-                      unrealizedPnL,
-                      pnlPercent
-                    )
-                  }
-                  disabled={isSelling || isDismissing || position.shares < 0.01}
-                  className="flex-1 cursor-pointer rounded bg-muted py-2 font-medium text-foreground transition-all hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {isSelling
-                    ? 'Selling...'
-                    : position.shares < 0.01
-                      ? 'Position Too Small'
-                      : 'Sell Shares'}
-                </button>
-                {hasIssues && (
-                  <button
-                    onClick={() => handleDismiss(position)}
-                    disabled={isSelling || isDismissing}
-                    className="cursor-pointer rounded bg-red-600/20 px-3 py-2 text-red-500 transition-all hover:bg-red-600/30 disabled:cursor-not-allowed disabled:opacity-50"
-                    title="Dismiss this position (remove without payout)"
-                  >
-                    {isDismissing ? '...' : <Trash2 size={16} />}
-                  </button>
-                )}
-              </div>
+              <button
+                onClick={() =>
+                  handleSellClick(
+                    position,
+                    currentValue,
+                    unrealizedPnL,
+                    pnlPercent
+                  )
+                }
+                disabled={isSelling || position.shares < 0.01}
+                className="w-full cursor-pointer rounded bg-muted py-2 font-medium text-foreground transition-all hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {isSelling
+                  ? 'Selling...'
+                  : position.shares < 0.01
+                    ? 'Position Too Small'
+                    : 'Sell Shares'}
+              </button>
             ) : (
               <div className="py-2 text-center font-medium text-sm">
                 <span className="text-muted-foreground">Resolved: </span>
