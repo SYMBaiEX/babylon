@@ -1,14 +1,11 @@
 /**
- * Client-safe exports for prediction markets
+ * Client-safe prediction market exports
  *
- * This file exports only browser-compatible utilities that don't depend on
- * Node.js-specific modules like `fs`, `postgres`, etc.
+ * This module exports utilities that are safe for browser/client-side use.
+ * It does NOT include any server-only dependencies like @babylon/db.
  *
- * Use this import in client components:
- *   import { PredictionPricing, calculateExpectedPayout } from '@babylon/core/markets/prediction/client';
- *
- * Use the main index for server-side code:
- *   import { PredictionDbAdapter, PredictionMarketService } from '@babylon/core/markets/prediction';
+ * Use this import for React client components:
+ * import { PredictionPricing } from '@babylon/core/markets/prediction/client';
  */
 
 export * from './pricing';
