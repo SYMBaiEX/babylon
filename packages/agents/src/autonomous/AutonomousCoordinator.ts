@@ -12,7 +12,7 @@
  * 5. Optional trajectory recording for RL training
  */
 
-import { and, db, eq, or, userAgentConfigs, users } from '@babylon/db';
+import { and, db, eq, gte, markets, or, userAgentConfigs, users } from '@babylon/db';
 import { trajectoryRecorder } from '@babylon/training';
 import type { IAgentRuntime } from '@elizaos/core';
 import { setTrajectoryContext } from '../plugins/plugin-trajectory-logger/src/action-interceptor';
@@ -24,6 +24,7 @@ import { logger } from '../shared/logger';
 import { autonomousGroupChatService } from './AutonomousGroupChatService';
 import { autonomousPlanningCoordinator } from './AutonomousPlanningCoordinator';
 import { multiStepExecutor } from './MultiStepExecutor';
+import { topicDiversityService } from './TopicDiversityService';
 
 export interface AutonomousTickResult {
   success: boolean;
@@ -286,6 +287,11 @@ export class AutonomousCoordinator {
       'AutonomousCoordinator'
     );
 
+    // TOPIC DIVERSITY: Seed tracker and assign topics before processing
+    await this.initializeTopicDiversity(
+      activeAgentResults.map((a) => a.id)
+    );
+
     let totalActions = 0;
     let errors = 0;
 
@@ -317,6 +323,57 @@ export class AutonomousCoordinator {
       totalActions,
       errors,
     };
+  }
+
+  /**
+   * Initialize topic diversity tracking and assignment for a batch of agents
+   */
+  private async initializeTopicDiversity(agentIds: string[]): Promise<void> {
+    // Seed the topic tracker with recent posts
+    await topicDiversityService.seedFromRecentPosts();
+
+    // Get active prediction markets for topic assignment
+    const activeMarkets = await db
+      .select({
+        id: markets.id,
+        question: markets.question,
+        yesShares: markets.yesShares,
+        noShares: markets.noShares,
+      })
+      .from(markets)
+      .where(
+        and(eq(markets.resolved, false), gte(markets.endDate, new Date()))
+      )
+      .limit(20);
+
+    // Convert to format expected by diversity service
+    const marketsForTopics = activeMarkets.map((m) => {
+      const yesShares = Number(m.yesShares || 1);
+      const noShares = Number(m.noShares || 1);
+      const total = yesShares + noShares;
+      return {
+        id: m.id,
+        question: m.question,
+        yesPrice: yesShares / total,
+        noPrice: noShares / total,
+      };
+    });
+
+    // Assign topics to agents
+    await topicDiversityService.assignTopicsToAgents(agentIds, marketsForTopics);
+
+    // Log stats
+    const stats = topicDiversityService.getTopicStats();
+    logger.info(
+      `Topic diversity initialized`,
+      {
+        agentsAssigned: agentIds.length,
+        marketsAvailable: marketsForTopics.length,
+        topicsTracked: stats.topicsTracked,
+        mostCovered: stats.mostCovered.slice(0, 3),
+      },
+      'AutonomousCoordinator'
+    );
   }
 
   /**

@@ -45,6 +45,7 @@ import {
   type PostContext,
   type PredictionMarketContext,
 } from './templates/multi-step-decision';
+import { topicDiversityService } from './TopicDiversityService';
 
 // =============================================================================
 // Types
@@ -223,6 +224,7 @@ export class MultiStepExecutor {
   /**
    * Gather current context for decision making
    * Includes FULL market data so LLM can make specific decisions
+   * Now includes topic diversity guidance
    */
   private async gatherContext(
     agentUserId: string,
@@ -266,6 +268,11 @@ export class MultiStepExecutor {
         agentUserId
       );
 
+    // Get topic diversity guidance for this agent
+    const diversityInstructions =
+      topicDiversityService.getDiversityInstructions(agentUserId);
+    const assignment = topicDiversityService.getAgentAssignment(agentUserId);
+
     return {
       balance,
       pnl,
@@ -283,6 +290,10 @@ export class MultiStepExecutor {
       perpMarkets,
       recentPosts,
       agentPositions,
+      // Topic diversity
+      diversityInstructions,
+      assignedMarketId: assignment?.marketId,
+      suggestedAngle: assignment?.suggestedAngle,
     };
   }
 

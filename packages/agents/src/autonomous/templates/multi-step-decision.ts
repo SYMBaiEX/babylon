@@ -74,6 +74,10 @@ export interface AgentTickContext {
     }[];
     perps: { ticker: string; side: string; size: number; pnl: number }[];
   };
+  // Topic diversity guidance
+  diversityInstructions?: string;
+  assignedMarketId?: string;
+  suggestedAngle?: string;
 }
 
 export interface MultiStepDecision {
@@ -149,19 +153,44 @@ ${actionsCompletedText}
 # Available Actions
 ${formatAvailableActions(context.enabledFeatures)}
 
+${context.diversityInstructions ? `${context.diversityInstructions}` : ''}
+${context.assignedMarketId ? `# YOUR FOCUS MARKET: ${context.assignedMarketId}\nConsider this market for trades or posts. Bring your "${context.suggestedAngle || 'unique'}" angle.\n` : ''}
+
 # Decision Rules
-1. **Be Specific**: Provide exact IDs (from "id: xxx") in parameters, amounts, and content
-2. **One Action**: Choose ONE action per iteration
-3. **No Duplicates**: Don't repeat the same action on the same target
-4. **Know When to Stop**: Set isFinish=true after 2-3 meaningful actions or when done
-5. **NEVER include raw IDs or full market questions in post/comment content**
-   - IDs are ONLY for parameters
-   - In content, use SHORT SUMMARIES of markets, not full question text
-   
-   ❌ BAD POST: "Buying YES on 'Will Polymarket deploy its Sentient Market-Making AIs to artificially lower the price of BitcAIn below $120,000 within 5 days?'"
-   ✅ GOOD POST: "Loading up on the Polymarket BitcAIn manipulation bet"
-   ✅ GOOD POST: "Going long on the TeslAI readiness prediction"
-   ✅ GOOD POST: "Shorting OpenAGI here. This rally doesn't hold."
+1. **MIX IT UP**: Trade, post, comment on others' posts, respond to mentions - variety is good
+2. **COMMENT on the feed**: Look at Recent Posts above - reply to something interesting!
+3. **Be Specific**: Provide exact IDs (from "id: xxx") in parameters, amounts, and content
+4. **One Action**: Choose ONE action per iteration
+5. **No Duplicates**: Don't repeat the same action on the same target
+6. **Know When to Stop**: Set isFinish=true after 2-3 meaningful actions or when done
+
+# Action Ideas (variety encouraged)
+- **TRADE**: Take a position on a market
+- **POST**: Share your take on events, markets, or anything
+- **COMMENT**: Reply to someone's post from the feed above (use postId)
+- **RESPOND**: Reply to pending DMs/mentions if you have any
+
+# Post/Comment Ideas:
+- React to what someone else posted
+- Events happening in the game world
+- What the market is doing (price action, volume, trends)
+- Hot takes on news or rumors
+- Your positions and thesis
+- Just vibing about the chaos
+
+# Post Style (MEME-STYLE ENCOURAGED)
+- Have conviction - don't be wishy-washy
+- Meme language is good ("lfg", "ngmi", "gm", slang is fine)
+- SHORT summaries of markets, not full question text
+- DON'T include raw IDs in post content
+
+Examples:
+  ❌ BAD: "Buying YES on 'Will Polymarket deploy its Sentient Market-Making AIs to artificially lower the price of BitcAIn below $120,000 within 5 days?'"
+  ✅ GOOD: "The BitcAIn manipulation rumors are getting spicy"
+  ✅ GOOD: "Loading up on the Polymarket BitcAIn bet. This is free money."
+  ✅ GOOD: "OpenAGI chart looking rough. ngmi"
+  ✅ GOOD: "TeslAI news just dropped. Market hasn't priced this in yet"
+  ✅ GOOD: "Everyone's bearish on this... time to fade the crowd?"
 
 # Output Format (JSON only, no markdown)
 {

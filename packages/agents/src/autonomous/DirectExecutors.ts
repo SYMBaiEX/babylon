@@ -33,6 +33,7 @@ import {
 import { agentPnLService } from '../services/AgentPnLService';
 import { logger } from '../shared/logger';
 import { generateSnowflakeId } from '../shared/snowflake';
+import { topicDiversityService } from './TopicDiversityService';
 
 // =============================================================================
 // Types
@@ -520,7 +521,7 @@ async function executePerpTrade(params: {
 
 /**
  * Create a post directly without LLM decision-making.
- * Just creates the post with the given content.
+ * Validates content for diversity before creating.
  */
 export async function executeDirectPost(
   params: DirectPostParams
@@ -532,6 +533,29 @@ export async function executeDirectPost(
   }
 
   const cleanContent = content.trim();
+
+  // DIVERSITY CHECK: Validate content before creating post
+  const diversityIssues = topicDiversityService.validateContent(
+    agentUserId,
+    cleanContent
+  );
+
+  if (diversityIssues.length > 0) {
+    logger.warn(
+      `[DirectExecutor] Post rejected for diversity issues`,
+      {
+        agentUserId,
+        issues: diversityIssues,
+        contentPreview: cleanContent.substring(0, 100),
+      },
+      'DirectExecutors'
+    );
+
+    return {
+      success: false,
+      error: `Content rejected: ${diversityIssues[0]}`,
+    };
+  }
 
   // Check if this is an NPC
   const npcActor = StaticDataRegistry.getActor(agentUserId);
@@ -554,6 +578,9 @@ export async function executeDirectPost(
     timestamp: now,
     createdAt: now,
   });
+
+  // Record topic coverage for future diversity checks
+  topicDiversityService.recordTopicCoverage(agentUserId, cleanContent);
 
   // Generate and store tags
   const tags: GeneratedTag[] = await generateTagsFromPost(cleanContent);
