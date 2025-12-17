@@ -119,9 +119,9 @@ export const checkPerpsAction: Action = {
       if (perpMarkets.length === 0) {
         return {
           success: true,
-          text: 'No perpetual markets available at the moment.',
+          text: 'No perpetual markets available.',
           data: { markets: [], count: 0 },
-          values: { markets: [], count: 0, hasMarkets: false },
+          values: { count: 0 },
         };
       }
 
@@ -143,29 +143,12 @@ export const checkPerpsAction: Action = {
 
       const displayedMarkets = sortedMarkets.slice(0, limit);
 
-      // Format response - use ticker for trading (same as OPEN_PERP expects)
-      const marketsList = displayedMarkets
-        .map((m, i) => {
-          const changeStr =
-            m.changePercent24h >= 0
-              ? `+${m.changePercent24h.toFixed(2)}%`
-              : `${m.changePercent24h.toFixed(2)}%`;
-          const changeIcon = m.changePercent24h >= 0 ? '📈' : '📉';
-          return `${i + 1}. **${m.ticker}** (${m.name ?? m.ticker})\n   Price: $${m.currentPrice.toFixed(2)} ${changeIcon} ${changeStr}`;
-        })
-        .join('\n');
-
       const topGainer = displayedMarkets.reduce((max, m) =>
         m.changePercent24h > max.changePercent24h ? m : max
       );
       const topLoser = displayedMarkets.reduce((min, m) =>
         m.changePercent24h < min.changePercent24h ? m : min
       );
-
-      const summary = `Top Gainer: ${topGainer.ticker} (+${topGainer.changePercent24h.toFixed(2)}%) | Top Loser: ${topLoser.ticker} (${topLoser.changePercent24h.toFixed(2)}%)`;
-
-      const responseText = `**Perpetual Markets (${displayedMarkets.length}):**\n${marketsList}\n\n${summary}\n\nTo trade, use OPEN_PERP with ticker (e.g., "${displayedMarkets[0]?.ticker}").`;
-
       logger.info(
         `[CHECK_PERPS] Retrieved ${displayedMarkets.length} markets`,
         { sortBy, limit },
@@ -174,7 +157,7 @@ export const checkPerpsAction: Action = {
 
       return {
         success: true,
-        text: responseText,
+        text: `Retrieved ${displayedMarkets.length} perpetual markets.`,
         data: {
           markets: displayedMarkets.map((m) => ({
             ticker: m.ticker,
@@ -184,13 +167,16 @@ export const checkPerpsAction: Action = {
             volume24h: m.volume24h,
           })),
           count: displayedMarkets.length,
-          topGainer: topGainer.ticker,
-          topLoser: topLoser.ticker,
         },
         values: {
-          markets: displayedMarkets.map((m) => m.ticker),
           count: displayedMarkets.length,
-          hasMarkets: true,
+          tickers: displayedMarkets.map((m) => ({
+            ticker: m.ticker,
+            price: m.currentPrice,
+            change24h: m.changePercent24h,
+          })),
+          topGainer: topGainer.ticker,
+          topLoser: topLoser.ticker,
         },
       };
     } catch (error) {
@@ -199,8 +185,7 @@ export const checkPerpsAction: Action = {
       return {
         success: false,
         text: `Failed to fetch perp markets: ${errorMsg}`,
-        data: { error: errorMsg },
-        values: { error: errorMsg },
+        error: errorMsg,
       };
     }
   },

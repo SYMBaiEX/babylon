@@ -61,8 +61,6 @@ export const checkBalanceAction: Action = {
       const walletInfo = await WalletService.getBalance(agentUserId);
       const balance = walletInfo.balance;
 
-      const responseText = `Current balance: $${balance.toFixed(2)}`;
-
       logger.info('[CHECK_BALANCE] Retrieved balance', {
         agentUserId,
         balance,
@@ -70,16 +68,9 @@ export const checkBalanceAction: Action = {
 
       return {
         success: true,
-        text: responseText,
-        data: {
-          balance,
-          userId: agentUserId,
-        },
-        values: {
-          balance,
-          hasBalance: balance > 0,
-          canTrade: balance >= 1, // Minimum $1 to trade
-        },
+        text: `Balance: $${balance.toFixed(2)}`,
+        data: { balance, userId: agentUserId },
+        values: { balance },
       };
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Unknown error';
@@ -87,8 +78,7 @@ export const checkBalanceAction: Action = {
       return {
         success: false,
         text: `Failed to check balance: ${errorMsg}`,
-        data: { error: errorMsg },
-        values: { error: errorMsg },
+        error: errorMsg,
       };
     }
   },

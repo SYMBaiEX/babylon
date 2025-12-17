@@ -10,15 +10,12 @@
  * Uses runtime.composeState() for providers and runtime.processActions() for execution.
  */
 
-import {
-  type ActionTraceResult,
-  agentRuntimeManager,
-  agentService,
-} from '@babylon/agents';
+import { agentRuntimeManager, agentService } from '@babylon/agents';
 import { authenticateUser, withErrorHandling } from '@babylon/api';
 import { db, eq, userAgentConfigs } from '@babylon/db';
 import { checkUserInput, logger } from '@babylon/shared';
 import {
+  type ActionResult,
   composePromptFromState,
   type Memory,
   ModelType,
@@ -165,7 +162,7 @@ YOUR FINAL OUTPUT MUST BE IN THIS XML FORMAT:
 </response>
 </output>`;
 
-const multiStepSummaryTemplate = `Generate a response to the user. Stay in character.
+const multiStepSummaryTemplate = `You are responding to a user after completing actions. Generate a helpful response.
 
 # Your Character
 {{system}}
@@ -174,23 +171,23 @@ const multiStepSummaryTemplate = `Generate a response to the user. Stay in chara
 Personality: {{personality}}
 {{/if}}
 
-# User Asked
+# User's Message
 {{currentMessage}}
 
-# What You Did
+# Actions You Completed
 {{actionResults}}
 
-# Rules
-- Be conversational and natural
-- Stay in character
-- Include relevant details from actions when appropriate
-- Write your ACTUAL response in the <text> tag - do NOT output placeholder text
+# Your Task
+Write a natural response to the user that:
+- Summarizes what you did and the results
+- Includes specific numbers, names, or data from the action results
+- Stays in character with your personality
 
-IMPORTANT: Output ONLY the XML below. No thinking, no explanation. Replace the content inside tags with your actual response.
+Output ONLY this XML with your actual response (not examples or placeholders):
 
 <response>
-<thought>your brief reasoning here</thought>
-<text>your conversational response to the user here</text>
+<thought>Brief reasoning about what to tell the user</thought>
+<text>Your helpful response with specific details from the actions</text>
 </response>`;
 
 // =============================================================================
@@ -261,7 +258,14 @@ export const POST = withErrorHandling(
 
     // Multi-step execution
     const MAX_ITERATIONS = 6;
-    const traceActionResults: ActionTraceResult[] = [];
+    // Store action results with metadata for tracking
+    const traceActionResults: Array<
+      ActionResult & {
+        actionType: string;
+        parameters?: Record<string, unknown>;
+        timestamp: number;
+      }
+    > = [];
     let finalResponse: string | null = null;
 
     for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
@@ -393,33 +397,74 @@ export const POST = withErrorHandling(
 
       try {
         // Use runtime.processActions - adapter.createMemory is now stubbed
+        // Capture result through callback
+        let actionResult: {
+          success?: boolean;
+          text?: string;
+          values?: Record<string, unknown>;
+        } | null = null;
+
         await runtime.processActions(
           elizaMessage,
           [actionMessage],
           state,
-          async () => []
+          async (results: unknown) => {
+            // Capture the first result from callback
+            const resultsArray = results as Array<{
+              content?: {
+                success?: boolean;
+                text?: string;
+                values?: Record<string, unknown>;
+              };
+            }> | null;
+            if (resultsArray && resultsArray.length > 0) {
+              const firstResult = resultsArray[0];
+              if (firstResult) {
+                actionResult = {
+                  success: firstResult.content?.success ?? true,
+                  text:
+                    typeof firstResult.content?.text === 'string'
+                      ? firstResult.content.text
+                      : undefined,
+                  values: firstResult.content?.values,
+                };
+              }
+            }
+            return [];
+          }
         );
 
-        // Get result from state cache
-        const cachedState = (
-          runtime as unknown as { stateCache?: Map<string, unknown> }
-        ).stateCache?.get(`${elizaMessage.id}_action_results`) as
-          | {
-              values?: {
-                actionResults?: Array<{ success?: boolean; text?: string }>;
-              };
-            }
-          | undefined;
-        const actionResultsFromCache = cachedState?.values?.actionResults || [];
-        const result =
-          actionResultsFromCache.length > 0 ? actionResultsFromCache[0] : null;
-        const success = result?.success ?? true;
+        // Fallback to state cache if callback didn't capture
+        if (!actionResult) {
+          const cachedState = (
+            runtime as unknown as { stateCache?: Map<string, unknown> }
+          ).stateCache?.get(`${elizaMessage.id}_action_results`) as
+            | {
+                values?: {
+                  actionResults?: Array<{
+                    success?: boolean;
+                    text?: string;
+                    values?: Record<string, unknown>;
+                  }>;
+                };
+              }
+            | undefined;
+          const actionResultsFromCache =
+            cachedState?.values?.actionResults || [];
+          actionResult =
+            actionResultsFromCache.length > 0
+              ? (actionResultsFromCache[0] ?? null)
+              : null;
+        }
+
+        const success = actionResult?.success ?? true;
 
         traceActionResults.push({
           actionType: action,
           success,
-          summary: result?.text || `${action} executed`,
-          error: success ? undefined : result?.text,
+          text: actionResult?.text || `${action} executed`,
+          error: success ? undefined : actionResult?.text,
+          values: actionResult?.values,
           parameters: actionParams,
           timestamp: Date.now(),
         });
@@ -429,7 +474,7 @@ export const POST = withErrorHandling(
         traceActionResults.push({
           actionType: action,
           success: false,
-          summary: `Action failed: ${errorMsg}`,
+          text: `Action failed: ${errorMsg}`,
           error: errorMsg,
           parameters: actionParams,
           timestamp: Date.now(),
@@ -593,7 +638,7 @@ export const POST = withErrorHandling(
         actions: traceActionResults.map((a) => ({
           type: a.actionType,
           success: a.success,
-          summary: a.summary,
+          text: a.text,
         })),
       },
     });

@@ -124,12 +124,7 @@ export const checkPredictionsAction: Action = {
           success: true,
           text: `No${statusText} predictions found.`,
           data: { predictions: [], count: 0, status: statusFilter },
-          values: {
-            predictions: [],
-            count: 0,
-            hasPredictions: false,
-            status: statusFilter,
-          },
+          values: { count: 0 },
         };
       }
 
@@ -156,29 +151,6 @@ export const checkPredictionsAction: Action = {
         };
       });
 
-      // Build response text - include market ID for trading
-      const predictionsList = formattedPredictions
-        .map((p) => {
-          if (p.resolved) {
-            const outcomeIcon = p.resolution ? '✅ YES' : '❌ NO';
-            return `${p.index}. [ID: ${p.id}] "${p.question}"\n   Resolved: ${outcomeIcon}`;
-          }
-          const timeStr =
-            p.daysUntil !== null
-              ? p.daysUntil > 0
-                ? `${p.daysUntil}d left`
-                : 'Ending soon'
-              : 'No deadline';
-          return `${p.index}. [ID: ${p.id}] "${p.question}"\n   YES: ${p.yesPercent}% | NO: ${p.noPercent}% (${timeStr})`;
-        })
-        .join('\n');
-
-      const statusLabel =
-        statusFilter === 'all'
-          ? 'All'
-          : statusFilter.charAt(0).toUpperCase() + statusFilter.slice(1);
-      const responseText = `**${statusLabel} Predictions (${formattedPredictions.length}):**\n${predictionsList}`;
-
       logger.info(
         `[CHECK_PREDICTIONS] Retrieved ${predictions.length} ${statusFilter} predictions`,
         undefined,
@@ -187,18 +159,20 @@ export const checkPredictionsAction: Action = {
 
       return {
         success: true,
-        text: responseText,
+        text: `Retrieved ${formattedPredictions.length} ${statusFilter} predictions.`,
         data: {
           predictions: formattedPredictions,
           count: formattedPredictions.length,
           status: statusFilter,
         },
         values: {
-          predictions: formattedPredictions,
           count: formattedPredictions.length,
-          hasPredictions: true,
-          status: statusFilter,
-          predictionsList,
+          markets: formattedPredictions.map((p) => ({
+            id: p.id,
+            yesPercent: p.yesPercent,
+            resolved: p.resolved,
+            daysUntil: p.daysUntil,
+          })),
         },
       };
     } catch (error) {
@@ -207,8 +181,7 @@ export const checkPredictionsAction: Action = {
       return {
         success: false,
         text: `Failed to retrieve predictions: ${errorMsg}`,
-        data: { error: errorMsg },
-        values: { error: errorMsg },
+        error: errorMsg,
       };
     }
   },

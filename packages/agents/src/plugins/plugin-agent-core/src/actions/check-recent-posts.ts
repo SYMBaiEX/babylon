@@ -111,9 +111,8 @@ export const checkRecentPostsAction: Action = {
         if (!targetUser) {
           return {
             success: false,
-            text: `User with ID "${targetUserId}" not found. Use LOOKUP_USER to find a valid user ID.`,
-            data: { error: 'User not found' },
-            values: { error: 'User not found' },
+            text: `User not found. Call LOOKUP_USER first to get valid userId.`,
+            error: 'User not found',
           };
         }
         targetName = targetUser.displayName || targetUser.username || 'User';
@@ -131,14 +130,11 @@ export const checkRecentPostsAction: Action = {
         .limit(limit);
 
       if (recentPosts.length === 0) {
-        const noPostsMsg = isSelf
-          ? "You haven't posted anything yet."
-          : `${targetName} hasn't posted anything yet.`;
         return {
           success: true,
-          text: noPostsMsg,
+          text: isSelf ? 'No posts yet.' : `${targetName} has no posts.`,
           data: { posts: [], count: 0, userId: targetUserId },
-          values: { posts: [], count: 0, hasPosts: false },
+          values: { count: 0 },
         };
       }
 
@@ -150,15 +146,6 @@ export const checkRecentPostsAction: Action = {
         id: post.id,
       }));
 
-      const postsList = formattedPosts
-        .map((p) => `${p.index}. "${p.content}" (${p.timeAgo})`)
-        .join('\n');
-
-      const header = isSelf
-        ? 'Your recent posts:'
-        : `${targetName}'s recent posts:`;
-      const responseText = `${header}\n${postsList}`;
-
       logger.info(
         `[CHECK_RECENT_POSTS] Retrieved ${recentPosts.length} posts for ${isSelf ? 'self' : targetUserId}`,
         undefined,
@@ -167,7 +154,7 @@ export const checkRecentPostsAction: Action = {
 
       return {
         success: true,
-        text: responseText,
+        text: `Retrieved ${recentPosts.length} posts${isSelf ? '' : ` from ${targetName}`}.`,
         data: {
           posts: formattedPosts,
           count: recentPosts.length,
@@ -175,10 +162,14 @@ export const checkRecentPostsAction: Action = {
           userName: targetName,
         },
         values: {
-          posts: formattedPosts,
           count: recentPosts.length,
-          hasPosts: true,
-          isSelf,
+          userId: targetUserId,
+          userName: targetName,
+          posts: formattedPosts.map((p) => ({
+            id: p.id,
+            content: p.content.substring(0, 100),
+            timeAgo: p.timeAgo,
+          })),
         },
       };
     } catch (error) {
@@ -188,8 +179,7 @@ export const checkRecentPostsAction: Action = {
       return {
         success: false,
         text: `Failed to retrieve posts: ${errorMsg}`,
-        data: { error: errorMsg },
-        values: { error: errorMsg },
+        error: errorMsg,
       };
     }
   },

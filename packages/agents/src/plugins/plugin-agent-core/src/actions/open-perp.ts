@@ -106,9 +106,8 @@ export const openPerpAction: Action = {
     if (!ticker || !side || !amount) {
       return {
         success: false,
-        text: 'Missing required parameters. Need ticker, side (LONG/SHORT), and amount. Please call CHECK_PERPS first to see available markets and get the ticker.',
-        data: { error: 'Missing parameters' },
-        values: { error: 'Missing parameters' },
+        text: 'Missing parameters. Call CHECK_PERPS first to get ticker.',
+        error: 'Missing parameters: ticker, side, or amount',
       };
     }
 
@@ -116,8 +115,7 @@ export const openPerpAction: Action = {
       return {
         success: false,
         text: 'Invalid side. Must be LONG or SHORT.',
-        data: { error: 'Invalid side' },
-        values: { error: 'Invalid side' },
+        error: 'Invalid side',
       };
     }
 
@@ -125,8 +123,7 @@ export const openPerpAction: Action = {
       return {
         success: false,
         text: 'Amount must be greater than 0.',
-        data: { error: 'Invalid amount' },
-        values: { error: 'Invalid amount' },
+        error: 'Invalid amount',
       };
     }
 
@@ -136,9 +133,9 @@ export const openPerpAction: Action = {
       if (balance.balance < amount) {
         return {
           success: false,
-          text: `Insufficient balance. You have $${balance.balance.toFixed(2)} but need $${amount}. Please call CHECK_BALANCE first to verify your available funds.`,
-          data: { error: 'Insufficient balance', balance: balance.balance },
-          values: { error: 'Insufficient balance', balance: balance.balance },
+          text: `Insufficient balance ($${balance.balance.toFixed(2)}). Call CHECK_BALANCE first.`,
+          error: 'Insufficient balance',
+          values: { balance: balance.balance },
         };
       }
 
@@ -220,12 +217,8 @@ export const openPerpAction: Action = {
       if (!market) {
         return {
           success: false,
-          text: `Market "${ticker}" not found. Please call CHECK_PERPS first to see available markets and get the correct ticker. Available: ${marketSnapshot
-            .slice(0, 5)
-            .map((m) => m.ticker)
-            .join(', ')}`,
-          data: { error: 'Market not found', providedTicker: ticker },
-          values: { error: 'Market not found', providedTicker: ticker },
+          text: `Market "${ticker}" not found. Call CHECK_PERPS first to get valid ticker.`,
+          error: 'Market not found',
         };
       }
 
@@ -252,8 +245,6 @@ export const openPerpAction: Action = {
           (state?.data?.thought as string) || 'Chat-initiated perp trade',
       });
 
-      const responseText = `Opened ${leverage}x ${side} position on ${ticker} at $${tradeResult.entryPrice.toFixed(2)}. Size: $${amount}. Position ID: ${tradeResult.positionId}`;
-
       logger.info('[OPEN_PERP] Position opened', {
         agentUserId,
         ticker,
@@ -266,7 +257,7 @@ export const openPerpAction: Action = {
 
       return {
         success: true,
-        text: responseText,
+        text: `Opened ${leverage}x ${side} on ${ticker} at $${tradeResult.entryPrice.toFixed(2)}. Size: $${amount}.`,
         data: {
           positionId: tradeResult.positionId,
           ticker,
@@ -290,8 +281,7 @@ export const openPerpAction: Action = {
       return {
         success: false,
         text: `Failed to open position: ${errorMsg}`,
-        data: { error: errorMsg },
-        values: { error: errorMsg },
+        error: errorMsg,
       };
     }
   },

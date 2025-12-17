@@ -106,26 +106,8 @@ export const checkAutonomyAction: Action = {
         autonomousGroupChats: config?.autonomousGroupChats ?? false,
       };
 
-      // Format status for display
-      const statusLines = [
-        `• Trading: ${status.autonomousTrading ? '✅ Enabled' : '❌ Disabled'}`,
-        `• Posting: ${status.autonomousPosting ? '✅ Enabled' : '❌ Disabled'}`,
-        `• Commenting: ${status.autonomousCommenting ? '✅ Enabled' : '❌ Disabled'}`,
-        `• DMs: ${status.autonomousDMs ? '✅ Enabled' : '❌ Disabled'}`,
-        `• Group Chats: ${status.autonomousGroupChats ? '✅ Enabled' : '❌ Disabled'}`,
-      ];
-
       const enabledCount = Object.values(status).filter(Boolean).length;
       const totalCount = Object.keys(status).length;
-
-      const summaryText =
-        enabledCount === 0
-          ? 'All autonomous features are currently disabled.'
-          : enabledCount === totalCount
-            ? 'All autonomous features are currently enabled.'
-            : `${enabledCount} of ${totalCount} autonomous features are enabled.`;
-
-      const responseText = `Current Autonomous Feature Status:\n${statusLines.join('\n')}\n\n${summaryText}`;
 
       logger.info(
         `[CHECK_AUTONOMY] Status retrieved for agent: ${agentId}`,
@@ -135,17 +117,14 @@ export const checkAutonomyAction: Action = {
 
       return {
         success: true,
-        text: responseText,
-        data: {
-          status,
-          enabledCount,
-          totalCount,
-        },
+        text: `Autonomy: ${enabledCount}/${totalCount} features enabled.`,
+        data: { status, enabledCount, totalCount },
         values: {
-          ...status,
-          enabledCount,
-          totalCount,
-          statusText: responseText,
+          trading: status.autonomousTrading,
+          posting: status.autonomousPosting,
+          commenting: status.autonomousCommenting,
+          dms: status.autonomousDMs,
+          groupChats: status.autonomousGroupChats,
         },
       };
     } catch (error) {
@@ -156,8 +135,7 @@ export const checkAutonomyAction: Action = {
       return {
         success: false,
         text: `Failed to check autonomy status: ${errorMsg}`,
-        data: { error: errorMsg },
-        values: { error: errorMsg },
+        error: errorMsg,
       };
     }
   },

@@ -85,9 +85,8 @@ export const sellPredictionAction: Action = {
     if (!positionId || !sharesToSell) {
       return {
         success: false,
-        text: 'Missing required parameters. Need positionId and shares. Please call CHECK_PNL first to see your actual positions and get the position ID and current share count.',
-        data: { error: 'Missing parameters' },
-        values: { error: 'Missing parameters' },
+        text: 'Missing parameters. Call CHECK_PNL first to get positionId and share count.',
+        error: 'Missing parameters: positionId or shares',
       };
     }
 
@@ -95,8 +94,7 @@ export const sellPredictionAction: Action = {
       return {
         success: false,
         text: 'Shares must be greater than 0.',
-        data: { error: 'Invalid shares' },
-        values: { error: 'Invalid shares' },
+        error: 'Invalid shares',
       };
     }
 
@@ -117,9 +115,8 @@ export const sellPredictionAction: Action = {
       if (!position) {
         return {
           success: false,
-          text: `Position not found with ID "${positionId}". Please call CHECK_PNL first to see your actual open positions and get the correct position ID.`,
-          data: { error: 'Position not found', providedId: positionId },
-          values: { error: 'Position not found', providedId: positionId },
+          text: `Position not found. Call CHECK_PNL first to get valid positionId.`,
+          error: 'Position not found',
         };
       }
 
@@ -127,17 +124,9 @@ export const sellPredictionAction: Action = {
       if (sharesToSell > currentShares) {
         return {
           success: false,
-          text: `Cannot sell ${sharesToSell} shares. You only have ${currentShares.toFixed(2)} shares. Please call CHECK_PNL to verify your actual share count before selling.`,
-          data: {
-            error: 'Insufficient shares',
-            currentShares,
-            requested: sharesToSell,
-          },
-          values: {
-            error: 'Insufficient shares',
-            currentShares,
-            requested: sharesToSell,
-          },
+          text: `Only ${currentShares.toFixed(2)} shares available. Call CHECK_PNL to verify.`,
+          error: 'Insufficient shares',
+          values: { currentShares },
         };
       }
 
@@ -152,8 +141,7 @@ export const sellPredictionAction: Action = {
         return {
           success: false,
           text: 'Market not found.',
-          data: { error: 'Market not found' },
-          values: { error: 'Market not found' },
+          error: 'Market not found',
         };
       }
 
@@ -234,8 +222,6 @@ export const sellPredictionAction: Action = {
         reasoning: (state?.data?.thought as string) || 'Chat-initiated sell',
       });
 
-      const responseText = `Sold ${sharesToSell} ${isSellYes ? 'YES' : 'NO'} shares. Proceeds: $${proceeds.toFixed(2)}. Remaining: ${result.remainingShares} shares.`;
-
       logger.info('[SELL_PREDICTION] Trade successful', {
         agentUserId,
         positionId,
@@ -246,7 +232,7 @@ export const sellPredictionAction: Action = {
 
       return {
         success: true,
-        text: responseText,
+        text: `Sold ${sharesToSell} shares for $${proceeds.toFixed(2)}. Remaining: ${result.remainingShares.toFixed(2)} shares.`,
         data: {
           positionId,
           marketId: position.marketId,
@@ -268,8 +254,7 @@ export const sellPredictionAction: Action = {
       return {
         success: false,
         text: `Failed to sell shares: ${errorMsg}`,
-        data: { error: errorMsg },
-        values: { error: errorMsg },
+        error: errorMsg,
       };
     }
   },
