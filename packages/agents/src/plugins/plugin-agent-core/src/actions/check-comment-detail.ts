@@ -250,7 +250,8 @@ export const checkCommentDetailAction: Action = {
       // Build formatted view like AutonomousBatchResponseService
       const threadLines = threadContext.map((msg) => {
         const marker = msg.isTarget ? ' [TARGET COMMENT]' : '';
-        const depthLabel = msg.depth === 0 ? 'Comment' : `Reply (depth ${msg.depth})`;
+        const depthLabel =
+          msg.depth === 0 ? 'Comment' : `Reply (depth ${msg.depth})`;
         const truncated =
           msg.content.length > 200
             ? `${msg.content.substring(0, 200)}...`
