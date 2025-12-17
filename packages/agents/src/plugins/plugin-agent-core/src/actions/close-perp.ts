@@ -86,7 +86,7 @@ export const closePerpAction: Action = {
     if (!positionId) {
       return {
         success: false,
-        text: 'Missing required parameter: positionId.',
+        text: 'Missing required parameter: positionId. Please call CHECK_PNL first to see your open perp positions and get the position ID.',
         data: { error: 'Missing positionId' },
         values: { error: 'Missing positionId' },
       };
@@ -109,9 +109,9 @@ export const closePerpAction: Action = {
       if (!position) {
         return {
           success: false,
-          text: 'Position not found, not owned by you, or already closed.',
-          data: { error: 'Position not found' },
-          values: { error: 'Position not found' },
+          text: `Position not found with ID "${positionId}". Please call CHECK_PNL first to see your actual open positions and get the correct position ID. Do not use ticker names - use the position ID from CHECK_PNL results.`,
+          data: { error: 'Position not found', providedId: positionId },
+          values: { error: 'Position not found', providedId: positionId },
         };
       }
 
