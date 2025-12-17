@@ -4,9 +4,12 @@ import { cn, logger } from '@babylon/shared';
 import { Send, Sparkles } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
+import { AnimatedResponse } from '@/components/chat/AnimatedResponse';
 import { Avatar } from '@/components/shared/Avatar';
-import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { useAuth } from '@/hooks/useAuth';
+
+const MAX_TEXTAREA_HEIGHT = 160;
 
 /**
  * Chat message structure for agent chat.
@@ -66,10 +69,26 @@ export function AgentChat({ agent, onBalanceUpdate }: AgentChatProps) {
   const [sending, setSending] = useState(false);
   const [usePro, setUsePro] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, []);
+
+  // Resize textarea based on content (like Otaku)
+  const resizeTextarea = useCallback(() => {
+    const textarea = textareaRef.current;
+    if (textarea) {
+      textarea.style.height = 'auto';
+      textarea.style.height =
+        Math.min(textarea.scrollHeight, MAX_TEXTAREA_HEIGHT) + 'px';
+    }
+  }, []);
+
+  // Resize textarea when input value changes
+  useEffect(() => {
+    resizeTextarea();
+  }, [input, resizeTextarea]);
 
   const fetchMessages = useCallback(async () => {
     setLoading(true);
@@ -187,11 +206,12 @@ export function AgentChat({ agent, onBalanceUpdate }: AgentChatProps) {
     setSending(false);
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       sendMessage();
     }
+    // Shift+Enter will insert a newline (default behavior)
   };
 
   return (
@@ -233,62 +253,85 @@ export function AgentChat({ agent, onBalanceUpdate }: AgentChatProps) {
             <p className="text-sm">Start a conversation with your agent!</p>
           </div>
         ) : (
-          messages.map((message) => (
-            <div
-              key={message.id}
-              className={`flex gap-3 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
-            >
-              {message.role === 'assistant' && (
-                <Avatar
-                  id={agent.id}
-                  name={agent.name}
-                  type="user"
-                  size="sm"
-                  src={agent.profileImageUrl}
-                  imageUrl={agent.profileImageUrl}
-                />
-              )}
+          messages.map((message, index) => {
+            const isLastMessage = index === messages.length - 1;
+            const messageAge =
+              Date.now() - new Date(message.createdAt).getTime();
+            const isRecent = messageAge < 10000; // Less than 10 seconds
+            const shouldAnimate =
+              message.role === 'assistant' && isLastMessage && isRecent;
 
+            return (
               <div
-                className={cn(
-                  'max-w-[70%] rounded-lg p-3',
-                  message.role === 'user'
-                    ? 'bg-[#0066FF] text-primary-foreground'
-                    : 'bg-muted'
-                )}
+                key={message.id}
+                className={`flex gap-3 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
               >
-                <p className="whitespace-pre-wrap text-sm">{message.content}</p>
-                <div className="mt-1 flex items-center gap-2 text-xs opacity-70">
-                  <span>
-                    {new Date(message.createdAt).toLocaleTimeString()}
-                  </span>
-                  {message.modelUsed && (
-                    <>
-                      <span>•</span>
-                      <span>{message.modelUsed}</span>
-                    </>
-                  )}
-                  {message.pointsCost > 0 && (
-                    <>
-                      <span>•</span>
-                      <span>{message.pointsCost}pts</span>
-                    </>
-                  )}
-                </div>
-              </div>
+                {message.role === 'assistant' && (
+                  <Avatar
+                    id={agent.id}
+                    name={agent.name}
+                    type="user"
+                    size="sm"
+                    src={agent.profileImageUrl}
+                    imageUrl={agent.profileImageUrl}
+                  />
+                )}
 
-              {message.role === 'user' && user && (
-                <Avatar
-                  id={user.id}
-                  name={user.displayName || user.email || 'You'}
-                  type="user"
-                  size="sm"
-                  src={user.profileImageUrl}
-                  imageUrl={user.profileImageUrl}
-                />
-              )}
-            </div>
-          ))
+                <div
+                  className={cn(
+                    'max-w-[70%] rounded-lg p-3',
+                    message.role === 'user'
+                      ? 'bg-[#0066FF] text-primary-foreground'
+                      : 'bg-muted'
+                  )}
+                >
+                  {message.role === 'assistant' ? (
+                    <AnimatedResponse
+                      className="text-sm [&>*:first-child]:mt-0 [&>*:last-child]:mb-0"
+                      shouldAnimate={shouldAnimate}
+                      messageId={message.id}
+                      maxDurationMs={8000}
+                      onTextUpdate={scrollToBottom}
+                    >
+                      {message.content}
+                    </AnimatedResponse>
+                  ) : (
+                    <p className="whitespace-pre-wrap text-sm">
+                      {message.content}
+                    </p>
+                  )}
+                  <div className="mt-1 flex items-center gap-2 text-xs opacity-70">
+                    <span>
+                      {new Date(message.createdAt).toLocaleTimeString()}
+                    </span>
+                    {message.modelUsed && (
+                      <>
+                        <span>•</span>
+                        <span>{message.modelUsed}</span>
+                      </>
+                    )}
+                    {message.pointsCost > 0 && (
+                      <>
+                        <span>•</span>
+                        <span>{message.pointsCost}pts</span>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {message.role === 'user' && user && (
+                  <Avatar
+                    id={user.id}
+                    name={user.displayName || user.email || 'You'}
+                    type="user"
+                    size="sm"
+                    src={user.profileImageUrl}
+                    imageUrl={user.profileImageUrl}
+                  />
+                )}
+              </div>
+            );
+          })
         )}
         {sending && (
           <div className="flex justify-start gap-3">
@@ -328,19 +371,24 @@ export function AgentChat({ agent, onBalanceUpdate }: AgentChatProps) {
             Insufficient points. Please deposit points to continue chatting.
           </div>
         ) : (
-          <div className="flex gap-2">
-            <Input
+          <div className="flex items-end gap-2">
+            <Textarea
+              ref={textareaRef}
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              onKeyPress={handleKeyPress}
+              onKeyDown={handleKeyDown}
               placeholder="Type your message..."
               disabled={sending}
-              className="flex-1"
+              className={cn(
+                'min-h-10 max-h-40 flex-1 resize-none overflow-y-auto py-2.5',
+                'focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring'
+              )}
+              rows={1}
             />
             <button
               onClick={sendMessage}
               disabled={!input.trim() || sending || agent.pointsBalance < 1}
-              className="flex items-center gap-2 rounded-lg bg-[#0066FF] px-4 py-2 font-medium text-primary-foreground transition-all hover:bg-[#2952d9] disabled:cursor-not-allowed disabled:opacity-50"
+              className="flex h-10 items-center gap-2 rounded-lg bg-[#0066FF] px-4 py-2 font-medium text-primary-foreground transition-all hover:bg-[#2952d9] disabled:cursor-not-allowed disabled:opacity-50"
             >
               <Send className="h-4 w-4" />
             </button>
