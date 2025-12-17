@@ -260,7 +260,7 @@ export const POST = withErrorHandling(
     };
 
     // Multi-step execution
-    const MAX_ITERATIONS = 3;
+    const MAX_ITERATIONS = 6;
     const traceActionResults: ActionTraceResult[] = [];
     let finalResponse: string | null = null;
 
@@ -302,6 +302,8 @@ export const POST = withErrorHandling(
         state,
         template: multiStepDecisionTemplate,
       });
+
+      console.log('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! prompt', prompt);
 
       // Get LLM decision with retry
       const MAX_PARSE_RETRIES = 3;
