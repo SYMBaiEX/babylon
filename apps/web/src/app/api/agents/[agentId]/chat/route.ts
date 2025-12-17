@@ -129,21 +129,39 @@ No actions taken yet.
 6. **When in doubt** → Set isFinish: true (better to under-execute than over-execute)
 
 <keys>
-"thought" START WITH: "Step {{iterationCount}}/{{maxIterations}}. Actions this round: {{actionCount}}." THEN: Classify request type. THEN: If actions > 0, check if request is satisfied. THEN: Decide next step or finish.
-"action" Name of the action to execute, or empty string "" if no action needed
-"parameters" JSON object with exact parameter names. Empty object {} if no parameters.
-"isFinish" Set to true when user's request is satisfied OR you're about to repeat an action
+"thought"
+  START WITH: "Step {{iterationCount}}/{{maxIterations}}. Actions this round: {{actionCount}}."
+  THEN: Quote the user's request.
+  THEN: Classify request type (Specific/Multi-part/Conversational).
+  THEN: If actions > 0, state "I have already completed: [list actions]. Checking if request is satisfied."
+  THEN: Explain your decision:
+    - If finishing: "The request is fulfilled. Setting isFinish: true."
+    - If continuing: "Next action: [action name] because [reason]."
+"action" Name of the action to execute (empty string "" if setting isFinish: true or if no action needed)
+"parameters" JSON object with exact parameter names. Empty object {} if action has no parameters.
+"isFinish" Set to true when the user's request is satisfied (see Decision Rules)
 </keys>
 
-CRITICAL CHECK before outputting:
-- Am I about to execute the EXACT SAME action I just did? If YES → set isFinish: true instead
+CRITICAL CHECKS:
+- What step am I on? ({{iterationCount}}/{{maxIterations}})
+- How many actions have I taken THIS round? ({{actionCount}})
+- What TYPE of request is this? (Specific/Multi-part/Conversational)
+- If > 0 actions: Have I adequately addressed the request?
+- Am I about to execute the EXACT SAME action with EXACT SAME parameters? If YES → STOP
 
+# IMPORTANT
+YOUR FINAL OUTPUT MUST BE IN THIS XML FORMAT:
 <output>
 <response>
-  <thought>Step {{iterationCount}}/{{maxIterations}}. Actions this round: {{actionCount}}. [Classify request type] [Your reasoning]</thought>
+  <thought>Step {{iterationCount}}/{{maxIterations}}. Actions this round: {{actionCount}}. [Your reasoning]</thought>
   <action>ACTION_NAME or ""</action>
-  <parameters>{"param": "value"}</parameters>
-  <isFinish>true or false</isFinish>
+  <parameters>
+    {
+      "param1": "value1",
+      "param2": "value2"
+    }
+  </parameters>
+  <isFinish>true | false</isFinish>
 </response>
 </output>`;
 
