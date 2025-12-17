@@ -21,7 +21,11 @@ import {
   users,
   withTransaction,
 } from '@babylon/db';
-import { generateSnowflakeId, NotFoundError } from '@babylon/shared';
+import {
+  generateSnowflakeId,
+  InsufficientFundsError,
+  NotFoundError,
+} from '@babylon/shared';
 import { EarnedPointsService } from './earned-points-service';
 
 /**
@@ -142,6 +146,11 @@ export class WalletService {
 
     const currentBalance = Number(user.virtualBalance);
     const newBalance = currentBalance + delta;
+
+    // Prevent negative balance on debits
+    if (delta < 0 && newBalance < 0) {
+      throw new InsufficientFundsError(Math.abs(delta), currentBalance, 'USD');
+    }
 
     await tx
       .update(users)

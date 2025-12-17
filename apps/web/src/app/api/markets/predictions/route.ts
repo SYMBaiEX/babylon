@@ -89,24 +89,44 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   if (userId && authUser?.userId === userId) {
     const positions = await service.listUserPositions(userId);
     for (const p of positions) {
+      // Skip positions with no/negligible shares (already closed or too small to sell)
+      // Match the Zod minimum of 0.01 shares for selling
+      if (p.shares < 0.01) continue;
       const market = marketMap.get(p.marketId);
-      const yesShares = market ? market.yesShares : 0;
-      const noShares = market ? market.noShares : 0;
+      if (!market) continue; // Skip positions for non-existent markets
+      
+      const yesShares = market.yesShares;
+      const noShares = market.noShares;
       const shares = p.shares;
       const sideKey = p.side;
-      const pricePreview = PredictionPricing.calculateSell(
-        yesShares,
-        noShares,
-        sideKey,
-        shares
-      );
-      const currentProbability = PredictionPricing.getCurrentPrice(
-        yesShares,
-        noShares,
-        sideKey
-      );
+      
+      // Calculate current value with error handling for edge cases
+      let currentValue: number;
+      let currentProbability: number;
+      try {
+        const pricePreview = PredictionPricing.calculateSell(
+          yesShares,
+          noShares,
+          sideKey,
+          shares
+        );
+        currentValue = pricePreview.totalCost;
+        currentProbability = PredictionPricing.getCurrentPrice(
+          yesShares,
+          noShares,
+          sideKey
+        );
+      } catch {
+        // If sell calculation fails (e.g., insufficient liquidity), use probability-based estimate
+        currentProbability = PredictionPricing.getCurrentPrice(
+          yesShares,
+          noShares,
+          sideKey
+        );
+        currentValue = shares * currentProbability;
+      }
+      
       const costBasis = shares * p.avgPrice;
-      const currentValue = pricePreview.totalCost;
       const positionSnapshot: UserPositionSnapshot = {
         id: p.id,
         marketId: p.marketId,
