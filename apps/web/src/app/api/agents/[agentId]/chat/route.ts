@@ -400,7 +400,7 @@ export const POST = withErrorHandling(
         // Capture result through callback
         let actionResult: {
           success?: boolean;
-        text?: string;
+          text?: string;
           values?: Record<string, unknown>;
         } | null = null;
 
