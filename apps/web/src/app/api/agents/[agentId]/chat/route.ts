@@ -130,12 +130,13 @@ Personality: {{personality}}
 - Be conversational and natural
 - Stay in character
 - Include relevant details from actions when appropriate
+- Write your ACTUAL response in the <text> tag - do NOT output placeholder text
 
-IMPORTANT: Output ONLY the XML below. No thinking, no explanation.
+IMPORTANT: Output ONLY the XML below. No thinking, no explanation. Replace the content inside tags with your actual response.
 
 <response>
-<thought>brief reasoning</thought>
-<text>your reply to the user</text>
+<thought>your brief reasoning here</thought>
+<text>your conversational response to the user here</text>
 </response>`;
 
 // =============================================================================
