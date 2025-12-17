@@ -94,12 +94,12 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       if (p.shares < 0.01) continue;
       const market = marketMap.get(p.marketId);
       if (!market) continue; // Skip positions for non-existent markets
-      
+
       const yesShares = market.yesShares;
       const noShares = market.noShares;
       const shares = p.shares;
       const sideKey = p.side;
-      
+
       // Calculate current value with error handling for edge cases
       let currentValue: number;
       let currentProbability: number;
@@ -125,7 +125,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         );
         currentValue = shares * currentProbability;
       }
-      
+
       const costBasis = shares * p.avgPrice;
       const positionSnapshot: UserPositionSnapshot = {
         id: p.id,

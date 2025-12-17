@@ -11,10 +11,10 @@ const ParamsSchema = z.object({
 
 /**
  * POST /api/markets/predictions/positions/[positionId]/dismiss
- * 
+ *
  * Allows a user to dismiss a "dead" position that can't be sold.
  * This marks the position as resolved and zeroes out shares.
- * 
+ *
  * Use cases:
  * - Positions with 0 shares that weren't cleaned up
  * - Positions on corrupt/broken markets
@@ -82,4 +82,3 @@ export const POST = withErrorHandling(
     });
   }
 );
-
