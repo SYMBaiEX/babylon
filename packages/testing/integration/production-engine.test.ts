@@ -137,11 +137,7 @@ describe('Production Engine Tests', () => {
       undefined,
       'ProductionTest'
     );
-    logger.info(
-      `LLM Key available: ${hasLLMKey}`,
-      undefined,
-      'ProductionTest'
-    );
+    logger.info(`LLM Key available: ${hasLLMKey}`, undefined, 'ProductionTest');
   });
 
   describe('Static Data Registry', () => {
@@ -314,29 +310,25 @@ describe('Production Engine Tests', () => {
   });
 
   describe('Lookahead Generation Service', () => {
-    test.skipIf(!hasLLMKey)(
-      'checks lookahead status',
-      async () => {
-        const { checkLookaheadStatus } = await import('@babylon/engine');
+    test.skipIf(!hasLLMKey)('checks lookahead status', async () => {
+      const { checkLookaheadStatus } = await import('@babylon/engine');
 
-        const status = await checkLookaheadStatus();
+      const status = await checkLookaheadStatus();
 
-        expect(typeof status.minutesAhead).toBe('number');
-        expect(typeof status.needsGeneration).toBe('boolean');
+      expect(typeof status.minutesAhead).toBe('number');
+      expect(typeof status.needsGeneration).toBe('boolean');
 
-        writeOutput('production-lookahead-status', status);
-      }
-    );
+      writeOutput('production-lookahead-status', status);
+    });
   });
 
   describe('Post Generation', () => {
     test.skipIf(!hasLLMKey)(
       'generates NPC post with proper parody names',
       async () => {
-        const {
-          BabylonLLMClient,
-          StaticDataRegistry,
-        } = await import('@babylon/engine');
+        const { BabylonLLMClient, StaticDataRegistry } = await import(
+          '@babylon/engine'
+        );
 
         // Import the post generation helper
         const { generateNPCPost, loadSharedPostContext } = await import(
@@ -348,7 +340,11 @@ describe('Production Engine Tests', () => {
         const actor = actors[0];
 
         if (!actor) {
-          logger.warn('No actors available for test', undefined, 'ProductionTest');
+          logger.warn(
+            'No actors available for test',
+            undefined,
+            'ProductionTest'
+          );
           return;
         }
 
@@ -400,7 +396,8 @@ describe('Production Engine Tests', () => {
 
   describe('Content Swap Detection', () => {
     test('detects real names in content', () => {
-      const testContent = 'Elon Musk announced that Tesla will launch a new product.';
+      const testContent =
+        'Elon Musk announced that Tesla will launch a new product.';
       const swaps = detectSwaps(testContent);
 
       expect(swaps.length).toBeGreaterThan(0);
@@ -409,7 +406,8 @@ describe('Production Engine Tests', () => {
     });
 
     test('accepts parody names', () => {
-      const testContent = 'AIlon Musk announced that TeslAI will launch a new product.';
+      const testContent =
+        'AIlon Musk announced that TeslAI will launch a new product.';
       const swaps = detectSwaps(testContent);
 
       expect(swaps.length).toBe(0);
@@ -417,7 +415,10 @@ describe('Production Engine Tests', () => {
   });
 
   afterAll(() => {
-    logger.info('Production engine tests complete', undefined, 'ProductionTest');
+    logger.info(
+      'Production engine tests complete',
+      undefined,
+      'ProductionTest'
+    );
   });
 });
-

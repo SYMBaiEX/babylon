@@ -89,9 +89,9 @@ export {
   type GameEvent,
   type GameResult,
   GameSimulator,
+  type MarketState as SimulatedMarketState,
   type ReputationChange,
   type SimulatedAgent,
-  type MarketState as SimulatedMarketState,
 } from './GameSimulator';
 // Game Tick (canonical tick executor)
 export {

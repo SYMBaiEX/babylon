@@ -243,12 +243,14 @@ describe('Full Agent Tick Integration Test', () => {
         (a) => a.type === AgentType.NPC
       ).length;
 
-      results.discovery.agentSamples = registeredAgents.slice(0, 10).map((a) => ({
-        id: a.agentId,
-        name: a.name,
-        type: a.type,
-        status: a.status,
-      }));
+      results.discovery.agentSamples = registeredAgents
+        .slice(0, 10)
+        .map((a) => ({
+          id: a.agentId,
+          name: a.name,
+          type: a.type,
+          status: a.status,
+        }));
 
       writeOutput('agent-tick-discovery', results.discovery);
 
@@ -334,8 +336,11 @@ describe('Full Agent Tick Integration Test', () => {
 
   describe('4. Autonomous Trading Service', () => {
     test('validates trading components exist', async () => {
-      const { StaticDataRegistry, TradeExecutionService, NPCInvestmentManager } =
-        await import('@babylon/engine');
+      const {
+        StaticDataRegistry,
+        TradeExecutionService,
+        NPCInvestmentManager,
+      } = await import('@babylon/engine');
 
       // Verify trading components exist
       expect(TradeExecutionService).toBeDefined();
@@ -344,7 +349,11 @@ describe('Full Agent Tick Integration Test', () => {
       // Get a sample actor
       const actors = StaticDataRegistry.getAllActors().slice(0, 5);
       if (actors.length === 0) {
-        logger.warn('No actors found for trading test', undefined, 'AgentTickTest');
+        logger.warn(
+          'No actors found for trading test',
+          undefined,
+          'AgentTickTest'
+        );
         return;
       }
 
@@ -400,12 +409,15 @@ describe('Full Agent Tick Integration Test', () => {
 
       results.actions.posts = npcPosts.length;
 
-      writeOutput('agent-tick-posts', npcPosts.slice(0, 10).map((p) => ({
-        id: p.id,
-        authorId: p.authorId,
-        content: p.content.substring(0, 200),
-        timestamp: p.timestamp.toISOString(),
-      })));
+      writeOutput(
+        'agent-tick-posts',
+        npcPosts.slice(0, 10).map((p) => ({
+          id: p.id,
+          authorId: p.authorId,
+          content: p.content.substring(0, 200),
+          timestamp: p.timestamp.toISOString(),
+        }))
+      );
 
       expect(npcPosts.length).toBeGreaterThanOrEqual(0);
     });
@@ -426,13 +438,14 @@ describe('Full Agent Tick Integration Test', () => {
       const dmChatIds = dmChats.map((c) => c.id);
 
       // Get messages from DM chats
-      const recentDMs = dmChatIds.length > 0 
-        ? await db
-            .select()
-            .from(messages)
-            .orderBy(desc(messages.createdAt))
-            .limit(50)
-        : [];
+      const recentDMs =
+        dmChatIds.length > 0
+          ? await db
+              .select()
+              .from(messages)
+              .orderBy(desc(messages.createdAt))
+              .limit(50)
+          : [];
 
       // Filter for NPC DMs
       const npcDMs = recentDMs.filter((msg) =>
@@ -459,13 +472,16 @@ describe('Full Agent Tick Integration Test', () => {
         });
       }
 
-      writeOutput('agent-tick-dms', npcDMs.slice(0, 10).map((dm) => ({
-        id: dm.id,
-        senderId: dm.senderId,
-        chatId: dm.chatId,
-        content: dm.content.substring(0, 200),
-        createdAt: dm.createdAt.toISOString(),
-      })));
+      writeOutput(
+        'agent-tick-dms',
+        npcDMs.slice(0, 10).map((dm) => ({
+          id: dm.id,
+          senderId: dm.senderId,
+          chatId: dm.chatId,
+          content: dm.content.substring(0, 200),
+          createdAt: dm.createdAt.toISOString(),
+        }))
+      );
 
       expect(npcDMs.length).toBeGreaterThanOrEqual(0);
     });
@@ -476,7 +492,8 @@ describe('Full Agent Tick Integration Test', () => {
       const { NPCGroupDynamicsService } = await import('@babylon/engine');
 
       // Trigger NPC group dynamics (creates groups, posts messages)
-      const dynamicsResult = await NPCGroupDynamicsService.processTickDynamics();
+      const dynamicsResult =
+        await NPCGroupDynamicsService.processTickDynamics();
 
       writeOutput('agent-tick-group-dynamics', dynamicsResult);
 
@@ -507,13 +524,14 @@ describe('Full Agent Tick Integration Test', () => {
       const groupChatIds = groupChats.map((c) => c.id);
 
       // Get messages from group chats
-      const recentGroupMessages = groupChatIds.length > 0
-        ? await db
-            .select()
-            .from(messages)
-            .orderBy(desc(messages.createdAt))
-            .limit(50)
-        : [];
+      const recentGroupMessages =
+        groupChatIds.length > 0
+          ? await db
+              .select()
+              .from(messages)
+              .orderBy(desc(messages.createdAt))
+              .limit(50)
+          : [];
 
       // Filter for NPC messages
       const npcMessages = recentGroupMessages.filter((msg) =>
@@ -540,13 +558,16 @@ describe('Full Agent Tick Integration Test', () => {
         });
       }
 
-      writeOutput('agent-tick-group-messages', npcMessages.slice(0, 10).map((msg) => ({
-        id: msg.id,
-        senderId: msg.senderId,
-        chatId: msg.chatId,
-        content: msg.content.substring(0, 200),
-        createdAt: msg.createdAt.toISOString(),
-      })));
+      writeOutput(
+        'agent-tick-group-messages',
+        npcMessages.slice(0, 10).map((msg) => ({
+          id: msg.id,
+          senderId: msg.senderId,
+          chatId: msg.chatId,
+          content: msg.content.substring(0, 200),
+          createdAt: msg.createdAt.toISOString(),
+        }))
+      );
 
       expect(npcMessages.length).toBeGreaterThanOrEqual(0);
     });
@@ -588,13 +609,16 @@ describe('Full Agent Tick Integration Test', () => {
         });
       }
 
-      writeOutput('agent-tick-comments', npcComments.slice(0, 10).map((c) => ({
-        id: c.id,
-        authorId: c.authorId,
-        postId: c.postId,
-        content: c.content.substring(0, 200),
-        createdAt: c.createdAt.toISOString(),
-      })));
+      writeOutput(
+        'agent-tick-comments',
+        npcComments.slice(0, 10).map((c) => ({
+          id: c.id,
+          authorId: c.authorId,
+          postId: c.postId,
+          content: c.content.substring(0, 200),
+          createdAt: c.createdAt.toISOString(),
+        }))
+      );
 
       expect(npcComments.length).toBeGreaterThanOrEqual(0);
     });
@@ -741,19 +765,18 @@ describe('Full Agent Tick Integration Test', () => {
     console.log(`  - Total P&L: $${results.trading.profitLoss.toFixed(2)}`);
     console.log(`\nCommunication:`);
     console.log(`  - DMs sent: ${results.communication.dmsSent}`);
-    console.log(`  - Group messages: ${results.communication.groupMessagesSent}`);
+    console.log(
+      `  - Group messages: ${results.communication.groupMessagesSent}`
+    );
     console.log(`  - Posts made: ${results.communication.postsMade}`);
     console.log(`  - Comments made: ${results.communication.commentsMade}`);
     console.log(`\nValidation:`);
     console.log(
       `  - All processed: ${results.validation.allAgentsProcessed ? '✅' : '❌'}`
     );
-    console.log(
-      `  - No errors: ${results.validation.noErrors ? '✅' : '❌'}`
-    );
+    console.log(`  - No errors: ${results.validation.noErrors ? '✅' : '❌'}`);
     if (results.validation.errorCount > 0) {
       console.log(`  - Errors: ${results.validation.errorCount}`);
     }
   });
 });
-

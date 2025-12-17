@@ -16,23 +16,16 @@
  * - .output/npc-trading-decisions-{timestamp}.json
  */
 
-import {
-  beforeAll,
-  describe,
-  expect,
-  setDefaultTimeout,
-  test,
-} from 'bun:test';
+import { beforeAll, describe, expect, setDefaultTimeout, test } from 'bun:test';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { logger } from '@babylon/shared';
-
 // Import NPC system components
 import {
-  NPCPortfolioStrategy,
   NPCPersonaGenerator,
+  NPCPortfolioStrategy,
   StaticDataRegistry,
 } from '@babylon/engine';
+import { logger } from '@babylon/shared';
 
 // Set timeout
 setDefaultTimeout(60000);
@@ -67,7 +60,9 @@ describe('NPC System Validation Tests', () => {
 
   describe('NPCPortfolioStrategy', () => {
     test('returns valid strategy for aggressive personality', () => {
-      const strategy = NPCPortfolioStrategy.getStrategy('erratic disaster profiteer');
+      const strategy = NPCPortfolioStrategy.getStrategy(
+        'erratic disaster profiteer'
+      );
 
       expect(strategy).toBeDefined();
       expect(strategy.name).toBe('Aggressive Growth');
@@ -77,7 +72,9 @@ describe('NPC System Validation Tests', () => {
     });
 
     test('returns valid strategy for conservative personality', () => {
-      const strategy = NPCPortfolioStrategy.getStrategy('vampire yacht club member');
+      const strategy = NPCPortfolioStrategy.getStrategy(
+        'vampire yacht club member'
+      );
 
       expect(strategy).toBeDefined();
       expect(strategy.name).toBe('Conservative Wealth Preservation');
@@ -96,7 +93,9 @@ describe('NPC System Validation Tests', () => {
     });
 
     test('returns valid strategy for high volatility personality', () => {
-      const strategy = NPCPortfolioStrategy.getStrategy('memecoin degen nft collector');
+      const strategy = NPCPortfolioStrategy.getStrategy(
+        'memecoin degen nft collector'
+      );
 
       expect(strategy).toBeDefined();
       expect(strategy.name).toBe('High Volatility Trading');
@@ -105,7 +104,8 @@ describe('NPC System Validation Tests', () => {
     });
 
     test('adjusts strategy for high volatility market conditions', () => {
-      const baseStrategy = NPCPortfolioStrategy.getStrategy('tech entrepreneur');
+      const baseStrategy =
+        NPCPortfolioStrategy.getStrategy('tech entrepreneur');
       const adjustedStrategy = NPCPortfolioStrategy.getStrategy(
         'tech entrepreneur',
         {
@@ -127,7 +127,8 @@ describe('NPC System Validation Tests', () => {
     });
 
     test('adjusts strategy for negative sentiment market conditions', () => {
-      const baseStrategy = NPCPortfolioStrategy.getStrategy('tech entrepreneur');
+      const baseStrategy =
+        NPCPortfolioStrategy.getStrategy('tech entrepreneur');
       const adjustedStrategy = NPCPortfolioStrategy.getStrategy(
         'tech entrepreneur',
         {
@@ -175,14 +176,14 @@ describe('NPC System Validation Tests', () => {
       const target = { perps: 50, predictions: 40, cash: 10 };
 
       // Should need rebalancing with 5% threshold (10% deviation)
-      expect(
-        NPCPortfolioStrategy.shouldRebalance(current, target, 5)
-      ).toBe(true);
+      expect(NPCPortfolioStrategy.shouldRebalance(current, target, 5)).toBe(
+        true
+      );
 
       // Should not need rebalancing with 15% threshold
-      expect(
-        NPCPortfolioStrategy.shouldRebalance(current, target, 15)
-      ).toBe(false);
+      expect(NPCPortfolioStrategy.shouldRebalance(current, target, 15)).toBe(
+        false
+      );
     });
 
     test('generates rebalance plan correctly', () => {
@@ -212,10 +213,34 @@ describe('NPC System Validation Tests', () => {
       ];
 
       const marketConditions = [
-        { name: 'normal', volatility: 0.5, sentiment: 0, trending: true, volume: 0.5 },
-        { name: 'high_volatility', volatility: 0.9, sentiment: 0, trending: false, volume: 0.3 },
-        { name: 'bearish', volatility: 0.6, sentiment: -0.7, trending: false, volume: 0.4 },
-        { name: 'bullish', volatility: 0.4, sentiment: 0.7, trending: true, volume: 0.8 },
+        {
+          name: 'normal',
+          volatility: 0.5,
+          sentiment: 0,
+          trending: true,
+          volume: 0.5,
+        },
+        {
+          name: 'high_volatility',
+          volatility: 0.9,
+          sentiment: 0,
+          trending: false,
+          volume: 0.3,
+        },
+        {
+          name: 'bearish',
+          volatility: 0.6,
+          sentiment: -0.7,
+          trending: false,
+          volume: 0.4,
+        },
+        {
+          name: 'bullish',
+          volatility: 0.4,
+          sentiment: 0.7,
+          trending: true,
+          volume: 0.8,
+        },
       ];
 
       const strategyOutput: {
@@ -462,7 +487,8 @@ describe('NPC System Validation Tests', () => {
     test('returns organizations by type', () => {
       const companies = StaticDataRegistry.getOrganizationsByType('company');
       const media = StaticDataRegistry.getOrganizationsByType('media');
-      const government = StaticDataRegistry.getOrganizationsByType('government');
+      const government =
+        StaticDataRegistry.getOrganizationsByType('government');
 
       expect(companies.length).toBeGreaterThanOrEqual(0);
       expect(media.length).toBeGreaterThanOrEqual(0);
@@ -483,7 +509,7 @@ describe('NPC System Validation Tests', () => {
     test('gets actor by id', () => {
       const allActors = StaticDataRegistry.getAllActors();
       expect(allActors.length).toBeGreaterThan(0);
-      
+
       const firstActor = allActors[0]!;
       const retrieved = StaticDataRegistry.getActor(firstActor.id);
 
@@ -539,8 +565,12 @@ describe('NPC System Validation Tests', () => {
   describe('Strategy Evaluation', () => {
     test('evaluates strategy performance metrics', () => {
       // Simulated returns
-      const actualReturns = [0.05, -0.02, 0.08, 0.03, -0.01, 0.06, 0.02, -0.03, 0.04, 0.01];
-      const benchmarkReturns = [0.03, -0.01, 0.04, 0.02, 0.01, 0.03, 0.02, -0.02, 0.03, 0.01];
+      const actualReturns = [
+        0.05, -0.02, 0.08, 0.03, -0.01, 0.06, 0.02, -0.03, 0.04, 0.01,
+      ];
+      const benchmarkReturns = [
+        0.03, -0.01, 0.04, 0.02, 0.01, 0.03, 0.02, -0.02, 0.03, 0.01,
+      ];
 
       const metrics = NPCPortfolioStrategy.evaluateStrategy(
         actualReturns,
@@ -572,4 +602,3 @@ describe('NPC System Validation Tests', () => {
     });
   });
 });
-

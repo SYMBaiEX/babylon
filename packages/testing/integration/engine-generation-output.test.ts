@@ -36,9 +36,9 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   GameGenerator,
+  type GameResult,
   GameSimulator,
   type GeneratedGame,
-  type GameResult,
 } from '@babylon/engine';
 import { logger } from '@babylon/shared';
 
@@ -232,12 +232,16 @@ function validateActorData(actor: {
   // Check for swaps in actor data
   const nameSwaps = detectSwaps(actor.name);
   if (nameSwaps.length > 0) {
-    issues.push(`Swap detected in name: ${nameSwaps.map((s) => s.matches.join(', ')).join('; ')}`);
+    issues.push(
+      `Swap detected in name: ${nameSwaps.map((s) => s.matches.join(', ')).join('; ')}`
+    );
   }
 
   const descSwaps = detectSwaps(actor.description || '');
   if (descSwaps.length > 0) {
-    issues.push(`Swap detected in description: ${descSwaps.map((s) => s.matches.join(', ')).join('; ')}`);
+    issues.push(
+      `Swap detected in description: ${descSwaps.map((s) => s.matches.join(', ')).join('; ')}`
+    );
   }
 
   return { valid: issues.length === 0, issues };
@@ -270,7 +274,9 @@ function validateFeedPost(post: {
   // Check for swaps
   const contentSwaps = detectSwaps(post.content || '');
   if (contentSwaps.length > 0) {
-    issues.push(`Swap detected in content: ${contentSwaps.map((s) => s.matches.join(', ')).join('; ')}`);
+    issues.push(
+      `Swap detected in content: ${contentSwaps.map((s) => s.matches.join(', ')).join('; ')}`
+    );
   }
 
   // Validate sentiment range
@@ -323,7 +329,9 @@ function validateEvent(event: {
   // Check for swaps
   const descSwaps = detectSwaps(event.description || '');
   if (descSwaps.length > 0) {
-    issues.push(`Swap detected in description: ${descSwaps.map((s) => s.matches.join(', ')).join('; ')}`);
+    issues.push(
+      `Swap detected in description: ${descSwaps.map((s) => s.matches.join(', ')).join('; ')}`
+    );
   }
 
   return { valid: issues.length === 0, issues };
@@ -408,7 +416,8 @@ describe('Engine Generation Output Tests', () => {
         if (!agent.id) issues.push('Missing id');
         if (!agent.name) issues.push('Missing name');
         if (typeof agent.balance !== 'number') issues.push('Invalid balance');
-        if (typeof agent.isInsider !== 'boolean') issues.push('Invalid isInsider');
+        if (typeof agent.isInsider !== 'boolean')
+          issues.push('Invalid isInsider');
         if (!agent.strategy) issues.push('Missing strategy');
 
         if (issues.length > 0) {
@@ -462,7 +471,9 @@ describe('Engine Generation Output Tests', () => {
       testResults.testsRun++;
 
       if (!game) {
-        testResults.warnings.push('Skipping actor validation: No game generated');
+        testResults.warnings.push(
+          'Skipping actor validation: No game generated'
+        );
         return;
       }
 
@@ -477,7 +488,11 @@ describe('Engine Generation Output Tests', () => {
         validActors: 0,
         invalidActors: 0,
         swapsDetected: 0,
-        issues: [] as { actorId: string; actorName: string; issues: string[] }[],
+        issues: [] as {
+          actorId: string;
+          actorName: string;
+          issues: string[];
+        }[],
       };
 
       for (const actor of allActors) {
@@ -512,7 +527,9 @@ describe('Engine Generation Output Tests', () => {
       testResults.testsRun++;
 
       if (!game) {
-        testResults.warnings.push('Skipping persona validation: No game generated');
+        testResults.warnings.push(
+          'Skipping persona validation: No game generated'
+        );
         return;
       }
 
@@ -642,7 +659,9 @@ describe('Engine Generation Output Tests', () => {
       ];
 
       for (const phase of phases) {
-        const phasePosts = allPosts.filter((p) => phase.days.includes(p.day ?? 0));
+        const phasePosts = allPosts.filter((p) =>
+          phase.days.includes(p.day ?? 0)
+        );
         const samples = phasePosts.slice(0, 5);
         for (const post of samples) {
           const postDay = post.day ?? 0;
@@ -672,7 +691,9 @@ describe('Engine Generation Output Tests', () => {
       testResults.testsRun++;
 
       if (!game) {
-        testResults.warnings.push('Skipping event validation: No game generated');
+        testResults.warnings.push(
+          'Skipping event validation: No game generated'
+        );
         return;
       }
 
@@ -803,7 +824,9 @@ describe('Engine Generation Output Tests', () => {
       for (const dayNum of sampleDays) {
         const dayData = game.timeline.find((d) => d.day === dayNum);
         if (dayData) {
-          for (const [groupId, messages] of Object.entries(dayData.groupChats)) {
+          for (const [groupId, messages] of Object.entries(
+            dayData.groupChats
+          )) {
             const samples = messages.slice(0, 2);
             for (const msg of samples) {
               groupMessageValidation.sampleMessages.push({
@@ -1085,4 +1108,3 @@ describe('Engine Generation Output Tests', () => {
     });
   });
 });
-

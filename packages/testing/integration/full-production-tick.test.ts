@@ -551,12 +551,14 @@ describe('Full Production Tick Integration Test', () => {
       const activeQuestions = allQuestions.filter((q) => q.status === 'active');
       results.questions.activeCount = activeQuestions.length;
 
-      results.questions.questionSamples = allQuestions.slice(0, 10).map((q) => ({
-        id: q.id,
-        text: q.text.substring(0, 100),
-        status: q.status,
-        outcome: q.outcome,
-      }));
+      results.questions.questionSamples = allQuestions
+        .slice(0, 10)
+        .map((q) => ({
+          id: q.id,
+          text: q.text.substring(0, 100),
+          status: q.status,
+          outcome: q.outcome,
+        }));
 
       writeOutput('full-tick-questions', results.questions);
 
@@ -726,9 +728,6 @@ describe('Full Production Tick Integration Test', () => {
     console.log(
       `  - No swaps: ${results.validation.noSwapsDetected ? '✅' : '❌'}`
     );
-    console.log(
-      `  - Swap count: ${results.validation.swapCount}`
-    );
+    console.log(`  - Swap count: ${results.validation.swapCount}`);
   });
 });
-

@@ -25,7 +25,6 @@ import {
 } from '@babylon/db';
 import { generateSnowflakeId, logger } from '@babylon/shared';
 import { FEE_CONFIG } from '../config/fees';
-import { StaticDataRegistry } from './static-data-registry';
 import type {
   ExecutedTrade,
   TradingDecision,
@@ -38,6 +37,7 @@ import {
   type TradeImpactInput,
 } from './market-impact-service';
 import { createNpcWalletAdapter } from './npc-wallet-adapter';
+import { StaticDataRegistry } from './static-data-registry';
 import { invalidateAfterPredictionTrade } from './trade-cache-invalidation';
 
 type PredictionTradeBroadcast = {
@@ -270,32 +270,33 @@ export class TradeExecutionService {
 
     // Use StaticDataRegistry for organization lookup (organizations aren't in DB)
     const allOrgs = StaticDataRegistry.getAllOrganizations();
-    
+
     // Strategy 1: Exact ID match
-    let staticOrg = allOrgs.find(o => o.id === decision.ticker);
-    
+    let staticOrg = allOrgs.find((o) => o.id === decision.ticker);
+
     // Strategy 2: Ticker field match (case-insensitive)
     if (!staticOrg) {
-      staticOrg = allOrgs.find(o => 
-        o.ticker?.toLowerCase() === tickerLower
-      );
+      staticOrg = allOrgs.find((o) => o.ticker?.toLowerCase() === tickerLower);
     }
-    
+
     // Strategy 3: ID contains match
     if (!staticOrg) {
-      staticOrg = allOrgs.find(o => 
-        o.id.toLowerCase().includes(tickerLower) ||
-        tickerLower.includes(o.id.toLowerCase())
+      staticOrg = allOrgs.find(
+        (o) =>
+          o.id.toLowerCase().includes(tickerLower) ||
+          tickerLower.includes(o.id.toLowerCase())
       );
     }
-    
+
     // Strategy 4: Normalized name/ticker match
     if (!staticOrg) {
-      staticOrg = allOrgs.find(o => {
+      staticOrg = allOrgs.find((o) => {
         const normalizedName = o.name.toLowerCase().replace(/[^a-z0-9]/g, '');
-        const normalizedOrgTicker = (o.ticker || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+        const normalizedOrgTicker = (o.ticker || '')
+          .toLowerCase()
+          .replace(/[^a-z0-9]/g, '');
         const normalizedOrgId = o.id.toLowerCase().replace(/[^a-z0-9]/g, '');
-        
+
         return (
           normalizedName === normalizedTicker ||
           normalizedOrgTicker === normalizedTicker ||
@@ -332,7 +333,7 @@ export class TradeExecutionService {
       );
       throw new Error(`Organization not found: ${decision.ticker}`);
     }
-    
+
     // Use staticOrg for the rest of the function
     const org = staticOrg;
 
@@ -662,10 +663,11 @@ export class TradeExecutionService {
     if (position.marketType === 'perp' && position.ticker) {
       // Find org in static registry
       const tickerLower = position.ticker.toLowerCase();
-      const staticOrg = StaticDataRegistry.getAllOrganizations().find(o =>
-        o.id.toLowerCase().includes(tickerLower) ||
-        tickerLower.includes(o.id.toLowerCase()) ||
-        o.ticker?.toLowerCase() === tickerLower
+      const staticOrg = StaticDataRegistry.getAllOrganizations().find(
+        (o) =>
+          o.id.toLowerCase().includes(tickerLower) ||
+          tickerLower.includes(o.id.toLowerCase()) ||
+          o.ticker?.toLowerCase() === tickerLower
       );
 
       if (staticOrg) {
