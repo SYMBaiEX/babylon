@@ -128,8 +128,16 @@ export const sellPredictionAction: Action = {
         return {
           success: false,
           text: `Cannot sell ${sharesToSell} shares. You only have ${currentShares.toFixed(2)} shares. Please call CHECK_PNL to verify your actual share count before selling.`,
-          data: { error: 'Insufficient shares', currentShares, requested: sharesToSell },
-          values: { error: 'Insufficient shares', currentShares, requested: sharesToSell },
+          data: {
+            error: 'Insufficient shares',
+            currentShares,
+            requested: sharesToSell,
+          },
+          values: {
+            error: 'Insufficient shares',
+            currentShares,
+            requested: sharesToSell,
+          },
         };
       }
 
