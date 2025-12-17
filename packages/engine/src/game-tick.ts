@@ -1320,10 +1320,7 @@ async function generateMixedPosts(
   // TOPIC DIVERSITY: Assign different questions to different creators
   // This prevents all NPCs from posting about the same topic
   const shuffledQuestions = [...questions].sort(() => Math.random() - 0.5);
-  const creatorToQuestion = new Map<
-    string,
-    (typeof questions)[number]
-  >();
+  const creatorToQuestion = new Map<string, (typeof questions)[number]>();
 
   // Assign questions round-robin to creators, ensuring diversity
   for (let i = 0; i < Math.min(postsToGenerate, creators.length); i++) {

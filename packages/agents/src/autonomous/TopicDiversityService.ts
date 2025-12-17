@@ -251,7 +251,6 @@ export class TopicDiversityService {
     return intersection.size / union.size;
   }
 
-
   /**
    * Record that a topic was covered by an agent
    */
@@ -337,7 +336,7 @@ export class TopicDiversityService {
   /**
    * Validate content before posting
    * Returns issues if any, empty array if OK
-   * 
+   *
    * Focus: Prevent repetitiveness, NOT restrict creative language
    */
   validateContent(agentId: string, content: string): string[] {
@@ -410,7 +409,9 @@ export class TopicDiversityService {
       if (!marketData) continue;
 
       // Pick a random angle for variety
-      const angle = POSTING_ANGLES[Math.floor(Math.random() * POSTING_ANGLES.length)] ?? 'analytical';
+      const angle =
+        POSTING_ANGLES[Math.floor(Math.random() * POSTING_ANGLES.length)] ??
+        'analytical';
 
       this.agentAssignments.set(agentId, {
         primaryTopicKey: marketData.topicKey,
@@ -468,7 +469,7 @@ export class TopicDiversityService {
 
   /**
    * Get diversity instructions for an agent's prompt
-   * 
+   *
    * Emphasizes: Trading, events, markets, organic engagement
    */
   getDiversityInstructions(agentId: string): string {
@@ -529,17 +530,16 @@ You could trade this, post about it, or comment on price action.
       bullish:
         "Be optimistic. What's the upside others don't see? Why will this succeed?",
       bearish:
-        "Be cautious/pessimistic. What are the risks? Why might this fail?",
+        'Be cautious/pessimistic. What are the risks? Why might this fail?',
       humorous:
         'Find the absurdity. Make it entertaining while still insightful.',
       insider:
         "Hint at special knowledge (carefully). What do insiders know that's not public?",
       historical:
-        "Compare to past events. What historical pattern does this follow?",
+        'Compare to past events. What historical pattern does this follow?',
       questioning:
         'Ask a provocative question that gets others thinking. Engage the community.',
-      declarative:
-        'Make a bold, confident statement. Take a strong position.',
+      declarative: 'Make a bold, confident statement. Take a strong position.',
     };
 
     return descriptions[angle] || 'Bring your unique perspective.';
@@ -587,4 +587,3 @@ You could trade this, post about it, or comment on price action.
 
 // Export singleton
 export const topicDiversityService = new TopicDiversityService();
-

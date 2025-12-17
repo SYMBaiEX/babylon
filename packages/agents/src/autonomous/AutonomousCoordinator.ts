@@ -12,7 +12,16 @@
  * 5. Optional trajectory recording for RL training
  */
 
-import { and, db, eq, gte, markets, or, userAgentConfigs, users } from '@babylon/db';
+import {
+  and,
+  db,
+  eq,
+  gte,
+  markets,
+  or,
+  userAgentConfigs,
+  users,
+} from '@babylon/db';
 import { trajectoryRecorder } from '@babylon/training';
 import type { IAgentRuntime } from '@elizaos/core';
 import { setTrajectoryContext } from '../plugins/plugin-trajectory-logger/src/action-interceptor';
@@ -288,9 +297,7 @@ export class AutonomousCoordinator {
     );
 
     // TOPIC DIVERSITY: Seed tracker and assign topics before processing
-    await this.initializeTopicDiversity(
-      activeAgentResults.map((a) => a.id)
-    );
+    await this.initializeTopicDiversity(activeAgentResults.map((a) => a.id));
 
     let totalActions = 0;
     let errors = 0;
@@ -341,9 +348,7 @@ export class AutonomousCoordinator {
         noShares: markets.noShares,
       })
       .from(markets)
-      .where(
-        and(eq(markets.resolved, false), gte(markets.endDate, new Date()))
-      )
+      .where(and(eq(markets.resolved, false), gte(markets.endDate, new Date())))
       .limit(20);
 
     // Convert to format expected by diversity service
@@ -360,7 +365,10 @@ export class AutonomousCoordinator {
     });
 
     // Assign topics to agents
-    await topicDiversityService.assignTopicsToAgents(agentIds, marketsForTopics);
+    await topicDiversityService.assignTopicsToAgents(
+      agentIds,
+      marketsForTopics
+    );
 
     // Log stats
     const stats = topicDiversityService.getTopicStats();

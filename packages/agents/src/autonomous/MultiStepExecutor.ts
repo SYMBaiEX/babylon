@@ -36,6 +36,7 @@ import {
   executeDirectPost,
   executeDirectTrade,
 } from './DirectExecutors';
+import { topicDiversityService } from './TopicDiversityService';
 import {
   type ActionTraceResult,
   type AgentTickContext,
@@ -45,7 +46,6 @@ import {
   type PostContext,
   type PredictionMarketContext,
 } from './templates/multi-step-decision';
-import { topicDiversityService } from './TopicDiversityService';
 
 // =============================================================================
 // Types
