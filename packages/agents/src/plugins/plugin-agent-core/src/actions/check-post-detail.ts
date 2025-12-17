@@ -89,8 +89,21 @@ function buildCommentTree(
 function formatCommentTree(
   threads: CommentThread[],
   maxDepth = 10
-): { formatted: string; comments: Array<{ id: string; author: string; content: string; depth: number }> } {
-  const allComments: Array<{ id: string; author: string; content: string; depth: number }> = [];
+): {
+  formatted: string;
+  comments: Array<{
+    id: string;
+    author: string;
+    content: string;
+    depth: number;
+  }>;
+} {
+  const allComments: Array<{
+    id: string;
+    author: string;
+    content: string;
+    depth: number;
+  }> = [];
   const lines: string[] = [];
 
   function traverse(node: CommentThread, depth: number) {
@@ -156,7 +169,7 @@ export const checkPostDetailAction: Action = {
     [
       {
         name: 'user',
-        content: { text: "What are people saying on that post?" },
+        content: { text: 'What are people saying on that post?' },
       },
       {
         name: 'assistant',
@@ -179,7 +192,9 @@ export const checkPostDetailAction: Action = {
     _callback?: HandlerCallback
   ): Promise<ActionResult> => {
     const agentUserId = runtime.agentId;
-    const actionParams = state?.data?.actionParams as { postId?: string } | undefined;
+    const actionParams = state?.data?.actionParams as
+      | { postId?: string }
+      | undefined;
     const postId = actionParams?.postId;
 
     if (!postId) {
@@ -231,14 +246,16 @@ export const checkPostDetailAction: Action = {
         .orderBy(desc(comments.createdAt));
 
       // Transform to our format
-      const commentsWithAuthor: CommentWithAuthor[] = postComments.map((c: typeof postComments[number]) => ({
-        id: c.id,
-        content: c.content,
-        authorId: c.authorId,
-        parentCommentId: c.parentCommentId,
-        createdAt: c.createdAt,
-        authorName: c.authorDisplayName || c.authorUsername || 'User',
-      }));
+      const commentsWithAuthor: CommentWithAuthor[] = postComments.map(
+        (c: (typeof postComments)[number]) => ({
+          id: c.id,
+          content: c.content,
+          authorId: c.authorId,
+          parentCommentId: c.parentCommentId,
+          createdAt: c.createdAt,
+          authorName: c.authorDisplayName || c.authorUsername || 'User',
+        })
+      );
 
       // Build comment tree
       const commentTree = buildCommentTree(commentsWithAuthor, agentUserId);
@@ -295,4 +312,3 @@ ${postComments.length > 0 ? `Comments (${postComments.length}):\n${formattedComm
     }
   },
 };
-

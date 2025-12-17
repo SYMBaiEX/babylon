@@ -116,7 +116,9 @@ export const checkCommentDetailAction: Action = {
     _callback?: HandlerCallback
   ): Promise<ActionResult> => {
     const agentUserId = runtime.agentId;
-    const actionParams = state?.data?.actionParams as { commentId?: string } | undefined;
+    const actionParams = state?.data?.actionParams as
+      | { commentId?: string }
+      | undefined;
     const commentId = actionParams?.commentId;
 
     if (!commentId) {
@@ -199,7 +201,10 @@ export const checkCommentDetailAction: Action = {
         .from(comments)
         .leftJoin(users, eq(comments.authorId, users.id))
         .where(
-          and(eq(comments.postId, targetComment.postId), isNull(comments.deletedAt))
+          and(
+            eq(comments.postId, targetComment.postId),
+            isNull(comments.deletedAt)
+          )
         );
 
       // Build comment map
@@ -311,7 +316,12 @@ ${repliesSection}`;
             author: t.author,
             isTarget: t.isTarget,
           })),
-          replies: directReplies.map((r: { id: string; author: string; content: string }) => ({ id: r.id, author: r.author })),
+          replies: directReplies.map(
+            (r: { id: string; author: string; content: string }) => ({
+              id: r.id,
+              author: r.author,
+            })
+          ),
         },
       };
     } catch (error) {
@@ -326,4 +336,3 @@ ${repliesSection}`;
     }
   },
 };
-

@@ -19,8 +19,7 @@ import { generateSnowflakeId } from '../../../../shared/snowflake';
 
 export const createCommentAction: Action = {
   name: 'CREATE_COMMENT',
-  description:
-    'Create a comment on a post or reply to an existing comment.',
+  description: 'Create a comment on a post or reply to an existing comment.',
 
   parameters: {
     postId: {
@@ -78,11 +77,13 @@ export const createCommentAction: Action = {
     _callback?: HandlerCallback
   ): Promise<ActionResult> => {
     const agentUserId = runtime.agentId;
-    const actionParams = state?.data?.actionParams as {
-      postId?: string;
-      parentCommentId?: string;
-      content?: string;
-    } | undefined;
+    const actionParams = state?.data?.actionParams as
+      | {
+          postId?: string;
+          parentCommentId?: string;
+          content?: string;
+        }
+      | undefined;
 
     const postId = actionParams?.postId;
     const parentCommentId = actionParams?.parentCommentId;
@@ -126,7 +127,9 @@ export const createCommentAction: Action = {
         const [parentComment] = await db
           .select({ id: comments.id, postId: comments.postId })
           .from(comments)
-          .where(and(eq(comments.id, parentCommentId), isNull(comments.deletedAt)))
+          .where(
+            and(eq(comments.id, parentCommentId), isNull(comments.deletedAt))
+          )
           .limit(1);
 
         if (!parentComment) {
@@ -205,4 +208,3 @@ export const createCommentAction: Action = {
     }
   },
 };
-
