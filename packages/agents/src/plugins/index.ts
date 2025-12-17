@@ -14,6 +14,7 @@ export {
 } from './babylon';
 export type { BabylonRuntime } from './babylon/types';
 export { groqPlugin } from './groq';
+export * from './plugin-agent-core/src';
 export * from './plugin-autonomy/src';
 export * from './plugin-experience/src';
 export * from './plugin-trajectory-logger/src';

@@ -1,0 +1,332 @@
+/**
+ * Check Recent Comments Action
+ *
+ * Returns recent comments for a user (self or another user by ID) with thread context.
+ */
+
+import { comments, db, desc, eq, inArray, posts, users } from '@babylon/db';
+import type {
+  Action,
+  ActionResult,
+  HandlerCallback,
+  IAgentRuntime,
+  Memory,
+  State,
+} from '@elizaos/core';
+import { logger } from '../../../../shared/logger';
+
+/**
+ * Format relative time (e.g., "2h ago", "15m ago")
+ */
+function getTimeAgo(date: Date): string {
+  const now = Date.now();
+  const diffMs = now - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+
+  if (diffMins < 1) return 'just now';
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  return `${diffDays}d ago`;
+}
+
+interface ThreadMessage {
+  authorName: string;
+  content: string;
+  isTarget: boolean;
+}
+
+interface CommentWithThread {
+  id: string;
+  content: string;
+  timeAgo: string;
+  post: {
+    id: string;
+    content: string;
+    authorName: string;
+  };
+  thread: ThreadMessage[];
+  isReply: boolean;
+}
+
+/**
+ * Build thread by walking UP from a comment to its ancestors
+ */
+async function buildThread(
+  commentId: string,
+  targetUserId: string,
+  maxDepth = 5
+): Promise<ThreadMessage[]> {
+  const thread: ThreadMessage[] = [];
+  let currentId: string | null = commentId;
+  let depth = 0;
+
+  while (currentId && depth < maxDepth) {
+    const [comment] = await db
+      .select({
+        id: comments.id,
+        content: comments.content,
+        authorId: comments.authorId,
+        parentCommentId: comments.parentCommentId,
+        authorName: users.displayName,
+        authorUsername: users.username,
+      })
+      .from(comments)
+      .leftJoin(users, eq(comments.authorId, users.id))
+      .where(eq(comments.id, currentId))
+      .limit(1);
+
+    if (!comment) break;
+
+    const isTarget = comment.authorId === targetUserId;
+    thread.unshift({
+      authorName: comment.authorName || comment.authorUsername || 'User',
+      content: comment.content,
+      isTarget,
+    });
+
+    currentId = comment.parentCommentId;
+    depth++;
+  }
+
+  return thread;
+}
+
+export const checkRecentCommentsAction: Action = {
+  name: 'CHECK_RECENT_COMMENTS',
+  description:
+    'Check recent comments for yourself or another user with thread context. Use LOOKUP_USER first to get a userId by username.',
+
+  parameters: {
+    userId: {
+      type: 'string',
+      description:
+        'User ID to check comments for. Use LOOKUP_USER to find ID by username. Omit to check your own comments.',
+      required: false,
+    },
+    limit: {
+      type: 'number',
+      description: 'Number of comments to retrieve (default: 5, max: 10)',
+      required: false,
+    },
+  },
+
+  examples: [
+    [
+      {
+        name: 'user',
+        content: { text: 'What have you commented on recently?' },
+      },
+      {
+        name: 'assistant',
+        content: { text: 'Let me check my recent comments...' },
+      },
+    ],
+    [
+      {
+        name: 'user',
+        content: { text: "Show me ThunderGrid's comments" },
+      },
+      {
+        name: 'assistant',
+        content: {
+          text: "I'll look up ThunderGrid and check their comments...",
+        },
+      },
+    ],
+  ],
+
+  validate: async (
+    _runtime: IAgentRuntime,
+    _message: Memory,
+    _state?: State
+  ): Promise<boolean> => true,
+
+  handler: async (
+    runtime: IAgentRuntime,
+    _message: Memory,
+    state?: State,
+    _options?: Record<string, unknown>,
+    _callback?: HandlerCallback
+  ): Promise<ActionResult> => {
+    const actionParams = state?.data?.actionParams as
+      | { userId?: string; limit?: number }
+      | undefined;
+
+    // Use provided userId or default to agent's own ID
+    const targetUserId = actionParams?.userId || runtime.agentId;
+    const isSelf = targetUserId === runtime.agentId;
+    const limit = Math.min(Math.max(actionParams?.limit ?? 5, 1), 10);
+
+    try {
+      // Get user info if checking someone else
+      let targetName = 'You';
+      if (!isSelf) {
+        const [targetUser] = await db
+          .select({
+            displayName: users.displayName,
+            username: users.username,
+          })
+          .from(users)
+          .where(eq(users.id, targetUserId))
+          .limit(1);
+
+        if (!targetUser) {
+          return {
+            success: false,
+            text: `User with ID "${targetUserId}" not found. Use LOOKUP_USER to find a valid user ID.`,
+            data: { error: 'User not found' },
+            values: { error: 'User not found' },
+          };
+        }
+        targetName = targetUser.displayName || targetUser.username || 'User';
+      }
+
+      // Get recent comments
+      const recentComments = await db
+        .select({
+          id: comments.id,
+          content: comments.content,
+          createdAt: comments.createdAt,
+          postId: comments.postId,
+          parentCommentId: comments.parentCommentId,
+        })
+        .from(comments)
+        .where(eq(comments.authorId, targetUserId))
+        .orderBy(desc(comments.createdAt))
+        .limit(limit);
+
+      if (recentComments.length === 0) {
+        const noCommentsMsg = isSelf
+          ? "You haven't commented on anything yet."
+          : `${targetName} hasn't commented on anything yet.`;
+        return {
+          success: true,
+          text: noCommentsMsg,
+          data: { comments: [], count: 0, userId: targetUserId },
+          values: { comments: [], count: 0, hasComments: false },
+        };
+      }
+
+      // Get all unique post IDs
+      const postIds = [...new Set(recentComments.map((c) => c.postId))];
+
+      // Fetch posts with author info
+      const postsData = await db
+        .select({
+          id: posts.id,
+          content: posts.content,
+          authorId: posts.authorId,
+          authorName: users.displayName,
+          authorUsername: users.username,
+        })
+        .from(posts)
+        .leftJoin(users, eq(posts.authorId, users.id))
+        .where(inArray(posts.id, postIds));
+
+      const postMap = new Map(postsData.map((p) => [p.id, p]));
+
+      // Build full comment data with threads
+      const formattedComments: CommentWithThread[] = [];
+
+      for (const comment of recentComments) {
+        const post = postMap.get(comment.postId);
+        const isReply = !!comment.parentCommentId;
+
+        // Build thread context if it's a reply
+        const thread = isReply
+          ? await buildThread(comment.id, targetUserId)
+          : [
+              {
+                authorName: targetName,
+                content: comment.content,
+                isTarget: true,
+              },
+            ];
+
+        formattedComments.push({
+          id: comment.id,
+          content: comment.content,
+          timeAgo: getTimeAgo(comment.createdAt),
+          post: {
+            id: comment.postId,
+            content: post?.content || '[Post unavailable]',
+            authorName:
+              post?.authorName || post?.authorUsername || 'Unknown User',
+          },
+          thread,
+          isReply,
+        });
+      }
+
+      // Format for display
+      const sections = formattedComments.map((c, i) => {
+        const header = `${i + 1}. On @${c.post.authorName}'s post (${c.timeAgo}):`;
+
+        // Show post content (truncated)
+        const postContent =
+          c.post.content.length > 60
+            ? c.post.content.substring(0, 57) + '...'
+            : c.post.content;
+        const postLine = `   POST: "${postContent}"`;
+
+        // Show thread if it's a reply with context
+        let threadLines = '';
+        if (c.isReply && c.thread.length > 1) {
+          threadLines =
+            '\n   THREAD:\n' +
+            c.thread
+              .map((msg, idx) => {
+                const marker =
+                  idx === c.thread.length - 1 ? '→' : msg.isTarget ? '•' : ' ';
+                return `   ${marker} @${msg.authorName}: "${msg.content}"`;
+              })
+              .join('\n');
+        } else {
+          threadLines = `\n   COMMENT: "${c.content}"`;
+        }
+
+        return `${header}\n${postLine}${threadLines}`;
+      });
+
+      const header = isSelf
+        ? 'Your recent comments:'
+        : `${targetName}'s recent comments:`;
+      const responseText = `${header}\n\n${sections.join('\n\n')}`;
+
+      logger.info(
+        `[CHECK_RECENT_COMMENTS] Retrieved ${recentComments.length} comments for ${isSelf ? 'self' : targetUserId}`,
+        undefined,
+        'CheckRecentComments'
+      );
+
+      return {
+        success: true,
+        text: responseText,
+        data: {
+          comments: formattedComments,
+          count: recentComments.length,
+          userId: targetUserId,
+          userName: targetName,
+        },
+        values: {
+          comments: formattedComments,
+          count: recentComments.length,
+          hasComments: true,
+          isSelf,
+        },
+      };
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+      logger.error('[CHECK_RECENT_COMMENTS] Error:', errorMsg);
+
+      return {
+        success: false,
+        text: `Failed to retrieve comments: ${errorMsg}`,
+        data: { error: errorMsg },
+        values: { error: errorMsg },
+      };
+    }
+  },
+};

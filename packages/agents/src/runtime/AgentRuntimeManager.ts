@@ -29,6 +29,7 @@ import { openaiPlugin } from '@elizaos/plugin-openai';
 import { babylonPlugin } from '../plugins/babylon';
 import { enhanceRuntimeWithBabylon } from '../plugins/babylon/integration';
 import { groqPlugin } from '../plugins/groq';
+import { agentCorePlugin } from '../plugins/plugin-agent-core/src';
 import { experiencePlugin } from '../plugins/plugin-experience/src';
 import { trajectoryLoggerPlugin } from '../plugins/plugin-trajectory-logger/src';
 import {
@@ -230,9 +231,10 @@ export class AgentRuntimeManager {
     const trajectoryLogger = new TrajectoryLoggerService();
     trajectoryLoggers.set(agentUserId, trajectoryLogger);
 
-    // Create runtime with groq, experience, and trajectory logger plugins
+    // Create runtime with groq, experience, trajectory logger, and agent core plugins
     // Type cast plugins to ensure compatibility across different @elizaos/core versions
     const plugins: Plugin[] = [
+      agentCorePlugin as Plugin,
       experiencePlugin as Plugin,
       trajectoryLoggerPlugin as Plugin,
       // Conditionally add LLM plugins based on available API keys
@@ -255,7 +257,8 @@ export class AgentRuntimeManager {
 
     runtime.currentModel = 'groq';
 
-    // Override adapter.log to prevent undefined logger errors
+    // Override adapter methods to prevent undefined errors
+    // Babylon doesn't use ElizaOS's memory system, so we stub these out
     runtime.adapter = {
       ...runtime.adapter,
       log: async (_params: {
@@ -264,7 +267,20 @@ export class AgentRuntimeManager {
         roomId: string;
         type: string;
       }): Promise<void> => {
-        // No-op to prevent errors
+        // No-op - Babylon uses its own logging
+      },
+      createMemory: async (
+        memory: unknown,
+        _tableName?: string
+      ): Promise<UUID> => {
+        // No-op - Babylon uses its own DB for message storage
+        // Return the memory ID or generate one
+        const memoryObj = memory as { id?: string } | null;
+        return (memoryObj?.id || crypto.randomUUID()) as UUID;
+      },
+      getMemories: async (_params: unknown): Promise<unknown[]> => {
+        // Return empty array - Babylon uses its own DB
+        return [];
       },
     } as typeof runtime.adapter;
 
@@ -518,6 +534,7 @@ export class AgentRuntimeManager {
 
     // Create runtime with standard plugins
     const plugins: Plugin[] = [
+      agentCorePlugin as Plugin,
       experiencePlugin as Plugin,
       trajectoryLoggerPlugin as Plugin,
       // Conditionally add LLM plugins based on available API keys
@@ -544,7 +561,8 @@ export class AgentRuntimeManager {
     }
     runtime.currentModel = 'groq';
 
-    // Override adapter.log to prevent undefined logger errors
+    // Override adapter methods to prevent undefined errors
+    // Babylon doesn't use ElizaOS's memory system, so we stub these out
     runtime.adapter = {
       ...runtime.adapter,
       log: async (_params: {
@@ -553,7 +571,20 @@ export class AgentRuntimeManager {
         roomId: string;
         type: string;
       }): Promise<void> => {
-        // No-op to prevent errors
+        // No-op - Babylon uses its own logging
+      },
+      createMemory: async (
+        memory: unknown,
+        _tableName?: string
+      ): Promise<UUID> => {
+        // No-op - Babylon uses its own DB for message storage
+        // Return the memory ID or generate one
+        const memoryObj = memory as { id?: string } | null;
+        return (memoryObj?.id || crypto.randomUUID()) as UUID;
+      },
+      getMemories: async (_params: unknown): Promise<unknown[]> => {
+        // Return empty array - Babylon uses its own DB
+        return [];
       },
     } as typeof runtime.adapter;
 

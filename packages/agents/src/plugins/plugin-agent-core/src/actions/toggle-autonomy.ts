@@ -1,0 +1,251 @@
+/**
+ * Toggle Autonomy Action
+ *
+ * Allows the agent to enable/disable autonomous features via chat.
+ * Uses agentService.updateAgent() for proper logging and cache management.
+ */
+
+import type {
+  Action,
+  ActionResult,
+  HandlerCallback,
+  IAgentRuntime,
+  Memory,
+  State,
+} from '@elizaos/core';
+import { agentService } from '../../../../services/AgentService';
+import { logger } from '../../../../shared/logger';
+import type {
+  AutonomyFeature,
+  AutonomyStatus,
+  ToggleAutonomyParams,
+} from '../types';
+
+/**
+ * Map feature name to config field
+ */
+const featureToConfigField: Record<
+  Exclude<AutonomyFeature, 'all'>,
+  keyof AutonomyStatus
+> = {
+  trading: 'autonomousTrading',
+  posting: 'autonomousPosting',
+  commenting: 'autonomousCommenting',
+  dms: 'autonomousDMs',
+  groupChats: 'autonomousGroupChats',
+};
+
+/**
+ * TOGGLE_AUTONOMY Action
+ *
+ * Enables or disables autonomous features for the agent.
+ * Can toggle individual features or all at once.
+ */
+export const toggleAutonomyAction: Action = {
+  name: 'TOGGLE_AUTONOMY',
+  description:
+    'Enable or disable autonomous features for the agent (trading, posting, commenting, DMs, group chats)',
+
+  parameters: {
+    feature: {
+      type: 'string',
+      description:
+        'Feature to toggle: "trading", "posting", "commenting", "dms", "groupChats", or "all"',
+      required: true,
+    },
+    enabled: {
+      type: 'boolean',
+      description: 'Whether to enable (true) or disable (false) the feature',
+      required: true,
+    },
+  },
+
+  examples: [
+    [
+      {
+        name: 'User',
+        content: {
+          text: 'Enable autonomous trading',
+        },
+      },
+      {
+        name: 'Agent',
+        content: {
+          text: 'I have enabled autonomous trading. I will now automatically make trades based on market conditions.',
+          action: 'TOGGLE_AUTONOMY',
+        },
+      },
+    ],
+    [
+      {
+        name: 'User',
+        content: {
+          text: 'Turn off all your autonomous features',
+        },
+      },
+      {
+        name: 'Agent',
+        content: {
+          text: 'All autonomous features have been disabled. I will only respond when you message me directly.',
+          action: 'TOGGLE_AUTONOMY',
+        },
+      },
+    ],
+    [
+      {
+        name: 'User',
+        content: {
+          text: 'Stop posting automatically',
+        },
+      },
+      {
+        name: 'Agent',
+        content: {
+          text: 'I have disabled autonomous posting. I will no longer create posts on my own.',
+          action: 'TOGGLE_AUTONOMY',
+        },
+      },
+    ],
+  ],
+
+  validate: async (
+    _runtime: IAgentRuntime,
+    _message: Memory,
+    _state?: State
+  ): Promise<boolean> => {
+    return true;
+  },
+
+  handler: async (
+    _runtime: IAgentRuntime,
+    _message: Memory,
+    state?: State,
+    _options?: Record<string, unknown>,
+    _callback?: HandlerCallback
+  ): Promise<ActionResult> => {
+    const agentUserId = _runtime.agentId;
+
+    // Get parameters from state (set by multi-step decision)
+    const actionParams = state?.data?.actionParams as
+      | ToggleAutonomyParams
+      | undefined;
+
+    const inputParams = actionParams || { feature: 'unknown', enabled: false };
+
+    if (!actionParams) {
+      logger.warn(
+        '[TOGGLE_AUTONOMY] No action parameters found in state',
+        undefined,
+        'ToggleAutonomy'
+      );
+      const errorData = { error: 'Missing parameters' };
+      return {
+        success: false,
+        text: 'Missing parameters. Please specify which feature to toggle and whether to enable or disable it.',
+        data: errorData,
+        values: errorData,
+        input: inputParams,
+      } as ActionResult & { input: typeof inputParams };
+    }
+
+    const { feature, enabled } = actionParams;
+
+    // Validate feature
+    const validFeatures: AutonomyFeature[] = [
+      'trading',
+      'posting',
+      'commenting',
+      'dms',
+      'groupChats',
+      'all',
+    ];
+
+    if (!validFeatures.includes(feature)) {
+      const errorData = { error: 'Invalid feature', feature };
+      return {
+        success: false,
+        text: `Invalid feature "${feature}". Valid options are: ${validFeatures.join(', ')}`,
+        data: errorData,
+        values: errorData,
+        input: inputParams,
+      } as ActionResult & { input: typeof inputParams };
+    }
+
+    try {
+      // Get agent to find manager
+      const agent = await agentService.getAgent(agentUserId);
+      if (!agent) {
+        const errorData = { error: 'Agent not found' };
+        return {
+          success: false,
+          text: 'Agent not found',
+          data: errorData,
+          values: errorData,
+          input: inputParams,
+        } as ActionResult & { input: typeof inputParams };
+      }
+
+      const managerUserId = agent.managedBy || agentUserId;
+
+      // Build update object
+      const updates: Partial<AutonomyStatus> = {};
+
+      if (feature === 'all') {
+        updates.autonomousTrading = enabled;
+        updates.autonomousPosting = enabled;
+        updates.autonomousCommenting = enabled;
+        updates.autonomousDMs = enabled;
+        updates.autonomousGroupChats = enabled;
+      } else {
+        const configField = featureToConfigField[feature];
+        updates[configField] = enabled;
+      }
+
+      // Use agentService.updateAgent for proper logging and cache management
+      await agentService.updateAgent(agentUserId, managerUserId, updates);
+
+      const featureDisplay =
+        feature === 'all' ? 'all autonomous features' : `autonomous ${feature}`;
+      const statusDisplay = enabled ? 'enabled' : 'disabled';
+
+      logger.info(
+        `[TOGGLE_AUTONOMY] ${featureDisplay} ${statusDisplay} for agent ${agentUserId}`,
+        undefined,
+        'ToggleAutonomy'
+      );
+
+      const successData = {
+        feature,
+        enabled,
+        updatedFields: Object.keys(updates),
+        featureDisplay,
+        statusDisplay,
+      };
+
+      return {
+        success: true,
+        text: `Successfully ${statusDisplay} ${featureDisplay}.`,
+        data: successData,
+        values: successData,
+        input: inputParams,
+      } as ActionResult & { input: typeof inputParams };
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
+      logger.error(
+        `[TOGGLE_AUTONOMY] Error: ${errorMessage}`,
+        undefined,
+        'ToggleAutonomy'
+      );
+
+      const errorData = { error: errorMessage };
+      return {
+        success: false,
+        text: `Failed to update autonomy settings: ${errorMessage}`,
+        data: errorData,
+        values: errorData,
+        input: inputParams,
+      } as ActionResult & { input: typeof inputParams };
+    }
+  },
+};
