@@ -169,6 +169,10 @@ export const checkPredictionsAction: Action = {
           count: formattedPredictions.length,
           markets: formattedPredictions.map((p) => ({
             id: p.id,
+            question:
+              p.question.length > 80
+                ? p.question.substring(0, 80) + '...'
+                : p.question,
             yesPercent: p.yesPercent,
             resolved: p.resolved,
             daysUntil: p.daysUntil,
