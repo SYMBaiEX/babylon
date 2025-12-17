@@ -23,12 +23,18 @@ const agentPnLService = new AgentPnLService();
 export const closePerpAction: Action = {
   name: 'CLOSE_PERP',
   description:
-    'Close an open perpetual position. IMPORTANT: Always call CHECK_PNL first to see your actual open positions - you need the position ID to close. Do NOT rely on conversation history for position data. Requires positionId.',
+    'Close an open perpetual position (full or partial). IMPORTANT: Always call CHECK_PNL first to see your actual open positions - you need the position ID and current size to close. Requires positionId. Optionally specify amount to partially close.',
   parameters: {
     positionId: {
       type: 'string',
       description: 'The ID of the perpetual position to close',
       required: true,
+    },
+    amount: {
+      type: 'number',
+      description:
+        'Dollar amount of position to close. If not specified, closes the entire position.',
+      required: false,
     },
   },
   examples: [
@@ -71,10 +77,11 @@ export const closePerpAction: Action = {
 
     // Get parameters from state
     const actionParams = state?.data?.actionParams as
-      | { positionId?: string }
+      | { positionId?: string; amount?: number }
       | undefined;
 
     const positionId = actionParams?.positionId;
+    const closeAmount = actionParams?.amount;
 
     if (!positionId) {
       return {
@@ -184,13 +191,59 @@ export const closePerpAction: Action = {
       const market = marketSnapshot.find((m) => m.ticker === position.ticker);
       const exitPrice = market?.currentPrice ?? Number(position.entryPrice);
 
-      // Close position
-      const result = await service.closePosition({
-        positionId,
-        userId: agentUserId,
-      });
+      const positionSize = Number(position.size);
+      const isPartialClose =
+        closeAmount !== undefined &&
+        closeAmount > 0 &&
+        closeAmount < positionSize;
 
-      const pnl = result.realizedPnL ?? 0;
+      let pnl: number;
+      let closedAmount: number;
+      let remainingSize: number;
+
+      if (isPartialClose) {
+        // Partial close - calculate proportional P&L and update position
+        closedAmount = closeAmount;
+        const closeRatio = closedAmount / positionSize;
+
+        // Calculate proportional P&L
+        const entryPrice = Number(position.entryPrice);
+        const leverage = position.leverage ?? 1;
+        const priceDiff = exitPrice - entryPrice;
+        const direction = position.side === 'long' ? 1 : -1;
+        const totalUnrealizedPnL =
+          (priceDiff / entryPrice) * positionSize * leverage * direction;
+        pnl = totalUnrealizedPnL * closeRatio;
+
+        // Update position size
+        remainingSize = positionSize - closedAmount;
+        await db
+          .update(perpPositions)
+          .set({
+            size: remainingSize,
+            lastUpdated: new Date(),
+          })
+          .where(eq(perpPositions.id, positionId));
+
+        // Credit wallet with closed amount + P&L
+        await WalletService.credit(
+          agentUserId,
+          closedAmount + pnl,
+          'perp_partial_close',
+          `Partial close ${position.ticker}: ${closedAmount} of ${positionSize}`,
+          positionId
+        );
+      } else {
+        // Full close
+        const result = await service.closePosition({
+          positionId,
+          userId: agentUserId,
+        });
+        pnl = result.realizedPnL ?? 0;
+        closedAmount = positionSize;
+        remainingSize = 0;
+      }
+
       const pnlStr =
         pnl >= 0 ? `+$${pnl.toFixed(2)}` : `-$${Math.abs(pnl).toFixed(2)}`;
 
@@ -202,14 +255,16 @@ export const closePerpAction: Action = {
         ticker: position.ticker,
         action: 'close',
         side: position.side as 'long' | 'short',
-        amount: Number(position.size),
+        amount: closedAmount,
         price: exitPrice,
         pnl,
         reasoning:
           (state?.data?.thought as string) || 'Chat-initiated perp close',
       });
 
-      const responseText = `Closed ${position.side.toUpperCase()} position on ${position.ticker} at $${exitPrice.toFixed(2)}. P&L: ${pnlStr}`;
+      const responseText = isPartialClose
+        ? `Partially closed ${position.side.toUpperCase()} position on ${position.ticker}: $${closedAmount.toFixed(2)} at $${exitPrice.toFixed(2)}. P&L: ${pnlStr}. Remaining: $${remainingSize.toFixed(2)}`
+        : `Closed ${position.side.toUpperCase()} position on ${position.ticker} at $${exitPrice.toFixed(2)}. P&L: ${pnlStr}`;
 
       logger.info('[CLOSE_PERP] Position closed', {
         agentUserId,
@@ -217,7 +272,10 @@ export const closePerpAction: Action = {
         ticker: position.ticker,
         side: position.side,
         exitPrice,
+        closedAmount,
+        remainingSize,
         pnl,
+        isPartialClose,
       });
 
       return {
@@ -228,14 +286,20 @@ export const closePerpAction: Action = {
           ticker: position.ticker,
           side: position.side,
           exitPrice,
+          closedAmount,
+          remainingSize,
           pnl,
+          isPartialClose,
         },
         values: {
           positionId,
           ticker: position.ticker,
           side: position.side,
           exitPrice,
+          closedAmount,
+          remainingSize,
           pnl,
+          isPartialClose,
         },
       };
     } catch (error) {
