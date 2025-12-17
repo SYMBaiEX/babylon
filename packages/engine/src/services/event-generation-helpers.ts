@@ -118,6 +118,20 @@ function selectEventType(): EventTypeConfig {
 }
 
 /**
+ * Sanitize topic text by removing any remaining template variables
+ */
+function sanitizeTopic(topic: string): string {
+  // Remove common template variables that may have leaked through
+  return topic
+    .replace(/\{resolutionDate\}/gi, 'the resolution date')
+    .replace(/\{resolution_date\}/gi, 'the resolution date')
+    .replace(/\{date\}/gi, 'the scheduled date')
+    .replace(/\{[a-zA-Z_]+\}/g, '') // Remove any other template variables
+    .replace(/\s+/g, ' ') // Normalize whitespace
+    .trim();
+}
+
+/**
  * Generate a description from template
  */
 function generateDescription(
@@ -125,7 +139,9 @@ function generateDescription(
   topic: string,
   actors: string[]
 ): string {
-  let description = template.replace('{topic}', topic);
+  // Sanitize topic to remove any template variable leakage
+  const cleanTopic = sanitizeTopic(topic);
+  let description = template.replace('{topic}', cleanTopic);
 
   // Add actor names if template supports it
   if (actors.length > 0) {

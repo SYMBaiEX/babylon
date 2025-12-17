@@ -50,6 +50,37 @@ const FORBIDDEN_PATTERNS = [
   /\btesla\s*inc/i,
   /\banthropic\s*ai/i,
   /\bnvidia\s*corp/i,
+
+  // Cryptocurrencies and blockchain (use parody names instead)
+  /\bethereum\b/i,
+  /\bbitcoin\b/i,
+  /\bsolana\b/i,
+  /\bcardano\b/i,
+  /\bpolkadot\b/i,
+  /\bavalanche\b/i,
+  /\bchainlink\b/i,
+  /\buniswap\b/i,
+  /\baave\b/i,
+  /\bcompound\b/i,
+  /\bpolygon\b/i,
+  /\barbitrum\b/i,
+  /\boptimism\b/i,
+  /\bbase\s*chain\b/i,
+  /\bcoinbase\b/i,
+  /\bbinance\b/i,
+  /\bkraken\b/i,
+  /\bgemini\b/i,
+  /\bftx\b/i,
+
+  // Social media platforms (use parody names)
+  /\btwitter\b/i,
+  /\bfacebook\b/i,
+  /\binstagram\b/i,
+  /\btiktok\b/i,
+  /\byoutube\b/i,
+  /\breddit\b/i,
+  /\bdiscord\b/i,
+  /\blinkedin\b/i,
 ];
 
 /**

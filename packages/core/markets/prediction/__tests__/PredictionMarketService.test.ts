@@ -279,18 +279,64 @@ describe('PredictionMarketService', () => {
     ).rejects.toThrow(/Specify positionId/);
   });
 
-  it('should block trades on resolved or expired markets', async () => {
+  it('should block buys on resolved markets', async () => {
     await db.updateMarketState('m1', { resolved: true });
     await expect(
       service.buy({ userId: 'u1', marketId: 'm1', side: 'yes', amount: 10 })
     ).rejects.toThrow(/resolved/);
+  });
+
+  it('should block buys on expired markets', async () => {
     await db.updateMarketState('m1', {
       resolved: false,
       endDate: new Date(Date.now() - 1000),
     });
     await expect(
-      service.sell({ userId: 'u1', marketId: 'm1', shares: 1 })
+      service.buy({ userId: 'u1', marketId: 'm1', side: 'yes', amount: 10 })
     ).rejects.toThrow(/expired/);
+  });
+
+  it('should allow sells on expired but unresolved markets', async () => {
+    // First buy a position while market is active
+    await service.buy({
+      userId: 'u1',
+      marketId: 'm1',
+      side: 'yes',
+      amount: 100,
+    });
+    const pos = await db.getPosition('u1', 'm1', 'yes');
+    expect(pos).not.toBeNull();
+
+    // Expire the market (but don't resolve it)
+    await db.updateMarketState('m1', {
+      endDate: new Date(Date.now() - 1000),
+    });
+
+    // User should still be able to close their position
+    const result = await service.sell({
+      userId: 'u1',
+      marketId: 'm1',
+      shares: pos!.shares,
+    });
+    expect(result.positionClosed).toBe(true);
+    expect(result.netProceeds).toBeGreaterThan(0);
+  });
+
+  it('should block sells on resolved markets', async () => {
+    // First buy a position
+    await service.buy({
+      userId: 'u1',
+      marketId: 'm1',
+      side: 'yes',
+      amount: 100,
+    });
+
+    // Resolve the market
+    await db.updateMarketState('m1', { resolved: true });
+
+    await expect(
+      service.sell({ userId: 'u1', marketId: 'm1', shares: 1 })
+    ).rejects.toThrow(/resolved/);
   });
 
   it('should prevent liquidity going negative on sell', async () => {

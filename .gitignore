@@ -70,3 +70,6 @@ apps/web/debug/
 packages/experimental/honest-demo-output/
 _docs/
 debug/
+
+# Test output directory
+.output/
