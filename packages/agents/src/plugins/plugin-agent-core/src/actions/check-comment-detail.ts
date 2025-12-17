@@ -247,28 +247,32 @@ export const checkCommentDetailAction: Action = {
           ? 'You'
           : post.authorDisplayName || post.authorUsername || 'User';
 
-      // Format thread for display
+      // Build formatted view like AutonomousBatchResponseService
       const threadLines = threadContext.map((msg) => {
-        const marker = msg.isTarget ? ' [THIS COMMENT]' : '';
-        const indent = '  '.repeat(msg.depth);
+        const marker = msg.isTarget ? ' [TARGET COMMENT]' : '';
+        const depthLabel =
+          msg.depth === 0 ? 'Comment' : `Reply (depth ${msg.depth})`;
         const truncated =
-          msg.content.length > 150
-            ? `${msg.content.substring(0, 150)}...`
+          msg.content.length > 200
+            ? `${msg.content.substring(0, 200)}...`
             : msg.content;
-        return `${indent}[ID: ${msg.id}] @${msg.author}: "${truncated}"${marker}`;
+        return `- ${depthLabel} [ID: ${msg.id}] by @${msg.author}: "${truncated}"${marker}`;
       });
 
-      const repliesSection =
+      const repliesLines =
         directReplies.length > 0
-          ? `\nDirect Replies (${directReplies.length}):\n${directReplies.map((r: { id: string; author: string; content: string }) => `  [ID: ${r.id}] @${r.author}: "${r.content}"`).join('\n')}`
-          : '\nNo direct replies yet.';
+          ? directReplies.map(
+              (r: { id: string; author: string; content: string }) =>
+                `  - Reply [ID: ${r.id}] by @${r.author}: "${r.content}"`
+            )
+          : [];
 
-      const responseText = `POST [ID: ${post.id}] by @${postAuthorName}:
-"${post.content.substring(0, 200)}${post.content.length > 200 ? '...' : ''}"
+      const formattedView = `POST [ID: ${post.id}] by @${postAuthorName}:
+"${post.content.substring(0, 300)}${post.content.length > 300 ? '...' : ''}"
 
-Thread Context:
+THREAD CONTEXT:
 ${threadLines.join('\n')}
-${repliesSection}`;
+${repliesLines.length > 0 ? `\nDIRECT REPLIES:\n${repliesLines.join('\n')}` : ''}`;
 
       logger.info(
         `[CHECK_COMMENT_DETAIL] Retrieved comment ${commentId} with ${threadContext.length} ancestors, ${directReplies.length} replies`,
@@ -297,31 +301,13 @@ ${repliesSection}`;
           },
           threadContext,
           directReplies,
-          formattedView: responseText,
         },
         values: {
+          formattedView,
           postId: post.id,
-          postAuthor: postAuthorName,
           commentId: targetComment.id,
-          commentAuthor:
-            targetComment.authorId === agentUserId
-              ? 'You'
-              : targetComment.authorDisplayName ||
-                targetComment.authorUsername ||
-                'User',
           threadDepth: threadContext.length,
           replyCount: directReplies.length,
-          thread: threadContext.map((t) => ({
-            id: t.id,
-            author: t.author,
-            isTarget: t.isTarget,
-          })),
-          replies: directReplies.map(
-            (r: { id: string; author: string; content: string }) => ({
-              id: r.id,
-              author: r.author,
-            })
-          ),
         },
       };
     } catch (error) {

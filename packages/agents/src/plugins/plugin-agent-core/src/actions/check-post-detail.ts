@@ -84,46 +84,35 @@ function buildCommentTree(
 }
 
 /**
- * Format comment tree for display
+ * Format comment tree for display with explicit "Reply to [id]" format
  */
 function formatCommentTree(
   threads: CommentThread[],
   maxDepth = 10
 ): {
   formatted: string;
-  comments: Array<{
-    id: string;
-    author: string;
-    content: string;
-    depth: number;
-  }>;
 } {
-  const allComments: Array<{
-    id: string;
-    author: string;
-    content: string;
-    depth: number;
-  }> = [];
   const lines: string[] = [];
 
-  function traverse(node: CommentThread, depth: number) {
+  function traverse(
+    node: CommentThread,
+    depth: number,
+    parentId: string | null
+  ) {
     if (depth > maxDepth) return;
 
-    const indent = '  '.repeat(depth);
     const truncatedContent =
       node.content.length > 150
         ? `${node.content.substring(0, 150)}...`
         : node.content;
 
-    lines.push(
-      `${indent}[ID: ${node.id}] @${node.author}: "${truncatedContent}"`
-    );
-    allComments.push({
-      id: node.id,
-      author: node.author,
-      content: truncatedContent,
-      depth,
-    });
+    // Format: "Comment" for top-level, "Reply to [parentId]" for replies
+    const prefix =
+      parentId === null
+        ? `- Comment [ID: ${node.id}]`
+        : `- Reply to ${parentId} [ID: ${node.id}]`;
+
+    lines.push(`${prefix} by @${node.author}: "${truncatedContent}"`);
 
     // Sort replies by time
     const sortedReplies = [...node.replies].sort(
@@ -131,15 +120,15 @@ function formatCommentTree(
     );
 
     for (const reply of sortedReplies) {
-      traverse(reply, depth + 1);
+      traverse(reply, depth + 1, node.id);
     }
   }
 
   for (const thread of threads) {
-    traverse(thread, 0);
+    traverse(thread, 0, null);
   }
 
-  return { formatted: lines.join('\n'), comments: allComments };
+  return { formatted: lines.join('\n') };
 }
 
 export const checkPostDetailAction: Action = {
@@ -259,18 +248,18 @@ export const checkPostDetailAction: Action = {
 
       // Build comment tree
       const commentTree = buildCommentTree(commentsWithAuthor, agentUserId);
-      const { formatted: formattedComments, comments: commentsList } =
-        formatCommentTree(commentTree);
+      const { formatted: formattedComments } = formatCommentTree(commentTree);
 
       const postAuthorName =
         post.authorId === agentUserId
           ? 'You'
           : post.authorDisplayName || post.authorUsername || 'User';
 
-      const responseText = `Post [ID: ${post.id}] by @${postAuthorName}:
-"${post.content}"
+      // Build formatted view
+      const formattedView = `POST [ID: ${post.id}] by @${postAuthorName}:
+"${post.content.substring(0, 500)}${post.content.length > 500 ? '...' : ''}"
 
-${postComments.length > 0 ? `Comments (${postComments.length}):\n${formattedComments}` : 'No comments yet.'}`;
+${postComments.length > 0 ? `COMMENTS (${postComments.length}):\n${formattedComments}` : 'No comments yet.'}`;
 
       logger.info(
         `[CHECK_POST_DETAIL] Retrieved post ${postId} with ${postComments.length} comments`,
@@ -280,7 +269,7 @@ ${postComments.length > 0 ? `Comments (${postComments.length}):\n${formattedComm
 
       return {
         success: true,
-        text: `Retrieved post with ${postComments.length} comments. Use comment IDs with CREATE_COMMENT to reply.`,
+        text: `Retrieved post with ${postComments.length} comments.`,
         data: {
           post: {
             id: post.id,
@@ -290,14 +279,11 @@ ${postComments.length > 0 ? `Comments (${postComments.length}):\n${formattedComm
             createdAt: post.createdAt,
           },
           comments: commentsWithAuthor,
-          formattedView: responseText,
         },
         values: {
+          formattedView,
           postId: post.id,
-          postAuthor: postAuthorName,
-          postContent: post.content.substring(0, 200),
           commentCount: postComments.length,
-          comments: commentsList,
         },
       };
     } catch (error) {
