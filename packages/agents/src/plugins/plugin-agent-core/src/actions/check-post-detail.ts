@@ -259,18 +259,12 @@ export const checkPostDetailAction: Action = {
 
       // Build comment tree
       const commentTree = buildCommentTree(commentsWithAuthor, agentUserId);
-      const { formatted: formattedComments, comments: commentsList } =
-        formatCommentTree(commentTree);
+      const { comments: commentsList } = formatCommentTree(commentTree);
 
       const postAuthorName =
         post.authorId === agentUserId
           ? 'You'
           : post.authorDisplayName || post.authorUsername || 'User';
-
-      const responseText = `Post [ID: ${post.id}] by @${postAuthorName}:
-"${post.content}"
-
-${postComments.length > 0 ? `Comments (${postComments.length}):\n${formattedComments}` : 'No comments yet.'}`;
 
       logger.info(
         `[CHECK_POST_DETAIL] Retrieved post ${postId} with ${postComments.length} comments`,
@@ -280,7 +274,7 @@ ${postComments.length > 0 ? `Comments (${postComments.length}):\n${formattedComm
 
       return {
         success: true,
-        text: responseText,
+        text: `Retrieved post with ${postComments.length} comments.`,
         data: {
           post: {
             id: post.id,

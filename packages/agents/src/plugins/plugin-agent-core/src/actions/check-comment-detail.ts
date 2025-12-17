@@ -247,29 +247,6 @@ export const checkCommentDetailAction: Action = {
           ? 'You'
           : post.authorDisplayName || post.authorUsername || 'User';
 
-      // Format thread for display
-      const threadLines = threadContext.map((msg) => {
-        const marker = msg.isTarget ? ' [THIS COMMENT]' : '';
-        const indent = '  '.repeat(msg.depth);
-        const truncated =
-          msg.content.length > 150
-            ? `${msg.content.substring(0, 150)}...`
-            : msg.content;
-        return `${indent}[ID: ${msg.id}] @${msg.author}: "${truncated}"${marker}`;
-      });
-
-      const repliesSection =
-        directReplies.length > 0
-          ? `\nDirect Replies (${directReplies.length}):\n${directReplies.map((r: { id: string; author: string; content: string }) => `  [ID: ${r.id}] @${r.author}: "${r.content}"`).join('\n')}`
-          : '\nNo direct replies yet.';
-
-      const responseText = `POST [ID: ${post.id}] by @${postAuthorName}:
-"${post.content.substring(0, 200)}${post.content.length > 200 ? '...' : ''}"
-
-Thread Context:
-${threadLines.join('\n')}
-${repliesSection}`;
-
       logger.info(
         `[CHECK_COMMENT_DETAIL] Retrieved comment ${commentId} with ${threadContext.length} ancestors, ${directReplies.length} replies`,
         undefined,
@@ -278,7 +255,7 @@ ${repliesSection}`;
 
       return {
         success: true,
-        text: responseText,
+        text: `Retrieved comment with ${threadContext.length - 1} parent(s) and ${directReplies.length} replies.`,
         data: {
           post: {
             id: post.id,
