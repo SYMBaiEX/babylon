@@ -106,7 +106,7 @@ export const openPerpAction: Action = {
     if (!ticker || !side || !amount) {
       return {
         success: false,
-        text: 'Missing required parameters. Need ticker, side (LONG/SHORT), and amount.',
+        text: 'Missing required parameters. Need ticker, side (LONG/SHORT), and amount. Please call CHECK_PERPS first to see available markets and get the ticker.',
         data: { error: 'Missing parameters' },
         values: { error: 'Missing parameters' },
       };
@@ -136,7 +136,7 @@ export const openPerpAction: Action = {
       if (balance.balance < amount) {
         return {
           success: false,
-          text: `Insufficient balance. You have $${balance.balance.toFixed(2)} but need $${amount}.`,
+          text: `Insufficient balance. You have $${balance.balance.toFixed(2)} but need $${amount}. Please call CHECK_BALANCE first to verify your available funds.`,
           data: { error: 'Insufficient balance', balance: balance.balance },
           values: { error: 'Insufficient balance', balance: balance.balance },
         };
@@ -220,12 +220,12 @@ export const openPerpAction: Action = {
       if (!market) {
         return {
           success: false,
-          text: `Market ${ticker} not found. Available: ${marketSnapshot
+          text: `Market "${ticker}" not found. Please call CHECK_PERPS first to see available markets and get the correct ticker. Available: ${marketSnapshot
             .slice(0, 5)
             .map((m) => m.ticker)
             .join(', ')}`,
-          data: { error: 'Market not found', ticker },
-          values: { error: 'Market not found', ticker },
+          data: { error: 'Market not found', providedTicker: ticker },
+          values: { error: 'Market not found', providedTicker: ticker },
         };
       }
 

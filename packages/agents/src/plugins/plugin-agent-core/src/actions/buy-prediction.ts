@@ -94,7 +94,7 @@ export const buyPredictionAction: Action = {
     if (!marketId || !side || !amount) {
       return {
         success: false,
-        text: 'Missing required parameters. Need marketId, side (YES/NO), and amount.',
+        text: 'Missing required parameters. Need marketId, side (YES/NO), and amount. Please call CHECK_PREDICTIONS first to see available markets and get the market ID.',
         data: { error: 'Missing parameters' },
         values: { error: 'Missing parameters' },
       };
@@ -135,9 +135,9 @@ export const buyPredictionAction: Action = {
       if (!market) {
         return {
           success: false,
-          text: 'Market not found or already resolved.',
-          data: { error: 'Market not found' },
-          values: { error: 'Market not found' },
+          text: `Market not found with ID "${marketId}" or already resolved. Please call CHECK_PREDICTIONS first to see available open markets and get the correct market ID.`,
+          data: { error: 'Market not found', providedId: marketId },
+          values: { error: 'Market not found', providedId: marketId },
         };
       }
 
@@ -146,7 +146,7 @@ export const buyPredictionAction: Action = {
       if (balance.balance < amount) {
         return {
           success: false,
-          text: `Insufficient balance. You have $${balance.balance.toFixed(2)} but need $${amount}.`,
+          text: `Insufficient balance. You have $${balance.balance.toFixed(2)} but need $${amount}. Please call CHECK_BALANCE first to verify your available funds.`,
           data: { error: 'Insufficient balance', balance: balance.balance },
           values: { error: 'Insufficient balance', balance: balance.balance },
         };
