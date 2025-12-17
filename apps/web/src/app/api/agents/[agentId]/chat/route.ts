@@ -65,6 +65,11 @@ Determine the next step to take in this conversation.
 # Execution Context
 Step {{iterationCount}} of {{maxIterations}}
 Actions taken this round: {{actionCount}}
+{{#if actionCount}}
+You have ALREADY taken {{actionCount}} action(s) in this round. Review them carefully before deciding.
+{{else}}
+This is your FIRST decision step - no actions have been taken yet.
+{{/if}}
 
 ---
 
@@ -75,39 +80,70 @@ Actions taken this round: {{actionCount}}
 # Actions Completed This Round
 {{#if actionCount}}
 {{actionResults}}
-**IMPORTANT**: Use IDs/data from these results for follow-up actions.
+**IMPORTANT**: Use IDs/data from these results for follow-up actions. Do NOT repeat these actions.
 {{else}}
 No actions taken yet.
 {{/if}}
 
 ---
 
+# REDUNDANCY RULES (CRITICAL)
+**AVOID REDUNDANCY** - These are DUPLICATES, DO NOT repeat:
+- ❌ Executing the SAME action with the SAME parameters you just executed
+- ❌ Buying/selling the same asset multiple times unless explicitly asked
+- ❌ Checking the same data twice in a row
+
+**ENCOURAGE COMPLEMENTARITY** - These ADD VALUE:
+- ✅ Different actions that provide different information
+- ✅ Sequential steps (check balance → then trade)
+- ✅ Using results from one action as input to another
+
+**Decision Logic**:
+- After executing an action, ask: "Did this COMPLETE the user's request?"
+- If YES → Set isFinish: true immediately
+- If NO and user asked for multiple things → Continue to next action
+- If about to repeat same action → STOP, set isFinish: true
+
+---
+
+# Request Type Classification
+1. **SPECIFIC REQUEST** (e.g., "sell 100 shares", "check my balance", "enable auto-trading"):
+   - Execute the ONE action needed
+   - Set isFinish: true IMMEDIATELY after
+   
+2. **MULTI-PART REQUEST** (e.g., "check predictions AND buy the best one"):
+   - Execute each distinct action in sequence
+   - Set isFinish: true only when ALL parts are complete
+
+3. **CONVERSATIONAL** (e.g., "hello", "thanks", questions without actions):
+   - Set action to "" and isFinish: true
+
+---
+
 # Decision Rules
-1. **Complete the FULL request** - If user asks to "check X and do Y", execute BOTH actions
-2. **Use results from prior actions** - IDs, prices, data from completed actions should inform next action parameters
-3. **Avoid redundancy** - Don't repeat the same action with same parameters
-4. **Encourage complementarity** - Related actions that add new value are good
-5. **Just chatting?** → Set action to "" and isFinish to true
-6. **All requested actions done?** → Set action to "" and isFinish to true
+1. **Classify the request type FIRST** - Is it Specific, Multi-part, or Conversational?
+2. **Check what you've already done** - Review Actions Completed This Round
+3. **Before ANY action, ask**: "Have I already done THIS EXACT action?" If YES → STOP
+4. **For trades (buy/sell)**: Execute ONCE, then STOP. Do not repeat.
+5. **Use results from prior actions** - IDs, data from completed actions inform next parameters
+6. **When in doubt** → Set isFinish: true (better to under-execute than over-execute)
 
 <keys>
-"thought" Step count, what user asked, what you've done, what's next
+"thought" START WITH: "Step {{iterationCount}}/{{maxIterations}}. Actions this round: {{actionCount}}." THEN: Classify request type. THEN: If actions > 0, check if request is satisfied. THEN: Decide next step or finish.
 "action" Name of the action to execute, or empty string "" if no action needed
-"parameters" JSON object with exact parameter names from action results. Empty object {} if no parameters.
-"isFinish" Set to true when user's request is fully satisfied
+"parameters" JSON object with exact parameter names. Empty object {} if no parameters.
+"isFinish" Set to true when user's request is satisfied OR you're about to repeat an action
 </keys>
+
+CRITICAL CHECK before outputting:
+- Am I about to execute the EXACT SAME action I just did? If YES → set isFinish: true instead
 
 <output>
 <response>
-  <thought>Step {{iterationCount}}/{{maxIterations}}. [Your reasoning]</thought>
+  <thought>Step {{iterationCount}}/{{maxIterations}}. Actions this round: {{actionCount}}. [Classify request type] [Your reasoning]</thought>
   <action>ACTION_NAME or ""</action>
-  <parameters>
-    {
-      "param1": "value1",
-      "param2": "value2"
-    }
-  </parameters>
-  <isFinish>true | false</isFinish>
+  <parameters>{"param": "value"}</parameters>
+  <isFinish>true or false</isFinish>
 </response>
 </output>`;
 
