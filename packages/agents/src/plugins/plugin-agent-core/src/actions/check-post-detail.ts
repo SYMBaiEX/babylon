@@ -280,7 +280,7 @@ ${postComments.length > 0 ? `Comments (${postComments.length}):\n${formattedComm
 
       return {
         success: true,
-        text: `Retrieved post with ${postComments.length} comments. Use comment IDs with CREATE_COMMENT to reply.`,
+        text: responseText,
         data: {
           post: {
             id: post.id,
@@ -290,12 +290,14 @@ ${postComments.length > 0 ? `Comments (${postComments.length}):\n${formattedComm
             createdAt: post.createdAt,
           },
           comments: commentsWithAuthor,
-          formattedView: responseText,
         },
         values: {
           postId: post.id,
           postAuthor: postAuthorName,
-          postContent: post.content.substring(0, 200),
+          postContent:
+            post.content.length > 300
+              ? `${post.content.substring(0, 300)}...`
+              : post.content,
           commentCount: postComments.length,
           comments: commentsList,
         },

@@ -278,7 +278,7 @@ ${repliesSection}`;
 
       return {
         success: true,
-        text: `Retrieved comment with ${threadContext.length - 1} parent(s) and ${directReplies.length} replies.`,
+        text: responseText,
         data: {
           post: {
             id: post.id,
@@ -297,11 +297,14 @@ ${repliesSection}`;
           },
           threadContext,
           directReplies,
-          formattedView: responseText,
         },
         values: {
           postId: post.id,
           postAuthor: postAuthorName,
+          postContent:
+            post.content.length > 200
+              ? `${post.content.substring(0, 200)}...`
+              : post.content,
           commentId: targetComment.id,
           commentAuthor:
             targetComment.authorId === agentUserId
@@ -314,12 +317,17 @@ ${repliesSection}`;
           thread: threadContext.map((t) => ({
             id: t.id,
             author: t.author,
+            content:
+              t.content.length > 150
+                ? `${t.content.substring(0, 150)}...`
+                : t.content,
             isTarget: t.isTarget,
           })),
           replies: directReplies.map(
             (r: { id: string; author: string; content: string }) => ({
               id: r.id,
               author: r.author,
+              content: r.content,
             })
           ),
         },
