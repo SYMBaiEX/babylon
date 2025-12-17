@@ -3,19 +3,34 @@
  *
  * Provides previous action results from the current multi-step execution.
  * This tracks what actions have been taken and their outcomes.
+ *
+ * Pattern (like otaku):
+ * - text: Brief status message (success/failure, what action to call first)
+ * - values: Key data for subsequent actions (IDs, amounts, etc.)
  */
 
 import type {
+  ActionResult,
   IAgentRuntime,
   Memory,
   Provider,
   ProviderResult,
   State,
 } from '@elizaos/core';
-import type { ActionTraceResult } from '../types';
+
+/**
+ * Extended action result with tracking metadata
+ */
+type ActionTraceResult = ActionResult & {
+  actionType: string;
+  parameters?: Record<string, unknown>;
+  timestamp: number;
+};
 
 /**
  * Format action results for LLM context
+ * - Text shows brief status
+ * - Values are formatted as key-value pairs (like otaku)
  */
 function formatActionResults(results: ActionTraceResult[]): string {
   if (results.length === 0) {
@@ -25,24 +40,27 @@ function formatActionResults(results: ActionTraceResult[]): string {
   return results
     .map((result, index) => {
       const status = result.success ? '✓ Success' : '✗ Failed';
-      let text = `${index + 1}. **${result.actionType}** - ${status}`;
+      let output = `${index + 1}. **${result.actionType}** - ${status}`;
 
-      if (result.summary) {
-        text += `\n   Summary: ${result.summary}`;
+      // Show text (brief status)
+      if (result.text) {
+        output += `\n   Summary: ${result.text}`;
       }
 
+      // Show error if failed
       if (result.error) {
-        text += `\n   Error: ${result.error}`;
+        output += `\n   Error: ${result.error}`;
       }
 
-      if (result.result && Object.keys(result.result).length > 0) {
-        const resultStr = Object.entries(result.result)
-          .map(([key, value]) => `${key}: ${JSON.stringify(value)}`)
-          .join(', ');
-        text += `\n   Result: ${resultStr}`;
+      // Format values as key-value pairs (like otaku)
+      if (result.values && Object.keys(result.values).length > 0) {
+        const valuesStr = Object.entries(result.values)
+          .map(([key, value]) => `   - ${key}: ${JSON.stringify(value)}`)
+          .join('\n');
+        output += `\n   Values:\n${valuesStr}`;
       }
 
-      return text;
+      return output;
     })
     .join('\n\n');
 }

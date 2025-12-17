@@ -158,21 +158,9 @@ export const checkRecentMarketTradesAction: Action = {
           success: true,
           text: 'No recent trading activity.',
           data: { trades: [], count: 0 },
-          values: { trades: [], count: 0, hasTrades: false },
+          values: { count: 0 },
         };
       }
-
-      // Build response text
-      const tradesList = allTrades
-        .map((t, i) => {
-          const actionStr = t.side ? `${t.action} ${t.side}` : t.action;
-          const marketStr = t.ticker || t.marketType || 'unknown';
-          const amountStr = t.amount > 0 ? `$${t.amount.toFixed(2)}` : '';
-          return `${i + 1}. **${t.trader}** ${actionStr} ${marketStr} ${amountStr} (${t.timeAgo})`;
-        })
-        .join('\n');
-
-      const responseText = `**Recent Trades (${allTrades.length}):**\n${tradesList}`;
 
       logger.info(
         `[CHECK_RECENT_MARKET_TRADES] Retrieved ${allTrades.length} trades`,
@@ -182,7 +170,7 @@ export const checkRecentMarketTradesAction: Action = {
 
       return {
         success: true,
-        text: responseText,
+        text: `Retrieved ${allTrades.length} recent trades.`,
         data: {
           trades: allTrades,
           count: allTrades.length,
@@ -190,10 +178,13 @@ export const checkRecentMarketTradesAction: Action = {
           agentTradeCount: agentTradeResults.length,
         },
         values: {
-          trades: allTrades,
           count: allTrades.length,
-          hasTrades: true,
-          tradesList,
+          trades: allTrades.map((t) => ({
+            trader: t.trader,
+            action: t.action,
+            ticker: t.ticker,
+            amount: t.amount,
+          })),
         },
       };
     } catch (error) {
@@ -202,8 +193,7 @@ export const checkRecentMarketTradesAction: Action = {
       return {
         success: false,
         text: `Failed to retrieve trades: ${errorMsg}`,
-        data: { error: errorMsg },
-        values: { error: errorMsg },
+        error: errorMsg,
       };
     }
   },

@@ -130,22 +130,17 @@ export const toggleAutonomyAction: Action = {
       | ToggleAutonomyParams
       | undefined;
 
-    const inputParams = actionParams || { feature: 'unknown', enabled: false };
-
     if (!actionParams) {
       logger.warn(
         '[TOGGLE_AUTONOMY] No action parameters found in state',
         undefined,
         'ToggleAutonomy'
       );
-      const errorData = { error: 'Missing parameters' };
       return {
         success: false,
-        text: 'Missing parameters. Please specify which feature to toggle and whether to enable or disable it.',
-        data: errorData,
-        values: errorData,
-        input: inputParams,
-      } as ActionResult & { input: typeof inputParams };
+        text: 'Missing parameters: feature and enabled required.',
+        error: 'Missing parameters',
+      };
     }
 
     const { feature, enabled } = actionParams;
@@ -161,28 +156,22 @@ export const toggleAutonomyAction: Action = {
     ];
 
     if (!validFeatures.includes(feature)) {
-      const errorData = { error: 'Invalid feature', feature };
       return {
         success: false,
-        text: `Invalid feature "${feature}". Valid options are: ${validFeatures.join(', ')}`,
-        data: errorData,
-        values: errorData,
-        input: inputParams,
-      } as ActionResult & { input: typeof inputParams };
+        text: `Invalid feature "${feature}". Valid: ${validFeatures.join(', ')}`,
+        error: 'Invalid feature',
+      };
     }
 
     try {
       // Get agent to find manager
       const agent = await agentService.getAgent(agentUserId);
       if (!agent) {
-        const errorData = { error: 'Agent not found' };
         return {
           success: false,
-          text: 'Agent not found',
-          data: errorData,
-          values: errorData,
-          input: inputParams,
-        } as ActionResult & { input: typeof inputParams };
+          text: 'Agent not found.',
+          error: 'Agent not found',
+        };
       }
 
       const managerUserId = agent.managedBy || agentUserId;
@@ -214,21 +203,12 @@ export const toggleAutonomyAction: Action = {
         'ToggleAutonomy'
       );
 
-      const successData = {
-        feature,
-        enabled,
-        updatedFields: Object.keys(updates),
-        featureDisplay,
-        statusDisplay,
-      };
-
       return {
         success: true,
-        text: `Successfully ${statusDisplay} ${featureDisplay}.`,
-        data: successData,
-        values: successData,
-        input: inputParams,
-      } as ActionResult & { input: typeof inputParams };
+        text: `${featureDisplay} ${statusDisplay}.`,
+        data: { feature, enabled, updatedFields: Object.keys(updates) },
+        values: { feature, enabled },
+      };
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : 'Unknown error';
@@ -238,14 +218,11 @@ export const toggleAutonomyAction: Action = {
         'ToggleAutonomy'
       );
 
-      const errorData = { error: errorMessage };
       return {
         success: false,
         text: `Failed to update autonomy settings: ${errorMessage}`,
-        data: errorData,
-        values: errorData,
-        input: inputParams,
-      } as ActionResult & { input: typeof inputParams };
+        error: errorMessage,
+      };
     }
   },
 };

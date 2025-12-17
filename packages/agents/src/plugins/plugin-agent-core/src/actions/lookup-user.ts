@@ -71,9 +71,8 @@ export const lookupUserAction: Action = {
     if (!searchTerm) {
       return {
         success: false,
-        text: 'Missing username parameter. Please provide a username to look up.',
-        data: { error: 'Missing username' },
-        values: { error: 'Missing username' },
+        text: 'Missing username parameter.',
+        error: 'Missing username',
       };
     }
 
@@ -102,22 +101,9 @@ export const lookupUserAction: Action = {
           success: true,
           text: `No users found matching "${searchTerm}".`,
           data: { users: [], count: 0 },
-          values: { found: false, count: 0 },
+          values: { count: 0 },
         };
       }
-
-      // Format results
-      const userList = foundUsers
-        .map((u) => {
-          const type = u.isAgent ? '🤖 Agent' : '👤 User';
-          return `• **${u.displayName || u.username}** (@${u.username})\n  ${type} | ID: \`${u.id}\``;
-        })
-        .join('\n');
-
-      const responseText =
-        foundUsers.length === 1
-          ? `Found user:\n${userList}\n\nUse this ID with CHECK_RECENT_POSTS or CHECK_RECENT_COMMENTS.`
-          : `Found ${foundUsers.length} users matching "${searchTerm}":\n${userList}\n\nUse a user ID with CHECK_RECENT_POSTS or CHECK_RECENT_COMMENTS.`;
 
       logger.info(
         `[LOOKUP_USER] Found ${foundUsers.length} users for "${searchTerm}"`,
@@ -127,7 +113,7 @@ export const lookupUserAction: Action = {
 
       return {
         success: true,
-        text: responseText,
+        text: `Found ${foundUsers.length} user(s) matching "${searchTerm}".`,
         data: {
           users: foundUsers.map((u) => ({
             id: u.id,
@@ -136,15 +122,12 @@ export const lookupUserAction: Action = {
             isAgent: u.isAgent,
           })),
           count: foundUsers.length,
-          // For convenience, include the first match's ID directly
           userId: foundUsers[0]?.id,
         },
         values: {
-          found: true,
           count: foundUsers.length,
           userId: foundUsers[0]?.id,
           username: foundUsers[0]?.username,
-          displayName: foundUsers[0]?.displayName,
           isAgent: foundUsers[0]?.isAgent,
         },
       };
@@ -155,8 +138,7 @@ export const lookupUserAction: Action = {
       return {
         success: false,
         text: `Failed to look up user: ${errorMsg}`,
-        data: { error: errorMsg },
-        values: { error: errorMsg },
+        error: errorMsg,
       };
     }
   },

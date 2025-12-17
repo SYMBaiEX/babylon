@@ -175,9 +175,8 @@ export const checkRecentCommentsAction: Action = {
         if (!targetUser) {
           return {
             success: false,
-            text: `User with ID "${targetUserId}" not found. Use LOOKUP_USER to find a valid user ID.`,
-            data: { error: 'User not found' },
-            values: { error: 'User not found' },
+            text: `User not found. Call LOOKUP_USER first to get valid userId.`,
+            error: 'User not found',
           };
         }
         targetName = targetUser.displayName || targetUser.username || 'User';
@@ -198,14 +197,11 @@ export const checkRecentCommentsAction: Action = {
         .limit(limit);
 
       if (recentComments.length === 0) {
-        const noCommentsMsg = isSelf
-          ? "You haven't commented on anything yet."
-          : `${targetName} hasn't commented on anything yet.`;
         return {
           success: true,
-          text: noCommentsMsg,
+          text: isSelf ? 'No comments yet.' : `${targetName} has no comments.`,
           data: { comments: [], count: 0, userId: targetUserId },
-          values: { comments: [], count: 0, hasComments: false },
+          values: { count: 0 },
         };
       }
 
@@ -260,41 +256,6 @@ export const checkRecentCommentsAction: Action = {
         });
       }
 
-      // Format for display
-      const sections = formattedComments.map((c, i) => {
-        const header = `${i + 1}. On @${c.post.authorName}'s post (${c.timeAgo}):`;
-
-        // Show post content (truncated)
-        const postContent =
-          c.post.content.length > 60
-            ? c.post.content.substring(0, 57) + '...'
-            : c.post.content;
-        const postLine = `   POST: "${postContent}"`;
-
-        // Show thread if it's a reply with context
-        let threadLines = '';
-        if (c.isReply && c.thread.length > 1) {
-          threadLines =
-            '\n   THREAD:\n' +
-            c.thread
-              .map((msg, idx) => {
-                const marker =
-                  idx === c.thread.length - 1 ? '→' : msg.isTarget ? '•' : ' ';
-                return `   ${marker} @${msg.authorName}: "${msg.content}"`;
-              })
-              .join('\n');
-        } else {
-          threadLines = `\n   COMMENT: "${c.content}"`;
-        }
-
-        return `${header}\n${postLine}${threadLines}`;
-      });
-
-      const header = isSelf
-        ? 'Your recent comments:'
-        : `${targetName}'s recent comments:`;
-      const responseText = `${header}\n\n${sections.join('\n\n')}`;
-
       logger.info(
         `[CHECK_RECENT_COMMENTS] Retrieved ${recentComments.length} comments for ${isSelf ? 'self' : targetUserId}`,
         undefined,
@@ -303,7 +264,7 @@ export const checkRecentCommentsAction: Action = {
 
       return {
         success: true,
-        text: responseText,
+        text: `Retrieved ${recentComments.length} comments${isSelf ? '' : ` from ${targetName}`}.`,
         data: {
           comments: formattedComments,
           count: recentComments.length,
@@ -311,10 +272,20 @@ export const checkRecentCommentsAction: Action = {
           userName: targetName,
         },
         values: {
-          comments: formattedComments,
           count: recentComments.length,
-          hasComments: true,
-          isSelf,
+          userId: targetUserId,
+          userName: targetName,
+          comments: formattedComments.map((c) => ({
+            id: c.id,
+            postId: c.post.id,
+            content: c.content.substring(0, 100),
+            timeAgo: c.timeAgo,
+            isReply: c.isReply,
+            thread: c.thread.map((t) => ({
+              author: t.authorName,
+              content: t.content.substring(0, 100),
+            })),
+          })),
         },
       };
     } catch (error) {
@@ -324,8 +295,7 @@ export const checkRecentCommentsAction: Action = {
       return {
         success: false,
         text: `Failed to retrieve comments: ${errorMsg}`,
-        data: { error: errorMsg },
-        values: { error: errorMsg },
+        error: errorMsg,
       };
     }
   },

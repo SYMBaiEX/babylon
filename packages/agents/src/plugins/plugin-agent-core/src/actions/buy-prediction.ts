@@ -94,9 +94,8 @@ export const buyPredictionAction: Action = {
     if (!marketId || !side || !amount) {
       return {
         success: false,
-        text: 'Missing required parameters. Need marketId, side (YES/NO), and amount. Please call CHECK_PREDICTIONS first to see available markets and get the market ID.',
-        data: { error: 'Missing parameters' },
-        values: { error: 'Missing parameters' },
+        text: 'Missing parameters. Call CHECK_PREDICTIONS first to get marketId.',
+        error: 'Missing parameters: marketId, side, or amount',
       };
     }
 
@@ -104,8 +103,7 @@ export const buyPredictionAction: Action = {
       return {
         success: false,
         text: 'Invalid side. Must be YES or NO.',
-        data: { error: 'Invalid side' },
-        values: { error: 'Invalid side' },
+        error: 'Invalid side',
       };
     }
 
@@ -113,8 +111,7 @@ export const buyPredictionAction: Action = {
       return {
         success: false,
         text: 'Amount must be greater than 0.',
-        data: { error: 'Invalid amount' },
-        values: { error: 'Invalid amount' },
+        error: 'Invalid amount',
       };
     }
 
@@ -135,9 +132,8 @@ export const buyPredictionAction: Action = {
       if (!market) {
         return {
           success: false,
-          text: `Market not found with ID "${marketId}" or already resolved. Please call CHECK_PREDICTIONS first to see available open markets and get the correct market ID.`,
-          data: { error: 'Market not found', providedId: marketId },
-          values: { error: 'Market not found', providedId: marketId },
+          text: `Market not found or resolved. Call CHECK_PREDICTIONS first to get valid marketId.`,
+          error: 'Market not found',
         };
       }
 
@@ -146,9 +142,9 @@ export const buyPredictionAction: Action = {
       if (balance.balance < amount) {
         return {
           success: false,
-          text: `Insufficient balance. You have $${balance.balance.toFixed(2)} but need $${amount}. Please call CHECK_BALANCE first to verify your available funds.`,
-          data: { error: 'Insufficient balance', balance: balance.balance },
-          values: { error: 'Insufficient balance', balance: balance.balance },
+          text: `Insufficient balance ($${balance.balance.toFixed(2)}). Call CHECK_BALANCE first.`,
+          error: 'Insufficient balance',
+          values: { balance: balance.balance },
         };
       }
 
@@ -249,8 +245,6 @@ export const buyPredictionAction: Action = {
         reasoning: (state?.data?.thought as string) || 'Chat-initiated trade',
       });
 
-      const responseText = `Bought ${result.calculation.sharesBought.toFixed(2)} ${side} shares at avg price $${result.calculation.avgPrice.toFixed(4)}. Cost: $${amount.toFixed(2)}`;
-
       logger.info('[BUY_PREDICTION] Trade successful', {
         agentUserId,
         marketId,
@@ -262,7 +256,7 @@ export const buyPredictionAction: Action = {
 
       return {
         success: true,
-        text: responseText,
+        text: `Bought ${result.calculation.sharesBought.toFixed(2)} ${side} shares at $${result.calculation.avgPrice.toFixed(4)}.`,
         data: {
           marketId,
           marketQuestion: market.question,
@@ -285,8 +279,7 @@ export const buyPredictionAction: Action = {
       return {
         success: false,
         text: `Failed to buy shares: ${errorMsg}`,
-        data: { error: errorMsg },
-        values: { error: errorMsg },
+        error: errorMsg,
       };
     }
   },

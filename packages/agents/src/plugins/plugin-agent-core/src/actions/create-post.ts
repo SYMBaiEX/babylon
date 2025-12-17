@@ -104,9 +104,8 @@ export const createPostAction: Action = {
       logger.error('[CREATE_POST] No content provided');
       return {
         success: false,
-        text: 'Cannot create post - no content provided.',
-        data: { error: 'No content provided' },
-        values: { error: 'No content provided' },
+        text: 'No content provided.',
+        error: 'No content provided',
       };
     }
 
@@ -115,18 +114,16 @@ export const createPostAction: Action = {
     if (trimmedContent.length < 5) {
       return {
         success: false,
-        text: 'Post content is too short. Please provide more content.',
-        data: { error: 'Content too short' },
-        values: { error: 'Content too short' },
+        text: 'Content too short (min 5 chars).',
+        error: 'Content too short',
       };
     }
 
     if (trimmedContent.length > 1000) {
       return {
         success: false,
-        text: 'Post content is too long. Please keep it under 1000 characters.',
-        data: { error: 'Content too long' },
-        values: { error: 'Content too long' },
+        text: 'Content too long (max 1000 chars).',
+        error: 'Content too long',
       };
     }
 
@@ -170,17 +167,11 @@ export const createPostAction: Action = {
           );
         });
 
-      const resultData = {
-        postId,
-        content: trimmedContent,
-        authorId: agentId,
-      };
-
       return {
         success: true,
-        text: `Post created successfully!`,
-        data: resultData,
-        values: resultData,
+        text: 'Post created.',
+        data: { postId, content: trimmedContent, authorId: agentId },
+        values: { postId },
       };
     } catch (error) {
       const errorMsg =
@@ -190,8 +181,7 @@ export const createPostAction: Action = {
       return {
         success: false,
         text: `Failed to create post: ${errorMsg}`,
-        data: { error: errorMsg },
-        values: { error: errorMsg },
+        error: errorMsg,
       };
     }
   },

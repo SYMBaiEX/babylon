@@ -86,9 +86,8 @@ export const closePerpAction: Action = {
     if (!positionId) {
       return {
         success: false,
-        text: 'Missing required parameter: positionId. Please call CHECK_PNL first to see your open perp positions and get the position ID.',
-        data: { error: 'Missing positionId' },
-        values: { error: 'Missing positionId' },
+        text: 'Missing positionId. Call CHECK_PNL first to get position IDs.',
+        error: 'Missing positionId',
       };
     }
 
@@ -109,9 +108,8 @@ export const closePerpAction: Action = {
       if (!position) {
         return {
           success: false,
-          text: `Position not found with ID "${positionId}". Please call CHECK_PNL first to see your actual open positions and get the correct position ID. Do not use ticker names - use the position ID from CHECK_PNL results.`,
-          data: { error: 'Position not found', providedId: positionId },
-          values: { error: 'Position not found', providedId: positionId },
+          text: `Position not found. Call CHECK_PNL first to get valid position IDs.`,
+          error: 'Position not found',
         };
       }
 
@@ -262,10 +260,6 @@ export const closePerpAction: Action = {
           (state?.data?.thought as string) || 'Chat-initiated perp close',
       });
 
-      const responseText = isPartialClose
-        ? `Partially closed ${position.side.toUpperCase()} position on ${position.ticker}: $${closedAmount.toFixed(2)} at $${exitPrice.toFixed(2)}. P&L: ${pnlStr}. Remaining: $${remainingSize.toFixed(2)}`
-        : `Closed ${position.side.toUpperCase()} position on ${position.ticker} at $${exitPrice.toFixed(2)}. P&L: ${pnlStr}`;
-
       logger.info('[CLOSE_PERP] Position closed', {
         agentUserId,
         positionId,
@@ -278,9 +272,13 @@ export const closePerpAction: Action = {
         isPartialClose,
       });
 
+      const resultText = isPartialClose
+        ? `Partial close on ${position.ticker}: $${closedAmount.toFixed(2)} closed. P&L: ${pnlStr}. Remaining: $${remainingSize.toFixed(2)}`
+        : `Closed ${position.ticker} position. P&L: ${pnlStr}`;
+
       return {
         success: true,
-        text: responseText,
+        text: resultText,
         data: {
           positionId,
           ticker: position.ticker,
@@ -297,9 +295,8 @@ export const closePerpAction: Action = {
           side: position.side,
           exitPrice,
           closedAmount,
-          remainingSize,
           pnl,
-          isPartialClose,
+          remainingSize,
         },
       };
     } catch (error) {
@@ -308,8 +305,7 @@ export const closePerpAction: Action = {
       return {
         success: false,
         text: `Failed to close position: ${errorMsg}`,
-        data: { error: errorMsg },
-        values: { error: errorMsg },
+        error: errorMsg,
       };
     }
   },
