@@ -303,8 +303,6 @@ export const POST = withErrorHandling(
         template: multiStepDecisionTemplate,
       });
 
-      console.log('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! prompt', prompt);
-
       // Get LLM decision with retry
       const MAX_PARSE_RETRIES = 3;
       let parsedStep: Record<string, unknown> | null = null;
