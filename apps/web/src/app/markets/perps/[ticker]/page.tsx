@@ -1,6 +1,6 @@
 'use client';
 
-import { FEE_CONFIG } from '@babylon/engine/client';
+import { FEE_CONFIG } from '@babylon/engine/config/fees';
 import { cn } from '@babylon/shared';
 import {
   AlertTriangle,
