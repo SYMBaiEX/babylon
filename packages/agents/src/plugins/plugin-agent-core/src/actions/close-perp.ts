@@ -23,7 +23,7 @@ const agentPnLService = new AgentPnLService();
 export const closePerpAction: Action = {
   name: 'CLOSE_PERP',
   description:
-    'Close an open perpetual position. Use CHECK_PNL first to see your open perp positions and get position IDs. Requires positionId.',
+    'Close an open perpetual position. IMPORTANT: Always call CHECK_PNL first to see your actual open positions - you need the position ID to close. Do NOT rely on conversation history for position data. Requires positionId.',
   parameters: {
     positionId: {
       type: 'string',

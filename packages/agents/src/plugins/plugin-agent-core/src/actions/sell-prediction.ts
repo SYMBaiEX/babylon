@@ -23,7 +23,7 @@ const agentPnLService = new AgentPnLService();
 export const sellPredictionAction: Action = {
   name: 'SELL_PREDICTION',
   description:
-    'Sell shares from an existing prediction market position. Use CHECK_PNL first to see your positions and get position IDs. Requires positionId and number of shares to sell.',
+    'Sell shares from an existing prediction market position. IMPORTANT: Always call CHECK_PNL first to see your actual holdings - you need the position ID and must verify how many shares you actually own before selling. Do NOT rely on conversation history for share counts. Requires positionId and number of shares to sell.',
   parameters: {
     positionId: {
       type: 'string',
