@@ -12,7 +12,10 @@
  * - CHECK_PERPS action for viewing perpetual market data
  * - CHECK_PREDICTIONS action for viewing prediction markets (active/resolved)
  * - CHECK_RECENT_MARKET_TRADES action for viewing recent trading activity
+ * - CHECK_POST_DETAIL action for viewing a post with all comments and thread structure
+ * - CHECK_COMMENT_DETAIL action for viewing a comment with thread context
  * - CREATE_POST action for creating posts on the Babylon feed
+ * - CREATE_COMMENT action for commenting on posts or replying to comments
  * - BUY_PREDICTION action for buying prediction market shares
  * - SELL_PREDICTION action for selling prediction market shares
  * - OPEN_PERP action for opening perpetual positions
@@ -26,13 +29,16 @@ import type { Plugin } from '@elizaos/core';
 import { buyPredictionAction } from './actions/buy-prediction';
 import { checkAutonomyAction } from './actions/check-autonomy';
 import { checkBalanceAction } from './actions/check-balance';
+import { checkCommentDetailAction } from './actions/check-comment-detail';
 import { checkPerpsAction } from './actions/check-perps';
 import { checkPnlAction } from './actions/check-pnl';
+import { checkPostDetailAction } from './actions/check-post-detail';
 import { checkPredictionsAction } from './actions/check-predictions';
 import { checkRecentCommentsAction } from './actions/check-recent-comments';
 import { checkRecentMarketTradesAction } from './actions/check-recent-market-trades';
 import { checkRecentPostsAction } from './actions/check-recent-posts';
 import { closePerpAction } from './actions/close-perp';
+import { createCommentAction } from './actions/create-comment';
 import { createPostAction } from './actions/create-post';
 import { lookupUserAction } from './actions/lookup-user';
 import { openPerpAction } from './actions/open-perp';
@@ -50,7 +56,7 @@ import {
 export const agentCorePlugin: Plugin = {
   name: 'agent-core',
   description:
-    'Core agent capabilities for multi-step chat with autonomy control, posting, trading, and market insights',
+    'Core agent capabilities for multi-step chat with autonomy control, posting, commenting, trading, and market insights',
 
   actions: [
     // Autonomy management
@@ -61,6 +67,8 @@ export const agentCorePlugin: Plugin = {
     checkPnlAction,
     checkRecentPostsAction,
     checkRecentCommentsAction,
+    checkPostDetailAction,
+    checkCommentDetailAction,
     checkPerpsAction,
     checkPredictionsAction,
     checkRecentMarketTradesAction,
@@ -68,7 +76,8 @@ export const agentCorePlugin: Plugin = {
     lookupUserAction,
     // Social actions
     createPostAction,
-    // Trading actions (require A2A)
+    createCommentAction,
+    // Trading actions
     buyPredictionAction,
     sellPredictionAction,
     openPerpAction,
