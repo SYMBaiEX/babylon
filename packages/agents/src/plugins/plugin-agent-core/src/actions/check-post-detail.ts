@@ -84,46 +84,35 @@ function buildCommentTree(
 }
 
 /**
- * Format comment tree for display
+ * Format comment tree for display with explicit "Reply to [id]" format
  */
 function formatCommentTree(
   threads: CommentThread[],
   maxDepth = 10
 ): {
   formatted: string;
-  comments: Array<{
-    id: string;
-    author: string;
-    content: string;
-    depth: number;
-  }>;
 } {
-  const allComments: Array<{
-    id: string;
-    author: string;
-    content: string;
-    depth: number;
-  }> = [];
   const lines: string[] = [];
 
-  function traverse(node: CommentThread, depth: number) {
+  function traverse(
+    node: CommentThread,
+    depth: number,
+    parentId: string | null
+  ) {
     if (depth > maxDepth) return;
 
-    const indent = '  '.repeat(depth);
     const truncatedContent =
       node.content.length > 150
         ? `${node.content.substring(0, 150)}...`
         : node.content;
 
-    lines.push(
-      `${indent}[ID: ${node.id}] @${node.author}: "${truncatedContent}"`
-    );
-    allComments.push({
-      id: node.id,
-      author: node.author,
-      content: truncatedContent,
-      depth,
-    });
+    // Format: "Comment" for top-level, "Reply to [parentId]" for replies
+    const prefix =
+      parentId === null
+        ? `- Comment [ID: ${node.id}]`
+        : `- Reply to ${parentId} [ID: ${node.id}]`;
+
+    lines.push(`${prefix} by @${node.author}: "${truncatedContent}"`);
 
     // Sort replies by time
     const sortedReplies = [...node.replies].sort(
@@ -131,15 +120,15 @@ function formatCommentTree(
     );
 
     for (const reply of sortedReplies) {
-      traverse(reply, depth + 1);
+      traverse(reply, depth + 1, node.id);
     }
   }
 
   for (const thread of threads) {
-    traverse(thread, 0);
+    traverse(thread, 0, null);
   }
 
-  return { formatted: lines.join('\n'), comments: allComments };
+  return { formatted: lines.join('\n') };
 }
 
 export const checkPostDetailAction: Action = {
