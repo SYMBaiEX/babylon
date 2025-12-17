@@ -238,10 +238,14 @@ export function PredictionPositionsList({
                     pnlPercent
                   )
                 }
-                disabled={isSelling}
+                disabled={isSelling || position.shares < 0.01}
                 className="w-full cursor-pointer rounded bg-muted py-2 font-medium text-foreground transition-all hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {isSelling ? 'Selling...' : 'Sell Shares'}
+                {isSelling
+                  ? 'Selling...'
+                  : position.shares < 0.01
+                    ? 'Position Too Small'
+                    : 'Sell Shares'}
               </button>
             ) : (
               <div className="py-2 text-center font-medium text-sm">

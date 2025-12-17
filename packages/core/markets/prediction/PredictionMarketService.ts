@@ -50,7 +50,7 @@ export class PredictionMarketService {
     }
     const market = await this.ensureMarket(marketId);
 
-    this.assertMarketActive(market);
+    this.assertMarketActiveForBuy(market);
 
     // Calculate shares with fees (fee rate from deps)
     const calc = PredictionPricing.calculateBuyWithFees(
@@ -178,7 +178,7 @@ export class PredictionMarketService {
     }
     const market = await this.ensureMarket(marketId);
 
-    this.assertMarketActive(market);
+    this.assertMarketActiveForSell(market);
 
     const yesPos = await this.db.getPosition(userId, marketId, 'yes');
     const noPos = await this.db.getPosition(userId, marketId, 'no');
@@ -417,12 +417,30 @@ export class PredictionMarketService {
     return this.db.createMarketFromQuestion(question, DEFAULT_LIQUIDITY);
   }
 
-  private assertMarketActive(market: PredictionMarketRecord) {
+  /**
+   * Assert market is open for new trades (buys).
+   * Blocks if resolved, expired, or no liquidity.
+   */
+  private assertMarketActiveForBuy(market: PredictionMarketRecord) {
     if (market.resolved) {
       throw new Error('Market has resolved');
     }
     if (new Date() > market.endDate) {
       throw new Error('Market expired');
+    }
+    if (market.liquidity <= 0) {
+      throw new Error('Market has no liquidity');
+    }
+  }
+
+  /**
+   * Assert market allows position exits (sells).
+   * Users can sell on expired markets to close positions before resolution.
+   * Only blocks if already resolved.
+   */
+  private assertMarketActiveForSell(market: PredictionMarketRecord) {
+    if (market.resolved) {
+      throw new Error('Market has resolved');
     }
     if (market.liquidity <= 0) {
       throw new Error('Market has no liquidity');

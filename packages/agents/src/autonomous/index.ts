@@ -42,6 +42,11 @@ export {
   type MultiStepExecutorResult,
   multiStepExecutor,
 } from './MultiStepExecutor';
+export {
+  type PredictionMarketForTopic,
+  TopicDiversityService,
+  topicDiversityService,
+} from './TopicDiversityService';
 
 // Multi-step decision templates
 export {

@@ -83,6 +83,16 @@ export {
   OrganizationBehavior,
   type OrganizationType,
 } from './GameGenerator';
+// Game Simulator (standalone simulation engine)
+export {
+  type GameConfig,
+  type GameEvent,
+  type GameResult,
+  GameSimulator,
+  type MarketState as SimulatedMarketState,
+  type ReputationChange,
+  type SimulatedAgent,
+} from './GameSimulator';
 // Game Tick (canonical tick executor)
 export {
   type ActiveMarket,

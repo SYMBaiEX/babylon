@@ -15,6 +15,11 @@
       "types": "./src/client.ts",
       "import": "./src/client.ts",
       "require": "./src/client.ts"
+    },
+    "./config/fees": {
+      "types": "./src/config/fees.ts",
+      "import": "./src/config/fees.ts",
+      "require": "./src/config/fees.ts"
     }
   },
   "scripts": {

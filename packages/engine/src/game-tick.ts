@@ -1317,12 +1317,28 @@ async function generateMixedPosts(
     [creators[i], creators[j]] = [creators[j]!, creators[i]!];
   }
 
+  // TOPIC DIVERSITY: Assign different questions to different creators
+  // This prevents all NPCs from posting about the same topic
+  const shuffledQuestions = [...questions].sort(() => Math.random() - 0.5);
+  const creatorToQuestion = new Map<string, (typeof questions)[number]>();
+
+  // Assign questions round-robin to creators, ensuring diversity
+  for (let i = 0; i < Math.min(postsToGenerate, creators.length); i++) {
+    const creator = creators[i];
+    if (!creator) continue;
+    // Each creator gets a unique question (cycling through if needed)
+    const questionIndex = i % shuffledQuestions.length;
+    creatorToQuestion.set(creator.id, shuffledQuestions[questionIndex]!);
+  }
+
   logger.info(
-    `Generating ${postsToGenerate} mixed posts in parallel`,
+    `Generating ${postsToGenerate} mixed posts with topic diversity`,
     {
       actorsAvailable: actorsList.length,
       orgsAvailable: orgsList.length,
       creatorsPoolSize: creators.length,
+      uniqueQuestions: shuffledQuestions.length,
+      topicAssignments: creatorToQuestion.size,
     },
     'GameTick'
   );
@@ -1341,16 +1357,21 @@ async function generateMixedPosts(
         return { posts: 0, articles: 0 };
       }
 
-      const question = questions[i % questions.length];
-
-      if (!question || !question.text) {
-        logger.warn('Missing question data', { questionIndex: i }, 'GameTick');
-        return { posts: 0, articles: 0 };
-      }
-
       const creator = creators[i];
       if (!creator) {
         logger.warn('Missing creator data', { creatorIndex: i }, 'GameTick');
+        return { posts: 0, articles: 0 };
+      }
+
+      // Use assigned question for this creator (topic diversity)
+      const question = creatorToQuestion.get(creator.id);
+
+      if (!question || !question.text) {
+        logger.warn(
+          'Missing question for creator',
+          { creatorId: creator.id, creatorName: creator.name },
+          'GameTick'
+        );
         return { posts: 0, articles: 0 };
       }
 

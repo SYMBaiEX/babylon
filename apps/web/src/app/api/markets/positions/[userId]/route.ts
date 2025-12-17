@@ -297,7 +297,10 @@ export const GET = withErrorHandling(
               resolution: market.resolution,
             };
           })
-          .filter((p): p is NonNullable<typeof p> => p !== null),
+          // Filter out null positions and positions with effectively zero shares
+          .filter(
+            (p): p is NonNullable<typeof p> => p !== null && p.shares >= 0.01
+          ),
         stats: {
           totalPositions: predictionPositions.length,
         },

@@ -17,9 +17,8 @@ import {
   actorState,
   db,
   eq,
-  ilike,
   npcTrades,
-  organizations,
+  organizationState,
   perpPositions,
   poolPositions,
   type Transaction,
@@ -38,6 +37,7 @@ import {
   type TradeImpactInput,
 } from './market-impact-service';
 import { createNpcWalletAdapter } from './npc-wallet-adapter';
+import { StaticDataRegistry } from './static-data-registry';
 import { invalidateAfterPredictionTrade } from './trade-cache-invalidation';
 
 type PredictionTradeBroadcast = {
@@ -140,7 +140,10 @@ export class TradeExecutionService {
           errorMessage.includes('Insufficient trading balance') ||
           errorMessage.includes('Market not found') ||
           errorMessage.includes('Market already resolved') ||
-          errorMessage.includes('Market expired');
+          errorMessage.includes('Market expired') ||
+          errorMessage.includes('Order size exceeds market limit') ||
+          errorMessage.includes('Position already closed') ||
+          errorMessage.includes('Position not found');
         const logLevel = isExpectedFailure ? 'warn' : 'error';
 
         logger[logLevel](
@@ -262,44 +265,32 @@ export class TradeExecutionService {
     }
 
     // Try multiple lookup strategies to handle LLM-generated ticker variations
-    const tickerUpper = decision.ticker.toUpperCase();
     const tickerLower = decision.ticker.toLowerCase();
+    const normalizedTicker = tickerLower.replace(/[^a-z0-9]/g, '');
+
+    // Use StaticDataRegistry for organization lookup (organizations aren't in DB)
+    const allOrgs = StaticDataRegistry.getAllOrganizations();
 
     // Strategy 1: Exact ID match
-    let [org] = await db
-      .select()
-      .from(organizations)
-      .where(eq(organizations.id, decision.ticker))
-      .limit(1);
+    let staticOrg = allOrgs.find((o) => o.id === decision.ticker);
 
     // Strategy 2: Ticker field match (case-insensitive)
-    if (!org) {
-      [org] = await db
-        .select()
-        .from(organizations)
-        .where(ilike(organizations.ticker, tickerUpper))
-        .limit(1);
+    if (!staticOrg) {
+      staticOrg = allOrgs.find((o) => o.ticker?.toLowerCase() === tickerLower);
     }
 
-    // Strategy 3: ID contains match (for partial matches)
-    if (!org) {
-      [org] = await db
-        .select()
-        .from(organizations)
-        .where(ilike(organizations.id, `%${tickerLower}%`))
-        .limit(1);
+    // Strategy 3: ID contains match
+    if (!staticOrg) {
+      staticOrg = allOrgs.find(
+        (o) =>
+          o.id.toLowerCase().includes(tickerLower) ||
+          tickerLower.includes(o.id.toLowerCase())
+      );
     }
 
-    // Strategy 4: Name match (normalized - remove spaces, dashes, AI suffixes)
-    if (!org) {
-      const normalizedTicker = tickerLower.replace(/[^a-z0-9]/g, '');
-      const orgs = await db
-        .select()
-        .from(organizations)
-        .where(eq(organizations.type, 'company'));
-
-      const matchedOrg = orgs.find((o) => {
-        if (!o.currentPrice) return false;
+    // Strategy 4: Normalized name/ticker match
+    if (!staticOrg) {
+      staticOrg = allOrgs.find((o) => {
         const normalizedName = o.name.toLowerCase().replace(/[^a-z0-9]/g, '');
         const normalizedOrgTicker = (o.ticker || '')
           .toLowerCase()
@@ -314,25 +305,37 @@ export class TradeExecutionService {
           normalizedTicker.includes(normalizedName)
         );
       });
-
-      if (matchedOrg) {
-        org = matchedOrg;
-      }
     }
 
-    if (!org?.currentPrice) {
+    // Get price from organizationState
+    let currentPrice: number | null = null;
+    if (staticOrg) {
+      const [state] = await db
+        .select({ currentPrice: organizationState.currentPrice })
+        .from(organizationState)
+        .where(eq(organizationState.id, staticOrg.id))
+        .limit(1);
+      currentPrice = state?.currentPrice ?? staticOrg.initialPrice ?? null;
+    }
+
+    if (!staticOrg || !currentPrice) {
       logger.warn(
-        'NPC tried to trade non-existent organization',
+        'NPC tried to trade non-existent organization or org has no price',
         {
           npcId: decision.npcId,
           npcName: decision.npcName,
           ticker: decision.ticker,
           action: decision.action,
+          orgFound: !!staticOrg,
+          hasPrice: !!currentPrice,
         },
         'TradeExecutionService'
       );
       throw new Error(`Organization not found: ${decision.ticker}`);
     }
+
+    // Use staticOrg for the rest of the function
+    const org = staticOrg;
 
     const leverage = 5; // Standard leverage for NPCs
     const side = decision.action === 'open_long' ? 'long' : 'short';
@@ -352,9 +355,11 @@ export class TradeExecutionService {
     });
 
     // Open position via PerpMarketService (uses perpPositions table)
+    // Use org.ticker for perp market lookup (e.g., "NVDAI" not "nvidai")
+    const tradeTicker = org.ticker || org.id;
     const result = await perpService.openPosition({
       userId: actorId, // Use actorId as userId for NPC
-      ticker: org.id,
+      ticker: tradeTicker,
       side,
       size: positionSize,
       leverage,
@@ -366,7 +371,7 @@ export class TradeExecutionService {
       npcActorId: decision.npcId,
       poolId: null,
       marketType: 'perp',
-      ticker: org.id,
+      ticker: tradeTicker,
       action: decision.action,
       side,
       amount: decision.amount,
@@ -435,22 +440,35 @@ export class TradeExecutionService {
     const now = new Date();
 
     // Back-compat: store poolPositions/npcTrades for NPC analytics
+    // Use onConflictDoUpdate to handle re-runs where position already exists
     await db.transaction(async (tx: Transaction) => {
-      await tx.insert(poolPositions).values({
-        id: result.positionId,
-        poolId: actorId,
-        marketType: 'prediction',
-        marketId: decision.marketId!.toString(),
-        side: sideLabel === 'yes' ? 'YES' : 'NO',
-        entryPrice,
-        currentPrice:
-          result.market[sideLabel === 'yes' ? 'yesPrice' : 'noPrice'] * 100,
-        size: result.totalCost ?? decision.amount,
-        shares: result.shares,
-        unrealizedPnL: 0,
-        openedAt: now,
-        updatedAt: now,
-      });
+      await tx
+        .insert(poolPositions)
+        .values({
+          id: result.positionId,
+          poolId: actorId,
+          marketType: 'prediction',
+          marketId: decision.marketId!.toString(),
+          side: sideLabel === 'yes' ? 'YES' : 'NO',
+          entryPrice,
+          currentPrice:
+            result.market[sideLabel === 'yes' ? 'yesPrice' : 'noPrice'] * 100,
+          size: result.totalCost ?? decision.amount,
+          shares: result.shares,
+          unrealizedPnL: 0,
+          openedAt: now,
+          updatedAt: now,
+        })
+        .onConflictDoUpdate({
+          target: poolPositions.id,
+          set: {
+            currentPrice:
+              result.market[sideLabel === 'yes' ? 'yesPrice' : 'noPrice'] * 100,
+            size: result.totalCost ?? decision.amount,
+            shares: result.shares,
+            updatedAt: now,
+          },
+        });
 
       await tx.insert(npcTrades).values({
         id: await generateSnowflakeId(),
@@ -643,15 +661,24 @@ export class TradeExecutionService {
     let currentPrice = position.currentPrice;
 
     if (position.marketType === 'perp' && position.ticker) {
-      // Fetch current market price from organizations table
-      const [org] = await db
-        .select()
-        .from(organizations)
-        .where(ilike(organizations.id, `%${position.ticker}%`))
-        .limit(1);
+      // Find org in static registry
+      const tickerLower = position.ticker.toLowerCase();
+      const staticOrg = StaticDataRegistry.getAllOrganizations().find(
+        (o) =>
+          o.id.toLowerCase().includes(tickerLower) ||
+          tickerLower.includes(o.id.toLowerCase()) ||
+          o.ticker?.toLowerCase() === tickerLower
+      );
 
-      if (org?.currentPrice) {
-        currentPrice = org.currentPrice;
+      if (staticOrg) {
+        const [state] = await db
+          .select({ price: organizationState.currentPrice })
+          .from(organizationState)
+          .where(eq(organizationState.id, staticOrg.id))
+          .limit(1);
+        if (state?.price) {
+          currentPrice = state.price;
+        }
       }
     }
 

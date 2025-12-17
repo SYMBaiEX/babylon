@@ -12,6 +12,7 @@ import {
   games,
   generateSnowflakeId,
   organizationState,
+  perpMarketSnapshots,
   pools,
   rssFeedSources,
   sql,
@@ -89,6 +90,7 @@ export interface GameBootstrapResult {
   organizationsUpdated: number;
   poolsCreated: number;
   rssFeedsCreated: number;
+  perpMarketsCreated: number;
   gameStateInitialized: boolean;
   totalTopUpAmount: number;
 }
@@ -122,6 +124,7 @@ export class GameBootstrapService {
       organizationsUpdated: 0,
       poolsCreated: 0,
       rssFeedsCreated: 0,
+      perpMarketsCreated: 0,
       gameStateInitialized: false,
       totalTopUpAmount: 0,
     };
@@ -169,6 +172,9 @@ export class GameBootstrapService {
       // 6. Ensure RSS feeds
       result.rssFeedsCreated = await this.ensureRSSFeeds();
 
+      // 7. Ensure perp market snapshots exist for all tradeable organizations
+      result.perpMarketsCreated = await this.ensurePerpMarketSnapshots();
+
       // Log summary if anything changed
       const hasChanges =
         result.actorsCreated > 0 ||
@@ -176,6 +182,7 @@ export class GameBootstrapService {
         result.organizationsCreated > 0 ||
         result.poolsCreated > 0 ||
         result.rssFeedsCreated > 0 ||
+        result.perpMarketsCreated > 0 ||
         result.gameStateInitialized;
 
       if (hasChanges) {
@@ -207,6 +214,7 @@ export class GameBootstrapService {
       organizationsUpdated: 0,
       poolsCreated: 0,
       rssFeedsCreated: 0,
+      perpMarketsCreated: 0,
       gameStateInitialized: false,
       totalTopUpAmount: 0,
     };
@@ -238,6 +246,7 @@ export class GameBootstrapService {
 
     result.gameStateInitialized = await this.ensureGameState();
     result.rssFeedsCreated = await this.ensureRSSFeeds();
+    result.perpMarketsCreated = await this.ensurePerpMarketSnapshots();
 
     logger.info('Force full sync complete', result, 'GameBootstrapService');
     return result;
@@ -528,6 +537,88 @@ export class GameBootstrapService {
     return created;
   }
 
+  /**
+   * Ensure perp market snapshots exist for all organizations with tickers.
+   * This is required for the perpetual markets to be tradeable.
+   */
+  private static async ensurePerpMarketSnapshots(): Promise<number> {
+    let created = 0;
+
+    // Get all organizations with tickers (these are tradeable as perps)
+    const staticOrgs = StaticDataRegistry.getAllOrganizations();
+    const tradeableOrgs = staticOrgs.filter((o) => o.ticker);
+
+    // Get existing perp market snapshots
+    const existingSnapshots = await db
+      .select({ ticker: perpMarketSnapshots.ticker })
+      .from(perpMarketSnapshots);
+    const existingTickers = new Set(existingSnapshots.map((s) => s.ticker));
+
+    // Get organization states for current prices
+    const orgStates = await db.select().from(organizationState);
+    const priceMap = new Map<string, number | null>(
+      orgStates.map((s) => [s.id, s.currentPrice])
+    );
+
+    const now = new Date();
+    const defaultFundingRate = {
+      rate: 0.01, // 1% APR base
+      nextFundingTime: new Date(
+        now.getTime() + 8 * 60 * 60 * 1000
+      ).toISOString(), // 8 hours
+      predictedRate: 0.01,
+    };
+
+    for (const org of tradeableOrgs) {
+      if (!org.ticker || existingTickers.has(org.ticker)) {
+        continue;
+      }
+
+      // Use current price from state, or initial price, or default
+      const currentPrice = priceMap.get(org.id) ?? org.initialPrice ?? 100;
+
+      await db.insert(perpMarketSnapshots).values({
+        ticker: org.ticker,
+        organizationId: org.id,
+        name: org.name,
+        currentPrice,
+        price24hAgo: currentPrice,
+        price24hAgoUpdatedAt: now,
+        metrics24hResetAt: now,
+        change24h: 0,
+        changePercent24h: 0,
+        high24h: currentPrice,
+        low24h: currentPrice,
+        volume24h: 0,
+        openInterest: 0,
+        fundingRate: defaultFundingRate,
+        maxLeverage: 100,
+        minOrderSize: 10,
+        markPrice: currentPrice,
+        indexPrice: currentPrice,
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      created++;
+      logger.debug(
+        `Created perp market snapshot for ${org.ticker} (${org.name})`,
+        { ticker: org.ticker, price: currentPrice },
+        'GameBootstrapService'
+      );
+    }
+
+    if (created > 0) {
+      logger.info(
+        `Created ${created} perp market snapshots`,
+        { created },
+        'GameBootstrapService'
+      );
+    }
+
+    return created;
+  }
+
   static getMinimumBalance(tier: string): number {
     return MINIMUM_BALANCE_BY_TIER[tier] || DEFAULT_MINIMUM_BALANCE;
   }
@@ -539,13 +630,16 @@ export class GameBootstrapService {
     characterMappings: number;
     organizationMappings: number;
     rssFeedSources: number;
+    perpMarkets: number;
   }> {
-    const [actorCount, orgCount, poolCount, feedCount] = await Promise.all([
-      db.select({ count: sql<number>`count(*)` }).from(actorState),
-      db.select({ count: sql<number>`count(*)` }).from(organizationState),
-      db.select({ count: sql<number>`count(*)` }).from(pools),
-      db.select({ count: sql<number>`count(*)` }).from(rssFeedSources),
-    ]);
+    const [actorCount, orgCount, poolCount, feedCount, perpMarketCount] =
+      await Promise.all([
+        db.select({ count: sql<number>`count(*)` }).from(actorState),
+        db.select({ count: sql<number>`count(*)` }).from(organizationState),
+        db.select({ count: sql<number>`count(*)` }).from(pools),
+        db.select({ count: sql<number>`count(*)` }).from(rssFeedSources),
+        db.select({ count: sql<number>`count(*)` }).from(perpMarketSnapshots),
+      ]);
 
     return {
       actors: Number(actorCount[0]?.count ?? 0),
@@ -555,6 +649,7 @@ export class GameBootstrapService {
       organizationMappings:
         StaticDataRegistry.getAllOrganizationMappings().length,
       rssFeedSources: Number(feedCount[0]?.count ?? 0),
+      perpMarkets: Number(perpMarketCount[0]?.count ?? 0),
     };
   }
 }

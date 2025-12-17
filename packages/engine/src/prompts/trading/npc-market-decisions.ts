@@ -226,6 +226,20 @@ DECISION FACTORS:
 - RESOLVED QUESTIONS inform ongoing market dynamics
 - ONGOING NARRATIVES suggest future movements
 
+CONTRARIAN BEHAVIOR (CRITICAL - avoid herding):
+- At least 20-30% of traders should take contrarian (NO) positions
+- Some personalities are naturally skeptical (NassAIm Taleb, Peter ThAIl)
+- When YES price is high (>0.7), contrarians should bet NO for value
+- When NO price is low (<0.3), contrarians see opportunity
+- Skeptics, bears, and pessimists often trade against the crowd
+
+MARKET TYPE BALANCE (IMPORTANT):
+- Use BOTH perpetuals (perp) AND prediction markets
+- Perps are for directional bets on company/asset prices
+- Predictions are for binary event outcomes
+- Aim for ~40% perp trades and ~60% prediction trades
+- Aggressive traders prefer perps (leverage), conservative prefer predictions
+
 NARRATIVE-INFORMED TRADING:
 - If a question just resolved, NPCs may reposition based on outcome
 - Ongoing storylines suggest which assets might move

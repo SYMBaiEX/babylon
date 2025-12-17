@@ -7,7 +7,7 @@ import {
 } from '@babylon/db';
 import { generateSnowflakeId } from '@babylon/shared';
 import type { InferInsertModel } from 'drizzle-orm';
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray, ne } from 'drizzle-orm';
 import type {
   PredictionDbPort,
   PredictionMarketRecord,
@@ -96,8 +96,15 @@ export class PredictionDbAdapter implements PredictionDbPort {
     const rows = await this.client
       .select()
       .from(positions)
-      .where(eq(positions.userId, userId));
-    return rows.map(mapPosition);
+      .where(
+        and(
+          eq(positions.userId, userId),
+          // Only return active positions with sellable shares
+          ne(positions.status, 'resolved')
+        )
+      );
+    // Filter out positions with negligible shares (closed but not marked resolved)
+    return rows.map(mapPosition).filter((p) => p.shares >= 0.01);
   }
 
   async getQuestion(idOrNumber: string): Promise<QuestionRecord | null> {
