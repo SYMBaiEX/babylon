@@ -10,13 +10,12 @@
  */
 
 // Prediction Pricing (pure math, no server dependencies)
-// Import from /client to avoid pulling in drizzle adapter which depends on @babylon/db
 export {
   calculateExpectedPayout,
   PredictionPricing,
   type ShareCalculation,
   type ShareCalculationWithFees,
-} from '@babylon/core/markets/prediction/client';
+} from '@babylon/core/markets/prediction';
 // Fee Configuration (pure constants, no dependencies)
 export {
   FEE_CONFIG,
