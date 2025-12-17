@@ -259,12 +259,18 @@ export const checkPostDetailAction: Action = {
 
       // Build comment tree
       const commentTree = buildCommentTree(commentsWithAuthor, agentUserId);
-      const { comments: commentsList } = formatCommentTree(commentTree);
+      const { formatted: formattedComments } = formatCommentTree(commentTree);
 
       const postAuthorName =
         post.authorId === agentUserId
           ? 'You'
           : post.authorDisplayName || post.authorUsername || 'User';
+
+      // Build formatted view
+      const formattedView = `POST [ID: ${post.id}] by @${postAuthorName}:
+"${post.content.substring(0, 500)}${post.content.length > 500 ? '...' : ''}"
+
+${postComments.length > 0 ? `COMMENTS (${postComments.length}):\n${formattedComments}` : 'No comments yet.'}`;
 
       logger.info(
         `[CHECK_POST_DETAIL] Retrieved post ${postId} with ${postComments.length} comments`,
@@ -286,14 +292,9 @@ export const checkPostDetailAction: Action = {
           comments: commentsWithAuthor,
         },
         values: {
+          formattedView,
           postId: post.id,
-          postAuthor: postAuthorName,
-          postContent:
-            post.content.length > 300
-              ? `${post.content.substring(0, 300)}...`
-              : post.content,
           commentCount: postComments.length,
-          comments: commentsList,
         },
       };
     } catch (error) {

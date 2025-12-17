@@ -247,6 +247,32 @@ export const checkCommentDetailAction: Action = {
           ? 'You'
           : post.authorDisplayName || post.authorUsername || 'User';
 
+      // Build formatted view like AutonomousBatchResponseService
+      const threadLines = threadContext.map((msg) => {
+        const marker = msg.isTarget ? ' [TARGET COMMENT]' : '';
+        const depthLabel = msg.depth === 0 ? 'Comment' : `Reply (depth ${msg.depth})`;
+        const truncated =
+          msg.content.length > 200
+            ? `${msg.content.substring(0, 200)}...`
+            : msg.content;
+        return `- ${depthLabel} [ID: ${msg.id}] by @${msg.author}: "${truncated}"${marker}`;
+      });
+
+      const repliesLines =
+        directReplies.length > 0
+          ? directReplies.map(
+              (r: { id: string; author: string; content: string }) =>
+                `  - Reply [ID: ${r.id}] by @${r.author}: "${r.content}"`
+            )
+          : [];
+
+      const formattedView = `POST [ID: ${post.id}] by @${postAuthorName}:
+"${post.content.substring(0, 300)}${post.content.length > 300 ? '...' : ''}"
+
+THREAD CONTEXT:
+${threadLines.join('\n')}
+${repliesLines.length > 0 ? `\nDIRECT REPLIES:\n${repliesLines.join('\n')}` : ''}`;
+
       logger.info(
         `[CHECK_COMMENT_DETAIL] Retrieved comment ${commentId} with ${threadContext.length} ancestors, ${directReplies.length} replies`,
         undefined,
@@ -276,37 +302,11 @@ export const checkCommentDetailAction: Action = {
           directReplies,
         },
         values: {
+          formattedView,
           postId: post.id,
-          postAuthor: postAuthorName,
-          postContent:
-            post.content.length > 200
-              ? `${post.content.substring(0, 200)}...`
-              : post.content,
           commentId: targetComment.id,
-          commentAuthor:
-            targetComment.authorId === agentUserId
-              ? 'You'
-              : targetComment.authorDisplayName ||
-                targetComment.authorUsername ||
-                'User',
           threadDepth: threadContext.length,
           replyCount: directReplies.length,
-          thread: threadContext.map((t) => ({
-            id: t.id,
-            author: t.author,
-            content:
-              t.content.length > 150
-                ? `${t.content.substring(0, 150)}...`
-                : t.content,
-            isTarget: t.isTarget,
-          })),
-          replies: directReplies.map(
-            (r: { id: string; author: string; content: string }) => ({
-              id: r.id,
-              author: r.author,
-              content: r.content,
-            })
-          ),
         },
       };
     } catch (error) {
