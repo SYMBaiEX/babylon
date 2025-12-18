@@ -33,22 +33,9 @@ for (const { schemaName } of schemas) {
 
 await sql.unsafe('CREATE SCHEMA IF NOT EXISTS public;');
 
-const info = await sql<
-  Array<{ db: string; port: number; searchPath: string }>
->`select current_database() as db, inet_server_port() as port, current_setting('search_path') as "searchPath"`;
-console.log('[db-reset] connected', info[0]);
-
-const userApiKey = await sql<
-  Array<{ schema: string }>
->`select table_schema as schema from information_schema.tables where table_name = 'UserApiKey'`;
-if (userApiKey.length > 0) {
-  console.error('[db-reset] unexpected leftover table UserApiKey', userApiKey);
-  process.exit(1);
-}
-
 await sql.end({ timeout: 5 });
 EOF
 
-echo "🗄️  Applying database migrations..."
-PGOPTIONS="--search_path=public" bun run db:migrate
-echo "✅ Database migrations applied"
+echo "🗄️  Syncing database schema (drizzle-kit push)..."
+bun run --cwd packages/db db:push -- --force
+echo "✅ Database schema synced"
