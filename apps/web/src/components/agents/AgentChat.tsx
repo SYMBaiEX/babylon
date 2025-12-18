@@ -380,7 +380,7 @@ export function AgentChat({ agent, onBalanceUpdate }: AgentChatProps) {
               placeholder="Type your message..."
               disabled={sending}
               className={cn(
-                'min-h-10 max-h-40 flex-1 resize-none overflow-y-auto py-2.5',
+                'max-h-40 min-h-10 flex-1 resize-none overflow-y-auto py-2.5',
                 'focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring'
               )}
               rows={1}

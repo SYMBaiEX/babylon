@@ -63,7 +63,7 @@ export function ChatView({
   // Empty state when no chat selected
   if (!chatDetails) {
     return (
-      <div className="flex flex-1 items-center justify-center">
+      <div className="flex h-full flex-1 items-center justify-center">
         <div className="max-w-md p-8 text-center text-muted-foreground">
           <MessageCircle className="mx-auto mb-4 h-16 w-16 opacity-50" />
           <h3 className="mb-2 font-bold text-foreground text-xl">
@@ -78,26 +78,28 @@ export function ChatView({
   }
 
   return (
-    <>
-      {/* Chat Header */}
-      <ChatViewHeader
-        chatDetails={chatDetails}
-        sseConnected={sseConnected}
-        showBackButton={showBackButton}
-        onBack={onBack}
-        onManageGroup={onManageGroup}
-        onLeaveChat={onLeaveChat}
-      />
+    <div className="flex h-full flex-col">
+      {/* Chat Header - Fixed */}
+      <div className="shrink-0">
+        <ChatViewHeader
+          chatDetails={chatDetails}
+          sseConnected={sseConnected}
+          showBackButton={showBackButton}
+          onBack={onBack}
+          onManageGroup={onManageGroup}
+          onLeaveChat={onLeaveChat}
+        />
 
-      {/* Header Separator */}
-      <div className="px-4">
-        <Separator />
+        {/* Header Separator */}
+        <div className="px-4">
+          <Separator />
+        </div>
       </div>
 
-      {/* Messages */}
+      {/* Messages - Scrollable */}
       <div
         ref={containerRef}
-        className="relative flex-1 space-y-4 overflow-y-auto px-4 py-3"
+        className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-3"
       >
         <MessageList
           messages={chatDetails.messages || []}
@@ -114,28 +116,31 @@ export function ChatView({
         />
       </div>
 
-      {/* Feedback Messages */}
-      {authenticated && (
-        <FeedbackMessages
-          error={sendError}
-          warning={sendWarning}
-          success={sendSuccess}
+      {/* Footer - Fixed */}
+      <div className="shrink-0">
+        {/* Feedback Messages */}
+        {authenticated && (
+          <FeedbackMessages
+            error={sendError}
+            warning={sendWarning}
+            success={sendSuccess}
+          />
+        )}
+
+        {/* Input Separator */}
+        <div className="px-4">
+          <Separator />
+        </div>
+
+        {/* Message Input */}
+        <MessageInput
+          value={messageInput}
+          onChange={onMessageChange}
+          onSend={onSendMessage}
+          sending={sending}
+          authenticated={authenticated}
         />
-      )}
-
-      {/* Input Separator */}
-      <div className="px-4">
-        <Separator />
       </div>
-
-      {/* Message Input */}
-      <MessageInput
-        value={messageInput}
-        onChange={onMessageChange}
-        onSend={onSendMessage}
-        sending={sending}
-        authenticated={authenticated}
-      />
-    </>
+    </div>
   );
 }
