@@ -5,19 +5,19 @@
  */
 
 import { countTokensSync, truncateToTokenLimitSync } from '@babylon/api';
-import { agentTrades, db, desc, eq, posts, users } from '@babylon/db';
+import { agentTrades, db, desc, eq, posts } from '@babylon/db';
 import {
   characterMappingService,
   formatRandomContext,
   generateRandomMarketContext,
   generateWorldContext,
-  StaticDataRegistry,
 } from '@babylon/engine';
 import type { IAgentRuntime } from '@elizaos/core';
 import { parseKeyValueXml } from '@elizaos/core';
 import { callGroqDirect } from '../llm/direct-groq';
 import { getAgentConfig } from '../shared/agent-config';
 import { logger } from '../shared/logger';
+import { getAgentContext } from './agent-context';
 import { executeDirectPost } from './DirectExecutors';
 
 /**
@@ -46,33 +46,9 @@ export class AutonomousPostingService {
     agentUserId: string,
     _runtime: IAgentRuntime
   ): Promise<string | null> {
-    // Check if this is an NPC (has entry in StaticDataRegistry)
-    const npcActor = StaticDataRegistry.getActor(agentUserId);
-    const isNpc = !!npcActor;
-
-    let agentDisplayName: string;
-    let agentLifetimePnL: number;
-
-    if (isNpc) {
-      // NPC: Get data from StaticDataRegistry and ActorState
-      agentDisplayName = npcActor.name;
-      // NPCs don't track lifetime PnL, use 0
-      agentLifetimePnL = 0;
-    } else {
-      // USER_CONTROLLED: Get data from User table
-      const [agent] = await db
-        .select()
-        .from(users)
-        .where(eq(users.id, agentUserId))
-        .limit(1);
-
-      if (!agent?.isAgent) {
-        throw new Error('Agent not found');
-      }
-
-      agentDisplayName = agent.displayName ?? agentUserId;
-      agentLifetimePnL = Number(agent.lifetimePnL ?? 0);
-    }
+    // Resolve agent context (NPC vs USER_CONTROLLED)
+    const { displayName: agentDisplayName, lifetimePnL: agentLifetimePnL } =
+      await getAgentContext(agentUserId);
 
     const config = await getAgentConfig(agentUserId);
 

@@ -395,7 +395,9 @@ async function executePerpTrade(params: {
               .returning({ id: actorState.id });
 
             if (result.length === 0) {
-              throw new Error(`Insufficient NPC balance for perp trade: $${amt}`);
+              throw new Error(
+                `Insufficient NPC balance for perp trade: $${amt}`
+              );
             }
           },
           credit: async ({

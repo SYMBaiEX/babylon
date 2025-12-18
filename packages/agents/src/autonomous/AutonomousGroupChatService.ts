@@ -6,12 +6,12 @@
  * @packageDocumentation
  */
 
-import { and, db, desc, eq, gte, messages, users } from '@babylon/db';
-import { StaticDataRegistry } from '@babylon/engine';
+import { and, db, desc, eq, gte, messages } from '@babylon/db';
 import type { IAgentRuntime } from '@elizaos/core';
 import { callGroqDirect } from '../llm/direct-groq';
 import { getAgentConfig } from '../shared/agent-config';
 import { logger } from '../shared/logger';
+import { getAgentContext } from './agent-context';
 import { executeDirectMessage } from './DirectExecutors';
 
 /**
@@ -30,29 +30,9 @@ export class AutonomousGroupChatService {
     agentUserId: string,
     _runtime: IAgentRuntime
   ): Promise<number> {
-    // Check if this is an NPC (has entry in StaticDataRegistry)
-    const npcActor = StaticDataRegistry.getActor(agentUserId);
-    const isNpc = !!npcActor;
-
-    let agentDisplayName: string;
-
-    if (isNpc) {
-      // NPC: Get name from StaticDataRegistry
-      agentDisplayName = npcActor.name;
-    } else {
-      // USER_CONTROLLED: Get from User table
-      const [agent] = await db
-        .select()
-        .from(users)
-        .where(eq(users.id, agentUserId))
-        .limit(1);
-
-      if (!agent?.isAgent) {
-        throw new Error('Agent not found');
-      }
-
-      agentDisplayName = agent.displayName ?? agentUserId;
-    }
+    // Resolve agent context (NPC vs USER_CONTROLLED)
+    const { displayName: agentDisplayName } =
+      await getAgentContext(agentUserId);
 
     const config = await getAgentConfig(agentUserId);
 
