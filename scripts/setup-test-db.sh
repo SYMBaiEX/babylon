@@ -18,16 +18,19 @@ const url = process.env.DIRECT_DATABASE_URL ?? process.env.DATABASE_URL;
 if (!url) throw new Error("Missing DATABASE_URL");
 
 const sql = postgres(url, { max: 1 });
-const [{ currentUser }] = await sql<
-  Array<{ currentUser: string }>
->`select current_user as "currentUser"`;
+const schemas = await sql<Array<{ schemaName: string }>>`
+  select schema_name as "schemaName"
+  from information_schema.schemata
+  where schema_name not like 'pg_%'
+    and schema_name <> 'information_schema'
+`;
 
-if (currentUser && currentUser !== "public") {
-  const quoted = `"${currentUser.replaceAll("\"", "\"\"")}"`;
+for (const { schemaName } of schemas) {
+  const quoted = `"${schemaName.replaceAll("\"", "\"\"")}"`;
   await sql.unsafe(`DROP SCHEMA IF EXISTS ${quoted} CASCADE;`);
 }
-await sql.unsafe("DROP SCHEMA IF EXISTS public CASCADE;");
-await sql.unsafe("CREATE SCHEMA public;");
+
+await sql.unsafe('CREATE SCHEMA IF NOT EXISTS public;');
 await sql.end({ timeout: 5 });
 '
 
