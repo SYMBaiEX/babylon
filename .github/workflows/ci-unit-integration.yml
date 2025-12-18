@@ -88,6 +88,7 @@ jobs:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
           DIRECT_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
         run: |
+          set -euo pipefail
           # Use the setup script for consistent database initialization
           bash scripts/setup-test-db.sh 2>&1 | sed -E 's/(Datasource|ep-soft-wildflower|neondb|@[^[:space:]]*\.neon\.tech)/[REDACTED]/g'
 
@@ -97,6 +98,7 @@ jobs:
           SKIP_ENV_VALIDATION: true
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
         run: |
+          set -euo pipefail
           echo "🏗️ Building project for tests..."
           bun run build 2>&1 | sed -E 's/(Datasource|ep-soft-wildflower|neondb|@[^[:space:]]*\.neon\.tech)/[REDACTED]/g'
           echo "✅ Build complete"
@@ -221,4 +223,3 @@ jobs:
             echo "📝 Server logs (last 50 lines):"
             tail -50 /tmp/next-server.log
           fi
-
