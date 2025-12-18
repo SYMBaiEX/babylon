@@ -30,7 +30,7 @@ for (const { schemaName } of schemas) {
   await sql.unsafe(`DROP SCHEMA IF EXISTS ${quoted} CASCADE;`);
 }
 
-await sql.unsafe('CREATE SCHEMA IF NOT EXISTS public;');
+await sql.unsafe("CREATE SCHEMA IF NOT EXISTS public;");
 await sql.end({ timeout: 5 });
 '
 
