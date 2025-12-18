@@ -251,10 +251,13 @@ export async function GET(
           );
           return tradingStrategyMatch ? tradingStrategyMatch[1]!.trim() : '';
         })(),
+      // Points balance (for operations)
       pointsBalance: config?.pointsBalance ?? 0,
       totalDeposited: config?.totalDeposited ?? 0,
       totalWithdrawn: config?.totalWithdrawn ?? 0,
       totalPointsSpent: config?.totalPointsSpent ?? 0,
+      // Trading balance (for trades)
+      virtualBalance: Number(agent!.virtualBalance),
       isActive: config?.status === 'active',
       autonomousEnabled: config?.autonomousTrading ?? false,
       autonomousTrading: config?.autonomousTrading ?? false,
