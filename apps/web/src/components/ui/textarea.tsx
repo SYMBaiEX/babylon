@@ -1,5 +1,5 @@
 import { cn } from '@babylon/shared';
-import { forwardRef, type ComponentPropsWithoutRef } from 'react';
+import { type ComponentPropsWithoutRef, forwardRef } from 'react';
 
 /**
  * Textarea component for multi-line text input.
