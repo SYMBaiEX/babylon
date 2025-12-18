@@ -100,7 +100,7 @@ jobs:
         run: |
           set -euo pipefail
           echo "🏗️ Building project for tests..."
-          turbo build --filter=!babylon-docs 2>&1 | sed -E 's/(Datasource|ep-soft-wildflower|neondb|@[^[:space:]]*\.neon\.tech)/[REDACTED]/g'
+          bunx turbo build --filter=!babylon-docs 2>&1 | sed -E 's/(Datasource|ep-soft-wildflower|neondb|@[^[:space:]]*\.neon\.tech)/[REDACTED]/g'
           echo "✅ Build complete"
 
       - name: Run Unit Tests

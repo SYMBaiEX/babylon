@@ -194,7 +194,7 @@ jobs:
           grep "NEXT_PUBLIC_PRIVY_APP_ID" .env | head -1 || echo "   (not found)"
           
           echo "🔨 Running build..."
-          turbo build --filter=!babylon-docs 2>&1 | sed -E 's/(Datasource|ep-soft-wildflower|neondb|@[^[:space:]]*\.neon\.tech)/[REDACTED]/g'
+          bunx turbo build --filter=!babylon-docs 2>&1 | sed -E 's/(Datasource|ep-soft-wildflower|neondb|@[^[:space:]]*\.neon\.tech)/[REDACTED]/g'
           
           # Verify the build includes the Privy App ID by checking the actual value
           echo "🔍 Verifying Privy App ID is embedded in build..."
