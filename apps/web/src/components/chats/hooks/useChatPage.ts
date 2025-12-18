@@ -1,6 +1,7 @@
 'use client';
 
 import { usePrivy } from '@privy-io/react-auth';
+import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useChatMessages } from '@/hooks/useChatMessages';
@@ -9,6 +10,7 @@ import { useAuthStore } from '@/stores/authStore';
 import type { Chat, ChatDetails, ChatFilter } from '../types';
 
 export function useChatPage() {
+  const router = useRouter();
   const { ready, authenticated } = useAuth();
   const { user } = useAuthStore();
   const { getAccessToken } = usePrivy();
@@ -576,11 +578,11 @@ export function useChatPage() {
           setPendingDM({ chatId: chatParam, targetUserId: newDMParam });
         }
 
-        // Clean up URL
-        window.history.replaceState({}, '', '/chats');
+        // Clean up URL using Next.js router to keep router state in sync
+        router.replace('/chats');
       }
     }
-  }, [selectedChatId]);
+  }, [selectedChatId, router]);
 
   // Load pending DM once user is available
   useEffect(() => {

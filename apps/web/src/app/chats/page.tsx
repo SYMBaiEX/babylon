@@ -130,7 +130,7 @@ export default function ChatsPage() {
           <div className="flex-1 overflow-hidden">
             <div className="flex h-full">
               {/* Left Column: Chat List with Filters */}
-              <div className="flex w-96 flex-col bg-background">
+              <div className="flex h-full w-96 flex-col bg-background">
                 <ChatHeader
                   isConnected={globalSSEConnected}
                   activeFilter={activeFilter}
@@ -140,21 +140,24 @@ export default function ChatsPage() {
 
                 <ChatSearchBar value={searchQuery} onChange={setSearchQuery} />
 
-                <ChatList
-                  chats={filteredChats}
-                  selectedChatId={selectedChatId}
-                  loading={loading}
-                  searchQuery={searchQuery}
-                  activeFilter={activeFilter}
-                  onSelectChat={setSelectedChatId}
-                />
+                {/* Scrollable chat list */}
+                <div className="flex-1 overflow-y-auto">
+                  <ChatList
+                    chats={filteredChats}
+                    selectedChatId={selectedChatId}
+                    loading={loading}
+                    searchQuery={searchQuery}
+                    activeFilter={activeFilter}
+                    onSelectChat={setSelectedChatId}
+                  />
+                </div>
               </div>
 
               {/* Vertical Separator */}
               <Separator orientation="vertical" className="shrink-0" />
 
               {/* Right Column: Chat View */}
-              <div className="flex h-full flex-1 flex-col bg-background">
+              <div className="h-full flex-1 bg-background">
                 <ChatView
                   chatDetails={chatDetails}
                   currentUserId={user?.id}
@@ -190,7 +193,7 @@ export default function ChatsPage() {
               {/* Chat List (full screen on mobile, side panel on tablet when chat selected) */}
               <div
                 className={cn(
-                  'w-full flex-col bg-background',
+                  'h-full w-full flex-col bg-background',
                   selectedChatId ? 'hidden lg:flex lg:w-96' : 'flex'
                 )}
               >
@@ -203,14 +206,17 @@ export default function ChatsPage() {
 
                 <ChatSearchBar value={searchQuery} onChange={setSearchQuery} />
 
-                <ChatList
-                  chats={filteredChats}
-                  selectedChatId={selectedChatId}
-                  loading={loading}
-                  searchQuery={searchQuery}
-                  activeFilter={activeFilter}
-                  onSelectChat={setSelectedChatId}
-                />
+                {/* Scrollable chat list */}
+                <div className="flex-1 overflow-y-auto">
+                  <ChatList
+                    chats={filteredChats}
+                    selectedChatId={selectedChatId}
+                    loading={loading}
+                    searchQuery={searchQuery}
+                    activeFilter={activeFilter}
+                    onSelectChat={setSelectedChatId}
+                  />
+                </div>
               </div>
 
               {/* Vertical Separator for Tablet */}
@@ -225,8 +231,8 @@ export default function ChatsPage() {
               {selectedChatId && chatDetails && (
                 <div
                   className={cn(
-                    'h-full flex-1 flex-col bg-background',
-                    !selectedChatId ? 'hidden lg:flex' : 'flex'
+                    'h-full flex-1 bg-background',
+                    !selectedChatId ? 'hidden lg:block' : 'block'
                   )}
                 >
                   <ChatView
