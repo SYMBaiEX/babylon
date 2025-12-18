@@ -232,7 +232,7 @@ function SidebarContent() {
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1">
+        <nav className="relative z-20 flex-1">
           {navItems.map((item) => {
             const Icon = item.icon;
             const hasNotificationBadge =
@@ -244,7 +244,7 @@ function SidebarContent() {
                 href={item.href}
                 prefetch={true}
                 className={cn(
-                  'group relative flex items-center px-4 py-3',
+                  'group relative z-10 flex items-center px-4 py-3',
                   'transition-colors duration-200',
                   'md:justify-center lg:justify-start',
                   !item.active && 'bg-transparent hover:bg-sidebar-accent'
