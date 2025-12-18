@@ -11,11 +11,13 @@
 import {
   actorState,
   and,
+  comments,
   db,
   desc,
   eq,
   getDbInstance,
   gte,
+  inArray,
   isNull,
   lte,
   markets,
@@ -432,6 +434,7 @@ export class MultiStepExecutor {
 
   /**
    * Get recent posts to potentially engage with
+   * Includes agent's existing comments so the LLM knows what it already said
    */
   private async getRecentPosts(agentUserId: string): Promise<PostContext[]> {
     const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
@@ -491,12 +494,40 @@ export class MultiStepExecutor {
       }
     }
 
+    // Fetch agent's existing comments on these posts (top-level only)
+    const postIds = recentPostsRaw.map((p) => p.id);
+    const agentComments = new Map<string, string>();
+
+    if (postIds.length > 0) {
+      const existingComments = await db
+        .select({
+          postId: comments.postId,
+          content: comments.content,
+        })
+        .from(comments)
+        .where(
+          and(
+            inArray(comments.postId, postIds),
+            eq(comments.authorId, agentUserId),
+            isNull(comments.parentCommentId), // Top-level comments only
+            isNull(comments.deletedAt)
+          )
+        );
+
+      for (const comment of existingComments) {
+        if (comment.postId) {
+          agentComments.set(comment.postId, comment.content);
+        }
+      }
+    }
+
     return recentPostsRaw.map((p) => ({
       id: p.id,
       authorName: authorNames.get(p.authorId) || 'User',
       content: p.content,
       commentCount: 0, // Simplified - could add actual count if needed
       timeAgo: getTimeAgo(p.createdAt),
+      agentComment: agentComments.get(p.id),
     }));
   }
 
