@@ -29,6 +29,32 @@ export class PredictionMarketService {
     return this.db.getMarketById(marketId);
   }
 
+  /**
+   * Ensure a market row exists for a given question/market id.
+   *
+   * This is useful for game/engine flows that create questions first and want
+   * the corresponding market to exist immediately (e.g. for on-chain setup),
+   * rather than lazily on first trade.
+   */
+  async ensureMarketExists(input: {
+    marketId: string;
+    initialLiquidity?: number;
+    description?: string | null;
+  }): Promise<PredictionMarketRecord> {
+    const existing = await this.db.getMarketById(input.marketId);
+    if (existing) return existing;
+
+    const question = await this.db.getQuestion?.(input.marketId);
+    if (!question) {
+      throw new Error(`Market not found: ${input.marketId}`);
+    }
+    return this.db.createMarketFromQuestion(
+      question,
+      input.initialLiquidity ?? DEFAULT_LIQUIDITY,
+      { description: input.description }
+    );
+  }
+
   async listMarkets(): Promise<PredictionMarketRecord[]> {
     if (this.db.listMarkets) {
       return this.db.listMarkets();
@@ -326,23 +352,37 @@ export class PredictionMarketService {
   async resolve(input: PredictionResolveInput): Promise<void> {
     const { marketId, winningSide, resolutionDescription, resolutionProofUrl } =
       input;
+    const positions = await this.db.listPositionsForMarket(marketId);
     const market = await this.ensureMarket(marketId);
     if (market.resolved) return;
+
+    const now = input.resolvedAt ?? this.now();
+    const totalPayout = positions
+      .filter(
+        (p) =>
+          (winningSide === 'yes' && p.side === 'yes') ||
+          (winningSide === 'no' && p.side === 'no')
+      )
+      .reduce((acc, p) => acc + p.shares, 0);
+
+    const liquidityReduction = Math.min(totalPayout, market.liquidity);
+    const newLiquidity = market.liquidity - liquidityReduction;
 
     await this.db.updateMarketState(marketId, {
       resolved: true,
       resolution: winningSide === 'yes',
+      liquidity: newLiquidity,
       resolutionProofUrl: resolutionProofUrl ?? undefined,
       resolutionDescription: resolutionDescription ?? undefined,
     });
 
-    const positions = await this.db.listPositionsForMarket(marketId);
-    const now = this.now();
     for (const pos of positions) {
       const isWinner =
         (winningSide === 'yes' && pos.side === 'yes') ||
         (winningSide === 'no' && pos.side === 'no');
       const payout = isWinner ? pos.shares : 0;
+      const pnl = payout - pos.avgPrice * pos.shares;
+
       if (payout > 0) {
         await this.deps.wallet.credit({
           userId: pos.userId,
@@ -351,9 +391,11 @@ export class PredictionMarketService {
           description: `Payout ${winningSide.toUpperCase()} for ${market.question}`,
           relatedId: marketId,
         });
+      }
+      if (pnl !== 0) {
         await this.deps.wallet.recordPnL({
           userId: pos.userId,
-          pnl: payout - pos.avgPrice * pos.shares,
+          pnl,
           reason: 'pred_resolve',
           relatedId: marketId,
         });
@@ -362,7 +404,7 @@ export class PredictionMarketService {
         ...pos,
         status: 'resolved',
         outcome: isWinner,
-        pnl: payout - pos.avgPrice * pos.shares,
+        pnl,
         resolvedAt: now,
         updatedAt: now,
       });
@@ -374,7 +416,7 @@ export class PredictionMarketService {
       noPrice: winningSide === 'no' ? 1 : 0,
       yesShares: market.yesShares,
       noShares: market.noShares,
-      liquidity: market.liquidity,
+      liquidity: newLiquidity,
       eventType: 'resolution',
       source: 'system',
     });
@@ -385,14 +427,8 @@ export class PredictionMarketService {
       winningSide,
       yesShares: market.yesShares,
       noShares: market.noShares,
-      liquidity: market.liquidity,
-      totalPayout: positions
-        .filter(
-          (p) =>
-            (winningSide === 'yes' && p.side === 'yes') ||
-            (winningSide === 'no' && p.side === 'no')
-        )
-        .reduce((acc, p) => acc + p.shares, 0),
+      liquidity: newLiquidity,
+      totalPayout,
       timestamp: now.toISOString(),
       resolutionProofUrl,
       resolutionDescription,

@@ -77,7 +77,8 @@ export interface PredictionDbPort {
   getQuestion?(idOrNumber: string): Promise<QuestionRecord | null>;
   createMarketFromQuestion(
     question: QuestionRecord,
-    initialLiquidity: number
+    initialLiquidity: number,
+    options?: { description?: string | null }
   ): Promise<PredictionMarketRecord>;
   updateMarketState(
     marketId: string,

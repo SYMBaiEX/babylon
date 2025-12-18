@@ -6,7 +6,7 @@
  * Also provides an optional interface for syncing reputation to ERC-8004.
  */
 
-import { db, eq, positions, users } from '@babylon/db';
+import { db, eq, inArray, positions, users } from '@babylon/db';
 import {
   getCurrentRpcUrl,
   logger,
@@ -154,7 +154,7 @@ export class ReputationService {
         onChainRegistered: users.onChainRegistered,
       })
       .from(users)
-      .where(eq(users.id, userIds[0] ?? '')); // Simplified - in real usage would use inArray
+      .where(inArray(users.id, userIds));
 
     const userMap = new Map(usersData.map((u) => [u.id, u]));
 

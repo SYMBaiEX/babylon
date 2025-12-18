@@ -5,6 +5,10 @@
  */
 
 import {
+  type JsonValue as ApiJsonValue,
+  broadcastToChannel,
+} from '@babylon/api';
+import {
   PredictionDbAdapter as CorePredictionDbAdapter,
   PredictionMarketService as CorePredictionMarketService,
 } from '@babylon/core/markets/prediction';
@@ -13,7 +17,6 @@ import {
   actorState,
   and,
   count,
-  Decimal,
   db,
   getDbInstance as dbService,
   desc,
@@ -25,7 +28,6 @@ import {
   type JsonValue,
   lte,
   markets as marketsSchema,
-  ne,
   organizationState,
   poolPositions,
   pools,
@@ -2629,89 +2631,69 @@ export async function resolveQuestionPayouts(
 
   // Store market properties in consts to ensure type narrowing
   const marketId = market.id;
-  const marketQuestion = market.question;
-  const marketLiquidity = market.liquidity;
   const marketOnChainMarketId = market.onChainMarketId;
   const marketOnChainResolved = market.onChainResolved;
 
-  const { positionUpdates, totalPayout } = await db.transaction(async (tx) => {
-    const positionsList = await tx
-      .select()
+  const pnlsToRecord: Array<{ userId: string; pnl: number }> = [];
+  let totalPayout = 0;
+  let positionsSettled = 0;
+
+  await db.transaction(async (tx) => {
+    const coreService = new CorePredictionMarketService({
+      db: new CorePredictionDbAdapter(tx),
+      wallet: {
+        debit: async () => {
+          throw new Error('Unexpected debit during market resolution');
+        },
+        credit: async ({ userId, amount, reason, description, relatedId }) => {
+          totalPayout += amount;
+          await WalletService.credit(
+            userId,
+            amount,
+            reason,
+            description ?? '',
+            relatedId,
+            tx
+          );
+        },
+        recordPnL: async ({ userId, pnl }) => {
+          pnlsToRecord.push({ userId, pnl });
+        },
+        getBalance: (userId: string) => WalletService.getBalance(userId),
+      },
+      broadcast: {
+        emit: (_channel, payload) =>
+          broadcastToChannel(
+            'markets',
+            payload as Record<string, ApiJsonValue>
+          ),
+      },
+      cache: {
+        invalidate: () => invalidateAfterPredictionTrade(marketId),
+      },
+      fees: {
+        tradingFeeRate: 0,
+        platformShare: 0,
+        referrerShare: 0,
+        minFeeAmount: 0,
+      },
+      clock: { now: () => resolutionTimestamp },
+    });
+
+    // Estimate positions settled for logging (coreService updates all positions for the market)
+    const existingPositions = await tx
+      .select({ id: positions.id })
       .from(positions)
-      .where(
-        and(eq(positions.marketId, marketId), ne(positions.status, 'resolved'))
-      );
+      .where(eq(positions.marketId, marketId));
+    positionsSettled = existingPositions.length;
 
-    const updates: Array<{
-      userId: string;
-      pnl: number;
-      positionId: string;
-    }> = [];
-
-    let payoutAccumulator = 0;
-
-    for (const position of positionsList) {
-      const shares = Number(position.shares ?? 0);
-      const avgPrice = Number(position.avgPrice ?? 0);
-      const costBasis = avgPrice * shares;
-      const didWin = position.side === winningSide;
-      // In prediction markets, each winning share pays exactly 1 unit
-      // The market "odds" are reflected in purchase price, not payout
-      const payout = didWin ? shares : 0;
-      const pnl = payout - costBasis;
-
-      if (didWin && payout > 0) {
-        await WalletService.credit(
-          position.userId,
-          payout,
-          'pred_resolve_win',
-          `Prediction market payout: ${marketQuestion}`,
-          marketId,
-          tx
-        );
-        payoutAccumulator += payout;
-      }
-
-      await tx
-        .update(positions)
-        .set({
-          shares: new Decimal(0).toString(),
-          amount: new Decimal(costBasis).toString(),
-          pnl: new Decimal(pnl).toString(),
-          status: 'resolved',
-          outcome: didWin,
-          resolvedAt: resolutionTimestamp,
-          questionId: question.questionNumber,
-          updatedAt: resolutionTimestamp,
-        })
-        .where(eq(positions.id, position.id));
-
-      updates.push({
-        userId: position.userId,
-        pnl,
-        positionId: position.id,
-      });
-    }
-
-    const liquidityReduction = Math.min(
-      payoutAccumulator,
-      Number(marketLiquidity ?? 0)
-    );
-
-    const newLiquidity =
-      liquidityReduction > 0
-        ? Decimal.sub(marketLiquidity ?? 0, liquidityReduction).toString()
-        : marketLiquidity;
-
-    await tx
-      .update(marketsSchema)
-      .set({
-        resolved: true,
-        resolution: winningSide,
-        updatedAt: resolutionTimestamp,
-        liquidity: newLiquidity,
-      })
-      .where(eq(marketsSchema.id, marketId));
+    await coreService.resolve({
+      marketId,
+      winningSide: winningSide ? 'yes' : 'no',
+      resolvedAt: resolutionTimestamp,
+      resolutionDescription: question.resolutionDescription ?? undefined,
+      resolutionProofUrl: question.resolutionProofUrl ?? undefined,
+    });
 
     await tx
       .update(questionsSchema)
@@ -2721,19 +2703,15 @@ export async function resolveQuestionPayouts(
         updatedAt: resolutionTimestamp,
       })
       .where(eq(questionsSchema.id, question.id));
-
-    return {
-      positionUpdates: updates,
-      totalPayout: liquidityReduction,
-    };
   });
 
-  for (const update of positionUpdates) {
-    if (update.pnl === 0) continue;
+  // Record PnL post-transaction to avoid nested transactions inside the DB tx.
+  for (const entry of pnlsToRecord) {
+    if (entry.pnl === 0) continue;
     await WalletService.recordPnL(
-      update.userId,
-      update.pnl,
-      'prediction_resolve',
+      entry.userId,
+      entry.pnl,
+      'pred_resolve',
       marketId
     );
   }
@@ -2772,33 +2750,6 @@ export async function resolveQuestionPayouts(
       .where(eq(marketsSchema.id, marketId));
   }
 
-  // Emit resolution event via core service (broadcast/cache handled internally)
-  const coreService = new CorePredictionMarketService({
-    db: new CorePredictionDbAdapter(),
-    wallet: {
-      debit: async () => {},
-      credit: async () => {},
-      recordPnL: async () => {},
-      getBalance: async () => ({ balance: 0 }),
-    },
-    cache: {
-      invalidate: () => invalidateAfterPredictionTrade(marketId),
-    },
-    fees: {
-      tradingFeeRate: 0,
-      platformShare: 0,
-      referrerShare: 0,
-      minFeeAmount: 0,
-    },
-  });
-
-  await coreService.resolve({
-    marketId,
-    winningSide: winningSide ? 'yes' : 'no',
-    resolutionDescription: question.resolutionDescription ?? undefined,
-    resolutionProofUrl: question.resolutionProofUrl ?? undefined,
-  });
-
   logger.info(
     'Resolved prediction market payouts',
     {
@@ -2806,7 +2757,7 @@ export async function resolveQuestionPayouts(
       questionNumber,
       winningSide: winningSide ? 'YES' : 'NO',
       totalPayout,
-      positionsSettled: positionUpdates.length,
+      positionsSettled,
     },
     'GameTick'
   );
