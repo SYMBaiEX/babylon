@@ -235,14 +235,20 @@ export const POST = withErrorHandling(
     }
     const agentConfig = agentWithConfig.agentConfig;
 
-    const pointsCost = 1;
+    const pointsCost = usePro ? 1 : 0;
+    const modelType = usePro ? ModelType.TEXT_LARGE : ModelType.TEXT_SMALL;
     const modelUsed = usePro ? 'groq-70b' : 'groq-8b';
-    const newBalance = await agentService.deductPoints(
-      agentId,
-      pointsCost,
-      `Chat message (${usePro ? 'pro' : 'free'} mode)`,
-      undefined
-    );
+    
+    // Only deduct points for pro mode
+    let newBalance = agentConfig?.pointsBalance ?? 0;
+    if (pointsCost > 0) {
+      newBalance = await agentService.deductPoints(
+        agentId,
+        pointsCost,
+        `Chat message (pro mode)`,
+        undefined
+      );
+    }
 
     // Get runtime
     const runtime = await agentRuntimeManager.getRuntime(agentId);
@@ -312,7 +318,7 @@ export const POST = withErrorHandling(
       let parsedStep: Record<string, unknown> | null = null;
 
       for (let attempt = 1; attempt <= MAX_PARSE_RETRIES; attempt++) {
-        const response = await runtime.useModel(ModelType.TEXT_LARGE, {
+        const response = await runtime.useModel(modelType, {
           prompt,
           temperature: attempt > 1 ? 0.5 : 0.7,
         });
@@ -516,7 +522,7 @@ export const POST = withErrorHandling(
       let extractedText: string | undefined;
 
       for (let attempt = 1; attempt <= SUMMARY_RETRIES; attempt++) {
-        const summaryResponse = await runtime.useModel(ModelType.TEXT_LARGE, {
+        const summaryResponse = await runtime.useModel(modelType, {
           prompt: summaryPrompt,
           temperature: attempt > 1 ? 0.5 : 0.7,
         });

@@ -220,7 +220,7 @@ export const groqPlugin: Plugin = {
       const model =
         runtime.getSetting('GROQ_SMALL_MODEL') ??
         runtime.getSetting('SMALL_MODEL') ??
-        'llama-3.1-8b-instant';
+        'llama-3.1-8b-instant'; // groq-8b
 
       interface RuntimeWithExtensions extends IAgentRuntime {
         trajectoryLogger?: TrajectoryLoggerService;
@@ -269,7 +269,7 @@ export const groqPlugin: Plugin = {
       const model =
         runtime.getSetting('GROQ_LARGE_MODEL') ??
         runtime.getSetting('LARGE_MODEL') ??
-        'qwen/qwen3-32b';
+        'llama-3.3-70b-versatile'; // groq-70b
 
       type RuntimeWithTrajectory = typeof runtime & {
         trajectoryLogger?: TrajectoryLoggerService;
