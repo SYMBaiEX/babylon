@@ -16,6 +16,7 @@ import {
   comments,
   db,
   eq,
+  gte,
   isNull,
   markets,
   messages,
@@ -220,14 +221,26 @@ async function executePredictionTrade(params: {
       TRADING_FEE_RATE
     );
 
-    // Debit amount from balance
+    // Debit amount from balance (atomic check to prevent negative balance)
     if (isNpc) {
-      await txDb
+      const debitResult = await txDb
         .update(actorState)
         .set({
           tradingBalance: sql`${actorState.tradingBalance} - ${amount}`,
+          updatedAt: new Date(),
         })
-        .where(eq(actorState.id, agentUserId));
+        .where(
+          and(
+            eq(actorState.id, agentUserId),
+            gte(actorState.tradingBalance, String(amount))
+          )
+        )
+        .returning({ id: actorState.id });
+
+      // Check if debit succeeded (empty array means insufficient funds or actor not found)
+      if (debitResult.length === 0) {
+        throw new Error(`Insufficient NPC balance for trade: $${amount}`);
+      }
     } else {
       const sharesRounded = Math.round(calculation.sharesBought * 100) / 100;
       await WalletService.debit(
@@ -366,12 +379,24 @@ async function executePerpTrade(params: {
             description?: string;
             relatedId?: string;
           }) => {
-            await db
+            // Atomic debit with balance check to prevent negative balance
+            const result = await db
               .update(actorState)
               .set({
                 tradingBalance: sql`${actorState.tradingBalance} - ${amt}`,
+                updatedAt: new Date(),
               })
-              .where(eq(actorState.id, uid));
+              .where(
+                and(
+                  eq(actorState.id, uid),
+                  gte(actorState.tradingBalance, String(amt))
+                )
+              )
+              .returning({ id: actorState.id });
+
+            if (result.length === 0) {
+              throw new Error(`Insufficient NPC balance for perp trade: $${amt}`);
+            }
           },
           credit: async ({
             userId: uid,
@@ -387,6 +412,7 @@ async function executePerpTrade(params: {
               .update(actorState)
               .set({
                 tradingBalance: sql`${actorState.tradingBalance} + ${amt}`,
+                updatedAt: new Date(),
               })
               .where(eq(actorState.id, uid));
           },

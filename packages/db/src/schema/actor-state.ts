@@ -1,5 +1,7 @@
+import { sql } from 'drizzle-orm';
 import {
   boolean,
+  check,
   decimal,
   index,
   integer,
@@ -29,6 +31,8 @@ export const actorState = pgTable(
   (table) => [
     index('ActorState_hasPool_idx').on(table.hasPool),
     index('ActorState_reputationPoints_idx').on(table.reputationPoints),
+    // Prevent negative trading balance at database level
+    check('positive_trading_balance', sql`${table.tradingBalance} >= 0`),
   ]
 );
 
