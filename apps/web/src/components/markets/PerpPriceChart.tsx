@@ -172,18 +172,23 @@ export function PerpPriceChart({
 
       // lightweight-charts v5: chart.addSeries(AreaSeries, options)
       // lightweight-charts v4: chart.addAreaSeries(options)
-      const chartAny = chart as unknown as Record<string, unknown>;
-      const addSeries = chartAny.addSeries as
-        | ((seriesType: unknown, options: unknown) => ISeriesApi<'Area'>)
-        | undefined;
-      const addAreaSeries = chartAny.addAreaSeries as
-        | ((options: unknown) => ISeriesApi<'Area'>)
-        | undefined;
+      // IMPORTANT: do not call extracted methods directly; lightweight-charts relies on `this`.
+      const chartAny = chart as unknown as {
+        addSeries?: (
+          seriesType: unknown,
+          options: unknown
+        ) => ISeriesApi<'Area'>;
+        addAreaSeries?: (options: unknown) => ISeriesApi<'Area'>;
+      };
 
-      if (typeof addSeries === 'function' && AreaSeries) {
-        priceSeries.current = addSeries(AreaSeries, seriesOptions);
-      } else if (typeof addAreaSeries === 'function') {
-        priceSeries.current = addAreaSeries(seriesOptions);
+      if (typeof chartAny.addSeries === 'function' && AreaSeries) {
+        priceSeries.current = chartAny.addSeries.call(
+          chart,
+          AreaSeries,
+          seriesOptions
+        );
+      } else if (typeof chartAny.addAreaSeries === 'function') {
+        priceSeries.current = chartAny.addAreaSeries.call(chart, seriesOptions);
       } else {
         throw new Error('Unsupported lightweight-charts API');
       }

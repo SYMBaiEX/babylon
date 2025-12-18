@@ -177,35 +177,37 @@ export function PredictionProbabilityChart({
         },
       };
 
-      const chartAny = chart as unknown as Record<string, unknown>;
-      const addSeries = chartAny.addSeries as
-        | ((
-            seriesType: unknown,
-            options: unknown
-          ) => ISeriesApi<'Area'> | ISeriesApi<'Line'>)
-        | undefined;
-      const addAreaSeries = chartAny.addAreaSeries as
-        | ((options: unknown) => ISeriesApi<'Area'>)
-        | undefined;
-      const addLineSeries = chartAny.addLineSeries as
-        | ((options: unknown) => ISeriesApi<'Line'>)
-        | undefined;
+      // IMPORTANT: do not call extracted methods directly; lightweight-charts relies on `this`.
+      const chartAny = chart as unknown as {
+        addSeries?: (
+          seriesType: unknown,
+          options: unknown
+        ) => ISeriesApi<'Area'> | ISeriesApi<'Line'>;
+        addAreaSeries?: (options: unknown) => ISeriesApi<'Area'>;
+        addLineSeries?: (options: unknown) => ISeriesApi<'Line'>;
+      };
 
-      if (typeof addSeries === 'function' && AreaSeries && LineSeries) {
-        yesSeries.current = addSeries(
+      if (
+        typeof chartAny.addSeries === 'function' &&
+        AreaSeries &&
+        LineSeries
+      ) {
+        yesSeries.current = chartAny.addSeries.call(
+          chart,
           AreaSeries,
           yesOptions
         ) as ISeriesApi<'Area'>;
-        noSeries.current = addSeries(
+        noSeries.current = chartAny.addSeries.call(
+          chart,
           LineSeries,
           noOptions
         ) as ISeriesApi<'Line'>;
       } else if (
-        typeof addAreaSeries === 'function' &&
-        typeof addLineSeries === 'function'
+        typeof chartAny.addAreaSeries === 'function' &&
+        typeof chartAny.addLineSeries === 'function'
       ) {
-        yesSeries.current = addAreaSeries(yesOptions);
-        noSeries.current = addLineSeries(noOptions);
+        yesSeries.current = chartAny.addAreaSeries.call(chart, yesOptions);
+        noSeries.current = chartAny.addLineSeries.call(chart, noOptions);
       } else {
         throw new Error('Unsupported lightweight-charts API');
       }
