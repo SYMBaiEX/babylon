@@ -7,14 +7,22 @@ import {
   successResponse,
   withErrorHandling,
 } from '@babylon/api';
-import { db } from '@babylon/db';
+import {
+  and,
+  balanceTransactions,
+  db,
+  desc,
+  eq,
+  inArray,
+  markets,
+  users,
+} from '@babylon/db';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
-import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
 const QuerySchema = z.object({
-  limit: z.coerce.number().min(1).max(100).default(50),
+  limit: z.coerce.number().min(1).max(100).default(20),
   offset: z.coerce.number().min(0).default(0),
 });
 
@@ -31,7 +39,7 @@ export const GET = withErrorHandling(
     // Parse query parameters
     const { searchParams } = new URL(request.url);
     const queryParams = QuerySchema.parse({
-      limit: searchParams.get('limit') || '50',
+      limit: searchParams.get('limit') || '20',
       offset: searchParams.get('offset') || '0',
     });
 
@@ -42,163 +50,87 @@ export const GET = withErrorHandling(
     );
 
     // Check Redis cache first
-    const cacheKey = `prediction-trades:${marketId}:${queryParams.limit}:${queryParams.offset}`;
+    const cacheKey = `prediction-trades:v2:${marketId}:${queryParams.limit}:${queryParams.offset}`;
     const cached = await getCache<Record<string, JsonValue>>(cacheKey);
 
     if (cached) {
-      logger.debug(
-        'Cache hit for prediction trades',
-        { marketId },
-        'PredictionTrades'
-      );
       return successResponse(cached);
     }
 
-    // Verify market exists
-    const market = await db.market.findUnique({
-      where: { id: marketId },
-      select: {
-        id: true,
-        question: true,
-        resolved: true,
-        resolution: true,
-      },
-    });
+    // Verify market exists (drizzle) - used for response metadata
+    const [market] = await db
+      .select({
+        id: markets.id,
+        question: markets.question,
+      })
+      .from(markets)
+      .where(eq(markets.id, marketId))
+      .limit(1);
 
     if (!market) {
-      return NextResponse.json({ error: 'Market not found' }, { status: 404 });
+      return successResponse({ error: 'Market not found' }, 404);
     }
 
-    // Get positions for this market (user trades)
-    const positionsRaw = await db.position.findMany({
-      where: {
-        marketId: marketId,
-        shares: { gt: '0' }, // Only positions with shares (shares is string)
-      },
-      orderBy: { updatedAt: 'desc' },
-      take: queryParams.limit,
-      skip: queryParams.offset,
-    });
+    // Prediction trades are recorded as balance transactions with relatedId = marketId.
+    // This avoids expensive joins against positions for a paginated feed.
+    const txRows = await db
+      .select({
+        id: balanceTransactions.id,
+        type: balanceTransactions.type,
+        amount: balanceTransactions.amount,
+        userId: balanceTransactions.userId,
+        createdAt: balanceTransactions.createdAt,
+      })
+      .from(balanceTransactions)
+      .where(
+        and(
+          eq(balanceTransactions.relatedId, marketId),
+          inArray(balanceTransactions.type, ['pred_buy', 'pred_sell'])
+        )
+      )
+      .orderBy(desc(balanceTransactions.createdAt))
+      .limit(queryParams.limit + 1)
+      .offset(queryParams.offset);
 
-    // Get users for positions
-    const userIds = [...new Set(positionsRaw.map((p) => p.userId))];
-    const users =
+    const hasMore = txRows.length > queryParams.limit;
+    const pageRows = hasMore ? txRows.slice(0, queryParams.limit) : txRows;
+
+    const userIds = [...new Set(pageRows.map((row) => row.userId))];
+    const userRows =
       userIds.length > 0
-        ? await db.user.findMany({
-            where: { id: { in: userIds } },
-            select: {
-              id: true,
-              username: true,
-              displayName: true,
-              profileImageUrl: true,
-              isActor: true,
-            },
-          })
+        ? await db
+            .select({
+              id: users.id,
+              username: users.username,
+              displayName: users.displayName,
+              profileImageUrl: users.profileImageUrl,
+              isActor: users.isActor,
+            })
+            .from(users)
+            .where(inArray(users.id, userIds))
         : [];
-    const userMap = new Map(users.map((u) => [u.id, u]));
+    const userMap = new Map(userRows.map((u) => [u.id, u]));
 
-    // Join positions with users
-    const positions = positionsRaw.map((pos) => ({
-      ...pos,
-      User: userMap.get(pos.userId),
+    const trades = pageRows.map((tx) => ({
+      id: tx.id,
+      type: 'balance' as const,
+      user: userMap.get(tx.userId) ?? null,
+      transactionType: tx.type,
+      amount: Number(tx.amount),
+      timestamp: tx.createdAt.toISOString(),
+      marketId,
     }));
-
-    // Get total count for pagination
-    const totalPositions = await db.position.count({
-      where: {
-        marketId: marketId,
-        shares: { gt: '0' }, // shares is string
-      },
-    });
-
-    // Get balance transactions for these positions
-    const positionIds = positions.map((p) => p.id);
-    const balanceTransactions =
-      positionIds.length > 0
-        ? await db.balanceTransaction.findMany({
-            where: {
-              type: { in: ['pred_buy', 'pred_sell'] },
-              relatedId: { in: positionIds },
-            },
-            orderBy: { createdAt: 'desc' },
-            take: queryParams.limit,
-            select: {
-              id: true,
-              type: true,
-              amount: true,
-              userId: true,
-              createdAt: true,
-              relatedId: true,
-              description: true,
-            },
-          })
-        : [];
-
-    // Fetch users for transactions
-    const txUserIds = [...new Set(balanceTransactions.map((tx) => tx.userId))];
-    const txUsers = await db.user.findMany({
-      where: { id: { in: txUserIds } },
-      select: {
-        id: true,
-        username: true,
-        displayName: true,
-        profileImageUrl: true,
-        isActor: true,
-      },
-    });
-    const txUsersMap = new Map(txUsers.map((u) => [u.id, u]));
-
-    // Format trades
-    const trades = [
-      // Position trades
-      ...positions.map((pos) => ({
-        id: pos.id,
-        type: 'position' as const,
-        user: pos.User,
-        side: pos.side ? 'YES' : 'NO',
-        shares: Number(pos.shares),
-        avgPrice: Number(pos.avgPrice),
-        amount: Number(pos.shares) * Number(pos.avgPrice),
-        timestamp: pos.updatedAt,
-        marketId: pos.marketId,
-      })),
-      // Balance transaction trades
-      ...balanceTransactions.map((tx) => ({
-        id: tx.id,
-        type: 'balance' as const,
-        user: txUsersMap.get(tx.userId) || null,
-        transactionType: tx.type,
-        amount: Number(tx.amount),
-        description: tx.description,
-        relatedId: tx.relatedId,
-        timestamp: tx.createdAt,
-        marketId,
-      })),
-    ]
-      // Sort by timestamp descending
-      .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
-      // Apply pagination
-      .slice(0, queryParams.limit);
-
-    const total = totalPositions + balanceTransactions.length;
-    const hasMore = queryParams.offset + queryParams.limit < total;
 
     const result = {
       trades,
-      total,
+      total: queryParams.offset + trades.length + (hasMore ? 1 : 0),
       hasMore,
       marketId: market.id,
       question: market.question,
     };
 
-    // Cache for 30 seconds
-    await setCache(cacheKey, result, { ttl: 30, namespace: 'market-trades' });
-
-    logger.info(
-      `Returned ${trades.length} trades for prediction market ${marketId}`,
-      { total, hasMore },
-      'PredictionTrades'
-    );
+    // Cache briefly; feed is also updated via SSE.
+    await setCache(cacheKey, result, { ttl: 10, namespace: 'market-trades' });
 
     return successResponse(result);
   }

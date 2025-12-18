@@ -17,11 +17,11 @@ import { usePredictionMarketStream } from '@/hooks/usePredictionMarketStream';
 /**
  * Page size for pagination in trades feed.
  */
-const PAGE_SIZE = 50;
+const PAGE_SIZE = 20;
 /**
  * Polling interval for fetching new trades (10 seconds).
  */
-const POLL_INTERVAL = 10000; // 10 seconds
+const POLL_INTERVAL = 30000; // 30 seconds
 /**
  * Scroll threshold in pixels from top to consider "at top" for auto-polling.
  */
@@ -268,6 +268,15 @@ export function AssetTradesFeed({
 
   // Polling: refresh when at top
   useEffect(() => {
+    // For prediction markets, SSE already prompts refresh; polling just adds load/latency.
+    if (marketType === 'prediction') {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
+      return;
+    }
+
     if (!shouldPoll || !isAtTop) {
       if (pollingIntervalRef.current) {
         clearInterval(pollingIntervalRef.current);
@@ -291,7 +300,7 @@ export function AssetTradesFeed({
         pollingIntervalRef.current = null;
       }
     };
-  }, [shouldPoll, isAtTop, refreshTrades]);
+  }, [marketType, shouldPoll, isAtTop, refreshTrades]);
 
   // Infinite scroll observer
   useEffect(() => {

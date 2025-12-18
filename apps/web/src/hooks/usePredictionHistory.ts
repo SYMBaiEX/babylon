@@ -71,7 +71,7 @@ export function usePredictionHistory(
   marketId: string | null,
   options?: UsePredictionHistoryOptions
 ) {
-  const limit = options?.limit ?? 200;
+  const limit = options?.limit ?? 100;
   const seedRef = useRef<SeedSnapshot | undefined>(options?.seed);
   const [history, setHistory] = useState<PredictionHistoryPoint[]>([]);
   const [loading, setLoading] = useState(false);
