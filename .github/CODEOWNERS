@@ -68,24 +68,28 @@
 # -------------
 # RL / training
 # -------------
-/packages/training/ @revlentless
-/apps/web/src/app/admin/rl-training/ @revlentless
-/apps/web/src/app/api/training/ @revlentless
-/apps/web/src/app/api/_training/ @revlentless
-/apps/web/src/app/api/huggingface/ @revlentless
-/apps/web/src/app/api/admin/training/ @revlentless
-/apps/web/src/app/api/admin/training-data/ @revlentless
-/apps/web/src/app/api/admin/ai-models/ @revlentless
-/apps/web/src/app/api/cron/training/ @revlentless
-/apps/web/src/app/api/cron/training-check/ @revlentless
-/apps/web/src/app/api/cron/_training/ @revlentless
-/apps/web/src/app/api/cron/weekly-dataset-upload/ @revlentless
+# TEMP: fallback owner until @revlentless has access to the repo.
+# Replace @SYMBaiEX → @revlentless when added.
+/packages/training/ @SYMBaiEX
+/apps/web/src/app/admin/rl-training/ @SYMBaiEX
+/apps/web/src/app/api/training/ @SYMBaiEX
+/apps/web/src/app/api/_training/ @SYMBaiEX
+/apps/web/src/app/api/huggingface/ @SYMBaiEX
+/apps/web/src/app/api/admin/training/ @SYMBaiEX
+/apps/web/src/app/api/admin/training-data/ @SYMBaiEX
+/apps/web/src/app/api/admin/ai-models/ @SYMBaiEX
+/apps/web/src/app/api/cron/training/ @SYMBaiEX
+/apps/web/src/app/api/cron/training-check/ @SYMBaiEX
+/apps/web/src/app/api/cron/_training/ @SYMBaiEX
+/apps/web/src/app/api/cron/weekly-dataset-upload/ @SYMBaiEX
 
 # -----------------------------
 # Discord bot / automations
 # -----------------------------
-/apps/web/src/app/api/auth/discord/ @odilitime
-/apps/web/src/app/api/users/\[userId\]/verify-discord-join/ @odilitime
+# TEMP: fallback owner until @odilitime has access to the repo.
+# Replace @SYMBaiEX → @odilitime when added.
+/apps/web/src/app/api/auth/discord/ @SYMBaiEX
+/apps/web/src/app/api/users/\[userId\]/verify-discord-join/ @SYMBaiEX
 
 # -------
 # Chats
@@ -113,7 +117,9 @@
 /apps/web/src/app/api/auth/farcaster/ @xR0am
 /apps/web/src/app/api/auth/onboarding/farcaster/ @xR0am
 /apps/web/src/app/api/users/\[userId\]/verify-farcaster-follow/ @xR0am
-/apps/web/src/hooks/useSocialVerification.ts @xR0am @odilitime
+# TEMP: fallback owner until @odilitime has access to the repo.
+# Replace @SYMBaiEX → @odilitime when added.
+/apps/web/src/hooks/useSocialVerification.ts @xR0am @SYMBaiEX
 /apps/web/src/stores/authStore.ts @xR0am
 
 /packages/shared/src/auth/farcaster-auth-client.ts @xR0am
