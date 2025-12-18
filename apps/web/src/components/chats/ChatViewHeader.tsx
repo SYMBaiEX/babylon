@@ -53,7 +53,7 @@ export function ChatViewHeader({
         {/* Avatar */}
         {chatDetails.chat.isGroup ? (
           <div className="flex h-10 w-10 items-center justify-center rounded-full bg-sidebar-accent/50">
-            <Users className="h-5 w-5" style={{ color: '#b82323' }} />
+            <Users className="h-5 w-5 text-primary" />
           </div>
         ) : chatDetails.chat.otherUser ? (
           <Link

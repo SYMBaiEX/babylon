@@ -27,7 +27,8 @@ export function ChatSearchBar({ value, onChange }: ChatSearchBarProps) {
       {value && (
         <button
           onClick={() => onChange('')}
-          className="-translate-y-1/2 absolute top-1/2 right-6 flex h-6 w-6 items-center justify-center rounded-md transition-colors hover:bg-muted-foreground/20"
+          aria-label="Clear search"
+          className="-translate-y-1/2 absolute top-1/2 right-4 flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md transition-colors hover:bg-muted-foreground/20"
         >
           <X className="h-4 w-4 text-foreground" />
         </button>

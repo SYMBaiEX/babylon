@@ -57,33 +57,42 @@ export function ChatHeader({
           onClick={() => onFilterChange('all')}
           aria-label="Show all conversations"
           className={cn(
-            'relative flex-1 py-3.5 font-semibold transition-all hover:bg-muted/20',
+            'relative min-h-[44px] flex-1 font-semibold transition-all hover:bg-muted/20',
             activeFilter === 'all' ? 'text-foreground' : 'text-muted-foreground'
           )}
         >
           All
+          {activeFilter === 'all' && (
+            <span className="absolute right-0 bottom-0 left-0 h-0.5 bg-primary" />
+          )}
         </button>
         <button
           onClick={() => onFilterChange('dms')}
           aria-label="Show direct messages"
           className={cn(
-            'relative flex-1 py-3.5 font-semibold transition-all hover:bg-muted/20',
+            'relative min-h-[44px] flex-1 font-semibold transition-all hover:bg-muted/20',
             activeFilter === 'dms' ? 'text-foreground' : 'text-muted-foreground'
           )}
         >
           DMs
+          {activeFilter === 'dms' && (
+            <span className="absolute right-0 bottom-0 left-0 h-0.5 bg-primary" />
+          )}
         </button>
         <button
           onClick={() => onFilterChange('groups')}
           aria-label="Show group chats"
           className={cn(
-            'relative flex-1 py-3.5 font-semibold transition-all hover:bg-muted/20',
+            'relative min-h-[44px] flex-1 font-semibold transition-all hover:bg-muted/20',
             activeFilter === 'groups'
               ? 'text-foreground'
               : 'text-muted-foreground'
           )}
         >
           Groups
+          {activeFilter === 'groups' && (
+            <span className="absolute right-0 bottom-0 left-0 h-0.5 bg-primary" />
+          )}
         </button>
       </div>
     </div>

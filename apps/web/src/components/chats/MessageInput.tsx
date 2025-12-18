@@ -64,11 +64,10 @@ export function MessageInput({
           disabled={!value.trim() || sending}
           className={cn(
             'flex items-center gap-2 rounded-lg px-4 py-3 font-semibold md:gap-3',
-            'chat-button bg-sidebar-accent/50',
+            'chat-button bg-sidebar-accent/50 text-primary',
             'transition-all duration-300',
-            'disabled:cursor-not-allowed disabled:opacity-50'
+            'disabled:cursor-not-allowed disabled:text-muted-foreground disabled:opacity-50'
           )}
-          style={{ color: '#0066FF' }}
         >
           {sending ? (
             <Skeleton className="h-5 w-5 rounded" />

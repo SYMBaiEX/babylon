@@ -199,7 +199,7 @@ function SidebarContent() {
       {/* Responsive sidebar: icons only on tablet (md), icons + names on desktop (lg+) */}
       <aside
         className={cn(
-          'sticky top-0 hidden h-screen md:flex md:flex-col',
+          'sticky top-0 z-10 hidden h-screen md:flex md:flex-col',
           'bg-sidebar',
           'transition-all duration-300',
           'md:w-20 lg:w-64'

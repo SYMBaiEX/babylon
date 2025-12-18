@@ -96,13 +96,10 @@ export function MessageBubble({
         <div
           className={cn(
             'message-bubble whitespace-pre-wrap break-words rounded-2xl px-4 py-3 text-sm',
-            isCurrentUser ? 'rounded-tr-sm' : 'rounded-tl-sm'
+            isCurrentUser
+              ? 'rounded-tr-sm bg-primary/20'
+              : 'rounded-tl-sm bg-sidebar-accent/50'
           )}
-          style={{
-            backgroundColor: isCurrentUser
-              ? '#0066FF20'
-              : 'rgba(var(--sidebar-accent), 0.5)',
-          }}
         >
           <TaggedText
             text={getDisplayContent(message.content)}

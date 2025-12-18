@@ -2,6 +2,7 @@
 
 import { cn } from '@babylon/shared';
 import { Users } from 'lucide-react';
+import React from 'react';
 import { Avatar } from '@/components/shared/Avatar';
 import type { Chat } from './types';
 
@@ -16,23 +17,30 @@ export function ChatListItem({
   isSelected,
   onSelect,
 }: ChatListItemProps) {
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      onSelect(chat.id);
+    }
+  };
+
   return (
     <div
+      role="button"
+      tabIndex={0}
       onClick={() => onSelect(chat.id)}
+      onKeyDown={handleKeyDown}
       className={cn(
-        'cursor-pointer px-4 py-3 transition-all duration-300',
+        'cursor-pointer px-4 py-3 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-inset',
         isSelected
-          ? 'border-l-4 bg-sidebar-accent/50'
-          : 'hover:bg-sidebar-accent/30'
+          ? 'border-primary border-l-4 bg-sidebar-accent/50'
+          : 'border-transparent border-l-4 hover:bg-sidebar-accent/30'
       )}
-      style={{
-        borderLeftColor: isSelected ? '#b82323' : 'transparent',
-      }}
     >
       <div className="flex items-center gap-3">
         {chat.isGroup ? (
           <div className="chat-button flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-sidebar-accent/50">
-            <Users className="h-5 w-5" style={{ color: '#b82323' }} />
+            <Users className="h-5 w-5 text-primary" />
           </div>
         ) : (
           <Avatar

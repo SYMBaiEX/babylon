@@ -337,3 +337,60 @@ button:disabled {
 .touch-none {
   touch-action: none;
 }
+
+/* Chat neumorphic styles */
+.chat-card {
+  box-shadow: inset 5px 5px 5px rgba(0, 0, 0, 0.1), inset -5px -5px 5px rgba(255, 255, 255, 0.05);
+}
+
+.chat-button {
+  box-shadow: inset 3px 3px 3px rgba(0, 0, 0, 0.1), inset -3px -3px 3px rgba(255, 255, 255, 0.05);
+  transition: all 0.3s ease;
+}
+
+.chat-button:hover:not(:disabled) {
+  box-shadow: none;
+}
+
+.message-input {
+  box-shadow: inset 3px 3px 5px rgba(0, 0, 0, 0.15), inset -3px -3px 5px rgba(255, 255, 255, 0.05);
+  transition: all 0.3s ease;
+}
+
+.message-input:focus {
+  box-shadow: inset 3px 3px 5px var(--primary-glow, rgba(0, 102, 255, 0.2)), inset -3px -3px 5px var(--primary-glow-secondary, rgba(0, 102, 255, 0.1));
+}
+
+.message-bubble {
+  box-shadow: 3px 3px 8px rgba(0, 0, 0, 0.15), -3px -3px 8px rgba(255, 255, 255, 0.05);
+}
+
+.chat-tab {
+  box-shadow: inset 3px 3px 5px rgba(0, 0, 0, 0.1), inset -3px -3px 5px rgba(255, 255, 255, 0.05);
+  transition: all 0.3s ease;
+}
+
+.chat-tab-active {
+  box-shadow: inset 3px 3px 5px var(--primary-glow, rgba(0, 102, 255, 0.3)), inset -3px -3px 5px var(--primary-glow-secondary, rgba(0, 102, 255, 0.1));
+}
+
+/* Dark mode adjustments for chat styles */
+.dark .chat-card {
+  box-shadow: inset 5px 5px 5px rgba(0, 0, 0, 0.3), inset -5px -5px 5px rgba(255, 255, 255, 0.02);
+}
+
+.dark .chat-button {
+  box-shadow: inset 3px 3px 3px rgba(0, 0, 0, 0.3), inset -3px -3px 3px rgba(255, 255, 255, 0.02);
+}
+
+.dark .message-input {
+  box-shadow: inset 3px 3px 5px rgba(0, 0, 0, 0.3), inset -3px -3px 5px rgba(255, 255, 255, 0.02);
+}
+
+.dark .message-bubble {
+  box-shadow: 3px 3px 8px rgba(0, 0, 0, 0.3), -3px -3px 8px rgba(255, 255, 255, 0.02);
+}
+
+.dark .chat-tab {
+  box-shadow: inset 3px 3px 5px rgba(0, 0, 0, 0.3), inset -3px -3px 5px rgba(255, 255, 255, 0.02);
+}

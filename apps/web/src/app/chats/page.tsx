@@ -124,46 +124,6 @@ export default function ChatsPage() {
 
   return (
     <>
-      <style
-        dangerouslySetInnerHTML={{
-          __html: `
-          .chat-card {
-            box-shadow: inset 5px 5px 5px rgba(0, 0, 0, 0.1), inset -5px -5px 5px rgba(255, 255, 255, 0.05);
-          }
-
-          .chat-button {
-            box-shadow: inset 3px 3px 3px rgba(0, 0, 0, 0.1), inset -3px -3px 3px rgba(255, 255, 255, 0.05);
-            transition: all 0.3s ease;
-          }
-
-          .chat-button:hover:not(:disabled) {
-            box-shadow: none;
-          }
-
-          .message-input {
-            box-shadow: inset 3px 3px 5px rgba(0, 0, 0, 0.15), inset -3px -3px 5px rgba(255, 255, 255, 0.05);
-            transition: all 0.3s ease;
-          }
-
-          .message-input:focus {
-            box-shadow: inset 3px 3px 5px rgba(28, 156, 240, 0.2), inset -3px -3px 5px rgba(28, 156, 240, 0.1);
-          }
-
-          .message-bubble {
-            box-shadow: 3px 3px 8px rgba(0, 0, 0, 0.15), -3px -3px 8px rgba(255, 255, 255, 0.05);
-          }
-
-          .chat-tab {
-            box-shadow: inset 3px 3px 5px rgba(0, 0, 0, 0.1), inset -3px -3px 5px rgba(255, 255, 255, 0.05);
-            transition: all 0.3s ease;
-          }
-
-          .chat-tab-active {
-            box-shadow: inset 3px 3px 5px rgba(28, 156, 240, 0.3), inset -3px -3px 5px rgba(28, 156, 240, 0.1);
-          }
-        `,
-        }}
-      />
       <PageContainer noPadding className="flex flex-col">
         {/* Desktop: Two Column Layout */}
         <div className="hidden flex-1 flex-col overflow-hidden xl:flex">
