@@ -15,12 +15,15 @@ import {
 import type { WalletPort } from '@babylon/core/markets/shared';
 import {
   actorState,
+  and,
   db,
   eq,
+  gte,
   npcTrades,
   organizationState,
   perpPositions,
   poolPositions,
+  sql,
   type Transaction,
 } from '@babylon/db';
 import { generateSnowflakeId, logger } from '@babylon/shared';
@@ -869,22 +872,30 @@ export class TradeExecutionService {
     return {
       getBalance: async () => ({ balance: await getBalance() }),
       debit: async ({ amount }: { amount: number }) => {
-        const balance = await getBalance();
-        if (balance < amount) throw new Error('Insufficient funds');
-        await db
+        // Atomic debit with balance check to prevent negative balance
+        const result = await db
           .update(actorState)
           .set({
-            tradingBalance: String(balance - amount),
+            tradingBalance: sql`${actorState.tradingBalance} - ${amount}`,
             updatedAt: new Date(),
           })
-          .where(eq(actorState.id, actorId));
+          .where(
+            and(
+              eq(actorState.id, actorId),
+              gte(actorState.tradingBalance, String(amount))
+            )
+          )
+          .returning({ id: actorState.id });
+
+        if (result.length === 0) {
+          throw new Error(`Insufficient NPC funds: actor ${actorId}, amount $${amount}`);
+        }
       },
       credit: async ({ amount }: { amount: number }) => {
-        const balance = await getBalance();
         await db
           .update(actorState)
           .set({
-            tradingBalance: String(balance + amount),
+            tradingBalance: sql`${actorState.tradingBalance} + ${amount}`,
             updatedAt: new Date(),
           })
           .where(eq(actorState.id, actorId));
