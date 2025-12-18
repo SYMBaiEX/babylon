@@ -23,6 +23,8 @@ export {
 } from './AutonomousPlanningCoordinator';
 export { autonomousPostingService } from './AutonomousPostingService';
 export { autonomousTradingService } from './AutonomousTradingService';
+// Agent context utilities
+export { type AgentContext, getAgentContext, isNpcUser } from './agent-context';
 export {
   type DirectCommentParams,
   type DirectCommentResult,

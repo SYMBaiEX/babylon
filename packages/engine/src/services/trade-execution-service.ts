@@ -888,7 +888,9 @@ export class TradeExecutionService {
           .returning({ id: actorState.id });
 
         if (result.length === 0) {
-          throw new Error(`Insufficient NPC funds: actor ${actorId}, amount $${amount}`);
+          throw new Error(
+            `Insufficient NPC funds: actor ${actorId}, amount $${amount}`
+          );
         }
       },
       credit: async ({ amount }: { amount: number }) => {

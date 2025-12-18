@@ -32,6 +32,7 @@ import { parseKeyValueXml } from '@elizaos/core';
 import { callGroqDirect } from '../llm/direct-groq';
 import { getAgentConfig } from '../shared/agent-config';
 import { logger } from '../shared/logger';
+import { getAgentContext } from './agent-context';
 import { executeDirectComment } from './DirectExecutors';
 
 // Max characters for comment content in prompts
@@ -72,29 +73,9 @@ export class AutonomousCommentingService {
     agentUserId: string,
     _runtime: IAgentRuntime
   ): Promise<string | null> {
-    // Check if this is an NPC (has entry in StaticDataRegistry)
-    const npcActor = StaticDataRegistry.getActor(agentUserId);
-    const isNpc = !!npcActor;
-
-    let agentDisplayName: string;
-
-    if (isNpc) {
-      // NPC: Get name from StaticDataRegistry
-      agentDisplayName = npcActor.name;
-    } else {
-      // USER_CONTROLLED: Get from User table
-      const [agent] = await db
-        .select()
-        .from(users)
-        .where(eq(users.id, agentUserId))
-        .limit(1);
-
-      if (!agent?.isAgent) {
-        throw new Error('Agent not found');
-      }
-
-      agentDisplayName = agent.displayName ?? agentUserId;
-    }
+    // Resolve agent context (NPC vs USER_CONTROLLED)
+    const { displayName: agentDisplayName } =
+      await getAgentContext(agentUserId);
 
     const now = new Date();
     const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
