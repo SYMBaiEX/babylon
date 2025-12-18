@@ -87,6 +87,34 @@ export function usePredictionHistory(
     options?.seed,
   ]);
 
+  // If seed arrives after an empty load, ensure we render a minimal chart.
+  useEffect(() => {
+    const seed = options?.seed;
+    if (!marketId || !seed) return;
+    if (history.length > 0) return;
+    const yesShares = seed.yesShares ?? 0;
+    const noShares = seed.noShares ?? 0;
+    const totalShares = yesShares + noShares;
+    const yesPrice = totalShares === 0 ? 0.5 : yesShares / totalShares;
+    const now = Date.now();
+    setHistory([
+      {
+        time: now - 60_000,
+        yesPrice,
+        noPrice: 1 - yesPrice,
+        volume: 0,
+        liquidity: seed.liquidity ?? 0,
+      },
+      {
+        time: now,
+        yesPrice,
+        noPrice: 1 - yesPrice,
+        volume: 0,
+        liquidity: seed.liquidity ?? 0,
+      },
+    ]);
+  }, [marketId, options?.seed, history.length]);
+
   /**
    * Transform API response to history point format.
    * Calculates volume from liquidity changes.
@@ -130,9 +158,17 @@ export function usePredictionHistory(
     const noShares = seed.noShares ?? 0;
     const totalShares = yesShares + noShares;
     const yesPrice = totalShares === 0 ? 0.5 : yesShares / totalShares;
+    const now = Date.now();
     return [
       {
-        time: Date.now(),
+        time: now - 60_000,
+        yesPrice,
+        noPrice: 1 - yesPrice,
+        volume: 0,
+        liquidity: seed.liquidity ?? 0,
+      },
+      {
+        time: now,
         yesPrice,
         noPrice: 1 - yesPrice,
         volume: 0,
@@ -154,18 +190,52 @@ export function usePredictionHistory(
     setLoading(true);
     setError(null);
 
-    const response = await fetch(
-      `/api/markets/predictions/${marketId}/history?limit=${limit}`
-    );
-    const data = await response.json();
+    try {
+      const response = await fetch(
+        `/api/markets/predictions/${encodeURIComponent(marketId)}/history?limit=${limit}`
+      );
 
-    if (response.ok && Array.isArray(data.history) && data.history.length > 0) {
-      setHistory(formatHistory(data.history));
-    } else {
+      let data: unknown = null;
+      try {
+        data = await response.json();
+      } catch {
+        data = null;
+      }
+
+      const record = (data ?? {}) as Record<string, unknown>;
+      const historyArray = record.history;
+
+      if (
+        response.ok &&
+        Array.isArray(historyArray) &&
+        historyArray.length > 0
+      ) {
+        setHistory(
+          formatHistory(
+            historyArray as Array<{
+              yesPrice: number;
+              noPrice: number;
+              liquidity?: number;
+              timestamp: string;
+            }>
+          )
+        );
+      } else {
+        if (!response.ok) {
+          setError(
+            typeof record.error === 'string'
+              ? record.error
+              : `Failed to fetch history: ${response.status}`
+          );
+        }
+        setHistory(fallbackFromSeed());
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch history');
       setHistory(fallbackFromSeed());
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   }, [marketId, limit, formatHistory, fallbackFromSeed]);
 
   // Fetch history on mount and when marketId changes

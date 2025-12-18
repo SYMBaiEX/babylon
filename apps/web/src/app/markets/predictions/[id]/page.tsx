@@ -241,14 +241,17 @@ export default function PredictionDetailPage() {
   }, [marketId, market, trackMarketView]);
 
   const fetchMarketData = useCallback(async () => {
-    const userId = authenticated && user?.id ? `?userId=${user.id}` : '';
-    const response = await fetch(`/api/markets/predictions${userId}`);
-    const data = await response.json();
-    const foundMarket = data.questions?.find(
-      (q: PredictionMarket) => q.id.toString() === marketId
+    const userQuery = authenticated && user?.id ? `?userId=${user.id}` : '';
+    const response = await fetch(
+      `/api/markets/predictions/${encodeURIComponent(marketId)}${userQuery}`
     );
+    const data = await response.json();
+    const foundMarket: PredictionMarket | null =
+      (data?.market as PredictionMarket | undefined) ??
+      (data as PredictionMarket | undefined) ??
+      null;
 
-    if (!foundMarket) {
+    if (!response.ok || !foundMarket) {
       toast.error('Market not found');
       router.push(from === 'dashboard' ? '/markets' : '/markets/predictions');
       return;

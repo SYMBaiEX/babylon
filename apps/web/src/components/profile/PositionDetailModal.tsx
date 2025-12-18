@@ -181,7 +181,8 @@ export function PositionDetailModal({
     const response = await fetch(`/api/markets/predictions/${marketId}`);
     if (response.ok) {
       const marketData = await response.json();
-      setPredictionMarket(marketData);
+      const payload = (marketData as { market?: unknown }).market ?? marketData;
+      setPredictionMarket(payload as PredictionMarket);
       setSide('yes');
     }
   }, []);

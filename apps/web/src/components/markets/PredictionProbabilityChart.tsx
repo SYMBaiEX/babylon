@@ -74,6 +74,7 @@ export function PredictionProbabilityChart({
   marketId,
 }: PredictionProbabilityChartProps) {
   const [timeRange, setTimeRange] = useState<TimeRange>('ALL');
+  const [chartInitError, setChartInitError] = useState<string | null>(null);
   const yesSeries = useRef<ISeriesApi<'Area'> | null>(null);
   const noSeries = useRef<ISeriesApi<'Line'> | null>(null);
   const seriesInitialized = useRef(false);
@@ -155,27 +156,70 @@ export function PredictionProbabilityChart({
   useEffect(() => {
     if (!chart || seriesInitialized.current) return;
 
-    // Add YES area series (green filled area)
-    yesSeries.current = chart.addSeries(AreaSeries, {
-      ...AREA_STYLES.green,
-      priceFormat: {
-        type: 'custom',
-        formatter: (price: number) => `${price.toFixed(1)}%`,
-        minMove: 0.01,
-      },
-    });
+    try {
+      setChartInitError(null);
 
-    // Add NO line series (red line overlay)
-    noSeries.current = chart.addSeries(LineSeries, {
-      ...LINE_STYLES.red,
-      priceFormat: {
-        type: 'custom',
-        formatter: (price: number) => `${price.toFixed(1)}%`,
-        minMove: 0.01,
-      },
-    });
+      const yesOptions = {
+        ...AREA_STYLES.green,
+        priceFormat: {
+          type: 'custom' as const,
+          formatter: (price: number) => `${price.toFixed(1)}%`,
+          minMove: 0.01,
+        },
+      };
 
-    seriesInitialized.current = true;
+      const noOptions = {
+        ...LINE_STYLES.red,
+        priceFormat: {
+          type: 'custom' as const,
+          formatter: (price: number) => `${price.toFixed(1)}%`,
+          minMove: 0.01,
+        },
+      };
+
+      const chartAny = chart as unknown as Record<string, unknown>;
+      const addSeries = chartAny.addSeries as
+        | ((
+            seriesType: unknown,
+            options: unknown
+          ) => ISeriesApi<'Area'> | ISeriesApi<'Line'>)
+        | undefined;
+      const addAreaSeries = chartAny.addAreaSeries as
+        | ((options: unknown) => ISeriesApi<'Area'>)
+        | undefined;
+      const addLineSeries = chartAny.addLineSeries as
+        | ((options: unknown) => ISeriesApi<'Line'>)
+        | undefined;
+
+      if (typeof addSeries === 'function' && AreaSeries && LineSeries) {
+        yesSeries.current = addSeries(
+          AreaSeries,
+          yesOptions
+        ) as ISeriesApi<'Area'>;
+        noSeries.current = addSeries(
+          LineSeries,
+          noOptions
+        ) as ISeriesApi<'Line'>;
+      } else if (
+        typeof addAreaSeries === 'function' &&
+        typeof addLineSeries === 'function'
+      ) {
+        yesSeries.current = addAreaSeries(yesOptions);
+        noSeries.current = addLineSeries(noOptions);
+      } else {
+        throw new Error('Unsupported lightweight-charts API');
+      }
+
+      seriesInitialized.current = true;
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Failed to initialize chart';
+      setChartInitError(message);
+      yesSeries.current = null;
+      noSeries.current = null;
+      seriesInitialized.current = false;
+      return;
+    }
 
     return () => {
       yesSeries.current = null;
@@ -190,16 +234,27 @@ export function PredictionProbabilityChart({
 
     if (!chartData.yes.length || !chartData.no.length) {
       // Clear data when no points in range
-      yesSeries.current.setData([]);
-      noSeries.current.setData([]);
+      try {
+        yesSeries.current.setData([]);
+        noSeries.current.setData([]);
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : 'Failed to clear chart data';
+        setChartInitError(message);
+      }
       return;
     }
 
-    yesSeries.current.setData(chartData.yes);
-    noSeries.current.setData(chartData.no);
-
-    // Fit content to show all data points properly
-    chart.timeScale().fitContent();
+    try {
+      setChartInitError(null);
+      yesSeries.current.setData(chartData.yes);
+      noSeries.current.setData(chartData.no);
+      chart.timeScale().fitContent();
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Failed to render chart data';
+      setChartInitError(message);
+    }
   }, [chart, chartData]);
 
   // Update series colors based on YES/NO favorability
@@ -215,6 +270,17 @@ export function PredictionProbabilityChart({
       <div className="flex h-[400px] items-center justify-center text-muted-foreground">
         <div className="text-center">
           <div className="text-sm">Loading chart data...</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (chartInitError) {
+    return (
+      <div className="flex h-[400px] items-center justify-center text-muted-foreground">
+        <div className="text-center">
+          <div className="text-sm">Chart unavailable</div>
+          <div className="mt-1 text-xs">{chartInitError}</div>
         </div>
       </div>
     );
@@ -263,6 +329,13 @@ export function PredictionProbabilityChart({
           ref={chartContainerRef}
           className="h-[400px] w-full rounded-lg bg-muted/10"
         />
+        {!chart && (
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+            <div className="rounded-lg bg-card/90 px-4 py-2 text-muted-foreground text-sm">
+              Initializing chart…
+            </div>
+          </div>
+        )}
         {chartData.yes.length === 0 && data.length > 0 && (
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
             <div className="rounded-lg bg-card/90 px-4 py-2 text-muted-foreground text-sm">
