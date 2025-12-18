@@ -4,6 +4,7 @@ import {
   positions,
   predictionPriceHistories,
   questions,
+  type Transaction,
 } from '@babylon/db';
 import { generateSnowflakeId } from '@babylon/shared';
 import type { InferInsertModel } from 'drizzle-orm';
@@ -24,7 +25,7 @@ type NewHistory = InferInsertModel<typeof predictionPriceHistories>;
 const toSideBool = (side: PredictionSide) => side === 'yes';
 const fromSideBool = (side: boolean): PredictionSide => (side ? 'yes' : 'no');
 
-type DbClient = typeof db;
+type DbClient = typeof db | Transaction;
 
 const mapMarket = (m: typeof markets.$inferSelect): PredictionMarketRecord => {
   const extra = m as unknown as Partial<PredictionMarketRecord>;
@@ -148,14 +149,15 @@ export class PredictionDbAdapter implements PredictionDbPort {
 
   async createMarketFromQuestion(
     question: QuestionRecord,
-    initialLiquidity: number
+    initialLiquidity: number,
+    options?: { description?: string | null }
   ): Promise<PredictionMarketRecord> {
     const now = new Date();
     const liquidityHalf = initialLiquidity / 2;
     const data: NewMarket = {
       id: question.id,
       question: question.text,
-      description: null,
+      description: options?.description ?? null,
       gameId: 'continuous',
       dayNumber: null,
       yesShares: String(liquidityHalf),

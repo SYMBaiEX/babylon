@@ -5,7 +5,7 @@
  * outcomes. Winners get +10 reputation, losers get -5 reputation.
  */
 
-import { db, eq, positions, users } from '@babylon/db';
+import { db, eq, inArray, positions, users } from '@babylon/db';
 import {
   getCurrentRpcUrl,
   logger,
@@ -97,7 +97,7 @@ export class ReputationService {
         onChainRegistered: users.onChainRegistered,
       })
       .from(users)
-      .where(eq(users.id, userIds[0] ?? '')); // Simplified - in real usage would use inArray
+      .where(inArray(users.id, userIds));
 
     const userMap = new Map(usersData.map((u) => [u.id, u]));
 

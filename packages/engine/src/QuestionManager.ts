@@ -58,15 +58,16 @@
  * ```
  */
 
-import { PredictionPricing } from '@babylon/core/markets/prediction';
+import {
+  PredictionDbAdapter as CorePredictionDbAdapter,
+  PredictionMarketService as CorePredictionMarketService,
+} from '@babylon/core/markets/prediction';
 import {
   and,
-  Decimal,
   db,
   desc,
   eq,
   gte,
-  markets,
   questions,
   tags,
   trendingTags,
@@ -1182,6 +1183,24 @@ XML: <response><questions><question><text>...</text><resolutionCriteria>...</res
     // Using default scenario ID until dynamic scenario selection is implemented
     const scenarioId = 1;
     const now = new Date();
+    const initialLiquidity = 20000;
+
+    const marketService = new CorePredictionMarketService({
+      db: new CorePredictionDbAdapter(),
+      // Not used for market creation, but required by the service deps type
+      wallet: {
+        debit: async () => {},
+        credit: async () => {},
+        recordPnL: async () => {},
+        getBalance: async () => ({ balance: 0 }),
+      },
+      fees: {
+        tradingFeeRate: 0,
+        platformShare: 0,
+        referrerShare: 0,
+        minFeeAmount: 0,
+      },
+    });
 
     // Create each question
     for (const questionData of questionsData.slice(0, count)) {
@@ -1264,26 +1283,12 @@ XML: <response><questions><question><text>...</text><resolutionCriteria>...</res
         .returning();
       const question = questionResults[0]!;
 
-      // Initialize market with sufficient liquidity for trading
-      const initialLiquidity = 20000;
-      const { yesShares, noShares } =
-        PredictionPricing.initializeMarket(initialLiquidity);
-
-      const marketResults = await db
-        .insert(markets)
-        .values({
-          id: question.id,
-          question: questionData.text,
-          description: questionData.resolutionCriteria,
-          yesShares: new Decimal(yesShares).toString(),
-          noShares: new Decimal(noShares).toString(),
-          liquidity: new Decimal(initialLiquidity).toString(),
-          endDate: resolutionDate, // Same resolutionDate as question (1-7 days from now)
-          gameId: 'continuous',
-          updatedAt: now,
-        })
-        .returning();
-      const market = marketResults[0]!;
+      // Ensure market exists via core service (keeps creation logic portable)
+      const market = await marketService.ensureMarketExists({
+        marketId: question.id,
+        initialLiquidity,
+        description: questionData.resolutionCriteria,
+      });
 
       logger.debug(
         'Question and market created with matching resolution dates',

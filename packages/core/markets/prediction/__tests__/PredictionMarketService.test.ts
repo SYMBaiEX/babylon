@@ -104,7 +104,11 @@ class InMemoryDb implements PredictionDbPort {
       .map((p) => ({ ...p }));
   }
 
-  async createMarketFromQuestion(): Promise<PredictionMarketRecord> {
+  async createMarketFromQuestion(
+    _question: unknown,
+    _initialLiquidity: number,
+    _options?: { description?: string | null }
+  ): Promise<PredictionMarketRecord> {
     throw new Error('not used in tests');
   }
 
@@ -367,6 +371,10 @@ describe('PredictionMarketService', () => {
       side: 'no',
       amount: 100,
     });
+
+    const marketPreResolve = await service.getMarket('m1');
+    expect(marketPreResolve).not.toBeNull();
+
     const preWinnerBalance = (await wallet.getBalance('u1')).balance;
     const preLoserBalance = (await wallet.getBalance('u2')).balance;
     await service.resolve({
@@ -382,6 +390,23 @@ describe('PredictionMarketService', () => {
     const postLoserBalance = (await wallet.getBalance('u2')).balance;
     expect(postWinnerBalance).toBeGreaterThan(preWinnerBalance);
     expect(postLoserBalance).toBeLessThanOrEqual(preLoserBalance);
+
+    // Liquidity should decrease by total payouts (capped at available liquidity)
+    const marketAfterResolve = await service.getMarket('m1');
+    expect(marketAfterResolve?.resolved).toBe(true);
+    const payout = pos1?.shares ?? 0;
+    const expectedReduction = Math.min(payout, marketPreResolve!.liquidity);
+    expect(marketAfterResolve!.liquidity).toBeCloseTo(
+      marketPreResolve!.liquidity - expectedReduction,
+      6
+    );
+
+    // PnL should be recorded for both winner and loser (loser negative)
+    const pnlByUser = new Map(wallet.pnls.map((p) => [p.userId, p.pnl]));
+    const winnerPnl = pnlByUser.get('u1') ?? 0;
+    const loserPnl = pnlByUser.get('u2') ?? 0;
+    expect(loserPnl).toBeLessThan(0);
+    expect(winnerPnl).toBeGreaterThan(loserPnl);
   });
 
   it('pricing getCurrentPrice returns 0.5 when total is zero for display', () => {
