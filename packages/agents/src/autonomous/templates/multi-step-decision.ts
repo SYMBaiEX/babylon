@@ -45,6 +45,8 @@ export interface PostContext {
   content: string;
   commentCount: number;
   timeAgo: string;
+  /** Agent's existing comment on this post, if any */
+  agentComment?: string;
 }
 
 export interface PendingInteraction {
@@ -304,11 +306,21 @@ function formatRecentPosts(posts: PostContext[]): string {
   if (posts.length === 0) return 'No recent posts to engage with.';
 
   return posts
-    .map(
-      (p, idx) =>
-        // Use short index for display, store real ID for parameters
-        `- Post #${idx + 1} (id: ${p.id}) @${p.authorName} (${p.timeAgo}): "${p.content.substring(0, 80)}${p.content.length > 80 ? '...' : ''}" (${p.commentCount} comments)`
-    )
+    .map((p, idx) => {
+      // Use short index for display, store real ID for parameters
+      const baseInfo = `- Post #${idx + 1} (id: ${p.id}) @${p.authorName} (${p.timeAgo}): "${p.content.substring(0, 80)}${p.content.length > 80 ? '...' : ''}" (${p.commentCount} comments)`;
+
+      // Show agent's existing comment if any
+      if (p.agentComment) {
+        const truncatedComment =
+          p.agentComment.length > 60
+            ? `${p.agentComment.substring(0, 60)}...`
+            : p.agentComment;
+        return `${baseInfo}\n    [Already commented: "${truncatedComment}"]`;
+      }
+
+      return baseInfo;
+    })
     .join('\n');
 }
 
