@@ -73,6 +73,7 @@ export function PerpPriceChart({
   ticker,
 }: PerpPriceChartProps) {
   const [timeRange, setTimeRange] = useState<TimeRange>('ALL');
+  const [chartInitError, setChartInitError] = useState<string | null>(null);
   const priceSeries = useRef<ISeriesApi<'Area'> | null>(null);
   const lastPriceLineRef = useRef<ReturnType<
     ISeriesApi<'Area'>['createPriceLine']
@@ -155,18 +156,47 @@ export function PerpPriceChart({
   useEffect(() => {
     if (!chart || seriesInitialized.current) return;
 
-    priceSeries.current = chart.addSeries(AreaSeries, {
-      ...AREA_STYLES.green,
-      priceFormat: {
-        type: 'custom',
-        formatter: (price: number) => formatChartPrice(price, true),
-        minMove: 0.00000001,
-      },
-      lastValueVisible: true,
-      priceLineVisible: false,
-    });
+    try {
+      setChartInitError(null);
 
-    seriesInitialized.current = true;
+      const seriesOptions = {
+        ...AREA_STYLES.green,
+        priceFormat: {
+          type: 'custom' as const,
+          formatter: (price: number) => formatChartPrice(price, true),
+          minMove: 0.00000001,
+        },
+        lastValueVisible: true,
+        priceLineVisible: false,
+      };
+
+      // lightweight-charts v5: chart.addSeries(AreaSeries, options)
+      // lightweight-charts v4: chart.addAreaSeries(options)
+      const chartAny = chart as unknown as Record<string, unknown>;
+      const addSeries = chartAny.addSeries as
+        | ((seriesType: unknown, options: unknown) => ISeriesApi<'Area'>)
+        | undefined;
+      const addAreaSeries = chartAny.addAreaSeries as
+        | ((options: unknown) => ISeriesApi<'Area'>)
+        | undefined;
+
+      if (typeof addSeries === 'function' && AreaSeries) {
+        priceSeries.current = addSeries(AreaSeries, seriesOptions);
+      } else if (typeof addAreaSeries === 'function') {
+        priceSeries.current = addAreaSeries(seriesOptions);
+      } else {
+        throw new Error('Unsupported lightweight-charts API');
+      }
+
+      seriesInitialized.current = true;
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Failed to initialize chart';
+      setChartInitError(message);
+      priceSeries.current = null;
+      seriesInitialized.current = false;
+      return;
+    }
 
     return () => {
       lastPriceLineRef.current = null;
@@ -188,32 +218,53 @@ export function PerpPriceChart({
 
     if (!chartData.length) {
       // Clear data when no points in range
-      priceSeries.current.setData([]);
+      try {
+        priceSeries.current.setData([]);
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : 'Failed to clear chart data';
+        setChartInitError(message);
+      }
       return;
     }
 
-    priceSeries.current.setData(chartData);
-    chart.timeScale().fitContent();
+    try {
+      setChartInitError(null);
+      priceSeries.current.setData(chartData);
+      chart.timeScale().fitContent();
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Failed to render chart data';
+      setChartInitError(message);
+    }
   }, [chart, chartData]);
 
   // Update current price reference line
   useEffect(() => {
     if (!priceSeries.current || !currentPrice) return;
 
-    // Remove existing price line before creating new one
-    if (lastPriceLineRef.current) {
-      priceSeries.current.removePriceLine(lastPriceLineRef.current);
-    }
+    try {
+      // Remove existing price line before creating new one
+      if (lastPriceLineRef.current) {
+        priceSeries.current.removePriceLine(lastPriceLineRef.current);
+      }
 
-    // Add horizontal line at current price
-    lastPriceLineRef.current = priceSeries.current.createPriceLine({
-      price: currentPrice,
-      color: '#0066FF',
-      lineWidth: 2,
-      lineStyle: 2, // Dashed
-      axisLabelVisible: true,
-      title: 'Current',
-    });
+      // Add horizontal line at current price
+      lastPriceLineRef.current = priceSeries.current.createPriceLine({
+        price: currentPrice,
+        color: '#0066FF',
+        lineWidth: 2,
+        lineStyle: 2, // Dashed
+        axisLabelVisible: true,
+        title: 'Current',
+      });
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Failed to update current price line';
+      setChartInitError(message);
+    }
   }, [currentPrice]);
 
   // Loading state when no data
@@ -222,6 +273,17 @@ export function PerpPriceChart({
       <div className="flex h-[400px] items-center justify-center text-muted-foreground">
         <div className="text-center">
           <div className="text-sm">Loading chart data...</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (chartInitError) {
+    return (
+      <div className="flex h-[400px] items-center justify-center text-muted-foreground">
+        <div className="text-center">
+          <div className="text-sm">Chart unavailable</div>
+          <div className="mt-1 text-xs">{chartInitError}</div>
         </div>
       </div>
     );
@@ -271,6 +333,13 @@ export function PerpPriceChart({
           ref={chartContainerRef}
           className="h-[400px] w-full rounded-lg bg-muted/10"
         />
+        {!chart && (
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+            <div className="rounded-lg bg-card/90 px-4 py-2 text-muted-foreground text-sm">
+              Initializing chart…
+            </div>
+          </div>
+        )}
         {chartData.length === 0 && data.length > 0 && (
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
             <div className="rounded-lg bg-card/90 px-4 py-2 text-muted-foreground text-sm">

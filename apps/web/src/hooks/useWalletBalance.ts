@@ -81,10 +81,24 @@ export function useWalletBalance(
     setLoading(true);
     setError(null);
 
-    const response = await fetch(
-      `/api/users/${encodeURIComponent(userId)}/balance`,
-      { signal: controller.signal }
-    );
+    let response: Response;
+    try {
+      response = await fetch(
+        `/api/users/${encodeURIComponent(userId)}/balance`,
+        {
+          signal: controller.signal,
+        }
+      );
+    } catch (fetchError) {
+      if (controller.signal.aborted) return;
+      setLoading(false);
+      setError(
+        fetchError instanceof Error
+          ? fetchError
+          : new Error('Failed to fetch wallet balance')
+      );
+      return;
+    }
 
     if (controller.signal.aborted) return;
 
@@ -94,13 +108,21 @@ export function useWalletBalance(
       return;
     }
 
-    const data = await response.json();
+    let data: unknown;
+    try {
+      data = await response.json();
+    } catch {
+      setLoading(false);
+      setError(new Error('Failed to parse wallet balance response'));
+      return;
+    }
 
     if (controller.signal.aborted) return;
 
+    const record = data as Record<string, unknown>;
     setState({
-      balance: Number(data.balance) || 0,
-      lifetimePnL: Number(data.lifetimePnL) || 0,
+      balance: Number(record.balance) || 0,
+      lifetimePnL: Number(record.lifetimePnL) || 0,
     });
 
     setLoading(false);
