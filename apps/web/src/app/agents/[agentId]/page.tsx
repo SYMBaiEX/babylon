@@ -115,10 +115,13 @@ interface Agent {
   bio?: string[];
   personality?: string;
   tradingStrategy?: string;
+  // Points balance (for operations)
   pointsBalance: number;
   totalDeposited: number;
   totalWithdrawn: number;
   totalPointsSpent: number;
+  // Trading balance (for trades)
+  virtualBalance?: number;
   isActive: boolean;
   autonomousEnabled: boolean;
   modelTier: 'free' | 'pro';
@@ -313,15 +316,27 @@ export default function AgentDetailPage() {
           </div>
 
           {/* Stats Row */}
-          <div className="mt-6 grid grid-cols-2 place-items-center gap-4 border-border border-t pt-6 text-center">
+          <div className="mt-6 grid grid-cols-3 place-items-center gap-4 border-border border-t pt-6 text-center">
             <div>
-              <div className="mb-1 text-muted-foreground text-xs">Balance</div>
-              <div className="font-semibold text-xl">
-                {agent.pointsBalance} pts
+              <div className="mb-1 text-muted-foreground text-xs">
+                Ops Budget
+              </div>
+              <div className="font-semibold text-[#0066FF] text-xl">
+                {agent.pointsBalance.toFixed(2)} pts
               </div>
             </div>
             <div>
-              <div className="mb-1 text-muted-foreground text-xs">P&L</div>
+              <div className="mb-1 text-muted-foreground text-xs">
+                Trading Balance
+              </div>
+              <div className="font-semibold text-emerald-600 text-xl">
+                {(agent.virtualBalance ?? 0).toFixed(2)} pts
+              </div>
+            </div>
+            <div>
+              <div className="mb-1 text-muted-foreground text-xs">
+                Lifetime P&L
+              </div>
               <div
                 className={cn(
                   'font-semibold text-xl',
@@ -330,7 +345,7 @@ export default function AgentDetailPage() {
                     : 'text-red-600'
                 )}
               >
-                {parseFloat(agent.lifetimePnL).toFixed(2)}
+                {parseFloat(agent.lifetimePnL).toFixed(2)} pts
               </div>
             </div>
           </div>

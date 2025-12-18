@@ -143,7 +143,7 @@
 
 import { agentService, getAgentConfig } from '@babylon/agents';
 import { authenticateUser } from '@babylon/api';
-import { db } from '@babylon/db';
+import { db, users, eq } from '@babylon/db';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
@@ -161,6 +161,15 @@ export async function GET(
   // Get agent config for balance info
   const config = await getAgentConfig(agentId);
 
+  // Get user's trading balance (source for ops budget)
+  const userResult = await db
+    .select({ virtualBalance: users.virtualBalance })
+    .from(users)
+    .where(eq(users.id, user.id))
+    .limit(1);
+
+  const userBalance = Number(userResult[0]?.virtualBalance ?? 0);
+
   const transactions = await db.agentPointsTransaction.findMany({
     where: { agentUserId: agentId },
     orderBy: { createdAt: 'desc' },
@@ -175,6 +184,7 @@ export async function GET(
       totalWithdrawn: config?.totalWithdrawn ?? 0,
       totalSpent: config?.totalPointsSpent ?? 0,
     },
+    userBalance: userBalance,
     transactions: transactions.map((tx) => ({
       id: tx.id,
       type: tx.type,
@@ -201,21 +211,28 @@ export async function POST(
   if (action === 'deposit') {
     await agentService.depositPoints(agentId, user.id, amount);
     logger.info(
-      `Deposited ${amount} points to agent ${agentId}`,
+      `Deposited $${amount} ops budget to agent ${agentId}`,
       undefined,
       'AgentsAPI'
     );
   } else {
     await agentService.withdrawPoints(agentId, user.id, amount);
     logger.info(
-      `Withdrew ${amount} points from agent ${agentId}`,
+      `Withdrew $${amount} ops budget from agent ${agentId}`,
       undefined,
       'AgentsAPI'
     );
   }
 
-  // Re-fetch config for updated balance
+  // Re-fetch config and user balance
   const updatedConfig = await getAgentConfig(agentId);
+  const userResult = await db
+    .select({ virtualBalance: users.virtualBalance })
+    .from(users)
+    .where(eq(users.id, user.id))
+    .limit(1);
+
+  const userBalance = Number(userResult[0]?.virtualBalance ?? 0);
 
   return NextResponse.json({
     success: true,
@@ -224,6 +241,7 @@ export async function POST(
       totalDeposited: updatedConfig?.totalDeposited ?? 0,
       totalWithdrawn: updatedConfig?.totalWithdrawn ?? 0,
     },
-    message: `${action === 'deposit' ? 'Deposited' : 'Withdrew'} ${amount} points successfully`,
+    userBalance: userBalance,
+    message: `${action === 'deposit' ? 'Deposited' : 'Withdrew'} $${amount.toFixed(2)} successfully`,
   });
 }

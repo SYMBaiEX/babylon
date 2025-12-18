@@ -247,10 +247,13 @@ export async function GET(req: NextRequest) {
         name: agent.displayName,
         description: agent.bio,
         profileImageUrl: agent.profileImageUrl,
+        // Points balance (for operations)
         pointsBalance: config?.pointsBalance ?? 0,
         totalDeposited: config?.totalDeposited ?? 0,
         totalWithdrawn: config?.totalWithdrawn ?? 0,
         totalPointsSpent: config?.totalPointsSpent ?? 0,
+        // Trading balance (for trades)
+        virtualBalance: Number(agent.virtualBalance),
         autonomousEnabled: config?.autonomousTrading ?? false,
         autonomousTrading: config?.autonomousTrading ?? false,
         autonomousPosting: config?.autonomousPosting ?? false,
