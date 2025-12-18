@@ -16,6 +16,7 @@ import {
   comments,
   db,
   eq,
+  isNull,
   markets,
   messages,
   positions,
@@ -606,7 +607,9 @@ export async function executeDirectPost(
 
 /**
  * Create a comment directly without LLM decision-making.
- * Just creates the comment with the given content.
+ * Includes deduplication check to prevent agents from:
+ * - Making multiple top-level comments on the same post
+ * - Making multiple replies to the same parent comment
  */
 export async function executeDirectComment(
   params: DirectCommentParams
@@ -630,8 +633,34 @@ export async function executeDirectComment(
     return { success: false, error: `Post not found: ${postId}` };
   }
 
-  // Verify parent comment if provided
+  // DEDUPLICATION CHECK: Prevent duplicate comments
   if (parentCommentId) {
+    // Replying to a specific comment - check if agent already replied to this comment
+    const [existingReply] = await db
+      .select({ id: comments.id })
+      .from(comments)
+      .where(
+        and(
+          eq(comments.postId, postId),
+          eq(comments.authorId, agentUserId),
+          eq(comments.parentCommentId, parentCommentId)
+        )
+      )
+      .limit(1);
+
+    if (existingReply) {
+      logger.info(
+        `[DirectExecutor] Agent already replied to comment ${parentCommentId} - skipping duplicate`,
+        { agentUserId, postId, existingReplyId: existingReply.id },
+        'DirectExecutors'
+      );
+      return {
+        success: false,
+        error: `Already replied to this comment`,
+      };
+    }
+
+    // Verify parent comment exists
     const [parentComment] = await db
       .select({ id: comments.id })
       .from(comments)
@@ -642,6 +671,31 @@ export async function executeDirectComment(
       return {
         success: false,
         error: `Parent comment not found: ${parentCommentId}`,
+      };
+    }
+  } else {
+    // Top-level comment - check if agent already commented on this post
+    const [existingComment] = await db
+      .select({ id: comments.id })
+      .from(comments)
+      .where(
+        and(
+          eq(comments.postId, postId),
+          eq(comments.authorId, agentUserId),
+          isNull(comments.parentCommentId)
+        )
+      )
+      .limit(1);
+
+    if (existingComment) {
+      logger.info(
+        `[DirectExecutor] Agent already made top-level comment on post ${postId} - skipping duplicate`,
+        { agentUserId, existingCommentId: existingComment.id },
+        'DirectExecutors'
+      );
+      return {
+        success: false,
+        error: `Already commented on this post`,
       };
     }
   }
