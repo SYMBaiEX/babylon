@@ -82,7 +82,7 @@ export function LeaderboardWidgetSidebar({
       } else {
         // Sidebar is taller than viewport - implement bi-directional scroll lock
         const maxTranslate = sidebarHeight - viewportHeight;
-        
+
         if (direction === 'down') {
           // Scrolling down: pin sidebar bottom to viewport bottom
           translateY = Math.min(scrollTop, maxTranslate);
@@ -90,7 +90,7 @@ export function LeaderboardWidgetSidebar({
           // Scrolling up: gradually reveal top of sidebar
           translateY = Math.max(0, Math.min(scrollTop, maxTranslate));
         }
-        
+
         inner.style.position = 'fixed';
         inner.style.top = '0px';
         inner.style.transform = `translateY(-${translateY}px)`;

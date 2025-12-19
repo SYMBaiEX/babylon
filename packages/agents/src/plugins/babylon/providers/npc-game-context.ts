@@ -100,7 +100,6 @@ function formatSignalAsNaturalLanguage(
   }
 }
 
-
 /**
  * Provider: NPC Game Context
  * Injects arc awareness and world events for NPCs only
