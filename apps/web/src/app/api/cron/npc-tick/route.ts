@@ -55,11 +55,7 @@ export async function GET(req: NextRequest) {
 export async function POST(_req: NextRequest) {
   // Verify cron authorization
   if (!verifyCronAuth(_req, { jobName: 'NPCTick' })) {
-    logger.warn(
-      'Unauthorized npc-tick request attempt',
-      undefined,
-      'NPCTick'
-    );
+    logger.warn('Unauthorized npc-tick request attempt', undefined, 'NPCTick');
     return NextResponse.json(
       { error: 'Unauthorized cron request' },
       { status: 401 }
@@ -216,7 +212,7 @@ export async function POST(_req: NextRequest) {
         npc.id,
         runtime,
         false, // recordTrajectories - disabled for NPCs
-        true   // isNpc = true (triggers NPC game context)
+        true // isNpc = true (triggers NPC game context)
       );
 
       const actionCount =

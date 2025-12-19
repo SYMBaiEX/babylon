@@ -279,7 +279,8 @@ export async function POST(_req: NextRequest) {
       duration: Date.now() - startTime,
       results: [],
       skippedLocked: 0,
-      message: 'No user agents found with autonomous features enabled and sufficient points',
+      message:
+        'No user agents found with autonomous features enabled and sufficient points',
     });
   }
 

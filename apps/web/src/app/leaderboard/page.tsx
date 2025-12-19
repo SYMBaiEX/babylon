@@ -14,8 +14,8 @@ import { useEffect, useState } from 'react';
 import type { SelectedUser } from '@/components/leaderboard/LeaderboardWidgetSidebar';
 import { OnChainBadge } from '@/components/profile/OnChainBadge';
 import { Avatar } from '@/components/shared/Avatar';
-import { LeaderboardToggle } from '@/components/shared/LeaderboardToggle';
 import type { LeaderboardTab } from '@/components/shared/LeaderboardToggle';
+import { LeaderboardToggle } from '@/components/shared/LeaderboardToggle';
 import { PageContainer } from '@/components/shared/PageContainer';
 import { RankBadge, RankNumber } from '@/components/shared/RankBadge';
 import { LeaderboardSkeleton } from '@/components/shared/Skeleton';
@@ -254,7 +254,8 @@ export default function LeaderboardPage() {
 
         <div className="space-y-0">
           {leaderboardData.leaderboard.map((player) => {
-            const isCurrentUser = authenticated && user && player.id === user.id;
+            const isCurrentUser =
+              authenticated && user && player.id === user.id;
             const isSelected = selectedUser?.id === player.id;
             const profileUrl = `/profile/${player.username || player.id}`;
             const displayPoints =
@@ -282,7 +283,9 @@ export default function LeaderboardPage() {
                 {/* Clickable area for widget (desktop) */}
                 <button
                   onClick={(e) => handleUserClick(player, e)}
-                  data-testid={player.isActor ? 'npc-entry' : 'leaderboard-entry'}
+                  data-testid={
+                    player.isActor ? 'npc-entry' : 'leaderboard-entry'
+                  }
                   className={`hidden flex-1 px-4 py-3 text-left transition-colors xl:block ${
                     isSelected
                       ? 'border-[#0066FF] border-l-4 bg-[#0066FF]/20'
@@ -341,7 +344,11 @@ export default function LeaderboardPage() {
                           </div>
                         </div>
                         <div className="shrink-0">
-                          <RankBadge rank={player.rank} size="md" showLabel={false} />
+                          <RankBadge
+                            rank={player.rank}
+                            size="md"
+                            showLabel={false}
+                          />
                         </div>
                       </div>
                     </div>
@@ -361,7 +368,9 @@ export default function LeaderboardPage() {
                         </div>
                         {player.invitePoints > 0 && (
                           <div className="flex items-center gap-1">
-                            <span className="text-muted-foreground">Invite:</span>
+                            <span className="text-muted-foreground">
+                              Invite:
+                            </span>
                             <span className="font-semibold text-primary">
                               {player.invitePoints}
                             </span>
@@ -369,7 +378,9 @@ export default function LeaderboardPage() {
                         )}
                         {player.earnedPoints !== 0 && (
                           <div className="flex items-center gap-1">
-                            <span className="text-muted-foreground">Earned:</span>
+                            <span className="text-muted-foreground">
+                              Earned:
+                            </span>
                             <span
                               className={`font-semibold ${player.earnedPoints > 0 ? 'text-green-500' : 'text-red-500'}`}
                             >
@@ -380,7 +391,9 @@ export default function LeaderboardPage() {
                         )}
                         {player.bonusPoints > 0 && (
                           <div className="flex items-center gap-1">
-                            <span className="text-muted-foreground">Bonus:</span>
+                            <span className="text-muted-foreground">
+                              Bonus:
+                            </span>
                             <span className="font-semibold text-yellow-500">
                               {player.bonusPoints}
                             </span>
@@ -388,7 +401,9 @@ export default function LeaderboardPage() {
                         )}
                         {player.referralCount > 0 && (
                           <div className="flex items-center gap-1">
-                            <span className="text-muted-foreground">Referrals:</span>
+                            <span className="text-muted-foreground">
+                              Referrals:
+                            </span>
                             <span className="font-semibold text-primary">
                               {player.referralCount}
                             </span>
@@ -401,7 +416,9 @@ export default function LeaderboardPage() {
                 {/* Mobile/Tablet: Direct link to profile */}
                 <Link
                   href={profileUrl}
-                  data-testid={player.isActor ? 'npc-entry' : 'leaderboard-entry'}
+                  data-testid={
+                    player.isActor ? 'npc-entry' : 'leaderboard-entry'
+                  }
                   className={`block flex-1 px-4 py-3 transition-colors xl:hidden ${
                     isCurrentUser
                       ? 'border-l-4 bg-[#0066FF]/20'
@@ -547,7 +564,10 @@ export default function LeaderboardPage() {
           {/* Header with tabs */}
           <div className="sticky top-0 z-10 flex-shrink-0 bg-background shadow-sm">
             <div className="px-3 sm:px-4 lg:px-6">
-              <LeaderboardToggle activeTab={selectedTab} onTabChange={handleTabChange} />
+              <LeaderboardToggle
+                activeTab={selectedTab}
+                onTabChange={handleTabChange}
+              />
               <p className="py-3 text-muted-foreground text-sm">
                 {tabDescriptions[selectedTab]}
               </p>
@@ -570,7 +590,10 @@ export default function LeaderboardPage() {
         {/* Header with tabs */}
         <div className="sticky top-0 z-10 flex-shrink-0 bg-background shadow-sm">
           <div className="px-3 sm:px-4">
-            <LeaderboardToggle activeTab={selectedTab} onTabChange={handleTabChange} />
+            <LeaderboardToggle
+              activeTab={selectedTab}
+              onTabChange={handleTabChange}
+            />
             <p className="py-2 text-muted-foreground text-xs sm:text-sm">
               {tabDescriptions[selectedTab]}
             </p>

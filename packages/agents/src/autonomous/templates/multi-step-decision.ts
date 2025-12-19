@@ -133,12 +133,16 @@ export function buildMultiStepDecisionPrompt(params: {
       : 'No actions taken yet this tick.';
 
   // NPC-specific sections
-  const npcContextSection = isNpc && npcGameContext ? `
+  const npcContextSection =
+    isNpc && npcGameContext
+      ? `
 ${npcGameContext}
 
-` : '';
+`
+      : '';
 
-  const npcQualityRulesSection = isNpc ? `
+  const npcQualityRulesSection = isNpc
+    ? `
 ${NPC_POST_QUALITY_RULES}
 
 # NPC Voice Rules
@@ -148,7 +152,8 @@ ${NPC_POST_QUALITY_RULES}
 - Have opinions, don't hedge
 - Sound like a PERSON on social media, not an AI
 
-` : '';
+`
+    : '';
 
   return `You are ${agentName}, an autonomous agent on Babylon prediction markets.
 ${npcContextSection}

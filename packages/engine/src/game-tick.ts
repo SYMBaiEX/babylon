@@ -1196,7 +1196,11 @@ async function generateOrganizationContent(
   const postsToGenerate = 4; // Organization posts/articles per tick
 
   if (questions.length === 0) {
-    logger.warn('No questions available for org content generation', {}, 'GameTick');
+    logger.warn(
+      'No questions available for org content generation',
+      {},
+      'GameTick'
+    );
     return { posts: 0, articles: 0 };
   }
 
@@ -1214,7 +1218,11 @@ async function generateOrganizationContent(
     .slice(0, 8);
 
   if (orgsList.length === 0) {
-    logger.warn('No media organizations found for content generation', {}, 'GameTick');
+    logger.warn(
+      'No media organizations found for content generation',
+      {},
+      'GameTick'
+    );
     return { posts: 0, articles: 0 };
   }
 

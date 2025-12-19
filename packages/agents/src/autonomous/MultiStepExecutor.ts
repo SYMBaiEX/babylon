@@ -142,7 +142,8 @@ export class MultiStepExecutor {
         null as unknown as import('@elizaos/core').State
       );
       // ProviderResult can be { text: string } or just string
-      npcGameContext = typeof result === 'string' ? result : result?.text ?? '';
+      npcGameContext =
+        typeof result === 'string' ? result : (result?.text ?? '');
     }
 
     // Main iteration loop

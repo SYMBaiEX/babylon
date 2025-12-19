@@ -1,7 +1,7 @@
 'use client';
 
 import { formatCurrency } from '@babylon/shared';
-import { ExternalLink, Trophy, TrendingUp, Users } from 'lucide-react';
+import { ExternalLink, TrendingUp, Trophy, Users } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useRef } from 'react';
 import { OnChainBadge } from '@/components/profile/OnChainBadge';
