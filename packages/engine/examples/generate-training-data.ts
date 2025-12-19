@@ -29,7 +29,6 @@ import {
   initializeSimulationMode,
   MarketContextService,
   MarketDecisionEngine,
-  MarketMoverAgent,
   RelationshipEvolutionEngine,
   type ScheduledCausalEvent,
   StaticDataRegistry,
@@ -207,7 +206,6 @@ async function main() {
 
   // 6. Setup Causal Simulation if enabled
   let groundTruth: GroundTruth | undefined;
-  let marketMover: MarketMoverAgent | undefined;
   let currentPrices: Map<string, number> | undefined;
   let initialPrices: Map<string, number> | undefined;
 
@@ -258,14 +256,9 @@ async function main() {
       }
     }
 
-    // Create MarketMoverAgent
-    marketMover = new MarketMoverAgent(config.seed, llmClient, {
-      useDeterministicFallback: true, // Use deterministic fallback by default
-      model: modelConfig.model,
-    });
-    console.log('✅ Market Mover Agent: ATTACHED (Deterministic Mode)');
-
     // Initialize current prices from initial state
+    // Note: We use pre-calculated prices from groundTruth.causalEvents.priceChanges
+    // instead of calling MarketMoverAgent at runtime to ensure consistency
     currentPrices = new Map(
       snapshot.initialState.perpetualMarkets.map((m) => [m.ticker, m.price])
     );
@@ -313,44 +306,40 @@ async function main() {
           causalContext
         );
 
-        // Check if any causal events occurred
-        const causalEventsThisTick = causalContext.scheduledEvents.filter(
+        // Check if any causal events occurred this tick
+        // IMPORTANT: Use the pre-calculated priceChanges from groundTruth.causalEvents
+        // Do NOT re-calculate via MarketMoverAgent - that would cause divergence
+        const causalEventsThisTick = groundTruth!.causalEvents!.filter(
           (e) => e.day === day && e.hour === hour
         );
 
         if (
           causalEventsThisTick.length > 0 &&
-          marketMover &&
           currentPrices &&
           initialPrices
         ) {
           console.log(`   ⚡ CAUSAL EVENT TRIGGERED!`);
 
-          // Get price adjustments from MarketMoverAgent
-          const adjustments = await marketMover.generatePriceAdjustments(
-            currentPrices,
-            tickEvents
-          );
-
-          // Apply adjustments
-          if (adjustments.size > 0) {
-            const newPrices = marketMover.applyAdjustments(
-              currentPrices,
-              adjustments,
-              initialPrices
-            );
-
-            // Log price changes
-            for (const [ticker, adjustment] of adjustments) {
-              const oldPrice = currentPrices.get(ticker) ?? 0;
-              const newPrice = newPrices.get(ticker) ?? 0;
-              console.log(
-                `   💰 ${ticker}: $${oldPrice.toFixed(2)} → $${newPrice.toFixed(2)} (${(adjustment * 100).toFixed(1)}%)`
-              );
+          // Apply the PRE-CALCULATED price changes from groundTruth
+          // This ensures prices match what's recorded in groundTruth.priceHistory
+          for (const causalEvent of causalEventsThisTick) {
+            for (const [ticker, priceChange] of Object.entries(causalEvent.priceChanges)) {
+              const oldPrice = currentPrices.get(ticker);
+              if (oldPrice !== undefined) {
+                let newPrice = oldPrice * (1 + priceChange);
+                
+                // Apply price bounds (10% to 400% of initial)
+                const initial = initialPrices.get(ticker) ?? oldPrice;
+                const minPrice = initial * 0.1;
+                const maxPrice = initial * 4.0;
+                newPrice = Math.max(minPrice, Math.min(maxPrice, newPrice));
+                
+                currentPrices.set(ticker, newPrice);
+                console.log(
+                  `   💰 ${ticker}: $${oldPrice.toFixed(2)} → $${newPrice.toFixed(2)} (${(priceChange * 100).toFixed(1)}%)`
+                );
+              }
             }
-
-            // Update current prices
-            currentPrices = newPrices;
           }
         }
       }

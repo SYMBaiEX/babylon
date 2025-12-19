@@ -192,9 +192,10 @@ describe('MarketMoverAgent', () => {
       const agent = new MarketMoverAgent(12345);
       const prices = new Map([['TSLA', 450]]);
 
+      const eventType = type as WorldEvent['type'];
       const adj = await agent.generatePriceAdjustments(
         prices,
-        [createEvent({ type })],
+        [createEvent({ type: eventType })],
         { affectedTickers: ['TSLA'] }
       );
 
@@ -263,7 +264,7 @@ describe('MarketMoverAgent', () => {
   });
 
   test('applies adjustments with bounds', () => {
-    const agent = new MarketMoverAgent(12345, undefined, {
+    const agent = new MarketMoverAgent(12345, {
       minPriceFloor: 0.1,
       maxPriceCeiling: 2.0,
     });
@@ -276,7 +277,7 @@ describe('MarketMoverAgent', () => {
     expect(newPrices.get('TSLA')).toBe(900); // 450 * 2.0
 
     // Try to go below floor
-    const agent2 = new MarketMoverAgent(12345, undefined, { minPriceFloor: 0.1 });
+    const agent2 = new MarketMoverAgent(12345, { minPriceFloor: 0.1 });
     const newPrices2 = agent2.applyAdjustments(
       new Map([['TSLA', 50]]),
       new Map([['TSLA', -0.99]]),

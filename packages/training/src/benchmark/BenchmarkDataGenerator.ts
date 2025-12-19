@@ -178,16 +178,55 @@ export interface TickEvent {
 }
 
 export interface GroundTruth {
-  /** Known market outcomes (marketId -> boolean) */
+  // =========================================================================
+  // REAL DATA - Used for training and evaluation
+  // =========================================================================
+
+  /** Known market outcomes (marketId -> boolean) - REAL */
   marketOutcomes: Record<string, boolean>;
 
-  /** Historical price data */
+  /**
+   * Historical price data - REAL
+   * In causal mode: prices change only at event ticks
+   * In random walk mode: prices follow random walk each tick
+   */
   priceHistory: Record<
     string,
     Array<{ tick: number; timestamp: number; price: number }>
   >;
 
-  /** Optimal actions for perfect play */
+  /**
+   * Hidden narrative facts that drive causal events - REAL (Causal Mode only)
+   * Each fact generates a sequence of events that affect specific tickers
+   */
+  hiddenNarrativeFacts?: HiddenNarrativeFact[];
+
+  /**
+   * Causal events with pre-calculated timing and price changes - REAL (Causal Mode only)
+   * These events causally drive price movements, creating a learnable signal
+   */
+  causalEvents?: Array<{
+    tick: number;
+    day: number;
+    hour: number;
+    eventType: CausalEventType;
+    description: string;
+    affectedTickers: string[];
+    volatilityBucket: VolatilityBucket;
+    isPositive: boolean;
+    /** Pre-calculated percentage change for each ticker (e.g., -0.07 for -7%) */
+    priceChanges: Record<string, number>;
+    sourceFactId: string;
+  }>;
+
+  // =========================================================================
+  // LEGACY/SYNTHETIC DATA - For backward compatibility only
+  // These fields contain placeholder values, NOT real ground truth
+  // =========================================================================
+
+  /**
+   * @deprecated SYNTHETIC placeholder - simple heuristic, not real optimal actions
+   */
   optimalActions: Array<{
     tick: number;
     type: string;
@@ -196,7 +235,9 @@ export interface GroundTruth {
     reason: string;
   }>;
 
-  /** Social opportunities */
+  /**
+   * @deprecated SYNTHETIC placeholder - not real social opportunities
+   */
   socialOpportunities: Array<{
     tick: number;
     type: string;
@@ -204,7 +245,9 @@ export interface GroundTruth {
     description: string;
   }>;
 
-  /** Hidden facts that agents don't know (for RULER evaluation) */
+  /**
+   * @deprecated SYNTHETIC - empty array, never meaningfully implemented
+   */
   hiddenFacts: Array<{
     tick: number;
     fact: string;
@@ -212,7 +255,9 @@ export interface GroundTruth {
     value: JsonValue;
   }>;
 
-  /** Hidden events that occur but agents don't see */
+  /**
+   * @deprecated SYNTHETIC - empty array, never meaningfully implemented
+   */
   hiddenEvents: Array<{
     tick: number;
     type: string;
@@ -220,41 +265,8 @@ export interface GroundTruth {
     impact: Record<string, JsonValue>;
   }>;
 
-  /** True facts about the world state */
+  /** Computed facts from initial state (not synthetic, but not all fields are meaningful) */
   trueFacts: Record<string, JsonValue>;
-
-  /**
-   * Hidden narrative facts that drive causal events (Causal Simulation Mode only)
-   * Each fact generates a sequence of events that affect specific tickers
-   */
-  hiddenNarrativeFacts?: HiddenNarrativeFact[];
-
-  /**
-   * Causal events generated from hidden narrative facts (Causal Simulation Mode only)
-   * These are the actual events that occurred, with their resolved timing (after jitter)
-   */
-  causalEvents?: Array<{
-    /** Tick when the event occurred */
-    tick: number;
-    /** Day when the event occurred */
-    day: number;
-    /** Hour when the event occurred */
-    hour: number;
-    /** Type of event */
-    eventType: CausalEventType;
-    /** Description of the event */
-    description: string;
-    /** Tickers affected by this event */
-    affectedTickers: string[];
-    /** Volatility bucket for price impact */
-    volatilityBucket: VolatilityBucket;
-    /** Whether the event is positive (true) or negative (false) */
-    isPositive: boolean;
-    /** Percentage change applied to each ticker (e.g., -0.07 for -7%) */
-    priceChanges: Record<string, number>;
-    /** Reference to the hidden fact that caused this event */
-    sourceFactId: string;
-  }>;
 }
 
 export interface BenchmarkGameSnapshot {
@@ -882,93 +894,57 @@ export class BenchmarkDataGenerator {
       }
     }
 
-    // Generate optimal actions
+    // =========================================================================
+    // LEGACY PLACEHOLDER DATA (not used by causal simulation)
+    // These fields exist for backward compatibility with older benchmarks.
+    // They contain synthetic placeholder data, NOT real ground truth.
+    // For causal simulation, use: hiddenNarrativeFacts, causalEvents, priceHistory
+    // =========================================================================
+
+    // SYNTHETIC: Simple heuristic - buying the correct outcome at tick 1
+    // This is NOT a sophisticated optimal action calculation
     const optimalActions: GroundTruth['optimalActions'] = [];
     for (const [marketId, outcome] of Object.entries(marketOutcomes)) {
       optimalActions.push({
-        tick: 1, // Buy early for best price
+        tick: 1,
         type: 'buy_prediction',
         target: marketId,
-        expectedValue: 100,
-        reason: `Market ${marketId} will resolve ${outcome ? 'YES' : 'NO'}`,
+        expectedValue: 100, // Placeholder value
+        reason: `[SYNTHETIC] Market ${marketId} will resolve ${outcome ? 'YES' : 'NO'}`,
       });
     }
 
-    // Generate social opportunities
+    // SYNTHETIC: Placeholder social opportunities at regular intervals
     const socialOpportunities: GroundTruth['socialOpportunities'] = [];
-    for (let i = 0; i < numTicks; i += Math.floor(numTicks / 5)) {
+    const socialInterval = Math.max(1, Math.floor(numTicks / 5));
+    for (let i = 0; i < numTicks; i += socialInterval) {
       socialOpportunities.push({
         tick: i,
-        type: this.rng.next() > 0.5 ? 'insider_signal' : 'group_invite',
-        value: 50 + this.rng.next() * 150,
-        description:
-          this.rng.next() > 0.5
-            ? 'Insider information about market outcome'
-            : `Invitation to high-value trading group ${i}`,
+        type: 'synthetic_opportunity',
+        value: 100, // Fixed placeholder value
+        description: `[SYNTHETIC] Placeholder opportunity at tick ${i}`,
       });
     }
 
-    // Generate hidden facts (information agents don't have access to)
+    // SYNTHETIC: Empty arrays - these were never meaningfully implemented
     const hiddenFacts: GroundTruth['hiddenFacts'] = [];
-    for (let i = 0; i < numTicks; i += Math.floor(numTicks / 10)) {
-      const factTypes: Array<'market' | 'social' | 'event' | 'insider'> = [
-        'market',
-        'social',
-        'event',
-        'insider',
-      ];
-      const factType =
-        factTypes[Math.floor(this.rng.next() * factTypes.length)]!;
-
-      hiddenFacts.push({
-        tick: i,
-        fact: `Hidden ${factType} fact at tick ${i}`,
-        category: factType,
-        value: {
-          marketId: `market-${Math.floor(this.rng.next() * initialState.predictionMarkets.length)}`,
-          confidence: this.rng.next(),
-          impact: this.rng.next() * 100,
-        },
-      });
-    }
-
-    // Generate hidden events (events that occur but agents don't see)
     const hiddenEvents: GroundTruth['hiddenEvents'] = [];
-    for (let i = 0; i < numTicks; i += Math.floor(numTicks / 8)) {
-      const eventTypes = [
-        'regulatory_announcement',
-        'whale_movement',
-        'exchange_hack',
-        'partnership_news',
-      ];
-      const eventType =
-        eventTypes[Math.floor(this.rng.next() * eventTypes.length)]!;
 
-      hiddenEvents.push({
-        tick: i,
-        type: eventType,
-        description: `Hidden ${eventType} event occurred at tick ${i}`,
-        impact: {
-          affectedMarkets: initialState.predictionMarkets
-            .slice(0, Math.floor(this.rng.next() * 3) + 1)
-            .map((m) => m.id),
-          severity: this.rng.next(),
-        },
-      });
-    }
-
-    // Generate true facts about the world state
+    // TRUE FACTS: Actual computed values from initial state
     const trueFacts: GroundTruth['trueFacts'] = {
       totalLiquidity: initialState.predictionMarkets.reduce(
         (sum, m) => sum + m.liquidity,
         0
       ),
       averageMarketPrice:
-        initialState.predictionMarkets.reduce((sum, m) => sum + m.yesPrice, 0) /
-        initialState.predictionMarkets.length,
-      marketVolatility: this.rng.next() * 0.5,
-      socialSentiment: this.rng.next() * 2 - 1, // -1 to 1
-      activeTraders: initialState.agents.length,
+        initialState.predictionMarkets.length > 0
+          ? initialState.predictionMarkets.reduce(
+              (sum, m) => sum + m.yesPrice,
+              0
+            ) / initialState.predictionMarkets.length
+          : 0,
+      numPerpetualMarkets: initialState.perpetualMarkets.length,
+      numAgents: initialState.agents.length,
     };
 
     return {

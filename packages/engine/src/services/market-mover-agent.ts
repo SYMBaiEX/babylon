@@ -9,10 +9,6 @@
  * - Market Mover determines how those events should affect prices
  * - Returns percentage changes (deltas), not absolute prices
  *
- * Modes:
- * 1. Deterministic Fallback (default): Rule-based bucket selection, fast and cheap
- * 2. LLM-Based: Uses BabylonLLMClient for complex scenarios (optional)
- *
  * The agent uses volatility buckets to prevent overfitting:
  * - Low: ±2% to ±4%
  * - Medium: ±5% to ±10%
@@ -22,7 +18,6 @@
  */
 
 import type { WorldEvent } from '@babylon/shared';
-import type { BabylonLLMClient } from '../llm/openai-client';
 
 /**
  * Volatility bucket for price movements
@@ -43,10 +38,10 @@ const VOLATILITY_BUCKET_RANGES: Record<
 };
 
 /**
- * Event type to volatility bucket mapping for deterministic fallback
+ * Event type to volatility bucket mapping
  * Maps event types to their default volatility impact
  */
-const EVENT_TYPE_VOLATILITY: Record<
+export const EVENT_TYPE_VOLATILITY: Record<
   string,
   { bucket: VolatilityBucket; isNegative: boolean }
 > = {
@@ -70,28 +65,14 @@ const EVENT_TYPE_VOLATILITY: Record<
  * Context for price adjustment decisions
  */
 export interface MarketMoverContext {
-  /** Recent events in the simulation for additional context */
-  recentEvents?: WorldEvent[];
-  /** Current market sentiment (-1 to 1) */
-  marketSentiment?: number;
   /** Tickers that are explicitly affected by the events */
   affectedTickers?: string[];
-  /** Current day in the simulation (1-30) */
-  currentDay?: number;
-  /** Current hour (0-23) */
-  currentHour?: number;
 }
 
 /**
  * Configuration for MarketMoverAgent
  */
 export interface MarketMoverConfig {
-  /** LLM model to use (default: same as MarketDecisionEngine, qwen-32b) */
-  model?: string;
-  /** Temperature for LLM calls (default: 0 for deterministic) */
-  temperature?: number;
-  /** Use deterministic fallback instead of LLM (default: true) */
-  useDeterministicFallback?: boolean;
   /** Maximum price change per event (default: 0.30 for 30%) */
   maxPriceChangePerEvent?: number;
   /** Minimum price as fraction of initial (default: 0.10 for 10%) */
@@ -126,26 +107,16 @@ function createSeededRng(seed: number): RNG {
 /**
  * Market Mover Agent
  *
- * Translates world events into price movements using volatility buckets.
- * Primary mode is deterministic fallback (fast, cheap, consistent).
- * Optional LLM mode for complex scenarios.
+ * Deterministic rule-based engine that translates world events into price movements
+ * using volatility buckets. Fast, cheap, and consistent.
  */
 export class MarketMoverAgent {
-  private llmClient?: BabylonLLMClient;
   private rng: RNG;
   private config: Required<MarketMoverConfig>;
 
-  constructor(
-    seed: number,
-    llmClient?: BabylonLLMClient,
-    config?: MarketMoverConfig
-  ) {
+  constructor(seed: number, config?: MarketMoverConfig) {
     this.rng = createSeededRng(seed);
-    this.llmClient = llmClient;
     this.config = {
-      model: config?.model ?? 'qwen/qwen3-32b',
-      temperature: config?.temperature ?? 0,
-      useDeterministicFallback: config?.useDeterministicFallback ?? true,
       maxPriceChangePerEvent: config?.maxPriceChangePerEvent ?? 0.3,
       minPriceFloor: config?.minPriceFloor ?? 0.1,
       maxPriceCeiling: config?.maxPriceCeiling ?? 4.0,
@@ -157,7 +128,7 @@ export class MarketMoverAgent {
    *
    * @param currentPrices - Map of ticker -> current price
    * @param events - World events that occurred this tick
-   * @param context - Optional context for the adjustment
+   * @param context - Optional context with affected tickers
    * @returns Map of ticker -> percentage change
    */
   async generatePriceAdjustments(
@@ -170,28 +141,6 @@ export class MarketMoverAgent {
       return new Map();
     }
 
-    // Use deterministic fallback by default
-    if (this.config.useDeterministicFallback || !this.llmClient) {
-      return this.generateDeterministicAdjustments(
-        currentPrices,
-        events,
-        context
-      );
-    }
-
-    // LLM mode (optional, not default)
-    return this.generateLLMAdjustments(currentPrices, events, context);
-  }
-
-  /**
-   * Deterministic price adjustment based on event type and volatility buckets
-   * This is the primary mode - fast, cheap, and consistent.
-   */
-  private generateDeterministicAdjustments(
-    currentPrices: Map<string, number>,
-    events: WorldEvent[],
-    context?: MarketMoverContext
-  ): Map<string, number> {
     const adjustments = new Map<string, number>();
 
     for (const event of events) {
@@ -234,98 +183,6 @@ export class MarketMoverAgent {
   }
 
   /**
-   * LLM-based price adjustment (optional mode, not default)
-   * Uses LLM to select volatility bucket based on event context.
-   */
-  private async generateLLMAdjustments(
-    currentPrices: Map<string, number>,
-    events: WorldEvent[],
-    _context?: MarketMoverContext
-  ): Promise<Map<string, number>> {
-    // Format events for LLM
-    const eventDescriptions = events
-      .map((e) => `- [${e.type}] ${e.description}`)
-      .join('\n');
-
-    // Format current prices
-    const priceDescriptions = Array.from(currentPrices.entries())
-      .map(([ticker, price]) => `- ${ticker}: $${price.toFixed(2)}`)
-      .join('\n');
-
-    const prompt = `You are analyzing market events to determine their impact on stock prices.
-
-Events this tick:
-${eventDescriptions}
-
-Current prices:
-${priceDescriptions}
-
-For each affected ticker, select a volatility bucket:
-- "low": Minor news, 2-4% impact
-- "medium": Significant news, 5-10% impact
-- "high": Major news, 15-25% impact
-
-Also determine if the impact is positive or negative.
-
-Return JSON with this structure:
-{
-  "adjustments": [
-    { "ticker": "TSLA", "bucket": "medium", "isPositive": false, "reason": "Recall rumor" }
-  ]
-}
-
-Only include tickers that are directly affected by the events.`;
-
-    const response = await this.llmClient!.generateJSON<{
-      adjustments: Array<{
-        ticker: string;
-        bucket: VolatilityBucket;
-        isPositive: boolean;
-        reason: string;
-      }>;
-    }>(
-      prompt,
-      {
-        properties: {
-          adjustments: {
-            type: 'array',
-            items: {
-              type: 'object',
-              properties: {
-                ticker: { type: 'string' },
-                bucket: { type: 'string' }, // 'low' | 'medium' | 'high'
-                isPositive: { type: 'boolean' },
-                reason: { type: 'string' },
-              },
-            },
-          },
-        },
-        required: ['adjustments'],
-      },
-      {
-        model: this.config.model,
-        temperature: this.config.temperature,
-        maxTokens: 500,
-      }
-    );
-
-    // Convert LLM response to price adjustments
-    const adjustments = new Map<string, number>();
-
-    for (const adj of response.adjustments) {
-      if (currentPrices.has(adj.ticker)) {
-        const percentageChange = this.selectPercentageFromBucket(
-          adj.bucket,
-          adj.isPositive
-        );
-        adjustments.set(adj.ticker, percentageChange);
-      }
-    }
-
-    return adjustments;
-  }
-
-  /**
    * Determine which tickers are affected by an event
    */
   private determineAffectedTickers(
@@ -346,15 +203,6 @@ Only include tickers that are directly affected by the events.`;
 
     if (mentionedTickers.length > 0) {
       return mentionedTickers;
-    }
-
-    // Check actors for ticker hints (actors might be named after companies)
-    for (const actor of event.actors) {
-      for (const ticker of tickers) {
-        if (actor.toUpperCase().includes(ticker.toUpperCase())) {
-          return [ticker];
-        }
-      }
     }
 
     // No specific ticker identified - return empty (no price change)
@@ -450,5 +298,4 @@ Only include tickers that are directly affected by the events.`;
 
     return newPrices;
   }
-
 }
