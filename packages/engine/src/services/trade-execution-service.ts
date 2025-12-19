@@ -304,7 +304,6 @@ export class TradeExecutionService {
 
     // Try multiple lookup strategies to handle LLM-generated ticker variations
     const tickerLower = decision.ticker.toLowerCase();
-    const normalizedTicker = tickerLower.replace(/[^a-z0-9]/g, '');
 
     // Use StaticDataRegistry for organization lookup (organizations aren't in DB)
     const allOrgs = StaticDataRegistry.getAllOrganizations();
