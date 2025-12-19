@@ -72,14 +72,19 @@ export class GameLoop {
    * @param day - Current day number (1-30)
    * @param hour - Current hour (0-23)
    * @param marketOnly - If true, only runs market logic (for fast-forwarding)
-   * @param priceOverrides - Optional map of ticker -> price for causal simulation mode
+   * @param options - Optional causal simulation overrides
+   * @param options.priceOverrides - Map of ticker -> price
+   * @param options.causalContext - Causal event context for hidden fact-driven events
    */
   async tick(
     gameId: string,
     day: number,
     hour: number,
     marketOnly = false,
-    priceOverrides?: Map<string, number>
+    options?: {
+      priceOverrides?: Map<string, number>;
+      causalContext?: import('./GameWorld').CausalEventContext;
+    }
   ): Promise<SimulationTickResult> {
     logger.info(
       `Processing Tick: Day ${day}, Hour ${hour}`,
@@ -96,7 +101,7 @@ export class GameLoop {
     // This drives price action which then feeds into narrative
     // Pass priceOverrides for causal simulation mode
     const decisions = await this.marketDecisions.generateBatchDecisions({
-      priceOverrides,
+      priceOverrides: options?.priceOverrides,
     });
     let tradeCount = 0;
 
@@ -182,6 +187,7 @@ export class GameLoop {
       };
 
       // Use priceOverrides if provided (from causal simulation)
+      const priceOverrides = options?.priceOverrides;
       const getPrice = (ticker: string): number => {
         if (priceOverrides && priceOverrides.has(ticker)) {
           return priceOverrides.get(ticker)!;
@@ -190,11 +196,11 @@ export class GameLoop {
       };
 
       // Build market state for all known tickers
-      const tickers = priceOverrides
+      const tickers: string[] = priceOverrides
         ? Array.from(priceOverrides.keys())
         : Object.keys(defaultPrices);
 
-      marketState = tickers.map((ticker) => {
+      marketState = tickers.map((ticker: string) => {
         const price = getPrice(ticker);
         return {
           ticker,
@@ -229,10 +235,13 @@ export class GameLoop {
 
     let worldEvents: WorldEvent[] = [];
     try {
-      worldEvents = await this.world.generateTickEvents(day, hour, {
-        markets: marketState,
-        significantMoves,
-      });
+      // Pass causalContext for hidden fact-driven events (causal simulation mode)
+      worldEvents = await this.world.generateTickEvents(
+        day,
+        hour,
+        { markets: marketState, significantMoves },
+        options?.causalContext
+      );
     } catch (e) {
       logger.warn(
         `Failed to generate world events: ${

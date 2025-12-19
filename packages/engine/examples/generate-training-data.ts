@@ -292,36 +292,16 @@ async function main() {
         ? buildCausalEventContext(groundTruth, currentTick)
         : undefined;
 
-      // Run the tick with causal context
-      // Note: GameLoop.tick doesn't accept causalContext directly,
-      // so we need to call world.generateTickEvents separately
-      let tickEvents: Awaited<ReturnType<typeof world.generateTickEvents>> = [];
-
-      if (causalContext) {
-        // Generate events from causal context
-        tickEvents = await world.generateTickEvents(
-          day,
-          hour,
-          undefined,
-          causalContext
-        );
-
-        // Check if any causal events occurred this tick
-        // IMPORTANT: Use the pre-calculated priceChanges from groundTruth.causalEvents
-        // Do NOT re-calculate via MarketMoverAgent - that would cause divergence
-        const causalEventsThisTick = groundTruth!.causalEvents!.filter(
+      // Apply price changes BEFORE tick so NPCs trade at correct prices
+      if (groundTruth?.causalEvents && currentPrices && initialPrices) {
+        const causalEventsThisTick = groundTruth.causalEvents.filter(
           (e) => e.day === day && e.hour === hour
         );
 
-        if (
-          causalEventsThisTick.length > 0 &&
-          currentPrices &&
-          initialPrices
-        ) {
+        if (causalEventsThisTick.length > 0) {
           console.log(`   ⚡ CAUSAL EVENT TRIGGERED!`);
 
           // Apply the PRE-CALCULATED price changes from groundTruth
-          // This ensures prices match what's recorded in groundTruth.priceHistory
           for (const causalEvent of causalEventsThisTick) {
             for (const [ticker, priceChange] of Object.entries(causalEvent.priceChanges)) {
               const oldPrice = currentPrices.get(ticker);
@@ -344,16 +324,16 @@ async function main() {
         }
       }
 
-      // Run the standard tick (trading, feed, etc.)
-      // Pass current prices so NPCs trade at causal simulation prices
-      const result = await loop.tick(gameId, day, hour, false, currentPrices);
-
-      // Merge events
-      const allEvents = [...tickEvents, ...result.events];
+      // Run the tick with causal context and price overrides
+      // GameLoop.tick now handles event generation with causal context internally
+      const result = await loop.tick(gameId, day, hour, false, {
+        priceOverrides: currentPrices,
+        causalContext,
+      });
 
       console.log(`   > Trades: ${result.tradeCount}`);
       console.log(`   > Posts:  ${result.posts.length}`);
-      console.log(`   > Events: ${allEvents.length}`);
+      console.log(`   > Events: ${result.events.length}`);
     }
   }
 
