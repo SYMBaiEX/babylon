@@ -27,14 +27,13 @@ import {
   messages,
   ne,
   posts,
-  users,
 } from '@babylon/db';
-import { StaticDataRegistry } from '@babylon/engine';
 import type { IAgentRuntime } from '@elizaos/core';
 import { parseKeyValueXml } from '@elizaos/core';
 import { callGroqDirect } from '../llm/direct-groq';
 import { getAgentConfig } from '../shared/agent-config';
 import { logger } from '../shared/logger';
+import { getAgentContext } from './agent-context';
 import { executeDirectComment, executeDirectMessage } from './DirectExecutors';
 
 // =============================================================================
@@ -625,29 +624,9 @@ ${chatLines.join('\n\n')}`);
       );
     }
 
-    // Check if this is an NPC (has entry in StaticDataRegistry)
-    const npcActor = StaticDataRegistry.getActor(agentUserId);
-    const isNpc = !!npcActor;
-
-    let agentDisplayName: string;
-
-    if (isNpc) {
-      agentDisplayName = npcActor.name;
-    } else {
-      const [agent] = await db
-        .select({
-          displayName: users.displayName,
-        })
-        .from(users)
-        .where(eq(users.id, agentUserId))
-        .limit(1);
-
-      if (!agent) {
-        throw new Error('Agent not found');
-      }
-
-      agentDisplayName = agent.displayName ?? agentUserId;
-    }
+    // Resolve agent context (NPC vs USER_CONTROLLED)
+    const { displayName: agentDisplayName } =
+      await getAgentContext(agentUserId);
 
     const config = await getAgentConfig(agentUserId);
 
@@ -862,29 +841,9 @@ Do NOT include any explanations, only the XML format above.`;
     interactions: PendingInteraction[],
     decisions: ResponseDecision[]
   ): Promise<number> {
-    // Check if this is an NPC (has entry in StaticDataRegistry)
-    const npcActor = StaticDataRegistry.getActor(agentUserId);
-    const isNpc = !!npcActor;
-
-    let agentDisplayName: string;
-
-    if (isNpc) {
-      agentDisplayName = npcActor.name;
-    } else {
-      const [agent] = await db
-        .select({
-          displayName: users.displayName,
-        })
-        .from(users)
-        .where(eq(users.id, agentUserId))
-        .limit(1);
-
-      if (!agent) {
-        throw new Error('Agent not found');
-      }
-
-      agentDisplayName = agent.displayName ?? agentUserId;
-    }
+    // Resolve agent context (NPC vs USER_CONTROLLED)
+    const { displayName: agentDisplayName } =
+      await getAgentContext(agentUserId);
 
     const respConfig = await getAgentConfig(agentUserId);
 

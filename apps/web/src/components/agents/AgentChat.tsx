@@ -67,7 +67,7 @@ export function AgentChat({ agent, onBalanceUpdate }: AgentChatProps) {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
-  const [usePro, setUsePro] = useState(false);
+  const [usePro, setUsePro] = useState(agent.modelTier === 'pro');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -202,7 +202,9 @@ export function AgentChat({ agent, onBalanceUpdate }: AgentChatProps) {
 
     // Update agent balance without full page refresh
     onBalanceUpdate?.(data.balanceAfter);
-    toast.success(`Message sent (-${data.pointsCost} points)`);
+    if (data.pointsCost > 0) {
+      toast.success(`Message sent (-${data.pointsCost} points)`);
+    }
     setSending(false);
   };
 
@@ -366,34 +368,36 @@ export function AgentChat({ agent, onBalanceUpdate }: AgentChatProps) {
 
       {/* Input */}
       <div className="border-border border-t p-4">
-        {agent.pointsBalance < 1 ? (
+        {usePro && agent.pointsBalance < 1 ? (
           <div className="py-2 text-center text-red-600 text-sm">
-            Insufficient points. Please deposit points to continue chatting.
+            Insufficient points for Pro mode. Switch to Free mode or deposit
+            points.
           </div>
-        ) : (
-          <div className="flex items-end gap-2">
-            <Textarea
-              ref={textareaRef}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="Type your message..."
-              disabled={sending}
-              className={cn(
-                'max-h-40 min-h-10 flex-1 resize-none overflow-y-auto py-2.5',
-                'focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring'
-              )}
-              rows={1}
-            />
-            <button
-              onClick={sendMessage}
-              disabled={!input.trim() || sending || agent.pointsBalance < 1}
-              className="flex h-10 items-center gap-2 rounded-lg bg-[#0066FF] px-4 py-2 font-medium text-primary-foreground transition-all hover:bg-[#2952d9] disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <Send className="h-4 w-4" />
-            </button>
-          </div>
-        )}
+        ) : null}
+        <div className="flex items-end gap-2">
+          <Textarea
+            ref={textareaRef}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="Type your message..."
+            disabled={sending}
+            className={cn(
+              'max-h-40 min-h-10 flex-1 resize-none overflow-y-auto py-2.5',
+              'focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring'
+            )}
+            rows={1}
+          />
+          <button
+            onClick={sendMessage}
+            disabled={
+              !input.trim() || sending || (usePro && agent.pointsBalance < 1)
+            }
+            className="flex h-10 items-center gap-2 rounded-lg bg-[#0066FF] px-4 py-2 font-medium text-primary-foreground transition-all hover:bg-[#2952d9] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Send className="h-4 w-4" />
+          </button>
+        </div>
       </div>
     </div>
   );

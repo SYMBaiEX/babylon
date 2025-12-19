@@ -10,9 +10,9 @@
 import { db, eq, users } from '@babylon/db';
 import type { IAgentRuntime } from '@elizaos/core';
 import type { BabylonRuntime } from '../plugins/babylon/types';
+import { agentPnLService } from '../services/AgentPnLService';
 import { getAgentConfig } from '../shared/agent-config';
 import { logger } from '../shared/logger';
-import { generateSnowflakeId } from '../shared/snowflake';
 
 /**
  * Type guard to check if runtime has A2A client
@@ -356,18 +356,17 @@ Your JSON response:`;
         reasoning,
       });
 
-      await db.agentTrade.create({
-        data: {
-          id: await generateSnowflakeId(),
-          agentUserId,
-          marketType: 'perp',
-          ticker,
-          action: 'open',
-          side: side.toLowerCase() as 'long' | 'short',
-          amount: size,
-          price: tradeResult.entryPrice || 0,
-          reasoning: `LLM decision (${perpLeverage}x leverage): ${reasoning}`,
-        },
+      // Record trade via shared service (DRY - same as DirectExecutors)
+      await agentPnLService.recordTrade({
+        agentId: agentUserId,
+        userId: agentUserId, // A2A trades are self-managed
+        marketType: 'perp',
+        ticker,
+        action: 'open',
+        side: side.toLowerCase() as 'long' | 'short',
+        amount: size,
+        price: tradeResult.entryPrice || 0,
+        reasoning: `LLM decision (${perpLeverage}x leverage): ${reasoning}`,
       });
 
       return {
@@ -419,18 +418,17 @@ Your JSON response:`;
       reasoning,
     });
 
-    await db.agentTrade.create({
-      data: {
-        id: await generateSnowflakeId(),
-        agentUserId,
-        marketType: 'prediction',
-        marketId,
-        action: 'open',
-        side: outcome.toLowerCase() as 'yes' | 'no',
-        amount,
-        price: tradeResult.avgPrice || 0,
-        reasoning: `LLM decision: ${reasoning}`,
-      },
+    // Record trade via shared service (DRY - same as DirectExecutors)
+    await agentPnLService.recordTrade({
+      agentId: agentUserId,
+      userId: agentUserId, // A2A trades are self-managed
+      marketType: 'prediction',
+      marketId,
+      action: 'open',
+      side: outcome.toLowerCase() as 'yes' | 'no',
+      amount,
+      price: tradeResult.avgPrice || 0,
+      reasoning: `LLM decision: ${reasoning}`,
     });
 
     return {
