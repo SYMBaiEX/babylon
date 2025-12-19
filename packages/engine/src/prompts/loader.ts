@@ -120,6 +120,14 @@ export function renderPrompt(
       'connectionContext',
       'groupContext',
       'relationshipContext',
+
+      // News post vars (optional - may be empty when no source)
+      'sourceContext',
+      'outcomeFrame',
+      'orgBehaviorContext',
+      'relatedStories',
+      'relatedQuestions',
+      'connectedActors',
     ],
   } = options;
 
