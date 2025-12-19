@@ -122,12 +122,34 @@
  */
 
 import {
+  getCache,
   PointsService,
+  setCache,
   successResponse,
   withErrorHandling,
 } from '@babylon/api';
 import { LeaderboardQuerySchema, logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
+
+const CACHE_KEY_NAMESPACE = 'leaderboard';
+// Cache for 2 minutes - balances freshness with performance
+const CACHE_TTL_MS = Number(process.env.LEADERBOARD_CACHE_MS ?? 120_000);
+const CACHE_TTL_SECONDS = Math.max(1, Math.floor(CACHE_TTL_MS / 1000));
+const STALE_SECONDS = CACHE_TTL_SECONDS * 3;
+
+interface LeaderboardResponse {
+  leaderboard: Awaited<
+    ReturnType<typeof PointsService.getLeaderboard>
+  >['users'];
+  pagination: {
+    page: number;
+    pageSize: number;
+    totalCount: number;
+    totalPages: number;
+  };
+  minPoints: number;
+  pointsCategory: string;
+}
 
 /**
  * GET /api/leaderboard
@@ -153,6 +175,23 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
   const pointsCategory = (pointsType ?? 'all') as 'all' | 'earned' | 'referral';
 
+  // Cache key includes all query parameters
+  const cacheKey = `${pointsCategory}-${page}-${pageSize}-${minPoints}`;
+
+  // Check cache first
+  if (CACHE_TTL_MS > 0) {
+    const cached = await getCache<LeaderboardResponse>(cacheKey, {
+      namespace: CACHE_KEY_NAMESPACE,
+    });
+    if (cached) {
+      return successResponse(cached, 200, {
+        'x-cache': 'leaderboard-hit',
+        'Cache-Control': `public, s-maxage=${CACHE_TTL_SECONDS}, stale-while-revalidate=${STALE_SECONDS}`,
+        Vary: 'Accept-Encoding',
+      });
+    }
+  }
+
   const leaderboard = await PointsService.getLeaderboard(
     page,
     pageSize,
@@ -172,7 +211,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     'GET /api/leaderboard'
   );
 
-  return successResponse({
+  const responseBody: LeaderboardResponse = {
     leaderboard: leaderboard.users,
     pagination: {
       page: leaderboard.page,
@@ -182,5 +221,19 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     },
     minPoints: pointsCategory === 'all' ? minPoints : 0,
     pointsCategory: leaderboard.pointsCategory,
+  };
+
+  // Store in cache
+  if (CACHE_TTL_MS > 0) {
+    await setCache(cacheKey, responseBody, {
+      namespace: CACHE_KEY_NAMESPACE,
+      ttl: CACHE_TTL_SECONDS,
+    });
+  }
+
+  return successResponse(responseBody, 200, {
+    'x-cache': 'leaderboard-miss',
+    'Cache-Control': `public, s-maxage=${CACHE_TTL_SECONDS}, stale-while-revalidate=${STALE_SECONDS}`,
+    Vary: 'Accept-Encoding',
   });
 });

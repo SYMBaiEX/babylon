@@ -695,36 +695,40 @@ export async function runModelCommand(args: string[]): Promise<void> {
   // Commands that don't need database
   const noDatabaseCommands = ['ollama'];
 
-  switch (parsed.command) {
-    case 'list':
-      await listModels();
-      break;
+  const needsDatabase = !noDatabaseCommands.includes(parsed.command || '');
 
-    case 'upload':
-      await uploadModel(parsed);
-      break;
+  try {
+    switch (parsed.command) {
+      case 'list':
+        await listModels();
+        break;
 
-    case 'collect-data':
-      await collectGameData(parsed);
-      break;
+      case 'upload':
+        await uploadModel(parsed);
+        break;
 
-    case 'upload-dataset':
-      await uploadDataset(parsed);
-      break;
+      case 'collect-data':
+        await collectGameData(parsed);
+        break;
 
-    case 'ollama':
-      await runOllamaCommand(parsed);
-      break;
+      case 'upload-dataset':
+        await uploadDataset(parsed);
+        break;
 
-    default:
-      if (parsed.command) {
-        logger.fail(`Unknown command: ${parsed.command}`);
-      }
-      printHelp();
-      process.exit(parsed.command ? 1 : 0);
-  }
+      case 'ollama':
+        await runOllamaCommand(parsed);
+        break;
 
-  if (!noDatabaseCommands.includes(parsed.command || '')) {
-    await closeDatabase();
+      default:
+        if (parsed.command) {
+          logger.fail(`Unknown command: ${parsed.command}`);
+        }
+        printHelp();
+        process.exit(parsed.command ? 1 : 0);
+    }
+  } finally {
+    if (needsDatabase) {
+      await closeDatabase();
+    }
   }
 }

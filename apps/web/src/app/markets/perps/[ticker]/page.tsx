@@ -213,7 +213,7 @@ export default function PerpDetailPage() {
   const isHighRisk = leverage > 50 || baseMargin > 1000;
 
   return (
-    <PageContainer className="mx-auto max-w-7xl" ref={pageContainerRef}>
+    <PageContainer className="mx-auto max-w-7xl pt-2" ref={pageContainerRef}>
       {/* Header */}
       <div className="mb-6">
         <button
@@ -224,7 +224,7 @@ export default function PerpDetailPage() {
               router.push('/markets/perps');
             }
           }}
-          className="mb-4 flex items-center gap-2 text-muted-foreground transition-colors hover:text-foreground"
+          className="mb-4 flex items-center gap-2 rounded-md bg-[#0099FF] px-3 py-1.5 font-medium text-black text-sm transition-colors hover:bg-[#00AAFF]"
         >
           <ArrowLeft className="h-4 w-4" />
           {from === 'dashboard' ? 'Back to Dashboard' : 'Back to Perps'}
