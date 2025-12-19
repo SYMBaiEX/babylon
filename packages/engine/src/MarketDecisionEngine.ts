@@ -1169,6 +1169,23 @@ ${prompt}`
     originalTickerToActualTickerMap.set('ethereum', 'ETHAI');
     originalTickerToActualTickerMap.set('eth', 'ETHAI');
 
+    // Common LLM letter-swap typos for AI-suffixed tickers
+    // LLMs often swap the last letters (e.g., TSALI instead of TSLAI)
+    originalTickerToActualTickerMap.set('tsali', 'TSLAI');
+    originalTickerToActualTickerMap.set('metia', 'METAI');
+    originalTickerToActualTickerMap.set('solai', 'SOLAI'); // correct, but ensure it's there
+    originalTickerToActualTickerMap.set('soali', 'SOLAI');
+    originalTickerToActualTickerMap.set('btaci', 'BTCAI');
+    originalTickerToActualTickerMap.set('ethia', 'ETHAI');
+    originalTickerToActualTickerMap.set('ehtai', 'ETHAI');
+    // Without AI suffix (LLM sometimes drops it)
+    originalTickerToActualTickerMap.set('tsla', 'TSLAI');
+    originalTickerToActualTickerMap.set('tesla', 'TSLAI');
+    originalTickerToActualTickerMap.set('teslai', 'TSLAI');
+    originalTickerToActualTickerMap.set('meta', 'METAI');
+    originalTickerToActualTickerMap.set('sol', 'SOLAI');
+    originalTickerToActualTickerMap.set('solana', 'SOLAI');
+
     // Get companies from static registry
     const orgs = StaticDataRegistry.getAllOrganizations()
       .filter((org) => org.type === 'company')
@@ -1745,7 +1762,7 @@ ${prompt}`
         // Strip leading/trailing underscores and whitespace that LLMs sometimes add
         const sanitizedTicker = String(decision.ticker).trim().replace(/^_+|_+$/g, '');
         const normalizedTicker = sanitizedTicker.toLowerCase();
-        const mappedTicker =
+        let mappedTicker =
           originalTickerToActualTickerMap.get(normalizedTicker);
         if (mappedTicker) {
           logger.debug(
@@ -1755,7 +1772,11 @@ ${prompt}`
           );
           decision.ticker = mappedTicker;
         } else {
-          // No mapping found, use sanitized ticker directly
+          // No exact mapping found - use sanitized ticker directly
+          // NOTE: We intentionally do NOT use fuzzy matching here because:
+          // 1. Similar tickers (SOLAI/TSLAI) are only distance 2 apart
+          // 2. Fuzzy matching could cause trades on wrong assets
+          // 3. Explicit mappings above handle known LLM typos safely
           decision.ticker = sanitizedTicker;
         }
 
@@ -1764,8 +1785,22 @@ ${prompt}`
           (p) => p.ticker === decision.ticker
         );
         if (!perpExists) {
-          const errorMsg = `Unknown perp ticker ${decision.ticker} for ${decision.npcName}`;
+          const availableTickers = context.perpMarkets
+            .map((p) => p.ticker)
+            .join(', ');
+          const errorMsg = `Unknown perp ticker ${decision.ticker} for ${decision.npcName}. Available: [${availableTickers}]`;
           logger.warn(errorMsg, {}, 'MarketDecisionEngine');
+
+          // In simulation mode, log and skip (don't crash the whole simulation)
+          // But log loudly so we can add the mapping
+          if (isSimulationMode()) {
+            logger.warn(
+              `[SIMULATION] Skipping trade with invalid ticker. Add mapping for: '${decision.ticker.toLowerCase()}' -> correct ticker`,
+              { decision: JSON.stringify(decision) },
+              'MarketDecisionEngine'
+            );
+            continue;
+          }
 
           // FAIL FAST in development (but not tests): ticker doesn't exist
           if (process.env.NODE_ENV !== 'production' && !isTestEnv) {
@@ -2175,4 +2210,5 @@ ${prompt}`
 
     return differences <= maxDistance;
   }
+
 }
