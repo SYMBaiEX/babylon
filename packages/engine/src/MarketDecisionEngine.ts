@@ -1742,7 +1742,9 @@ ${prompt}`
 
         // Map original ticker to actual ticker (case-insensitive)
         // e.g., "OPENAI", "OpenAI", "openai" all map to actual ticker "OPNAI"
-        const normalizedTicker = String(decision.ticker).toLowerCase();
+        // Strip leading/trailing underscores and whitespace that LLMs sometimes add
+        const sanitizedTicker = String(decision.ticker).trim().replace(/^_+|_+$/g, '');
+        const normalizedTicker = sanitizedTicker.toLowerCase();
         const mappedTicker =
           originalTickerToActualTickerMap.get(normalizedTicker);
         if (mappedTicker) {
@@ -1752,6 +1754,9 @@ ${prompt}`
             'MarketDecisionEngine'
           );
           decision.ticker = mappedTicker;
+        } else {
+          // No mapping found, use sanitized ticker directly
+          decision.ticker = sanitizedTicker;
         }
 
         // Verify ticker exists
