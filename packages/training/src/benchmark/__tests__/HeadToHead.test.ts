@@ -123,7 +123,7 @@ describe('Head-to-Head Benchmark Infrastructure', () => {
 
       expect(chart).toContain('HEAD-TO-HEAD RESULTS');
       expect(chart).toContain('WINNER: Challenger');
-      expect(chart).toContain('Alpha Generated: +100.00');
+      expect(chart).toContain('Alpha Generated: +$100.00');
     });
   });
 });
