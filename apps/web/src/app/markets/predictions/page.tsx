@@ -179,8 +179,11 @@ export default function PredictionsPage() {
       if (isAuth && userId && refreshPositionsRef.current) {
         await refreshPositionsRef.current();
       }
-    } catch {
-      // Network error - ignore, just stop loading
+    } catch (err) {
+      // Only ignore abort errors; log other network errors for debugging
+      if (err instanceof Error && err.name !== 'AbortError') {
+        logger.warn('Failed to fetch predictions', { error: err.message }, 'PredictionsPage');
+      }
     } finally {
       setLoading(false);
     }

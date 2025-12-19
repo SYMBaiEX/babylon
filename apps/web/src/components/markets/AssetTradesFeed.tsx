@@ -1,6 +1,6 @@
 'use client';
 
-import { cn } from '@babylon/shared';
+import { cn, logger } from '@babylon/shared';
 import {
   AlertCircle,
   ArrowUpDown,
@@ -184,9 +184,10 @@ export function AssetTradesFeed({
 
       const response = await fetch(`${apiEndpoint}?${params.toString()}`);
       if (!response.ok) {
-        console.error(
-          'Failed to fetch trades:',
-          `Failed to load trades: ${response.status}`
+        logger.error(
+          'Failed to fetch trades',
+          { status: response.status, endpoint: apiEndpoint },
+          'AssetTradesFeed'
         );
         setError(`Failed to load trades: ${response.status}`);
         setLoading(false);
