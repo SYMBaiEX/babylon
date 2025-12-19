@@ -377,8 +377,10 @@ export class MarketDecisionEngine {
 
     // Cap batch size to avoid hitting output token limits
     // Each NPC decision can generate ~800-1000 tokens of output
-    // With 32k max output tokens, limit to 20 NPCs per batch for safety
-    const MAX_NPCS_FOR_OUTPUT = 20;
+    // Groq API has practical output limit of ~4000 tokens (not the documented 40k)
+    // So we need to limit to 4 NPCs per batch for Groq to stay under limit
+    const isGroqProvider = this.llm.getProvider() === 'groq';
+    const MAX_NPCS_FOR_OUTPUT = isGroqProvider ? 4 : 20;
     maxNPCsPerBatch = Math.min(maxNPCsPerBatch, MAX_NPCS_FOR_OUTPUT);
 
     // Reduce batch size for OpenAI models to account for combined input+output limits
