@@ -1,6 +1,6 @@
 'use client';
 
-import { cn } from '@babylon/shared';
+import { cn, logger } from '@babylon/shared';
 import { ArrowUpDown, Clock, Flame, Search } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -126,8 +126,10 @@ export default function PredictionsPage() {
       );
 
       if (!predictionsRes.ok) {
-        console.error(
-          'Failed to fetch predictions: Failed to fetch predictions'
+        logger.error(
+          'Failed to fetch predictions',
+          { status: predictionsRes.status },
+          'PredictionsPage'
         );
         setLoading(false);
         return;

@@ -1,3 +1,4 @@
+import { logger } from '@babylon/shared';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { useMarketPrices } from '@/hooks/useMarketPrices';
@@ -287,7 +288,14 @@ export function usePerpHistory(
         setHistory(fallbackFromSeed());
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch history');
+      const message =
+        err instanceof Error ? err.message : 'Failed to fetch history';
+      logger.error(
+        'Failed to fetch perp history',
+        { ticker, error: err },
+        'usePerpHistory'
+      );
+      setError(message);
       setHistory(fallbackFromSeed());
     } finally {
       setLoading(false);

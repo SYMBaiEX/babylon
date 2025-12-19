@@ -1,7 +1,7 @@
 'use client';
 
 import { FEE_CONFIG } from '@babylon/engine/config/fees';
-import { cn } from '@babylon/shared';
+import { cn, logger } from '@babylon/shared';
 import {
   AlertTriangle,
   TrendingDown,
@@ -163,21 +163,33 @@ export function PerpTradingModal({
 
     setLoading(true);
 
-    await openPosition({
-      ticker: market.ticker,
-      side,
-      size: sizeNum,
-      leverage,
-    });
+    try {
+      const result = await openPosition({
+        ticker: market.ticker,
+        side,
+        size: sizeNum,
+        leverage,
+      });
 
-    toast.success('Position opened!', {
-      description: `Opened ${leverage}x ${side} on ${market.ticker} at $${market.currentPrice.toFixed(2)}`,
-    });
+      toast.success('Position opened!', {
+        description: `Opened ${leverage}x ${side} on ${market.ticker} at $${result.position.entryPrice.toFixed(2)}`,
+      });
 
-    await refreshBalance();
-    onSuccess?.();
-    onClose();
-    setLoading(false);
+      await refreshBalance();
+      onSuccess?.();
+      onClose();
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : 'Failed to open position';
+      logger.error(
+        'Failed to open perp position',
+        { ticker: market.ticker, side, size: sizeNum, leverage, error: err },
+        'PerpTradingModal'
+      );
+      toast.error(message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const formatPrice = (price: number) => {

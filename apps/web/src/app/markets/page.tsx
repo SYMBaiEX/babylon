@@ -1,6 +1,6 @@
 'use client';
 
-import { cn } from '@babylon/shared';
+import { cn, logger } from '@babylon/shared';
 import {
   ArrowUpDown,
   Clock,
@@ -180,8 +180,10 @@ export default function MarketsPage() {
       );
 
       if (!predictionsRes.ok) {
-        console.error(
-          'Failed to fetch predictions: Failed to fetch predictions'
+        logger.error(
+          'Failed to fetch predictions',
+          { status: predictionsRes.status },
+          'MarketsPage'
         );
         setPredictionsLoading(false);
         return;
