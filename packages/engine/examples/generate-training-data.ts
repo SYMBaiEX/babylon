@@ -100,17 +100,17 @@ function getModelConfig(provider: ModelProvider): ModelConfig {
     groq: {
       provider: 'groq',
       model: 'qwen/qwen3-32b',
-      maxOutputTokens: 4000,
+      maxOutputTokens: 32000, // qwen3-32b supports up to 40k output
     },
     openai: {
       provider: 'openai',
       model: 'gpt-5-mini-2025-08-07',
-      maxOutputTokens: 4000,
+      maxOutputTokens: 16000,
     },
     anthropic: {
       provider: 'anthropic',
       model: 'claude-sonnet-4-5-20250929',
-      maxOutputTokens: 4000,
+      maxOutputTokens: 16000,
     },
   };
 
