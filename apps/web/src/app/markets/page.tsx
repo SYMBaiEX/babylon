@@ -170,13 +170,14 @@ export default function MarketsPage() {
   }, [refetchPerps]);
 
   // Fetch predictions data - perps come from shared store
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (signal?: AbortSignal) => {
     const isAuth = authenticatedRef.current;
     const userId = userIdRef.current;
 
     try {
       const predictionsRes = await fetch(
-        `/api/markets/predictions${isAuth && userId ? `?userId=${userId}` : ''}`
+        `/api/markets/predictions${isAuth && userId ? `?userId=${userId}` : ''}`,
+        { signal }
       );
 
       if (!predictionsRes.ok) {
@@ -224,14 +225,15 @@ export default function MarketsPage() {
   // Initial fetch on mount and when auth state changes
   // Use refs to track auth state changes without causing fetchData to recreate
   useEffect(() => {
+    const controller = new AbortController();
     const currentAuth = { authenticated, userId: user?.id };
 
     // Always fetch on initial mount
     if (!hasMountedRef.current) {
       hasMountedRef.current = true;
       prevAuthRef.current = currentAuth;
-      fetchData();
-      return;
+      fetchData(controller.signal);
+      return () => controller.abort();
     }
 
     // On subsequent renders, only fetch if auth state actually changed
@@ -242,8 +244,10 @@ export default function MarketsPage() {
         prevAuth.userId !== currentAuth.userId)
     ) {
       prevAuthRef.current = currentAuth;
-      fetchData();
+      fetchData(controller.signal);
     }
+
+    return () => controller.abort();
   }, [authenticated, user?.id, fetchData]);
 
   // Note: Real-time updates via SSE removed - using periodic polling instead

@@ -115,14 +115,15 @@ export default function PredictionsPage() {
     }
   }, []);
 
-  // Fetch data
-  const fetchData = useCallback(async () => {
+  // Fetch data with optional abort signal
+  const fetchData = useCallback(async (signal?: AbortSignal) => {
     const isAuth = authenticatedRef.current;
     const userId = userIdRef.current;
 
     try {
       const predictionsRes = await fetch(
-        `/api/markets/predictions${isAuth && userId ? `?userId=${userId}` : ''}`
+        `/api/markets/predictions${isAuth && userId ? `?userId=${userId}` : ''}`,
+        { signal }
       );
 
       if (!predictionsRes.ok) {
@@ -194,9 +195,11 @@ export default function PredictionsPage() {
     fetchDataRef.current = fetchData;
   }, [fetchData]);
 
-  // Initial fetch on mount
+  // Initial fetch on mount with abort on unmount
   useEffect(() => {
-    fetchData();
+    const controller = new AbortController();
+    fetchData(controller.signal);
+    return () => controller.abort();
   }, [fetchData]);
 
   const appendSparklinePoint = useCallback(
