@@ -62,36 +62,20 @@ interface TrainingDataConfig {
   outcome: boolean;
 }
 
+function getArgValue(args: string[], flag: string): string | undefined {
+  const index = args.indexOf(flag);
+  return index !== -1 ? args[index + 1] : undefined;
+}
+
 function parseArgs(): TrainingDataConfig {
   const args = process.argv.slice(2);
-
-  const config: TrainingDataConfig = {
+  return {
     useCausalSimulation: args.includes('--causal'),
-    simulationDays: 1,
-    seed: Date.now(),
-    numNPCs: 10,
+    simulationDays: parseInt(getArgValue(args, '--days') ?? '1', 10),
+    seed: parseInt(getArgValue(args, '--seed') ?? String(Date.now()), 10),
+    numNPCs: parseInt(getArgValue(args, '--npcs') ?? '10', 10),
     outcome: true,
   };
-
-  // Parse --days
-  const daysIndex = args.indexOf('--days');
-  if (daysIndex !== -1 && args[daysIndex + 1]) {
-    config.simulationDays = parseInt(args[daysIndex + 1], 10);
-  }
-
-  // Parse --seed
-  const seedIndex = args.indexOf('--seed');
-  if (seedIndex !== -1 && args[seedIndex + 1]) {
-    config.seed = parseInt(args[seedIndex + 1], 10);
-  }
-
-  // Parse --npcs
-  const npcsIndex = args.indexOf('--npcs');
-  if (npcsIndex !== -1 && args[npcsIndex + 1]) {
-    config.numNPCs = parseInt(args[npcsIndex + 1], 10);
-  }
-
-  return config;
 }
 
 function detectAvailableProvider(): ModelProvider {
@@ -218,16 +202,8 @@ async function main() {
     { outcome: config.outcome, numNPCs: config.numNPCs },
     llmClient
   );
-  const loop = new GameLoop(
-    world,
-    feed,
-    trajectoryEngine as Parameters<
-      typeof GameLoop.prototype.tick
-    >[0] extends infer T
-      ? T
-      : never,
-    relationships
-  );
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const loop = new GameLoop(world, feed, trajectoryEngine as any, relationships);
 
   // 6. Setup Causal Simulation if enabled
   let groundTruth: GroundTruth | undefined;
@@ -308,17 +284,7 @@ async function main() {
   // Initialize world state (create initial events/posts)
   await world.generate();
 
-  // Calculate total ticks
   let currentTick = 0;
-
-  // Track price history for validation
-  const priceHistory: Array<{
-    tick: number;
-    day: number;
-    hour: number;
-    prices: Record<string, number>;
-    events: string[];
-  }> = [];
 
   // Run simulation
   for (let day = 1; day <= config.simulationDays; day++) {
@@ -398,17 +364,6 @@ async function main() {
       console.log(`   > Trades: ${result.tradeCount}`);
       console.log(`   > Posts:  ${result.posts.length}`);
       console.log(`   > Events: ${allEvents.length}`);
-
-      // Record price history for validation
-      if (currentPrices) {
-        priceHistory.push({
-          tick: currentTick,
-          day,
-          hour,
-          prices: Object.fromEntries(currentPrices),
-          events: allEvents.map((e) => `${e.type}: ${e.description}`),
-        });
-      }
     }
   }
 

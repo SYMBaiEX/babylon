@@ -67,25 +67,6 @@ const EVENT_TYPE_VOLATILITY: Record<
 };
 
 /**
- * Price adjustment result for a single ticker
- */
-export interface PriceAdjustment {
-  /** The ticker being adjusted */
-  ticker: string;
-  /** Percentage change (-0.07 for -7%, +0.05 for +5%) */
-  percentageChange: number;
-  /** The volatility bucket used */
-  bucket: VolatilityBucket;
-  /** The event that triggered this adjustment */
-  sourceEvent: {
-    type: string;
-    description: string;
-  };
-  /** Reasoning for the adjustment */
-  reason: string;
-}
-
-/**
  * Context for price adjustment decisions
  */
 export interface MarketMoverContext {
@@ -120,25 +101,26 @@ export interface MarketMoverConfig {
 }
 
 /**
- * Simple seeded random number generator for reproducibility
- * Used when SeededRandom from training package is not available
+ * RNG interface for price adjustments
  */
-class SimpleSeededRandom {
-  private seed: number;
+interface RNG {
+  next(): number;
+  nextFloat(min: number, max: number): number;
+}
 
-  constructor(seed: number) {
-    this.seed = seed;
-  }
-
-  next(): number {
-    // Linear congruential generator
-    this.seed = (this.seed * 1664525 + 1013904223) % 4294967296;
-    return this.seed / 4294967296;
-  }
-
-  nextFloat(min: number, max: number): number {
-    return min + this.next() * (max - min);
-  }
+/**
+ * Create a seeded RNG using linear congruential generator
+ */
+function createSeededRng(seed: number): RNG {
+  let state = seed;
+  const next = (): number => {
+    state = (state * 1664525 + 1013904223) % 4294967296;
+    return state / 4294967296;
+  };
+  return {
+    next,
+    nextFloat: (min: number, max: number) => min + next() * (max - min),
+  };
 }
 
 /**
@@ -150,31 +132,15 @@ class SimpleSeededRandom {
  */
 export class MarketMoverAgent {
   private llmClient?: BabylonLLMClient;
-  private rng: SimpleSeededRandom;
+  private rng: RNG;
   private config: Required<MarketMoverConfig>;
 
   constructor(
-    rng:
-      | { next(): number; nextFloat?(min: number, max: number): number }
-      | number,
+    seed: number,
     llmClient?: BabylonLLMClient,
     config?: MarketMoverConfig
   ) {
-    // Accept either a seed number or an RNG object
-    if (typeof rng === 'number') {
-      this.rng = new SimpleSeededRandom(rng);
-    } else {
-      // Wrap external RNG to match our interface using a wrapper class
-      const externalRng = rng;
-      this.rng = new SimpleSeededRandom(0);
-      // Override methods to use external RNG
-      this.rng.next = () => externalRng.next();
-      this.rng.nextFloat = (min: number, max: number) =>
-        externalRng.nextFloat
-          ? externalRng.nextFloat(min, max)
-          : min + externalRng.next() * (max - min);
-    }
-
+    this.rng = createSeededRng(seed);
     this.llmClient = llmClient;
     this.config = {
       model: config?.model ?? 'qwen/qwen3-32b',
@@ -485,54 +451,4 @@ Only include tickers that are directly affected by the events.`;
     return newPrices;
   }
 
-  /**
-   * Get detailed price adjustment results for logging/debugging
-   */
-  async generateDetailedAdjustments(
-    currentPrices: Map<string, number>,
-    events: WorldEvent[],
-    context?: MarketMoverContext
-  ): Promise<PriceAdjustment[]> {
-    const results: PriceAdjustment[] = [];
-
-    for (const event of events) {
-      const affectedTickers = this.determineAffectedTickers(
-        event,
-        currentPrices,
-        context
-      );
-      const eventVolatility = this.getEventVolatility(event);
-
-      for (const ticker of affectedTickers) {
-        const percentageChange = this.selectPercentageFromBucket(
-          eventVolatility.bucket,
-          !eventVolatility.isNegative
-        );
-
-        results.push({
-          ticker,
-          percentageChange,
-          bucket: eventVolatility.bucket,
-          sourceEvent: {
-            type: event.type,
-            description: event.description,
-          },
-          reason: `Event type "${event.type}" maps to ${eventVolatility.bucket} bucket (${eventVolatility.isNegative ? 'negative' : 'positive'})`,
-        });
-      }
-    }
-
-    return results;
-  }
-}
-
-/**
- * Create a MarketMoverAgent with default configuration
- */
-export function createMarketMoverAgent(
-  seed: number,
-  llmClient?: BabylonLLMClient,
-  config?: MarketMoverConfig
-): MarketMoverAgent {
-  return new MarketMoverAgent(seed, llmClient, config);
 }
