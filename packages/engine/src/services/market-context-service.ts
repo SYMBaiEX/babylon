@@ -54,6 +54,9 @@ export class MarketContextService {
    * Optimized to minimize database queries by fetching shared data once
    * and reusing it across all NPCs. Filters out test actors.
    *
+   * @param options - Optional overrides for simulation mode
+   * @param options.priceOverrides - Map of ticker -> price for causal simulation
+   * @param options.recentEvents - Array of recent events (for causal simulation)
    * @returns Map of NPC ID to their market context
    *
    * @remarks
@@ -66,7 +69,10 @@ export class MarketContextService {
    * const npcContext = contexts.get('npc-123');
    * ```
    */
-  async buildContextForAllNPCs(): Promise<Map<string, NPCMarketContext>> {
+  async buildContextForAllNPCs(options?: {
+    priceOverrides?: Map<string, number>;
+    recentEvents?: EventContext[];
+  }): Promise<Map<string, NPCMarketContext>> {
     const startTime = Date.now();
 
     // Simulation Mode Bypass
@@ -95,59 +101,59 @@ export class MarketContextService {
       // and provide empty/mock data instead
       const contexts = new Map<string, NPCMarketContext>();
 
-      // Get basic shared context (mocked)
-      const marketSnapshots = {
-        perps: [
-          {
-            ticker: 'BTCAI',
-            currentPrice: 120000,
-            change24h: 6240,
-            changePercent24h: 5.2,
-            name: 'BitcAIn',
-            organizationId: 'btc',
-            high24h: 121000,
-            low24h: 118000,
-            volume24h: 1000000,
-            openInterest: 500000,
-          },
-          {
-            ticker: 'ETHAI',
-            currentPrice: 4000,
-            change24h: 84,
-            changePercent24h: 2.1,
-            name: 'EtherAIum',
-            organizationId: 'eth',
-            high24h: 4100,
-            low24h: 3900,
-            volume24h: 500000,
-            openInterest: 200000,
-          },
-          {
-            ticker: 'TSLAI',
-            currentPrice: 245,
-            change24h: -3.7,
-            changePercent24h: -1.5,
-            name: 'TeslAI',
-            organizationId: 'tsla',
-            high24h: 250,
-            low24h: 240,
-            volume24h: 200000,
-            openInterest: 100000,
-          },
-        ],
-        predictions: [
-          {
-            id: 'q1',
-            text: 'Will BitcAIn hit $150k?',
-            yesPrice: 65,
-            noPrice: 35,
-            totalVolume: 50000,
-            resolutionDate: new Date(Date.now() + 86400000).toISOString(),
-            daysUntilResolution: 2,
-          },
-        ],
-        timestamp: new Date().toISOString(),
+      // Default prices - can be overridden by causal simulation
+      const defaultPrices: Record<string, number> = {
+        BTCAI: 120000,
+        ETHAI: 4000,
+        SOLAI: 200,
+        TSLA: 450,
+        META: 600,
+        TSLAI: 245,
       };
+
+      // Helper to get price (override or default)
+      const getPrice = (ticker: string): number => {
+        if (options?.priceOverrides?.has(ticker)) {
+          return options.priceOverrides.get(ticker)!;
+        }
+        return defaultPrices[ticker] ?? 100;
+      };
+
+      // Build perp markets list based on available tickers
+      const tickers = options?.priceOverrides
+        ? Array.from(options.priceOverrides.keys())
+        : Object.keys(defaultPrices);
+
+      const perpMarkets: PerpMarketSnapshot[] = tickers.map((ticker) => {
+        const price = getPrice(ticker);
+        return {
+          ticker,
+          currentPrice: price,
+          change24h: 0,
+          changePercent24h: 0,
+          name: ticker,
+          organizationId: ticker.toLowerCase(),
+          high24h: price * 1.01,
+          low24h: price * 0.99,
+          volume24h: 1000000,
+          openInterest: 500000,
+        };
+      });
+
+      const predictionMarkets: PredictionMarketSnapshot[] = [
+        {
+          id: 'q1',
+          text: 'Will BitcAIn hit $150k?',
+          yesPrice: 65,
+          noPrice: 35,
+          totalVolume: 50000,
+          resolutionDate: new Date(Date.now() + 86400000).toISOString(),
+          daysUntilResolution: 2,
+        },
+      ];
+
+      // Use provided events or empty array
+      const recentEvents = options?.recentEvents ?? [];
 
       for (const npc of npcs) {
         contexts.set(npc.id, {
@@ -159,9 +165,9 @@ export class MarketContextService {
           relationships: [], // Empty for simulation
           recentPosts: [], // Empty for simulation
           groupChatMessages: [], // Empty for simulation
-          recentEvents: [], // Empty for simulation
-          perpMarkets: marketSnapshots.perps,
-          predictionMarkets: marketSnapshots.predictions,
+          recentEvents, // Use provided events (from causal simulation)
+          perpMarkets,
+          predictionMarkets,
           currentPositions: [], // Empty for simulation start
         });
       }

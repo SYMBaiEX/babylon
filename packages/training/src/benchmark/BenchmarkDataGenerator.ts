@@ -487,6 +487,15 @@ export class BenchmarkDataGenerator {
   private rng: SeededRandom;
 
   constructor(config: BenchmarkConfig) {
+    // Validate tickInterval for causal simulation
+    // The tick calculation assumes 1 tick = 1 hour (tickInterval = 3600 seconds)
+    if (config.useCausalSimulation && config.tickInterval !== 3600) {
+      throw new Error(
+        `Causal simulation requires tickInterval=3600 (1 hour). Got: ${config.tickInterval}. ` +
+          `The day/hour event scheduling assumes 1 tick per hour.`
+      );
+    }
+
     this.config = config;
     this.rng = new SeededRandom(config.seed || Date.now());
   }

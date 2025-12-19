@@ -345,7 +345,8 @@ async function main() {
       }
 
       // Run the standard tick (trading, feed, etc.)
-      const result = await loop.tick(gameId, day, hour, false);
+      // Pass current prices so NPCs trade at causal simulation prices
+      const result = await loop.tick(gameId, day, hour, false, currentPrices);
 
       // Merge events
       const allEvents = [...tickEvents, ...result.events];
@@ -359,7 +360,33 @@ async function main() {
   // 8. Save the raw state
   await saveSnapshot();
 
-  // 9. Output summary for causal simulation
+  // 9. Save causal simulation ground truth if enabled
+  if (config.useCausalSimulation && groundTruth) {
+    const groundTruthPath = './training-data-output/ground-truth.json';
+    await Bun.write(
+      groundTruthPath,
+      JSON.stringify(
+        {
+          seed: config.seed,
+          simulationDays: config.simulationDays,
+          hiddenNarrativeFacts: groundTruth.hiddenNarrativeFacts,
+          causalEvents: groundTruth.causalEvents,
+          priceHistory: groundTruth.priceHistory,
+          finalPrices: currentPrices
+            ? Object.fromEntries(currentPrices)
+            : undefined,
+          initialPrices: initialPrices
+            ? Object.fromEntries(initialPrices)
+            : undefined,
+        },
+        null,
+        2
+      )
+    );
+    console.log(`✅ Ground truth saved to: ${groundTruthPath}`);
+  }
+
+  // 10. Output summary for causal simulation
   if (
     config.useCausalSimulation &&
     groundTruth &&

@@ -72,12 +72,14 @@ export class GameLoop {
    * @param day - Current day number (1-30)
    * @param hour - Current hour (0-23)
    * @param marketOnly - If true, only runs market logic (for fast-forwarding)
+   * @param priceOverrides - Optional map of ticker -> price for causal simulation mode
    */
   async tick(
     gameId: string,
     day: number,
     hour: number,
-    marketOnly = false
+    marketOnly = false,
+    priceOverrides?: Map<string, number>
   ): Promise<SimulationTickResult> {
     logger.info(
       `Processing Tick: Day ${day}, Hour ${hour}`,
@@ -92,7 +94,10 @@ export class GameLoop {
     // 2. Market Decisions (Financial Layer)
     // Generate trading activity based on current state
     // This drives price action which then feeds into narrative
-    const decisions = await this.marketDecisions.generateBatchDecisions();
+    // Pass priceOverrides for causal simulation mode
+    const decisions = await this.marketDecisions.generateBatchDecisions({
+      priceOverrides,
+    });
     let tradeCount = 0;
 
     if (decisions.length > 0) {
@@ -167,16 +172,39 @@ export class GameLoop {
     let marketState;
     // Simulation Mode Bypass
     if (isSimulationMode()) {
-      marketState = [
-        {
-          ticker: 'BTCAI',
-          organizationId: 'btc',
-          name: 'BitcAIn',
-          currentPrice: 120000,
-          change24h: 6240,
-          changePercent24h: 5.2,
-          high24h: 121000,
-          low24h: 118000,
+      // Default prices - can be overridden by causal simulation
+      const defaultPrices: Record<string, number> = {
+        BTCAI: 120000,
+        ETHAI: 4000,
+        SOLAI: 200,
+        TSLA: 450,
+        META: 600,
+      };
+
+      // Use priceOverrides if provided (from causal simulation)
+      const getPrice = (ticker: string): number => {
+        if (priceOverrides && priceOverrides.has(ticker)) {
+          return priceOverrides.get(ticker)!;
+        }
+        return defaultPrices[ticker] ?? 100;
+      };
+
+      // Build market state for all known tickers
+      const tickers = priceOverrides
+        ? Array.from(priceOverrides.keys())
+        : Object.keys(defaultPrices);
+
+      marketState = tickers.map((ticker) => {
+        const price = getPrice(ticker);
+        return {
+          ticker,
+          organizationId: ticker.toLowerCase(),
+          name: ticker,
+          currentPrice: price,
+          change24h: 0,
+          changePercent24h: 0,
+          high24h: price * 1.01,
+          low24h: price * 0.99,
           volume24h: 1000000,
           openInterest: 500000,
           fundingRate: {
@@ -186,31 +214,10 @@ export class GameLoop {
           },
           maxLeverage: 20,
           minOrderSize: 10,
-          markPrice: 120000,
-          indexPrice: 120000,
-        },
-        {
-          ticker: 'ETHAI',
-          organizationId: 'eth',
-          name: 'EtherAIum',
-          currentPrice: 4000,
-          change24h: 84,
-          changePercent24h: 2.1,
-          high24h: 4100,
-          low24h: 3900,
-          volume24h: 500000,
-          openInterest: 200000,
-          fundingRate: {
-            rate: 0.001,
-            nextFundingTime: new Date().toISOString(),
-            predictedRate: 0.001,
-          },
-          maxLeverage: 20,
-          minOrderSize: 10,
-          markPrice: 4000,
-          indexPrice: 4000,
-        },
-      ];
+          markPrice: price,
+          indexPrice: price,
+        };
+      });
     } else {
       marketState = await perpService.getMarketsSnapshot();
     }

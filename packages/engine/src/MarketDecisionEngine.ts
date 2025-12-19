@@ -326,11 +326,20 @@ export class MarketDecisionEngine {
    * console.log(`Holds: ${decisions.filter(d => d.action === 'hold').length}`);
    * ```
    */
-  async generateBatchDecisions(): Promise<TradingDecision[]> {
+  async generateBatchDecisions(options?: {
+    priceOverrides?: Map<string, number>;
+    recentEvents?: Array<{
+      type: string;
+      description: string;
+      timestamp: string;
+      sentiment?: number;
+      relatedTickers?: string[];
+    }>;
+  }): Promise<TradingDecision[]> {
     const startTime = Date.now();
 
-    // Get context for all NPCs
-    const contexts = await this.contextService.buildContextForAllNPCs();
+    // Get context for all NPCs (with optional overrides for causal simulation)
+    const contexts = await this.contextService.buildContextForAllNPCs(options);
 
     if (contexts.size === 0) {
       logger.warn(
