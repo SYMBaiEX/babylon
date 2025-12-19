@@ -35,6 +35,50 @@ export interface MarketContext {
 }
 
 /**
+ * Causal event type for generating events from hidden facts
+ */
+export type CausalEventType =
+  | 'leak'
+  | 'rumor'
+  | 'scandal'
+  | 'development'
+  | 'deal'
+  | 'announcement';
+
+/**
+ * Scheduled causal event from hidden narrative facts
+ */
+export interface ScheduledCausalEvent {
+  /** Tick when this event should occur */
+  tick: number;
+  /** Day when this event should occur */
+  day: number;
+  /** Hour when this event should occur */
+  hour: number;
+  /** Type of event */
+  eventType: CausalEventType;
+  /** Description of the event */
+  description: string;
+  /** Tickers affected by this event */
+  affectedTickers: string[];
+  /** Whether the event is positive or negative */
+  isPositive: boolean;
+  /** ID of the source hidden fact */
+  sourceFactId: string;
+}
+
+/**
+ * Context for causal event generation
+ * Contains pre-calculated events from hidden narrative facts
+ */
+export interface CausalEventContext {
+  /** List of scheduled causal events from hidden narrative facts */
+  scheduledEvents: ScheduledCausalEvent[];
+  /** Current tick number in the simulation */
+  currentTick: number;
+}
+
+/**
  * GameWorld Event Types
  */
 export interface GameWorldEvents {
@@ -1216,15 +1260,32 @@ export class GameWorld extends EventEmitter implements TypedGameWorldEmitter {
   }
 
   /**
-   * Generate events for a specific tick, incorporating market feedback
+   * Generate events for a specific tick, incorporating market feedback and causal events
    * This replaces/augments the static daily generation
+   *
+   * @param day - Current day (1-30)
+   * @param hour - Current hour (0-23)
+   * @param marketContext - Optional market context for market-driven events
+   * @param causalContext - Optional causal context for hidden fact-driven events
    */
   public async generateTickEvents(
     day: number,
     hour: number,
-    marketContext?: MarketContext
+    marketContext?: MarketContext,
+    causalContext?: CausalEventContext
   ): Promise<WorldEvent[]> {
     const events: WorldEvent[] = [];
+
+    // 0. Check for Causal Events from Hidden Facts (takes priority)
+    // These are deterministic events based on hidden narrative facts
+    if (causalContext && causalContext.scheduledEvents.length > 0) {
+      const causalEvents = await this.generateEventsFromCausalContext(
+        day,
+        hour,
+        causalContext
+      );
+      events.push(...causalEvents);
+    }
 
     // 1. Check for Market-Driven Events (Emergence)
     if (marketContext && marketContext.significantMoves.length > 0) {
@@ -1257,29 +1318,144 @@ export class GameWorld extends EventEmitter implements TypedGameWorldEmitter {
     }
 
     // 2. Standard Narrative Events (from existing logic)
+    // Only generate if no causal events occurred this tick (to avoid noise)
     // Simple probabilistic event generation for non-market hours
     // Events mostly happen during day hours (8am - 8pm)
-    const isDaytime = hour >= 8 && hour <= 20;
-    const eventChance = isDaytime ? 0.1 : 0.02; // 10% chance per hour during day, 2% at night
+    if (events.length === 0) {
+      const isDaytime = hour >= 8 && hour <= 20;
+      const eventChance = isDaytime ? 0.1 : 0.02; // 10% chance per hour during day, 2% at night
 
-    if (Math.random() < eventChance) {
-      // Generate a random event appropriate for the game phase
-      let newEvent: WorldEvent[] = [];
-      if (day <= 10) {
-        newEvent = await this.generateEarlyWorldEvents(day);
-      } else if (day <= 20) {
-        newEvent = await this.generateMidWorldEvents(day);
-      } else {
-        newEvent = await this.generateLateWorldEvents(day);
-      }
+      if (Math.random() < eventChance) {
+        // Generate a random event appropriate for the game phase
+        let newEvent: WorldEvent[] = [];
+        if (day <= 10) {
+          newEvent = await this.generateEarlyWorldEvents(day);
+        } else if (day <= 20) {
+          newEvent = await this.generateMidWorldEvents(day);
+        } else {
+          newEvent = await this.generateLateWorldEvents(day);
+        }
 
-      // Add if we got one
-      if (newEvent.length > 0) {
-        events.push(...newEvent);
+        // Add if we got one
+        if (newEvent.length > 0) {
+          events.push(...newEvent);
+        }
       }
     }
 
     return events;
+  }
+
+  /**
+   * Generate WorldEvents from scheduled causal events
+   * Matches events to the current day/hour based on their scheduled timing
+   */
+  private async generateEventsFromCausalContext(
+    day: number,
+    hour: number,
+    causalContext: CausalEventContext
+  ): Promise<WorldEvent[]> {
+    const events: WorldEvent[] = [];
+
+    for (const scheduledEvent of causalContext.scheduledEvents) {
+      // Check if this event is scheduled for the current day and hour
+      if (scheduledEvent.day === day && scheduledEvent.hour === hour) {
+        // Map CausalEventType to WorldEvent type
+        const worldEventType = this.mapCausalEventTypeToWorldEventType(
+          scheduledEvent.eventType
+        );
+
+        // Calculate sentiment signal based on positive/negative
+        const sentimentSignal = scheduledEvent.isPositive ? 0.6 : -0.6;
+
+        // Find relevant NPCs for this event
+        const relevantNpcs = this.findRelevantNpcsForEvent(
+          scheduledEvent.eventType
+        );
+
+        const worldEvent: WorldEvent = {
+          id: await generateSnowflakeId(),
+          day,
+          type: worldEventType,
+          visibility: 'public',
+          description: scheduledEvent.description,
+          actors: relevantNpcs.map((npc) => npc.id),
+          pointsToward: scheduledEvent.isPositive ? 'YES' : 'NO',
+          sentimentSignal,
+          signalClarity: 0.7, // Causal events have high clarity
+          sourceReliability: 0.8, // Causal events are reliable
+        };
+
+        // Emit the world event so it's tracked and broadcast
+        this.emitWorldEvent(worldEvent);
+        events.push(worldEvent);
+      }
+    }
+
+    return events;
+  }
+
+  /**
+   * Map causal event type to WorldEvent type
+   */
+  private mapCausalEventTypeToWorldEventType(
+    causalType: CausalEventType
+  ): WorldEvent['type'] {
+    const mapping: Record<CausalEventType, WorldEvent['type']> = {
+      leak: 'leak',
+      rumor: 'rumor',
+      scandal: 'scandal',
+      development: 'development',
+      deal: 'deal',
+      announcement: 'announcement',
+    };
+    return mapping[causalType];
+  }
+
+  /**
+   * Find NPCs relevant to a particular event type
+   */
+  private findRelevantNpcsForEvent(eventType: CausalEventType): NPC[] {
+    switch (eventType) {
+      case 'leak':
+        // Leaks come from insiders or whistleblowers
+        return this.npcs
+          .filter(
+            (npc) => npc.role === 'insider' || npc.role === 'whistleblower'
+          )
+          .slice(0, 1);
+      case 'rumor':
+        // Rumors spread from various sources
+        return this.npcs
+          .filter((npc) => npc.role === 'journalist' || npc.role === 'insider')
+          .slice(0, 2);
+      case 'scandal':
+        // Scandals involve whistleblowers and journalists
+        return this.npcs
+          .filter(
+            (npc) => npc.role === 'whistleblower' || npc.role === 'journalist'
+          )
+          .slice(0, 2);
+      case 'development':
+        // Developments come from experts
+        return this.npcs
+          .filter((npc) => npc.role === 'expert' || npc.role === 'insider')
+          .slice(0, 1);
+      case 'deal':
+        // Deals involve insiders and politicians
+        return this.npcs
+          .filter((npc) => npc.role === 'insider' || npc.role === 'politician')
+          .slice(0, 2);
+      case 'announcement':
+        // Announcements from politicians or journalists
+        return this.npcs
+          .filter(
+            (npc) => npc.role === 'politician' || npc.role === 'journalist'
+          )
+          .slice(0, 1);
+      default:
+        return [];
+    }
   }
 
   /**

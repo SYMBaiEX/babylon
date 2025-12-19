@@ -109,12 +109,15 @@ export {
 } from './GameTick';
 // Game World
 export {
+  type CausalEventContext,
+  type CausalEventType,
   type DayEvent,
   GameWorld,
   type GameWorldEvents,
   type GroupMessage,
   type MarketContext,
   type NPC,
+  type ScheduledCausalEvent,
   type WorldConfig,
   type WorldState,
 } from './GameWorld';

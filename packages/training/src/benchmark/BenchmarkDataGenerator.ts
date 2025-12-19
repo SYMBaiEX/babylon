@@ -3,10 +3,71 @@
  *
  * Generates deterministic benchmark scenarios for agent testing.
  * Creates pre-recorded game states with known outcomes for reproducible testing.
+ *
+ * Supports two modes:
+ * 1. Random Walk Mode (default): Prices follow random walk with drift
+ * 2. Causal Simulation Mode: Hidden facts → Events → Price movements (learnable signal)
  */
 
 import type { JsonValue } from '@babylon/shared';
 import { logger } from '../utils/logger';
+
+/**
+ * Volatility bucket for price movements
+ * - low: Small price movements (-2% to -4% or +2% to +4%)
+ * - medium: Moderate price movements (-5% to -10% or +5% to +10%)
+ * - high: Large price movements (-15%+ or +15%+)
+ */
+export type VolatilityBucket = 'low' | 'medium' | 'high';
+
+/**
+ * Event types that can be generated from hidden facts
+ */
+export type CausalEventType =
+  | 'leak'
+  | 'rumor'
+  | 'scandal'
+  | 'development'
+  | 'deal'
+  | 'announcement';
+
+/**
+ * Scheduled event in the causal event schedule
+ * Events are scheduled with a base day and hour, plus jitter
+ */
+export interface ScheduledCausalEvent {
+  /** Base day for the event (1-30) */
+  baseDay: number;
+  /** Base hour for the event (0-23) */
+  baseHour: number;
+  /** Jitter applied to the event timing in hours (calculated from seed) */
+  jitterHours: number;
+  /** Type of event */
+  eventType: CausalEventType;
+  /** Volatility bucket for price impact */
+  volatilityBucket: VolatilityBucket;
+  /** Whether the event is positive (true) or negative (false) for affected tickers */
+  isPositive: boolean;
+  /** Description template for the event */
+  descriptionTemplate: string;
+}
+
+/**
+ * Hidden narrative fact that drives causal events
+ * Each fact has a sequence of events that unfold over time
+ */
+export interface HiddenNarrativeFact {
+  /** Unique identifier for the fact */
+  id: string;
+  /** The hidden fact description (e.g., "TeslAI has a secret battery flaw") */
+  fact: string;
+  /** Tickers affected by this fact */
+  affectsTickers: string[];
+  /** Sequence of events scheduled to occur based on this fact */
+  eventSchedule: ScheduledCausalEvent[];
+  /** Overall sentiment of the narrative: negative facts lead to price drops */
+  sentiment: 'positive' | 'negative';
+}
 
 export interface BenchmarkConfig {
   /** Duration of benchmark in minutes */
@@ -26,6 +87,13 @@ export interface BenchmarkConfig {
 
   /** Random seed for reproducibility */
   seed?: number;
+
+  /**
+   * Enable causal simulation mode
+   * When true, prices are driven by events from hidden facts instead of random walk
+   * Default: false (backward compatible)
+   */
+  useCausalSimulation?: boolean;
 }
 
 export interface GameState {
@@ -154,6 +222,39 @@ export interface GroundTruth {
 
   /** True facts about the world state */
   trueFacts: Record<string, JsonValue>;
+
+  /**
+   * Hidden narrative facts that drive causal events (Causal Simulation Mode only)
+   * Each fact generates a sequence of events that affect specific tickers
+   */
+  hiddenNarrativeFacts?: HiddenNarrativeFact[];
+
+  /**
+   * Causal events generated from hidden narrative facts (Causal Simulation Mode only)
+   * These are the actual events that occurred, with their resolved timing (after jitter)
+   */
+  causalEvents?: Array<{
+    /** Tick when the event occurred */
+    tick: number;
+    /** Day when the event occurred */
+    day: number;
+    /** Hour when the event occurred */
+    hour: number;
+    /** Type of event */
+    eventType: CausalEventType;
+    /** Description of the event */
+    description: string;
+    /** Tickers affected by this event */
+    affectedTickers: string[];
+    /** Volatility bucket for price impact */
+    volatilityBucket: VolatilityBucket;
+    /** Whether the event is positive (true) or negative (false) */
+    isPositive: boolean;
+    /** Percentage change applied to each ticker (e.g., -0.07 for -7%) */
+    priceChanges: Record<string, number>;
+    /** Reference to the hidden fact that caused this event */
+    sourceFactId: string;
+  }>;
 }
 
 export interface BenchmarkGameSnapshot {
@@ -167,6 +268,208 @@ export interface BenchmarkGameSnapshot {
   groundTruth: GroundTruth;
 }
 
+/**
+ * Narrative fact templates for causal simulation
+ * Each template defines a hidden fact and its event sequence
+ */
+const NARRATIVE_FACT_TEMPLATES: Array<{
+  factTemplate: string;
+  sentiment: 'positive' | 'negative';
+  /** Event sequence with relative timing and volatility */
+  eventSequence: Array<{
+    relativeDay: number; // Days from start (e.g., 5, 10, 15)
+    eventType: CausalEventType;
+    volatilityBucket: VolatilityBucket;
+    descriptionTemplate: string;
+  }>;
+}> = [
+  // Negative narratives (price drops)
+  {
+    factTemplate:
+      '{ticker} has a secret product flaw that will require a recall',
+    sentiment: 'negative',
+    eventSequence: [
+      {
+        relativeDay: 5,
+        eventType: 'leak',
+        volatilityBucket: 'medium',
+        descriptionTemplate:
+          'Internal documents leaked: {ticker} product flaw discovered by engineers',
+      },
+      {
+        relativeDay: 10,
+        eventType: 'rumor',
+        volatilityBucket: 'medium',
+        descriptionTemplate:
+          'Industry sources report potential {ticker} recall due to safety issues',
+      },
+      {
+        relativeDay: 18,
+        eventType: 'scandal',
+        volatilityBucket: 'high',
+        descriptionTemplate:
+          '{ticker} board meeting: CEO denies cover-up allegations as evidence mounts',
+      },
+    ],
+  },
+  {
+    factTemplate: '{ticker} is secretly insolvent and hiding massive losses',
+    sentiment: 'negative',
+    eventSequence: [
+      {
+        relativeDay: 4,
+        eventType: 'rumor',
+        volatilityBucket: 'low',
+        descriptionTemplate:
+          'Anonymous source claims {ticker} accounting irregularities',
+      },
+      {
+        relativeDay: 12,
+        eventType: 'leak',
+        volatilityBucket: 'medium',
+        descriptionTemplate:
+          'Leaked memo reveals {ticker} executives discussing "liquidity concerns"',
+      },
+      {
+        relativeDay: 20,
+        eventType: 'scandal',
+        volatilityBucket: 'high',
+        descriptionTemplate:
+          'Whistleblower exposes {ticker} hidden debt: stock halted pending investigation',
+      },
+    ],
+  },
+  {
+    factTemplate: '{ticker} CEO is about to be indicted for fraud',
+    sentiment: 'negative',
+    eventSequence: [
+      {
+        relativeDay: 6,
+        eventType: 'rumor',
+        volatilityBucket: 'low',
+        descriptionTemplate:
+          'Rumors swirl about {ticker} CEO facing regulatory scrutiny',
+      },
+      {
+        relativeDay: 14,
+        eventType: 'leak',
+        volatilityBucket: 'medium',
+        descriptionTemplate:
+          'Sources close to investigation: {ticker} CEO under federal probe',
+      },
+      {
+        relativeDay: 22,
+        eventType: 'announcement',
+        volatilityBucket: 'high',
+        descriptionTemplate:
+          '{ticker} confirms CEO departure amid ongoing investigation',
+      },
+    ],
+  },
+  // Positive narratives (price increases)
+  {
+    factTemplate:
+      '{ticker} is about to announce a breakthrough product that will dominate the market',
+    sentiment: 'positive',
+    eventSequence: [
+      {
+        relativeDay: 5,
+        eventType: 'rumor',
+        volatilityBucket: 'low',
+        descriptionTemplate:
+          'Insider whispers: {ticker} working on game-changing technology',
+      },
+      {
+        relativeDay: 12,
+        eventType: 'leak',
+        volatilityBucket: 'medium',
+        descriptionTemplate:
+          'Leaked patent filings suggest {ticker} breakthrough imminent',
+      },
+      {
+        relativeDay: 20,
+        eventType: 'announcement',
+        volatilityBucket: 'high',
+        descriptionTemplate:
+          '{ticker} announces revolutionary product: analysts upgrade to strong buy',
+      },
+    ],
+  },
+  {
+    factTemplate: '{ticker} is the secret acquisition target of a tech giant',
+    sentiment: 'positive',
+    eventSequence: [
+      {
+        relativeDay: 4,
+        eventType: 'rumor',
+        volatilityBucket: 'low',
+        descriptionTemplate:
+          'M&A rumors surface: {ticker} reportedly in acquisition talks',
+      },
+      {
+        relativeDay: 10,
+        eventType: 'leak',
+        volatilityBucket: 'medium',
+        descriptionTemplate:
+          'Anonymous source: {ticker} board reviewing buyout offer at premium',
+      },
+      {
+        relativeDay: 16,
+        eventType: 'deal',
+        volatilityBucket: 'high',
+        descriptionTemplate:
+          '{ticker} confirms acquisition discussions: shares surge on takeover premium',
+      },
+    ],
+  },
+  {
+    factTemplate: '{ticker} has secretly achieved major regulatory approval',
+    sentiment: 'positive',
+    eventSequence: [
+      {
+        relativeDay: 6,
+        eventType: 'rumor',
+        volatilityBucket: 'low',
+        descriptionTemplate:
+          'Industry insiders: {ticker} regulatory submission shows promise',
+      },
+      {
+        relativeDay: 13,
+        eventType: 'leak',
+        volatilityBucket: 'medium',
+        descriptionTemplate:
+          'Sources say {ticker} cleared key regulatory hurdle ahead of schedule',
+      },
+      {
+        relativeDay: 21,
+        eventType: 'announcement',
+        volatilityBucket: 'high',
+        descriptionTemplate:
+          '{ticker} receives full regulatory approval: new market opportunity unlocked',
+      },
+    ],
+  },
+];
+
+/**
+ * Volatility bucket ranges for price changes
+ * Each bucket defines min/max percentage change (absolute value)
+ */
+const VOLATILITY_BUCKET_RANGES: Record<
+  VolatilityBucket,
+  { min: number; max: number }
+> = {
+  low: { min: 0.02, max: 0.04 }, // 2% to 4%
+  medium: { min: 0.05, max: 0.1 }, // 5% to 10%
+  high: { min: 0.15, max: 0.25 }, // 15% to 25%
+};
+
+/**
+ * Jitter range in hours for event timing
+ * Events are scheduled at base day/hour ± jitter
+ */
+const EVENT_JITTER_HOURS = 8;
+
 export class BenchmarkDataGenerator {
   private config: BenchmarkConfig;
   private rng: SeededRandom;
@@ -174,6 +477,20 @@ export class BenchmarkDataGenerator {
   constructor(config: BenchmarkConfig) {
     this.config = config;
     this.rng = new SeededRandom(config.seed || Date.now());
+  }
+
+  /**
+   * Get the SeededRandom instance for external use (e.g., MarketMoverAgent)
+   */
+  getRng(): SeededRandom {
+    return this.rng;
+  }
+
+  /**
+   * Check if causal simulation mode is enabled
+   */
+  isCausalSimulationEnabled(): boolean {
+    return this.config.useCausalSimulation === true;
   }
 
   /**
@@ -323,6 +640,103 @@ export class BenchmarkDataGenerator {
   }
 
   /**
+   * Generate a hidden narrative fact for causal simulation
+   * Selects ONE dominant narrative that affects a specific ticker
+   */
+  private generateHiddenNarrativeFact(
+    initialState: GameState
+  ): HiddenNarrativeFact {
+    // Select a random narrative template
+    const templateIndex = Math.floor(
+      this.rng.next() * NARRATIVE_FACT_TEMPLATES.length
+    );
+    const template = NARRATIVE_FACT_TEMPLATES[templateIndex]!;
+
+    // Select a random ticker to be affected
+    const tickerIndex = Math.floor(
+      this.rng.next() * initialState.perpetualMarkets.length
+    );
+    const affectedTicker = initialState.perpetualMarkets[tickerIndex]!.ticker;
+
+    // Generate the fact description by replacing {ticker} placeholder
+    const fact = template.factTemplate.replace(/{ticker}/g, affectedTicker);
+
+    // Generate event schedule with jitter
+    const eventSchedule: ScheduledCausalEvent[] = template.eventSequence.map(
+      (event) => {
+        // Calculate jitter: ±EVENT_JITTER_HOURS hours
+        // Use rng to get a value between -EVENT_JITTER_HOURS and +EVENT_JITTER_HOURS
+        const jitterHours = Math.round(
+          (this.rng.next() * 2 - 1) * EVENT_JITTER_HOURS
+        );
+
+        // Base hour is random within the day (but during "market hours" 8am-8pm for realism)
+        const baseHour = 8 + Math.floor(this.rng.next() * 12); // 8am to 8pm
+
+        return {
+          baseDay: event.relativeDay,
+          baseHour,
+          jitterHours,
+          eventType: event.eventType,
+          volatilityBucket: event.volatilityBucket,
+          isPositive: template.sentiment === 'positive',
+          descriptionTemplate: event.descriptionTemplate.replace(
+            /{ticker}/g,
+            affectedTicker
+          ),
+        };
+      }
+    );
+
+    return {
+      id: `narrative-fact-${Date.now()}-${Math.floor(this.rng.next() * 1000000)}`,
+      fact,
+      affectsTickers: [affectedTicker],
+      eventSchedule,
+      sentiment: template.sentiment,
+    };
+  }
+
+  /**
+   * Calculate the tick number for a scheduled event
+   * Takes into account base day, base hour, jitter, and ticks per hour
+   */
+  private calculateEventTick(
+    event: ScheduledCausalEvent,
+    ticksPerHour: number
+  ): { tick: number; day: number; hour: number } {
+    // Calculate total hours from start: (day - 1) * 24 + hour + jitter
+    // Day 1 starts at hour 0, so day 5 hour 12 = (5-1) * 24 + 12 = 108 hours
+    const totalHours =
+      (event.baseDay - 1) * 24 + event.baseHour + event.jitterHours;
+
+    // Clamp to valid range (at least hour 1, at most day 29)
+    const clampedHours = Math.max(1, Math.min(totalHours, 29 * 24 - 1));
+
+    // Convert back to day and hour
+    const day = Math.floor(clampedHours / 24) + 1;
+    const hour = clampedHours % 24;
+
+    // Calculate tick number
+    const tick = clampedHours * ticksPerHour;
+
+    return { tick, day, hour };
+  }
+
+  /**
+   * Select a percentage change within a volatility bucket using seeded RNG
+   * Returns a value like -0.07 for -7% or +0.05 for +5%
+   */
+  private selectPercentageFromBucket(
+    bucket: VolatilityBucket,
+    isPositive: boolean
+  ): number {
+    const range = VOLATILITY_BUCKET_RANGES[bucket];
+    const magnitude = range.min + this.rng.next() * (range.max - range.min);
+    return isPositive ? magnitude : -magnitude;
+  }
+
+  /**
    * Generate ground truth (known outcomes)
    */
   private generateGroundTruth(
@@ -335,29 +749,137 @@ export class BenchmarkDataGenerator {
       marketOutcomes[market.id] = this.rng.next() > 0.5;
     }
 
+    // Calculate ticks per hour (for event scheduling)
+    const ticksPerHour = Math.floor(3600 / this.config.tickInterval);
+
+    // Generate causal simulation data if enabled
+    let hiddenNarrativeFacts: HiddenNarrativeFact[] | undefined;
+    let causalEvents: GroundTruth['causalEvents'] | undefined;
+
+    if (this.config.useCausalSimulation) {
+      // Generate ONE dominant narrative fact
+      const narrativeFact = this.generateHiddenNarrativeFact(initialState);
+      hiddenNarrativeFacts = [narrativeFact];
+
+      // Pre-calculate causal events with their timing and price changes
+      causalEvents = narrativeFact.eventSchedule.map((scheduledEvent) => {
+        const timing = this.calculateEventTick(scheduledEvent, ticksPerHour);
+
+        // Calculate price changes for each affected ticker
+        const priceChanges: Record<string, number> = {};
+        for (const ticker of narrativeFact.affectsTickers) {
+          priceChanges[ticker] = this.selectPercentageFromBucket(
+            scheduledEvent.volatilityBucket,
+            scheduledEvent.isPositive
+          );
+        }
+
+        return {
+          tick: timing.tick,
+          day: timing.day,
+          hour: timing.hour,
+          eventType: scheduledEvent.eventType,
+          description: scheduledEvent.descriptionTemplate,
+          affectedTickers: narrativeFact.affectsTickers,
+          volatilityBucket: scheduledEvent.volatilityBucket,
+          isPositive: scheduledEvent.isPositive,
+          priceChanges,
+          sourceFactId: narrativeFact.id,
+        };
+      });
+
+      // Sort events by tick
+      causalEvents.sort((a, b) => a.tick - b.tick);
+
+      logger.info('Generated causal simulation data', {
+        narrativeFact: narrativeFact.fact,
+        affectedTickers: narrativeFact.affectsTickers,
+        numEvents: causalEvents.length,
+        eventTicks: causalEvents.map((e) => ({
+          tick: e.tick,
+          day: e.day,
+          hour: e.hour,
+          type: e.eventType,
+        })),
+      });
+    }
+
     // Generate price history for perpetuals
+    // In causal mode, we DON'T pre-generate prices - they will be calculated during tick generation
+    // based on events. In random walk mode, we pre-generate the full price history.
     const priceHistory: Record<
       string,
       Array<{ tick: number; timestamp: number; price: number }>
     > = {};
-    for (const perp of initialState.perpetualMarkets) {
-      const history: Array<{ tick: number; timestamp: number; price: number }> =
-        [];
-      let currentPrice = perp.price;
 
-      for (let tick = 0; tick < numTicks; tick++) {
-        // Random walk with drift
-        const change = (this.rng.next() - 0.48) * 0.02; // Slight upward bias
-        currentPrice = currentPrice * (1 + change);
+    if (!this.config.useCausalSimulation) {
+      // Random walk mode (backward compatible)
+      for (const perp of initialState.perpetualMarkets) {
+        const history: Array<{
+          tick: number;
+          timestamp: number;
+          price: number;
+        }> = [];
+        let currentPrice = perp.price;
 
-        history.push({
-          tick,
-          timestamp: 0, // Will be filled in during tick generation
-          price: currentPrice,
-        });
+        for (let tick = 0; tick < numTicks; tick++) {
+          // Random walk with drift
+          const change = (this.rng.next() - 0.48) * 0.02; // Slight upward bias
+          currentPrice = currentPrice * (1 + change);
+
+          history.push({
+            tick,
+            timestamp: 0, // Will be filled in during tick generation
+            price: currentPrice,
+          });
+        }
+
+        priceHistory[perp.ticker] = history;
       }
+    } else {
+      // Causal simulation mode: generate price history based on events
+      // Prices start at initial values and only change when events occur
+      for (const perp of initialState.perpetualMarkets) {
+        const history: Array<{
+          tick: number;
+          timestamp: number;
+          price: number;
+        }> = [];
+        let currentPrice = perp.price;
 
-      priceHistory[perp.ticker] = history;
+        // Build a map of tick -> price change for this ticker
+        const priceChangesByTick = new Map<number, number>();
+        if (causalEvents) {
+          for (const event of causalEvents) {
+            if (event.priceChanges[perp.ticker] !== undefined) {
+              priceChangesByTick.set(
+                event.tick,
+                event.priceChanges[perp.ticker]!
+              );
+            }
+          }
+        }
+
+        for (let tick = 0; tick < numTicks; tick++) {
+          // Apply price change if there's an event at this tick
+          const priceChange = priceChangesByTick.get(tick);
+          if (priceChange !== undefined) {
+            currentPrice = currentPrice * (1 + priceChange);
+            // Enforce price bounds: 10% to 400% of initial price
+            const minPrice = perp.price * 0.1;
+            const maxPrice = perp.price * 4.0;
+            currentPrice = Math.max(minPrice, Math.min(maxPrice, currentPrice));
+          }
+
+          history.push({
+            tick,
+            timestamp: 0, // Will be filled in during tick generation
+            price: currentPrice,
+          });
+        }
+
+        priceHistory[perp.ticker] = history;
+      }
     }
 
     // Generate optimal actions
@@ -457,6 +979,8 @@ export class BenchmarkDataGenerator {
       hiddenFacts,
       hiddenEvents,
       trueFacts,
+      hiddenNarrativeFacts,
+      causalEvents,
     };
   }
 
@@ -737,8 +1261,9 @@ export class BenchmarkDataGenerator {
 
 /**
  * Seeded random number generator for reproducibility
+ * Exported for use by other components (e.g., MarketMoverAgent)
  */
-class SeededRandom {
+export class SeededRandom {
   private seed: number;
 
   constructor(seed: number) {
@@ -752,5 +1277,27 @@ class SeededRandom {
     // Linear congruential generator
     this.seed = (this.seed * 1664525 + 1013904223) % 4294967296;
     return this.seed / 4294967296;
+  }
+
+  /**
+   * Generate a random integer in the range [min, max] (inclusive)
+   */
+  nextInt(min: number, max: number): number {
+    return Math.floor(this.next() * (max - min + 1)) + min;
+  }
+
+  /**
+   * Generate a random float in the range [min, max]
+   */
+  nextFloat(min: number, max: number): number {
+    return min + this.next() * (max - min);
+  }
+
+  /**
+   * Pick a random element from an array
+   */
+  pick<T>(array: T[]): T {
+    const index = Math.floor(this.next() * array.length);
+    return array[index]!;
   }
 }

@@ -38,6 +38,7 @@ export {
   type EventArcValidationResult,
   EventArcValidator,
 } from './event-arc-validator';
+export * from './market-mover-agent';
 export * from './onchain-market-service';
 export * from './price-update-service';
 export * from './signal-extraction-service';

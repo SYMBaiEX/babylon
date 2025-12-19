@@ -24,8 +24,13 @@ export { BenchmarkChartGenerator } from './BenchmarkChartGenerator';
 export type {
   BenchmarkConfig,
   BenchmarkGameSnapshot,
+  CausalEventType,
+  GroundTruth,
+  HiddenNarrativeFact,
+  ScheduledCausalEvent,
+  VolatilityBucket,
 } from './BenchmarkDataGenerator';
-export { BenchmarkDataGenerator } from './BenchmarkDataGenerator';
+export { BenchmarkDataGenerator, SeededRandom } from './BenchmarkDataGenerator';
 export { BenchmarkDataViewer } from './BenchmarkDataViewer';
 export type {
   BenchmarkHistoryQuery,

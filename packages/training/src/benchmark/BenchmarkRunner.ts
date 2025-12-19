@@ -302,7 +302,7 @@ export class BenchmarkRunner {
   private static async executeBaselineStrategy(
     strategy: 'random' | 'momentum',
     engine: SimulationEngine,
-    snapshot: BenchmarkGameSnapshot
+    _snapshot: BenchmarkGameSnapshot
   ): Promise<void> {
     const state = engine.getGameState();
 

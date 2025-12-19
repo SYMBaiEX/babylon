@@ -1,13 +1,37 @@
+/**
+ * Generate Training Data for RL
+ *
+ * This script generates training data for reinforcement learning by running
+ * a simulation of the game world. It supports two modes:
+ *
+ * 1. Random Walk Mode (default): Prices follow random walk with drift
+ * 2. Causal Simulation Mode: Hidden facts → Events → Price movements (learnable signal)
+ *
+ * Usage:
+ *   bun run packages/engine/examples/generate-training-data.ts
+ *   bun run packages/engine/examples/generate-training-data.ts --causal
+ *   bun run packages/engine/examples/generate-training-data.ts --causal --days 30 --seed 12345
+ */
+
 import { logger } from '@babylon/shared';
+// Import types from training package for causal simulation
+import {
+  type BenchmarkConfig,
+  BenchmarkDataGenerator,
+  type GroundTruth,
+} from '@babylon/training';
 import {
   BabylonLLMClient,
+  type CausalEventContext,
   FeedGenerator,
   GameLoop,
   GameWorld,
   initializeSimulationMode,
   MarketContextService,
   MarketDecisionEngine,
+  MarketMoverAgent,
   RelationshipEvolutionEngine,
+  type ScheduledCausalEvent,
   StaticDataRegistry,
   saveSnapshot,
 } from '../src';
@@ -23,6 +47,51 @@ interface ModelConfig {
   provider: ModelProvider;
   model: string;
   maxOutputTokens: number;
+}
+
+interface TrainingDataConfig {
+  /** Enable causal simulation mode */
+  useCausalSimulation: boolean;
+  /** Number of days to simulate (default: 1) */
+  simulationDays: number;
+  /** Random seed for reproducibility */
+  seed: number;
+  /** Number of NPCs in the simulation */
+  numNPCs: number;
+  /** Outcome of prediction markets (true = YES wins) */
+  outcome: boolean;
+}
+
+function parseArgs(): TrainingDataConfig {
+  const args = process.argv.slice(2);
+
+  const config: TrainingDataConfig = {
+    useCausalSimulation: args.includes('--causal'),
+    simulationDays: 1,
+    seed: Date.now(),
+    numNPCs: 10,
+    outcome: true,
+  };
+
+  // Parse --days
+  const daysIndex = args.indexOf('--days');
+  if (daysIndex !== -1 && args[daysIndex + 1]) {
+    config.simulationDays = parseInt(args[daysIndex + 1], 10);
+  }
+
+  // Parse --seed
+  const seedIndex = args.indexOf('--seed');
+  if (seedIndex !== -1 && args[seedIndex + 1]) {
+    config.seed = parseInt(args[seedIndex + 1], 10);
+  }
+
+  // Parse --npcs
+  const npcsIndex = args.indexOf('--npcs');
+  if (npcsIndex !== -1 && args[npcsIndex + 1]) {
+    config.numNPCs = parseInt(args[npcsIndex + 1], 10);
+  }
+
+  return config;
 }
 
 function detectAvailableProvider(): ModelProvider {
@@ -65,8 +134,47 @@ function getModelConfig(provider: ModelProvider): ModelConfig {
   return configs[provider];
 }
 
+/**
+ * Convert BenchmarkDataGenerator's causal events to GameWorld's CausalEventContext
+ */
+function buildCausalEventContext(
+  groundTruth: GroundTruth,
+  currentTick: number
+): CausalEventContext | undefined {
+  if (!groundTruth.causalEvents || groundTruth.causalEvents.length === 0) {
+    return undefined;
+  }
+
+  const scheduledEvents: ScheduledCausalEvent[] = groundTruth.causalEvents.map(
+    (event) => ({
+      tick: event.tick,
+      day: event.day,
+      hour: event.hour,
+      eventType: event.eventType,
+      description: event.description,
+      affectedTickers: event.affectedTickers,
+      isPositive: event.isPositive,
+      sourceFactId: event.sourceFactId,
+    })
+  );
+
+  return {
+    scheduledEvents,
+    currentTick,
+  };
+}
+
 async function main() {
+  const config = parseArgs();
+
   console.log('🚀 Starting RL Data Generation Pipeline...');
+  console.log('===========================================');
+  console.log(
+    `   Mode: ${config.useCausalSimulation ? 'CAUSAL SIMULATION' : 'RANDOM WALK'}`
+  );
+  console.log(`   Days: ${config.simulationDays}`);
+  console.log(`   Seed: ${config.seed}`);
+  console.log(`   NPCs: ${config.numNPCs}`);
   console.log('===========================================');
 
   // Detect available provider
@@ -106,35 +214,255 @@ async function main() {
   console.log('✅ Trajectory Recorder: ATTACHED');
 
   // 5. Setup Game World & Loop
-  const world = new GameWorld({ outcome: true, numNPCs: 10 }, llmClient);
+  const world = new GameWorld(
+    { outcome: config.outcome, numNPCs: config.numNPCs },
+    llmClient
+  );
   const loop = new GameLoop(
     world,
     feed,
-    trajectoryEngine as any,
+    trajectoryEngine as Parameters<
+      typeof GameLoop.prototype.tick
+    >[0] extends infer T
+      ? T
+      : never,
     relationships
   );
 
-  // 6. Run Simulation (1 Day / 24 Hours)
+  // 6. Setup Causal Simulation if enabled
+  let groundTruth: GroundTruth | undefined;
+  let marketMover: MarketMoverAgent | undefined;
+  let currentPrices: Map<string, number> | undefined;
+  let initialPrices: Map<string, number> | undefined;
+
+  if (config.useCausalSimulation) {
+    console.log('\n🎯 CAUSAL SIMULATION MODE ENABLED');
+
+    // Create BenchmarkDataGenerator with causal simulation enabled
+    const benchmarkConfig: BenchmarkConfig = {
+      durationMinutes: config.simulationDays * 24 * 60, // Convert days to minutes
+      tickInterval: 3600, // 1 tick per hour (3600 seconds)
+      numPredictionMarkets: 5,
+      numPerpetualMarkets: 5,
+      numAgents: config.numNPCs,
+      seed: config.seed,
+      useCausalSimulation: true,
+    };
+
+    const generator = new BenchmarkDataGenerator(benchmarkConfig);
+    const snapshot = await generator.generate();
+    groundTruth = snapshot.groundTruth;
+
+    // Log the hidden narrative fact
+    if (
+      groundTruth.hiddenNarrativeFacts &&
+      groundTruth.hiddenNarrativeFacts.length > 0
+    ) {
+      const fact = groundTruth.hiddenNarrativeFacts[0]!;
+      console.log(`   📜 Hidden Fact: "${fact.fact}"`);
+      console.log(`   📈 Affected Tickers: ${fact.affectsTickers.join(', ')}`);
+      console.log(`   📅 Event Schedule:`);
+      for (const event of fact.eventSchedule) {
+        console.log(
+          `      - Day ${event.baseDay} + ${event.jitterHours}h jitter: ${event.eventType}`
+        );
+      }
+    }
+
+    // Log causal events
+    if (groundTruth.causalEvents && groundTruth.causalEvents.length > 0) {
+      console.log(`   ⚡ Scheduled Causal Events:`);
+      for (const event of groundTruth.causalEvents) {
+        const priceChange = Object.entries(event.priceChanges)
+          .map(([ticker, change]) => `${ticker}: ${(change * 100).toFixed(1)}%`)
+          .join(', ');
+        console.log(
+          `      - Day ${event.day} Hour ${event.hour}: ${event.eventType} (${priceChange})`
+        );
+      }
+    }
+
+    // Create MarketMoverAgent
+    marketMover = new MarketMoverAgent(config.seed, llmClient, {
+      useDeterministicFallback: true, // Use deterministic fallback by default
+      model: modelConfig.model,
+    });
+    console.log('✅ Market Mover Agent: ATTACHED (Deterministic Mode)');
+
+    // Initialize current prices from initial state
+    currentPrices = new Map(
+      snapshot.initialState.perpetualMarkets.map((m) => [m.ticker, m.price])
+    );
+    initialPrices = new Map(currentPrices);
+    console.log(
+      `✅ Initial Prices: ${Array.from(currentPrices.entries())
+        .map(([t, p]) => `${t}=$${p}`)
+        .join(', ')}`
+    );
+  }
+
+  // 7. Run Simulation
   console.log('\n🧠 STARTING SIMULATION LOOP...');
   const gameId = `training-batch-${Date.now()}`;
 
   // Initialize world state (create initial events/posts)
   await world.generate();
 
-  // Run 24 ticks (Hours 0-23)
-  for (let hour = 0; hour < 24; hour++) {
-    console.log(`\n--- Tick ${hour}:00 ---`);
+  // Calculate total ticks
+  let currentTick = 0;
 
-    // We pass 'false' for marketOnly to ensure social feed + trading both happen
-    const result = await loop.tick(gameId, 1, hour, false);
+  // Track price history for validation
+  const priceHistory: Array<{
+    tick: number;
+    day: number;
+    hour: number;
+    prices: Record<string, number>;
+    events: string[];
+  }> = [];
 
-    console.log(`   > Trades: ${result.tradeCount}`);
-    console.log(`   > Posts:  ${result.posts.length}`);
-    console.log(`   > Events: ${result.events.length}`);
+  // Run simulation
+  for (let day = 1; day <= config.simulationDays; day++) {
+    console.log(`\n📅 === DAY ${day} ===`);
+
+    for (let hour = 0; hour < 24; hour++) {
+      currentTick++;
+      console.log(`\n--- Tick ${currentTick}: Day ${day}, Hour ${hour}:00 ---`);
+
+      // Build causal event context if in causal mode
+      const causalContext = groundTruth
+        ? buildCausalEventContext(groundTruth, currentTick)
+        : undefined;
+
+      // Run the tick with causal context
+      // Note: GameLoop.tick doesn't accept causalContext directly,
+      // so we need to call world.generateTickEvents separately
+      let tickEvents: Awaited<ReturnType<typeof world.generateTickEvents>> = [];
+
+      if (causalContext) {
+        // Generate events from causal context
+        tickEvents = await world.generateTickEvents(
+          day,
+          hour,
+          undefined,
+          causalContext
+        );
+
+        // Check if any causal events occurred
+        const causalEventsThisTick = causalContext.scheduledEvents.filter(
+          (e) => e.day === day && e.hour === hour
+        );
+
+        if (
+          causalEventsThisTick.length > 0 &&
+          marketMover &&
+          currentPrices &&
+          initialPrices
+        ) {
+          console.log(`   ⚡ CAUSAL EVENT TRIGGERED!`);
+
+          // Get price adjustments from MarketMoverAgent
+          const adjustments = await marketMover.generatePriceAdjustments(
+            currentPrices,
+            tickEvents
+          );
+
+          // Apply adjustments
+          if (adjustments.size > 0) {
+            const newPrices = marketMover.applyAdjustments(
+              currentPrices,
+              adjustments,
+              initialPrices
+            );
+
+            // Log price changes
+            for (const [ticker, adjustment] of adjustments) {
+              const oldPrice = currentPrices.get(ticker) ?? 0;
+              const newPrice = newPrices.get(ticker) ?? 0;
+              console.log(
+                `   💰 ${ticker}: $${oldPrice.toFixed(2)} → $${newPrice.toFixed(2)} (${(adjustment * 100).toFixed(1)}%)`
+              );
+            }
+
+            // Update current prices
+            currentPrices = newPrices;
+          }
+        }
+      }
+
+      // Run the standard tick (trading, feed, etc.)
+      const result = await loop.tick(gameId, day, hour, false);
+
+      // Merge events
+      const allEvents = [...tickEvents, ...result.events];
+
+      console.log(`   > Trades: ${result.tradeCount}`);
+      console.log(`   > Posts:  ${result.posts.length}`);
+      console.log(`   > Events: ${allEvents.length}`);
+
+      // Record price history for validation
+      if (currentPrices) {
+        priceHistory.push({
+          tick: currentTick,
+          day,
+          hour,
+          prices: Object.fromEntries(currentPrices),
+          events: allEvents.map((e) => `${e.type}: ${e.description}`),
+        });
+      }
+    }
   }
 
-  // 7. Save the raw state
+  // 8. Save the raw state
   await saveSnapshot();
+
+  // 9. Output summary for causal simulation
+  if (
+    config.useCausalSimulation &&
+    groundTruth &&
+    currentPrices &&
+    initialPrices
+  ) {
+    console.log('\n===========================================');
+    console.log('📊 CAUSAL SIMULATION SUMMARY');
+    console.log('===========================================');
+
+    // Show final prices vs initial
+    console.log('\n💰 Price Changes:');
+    for (const [ticker, finalPrice] of currentPrices) {
+      const initial = initialPrices.get(ticker) ?? 0;
+      const changePercent = ((finalPrice - initial) / initial) * 100;
+      const direction = changePercent >= 0 ? '📈' : '📉';
+      console.log(
+        `   ${direction} ${ticker}: $${initial.toFixed(2)} → $${finalPrice.toFixed(2)} (${changePercent.toFixed(1)}%)`
+      );
+    }
+
+    // Show causal events that occurred
+    if (groundTruth.causalEvents) {
+      console.log('\n⚡ Causal Events:');
+      for (const event of groundTruth.causalEvents) {
+        console.log(
+          `   - Day ${event.day} Hour ${event.hour}: ${event.eventType}`
+        );
+        console.log(`     "${event.description}"`);
+        for (const [ticker, change] of Object.entries(event.priceChanges)) {
+          console.log(`     ${ticker}: ${(change * 100).toFixed(1)}%`);
+        }
+      }
+    }
+
+    // Show hidden narrative fact
+    if (
+      groundTruth.hiddenNarrativeFacts &&
+      groundTruth.hiddenNarrativeFacts.length > 0
+    ) {
+      const fact = groundTruth.hiddenNarrativeFacts[0]!;
+      console.log(`\n📜 Hidden Narrative Fact:`);
+      console.log(`   "${fact.fact}"`);
+      console.log(`   Sentiment: ${fact.sentiment}`);
+    }
+  }
+
   console.log('\n===========================================');
   console.log('✅ GENERATION COMPLETE');
   console.log('Data saved to: ./training-data-output/state.json');
