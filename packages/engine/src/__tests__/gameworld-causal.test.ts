@@ -308,7 +308,10 @@ describe('GameWorld - Market-Driven Events', () => {
 
 describe('GameWorld - Event Type Mapping', () => {
   // Map causal event types to their expected sentiment
-  const eventTypeSentiment: Record<CausalEventType, 'positive' | 'negative' | 'neutral'> = {
+  const eventTypeSentiment: Record<
+    CausalEventType,
+    'positive' | 'negative' | 'neutral'
+  > = {
     leak: 'negative',
     rumor: 'neutral',
     scandal: 'negative',

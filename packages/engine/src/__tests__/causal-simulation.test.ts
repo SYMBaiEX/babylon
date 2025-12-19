@@ -86,9 +86,10 @@ describe('BenchmarkDataGenerator - Causal Simulation', () => {
     for (const event of events) {
       for (const change of Object.values(event.priceChanges)) {
         const abs = Math.abs(change);
-        const inRange = (abs >= 0.02 && abs <= 0.04) ||
-                       (abs >= 0.05 && abs <= 0.10) ||
-                       (abs >= 0.15 && abs <= 0.25);
+        const inRange =
+          (abs >= 0.02 && abs <= 0.04) ||
+          (abs >= 0.05 && abs <= 0.1) ||
+          (abs >= 0.15 && abs <= 0.25);
         expect(inRange).toBe(true);
       }
     }
@@ -120,15 +121,22 @@ describe('BenchmarkDataGenerator - Causal Simulation', () => {
   });
 
   test('different seeds produce different results', async () => {
-    const snap1 = await new BenchmarkDataGenerator({ ...BASE_CONFIG, seed: 11111 }).generate();
-    const snap2 = await new BenchmarkDataGenerator({ ...BASE_CONFIG, seed: 22222 }).generate();
+    const snap1 = await new BenchmarkDataGenerator({
+      ...BASE_CONFIG,
+      seed: 11111,
+    }).generate();
+    const snap2 = await new BenchmarkDataGenerator({
+      ...BASE_CONFIG,
+      seed: 22222,
+    }).generate();
 
     const fact1 = snap1.groundTruth.hiddenNarrativeFacts![0]!;
     const fact2 = snap2.groundTruth.hiddenNarrativeFacts![0]!;
 
     // At least something should differ
-    const differs = fact1.fact !== fact2.fact ||
-                   fact1.affectsTickers[0] !== fact2.affectsTickers[0];
+    const differs =
+      fact1.fact !== fact2.fact ||
+      fact1.affectsTickers[0] !== fact2.affectsTickers[0];
     expect(differs).toBe(true);
   });
 
@@ -138,7 +146,7 @@ describe('BenchmarkDataGenerator - Causal Simulation', () => {
 
     for (const perp of snapshot.initialState.perpetualMarkets) {
       const history = snapshot.groundTruth.priceHistory[perp.ticker]!;
-      const minAllowed = perp.price * 0.10;
+      const minAllowed = perp.price * 0.1;
       const maxAllowed = perp.price * 4.0;
 
       for (const entry of history) {
@@ -210,7 +218,7 @@ describe('MarketMoverAgent', () => {
       const absVal = Math.abs(val);
       const ranges: Record<string, [number, number]> = {
         low: [0.02, 0.04],
-        medium: [0.05, 0.10],
+        medium: [0.05, 0.1],
         high: [0.15, 0.25],
       };
       const [min, max] = ranges[bucket]!;
@@ -235,12 +243,14 @@ describe('MarketMoverAgent', () => {
 
   test('detects tickers from description', async () => {
     const agent = new MarketMoverAgent(12345);
-    const prices = new Map([['BTCAI', 120000], ['TSLA', 450]]);
+    const prices = new Map([
+      ['BTCAI', 120000],
+      ['TSLA', 450],
+    ]);
 
-    const adj = await agent.generatePriceAdjustments(
-      prices,
-      [createEvent({ description: 'BTCAI protocol breach' })]
-    );
+    const adj = await agent.generatePriceAdjustments(prices, [
+      createEvent({ description: 'BTCAI protocol breach' }),
+    ]);
 
     expect(adj.has('BTCAI')).toBe(true);
     expect(adj.has('TSLA')).toBe(false);
@@ -248,7 +258,10 @@ describe('MarketMoverAgent', () => {
 
   test('returns empty for no events', async () => {
     const agent = new MarketMoverAgent(12345);
-    const adj = await agent.generatePriceAdjustments(new Map([['TSLA', 450]]), []);
+    const adj = await agent.generatePriceAdjustments(
+      new Map([['TSLA', 450]]),
+      []
+    );
     expect(adj.size).toBe(0);
   });
 
@@ -256,10 +269,9 @@ describe('MarketMoverAgent', () => {
     const agent = new MarketMoverAgent(12345);
     const prices = new Map([['TSLA', 450]]);
 
-    const adj = await agent.generatePriceAdjustments(
-      prices,
-      [createEvent({ description: 'Generic event no ticker' })]
-    );
+    const adj = await agent.generatePriceAdjustments(prices, [
+      createEvent({ description: 'Generic event no ticker' }),
+    ]);
 
     expect(adj.size).toBe(0);
   });
@@ -274,7 +286,11 @@ describe('MarketMoverAgent', () => {
     const initial = new Map([['TSLA', 450]]);
 
     // Try to exceed ceiling
-    const newPrices = agent.applyAdjustments(current, new Map([['TSLA', 0.50]]), initial);
+    const newPrices = agent.applyAdjustments(
+      current,
+      new Map([['TSLA', 0.5]]),
+      initial
+    );
     expect(newPrices.get('TSLA')).toBe(900); // 450 * 2.0
 
     // Try to go below floor
@@ -292,8 +308,16 @@ describe('MarketMoverAgent', () => {
     const prices = new Map([['TSLA', 450]]);
     const ctx = { affectedTickers: ['TSLA'] };
 
-    const adj1 = await new MarketMoverAgent(12345).generatePriceAdjustments(prices, events, ctx);
-    const adj2 = await new MarketMoverAgent(12345).generatePriceAdjustments(prices, events, ctx);
+    const adj1 = await new MarketMoverAgent(12345).generatePriceAdjustments(
+      prices,
+      events,
+      ctx
+    );
+    const adj2 = await new MarketMoverAgent(12345).generatePriceAdjustments(
+      prices,
+      events,
+      ctx
+    );
 
     expect(adj1.get('TSLA')).toBe(adj2.get('TSLA'));
   });
@@ -392,7 +416,7 @@ describe('Integration - Full Causal Chain', () => {
 
     // Price history changes only at event ticks
     const history = snapshot.groundTruth.priceHistory[ticker]!;
-    const eventTicks = new Set(events.map(e => e.tick));
+    const eventTicks = new Set(events.map((e) => e.tick));
 
     let changesAtEvents = 0;
     let changesElsewhere = 0;
@@ -538,7 +562,11 @@ describe('MarketMoverAgent - Edge Cases', () => {
 
     const adj = await agent.generatePriceAdjustments(
       prices,
-      [createEvent({ description: 'Crypto sector crash affects BTCAI ETHAI SOLAI' })],
+      [
+        createEvent({
+          description: 'Crypto sector crash affects BTCAI ETHAI SOLAI',
+        }),
+      ],
       { affectedTickers: ['BTCAI', 'ETHAI', 'SOLAI'] }
     );
 
@@ -708,7 +736,7 @@ describe('Volatility Buckets', () => {
       for (const change of Object.values(event.priceChanges)) {
         const abs = Math.abs(change);
         expect(abs).toBeGreaterThanOrEqual(0.05);
-        expect(abs).toBeLessThanOrEqual(0.10);
+        expect(abs).toBeLessThanOrEqual(0.1);
       }
     }
   });

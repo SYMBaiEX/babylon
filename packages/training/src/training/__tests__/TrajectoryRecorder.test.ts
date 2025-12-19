@@ -11,7 +11,7 @@
  * These tests verify the training data collection for GRPO training.
  */
 
-import { describe, expect, test, mock } from 'bun:test';
+import { describe, expect, mock, test } from 'bun:test';
 
 // Mock database and simulation mode
 const mockIsSimulationMode = mock(() => true);
@@ -42,7 +42,8 @@ import type {
 
 describe('TrajectoryRecorder - Lifecycle', () => {
   test('generates unique trajectory IDs', () => {
-    const generateId = () => `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const generateId = () =>
+      `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
     const id1 = generateId();
     const id2 = generateId();
@@ -95,7 +96,7 @@ describe('TrajectoryRecorder - Environment State', () => {
     const state: EnvironmentState = {
       agentBalance: 10000,
       agentPoints: 500,
-      agentPnL: 250.50,
+      agentPnL: 250.5,
       openPositions: 3,
       timestamp: Date.now(),
     };
@@ -423,7 +424,9 @@ describe('TrajectoryRecorder - Simulation Mode', () => {
 
     const filePath = `${outputDir}/${trajectoryId}.json`;
 
-    expect(filePath).toBe('./training-data-output/trajectories/1234567890.json');
+    expect(filePath).toBe(
+      './training-data-output/trajectories/1234567890.json'
+    );
   });
 
   test('trajectory JSON structure is valid', () => {

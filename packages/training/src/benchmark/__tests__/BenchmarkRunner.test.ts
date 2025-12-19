@@ -360,7 +360,9 @@ describe('BenchmarkRunner - Output Configuration', () => {
     const metricsPath = `${outputDir}/${runId}/metrics.json`;
     const snapshotPath = `${outputDir}/snapshot.json`;
 
-    expect(trajectoryPath).toBe('./benchmark-results/run-12345/trajectory.json');
+    expect(trajectoryPath).toBe(
+      './benchmark-results/run-12345/trajectory.json'
+    );
     expect(metricsPath).toBe('./benchmark-results/run-12345/metrics.json');
     expect(snapshotPath).toBe('./benchmark-results/snapshot.json');
   });
@@ -383,9 +385,10 @@ describe('BenchmarkRunner - Edge Cases', () => {
   test('handles empty runs array', () => {
     const runs: RunResult[] = [];
 
-    const avgPnl = runs.length > 0
-      ? runs.reduce((sum, r) => sum + r.pnl, 0) / runs.length
-      : 0;
+    const avgPnl =
+      runs.length > 0
+        ? runs.reduce((sum, r) => sum + r.pnl, 0) / runs.length
+        : 0;
 
     expect(avgPnl).toBe(0);
   });

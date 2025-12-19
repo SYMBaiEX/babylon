@@ -11,7 +11,7 @@
  * passes prices and events through the game loop.
  */
 
-import { describe, expect, test, mock } from 'bun:test';
+import { describe, expect, mock, test } from 'bun:test';
 
 // Mock the simulation mode check
 const mockIsSimulationMode = mock(() => true);
@@ -148,9 +148,10 @@ describe('GameLoop - Simulation Mode Price Overrides', () => {
     };
 
     // When overrides are empty, should use defaults
-    const tickers = priceOverrides.size > 0
-      ? Array.from(priceOverrides.keys())
-      : Object.keys(defaultPrices);
+    const tickers =
+      priceOverrides.size > 0
+        ? Array.from(priceOverrides.keys())
+        : Object.keys(defaultPrices);
 
     expect(tickers).toEqual(['BTCAI', 'ETHAI']);
   });
@@ -403,11 +404,13 @@ describe('GameLoop - Edge Cases', () => {
   test('handles undefined options gracefully', () => {
     // Simulate the options destructuring with proper typing
     // Use a function to avoid TypeScript narrowing
-    const getOptions = (): {
-      priceOverrides?: Map<string, number>;
-      causalContext?: CausalEventContext;
-    } | undefined => undefined;
-    
+    const getOptions = ():
+      | {
+          priceOverrides?: Map<string, number>;
+          causalContext?: CausalEventContext;
+        }
+      | undefined => undefined;
+
     const options = getOptions();
 
     const priceOverrides = options?.priceOverrides;
@@ -423,7 +426,9 @@ describe('GameLoop - Edge Cases', () => {
     };
 
     expect(options.priceOverrides.get('BTCAI')).toBe(100000);
-    expect((options as { causalContext?: CausalEventContext }).causalContext).toBeUndefined();
+    expect(
+      (options as { causalContext?: CausalEventContext }).causalContext
+    ).toBeUndefined();
   });
 
   test('handles partial options (only causalContext)', () => {
@@ -434,7 +439,9 @@ describe('GameLoop - Edge Cases', () => {
       },
     };
 
-    expect((options as { priceOverrides?: Map<string, number> }).priceOverrides).toBeUndefined();
+    expect(
+      (options as { priceOverrides?: Map<string, number> }).priceOverrides
+    ).toBeUndefined();
     expect(options.causalContext.currentTick).toBe(0);
   });
 });

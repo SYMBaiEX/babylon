@@ -1760,9 +1760,11 @@ ${prompt}`
         // Map original ticker to actual ticker (case-insensitive)
         // e.g., "OPENAI", "OpenAI", "openai" all map to actual ticker "OPNAI"
         // Strip leading/trailing underscores and whitespace that LLMs sometimes add
-        const sanitizedTicker = String(decision.ticker).trim().replace(/^_+|_+$/g, '');
+        const sanitizedTicker = String(decision.ticker)
+          .trim()
+          .replace(/^_+|_+$/g, '');
         const normalizedTicker = sanitizedTicker.toLowerCase();
-        let mappedTicker =
+        const mappedTicker =
           originalTickerToActualTickerMap.get(normalizedTicker);
         if (mappedTicker) {
           logger.debug(
@@ -2210,5 +2212,4 @@ ${prompt}`
 
     return differences <= maxDistance;
   }
-
 }

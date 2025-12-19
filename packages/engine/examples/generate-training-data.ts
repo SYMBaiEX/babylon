@@ -202,7 +202,12 @@ async function main() {
     llmClient
   );
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const loop = new GameLoop(world, feed, trajectoryEngine as any, relationships);
+  const loop = new GameLoop(
+    world,
+    feed,
+    trajectoryEngine as any,
+    relationships
+  );
 
   // 6. Setup Causal Simulation if enabled
   let groundTruth: GroundTruth | undefined;
@@ -303,17 +308,19 @@ async function main() {
 
           // Apply the PRE-CALCULATED price changes from groundTruth
           for (const causalEvent of causalEventsThisTick) {
-            for (const [ticker, priceChange] of Object.entries(causalEvent.priceChanges)) {
+            for (const [ticker, priceChange] of Object.entries(
+              causalEvent.priceChanges
+            )) {
               const oldPrice = currentPrices.get(ticker);
               if (oldPrice !== undefined) {
                 let newPrice = oldPrice * (1 + priceChange);
-                
+
                 // Apply price bounds (10% to 400% of initial)
                 const initial = initialPrices.get(ticker) ?? oldPrice;
                 const minPrice = initial * 0.1;
                 const maxPrice = initial * 4.0;
                 newPrice = Math.max(minPrice, Math.min(maxPrice, newPrice));
-                
+
                 currentPrices.set(ticker, newPrice);
                 console.log(
                   `   💰 ${ticker}: $${oldPrice.toFixed(2)} → $${newPrice.toFixed(2)} (${(priceChange * 100).toFixed(1)}%)`

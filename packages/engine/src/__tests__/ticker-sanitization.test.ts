@@ -39,7 +39,9 @@ describe('Ticker Sanitization Logic', () => {
   // Replicate the sanitization function
   function sanitizeTicker(rawTicker: string): string {
     // Strip leading/trailing underscores and whitespace
-    const sanitizedTicker = String(rawTicker).trim().replace(/^_+|_+$/g, '');
+    const sanitizedTicker = String(rawTicker)
+      .trim()
+      .replace(/^_+|_+$/g, '');
     const normalizedTicker = sanitizedTicker.toLowerCase();
 
     const mappedTicker = originalTickerToActualTickerMap.get(normalizedTicker);
