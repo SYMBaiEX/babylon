@@ -617,8 +617,8 @@ export class BenchmarkDataGenerator {
     }
 
     const perpetualMarkets: PerpetualMarket[] = [];
-    const tickers = ['BTCAI', 'ETHAI', 'SOLAI', 'TSLA', 'META'];
-    const basePrices = [120000, 4000, 200, 450, 600];
+    const tickers = ['BTCAI', 'ETHAI', 'SOLAI', 'TSLAI', 'METAI'];
+    const basePrices = [120000, 4000, 200, 450, 520];
 
     for (let i = 0; i < this.config.numPerpetualMarkets; i++) {
       const ticker = tickers[i % tickers.length]!;

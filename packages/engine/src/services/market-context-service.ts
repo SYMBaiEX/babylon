@@ -106,9 +106,8 @@ export class MarketContextService {
         BTCAI: 120000,
         ETHAI: 4000,
         SOLAI: 200,
-        TSLA: 450,
-        META: 600,
-        TSLAI: 245,
+        TSLAI: 450,
+        METAI: 520,
       };
 
       // Helper to get price (override or default)

@@ -182,8 +182,8 @@ export class GameLoop {
         BTCAI: 120000,
         ETHAI: 4000,
         SOLAI: 200,
-        TSLA: 450,
-        META: 600,
+        TSLAI: 450,
+        METAI: 520,
       };
 
       // Use priceOverrides if provided (from causal simulation)
