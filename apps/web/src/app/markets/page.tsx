@@ -11,7 +11,14 @@ import {
 } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  useCallback,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { CategoryPnLCard } from '@/components/markets/CategoryPnLCard';
 import { PerpPositionsList } from '@/components/markets/PerpPositionsList';
 import { PortfolioPnLCard } from '@/components/markets/PortfolioPnLCard';
@@ -99,6 +106,8 @@ export default function MarketsPage() {
   const { user, authenticated, login } = useAuth();
   const [activeTab, setActiveTab] = useState<MarketTab>('dashboard');
   const [searchQuery, setSearchQuery] = useState('');
+  // Defer search to keep input responsive during filtering
+  const deferredSearchQuery = useDeferredValue(searchQuery);
   const [predictionSort, setPredictionSort] =
     useState<PredictionSort>('trending');
   const [showBuyPointsModal, setShowBuyPointsModal] = useState(false);
@@ -243,26 +252,26 @@ export default function MarketsPage() {
 
   // Note: Real-time updates via SSE removed - using periodic polling instead
 
-  // Memoize filtered markets
+  // Memoize filtered markets using deferred search for better responsiveness
   const filteredPerpMarkets = useMemo(
     () =>
       perpMarkets.filter(
         (m) =>
-          !searchQuery.trim() ||
-          m.ticker.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          m.name.toLowerCase().includes(searchQuery.toLowerCase())
+          !deferredSearchQuery.trim() ||
+          m.ticker.toLowerCase().includes(deferredSearchQuery.toLowerCase()) ||
+          m.name.toLowerCase().includes(deferredSearchQuery.toLowerCase())
       ),
-    [perpMarkets, searchQuery]
+    [perpMarkets, deferredSearchQuery]
   );
 
   const filteredPredictions = useMemo(
     () =>
       predictions.filter(
         (p) =>
-          !searchQuery.trim() ||
-          p.text.toLowerCase().includes(searchQuery.toLowerCase())
+          !deferredSearchQuery.trim() ||
+          p.text.toLowerCase().includes(deferredSearchQuery.toLowerCase())
       ),
-    [predictions, searchQuery]
+    [predictions, deferredSearchQuery]
   );
 
   // Sort predictions based on selected option

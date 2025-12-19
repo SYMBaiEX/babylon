@@ -3,7 +3,14 @@
 import { cn } from '@babylon/shared';
 import { ArrowUpDown, Clock, Flame, Search } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  useCallback,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { CategoryPnLCard } from '@/components/markets/CategoryPnLCard';
 import { CategoryPnLShareModal } from '@/components/markets/CategoryPnLShareModal';
 import { PredictionPositionsList } from '@/components/markets/PredictionPositionsList';
@@ -57,6 +64,8 @@ export default function PredictionsPage() {
   const router = useRouter();
   const { user, authenticated, login } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
+  // Defer search to keep input responsive during filtering
+  const deferredSearchQuery = useDeferredValue(searchQuery);
   const [predictionSort, setPredictionSort] =
     useState<PredictionSort>('trending');
   const [showCategoryPnLShareModal, setShowCategoryPnLShareModal] =
@@ -249,10 +258,15 @@ export default function PredictionsPage() {
     },
   });
 
-  const filteredPredictions = predictions.filter(
-    (p) =>
-      !searchQuery.trim() ||
-      p.text.toLowerCase().includes(searchQuery.toLowerCase())
+  // Memoize filtered predictions using deferred search for better responsiveness
+  const filteredPredictions = useMemo(
+    () =>
+      predictions.filter(
+        (p) =>
+          !deferredSearchQuery.trim() ||
+          p.text.toLowerCase().includes(deferredSearchQuery.toLowerCase())
+      ),
+    [predictions, deferredSearchQuery]
   );
 
   // Sort predictions based on selected option

@@ -84,6 +84,34 @@ export function PerpPositionsList({
   );
   const livePrices = useMarketPrices(tickers);
 
+  // Pre-calculate PnL for all positions to avoid recalculating during render
+  const positionsWithPnL = useMemo(
+    () =>
+      positions.map((position) => {
+        const livePrice = livePrices.get(position.ticker)?.price;
+        const currentPrice = livePrice ?? position.currentPrice;
+        const { pnl, pnlPercent } = calculateUnrealizedPnL(
+          position.entryPrice,
+          currentPrice,
+          position.side,
+          position.size
+        );
+        const liquidationDistance =
+          position.side === 'long'
+            ? ((currentPrice - position.liquidationPrice) / currentPrice) * 100
+            : ((position.liquidationPrice - currentPrice) / currentPrice) * 100;
+        return {
+          position,
+          currentPrice,
+          pnl,
+          pnlPercent,
+          liquidationDistance,
+          isNearLiquidation: liquidationDistance < 5,
+        };
+      }),
+    [positions, livePrices]
+  );
+
   const handleCloseClick = useCallback(
     (
       position: PerpPosition,
@@ -152,77 +180,69 @@ export function PerpPositionsList({
 
   return (
     <div className="space-y-3">
-      {positions.map((position) => {
-        const livePrice = livePrices.get(position.ticker)?.price;
-        const currentPrice = livePrice ?? position.currentPrice;
-        const { pnl: dynamicPnL, pnlPercent: dynamicPnLPercent } =
-          calculateUnrealizedPnL(
-            position.entryPrice,
-            currentPrice,
-            position.side,
-            position.size
-          );
+      {positionsWithPnL.map(
+        ({
+          position,
+          currentPrice,
+          pnl,
+          pnlPercent,
+          liquidationDistance,
+          isNearLiquidation,
+        }) => {
+          const isClosing = closingId === position.id;
 
-        const liquidationDistance =
-          position.side === 'long'
-            ? ((currentPrice - position.liquidationPrice) / currentPrice) * 100
-            : ((position.liquidationPrice - currentPrice) / currentPrice) * 100;
-
-        const isNearLiquidation = liquidationDistance < 5;
-        const isClosing = closingId === position.id;
-
-        return (
-          <div
-            key={position.id}
-            className={cn(
-              'rounded p-4 transition-all',
-              isNearLiquidation ? 'bg-red-600/10' : 'bg-muted/40'
-            )}
-          >
-            {/* Header */}
-            <div className="mb-3 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span
-                  className={cn(
-                    'flex items-center gap-1 rounded px-2 py-1 font-bold text-xs',
-                    position.side === 'long'
-                      ? 'bg-green-600/20 text-green-600'
-                      : 'bg-red-600/20 text-red-600'
-                  )}
-                >
-                  {position.side === 'long' ? (
-                    <TrendingUp size={12} />
-                  ) : (
-                    <TrendingDown size={12} />
-                  )}
-                  {position.leverage}x {position.side.toUpperCase()}
-                </span>
-                <span className="font-bold text-foreground">
-                  ${position.ticker}
-                </span>
-              </div>
-
-              <div className="text-right">
-                <div
-                  className={cn(
-                    'font-bold text-lg',
-                    dynamicPnL >= 0 ? 'text-green-600' : 'text-red-600'
-                  )}
-                >
-                  {dynamicPnL >= 0 ? '+' : ''}
-                  {formatPrice(dynamicPnL)}
+          return (
+            <div
+              key={position.id}
+              className={cn(
+                'rounded p-4 transition-all',
+                isNearLiquidation ? 'bg-red-600/10' : 'bg-muted/40'
+              )}
+            >
+              {/* Header */}
+              <div className="mb-3 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span
+                    className={cn(
+                      'flex items-center gap-1 rounded px-2 py-1 font-bold text-xs',
+                      position.side === 'long'
+                        ? 'bg-green-600/20 text-green-600'
+                        : 'bg-red-600/20 text-red-600'
+                    )}
+                  >
+                    {position.side === 'long' ? (
+                      <TrendingUp size={12} />
+                    ) : (
+                      <TrendingDown size={12} />
+                    )}
+                    {position.leverage}x {position.side.toUpperCase()}
+                  </span>
+                  <span className="font-bold text-foreground">
+                    ${position.ticker}
+                  </span>
                 </div>
-                <div
-                  className={cn(
-                    'text-xs',
-                    dynamicPnL >= 0 ? 'text-green-600' : 'text-red-600'
-                  )}
-                >
-                  {dynamicPnL >= 0 ? '+' : ''}
-                  {dynamicPnLPercent.toFixed(2)}%
+
+                <div className="text-right">
+                  <div
+                    className={cn(
+                      'font-bold text-lg',
+                      pnl >= 0 ? 'text-green-600' : 'text-red-600'
+                    )}
+                  >
+                    {pnl >= 0 ? '+' : ''}
+                    {formatPrice(pnl)}
+                  </div>
+                  <div
+                    className={cn(
+                      'text-xs',
+                      pnl >= 0 ? 'text-green-600' : 'text-red-600'
+                    )}
+                  >
+                    {pnl >= 0 ? '+' : ''}
+                    {pnlPercent.toFixed(2)}%
+                  </div>
                 </div>
               </div>
-            </div>
 
             {/* Liquidation Warning */}
             {isNearLiquidation && (
@@ -282,37 +302,33 @@ export function PerpPositionsList({
               </div>
             </div>
 
-            {/* Close Button */}
-            <button
-              onClick={() =>
-                handleCloseClick(
-                  position,
-                  currentPrice,
-                  dynamicPnL,
-                  dynamicPnLPercent
-                )
-              }
-              disabled={isClosing}
-              className={cn(
-                'w-full cursor-pointer rounded py-2 font-medium transition-all',
-                isNearLiquidation
-                  ? 'bg-red-600 text-primary-foreground hover:bg-red-700'
-                  : 'bg-muted text-foreground hover:bg-muted',
-                isClosing && 'cursor-not-allowed opacity-50'
-              )}
-            >
-              {isClosing ? (
-                <span className="flex items-center justify-center gap-2">
-                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                  Closing...
-                </span>
-              ) : (
-                'Close Position'
-              )}
-            </button>
-          </div>
-        );
-      })}
+              {/* Close Button */}
+              <button
+                onClick={() =>
+                  handleCloseClick(position, currentPrice, pnl, pnlPercent)
+                }
+                disabled={isClosing}
+                className={cn(
+                  'w-full cursor-pointer rounded py-2 font-medium transition-all',
+                  isNearLiquidation
+                    ? 'bg-red-600 text-primary-foreground hover:bg-red-700'
+                    : 'bg-muted text-foreground hover:bg-muted',
+                  isClosing && 'cursor-not-allowed opacity-50'
+                )}
+              >
+                {isClosing ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                    Closing...
+                  </span>
+                ) : (
+                  'Close Position'
+                )}
+              </button>
+            </div>
+          );
+        }
+      )}
 
       {/* Confirmation Dialog */}
       <TradeConfirmationDialog
