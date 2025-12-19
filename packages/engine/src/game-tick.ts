@@ -14,7 +14,6 @@ import {
 } from '@babylon/core/markets/prediction';
 import {
   actorRelationships,
-  actorState,
   and,
   count,
   db,
@@ -67,12 +66,8 @@ import { NPCGroupDynamicsService } from './services/npc-group-dynamics-service';
 import { getOracleService } from './services/oracle/oracle-service';
 import { createParodyHeadlineGenerator } from './services/parody-headline-generator';
 import {
-  type DiscourseActor,
-  generateNPCPost,
-  generateNPCRepliesFromPreviousTicks,
   generateOrgArticle,
   generateOrgPost,
-  loadSharedPostContext,
 } from './services/post-generation-helpers';
 import { PriceUpdateService } from './services/price-update-service';
 import {
@@ -503,11 +498,13 @@ export async function executeGameTick(
     result.oracleErrors += oracleResult.errors;
   }
 
-  // Combined post and article generation to mix NPCs and orgs
+  // Organization content generation (media news articles) and world events
+  // NPC posts and replies are now handled by /api/cron/npc-tick
   // Skip if buffer is sufficient (content generation handled by lookahead service)
   if (!skipContentGeneration) {
     if (Date.now() < criticalOpsDeadline) {
-      const { posts, articles } = await generateMixedPosts(
+      // Generate organization content only (news articles from media orgs)
+      const { posts, articles } = await generateOrganizationContent(
         currentActiveQuestions.slice(0, 3),
         timestamp,
         llmClient,
@@ -518,12 +515,13 @@ export async function executeGameTick(
       result.articlesCreated = articles;
     } else {
       logger.warn(
-        'Skipping post generation – tick budget exceeded',
+        'Skipping organization content generation – tick budget exceeded',
         { budgetMs },
         'GameTick'
       );
     }
 
+    // Generate world events
     const eventsGenerated = await generateEvents(
       currentActiveQuestions.slice(0, 3),
       timestamp,
@@ -531,46 +529,8 @@ export async function executeGameTick(
     );
     result.eventsCreated = eventsGenerated;
 
-    // Generate NPC-to-NPC public discourse (replies to previous tick posts)
-    // This runs in parallel since replies don't depend on posts from this tick
-    if (Date.now() < criticalOpsDeadline) {
-      const discourseActors = StaticDataRegistry.getAllActors();
-      const discourseWorldFacts =
-        await worldFactsService.generatePromptContext();
-
-      if (discourseActors.length >= 2) {
-        // Map to DiscourseActor type (only fields needed for reply generation)
-        const allActorsForDiscourse: DiscourseActor[] = discourseActors.map(
-          (actor) => ({
-            id: actor.id,
-            name: actor.name,
-            description: actor.description,
-            personality: actor.personality,
-            postStyle: actor.postStyle,
-            postExample: actor.postExample || [],
-          })
-        );
-
-        const npcRepliesCreated = await generateNPCRepliesFromPreviousTicks(
-          llmClient,
-          allActorsForDiscourse,
-          discourseWorldFacts,
-          timestamp,
-          4, // Generate up to 4 NPC replies per tick
-          dayNumberForTimestamp(timestamp)
-        );
-
-        result.discourseReplies = npcRepliesCreated;
-
-        if (npcRepliesCreated > 0) {
-          logger.info(
-            `NPC discourse: ${npcRepliesCreated} replies to previous tick posts`,
-            { npcRepliesCreated },
-            'GameTick'
-          );
-        }
-      }
-    }
+    // NPC posts and replies are now handled by /api/cron/npc-tick
+    // This removes the old generateMixedPosts and generateNPCRepliesFromPreviousTicks calls
   } else {
     logger.info(
       'Skipping content generation (buffer sufficient)',
@@ -1223,161 +1183,71 @@ async function bootstrapTrending(): Promise<void> {
 }
 
 /**
- * Generate mixed posts from both NPCs and organizations (parallelized version)
- * This ensures posts are interleaved rather than chunked by type
- * Generates all posts in parallel for maximum throughput
- *
- * OPTIMIZATION: Shared context (feed posts, events) is loaded ONCE
- * and passed to all NPC generators to eliminate N+1 queries
+ * Generate organization content (news articles and posts from media orgs)
+ * NPC posts are now handled by /api/cron/npc-tick
  */
-async function generateMixedPosts(
+async function generateOrganizationContent(
   questions: Array<{ id: string; text: string; questionNumber: number }>,
   timestamp: Date,
   llm: BabylonLLMClient,
   deadlineMs: number,
   dayNumberForTimestamp: (t: Date) => number | undefined
 ): Promise<{ posts: number; articles: number }> {
-  const postsToGenerate = 8; // Mix of NPC posts and org articles
+  const postsToGenerate = 4; // Organization posts/articles per tick
 
   if (questions.length === 0) {
-    logger.warn('No questions available for post generation', {}, 'GameTick');
+    logger.warn('No questions available for org content generation', {}, 'GameTick');
     return { posts: 0, articles: 0 };
   }
 
-  // Get actors (NPCs), organizations, world facts, trending, AND shared post context in parallel
-  // This loads ALL shared data ONCE to avoid N+1 query problems
-  // Static data from registry, dynamic state from DB
-  const [actorStates, worldFactsBase, trendingContext, sharedContext] =
-    await Promise.all([
-      db
-        .select()
-        .from(actorState)
-        .orderBy(desc(actorState.reputationPoints))
-        .limit(15),
-      worldFactsService.generatePromptContext(),
-      getTrendingPromptContext(),
-      loadSharedPostContext(timestamp), // Load feed posts + events ONCE
-    ]);
+  // Get organizations and world context
+  const [worldFactsBase, trendingContext] = await Promise.all([
+    worldFactsService.generatePromptContext(),
+    getTrendingPromptContext(),
+  ]);
 
-  // Combine world facts with trending context
   const worldFactsContext = worldFactsBase + trendingContext;
-
-  // Combine static actor data with dynamic state
-  const actorsList = actorStates
-    .map((state) => {
-      const staticActor = StaticDataRegistry.getActor(state.id);
-      if (!staticActor) return null;
-      return {
-        ...staticActor,
-        tradingBalance: state.tradingBalance,
-        reputationPoints: state.reputationPoints,
-        hasPool: state.hasPool,
-      };
-    })
-    .filter((a): a is NonNullable<typeof a> => a !== null);
 
   // Get media organizations from static registry
   const orgsList = StaticDataRegistry.getAllOrganizations()
     .filter((org) => org.type === 'media')
-    .slice(0, 5);
+    .slice(0, 8);
 
-  if (actorsList.length === 0 && orgsList.length === 0) {
-    logger.warn(
-      'No actors or organizations found for post generation',
-      {},
-      'GameTick'
-    );
+  if (orgsList.length === 0) {
+    logger.warn('No media organizations found for content generation', {}, 'GameTick');
     return { posts: 0, articles: 0 };
   }
 
-  // Create a mixed pool of content creators
-  interface ContentCreator {
-    id: string;
-    name: string;
-    type: 'actor' | 'organization';
-    data: (typeof actorsList)[number] | (typeof orgsList)[number];
-  }
-
-  const creators: ContentCreator[] = [
-    ...actorsList.map((actor: (typeof actorsList)[number]) => ({
-      id: actor.id,
-      name: actor.name,
-      type: 'actor' as const,
-      data: actor,
-    })),
-    ...orgsList.map((org: (typeof orgsList)[number]) => ({
-      id: org.id,
-      name: org.name || 'Unknown Org',
-      type: 'organization' as const,
-      data: org,
-    })),
-  ];
-
-  // Shuffle to mix actors and orgs
-  for (let i = creators.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [creators[i], creators[j]] = [creators[j]!, creators[i]!];
-  }
-
-  // TOPIC DIVERSITY: Assign different questions to different creators
-  // This prevents all NPCs from posting about the same topic
+  // Shuffle orgs for variety
+  const shuffledOrgs = [...orgsList].sort(() => Math.random() - 0.5);
   const shuffledQuestions = [...questions].sort(() => Math.random() - 0.5);
-  const creatorToQuestion = new Map<string, (typeof questions)[number]>();
-
-  // Assign questions round-robin to creators, ensuring diversity
-  for (let i = 0; i < Math.min(postsToGenerate, creators.length); i++) {
-    const creator = creators[i];
-    if (!creator) continue;
-    // Each creator gets a unique question (cycling through if needed)
-    const questionIndex = i % shuffledQuestions.length;
-    creatorToQuestion.set(creator.id, shuffledQuestions[questionIndex]!);
-  }
 
   logger.info(
-    `Generating ${postsToGenerate} mixed posts with topic diversity`,
+    `Generating ${postsToGenerate} organization posts/articles`,
     {
-      actorsAvailable: actorsList.length,
       orgsAvailable: orgsList.length,
-      creatorsPoolSize: creators.length,
       uniqueQuestions: shuffledQuestions.length,
-      topicAssignments: creatorToQuestion.size,
     },
     'GameTick'
   );
 
-  // Generate posts with timestamps spread across the tick interval (60 seconds)
-  const tickDurationMs = 60000; // 1 minute
+  // Generate posts with timestamps spread across the tick interval
+  const tickDurationMs = 60000;
   const timeSlotMs = tickDurationMs / postsToGenerate;
 
-  // Generate all posts in parallel
   const postPromises = Array.from(
-    { length: Math.min(postsToGenerate, creators.length) },
+    { length: Math.min(postsToGenerate, shuffledOrgs.length) },
     async (_, i) => {
-      // Check deadline before starting
       if (Date.now() > deadlineMs) {
-        logger.debug('Skipping post due to deadline', { index: i }, 'GameTick');
         return { posts: 0, articles: 0 };
       }
 
-      const creator = creators[i];
-      if (!creator) {
-        logger.warn('Missing creator data', { creatorIndex: i }, 'GameTick');
-        return { posts: 0, articles: 0 };
-      }
+      const org = shuffledOrgs[i];
+      if (!org) return { posts: 0, articles: 0 };
 
-      // Use assigned question for this creator (topic diversity)
-      const question = creatorToQuestion.get(creator.id);
+      const question = shuffledQuestions[i % shuffledQuestions.length];
+      if (!question?.text) return { posts: 0, articles: 0 };
 
-      if (!question || !question.text) {
-        logger.warn(
-          'Missing question for creator',
-          { creatorId: creator.id, creatorName: creator.name },
-          'GameTick'
-        );
-        return { posts: 0, articles: 0 };
-      }
-
-      // Calculate timestamp for this post (spread throughout the minute)
       const slotOffset = i * timeSlotMs;
       const randomJitter = Math.random() * timeSlotMs * 0.8;
       const timestampWithOffset = new Date(
@@ -1385,21 +1255,8 @@ async function generateMixedPosts(
       );
       const postDayNumber = dayNumberForTimestamp(timestampWithOffset);
 
-      if (creator.type === 'actor') {
-        const actor = creator.data as (typeof actorsList)[number];
-        const success = await generateNPCPost(
-          llm,
-          actor,
-          question,
-          worldFactsContext,
-          timestampWithOffset,
-          sharedContext, // Pass pre-loaded context to avoid N+1 queries
-          postDayNumber
-        );
-        return { posts: success ? 1 : 0, articles: 0 };
-      }
-      const org = creator.data as (typeof orgsList)[number];
-      const shouldCreateArticle = Math.random() < 0.1;
+      // 20% chance of article, 80% chance of post
+      const shouldCreateArticle = Math.random() < 0.2;
 
       if (shouldCreateArticle) {
         const success = await generateOrgArticle(
@@ -1412,6 +1269,7 @@ async function generateMixedPosts(
         );
         return { posts: success ? 1 : 0, articles: success ? 1 : 0 };
       }
+
       const success = await generateOrgPost(
         llm,
         org,
@@ -1424,10 +1282,8 @@ async function generateMixedPosts(
     }
   );
 
-  // Wait for all posts to complete
   const results = await Promise.allSettled(postPromises);
 
-  // Aggregate results
   let postsCreated = 0;
   let articlesCreated = 0;
 
@@ -1439,15 +1295,12 @@ async function generateMixedPosts(
   }
 
   logger.info(
-    'Mixed post generation complete',
+    'Organization content generation complete',
     {
       postsCreated,
       articlesCreated,
-      actorsAvailable: actorsList.length,
       orgsAvailable: orgsList.length,
       attempted: postPromises.length,
-      successful: results.filter((r) => r.status === 'fulfilled').length,
-      failed: results.filter((r) => r.status === 'rejected').length,
     },
     'GameTick'
   );

@@ -30,6 +30,7 @@ import {
 import { StaticDataRegistry, WalletService } from '@babylon/engine';
 import type { IAgentRuntime } from '@elizaos/core';
 import { callGroqDirect } from '../llm/direct-groq';
+import { npcGameContextProvider } from '../plugins/babylon/providers/npc-game-context';
 import { getAgentConfig } from '../shared/agent-config';
 import { logger } from '../shared/logger';
 import { autonomousBatchResponseService } from './AutonomousBatchResponseService';
@@ -132,6 +133,18 @@ export class MultiStepExecutor {
       if (config?.autonomousDMs) enabledFeatures.push('DMs');
     }
 
+    // Get NPC game context ONCE before loop (arc awareness, world events)
+    let npcGameContext = '';
+    if (isNpc) {
+      const result = await npcGameContextProvider.get(
+        runtime,
+        null as unknown as import('@elizaos/core').Memory,
+        null as unknown as import('@elizaos/core').State
+      );
+      // ProviderResult can be { text: string } or just string
+      npcGameContext = typeof result === 'string' ? result : result?.text ?? '';
+    }
+
     // Main iteration loop
     for (let iteration = 1; iteration <= this.maxIterations; iteration++) {
       logger.info(
@@ -155,6 +168,8 @@ export class MultiStepExecutor {
         maxIterations: this.maxIterations,
         traceActionResults: trace,
         context,
+        isNpc,
+        npcGameContext,
       });
 
       // Get LLM decision

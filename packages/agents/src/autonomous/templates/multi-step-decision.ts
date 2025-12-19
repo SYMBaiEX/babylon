@@ -6,6 +6,8 @@
  * Services are "dumb executors" - all reasoning happens here.
  */
 
+import { NPC_POST_QUALITY_RULES } from '@babylon/engine';
+
 // =============================================================================
 // Types
 // =============================================================================
@@ -96,6 +98,10 @@ export interface MultiStepDecision {
 /**
  * Build the multi-step decision prompt for an agent tick
  * Note: systemPrompt is passed separately to the LLM's system role
+ *
+ * For NPCs (isNpc=true), includes:
+ * - NPC game context (arc awareness, world events, intuitions)
+ * - Anti-slop quality rules for authentic social media voice
  */
 export function buildMultiStepDecisionPrompt(params: {
   agentName: string;
@@ -103,6 +109,8 @@ export function buildMultiStepDecisionPrompt(params: {
   maxIterations: number;
   traceActionResults: ActionTraceResult[];
   context: AgentTickContext;
+  isNpc?: boolean;
+  npcGameContext?: string;
 }): string {
   const {
     agentName,
@@ -110,6 +118,8 @@ export function buildMultiStepDecisionPrompt(params: {
     maxIterations,
     traceActionResults,
     context,
+    isNpc = false,
+    npcGameContext = '',
   } = params;
 
   const actionsCompletedText =
@@ -122,8 +132,26 @@ export function buildMultiStepDecisionPrompt(params: {
           .join('\n')
       : 'No actions taken yet this tick.';
 
-  return `You are ${agentName}, an autonomous agent on Babylon prediction markets.
+  // NPC-specific sections
+  const npcContextSection = isNpc && npcGameContext ? `
+${npcGameContext}
 
+` : '';
+
+  const npcQualityRulesSection = isNpc ? `
+${NPC_POST_QUALITY_RULES}
+
+# NPC Voice Rules
+- You are a CHARACTER, not a reporter
+- Match YOUR voice from your character's examples
+- React naturally, don't analyze
+- Have opinions, don't hedge
+- Sound like a PERSON on social media, not an AI
+
+` : '';
+
+  return `You are ${agentName}, an autonomous agent on Babylon prediction markets.
+${npcContextSection}
 # Current Execution Context
 **Step**: ${iterationCount}/${maxIterations}
 **Actions Completed This Tick**: ${traceActionResults.length}
@@ -185,7 +213,7 @@ ${context.assignedMarketId ? `# YOUR FOCUS MARKET: ${context.assignedMarketId}\n
 - Meme language is good ("lfg", "ngmi", "gm", slang is fine)
 - SHORT summaries of markets, not full question text
 - DON'T include raw IDs in post content
-
+${npcQualityRulesSection}
 Examples:
   ❌ BAD: "Buying YES on 'Will Polymarket deploy its Sentient Market-Making AIs to artificially lower the price of BitcAIn below $120,000 within 5 days?'"
   ✅ GOOD: "The BitcAIn manipulation rumors are getting spicy"
