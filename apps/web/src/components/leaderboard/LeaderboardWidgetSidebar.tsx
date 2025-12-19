@@ -80,19 +80,20 @@ export function LeaderboardWidgetSidebar({
         inner.style.top = '0px';
         inner.style.transform = '';
       } else {
+        // Sidebar is taller than viewport - implement bi-directional scroll lock
+        const maxTranslate = sidebarHeight - viewportHeight;
+        
         if (direction === 'down') {
-          const maxTranslate = sidebarHeight - viewportHeight;
+          // Scrolling down: pin sidebar bottom to viewport bottom
           translateY = Math.min(scrollTop, maxTranslate);
-          inner.style.position = 'fixed';
-          inner.style.top = '0px';
-          inner.style.transform = `translateY(-${translateY}px)`;
         } else {
-          const maxTranslate = sidebarHeight - viewportHeight;
-          translateY = Math.min(scrollTop, maxTranslate);
-          inner.style.position = 'fixed';
-          inner.style.top = '0px';
-          inner.style.transform = `translateY(-${translateY}px)`;
+          // Scrolling up: gradually reveal top of sidebar
+          translateY = Math.max(0, Math.min(scrollTop, maxTranslate));
         }
+        
+        inner.style.position = 'fixed';
+        inner.style.top = '0px';
+        inner.style.transform = `translateY(-${translateY}px)`;
       }
 
       ticking = false;

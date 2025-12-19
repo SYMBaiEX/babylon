@@ -240,8 +240,17 @@ export async function POST(_req: NextRequest) {
       // Get agent config from separate table
       const config = await getAgentConfig(agent.userId);
 
+      // Guard: USER_CONTROLLED agents must have a user record
+      if (!user) {
+        logger.warn(
+          'USER_CONTROLLED agent missing user record - skipping',
+          { agentId: agent.agentId, userId: agent.userId },
+          'AgentTick'
+        );
+        continue;
+      }
+
       if (
-        user &&
         user.isAgent &&
         (config?.pointsBalance ?? 0) >= 1 &&
         (config?.autonomousTrading ||

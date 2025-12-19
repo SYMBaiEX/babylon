@@ -8,16 +8,15 @@
  * ONLY NPCs receive this context - user agents get nothing (they're playing the game).
  */
 
-import { db, eq, markets } from '@babylon/db';
 import {
   type DatabaseArcPlan,
+  gameService,
   getArcPlan,
   getPhaseForDay,
   getSignalDirection,
   StaticDataRegistry,
   worldFactsService,
 } from '@babylon/engine';
-import { logger } from '@babylon/shared';
 import type {
   IAgentRuntime,
   Memory,
@@ -101,28 +100,6 @@ function formatSignalAsNaturalLanguage(
   }
 }
 
-/**
- * Get current game day from the active game
- */
-async function getCurrentGameDay(): Promise<number> {
-  const game = await db.game.findFirst({
-    where: { isContinuous: true, isRunning: true },
-    select: { currentDay: true, startedAt: true },
-  });
-
-  // Use currentDay from DB if available, otherwise calculate
-  if (game?.currentDay !== undefined && game.currentDay !== null) {
-    return game.currentDay;
-  }
-
-  if (!game?.startedAt) {
-    return 0;
-  }
-
-  const now = new Date();
-  const dayMs = 24 * 60 * 60 * 1000;
-  return Math.floor((now.getTime() - game.startedAt.getTime()) / dayMs);
-}
 
 /**
  * Provider: NPC Game Context
@@ -147,15 +124,8 @@ export const npcGameContextProvider: Provider = {
       return { text: '' };
     }
 
-    // Get active prediction markets
-    const activeMarkets = await db
-      .select({
-        id: markets.id,
-        question: markets.question,
-      })
-      .from(markets)
-      .where(eq(markets.resolved, false))
-      .limit(5);
+    // Get active prediction markets via service layer
+    const activeMarkets = await gameService.getActiveMarketSummaries(5);
 
     if (activeMarkets.length === 0) {
       // No active markets - minimal context
@@ -169,8 +139,8 @@ Remember: You are ${npcActor.name}. Post in YOUR voice, not as a reporter.
       };
     }
 
-    // Get current game day
-    const currentDay = await getCurrentGameDay();
+    // Get current game day via service layer
+    const currentDay = await gameService.getCurrentGameDay();
 
     // Build intuitions for each active market with arc plan
     const intuitions: string[] = [];
@@ -195,20 +165,11 @@ Remember: You are ${npcActor.name}. Post in YOUR voice, not as a reporter.
       }
     }
 
-    // Get recent world events for context
-    let worldContext = '';
-    try {
-      const worldFacts = await worldFactsService.generateWorldContext(false);
-      if (worldFacts.headlines) {
-        worldContext = `=== WHAT'S HAPPENING ===\n${worldFacts.headlines}\n\n`;
-      }
-    } catch (error) {
-      logger.warn(
-        'Failed to get world context for NPC',
-        { agentId, error: String(error) },
-        'NPCGameContext'
-      );
-    }
+    // Get recent world events for context (fail-fast: let errors propagate)
+    const worldFacts = await worldFactsService.generateWorldContext(false);
+    const worldContext = worldFacts.headlines
+      ? `=== WHAT'S HAPPENING ===\n${worldFacts.headlines}\n\n`
+      : '';
 
     return {
       text: `

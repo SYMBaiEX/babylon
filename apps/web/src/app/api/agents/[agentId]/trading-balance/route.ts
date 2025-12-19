@@ -13,7 +13,7 @@
 
 import { agentService } from '@babylon/agents';
 import { authenticateUser } from '@babylon/api';
-import { db, balanceTransactions, eq, desc, users } from '@babylon/db';
+import { balanceTransactions, db, desc, eq, users } from '@babylon/db';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
@@ -42,7 +42,10 @@ export async function GET(
 
   const agent = agentResult[0];
   if (!agent) {
-    return NextResponse.json({ success: false, error: 'Agent not found' }, { status: 404 });
+    return NextResponse.json(
+      { success: false, error: 'Agent not found' },
+      { status: 404 }
+    );
   }
 
   // Get user's trading balance for display
@@ -98,7 +101,10 @@ export async function POST(
 
   if (!action || !['deposit', 'withdraw'].includes(action)) {
     return NextResponse.json(
-      { success: false, error: 'Invalid action. Must be "deposit" or "withdraw"' },
+      {
+        success: false,
+        error: 'Invalid action. Must be "deposit" or "withdraw"',
+      },
       { status: 400 }
     );
   }
@@ -155,12 +161,16 @@ export async function POST(
       message: `${action === 'deposit' ? 'Deposited' : 'Withdrew'} $${amount.toFixed(2)} successfully`,
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Transaction failed';
-    logger.error(`Trading balance ${action} failed: ${message}`, undefined, 'AgentsAPI');
+    const message =
+      error instanceof Error ? error.message : 'Transaction failed';
+    logger.error(
+      `Trading balance ${action} failed: ${message}`,
+      undefined,
+      'AgentsAPI'
+    );
     return NextResponse.json(
       { success: false, error: message },
       { status: 400 }
     );
   }
 }
-

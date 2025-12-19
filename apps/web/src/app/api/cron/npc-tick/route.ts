@@ -284,6 +284,7 @@ export async function POST(_req: NextRequest) {
     processed: results.length - skippedDueToLock,
     totalActions: totalActionsExecuted,
     errorCount: errors,
+    skippedLocked: skippedDueToLock,
   });
 
   return NextResponse.json({

@@ -40,6 +40,10 @@ import {
   executeDirectTrade,
 } from './DirectExecutors';
 import { topicDiversityService } from './TopicDiversityService';
+
+/** Default trading balance for NPCs without actorState record */
+const DEFAULT_NPC_BALANCE = 10000;
+
 import {
   type ActionTraceResult,
   type AgentTickContext,
@@ -162,7 +166,10 @@ export class MultiStepExecutor {
       );
 
       // Build decision prompt (systemPrompt passed separately to LLM system role)
-      const agentName = agent?.displayName ?? agentUserId;
+      // For NPCs, get name from StaticDataRegistry; for users, use displayName
+      const agentName = isNpc
+        ? (StaticDataRegistry.getActor(agentUserId)?.name ?? agentUserId)
+        : (agent?.displayName ?? agentUserId);
       const prompt = buildMultiStepDecisionPrompt({
         agentName,
         iterationCount: iteration,
@@ -260,7 +267,14 @@ export class MultiStepExecutor {
         .where(eq(actorState.id, agentUserId))
         .limit(1);
 
-      balance = Number(actor?.tradingBalance ?? 10000);
+      if (!actor?.tradingBalance) {
+        logger.warn(
+          `NPC ${agentUserId} missing actorState - using default balance`,
+          { defaultBalance: DEFAULT_NPC_BALANCE },
+          'MultiStepExecutor'
+        );
+      }
+      balance = Number(actor?.tradingBalance ?? DEFAULT_NPC_BALANCE);
       pnl = 0;
     } else {
       const walletBalance = await WalletService.getBalance(agentUserId);

@@ -117,7 +117,7 @@ export {
   type WorldState,
 } from './GameWorld';
 // Game Service
-export { gameService } from './game-service';
+export { type ActiveMarketSummary, gameService } from './game-service';
 // Game Tick (realtime/cron execution)
 export {
   executeGameTick,
