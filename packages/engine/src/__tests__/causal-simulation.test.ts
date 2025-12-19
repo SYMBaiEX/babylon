@@ -1,11 +1,11 @@
 /**
  * Tests for Causal Simulation Engine
  *
- * Verifies that:
- * 1. BenchmarkDataGenerator creates hidden narrative facts in causal mode
- * 2. Causal events are scheduled with proper timing
- * 3. MarketMoverAgent generates price adjustments based on events
- * 4. GameWorld generates events from causal context
+ * Covers:
+ * - BenchmarkDataGenerator causal mode
+ * - MarketMoverAgent price adjustments
+ * - SeededRandom reproducibility
+ * - Edge cases and boundary conditions
  */
 
 import { describe, expect, test } from 'bun:test';
@@ -17,333 +17,392 @@ import {
 } from '@babylon/training';
 import { MarketMoverAgent } from '../services/market-mover-agent';
 
+// Shared config for most tests - minimal but sufficient
+const BASE_CONFIG: BenchmarkConfig = {
+  durationMinutes: 25 * 24 * 60, // 25 days
+  tickInterval: 3600,
+  numPredictionMarkets: 2,
+  numPerpetualMarkets: 3,
+  numAgents: 3,
+  seed: 12345,
+  useCausalSimulation: true,
+};
+
+// =============================================================================
+// BenchmarkDataGenerator Tests
+// =============================================================================
+
 describe('BenchmarkDataGenerator - Causal Simulation', () => {
-  test('generates hidden narrative facts when causal mode is enabled', async () => {
-    const config: BenchmarkConfig = {
-      durationMinutes: 30 * 24 * 60, // 30 days
-      tickInterval: 3600, // 1 hour per tick
-      numPredictionMarkets: 5,
-      numPerpetualMarkets: 5,
-      numAgents: 10,
-      seed: 12345,
-      useCausalSimulation: true,
-    };
-
-    const generator = new BenchmarkDataGenerator(config);
+  test('generates hidden narrative facts with correct structure', async () => {
+    const generator = new BenchmarkDataGenerator(BASE_CONFIG);
     const snapshot = await generator.generate();
 
-    // Should have hidden narrative facts
+    // Should have exactly ONE hidden narrative fact
     expect(snapshot.groundTruth.hiddenNarrativeFacts).toBeDefined();
-    expect(snapshot.groundTruth.hiddenNarrativeFacts!.length).toBeGreaterThan(
-      0
-    );
+    expect(snapshot.groundTruth.hiddenNarrativeFacts!.length).toBe(1);
 
-    // Each fact should have required properties
     const fact = snapshot.groundTruth.hiddenNarrativeFacts![0]!;
-    expect(fact.id).toBeDefined();
-    expect(fact.fact).toBeDefined();
-    expect(fact.affectsTickers).toBeDefined();
-    expect(fact.affectsTickers.length).toBeGreaterThan(0);
-    expect(fact.eventSchedule).toBeDefined();
-    expect(fact.eventSchedule.length).toBeGreaterThan(0);
-    expect(fact.sentiment).toMatch(/^(positive|negative)$/);
-  });
+    expect(fact.id).toMatch(/^narrative-fact-/);
+    expect(fact.fact.length).toBeGreaterThan(10);
+    expect(fact.affectsTickers).toHaveLength(1);
+    expect(fact.eventSchedule.length).toBeGreaterThanOrEqual(3);
+    expect(['positive', 'negative']).toContain(fact.sentiment);
 
-  test('generates causal events with timing and price changes', async () => {
-    const config: BenchmarkConfig = {
-      durationMinutes: 30 * 24 * 60,
-      tickInterval: 3600,
-      numPredictionMarkets: 5,
-      numPerpetualMarkets: 5,
-      numAgents: 10,
-      seed: 12345,
-      useCausalSimulation: true,
-    };
-
-    const generator = new BenchmarkDataGenerator(config);
-    const snapshot = await generator.generate();
-
-    // Should have causal events
-    expect(snapshot.groundTruth.causalEvents).toBeDefined();
-    expect(snapshot.groundTruth.causalEvents!.length).toBeGreaterThan(0);
-
-    // Each causal event should have required properties
-    const event = snapshot.groundTruth.causalEvents![0]!;
-    expect(event.tick).toBeDefined();
-    expect(event.day).toBeGreaterThan(0);
-    expect(event.hour).toBeGreaterThanOrEqual(0);
-    expect(event.hour).toBeLessThan(24);
-    expect(event.eventType).toBeDefined();
-    expect(event.description).toBeDefined();
-    expect(event.affectedTickers.length).toBeGreaterThan(0);
-    expect(event.priceChanges).toBeDefined();
-
-    // Price changes should be within volatility bucket ranges
-    for (const [_ticker, change] of Object.entries(event.priceChanges)) {
-      const absChange = Math.abs(change);
-      // Should be within one of the bucket ranges (2-4%, 5-10%, 15-25%)
-      expect(absChange).toBeGreaterThanOrEqual(0.02);
-      expect(absChange).toBeLessThanOrEqual(0.25);
+    // Event schedule structure
+    for (const event of fact.eventSchedule) {
+      expect(event.baseDay).toBeGreaterThan(0);
+      expect(event.baseHour).toBeGreaterThanOrEqual(8);
+      expect(event.baseHour).toBeLessThan(20);
+      expect(event.jitterHours).toBeGreaterThanOrEqual(-8);
+      expect(event.jitterHours).toBeLessThanOrEqual(8);
+      expect(['low', 'medium', 'high']).toContain(event.volatilityBucket);
     }
   });
 
-  test('does not generate random walk prices in causal mode', async () => {
-    const config: BenchmarkConfig = {
-      durationMinutes: 30 * 24 * 60,
-      tickInterval: 3600,
-      numPredictionMarkets: 5,
-      numPerpetualMarkets: 5,
-      numAgents: 10,
-      seed: 12345,
-      useCausalSimulation: true,
-    };
-
-    const generator = new BenchmarkDataGenerator(config);
+  test('generates causal events with valid timing and price changes', async () => {
+    const generator = new BenchmarkDataGenerator(BASE_CONFIG);
     const snapshot = await generator.generate();
 
-    // In causal mode, prices should only change when events occur
-    // Check that prices are not constantly changing (random walk)
-    for (const [_ticker, history] of Object.entries(
-      snapshot.groundTruth.priceHistory
-    )) {
-      // Find runs of constant prices
-      let constantRuns = 0;
-      let lastPrice = history[0]?.price ?? 0;
+    const events = snapshot.groundTruth.causalEvents!;
+    expect(events.length).toBeGreaterThanOrEqual(3);
 
-      for (let i = 1; i < history.length; i++) {
-        if (history[i]!.price === lastPrice) {
-          constantRuns++;
-        }
-        lastPrice = history[i]!.price;
+    // Events sorted by tick
+    for (let i = 1; i < events.length; i++) {
+      expect(events[i]!.tick).toBeGreaterThanOrEqual(events[i - 1]!.tick);
+    }
+
+    // Verify price changes in valid ranges
+    for (const event of events) {
+      for (const change of Object.values(event.priceChanges)) {
+        const abs = Math.abs(change);
+        const inRange = (abs >= 0.02 && abs <= 0.04) ||
+                       (abs >= 0.05 && abs <= 0.10) ||
+                       (abs >= 0.15 && abs <= 0.25);
+        expect(inRange).toBe(true);
       }
-
-      // In causal mode, most prices should be constant (only changing at events)
-      // Expect at least 90% constant prices
-      expect(constantRuns / history.length).toBeGreaterThan(0.9);
     }
+  });
+
+  test('backward compatibility: no causal data when disabled', async () => {
+    const config: BenchmarkConfig = {
+      ...BASE_CONFIG,
+      useCausalSimulation: false,
+    };
+
+    const generator = new BenchmarkDataGenerator(config);
+    const snapshot = await generator.generate();
+
+    expect(snapshot.groundTruth.hiddenNarrativeFacts).toBeUndefined();
+    expect(snapshot.groundTruth.causalEvents).toBeUndefined();
   });
 
   test('is reproducible with same seed', async () => {
-    const config: BenchmarkConfig = {
-      durationMinutes: 30 * 24 * 60,
-      tickInterval: 3600,
-      numPredictionMarkets: 5,
-      numPerpetualMarkets: 5,
-      numAgents: 10,
-      seed: 12345,
-      useCausalSimulation: true,
-    };
+    const snapshot1 = await new BenchmarkDataGenerator(BASE_CONFIG).generate();
+    const snapshot2 = await new BenchmarkDataGenerator(BASE_CONFIG).generate();
 
-    const generator1 = new BenchmarkDataGenerator(config);
-    const snapshot1 = await generator1.generate();
-
-    const generator2 = new BenchmarkDataGenerator(config);
-    const snapshot2 = await generator2.generate();
-
-    // Same seed should produce same hidden facts
     expect(snapshot1.groundTruth.hiddenNarrativeFacts![0]!.fact).toBe(
       snapshot2.groundTruth.hiddenNarrativeFacts![0]!.fact
     );
-
-    // Same seed should produce same causal events
-    expect(snapshot1.groundTruth.causalEvents!.length).toBe(
-      snapshot2.groundTruth.causalEvents!.length
+    expect(snapshot1.groundTruth.causalEvents![0]!.priceChanges).toEqual(
+      snapshot2.groundTruth.causalEvents![0]!.priceChanges
     );
+  });
 
-    // Same seed should produce same price changes
-    const event1 = snapshot1.groundTruth.causalEvents![0]!;
-    const event2 = snapshot2.groundTruth.causalEvents![0]!;
-    expect(event1.priceChanges).toEqual(event2.priceChanges);
+  test('different seeds produce different results', async () => {
+    const snap1 = await new BenchmarkDataGenerator({ ...BASE_CONFIG, seed: 11111 }).generate();
+    const snap2 = await new BenchmarkDataGenerator({ ...BASE_CONFIG, seed: 22222 }).generate();
+
+    const fact1 = snap1.groundTruth.hiddenNarrativeFacts![0]!;
+    const fact2 = snap2.groundTruth.hiddenNarrativeFacts![0]!;
+
+    // At least something should differ
+    const differs = fact1.fact !== fact2.fact ||
+                   fact1.affectsTickers[0] !== fact2.affectsTickers[0];
+    expect(differs).toBe(true);
+  });
+
+  test('price history respects bounds in causal mode', async () => {
+    const generator = new BenchmarkDataGenerator(BASE_CONFIG);
+    const snapshot = await generator.generate();
+
+    for (const perp of snapshot.initialState.perpetualMarkets) {
+      const history = snapshot.groundTruth.priceHistory[perp.ticker]!;
+      const minAllowed = perp.price * 0.10;
+      const maxAllowed = perp.price * 4.0;
+
+      for (const entry of history) {
+        expect(entry.price).toBeGreaterThanOrEqual(minAllowed);
+        expect(entry.price).toBeLessThanOrEqual(maxAllowed);
+      }
+    }
   });
 });
 
+// =============================================================================
+// MarketMoverAgent Tests
+// =============================================================================
+
 describe('MarketMoverAgent', () => {
-  test('generates price adjustments for events with affected tickers', async () => {
-    const seed = 12345;
-    const agent = new MarketMoverAgent(seed);
+  const createEvent = (overrides: Partial<WorldEvent> = {}): WorldEvent => ({
+    id: 'test-event',
+    day: 5,
+    type: 'leak',
+    visibility: 'public',
+    description: 'TSLA event',
+    actors: [],
+    ...overrides,
+  });
 
-    const currentPrices = new Map([
-      ['TSLA', 450],
-      ['BTCAI', 120000],
-      ['ETHAI', 4000],
-    ]);
+  test('generates negative adjustments for negative events', async () => {
+    const agent = new MarketMoverAgent(12345);
+    const prices = new Map([['TSLA', 450]]);
 
-    const events: WorldEvent[] = [
-      {
-        id: 'test-event-1',
-        day: 5,
-        type: 'leak',
-        visibility: 'public',
-        description: 'Internal documents leaked: TSLA battery flaw discovered',
-        actors: ['insider-1'],
-        sentimentSignal: -0.6,
-      },
-    ];
-
-    const adjustments = await agent.generatePriceAdjustments(
-      currentPrices,
-      events,
+    const adj = await agent.generatePriceAdjustments(
+      prices,
+      [createEvent({ type: 'leak', sentimentSignal: -0.6 })],
       { affectedTickers: ['TSLA'] }
     );
 
-    // Should have adjustment for TSLA
-    expect(adjustments.has('TSLA')).toBe(true);
-
-    // Adjustment should be negative (leak is negative event)
-    const tslaAdjustment = adjustments.get('TSLA')!;
-    expect(tslaAdjustment).toBeLessThan(0);
-
-    // Should be within medium bucket range (-5% to -10%)
-    expect(Math.abs(tslaAdjustment)).toBeGreaterThanOrEqual(0.05);
-    expect(Math.abs(tslaAdjustment)).toBeLessThanOrEqual(0.1);
+    expect(adj.get('TSLA')!).toBeLessThan(0);
+    expect(Math.abs(adj.get('TSLA')!)).toBeGreaterThanOrEqual(0.05);
   });
 
-  test('generates no adjustments for events without affected tickers', async () => {
-    const seed = 12345;
-    const agent = new MarketMoverAgent(seed);
+  test('generates positive adjustments for positive events', async () => {
+    const agent = new MarketMoverAgent(12345);
+    const prices = new Map([['TSLA', 450]]);
 
-    const currentPrices = new Map([
-      ['TSLA', 450],
-      ['BTCAI', 120000],
-    ]);
+    const adj = await agent.generatePriceAdjustments(
+      prices,
+      [createEvent({ type: 'deal' })],
+      { affectedTickers: ['TSLA'] }
+    );
 
-    const events: WorldEvent[] = [
-      {
-        id: 'test-event-1',
-        day: 5,
-        type: 'leak',
-        visibility: 'public',
-        description: 'Some generic event without ticker mention',
-        actors: ['insider-1'],
-      },
+    expect(adj.get('TSLA')!).toBeGreaterThan(0);
+  });
+
+  test('event type volatility mapping', async () => {
+    const testCases: Array<[string, string, boolean]> = [
+      ['leak', 'medium', true],
+      ['scandal', 'high', true],
+      ['announcement', 'low', false],
+      ['deal', 'medium', false],
     ];
 
-    const adjustments = await agent.generatePriceAdjustments(
-      currentPrices,
-      events
-    );
+    for (const [type, bucket, isNeg] of testCases) {
+      const agent = new MarketMoverAgent(12345);
+      const prices = new Map([['TSLA', 450]]);
 
-    // Should have no adjustments (no tickers mentioned)
-    expect(adjustments.size).toBe(0);
+      const adj = await agent.generatePriceAdjustments(
+        prices,
+        [createEvent({ type })],
+        { affectedTickers: ['TSLA'] }
+      );
+
+      const val = adj.get('TSLA')!;
+      if (isNeg) {
+        expect(val).toBeLessThan(0);
+      } else {
+        expect(val).toBeGreaterThan(0);
+      }
+
+      const absVal = Math.abs(val);
+      const ranges: Record<string, [number, number]> = {
+        low: [0.02, 0.04],
+        medium: [0.05, 0.10],
+        high: [0.15, 0.25],
+      };
+      const [min, max] = ranges[bucket]!;
+      expect(absVal).toBeGreaterThanOrEqual(min);
+      expect(absVal).toBeLessThanOrEqual(max);
+    }
   });
 
-  test('applies price adjustments correctly', async () => {
-    const seed = 12345;
-    const agent = new MarketMoverAgent(seed);
+  test('sentimentSignal overrides default direction', async () => {
+    const agent = new MarketMoverAgent(12345);
+    const prices = new Map([['TSLA', 450]]);
 
-    const currentPrices = new Map([
-      ['TSLA', 450],
-      ['BTCAI', 120000],
-    ]);
-
-    const initialPrices = new Map([
-      ['TSLA', 450],
-      ['BTCAI', 120000],
-    ]);
-
-    const adjustments = new Map([
-      ['TSLA', -0.05], // -5%
-    ]);
-
-    const newPrices = agent.applyAdjustments(
-      currentPrices,
-      adjustments,
-      initialPrices
+    // leak is normally negative, but positive sentiment overrides
+    const adj = await agent.generatePriceAdjustments(
+      prices,
+      [createEvent({ type: 'leak', sentimentSignal: 0.8 })],
+      { affectedTickers: ['TSLA'] }
     );
 
-    // TSLA should be 95% of original
-    expect(newPrices.get('TSLA')).toBeCloseTo(450 * 0.95);
-
-    // BTCAI should be unchanged
-    expect(newPrices.get('BTCAI')).toBe(120000);
+    expect(adj.get('TSLA')!).toBeGreaterThan(0);
   });
 
-  test('respects price bounds', async () => {
-    const seed = 12345;
-    const agent = new MarketMoverAgent(seed, undefined, {
-      minPriceFloor: 0.1, // 10% of initial
-      maxPriceCeiling: 4.0, // 400% of initial
+  test('detects tickers from description', async () => {
+    const agent = new MarketMoverAgent(12345);
+    const prices = new Map([['BTCAI', 120000], ['TSLA', 450]]);
+
+    const adj = await agent.generatePriceAdjustments(
+      prices,
+      [createEvent({ description: 'BTCAI protocol breach' })]
+    );
+
+    expect(adj.has('BTCAI')).toBe(true);
+    expect(adj.has('TSLA')).toBe(false);
+  });
+
+  test('returns empty for no events', async () => {
+    const agent = new MarketMoverAgent(12345);
+    const adj = await agent.generatePriceAdjustments(new Map([['TSLA', 450]]), []);
+    expect(adj.size).toBe(0);
+  });
+
+  test('returns empty for no matching tickers', async () => {
+    const agent = new MarketMoverAgent(12345);
+    const prices = new Map([['TSLA', 450]]);
+
+    const adj = await agent.generatePriceAdjustments(
+      prices,
+      [createEvent({ description: 'Generic event no ticker' })]
+    );
+
+    expect(adj.size).toBe(0);
+  });
+
+  test('applies adjustments with bounds', () => {
+    const agent = new MarketMoverAgent(12345, undefined, {
+      minPriceFloor: 0.1,
+      maxPriceCeiling: 2.0,
     });
 
-    const currentPrices = new Map([['TSLA', 50]]);
-    const initialPrices = new Map([['TSLA', 450]]);
+    const current = new Map([['TSLA', 800]]);
+    const initial = new Map([['TSLA', 450]]);
 
-    // Try to push price to 0 (massive adjustment)
-    const adjustments = new Map([['TSLA', -0.99]]);
+    // Try to exceed ceiling
+    const newPrices = agent.applyAdjustments(current, new Map([['TSLA', 0.50]]), initial);
+    expect(newPrices.get('TSLA')).toBe(900); // 450 * 2.0
 
-    const newPrices = agent.applyAdjustments(
-      currentPrices,
-      adjustments,
-      initialPrices
+    // Try to go below floor
+    const agent2 = new MarketMoverAgent(12345, undefined, { minPriceFloor: 0.1 });
+    const newPrices2 = agent2.applyAdjustments(
+      new Map([['TSLA', 50]]),
+      new Map([['TSLA', -0.99]]),
+      initial
     );
-
-    // Should be clamped to 10% of initial price
-    expect(newPrices.get('TSLA')).toBe(45); // 450 * 0.10
+    expect(newPrices2.get('TSLA')).toBe(45); // 450 * 0.1
   });
 
   test('is reproducible with same seed', async () => {
-    const seed = 12345;
-    const agent1 = new MarketMoverAgent(seed);
-    const agent2 = new MarketMoverAgent(seed);
+    const events = [createEvent()];
+    const prices = new Map([['TSLA', 450]]);
+    const ctx = { affectedTickers: ['TSLA'] };
 
-    const currentPrices = new Map([['TSLA', 450]]);
+    const adj1 = await new MarketMoverAgent(12345).generatePriceAdjustments(prices, events, ctx);
+    const adj2 = await new MarketMoverAgent(12345).generatePriceAdjustments(prices, events, ctx);
 
-    const events: WorldEvent[] = [
-      {
-        id: 'test-event-1',
-        day: 5,
-        type: 'leak',
-        visibility: 'public',
-        description: 'TSLA leak event',
-        actors: ['insider-1'],
-      },
-    ];
-
-    const adjustments1 = await agent1.generatePriceAdjustments(
-      currentPrices,
-      events,
-      { affectedTickers: ['TSLA'] }
-    );
-
-    const adjustments2 = await agent2.generatePriceAdjustments(
-      currentPrices,
-      events,
-      { affectedTickers: ['TSLA'] }
-    );
-
-    // Same seed should produce same adjustments
-    expect(adjustments1.get('TSLA')).toBe(adjustments2.get('TSLA'));
+    expect(adj1.get('TSLA')).toBe(adj2.get('TSLA'));
   });
 });
+
+// =============================================================================
+// SeededRandom Tests
+// =============================================================================
 
 describe('SeededRandom', () => {
   test('produces reproducible sequence', () => {
     const rng1 = new SeededRandom(12345);
     const rng2 = new SeededRandom(12345);
 
-    const sequence1 = [rng1.next(), rng1.next(), rng1.next()];
-    const sequence2 = [rng2.next(), rng2.next(), rng2.next()];
+    const seq1 = Array.from({ length: 10 }, () => rng1.next());
+    const seq2 = Array.from({ length: 10 }, () => rng2.next());
 
-    expect(sequence1).toEqual(sequence2);
+    expect(seq1).toEqual(seq2);
   });
 
-  test('nextInt returns values in range', () => {
+  test('next() returns values in [0, 1)', () => {
     const rng = new SeededRandom(12345);
-
     for (let i = 0; i < 100; i++) {
-      const value = rng.nextInt(5, 10);
-      expect(value).toBeGreaterThanOrEqual(5);
-      expect(value).toBeLessThanOrEqual(10);
+      const val = rng.next();
+      expect(val).toBeGreaterThanOrEqual(0);
+      expect(val).toBeLessThan(1);
+    }
+  });
+
+  test('nextInt returns integers in range', () => {
+    const rng = new SeededRandom(12345);
+    for (let i = 0; i < 100; i++) {
+      const val = rng.nextInt(5, 10);
+      expect(val).toBeGreaterThanOrEqual(5);
+      expect(val).toBeLessThanOrEqual(10);
+      expect(Number.isInteger(val)).toBe(true);
     }
   });
 
   test('nextFloat returns values in range', () => {
     const rng = new SeededRandom(12345);
-
     for (let i = 0; i < 100; i++) {
-      const value = rng.nextFloat(0.5, 1.5);
-      expect(value).toBeGreaterThanOrEqual(0.5);
-      expect(value).toBeLessThanOrEqual(1.5);
+      const val = rng.nextFloat(0.5, 1.5);
+      expect(val).toBeGreaterThanOrEqual(0.5);
+      expect(val).toBeLessThanOrEqual(1.5);
     }
+  });
+
+  test('pick returns array element', () => {
+    const rng = new SeededRandom(12345);
+    const arr = ['a', 'b', 'c'];
+    for (let i = 0; i < 50; i++) {
+      expect(arr).toContain(rng.pick(arr));
+    }
+  });
+
+  test('handles edge cases', () => {
+    // Seed 0
+    expect(new SeededRandom(0).next()).toBeGreaterThanOrEqual(0);
+
+    // Large seed
+    expect(new SeededRandom(Number.MAX_SAFE_INTEGER).next()).toBeLessThan(1);
+
+    // nextInt with min = max
+    expect(new SeededRandom(12345).nextInt(5, 5)).toBe(5);
+  });
+});
+
+// =============================================================================
+// Integration Test
+// =============================================================================
+
+describe('Integration - Full Causal Chain', () => {
+  test('hidden fact → events → price changes alignment', async () => {
+    const generator = new BenchmarkDataGenerator(BASE_CONFIG);
+    const snapshot = await generator.generate();
+
+    const fact = snapshot.groundTruth.hiddenNarrativeFacts![0]!;
+    const events = snapshot.groundTruth.causalEvents!;
+    const ticker = fact.affectsTickers[0]!;
+    const isNegative = fact.sentiment === 'negative';
+
+    // All events affect the fact's ticker
+    for (const event of events) {
+      expect(event.affectedTickers).toContain(ticker);
+      expect(event.sourceFactId).toBe(fact.id);
+
+      // Price direction matches sentiment
+      const change = event.priceChanges[ticker]!;
+      if (isNegative) {
+        expect(change).toBeLessThan(0);
+      } else {
+        expect(change).toBeGreaterThan(0);
+      }
+    }
+
+    // Price history changes only at event ticks
+    const history = snapshot.groundTruth.priceHistory[ticker]!;
+    const eventTicks = new Set(events.map(e => e.tick));
+
+    let changesAtEvents = 0;
+    let changesElsewhere = 0;
+
+    for (let i = 1; i < history.length; i++) {
+      if (history[i]!.price !== history[i - 1]!.price) {
+        if (eventTicks.has(i)) changesAtEvents++;
+        else changesElsewhere++;
+      }
+    }
+
+    expect(changesAtEvents).toBe(events.length);
+    expect(changesElsewhere).toBe(0);
   });
 });
