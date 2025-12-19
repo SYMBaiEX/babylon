@@ -60,6 +60,7 @@ dist/
 build/
 
 # Training data
+training-data-output/
 training_data/trajectories/
 training_data/datasets/
 training_recording/
