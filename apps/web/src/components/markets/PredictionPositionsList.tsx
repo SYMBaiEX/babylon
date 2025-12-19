@@ -11,6 +11,21 @@ import {
 } from './TradeConfirmationDialog';
 
 /**
+ * API response type for selling prediction shares.
+ */
+interface SellSharesSuccessResponse {
+  pnl: number;
+}
+
+/**
+ * API error response type.
+ */
+interface ApiErrorResponse {
+  error: string | { message: string };
+  message?: string;
+}
+
+/**
  * Prediction position structure for positions list.
  */
 interface PredictionPosition {
@@ -119,18 +134,18 @@ export function PredictionPositionsList({
         }
       );
 
-      const data = await response.json();
-
       if (!response.ok) {
+        const errorData: ApiErrorResponse = await response.json();
         const errorMessage =
-          typeof data.error === 'object'
-            ? data.error.message ?? 'Failed to sell shares'
-            : data.error ?? data.message ?? 'Failed to sell shares';
+          typeof errorData.error === 'object'
+            ? (errorData.error.message ?? 'Failed to sell shares')
+            : (errorData.error ?? errorData.message ?? 'Failed to sell shares');
         toast.error(errorMessage);
         return;
       }
 
-      const pnl = data.pnl ?? 0;
+      const data: SellSharesSuccessResponse = await response.json();
+      const pnl = data.pnl;
       toast.success('Shares sold!', {
         description: `Sold ${position.shares.toFixed(2)} ${position.side} shares for ${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)} PnL`,
       });

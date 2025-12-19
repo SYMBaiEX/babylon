@@ -287,8 +287,8 @@ export function PnLShareModal({
       });
 
       if (!tweetResponse.ok) {
-        const error = await tweetResponse.json();
-        toast.error(error.error ?? 'Failed to post tweet');
+        const errorData = (await tweetResponse.json()) as { error?: string };
+        toast.error(errorData.error ?? 'Failed to post tweet');
         return;
       }
 
