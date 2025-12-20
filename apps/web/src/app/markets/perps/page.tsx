@@ -3,7 +3,14 @@
 import { cn } from '@babylon/shared';
 import { Search, TrendingDown, TrendingUp } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  useCallback,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { CategoryPnLCard } from '@/components/markets/CategoryPnLCard';
 import { CategoryPnLShareModal } from '@/components/markets/CategoryPnLShareModal';
 import { PerpPositionsList } from '@/components/markets/PerpPositionsList';
@@ -22,6 +29,8 @@ export default function PerpsPage() {
   const router = useRouter();
   const { user, authenticated, login } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
+  // Defer search to keep input responsive during filtering
+  const deferredSearchQuery = useDeferredValue(searchQuery);
   const [showCategoryPnLShareModal, setShowCategoryPnLShareModal] =
     useState(false);
 
@@ -76,16 +85,16 @@ export default function PerpsPage() {
     await refetchPerps();
   }, [refetchPerps]);
 
-  // Memoize filtered markets
+  // Memoize filtered markets using deferred search for better responsiveness
   const filteredPerpMarkets = useMemo(
     () =>
       perpMarkets.filter(
         (m) =>
-          !searchQuery.trim() ||
-          m.ticker.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          m.name.toLowerCase().includes(searchQuery.toLowerCase())
+          !deferredSearchQuery.trim() ||
+          m.ticker.toLowerCase().includes(deferredSearchQuery.toLowerCase()) ||
+          m.name.toLowerCase().includes(deferredSearchQuery.toLowerCase())
       ),
-    [perpMarkets, searchQuery]
+    [perpMarkets, deferredSearchQuery]
   );
 
   // Category P&L data
