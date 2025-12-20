@@ -31,6 +31,7 @@ import { FEE_CONFIG } from '../config/fees';
 import { isSimulationMode } from '../storage-bridge';
 import type {
   ExecutedTrade,
+  MarketAction,
   TradingDecision,
   TradingExecutionResult,
 } from '../types/market-decisions';
@@ -112,7 +113,7 @@ export class TradeExecutionService {
           ticker: d.ticker,
           marketId: d.marketId,
           action: d.action,
-          side: 'LONG',
+          side: this.deriveSideFromAction(d.action),
           amount: d.amount,
           size: d.amount,
           executionPrice: 100, // dummy price
@@ -274,6 +275,26 @@ export class TradeExecutionService {
     }
 
     throw new Error(`Unknown action: ${decision.action}`);
+  }
+
+  /**
+   * Derive the trade side from the action type
+   */
+  private deriveSideFromAction(action: MarketAction): string {
+    switch (action) {
+      case 'open_long':
+        return 'LONG';
+      case 'open_short':
+        return 'SHORT';
+      case 'buy_yes':
+        return 'YES';
+      case 'buy_no':
+        return 'NO';
+      case 'close_position':
+        return 'CLOSE';
+      default:
+        return 'UNKNOWN';
+    }
   }
 
   private createPredictionBroadcast() {

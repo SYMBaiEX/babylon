@@ -21,6 +21,7 @@ import {
   type BenchmarkConfig,
   BenchmarkDataGenerator,
   type BenchmarkGameSnapshot,
+  SeededRandom,
 } from './BenchmarkDataGenerator';
 import { SimulationA2AInterface } from './SimulationA2AInterface';
 import {
@@ -190,6 +191,15 @@ export class BenchmarkRunner {
       ? getAutonomousCoordinator()
       : undefined;
 
+    // Create seeded RNG for baseline strategies (reproducibility)
+    // Use snapshot ID hash as seed for deterministic behavior across runs
+    const baselineSeed = config.forceStrategy
+      ? snapshot.id.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0)
+      : 0;
+    const baselineRng = config.forceStrategy
+      ? new SeededRandom(baselineSeed)
+      : undefined;
+
     let ticksCompleted = 0;
 
     // Run ticks for each simulation tick
@@ -205,12 +215,12 @@ export class BenchmarkRunner {
         );
       }
 
-      if (config.forceStrategy) {
+      if (config.forceStrategy && baselineRng) {
         // Execute baseline strategy directly on engine (bypassing LLM)
         await this.executeBaselineStrategy(
           config.forceStrategy,
           engine,
-          snapshot
+          baselineRng
         );
       } else {
         if (!coordinator) {
@@ -298,31 +308,32 @@ export class BenchmarkRunner {
   /**
    * Execute baseline strategy logic (Random or Momentum)
    * This runs directly against the engine, bypassing the LLM agent.
+   * Uses seeded RNG for reproducibility across benchmark runs.
    */
   private static async executeBaselineStrategy(
     strategy: 'random' | 'momentum',
     engine: SimulationEngine,
-    _snapshot: BenchmarkGameSnapshot
+    rng: SeededRandom
   ): Promise<void> {
     const state = engine.getGameState();
 
     // Rate limiting: Only trade in ~10% of ticks to simulate realistic frequency
-    if (Math.random() > 0.1) return;
+    if (rng.next() > 0.1) return;
 
     if (strategy === 'random') {
       // Random strategy: Buy prediction shares or open perps randomly
-      const actionType = Math.random() > 0.5 ? 'prediction' : 'perp';
+      const actionType = rng.next() > 0.5 ? 'prediction' : 'perp';
 
       if (actionType === 'prediction' && state.predictionMarkets.length > 0) {
-        const market =
-          state.predictionMarkets[
-            Math.floor(Math.random() * state.predictionMarkets.length)
-          ];
+        const marketIndex = Math.floor(
+          rng.next() * state.predictionMarkets.length
+        );
+        const market = state.predictionMarkets[marketIndex];
 
         if (market) {
-          const outcome = Math.random() > 0.5 ? 'YES' : 'NO';
+          const outcome = rng.next() > 0.5 ? 'YES' : 'NO';
           // Random amount between 10 and 100
-          const amount = 10 + Math.random() * 90;
+          const amount = 10 + rng.next() * 90;
 
           await engine.performAction('buy_prediction', {
             marketId: market.id,
@@ -331,13 +342,13 @@ export class BenchmarkRunner {
           });
         }
       } else if (state.perpetualMarkets.length > 0) {
-        const perp =
-          state.perpetualMarkets[
-            Math.floor(Math.random() * state.perpetualMarkets.length)
-          ];
+        const perpIndex = Math.floor(
+          rng.next() * state.perpetualMarkets.length
+        );
+        const perp = state.perpetualMarkets[perpIndex];
 
         if (perp) {
-          const side = Math.random() > 0.5 ? 'LONG' : 'SHORT';
+          const side = rng.next() > 0.5 ? 'LONG' : 'SHORT';
           await engine.performAction('open_perp', {
             ticker: perp.ticker,
             side,
@@ -349,10 +360,10 @@ export class BenchmarkRunner {
     } else if (strategy === 'momentum') {
       // Momentum strategy: Follow price trends
       if (state.perpetualMarkets.length > 0) {
-        const perp =
-          state.perpetualMarkets[
-            Math.floor(Math.random() * state.perpetualMarkets.length)
-          ];
+        const perpIndex = Math.floor(
+          rng.next() * state.perpetualMarkets.length
+        );
+        const perp = state.perpetualMarkets[perpIndex];
 
         if (perp) {
           // If price up > 0.5% in 24h, go LONG. If down > 0.5%, go SHORT.
