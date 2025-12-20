@@ -56,6 +56,7 @@ export { trendingTopics } from './game/trending-topics';
 export { worldImpactAssessment } from './game/world-impact';
 // Image prompts
 export { actorBanner, actorPortrait } from './image/actor-portrait';
+export { articleCover } from './image/article-cover';
 export {
   organizationBanner,
   organizationLogo,
@@ -81,6 +82,7 @@ export {
   FULL_CONTEXT_HEADER,
   getTimeOfDayEnergy,
   NARRATIVE_CONTINUITY_RULES,
+  NPC_POST_QUALITY_RULES,
   PARODY_NAME_RULES,
   PRIVATE_CONTENT_GUIDANCE,
   QUESTION_CONTINUITY_RULES,

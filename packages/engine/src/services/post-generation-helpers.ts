@@ -36,6 +36,7 @@ import { logger } from '@babylon/shared';
 import type { BabylonLLMClient } from '../llm/openai-client';
 import type { EventContext, FeedPostContext } from '../types/market-context';
 import { stripHashtagsAndEmojis } from '../utils/shared-utils';
+import { generateArticleImageWithRetry } from './article-image-service';
 import { characterMappingService } from './character-mapping-service';
 import {
   getArcPlan,
@@ -793,6 +794,16 @@ Return your response as XML in this exact format:
     );
   }
 
+  // Generate article cover image (non-blocking, with retry)
+  let imageUrl: string | null = null;
+  if (process.env.FAL_KEY) {
+    imageUrl = await generateArticleImageWithRetry({
+      title: articleTitle,
+      summary: transformedSummary.transformedText,
+      category: question.text.slice(0, 100), // Use question as category hint
+    });
+  }
+
   const postId = await generateSnowflakeId();
   await getDbInstance().createPostWithAllFields({
     id: postId,
@@ -800,6 +811,7 @@ Return your response as XML in this exact format:
     content: transformedSummary.transformedText,
     fullContent: transformedBody.transformedText,
     articleTitle: articleTitle,
+    imageUrl: imageUrl || undefined,
     authorId: org.id,
     gameId: 'continuous',
     dayNumber: currentDay,
@@ -808,7 +820,7 @@ Return your response as XML in this exact format:
 
   logger.debug(
     'Created org article',
-    { org: org.name, timestamp },
+    { org: org.name, timestamp, hasImage: Boolean(imageUrl) },
     'PostGeneration'
   );
 

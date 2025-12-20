@@ -29,6 +29,7 @@ export const posts = pgTable(
     fullContent: text('fullContent'),
     sentiment: text('sentiment'),
     slant: text('slant'),
+    imageUrl: text('imageUrl'),
     type: text('type').notNull().default('post'),
     deletedAt: timestamp('deletedAt', { mode: 'date' }),
     commentOnPostId: text('commentOnPostId'),

@@ -1,6 +1,7 @@
 'use client';
 
 import { ArrowLeft, MessageCircle } from 'lucide-react';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { use, useEffect, useState } from 'react';
 import { PageContainer } from '@/components/shared/PageContainer';
@@ -21,6 +22,7 @@ interface ArticlePost {
   sentiment: string | null;
   slant: string | null;
   category: string | null;
+  imageUrl: string | null;
   authorId: string;
   authorName: string;
   authorUsername: string | null;
@@ -131,6 +133,20 @@ export default function ArticlePage({ params }: ArticlePageProps) {
           <div className="flex-1 overflow-y-auto">
             <div className="mx-auto w-full max-w-feed">
               <article className="px-4 py-4 sm:px-6 sm:py-5">
+                {/* Article cover image */}
+                {article.imageUrl && (
+                  <div className="relative mb-6 aspect-video w-full overflow-hidden rounded-lg">
+                    <Image
+                      src={article.imageUrl}
+                      alt={article.articleTitle || 'Article cover'}
+                      fill
+                      className="object-cover"
+                      sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 800px"
+                      priority
+                    />
+                  </div>
+                )}
+
                 {/* Article title */}
                 <h1 className="mb-4 font-bold text-3xl text-foreground leading-tight sm:text-4xl">
                   {article.articleTitle}
@@ -197,6 +213,20 @@ export default function ArticlePage({ params }: ArticlePageProps) {
         {/* Mobile content */}
         <div className="flex-1 overflow-y-auto">
           <article className="px-4 py-4 sm:px-6 sm:py-5">
+            {/* Article cover image */}
+            {article.imageUrl && (
+              <div className="relative mb-4 aspect-video w-full overflow-hidden rounded-lg">
+                <Image
+                  src={article.imageUrl}
+                  alt={article.articleTitle || 'Article cover'}
+                  fill
+                  className="object-cover"
+                  sizes="100vw"
+                  priority
+                />
+              </div>
+            )}
+
             {/* Article title */}
             <h1 className="mb-4 font-bold text-2xl text-foreground leading-tight sm:text-3xl">
               {article.articleTitle}

@@ -206,23 +206,25 @@ export async function POST(_req: NextRequest) {
     });
   }
 
-  // NEW: Query via AgentRegistry to include both USER agents and NPCs
+  // Query via AgentRegistry for USER_CONTROLLED agents only
+  // NPCs are now handled by the separate /api/cron/npc-tick endpoint
   const registeredAgents = await agentRegistry.discoverAgents({
-    types: [AgentType.USER_CONTROLLED, AgentType.NPC],
+    types: [AgentType.USER_CONTROLLED],
     statuses: [
       AgentStatus.ACTIVE,
       AgentStatus.INITIALIZED,
       AgentStatus.REGISTERED,
     ],
-    limit: 500, // Increase limit to ensure we process all agents in test environments
+    limit: 500,
   });
 
-  // Filter agents with sufficient points and autonomous features enabled
+  // Filter USER_CONTROLLED agents with sufficient points and autonomous features enabled
+  // NPCs are handled by /api/cron/npc-tick
   const eligibleAgents: Array<{
     agentId: string;
     type: AgentType;
     name: string;
-    user: User | null;
+    user: User;
     config: UserAgentConfig | null;
   }> = [];
 
@@ -238,8 +240,17 @@ export async function POST(_req: NextRequest) {
       // Get agent config from separate table
       const config = await getAgentConfig(agent.userId);
 
+      // Guard: USER_CONTROLLED agents must have a user record
+      if (!user) {
+        logger.warn(
+          'USER_CONTROLLED agent missing user record - skipping',
+          { agentId: agent.agentId, userId: agent.userId },
+          'AgentTick'
+        );
+        continue;
+      }
+
       if (
-        user &&
         user.isAgent &&
         (config?.pointsBalance ?? 0) >= 1 &&
         (config?.autonomousTrading ||
@@ -256,26 +267,17 @@ export async function POST(_req: NextRequest) {
           config,
         });
       }
-    } else if (agent.type === AgentType.NPC) {
-      // NPCs are always eligible if registered and active
-      eligibleAgents.push({
-        agentId: agent.agentId,
-        type: agent.type,
-        name: agent.name,
-        user: null,
-        config: null,
-      });
     }
+    // NPCs are no longer processed here - they use /api/cron/npc-tick
   }
 
   // Validation: Check if agents were found
   if (eligibleAgents.length === 0) {
-    logger.warn(
-      'No eligible agents found to run',
+    logger.info(
+      'No eligible user agents found to run',
       {
         totalRegistered: registeredAgents.length,
-        criteria:
-          'USER agents with autonomous features + points >= 1, or active NPCs',
+        criteria: 'USER agents with autonomous features + points >= 1',
       },
       'AgentTick'
     );
@@ -286,19 +288,14 @@ export async function POST(_req: NextRequest) {
       duration: Date.now() - startTime,
       results: [],
       skippedLocked: 0,
-      warning:
-        'No agents found with autonomous features enabled and sufficient points',
+      message:
+        'No user agents found with autonomous features enabled and sufficient points',
     });
   }
 
   logger.info(
-    `Found ${eligibleAgents.length} eligible autonomous agents (${registeredAgents.length} total registered)`,
-    {
-      userAgents: eligibleAgents.filter(
-        (a) => a.type === AgentType.USER_CONTROLLED
-      ).length,
-      npcAgents: eligibleAgents.filter((a) => a.type === AgentType.NPC).length,
-    },
+    `Found ${eligibleAgents.length} eligible user agents (${registeredAgents.length} total registered)`,
+    { userAgents: eligibleAgents.length },
     'AgentTick'
   );
 
@@ -353,32 +350,23 @@ export async function POST(_req: NextRequest) {
 
     // Process agent with error handling to ensure lock is always released
     try {
-      // Always 1pt per tick for USER agents (NPCs don't use points)
-      const pointsCost =
-        eligibleAgent.type === AgentType.USER_CONTROLLED ? 1 : 0;
+      // Always 1pt per tick for USER agents
+      const pointsCost = 1;
 
-      if (
-        eligibleAgent.type === AgentType.USER_CONTROLLED &&
-        eligibleAgent.user
-      ) {
-        await agentService.deductPoints(
-          eligibleAgent.user.id,
-          pointsCost,
-          'Autonomous tick'
-        );
-      }
+      await agentService.deductPoints(
+        eligibleAgent.user.id,
+        pointsCost,
+        'Autonomous tick'
+      );
 
       // Use agent runtime manager for both USER and NPC agents
       const runtime = await agentRuntimeManager.getRuntime(
         eligibleAgent.agentId
       );
 
-      // Determine enabled features based on agent type
+      // Determine enabled features from agent config
       const enabledFeatures: string[] = [];
-      if (
-        eligibleAgent.type === AgentType.USER_CONTROLLED &&
-        eligibleAgent.config
-      ) {
+      if (eligibleAgent.config) {
         if (eligibleAgent.config.autonomousTrading)
           enabledFeatures.push('trading');
         if (eligibleAgent.config.autonomousPosting)
@@ -388,31 +376,15 @@ export async function POST(_req: NextRequest) {
         if (eligibleAgent.config.autonomousDMs) enabledFeatures.push('DMs');
         if (eligibleAgent.config.autonomousGroupChats)
           enabledFeatures.push('group chats');
-      } else if (eligibleAgent.type === AgentType.NPC) {
-        // NPCs have all autonomous features enabled by default
-        enabledFeatures.push(
-          'trading',
-          'posting',
-          'commenting',
-          'DMs',
-          'group chats'
-        );
       }
 
       // Always record trajectories for RL training data collection
       // For USER_CONTROLLED agents, pass user.id (userId for User table lookup)
-      // For NPCs, pass agentId (they don't have User records)
-      const isNpc = eligibleAgent.type === AgentType.NPC;
-      const tickAgentId =
-        eligibleAgent.type === AgentType.USER_CONTROLLED && eligibleAgent.user
-          ? eligibleAgent.user.id
-          : eligibleAgent.agentId;
-
       const tickResult = await autonomousCoordinator.executeAutonomousTick(
-        tickAgentId,
+        eligibleAgent.user.id,
         runtime,
         true, // Always record trajectories
-        isNpc
+        false // isNpc = false for user agents
       );
 
       // Validation: Verify tick executed successfully
@@ -460,36 +432,31 @@ export async function POST(_req: NextRequest) {
 
       const modelUsed = 'qwen/qwen3-32b';
 
-      // Log tick for USER agents only (NPCs don't have agentService logs yet)
-      if (
-        eligibleAgent.type === AgentType.USER_CONTROLLED &&
-        eligibleAgent.user
-      ) {
-        await agentService.createLog(eligibleAgent.user.id, {
-          type: 'tick',
-          level: 'info',
-          message: `Tick completed: ${actions.trades} trades, ${actions.posts} posts, ${actions.comments} comments, ${actions.dms} DMs, ${actions.groupMessages} group messages`,
-          metadata: {
-            pointsCost,
-            duration: Date.now() - agentStartTime,
-            modelUsed,
-            enabledFeatures,
-            actions,
-            success: tickResult.success,
-            method: tickResult.method,
-          },
-        });
+      // Log tick for user agent
+      await agentService.createLog(eligibleAgent.user.id, {
+        type: 'tick',
+        level: 'info',
+        message: `Tick completed: ${actions.trades} trades, ${actions.posts} posts, ${actions.comments} comments, ${actions.dms} DMs, ${actions.groupMessages} group messages`,
+        metadata: {
+          pointsCost,
+          duration: Date.now() - agentStartTime,
+          modelUsed,
+          enabledFeatures,
+          actions,
+          success: tickResult.success,
+          method: tickResult.method,
+        },
+      });
 
-        // Update agent config status for USER agents
-        await db
-          .update(userAgentConfigs)
-          .set({
-            lastTickAt: new Date(),
-            status: 'running',
-            updatedAt: new Date(),
-          })
-          .where(eq(userAgentConfigs.userId, eligibleAgent.user.id));
-      }
+      // Update agent config status
+      await db
+        .update(userAgentConfigs)
+        .set({
+          lastTickAt: new Date(),
+          status: 'running',
+          updatedAt: new Date(),
+        })
+        .where(eq(userAgentConfigs.userId, eligibleAgent.user.id));
 
       results.push({
         agentId: eligibleAgent.agentId,
@@ -564,17 +531,13 @@ export async function POST(_req: NextRequest) {
   if (totalActionsExecuted === 0 && results.length > 0) {
     // Count agents with autonomous features enabled
     const agentsWithFeatures = eligibleAgents.filter((a) => {
-      if (a.type === AgentType.NPC) return true; // NPCs always have features enabled
-      if (a.type === AgentType.USER_CONTROLLED && a.config) {
-        return (
-          a.config.autonomousTrading ||
-          a.config.autonomousPosting ||
-          a.config.autonomousCommenting ||
-          a.config.autonomousDMs ||
-          a.config.autonomousGroupChats
-        );
-      }
-      return false;
+      return (
+        a.config?.autonomousTrading ||
+        a.config?.autonomousPosting ||
+        a.config?.autonomousCommenting ||
+        a.config?.autonomousDMs ||
+        a.config?.autonomousGroupChats
+      );
     }).length;
 
     logger.warn(
@@ -582,11 +545,6 @@ export async function POST(_req: NextRequest) {
       {
         agentsProcessed: results.length,
         agentsWithFeatures,
-        userAgents: eligibleAgents.filter(
-          (a) => a.type === AgentType.USER_CONTROLLED
-        ).length,
-        npcAgents: eligibleAgents.filter((a) => a.type === AgentType.NPC)
-          .length,
       },
       'AgentTick'
     );

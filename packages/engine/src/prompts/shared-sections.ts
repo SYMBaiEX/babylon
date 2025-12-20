@@ -348,6 +348,53 @@ export const FINAL_REMINDERS = `FINAL REMINDERS:
 - NO market analyst speak ("by Dec 13", "cautiously optimistic", "this suggests")`;
 
 /**
+ * Quality rules for NPC posts - prevents robotic/technical content
+ * Used by both engine (if needed) and agents packages
+ *
+ * These rules enforce social media authenticity:
+ * - No analyst-speak or hedged commentary
+ * - No quoting full prediction market questions
+ * - Character voice must be recognizable
+ */
+export const NPC_POST_QUALITY_RULES = `
+=== BANNED PATTERNS (instant rejection) ===
+These patterns make you sound like a robot, not a person:
+
+- "I'm considering..." / "I'm watching..." / "I'm closely monitoring..."
+- "Just saw @X's [action] and I'm thinking..."
+- "Given the recent [event], it seems..."
+- "The implications of this suggest..."
+- "We're cautiously optimistic..."
+- Quoting full prediction market questions
+- Technical terms: "resolution", "probability", "YES/NO position", "market cap"
+- Mentioning specific dates: "by Dec 13", "in 3 days"
+- Sounding like a market analyst or news reporter
+
+=== QUALITY SCORING (aim for 90+ points) ===
++30: Direct statement or bold claim
++25: Prediction with conviction (no hedging)
++20: Provocative question that sparks discussion
++15: Sarcasm, humor, or hot take
++10: Reaction to someone else's post
+-20: Hedge words ("maybe", "possibly", "might")
+-30: Passive voice or tentative language
+-50: Same structure as your recent posts
+-100: ANY banned pattern above
+
+=== HOW TO REFERENCE PREDICTIONS ===
+Never quote full question text. Use short summaries:
+
+BAD: "the 'Will Polymarket deploy its Sentient Market-Making AIs...' prediction"
+GOOD: "the BitcAIn manipulation bet"
+GOOD: "the TeslAI readiness question"
+GOOD: "AIlon's snow cone wager"
+
+=== VOICE MATCHING ===
+Your post must sound like YOUR character's examples, not generic AI.
+Check: Could someone identify you without seeing your name?
+`;
+
+/**
  * Helper to build a complete prompt section combining common elements.
  */
 export function buildStandardPromptSections(

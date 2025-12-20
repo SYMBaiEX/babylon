@@ -9,8 +9,16 @@
  * Vercel-compatible: No filesystem access, all data from database.
  */
 
-import { getDbInstance } from '@babylon/db';
+import { db, eq, getDbInstance, markets } from '@babylon/db';
 import { StaticDataRegistry } from './services/static-data-registry';
+
+/**
+ * Active market summary for NPC context (lightweight)
+ */
+export interface ActiveMarketSummary {
+  id: string;
+  question: string;
+}
 
 /**
  * Game Service Class
@@ -110,6 +118,48 @@ class GameService {
       })),
       total: posts.length,
     };
+  }
+
+  /**
+   * Get the current game day from the active continuous game.
+   * Returns 0 if no game is running.
+   */
+  async getCurrentGameDay(): Promise<number> {
+    const game = await db.game.findFirst({
+      where: { isContinuous: true, isRunning: true },
+      select: { currentDay: true, startedAt: true },
+    });
+
+    // Use currentDay from DB if available
+    if (game?.currentDay !== undefined && game.currentDay !== null) {
+      return game.currentDay;
+    }
+
+    // Fall back to calculating from startedAt
+    if (!game?.startedAt) {
+      return 0;
+    }
+
+    const now = new Date();
+    const dayMs = 24 * 60 * 60 * 1000;
+    return Math.floor((now.getTime() - game.startedAt.getTime()) / dayMs);
+  }
+
+  /**
+   * Get active (unresolved) prediction markets with minimal fields.
+   * Used by NPC context providers to avoid direct DB access.
+   */
+  async getActiveMarketSummaries(limit = 5): Promise<ActiveMarketSummary[]> {
+    const activeMarkets = await db
+      .select({
+        id: markets.id,
+        question: markets.question,
+      })
+      .from(markets)
+      .where(eq(markets.resolved, false))
+      .limit(limit);
+
+    return activeMarkets;
   }
 }
 

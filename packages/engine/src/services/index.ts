@@ -48,6 +48,7 @@ export * from './trajectory-market-engine';
 // Content Generation
 // =============================================================================
 
+export * from './article-image-service';
 export * from './event-generation-helpers';
 export * from './narrative-state-service';
 export * from './parody-headline-generator';

@@ -32,7 +32,20 @@
 import { DistributedLockService } from '@babylon/api';
 import { randomBytes } from 'crypto';
 
-const LOCK_DURATION_MS = 15 * 60 * 1000; // 15 minutes
+/**
+ * Lock duration for agent tick operations.
+ *
+ * @remarks
+ * - Default: 15 minutes (900,000ms)
+ * - Configurable via AGENT_LOCK_DURATION_MS environment variable
+ * - If an agent tick fails mid-execution without releasing the lock,
+ *   the lock automatically expires after this duration
+ * - This prevents stuck agents from blocking subsequent ticks indefinitely
+ * - Set conservatively high to accommodate slow ticks, but low enough
+ *   to recover within a reasonable timeframe
+ */
+const LOCK_DURATION_MS =
+  Number(process.env.AGENT_LOCK_DURATION_MS) || 15 * 60 * 1000; // 15 minutes
 
 function getAgentLockId(agentId: string): string {
   return `agent-tick-${agentId}`;

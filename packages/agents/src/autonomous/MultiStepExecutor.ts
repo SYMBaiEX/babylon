@@ -30,6 +30,7 @@ import {
 import { StaticDataRegistry, WalletService } from '@babylon/engine';
 import type { IAgentRuntime } from '@elizaos/core';
 import { callGroqDirect } from '../llm/direct-groq';
+import { getNpcGameContext } from '../plugins/babylon/providers/npc-game-context';
 import { getAgentConfig } from '../shared/agent-config';
 import { logger } from '../shared/logger';
 import { autonomousBatchResponseService } from './AutonomousBatchResponseService';
@@ -39,6 +40,10 @@ import {
   executeDirectTrade,
 } from './DirectExecutors';
 import { topicDiversityService } from './TopicDiversityService';
+
+/** Default trading balance for NPCs without actorState record */
+const DEFAULT_NPC_BALANCE = 10000;
+
 import {
   type ActionTraceResult,
   type AgentTickContext,
@@ -132,6 +137,24 @@ export class MultiStepExecutor {
       if (config?.autonomousDMs) enabledFeatures.push('DMs');
     }
 
+    // Get NPC game context ONCE before loop (arc awareness, world events)
+    // Graceful degradation: if context fetch fails, continue without it
+    let npcGameContext = '';
+    if (isNpc) {
+      try {
+        npcGameContext = await getNpcGameContext(agentUserId);
+      } catch (error) {
+        logger.warn(
+          'Failed to get NPC game context, continuing without it',
+          {
+            agentUserId,
+            error: error instanceof Error ? error.message : String(error),
+          },
+          'MultiStepExecutor'
+        );
+      }
+    }
+
     // Main iteration loop
     for (let iteration = 1; iteration <= this.maxIterations; iteration++) {
       logger.info(
@@ -148,13 +171,18 @@ export class MultiStepExecutor {
       );
 
       // Build decision prompt (systemPrompt passed separately to LLM system role)
-      const agentName = agent?.displayName ?? agentUserId;
+      // For NPCs, get name from StaticDataRegistry; for users, use displayName
+      const agentName = isNpc
+        ? (StaticDataRegistry.getActor(agentUserId)?.name ?? agentUserId)
+        : (agent?.displayName ?? agentUserId);
       const prompt = buildMultiStepDecisionPrompt({
         agentName,
         iterationCount: iteration,
         maxIterations: this.maxIterations,
         traceActionResults: trace,
         context,
+        isNpc,
+        npcGameContext,
       });
 
       // Get LLM decision
@@ -244,7 +272,14 @@ export class MultiStepExecutor {
         .where(eq(actorState.id, agentUserId))
         .limit(1);
 
-      balance = Number(actor?.tradingBalance ?? 10000);
+      if (!actor?.tradingBalance) {
+        logger.warn(
+          `NPC ${agentUserId} missing actorState - using default balance`,
+          { defaultBalance: DEFAULT_NPC_BALANCE },
+          'MultiStepExecutor'
+        );
+      }
+      balance = Number(actor?.tradingBalance ?? DEFAULT_NPC_BALANCE);
       pnl = 0;
     } else {
       const walletBalance = await WalletService.getBalance(agentUserId);

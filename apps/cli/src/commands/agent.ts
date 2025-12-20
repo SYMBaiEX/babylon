@@ -195,7 +195,7 @@ async function configureAgent0(): Promise<void> {
   const currentConfig = {
     enabled: getEnvValue(envContent, 'AGENT0_ENABLED'),
     network: getEnvValue(envContent, 'AGENT0_NETWORK'),
-    rpcUrl: getEnvValue(envContent, 'BASE_SEPOLIA_RPC_URL'),
+    rpcUrl: getEnvValue(envContent, 'AGENT0_RPC_URL'),
     privateKey: getEnvValue(envContent, 'BABYLON_GAME_PRIVATE_KEY'),
     subgraphUrl: getEnvValue(envContent, 'AGENT0_SUBGRAPH_URL'),
     ipfsProvider: getEnvValue(envContent, 'AGENT0_IPFS_PROVIDER'),
@@ -209,7 +209,7 @@ async function configureAgent0(): Promise<void> {
     `  AGENT0_NETWORK:         ${currentConfig.network || 'not set'}`
   );
   console.log(
-    `  BASE_SEPOLIA_RPC_URL:   ${currentConfig.rpcUrl ? '✅ set' : '❌ not set'}`
+    `  AGENT0_RPC_URL:         ${currentConfig.rpcUrl ? '✅ set' : '❌ not set'}`
   );
   console.log(
     `  BABYLON_GAME_PRIVATE_KEY: ${currentConfig.privateKey ? '✅ set' : '❌ not set'}`
