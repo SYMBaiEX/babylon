@@ -1,6 +1,7 @@
 'use client';
 
-import { cn } from '@babylon/shared';
+import { cn, logger } from '@babylon/shared';
+import { usePrivy } from '@privy-io/react-auth';
 import { CheckCircle, XCircle } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
@@ -8,6 +9,21 @@ import {
   type SellPredictionDetails,
   TradeConfirmationDialog,
 } from './TradeConfirmationDialog';
+
+/**
+ * API response type for selling prediction shares.
+ */
+interface SellSharesSuccessResponse {
+  pnl: number;
+}
+
+/**
+ * API error response type.
+ */
+interface ApiErrorResponse {
+  error: string | { message: string };
+  message?: string;
+}
 
 /**
  * Prediction position structure for positions list.
@@ -62,6 +78,7 @@ export function PredictionPositionsList({
   positions,
   onPositionSold,
 }: PredictionPositionsListProps) {
+  const { getAccessToken } = usePrivy();
   const [sellingId, setSellingId] = useState<string | null>(null);
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
   const [pendingSell, setPendingSell] = useState<{
@@ -93,43 +110,60 @@ export function PredictionPositionsList({
     setSellingId(position.id);
     setConfirmDialogOpen(false);
 
-    const response = await fetch(
-      `/api/markets/predictions/${position.marketId}/sell`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${window.__privyAccessToken || ''}`,
-        },
-        body: JSON.stringify({
-          shares: position.shares,
-          positionId: position.id,
-        }),
-      }
-    );
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      // Handle error response - extract message from error object
-      const errorMessage =
-        typeof data.error === 'object'
-          ? data.error.message || 'Failed to sell shares'
-          : data.error || data.message || 'Failed to sell shares';
+    const token = await getAccessToken();
+    if (!token) {
+      toast.error('Authentication required. Please log in.');
       setSellingId(null);
       setPendingSell(null);
-      toast.error(errorMessage);
       return;
     }
 
-    const pnl = data.pnl || 0;
-    toast.success('Shares sold!', {
-      description: `Sold ${position.shares.toFixed(2)} ${position.side} shares for ${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)} PnL`,
-    });
+    try {
+      const response = await fetch(
+        `/api/markets/predictions/${position.marketId}/sell`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            shares: position.shares,
+            positionId: position.id,
+          }),
+        }
+      );
 
-    if (onPositionSold) onPositionSold();
-    setSellingId(null);
-    setPendingSell(null);
+      if (!response.ok) {
+        const errorData: ApiErrorResponse = await response.json();
+        const errorMessage =
+          typeof errorData.error === 'object'
+            ? (errorData.error.message ?? 'Failed to sell shares')
+            : (errorData.error ?? errorData.message ?? 'Failed to sell shares');
+        toast.error(errorMessage);
+        return;
+      }
+
+      const data: SellSharesSuccessResponse = await response.json();
+      const pnl = data.pnl;
+      toast.success('Shares sold!', {
+        description: `Sold ${position.shares.toFixed(2)} ${position.side} shares for ${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)} PnL`,
+      });
+
+      onPositionSold?.();
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : 'Failed to sell shares';
+      logger.error(
+        'Failed to sell prediction shares',
+        { marketId: position.marketId, positionId: position.id, error: err },
+        'PredictionPositionsList'
+      );
+      toast.error(message);
+    } finally {
+      setSellingId(null);
+      setPendingSell(null);
+    }
   };
 
   const formatPrice = (price: number) => `$${price.toFixed(3)}`;

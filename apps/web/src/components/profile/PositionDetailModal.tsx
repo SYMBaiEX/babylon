@@ -17,6 +17,7 @@ import {
   XCircle,
   Zap,
 } from 'lucide-react';
+import { usePrivy } from '@privy-io/react-auth';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { FollowButton } from '@/components/interactions';
@@ -143,6 +144,7 @@ export function PositionDetailModal({
   onSuccess,
 }: PositionDetailModalProps) {
   const { user, authenticated, login } = useAuth();
+  const { getAccessToken } = usePrivy();
   const [activeTab, setActiveTab] = useState<'details' | 'trade'>('details');
 
   // Trading state
@@ -209,31 +211,41 @@ export function PositionDetailModal({
     }
 
     setLoading(true);
-    const response = await fetch('/api/markets/perps/open', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${window.__privyAccessToken || ''}`,
-      },
-      body: JSON.stringify({
-        ticker: perpMarket.ticker,
-        side,
-        size: sizeNum,
-        leverage,
-      }),
-    });
 
-    const responseData = await response.json();
-    if (!response.ok) {
-      toast.error(formatErrorMessage(responseData, 'Failed to open position'));
+    const token = await getAccessToken();
+    if (!token) {
+      toast.error('Authentication required. Please log in.');
       setLoading(false);
       return;
     }
 
-    toast.success('Position opened!');
-    onClose();
-    if (onSuccess) onSuccess();
-    setLoading(false);
+    try {
+      const response = await fetch('/api/markets/perps/open', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          ticker: perpMarket.ticker,
+          side,
+          size: sizeNum,
+          leverage,
+        }),
+      });
+
+      const responseData = await response.json();
+      if (!response.ok) {
+        toast.error(formatErrorMessage(responseData, 'Failed to open position'));
+        return;
+      }
+
+      toast.success('Position opened!');
+      onClose();
+      onSuccess?.();
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handlePredictionTrade = async () => {
@@ -246,40 +258,42 @@ export function PositionDetailModal({
     }
 
     setLoading(true);
-    const token =
-      typeof window !== 'undefined' ? window.__privyAccessToken : null;
+
+    const token = await getAccessToken();
     if (!token) {
-      toast.error('Authentication required');
+      toast.error('Authentication required. Please log in.');
       setLoading(false);
       return;
     }
 
-    const response = await fetch(
-      `/api/markets/predictions/${predictionMarket.id}/buy`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          side,
-          amount: amountNum,
-        }),
+    try {
+      const response = await fetch(
+        `/api/markets/predictions/${predictionMarket.id}/buy`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            side,
+            amount: amountNum,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        toast.error(formatErrorMessage(errorData, 'Failed to buy shares'));
+        return;
       }
-    );
 
-    if (!response.ok) {
-      const errorData = await response.json();
-      toast.error(formatErrorMessage(errorData, 'Failed to buy shares'));
+      toast.success(`Bought ${side.toUpperCase()} shares!`);
+      onClose();
+      onSuccess?.();
+    } finally {
       setLoading(false);
-      return;
     }
-
-    toast.success(`Bought ${side.toUpperCase()} shares!`);
-    onClose();
-    if (onSuccess) onSuccess();
-    setLoading(false);
   };
 
   if (!isOpen || !data) return null;
