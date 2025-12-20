@@ -499,28 +499,18 @@ export default function NotificationsPage() {
                             </p>
                           ) : (
                             <p className="text-foreground leading-relaxed">
-                              {notification.type !== 'system' ? (
-                                <>
-                                  <span className="font-semibold">
-                                    {notification.actor?.displayName ||
-                                      'Someone'}
-                                  </span>{' '}
-                                  <span className="text-muted-foreground">
-                                    {getNotificationIcon(notification.type)}{' '}
-                                    {notification.message
-                                      .replace(
-                                        notification.actor?.displayName || '',
-                                        ''
-                                      )
-                                      .replace(/^:\s*/, '')}
-                                  </span>
-                                </>
-                              ) : (
-                                <span className="text-muted-foreground">
-                                  {getNotificationIcon(notification.type)}{' '}
-                                  {notification.message}
-                                </span>
-                              )}
+                              <span className="font-semibold">
+                                {notification.actor?.displayName || 'Someone'}
+                              </span>{' '}
+                              <span className="text-muted-foreground">
+                                {getNotificationIcon(notification.type)}{' '}
+                                {notification.message
+                                  .replace(
+                                    notification.actor?.displayName || '',
+                                    ''
+                                  )
+                                  .replace(/^:\s*/, '')}
+                              </span>
                             </p>
                           )}
                           <time className="mt-1 block text-muted-foreground text-sm">

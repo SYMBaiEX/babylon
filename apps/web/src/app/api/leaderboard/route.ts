@@ -133,8 +133,8 @@ import type { NextRequest } from 'next/server';
 
 const CACHE_KEY_NAMESPACE = 'leaderboard';
 // Cache for 2 minutes - balances freshness with performance
-const CACHE_TTL_MS = Number(process.env.LEADERBOARD_CACHE_MS ?? 120_000);
-const CACHE_TTL_SECONDS = Math.max(1, Math.floor(CACHE_TTL_MS / 1000));
+const CACHE_TTL_MS = Number(process.env.LEADERBOARD_CACHE_MS) || 120_000;
+const CACHE_TTL_SECONDS = Math.floor(CACHE_TTL_MS / 1000);
 const STALE_SECONDS = CACHE_TTL_SECONDS * 3;
 
 interface LeaderboardResponse {

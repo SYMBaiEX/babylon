@@ -693,7 +693,7 @@ export async function runModelCommand(args: string[]): Promise<void> {
   }
 
   // Commands that don't need database
-  const noDatabaseCommands = ['ollama'];
+  const noDatabaseCommands = ['ollama', 'upload-dataset'];
 
   const needsDatabase = !noDatabaseCommands.includes(parsed.command || '');
 
