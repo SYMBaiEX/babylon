@@ -48,7 +48,13 @@ export {
 
 /**
  * Perp market data structure from API.
- * Simplified version for frontend display (vs SharedPerpMarket which has more fields).
+ *
+ * This is the simplified frontend version used for display in lists and cards.
+ * Differences from SharedPerpMarket (from @babylon/shared):
+ * - PerpMarket: Fewer fields, used for UI display (lists, cards, modals)
+ * - SharedPerpMarket: Full API response with all fields (orderbook, trades, etc.)
+ *
+ * Use PerpMarket for components, SharedPerpMarket for API type validation.
  */
 export interface PerpMarket {
   ticker: string;
@@ -104,7 +110,11 @@ export interface PredictionMarketWithPosition extends PredictionMarket {
 // =============================================================================
 
 /**
- * Side of a perpetual trade position.
+ * Side of a perpetual trade position (frontend format).
+ *
+ * Note: API responses use uppercase 'LONG' | 'SHORT' (see PerpPositionFromAPI in @babylon/shared).
+ * The frontend normalizes these to lowercase for consistency with UI conventions.
+ * Convert with: side.toLowerCase() as TradeSide
  */
 export type TradeSide = 'long' | 'short';
 
@@ -153,14 +163,11 @@ export interface ApiErrorResponse {
 
 /**
  * Success response for sell shares operation.
+ * Returns PnL from the sale for display in success messages.
  */
 export interface SellSharesSuccessResponse {
-  success: true;
-  sale: {
-    id: string;
-    proceeds: number;
-    shares: number;
-  };
+  /** Realized profit/loss from the sale */
+  pnl: number;
 }
 
 /**
@@ -196,24 +203,6 @@ export interface DisplayPerpPosition {
   unrealizedPnLPercent: number;
   fundingPaid: number;
   openedAt: string;
-}
-
-/**
- * Prediction position structure for display in lists.
- */
-export interface DisplayPredictionPosition {
-  id: string;
-  marketId: string;
-  question: string;
-  side: PredictionSide;
-  shares: number;
-  avgPrice: number;
-  currentPrice: number;
-  pnl: number;
-  pnlPercent: number;
-  maxPayout: number;
-  resolved: boolean;
-  resolution: boolean | null;
 }
 
 // =============================================================================

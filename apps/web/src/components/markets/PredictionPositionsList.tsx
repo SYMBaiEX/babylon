@@ -6,18 +6,11 @@ import { usePrivy } from '@privy-io/react-auth';
 import { CheckCircle, XCircle } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
-import type { ApiErrorResponse } from '@/types/markets';
+import type { ApiErrorResponse, SellSharesSuccessResponse } from '@/types/markets';
 import {
   type SellPredictionDetails,
   TradeConfirmationDialog,
 } from './TradeConfirmationDialog';
-
-/**
- * API response type for selling prediction shares.
- */
-interface SellSharesSuccessResponse {
-  pnl: number;
-}
 
 /**
  * Alias for UserPredictionPosition for local usage.
