@@ -4,7 +4,8 @@ import {
   calculateExpectedPayout,
   PredictionPricing,
 } from '@babylon/core/markets/prediction/client';
-import { cn } from '@babylon/shared';
+import { cn, logger } from '@babylon/shared';
+import { usePrivy } from '@privy-io/react-auth';
 import { CheckCircle, Clock, X, XCircle } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
@@ -67,6 +68,7 @@ export function PredictionTradingModal({
   onSuccess,
 }: PredictionTradingModalProps) {
   const { user } = useAuth();
+  const { getAccessToken } = usePrivy();
   const [side, setSide] = useState<'yes' | 'no'>('yes');
   const [amount, setAmount] = useState('10');
   const [loading, setLoading] = useState(false);
@@ -152,38 +154,60 @@ export function PredictionTradingModal({
 
     setLoading(true);
 
-    const token =
-      typeof window !== 'undefined' ? window.__privyAccessToken : null;
+    const token = await getAccessToken();
     if (!token) {
       toast.error('Authentication required. Please log in.');
       setLoading(false);
       return;
     }
 
-    const response = await fetch(
-      `/api/markets/predictions/${question.id}/buy`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          side,
-          amount: amountNum,
-        }),
+    try {
+      const response = await fetch(
+        `/api/markets/predictions/${question.id}/buy`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            side,
+            amount: amountNum,
+          }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        const errorMessage =
+          typeof data.error === 'object' && data.error?.message
+            ? data.error.message
+            : typeof data.error === 'string'
+              ? data.error
+              : (data.message ?? 'Failed to buy shares');
+        toast.error(errorMessage);
+        return;
       }
-    );
 
-    await response.json();
+      toast.success(`Bought ${side.toUpperCase()} shares!`, {
+        description: `${calculation?.sharesBought.toFixed(2)} shares at ${(calculation?.avgPrice ?? 0).toFixed(3)} each`,
+      });
 
-    toast.success(`Bought ${side.toUpperCase()} shares!`, {
-      description: `${calculation?.sharesBought.toFixed(2)} shares at ${(calculation?.avgPrice || 0).toFixed(3)} each`,
-    });
-
-    onClose();
-    if (onSuccess) onSuccess();
-    setLoading(false);
+      onClose();
+      onSuccess?.();
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : 'Failed to buy shares';
+      logger.error(
+        'Failed to buy prediction shares',
+        { marketId: question.id, side, amount: amountNum, error: err },
+        'PredictionTradingModal'
+      );
+      toast.error(message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const formatPrice = (price: number) => {

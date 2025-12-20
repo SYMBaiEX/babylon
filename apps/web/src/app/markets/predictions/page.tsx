@@ -1,6 +1,6 @@
 'use client';
 
-import { cn } from '@babylon/shared';
+import { cn, logger } from '@babylon/shared';
 import { ArrowUpDown, Clock, Flame, Search } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -115,19 +115,22 @@ export default function PredictionsPage() {
     }
   }, []);
 
-  // Fetch data
-  const fetchData = useCallback(async () => {
+  // Fetch data with optional abort signal
+  const fetchData = useCallback(async (signal?: AbortSignal) => {
     const isAuth = authenticatedRef.current;
     const userId = userIdRef.current;
 
     try {
       const predictionsRes = await fetch(
-        `/api/markets/predictions${isAuth && userId ? `?userId=${userId}` : ''}`
+        `/api/markets/predictions${isAuth && userId ? `?userId=${userId}` : ''}`,
+        { signal }
       );
 
       if (!predictionsRes.ok) {
-        console.error(
-          'Failed to fetch predictions: Failed to fetch predictions'
+        logger.error(
+          'Failed to fetch predictions',
+          { status: predictionsRes.status },
+          'PredictionsPage'
         );
         setLoading(false);
         return;
@@ -177,8 +180,11 @@ export default function PredictionsPage() {
       if (isAuth && userId && refreshPositionsRef.current) {
         await refreshPositionsRef.current();
       }
-    } catch {
-      // Network error - ignore, just stop loading
+    } catch (err) {
+      // Only ignore abort errors; log other network errors for debugging
+      if (err instanceof Error && err.name !== 'AbortError') {
+        logger.warn('Failed to fetch predictions', { error: err.message }, 'PredictionsPage');
+      }
     } finally {
       setLoading(false);
     }
@@ -189,9 +195,11 @@ export default function PredictionsPage() {
     fetchDataRef.current = fetchData;
   }, [fetchData]);
 
-  // Initial fetch on mount
+  // Initial fetch on mount with abort on unmount
   useEffect(() => {
-    fetchData();
+    const controller = new AbortController();
+    fetchData(controller.signal);
+    return () => controller.abort();
   }, [fetchData]);
 
   const appendSparklinePoint = useCallback(

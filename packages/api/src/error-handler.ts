@@ -366,14 +366,19 @@ export function withErrorHandling<TContext extends RouteContext = RouteContext>(
   handler: (
     req: NextRequest,
     context?: TContext
-  ) => Promise<NextResponse> | NextResponse
+  ) => Promise<NextResponse> | NextResponse,
+  options?: ErrorHandlerOptions
 ): (req: NextRequest, context?: TContext) => Promise<NextResponse> {
   return async (
     req: NextRequest,
     context?: TContext
   ): Promise<NextResponse> => {
-    const response = await handler(req, context!);
-    return response;
+    try {
+      const response = await handler(req, context!);
+      return response;
+    } catch (error) {
+      return errorHandler(error, req, options);
+    }
   };
 }
 
@@ -387,19 +392,23 @@ export function asyncHandler<TContext extends RouteContext = RouteContext>(
   teardown?: () => Promise<void>
 ): (req: NextRequest, context?: TContext) => Promise<NextResponse> {
   return async (req: NextRequest, context?: TContext) => {
-    if (setup) {
-      await setup();
-    }
+    try {
+      if (setup) {
+        await setup();
+      }
 
-    if (!handler) {
-      throw new Error('Handler function is required');
-    }
+      if (!handler) {
+        throw new Error('Handler function is required');
+      }
 
-    const result = await handler(req, context);
-    if (teardown) {
-      await teardown();
+      const result = await handler(req, context);
+      if (teardown) {
+        await teardown();
+      }
+      return result;
+    } catch (error) {
+      return errorHandler(error, req);
     }
-    return result;
   };
 }
 

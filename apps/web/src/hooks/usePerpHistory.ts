@@ -1,3 +1,4 @@
+import { logger } from '@babylon/shared';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { useMarketPrices } from '@/hooks/useMarketPrices';
@@ -82,25 +83,130 @@ export function usePerpHistory(
     seedRef.current = options?.seed;
   }, [options?.seed?.currentPrice, options?.seed]);
 
+  // If we previously loaded before the market seed was available (common in staging),
+  // ensure we still render a minimal chart instead of staying empty forever.
+  useEffect(() => {
+    const seed = options?.seed?.currentPrice;
+    if (!ticker) return;
+    if (!Number.isFinite(seed ?? Number.NaN) || (seed ?? 0) <= 0) return;
+    if (history.length > 0) return;
+
+    const now = Date.now();
+    const seeded: PerpHistoryPoint[] = [
+      {
+        time: now - 60_000,
+        price: seed as number,
+        change: 0,
+        changePercent: 0,
+        volume: 0,
+      },
+      {
+        time: now,
+        price: seed as number,
+        change: 0,
+        changePercent: 0,
+        volume: 0,
+      },
+    ];
+
+    setHistory(seeded);
+    lastAppendedPriceRef.current = seed as number;
+  }, [ticker, options?.seed?.currentPrice, history.length]);
+
   const formatHistory = useCallback(
     (
       points: Array<{
-        price: number;
-        change?: number;
-        changePercent?: number;
-        volume?: number | null;
+        price: number | string;
+        change?: number | string;
+        changePercent?: number | string;
+        volume?: number | string | null;
         timestamp: string;
       }>
     ): PerpHistoryPoint[] => {
-      return points
-        .filter((point) => Number.isFinite(point.price) && point.price > 0)
-        .map((point) => ({
-          time: new Date(point.timestamp).getTime(),
-          price: point.price,
-          change: point.change,
-          changePercent: point.changePercent,
-          volume: point.volume ?? undefined,
-        }));
+      const parsed = points
+        .map((point) => {
+          const price = Number(point.price);
+          const change =
+            point.change === undefined ? undefined : Number(point.change);
+          const changePercent =
+            point.changePercent === undefined
+              ? undefined
+              : Number(point.changePercent);
+          const volume =
+            point.volume === null || point.volume === undefined
+              ? undefined
+              : Number(point.volume);
+
+          return {
+            time: new Date(point.timestamp).getTime(),
+            price,
+            change: Number.isFinite(change ?? Number.NaN) ? change : undefined,
+            changePercent: Number.isFinite(changePercent ?? Number.NaN)
+              ? changePercent
+              : undefined,
+            volume: Number.isFinite(volume ?? Number.NaN) ? volume : undefined,
+          } satisfies PerpHistoryPoint;
+        })
+        .filter(
+          (point) =>
+            Number.isFinite(point.time) &&
+            Number.isFinite(point.price) &&
+            point.price > 0
+        );
+
+      const seed = seedRef.current?.currentPrice;
+      if (!seed || !Number.isFinite(seed) || seed <= 0 || parsed.length < 2) {
+        return parsed;
+      }
+
+      const sortedPrices = [...parsed]
+        .map((p) => p.price)
+        .sort((a, b) => a - b);
+      const medianPrice =
+        sortedPrices[Math.floor(sortedPrices.length / 2)] ?? null;
+
+      if (!medianPrice || !Number.isFinite(medianPrice) || medianPrice <= 0) {
+        return parsed;
+      }
+
+      // Heuristic: some environments persist prices in a different unit than
+      // the market snapshot (e.g., ~x1000). Choose a power-of-10 scale that
+      // brings the median history price close to the seed/current price.
+      const relDiff = (a: number, b: number) => Math.abs(a - b) / b;
+      const candidates = [
+        1e-6, 1e-3, 1e-2, 1e-1, 1, 10, 100, 1000, 1e4, 1e5, 1e6,
+      ];
+
+      const baseline = relDiff(medianPrice, seed);
+      let bestScale = 1;
+      let bestDiff = baseline;
+
+      for (const candidate of candidates) {
+        const scaled = medianPrice * candidate;
+        if (!Number.isFinite(scaled) || scaled <= 0) continue;
+        const diff = relDiff(scaled, seed);
+        if (diff < bestDiff) {
+          bestDiff = diff;
+          bestScale = candidate;
+        }
+      }
+
+      // Only apply scaling if it materially improves alignment and is not wild.
+      if (bestScale === 1) return parsed;
+      if (!(bestDiff < baseline * 0.2 && bestDiff < 0.5)) return parsed;
+
+      return parsed.map((point) => ({
+        ...point,
+        price: point.price * bestScale,
+        change:
+          typeof point.change === 'number'
+            ? point.change * bestScale
+            : undefined,
+        volume:
+          typeof point.volume === 'number'
+            ? point.volume * bestScale
+            : undefined,
+      }));
     },
     []
   );
@@ -108,9 +214,18 @@ export function usePerpHistory(
   const fallbackFromSeed = useCallback(() => {
     const seed = seedRef.current;
     if (!seed?.currentPrice) return [];
+    const now = Date.now();
+    // Seed with at least 2 points so the area series always renders visibly.
     return [
       {
-        time: Date.now(),
+        time: now - 60_000,
+        price: seed.currentPrice,
+        change: 0,
+        changePercent: 0,
+        volume: 0,
+      },
+      {
+        time: now,
         price: seed.currentPrice,
         change: 0,
         changePercent: 0,
@@ -129,23 +244,62 @@ export function usePerpHistory(
     setLoading(true);
     setError(null);
 
-    const response = await fetch(
-      `/api/markets/perps/${encodeURIComponent(ticker)}/history?limit=${limit}`
-    );
-    const data = await response.json();
+    try {
+      const response = await fetch(
+        `/api/markets/perps/${encodeURIComponent(ticker)}/history?limit=${limit}`
+      );
 
-    if (response.ok && Array.isArray(data.history) && data.history.length > 0) {
-      const formatted = formatHistory(data.history);
-      setHistory(formatted);
-      // Track the last price we've seen
-      if (formatted.length > 0) {
-        lastAppendedPriceRef.current = formatted[formatted.length - 1]!.price;
+      let data: unknown = null;
+      try {
+        data = await response.json();
+      } catch {
+        data = null;
       }
-    } else {
-      setHistory(fallbackFromSeed());
-    }
 
-    setLoading(false);
+      const record = (data ?? {}) as Record<string, unknown>;
+      const historyArray = record.history;
+
+      if (
+        response.ok &&
+        Array.isArray(historyArray) &&
+        historyArray.length > 0
+      ) {
+        const formatted = formatHistory(
+          historyArray as Array<{
+            price: number;
+            change?: number;
+            changePercent?: number;
+            volume?: number | null;
+            timestamp: string;
+          }>
+        );
+        setHistory(formatted);
+        if (formatted.length > 0) {
+          lastAppendedPriceRef.current = formatted[formatted.length - 1]!.price;
+        }
+      } else {
+        if (!response.ok) {
+          const message =
+            typeof record.error === 'string'
+              ? record.error
+              : `Failed to fetch history: ${response.status}`;
+          setError(message);
+        }
+        setHistory(fallbackFromSeed());
+      }
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : 'Failed to fetch history';
+      logger.error(
+        'Failed to fetch perp history',
+        { ticker, error: err },
+        'usePerpHistory'
+      );
+      setError(message);
+      setHistory(fallbackFromSeed());
+    } finally {
+      setLoading(false);
+    }
   }, [ticker, limit, formatHistory, fallbackFromSeed]);
 
   useEffect(() => {
