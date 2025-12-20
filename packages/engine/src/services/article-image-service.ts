@@ -58,7 +58,10 @@ export function isImageGenerationAvailable(): boolean {
 }
 
 /**
- * Generate a cover image for an article
+ * Generate a cover image for an article (best-effort, non-blocking)
+ *
+ * This function never throws - errors are logged and null is returned.
+ * This ensures image generation failures don't block tick execution.
  *
  * @param params - Article details for image generation
  * @returns URL of the generated image, or null if generation fails
@@ -87,15 +90,29 @@ export async function generateArticleImage(
     'ArticleImageService'
   );
 
-  const result = (await fal.subscribe('fal-ai/flux/schnell', {
-    input: {
-      prompt,
-      image_size: 'landscape_16_9',
-      num_inference_steps: 4,
-      num_images: 1,
-    },
-    logs: false,
-  })) as FalResponse;
+  let result: FalResponse;
+  try {
+    result = (await fal.subscribe('fal-ai/flux/schnell', {
+      input: {
+        prompt,
+        image_size: 'landscape_16_9',
+        num_inference_steps: 4,
+        num_images: 1,
+      },
+      logs: false,
+    })) as FalResponse;
+  } catch (error) {
+    // Best-effort: log and continue without failing the tick
+    logger.warn(
+      'fal.ai image generation failed',
+      {
+        title: params.title,
+        error: error instanceof Error ? error.message : String(error),
+      },
+      'ArticleImageService'
+    );
+    return null;
+  }
 
   if (!result.data.images || result.data.images.length === 0) {
     logger.error(

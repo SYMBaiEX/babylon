@@ -101,8 +101,81 @@ function formatSignalAsNaturalLanguage(
 }
 
 /**
+ * Get NPC game context directly (without ElizaOS Provider interface)
+ *
+ * Use this when calling from code that doesn't have Memory/State available.
+ * Returns empty string for non-NPC agents.
+ *
+ * @param agentId - The agent's ID
+ * @returns Game context string for NPCs, empty string otherwise
+ */
+export async function getNpcGameContext(agentId: string): Promise<string> {
+  // Only NPCs get game context
+  const npcActor = StaticDataRegistry.getActor(agentId);
+  if (!npcActor) {
+    // Not an NPC (user agent or external) - return empty
+    return '';
+  }
+
+  // Get active prediction markets via service layer
+  const activeMarkets = await gameService.getActiveMarketSummaries(5);
+
+  if (activeMarkets.length === 0) {
+    // No active markets - minimal context
+    return `
+=== YOUR INTUITIONS ===
+Nothing stands out to you right now. The market feels quiet.
+
+Remember: You are ${npcActor.name}. Post in YOUR voice, not as a reporter.
+`.trim();
+  }
+
+  // Get current game day via service layer
+  const currentDay = await gameService.getCurrentGameDay();
+
+  // Build intuitions for each active market with arc plan
+  const intuitions: string[] = [];
+
+  for (const market of activeMarkets) {
+    const arcPlan = (await getArcPlan(market.id)) as DatabaseArcPlan | null;
+    if (!arcPlan) continue;
+
+    const phase = getPhaseForDay(currentDay, arcPlan);
+
+    // Default outcome to true for intuition generation
+    const outcome = true;
+
+    const signal = getSignalDirection(arcPlan, phase, agentId, outcome);
+
+    // Convert to natural language (NEVER expose technical details)
+    const topic = summarizeQuestion(market.question);
+    const intuition = formatSignalAsNaturalLanguage(signal, phase, topic);
+
+    if (intuition) {
+      intuitions.push(intuition);
+    }
+  }
+
+  // Get world facts for context (fail-fast: let errors propagate)
+  // Use worldFacts.general (fast, no LLM call) rather than headlines (requires LLM)
+  const worldFacts = await worldFactsService.generateWorldContext(false);
+  const worldContext = worldFacts.general
+    ? `=== WHAT'S HAPPENING ===\n${worldFacts.general}\n\n`
+    : '';
+
+  return `
+${worldContext}=== YOUR INTUITIONS ===
+${intuitions.length > 0 ? intuitions.join('\n') : 'Nothing stands out to you right now.'}
+
+Remember: You are ${npcActor.name}. Post in YOUR voice, not as a reporter.
+`.trim();
+}
+
+/**
  * Provider: NPC Game Context
  * Injects arc awareness and world events for NPCs only
+ *
+ * This wraps getNpcGameContext() for use with ElizaOS Provider interface.
  */
 export const npcGameContextProvider: Provider = {
   name: 'NPC_GAME_CONTEXT',
@@ -115,68 +188,7 @@ export const npcGameContextProvider: Provider = {
     _state: State
   ): Promise<ProviderResult> => {
     const agentId = runtime.agentId as string;
-
-    // Only NPCs get game context
-    const npcActor = StaticDataRegistry.getActor(agentId);
-    if (!npcActor) {
-      // Not an NPC (user agent or external) - return empty
-      return { text: '' };
-    }
-
-    // Get active prediction markets via service layer
-    const activeMarkets = await gameService.getActiveMarketSummaries(5);
-
-    if (activeMarkets.length === 0) {
-      // No active markets - minimal context
-      return {
-        text: `
-=== YOUR INTUITIONS ===
-Nothing stands out to you right now. The market feels quiet.
-
-Remember: You are ${npcActor.name}. Post in YOUR voice, not as a reporter.
-`.trim(),
-      };
-    }
-
-    // Get current game day via service layer
-    const currentDay = await gameService.getCurrentGameDay();
-
-    // Build intuitions for each active market with arc plan
-    const intuitions: string[] = [];
-
-    for (const market of activeMarkets) {
-      const arcPlan = (await getArcPlan(market.id)) as DatabaseArcPlan | null;
-      if (!arcPlan) continue;
-
-      const phase = getPhaseForDay(currentDay, arcPlan);
-
-      // Default outcome to true for intuition generation
-      const outcome = true;
-
-      const signal = getSignalDirection(arcPlan, phase, agentId, outcome);
-
-      // Convert to natural language (NEVER expose technical details)
-      const topic = summarizeQuestion(market.question);
-      const intuition = formatSignalAsNaturalLanguage(signal, phase, topic);
-
-      if (intuition) {
-        intuitions.push(intuition);
-      }
-    }
-
-    // Get recent world events for context (fail-fast: let errors propagate)
-    const worldFacts = await worldFactsService.generateWorldContext(false);
-    const worldContext = worldFacts.headlines
-      ? `=== WHAT'S HAPPENING ===\n${worldFacts.headlines}\n\n`
-      : '';
-
-    return {
-      text: `
-${worldContext}=== YOUR INTUITIONS ===
-${intuitions.length > 0 ? intuitions.join('\n') : 'Nothing stands out to you right now.'}
-
-Remember: You are ${npcActor.name}. Post in YOUR voice, not as a reporter.
-`.trim(),
-    };
+    const text = await getNpcGameContext(agentId);
+    return { text };
   },
 };
