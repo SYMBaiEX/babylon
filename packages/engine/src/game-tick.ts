@@ -57,6 +57,7 @@ import { generateWorldContext } from './prompts';
 import { QuestionManager } from './QuestionManager';
 import { RelationshipEvolutionEngine } from './RelationshipEvolutionEngine';
 import { AlphaGroupInviteService } from './services/alpha-group-invite-service';
+import { generateArticleImageWithRetry, initFalClient } from './services/article-image-service';
 import { characterMappingService } from './services/character-mapping-service';
 // Content generation helpers
 import { generateEvents } from './services/event-generation-helpers';
@@ -191,6 +192,9 @@ export async function executeGameTick(
 
   // Bootstrap game data if needed (actors, organizations, mappings, pools, etc.)
   const bootstrapResult = await bootstrapGameIfNeeded();
+
+  // Initialize fal.ai for article image generation (non-blocking)
+  initFalClient();
   if (bootstrapResult) {
     const hasChanges =
       bootstrapResult.actorsCreated > 0 ||
@@ -1573,6 +1577,17 @@ async function generateArticles(
         }
 
         const articleTimestamp = article.publishedAt || new Date();
+
+        // Generate article cover image (non-blocking, with retry)
+        let imageUrl: string | null = null;
+        if (process.env.FAL_KEY) {
+          imageUrl = await generateArticleImageWithRetry({
+            title: transformedTitle.transformedText,
+            summary: transformedSummary.transformedText,
+            category: article.category,
+          });
+        }
+
         await dbService().createPostWithAllFields({
           id: await generateSnowflakeId(),
           type: 'article',
@@ -1584,6 +1599,7 @@ async function generateArticles(
           sentiment: article.sentiment || undefined,
           slant: article.slant || undefined,
           category: article.category || undefined,
+          imageUrl: imageUrl || undefined,
           authorId: article.authorOrgId,
           gameId: 'continuous',
           dayNumber: dayNumberForTimestamp(articleTimestamp),
@@ -1856,6 +1872,17 @@ async function generateArticlesForActiveQuestions(
         }
 
         const articleTimestamp = article.publishedAt || new Date();
+
+        // Generate article cover image (non-blocking, with retry)
+        let questionImageUrl: string | null = null;
+        if (process.env.FAL_KEY) {
+          questionImageUrl = await generateArticleImageWithRetry({
+            title: transformedTitle.transformedText,
+            summary: transformedSummary.transformedText,
+            category: article.category,
+          });
+        }
+
         await dbService().createPostWithAllFields({
           id: await generateSnowflakeId(),
           type: 'article',
@@ -1867,6 +1894,7 @@ async function generateArticlesForActiveQuestions(
           sentiment: article.sentiment || undefined,
           slant: article.slant || undefined,
           category: article.category || undefined,
+          imageUrl: questionImageUrl || undefined,
           authorId: article.authorOrgId,
           gameId: 'continuous',
           dayNumber: dayNumberForTimestamp(articleTimestamp),
@@ -2213,6 +2241,16 @@ Return your response as XML in this exact format:
         );
       }
 
+      // Generate article cover image (non-blocking, with retry)
+      let baselineImageUrl: string | null = null;
+      if (process.env.FAL_KEY) {
+        baselineImageUrl = await generateArticleImageWithRetry({
+          title: transformedTitle.transformedText,
+          summary: transformedSummary.transformedText,
+          category: topicData.category,
+        });
+      }
+
       await dbService().createPostWithAllFields({
         id: await generateSnowflakeId(),
         type: 'article',
@@ -2220,6 +2258,7 @@ Return your response as XML in this exact format:
         fullContent: transformedBody.transformedText,
         articleTitle: transformedTitle.transformedText,
         category: topicData.category,
+        imageUrl: baselineImageUrl || undefined,
         authorId: org.id,
         gameId: 'continuous',
         dayNumber: dayNumberForTimestamp(timestampWithOffset),

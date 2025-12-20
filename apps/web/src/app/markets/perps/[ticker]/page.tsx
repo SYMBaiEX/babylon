@@ -224,7 +224,7 @@ export default function PerpDetailPage() {
               router.push('/markets/perps');
             }
           }}
-          className="mb-4 flex items-center gap-2 rounded-md bg-[#0099FF] px-3 py-1.5 font-medium text-black text-sm transition-colors hover:bg-[#00AAFF]"
+          className="mb-4 flex items-center gap-2 rounded-md bg-[#0066FF] px-3 py-1.5 font-medium text-primary-foreground text-sm transition-colors hover:bg-[#2952d9]"
         >
           <ArrowLeft className="h-4 w-4" />
           {from === 'dashboard' ? 'Back to Dashboard' : 'Back to Perps'}
