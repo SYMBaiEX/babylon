@@ -26,9 +26,9 @@ import {
   relayCronToStaging,
   verifyCronAuth,
 } from '@babylon/api';
+import type { Game } from '@babylon/db';
 import { db } from '@babylon/db';
 import { StaticDataRegistry } from '@babylon/engine';
-import type { Game } from '@babylon/db';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
