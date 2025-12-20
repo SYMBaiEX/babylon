@@ -1,5 +1,6 @@
 'use client';
 
+import type { UserPredictionPosition } from '@babylon/shared';
 import { cn, logger } from '@babylon/shared';
 import {
   ArrowUpDown,
@@ -29,7 +30,13 @@ import { Skeleton, WidgetPanelSkeleton } from '@/components/shared/Skeleton';
 import { useAuth } from '@/hooks/useAuth';
 import { usePortfolioPnL } from '@/hooks/usePortfolioPnL';
 import { useUserPositions } from '@/hooks/useUserPositions';
-import { type PerpMarket, usePerpMarkets } from '@/stores/perpMarketsStore';
+import { usePerpMarkets } from '@/stores/perpMarketsStore';
+import type {
+  MarketTab,
+  PerpMarket,
+  PredictionMarket,
+  PredictionSort,
+} from '@/types/markets';
 
 // Lazy load heavy modals - not needed for initial render
 const CategoryPnLShareModal = dynamic(
@@ -65,41 +72,13 @@ const MarketsWidgetSidebar = dynamic(
   { ssr: false }
 );
 
-interface PredictionUserPosition {
-  id: string;
-  marketId: string;
-  question?: string;
-  side: 'YES' | 'NO';
-  shares: number;
-  avgPrice: number;
-  currentPrice: number;
-  currentValue: number;
-  costBasis: number;
-  unrealizedPnL: number;
-  resolved?: boolean;
-  resolution?: boolean | null;
+/**
+ * Extended prediction market with user position data for dashboard.
+ */
+interface PredictionMarketWithPosition extends PredictionMarket {
+  userPosition?: UserPredictionPosition | null;
+  userPositions?: UserPredictionPosition[];
 }
-
-interface PredictionMarket {
-  id: number | string;
-  text: string;
-  status: 'active' | 'resolved' | 'cancelled';
-  createdDate?: string;
-  resolutionDate?: string;
-  resolvedOutcome?: boolean;
-  scenario: number;
-  yesShares?: number;
-  noShares?: number;
-  userPosition?: PredictionUserPosition | null;
-  userPositions?: PredictionUserPosition[];
-  oracleCommitTxHash?: string | null;
-  oracleRevealTxHash?: string | null;
-  oraclePublishedAt?: string | null;
-}
-
-type MarketTab = 'dashboard' | 'perps' | 'predictions';
-
-type PredictionSort = 'trending' | 'newest' | 'ending-soon' | 'volume';
 
 export default function MarketsPage() {
   const router = useRouter();
@@ -124,7 +103,9 @@ export default function MarketsPage() {
   } = usePerpMarkets();
 
   // Data
-  const [predictions, setPredictions] = useState<PredictionMarket[]>([]);
+  const [predictions, setPredictions] = useState<
+    PredictionMarketWithPosition[]
+  >([]);
   const [predictionsLoading, setPredictionsLoading] = useState(true);
   const [balanceRefreshTrigger, setBalanceRefreshTrigger] = useState(0);
 
@@ -213,7 +194,11 @@ export default function MarketsPage() {
     } catch (err) {
       // Only ignore abort errors; log other network errors for debugging
       if (err instanceof Error && err.name !== 'AbortError') {
-        logger.warn('Failed to fetch predictions', { error: err.message }, 'MarketsPage');
+        logger.warn(
+          'Failed to fetch predictions',
+          { error: err.message },
+          'MarketsPage'
+        );
       }
     } finally {
       setPredictionsLoading(false);

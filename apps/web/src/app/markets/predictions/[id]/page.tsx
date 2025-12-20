@@ -4,6 +4,7 @@ import {
   calculateExpectedPayout,
   PredictionPricing,
 } from '@babylon/core/markets/prediction/client';
+import type { UserPredictionPosition } from '@babylon/shared';
 import { cn } from '@babylon/shared';
 import {
   ArrowLeft,
@@ -35,32 +36,12 @@ import type {
   PredictionTradeSSE,
 } from '@/hooks/usePredictionMarketStream';
 import { usePredictionMarketStream } from '@/hooks/usePredictionMarketStream';
+import type { PredictionMarket } from '@/types/markets';
 
-interface PredictionPosition {
-  id: string;
-  marketId: string;
-  question: string;
-  side: 'YES' | 'NO';
-  shares: number;
-  avgPrice: number;
-  currentPrice: number;
-  currentValue: number;
-  costBasis: number;
-  unrealizedPnL: number;
-  resolved: boolean;
-  resolution?: boolean | null;
-}
-
-interface PredictionMarket {
-  id: number | string;
-  text: string;
-  status: 'active' | 'resolved' | 'cancelled';
-  createdDate?: string;
-  resolutionDate?: string;
-  resolvedOutcome?: boolean;
-  scenario: number;
-  yesShares?: number;
-  noShares?: number;
+/**
+ * Extended prediction market with detail page specific fields.
+ */
+interface PredictionMarketDetail extends PredictionMarket {
   liquidity?: number;
   resolved?: boolean;
   resolution?: boolean | null;
@@ -68,8 +49,8 @@ interface PredictionMarket {
   resolutionDescription?: string | null;
   yesProbability?: number;
   noProbability?: number;
-  userPosition?: PredictionPosition | null;
-  userPositions?: PredictionPosition[];
+  userPosition?: UserPredictionPosition | null;
+  userPositions?: UserPredictionPosition[];
 }
 
 export default function PredictionDetailPage() {
@@ -81,18 +62,20 @@ export default function PredictionDetailPage() {
   const { trackMarketView } = useMarketTracking();
   const from = searchParams.get('from');
 
-  const [market, setMarket] = useState<PredictionMarket | null>(null);
+  const [market, setMarket] = useState<PredictionMarketDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [side, setSide] = useState<'yes' | 'no'>('yes');
   const [amount, setAmount] = useState('10');
   const [submitting, setSubmitting] = useState(false);
-  const [userPositions, setUserPositions] = useState<PredictionPosition[]>([]);
+  const [userPositions, setUserPositions] = useState<UserPredictionPosition[]>(
+    []
+  );
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
   const pageContainerRef = useRef<HTMLDivElement | null>(null);
 
   const recalculatePositionMetrics = useCallback(
     (
-      positions: PredictionPosition[],
+      positions: UserPredictionPosition[],
       nextYesShares: number,
       nextNoShares: number
     ) => {
@@ -246,9 +229,9 @@ export default function PredictionDetailPage() {
       `/api/markets/predictions/${encodeURIComponent(marketId)}${userQuery}`
     );
     const data = await response.json();
-    const foundMarket: PredictionMarket | null =
-      (data?.market as PredictionMarket | undefined) ??
-      (data as PredictionMarket | undefined) ??
+    const foundMarket: PredictionMarketDetail | null =
+      (data?.market as PredictionMarketDetail | undefined) ??
+      (data as PredictionMarketDetail | undefined) ??
       null;
 
     if (!response.ok || !foundMarket) {
@@ -260,9 +243,9 @@ export default function PredictionDetailPage() {
     setMarket(foundMarket);
     const positions =
       (foundMarket.userPositions ?? []).length > 0
-        ? (foundMarket.userPositions as PredictionPosition[])
+        ? (foundMarket.userPositions as UserPredictionPosition[])
         : foundMarket.userPosition
-          ? [foundMarket.userPosition as PredictionPosition]
+          ? [foundMarket.userPosition as UserPredictionPosition]
           : [];
     setUserPositions(positions);
 
