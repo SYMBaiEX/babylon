@@ -657,7 +657,7 @@ Current Focus: ${recentTopics || 'Market General'}
       activeQuestions: activeQuestionsText,
       recentEvents: recentEventsText,
       // Add rich narrative context if available
-      richGameContext: (worldContext as any).richGameContext || '',
+      richGameContext: worldContext.richGameContext || '',
     });
 
     // Count tokens and enforce limit
@@ -698,7 +698,7 @@ Current Focus: ${recentTopics || 'Market General'}
         realityGrounding: worldContext.realityGrounding,
         activeQuestions: activeQuestionsText,
         recentEvents: recentEventsText,
-        richGameContext: (worldContext as any).richGameContext || '',
+        richGameContext: worldContext.richGameContext || '',
       });
       const prefixTokens = countTokensSync(promptPrefix);
       const bufferTokens = Math.floor(this.tokenConfig.maxContextTokens * 0.1); // 10% buffer
@@ -720,7 +720,7 @@ Current Focus: ${recentTopics || 'Market General'}
         realityGrounding: worldContext.realityGrounding,
         activeQuestions: activeQuestionsText,
         recentEvents: recentEventsText,
-        richGameContext: (worldContext as any).richGameContext || '',
+        richGameContext: worldContext.richGameContext || '',
       });
 
       promptTokens = countTokensSync(prompt);

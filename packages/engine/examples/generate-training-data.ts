@@ -201,13 +201,7 @@ async function main() {
     { outcome: config.outcome, numNPCs: config.numNPCs },
     llmClient
   );
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const loop = new GameLoop(
-    world,
-    feed,
-    trajectoryEngine as any,
-    relationships
-  );
+  const loop = new GameLoop(world, feed, trajectoryEngine, relationships);
 
   // 6. Setup Causal Simulation if enabled
   let groundTruth: GroundTruth | undefined;

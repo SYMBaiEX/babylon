@@ -6,7 +6,7 @@ import { SimulationEngine, type SimulationResult } from '../SimulationEngine';
 describe('Head-to-Head Benchmark Infrastructure', () => {
   // 1. Test Simulation Engine PnL History Tracking
   describe('SimulationEngine PnL History', () => {
-    it('should initialize with empty pnlHistory', () => {
+    it('should initialize with empty pnlHistory and return it after run()', async () => {
       const mockSnapshot = {
         id: 'test',
         ticks: [],
@@ -15,7 +15,11 @@ describe('Head-to-Head Benchmark Infrastructure', () => {
           perpetualMarkets: [],
           agents: [],
         },
-        groundTruth: { marketOutcomes: {} },
+        groundTruth: {
+          marketOutcomes: {},
+          priceHistory: {},
+          optimalActions: [],
+        },
       } as unknown as BenchmarkGameSnapshot;
 
       const engine = new SimulationEngine({
@@ -25,10 +29,9 @@ describe('Head-to-Head Benchmark Infrastructure', () => {
       });
 
       engine.initialize();
-      // Access private property for testing via casting if needed,
-      // or check the result after run() if public API exposes it.
-      // Since we updated run() to return pnlHistory:
-      expect((engine as any).pnlHistory).toEqual([]);
+      // Use public API - run() returns pnlHistory
+      const result = await engine.run();
+      expect(result.pnlHistory).toEqual([]);
     });
   });
 
@@ -80,11 +83,8 @@ describe('Head-to-Head Benchmark Infrastructure', () => {
       const baseline = createMockResult('baseline', 100, [10, 50, 100]);
       const challenger = createMockResult('challenger', 200, [20, 100, 200]);
 
-      // Access private method via prototype or cast to any for testing logic
-      const history = (MetricsVisualizer as any).mergePnlHistory(
-        baseline,
-        challenger
-      );
+      // Use public static method
+      const history = MetricsVisualizer.mergePnlHistory(baseline, challenger);
 
       expect(history).toHaveLength(3);
       expect(history[2]).toEqual({ tick: 2, baseline: 100, challenger: 200 });
@@ -96,10 +96,7 @@ describe('Head-to-Head Benchmark Infrastructure', () => {
       // Challenger kept going
       const challenger = createMockResult('challenger', 100, [20, 60, 80, 100]);
 
-      const history = (MetricsVisualizer as any).mergePnlHistory(
-        baseline,
-        challenger
-      );
+      const history = MetricsVisualizer.mergePnlHistory(baseline, challenger);
 
       expect(history).toHaveLength(4); // Should match longest
       // Tick 0
@@ -116,7 +113,7 @@ describe('Head-to-Head Benchmark Infrastructure', () => {
       const baseline = createMockResult('baseline', 100, [10, 100]);
       const challenger = createMockResult('challenger', 200, [20, 200]);
 
-      const chart = (MetricsVisualizer as any).generateAsciiComparison(
+      const chart = MetricsVisualizer.generateAsciiComparison(
         baseline,
         challenger
       );

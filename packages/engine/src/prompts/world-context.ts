@@ -85,6 +85,9 @@ export interface WorldContext {
 
   // Dynamic world facts
   worldFacts: string;
+
+  // Rich game context (optional, used in causal simulation)
+  richGameContext?: string;
 }
 
 /**

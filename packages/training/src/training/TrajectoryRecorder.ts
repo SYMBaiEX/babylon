@@ -310,50 +310,45 @@ export class TrajectoryRecorder {
       return;
     }
 
-    try {
-      await db.insert(trajectories).values(trajectoryData);
+    await db.insert(trajectories).values(trajectoryData);
 
-      // Save LLM calls to DB
-      for (const step of traj.steps) {
-        for (const llmCall of step.llmCalls) {
-          await db.insert(llmCallLogs).values({
-            id: await generateSnowflakeId(),
-            trajectoryId,
-            stepId: `${trajectoryId}-step-${step.stepNumber}`,
-            callId: `${trajectoryId}-call-${
-              step.stepNumber
-            }-${step.llmCalls.indexOf(llmCall)}`,
-            timestamp: new Date(step.timestamp),
-            latencyMs: llmCall.latencyMs,
-            model: llmCall.model,
-            purpose: llmCall.purpose,
-            actionType: llmCall.actionType,
-            systemPrompt: llmCall.systemPrompt,
-            userPrompt: llmCall.userPrompt,
-            messagesJson: JSON.stringify([
-              { role: 'system', content: llmCall.systemPrompt },
-              { role: 'user', content: llmCall.userPrompt },
-            ]),
-            response: llmCall.response,
-            reasoning: llmCall.reasoning,
-            temperature: llmCall.temperature,
-            maxTokens: llmCall.maxTokens,
-            metadata: JSON.stringify({ modelVersion: llmCall.modelVersion }),
-          });
-        }
+    // Save LLM calls to DB
+    for (const step of traj.steps) {
+      for (const llmCall of step.llmCalls) {
+        await db.insert(llmCallLogs).values({
+          id: await generateSnowflakeId(),
+          trajectoryId,
+          stepId: `${trajectoryId}-step-${step.stepNumber}`,
+          callId: `${trajectoryId}-call-${
+            step.stepNumber
+          }-${step.llmCalls.indexOf(llmCall)}`,
+          timestamp: new Date(step.timestamp),
+          latencyMs: llmCall.latencyMs,
+          model: llmCall.model,
+          purpose: llmCall.purpose,
+          actionType: llmCall.actionType,
+          systemPrompt: llmCall.systemPrompt,
+          userPrompt: llmCall.userPrompt,
+          messagesJson: JSON.stringify([
+            { role: 'system', content: llmCall.systemPrompt },
+            { role: 'user', content: llmCall.userPrompt },
+          ]),
+          response: llmCall.response,
+          reasoning: llmCall.reasoning,
+          temperature: llmCall.temperature,
+          maxTokens: llmCall.maxTokens,
+          metadata: JSON.stringify({ modelVersion: llmCall.modelVersion }),
+        });
       }
-
-      logger.info('Trajectory saved to database', {
-        trajectoryId,
-        archetype: traj.archetype,
-        steps: traj.steps.length,
-        reward: totalReward,
-        duration: durationMs,
-      });
-    } catch (error: any) {
-      logger.error('Failed to save trajectory to DB', { error: error.message });
-      throw error;
     }
+
+    logger.info('Trajectory saved to database', {
+      trajectoryId,
+      archetype: traj.archetype,
+      steps: traj.steps.length,
+      reward: totalReward,
+      duration: durationMs,
+    });
 
     this.activeTrajectories.delete(trajectoryId);
   }

@@ -169,8 +169,9 @@ export class MetricsVisualizer {
 
   /**
    * Generate ASCII Comparison Chart for Terminal
+   * Public for testing purposes
    */
-  private static generateAsciiComparison(
+  static generateAsciiComparison(
     baseline: SimulationResult,
     challenger: SimulationResult
   ): string {
@@ -228,8 +229,9 @@ FINAL | $${finalBase.padEnd(21)} | $${finalChal.padEnd(
 
   /**
    * Merge PnL histories from two runs into a single timeline
+   * Public for testing purposes
    */
-  private static mergePnlHistory(
+  static mergePnlHistory(
     baseline: SimulationResult,
     challenger: SimulationResult
   ): Array<{ tick: number; baseline: number; challenger: number }> {

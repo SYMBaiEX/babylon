@@ -102,7 +102,7 @@ export class TradeExecutionService {
 
     // Simulation Mode Bypass
     if (isSimulationMode()) {
-      const executedTrades = decisions
+      const executedTrades: ExecutedTrade[] = decisions
         .filter((d) => d.action !== 'hold')
         .map((d) => ({
           npcId: d.npcId,
@@ -130,7 +130,7 @@ export class TradeExecutionService {
         totalVolumePerp: 0,
         totalVolumePrediction: 0,
         errors: [],
-        executedTrades: executedTrades as any,
+        executedTrades,
       };
     }
 

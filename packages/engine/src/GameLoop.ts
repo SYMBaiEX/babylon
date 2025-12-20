@@ -4,7 +4,6 @@ import { logger } from '@babylon/shared';
 import { FEE_CONFIG } from './config/fees';
 import type { FeedGenerator } from './FeedGenerator';
 import type { GameWorld, WorldEvent } from './GameWorld';
-import type { MarketDecisionEngine } from './MarketDecisionEngine';
 // NewsArticlePacingEngine removed - was reserved but never integrated
 import type { RelationshipEvolutionEngine } from './RelationshipEvolutionEngine';
 import { StaticDataRegistry } from './services/static-data-registry';
@@ -12,7 +11,18 @@ import { TradeExecutionService } from './services/trade-execution-service';
 import { WalletService } from './services/wallet-service';
 import { isSimulationMode } from './storage-bridge';
 import type { TrendingTopicsEngine } from './TrendingTopicsEngine';
+import type { TradingDecision } from './types/market-decisions';
 import type { Actor, ActorTier, FeedPost } from './types/shared';
+
+/**
+ * Interface for market decision engines used by GameLoop.
+ * Both MarketDecisionEngine and TrajectoryMarketEngine implement this.
+ */
+export interface MarketDecisionEnginePort {
+  generateBatchDecisions(options?: {
+    priceOverrides?: Map<string, number>;
+  }): Promise<TradingDecision[]>;
+}
 
 /**
  * Result of a single simulation tick execution.
@@ -52,7 +62,7 @@ export class GameLoop {
   constructor(
     private world: GameWorld,
     private feed: FeedGenerator,
-    private marketDecisions: MarketDecisionEngine,
+    private marketDecisions: MarketDecisionEnginePort,
     private relationships: RelationshipEvolutionEngine
   ) {}
 

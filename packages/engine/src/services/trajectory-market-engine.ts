@@ -54,7 +54,9 @@ export class TrajectoryMarketEngine {
   /**
    * Generate batch decisions with optional trajectory recording
    */
-  async generateBatchDecisions(): Promise<TradingDecision[]> {
+  async generateBatchDecisions(options?: {
+    priceOverrides?: Map<string, number>;
+  }): Promise<TradingDecision[]> {
     // Check if we should record this batch (sampling)
     const shouldRecord = this.enabled && Math.random() < this.samplingRate;
 
@@ -63,7 +65,7 @@ export class TrajectoryMarketEngine {
     }
 
     // Generate decisions using underlying engine
-    const decisions = await this.engine.generateBatchDecisions();
+    const decisions = await this.engine.generateBatchDecisions(options);
 
     // Record each decision if recording is active
     if (this.trajectoryId && this.recorder) {

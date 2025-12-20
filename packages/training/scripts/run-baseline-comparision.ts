@@ -53,10 +53,10 @@ async function main() {
   try {
     initializeJsonMode(dbPath);
     logger.info(`Initialized JSON DB at ${dbPath}`);
-  } catch (e: any) {
+  } catch (e) {
     logger.warn(
       'Could not initialize JSON DB mode. Trajectory recording might fail if no Postgres connection.',
-      e
+      { error: e instanceof Error ? e.message : String(e) }
     );
   }
 
