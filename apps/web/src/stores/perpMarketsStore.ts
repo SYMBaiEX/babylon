@@ -21,29 +21,11 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { create } from 'zustand';
 import { useShallow } from 'zustand/react/shallow';
+import type { PerpMarket } from '@/types/markets';
+import { MARKETS_CONFIG } from '@/types/markets';
 
-/**
- * Perp market data structure from API
- */
-export interface PerpMarket {
-  ticker: string;
-  organizationId: string;
-  name: string;
-  currentPrice: number;
-  change24h: number;
-  changePercent24h: number;
-  high24h: number;
-  low24h: number;
-  volume24h: number;
-  openInterest: number;
-  fundingRate: {
-    rate: number;
-    nextFundingTime: string;
-    predictedRate: number;
-  };
-  maxLeverage: number;
-  minOrderSize: number;
-}
+// Re-export for backwards compatibility
+export type { PerpMarket } from '@/types/markets';
 
 interface PerpMarketsState {
   // Data
@@ -62,8 +44,8 @@ interface PerpMarketsState {
   subscribe: (intervalMs: number) => () => void;
 }
 
-// Cache TTL in milliseconds (10 seconds)
-const CACHE_TTL = 10000;
+// Use centralized cache TTL
+const CACHE_TTL = MARKETS_CONFIG.CACHE_TTL_MS;
 
 export const usePerpMarketsStore = create<PerpMarketsState>((set, get) => ({
   markets: [],
