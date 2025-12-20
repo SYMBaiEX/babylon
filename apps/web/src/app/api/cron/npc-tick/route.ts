@@ -163,8 +163,14 @@ export async function POST(_req: NextRequest) {
   }
 
   // Rotate through NPCs using modulo-based iteration for robust wrap-around
-  const tickNumber = Math.floor(Date.now() / 60000);
-  const startIndex = (tickNumber * NPCS_PER_TICK) % allNpcs.length;
+  // Include seconds-based entropy to prevent same-minute race conditions
+  // If two jobs fire within the same minute but at different seconds, they'll process different batches
+  const now = Date.now();
+  const tickNumber = Math.floor(now / 60000);
+  const secondsOffset = Math.floor((now % 60000) / 1000); // 0-59
+  const entropyOffset = Math.floor(secondsOffset / 10); // 0-5, adds batch-level diversity
+  const startIndex =
+    ((tickNumber * NPCS_PER_TICK + entropyOffset) % allNpcs.length);
   const npcsThisTick: typeof allNpcs = [];
 
   // Use modulo to handle wrap-around correctly regardless of array size

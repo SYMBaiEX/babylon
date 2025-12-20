@@ -142,7 +142,11 @@ Remember: You are ${npcActor.name}. Post in YOUR voice, not as a reporter.
 
     const phase = getPhaseForDay(currentDay, arcPlan);
 
-    // Default outcome to true for intuition generation
+    // Note: DatabaseArcPlan doesn't include the predetermined outcome (it's on the questions table).
+    // The outcome would need to be fetched separately via a join or additional query.
+    // For now, default to true - this matches the pattern in event-generation-helpers.ts
+    // which uses `question.outcome ?? true`. This means insiders point to YES by default.
+    // TODO: Fetch actual outcome from questions table if precise signal direction is needed.
     const outcome = true;
 
     const signal = getSignalDirection(arcPlan, phase, agentId, outcome);

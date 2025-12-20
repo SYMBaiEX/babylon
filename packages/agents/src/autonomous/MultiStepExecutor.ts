@@ -138,7 +138,22 @@ export class MultiStepExecutor {
     }
 
     // Get NPC game context ONCE before loop (arc awareness, world events)
-    const npcGameContext = isNpc ? await getNpcGameContext(agentUserId) : '';
+    // Graceful degradation: if context fetch fails, continue without it
+    let npcGameContext = '';
+    if (isNpc) {
+      try {
+        npcGameContext = await getNpcGameContext(agentUserId);
+      } catch (error) {
+        logger.warn(
+          'Failed to get NPC game context, continuing without it',
+          {
+            agentUserId,
+            error: error instanceof Error ? error.message : String(error),
+          },
+          'MultiStepExecutor'
+        );
+      }
+    }
 
     // Main iteration loop
     for (let iteration = 1; iteration <= this.maxIterations; iteration++) {
