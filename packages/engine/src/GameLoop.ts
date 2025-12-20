@@ -4,14 +4,25 @@ import { logger } from '@babylon/shared';
 import { FEE_CONFIG } from './config/fees';
 import type { FeedGenerator } from './FeedGenerator';
 import type { GameWorld, WorldEvent } from './GameWorld';
-import type { MarketDecisionEngine } from './MarketDecisionEngine';
 // NewsArticlePacingEngine removed - was reserved but never integrated
 import type { RelationshipEvolutionEngine } from './RelationshipEvolutionEngine';
 import { StaticDataRegistry } from './services/static-data-registry';
 import { TradeExecutionService } from './services/trade-execution-service';
 import { WalletService } from './services/wallet-service';
+import { isSimulationMode } from './storage-bridge';
 import type { TrendingTopicsEngine } from './TrendingTopicsEngine';
+import type { TradingDecision } from './types/market-decisions';
 import type { Actor, ActorTier, FeedPost } from './types/shared';
+
+/**
+ * Interface for market decision engines used by GameLoop.
+ * Both MarketDecisionEngine and TrajectoryMarketEngine implement this.
+ */
+export interface MarketDecisionEnginePort {
+  generateBatchDecisions(options?: {
+    priceOverrides?: Map<string, number>;
+  }): Promise<TradingDecision[]>;
+}
 
 /**
  * Result of a single simulation tick execution.
@@ -51,7 +62,7 @@ export class GameLoop {
   constructor(
     private world: GameWorld,
     private feed: FeedGenerator,
-    private marketDecisions: MarketDecisionEngine,
+    private marketDecisions: MarketDecisionEnginePort,
     private relationships: RelationshipEvolutionEngine
   ) {}
 
@@ -71,12 +82,19 @@ export class GameLoop {
    * @param day - Current day number (1-30)
    * @param hour - Current hour (0-23)
    * @param marketOnly - If true, only runs market logic (for fast-forwarding)
+   * @param options - Optional causal simulation overrides
+   * @param options.priceOverrides - Map of ticker -> price
+   * @param options.causalContext - Causal event context for hidden fact-driven events
    */
   async tick(
     gameId: string,
     day: number,
     hour: number,
-    marketOnly = false
+    marketOnly = false,
+    options?: {
+      priceOverrides?: Map<string, number>;
+      causalContext?: import('./GameWorld').CausalEventContext;
+    }
   ): Promise<SimulationTickResult> {
     logger.info(
       `Processing Tick: Day ${day}, Hour ${hour}`,
@@ -91,7 +109,10 @@ export class GameLoop {
     // 2. Market Decisions (Financial Layer)
     // Generate trading activity based on current state
     // This drives price action which then feeds into narrative
-    const decisions = await this.marketDecisions.generateBatchDecisions();
+    // Pass priceOverrides for causal simulation mode
+    const decisions = await this.marketDecisions.generateBatchDecisions({
+      priceOverrides: options?.priceOverrides,
+    });
     let tradeCount = 0;
 
     if (decisions.length > 0) {
@@ -112,7 +133,9 @@ export class GameLoop {
         );
       } catch (e) {
         logger.warn(
-          `Trade execution batch failed: ${e instanceof Error ? e.message : String(e)}`,
+          `Trade execution batch failed: ${
+            e instanceof Error ? e.message : String(e)
+          }`,
           undefined,
           'GameLoop'
         );
@@ -160,7 +183,60 @@ export class GameLoop {
         minFeeAmount: FEE_CONFIG.MIN_FEE_AMOUNT,
       },
     });
-    const marketState = await perpService.getMarketsSnapshot();
+
+    let marketState;
+    // Simulation Mode Bypass
+    if (isSimulationMode()) {
+      // Default prices - can be overridden by causal simulation
+      const defaultPrices: Record<string, number> = {
+        BTCAI: 120000,
+        ETHAI: 4000,
+        SOLAI: 200,
+        TSLAI: 450,
+        METAI: 520,
+      };
+
+      // Use priceOverrides if provided (from causal simulation)
+      const priceOverrides = options?.priceOverrides;
+      const getPrice = (ticker: string): number => {
+        if (priceOverrides && priceOverrides.has(ticker)) {
+          return priceOverrides.get(ticker)!;
+        }
+        return defaultPrices[ticker] ?? 100;
+      };
+
+      // Build market state for all known tickers
+      const tickers: string[] = priceOverrides
+        ? Array.from(priceOverrides.keys())
+        : Object.keys(defaultPrices);
+
+      marketState = tickers.map((ticker: string) => {
+        const price = getPrice(ticker);
+        return {
+          ticker,
+          organizationId: ticker.toLowerCase(),
+          name: ticker,
+          currentPrice: price,
+          change24h: 0,
+          changePercent24h: 0,
+          high24h: price * 1.01,
+          low24h: price * 0.99,
+          volume24h: 1000000,
+          openInterest: 500000,
+          fundingRate: {
+            rate: 0.001,
+            nextFundingTime: new Date().toISOString(),
+            predictedRate: 0.001,
+          },
+          maxLeverage: 20,
+          minOrderSize: 10,
+          markPrice: price,
+          indexPrice: price,
+        };
+      });
+    } else {
+      marketState = await perpService.getMarketsSnapshot();
+    }
 
     // Calculate significant moves for narrative context
     const significantMoves = marketState
@@ -169,13 +245,18 @@ export class GameLoop {
 
     let worldEvents: WorldEvent[] = [];
     try {
-      worldEvents = await this.world.generateTickEvents(day, hour, {
-        markets: marketState,
-        significantMoves,
-      });
+      // Pass causalContext for hidden fact-driven events (causal simulation mode)
+      worldEvents = await this.world.generateTickEvents(
+        day,
+        hour,
+        { markets: marketState, significantMoves },
+        options?.causalContext
+      );
     } catch (e) {
       logger.warn(
-        `Failed to generate world events: ${e instanceof Error ? e.message : String(e)}`,
+        `Failed to generate world events: ${
+          e instanceof Error ? e.message : String(e)
+        }`,
         { day, hour },
         'GameLoop'
       );
@@ -245,7 +326,9 @@ export class GameLoop {
         await this.relationships.analyzeAndUpdateRelationships();
       } catch (e) {
         logger.warn(
-          `Failed to analyze relationships: ${e instanceof Error ? e.message : String(e)}`,
+          `Failed to analyze relationships: ${
+            e instanceof Error ? e.message : String(e)
+          }`,
           undefined,
           'GameLoop'
         );

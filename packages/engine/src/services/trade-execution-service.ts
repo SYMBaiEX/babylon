@@ -28,8 +28,10 @@ import {
 } from '@babylon/db';
 import { generateSnowflakeId, logger } from '@babylon/shared';
 import { FEE_CONFIG } from '../config/fees';
+import { isSimulationMode } from '../storage-bridge';
 import type {
   ExecutedTrade,
+  MarketAction,
   TradingDecision,
   TradingExecutionResult,
 } from '../types/market-decisions';
@@ -98,6 +100,40 @@ export class TradeExecutionService {
     decisions: TradingDecision[]
   ): Promise<TradingExecutionResult> {
     const startTime = Date.now();
+
+    // Simulation Mode Bypass
+    if (isSimulationMode()) {
+      const executedTrades: ExecutedTrade[] = decisions
+        .filter((d) => d.action !== 'hold')
+        .map((d) => ({
+          npcId: d.npcId,
+          npcName: d.npcName,
+          poolId: 'sim-pool',
+          marketType: d.marketType || 'perp',
+          ticker: d.ticker,
+          marketId: d.marketId,
+          action: d.action,
+          side: this.deriveSideFromAction(d.action),
+          amount: d.amount,
+          size: d.amount,
+          executionPrice: 100, // dummy price
+          confidence: d.confidence,
+          reasoning: d.reasoning,
+          positionId: 'sim-pos-' + Date.now(),
+          timestamp: new Date().toISOString(),
+        }));
+
+      return {
+        totalDecisions: decisions.length,
+        successfulTrades: executedTrades.length,
+        failedTrades: 0,
+        holdDecisions: decisions.length - executedTrades.length,
+        totalVolumePerp: 0,
+        totalVolumePrediction: 0,
+        errors: [],
+        executedTrades,
+      };
+    }
 
     const result: TradingExecutionResult = {
       totalDecisions: decisions.length,
@@ -241,6 +277,26 @@ export class TradeExecutionService {
     throw new Error(`Unknown action: ${decision.action}`);
   }
 
+  /**
+   * Derive the trade side from the action type
+   */
+  private deriveSideFromAction(action: MarketAction): string {
+    switch (action) {
+      case 'open_long':
+        return 'LONG';
+      case 'open_short':
+        return 'SHORT';
+      case 'buy_yes':
+        return 'YES';
+      case 'buy_no':
+        return 'NO';
+      case 'close_position':
+        return 'CLOSE';
+      default:
+        return 'UNKNOWN';
+    }
+  }
+
   private createPredictionBroadcast() {
     return {
       emit: async (_channel: string, payload: Record<string, unknown>) => {
@@ -269,7 +325,6 @@ export class TradeExecutionService {
 
     // Try multiple lookup strategies to handle LLM-generated ticker variations
     const tickerLower = decision.ticker.toLowerCase();
-    const normalizedTicker = tickerLower.replace(/[^a-z0-9]/g, '');
 
     // Use StaticDataRegistry for organization lookup (organizations aren't in DB)
     const allOrgs = StaticDataRegistry.getAllOrganizations();
@@ -293,6 +348,7 @@ export class TradeExecutionService {
 
     // Strategy 4: Normalized name/ticker match
     if (!staticOrg) {
+      const normalizedTicker = tickerLower.replace(/[^a-z0-9]/g, '');
       staticOrg = allOrgs.find((o) => {
         const normalizedName = o.name.toLowerCase().replace(/[^a-z0-9]/g, '');
         const normalizedOrgTicker = (o.ticker || '')
@@ -664,7 +720,7 @@ export class TradeExecutionService {
     let currentPrice = position.currentPrice;
 
     if (position.marketType === 'perp' && position.ticker) {
-      // Find org in static registry
+      // Find org in static registry for simulation mode compatibility
       const tickerLower = position.ticker.toLowerCase();
       const staticOrg = StaticDataRegistry.getAllOrganizations().find(
         (o) =>

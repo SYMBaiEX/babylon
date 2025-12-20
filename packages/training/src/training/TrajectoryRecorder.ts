@@ -28,6 +28,10 @@ export type {
   Action,
 };
 
+import { isSimulationMode } from '@babylon/db'; // keep this at db not engine to avoid circular dep
+import * as fs from 'fs';
+import * as path from 'path';
+
 /**
  * Active trajectory being recorded.
  */
@@ -232,8 +236,8 @@ export class TrajectoryRecorder {
     const errorCount = traj.steps.filter((s) => !s.action.success).length;
     const finalStatus = errorCount > 0 ? 'completed_with_errors' : 'completed';
 
-    // Save trajectory
-    await db.insert(trajectories).values({
+    // 1. Prepare the standard data object (Used for both JSON and DB)
+    const trajectoryData = {
       id: await generateSnowflakeId(),
       trajectoryId,
       agentId: traj.agentId,
@@ -273,16 +277,51 @@ export class TrajectoryRecorder {
       isEvaluation: false,
       usedInTraining: false,
       updatedAt: new Date(),
-    });
+    };
 
-    // Save LLM calls
+    // Simulation Mode Bypass
+    if (isSimulationMode()) {
+      const outputDir = './training-data-output/trajectories';
+      if (!fs.existsSync(outputDir)) {
+        fs.mkdirSync(outputDir, { recursive: true });
+      }
+
+      const fullData = {
+        trajectory: trajectoryData,
+        llmCalls: traj.steps.flatMap((step) =>
+          step.llmCalls.map((call, idx) => ({
+            stepNumber: step.stepNumber,
+            callIndex: idx,
+            ...call,
+          }))
+        ),
+      };
+
+      const filePath = path.join(outputDir, `${trajectoryId}.json`);
+      fs.writeFileSync(filePath, JSON.stringify(fullData, null, 2));
+
+      logger.info(
+        'Saved trajectory to JSON (Simulation Mode)',
+        { trajectoryId, path: filePath },
+        'TrajectoryRecorder'
+      );
+
+      this.activeTrajectories.delete(trajectoryId);
+      return;
+    }
+
+    await db.insert(trajectories).values(trajectoryData);
+
+    // Save LLM calls to DB
     for (const step of traj.steps) {
       for (const llmCall of step.llmCalls) {
         await db.insert(llmCallLogs).values({
           id: await generateSnowflakeId(),
           trajectoryId,
           stepId: `${trajectoryId}-step-${step.stepNumber}`,
-          callId: `${trajectoryId}-call-${step.stepNumber}-${step.llmCalls.indexOf(llmCall)}`,
+          callId: `${trajectoryId}-call-${
+            step.stepNumber
+          }-${step.llmCalls.indexOf(llmCall)}`,
           timestamp: new Date(step.timestamp),
           latencyMs: llmCall.latencyMs,
           model: llmCall.model,
@@ -303,8 +342,6 @@ export class TrajectoryRecorder {
       }
     }
 
-    this.activeTrajectories.delete(trajectoryId);
-
     logger.info('Trajectory saved to database', {
       trajectoryId,
       archetype: traj.archetype,
@@ -312,6 +349,8 @@ export class TrajectoryRecorder {
       reward: totalReward,
       duration: durationMs,
     });
+
+    this.activeTrajectories.delete(trajectoryId);
   }
 
   /**

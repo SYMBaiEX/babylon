@@ -4,7 +4,7 @@
  * Coordinates the complete benchmarking process:
  * 1. Load or generate benchmark data
  * 2. Initialize simulation engine
- * 3. Run agent through simulation
+ * 3. Run agent through simulation (Autonomous or Forced Strategy)
  * 4. Collect metrics and trajectory data
  * 5. Save results
  *
@@ -21,6 +21,7 @@ import {
   type BenchmarkConfig,
   BenchmarkDataGenerator,
   type BenchmarkGameSnapshot,
+  SeededRandom,
 } from './BenchmarkDataGenerator';
 import { SimulationA2AInterface } from './SimulationA2AInterface';
 import {
@@ -50,6 +51,9 @@ export interface BenchmarkRunConfig {
 
   /** Force specific model (bypasses W&B lookup) - for baseline testing */
   forceModel?: string;
+
+  /** Force a baseline strategy (overrides agent behavior) */
+  forceStrategy?: 'random' | 'momentum';
 }
 
 export interface BenchmarkComparisonResult {
@@ -105,6 +109,7 @@ export class BenchmarkRunner {
     logger.info('Starting benchmark run', {
       agentUserId: config.agentUserId,
       benchmarkPath: config.benchmarkPath,
+      strategy: config.forceStrategy || 'agent-driven',
     });
 
     // 1. Load or generate benchmark
@@ -125,11 +130,13 @@ export class BenchmarkRunner {
     // 3. Set up A2A interface for agent
     const a2aInterface = new SimulationA2AInterface(engine, config.agentUserId);
 
-    // Inject A2A interface into agent runtime
-    interface RuntimeWithA2A extends IAgentRuntime {
-      a2aClient?: SimulationA2AInterface;
+    // Inject A2A interface into agent runtime (if using real agent and not forcing strategy)
+    if (!config.forceStrategy) {
+      interface RuntimeWithA2A extends IAgentRuntime {
+        a2aClient?: SimulationA2AInterface;
+      }
+      (config.agentRuntime as RuntimeWithA2A).a2aClient = a2aInterface;
     }
-    (config.agentRuntime as RuntimeWithA2A).a2aClient = a2aInterface;
 
     // Force model if specified (for baseline testing)
     if (config.forceModel) {
@@ -138,23 +145,21 @@ export class BenchmarkRunner {
         forcedModel: config.forceModel,
       });
 
-      // Set model in runtime settings to bypass W&B lookup
-      const runtime = config.agentRuntime as RuntimeWithA2A & {
+      // Set model in runtime settings
+      const runtime = config.agentRuntime as IAgentRuntime & {
         character?: { settings?: Record<string, string> };
         getSetting?: (key: string) => string | undefined;
         setSetting?: (key: string, value: string) => void;
       };
 
-      // Force Groq model configuration
       if (runtime.character?.settings) {
-        runtime.character.settings.LARGE_GROQ_MODEL = config.forceModel;
-        runtime.character.settings.SMALL_GROQ_MODEL = config.forceModel;
+        runtime.character.settings.GROQ_LARGE_MODEL = config.forceModel;
+        runtime.character.settings.GROQ_SMALL_MODEL = config.forceModel;
       }
 
-      // Also set via setSetting if available
       if (runtime.setSetting) {
-        runtime.setSetting('LARGE_GROQ_MODEL', config.forceModel);
-        runtime.setSetting('SMALL_GROQ_MODEL', config.forceModel);
+        runtime.setSetting('GROQ_LARGE_MODEL', config.forceModel);
+        runtime.setSetting('GROQ_SMALL_MODEL', config.forceModel);
       }
     }
 
@@ -180,11 +185,24 @@ export class BenchmarkRunner {
       totalTicks: snapshot.ticks.length,
     });
 
-    // Get AutonomousCoordinator for running agent ticks
-    const coordinator = getAutonomousCoordinator();
+    // Only get coordinator if we are using an autonomous agent (not forced strategy)
+    // This prevents errors when running baseline tests without full dependency injection
+    const coordinator = !config.forceStrategy
+      ? getAutonomousCoordinator()
+      : undefined;
 
-    // Run autonomous ticks for each simulation tick
+    // Create seeded RNG for baseline strategies (reproducibility)
+    // Use snapshot ID hash as seed for deterministic behavior across runs
+    const baselineSeed = config.forceStrategy
+      ? snapshot.id.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0)
+      : 0;
+    const baselineRng = config.forceStrategy
+      ? new SeededRandom(baselineSeed)
+      : undefined;
+
     let ticksCompleted = 0;
+
+    // Run ticks for each simulation tick
     while (!engine.isComplete()) {
       const currentTick = engine.getCurrentTickNumber();
 
@@ -197,27 +215,42 @@ export class BenchmarkRunner {
         );
       }
 
-      // Execute autonomous tick (agent makes decisions via A2A)
-      // Fail fast - don't catch errors, let them propagate
-      const tickResult = await coordinator.executeAutonomousTick(
-        config.agentUserId,
-        config.agentRuntime
-      );
+      if (config.forceStrategy && baselineRng) {
+        // Execute baseline strategy directly on engine (bypassing LLM)
+        await this.executeBaselineStrategy(
+          config.forceStrategy,
+          engine,
+          baselineRng
+        );
+      } else {
+        if (!coordinator) {
+          throw new Error(
+            'AutonomousCoordinator required for agent-driven benchmark but not configured.'
+          );
+        }
 
-      if (tickResult.success && tickResult.actionsExecuted) {
-        const totalActions =
-          tickResult.actionsExecuted.trades +
-          tickResult.actionsExecuted.posts +
-          tickResult.actionsExecuted.comments +
-          tickResult.actionsExecuted.messages +
-          tickResult.actionsExecuted.groupMessages +
-          tickResult.actionsExecuted.engagements;
+        // Execute autonomous tick (agent makes decisions via A2A)
+        // Fail fast - don't catch errors, let them propagate
+        const tickResult = await coordinator.executeAutonomousTick(
+          config.agentUserId,
+          config.agentRuntime
+        );
 
-        if (totalActions > 0) {
-          logger.debug('Agent took actions', {
-            tick: currentTick,
-            actions: tickResult.actionsExecuted,
-          });
+        if (tickResult.success && tickResult.actionsExecuted) {
+          const totalActions =
+            tickResult.actionsExecuted.trades +
+            tickResult.actionsExecuted.posts +
+            tickResult.actionsExecuted.comments +
+            tickResult.actionsExecuted.messages +
+            tickResult.actionsExecuted.groupMessages +
+            tickResult.actionsExecuted.engagements;
+
+          if (totalActions > 0) {
+            logger.debug('Agent took actions', {
+              tick: currentTick,
+              actions: tickResult.actionsExecuted,
+            });
+          }
         }
       }
 
@@ -225,8 +258,8 @@ export class BenchmarkRunner {
       engine.advanceTick();
       ticksCompleted++;
 
-      // Small delay to avoid overwhelming the system (can be made faster)
-      await new Promise((resolve) => setTimeout(resolve, 10));
+      // Small delay to avoid overwhelming the system
+      await new Promise((resolve) => setTimeout(resolve, 5));
     }
 
     logger.info('Simulation loop complete', {
@@ -252,10 +285,9 @@ export class BenchmarkRunner {
 
     // 9. Save trajectory if enabled
     if (trajectoryRecorder && trajectoryId) {
-      // Fail fast - trajectory recording errors should crash
       await trajectoryRecorder.endTrajectory(trajectoryId, {
         finalPnL: result.metrics.totalPnl,
-        finalBalance: undefined,
+        finalBalance: undefined, // Let recorder calculate from state
       });
       logger.info('Trajectory recording saved', { trajectoryId });
     }
@@ -271,6 +303,89 @@ export class BenchmarkRunner {
     });
 
     return result;
+  }
+
+  /**
+   * Execute baseline strategy logic (Random or Momentum)
+   * This runs directly against the engine, bypassing the LLM agent.
+   * Uses seeded RNG for reproducibility across benchmark runs.
+   */
+  private static async executeBaselineStrategy(
+    strategy: 'random' | 'momentum',
+    engine: SimulationEngine,
+    rng: SeededRandom
+  ): Promise<void> {
+    const state = engine.getGameState();
+
+    // Rate limiting: Only trade in ~10% of ticks to simulate realistic frequency
+    if (rng.next() > 0.1) return;
+
+    if (strategy === 'random') {
+      // Random strategy: Buy prediction shares or open perps randomly
+      const actionType = rng.next() > 0.5 ? 'prediction' : 'perp';
+
+      if (actionType === 'prediction' && state.predictionMarkets.length > 0) {
+        const marketIndex = Math.floor(
+          rng.next() * state.predictionMarkets.length
+        );
+        const market = state.predictionMarkets[marketIndex];
+
+        if (market) {
+          const outcome = rng.next() > 0.5 ? 'YES' : 'NO';
+          // Random amount between 10 and 100
+          const amount = 10 + rng.next() * 90;
+
+          await engine.performAction('buy_prediction', {
+            marketId: market.id,
+            outcome,
+            amount,
+          });
+        }
+      } else if (state.perpetualMarkets.length > 0) {
+        const perpIndex = Math.floor(
+          rng.next() * state.perpetualMarkets.length
+        );
+        const perp = state.perpetualMarkets[perpIndex];
+
+        if (perp) {
+          const side = rng.next() > 0.5 ? 'LONG' : 'SHORT';
+          await engine.performAction('open_perp', {
+            ticker: perp.ticker,
+            side,
+            size: 10,
+            leverage: 1,
+          });
+        }
+      }
+    } else if (strategy === 'momentum') {
+      // Momentum strategy: Follow price trends
+      if (state.perpetualMarkets.length > 0) {
+        const perpIndex = Math.floor(
+          rng.next() * state.perpetualMarkets.length
+        );
+        const perp = state.perpetualMarkets[perpIndex];
+
+        if (perp) {
+          // If price up > 0.5% in 24h, go LONG. If down > 0.5%, go SHORT.
+          // If relatively flat, do nothing (hold).
+          if (perp.priceChange24h > 0.5) {
+            await engine.performAction('open_perp', {
+              ticker: perp.ticker,
+              side: 'LONG',
+              size: 20,
+              leverage: 2,
+            });
+          } else if (perp.priceChange24h < -0.5) {
+            await engine.performAction('open_perp', {
+              ticker: perp.ticker,
+              side: 'SHORT',
+              size: 20,
+              leverage: 2,
+            });
+          }
+        }
+      }
+    }
   }
 
   /**
@@ -418,7 +533,7 @@ export class BenchmarkRunner {
       benchmark: benchmarkPath,
     });
 
-    // Run both agents on same benchmark
+    // Run both agents on same benchmark (concurrently)
     const [result1, result2] = await Promise.all([
       this.runSingle({ ...agent1Config, benchmarkPath }),
       this.runSingle({ ...agent2Config, benchmarkPath }),

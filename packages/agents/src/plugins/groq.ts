@@ -45,8 +45,8 @@ function getBaseURL(runtime: {
 function findModelName(model: ModelTypeName): TiktokenModel {
   const name =
     model === ModelType.TEXT_SMALL
-      ? (process.env.SMALL_GROQ_MODEL ?? 'llama-3.1-8b-instant')
-      : (process.env.LARGE_GROQ_MODEL ?? 'qwen/qwen3-32b');
+      ? (process.env.GROQ_SMALL_MODEL ?? 'llama-3.1-8b-instant')
+      : (process.env.GROQ_LARGE_MODEL ?? 'qwen/qwen3-32b');
   return name as TiktokenModel;
 }
 
@@ -181,8 +181,8 @@ export const groqPlugin: Plugin = {
   description: 'Groq plugin for Babylon agents',
   config: {
     GROQ_API_KEY: process.env.GROQ_API_KEY,
-    SMALL_GROQ_MODEL: process.env.SMALL_GROQ_MODEL || 'llama-3.1-8b-instant',
-    LARGE_GROQ_MODEL: process.env.LARGE_GROQ_MODEL || 'qwen/qwen3-32b',
+    GROQ_SMALL_MODEL: process.env.GROQ_SMALL_MODEL || 'llama-3.1-8b-instant',
+    GROQ_LARGE_MODEL: process.env.GROQ_LARGE_MODEL || 'qwen/qwen3-32b',
   },
   async init() {
     if (!process.env.GROQ_API_KEY) {

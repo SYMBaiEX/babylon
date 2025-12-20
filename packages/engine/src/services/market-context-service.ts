@@ -31,6 +31,7 @@ import {
   worldEvents,
 } from '@babylon/db';
 import { logger } from '@babylon/shared';
+import { isSimulationMode } from '../storage-bridge';
 import type {
   EventContext,
   FeedPostContext,
@@ -53,6 +54,9 @@ export class MarketContextService {
    * Optimized to minimize database queries by fetching shared data once
    * and reusing it across all NPCs. Filters out test actors.
    *
+   * @param options - Optional overrides for simulation mode
+   * @param options.priceOverrides - Map of ticker -> price for causal simulation
+   * @param options.recentEvents - Array of recent events (for causal simulation)
    * @returns Map of NPC ID to their market context
    *
    * @remarks
@@ -65,8 +69,110 @@ export class MarketContextService {
    * const npcContext = contexts.get('npc-123');
    * ```
    */
-  async buildContextForAllNPCs(): Promise<Map<string, NPCMarketContext>> {
+  async buildContextForAllNPCs(options?: {
+    priceOverrides?: Map<string, number>;
+    recentEvents?: EventContext[];
+  }): Promise<Map<string, NPCMarketContext>> {
     const startTime = Date.now();
+
+    // Simulation Mode Bypass
+    if (isSimulationMode()) {
+      const staticActors = StaticDataRegistry.getAllActors();
+
+      // Filter out test actors
+      const npcs = staticActors
+        .filter((actor) => !actor.name.includes('Group Test') && !actor.isTest)
+        .map((actor) => ({
+          id: actor.id,
+          name: actor.name,
+          description: actor.description,
+          domain: actor.domain,
+          personality: actor.personality,
+          tier: actor.tier,
+          affiliations: actor.affiliations,
+          postStyle: actor.postStyle,
+          postExample: actor.postExample,
+          tradingBalance: '100000', // Mock balance
+          reputationPoints: 10000,
+          hasPool: true,
+        }));
+
+      // In simulation mode, we skip DB queries for messages/relationships/positions
+      // and provide empty/mock data instead
+      const contexts = new Map<string, NPCMarketContext>();
+
+      // Default prices - can be overridden by causal simulation
+      const defaultPrices: Record<string, number> = {
+        BTCAI: 120000,
+        ETHAI: 4000,
+        SOLAI: 200,
+        TSLAI: 450,
+        METAI: 520,
+      };
+
+      // Helper to get price (override or default)
+      const getPrice = (ticker: string): number => {
+        if (options?.priceOverrides?.has(ticker)) {
+          return options.priceOverrides.get(ticker)!;
+        }
+        return defaultPrices[ticker] ?? 100;
+      };
+
+      // Build perp markets list based on available tickers
+      const tickers = options?.priceOverrides
+        ? Array.from(options.priceOverrides.keys())
+        : Object.keys(defaultPrices);
+
+      const perpMarkets: PerpMarketSnapshot[] = tickers.map((ticker) => {
+        const price = getPrice(ticker);
+        return {
+          ticker,
+          currentPrice: price,
+          change24h: 0,
+          changePercent24h: 0,
+          name: ticker,
+          organizationId: ticker.toLowerCase(),
+          high24h: price * 1.01,
+          low24h: price * 0.99,
+          volume24h: 1000000,
+          openInterest: 500000,
+        };
+      });
+
+      const predictionMarkets: PredictionMarketSnapshot[] = [
+        {
+          id: 'q1',
+          text: 'Will BitcAIn hit $150k?',
+          yesPrice: 65,
+          noPrice: 35,
+          totalVolume: 50000,
+          resolutionDate: new Date(Date.now() + 86400000).toISOString(),
+          daysUntilResolution: 2,
+        },
+      ];
+
+      // Use provided events or empty array
+      const recentEvents = options?.recentEvents ?? [];
+
+      for (const npc of npcs) {
+        contexts.set(npc.id, {
+          npcId: npc.id,
+          npcName: npc.name,
+          personality: npc.personality || 'neutral trader',
+          tier: npc.tier || 'B_TIER',
+          availableBalance: 100000,
+          relationships: [], // Empty for simulation
+          recentPosts: [], // Empty for simulation
+          groupChatMessages: [], // Empty for simulation
+          recentEvents, // Use provided events (from causal simulation)
+          perpMarkets,
+          predictionMarkets,
+          currentPositions: [], // Empty for simulation start
+        });
+      }
+
+      return contexts;
+    }
 
     // Fetch all NPCs from static registry and state table
     // Filter out test actors (Group Test Alice, Bob, Charlie)

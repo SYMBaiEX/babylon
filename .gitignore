@@ -60,6 +60,7 @@ dist/
 build/
 
 # Training data
+training-data-output/
 training_data/trajectories/
 training_data/datasets/
 training_recording/
@@ -73,3 +74,12 @@ debug/
 
 # Test output directory
 .output/
+
+# Training simulation output
+packages/engine/training-data-output
+packages/training/data/scored_trajectories.csv
+simulation-output/state.json
+packages/training/trained_models
+packages/training/benchmark-results
+packages/training/benchmarks
+packages/training/training-data-output
