@@ -14,7 +14,7 @@ export interface UserBalanceData {
 }
 
 /**
- * Prediction market position from /api/markets/positions/[userId]
+ * Base prediction market position from /api/markets/positions/[userId]
  */
 export interface PredictionPosition {
   id: string;
@@ -26,6 +26,19 @@ export interface PredictionPosition {
   currentPrice: number;
   resolved: boolean;
   resolution?: boolean | null;
+}
+
+/**
+ * Extended prediction position with PnL calculations for user portfolio views.
+ * Extends PredictionPosition with computed fields for display.
+ */
+export interface UserPredictionPosition extends PredictionPosition {
+  /** Current market value of the position (shares × currentPrice) */
+  currentValue: number;
+  /** Original cost of the position (shares × avgPrice) */
+  costBasis: number;
+  /** Unrealized profit/loss (currentValue - costBasis) */
+  unrealizedPnL: number;
 }
 
 /**
