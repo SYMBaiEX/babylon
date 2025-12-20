@@ -1,9 +1,5 @@
 import type { User } from '@/stores/authStore';
-
-/**
- * Market category type for category PnL share card.
- */
-type MarketCategory = 'perps' | 'predictions';
+import type { MarketCategory } from '@/types/markets';
 
 /**
  * Category PnL data structure for category PnL share card.

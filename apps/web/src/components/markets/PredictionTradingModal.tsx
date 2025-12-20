@@ -10,21 +10,7 @@ import { CheckCircle, Clock, X, XCircle } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
-
-/**
- * Represents a prediction market question.
- */
-interface PredictionMarket {
-  id: number | string;
-  text: string;
-  status: 'active' | 'resolved' | 'cancelled';
-  createdDate?: string;
-  resolutionDate?: string;
-  resolvedOutcome?: boolean;
-  scenario: number;
-  yesShares?: number;
-  noShares?: number;
-}
+import type { PredictionMarket } from '@/types/markets';
 
 /**
  * Props for the PredictionTradingModal component.
