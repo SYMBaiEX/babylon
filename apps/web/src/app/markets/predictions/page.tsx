@@ -1,6 +1,5 @@
 'use client';
 
-import type { UserPredictionPosition } from '@babylon/shared';
 import { cn, logger } from '@babylon/shared';
 import { ArrowUpDown, Clock, Flame, Search } from 'lucide-react';
 import { useRouter } from 'next/navigation';
@@ -26,17 +25,10 @@ import { useUserPositions } from '@/hooks/useUserPositions';
 import type {
   MarketTab,
   PredictionMarket,
+  PredictionMarketWithPosition,
   PredictionSort,
 } from '@/types/markets';
 import { MARKETS_CONFIG } from '@/types/markets';
-
-/**
- * Extended prediction market with user position data for predictions page.
- */
-interface PredictionMarketWithPosition extends PredictionMarket {
-  userPosition?: UserPredictionPosition | null;
-  userPositions?: UserPredictionPosition[];
-}
 
 export default function PredictionsPage() {
   const router = useRouter();

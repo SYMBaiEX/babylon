@@ -1,6 +1,5 @@
 'use client';
 
-import type { UserPredictionPosition } from '@babylon/shared';
 import { cn, logger } from '@babylon/shared';
 import {
   ArrowUpDown,
@@ -35,6 +34,7 @@ import type {
   MarketTab,
   PerpMarket,
   PredictionMarket,
+  PredictionMarketWithPosition,
   PredictionSort,
 } from '@/types/markets';
 
@@ -71,14 +71,6 @@ const MarketsWidgetSidebar = dynamic(
     })),
   { ssr: false }
 );
-
-/**
- * Extended prediction market with user position data for dashboard.
- */
-interface PredictionMarketWithPosition extends PredictionMarket {
-  userPosition?: UserPredictionPosition | null;
-  userPositions?: UserPredictionPosition[];
-}
 
 export default function MarketsPage() {
   const router = useRouter();

@@ -15,6 +15,9 @@
 // Re-exports from @babylon/shared
 // =============================================================================
 
+// Import types for internal use in this file
+import type { UserPredictionPosition as SharedUserPredictionPosition } from '@babylon/shared';
+
 export type {
   DailyPriceSnapshot,
   FundingRate,
@@ -27,6 +30,9 @@ export type {
   TradingStats,
   UserPredictionPosition,
 } from '@babylon/shared';
+
+// Local alias for internal use
+type UserPredictionPosition = SharedUserPredictionPosition;
 
 export {
   calculateFundingPayment,
@@ -84,17 +90,13 @@ export interface PredictionMarket {
 
 /**
  * Extended prediction market with user position data.
+ * Used in dashboard and list views where markets include user-specific position info.
  */
 export interface PredictionMarketWithPosition extends PredictionMarket {
-  userPosition?: {
-    side: 'YES' | 'NO';
-    shares: number;
-    avgPrice: number;
-    currentPrice: number;
-    pnl: number;
-    pnlPercent: number;
-    maxPayout: number;
-  };
+  /** Single user position (legacy format) */
+  userPosition?: UserPredictionPosition | null;
+  /** Array of user positions (current format) */
+  userPositions?: UserPredictionPosition[];
 }
 
 // =============================================================================
@@ -143,7 +145,9 @@ export type PerpSort = 'volume' | 'change' | 'name' | 'price';
  * Standard API error response structure.
  */
 export interface ApiErrorResponse {
-  error?: string | { message?: string; code?: string };
+  /** Error field - string message or object with required message */
+  error?: string | { message: string; code?: string };
+  /** Alternative message field used by some endpoints */
   message?: string;
 }
 
