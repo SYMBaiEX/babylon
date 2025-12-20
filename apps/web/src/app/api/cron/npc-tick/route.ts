@@ -21,12 +21,14 @@ import {
   releaseAgentLock,
 } from '@babylon/agents';
 import {
+  getCacheOrFetch,
   recordCronExecution,
   relayCronToStaging,
   verifyCronAuth,
 } from '@babylon/api';
 import { db } from '@babylon/db';
 import { StaticDataRegistry } from '@babylon/engine';
+import type { Game } from '@babylon/db';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
@@ -35,8 +37,17 @@ import { NextResponse } from 'next/server';
 export const maxDuration = 300; // 5 minutes max for NPC tick
 export const dynamic = 'force-dynamic';
 
-/** Number of NPCs to process per tick (rotates through all) */
-const NPCS_PER_TICK = 20;
+/**
+ * Number of NPCs to process per tick (rotates through all).
+ * Configurable via NPC_TICK_BATCH_SIZE environment variable.
+ */
+const NPCS_PER_TICK = Number(process.env.NPC_TICK_BATCH_SIZE) || 20;
+
+/**
+ * Maximum consecutive errors before aborting the tick (circuit breaker).
+ * Prevents cascading failures if there's a systemic issue.
+ */
+const MAX_CONSECUTIVE_ERRORS = Number(process.env.NPC_TICK_MAX_ERRORS) || 5;
 
 /**
  * GET /api/cron/npc-tick
@@ -99,10 +110,15 @@ export async function POST(_req: NextRequest) {
     });
   }
 
-  // Check Game status from database
-  const gameState = await db.game.findFirst({
-    where: { isContinuous: true },
-  });
+  // Check Game status from database (cached for 60s to reduce DB load)
+  const gameState = await getCacheOrFetch<Game | null>(
+    'continuous-game',
+    async () =>
+      db.game.findFirst({
+        where: { isContinuous: true },
+      }),
+    { namespace: 'npc-tick', ttl: 60 }
+  );
 
   if (!gameState) {
     logger.info('NPC tick skipped (No continuous game found)', {}, 'NPCTick');
@@ -146,15 +162,18 @@ export async function POST(_req: NextRequest) {
     });
   }
 
-  // Rotate through NPCs - use minute-based rotation for even distribution
+  // Rotate through NPCs using modulo-based iteration for robust wrap-around
   const tickNumber = Math.floor(Date.now() / 60000);
   const startIndex = (tickNumber * NPCS_PER_TICK) % allNpcs.length;
-  const npcsThisTick = allNpcs.slice(startIndex, startIndex + NPCS_PER_TICK);
+  const npcsThisTick: typeof allNpcs = [];
 
-  // Handle wrap-around if we're at the end
-  if (npcsThisTick.length < NPCS_PER_TICK && startIndex > 0) {
-    const remaining = NPCS_PER_TICK - npcsThisTick.length;
-    npcsThisTick.push(...allNpcs.slice(0, remaining));
+  // Use modulo to handle wrap-around correctly regardless of array size
+  const count = Math.min(NPCS_PER_TICK, allNpcs.length);
+  for (let i = 0; i < count; i++) {
+    const npc = allNpcs[(startIndex + i) % allNpcs.length];
+    if (npc) {
+      npcsThisTick.push(npc);
+    }
   }
 
   logger.info(
@@ -177,9 +196,21 @@ export async function POST(_req: NextRequest) {
   }> = [];
   let totalActionsExecuted = 0;
   let errors = 0;
+  let consecutiveErrors = 0;
   let skippedDueToLock = 0;
+  let abortedDueToCircuitBreaker = false;
 
   for (const npc of npcsThisTick) {
+    // Circuit breaker: abort if too many consecutive errors
+    if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
+      abortedDueToCircuitBreaker = true;
+      logger.error(
+        `Circuit breaker triggered after ${consecutiveErrors} consecutive errors`,
+        { processId, npcsRemaining: npcsThisTick.length - results.length },
+        'NPCTick'
+      );
+      break;
+    }
     const npcStartTime = Date.now();
 
     // Try to acquire lock for this NPC
@@ -232,6 +263,9 @@ export async function POST(_req: NextRequest) {
         actions: actionCount,
       });
 
+      // Reset consecutive error counter on success
+      consecutiveErrors = 0;
+
       logger.info(
         `NPC ${npc.name} tick completed`,
         {
@@ -243,11 +277,13 @@ export async function POST(_req: NextRequest) {
       );
     } catch (error) {
       errors++;
+      consecutiveErrors++;
       logger.error(
         `Error processing NPC ${npc.name}`,
         {
           npcId: npc.id,
           error: error instanceof Error ? error.message : String(error),
+          consecutiveErrors,
         },
         'NPCTick'
       );
@@ -280,20 +316,22 @@ export async function POST(_req: NextRequest) {
 
   // Record metrics
   recordCronExecution('npc-tick', new Date(startTime), {
-    success: true,
+    success: !abortedDueToCircuitBreaker,
     processed: results.length - skippedDueToLock,
     totalActions: totalActionsExecuted,
     errorCount: errors,
     skippedLocked: skippedDueToLock,
+    abortedDueToCircuitBreaker,
   });
 
   return NextResponse.json({
-    success: true,
+    success: !abortedDueToCircuitBreaker,
     processed: results.length - skippedDueToLock,
     skippedLocked: skippedDueToLock,
     duration,
     totalActions: totalActionsExecuted,
     errors,
+    abortedDueToCircuitBreaker,
     results,
   });
 }
