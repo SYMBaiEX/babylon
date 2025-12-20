@@ -170,7 +170,7 @@ export async function POST(_req: NextRequest) {
   const secondsOffset = Math.floor((now % 60000) / 1000); // 0-59
   const entropyOffset = Math.floor(secondsOffset / 10); // 0-5, adds batch-level diversity
   const startIndex =
-    ((tickNumber * NPCS_PER_TICK + entropyOffset) % allNpcs.length);
+    (tickNumber * NPCS_PER_TICK + entropyOffset) % allNpcs.length;
   const npcsThisTick: typeof allNpcs = [];
 
   // Use modulo to handle wrap-around correctly regardless of array size
