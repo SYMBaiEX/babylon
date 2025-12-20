@@ -153,13 +153,13 @@ export class BenchmarkRunner {
       };
 
       if (runtime.character?.settings) {
-        runtime.character.settings.LARGE_GROQ_MODEL = config.forceModel;
-        runtime.character.settings.SMALL_GROQ_MODEL = config.forceModel;
+        runtime.character.settings.GROQ_LARGE_MODEL = config.forceModel;
+        runtime.character.settings.GROQ_SMALL_MODEL = config.forceModel;
       }
 
       if (runtime.setSetting) {
-        runtime.setSetting('LARGE_GROQ_MODEL', config.forceModel);
-        runtime.setSetting('SMALL_GROQ_MODEL', config.forceModel);
+        runtime.setSetting('GROQ_LARGE_MODEL', config.forceModel);
+        runtime.setSetting('GROQ_SMALL_MODEL', config.forceModel);
       }
     }
 
