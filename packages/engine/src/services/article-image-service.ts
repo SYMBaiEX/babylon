@@ -90,6 +90,10 @@ export async function generateArticleImage(
     'ArticleImageService'
   );
 
+  // EXCEPTION TO FAIL-FAST RULE: External API boundary
+  // Image generation is non-critical - failures should not crash the game tick.
+  // This try-catch is intentional per PR #651 review to ensure best-effort behavior.
+  // fal.ai can fail for: network issues, rate limits, API changes, timeouts.
   let result: FalResponse;
   try {
     result = (await fal.subscribe('fal-ai/flux/schnell', {
@@ -102,9 +106,8 @@ export async function generateArticleImage(
       logs: false,
     })) as FalResponse;
   } catch (error) {
-    // Best-effort: log and continue without failing the tick
     logger.warn(
-      'fal.ai image generation failed',
+      'fal.ai image generation failed (non-critical, continuing)',
       {
         title: params.title,
         error: error instanceof Error ? error.message : String(error),
