@@ -36,6 +36,7 @@ import { logger } from '@babylon/shared';
 import type { BabylonLLMClient } from '../llm/openai-client';
 import type { EventContext, FeedPostContext } from '../types/market-context';
 import { stripHashtagsAndEmojis } from '../utils/shared-utils';
+import { generateArticleImageWithRetry } from './article-image-service';
 import { characterMappingService } from './character-mapping-service';
 import {
   getArcPlan,
@@ -44,7 +45,6 @@ import {
   getSignalDirection,
 } from './narrative-state-service';
 import { StaticDataRegistry } from './static-data-registry';
-import { generateArticleImageWithRetry } from './article-image-service';
 import type { GeneratedTag } from './tag-service';
 import { generateTagsFromPost, storeTagsForPost } from './tag-service';
 

@@ -5,9 +5,9 @@
  * Images are uploaded to storage and URLs are returned for database storage.
  */
 
+import { logger } from '@babylon/shared';
 import { fal } from '@fal-ai/client';
 import { articleCover, renderPrompt } from '../prompts';
-import { logger } from '@babylon/shared';
 
 interface FalImage {
   url: string;

@@ -57,7 +57,10 @@ import { generateWorldContext } from './prompts';
 import { QuestionManager } from './QuestionManager';
 import { RelationshipEvolutionEngine } from './RelationshipEvolutionEngine';
 import { AlphaGroupInviteService } from './services/alpha-group-invite-service';
-import { generateArticleImageWithRetry, initFalClient } from './services/article-image-service';
+import {
+  generateArticleImageWithRetry,
+  initFalClient,
+} from './services/article-image-service';
 import { characterMappingService } from './services/character-mapping-service';
 // Content generation helpers
 import { generateEvents } from './services/event-generation-helpers';
