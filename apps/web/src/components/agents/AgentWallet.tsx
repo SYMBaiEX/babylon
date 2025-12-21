@@ -312,11 +312,14 @@ export function AgentWallet({ agent, onUpdate }: AgentWalletProps) {
       <div className="rounded-lg border border-border bg-card/50 p-4 backdrop-blur sm:p-6">
         <div className="mb-4 flex items-center justify-between">
           <h3 className="font-semibold text-lg">
-            Transfer to {activeWallet === 'ops' ? 'Ops Budget' : 'Trading Balance'}
+            Transfer to{' '}
+            {activeWallet === 'ops' ? 'Ops Budget' : 'Trading Balance'}
           </h3>
           <div className="text-right text-sm">
             <span className="text-muted-foreground">Your Balance: </span>
-            <span className="font-medium">{tradingBalance.userBalance.toFixed(2)} pts</span>
+            <span className="font-medium">
+              {tradingBalance.userBalance.toFixed(2)} pts
+            </span>
           </div>
         </div>
 
@@ -438,7 +441,8 @@ export function AgentWallet({ agent, onUpdate }: AgentWalletProps) {
                       tx.amount > 0 ? 'text-green-600' : 'text-red-600'
                     )}
                   >
-                    {tx.amount > 0 ? '+' : ''}{Math.abs(tx.amount).toFixed(2)} pts
+                    {tx.amount > 0 ? '+' : ''}
+                    {Math.abs(tx.amount).toFixed(2)} pts
                   </div>
                   <div className="text-muted-foreground text-xs">
                     Balance: {tx.balanceAfter.toFixed(2)} pts

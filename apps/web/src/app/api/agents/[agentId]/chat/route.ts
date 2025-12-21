@@ -238,7 +238,7 @@ export const POST = withErrorHandling(
     const pointsCost = usePro ? 1 : 0;
     const modelType = usePro ? ModelType.TEXT_LARGE : ModelType.TEXT_SMALL;
     const modelUsed = usePro ? 'groq-70b' : 'groq-8b';
-    
+
     // Only deduct points for pro mode
     let newBalance = agentConfig?.pointsBalance ?? 0;
     if (pointsCost > 0) {

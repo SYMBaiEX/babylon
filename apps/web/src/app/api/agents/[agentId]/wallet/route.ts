@@ -143,7 +143,7 @@
 
 import { agentService, getAgentConfig } from '@babylon/agents';
 import { authenticateUser } from '@babylon/api';
-import { db, users, eq } from '@babylon/db';
+import { db, eq, users } from '@babylon/db';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';

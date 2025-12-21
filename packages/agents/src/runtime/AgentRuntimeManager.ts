@@ -208,8 +208,10 @@ export class AgentRuntimeManager {
       settings: {
         // GROQ configuration (always available)
         GROQ_API_KEY: process.env.GROQ_API_KEY || '',
-        GROQ_LARGE_MODEL: process.env.GROQ_LARGE_MODEL || 'llama-3.3-70b-versatile',
-        GROQ_SMALL_MODEL: process.env.GROQ_SMALL_MODEL || 'llama-3.1-8b-instant',
+        GROQ_LARGE_MODEL:
+          process.env.GROQ_LARGE_MODEL || 'llama-3.3-70b-versatile',
+        GROQ_SMALL_MODEL:
+          process.env.GROQ_SMALL_MODEL || 'llama-3.1-8b-instant',
         ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY || '',
       },
     };
