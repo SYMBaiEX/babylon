@@ -62,7 +62,9 @@ test.describe('Landing Page Blog Links', () => {
     await page.waitForTimeout(500);
 
     // Find the footer Resources section
-    const footerResourcesSection = page.locator('footer').locator('h3:has-text("Resources")');
+    const footerResourcesSection = page
+      .locator('footer')
+      .locator('h3:has-text("Resources")');
     await expect(footerResourcesSection.first()).toBeVisible({ timeout: 5000 });
 
     // Find blog link in footer
@@ -119,7 +121,9 @@ test.describe('Landing Page Blog Links', () => {
     page,
   }) => {
     // Check all blog links have proper accessibility
-    const blogLinks = page.locator('a:has-text("Blog"), a:has-text("Read Blog")');
+    const blogLinks = page.locator(
+      'a:has-text("Blog"), a:has-text("Read Blog")'
+    );
     const count = await blogLinks.count();
 
     // Should have at least 2 blog links (CTA card + footer)
@@ -128,7 +132,7 @@ test.describe('Landing Page Blog Links', () => {
     // Check each link is accessible
     for (let i = 0; i < count; i++) {
       const link = blogLinks.nth(i);
-      
+
       // Link should be focusable
       await link.focus();
       await expect(link).toBeFocused();
