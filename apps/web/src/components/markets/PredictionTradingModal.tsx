@@ -186,7 +186,14 @@ export function PredictionTradingModal({
         description: `${calculation?.sharesBought.toFixed(2)} shares at ${(calculation?.avgPrice ?? 0).toFixed(3)} each`,
       });
 
-      await refreshBalance();
+      // Fire-and-forget balance refresh - don't block modal close
+      refreshBalance().catch((err) => {
+        logger.warn(
+          'Failed to refresh balance after trade',
+          { error: err },
+          'PredictionTradingModal'
+        );
+      });
       onClose();
       onSuccess?.();
     } catch (err) {
@@ -283,6 +290,7 @@ export function PredictionTradingModal({
           {/* YES/NO Tabs */}
           <div className="mb-6 flex gap-3">
             <button
+              type="button"
               onClick={() => setSide('yes')}
               disabled={loading}
               className={cn(
@@ -297,6 +305,7 @@ export function PredictionTradingModal({
               BUY YES
             </button>
             <button
+              type="button"
               onClick={() => setSide('no')}
               disabled={loading}
               className={cn(
@@ -411,14 +420,21 @@ export function PredictionTradingModal({
 
           {/* Submit Button */}
           <button
+            type="button"
             onClick={handleSubmit}
-            disabled={loading || amountNum < 1 || showBalanceWarning || balanceLoading}
+            disabled={
+              loading || amountNum < 1 || showBalanceWarning || balanceLoading
+            }
             className={cn(
               'w-full cursor-pointer rounded py-3 font-bold text-base text-foreground transition-all sm:py-4 sm:text-lg',
               side === 'yes'
                 ? 'bg-green-600 hover:bg-green-700'
                 : 'bg-red-600 hover:bg-red-700',
-              (loading || amountNum < 1 || showBalanceWarning || balanceLoading) && 'cursor-not-allowed opacity-50'
+              (loading ||
+                amountNum < 1 ||
+                showBalanceWarning ||
+                balanceLoading) &&
+                'cursor-not-allowed opacity-50'
             )}
           >
             {loading ? (
@@ -432,6 +448,7 @@ export function PredictionTradingModal({
 
           {/* Cancel */}
           <button
+            type="button"
             onClick={onClose}
             disabled={loading}
             className="mt-3 w-full cursor-pointer rounded py-2.5 font-medium text-muted-foreground transition-all hover:bg-muted disabled:cursor-not-allowed sm:py-3"

@@ -229,6 +229,7 @@ export function PerpTradingModal({
 
           <div className="mb-6 flex gap-2">
             <button
+              type="button"
               onClick={() => setSide('long')}
               disabled={loading}
               className={cn(
@@ -243,6 +244,7 @@ export function PerpTradingModal({
               LONG
             </button>
             <button
+              type="button"
               onClick={() => setSide('short')}
               disabled={loading}
               className={cn(
@@ -392,6 +394,7 @@ export function PerpTradingModal({
           )}
 
           <button
+            type="button"
             onClick={handleSubmit}
             disabled={
               loading ||
