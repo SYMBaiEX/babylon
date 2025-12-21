@@ -1,6 +1,7 @@
 'use client';
 
 import { TrendingUp } from 'lucide-react';
+import { memo } from 'react';
 import type { PredictionMarket } from '@/types/markets';
 import type { TopPrediction } from '../../_hooks';
 import { HotPredictionCard } from '../cards';
@@ -13,8 +14,9 @@ interface HotPredictionsListProps {
 /**
  * Section component displaying hot/trending prediction markets.
  * Shows top predictions by volume (total shares).
+ * Memoized to prevent unnecessary re-renders when parent state changes.
  */
-export function HotPredictionsList({
+export const HotPredictionsList = memo(function HotPredictionsList({
   predictions,
   onPredictionClick,
 }: HotPredictionsListProps) {
@@ -26,9 +28,9 @@ export function HotPredictionsList({
       </h2>
       {predictions.length > 0 ? (
         <div className="space-y-2">
-          {predictions.map((prediction, idx) => (
+          {predictions.map((prediction) => (
             <HotPredictionCard
-              key={`hot-pred-${prediction.id}-${idx}`}
+              key={`prediction-${prediction.id}`}
               prediction={prediction}
               onClick={onPredictionClick}
             />
@@ -43,4 +45,4 @@ export function HotPredictionsList({
       )}
     </div>
   );
-}
+});

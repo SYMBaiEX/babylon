@@ -1,7 +1,9 @@
 'use client';
 
 import { cn } from '@babylon/shared';
+import type { LucideIcon } from 'lucide-react';
 import { ArrowUpDown, Clock, Flame } from 'lucide-react';
+import { memo } from 'react';
 import type { PredictionSort } from '@/types/markets';
 
 interface PredictionSortControlsProps {
@@ -14,7 +16,7 @@ interface PredictionSortControlsProps {
 const SORT_OPTIONS: Array<{
   value: PredictionSort;
   label: string;
-  icon?: typeof Flame;
+  icon?: LucideIcon;
 }> = [
   { value: 'trending', label: 'Trending', icon: Flame },
   { value: 'volume', label: 'Volume', icon: ArrowUpDown },
@@ -25,14 +27,17 @@ const SORT_OPTIONS: Array<{
 /**
  * Sort control buttons for prediction markets.
  * Supports both desktop (inline) and mobile (scrollable) layouts.
+ * Memoized to prevent unnecessary re-renders.
  */
-export function PredictionSortControls({
+export const PredictionSortControls = memo(function PredictionSortControls({
   activeSort,
   onSortChange,
   compact = false,
 }: PredictionSortControlsProps) {
   return (
     <div
+      role="group"
+      aria-label="Sort options"
       className={cn(
         'flex gap-2',
         compact && 'scrollbar-hide overflow-x-auto pb-2'
@@ -42,6 +47,7 @@ export function PredictionSortControls({
         <button
           key={value}
           type="button"
+          aria-pressed={activeSort === value}
           onClick={() => onSortChange(value)}
           className={cn(
             'rounded-full px-3 py-1.5 font-medium text-xs transition-all',
@@ -57,4 +63,4 @@ export function PredictionSortControls({
       ))}
     </div>
   );
-}
+});

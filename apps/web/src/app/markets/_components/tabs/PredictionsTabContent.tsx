@@ -116,9 +116,9 @@ export function PredictionsTabContent({
       </div>
 
       <div className="mb-6 space-y-2">
-        {activePredictions.map((prediction, idx) => (
+        {activePredictions.map((prediction) => (
           <PredictionMarketCard
-            key={`prediction-${prediction.id}-${idx}`}
+            key={`prediction-${prediction.id}`}
             prediction={prediction}
             onClick={onPredictionClick}
           />
@@ -131,9 +131,9 @@ export function PredictionsTabContent({
             RESOLVED ({resolvedPredictions.length})
           </h2>
           <div className="space-y-2">
-            {resolvedPredictions.map((prediction, idx) => (
+            {resolvedPredictions.map((prediction) => (
               <ResolvedPredictionCard
-                key={`resolved-${prediction.id}-${idx}`}
+                key={`resolved-${prediction.id}`}
                 prediction={prediction}
               />
             ))}

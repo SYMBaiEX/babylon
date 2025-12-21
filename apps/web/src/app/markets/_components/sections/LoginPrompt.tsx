@@ -1,5 +1,7 @@
 'use client';
 
+import { memo } from 'react';
+
 interface LoginPromptProps {
   onLogin: () => void;
 }
@@ -7,8 +9,11 @@ interface LoginPromptProps {
 /**
  * Compact login prompt shown at the bottom of market lists
  * when user is not authenticated.
+ * Memoized to prevent unnecessary re-renders.
  */
-export function LoginPrompt({ onLogin }: LoginPromptProps) {
+export const LoginPrompt = memo(function LoginPrompt({
+  onLogin,
+}: LoginPromptProps) {
   return (
     <div className="bg-muted/30 p-4 text-center shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
       <p className="mb-3 text-muted-foreground text-sm">Log in to trade</p>
@@ -21,4 +26,4 @@ export function LoginPrompt({ onLogin }: LoginPromptProps) {
       </button>
     </div>
   );
-}
+});

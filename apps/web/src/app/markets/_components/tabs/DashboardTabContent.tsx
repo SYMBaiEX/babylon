@@ -2,6 +2,7 @@
 
 import type { PortfolioPnLSnapshot } from '@babylon/engine/client';
 import type { PerpPosition, UserPredictionPosition } from '@babylon/shared';
+import { memo } from 'react';
 import { PortfolioPnLCard } from '@/components/markets/PortfolioPnLCard';
 import type { PerpMarket, PredictionMarket } from '@/types/markets';
 import type { TopPrediction, TrendingPerpMarket } from '../../_hooks';
@@ -40,8 +41,9 @@ interface DashboardTabContentProps {
 /**
  * Dashboard tab content component.
  * Shows portfolio overview, positions, trending markets, and hot predictions.
+ * Memoized to prevent unnecessary re-renders when parent state changes.
  */
-export function DashboardTabContent({
+export const DashboardTabContent = memo(function DashboardTabContent({
   authenticated,
   onLogin,
   portfolioPnL,
@@ -98,4 +100,4 @@ export function DashboardTabContent({
       {!authenticated && <MarketsCTA onLogin={onLogin} />}
     </div>
   );
-}
+});

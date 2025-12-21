@@ -372,15 +372,28 @@ export function useMarketsPageData(): MarketsPageData {
 
   /**
    * Top trending perp markets (weighted by change % and volume).
+   *
+   * Trending score algorithm:
+   * - Volume score: normalized to 0-30 range (volume / maxVolume * 30)
+   *   This ensures high-volume markets get visibility regardless of price movement.
+   * - Change score: absolute price change * 0.7
+   *   Uses Math.abs so both gains and losses contribute to "trending".
+   *   The 0.7 multiplier balances change impact against volume.
+   *
+   * Final score = volumeScore + changeScore
+   * Returns top 6 markets sorted by trending score descending.
    */
   const trendingMarkets = useMemo((): TrendingPerpMarket[] => {
     if (perpMarkets.length === 0) return [];
 
+    // Prevent division by zero when all markets have zero volume
     const maxVolume = Math.max(...perpMarkets.map((m) => m.volume24h), 1);
 
     return perpMarkets
       .map((market) => {
+        // Volume normalized to 0-30 range for consistent weighting
         const volumeScore = (market.volume24h / maxVolume) * 30;
+        // Absolute change * 0.7 - both gains and losses are "trending"
         const changeScore = Math.abs(market.changePercent24h) * 0.7;
         return {
           ...market,
