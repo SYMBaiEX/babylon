@@ -1,6 +1,7 @@
 'use client';
 
 import { TrendingUp } from 'lucide-react';
+import { memo } from 'react';
 import type { PerpMarket } from '@/types/markets';
 import type { TrendingPerpMarket } from '../../_hooks';
 import { TrendingPerpCard } from '../cards';
@@ -13,8 +14,9 @@ interface TrendingPerpsListProps {
 /**
  * Section component displaying trending perpetual markets.
  * Shows top markets by a combination of price change and volume.
+ * Memoized to prevent unnecessary re-renders when parent state changes.
  */
-export function TrendingPerpsList({
+export const TrendingPerpsList = memo(function TrendingPerpsList({
   markets,
   onMarketClick,
 }: TrendingPerpsListProps) {
@@ -26,9 +28,9 @@ export function TrendingPerpsList({
       </h2>
       {markets.length > 0 ? (
         <div className="space-y-2">
-          {markets.map((market, idx) => (
+          {markets.map((market) => (
             <TrendingPerpCard
-              key={`trending-${market.ticker}-${idx}`}
+              key={market.ticker}
               market={market}
               onClick={onMarketClick}
             />
@@ -43,4 +45,4 @@ export function TrendingPerpsList({
       )}
     </div>
   );
-}
+});

@@ -14,14 +14,16 @@ export function formatPrice(price: number): string {
 
 /**
  * Formats a volume value with appropriate suffix (K, M, B).
+ * Values under $1,000 are displayed without suffix.
  *
  * @param volume - The volume to format
- * @returns Formatted volume string (e.g., "$1.23M")
+ * @returns Formatted volume string (e.g., "$1.23M", "$500.00")
  */
 export function formatVolume(volume: number): string {
   if (volume >= 1e9) return `$${(volume / 1e9).toFixed(2)}B`;
   if (volume >= 1e6) return `$${(volume / 1e6).toFixed(2)}M`;
-  return `$${(volume / 1e3).toFixed(2)}K`;
+  if (volume >= 1e3) return `$${(volume / 1e3).toFixed(2)}K`;
+  return `$${volume.toFixed(2)}`;
 }
 
 /**
