@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { MarketsToggle } from '@/components/shared/MarketsToggle';
 import { PageContainer } from '@/components/shared/PageContainer';
 import { Skeleton, WidgetPanelSkeleton } from '@/components/shared/Skeleton';
+import type { MarketTab, PerpMarket, PredictionMarket } from '@/types/markets';
 import {
   DashboardTabContent,
   LoginPrompt,
@@ -14,7 +15,6 @@ import {
   PredictionsTabContent,
 } from './_components';
 import { useMarketsPageData } from './_hooks';
-import type { MarketTab, PerpMarket, PredictionMarket } from '@/types/markets';
 
 // Lazy load modals - not needed for initial render
 const CategoryPnLShareModal = dynamic(
@@ -156,7 +156,9 @@ export default function MarketsPage() {
             portfolioLoading={data.portfolioLoading}
             portfolioError={data.portfolioError}
             portfolioUpdatedAt={data.portfolioUpdatedAt}
-            onShowCategoryPnLShare={() => setShowCategoryPnLShareModal('predictions')}
+            onShowCategoryPnLShare={() =>
+              setShowCategoryPnLShareModal('predictions')
+            }
             onRefreshPortfolio={data.refreshPortfolio}
             predictionPositions={data.predictionPositions}
             onPositionSold={data.handlePositionsRefresh}
@@ -233,9 +235,7 @@ export default function MarketsPage() {
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto">
-          {renderTabContent(true)}
-        </div>
+        <div className="flex-1 overflow-y-auto">{renderTabContent(true)}</div>
 
         {/* Login prompt for non-dashboard tabs */}
         {!data.authenticated && activeTab !== 'dashboard' && (

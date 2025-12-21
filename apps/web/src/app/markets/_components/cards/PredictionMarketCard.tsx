@@ -3,8 +3,8 @@
 import { cn } from '@babylon/shared';
 import { ArrowUpDown, Clock } from 'lucide-react';
 import { memo } from 'react';
-import { calculateSharePercentages, getDaysLeft } from '../../_lib/formatters';
 import type { PredictionMarketWithPosition } from '@/types/markets';
+import { calculateSharePercentages, getDaysLeft } from '../../_lib/formatters';
 
 interface PredictionMarketCardProps {
   prediction: PredictionMarketWithPosition;
@@ -108,4 +108,3 @@ export const PredictionMarketCard = memo(function PredictionMarketCard({
     </button>
   );
 });
-

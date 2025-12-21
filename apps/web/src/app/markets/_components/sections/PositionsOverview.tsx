@@ -1,8 +1,8 @@
 'use client';
 
+import type { PerpPosition, UserPredictionPosition } from '@babylon/shared';
 import { PerpPositionsList } from '@/components/markets/PerpPositionsList';
 import { PredictionPositionsList } from '@/components/markets/PredictionPositionsList';
-import type { PerpPosition, UserPredictionPosition } from '@babylon/shared';
 
 interface PositionsOverviewProps {
   perpPositions: PerpPosition[];
@@ -59,4 +59,3 @@ export function PositionsOverview({
     </div>
   );
 }
-

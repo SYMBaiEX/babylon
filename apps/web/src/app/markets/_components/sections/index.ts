@@ -5,4 +5,3 @@ export { MarketsSearchInput } from './MarketsSearchInput';
 export { PositionsOverview } from './PositionsOverview';
 export { PredictionSortControls } from './PredictionSortControls';
 export { TrendingPerpsList } from './TrendingPerpsList';
-

@@ -60,7 +60,9 @@ export interface MarketsPageData {
 
   // Positions
   perpPositions: ReturnType<typeof useUserPositions>['perpPositions'];
-  predictionPositions: ReturnType<typeof useUserPositions>['predictionPositions'];
+  predictionPositions: ReturnType<
+    typeof useUserPositions
+  >['predictionPositions'];
 
   // Portfolio
   portfolioPnL: ReturnType<typeof usePortfolioPnL>['data'];
@@ -111,7 +113,8 @@ export function useMarketsPageData(): MarketsPageData {
   // Search and sort state
   const [searchQuery, setSearchQuery] = useState('');
   const [deferredSearchQuery, setDeferredSearchQuery] = useState('');
-  const [predictionSort, setPredictionSort] = useState<PredictionSort>('trending');
+  const [predictionSort, setPredictionSort] =
+    useState<PredictionSort>('trending');
 
   // Debounce search query for performance
   useEffect(() => {
@@ -129,7 +132,9 @@ export function useMarketsPageData(): MarketsPageData {
   } = usePerpMarkets();
 
   // Predictions state
-  const [predictions, setPredictions] = useState<PredictionMarketWithPosition[]>([]);
+  const [predictions, setPredictions] = useState<
+    PredictionMarketWithPosition[]
+  >([]);
   const [predictionsLoading, setPredictionsLoading] = useState(true);
   const [balanceRefreshTrigger, setBalanceRefreshTrigger] = useState(0);
 
@@ -150,11 +155,16 @@ export function useMarketsPageData(): MarketsPageData {
   } = useUserPositions(user?.id, { enabled: authenticated });
 
   // Refs to break dependency chains
-  const fetchDataRef = useRef<((signal?: AbortSignal) => Promise<void>) | null>(null);
+  const fetchDataRef = useRef<((signal?: AbortSignal) => Promise<void>) | null>(
+    null
+  );
   const refreshPositionsRef = useRef(refreshUserPositions);
   const authenticatedRef = useRef(authenticated);
   const userIdRef = useRef<string | null>(user?.id ?? null);
-  const prevAuthRef = useRef<{ authenticated: boolean; userId: string | null | undefined } | null>(null);
+  const prevAuthRef = useRef<{
+    authenticated: boolean;
+    userId: string | null | undefined;
+  } | null>(null);
   const hasMountedRef = useRef(false);
 
   // Update refs when values change
@@ -223,7 +233,11 @@ export function useMarketsPageData(): MarketsPageData {
       prevAuthRef.current = currentAuth;
       fetchData(controller.signal).catch((err) => {
         if (err instanceof Error && err.name !== 'AbortError') {
-          logger.warn('Failed to fetch predictions', { error: err.message }, 'useMarketsPageData');
+          logger.warn(
+            'Failed to fetch predictions',
+            { error: err.message },
+            'useMarketsPageData'
+          );
         }
       });
       return () => controller.abort();
@@ -238,7 +252,11 @@ export function useMarketsPageData(): MarketsPageData {
       prevAuthRef.current = currentAuth;
       fetchData(controller.signal).catch((err) => {
         if (err instanceof Error && err.name !== 'AbortError') {
-          logger.warn('Failed to fetch predictions', { error: err.message }, 'useMarketsPageData');
+          logger.warn(
+            'Failed to fetch predictions',
+            { error: err.message },
+            'useMarketsPageData'
+          );
         }
       });
     }
@@ -325,12 +343,17 @@ export function useMarketsPageData(): MarketsPageData {
           );
         case 'ending-soon':
           return (
-            (a.resolutionDate ? new Date(a.resolutionDate).getTime() : Number.POSITIVE_INFINITY) -
-            (b.resolutionDate ? new Date(b.resolutionDate).getTime() : Number.POSITIVE_INFINITY)
+            (a.resolutionDate
+              ? new Date(a.resolutionDate).getTime()
+              : Number.POSITIVE_INFINITY) -
+            (b.resolutionDate
+              ? new Date(b.resolutionDate).getTime()
+              : Number.POSITIVE_INFINITY)
           );
         case 'volume':
           return (
-            (b.yesShares ?? 0) + (b.noShares ?? 0) -
+            (b.yesShares ?? 0) +
+            (b.noShares ?? 0) -
             ((a.yesShares ?? 0) + (a.noShares ?? 0))
           );
         default:
@@ -482,4 +505,3 @@ export function useMarketsPageData(): MarketsPageData {
     triggerBalanceRefresh,
   };
 }
-

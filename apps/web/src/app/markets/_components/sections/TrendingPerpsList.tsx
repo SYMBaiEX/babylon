@@ -1,9 +1,9 @@
 'use client';
 
 import { TrendingUp } from 'lucide-react';
-import { TrendingPerpCard } from '../cards';
-import type { TrendingPerpMarket } from '../../_hooks';
 import type { PerpMarket } from '@/types/markets';
+import type { TrendingPerpMarket } from '../../_hooks';
+import { TrendingPerpCard } from '../cards';
 
 interface TrendingPerpsListProps {
   markets: TrendingPerpMarket[];
@@ -44,4 +44,3 @@ export function TrendingPerpsList({
     </div>
   );
 }
-

@@ -1,11 +1,11 @@
 'use client';
 
+import type { PerpPosition } from '@babylon/shared';
 import { CategoryPnLCard } from '@/components/markets/CategoryPnLCard';
 import { PerpPositionsList } from '@/components/markets/PerpPositionsList';
-import { PerpMarketCard } from '../cards';
-import type { CategoryPnLData } from '../../_hooks';
 import type { PerpMarket } from '@/types/markets';
-import type { PerpPosition } from '@babylon/shared';
+import type { CategoryPnLData } from '../../_hooks';
+import { PerpMarketCard } from '../cards';
 
 interface PerpsTabContentProps {
   // Auth state
@@ -95,4 +95,3 @@ export function PerpsTabContent({
     </div>
   );
 }
-

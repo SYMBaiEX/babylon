@@ -22,4 +22,3 @@ export function LoginPrompt({ onLogin }: LoginPromptProps) {
     </div>
   );
 }
-

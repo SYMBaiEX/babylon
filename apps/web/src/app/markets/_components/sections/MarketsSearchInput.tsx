@@ -40,4 +40,3 @@ export function MarketsSearchInput({
     </div>
   );
 }
-

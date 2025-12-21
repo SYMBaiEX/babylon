@@ -1,12 +1,15 @@
 'use client';
 
+import type { UserPredictionPosition } from '@babylon/shared';
 import { CategoryPnLCard } from '@/components/markets/CategoryPnLCard';
 import { PredictionPositionsList } from '@/components/markets/PredictionPositionsList';
+import type {
+  PredictionMarketWithPosition,
+  PredictionSort,
+} from '@/types/markets';
+import type { CategoryPnLData } from '../../_hooks';
 import { PredictionMarketCard, ResolvedPredictionCard } from '../cards';
 import { PredictionSortControls } from '../sections';
-import type { CategoryPnLData } from '../../_hooks';
-import type { PredictionMarketWithPosition, PredictionSort } from '@/types/markets';
-import type { UserPredictionPosition } from '@babylon/shared';
 
 interface PredictionsTabContentProps {
   // Auth state
@@ -93,8 +96,16 @@ export function PredictionsTabContent({
         </>
       )}
 
-      <div className={compact ? 'mb-3' : 'mb-3 flex items-center justify-between'}>
-        <h2 className={compact ? 'mb-2 font-bold text-muted-foreground text-sm' : 'font-bold text-muted-foreground text-sm'}>
+      <div
+        className={compact ? 'mb-3' : 'mb-3 flex items-center justify-between'}
+      >
+        <h2
+          className={
+            compact
+              ? 'mb-2 font-bold text-muted-foreground text-sm'
+              : 'font-bold text-muted-foreground text-sm'
+          }
+        >
           ACTIVE MARKETS ({activePredictions.length})
         </h2>
         <PredictionSortControls
@@ -132,4 +143,3 @@ export function PredictionsTabContent({
     </div>
   );
 }
-
