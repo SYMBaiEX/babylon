@@ -177,8 +177,8 @@ export function useMarketsPageData(): MarketsPageData {
     refreshPositionsRef.current = refreshUserPositions;
   }, [refreshUserPositions]);
 
-  // Combined loading state
-  const loading = perpLoading && predictionsLoading;
+  // Combined loading state - true while either is loading
+  const loading = perpLoading || predictionsLoading;
 
   /**
    * Fetches prediction markets data.
@@ -428,10 +428,8 @@ export function useMarketsPageData(): MarketsPageData {
       (sum, pos) => sum + (pos.unrealizedPnL ?? 0),
       0
     );
-    const totalValue = perpPositions.reduce(
-      (sum, pos) => sum + Math.abs(pos.size ?? 0),
-      0
-    );
+    // totalValue and openInterest are equivalent for perps (sum of absolute position sizes)
+    // In a more sophisticated implementation, totalValue could include notional (size * price)
     const openInterest = perpPositions.reduce(
       (sum, pos) => sum + Math.abs(pos.size ?? 0),
       0
@@ -440,7 +438,7 @@ export function useMarketsPageData(): MarketsPageData {
     return {
       unrealizedPnL,
       positionCount: perpPositions.length,
-      totalValue,
+      totalValue: openInterest,
       categorySpecific: { openInterest },
     };
   }, [perpPositions]);
