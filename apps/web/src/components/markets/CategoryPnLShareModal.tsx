@@ -1,12 +1,8 @@
 'use client';
 
 import type { User } from '@/stores/authStore';
+import type { MarketCategory } from '@/types/markets';
 import { PnLShareModal } from './PnLShareModal';
-
-/**
- * Market category type for category PnL share modal.
- */
-type MarketCategory = 'perps' | 'predictions';
 
 /**
  * Category PnL data structure for category PnL share modal.

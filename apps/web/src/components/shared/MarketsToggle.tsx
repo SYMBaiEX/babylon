@@ -1,8 +1,10 @@
 'use client';
 
 import { cn } from '@babylon/shared';
+import type { MarketTab } from '@/types/markets';
 
-export type MarketTab = 'dashboard' | 'perps' | 'predictions';
+// Re-export for backwards compatibility
+export type { MarketTab } from '@/types/markets';
 
 /**
  * Markets toggle component for switching between market views.

@@ -14,22 +14,7 @@ import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
 import { usePerpTrade } from '@/hooks/usePerpTrade';
 import { useWalletBalance } from '@/hooks/useWalletBalance';
-
-/**
- * Perpetual market structure for trading modal.
- */
-interface PerpMarket {
-  ticker: string;
-  organizationId: string;
-  name: string;
-  currentPrice: number;
-  fundingRate: {
-    rate: number;
-    nextFundingTime: string;
-  };
-  maxLeverage: number;
-  minOrderSize: number;
-}
+import type { PerpMarket, TradeSide } from '@/types/markets';
 
 /**
  * Perpetual trading modal component for opening new positions.
@@ -77,7 +62,7 @@ export function PerpTradingModal({
   onSuccess,
 }: PerpTradingModalProps) {
   const { user, authenticated, login, getAccessToken } = useAuth();
-  const [side, setSide] = useState<'long' | 'short'>('long');
+  const [side, setSide] = useState<TradeSide>('long');
   const [size, setSize] = useState('100');
   const [leverage, setLeverage] = useState(10);
   const [loading, setLoading] = useState(false);

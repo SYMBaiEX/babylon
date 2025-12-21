@@ -21,24 +21,11 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { create } from 'zustand';
 import { useShallow } from 'zustand/react/shallow';
+import type { PredictionMarket } from '@/types/markets';
+import { MARKETS_CONFIG } from '@/types/markets';
 
-/**
- * Prediction market data structure from API
- */
-export interface PredictionMarket {
-  id: number | string;
-  text: string;
-  status: 'active' | 'resolved' | 'cancelled';
-  createdDate?: string;
-  resolutionDate?: string;
-  resolvedOutcome?: boolean;
-  scenario: number;
-  yesShares?: number;
-  noShares?: number;
-  oracleCommitTxHash?: string | null;
-  oracleRevealTxHash?: string | null;
-  oraclePublishedAt?: string | null;
-}
+// Re-export for backwards compatibility
+export type { PredictionMarket } from '@/types/markets';
 
 interface PredictionMarketsState {
   // Data
@@ -57,8 +44,8 @@ interface PredictionMarketsState {
   subscribe: (intervalMs: number, userId?: string) => () => void;
 }
 
-// Cache TTL in milliseconds (10 seconds)
-const CACHE_TTL = 10000;
+// Use centralized cache TTL
+const CACHE_TTL = MARKETS_CONFIG.CACHE_TTL_MS;
 
 export const usePredictionMarketsStore = create<PredictionMarketsState>(
   (set, get) => ({

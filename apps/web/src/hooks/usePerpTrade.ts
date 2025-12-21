@@ -1,11 +1,10 @@
 'use client';
 
 import { useCallback } from 'react';
+import type { TradeSide } from '@/types/markets';
 
-/**
- * Side of a perpetual trade position.
- */
-type TradeSide = 'long' | 'short';
+// Re-export for backwards compatibility
+export type { TradeSide } from '@/types/markets';
 
 /**
  * Options for configuring the usePerpTrade hook.

@@ -7,28 +7,16 @@ import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
 import { useMarketPrices } from '@/hooks/useMarketPrices';
 import { usePerpTrade } from '@/hooks/usePerpTrade';
+import type { DisplayPerpPosition } from '@/types/markets';
 import {
   type ClosePerpDetails,
   TradeConfirmationDialog,
 } from './TradeConfirmationDialog';
 
 /**
- * Perpetual position structure for positions list.
+ * Alias for DisplayPerpPosition for local usage.
  */
-interface PerpPosition {
-  id: string;
-  ticker: string;
-  side: 'long' | 'short';
-  entryPrice: number;
-  currentPrice: number;
-  size: number;
-  leverage: number;
-  unrealizedPnL: number;
-  unrealizedPnLPercent: number;
-  liquidationPrice: number;
-  fundingPaid: number;
-  openedAt: string;
-}
+type PerpPosition = DisplayPerpPosition;
 
 /**
  * Perpetual positions list component for displaying and managing open positions.
@@ -244,63 +232,63 @@ export function PerpPositionsList({
                 </div>
               </div>
 
-            {/* Liquidation Warning */}
-            {isNearLiquidation && (
-              <div className="mb-3 flex items-center gap-2 rounded bg-red-600/20 p-2">
-                <AlertTriangle className="h-4 w-4 flex-shrink-0 text-red-600" />
-                <p className="font-medium text-red-600 text-xs">
-                  Near liquidation! {liquidationDistance.toFixed(2)}% away
-                </p>
-              </div>
-            )}
+              {/* Liquidation Warning */}
+              {isNearLiquidation && (
+                <div className="mb-3 flex items-center gap-2 rounded bg-red-600/20 p-2">
+                  <AlertTriangle className="h-4 w-4 flex-shrink-0 text-red-600" />
+                  <p className="font-medium text-red-600 text-xs">
+                    Near liquidation! {liquidationDistance.toFixed(2)}% away
+                  </p>
+                </div>
+              )}
 
-            {/* Stats Grid */}
-            <div className="mb-3 grid grid-cols-2 gap-2 text-xs">
-              <div>
-                <div className="text-muted-foreground">Entry</div>
-                <div className="font-medium text-foreground">
-                  {formatPrice(position.entryPrice)}
+              {/* Stats Grid */}
+              <div className="mb-3 grid grid-cols-2 gap-2 text-xs">
+                <div>
+                  <div className="text-muted-foreground">Entry</div>
+                  <div className="font-medium text-foreground">
+                    {formatPrice(position.entryPrice)}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-muted-foreground">Current</div>
+                  <div className="font-medium text-foreground">
+                    {formatPrice(currentPrice)}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-muted-foreground">Liquidation</div>
+                  <div className="font-bold text-red-600">
+                    {formatPrice(position.liquidationPrice)}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-muted-foreground">Size</div>
+                  <div className="font-medium text-foreground">
+                    {formatPrice(position.size)}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-muted-foreground">Funding Paid</div>
+                  <div
+                    className={cn(
+                      'font-medium',
+                      position.fundingPaid >= 0
+                        ? 'text-red-600'
+                        : 'text-green-600'
+                    )}
+                  >
+                    {position.fundingPaid >= 0 ? '-' : '+'}
+                    {formatPrice(Math.abs(position.fundingPaid))}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-muted-foreground">Opened</div>
+                  <div className="font-medium text-foreground">
+                    {formatDate(position.openedAt)}
+                  </div>
                 </div>
               </div>
-              <div>
-                <div className="text-muted-foreground">Current</div>
-                <div className="font-medium text-foreground">
-                  {formatPrice(currentPrice)}
-                </div>
-              </div>
-              <div>
-                <div className="text-muted-foreground">Liquidation</div>
-                <div className="font-bold text-red-600">
-                  {formatPrice(position.liquidationPrice)}
-                </div>
-              </div>
-              <div>
-                <div className="text-muted-foreground">Size</div>
-                <div className="font-medium text-foreground">
-                  {formatPrice(position.size)}
-                </div>
-              </div>
-              <div>
-                <div className="text-muted-foreground">Funding Paid</div>
-                <div
-                  className={cn(
-                    'font-medium',
-                    position.fundingPaid >= 0
-                      ? 'text-red-600'
-                      : 'text-green-600'
-                  )}
-                >
-                  {position.fundingPaid >= 0 ? '-' : '+'}
-                  {formatPrice(Math.abs(position.fundingPaid))}
-                </div>
-              </div>
-              <div>
-                <div className="text-muted-foreground">Opened</div>
-                <div className="font-medium text-foreground">
-                  {formatDate(position.openedAt)}
-                </div>
-              </div>
-            </div>
 
               {/* Close Button */}
               <button

@@ -1,47 +1,21 @@
 'use client';
 
+import type { UserPredictionPosition } from '@babylon/shared';
 import { cn, logger } from '@babylon/shared';
 import { usePrivy } from '@privy-io/react-auth';
 import { CheckCircle, XCircle } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
+import type { ApiErrorResponse, SellSharesSuccessResponse } from '@/types/markets';
 import {
   type SellPredictionDetails,
   TradeConfirmationDialog,
 } from './TradeConfirmationDialog';
 
 /**
- * API response type for selling prediction shares.
+ * Alias for UserPredictionPosition for local usage.
  */
-interface SellSharesSuccessResponse {
-  pnl: number;
-}
-
-/**
- * API error response type.
- */
-interface ApiErrorResponse {
-  error: string | { message: string };
-  message?: string;
-}
-
-/**
- * Prediction position structure for positions list.
- */
-interface PredictionPosition {
-  id: string;
-  marketId: string;
-  question: string;
-  side: 'YES' | 'NO';
-  shares: number;
-  avgPrice: number;
-  currentPrice: number;
-  currentValue: number;
-  costBasis: number;
-  unrealizedPnL: number;
-  resolved: boolean;
-  resolution?: boolean | null;
-}
+type PredictionPosition = UserPredictionPosition;
 
 /**
  * Prediction positions list component for displaying and managing prediction positions.

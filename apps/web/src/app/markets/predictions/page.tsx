@@ -15,50 +15,20 @@ import { CategoryPnLCard } from '@/components/markets/CategoryPnLCard';
 import { CategoryPnLShareModal } from '@/components/markets/CategoryPnLShareModal';
 import { PredictionPositionsList } from '@/components/markets/PredictionPositionsList';
 import { PredictionSparkline } from '@/components/markets/PredictionSparkline';
-import {
-  MarketsToggle,
-  type MarketTab,
-} from '@/components/shared/MarketsToggle';
+import { MarketsToggle } from '@/components/shared/MarketsToggle';
 import { PageContainer } from '@/components/shared/PageContainer';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { useAuth } from '@/hooks/useAuth';
 import { usePortfolioPnL } from '@/hooks/usePortfolioPnL';
 import { usePredictionMarketsSubscription } from '@/hooks/usePredictionMarketStream';
 import { useUserPositions } from '@/hooks/useUserPositions';
-
-interface PredictionUserPosition {
-  id: string;
-  marketId: string;
-  question?: string;
-  side: 'YES' | 'NO';
-  shares: number;
-  avgPrice: number;
-  currentPrice: number;
-  currentValue: number;
-  costBasis: number;
-  unrealizedPnL: number;
-  resolved?: boolean;
-  resolution?: boolean | null;
-}
-
-interface PredictionMarket {
-  id: number | string;
-  text: string;
-  status: 'active' | 'resolved' | 'cancelled';
-  createdDate?: string;
-  resolutionDate?: string;
-  resolvedOutcome?: boolean;
-  scenario: number;
-  yesShares?: number;
-  noShares?: number;
-  userPosition?: PredictionUserPosition | null;
-  userPositions?: PredictionUserPosition[];
-  oracleCommitTxHash?: string | null;
-  oracleRevealTxHash?: string | null;
-  oraclePublishedAt?: string | null;
-}
-
-type PredictionSort = 'trending' | 'newest' | 'ending-soon' | 'volume';
+import type {
+  MarketTab,
+  PredictionMarket,
+  PredictionMarketWithPosition,
+  PredictionSort,
+} from '@/types/markets';
+import { MARKETS_CONFIG } from '@/types/markets';
 
 export default function PredictionsPage() {
   const router = useRouter();
@@ -80,7 +50,9 @@ export default function PredictionsPage() {
   };
 
   // Data
-  const [predictions, setPredictions] = useState<PredictionMarket[]>([]);
+  const [predictions, setPredictions] = useState<
+    PredictionMarketWithPosition[]
+  >([]);
   const [loading, setLoading] = useState(true);
   const [sparklineData, setSparklineData] = useState<
     Record<string, Array<{ time: number; yesPrice: number; noPrice: number }>>
@@ -192,7 +164,11 @@ export default function PredictionsPage() {
     } catch (err) {
       // Only ignore abort errors; log other network errors for debugging
       if (err instanceof Error && err.name !== 'AbortError') {
-        logger.warn('Failed to fetch predictions', { error: err.message }, 'PredictionsPage');
+        logger.warn(
+          'Failed to fetch predictions',
+          { error: err.message },
+          'PredictionsPage'
+        );
       }
     } finally {
       setLoading(false);
@@ -583,8 +559,8 @@ export default function PredictionsPage() {
                     <div className="flex items-center gap-2">
                       <PredictionSparkline
                         data={sparklineData[prediction.id.toString()] ?? []}
-                        width={80}
-                        height={28}
+                        width={MARKETS_CONFIG.SPARKLINE.WIDTH}
+                        height={MARKETS_CONFIG.SPARKLINE.HEIGHT}
                       />
                       <div className="flex flex-col text-right">
                         <span className="font-medium text-green-600">
