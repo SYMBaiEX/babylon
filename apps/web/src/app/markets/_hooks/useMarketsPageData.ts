@@ -154,11 +154,12 @@ export function useMarketsPageData(): MarketsPageData {
     refresh: refreshUserPositions,
   } = useUserPositions(user?.id, { enabled: authenticated });
 
-  // Refs to break dependency chains
+  // Refs to break dependency chains and stabilize callbacks
   const fetchDataRef = useRef<((signal?: AbortSignal) => Promise<void>) | null>(
     null
   );
   const refreshPositionsRef = useRef(refreshUserPositions);
+  const refetchPerpsRef = useRef(refetchPerps);
   const authenticatedRef = useRef(authenticated);
   const userIdRef = useRef<string | null>(user?.id ?? null);
   const prevAuthRef = useRef<{
@@ -177,6 +178,10 @@ export function useMarketsPageData(): MarketsPageData {
     refreshPositionsRef.current = refreshUserPositions;
   }, [refreshUserPositions]);
 
+  useEffect(() => {
+    refetchPerpsRef.current = refetchPerps;
+  }, [refetchPerps]);
+
   // Combined loading state - true while either is loading
   const loading = perpLoading || predictionsLoading;
 
@@ -187,7 +192,7 @@ export function useMarketsPageData(): MarketsPageData {
     const isAuth = authenticatedRef.current;
     const userId = userIdRef.current;
 
-    const url = `/api/markets/predictions${isAuth && userId ? `?userId=${userId}` : ''}`;
+    const url = `/api/markets/predictions${isAuth && userId ? `?userId=${encodeURIComponent(userId)}` : ''}`;
 
     const response = await fetch(url, { signal });
 
@@ -266,16 +271,19 @@ export function useMarketsPageData(): MarketsPageData {
 
   /**
    * Refreshes all position data and markets.
+   * Uses refs to ensure stable callback identity.
    */
   const handlePositionsRefresh = useCallback(async () => {
     if (refreshPositionsRef.current) {
       await refreshPositionsRef.current();
     }
-    await refetchPerps();
+    if (refetchPerpsRef.current) {
+      await refetchPerpsRef.current();
+    }
     if (fetchDataRef.current) {
       await fetchDataRef.current();
     }
-  }, [refetchPerps]);
+  }, []);
 
   /**
    * Triggers a balance refresh for dependent components.
@@ -374,30 +382,34 @@ export function useMarketsPageData(): MarketsPageData {
    * Top trending perp markets (weighted by change % and volume).
    *
    * Trending score algorithm:
-   * - Volume score: normalized to 0-30 range (volume / maxVolume * 30)
-   *   This ensures high-volume markets get visibility regardless of price movement.
-   * - Change score: absolute price change * 0.7
+   * - Volume score: normalized to 0-70 range (volume / maxVolume * 70)
+   *   Volume is weighted more heavily (70%) to prioritize liquid, active markets.
+   * - Change score: normalized to 0-30 range (absChange / maxChange * 30)
    *   Uses Math.abs so both gains and losses contribute to "trending".
-   *   The 0.7 multiplier balances change impact against volume.
+   *   Change is capped at 30% to balance against volume.
    *
-   * Final score = volumeScore + changeScore
+   * Final score = volumeScore + changeScore (max 100)
    * Returns top 6 markets sorted by trending score descending.
    */
   const trendingMarkets = useMemo((): TrendingPerpMarket[] => {
     if (perpMarkets.length === 0) return [];
 
-    // Prevent division by zero when all markets have zero volume
+    // Prevent division by zero when all markets have zero volume/change
     const maxVolume = Math.max(...perpMarkets.map((m) => m.volume24h), 1);
+    const maxChange = Math.max(
+      ...perpMarkets.map((m) => Math.abs(m.changePercent24h)),
+      1
+    );
 
     return perpMarkets
       .map((market) => {
-        // Volume normalized to 0-30 range for consistent weighting
-        const volumeScore = (market.volume24h / maxVolume) * 30;
-        // Absolute change * 0.7 - both gains and losses are "trending"
-        const changeScore = Math.abs(market.changePercent24h) * 0.7;
+        // Volume normalized to 0-70 range (70% weight)
+        const volumeScore = (market.volume24h / maxVolume) * 70;
+        // Change normalized to 0-30 range (30% weight)
+        const changeScore = (Math.abs(market.changePercent24h) / maxChange) * 30;
         return {
           ...market,
-          trendingScore: changeScore + volumeScore,
+          trendingScore: volumeScore + changeScore,
         };
       })
       .sort((a, b) => b.trendingScore - a.trendingScore)
