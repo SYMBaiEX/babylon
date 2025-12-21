@@ -12,6 +12,7 @@ import {
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { usePerpTrade } from '@/hooks/usePerpTrade';
 import { useWalletBalance } from '@/hooks/useWalletBalance';
 import type { PerpMarket, TradeSide } from '@/types/markets';
@@ -73,11 +74,12 @@ export function PerpTradingModal({
     refresh: refreshBalance,
   } = useWalletBalance(user?.id, { enabled: Boolean(user?.id) && isOpen });
 
+  // Body scroll lock using counter-based approach for multi-modal safety
+  useBodyScrollLock(isOpen);
+
+  // Handle escape key
   useEffect(() => {
-    if (!isOpen) {
-      document.body.style.overflow = '';
-      return;
-    }
+    if (!isOpen) return;
 
     const handleEscape = (event: KeyboardEvent) => {
       if (event.key === 'Escape' && !loading) {
@@ -86,19 +88,11 @@ export function PerpTradingModal({
     };
 
     document.addEventListener('keydown', handleEscape);
-    document.body.style.overflow = 'hidden';
 
     return () => {
       document.removeEventListener('keydown', handleEscape);
-      document.body.style.overflow = '';
     };
   }, [isOpen, loading, onClose]);
-
-  useEffect(() => {
-    return () => {
-      document.body.style.overflow = '';
-    };
-  }, []);
 
   if (!isOpen) return null;
 
@@ -236,11 +230,13 @@ export function PerpTradingModal({
           <div className="mb-6 flex gap-2">
             <button
               onClick={() => setSide('long')}
+              disabled={loading}
               className={cn(
                 'flex flex-1 cursor-pointer items-center justify-center gap-2 rounded py-3 font-bold text-sm transition-all sm:text-base',
                 side === 'long'
                   ? 'bg-green-600 text-primary-foreground'
-                  : 'bg-muted text-muted-foreground hover:bg-muted'
+                  : 'bg-muted text-muted-foreground hover:bg-muted',
+                loading && 'cursor-not-allowed opacity-50'
               )}
             >
               <TrendingUp size={18} />
@@ -248,11 +244,13 @@ export function PerpTradingModal({
             </button>
             <button
               onClick={() => setSide('short')}
+              disabled={loading}
               className={cn(
                 'flex flex-1 cursor-pointer items-center justify-center gap-2 rounded py-3 font-bold text-sm transition-all sm:text-base',
                 side === 'short'
                   ? 'bg-red-600 text-primary-foreground'
-                  : 'bg-muted text-muted-foreground hover:bg-muted'
+                  : 'bg-muted text-muted-foreground hover:bg-muted',
+                loading && 'cursor-not-allowed opacity-50'
               )}
             >
               <TrendingDown size={18} />
@@ -271,7 +269,11 @@ export function PerpTradingModal({
                 onChange={(event) => setSize(event.target.value)}
                 min={market.minOrderSize}
                 step="10"
-                className="w-32 rounded bg-background/50 px-3 py-1.5 text-right font-medium text-foreground focus:bg-background focus:outline-none focus:ring-2 focus:ring-[#0066FF]/30"
+                disabled={loading}
+                className={cn(
+                  'w-32 rounded bg-background/50 px-3 py-1.5 text-right font-medium text-foreground focus:bg-background focus:outline-none focus:ring-2 focus:ring-[#0066FF]/30',
+                  loading && 'cursor-not-allowed opacity-50'
+                )}
                 placeholder={`Min: $${market.minOrderSize}`}
               />
             </div>
@@ -292,7 +294,11 @@ export function PerpTradingModal({
                 onChange={(event) =>
                   setLeverage(Number.parseInt(event.target.value))
                 }
-                className="mt-2 h-2 w-full cursor-pointer appearance-none rounded bg-background"
+                disabled={loading}
+                className={cn(
+                  'mt-2 h-2 w-full cursor-pointer appearance-none rounded bg-background',
+                  loading && 'cursor-not-allowed opacity-50'
+                )}
               />
               <div className="mt-1 flex justify-between text-muted-foreground text-xs">
                 <span>1x</span>

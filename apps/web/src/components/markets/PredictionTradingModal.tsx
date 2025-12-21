@@ -6,10 +6,12 @@ import {
 } from '@babylon/core/markets/prediction/client';
 import { cn, logger } from '@babylon/shared';
 import { usePrivy } from '@privy-io/react-auth';
-import { CheckCircle, Clock, X, XCircle } from 'lucide-react';
+import { CheckCircle, Clock, Wallet, X, XCircle } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
+import { useWalletBalance } from '@/hooks/useWalletBalance';
 import type { PredictionMarket } from '@/types/markets';
 
 /**
@@ -53,18 +55,23 @@ export function PredictionTradingModal({
   onClose,
   onSuccess,
 }: PredictionTradingModalProps) {
-  const { user } = useAuth();
+  const { user, authenticated } = useAuth();
   const { getAccessToken } = usePrivy();
   const [side, setSide] = useState<'yes' | 'no'>('yes');
   const [amount, setAmount] = useState('10');
   const [loading, setLoading] = useState(false);
+  const {
+    balance,
+    loading: balanceLoading,
+    refresh: refreshBalance,
+  } = useWalletBalance(user?.id, { enabled: Boolean(user?.id) && isOpen });
 
-  // Handle escape key and body scroll lock
+  // Body scroll lock using counter-based approach for multi-modal safety
+  useBodyScrollLock(isOpen);
+
+  // Handle escape key
   useEffect(() => {
-    if (!isOpen) {
-      document.body.style.overflow = '';
-      return;
-    }
+    if (!isOpen) return;
 
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && !loading) {
@@ -73,20 +80,11 @@ export function PredictionTradingModal({
     };
 
     document.addEventListener('keydown', handleEscape);
-    document.body.style.overflow = 'hidden';
 
     return () => {
       document.removeEventListener('keydown', handleEscape);
-      document.body.style.overflow = '';
     };
   }, [isOpen, onClose, loading]);
-
-  // Cleanup on unmount (for HMR)
-  useEffect(() => {
-    return () => {
-      document.body.style.overflow = '';
-    };
-  }, []);
 
   if (!isOpen) return null;
 
@@ -118,6 +116,9 @@ export function PredictionTradingModal({
     : 0;
   const expectedProfit = expectedPayout - amountNum;
 
+  const showBalanceWarning =
+    authenticated && amountNum > 0 && balance < amountNum;
+
   const getDaysUntilResolution = () => {
     if (!question.resolutionDate) return null;
     const now = new Date();
@@ -135,6 +136,11 @@ export function PredictionTradingModal({
 
     if (amountNum < 1) {
       toast.error('Minimum bet is $1');
+      return;
+    }
+
+    if (showBalanceWarning) {
+      toast.error('Insufficient balance');
       return;
     }
 
@@ -180,6 +186,7 @@ export function PredictionTradingModal({
         description: `${calculation?.sharesBought.toFixed(2)} shares at ${(calculation?.avgPrice ?? 0).toFixed(3)} each`,
       });
 
+      await refreshBalance();
       onClose();
       onSuccess?.();
     } catch (err) {
@@ -245,6 +252,18 @@ export function PredictionTradingModal({
             </p>
           </div>
 
+          {/* Balance Display */}
+          {authenticated && (
+            <div className="mb-4 flex items-center justify-between rounded bg-muted/40 p-3 text-sm">
+              <span className="flex items-center gap-2 text-muted-foreground">
+                <Wallet className="h-4 w-4" /> Balance
+              </span>
+              <span className="font-semibold text-foreground">
+                {balanceLoading ? '...' : formatPrice(balance)}
+              </span>
+            </div>
+          )}
+
           {/* Current Odds */}
           <div className="mb-6 grid grid-cols-2 gap-3">
             <div className="rounded bg-green-600/15 p-3">
@@ -265,11 +284,13 @@ export function PredictionTradingModal({
           <div className="mb-6 flex gap-3">
             <button
               onClick={() => setSide('yes')}
+              disabled={loading}
               className={cn(
                 'flex flex-1 cursor-pointer items-center justify-center gap-3 rounded py-3 font-bold text-sm transition-all sm:text-base',
                 side === 'yes'
                   ? 'bg-green-600 text-primary-foreground'
-                  : 'bg-muted text-muted-foreground hover:bg-muted'
+                  : 'bg-muted text-muted-foreground hover:bg-muted',
+                loading && 'cursor-not-allowed opacity-50'
               )}
             >
               <CheckCircle size={18} />
@@ -277,11 +298,13 @@ export function PredictionTradingModal({
             </button>
             <button
               onClick={() => setSide('no')}
+              disabled={loading}
               className={cn(
                 'flex flex-1 cursor-pointer items-center justify-center gap-3 rounded py-3 font-bold text-sm transition-all sm:text-base',
                 side === 'no'
                   ? 'bg-red-600 text-primary-foreground'
-                  : 'bg-muted text-muted-foreground hover:bg-muted'
+                  : 'bg-muted text-muted-foreground hover:bg-muted',
+                loading && 'cursor-not-allowed opacity-50'
               )}
             >
               <XCircle size={18} />
@@ -300,7 +323,11 @@ export function PredictionTradingModal({
               onChange={(e) => setAmount(e.target.value)}
               min="1"
               step="1"
-              className="w-full rounded bg-muted/50 px-4 py-3 font-medium text-base text-foreground focus:bg-muted focus:outline-none focus:ring-2 focus:ring-[#0066FF]/30 sm:text-lg"
+              disabled={loading}
+              className={cn(
+                'w-full rounded bg-muted/50 px-4 py-3 font-medium text-base text-foreground focus:bg-muted focus:outline-none focus:ring-2 focus:ring-[#0066FF]/30 sm:text-lg',
+                loading && 'cursor-not-allowed opacity-50'
+              )}
               placeholder="Min: $1"
             />
           </div>
@@ -371,16 +398,27 @@ export function PredictionTradingModal({
             </div>
           )}
 
+          {/* Balance Warning */}
+          {authenticated && amountNum > 0 && (
+            <div className="mb-4 text-muted-foreground text-xs">
+              {showBalanceWarning && (
+                <span className="font-semibold text-red-500">
+                  Insufficient balance for this trade.
+                </span>
+              )}
+            </div>
+          )}
+
           {/* Submit Button */}
           <button
             onClick={handleSubmit}
-            disabled={loading || amountNum < 1}
+            disabled={loading || amountNum < 1 || showBalanceWarning || balanceLoading}
             className={cn(
               'w-full cursor-pointer rounded py-3 font-bold text-base text-foreground transition-all sm:py-4 sm:text-lg',
               side === 'yes'
                 ? 'bg-green-600 hover:bg-green-700'
                 : 'bg-red-600 hover:bg-red-700',
-              (loading || amountNum < 1) && 'cursor-not-allowed opacity-50'
+              (loading || amountNum < 1 || showBalanceWarning || balanceLoading) && 'cursor-not-allowed opacity-50'
             )}
           >
             {loading ? (
