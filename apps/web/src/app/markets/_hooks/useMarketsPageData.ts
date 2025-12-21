@@ -33,6 +33,19 @@ const TRENDING_WEIGHTS = {
 } as const;
 
 /**
+ * Trending score weights for prediction markets.
+ * Volume (total shares) is weighted 70% to prioritize active markets.
+ * Recency is weighted 30% so newer markets get visibility.
+ * Timestamp is normalized by 1_000_000 to bring it to a comparable scale with volume.
+ */
+const PREDICTION_TRENDING_WEIGHTS = {
+  VOLUME: 0.7,
+  RECENCY: 0.3,
+  /** Divisor to normalize timestamp (ms) to comparable scale with share counts */
+  TIME_NORMALIZER: 1_000_000,
+} as const;
+
+/**
  * Computed P&L data for a market category.
  */
 export interface CategoryPnLData {
@@ -385,8 +398,16 @@ export function useMarketsPageData(): MarketsPageData {
           const bVolume = (b.yesShares ?? 0) + (b.noShares ?? 0);
           const aTime = a.createdDate ? new Date(a.createdDate).getTime() : 0;
           const bTime = b.createdDate ? new Date(b.createdDate).getTime() : 0;
-          const aScore = aVolume * 0.7 + (aTime / 1_000_000) * 0.3;
-          const bScore = bVolume * 0.7 + (bTime / 1_000_000) * 0.3;
+          const aScore =
+            aVolume * PREDICTION_TRENDING_WEIGHTS.VOLUME +
+            (aTime / PREDICTION_TRENDING_WEIGHTS.TIME_NORMALIZER) *
+              PREDICTION_TRENDING_WEIGHTS.RECENCY;
+          const bScore =
+            bVolume * PREDICTION_TRENDING_WEIGHTS.VOLUME +
+            (bTime / PREDICTION_TRENDING_WEIGHTS.TIME_NORMALIZER) *
+              PREDICTION_TRENDING_WEIGHTS.RECENCY;
+          // Alphabetical tie-breaker for stable sorting
+          if (bScore === aScore) return a.text.localeCompare(b.text);
           return bScore - aScore;
         }
         case 'newest':
@@ -457,7 +478,12 @@ export function useMarketsPageData(): MarketsPageData {
           trendingScore: volumeScore + changeScore,
         };
       })
-      .sort((a, b) => b.trendingScore - a.trendingScore)
+      .sort((a, b) => {
+        const scoreDiff = b.trendingScore - a.trendingScore;
+        // Alphabetical tie-breaker for stable sorting
+        if (scoreDiff === 0) return a.ticker.localeCompare(b.ticker);
+        return scoreDiff;
+      })
       .slice(0, TOP_ITEMS_COUNT);
   }, [perpMarkets]);
 

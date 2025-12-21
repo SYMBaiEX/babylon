@@ -36,6 +36,9 @@ interface PredictionsTabContentProps {
   resolvedPredictions: PredictionMarketWithPosition[];
   onPredictionClick: (prediction: PredictionMarketWithPosition) => void;
 
+  /** Error message when predictions fail to load */
+  predictionsError?: string | null;
+
   /** Use compact (scrollable) sort controls for mobile */
   compact?: boolean;
 }
@@ -59,6 +62,7 @@ export function PredictionsTabContent({
   activePredictions,
   resolvedPredictions,
   onPredictionClick,
+  predictionsError,
   compact = false,
 }: PredictionsTabContentProps) {
   return (
@@ -68,6 +72,14 @@ export function PredictionsTabContent({
       aria-labelledby="predictions-tab"
       className="p-4"
     >
+      {/* Error banner when predictions fail to load */}
+      {predictionsError && (
+        <div className="mb-4 rounded-lg border border-red-500/20 bg-red-500/10 p-4 text-red-600 dark:text-red-400">
+          <p className="font-medium">Failed to load predictions</p>
+          <p className="text-sm opacity-80">{predictionsError}</p>
+        </div>
+      )}
+
       {authenticated && predictionPnLData && (
         <div className="mb-6">
           <CategoryPnLCard
