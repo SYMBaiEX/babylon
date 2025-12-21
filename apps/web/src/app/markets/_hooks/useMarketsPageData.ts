@@ -12,6 +12,26 @@ import type {
   PredictionSort,
 } from '@/types/markets';
 
+// ============================================================================
+// Constants
+// ============================================================================
+
+/** Debounce delay for search input (ms) - balances responsiveness with performance */
+const SEARCH_DEBOUNCE_MS = 150;
+
+/** Number of top trending/hot items to display in dashboard widgets */
+const TOP_ITEMS_COUNT = 6;
+
+/**
+ * Trending score weights for perp markets.
+ * Volume is weighted higher (70%) to prioritize liquid, actively traded markets.
+ * Price change contributes 30% so volatile markets also get visibility.
+ */
+const TRENDING_WEIGHTS = {
+  VOLUME: 70,
+  CHANGE: 30,
+} as const;
+
 /**
  * Computed P&L data for a market category.
  */
@@ -53,6 +73,10 @@ export interface MarketsPageData {
   perpLoading: boolean;
   predictionsLoading: boolean;
   portfolioLoading: boolean;
+
+  // Errors
+  /** Error message when predictions fetch fails */
+  predictionsError: string | null;
 
   // Raw data
   perpMarkets: PerpMarket[];
@@ -120,7 +144,7 @@ export function useMarketsPageData(): MarketsPageData {
   useEffect(() => {
     const timeout = setTimeout(() => {
       setDeferredSearchQuery(searchQuery);
-    }, 150);
+    }, SEARCH_DEBOUNCE_MS);
     return () => clearTimeout(timeout);
   }, [searchQuery]);
 
@@ -136,6 +160,7 @@ export function useMarketsPageData(): MarketsPageData {
     PredictionMarketWithPosition[]
   >([]);
   const [predictionsLoading, setPredictionsLoading] = useState(true);
+  const [predictionsError, setPredictionsError] = useState<string | null>(null);
   const [balanceRefreshTrigger, setBalanceRefreshTrigger] = useState(0);
 
   // Portfolio P&L
@@ -187,6 +212,7 @@ export function useMarketsPageData(): MarketsPageData {
 
   /**
    * Fetches prediction markets data.
+   * Sets predictionsError on failure, clears it on success.
    */
   const fetchData = useCallback(async (signal?: AbortSignal) => {
     const isAuth = authenticatedRef.current;
@@ -194,27 +220,46 @@ export function useMarketsPageData(): MarketsPageData {
 
     const url = `/api/markets/predictions${isAuth && userId ? `?userId=${encodeURIComponent(userId)}` : ''}`;
 
-    const response = await fetch(url, { signal });
+    try {
+      const response = await fetch(url, { signal });
 
-    if (!response.ok) {
+      if (!response.ok) {
+        const errorMsg = `Failed to load predictions (${response.status})`;
+        logger.error(
+          'Failed to fetch predictions',
+          { status: response.status },
+          'useMarketsPageData'
+        );
+        setPredictionsError(errorMsg);
+        setPredictionsLoading(false);
+        return;
+      }
+
+      const data = await response.json();
+      setPredictions(data.questions ?? []);
+      setPredictionsError(null); // Clear error on success
+
+      if (isAuth && userId && refreshPositionsRef.current) {
+        await refreshPositionsRef.current();
+      }
+
+      setBalanceRefreshTrigger(Date.now());
+      setPredictionsLoading(false);
+    } catch (err) {
+      // Don't set error for abort - that's expected cleanup behavior
+      if (err instanceof Error && err.name === 'AbortError') {
+        return;
+      }
+      const errorMsg =
+        err instanceof Error ? err.message : 'Failed to load predictions';
       logger.error(
         'Failed to fetch predictions',
-        { status: response.status },
+        { error: errorMsg },
         'useMarketsPageData'
       );
+      setPredictionsError(errorMsg);
       setPredictionsLoading(false);
-      return;
     }
-
-    const data = await response.json();
-    setPredictions(data.questions ?? []);
-
-    if (isAuth && userId && refreshPositionsRef.current) {
-      await refreshPositionsRef.current();
-    }
-
-    setBalanceRefreshTrigger(Date.now());
-    setPredictionsLoading(false);
   }, []);
 
   // Store fetchData in ref
@@ -381,15 +426,14 @@ export function useMarketsPageData(): MarketsPageData {
   /**
    * Top trending perp markets (weighted by change % and volume).
    *
-   * Trending score algorithm:
-   * - Volume score: normalized to 0-70 range (volume / maxVolume * 70)
-   *   Volume is weighted more heavily (70%) to prioritize liquid, active markets.
-   * - Change score: normalized to 0-30 range (absChange / maxChange * 30)
+   * Trending score algorithm uses TRENDING_WEIGHTS constants:
+   * - Volume score: normalized to 0-VOLUME range (default 70)
+   *   Volume is weighted more heavily to prioritize liquid, active markets.
+   * - Change score: normalized to 0-CHANGE range (default 30)
    *   Uses Math.abs so both gains and losses contribute to "trending".
-   *   Change is capped at 30% to balance against volume.
    *
    * Final score = volumeScore + changeScore (max 100)
-   * Returns top 6 markets sorted by trending score descending.
+   * Returns TOP_ITEMS_COUNT markets sorted by trending score descending.
    */
   const trendingMarkets = useMemo((): TrendingPerpMarket[] => {
     if (perpMarkets.length === 0) return [];
@@ -403,21 +447,23 @@ export function useMarketsPageData(): MarketsPageData {
 
     return perpMarkets
       .map((market) => {
-        // Volume normalized to 0-70 range (70% weight)
-        const volumeScore = (market.volume24h / maxVolume) * 70;
-        // Change normalized to 0-30 range (30% weight)
-        const changeScore = (Math.abs(market.changePercent24h) / maxChange) * 30;
+        const volumeScore =
+          (market.volume24h / maxVolume) * TRENDING_WEIGHTS.VOLUME;
+        const changeScore =
+          (Math.abs(market.changePercent24h) / maxChange) *
+          TRENDING_WEIGHTS.CHANGE;
         return {
           ...market,
           trendingScore: volumeScore + changeScore,
         };
       })
       .sort((a, b) => b.trendingScore - a.trendingScore)
-      .slice(0, 6);
+      .slice(0, TOP_ITEMS_COUNT);
   }, [perpMarkets]);
 
   /**
    * Top predictions by volume.
+   * Returns TOP_ITEMS_COUNT predictions sorted by total shares descending.
    */
   const topPredictions = useMemo((): TopPrediction[] => {
     return predictions
@@ -427,7 +473,7 @@ export function useMarketsPageData(): MarketsPageData {
         totalShares: (p.yesShares ?? 0) + (p.noShares ?? 0),
       }))
       .sort((a, b) => b.totalShares - a.totalShares)
-      .slice(0, 6);
+      .slice(0, TOP_ITEMS_COUNT);
   }, [predictions]);
 
   /**
@@ -494,6 +540,9 @@ export function useMarketsPageData(): MarketsPageData {
     perpLoading,
     predictionsLoading,
     portfolioLoading,
+
+    // Errors
+    predictionsError,
 
     // Data
     perpMarkets,
