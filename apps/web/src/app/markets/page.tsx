@@ -167,6 +167,7 @@ export default function MarketsPage() {
             activePredictions={data.activePredictions}
             resolvedPredictions={data.resolvedPredictions}
             onPredictionClick={handlePredictionClick}
+            predictionsError={data.predictionsError}
             compact={isMobile}
           />
         );
