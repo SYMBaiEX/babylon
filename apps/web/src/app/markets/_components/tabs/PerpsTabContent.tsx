@@ -84,9 +84,9 @@ export function PerpsTabContent({
         ALL MARKETS
       </h2>
       <div className="space-y-2">
-        {filteredMarkets.map((market, idx) => (
+        {filteredMarkets.map((market) => (
           <PerpMarketCard
-            key={`market-${market.ticker}-${idx}`}
+            key={market.ticker}
             market={market}
             onClick={onMarketClick}
           />
