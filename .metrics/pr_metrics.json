@@ -1,0 +1,185 @@
+{
+  "repo": "BabylonSocial/babylon",
+  "total": {
+    "count": 215,
+    "states": {
+      "CLOSED": 25,
+      "MERGED": 184,
+      "OPEN": 6
+    },
+    "additions_avg": 13410.813953488372,
+    "deletions_avg": 14527.753488372093,
+    "churn_avg": 27938.567441860465,
+    "churn_median": 416,
+    "churn_p75": 2456,
+    "churn_p90": 18495,
+    "changedFiles_avg": 202.56744186046512,
+    "largest_by_churn": {
+      "number": 553,
+      "url": "https://github.com/BabylonSocial/babylon/pull/553",
+      "author": "SYMBaiEX",
+      "additions": 375161,
+      "deletions": 567375,
+      "churn": 942536,
+      "changedFiles": 6365,
+      "state": "MERGED"
+    },
+    "smallest_by_churn": {
+      "number": 593,
+      "url": "https://github.com/BabylonSocial/babylon/pull/593",
+      "author": "wtfsayo",
+      "additions": 0,
+      "deletions": 0,
+      "churn": 0,
+      "changedFiles": 0,
+      "state": "MERGED"
+    }
+  },
+  "by_author": [
+    {
+      "author": "tcm390",
+      "count": 66,
+      "merged": 61,
+      "churn_avg": 415.6363636363636
+    },
+    {
+      "author": "SYMBaiEX",
+      "count": 56,
+      "merged": 44,
+      "churn_avg": 30831.875
+    },
+    {
+      "author": "wtfsayo",
+      "count": 39,
+      "merged": 36,
+      "churn_avg": 48679
+    },
+    {
+      "author": "0xslk",
+      "count": 21,
+      "merged": 20,
+      "churn_avg": 1414.5714285714287
+    },
+    {
+      "author": "lalalune",
+      "count": 12,
+      "merged": 8,
+      "churn_avg": 179166.33333333334
+    },
+    {
+      "author": "slkzgm",
+      "count": 11,
+      "merged": 8,
+      "churn_avg": 1372.090909090909
+    },
+    {
+      "author": "ChristopherTrimboli",
+      "count": 3,
+      "merged": 3,
+      "churn_avg": 326.6666666666667
+    },
+    {
+      "author": "itsalymer",
+      "count": 2,
+      "merged": 2,
+      "churn_avg": 53439.5
+    },
+    {
+      "author": "blacksmith-sh",
+      "count": 1,
+      "merged": 1,
+      "churn_avg": 10
+    },
+    {
+      "author": "dutchiono",
+      "count": 1,
+      "merged": 0,
+      "churn_avg": 1705
+    },
+    {
+      "author": "grmkris",
+      "count": 1,
+      "merged": 0,
+      "churn_avg": 15883
+    },
+    {
+      "author": "puncar-dev",
+      "count": 1,
+      "merged": 1,
+      "churn_avg": 477
+    },
+    {
+      "author": "revlentless",
+      "count": 1,
+      "merged": 0,
+      "churn_avg": 33565
+    }
+  ],
+  "lalalune_all": {
+    "count": 12,
+    "states": {
+      "CLOSED": 4,
+      "MERGED": 8
+    },
+    "additions_avg": 72441.58333333333,
+    "deletions_avg": 106724.75,
+    "churn_avg": 179166.33333333334,
+    "churn_median": 64063,
+    "churn_p75": 148698,
+    "churn_p90": 706718,
+    "changedFiles_avg": 1366.0833333333333,
+    "largest_by_churn": {
+      "number": 285,
+      "url": "https://github.com/BabylonSocial/babylon/pull/285",
+      "author": "lalalune",
+      "additions": 336980,
+      "deletions": 558098,
+      "churn": 895078,
+      "changedFiles": 5802,
+      "state": "CLOSED"
+    },
+    "smallest_by_churn": {
+      "number": 153,
+      "url": "https://github.com/BabylonSocial/babylon/pull/153",
+      "author": "lalalune",
+      "additions": 1129,
+      "deletions": 499,
+      "churn": 1628,
+      "changedFiles": 13,
+      "state": "MERGED"
+    }
+  },
+  "lalalune_merged": {
+    "count": 8,
+    "states": {
+      "MERGED": 8
+    },
+    "additions_avg": 35143.875,
+    "deletions_avg": 30458.375,
+    "churn_avg": 65602.25,
+    "churn_median": 64063,
+    "churn_p75": 106181,
+    "churn_p90": 148698,
+    "changedFiles_avg": 555,
+    "largest_by_churn": {
+      "number": 580,
+      "url": "https://github.com/BabylonSocial/babylon/pull/580",
+      "author": "lalalune",
+      "additions": 98171,
+      "deletions": 50527,
+      "churn": 148698,
+      "changedFiles": 784,
+      "state": "MERGED"
+    },
+    "smallest_by_churn": {
+      "number": 153,
+      "url": "https://github.com/BabylonSocial/babylon/pull/153",
+      "author": "lalalune",
+      "additions": 1129,
+      "deletions": 499,
+      "churn": 1628,
+      "changedFiles": 13,
+      "state": "MERGED"
+    }
+  }
+}
