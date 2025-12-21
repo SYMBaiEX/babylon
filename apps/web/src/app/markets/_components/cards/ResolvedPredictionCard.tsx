@@ -32,4 +32,3 @@ export const ResolvedPredictionCard = memo(function ResolvedPredictionCard({
     </div>
   );
 });
-

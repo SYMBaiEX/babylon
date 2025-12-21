@@ -6,6 +6,7 @@ import {
 } from '@babylon/core/markets/prediction/client';
 import type { PerpPositionFromAPI, PredictionPosition } from '@babylon/shared';
 import { cn, type JsonValue } from '@babylon/shared';
+import { usePrivy } from '@privy-io/react-auth';
 import {
   AlertTriangle,
   BarChart3,
@@ -17,7 +18,6 @@ import {
   XCircle,
   Zap,
 } from 'lucide-react';
-import { usePrivy } from '@privy-io/react-auth';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { FollowButton } from '@/components/interactions';
@@ -236,7 +236,9 @@ export function PositionDetailModal({
 
       const responseData = await response.json();
       if (!response.ok) {
-        toast.error(formatErrorMessage(responseData, 'Failed to open position'));
+        toast.error(
+          formatErrorMessage(responseData, 'Failed to open position')
+        );
         return;
       }
 

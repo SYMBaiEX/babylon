@@ -1,16 +1,16 @@
 'use client';
 
+import type { PortfolioPnLSnapshot } from '@babylon/engine/client';
+import type { PerpPosition, UserPredictionPosition } from '@babylon/shared';
 import { PortfolioPnLCard } from '@/components/markets/PortfolioPnLCard';
+import type { PerpMarket, PredictionMarket } from '@/types/markets';
+import type { TopPrediction, TrendingPerpMarket } from '../../_hooks';
 import {
   HotPredictionsList,
   MarketsCTA,
   PositionsOverview,
   TrendingPerpsList,
 } from '../sections';
-import type { TopPrediction, TrendingPerpMarket } from '../../_hooks';
-import type { PerpMarket, PredictionMarket } from '@/types/markets';
-import type { PerpPosition, UserPredictionPosition } from '@babylon/shared';
-import type { PortfolioPnLSnapshot } from '@babylon/engine/client';
 
 interface DashboardTabContentProps {
   // Auth state
@@ -99,4 +99,3 @@ export function DashboardTabContent({
     </div>
   );
 }
-

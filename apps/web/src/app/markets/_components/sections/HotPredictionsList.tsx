@@ -1,9 +1,9 @@
 'use client';
 
 import { TrendingUp } from 'lucide-react';
-import { HotPredictionCard } from '../cards';
-import type { TopPrediction } from '../../_hooks';
 import type { PredictionMarket } from '@/types/markets';
+import type { TopPrediction } from '../../_hooks';
+import { HotPredictionCard } from '../cards';
 
 interface HotPredictionsListProps {
   predictions: TopPrediction[];
@@ -44,4 +44,3 @@ export function HotPredictionsList({
     </div>
   );
 }
-

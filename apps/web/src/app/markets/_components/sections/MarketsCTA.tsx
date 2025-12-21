@@ -25,4 +25,3 @@ export function MarketsCTA({ onLogin }: MarketsCTAProps) {
     </div>
   );
 }
-

@@ -3,8 +3,8 @@
 import { cn } from '@babylon/shared';
 import { TrendingDown, TrendingUp } from 'lucide-react';
 import { memo } from 'react';
-import { formatPrice, formatVolume } from '../../_lib/formatters';
 import type { PerpMarket } from '@/types/markets';
+import { formatPrice, formatVolume } from '../../_lib/formatters';
 
 interface PerpMarketCardProps {
   market: PerpMarket;
@@ -64,4 +64,3 @@ export const PerpMarketCard = memo(function PerpMarketCard({
     </button>
   );
 });
-
