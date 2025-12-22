@@ -256,11 +256,11 @@ export function AgentLogs({ agentId }: AgentLogsProps) {
                           </div>
                         )}
                         {log.metadata && (
-                          <div>
+                          <div className="min-w-0">
                             <div className="mb-1 font-medium text-muted-foreground">
                               Metadata:
                             </div>
-                            <pre className="overflow-x-auto rounded bg-black/30 p-2">
+                            <pre className="overflow-x-auto whitespace-pre-wrap break-words rounded bg-black/30 p-2">
                               {JSON.stringify(log.metadata, null, 2)}
                             </pre>
                           </div>
