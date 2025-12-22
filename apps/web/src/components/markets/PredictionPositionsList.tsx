@@ -6,7 +6,10 @@ import { usePrivy } from '@privy-io/react-auth';
 import { CheckCircle, XCircle } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
-import type { ApiErrorResponse, SellSharesSuccessResponse } from '@/types/markets';
+import type {
+  ApiErrorResponse,
+  SellSharesSuccessResponse,
+} from '@/types/markets';
 import {
   type SellPredictionDetails,
   TradeConfirmationDialog,
