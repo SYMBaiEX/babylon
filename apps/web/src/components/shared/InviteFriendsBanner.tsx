@@ -1,6 +1,7 @@
 'use client';
 
 import { getReferralUrl } from '@babylon/shared';
+import { getAuthToken } from '@/lib/auth';
 import { Check, Copy, ExternalLink, Trophy, X } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
@@ -33,8 +34,7 @@ export function InviteFriendsBanner({ onDismiss }: InviteFriendsBannerProps) {
     const trackBannerView = async () => {
       if (!user?.id) return;
 
-      const token =
-        typeof window !== 'undefined' ? window.__privyAccessToken : null;
+      const token = getAuthToken();
       if (!token) return;
 
       // Track banner view in local storage
@@ -91,8 +91,7 @@ export function InviteFriendsBanner({ onDismiss }: InviteFriendsBannerProps) {
     );
 
     // Update server
-    const token =
-      typeof window !== 'undefined' ? window.__privyAccessToken : null;
+    const token = getAuthToken();
     if (token) {
       await fetch(`/api/users/${encodeURIComponent(user.id)}/update-profile`, {
         method: 'POST',

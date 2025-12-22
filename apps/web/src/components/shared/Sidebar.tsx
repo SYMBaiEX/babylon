@@ -1,6 +1,7 @@
 'use client';
 
 import { cn, getReferralUrl } from '@babylon/shared';
+import { getAuthToken } from '@/lib/auth';
 import {
   Bell,
   Bot,
@@ -80,8 +81,7 @@ function SidebarContent() {
     }
 
     const fetchUnreadCount = async () => {
-      const token =
-        typeof window !== 'undefined' ? window.__privyAccessToken : null;
+      const token = getAuthToken();
 
       if (!token) {
         return;

@@ -1,6 +1,7 @@
 'use client';
 
 import { cn, getDisplayReferralUrl, getReferralUrl } from '@babylon/shared';
+import { getAuthToken } from '@/lib/auth';
 import {
   Bell,
   Check,
@@ -99,8 +100,7 @@ function MobileHeaderContent() {
         return;
       }
 
-      const token =
-        typeof window !== 'undefined' ? window.__privyAccessToken : null;
+      const token = getAuthToken();
       if (!token) {
         // No token available yet, skip fetching protected data
         return;
@@ -162,8 +162,7 @@ function MobileHeaderContent() {
     }
 
     const fetchUnreadCount = async () => {
-      const token =
-        typeof window !== 'undefined' ? window.__privyAccessToken : null;
+      const token = getAuthToken();
 
       if (!token) {
         return;

@@ -1,6 +1,7 @@
 'use client';
 
 import { cn, logger } from '@babylon/shared';
+import { getAuthToken } from '@/lib/auth';
 import { Bell, MessageCircle, Send, User, UserPlus, Users } from 'lucide-react';
 import { useCallback, useEffect, useState, useTransition } from 'react';
 import { toast } from 'sonner';
@@ -59,8 +60,7 @@ export function NotificationsTab() {
   // Fetch current user ID on mount
   useEffect(() => {
     const fetchCurrentUser = async () => {
-      const token =
-        typeof window !== 'undefined' ? window.__privyAccessToken : null;
+      const token = getAuthToken();
       if (!token) return;
 
       const response = await fetch('/api/users/me', {
@@ -90,8 +90,7 @@ export function NotificationsTab() {
     }
 
     startSending(async () => {
-      const token =
-        typeof window !== 'undefined' ? window.__privyAccessToken : null;
+      const token = getAuthToken();
 
       if (!token) {
         throw new Error('Not authenticated');
@@ -132,8 +131,7 @@ export function NotificationsTab() {
     }
 
     startSendingDm(async () => {
-      const token =
-        typeof window !== 'undefined' ? window.__privyAccessToken : null;
+      const token = getAuthToken();
 
       if (!token) {
         throw new Error('Not authenticated');
@@ -179,8 +177,7 @@ export function NotificationsTab() {
     }
 
     startSendingDm(async () => {
-      const token =
-        typeof window !== 'undefined' ? window.__privyAccessToken : null;
+      const token = getAuthToken();
 
       if (!token) {
         throw new Error('Not authenticated');
@@ -638,8 +635,7 @@ function GroupInviteSection() {
 
     setSending(true);
 
-    const token =
-      typeof window !== 'undefined' ? window.__privyAccessToken : null;
+    const token = getAuthToken();
 
     if (!token) {
       throw new Error('Not authenticated');

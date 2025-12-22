@@ -1,6 +1,7 @@
 'use client';
 
 import { cn, logger } from '@babylon/shared';
+import { getAuthToken } from '@/lib/auth';
 import {
   Activity,
   AlertCircle,
@@ -118,8 +119,7 @@ export function AgentsTab() {
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
   const fetchData = useCallback(async () => {
-    const token =
-      typeof window !== 'undefined' ? window.__privyAccessToken : null;
+    const token = getAuthToken();
     if (!token) {
       logger.error('Not authenticated', undefined, 'AgentsTab');
       toast.error('Failed to load agents');
@@ -158,8 +158,7 @@ export function AgentsTab() {
   }, [fetchData]);
 
   const handleToggleAgent = async (agentId: string, enable: boolean) => {
-    const token =
-      typeof window !== 'undefined' ? window.__privyAccessToken : null;
+    const token = getAuthToken();
     if (!token) {
       toast.error('Not authenticated');
       return;
@@ -192,8 +191,7 @@ export function AgentsTab() {
       return;
     }
 
-    const token =
-      typeof window !== 'undefined' ? window.__privyAccessToken : null;
+    const token = getAuthToken();
     if (!token) {
       toast.error('Not authenticated');
       return;
@@ -225,8 +223,7 @@ export function AgentsTab() {
       return;
     }
 
-    const token =
-      typeof window !== 'undefined' ? window.__privyAccessToken : null;
+    const token = getAuthToken();
     if (!token) {
       toast.error('Not authenticated');
       return;
