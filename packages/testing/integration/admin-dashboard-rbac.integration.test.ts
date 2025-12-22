@@ -12,13 +12,7 @@
  * Run with: bun test integration/admin-dashboard-rbac.integration.test.ts --preload ./integration/preload.ts
  */
 
-import {
-  afterAll,
-  beforeAll,
-  describe,
-  expect,
-  test,
-} from 'bun:test';
+import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import { getDevCredentials } from '@babylon/api';
 import {
   ADMIN_PERMISSIONS,

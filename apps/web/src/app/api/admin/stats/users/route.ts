@@ -26,9 +26,10 @@ function parseDateParam(param: string | null): Date | null {
 /**
  * Build user type filter based on query param
  */
-function buildUserTypeFilter(
-  userType: string
-): { isActor?: boolean; isAgent?: boolean } {
+function buildUserTypeFilter(userType: string): {
+  isActor?: boolean;
+  isAgent?: boolean;
+} {
   switch (userType) {
     case 'real':
       return { isActor: false, isAgent: false };
@@ -280,9 +281,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       withDiscord,
       withWallet,
       farcasterRate:
-        baseCount > 0
-          ? Math.round((withFarcaster / baseCount) * 1000) / 10
-          : 0,
+        baseCount > 0 ? Math.round((withFarcaster / baseCount) * 1000) / 10 : 0,
       twitterRate:
         baseCount > 0 ? Math.round((withTwitter / baseCount) * 1000) / 10 : 0,
       discordRate:
