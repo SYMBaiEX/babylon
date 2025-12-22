@@ -429,13 +429,16 @@ async function generateContentWindow(
   for (let o = 0; o < organicPostCount && o < numPosts; o++) {
     // Avoid overlap with diverse posts
     let idx = Math.floor(secureRandom() * numPosts);
-    while (
-      diversePostIndices.has(idx) &&
-      organicPostIndices.size < numPosts - diversePostCount
-    ) {
+    let attempts = 0;
+    const maxAttempts = numPosts * 2;
+    while (diversePostIndices.has(idx) && attempts < maxAttempts) {
       idx = Math.floor(secureRandom() * numPosts);
+      attempts++;
     }
-    organicPostIndices.add(idx);
+    // Only add if no collision exists
+    if (!diversePostIndices.has(idx)) {
+      organicPostIndices.add(idx);
+    }
   }
 
   // Calculate rivalry post indices (contrarian posts from rivals)
@@ -444,17 +447,23 @@ async function generateContentWindow(
     Math.floor(numPosts * RIVALRY_POST_RATIO)
   );
   const rivalryPostIndices = new Set<number>();
+  const usedByOrganicAndDiverse = new Set([
+    ...diversePostIndices,
+    ...organicPostIndices,
+  ]);
   for (let r = 0; r < rivalryPostCount && r < numPosts; r++) {
     // Avoid overlap with organic and diverse posts
     let idx = Math.floor(secureRandom() * numPosts);
-    const usedIndices = new Set([...diversePostIndices, ...organicPostIndices]);
-    while (
-      usedIndices.has(idx) &&
-      rivalryPostIndices.size < numPosts - usedIndices.size
-    ) {
+    let attempts = 0;
+    const maxAttempts = numPosts * 2;
+    while (usedByOrganicAndDiverse.has(idx) && attempts < maxAttempts) {
       idx = Math.floor(secureRandom() * numPosts);
+      attempts++;
     }
-    rivalryPostIndices.add(idx);
+    // Only add if no collision exists
+    if (!usedByOrganicAndDiverse.has(idx)) {
+      rivalryPostIndices.add(idx);
+    }
   }
 
   // Generate posts in parallel for better performance
