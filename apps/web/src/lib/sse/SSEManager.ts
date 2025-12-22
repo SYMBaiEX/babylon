@@ -150,6 +150,8 @@ export class SSEManager {
     expiresAt: number;
     channelsKey: string;
   } | null = null;
+  /** In-flight token fetch promise for deduplication */
+  private pendingTokenFetch: Promise<string | null> | null = null;
 
   // Listeners
   private readonly connectionStateListeners =
@@ -172,10 +174,17 @@ export class SSEManager {
   /**
    * Get the singleton instance of SSEManager.
    * Creates a new instance if one doesn't exist.
+   * Note: Config is only applied on first call. Use updateConfig() for changes.
    */
   static getInstance(config?: Partial<SSEManagerConfig>): SSEManager {
     if (!SSEManager.instance) {
       SSEManager.instance = new SSEManager(config);
+    } else if (config) {
+      logger.debug(
+        'SSEManager already initialized, use updateConfig() to modify settings',
+        { providedConfig: config },
+        'SSEManager'
+      );
     }
     return SSEManager.instance;
   }
@@ -236,6 +245,9 @@ export class SSEManager {
 
   private setupNetworkListeners(): void {
     if (typeof window === 'undefined') return;
+
+    // Clean up any existing listeners first (prevents duplicates on hot reload)
+    this.cleanupNetworkListeners();
 
     this.isOnline = navigator.onLine;
 
@@ -465,10 +477,11 @@ export class SSEManager {
     this.requestedChannels.clear();
     this.connectedChannels.clear();
     this.lastEventIds.clear();
-    this.connectionStateListeners.clear();
     this.cachedToken = null;
     this.authTokenProvider = null;
+    // Notify listeners before clearing them so they receive final disconnect
     this.notifyConnectionState('disconnected', null);
+    this.connectionStateListeners.clear();
   }
 
   // ============================================================================
@@ -642,11 +655,28 @@ export class SSEManager {
 
     // Handle the 'connected' event from server
     eventSource.addEventListener('connected', (event) => {
-      const data = JSON.parse(event.data);
+      let data: { clientId?: string; channels?: string[] };
+      try {
+        data = JSON.parse(event.data);
+      } catch (parseError) {
+        logger.error(
+          'Failed to parse SSE connected event',
+          {
+            error:
+              parseError instanceof Error
+                ? parseError.message
+                : String(parseError),
+            dataPreview: event.data?.substring(0, 100),
+          },
+          'SSEManager'
+        );
+        return;
+      }
+
       if (Array.isArray(data.channels)) {
-        this.connectedChannels = new Set(data.channels);
+        this.connectedChannels = new Set(data.channels as Channel[]);
         const missing = channelsList.filter(
-          (ch) => !this.connectedChannels.has(ch as Channel)
+          (ch) => !this.connectedChannels.has(ch)
         );
         if (missing.length > 0) {
           logger.warn(
@@ -686,11 +716,25 @@ export class SSEManager {
         this.lastEventIds.set(message.channel, event.lastEventId);
       }
 
-      // Dispatch to subscribers
+      // Dispatch to subscribers (isolated - one failing callback doesn't break others)
       const subs = this.channelSubscribers.get(message.channel);
       if (subs && subs.size > 0) {
         for (const callback of subs) {
-          callback(message);
+          try {
+            callback(message);
+          } catch (callbackError) {
+            logger.error(
+              'SSE callback threw an error',
+              {
+                channel: message.channel,
+                error:
+                  callbackError instanceof Error
+                    ? callbackError.message
+                    : String(callbackError),
+              },
+              'SSEManager'
+            );
+          }
         }
       }
     });
@@ -769,9 +813,24 @@ export class SSEManager {
   private scheduleTokenRetry(): void {
     if (this.tokenRetryTimeout || !this.isAuthenticated) return;
 
+    // Respect max reconnect attempts for token retries too
+    if (this.reconnectAttempts >= this.config.maxReconnectAttempts) {
+      this.notifyConnectionState(
+        'disconnected',
+        'Failed to get auth token after max attempts'
+      );
+      logger.error(
+        'SSE: Max token retry attempts reached',
+        { attempts: this.reconnectAttempts },
+        'SSEManager'
+      );
+      return;
+    }
+
     const delay = Math.min(this.config.reconnectDelay, 1000);
     this.tokenRetryTimeout = setTimeout(() => {
       this.tokenRetryTimeout = null;
+      this.reconnectAttempts += 1;
       void this.ensureConnection();
     }, delay);
   }
@@ -805,51 +864,74 @@ export class SSEManager {
   ): Promise<string | null> {
     if (!this.authTokenProvider) return null;
 
-    const accessToken = await this.authTokenProvider();
-    if (!accessToken) return null;
+    try {
+      const accessToken = await this.authTokenProvider();
+      if (!accessToken) return null;
 
-    const res = await fetch('/api/realtime/token', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        channels,
-        includeNotifications: true,
-      }),
-    });
+      const res = await fetch('/api/realtime/token', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          channels,
+          includeNotifications: true,
+        }),
+      });
 
-    if (!res.ok) {
-      logger.debug(
-        'Realtime token request failed',
-        { status: res.status },
+      if (!res.ok) {
+        logger.debug(
+          'Realtime token request failed',
+          { status: res.status },
+          'SSEManager'
+        );
+        return null;
+      }
+
+      const json = (await res.json()) as { token?: string; expiresAt?: number };
+      if (!json?.token) return null;
+
+      const expiresAt =
+        typeof json.expiresAt === 'number'
+          ? json.expiresAt
+          : Date.now() + DEFAULT_TOKEN_TTL_MS;
+
+      this.cachedToken = {
+        token: json.token,
+        expiresAt,
+        channelsKey: this.channelsKeyFromList(channels),
+      };
+
+      return json.token;
+    } catch (error) {
+      // Network errors (connection failures, DNS, timeouts) are caught here
+      logger.error(
+        'Failed to fetch realtime token',
+        {
+          error: error instanceof Error ? error.message : String(error),
+        },
         'SSEManager'
       );
       return null;
     }
-
-    const json = (await res.json()) as { token?: string; expiresAt?: number };
-    if (!json?.token) return null;
-
-    const expiresAt =
-      typeof json.expiresAt === 'number'
-        ? json.expiresAt
-        : Date.now() + DEFAULT_TOKEN_TTL_MS;
-
-    this.cachedToken = {
-      token: json.token,
-      expiresAt,
-      channelsKey: this.channelsKeyFromList(channels),
-    };
-
-    return json.token;
   }
 
   private async getAuthToken(channels: Channel[]): Promise<string | null> {
+    // Use cached token if valid
     if (this.shouldUseCachedToken(channels)) {
       return this.cachedToken?.token ?? null;
     }
-    return this.fetchRealtimeToken(channels);
+
+    // Deduplicate concurrent token fetch requests
+    if (this.pendingTokenFetch) {
+      return this.pendingTokenFetch;
+    }
+
+    this.pendingTokenFetch = this.fetchRealtimeToken(channels).finally(() => {
+      this.pendingTokenFetch = null;
+    });
+
+    return this.pendingTokenFetch;
   }
 }
