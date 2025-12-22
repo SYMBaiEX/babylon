@@ -38,6 +38,23 @@ import { AuthorizationError } from './errors';
 const isDevelopment = process.env.NODE_ENV !== 'production';
 
 /**
+ * Check if a user should be auto-promoted to SUPER_ADMIN based on their email domain.
+ * Uses ADMIN_EMAIL_DOMAIN env variable (e.g., 'elizalabs.ai').
+ * Requires email to be verified to prevent unverified email attacks.
+ */
+function shouldAutoPromoteToSuperAdmin(
+  email: string | null | undefined,
+  emailVerified: boolean
+): boolean {
+  if (!emailVerified || !email) return false;
+
+  const adminDomain = process.env.ADMIN_EMAIL_DOMAIN?.trim();
+  if (!adminDomain) return false;
+
+  return email.toLowerCase().endsWith(`@${adminDomain.toLowerCase()}`);
+}
+
+/**
  * Authenticated admin user with role information
  */
 export interface AuthenticatedAdminUser extends AuthenticatedUser {
@@ -68,14 +85,29 @@ export async function getAdminRole(
     return { role, permissions };
   }
 
-  // Backward compatibility: Check isAdmin flag for legacy admins
+  // Get user data for isAdmin and email domain checks
   const [user] = await db
-    .select({ isAdmin: users.isAdmin })
+    .select({
+      isAdmin: users.isAdmin,
+      email: users.email,
+      emailVerified: users.emailVerified,
+    })
     .from(users)
     .where(eq(users.id, userId))
     .limit(1);
 
+  // Backward compatibility: Check isAdmin flag for legacy admins
   if (user?.isAdmin) {
+    return { role: 'SUPER_ADMIN', permissions: ROLE_PERMISSIONS.SUPER_ADMIN };
+  }
+
+  // Auto-promote users with verified admin domain email to SUPER_ADMIN
+  if (user && shouldAutoPromoteToSuperAdmin(user.email, user.emailVerified)) {
+    logger.info(
+      'Auto-promoting user to SUPER_ADMIN via email domain',
+      { userId, email: user.email },
+      'getAdminRole'
+    );
     return { role: 'SUPER_ADMIN', permissions: ROLE_PERMISSIONS.SUPER_ADMIN };
   }
 
