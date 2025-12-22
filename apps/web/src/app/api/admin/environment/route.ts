@@ -6,7 +6,12 @@
  * @access Admin
  */
 
-import { requireAdmin, requirePermission, successResponse, withErrorHandling } from '@babylon/api';
+import {
+  requireAdmin,
+  requirePermission,
+  successResponse,
+  withErrorHandling,
+} from '@babylon/api';
 import { logger } from '@babylon/shared';
 import { cookies } from 'next/headers';
 import type { NextRequest } from 'next/server';
