@@ -93,6 +93,8 @@ import { invalidateReputationCache } from '@babylon/agents/agent0/reputation/age
 import {
   BusinessLogicError,
   distributePointsToReporters,
+  getClientIp,
+  logAdminAction,
   NotFoundError,
   requireAdmin,
   successResponse,
@@ -225,6 +227,27 @@ export const POST = withErrorHandling(
       },
       'POST /api/admin/users/[userId]/ban'
     );
+
+    // Audit log the ban/unban action (persist to database)
+    void logAdminAction(action === 'ban' ? 'BAN' : 'UNBAN', {
+      adminId: adminUser.userId,
+      ipAddress: getClientIp(request.headers) ?? undefined,
+      resourceType: 'user',
+      resourceId: userId,
+      previousValue: {
+        isBanned: targetUser.isBanned,
+      },
+      newValue: {
+        isBanned: action === 'ban',
+        reason: reason ?? null,
+        isScammer: isScammer ?? false,
+        isCSAM: isCSAM ?? false,
+      },
+      metadata: {
+        targetUsername: targetUser.username,
+        action,
+      },
+    });
 
     return successResponse({
       success: true,

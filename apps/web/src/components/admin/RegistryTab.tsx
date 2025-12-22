@@ -142,29 +142,33 @@ export function RegistryTab() {
   const [isBanning, setIsBanning] = useState(false);
 
   const fetchRegistry = useCallback(() => {
-    const fetchLogic = async () => {
-      setLoading(true);
-      setError(null);
-      const params = new URLSearchParams();
-      if (search) params.set('search', search);
-      if (onChainOnly) params.set('onChainOnly', 'true');
+    setLoading(true);
+    setError(null);
 
-      const response = await fetch(`/api/registry/all?${params}`);
-      if (!response.ok) {
-        const errorData = await response.json();
-        setError(errorData.error || 'Failed to fetch registry data');
+    const params = new URLSearchParams();
+    if (search) params.set('search', search);
+    if (onChainOnly) params.set('onChainOnly', 'true');
+
+    fetch(`/api/registry/all?${params}`)
+      .then((response) => {
+        if (!response.ok) {
+          return response.json().then((errorData) => {
+            throw new Error(errorData.error || 'Failed to fetch registry data');
+          });
+        }
+        return response.json();
+      })
+      .then((result) => {
+        // The API returns data directly, not wrapped in { success, data }
+        const validated = RegistryDataSchema.parse(result);
+        setData(validated);
+      })
+      .catch((err: Error) => {
+        setError(err.message || 'Failed to fetch registry data');
+      })
+      .finally(() => {
         setLoading(false);
-        return;
-      }
-
-      const result = await response.json();
-
-      // The API returns data directly, not wrapped in { success, data }
-      const validated = RegistryDataSchema.parse(result);
-      setData(validated);
-      setLoading(false);
-    };
-    void fetchLogic();
+      });
   }, [search, onChainOnly]);
 
   useEffect(() => {

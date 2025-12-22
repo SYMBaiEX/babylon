@@ -48,6 +48,103 @@ const VOCABULARY_REPETITION_THRESHOLD = 0.5; // Word appears in 50%+ of posts = 
 /** Maximum age (in hours) for character history before cleanup */
 const MAX_HISTORY_AGE_HOURS = 24;
 
+/** Stop words to filter out when extracting significant words */
+const STOP_WORDS = new Set([
+  'a',
+  'an',
+  'the',
+  'and',
+  'or',
+  'but',
+  'in',
+  'on',
+  'at',
+  'to',
+  'for',
+  'of',
+  'with',
+  'by',
+  'from',
+  'is',
+  'are',
+  'was',
+  'were',
+  'be',
+  'been',
+  'being',
+  'have',
+  'has',
+  'had',
+  'do',
+  'does',
+  'did',
+  'will',
+  'would',
+  'could',
+  'should',
+  'may',
+  'might',
+  'must',
+  'can',
+  'this',
+  'that',
+  'these',
+  'those',
+  'it',
+  'its',
+  "it's",
+  'i',
+  'me',
+  'my',
+  'we',
+  'our',
+  'you',
+  'your',
+  'he',
+  'she',
+  'they',
+  'them',
+  'his',
+  'her',
+  'their',
+  'not',
+  'no',
+  'yes',
+  'just',
+  'only',
+  'also',
+  'so',
+  'if',
+  'then',
+  'than',
+  'when',
+  'what',
+  'who',
+  'how',
+  'why',
+  'where',
+  'which',
+  'all',
+  'any',
+  'both',
+  'each',
+  'few',
+  'more',
+  'most',
+  'other',
+  'some',
+  'such',
+  'very',
+  'too',
+  'as',
+  'up',
+  'out',
+  'about',
+]);
+
+/** Lower threshold multiplier for early pattern flagging */
+const EARLY_PATTERN_FLAG_MULTIPLIER = 0.75;
+
 /**
  * Tracked post data
  */
@@ -94,104 +191,11 @@ class NPCAntiRepetitionService {
    * Filters out common words, short words, etc.
    */
   private extractSignificantWords(content: string): Set<string> {
-    const stopWords = new Set([
-      'a',
-      'an',
-      'the',
-      'and',
-      'or',
-      'but',
-      'in',
-      'on',
-      'at',
-      'to',
-      'for',
-      'of',
-      'with',
-      'by',
-      'from',
-      'is',
-      'are',
-      'was',
-      'were',
-      'be',
-      'been',
-      'being',
-      'have',
-      'has',
-      'had',
-      'do',
-      'does',
-      'did',
-      'will',
-      'would',
-      'could',
-      'should',
-      'may',
-      'might',
-      'must',
-      'can',
-      'this',
-      'that',
-      'these',
-      'those',
-      'it',
-      'its',
-      "it's",
-      'i',
-      'me',
-      'my',
-      'we',
-      'our',
-      'you',
-      'your',
-      'he',
-      'she',
-      'they',
-      'them',
-      'his',
-      'her',
-      'their',
-      'not',
-      'no',
-      'yes',
-      'just',
-      'only',
-      'also',
-      'so',
-      'if',
-      'then',
-      'than',
-      'when',
-      'what',
-      'who',
-      'how',
-      'why',
-      'where',
-      'which',
-      'all',
-      'any',
-      'both',
-      'each',
-      'few',
-      'more',
-      'most',
-      'other',
-      'some',
-      'such',
-      'very',
-      'too',
-      'as',
-      'up',
-      'out',
-      'about',
-    ]);
-
     const words = content
       .toLowerCase()
       .replace(/[^a-z\s]/g, ' ')
       .split(/\s+/)
-      .filter((w) => w.length >= 4 && !stopWords.has(w));
+      .filter((w) => w.length >= 4 && !STOP_WORDS.has(w));
 
     return new Set(words);
   }
@@ -341,7 +345,10 @@ class NPCAntiRepetitionService {
     const avoidedOpenings: string[] = [];
 
     for (const [opening, count] of openingCounts) {
-      if (count / totalPosts >= OPENING_REPETITION_THRESHOLD * 0.75) {
+      if (
+        count / totalPosts >=
+        OPENING_REPETITION_THRESHOLD * EARLY_PATTERN_FLAG_MULTIPLIER
+      ) {
         avoidedOpenings.push(opening);
       }
     }
@@ -370,7 +377,10 @@ class NPCAntiRepetitionService {
     const avoidedWords: string[] = [];
 
     for (const [word, count] of wordCounts) {
-      if (count / totalPosts >= VOCABULARY_REPETITION_THRESHOLD * 0.75) {
+      if (
+        count / totalPosts >=
+        VOCABULARY_REPETITION_THRESHOLD * EARLY_PATTERN_FLAG_MULTIPLIER
+      ) {
         avoidedWords.push(word);
       }
     }

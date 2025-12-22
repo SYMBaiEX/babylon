@@ -82,12 +82,14 @@ import {
   count,
   db,
   desc,
+  eq,
   gte,
   isNotNull,
   lte,
   pools,
   sum,
   tradingFees,
+  users,
 } from '@babylon/db';
 import { FeeService, StaticDataRegistry } from '@babylon/engine';
 import type { NextRequest } from 'next/server';
@@ -287,71 +289,71 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     })
   );
 
-  // Get recent fee transactions
-  // Build where clause for findMany
-  const recentFeesWhere: WhereInput<TradingFee> = dateFilter;
-
-  const recentFees = await db.tradingFee.findMany({
-    where: recentFeesWhere,
-    include: {
-      user: {
-        select: {
-          username: true,
-          displayName: true,
-          profileImageUrl: true,
-          isActor: true,
-        },
-      },
-    },
-    orderBy: {
-      createdAt: 'desc',
-    },
-    take: limit,
-  });
-
-  // Try to enrich recent fees with actor data for NPCs
-  const enrichedRecentFees = await Promise.all(
-    recentFees.map(async (fee) => {
-      type FeeWithUser = typeof fee & {
-        user?: {
-          username: string | null;
-          displayName: string | null;
-          profileImageUrl: string | null;
-          isActor: boolean;
-        } | null;
-      };
-      const feeWithUser = fee as FeeWithUser;
-      let userData = feeWithUser.user;
-
-      // If no user data, try to find actor
-      if (!userData) {
-        const actor = StaticDataRegistry.getActor(fee.userId);
-
-        if (actor) {
-          userData = {
-            username: actor.name,
-            displayName: actor.name,
-            profileImageUrl: actor.profileImageUrl ?? null,
-            isActor: true,
-          };
-        }
-      }
-
-      return {
-        id: fee.id,
-        userId: fee.userId,
-        username: userData?.username || 'Unknown',
-        displayName: userData?.displayName || 'Unknown',
-        profileImageUrl: userData?.profileImageUrl || null,
-        isNPC: userData?.isActor || false,
-        tradeType: fee.tradeType,
-        feeAmount: Number(fee.feeAmount),
-        platformFee: Number(fee.platformFee),
-        referrerFee: Number(fee.referrerFee),
-        createdAt: fee.createdAt.toISOString(),
-      };
+  // Get recent fee transactions with user data via JOIN (no include to avoid relation issues)
+  const recentFeesQuery = await db
+    .select({
+      id: tradingFees.id,
+      userId: tradingFees.userId,
+      tradeType: tradingFees.tradeType,
+      tradeId: tradingFees.tradeId,
+      marketId: tradingFees.marketId,
+      feeAmount: tradingFees.feeAmount,
+      platformFee: tradingFees.platformFee,
+      referrerFee: tradingFees.referrerFee,
+      referrerId: tradingFees.referrerId,
+      createdAt: tradingFees.createdAt,
+      username: users.username,
+      displayName: users.displayName,
+      profileImageUrl: users.profileImageUrl,
+      isActor: users.isActor,
     })
-  );
+    .from(tradingFees)
+    .leftJoin(users, eq(tradingFees.userId, users.id))
+    .where(
+      startDate || endDate
+        ? and(
+            startDate ? gte(tradingFees.createdAt, startDate) : undefined,
+            endDate ? lte(tradingFees.createdAt, endDate) : undefined
+          )
+        : undefined
+    )
+    .orderBy(desc(tradingFees.createdAt))
+    .limit(limit);
+
+  // Enrich recent fees with actor data for NPCs (user data already joined)
+  const enrichedRecentFees = recentFeesQuery.map((fee) => {
+    // User data comes from the JOIN, check if we have it
+    let username = fee.username;
+    let displayName = fee.displayName;
+    let profileImageUrl = fee.profileImageUrl;
+    let isActor = fee.isActor ?? false;
+
+    // If no user data from join, try to find actor
+    if (!username) {
+      const actor = StaticDataRegistry.getActor(fee.userId);
+
+      if (actor) {
+        username = actor.name;
+        displayName = actor.name;
+        profileImageUrl = actor.profileImageUrl ?? null;
+        isActor = true;
+      }
+    }
+
+    return {
+      id: fee.id,
+      userId: fee.userId,
+      username: username || 'Unknown',
+      displayName: displayName || 'Unknown',
+      profileImageUrl: profileImageUrl || null,
+      isNPC: isActor,
+      tradeType: fee.tradeType,
+      feeAmount: Number(fee.feeAmount),
+      platformFee: Number(fee.platformFee),
+      referrerFee: Number(fee.referrerFee),
+      createdAt: fee.createdAt.toISOString(),
+    };
+  });
 
   // Get fee trend data (daily aggregates for the past 30 days)
   const thirtyDaysAgo = new Date();

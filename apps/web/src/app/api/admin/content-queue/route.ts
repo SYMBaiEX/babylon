@@ -208,6 +208,21 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       and(eq(reports.reportedPostId, posts.id), eq(reports.status, 'pending'))
     );
 
+  // Get comment stats using efficient aggregation (separate from paginated results)
+  const [commentStats] = await db
+    .select({
+      pending: sql<number>`COUNT(DISTINCT ${comments.id}) FILTER (WHERE ${comments.deletedAt} IS NULL)`,
+      deleted: sql<number>`COUNT(DISTINCT ${comments.id}) FILTER (WHERE ${comments.deletedAt} IS NOT NULL)`,
+    })
+    .from(comments)
+    .innerJoin(
+      reports,
+      and(
+        eq(reports.reportedCommentId, comments.id),
+        eq(reports.status, 'pending')
+      )
+    );
+
   return successResponse({
     posts: reportedPosts.map((p) => ({
       ...p,
@@ -231,12 +246,11 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         hidden: Number(postStats?.deleted ?? 0),
       },
       comments: {
-        pending: reportedComments.filter((c) => c.deletedAt === null).length,
-        hidden: reportedComments.filter((c) => c.deletedAt !== null).length,
+        pending: Number(commentStats?.pending ?? 0),
+        hidden: Number(commentStats?.deleted ?? 0),
       },
       totalPending:
-        Number(postStats?.pending ?? 0) +
-        reportedComments.filter((c) => c.deletedAt === null).length,
+        Number(postStats?.pending ?? 0) + Number(commentStats?.pending ?? 0),
     },
   });
 });

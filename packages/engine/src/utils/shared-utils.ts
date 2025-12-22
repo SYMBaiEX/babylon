@@ -714,6 +714,7 @@ const EMOJI_REGEX =
 /**
  * Strip hashtags and emojis from content.
  * Used as post-processing for LLM-generated content.
+ * Preserves paragraph breaks (double newlines) for article formatting.
  *
  * @param content - Raw content from LLM
  * @returns Cleaned content without hashtags or emojis
@@ -727,8 +728,17 @@ export function stripHashtagsAndEmojis(content: string): string {
   // Strip emojis
   processed = processed.replace(EMOJI_REGEX, '');
 
-  // Normalize whitespace (multiple spaces → single space)
-  processed = processed.replace(/\s+/g, ' ').trim();
+  // Normalize paragraph breaks: 3+ newlines → 2 newlines
+  processed = processed.replace(/\n{3,}/g, '\n\n');
+
+  // Normalize horizontal whitespace (spaces/tabs) without affecting newlines
+  processed = processed.replace(/[^\S\n]+/g, ' ');
+
+  // Clean up spaces around newlines
+  processed = processed.replace(/ *\n */g, '\n');
+
+  // Trim the result
+  processed = processed.trim();
 
   return processed;
 }

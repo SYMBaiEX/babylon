@@ -157,7 +157,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   );
 
   // Build filter conditions (not cursor)
-  const filterConditions = [];
+  const filterConditions: ReturnType<typeof eq>[] = [];
   if (filterAdminId) {
     filterConditions.push(eq(adminAuditLogs.adminId, filterAdminId));
   }

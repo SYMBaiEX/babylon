@@ -276,7 +276,7 @@ export default function AdminDashboard() {
   const CurrentIcon = currentTab?.icon || BarChart;
 
   return (
-    <PageContainer className="flex flex-col">
+    <PageContainer className="flex flex-col pt-6">
       {/* Header with Dropdown Navigation */}
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
