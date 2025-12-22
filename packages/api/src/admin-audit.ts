@@ -26,8 +26,8 @@ export interface AdminAuditContext {
   previousValue?: JsonValue;
   /** New value after modification */
   newValue?: JsonValue;
-  /** Additional context data */
-  metadata?: Record<string, unknown>;
+  /** Additional context data - must be JSON-serializable */
+  metadata?: JsonValue;
 }
 
 /**
@@ -80,7 +80,7 @@ async function persistAuditLog(
       newValue: context.newValue ?? null,
       ipAddress: context.ipAddress ?? null,
       userAgent: context.userAgent ?? null,
-      metadata: (context.metadata as JsonValue) ?? null,
+      metadata: context.metadata ?? null,
     })
     .catch((err: Error) => {
       // Log but don't throw - table might not exist yet (migration not applied)

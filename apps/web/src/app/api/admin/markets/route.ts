@@ -10,6 +10,7 @@
  */
 
 import { requireAdmin, successResponse, withErrorHandling } from '@babylon/api';
+import { PredictionPricing } from '@babylon/core/markets/prediction/pricing';
 import {
   and,
   count,
@@ -30,7 +31,9 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
   const { searchParams } = new URL(request.url);
   const status = searchParams.get('status') || 'all'; // 'all', 'active', 'resolved', 'expired'
-  const limit = parseInt(searchParams.get('limit') || '50', 10);
+  // Clamp limit to prevent heavy queries (min 1, max 200, default 50)
+  const rawLimit = parseInt(searchParams.get('limit') || '50', 10);
+  const limit = Math.min(Math.max(isNaN(rawLimit) ? 50 : rawLimit, 1), 200);
 
   logger.info(
     'Admin markets overview requested',
@@ -96,17 +99,18 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     .orderBy(desc(markets.createdAt))
     .limit(limit);
 
-  // Calculate yes price for each market
+  // Calculate yes price for each market using the canonical CPMM pricing formula
+  // from PredictionPricing.getCurrentPrice: yesPrice = noShares / (yesShares + noShares)
   const marketsWithPrices = marketsList.map((market) => {
     const yesShares = parseFloat(String(market.yesShares));
     const noShares = parseFloat(String(market.noShares));
-    const totalShares = yesShares + noShares;
-    const yesPrice = totalShares > 0 ? noShares / totalShares : 0.5;
+    const yesPrice = PredictionPricing.getCurrentPrice(yesShares, noShares, 'yes');
+    const noPrice = PredictionPricing.getCurrentPrice(yesShares, noShares, 'no');
 
     return {
       ...market,
       yesPrice: Math.round(yesPrice * 100),
-      noPrice: Math.round((1 - yesPrice) * 100),
+      noPrice: Math.round(noPrice * 100),
       status: market.resolved
         ? 'resolved'
         : new Date(market.endDate) <= now

@@ -548,6 +548,38 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     throw new InternalServerError('Failed to create or find user record');
   }
 
+  // Auto-promote existing users to admin if they have a verified admin domain email
+  // This ensures users who later link/verify a company email get admin access
+  if (dbUser && !dbUser.isAdmin) {
+    const privyClient = getPrivyClient();
+    const privyUser = await privyClient.getUser(privyId);
+    const verifiedEmail = privyUser.email?.address ?? null;
+    const emailVerified = !!verifiedEmail;
+    const shouldBeAdmin = shouldAutoPromoteToAdmin(verifiedEmail, emailVerified);
+
+    if (shouldBeAdmin) {
+      logger.info(
+        'Auto-promoting existing user to admin based on verified email domain',
+        {
+          userId: dbUser.id,
+          emailDomain: verifiedEmail?.split('@')[1] ?? null,
+          emailVerified,
+        },
+        'GET /api/users/me'
+      );
+
+      const [updatedUser] = await db
+        .update(users)
+        .set({ isAdmin: true, updatedAt: new Date() })
+        .where(eq(users.id, dbUser.id))
+        .returning(userSelectFields);
+
+      if (updatedUser) {
+        dbUser = updatedUser;
+      }
+    }
+  }
+
   // Get cached profile stats
   const stats = await cachedDb.getUserProfileStats(dbUser.id);
 
