@@ -79,28 +79,9 @@ import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { z } from 'zod';
 
-// Valid action and resource types for audit logs
-// These must match the actual logged action values from logAdminAction calls
-const VALID_ACTIONS = [
-  'BAN',
-  'UNBAN',
-  'PROMOTE_ADMIN',
-  'DEMOTE_ADMIN',
-  'VIEW',
-  'CREATE',
-  'MODIFY',
-  'DELETE',
-] as const;
-
-const VALID_RESOURCE_TYPES = [
-  'user',
-  'post',
-  'comment',
-  'market',
-  'report',
-  'system',
-] as const;
-
+// Audit log filters schema
+// Action and resourceType accept any string value from the database
+// to avoid validation mismatches when new resource types are logged
 const AuditLogFiltersSchema = z.object({
   limit: z.coerce.number().min(1).max(100).default(50),
   // Offset-based pagination (legacy, max 1000 to prevent performance issues)
@@ -109,8 +90,10 @@ const AuditLogFiltersSchema = z.object({
   // Cursor is the ISO timestamp of the last item from previous page
   cursor: z.string().datetime().optional(),
   adminId: z.string().min(1).optional(),
-  action: z.enum(VALID_ACTIONS).optional(),
-  resourceType: z.enum(VALID_RESOURCE_TYPES).optional(),
+  // Accept any action string to match database values dynamically
+  action: z.string().min(1).max(64).optional(),
+  // Accept any resource type string to match database values dynamically
+  resourceType: z.string().min(1).max(64).optional(),
 });
 
 export const GET = withErrorHandling(async (request: NextRequest) => {

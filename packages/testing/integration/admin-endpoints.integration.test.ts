@@ -161,15 +161,15 @@ describe('Admin API Endpoints Integration', () => {
     test('should support filtering by action type', async () => {
       if (!serverAvailable || !adminToken) return;
       const res = await getWithAuth(
-        '/api/admin/audit-logs?action=modify',
+        '/api/admin/audit-logs?action=MODIFY',
         adminToken
       );
       expect(res.status).toBe(200);
 
       const data = await res.json();
-      // All logs should have the filtered action
+      // All logs should have the filtered action (uppercase as stored in DB)
       for (const log of data.logs) {
-        expect(log.action).toBe('modify');
+        expect(log.action).toBe('MODIFY');
       }
     });
 

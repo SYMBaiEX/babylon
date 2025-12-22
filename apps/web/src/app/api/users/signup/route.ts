@@ -419,11 +419,30 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
 
         if (existingUserRecord) {
           // Update existing user
+          // Also check if user should be auto-promoted to admin (for existing users with new verified email)
+          const emailVerified = !!verifiedEmail;
+          const shouldPromoteToAdmin =
+            !existingUserRecord.isAdmin &&
+            shouldAutoPromoteToAdmin(verifiedEmail, emailVerified);
+
+          if (shouldPromoteToAdmin) {
+            logger.info(
+              'Auto-promoting existing user to admin during signup based on verified email domain',
+              {
+                userId: canonicalUserId,
+                emailDomain: verifiedEmail?.split('@')[1] ?? null,
+                emailVerified,
+              },
+              'POST /api/users/signup'
+            );
+          }
+
           const [updatedUser] = await tx
             .update(users)
             .set({
               ...baseUserData,
               referredBy: resolvedReferrerId ?? existingUserRecord.referredBy,
+              isAdmin: shouldPromoteToAdmin ? true : existingUserRecord.isAdmin,
               updatedAt: new Date(),
             })
             .where(eq(users.id, canonicalUserId))

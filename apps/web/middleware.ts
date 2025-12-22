@@ -31,11 +31,28 @@ const DEV_ORIGINS = [
 ] as const;
 
 /**
+ * Parse additional CORS origins from environment variable.
+ * CORS_ALLOWED_ORIGINS can be a comma-separated list of origins.
+ * This allows adding preview domains, new subdomains, etc. without code changes.
+ */
+function getEnvOrigins(): string[] {
+  const envOrigins = process.env.CORS_ALLOWED_ORIGINS;
+  if (!envOrigins) return [];
+
+  return envOrigins
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter((origin) => origin.length > 0);
+}
+
+/**
  * Allowed origins for CORS requests.
- * Development origins are only included when NODE_ENV !== 'production'
+ * Includes: production origins, env-driven origins, and dev origins (in non-production).
+ * Set CORS_ALLOWED_ORIGINS env var to add additional origins (comma-separated).
  */
 const ALLOWED_ORIGINS = new Set<string>([
   ...PRODUCTION_ORIGINS,
+  ...getEnvOrigins(),
   ...(process.env.NODE_ENV !== 'production' ? DEV_ORIGINS : []),
 ]);
 

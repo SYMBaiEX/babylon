@@ -11,12 +11,6 @@
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import { and, db, eq, gte, posts } from '@babylon/db';
-import { BabylonLLMClient } from '../../llm/openai-client';
-import {
-  generateNPCPost,
-  loadSharedPostContext,
-} from '../../services/post-generation-helpers';
-import { StaticDataRegistry } from '../../services/static-data-registry';
 
 // Skip unless explicitly enabled with database running
 const SKIP = process.env.RUN_INTEGRATION_TESTS !== 'true';
@@ -28,9 +22,17 @@ const hasLLMKey = !!(
   (process.env.OPENAI_API_KEY?.trim() ?? '') !== ''
 );
 
+// Type imports for dynamic modules - avoids loading @fal-ai/client at module load time
+type PostHelpersModule = typeof import('../../services/post-generation-helpers');
+type LLMModule = typeof import('../../llm/openai-client');
+type RegistryModule = typeof import('../../services/static-data-registry');
+
 describe.skipIf(SKIP || !hasLLMKey)('NPC Post Voice Integration', () => {
   let testTimestamp: Date;
-  let llmClient: BabylonLLMClient;
+  let llmClient: ReturnType<LLMModule['BabylonLLMClient']['forGameTick']>;
+  let generateNPCPost: PostHelpersModule['generateNPCPost'];
+  let loadSharedPostContext: PostHelpersModule['loadSharedPostContext'];
+  let StaticDataRegistryRef: RegistryModule['StaticDataRegistry'];
 
   // Test actors with very different voices
   const testActorIds = [
@@ -42,7 +44,18 @@ describe.skipIf(SKIP || !hasLLMKey)('NPC Post Voice Integration', () => {
   ];
 
   beforeAll(async () => {
-    llmClient = BabylonLLMClient.forGameTick();
+    // Dynamic imports to avoid loading @fal-ai/client at module load time
+    const llmModule = await import('../../llm/openai-client');
+    const postHelpersModule = await import(
+      '../../services/post-generation-helpers'
+    );
+    const registryModule = await import('../../services/static-data-registry');
+
+    generateNPCPost = postHelpersModule.generateNPCPost;
+    loadSharedPostContext = postHelpersModule.loadSharedPostContext;
+    StaticDataRegistryRef = registryModule.StaticDataRegistry;
+
+    llmClient = llmModule.BabylonLLMClient.forGameTick();
     testTimestamp = new Date();
   });
 
@@ -78,7 +91,7 @@ describe.skipIf(SKIP || !hasLLMKey)('NPC Post Voice Integration', () => {
 
     // Generate posts for each test actor
     for (const actorId of testActorIds) {
-      const actor = StaticDataRegistry.getActor(actorId);
+      const actor = StaticDataRegistryRef.getActor(actorId);
       if (!actor) {
         console.log(`Actor ${actorId} not found in registry, skipping`);
         continue;
@@ -148,7 +161,7 @@ describe.skipIf(SKIP || !hasLLMKey)('NPC Post Voice Integration', () => {
 
     console.log('Generated posts:');
     for (const post of recentPosts) {
-      const actor = StaticDataRegistry.getActor(post.authorId);
+      const actor = StaticDataRegistryRef.getActor(post.authorId);
       console.log(`  ${actor?.name || post.authorId}: "${post.content}"`);
     }
 
@@ -241,7 +254,7 @@ describe.skipIf(SKIP || !hasLLMKey)('NPC Post Voice Integration', () => {
     for (const post of recentPosts) {
       for (const pattern of overusedPatterns) {
         if (pattern.test(post.content)) {
-          const actor = StaticDataRegistry.getActor(post.authorId);
+          const actor = StaticDataRegistryRef.getActor(post.authorId);
           console.log(
             `OVERUSED PATTERN found in ${actor?.name}: "${post.content}"`
           );
