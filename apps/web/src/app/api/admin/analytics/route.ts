@@ -111,6 +111,10 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
   const { start, end } = getDateRange(period);
 
+  // Maximum data points to prevent memory issues with large datasets
+  // (month=6, week=28, day=7 by date range, but we limit to 200 as safety margin)
+  const MAX_DATA_POINTS = 200;
+
   // Execute all queries in parallel for better performance
   const [
     userSignups,
@@ -139,7 +143,8 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         period === 'month'
           ? sql`DATE_TRUNC('month', ${users.createdAt})`
           : sql`DATE(${users.createdAt})`
-      ),
+      )
+      .limit(MAX_DATA_POINTS),
 
     // Posts
     db
@@ -161,7 +166,8 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         period === 'month'
           ? sql`DATE_TRUNC('month', ${posts.createdAt})`
           : sql`DATE(${posts.createdAt})`
-      ),
+      )
+      .limit(MAX_DATA_POINTS),
 
     // Comments
     db
@@ -183,7 +189,8 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         period === 'month'
           ? sql`DATE_TRUNC('month', ${comments.createdAt})`
           : sql`DATE(${comments.createdAt})`
-      ),
+      )
+      .limit(MAX_DATA_POINTS),
 
     // Reactions
     db
@@ -207,7 +214,8 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         period === 'month'
           ? sql`DATE_TRUNC('month', ${reactions.createdAt})`
           : sql`DATE(${reactions.createdAt})`
-      ),
+      )
+      .limit(MAX_DATA_POINTS),
 
     // Follows
     db
@@ -229,7 +237,8 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         period === 'month'
           ? sql`DATE_TRUNC('month', ${follows.createdAt})`
           : sql`DATE(${follows.createdAt})`
-      ),
+      )
+      .limit(MAX_DATA_POINTS),
   ]);
 
   // Build unified time-series data
@@ -295,19 +304,20 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     if (entry) entry.follows = row.count;
   }
 
-  // Convert to array and sort
+  // Convert to array, sort, and calculate totals in a single pass for efficiency
   const timeSeries = Array.from(dateMap.values()).sort((a, b) =>
     a.date.localeCompare(b.date)
   );
 
-  // Calculate totals for the period
-  const totals = {
-    users: timeSeries.reduce((sum, d) => sum + d.users, 0),
-    posts: timeSeries.reduce((sum, d) => sum + d.posts, 0),
-    comments: timeSeries.reduce((sum, d) => sum + d.comments, 0),
-    reactions: timeSeries.reduce((sum, d) => sum + d.reactions, 0),
-    follows: timeSeries.reduce((sum, d) => sum + d.follows, 0),
-  };
+  // Calculate totals in single pass (more efficient than multiple reduce calls)
+  const totals = { users: 0, posts: 0, comments: 0, reactions: 0, follows: 0 };
+  for (const d of timeSeries) {
+    totals.users += d.users;
+    totals.posts += d.posts;
+    totals.comments += d.comments;
+    totals.reactions += d.reactions;
+    totals.follows += d.follows;
+  }
 
   return successResponse({
     period,

@@ -74,7 +74,7 @@ const ContentQueueQuerySchema = z.object({
   type: z.enum(['all', 'posts', 'comments']).default('all'),
   status: z.enum(['pending', 'resolved']).default('pending'),
   limit: z.coerce.number().min(1).max(100).default(50),
-  offset: z.coerce.number().min(0).max(10000).default(0), // Max offset to prevent abuse
+  offset: z.coerce.number().min(0).max(1000).default(0), // Max offset prevents scanning entire dataset
 });
 
 export const GET = withErrorHandling(async (request: NextRequest) => {

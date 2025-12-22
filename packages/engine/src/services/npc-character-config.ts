@@ -101,16 +101,38 @@ const PERSONALITY_KEYWORDS: Record<PersonalityType, string[]> = {
 };
 
 /**
- * Temperature settings by personality type
+ * LLM temperature constraints (typically 0-2 for most providers)
  */
-const PERSONALITY_TEMPERATURES: Record<PersonalityType, number> = {
+const MIN_TEMPERATURE = 0;
+const MAX_TEMPERATURE = 2;
+
+/**
+ * Validate that a temperature value is within LLM acceptable range
+ */
+function validateTemperature(temp: number): number {
+  if (temp < MIN_TEMPERATURE || temp > MAX_TEMPERATURE) {
+    logger.warn(
+      `Temperature ${temp} outside valid range [${MIN_TEMPERATURE}, ${MAX_TEMPERATURE}], clamping`,
+      { temperature: temp },
+      'CharacterConfig'
+    );
+    return Math.max(MIN_TEMPERATURE, Math.min(MAX_TEMPERATURE, temp));
+  }
+  return temp;
+}
+
+/**
+ * Temperature settings by personality type
+ * All values validated to be within LLM acceptable range (0-2)
+ */
+const PERSONALITY_TEMPERATURES = {
   chaotic: 0.95,
   provocative: 0.9,
   eccentric: 0.85,
   default: 0.8,
   analytical: 0.7,
   corporate: 0.6,
-};
+} as const satisfies Record<PersonalityType, number>;
 
 /**
  * Organic post probability by personality type
@@ -170,6 +192,12 @@ function buildRivalryMap(): Map<string, string[]> {
 const RIVALRY_MAP = buildRivalryMap();
 
 /**
+ * Memoization cache for compiled voice patterns
+ * Prevents recompiling regex on every getCharacterConfig() call
+ */
+const voicePatternsCache = new Map<string, RegExp[]>();
+
+/**
  * Determine personality type from actor's personality field
  */
 function derivePersonalityType(
@@ -194,9 +222,17 @@ function derivePersonalityType(
 /**
  * Derive voice patterns from postStyle
  * Creates regex patterns to check for characteristic voice elements
+ * Uses memoization to avoid recompiling regex on every call
  */
-function deriveVoicePatterns(postStyle: string | undefined): RegExp[] {
+function deriveVoicePatterns(
+  actorId: string,
+  postStyle: string | undefined
+): RegExp[] {
   if (!postStyle) return [];
+
+  // Check cache first
+  const cached = voicePatternsCache.get(actorId);
+  if (cached) return cached;
 
   const patterns: RegExp[] = [];
   const styleLower = postStyle.toLowerCase();
@@ -215,6 +251,8 @@ function deriveVoicePatterns(postStyle: string | undefined): RegExp[] {
     patterns.push(/\.\.\.|—|–/);
   }
 
+  // Cache the compiled patterns
+  voicePatternsCache.set(actorId, patterns);
   return patterns;
 }
 
@@ -250,11 +288,11 @@ export function getCharacterConfig(actorId: string): CharacterConfig {
   const personalityType = derivePersonalityType(actor.personality);
   const domains = actor.domain || [];
   const rivals = RIVALRY_MAP.get(actorId) || [];
-  const voicePatterns = deriveVoicePatterns(actor.postStyle);
+  const voicePatterns = deriveVoicePatterns(actorId, actor.postStyle);
   const templatePosts = actor.postExample || [];
 
   return {
-    temperature: PERSONALITY_TEMPERATURES[personalityType],
+    temperature: validateTemperature(PERSONALITY_TEMPERATURES[personalityType]),
     personalityType,
     domains,
     rivals,

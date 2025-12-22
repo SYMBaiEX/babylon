@@ -27,6 +27,7 @@ import {
   Shield,
 } from 'lucide-react';
 import { useCallback, useEffect, useState, useTransition } from 'react';
+import { toast } from 'sonner';
 import { Avatar } from '@/components/shared/Avatar';
 import { Skeleton } from '@/components/shared/Skeleton';
 
@@ -74,28 +75,23 @@ export function AuditLogsTab() {
   const fetchLogs = useCallback(
     (showRefreshing = false) => {
       const fetchLogic = async () => {
-        try {
-          const params = new URLSearchParams({
-            limit: String(limit),
-            offset: String(offset),
-          });
-          if (actionFilter) params.set('action', actionFilter);
-          if (resourceTypeFilter)
-            params.set('resourceType', resourceTypeFilter);
+        const params = new URLSearchParams({
+          limit: String(limit),
+          offset: String(offset),
+        });
+        if (actionFilter) params.set('action', actionFilter);
+        if (resourceTypeFilter)
+          params.set('resourceType', resourceTypeFilter);
 
-          const response = await fetch(`/api/admin/audit-logs?${params}`);
-          if (!response.ok) {
-            console.error('Failed to fetch audit logs:', response.status);
-            setLoading(false);
-            return;
-          }
-          const responseData = await response.json();
-          setData(responseData);
+        const response = await fetch(`/api/admin/audit-logs?${params}`);
+        if (!response.ok) {
+          toast.error('Failed to load audit logs');
           setLoading(false);
-        } catch (err) {
-          console.error('Error fetching audit logs:', err);
-          setLoading(false);
+          return;
         }
+        const responseData = await response.json();
+        setData(responseData);
+        setLoading(false);
       };
 
       if (showRefreshing) {

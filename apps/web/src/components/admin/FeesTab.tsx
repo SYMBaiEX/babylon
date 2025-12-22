@@ -109,33 +109,17 @@ export function FeesTab() {
   const [isRefreshing, startRefresh] = useTransition();
 
   const fetchStats = useCallback(() => {
-    const fetchLogic = async () => {
-      try {
-        const response = await fetch('/api/admin/fees');
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
-          setError(errorData.error || 'Failed to fetch fee statistics');
-          setLoading(false);
-          return;
-        }
-        const data = await response.json();
-        const validation = FeeStatsSchema.safeParse(data);
-        if (!validation.success) {
-          setError('Invalid data structure for fee statistics');
-          setLoading(false);
-          return;
-        }
-        setStats(validation.data);
-        setError(null);
-        setLoading(false);
-      } catch (err) {
-        setError(
-          err instanceof Error ? err.message : 'Failed to load fee statistics'
-        );
-        setLoading(false);
+    startRefresh(async () => {
+      const response = await fetch('/api/admin/fees');
+      if (!response.ok) {
+        throw new Error(`Failed to fetch fee statistics: ${response.status}`);
       }
-    };
-    startRefresh(fetchLogic);
+      const data = await response.json();
+      const validated = FeeStatsSchema.parse(data);
+      setStats(validated);
+      setError(null);
+      setLoading(false);
+    });
   }, []);
 
   useEffect(() => {

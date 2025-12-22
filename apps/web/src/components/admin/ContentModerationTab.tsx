@@ -76,17 +76,76 @@ export function ContentModerationTab() {
   const [actionReason, setActionReason] = useState('');
   const [isActioning, startActioning] = useTransition();
 
+  const [error, setError] = useState<{
+    type: 'network' | 'auth' | 'data' | 'unknown';
+    message: string;
+  } | null>(null);
+
+  /**
+   * Categorize API errors for better debugging and user feedback
+   */
+  const categorizeError = useCallback(
+    (
+      status: number,
+      message?: string
+    ): { type: 'network' | 'auth' | 'data' | 'unknown'; message: string } => {
+      if (status === 401 || status === 403) {
+        return {
+          type: 'auth',
+          message: 'Authentication failed. Please log in again.',
+        };
+      }
+      if (status === 400 || status === 422) {
+        return {
+          type: 'data',
+          message: message ?? 'Invalid request parameters.',
+        };
+      }
+      if (status >= 500) {
+        return {
+          type: 'network',
+          message: 'Server error. Please try again later.',
+        };
+      }
+      return {
+        type: 'unknown',
+        message: message ?? 'An unexpected error occurred.',
+      };
+    },
+    []
+  );
+
   const fetchQueue = useCallback(
     (showRefreshing = false) => {
       const fetchLogic = async () => {
+        setError(null);
         const params = new URLSearchParams();
         if (contentType !== 'all') params.set('type', contentType);
 
-        const response = await fetch(`/api/admin/content-queue?${params}`);
-        if (!response.ok) {
+        let response: Response;
+        try {
+          response = await fetch(`/api/admin/content-queue?${params}`);
+        } catch {
+          setError({
+            type: 'network',
+            message: 'Network error. Check your connection.',
+          });
           setLoading(false);
           return;
         }
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          setError(
+            categorizeError(
+              response.status,
+              errorData.error ?? errorData.message
+            )
+          );
+          setLoading(false);
+          return;
+        }
+
         const result = await response.json();
         setData(result);
         setLoading(false);
@@ -98,7 +157,7 @@ export function ContentModerationTab() {
         void fetchLogic();
       }
     },
-    [contentType]
+    [contentType, categorizeError]
   );
 
   useEffect(() => {
@@ -116,21 +175,32 @@ export function ContentModerationTab() {
     if (!selectedItem) return;
 
     startActioning(async () => {
-      const response = await fetch(
-        `/api/admin/content-queue/${selectedItem.id}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: actionType,
-            contentType: selectedItem.type,
-            reason: actionReason || undefined,
-          }),
-        }
-      );
+      let response: Response;
+      try {
+        response = await fetch(
+          `/api/admin/content-queue/${selectedItem.id}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              action: actionType,
+              contentType: selectedItem.type,
+              reason: actionReason || undefined,
+            }),
+          }
+        );
+      } catch {
+        toast.error('Network error. Check your connection.');
+        return;
+      }
 
       if (!response.ok) {
-        toast.error('Failed to perform action');
+        const errorData = await response.json().catch(() => ({}));
+        const categorized = categorizeError(
+          response.status,
+          errorData.error ?? errorData.message
+        );
+        toast.error(categorized.message);
         return;
       }
 
@@ -273,7 +343,30 @@ export function ContentModerationTab() {
     return (
       <div className="py-12 text-center text-muted-foreground">
         <Flag className="mx-auto mb-3 h-12 w-12 opacity-50" />
-        <p>Failed to load content queue</p>
+        <p className="font-medium">Failed to load content queue</p>
+        {error && (
+          <div className="mt-2 space-y-1">
+            <p
+              className={cn(
+                'text-sm',
+                error.type === 'auth' && 'text-yellow-500',
+                error.type === 'network' && 'text-red-500',
+                error.type === 'data' && 'text-orange-500'
+              )}
+            >
+              {error.message}
+            </p>
+            <p className="text-muted-foreground text-xs">
+              Error type: {error.type}
+            </p>
+          </div>
+        )}
+        <button
+          onClick={() => fetchQueue()}
+          className="mt-4 rounded-lg bg-muted px-4 py-2 text-sm transition-colors hover:bg-muted/80"
+        >
+          Try Again
+        </button>
       </div>
     );
   }

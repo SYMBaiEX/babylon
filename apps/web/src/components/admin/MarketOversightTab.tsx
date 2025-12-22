@@ -98,24 +98,18 @@ export function MarketOversightTab() {
   const fetchMarkets = useCallback(
     (showRefreshing = false) => {
       const fetchLogic = async () => {
-        try {
-          const params = new URLSearchParams();
-          if (statusFilter !== 'all') params.set('status', statusFilter);
+        const params = new URLSearchParams();
+        if (statusFilter !== 'all') params.set('status', statusFilter);
 
-          const response = await fetch(`/api/admin/markets?${params}`);
-          if (!response.ok) {
-            toast.error('Failed to load market data');
-            setLoading(false);
-            return;
-          }
-          const result = await response.json();
-          setData(result);
-          setLoading(false);
-        } catch (err) {
-          console.error('Error fetching markets:', err);
+        const response = await fetch(`/api/admin/markets?${params}`);
+        if (!response.ok) {
           toast.error('Failed to load market data');
           setLoading(false);
+          return;
         }
+        const result = await response.json();
+        setData(result);
+        setLoading(false);
       };
 
       if (showRefreshing) {
@@ -168,8 +162,9 @@ export function MarketOversightTab() {
       });
 
       if (!response.ok) {
-        const result = await response.json();
-        toast.error(result.error || 'Failed to perform action');
+        const text = await response.text();
+        const error = text.startsWith('{') ? JSON.parse(text).error : text;
+        toast.error(error || 'Failed to perform action');
         return;
       }
 
