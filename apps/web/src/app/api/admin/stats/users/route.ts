@@ -15,7 +15,18 @@ function parseDateParam(param: string | null): Date | null {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
-function buildUserTypeFilter(userType: string): {
+/** Valid user types for filtering - whitelist to prevent injection */
+const VALID_USER_TYPES = ['all', 'real', 'actors', 'agents'] as const;
+type UserType = (typeof VALID_USER_TYPES)[number];
+
+function validateUserType(value: string | null): UserType {
+  if (!value || !VALID_USER_TYPES.includes(value as UserType)) {
+    return 'all';
+  }
+  return value as UserType;
+}
+
+function buildUserTypeFilter(userType: UserType): {
   isActor?: boolean;
   isAgent?: boolean;
 } {
@@ -37,7 +48,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   const { searchParams } = new URL(request.url);
   const startDate = parseDateParam(searchParams.get('startDate'));
   const endDate = parseDateParam(searchParams.get('endDate'));
-  const userType = searchParams.get('userType') || 'all';
+  const userType = validateUserType(searchParams.get('userType'));
   const includeTimeSeries = searchParams.get('includeTimeSeries') === 'true';
 
   logger.info(
