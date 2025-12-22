@@ -96,8 +96,8 @@ const REPETITIVE_PHRASE_PATTERNS = [
   /crowded\s*(long|short|trade)/i,
 ];
 
-/** Angles for variety in posting */
-const POSTING_ANGLES = [
+/** Angles for variety in posting - exported for future use in content generation */
+export const POSTING_ANGLES = [
   'contrarian', // Disagree with consensus
   'analytical', // Data/numbers focused
   'skeptical', // Question the narrative
@@ -108,7 +108,7 @@ const POSTING_ANGLES = [
   'historical', // Compare to past events
   'questioning', // Ask a question
   'declarative', // Bold statement
-];
+] as const;
 
 // =============================================================================
 // Topic Diversity Service
