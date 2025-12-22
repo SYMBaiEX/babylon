@@ -11,6 +11,7 @@ import {
   withErrorHandling,
 } from '@babylon/api';
 import { db } from '@babylon/db';
+import { FEE_CONFIG } from '@babylon/engine';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 
@@ -28,8 +29,8 @@ function parseDateParam(param: string | null): Date | null {
  * Returns comprehensive trading statistics
  *
  * Query params:
- * - startDate: ISO date string (optional)
- * - endDate: ISO date string (optional)
+ * - startDate: ISO date string (optional) - filters trades and time series
+ * - endDate: ISO date string (optional) - filters trades and time series
  * - marketType: 'all' | 'prediction' | 'perpetual' (default: 'all')
  * - includeTimeSeries: 'true' | 'false' (default: 'false')
  */
@@ -51,6 +52,16 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   // Calculate today's date boundary
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+  // Build date filter for queries
+  const dateFilter: { createdAt?: { gte?: Date; lte?: Date } } = {};
+  if (startDate || endDate) {
+    dateFilter.createdAt = {};
+    if (startDate) dateFilter.createdAt.gte = startDate;
+    if (endDate) dateFilter.createdAt.lte = endDate;
+  }
+
+  // Trade types are used in individual queries based on marketType filter
 
   // Market statistics
   const [
@@ -148,7 +159,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     LIMIT 10
   `;
 
-  // Time series data
+  // Time series data (respects date and market type filters)
   let timeSeries: Array<{
     date: string;
     trades: number;
@@ -157,27 +168,66 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   }> = [];
 
   if (includeTimeSeries) {
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    // Use provided date range or default to last 30 days
+    const timeSeriesStart =
+      startDate ?? new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const timeSeriesEnd = endDate ?? new Date();
 
-    const dailyStats = await db.$queryRaw<{
+    // Build trade type condition based on market type
+    let dailyStats: Array<{
       date: string;
       trades: string;
       volume: string;
       fees: string;
-    }>`
-      SELECT 
-        DATE(bt."createdAt") as date,
-        COUNT(*) as trades,
-        ABS(SUM(bt.amount::numeric)) as volume,
-        COALESCE(SUM(tf."feeAmount"::numeric), 0) as fees
-      FROM "BalanceTransaction" bt
-      LEFT JOIN "TradingFee" tf ON bt.id = tf."tradeId"
-      WHERE bt."createdAt" >= ${thirtyDaysAgo}
-        AND bt.type IN ('prediction_buy', 'prediction_sell', 'perp_open', 'perp_close')
-      GROUP BY DATE(bt."createdAt")
-      ORDER BY date ASC
-    `;
+    }>;
+
+    if (marketType === 'prediction') {
+      dailyStats = await db.$queryRaw<{
+        date: string;
+        trades: string;
+        volume: string;
+        fees: string;
+      }>`
+        SELECT DATE(bt."createdAt") as date, COUNT(*) as trades,
+          ABS(SUM(bt.amount::numeric)) as volume, COALESCE(SUM(tf."feeAmount"::numeric), 0) as fees
+        FROM "BalanceTransaction" bt
+        LEFT JOIN "TradingFee" tf ON bt.id = tf."tradeId"
+        WHERE bt."createdAt" >= ${timeSeriesStart} AND bt."createdAt" <= ${timeSeriesEnd}
+          AND bt.type IN ('prediction_buy', 'prediction_sell')
+        GROUP BY DATE(bt."createdAt") ORDER BY date ASC
+      `;
+    } else if (marketType === 'perpetual') {
+      dailyStats = await db.$queryRaw<{
+        date: string;
+        trades: string;
+        volume: string;
+        fees: string;
+      }>`
+        SELECT DATE(bt."createdAt") as date, COUNT(*) as trades,
+          ABS(SUM(bt.amount::numeric)) as volume, COALESCE(SUM(tf."feeAmount"::numeric), 0) as fees
+        FROM "BalanceTransaction" bt
+        LEFT JOIN "TradingFee" tf ON bt.id = tf."tradeId"
+        WHERE bt."createdAt" >= ${timeSeriesStart} AND bt."createdAt" <= ${timeSeriesEnd}
+          AND bt.type IN ('perp_open', 'perp_close')
+        GROUP BY DATE(bt."createdAt") ORDER BY date ASC
+      `;
+    } else {
+      // 'all' - include all trade types
+      dailyStats = await db.$queryRaw<{
+        date: string;
+        trades: string;
+        volume: string;
+        fees: string;
+      }>`
+        SELECT DATE(bt."createdAt") as date, COUNT(*) as trades,
+          ABS(SUM(bt.amount::numeric)) as volume, COALESCE(SUM(tf."feeAmount"::numeric), 0) as fees
+        FROM "BalanceTransaction" bt
+        LEFT JOIN "TradingFee" tf ON bt.id = tf."tradeId"
+        WHERE bt."createdAt" >= ${timeSeriesStart} AND bt."createdAt" <= ${timeSeriesEnd}
+          AND bt.type IN ('prediction_buy', 'prediction_sell', 'perp_open', 'perp_close')
+        GROUP BY DATE(bt."createdAt") ORDER BY date ASC
+      `;
+    }
 
     timeSeries = dailyStats.map((row) => ({
       date: row.date,
@@ -187,8 +237,8 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     }));
   }
 
-  // Recent trades
-  const recentTrades = await db.$queryRaw<{
+  // Recent trades (respects date and market type filters)
+  let recentTrades: Array<{
     id: string;
     userId: string;
     username: string | null;
@@ -196,21 +246,41 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     type: string;
     amount: string;
     createdAt: Date;
-  }>`
-    SELECT 
-      bt.id,
-      bt."userId",
-      u.username,
-      u."displayName",
-      bt.type,
-      bt.amount,
-      bt."createdAt"
-    FROM "BalanceTransaction" bt
-    JOIN "User" u ON bt."userId" = u.id
-    WHERE bt.type IN ('prediction_buy', 'prediction_sell', 'perp_open', 'perp_close')
-    ORDER BY bt."createdAt" DESC
-    LIMIT 20
-  `;
+  }>;
+
+  // Build date bounds for recent trades query
+  const recentTradesStart = startDate ?? new Date(0); // epoch if no start
+  const recentTradesEnd = endDate ?? new Date(); // now if no end
+
+  if (marketType === 'prediction') {
+    recentTrades = await db.$queryRaw`
+      SELECT bt.id, bt."userId", u.username, u."displayName", bt.type, bt.amount, bt."createdAt"
+      FROM "BalanceTransaction" bt
+      JOIN "User" u ON bt."userId" = u.id
+      WHERE bt.type IN ('prediction_buy', 'prediction_sell')
+        AND bt."createdAt" >= ${recentTradesStart} AND bt."createdAt" <= ${recentTradesEnd}
+      ORDER BY bt."createdAt" DESC LIMIT 20
+    `;
+  } else if (marketType === 'perpetual') {
+    recentTrades = await db.$queryRaw`
+      SELECT bt.id, bt."userId", u.username, u."displayName", bt.type, bt.amount, bt."createdAt"
+      FROM "BalanceTransaction" bt
+      JOIN "User" u ON bt."userId" = u.id
+      WHERE bt.type IN ('perp_open', 'perp_close')
+        AND bt."createdAt" >= ${recentTradesStart} AND bt."createdAt" <= ${recentTradesEnd}
+      ORDER BY bt."createdAt" DESC LIMIT 20
+    `;
+  } else {
+    // 'all' - include all trade types
+    recentTrades = await db.$queryRaw`
+      SELECT bt.id, bt."userId", u.username, u."displayName", bt.type, bt.amount, bt."createdAt"
+      FROM "BalanceTransaction" bt
+      JOIN "User" u ON bt."userId" = u.id
+      WHERE bt.type IN ('prediction_buy', 'prediction_sell', 'perp_open', 'perp_close')
+        AND bt."createdAt" >= ${recentTradesStart} AND bt."createdAt" <= ${recentTradesEnd}
+      ORDER BY bt."createdAt" DESC LIMIT 20
+    `;
+  }
 
   return successResponse({
     overview: {
@@ -232,7 +302,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       platformFees,
       referrerFees,
       feesToday,
-      feeRate: 0.001, // 0.1%
+      feeRate: FEE_CONFIG.TRADING_FEE_RATE, // From centralized config
     },
     topTraders: topTraders.map((t) => ({
       ...t,
@@ -254,6 +324,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       startDate: startDate?.toISOString() || null,
       endDate: endDate?.toISOString() || null,
       marketType,
+      applied: Boolean(startDate || endDate || marketType !== 'all'),
     },
   });
 });
