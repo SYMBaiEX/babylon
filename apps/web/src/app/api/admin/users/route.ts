@@ -100,6 +100,7 @@ import {
   eq,
   follows,
   ilike,
+  inArray,
   or,
   positions,
   reactions,
@@ -166,10 +167,16 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   }
 
   if (params.search) {
+    // Escape special LIKE/ILIKE characters to prevent pattern injection
+    const escapedSearch = params.search
+      .replace(/\\/g, '\\\\') // Escape backslashes first
+      .replace(/%/g, '\\%') // Escape percent
+      .replace(/_/g, '\\_'); // Escape underscore
+
     const searchCondition = or(
-      ilike(users.username, `%${params.search}%`),
-      ilike(users.displayName, `%${params.search}%`),
-      ilike(users.walletAddress, `%${params.search}%`)
+      ilike(users.username, `%${escapedSearch}%`),
+      ilike(users.displayName, `%${escapedSearch}%`),
+      ilike(users.walletAddress, `%${escapedSearch}%`)
     );
     if (searchCondition) {
       conditions.push(searchCondition);
@@ -232,7 +239,10 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     .where(whereClause);
   const total = totalResult?.count ?? 0;
 
-  // Get moderation counts per user (batched queries)
+  // Get user IDs for batched count queries (only for paginated results)
+  const userIds = usersResult.map((u) => u.id);
+
+  // Get moderation counts per user (batched queries - filtered to only fetched users)
   const [
     commentCounts,
     reactionCounts,
@@ -243,53 +253,65 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     blocksReceived,
     mutesReceived,
     reportsSent,
-  ] = await Promise.all([
-    // Comment counts
-    db
-      .select({ userId: comments.authorId, count: count() })
-      .from(comments)
-      .groupBy(comments.authorId),
-    // Reaction counts
-    db
-      .select({ userId: reactions.userId, count: count() })
-      .from(reactions)
-      .groupBy(reactions.userId),
-    // Position counts
-    db
-      .select({ userId: positions.userId, count: count() })
-      .from(positions)
-      .groupBy(positions.userId),
-    // Follower counts (users following this user)
-    db
-      .select({ userId: follows.followingId, count: count() })
-      .from(follows)
-      .groupBy(follows.followingId),
-    // Following counts (users this user follows)
-    db
-      .select({ userId: follows.followerId, count: count() })
-      .from(follows)
-      .groupBy(follows.followerId),
-    // Reports received
-    db
-      .select({ userId: reports.reportedUserId, count: count() })
-      .from(reports)
-      .groupBy(reports.reportedUserId),
-    // Blocks received
-    db
-      .select({ userId: userBlocks.blockedId, count: count() })
-      .from(userBlocks)
-      .groupBy(userBlocks.blockedId),
-    // Mutes received
-    db
-      .select({ userId: userMutes.mutedId, count: count() })
-      .from(userMutes)
-      .groupBy(userMutes.mutedId),
-    // Reports sent
-    db
-      .select({ userId: reports.reporterId, count: count() })
-      .from(reports)
-      .groupBy(reports.reporterId),
-  ]);
+  ] =
+    userIds.length > 0
+      ? await Promise.all([
+          // Comment counts
+          db
+            .select({ userId: comments.authorId, count: count() })
+            .from(comments)
+            .where(inArray(comments.authorId, userIds))
+            .groupBy(comments.authorId),
+          // Reaction counts
+          db
+            .select({ userId: reactions.userId, count: count() })
+            .from(reactions)
+            .where(inArray(reactions.userId, userIds))
+            .groupBy(reactions.userId),
+          // Position counts
+          db
+            .select({ userId: positions.userId, count: count() })
+            .from(positions)
+            .where(inArray(positions.userId, userIds))
+            .groupBy(positions.userId),
+          // Follower counts (users following this user)
+          db
+            .select({ userId: follows.followingId, count: count() })
+            .from(follows)
+            .where(inArray(follows.followingId, userIds))
+            .groupBy(follows.followingId),
+          // Following counts (users this user follows)
+          db
+            .select({ userId: follows.followerId, count: count() })
+            .from(follows)
+            .where(inArray(follows.followerId, userIds))
+            .groupBy(follows.followerId),
+          // Reports received
+          db
+            .select({ userId: reports.reportedUserId, count: count() })
+            .from(reports)
+            .where(inArray(reports.reportedUserId, userIds))
+            .groupBy(reports.reportedUserId),
+          // Blocks received
+          db
+            .select({ userId: userBlocks.blockedId, count: count() })
+            .from(userBlocks)
+            .where(inArray(userBlocks.blockedId, userIds))
+            .groupBy(userBlocks.blockedId),
+          // Mutes received
+          db
+            .select({ userId: userMutes.mutedId, count: count() })
+            .from(userMutes)
+            .where(inArray(userMutes.mutedId, userIds))
+            .groupBy(userMutes.mutedId),
+          // Reports sent
+          db
+            .select({ userId: reports.reporterId, count: count() })
+            .from(reports)
+            .where(inArray(reports.reporterId, userIds))
+            .groupBy(reports.reporterId),
+        ])
+      : [[], [], [], [], [], [], [], [], []];
 
   // Build lookup maps
   const commentCountMap = new Map(

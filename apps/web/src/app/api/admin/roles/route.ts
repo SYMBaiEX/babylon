@@ -14,6 +14,7 @@ import {
   type AdminRoleType,
   adminRoles,
   and,
+  count,
   db,
   eq,
   generateSnowflakeId,
@@ -88,46 +89,35 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     }
 
     const finalPermissions = permissions || ROLE_PERMISSIONS[role];
+    const now = new Date();
 
-    const [existingRole] = await db
-      .select()
-      .from(adminRoles)
-      .where(eq(adminRoles.userId, userId))
-      .limit(1);
-
-    if (existingRole) {
-      await db
-        .update(adminRoles)
-        .set({
-          role,
-          permissions: finalPermissions,
-          grantedBy: admin.userId,
-          grantedAt: new Date(),
-          revokedAt: null,
-        })
-        .where(eq(adminRoles.userId, userId));
-
-      logger.info(
-        'Admin role updated',
-        { targetUserId: userId, role, updatedBy: admin.userId },
-        'POST /api/admin/roles'
-      );
-    } else {
-      await db.insert(adminRoles).values({
+    // Use upsert (onConflictDoUpdate) to prevent race conditions
+    await db
+      .insert(adminRoles)
+      .values({
         id: `admin_role_${generateSnowflakeId()}`,
         userId,
         role,
         permissions: finalPermissions,
         grantedBy: admin.userId,
-        grantedAt: new Date(),
+        grantedAt: now,
+      })
+      .onConflictDoUpdate({
+        target: adminRoles.userId,
+        set: {
+          role,
+          permissions: finalPermissions,
+          grantedBy: admin.userId,
+          grantedAt: now,
+          revokedAt: null,
+        },
       });
 
-      logger.info(
-        'Admin role granted',
-        { targetUserId: userId, role, grantedBy: admin.userId },
-        'POST /api/admin/roles'
-      );
-    }
+    logger.info(
+      'Admin role granted/updated',
+      { targetUserId: userId, role, grantedBy: admin.userId },
+      'POST /api/admin/roles'
+    );
 
     // Update legacy isAdmin flag for backward compatibility
     await db.update(users).set({ isAdmin: true }).where(eq(users.id, userId));
@@ -165,14 +155,15 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
 
   // Check if this would remove the last super admin
   if (existingRole.role === 'SUPER_ADMIN') {
-    const superAdminCount = await db
-      .select({ count: adminRoles.id })
+    const [superAdminCountResult] = await db
+      .select({ count: count(adminRoles.id) })
       .from(adminRoles)
       .where(
         and(eq(adminRoles.role, 'SUPER_ADMIN'), isNull(adminRoles.revokedAt))
       );
 
-    if (superAdminCount.length <= 1) {
+    const superAdminCountValue = Number(superAdminCountResult?.count ?? 0);
+    if (superAdminCountValue <= 1) {
       return successResponse(
         { error: 'Cannot revoke the last super admin' },
         400

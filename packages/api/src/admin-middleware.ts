@@ -31,7 +31,7 @@ import {
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import type { AuthenticatedUser } from './auth-middleware';
-import { authenticate } from './auth-middleware';
+import { authenticate, getPrivyClient } from './auth-middleware';
 import { getDevAdminUser, isValidDevAdminToken } from './dev-credentials';
 import { AuthorizationError } from './errors';
 
@@ -64,9 +64,13 @@ export interface AuthenticatedAdminUser extends AuthenticatedUser {
 
 /**
  * Get admin role and permissions for a user
+ *
+ * @param userId - The database user ID
+ * @param privyId - Optional Privy ID for fetching verified email directly from Privy
  */
 export async function getAdminRole(
-  userId: string
+  userId: string,
+  privyId?: string
 ): Promise<{ role: AdminRoleType | null; permissions: AdminPermission[] }> {
   // Check the adminRoles table first - only non-revoked roles
   const [adminRole] = await db
@@ -85,12 +89,11 @@ export async function getAdminRole(
     return { role, permissions };
   }
 
-  // Get user data for isAdmin and email domain checks
+  // Get user data for isAdmin check
   const [user] = await db
     .select({
       isAdmin: users.isAdmin,
-      email: users.email,
-      emailVerified: users.emailVerified,
+      privyId: users.privyId,
     })
     .from(users)
     .where(eq(users.id, userId))
@@ -101,14 +104,27 @@ export async function getAdminRole(
     return { role: 'SUPER_ADMIN', permissions: ROLE_PERMISSIONS.SUPER_ADMIN };
   }
 
-  // Auto-promote users with verified admin domain email to SUPER_ADMIN
-  if (user && shouldAutoPromoteToSuperAdmin(user.email, user.emailVerified)) {
-    logger.info(
-      'Auto-promoting user to SUPER_ADMIN via email domain',
-      { userId, email: user.email },
-      'getAdminRole'
-    );
-    return { role: 'SUPER_ADMIN', permissions: ROLE_PERMISSIONS.SUPER_ADMIN };
+  // Check admin email domain - fetch verified email directly from Privy for security
+  // This ensures we're using Privy's verified email, not a potentially tampered database value
+  const adminDomain = process.env.ADMIN_EMAIL_DOMAIN?.trim();
+  const effectivePrivyId = privyId ?? user?.privyId;
+
+  if (adminDomain && effectivePrivyId) {
+    const privyClient = getPrivyClient();
+    const privyUser = await privyClient.getUser(effectivePrivyId);
+
+    // Privy's email object indicates verification status
+    // The email.address is only present if the email has been verified
+    const verifiedEmail = privyUser?.email?.address;
+
+    if (verifiedEmail && shouldAutoPromoteToSuperAdmin(verifiedEmail, true)) {
+      logger.info(
+        'Auto-promoting user to SUPER_ADMIN via verified Privy email domain',
+        { userId, email: verifiedEmail, privyId: effectivePrivyId },
+        'getAdminRole'
+      );
+      return { role: 'SUPER_ADMIN', permissions: ROLE_PERMISSIONS.SUPER_ADMIN };
+    }
   }
 
   return { role: null, permissions: [] };
@@ -183,8 +199,8 @@ export async function requireAdmin(
     throw new AuthorizationError('User is banned', 'admin', 'access');
   }
 
-  // Get admin role (checks both adminRoles table and isAdmin flag)
-  const { role, permissions } = await getAdminRole(user.userId);
+  // Get admin role (checks both adminRoles table, isAdmin flag, and Privy email domain)
+  const { role, permissions } = await getAdminRole(user.userId, user.privyId);
 
   if (!role) {
     logger.warn(

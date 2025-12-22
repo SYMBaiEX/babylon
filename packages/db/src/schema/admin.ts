@@ -65,7 +65,9 @@ export const adminRoles = pgTable(
       .references(() => users.id),
     role: text('role').notNull().$type<AdminRoleType>(),
     permissions: text('permissions').array().$type<AdminPermission[]>(),
-    grantedBy: text('grantedBy').notNull(),
+    grantedBy: text('grantedBy')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
     grantedAt: timestamp('grantedAt', { mode: 'date' }).notNull().defaultNow(),
     revokedAt: timestamp('revokedAt', { mode: 'date' }),
   },
