@@ -10,7 +10,9 @@
  */
 
 import {
+  checkRateLimitAndDuplicates,
   logAdminModify,
+  RATE_LIMIT_CONFIGS,
   requireAdmin,
   successResponse,
   withErrorHandling,
@@ -19,8 +21,17 @@ import { comments, db, eq, posts, reports } from '@babylon/db';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 
+/**
+ * Moderation action types:
+ * - approve: Mark content as reviewed and acceptable, dismiss associated reports
+ * - hide: Soft delete content (set deletedAt), keeps data for potential recovery
+ *
+ * NOTE: "delete" was removed as it was redundant with "hide". Both performed
+ * soft deletes. If hard delete is needed in the future, it should be a
+ * separate, more privileged action with additional safeguards.
+ */
 interface ModerateRequest {
-  action: 'approve' | 'hide' | 'delete';
+  action: 'approve' | 'hide';
   contentType: 'post' | 'comment';
   reason?: string;
 }
@@ -31,6 +42,15 @@ export const POST = withErrorHandling(
     { params }: { params: Promise<{ contentId: string }> }
   ) => {
     const admin = await requireAdmin(request);
+
+    // Rate limit admin actions to prevent abuse
+    const rateLimitResponse = checkRateLimitAndDuplicates(
+      admin.userId,
+      null,
+      RATE_LIMIT_CONFIGS.ADMIN_ACTION
+    );
+    if (rateLimitResponse) return rateLimitResponse;
+
     const { contentId } = await params;
 
     const body = (await request.json()) as ModerateRequest;
@@ -77,8 +97,8 @@ export const POST = withErrorHandling(
           userAgent: request.headers.get('user-agent') ?? undefined,
           metadata: { action: 'approve' },
         });
-      } else if (action === 'hide' || action === 'delete') {
-        // Soft delete by setting deletedAt
+      } else if (action === 'hide') {
+        // Soft delete by setting deletedAt (content can be recovered if needed)
         await db
           .update(posts)
           .set({ deletedAt: new Date() })
@@ -89,7 +109,7 @@ export const POST = withErrorHandling(
           .update(reports)
           .set({
             status: 'resolved',
-            resolution: reason || `Content ${action}d by admin`,
+            resolution: reason || 'Content hidden by admin',
             resolvedBy: admin.userId,
             resolvedAt: new Date(),
             updatedAt: new Date(),
@@ -107,7 +127,7 @@ export const POST = withErrorHandling(
           },
           ipAddress: request.headers.get('x-forwarded-for') ?? undefined,
           userAgent: request.headers.get('user-agent') ?? undefined,
-          metadata: { action },
+          metadata: { action: 'hide' },
         });
       }
     } else if (contentType === 'comment') {
@@ -133,7 +153,7 @@ export const POST = withErrorHandling(
           userAgent: request.headers.get('user-agent') ?? undefined,
           metadata: { action: 'approve' },
         });
-      } else if (action === 'hide' || action === 'delete') {
+      } else if (action === 'hide') {
         await db
           .update(comments)
           .set({
@@ -153,7 +173,7 @@ export const POST = withErrorHandling(
           },
           ipAddress: request.headers.get('x-forwarded-for') ?? undefined,
           userAgent: request.headers.get('user-agent') ?? undefined,
-          metadata: { action },
+          metadata: { action: 'hide' },
         });
       }
     }

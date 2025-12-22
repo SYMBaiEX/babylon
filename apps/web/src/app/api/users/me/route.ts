@@ -150,7 +150,7 @@ import {
   withErrorHandling,
 } from '@babylon/api';
 import { db, eq, users } from '@babylon/db';
-import { isAdminEmail, logger } from '@babylon/shared';
+import { logger, shouldAutoPromoteToAdmin } from '@babylon/shared';
 import type { User as PrivyUser } from '@privy-io/server-auth';
 import type { NextRequest } from 'next/server';
 
@@ -417,12 +417,15 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       null;
 
     // Check if user should be auto-promoted to admin based on email domain
-    const shouldBeAdmin = isAdminEmail(email);
+    // SECURITY: Requires email verification (Privy emails are verified by design)
+    // If email exists in Privy, it has been verified through their email verification flow
+    const emailVerified = !!privyUser.email?.address;
+    const shouldBeAdmin = shouldAutoPromoteToAdmin(email, emailVerified);
 
     if (shouldBeAdmin) {
       logger.info(
-        'Auto-promoting user to admin based on email domain',
-        { privyId, email },
+        'Auto-promoting user to admin based on verified email domain',
+        { privyId, email, emailVerified },
         'GET /api/users/me'
       );
     }

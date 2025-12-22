@@ -50,7 +50,7 @@
  */
 
 import { requireAdmin, successResponse, withErrorHandling } from '@babylon/api';
-import { adminAuditLogs, and, db, desc, eq, users } from '@babylon/db';
+import { adminAuditLogs, and, count, db, desc, eq, users } from '@babylon/db';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 
@@ -88,6 +88,16 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     conditions.push(eq(adminAuditLogs.resourceType, filterResourceType));
   }
 
+  const whereCondition =
+    conditions.length > 0 ? and(...conditions) : undefined;
+
+  // Get total count for proper pagination
+  const [totalResult] = await db
+    .select({ count: count() })
+    .from(adminAuditLogs)
+    .where(whereCondition);
+  const total = totalResult?.count ?? 0;
+
   // Query logs with admin user info
   const logs = await db
     .select({
@@ -107,7 +117,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     })
     .from(adminAuditLogs)
     .leftJoin(users, eq(adminAuditLogs.adminId, users.id))
-    .where(conditions.length > 0 ? and(...conditions) : undefined)
+    .where(whereCondition)
     .orderBy(desc(adminAuditLogs.createdAt))
     .limit(limit)
     .offset(offset);
@@ -138,7 +148,8 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     pagination: {
       limit,
       offset,
-      hasMore: logs.length === limit,
+      total,
+      hasMore: offset + logs.length < total,
     },
     filters: {
       actionTypes: actionTypes.map((a) => a.action),

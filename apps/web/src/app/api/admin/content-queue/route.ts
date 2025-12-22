@@ -7,17 +7,22 @@
  * @description
  * Returns posts and comments that have been reported for moderation review.
  * Supports filtering by content type and status.
+ *
+ * PERFORMANCE: Uses JOIN with GROUP BY for report counts instead of subqueries
+ * to avoid N+1 query patterns at scale.
  */
 
 import { requireAdmin, successResponse, withErrorHandling } from '@babylon/api';
 import {
   and,
   comments,
+  count,
   db,
   desc,
   eq,
   isNull,
   posts,
+  reports,
   sql,
   users,
 } from '@babylon/db';
@@ -38,7 +43,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     'GET /api/admin/content-queue'
   );
 
-  // Get reported posts with details
+  // Get reported posts with report counts using JOIN + GROUP BY (optimized, no N+1)
   const reportedPosts =
     contentType === 'comments'
       ? []
@@ -54,28 +59,34 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
             authorDisplayName: users.displayName,
             authorProfileImage: users.profileImageUrl,
             authorIsActor: users.isActor,
-            reportCount: sql<number>`(
-              SELECT COUNT(*) FROM "Report" 
-              WHERE "Report"."reportedPostId" = ${posts.id}
-            )`,
+            reportCount: count(reports.id),
           })
           .from(posts)
           .innerJoin(users, eq(posts.authorId, users.id))
-          .where(
+          .innerJoin(
+            reports,
             and(
-              sql`EXISTS (
-                SELECT 1 FROM "Report" 
-                WHERE "Report"."reportedPostId" = ${posts.id}
-                AND "Report"."status" = ${status}
-              )`,
-              status === 'pending' ? isNull(posts.deletedAt) : undefined
+              eq(reports.reportedPostId, posts.id),
+              eq(reports.status, status)
             )
+          )
+          .where(status === 'pending' ? isNull(posts.deletedAt) : undefined)
+          .groupBy(
+            posts.id,
+            posts.content,
+            posts.createdAt,
+            posts.deletedAt,
+            posts.authorId,
+            posts.imageUrl,
+            users.username,
+            users.displayName,
+            users.profileImageUrl,
+            users.isActor
           )
           .orderBy(desc(posts.createdAt))
           .limit(limit);
 
-  // Get reported comments (comments that are associated with reported posts)
-  // The reports table links to posts, so we get comments from reported posts
+  // Get reported comments with report counts using JOIN + GROUP BY
   const reportedComments =
     contentType === 'posts'
       ? []
@@ -91,36 +102,43 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
             authorDisplayName: users.displayName,
             authorProfileImage: users.profileImageUrl,
             authorIsActor: users.isActor,
+            reportCount: count(reports.id),
           })
           .from(comments)
           .innerJoin(users, eq(comments.authorId, users.id))
-          .where(
+          .innerJoin(
+            reports,
             and(
-              sql`EXISTS (
-                SELECT 1 FROM "Report" r
-                INNER JOIN "Post" p ON r."reportedPostId" = p.id
-                WHERE p.id = ${comments.postId}
-                AND r."status" = ${status}
-              )`,
-              status === 'pending' ? isNull(comments.deletedAt) : undefined
+              eq(reports.reportedPostId, comments.postId),
+              eq(reports.status, status)
             )
+          )
+          .where(status === 'pending' ? isNull(comments.deletedAt) : undefined)
+          .groupBy(
+            comments.id,
+            comments.content,
+            comments.createdAt,
+            comments.deletedAt,
+            comments.postId,
+            comments.authorId,
+            users.username,
+            users.displayName,
+            users.profileImageUrl,
+            users.isActor
           )
           .orderBy(desc(comments.createdAt))
           .limit(limit);
 
-  // Get queue stats
+  // Get queue stats using efficient aggregation
   const [postStats] = await db
     .select({
-      pending: sql<number>`COUNT(*) FILTER (WHERE ${posts.deletedAt} IS NULL)`,
-      deleted: sql<number>`COUNT(*) FILTER (WHERE ${posts.deletedAt} IS NOT NULL)`,
+      pending: sql<number>`COUNT(DISTINCT ${posts.id}) FILTER (WHERE ${posts.deletedAt} IS NULL)`,
+      deleted: sql<number>`COUNT(DISTINCT ${posts.id}) FILTER (WHERE ${posts.deletedAt} IS NOT NULL)`,
     })
     .from(posts)
-    .where(
-      sql`EXISTS (
-        SELECT 1 FROM "Report" 
-        WHERE "Report"."reportedPostId" = ${posts.id}
-        AND "Report"."status" = 'pending'
-      )`
+    .innerJoin(
+      reports,
+      and(eq(reports.reportedPostId, posts.id), eq(reports.status, 'pending'))
     );
 
   return successResponse({
@@ -137,7 +155,6 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       type: 'comment' as const,
       isHidden: c.deletedAt !== null,
       reactionCount: 0,
-      reportCount: 1,
     })),
     stats: {
       posts: {
