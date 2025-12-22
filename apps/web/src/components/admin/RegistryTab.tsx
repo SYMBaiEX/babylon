@@ -145,35 +145,23 @@ export function RegistryTab() {
     const fetchLogic = async () => {
       setLoading(true);
       setError(null);
-      try {
-        const params = new URLSearchParams();
-        if (search) params.set('search', search);
-        if (onChainOnly) params.set('onChainOnly', 'true');
+      const params = new URLSearchParams();
+      if (search) params.set('search', search);
+      if (onChainOnly) params.set('onChainOnly', 'true');
 
-        const response = await fetch(`/api/registry/all?${params}`);
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
-          setError(errorData.error || 'Failed to fetch registry data');
-          setLoading(false);
-          return;
-        }
-
-        const result = await response.json();
-
-        // The API returns data directly, not wrapped in { success, data }
-        const validation = RegistryDataSchema.safeParse(result);
-        if (validation.success) {
-          setData(validation.data);
-        } else {
-          console.error('Registry validation failed:', validation.error);
-          setError('Invalid data structure for registry');
-        }
-      } catch (err) {
-        console.error('Error fetching registry:', err);
-        setError(
-          err instanceof Error ? err.message : 'Failed to fetch registry data'
-        );
+      const response = await fetch(`/api/registry/all?${params}`);
+      if (!response.ok) {
+        const errorData = await response.json();
+        setError(errorData.error || 'Failed to fetch registry data');
+        setLoading(false);
+        return;
       }
+
+      const result = await response.json();
+
+      // The API returns data directly, not wrapped in { success, data }
+      const validated = RegistryDataSchema.parse(result);
+      setData(validated);
       setLoading(false);
     };
     void fetchLogic();
@@ -183,9 +171,9 @@ export function RegistryTab() {
     fetchRegistry();
   }, [fetchRegistry]);
 
-  // Debounced search - re-fetch when search/onChainOnly changes (with 300ms delay)
+  // Debounced re-fetch when search/onChainOnly changes (with 300ms delay)
   useEffect(() => {
-    if (!search && !onChainOnly) return; // Skip on initial mount
+    if (!search && !onChainOnly) return; // Skip if no filters applied
     const timer = setTimeout(() => {
       fetchRegistry();
     }, 300);

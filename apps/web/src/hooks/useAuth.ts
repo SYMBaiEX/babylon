@@ -282,6 +282,11 @@ export function useAuth(): UseAuthReturn {
             nftTokenId: me.user.nftTokenId ?? undefined,
             createdAt: me.user.createdAt,
             onChainRegistered: me.user.onChainRegistered ?? undefined,
+            isAdmin: me.user.isAdmin ?? undefined,
+            isActor: me.user.isActor ?? undefined,
+            isBanned: me.user.isBanned ?? undefined,
+            bannedAt: me.user.bannedAt ?? undefined,
+            bannedReason: me.user.bannedReason ?? undefined,
           };
 
           // Only update if data has actually changed (prevent infinite re-render loop)
@@ -302,7 +307,10 @@ export function useAuth(): UseAuthReturn {
             currentUser.showWalletPublic !== hydratedUser.showWalletPublic ||
             currentUser.reputationPoints !== hydratedUser.reputationPoints ||
             currentUser.hasFarcaster !== hydratedUser.hasFarcaster ||
-            currentUser.hasTwitter !== hydratedUser.hasTwitter;
+            currentUser.hasTwitter !== hydratedUser.hasTwitter ||
+            currentUser.isAdmin !== hydratedUser.isAdmin ||
+            currentUser.isActor !== hydratedUser.isActor ||
+            currentUser.isBanned !== hydratedUser.isBanned;
 
           if (hasChanged) {
             setUser(hydratedUser);

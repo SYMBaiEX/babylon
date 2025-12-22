@@ -462,6 +462,25 @@ class NPCAntiRepetitionService {
 export const antiRepetitionService = new NPCAntiRepetitionService();
 
 /**
+ * Cleanup stale character histories to prevent memory leaks.
+ * Should be called periodically (e.g., every hour in game-tick cron or scheduled job).
+ *
+ * @example
+ * ```ts
+ * // In cron/game-tick.ts or similar periodic job:
+ * import { cleanupStaleNpcHistories } from './services/npc-anti-repetition-service';
+ *
+ * // Run every hour
+ * cleanupStaleNpcHistories();
+ * ```
+ *
+ * @returns Number of entries cleaned up
+ */
+export function cleanupStaleNpcHistories(): number {
+  return antiRepetitionService.cleanupStaleHistories();
+}
+
+/**
  * Export for direct access to avoided patterns
  */
 export function getAvoidedPatternsContext(actorId: string): string {

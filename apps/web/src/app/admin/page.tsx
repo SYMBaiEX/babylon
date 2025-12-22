@@ -56,6 +56,7 @@ import {
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useOnClickOutside } from '@/hooks/useOnClickOutside';
 import { AdminManagementTab } from '@/components/admin/AdminManagementTab';
 import { AgentsTab } from '@/components/admin/AgentsTab';
 import { AIModelsTab } from '@/components/admin/AIModelsTab';
@@ -118,6 +119,13 @@ export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState<Tab>('stats');
   const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // IMPORTANT: All hooks must be declared before any conditional returns
+  // to comply with React's Rules of Hooks
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const closeDropdown = useCallback(() => setIsDropdownOpen(false), []);
+  useOnClickOutside(dropdownRef, closeDropdown);
 
   const checkAdminAccess = useCallback(async () => {
     if (!ready) {
@@ -190,25 +198,6 @@ export default function AdminDashboard() {
       </PageContainer>
     );
   }
-
-  // Dropdown state
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
-
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (
-        dropdownRef.current &&
-        !dropdownRef.current.contains(event.target as Node)
-      ) {
-        setIsDropdownOpen(false);
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
 
   // Navigation items organized by category
   const navCategories = [

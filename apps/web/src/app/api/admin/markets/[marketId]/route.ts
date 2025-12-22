@@ -208,13 +208,16 @@ export const POST = withErrorHandling(
         );
       }
 
-      await db
-        .update(markets)
-        .set({
-          endDate: newEnd,
-          updatedAt: new Date(),
-        })
-        .where(eq(markets.id, marketId));
+      // Use transaction to ensure atomic update
+      await withTransaction(async (tx) => {
+        await tx
+          .update(markets)
+          .set({
+            endDate: newEnd,
+            updatedAt: new Date(),
+          })
+          .where(eq(markets.id, marketId));
+      });
 
       await logAdminModify({
         adminId: admin.userId,
