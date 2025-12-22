@@ -20,16 +20,11 @@
  *     parameters:
  *       - name: period
  *         in: query
+ *         description: Time period granularity for analytics data
  *         schema:
  *           type: string
  *           enum: [day, week, month]
  *           default: week
- *       - name: metric
- *         in: query
- *         schema:
- *           type: string
- *           enum: [users, posts, engagement, all]
- *           default: all
  *     responses:
  *       200:
  *         description: Analytics data retrieved successfully

@@ -10,22 +10,33 @@ const ALLOWED_PATHS = new Set([
 ]);
 
 /**
- * Allowed origins for CORS requests.
- * Add your production domains here.
+ * Production and staging origins for CORS requests
  */
-const ALLOWED_ORIGINS = new Set([
-  // Production origins
+const PRODUCTION_ORIGINS = [
   'https://babylon.market',
   'https://www.babylon.market',
   'https://app.babylon.market',
   'https://privy.babylon.market',
-  // Staging origins
   'https://staging.babylon.market',
   'https://app.staging.babylon.market',
-  // Development origins
+] as const;
+
+/**
+ * Development-only origins - only included when NODE_ENV is not 'production'
+ */
+const DEV_ORIGINS = [
   'http://localhost:3000',
   'http://localhost:3001',
   'http://127.0.0.1:3000',
+] as const;
+
+/**
+ * Allowed origins for CORS requests.
+ * Development origins are only included when NODE_ENV !== 'production'
+ */
+const ALLOWED_ORIGINS = new Set<string>([
+  ...PRODUCTION_ORIGINS,
+  ...(process.env.NODE_ENV !== 'production' ? DEV_ORIGINS : []),
 ]);
 
 /**

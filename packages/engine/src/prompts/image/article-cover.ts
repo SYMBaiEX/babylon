@@ -94,7 +94,7 @@ export const SURREAL_TWISTS = [
   'Neon wireframe overlays hint at a simulation',
   'The scene exists inside a giant computer chip landscape',
   'Oversized circuit board patterns texture the environment',
-  'Everything casts shadows that dont quite match the objects',
+  'Everything casts shadows that don\'t quite match the objects',
   'The sky is a gradient of impossible colors',
   'Floating mathematical symbols drift like particles',
   'The scene has a fisheye lens distortion effect',
