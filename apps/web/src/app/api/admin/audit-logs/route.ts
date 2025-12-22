@@ -53,22 +53,57 @@ import { requireAdmin, successResponse, withErrorHandling } from '@babylon/api';
 import { adminAuditLogs, and, count, db, desc, eq, users } from '@babylon/db';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
+import { z } from 'zod';
+
+// Valid action and resource types for audit logs
+const VALID_ACTIONS = [
+  'view',
+  'create',
+  'modify',
+  'delete',
+  'ban',
+  'privilege_change',
+] as const;
+
+const VALID_RESOURCE_TYPES = [
+  'user',
+  'post',
+  'comment',
+  'market',
+  'report',
+  'system',
+] as const;
+
+const AuditLogFiltersSchema = z.object({
+  limit: z.coerce.number().min(1).max(100).default(50),
+  offset: z.coerce.number().min(0).max(10000).default(0), // Max offset to prevent abuse
+  adminId: z.string().min(1).optional(),
+  action: z.enum(VALID_ACTIONS).optional(),
+  resourceType: z.enum(VALID_RESOURCE_TYPES).optional(),
+});
 
 export const GET = withErrorHandling(async (request: NextRequest) => {
   await requireAdmin(request);
 
   const { searchParams } = new URL(request.url);
-  const limit = Math.min(
-    Math.max(Number.parseInt(searchParams.get('limit') || '50', 10), 1),
-    100
-  );
-  const offset = Math.max(
-    Number.parseInt(searchParams.get('offset') || '0', 10),
-    0
-  );
-  const filterAdminId = searchParams.get('adminId');
-  const filterAction = searchParams.get('action');
-  const filterResourceType = searchParams.get('resourceType');
+
+  // Validate query parameters with Zod
+  const parseResult = AuditLogFiltersSchema.safeParse({
+    limit: searchParams.get('limit') || undefined,
+    offset: searchParams.get('offset') || undefined,
+    adminId: searchParams.get('adminId') || undefined,
+    action: searchParams.get('action') || undefined,
+    resourceType: searchParams.get('resourceType') || undefined,
+  });
+
+  if (!parseResult.success) {
+    return successResponse(
+      { error: 'Invalid query parameters', details: parseResult.error.flatten() },
+      400
+    );
+  }
+
+  const { limit, offset, adminId: filterAdminId, action: filterAction, resourceType: filterResourceType } = parseResult.data;
 
   logger.info(
     'Admin audit logs requested',

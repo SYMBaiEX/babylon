@@ -17,7 +17,7 @@ import {
   successResponse,
   withErrorHandling,
 } from '@babylon/api';
-import { comments, db, eq, posts, reports } from '@babylon/db';
+import { comments, db, eq, posts, reports, withTransaction } from '@babylon/db';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { z } from 'zod';
@@ -34,8 +34,19 @@ import { z } from 'zod';
 const ModerateRequestSchema = z.object({
   action: z.enum(['approve', 'hide']),
   contentType: z.enum(['post', 'comment']),
-  reason: z.string().optional(),
+  reason: z.string().max(500).optional(), // Max 500 chars for reason
 });
+
+/**
+ * Get real client IP address from x-forwarded-for header
+ * Takes the last IP in the chain which is the most reliable (added by our proxy)
+ */
+function getClientIp(request: NextRequest): string | undefined {
+  const forwardedFor = request.headers.get('x-forwarded-for');
+  if (!forwardedFor) return undefined;
+  // Take the last IP (most reliable - added by our reverse proxy)
+  return forwardedFor.split(',').map((s) => s.trim()).pop();
+}
 
 export const POST = withErrorHandling(
   async (
@@ -82,6 +93,9 @@ export const POST = withErrorHandling(
         return successResponse({ error: 'Post not found' }, 404);
       }
 
+      const clientIp = getClientIp(request);
+      const userAgent = request.headers.get('user-agent') ?? undefined;
+
       if (action === 'approve') {
         // Mark reports as dismissed
         await db
@@ -101,28 +115,31 @@ export const POST = withErrorHandling(
           resourceId: contentId,
           previousValue: { status: 'pending' },
           newValue: { status: 'approved' },
-          ipAddress: request.headers.get('x-forwarded-for') ?? undefined,
-          userAgent: request.headers.get('user-agent') ?? undefined,
+          ipAddress: clientIp,
+          userAgent,
           metadata: { action: 'approve' },
         });
       } else if (action === 'hide') {
-        // Soft delete by setting deletedAt (content can be recovered if needed)
-        await db
-          .update(posts)
-          .set({ deletedAt: new Date() })
-          .where(eq(posts.id, contentId));
+        // Use transaction to ensure atomic update of content + reports
+        await withTransaction(async (tx) => {
+          // Soft delete by setting deletedAt (content can be recovered if needed)
+          await tx
+            .update(posts)
+            .set({ deletedAt: new Date() })
+            .where(eq(posts.id, contentId));
 
-        // Mark reports as resolved
-        await db
-          .update(reports)
-          .set({
-            status: 'resolved',
-            resolution: reason || 'Content hidden by admin',
-            resolvedBy: admin.userId,
-            resolvedAt: new Date(),
-            updatedAt: new Date(),
-          })
-          .where(eq(reports.reportedPostId, contentId));
+          // Mark reports as resolved
+          await tx
+            .update(reports)
+            .set({
+              status: 'resolved',
+              resolution: reason || 'Content hidden by admin',
+              resolvedBy: admin.userId,
+              resolvedAt: new Date(),
+              updatedAt: new Date(),
+            })
+            .where(eq(reports.reportedPostId, contentId));
+        });
 
         await logAdminModify({
           adminId: admin.userId,
@@ -133,8 +150,8 @@ export const POST = withErrorHandling(
             deletedAt: new Date().toISOString(),
             reason: reason ?? null,
           },
-          ipAddress: request.headers.get('x-forwarded-for') ?? undefined,
-          userAgent: request.headers.get('user-agent') ?? undefined,
+          ipAddress: clientIp,
+          userAgent,
           metadata: { action: 'hide' },
         });
       }
@@ -153,6 +170,9 @@ export const POST = withErrorHandling(
       if (!existingComment) {
         return successResponse({ error: 'Comment not found' }, 404);
       }
+
+      const clientIp = getClientIp(request);
+      const userAgent = request.headers.get('user-agent') ?? undefined;
 
       if (action === 'approve') {
         // Dismiss reports for this comment
@@ -173,31 +193,34 @@ export const POST = withErrorHandling(
           resourceId: contentId,
           previousValue: { status: 'pending' },
           newValue: { status: 'approved' },
-          ipAddress: request.headers.get('x-forwarded-for') ?? undefined,
-          userAgent: request.headers.get('user-agent') ?? undefined,
+          ipAddress: clientIp,
+          userAgent,
           metadata: { action: 'approve' },
         });
       } else if (action === 'hide') {
-        // Soft delete by setting deletedAt (content can be recovered if needed)
-        await db
-          .update(comments)
-          .set({
-            deletedAt: new Date(),
-            updatedAt: new Date(),
-          })
-          .where(eq(comments.id, contentId));
+        // Use transaction to ensure atomic update of content + reports
+        await withTransaction(async (tx) => {
+          // Soft delete by setting deletedAt (content can be recovered if needed)
+          await tx
+            .update(comments)
+            .set({
+              deletedAt: new Date(),
+              updatedAt: new Date(),
+            })
+            .where(eq(comments.id, contentId));
 
-        // Mark reports as resolved (matching post hide behavior)
-        await db
-          .update(reports)
-          .set({
-            status: 'resolved',
-            resolution: reason || 'Comment hidden by admin',
-            resolvedBy: admin.userId,
-            resolvedAt: new Date(),
-            updatedAt: new Date(),
-          })
-          .where(eq(reports.reportedCommentId, contentId));
+          // Mark reports as resolved (matching post hide behavior)
+          await tx
+            .update(reports)
+            .set({
+              status: 'resolved',
+              resolution: reason || 'Comment hidden by admin',
+              resolvedBy: admin.userId,
+              resolvedAt: new Date(),
+              updatedAt: new Date(),
+            })
+            .where(eq(reports.reportedCommentId, contentId));
+        });
 
         await logAdminModify({
           adminId: admin.userId,
@@ -208,8 +231,8 @@ export const POST = withErrorHandling(
             deletedAt: new Date().toISOString(),
             reason: reason ?? null,
           },
-          ipAddress: request.headers.get('x-forwarded-for') ?? undefined,
-          userAgent: request.headers.get('user-agent') ?? undefined,
+          ipAddress: clientIp,
+          userAgent,
           metadata: { action: 'hide' },
         });
       }

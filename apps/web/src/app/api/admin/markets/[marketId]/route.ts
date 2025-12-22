@@ -20,13 +20,14 @@ import {
 import { db, desc, eq, markets, positions, withTransaction } from '@babylon/db';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
+import { z } from 'zod';
 
-interface MarketActionRequest {
-  action: 'resolve' | 'extend' | 'void';
-  resolution?: boolean; // true for YES, false for NO
-  newEndDate?: string;
-  reason?: string;
-}
+const MarketActionSchema = z.object({
+  action: z.enum(['resolve', 'extend', 'void']),
+  resolution: z.boolean().optional(), // true for YES, false for NO
+  newEndDate: z.string().optional(),
+  reason: z.string().optional(),
+});
 
 export const GET = withErrorHandling(
   async (
@@ -115,8 +116,15 @@ export const POST = withErrorHandling(
 
     const { marketId } = await params;
 
-    const body = (await request.json()) as MarketActionRequest;
-    const { action, resolution, newEndDate, reason } = body;
+    // Validate request body with Zod schema
+    const parseResult = MarketActionSchema.safeParse(await request.json());
+    if (!parseResult.success) {
+      return successResponse(
+        { error: 'Invalid request', details: parseResult.error.flatten() },
+        400
+      );
+    }
+    const { action, resolution, newEndDate, reason } = parseResult.data;
 
     logger.info(
       'Admin market action',

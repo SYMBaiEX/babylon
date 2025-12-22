@@ -28,18 +28,75 @@ import {
 } from '@babylon/db';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
+import { z } from 'zod';
+
+// Allowed image URL domains for content moderation display
+const ALLOWED_IMAGE_DOMAINS = [
+  'images.unsplash.com',
+  'picsum.photos',
+  'cloudinary.com',
+  'res.cloudinary.com',
+  'babylon-storage.s3.amazonaws.com',
+  'storage.googleapis.com',
+  'cdn.babylon.game',
+];
+
+/**
+ * Validate and sanitize image URL
+ * Returns null for invalid URLs to prevent XSS/SSRF attacks
+ */
+function sanitizeImageUrl(url: string | null): string | null {
+  if (!url) return null;
+  try {
+    const parsed = new URL(url);
+    // Must be https
+    if (parsed.protocol !== 'https:') return null;
+    // Check against allowed domains (optional, can be relaxed for development)
+    const isAllowedDomain = ALLOWED_IMAGE_DOMAINS.some(
+      (domain) => parsed.hostname === domain || parsed.hostname.endsWith(`.${domain}`)
+    );
+    // Log warning but don't block for now (can tighten in production)
+    if (!isAllowedDomain) {
+      logger.warn(`Image URL from unexpected domain: ${parsed.hostname}`, {}, 'sanitizeImageUrl');
+    }
+    return url;
+  } catch {
+    return null;
+  }
+}
+
+const ContentQueueQuerySchema = z.object({
+  type: z.enum(['all', 'posts', 'comments']).default('all'),
+  status: z.enum(['pending', 'resolved']).default('pending'),
+  limit: z.coerce.number().min(1).max(100).default(50),
+  offset: z.coerce.number().min(0).max(10000).default(0), // Max offset to prevent abuse
+});
 
 export const GET = withErrorHandling(async (request: NextRequest) => {
   await requireAdmin(request);
 
   const { searchParams } = new URL(request.url);
-  const contentType = searchParams.get('type') || 'all'; // 'all', 'posts', 'comments'
-  const status = searchParams.get('status') || 'pending'; // 'pending', 'resolved'
-  const limit = parseInt(searchParams.get('limit') || '50', 10);
+
+  // Validate query parameters with Zod
+  const parseResult = ContentQueueQuerySchema.safeParse({
+    type: searchParams.get('type') || undefined,
+    status: searchParams.get('status') || undefined,
+    limit: searchParams.get('limit') || undefined,
+    offset: searchParams.get('offset') || undefined,
+  });
+
+  if (!parseResult.success) {
+    return successResponse(
+      { error: 'Invalid query parameters', details: parseResult.error.flatten() },
+      400
+    );
+  }
+
+  const { type: contentType, status, limit, offset } = parseResult.data;
 
   logger.info(
     'Content queue requested',
-    { contentType, status, limit },
+    { contentType, status, limit, offset },
     'GET /api/admin/content-queue'
   );
 
@@ -84,7 +141,8 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
             users.isActor
           )
           .orderBy(desc(posts.createdAt))
-          .limit(limit);
+          .limit(limit)
+          .offset(offset);
 
   // Get reported comments with report counts using JOIN + GROUP BY
   const reportedComments =
@@ -127,7 +185,8 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
             users.isActor
           )
           .orderBy(desc(comments.createdAt))
-          .limit(limit);
+          .limit(limit)
+          .offset(offset);
 
   // Get queue stats using efficient aggregation
   const [postStats] = await db
@@ -148,7 +207,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       isHidden: p.deletedAt !== null,
       reactionCount: 0,
       commentCount: 0,
-      mediaUrls: p.imageUrl ? [p.imageUrl] : [],
+      mediaUrls: sanitizeImageUrl(p.imageUrl) ? [sanitizeImageUrl(p.imageUrl)] : [],
     })),
     comments: reportedComments.map((c) => ({
       ...c,

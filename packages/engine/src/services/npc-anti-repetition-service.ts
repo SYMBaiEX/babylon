@@ -45,6 +45,9 @@ const OPENING_REPETITION_THRESHOLD = 0.4; // 40% of posts start same way = probl
 /** Threshold for flagging overused words */
 const VOCABULARY_REPETITION_THRESHOLD = 0.5; // Word appears in 50%+ of posts = problem
 
+/** Maximum age (in hours) for character history before cleanup */
+const MAX_HISTORY_AGE_HOURS = 24;
+
 /**
  * Tracked post data
  */
@@ -408,6 +411,35 @@ class NPCAntiRepetitionService {
    */
   clearAllHistory(): void {
     this.characterHistories.clear();
+  }
+
+  /**
+   * Cleanup stale character histories to prevent memory leaks
+   * Removes histories that haven't been updated within MAX_HISTORY_AGE_HOURS
+   *
+   * @returns Number of entries cleaned up
+   */
+  cleanupStaleHistories(): number {
+    const now = Date.now();
+    const maxAgeMs = MAX_HISTORY_AGE_HOURS * 60 * 60 * 1000;
+    let cleanedCount = 0;
+
+    for (const [actorId, history] of this.characterHistories) {
+      if (now - history.lastUpdated.getTime() > maxAgeMs) {
+        this.characterHistories.delete(actorId);
+        cleanedCount++;
+      }
+    }
+
+    if (cleanedCount > 0) {
+      logger.debug(
+        'Cleaned up stale NPC histories',
+        { cleanedCount, remaining: this.characterHistories.size },
+        'NPCAntiRepetition'
+      );
+    }
+
+    return cleanedCount;
   }
 
   /**
