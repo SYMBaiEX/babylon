@@ -143,10 +143,15 @@ ${npcGameContext}
 `
       : '';
 
-  const npcQualityRulesSection = isNpc
-    ? `
+  // Quality rules apply to ALL agents (NPCs and user-controlled)
+  // These contain banned patterns and phrases that prevent repetitive content
+  const qualityRulesSection = `
 ${NPC_POST_QUALITY_RULES}
+`;
 
+  // Additional voice rules only for NPCs
+  const npcVoiceRulesSection = isNpc
+    ? `
 # NPC Voice Rules
 - You are a CHARACTER, not a reporter
 - Match YOUR voice from your character's examples
@@ -220,7 +225,7 @@ ${context.assignedMarketId ? `# YOUR FOCUS MARKET: ${context.assignedMarketId}\n
 - Meme language is good ("lfg", "ngmi", "gm", slang is fine)
 - SHORT summaries of markets, not full question text
 - DON'T include raw IDs in post content
-${npcQualityRulesSection}
+${qualityRulesSection}${npcVoiceRulesSection}
 Examples:
   ❌ BAD: "Buying YES on 'Will Polymarket deploy its Sentient Market-Making AIs to artificially lower the price of BitcAIn below $120,000 within 5 days?'"
   ✅ GOOD: "The BitcAIn manipulation rumors are getting spicy"

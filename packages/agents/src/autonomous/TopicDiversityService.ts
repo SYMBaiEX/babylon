@@ -96,8 +96,8 @@ const REPETITIVE_PHRASE_PATTERNS = [
   /crowded\s*(long|short|trade)/i,
 ];
 
-/** Angles for variety in posting - available for prompt construction */
-export const POSTING_ANGLES = [
+/** Angles for variety in posting */
+const POSTING_ANGLES = [
   'contrarian', // Disagree with consensus
   'analytical', // Data/numbers focused
   'skeptical', // Question the narrative
