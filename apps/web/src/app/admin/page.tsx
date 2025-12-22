@@ -262,7 +262,11 @@ export default function AdminDashboard() {
   ];
 
   // Default tab for fallback (should never be needed since activeTab is always a valid Tab)
-  const defaultTab = { id: 'stats' as const, label: 'Dashboard', icon: BarChart };
+  const defaultTab = {
+    id: 'stats' as const,
+    label: 'Dashboard',
+    icon: BarChart,
+  };
 
   // Get current tab info by searching through categories
   const getCurrentTab = () => {
