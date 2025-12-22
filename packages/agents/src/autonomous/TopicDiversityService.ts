@@ -321,7 +321,10 @@ export class TopicDiversityService {
    * Check if a topic can be posted about (not over-covered)
    * Now uses domain-aware limits so different domains have separate quotas
    */
-  canPostAboutTopic(agentId: string, topicKey: string): {
+  canPostAboutTopic(
+    agentId: string,
+    topicKey: string
+  ): {
     canPost: boolean;
     reason?: string;
   } {
@@ -483,7 +486,10 @@ export class TopicDiversityService {
           market,
           topicKey,
           score:
-            domainFreshness * 2 + globalFreshness + relevanceBonus + randomBonus,
+            domainFreshness * 2 +
+            globalFreshness +
+            relevanceBonus +
+            randomBonus,
         };
       });
 
@@ -566,7 +572,8 @@ export class TopicDiversityService {
 
     // Get NPC's actual character data
     const actor = StaticDataRegistry.getActor(agentId);
-    const personality = actor?.personality || assignment?.personality || 'unique';
+    const personality =
+      actor?.personality || assignment?.personality || 'unique';
     const postStyle = actor?.postStyle || assignment?.postStyle;
 
     // Find topics that are over-covered in this NPC's domain
@@ -601,10 +608,24 @@ Use your unique ${primaryDomain} perspective. Don't just repeat what others say.
 - Dunk on a bad take or amplify a good one
 
 ## Topics OVER-COVERED in Your Domain (try something else):
-${overCoveredInDomain.length > 0 ? overCoveredInDomain.slice(0, 3).map((t) => `- ${t}`).join('\n') : '- None - you have fresh topics available!'}
+${
+  overCoveredInDomain.length > 0
+    ? overCoveredInDomain
+        .slice(0, 3)
+        .map((t) => `- ${t}`)
+        .join('\n')
+    : '- None - you have fresh topics available!'
+}
 
 ## Topics Covered A Lot Globally (bring a fresh angle if covering):
-${overCoveredGlobally.length > 0 ? overCoveredGlobally.slice(0, 3).map((t) => `- ${t}`).join('\n') : '- None currently'}
+${
+  overCoveredGlobally.length > 0
+    ? overCoveredGlobally
+        .slice(0, 3)
+        .map((t) => `- ${t}`)
+        .join('\n')
+    : '- None currently'
+}
 
 ## Post Ideas Based on YOUR Character:
 - React to current events in YOUR ${personality} way
@@ -623,7 +644,6 @@ You could trade this, post about it, or comment on price action.
 
     return instructions;
   }
-
 
   /**
    * Clean up old entries from the tracker
