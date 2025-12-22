@@ -44,12 +44,9 @@ export async function register() {
     });
 
     // Bootstrap NPC agents so they're registered for agent-tick processing
-    // Runs asynchronously to avoid blocking server startup
-    npcBootstrapService.bootstrapAllNpcs().then((result) => {
-      console.info(
-        `[NPCBootstrap] Initialized ${result.initialized}/${result.totalNpcs} NPCs`
-      );
-    });
+    // Note: Runs asynchronously and is non-critical; failures do not block server startup
+    // Individual NPC failures are handled internally by npcBootstrapService
+    void npcBootstrapService.bootstrapAllNpcs();
 
     // Initialize shared moderation services with web app implementations
     setPointsService({

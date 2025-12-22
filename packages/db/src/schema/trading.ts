@@ -141,6 +141,7 @@ export const reports = pgTable(
     reporterId: text('reporterId').notNull(),
     reportedUserId: text('reportedUserId'),
     reportedPostId: text('reportedPostId'),
+    reportedCommentId: text('reportedCommentId'),
     reportType: text('reportType').notNull(),
     category: text('category').notNull(),
     reason: text('reason').notNull(),
@@ -157,6 +158,7 @@ export const reports = pgTable(
     index('Report_reporterId_idx').on(table.reporterId),
     index('Report_reportedUserId_idx').on(table.reportedUserId),
     index('Report_reportedPostId_idx').on(table.reportedPostId),
+    index('Report_reportedCommentId_idx').on(table.reportedCommentId),
     index('Report_status_idx').on(table.status),
     index('Report_priority_status_idx').on(table.priority, table.status),
     index('Report_category_idx').on(table.category),
@@ -167,6 +169,10 @@ export const reports = pgTable(
     ),
     index('Report_reportedPostId_status_idx').on(
       table.reportedPostId,
+      table.status
+    ),
+    index('Report_reportedCommentId_status_idx').on(
+      table.reportedCommentId,
       table.status
     ),
   ]

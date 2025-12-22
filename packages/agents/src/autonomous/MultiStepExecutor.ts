@@ -330,7 +330,9 @@ export class MultiStepExecutor {
       // Topic diversity
       diversityInstructions,
       assignedMarketId: assignment?.marketId,
-      suggestedAngle: assignment?.suggestedAngle,
+      // NPC's actual character data for personalized guidance
+      personality: assignment?.personality,
+      postStyle: assignment?.postStyle,
     };
   }
 

@@ -757,6 +757,20 @@ export async function executeGameTick(
         'GameTick'
       );
     }
+
+    // Cleanup stale NPC anti-repetition histories (same cadence as relationships)
+    // This prevents unbounded memory growth in long-running processes
+    const { antiRepetitionService } = await import(
+      './services/npc-anti-repetition-service'
+    );
+    const cleanedHistories = antiRepetitionService.cleanupStaleHistories();
+    if (cleanedHistories > 0) {
+      logger.debug(
+        `Cleaned up ${cleanedHistories} stale NPC anti-repetition histories`,
+        { count: cleanedHistories },
+        'GameTick'
+      );
+    }
   }
 
   // Process NPC group dynamics (form, join, leave, post, invite, kick)

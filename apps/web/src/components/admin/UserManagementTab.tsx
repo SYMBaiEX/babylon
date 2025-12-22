@@ -158,7 +158,7 @@ export function UserManagementTab() {
       if (showRefreshing) {
         startRefresh(fetchLogic);
       } else {
-        fetchLogic();
+        void fetchLogic();
       }
     },
     [filter, sortBy, searchQuery]

@@ -5,6 +5,9 @@
  * Converts technical arc plan data into natural language "intuitions" that guide
  * NPC behavior without exposing game mechanics.
  *
+ * DOMAIN-AWARE: Each NPC gets topics relevant to their domain/expertise.
+ * This ensures diverse posting across the 100+ NPCs.
+ *
  * ONLY NPCs receive this context - user agents get nothing (they're playing the game).
  */
 
@@ -24,6 +27,61 @@ import type {
   ProviderResult,
   State,
 } from '@elizaos/core';
+
+/**
+ * Get personalized topic suggestions from the NPC's actual data
+ * Uses their postExample, affiliations, and domains - no hardcoding!
+ */
+function getPersonalizedTopicSuggestions(npcActor: {
+  postExample?: readonly string[];
+  affiliations?: readonly string[];
+  domain?: readonly string[];
+  postStyle?: string;
+}): string[] {
+  const suggestions: string[] = [];
+
+  // Use their actual post examples as inspiration
+  if (npcActor.postExample && npcActor.postExample.length > 0) {
+    // Pick 2 random examples to remind them of their voice
+    const shuffledExamples = [...npcActor.postExample].sort(
+      () => Math.random() - 0.5
+    );
+    for (const example of shuffledExamples.slice(0, 2)) {
+      suggestions.push(`Something in your style like: "${example}"`);
+    }
+  }
+
+  // Suggest topics related to their affiliations
+  if (npcActor.affiliations && npcActor.affiliations.length > 0) {
+    const randomAffiliation =
+      npcActor.affiliations[
+        Math.floor(Math.random() * npcActor.affiliations.length)
+      ];
+    if (randomAffiliation) {
+      suggestions.push(`News or drama involving ${randomAffiliation}`);
+    }
+  }
+
+  // Suggest topics based on their domains
+  if (npcActor.domain && npcActor.domain.length > 0) {
+    const randomDomain =
+      npcActor.domain[Math.floor(Math.random() * npcActor.domain.length)];
+    if (randomDomain) {
+      suggestions.push(`Your take on current ${randomDomain} developments`);
+    }
+  }
+
+  // Fallback if no specific data
+  if (suggestions.length === 0) {
+    return [
+      'Your unique perspective on current events',
+      'Something only you would notice',
+      'A hot take that fits your character',
+    ];
+  }
+
+  return suggestions.slice(0, 4);
+}
 
 /**
  * Extract key topic from full question text for natural language
@@ -106,6 +164,10 @@ function formatSignalAsNaturalLanguage(
  * Use this when calling from code that doesn't have Memory/State available.
  * Returns empty string for non-NPC agents.
  *
+ * PERSONALIZED: Uses the NPC's actual data (domains, postStyle, postExample,
+ * affiliations) rather than hardcoded suggestions. Each NPC gets context
+ * that matches their character to ensure diverse content across all 100+ NPCs.
+ *
  * @param agentId - The agent's ID
  * @returns Game context string for NPCs, empty string otherwise
  */
@@ -117,14 +179,34 @@ export async function getNpcGameContext(agentId: string): Promise<string> {
     return '';
   }
 
+  // Get personalized suggestions from the NPC's actual data
+  const topicSuggestions = getPersonalizedTopicSuggestions(npcActor);
+
+  // Format affiliations for context
+  const affiliationContext =
+    npcActor.affiliations && npcActor.affiliations.length > 0
+      ? `Your affiliations: ${npcActor.affiliations.join(', ')}`
+      : '';
+
   // Get active prediction markets via service layer
   const activeMarkets = await gameService.getActiveMarketSummaries(5);
 
   if (activeMarkets.length === 0) {
-    // No active markets - minimal context
+    // No active markets - give character-specific guidance
     return `
+=== WHO YOU ARE ===
+${npcActor.personality ? `Personality: ${npcActor.personality}` : ''}
+${npcActor.domain ? `Domains: ${npcActor.domain.join(', ')}` : ''}
+${affiliationContext}
+
+=== YOUR VOICE ===
+${npcActor.postStyle || 'Post naturally in your character.'}
+
 === YOUR INTUITIONS ===
 Nothing stands out to you right now. The market feels quiet.
+
+=== POST IDEAS FOR YOU ===
+${topicSuggestions.map((s) => `- ${s}`).join('\n')}
 
 Remember: You are ${npcActor.name}. Post in YOUR voice, not as a reporter.
 `.trim();
@@ -168,8 +250,21 @@ Remember: You are ${npcActor.name}. Post in YOUR voice, not as a reporter.
     : '';
 
   return `
+=== WHO YOU ARE ===
+${npcActor.personality ? `Personality: ${npcActor.personality}` : ''}
+${npcActor.domain ? `Domains: ${npcActor.domain.join(', ')}` : ''}
+${affiliationContext}
+
+=== YOUR VOICE ===
+${npcActor.postStyle || 'Post naturally in your character.'}
+
 ${worldContext}=== YOUR INTUITIONS ===
 ${intuitions.length > 0 ? intuitions.join('\n') : 'Nothing stands out to you right now.'}
+
+=== POST IDEAS FOR YOU ===
+${topicSuggestions.map((s) => `- ${s}`).join('\n')}
+
+⚠️ DON'T just repeat what everyone else is posting. Bring YOUR unique perspective.
 
 Remember: You are ${npcActor.name}. Post in YOUR voice, not as a reporter.
 `.trim();

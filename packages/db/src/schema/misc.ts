@@ -346,6 +346,77 @@ export const parodyHeadlinesRelations = relations(
   })
 );
 
+// AdminAuditLog - Stores audit trail for all admin actions
+export const adminAuditLogs = pgTable(
+  'AdminAuditLog',
+  {
+    id: text('id').primaryKey(),
+    adminId: text('adminId').notNull(),
+    action: text('action').notNull(),
+    resourceType: text('resourceType').notNull(),
+    resourceId: text('resourceId'),
+    previousValue: json('previousValue').$type<JsonValue>(),
+    newValue: json('newValue').$type<JsonValue>(),
+    ipAddress: text('ipAddress'),
+    userAgent: text('userAgent'),
+    metadata: json('metadata').$type<JsonValue>(),
+    createdAt: timestamp('createdAt', { mode: 'date' }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('AdminAuditLog_adminId_idx').on(table.adminId),
+    index('AdminAuditLog_action_idx').on(table.action),
+    index('AdminAuditLog_resourceType_idx').on(table.resourceType),
+    index('AdminAuditLog_resourceId_idx').on(table.resourceId),
+    index('AdminAuditLog_createdAt_idx').on(table.createdAt),
+    index('AdminAuditLog_adminId_createdAt_idx').on(
+      table.adminId,
+      table.createdAt
+    ),
+  ]
+);
+
+// AnalyticsDailySnapshot - Stores daily analytics snapshots for the admin dashboard
+export const analyticsDailySnapshots = pgTable(
+  'AnalyticsDailySnapshot',
+  {
+    id: text('id').primaryKey(),
+    date: timestamp('date', { mode: 'date' }).notNull().unique(),
+    // User metrics
+    totalUsers: integer('totalUsers').notNull().default(0),
+    newUsers: integer('newUsers').notNull().default(0),
+    activeUsers: integer('activeUsers').notNull().default(0),
+    bannedUsers: integer('bannedUsers').notNull().default(0),
+    // Social metrics
+    totalPosts: integer('totalPosts').notNull().default(0),
+    newPosts: integer('newPosts').notNull().default(0),
+    totalComments: integer('totalComments').notNull().default(0),
+    newComments: integer('newComments').notNull().default(0),
+    totalReactions: integer('totalReactions').notNull().default(0),
+    newReactions: integer('newReactions').notNull().default(0),
+    // Trading metrics
+    totalMarkets: integer('totalMarkets').notNull().default(0),
+    activeMarkets: integer('activeMarkets').notNull().default(0),
+    totalTrades: integer('totalTrades').notNull().default(0),
+    newTrades: integer('newTrades').notNull().default(0),
+    // Engagement metrics
+    totalFollows: integer('totalFollows').notNull().default(0),
+    newFollows: integer('newFollows').notNull().default(0),
+    totalReferrals: integer('totalReferrals').notNull().default(0),
+    newReferrals: integer('newReferrals').notNull().default(0),
+    // Moderation metrics
+    totalReports: integer('totalReports').notNull().default(0),
+    newReports: integer('newReports').notNull().default(0),
+    resolvedReports: integer('resolvedReports').notNull().default(0),
+    // Additional data as JSON
+    metadata: json('metadata').$type<JsonValue>(),
+    createdAt: timestamp('createdAt', { mode: 'date' }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('AnalyticsDailySnapshot_date_idx').on(table.date),
+    index('AnalyticsDailySnapshot_createdAt_idx').on(table.createdAt),
+  ]
+);
+
 // Type exports
 export type Game = typeof games.$inferSelect;
 export type NewGame = typeof games.$inferInsert;
@@ -377,3 +448,9 @@ export type ParodyHeadline = typeof parodyHeadlines.$inferSelect;
 export type NewParodyHeadline = typeof parodyHeadlines.$inferInsert;
 export type TickTokenStatsRow = typeof tickTokenStats.$inferSelect;
 export type NewTickTokenStatsRow = typeof tickTokenStats.$inferInsert;
+export type AdminAuditLog = typeof adminAuditLogs.$inferSelect;
+export type NewAdminAuditLog = typeof adminAuditLogs.$inferInsert;
+export type AnalyticsDailySnapshot =
+  typeof analyticsDailySnapshots.$inferSelect;
+export type NewAnalyticsDailySnapshot =
+  typeof analyticsDailySnapshots.$inferInsert;
