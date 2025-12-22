@@ -15,6 +15,7 @@ import {
 import type { IAgentRuntime } from '@elizaos/core';
 import { parseKeyValueXml } from '@elizaos/core';
 import { callGroqDirect } from '../llm/direct-groq';
+import { agentService } from '../services/AgentService';
 import { getAgentConfig } from '../shared/agent-config';
 import { logger } from '../shared/logger';
 import { getAgentContext } from './agent-context';
@@ -308,85 +309,82 @@ To skip (if you've recently covered this topic or have nothing new to add):
     // Use large model (qwen3-32b or trained W&B model) for post generation with retry loop
     const MAX_ATTEMPTS = 3;
     let cleanContent: string | null = null;
+    let llmCompletion: string | null = null;
+    let usedPrompt: string | null = null;
 
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-      try {
-        const isRetry = attempt > 1;
-        const currentPrompt = isRetry
-          ? `${finalPrompt}\n\nREMINDER: You MUST output valid XML. Start with <response>, include <action> (post or skip), and <text> for posts. No <think> tags.`
-          : finalPrompt;
+      const isRetry = attempt > 1;
+      const currentPrompt = isRetry
+        ? `${finalPrompt}\n\nREMINDER: You MUST output valid XML. Start with <response>, include <action> (post or skip), and <text> for posts. No <think> tags.`
+        : finalPrompt;
 
-        const postContent = await callGroqDirect({
-          prompt: currentPrompt,
-          system: config?.systemPrompt ?? undefined,
-          modelSize: 'large', // Uses trained W&B model if available, else qwen3-32b
-          runtime: _runtime, // Pass runtime to access W&B trained models AND trajectory context
-          temperature: isRetry ? 0.6 : 0.8,
-          maxTokens: MAX_TOKENS,
-          actionType: 'generate_autonomous_post',
-          purpose: 'action', // RLAIF: This is a content generation action
-        });
+      const postContent = await callGroqDirect({
+        prompt: currentPrompt,
+        system: config?.systemPrompt ?? undefined,
+        modelSize: 'large', // Uses trained W&B model if available, else qwen3-32b
+        runtime: _runtime, // Pass runtime to access W&B trained models AND trajectory context
+        temperature: isRetry ? 0.6 : 0.8,
+        maxTokens: MAX_TOKENS,
+        actionType: 'generate_autonomous_post',
+        purpose: 'action', // RLAIF: This is a content generation action
+      });
 
-        // Extract <response>...</response> block before parsing
-        const responseMatch = postContent.match(
-          /<response>([\s\S]*?)<\/response>/i
+      // Extract <response>...</response> block before parsing
+      const responseMatch = postContent.match(
+        /<response>([\s\S]*?)<\/response>/i
+      );
+      if (!responseMatch) {
+        logger.warn(
+          'No <response> block found in post generation',
+          {
+            agentUserId,
+            attempt,
+            raw: postContent.substring(0, 300),
+          },
+          'AutonomousPosting'
         );
-        if (!responseMatch) {
-          logger.warn(
-            'No <response> block found in post generation',
-            {
-              agentUserId,
-              attempt,
-              raw: postContent.substring(0, 300),
-            },
-            'AutonomousPosting'
-          );
-          continue;
-        }
-
-        // Parse the extracted XML response
-        const parsed = parseKeyValueXml(responseMatch[0]) as {
-          action?: string;
-          text?: string;
-          reason?: string;
-        } | null;
-
-        // Check if agent chose to skip
-        if (parsed?.action === 'skip') {
-          logger.info(
-            `Agent ${agentDisplayName} chose to skip posting`,
-            {
-              agentUserId,
-              reason: parsed.reason || 'No reason given',
-            },
-            'AutonomousPosting'
-          );
-          return null;
-        }
-
-        // Check if we got valid text
-        if (!parsed?.text || parsed.text.trim().length === 0) {
-          logger.warn(
-            'Failed to parse XML response in post generation',
-            {
-              agentUserId,
-              attempt,
-              raw: postContent.substring(0, 300),
-            },
-            'AutonomousPosting'
-          );
-          continue;
-        }
-
-        // Success! Clean up the response
-        cleanContent = parsed.text.trim().replace(/^["']|["']$/g, '');
-        break;
-      } catch (error) {
-        logger.warn(`Post generation attempt ${attempt} failed`, {
-          agentUserId,
-          error: String(error),
-        });
+        continue;
       }
+
+      // Parse the extracted XML response
+      const parsed = parseKeyValueXml(responseMatch[0]) as {
+        action?: string;
+        text?: string;
+        reason?: string;
+      } | null;
+
+      // Check if agent chose to skip
+      if (parsed?.action === 'skip') {
+        logger.info(
+          `Agent ${agentDisplayName} chose to skip posting`,
+          {
+            agentUserId,
+            reason: parsed.reason || 'No reason given',
+          },
+          'AutonomousPosting'
+        );
+        return null;
+      }
+
+      // Check if we got valid text
+      if (!parsed?.text || parsed.text.trim().length === 0) {
+        logger.warn(
+          'Failed to parse XML response in post generation',
+          {
+            agentUserId,
+            attempt,
+            raw: postContent.substring(0, 300),
+          },
+          'AutonomousPosting'
+        );
+        continue;
+      }
+
+      // Success! Clean up the response and capture LLM output
+      cleanContent = parsed.text.trim().replace(/^["']|["']$/g, '');
+      llmCompletion = postContent;
+      usedPrompt = currentPrompt;
+      break;
     }
 
     // If all attempts failed, return null
@@ -450,6 +448,20 @@ To skip (if you've recently covered this topic or have nothing new to add):
       );
       return null;
     }
+
+    // Log the post with prompt and completion for debugging/review
+    await agentService.createLog(agentUserId, {
+      type: 'post',
+      level: 'info',
+      message: `Created post: ${cleanContent.substring(0, 100)}${cleanContent.length > 100 ? '...' : ''}`,
+      prompt: usedPrompt ?? undefined,
+      completion: llmCompletion ?? undefined,
+      metadata: {
+        postId: result.postId ?? null,
+        contentLength: cleanContent.length,
+        agentDisplayName,
+      },
+    });
 
     logger.info(
       `Agent ${agentDisplayName} created post: ${result.postId}`,

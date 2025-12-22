@@ -31,6 +31,7 @@ import { StaticDataRegistry, WalletService } from '@babylon/engine';
 import type { IAgentRuntime } from '@elizaos/core';
 import { callGroqDirect } from '../llm/direct-groq';
 import { getNpcGameContext } from '../plugins/babylon/providers/npc-game-context';
+import { agentService } from '../services/AgentService';
 import { getAgentConfig } from '../shared/agent-config';
 import { logger } from '../shared/logger';
 import { autonomousBatchResponseService } from './AutonomousBatchResponseService';
@@ -186,14 +187,14 @@ export class MultiStepExecutor {
       });
 
       // Get LLM decision
-      const decision = await this.getDecision(
+      const decisionResult = await this.getDecision(
         prompt,
         runtime,
         iteration,
         systemPrompt
       );
 
-      if (!decision) {
+      if (!decisionResult) {
         logger.warn(
           `[MultiStep] Failed to parse decision at iteration ${iteration}, finishing`,
           undefined,
@@ -201,6 +202,8 @@ export class MultiStepExecutor {
         );
         break;
       }
+
+      const { decision, rawResponse } = decisionResult;
 
       logger.info(
         `[MultiStep] Decision: ${decision.action || 'FINISH'}`,
@@ -225,7 +228,8 @@ export class MultiStepExecutor {
       const actionResult = await this.executeAction(
         agentUserId,
         decision.action,
-        decision.parameters
+        decision.parameters,
+        { prompt, completion: rawResponse, thought: decision.thought }
       );
 
       trace.push(actionResult);
@@ -568,13 +572,14 @@ export class MultiStepExecutor {
 
   /**
    * Get LLM decision with retry logic
+   * Returns both parsed decision and raw response for logging
    */
   private async getDecision(
     prompt: string,
     runtime: IAgentRuntime,
     _iteration: number,
     systemPrompt?: string
-  ): Promise<MultiStepDecision | null> {
+  ): Promise<{ decision: MultiStepDecision; rawResponse: string } | null> {
     const maxRetries = 3;
 
     // Use agent's system prompt + JSON instruction
@@ -621,7 +626,7 @@ export class MultiStepExecutor {
           parsed.thought = '';
         }
 
-        return parsed;
+        return { decision: parsed, rawResponse: response };
       } catch {
         logger.warn(
           `[MultiStep] Failed to parse JSON (attempt ${attempt})`,
@@ -640,7 +645,8 @@ export class MultiStepExecutor {
   private async executeAction(
     agentUserId: string,
     action: string,
-    parameters: Record<string, unknown>
+    parameters: Record<string, unknown>,
+    logContext?: { prompt: string; completion: string; thought: string }
   ): Promise<ActionTraceResult> {
     const normalizedAction = action.toUpperCase();
 
@@ -720,6 +726,22 @@ export class MultiStepExecutor {
           content,
         });
 
+        // Log the post with prompt and completion for debugging/review
+        if (postResult.success && logContext) {
+          await agentService.createLog(agentUserId, {
+            type: 'post',
+            level: 'info',
+            message: `Created post: ${content.substring(0, 100)}${content.length > 100 ? '...' : ''}`,
+            prompt: logContext.prompt,
+            completion: logContext.completion,
+            thinking: logContext.thought,
+            metadata: {
+              postId: postResult.postId ?? null,
+              contentLength: content.length,
+            },
+          });
+        }
+
         return {
           actionType: 'POST',
           success: postResult.success,
@@ -760,6 +782,24 @@ export class MultiStepExecutor {
           content,
           parentCommentId,
         });
+
+        // Log the comment with prompt and completion for debugging/review
+        if (commentResult.success && logContext) {
+          await agentService.createLog(agentUserId, {
+            type: 'comment',
+            level: 'info',
+            message: `Created comment on post ${postId}${parentCommentId ? ` (reply to ${parentCommentId})` : ''}: ${content.substring(0, 100)}${content.length > 100 ? '...' : ''}`,
+            prompt: logContext.prompt,
+            completion: logContext.completion,
+            thinking: logContext.thought,
+            metadata: {
+              commentId: commentResult.commentId ?? null,
+              postId,
+              parentCommentId: parentCommentId ?? null,
+              contentLength: content.length,
+            },
+          });
+        }
 
         return {
           actionType: 'COMMENT',
