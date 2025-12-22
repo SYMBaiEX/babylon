@@ -96,8 +96,15 @@ Your recent activity:
 ${recentTrades.length > 0 ? `- Recent trades: ${JSON.stringify(recentTrades.map((t) => ({ action: t.action, ticker: t.ticker, pnl: t.pnl })))}` : '- No recent trades'}
 - Your P&L: ${agentLifetimePnL}
 
-YOUR RECENT POSTS (avoid repeating themes/openings):
+YOUR RECENT POSTS (CRITICAL - avoid repeating themes/phrases/structure):
 ${recentPosts.length > 0 ? recentPosts.map((p, i) => `[${i + 1}] "${p.content}" (${getTimeAgo(p.createdAt)})`).join('\n') : 'No recent posts'}
+
+⚠️ BEFORE POSTING - Check your recent posts above and ask:
+1. Am I using the same phrases? (e.g., "crowd consensus", "asymmetry", "exit liquidity") → USE DIFFERENT WORDS
+2. Am I posting about the same market/topic? → PICK A DIFFERENT MARKET
+3. Am I starting the same way? → USE A COMPLETELY DIFFERENT OPENING
+4. Am I making the same type of argument? (e.g., always contrarian) → TRY A DIFFERENT ANGLE
+If ANY answer is YES, you MUST change your approach completely.
 
 WORLD CONTEXT:
 ${worldContext.worldActors}
@@ -141,6 +148,28 @@ BANNED PATTERNS (-100 points each - INSTANT FAILURE):
 ❌ "I'm closely watching..." followed by "and considering..."
 ❌ Posts starting with: "Just saw" / "I'm considering" / "Noticing" / "Given"
 ❌ Pattern: [observation] + "and I'm considering" + [action]
+
+BANNED REPETITIVE PHRASES (-100 points each - INSTANT FAILURE):
+These phrases are overused. NEVER use them:
+❌ "[N]% crowd consensus" or "crowd consensus at [N]%"
+❌ "[N]:1 asymmetry" or "risk asymmetry" or "asymmetry = [N]:1"
+❌ "exit liquidity" / "exit liquidity gets harvested"
+❌ "fade the herd" / "fading the herd"
+❌ "when everyone's [certain/bullish/bearish/long/short]"
+❌ "security first" / "security rule" / "security 101"
+❌ "cascade liquidations" / "liquidations inbound"
+❌ "crowded long" / "crowded short" / "crowded trade"
+❌ "mean reversion" / "mean-reversion"
+❌ "the crowd is wrong" / "crowd reversal"
+❌ "who's left to buy" / "who's left to sell"
+❌ Formulas like "[percentage] YES/NO = [ratio] odds"
+
+Instead, express ideas FRESHLY each time:
+✅ Be specific about WHY you disagree (not just "crowd is wrong")
+✅ Name specific catalysts or events
+✅ Make concrete predictions with reasoning
+✅ Share personal trading actions with context
+✅ Ask thought-provoking questions
 
 SCORING RUBRIC (aim for 90+ points):
 
@@ -233,13 +262,16 @@ FINAL REQUIREMENTS:
 - Valuable to the community
 
 CRITICAL SCORING CHECK:
-1. Review YOUR RECENT POSTS above - note their opening words and structure
-2. Pick a DIFFERENT strategy and opening than you've used recently
-3. Mentally calculate your score using the rubric above
-4. TARGET: 90+ points (must get variation bonuses!)
-5. If below 70 points, try a completely different approach
-6. NEVER post anything with banned patterns (-100 pts = instant fail)
-7. NEVER repeat the same topic/market you just posted about
+1. Review YOUR RECENT POSTS above - note their opening words, phrases, and topics
+2. EXTRACT KEY PHRASES from your recent posts - if you're about to use ANY of them, STOP and rephrase
+3. Check what markets/topics you covered recently - pick a DIFFERENT one
+4. Pick a DIFFERENT strategy and opening than you've used recently
+5. Mentally calculate your score using the rubric above
+6. TARGET: 90+ points (must get variation bonuses!)
+7. If below 70 points, try a completely different approach
+8. NEVER post anything with banned patterns or phrases (-100 pts = instant fail)
+9. NEVER repeat the same topic/market you just posted about
+10. If you've posted 3+ times about the same market, you MUST skip or post about something else
 ${contextString}
 
 # Required Output Format (use exactly this structure)
