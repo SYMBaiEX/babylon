@@ -101,29 +101,8 @@ const PERSONALITY_KEYWORDS: Record<PersonalityType, string[]> = {
 };
 
 /**
- * LLM temperature constraints (typically 0-2 for most providers)
- */
-const MIN_TEMPERATURE = 0;
-const MAX_TEMPERATURE = 2;
-
-/**
- * Validate that a temperature value is within LLM acceptable range
- */
-function validateTemperature(temp: number): number {
-  if (temp < MIN_TEMPERATURE || temp > MAX_TEMPERATURE) {
-    logger.warn(
-      `Temperature ${temp} outside valid range [${MIN_TEMPERATURE}, ${MAX_TEMPERATURE}], clamping`,
-      { temperature: temp },
-      'CharacterConfig'
-    );
-    return Math.max(MIN_TEMPERATURE, Math.min(MAX_TEMPERATURE, temp));
-  }
-  return temp;
-}
-
-/**
  * Temperature settings by personality type
- * All values validated to be within LLM acceptable range (0-2)
+ * All values are within LLM acceptable range (0-2)
  */
 const PERSONALITY_TEMPERATURES = {
   chaotic: 0.95,
@@ -180,10 +159,8 @@ function buildRivalryMap(): Map<string, string[]> {
   const map = new Map<string, string[]>();
 
   for (const [a, b] of KNOWN_RIVALRIES) {
-    if (!map.has(a)) map.set(a, []);
-    if (!map.has(b)) map.set(b, []);
-    map.get(a)!.push(b);
-    map.get(b)!.push(a);
+    map.set(a, [...(map.get(a) || []), b]);
+    map.set(b, [...(map.get(b) || []), a]);
   }
 
   return map;
@@ -332,7 +309,7 @@ export function getCharacterConfig(actorId: string): CharacterConfig {
   const actor = StaticDataRegistry.getActor(actorId);
 
   if (!actor) {
-    return DEFAULT_CONFIG;
+    throw new Error(`Actor '${actorId}' not found in StaticDataRegistry`);
   }
 
   const personalityType = derivePersonalityType(actor.personality);
@@ -342,7 +319,7 @@ export function getCharacterConfig(actorId: string): CharacterConfig {
   const templatePosts = actor.postExample || [];
 
   return {
-    temperature: validateTemperature(PERSONALITY_TEMPERATURES[personalityType]),
+    temperature: PERSONALITY_TEMPERATURES[personalityType],
     personalityType,
     domains,
     rivals,
@@ -355,10 +332,44 @@ export function getCharacterConfig(actorId: string): CharacterConfig {
 }
 
 /**
+ * Get configuration for a specific character, returning default config if not found.
+ * Use this variant when caller can handle missing actors gracefully.
+ *
+ * @param actorId - The actor's ID
+ * @returns Full character configuration or default config
+ */
+export function getCharacterConfigOrDefault(actorId: string): CharacterConfig {
+  const actor = StaticDataRegistry.getActor(actorId);
+
+  if (!actor) {
+    return DEFAULT_CONFIG;
+  }
+
+  const personalityType = derivePersonalityType(actor.personality);
+  const domains = actor.domain || [];
+  const rivals = RIVALRY_MAP.get(actorId) || [];
+  const voicePatterns = deriveVoicePatterns(actorId, actor.postStyle);
+  const templatePosts = actor.postExample || [];
+
+  return {
+    temperature: PERSONALITY_TEMPERATURES[personalityType],
+    personalityType,
+    domains,
+    rivals,
+    voicePatterns,
+    antiPatterns: [],
+    templatePosts,
+    offDomainProbability: OFFDOMAIN_PROBABILITIES[personalityType],
+    organicPostProbability: ORGANIC_PROBABILITIES[personalityType],
+  };
+}
+
+/**
  * Get temperature for a specific character
+ * Returns default temperature for unknown actors.
  */
 export function getCharacterTemperature(actorId: string): number {
-  const config = getCharacterConfig(actorId);
+  const config = getCharacterConfigOrDefault(actorId);
   return config.temperature;
 }
 
@@ -378,7 +389,7 @@ export function checkVoiceConsistency(
   violatedAntiPatterns: string[];
   voiceScore: number;
 } {
-  const config = getCharacterConfig(actorId);
+  const config = getCharacterConfigOrDefault(actorId);
 
   const matchedPatterns: string[] = [];
   const violatedAntiPatterns: string[] = [];
@@ -426,7 +437,7 @@ export function shouldPostAboutTopic(
   actorId: string,
   topicText: string
 ): boolean {
-  const config = getCharacterConfig(actorId);
+  const config = getCharacterConfigOrDefault(actorId);
 
   // If no domains defined, can post about anything
   if (config.domains.length === 0) {
@@ -460,7 +471,7 @@ export function shouldPostAboutTopic(
  * @returns Whether to generate an organic post
  */
 export function shouldGenerateOrganicPost(actorId: string): boolean {
-  const config = getCharacterConfig(actorId);
+  const config = getCharacterConfigOrDefault(actorId);
   return Math.random() < config.organicPostProbability;
 }
 
@@ -486,7 +497,7 @@ function fisherYatesShuffle<T>(array: T[]): T[] {
  * @returns Array of template posts
  */
 export function getTemplatePosts(actorId: string, count: number = 3): string[] {
-  const config = getCharacterConfig(actorId);
+  const config = getCharacterConfigOrDefault(actorId);
 
   if (config.templatePosts.length === 0) {
     return [];

@@ -229,7 +229,7 @@ export const POST = withErrorHandling(
     );
 
     // Audit log the ban/unban action (persist to database)
-    void logAdminAction(action === 'ban' ? 'BAN' : 'UNBAN', {
+    logAdminAction(action === 'ban' ? 'BAN' : 'UNBAN', {
       adminId: adminUser.userId,
       ipAddress: getClientIp(request.headers) ?? undefined,
       resourceType: 'user',
@@ -247,6 +247,12 @@ export const POST = withErrorHandling(
         targetUsername: targetUser.username,
         action,
       },
+    }).catch((err) => {
+      logger.error(
+        'Failed to persist audit log for ban action',
+        { err, userId, action },
+        'POST /api/admin/users/[userId]/ban'
+      );
     });
 
     return successResponse({

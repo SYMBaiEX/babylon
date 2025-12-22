@@ -204,14 +204,11 @@ class NPCAntiRepetitionService {
    * Add a post to the character's history
    */
   addPost(actorId: string, content: string): void {
-    if (!this.characterHistories.has(actorId)) {
-      this.characterHistories.set(actorId, {
-        posts: [],
-        lastUpdated: new Date(),
-      });
-    }
-
-    const history = this.characterHistories.get(actorId)!;
+    const existing = this.characterHistories.get(actorId);
+    const history: CharacterHistory = existing ?? {
+      posts: [],
+      lastUpdated: new Date(),
+    };
 
     const trackedPost: TrackedPost = {
       content,
@@ -226,6 +223,11 @@ class NPCAntiRepetitionService {
     // Maintain history size limit (LRU)
     if (history.posts.length > HISTORY_SIZE) {
       history.posts = history.posts.slice(-HISTORY_SIZE);
+    }
+
+    // Set the history if it was newly created
+    if (!existing) {
+      this.characterHistories.set(actorId, history);
     }
   }
 

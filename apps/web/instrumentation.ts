@@ -45,11 +45,23 @@ export async function register() {
 
     // Bootstrap NPC agents so they're registered for agent-tick processing
     // Runs asynchronously to avoid blocking server startup
-    npcBootstrapService.bootstrapAllNpcs().then((result) => {
-      console.info(
-        `[NPCBootstrap] Initialized ${result.initialized}/${result.totalNpcs} NPCs`
-      );
-    });
+    npcBootstrapService
+      .bootstrapAllNpcs()
+      .then((result) => {
+        console.info(
+          `[NPCBootstrap] Initialized ${result.initialized}/${result.totalNpcs} NPCs (${result.failed} failed)`
+        );
+        if (result.errors.length > 0) {
+          console.error(
+            `[NPCBootstrap] Failed NPCs: ${result.errors.map((e) => e.actorId).join(', ')}`
+          );
+        }
+      })
+      .catch((error) => {
+        console.error(
+          `[NPCBootstrap] Critical error during bootstrap: ${error instanceof Error ? error.message : String(error)}`
+        );
+      });
 
     // Initialize shared moderation services with web app implementations
     setPointsService({

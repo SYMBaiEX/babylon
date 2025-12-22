@@ -10,6 +10,7 @@ import {
   checkVoiceConsistency,
   getActorRivals,
   getCharacterConfig,
+  getCharacterConfigOrDefault,
   getCharacterTemperature,
   getConfiguredCharacters,
   getTemplatePosts,
@@ -28,8 +29,14 @@ describe('NPC Character Config', () => {
       expect(kanyaiConfig.domains).toContain('fashion');
     });
 
-    it('should return default config for unknown characters', () => {
-      const unknownConfig = getCharacterConfig('unknown-actor-xyz');
+    it('should throw for unknown characters (fail-fast)', () => {
+      expect(() => getCharacterConfig('unknown-actor-xyz')).toThrow(
+        "Actor 'unknown-actor-xyz' not found in StaticDataRegistry"
+      );
+    });
+
+    it('should return default config for unknown characters via getCharacterConfigOrDefault', () => {
+      const unknownConfig = getCharacterConfigOrDefault('unknown-actor-xyz');
 
       expect(unknownConfig.temperature).toBe(0.8);
       expect(unknownConfig.personalityType).toBe('default');

@@ -127,7 +127,7 @@ export async function GET(req: NextRequest) {
   });
 
   // Build where conditions for SQL query
-  const whereConditions = [];
+  const whereConditions: ReturnType<typeof eq>[] = [];
   if (recipientId)
     whereConditions.push(eq(moderationEscrows.recipientId, recipientId));
   if (adminId) whereConditions.push(eq(moderationEscrows.adminId, adminId));

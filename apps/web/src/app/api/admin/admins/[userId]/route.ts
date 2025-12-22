@@ -186,25 +186,28 @@ export const POST = withErrorHandling(
 
     // Audit log the privilege change (persist to database)
     // This is a critical security operation that MUST be logged
-    void logAdminAction(
-      action === 'promote' ? 'PROMOTE_ADMIN' : 'DEMOTE_ADMIN',
-      {
-        adminId: adminUser.userId,
-        ipAddress: getClientIp(request.headers) ?? undefined,
-        resourceType: 'user',
-        resourceId: userId,
-        previousValue: {
-          isAdmin: targetUser.isAdmin,
-        },
-        newValue: {
-          isAdmin: action === 'promote',
-        },
-        metadata: {
-          targetUsername: updatedUser.username,
-          action,
-        },
-      }
-    );
+    logAdminAction(action === 'promote' ? 'PROMOTE_ADMIN' : 'DEMOTE_ADMIN', {
+      adminId: adminUser.userId,
+      ipAddress: getClientIp(request.headers) ?? undefined,
+      resourceType: 'user',
+      resourceId: userId,
+      previousValue: {
+        isAdmin: targetUser.isAdmin,
+      },
+      newValue: {
+        isAdmin: action === 'promote',
+      },
+      metadata: {
+        targetUsername: updatedUser.username,
+        action,
+      },
+    }).catch((err) => {
+      logger.error(
+        'Failed to persist critical audit log for privilege change',
+        { err, userId, action },
+        'POST /api/admin/admins/[userId]'
+      );
+    });
 
     return successResponse({
       message: `User ${action}d successfully`,
