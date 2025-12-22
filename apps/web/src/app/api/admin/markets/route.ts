@@ -42,13 +42,15 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   );
 
   const now = new Date();
+  // Use ISO string for SQL compatibility
+  const nowIso = now.toISOString();
 
   // Get market statistics
   const [marketStats] = await db
     .select({
       total: count(),
-      active: sql<number>`COUNT(*) FILTER (WHERE ${markets.resolved} = false AND ${markets.endDate} > ${now})`,
-      expired: sql<number>`COUNT(*) FILTER (WHERE ${markets.resolved} = false AND ${markets.endDate} <= ${now})`,
+      active: sql<number>`COUNT(*) FILTER (WHERE ${markets.resolved} = false AND ${markets.endDate} > ${nowIso}::timestamp)`,
+      expired: sql<number>`COUNT(*) FILTER (WHERE ${markets.resolved} = false AND ${markets.endDate} <= ${nowIso}::timestamp)`,
       resolved: sql<number>`COUNT(*) FILTER (WHERE ${markets.resolved} = true)`,
       totalLiquidity: sql<number>`COALESCE(SUM(${markets.liquidity}::numeric), 0)`,
     })
