@@ -101,12 +101,17 @@ function recordNPCInteraction(replierNpcId: string, targetNpcId: string): void {
     now - lastInteractionCleanupTime >= CLEANUP_INTERVAL_MS;
 
   if (shouldCleanup) {
+    const beforeSize = npcInteractionCooldowns.size;
     const oneDayAgo = new Date(now - 24 * 60 * 60 * 1000);
     for (const [k, v] of npcInteractionCooldowns.entries()) {
       if (v < oneDayAgo) {
         npcInteractionCooldowns.delete(k);
       }
     }
+    logger.debug('NPC interaction cooldown cleanup', {
+      entriesRemoved: beforeSize - npcInteractionCooldowns.size,
+      entriesRemaining: npcInteractionCooldowns.size,
+    });
     lastInteractionCleanupTime = now;
     interactionsSinceLastCleanup = 0;
   }

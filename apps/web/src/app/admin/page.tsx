@@ -261,6 +261,9 @@ export default function AdminDashboard() {
     },
   ];
 
+  // Default tab for fallback (should never be needed since activeTab is always a valid Tab)
+  const defaultTab = { id: 'stats' as const, label: 'Dashboard', icon: BarChart };
+
   // Get current tab info by searching through categories
   const getCurrentTab = () => {
     for (const category of navCategories) {
@@ -270,10 +273,11 @@ export default function AdminDashboard() {
         }
       }
     }
-    return null;
+    // Fallback should never trigger since activeTab is typed as Tab
+    return defaultTab;
   };
   const currentTab = getCurrentTab();
-  const CurrentIcon = currentTab?.icon || BarChart;
+  const CurrentIcon = currentTab.icon;
 
   return (
     <PageContainer className="flex flex-col pt-6">
@@ -301,7 +305,7 @@ export default function AdminDashboard() {
           >
             <div className="flex items-center gap-2">
               <CurrentIcon className="h-4 w-4 text-primary" />
-              <span>{currentTab?.label || 'Dashboard'}</span>
+              <span>{currentTab.label}</span>
             </div>
             <ChevronDown
               className={cn(

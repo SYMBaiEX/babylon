@@ -43,31 +43,33 @@ const ALLOWED_IMAGE_DOMAINS = [
 
 /**
  * Validate and sanitize image URL
- * Returns null for invalid URLs to prevent XSS/SSRF attacks
+ * Returns null for invalid/non-HTTPS/non-allowlisted URLs to prevent XSS/SSRF attacks
  */
 function sanitizeImageUrl(url: string | null): string | null {
   if (!url) return null;
-  try {
-    const parsed = new URL(url);
-    // Must be https
-    if (parsed.protocol !== 'https:') return null;
-    // Check against allowed domains (optional, can be relaxed for development)
-    const isAllowedDomain = ALLOWED_IMAGE_DOMAINS.some(
-      (domain) =>
-        parsed.hostname === domain || parsed.hostname.endsWith(`.${domain}`)
-    );
-    // Log warning but don't block for now (can tighten in production)
-    if (!isAllowedDomain) {
-      logger.warn(
-        `Image URL from unexpected domain: ${parsed.hostname}`,
-        {},
-        'sanitizeImageUrl'
-      );
-    }
-    return url;
-  } catch {
+
+  const parsed = new URL(url); // Let it throw on invalid URL - handled at API boundary
+
+  if (parsed.protocol !== 'https:') {
+    logger.warn('Non-HTTPS image URL rejected', { url }, 'sanitizeImageUrl');
     return null;
   }
+
+  const isAllowedDomain = ALLOWED_IMAGE_DOMAINS.some(
+    (domain) =>
+      parsed.hostname === domain || parsed.hostname.endsWith(`.${domain}`)
+  );
+
+  if (!isAllowedDomain) {
+    logger.warn(
+      `Image URL from non-allowlisted domain rejected: ${parsed.hostname}`,
+      { url },
+      'sanitizeImageUrl'
+    );
+    return null; // Enforce allowlist for security
+  }
+
+  return url;
 }
 
 const ContentQueueQuerySchema = z.object({
