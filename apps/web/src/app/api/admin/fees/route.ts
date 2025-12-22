@@ -322,14 +322,15 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
   // Enrich recent fees with actor data for NPCs (user data already joined)
   const enrichedRecentFees = recentFeesQuery.map((fee) => {
-    // User data comes from the JOIN, check if we have it
+    // User data comes from the JOIN. isActor being null means no user row matched (LEFT JOIN)
+    const userJoinSucceeded = fee.isActor !== null;
     let username = fee.username;
     let displayName = fee.displayName;
     let profileImageUrl = fee.profileImageUrl;
     let isActor = fee.isActor ?? false;
 
-    // If no user data from join, try to find actor
-    if (!username) {
+    // If LEFT JOIN didn't find a user, try to find actor data
+    if (!userJoinSucceeded) {
       const actor = StaticDataRegistry.getActor(fee.userId);
 
       if (actor) {

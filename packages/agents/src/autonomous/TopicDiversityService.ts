@@ -5,13 +5,15 @@
  * Prevents the "echo chamber" effect where all agents post about the same thing.
  *
  * Key mechanisms:
- * 1. Topic tracking - Track what topics have been covered recently
- * 2. Topic assignment - Assign different topics to different agents
+ * 1. Topic tracking - Track what topics have been covered recently (per-domain)
+ * 2. Topic assignment - Assign different topics to different agents based on their domain
  * 3. Similarity detection - Detect and reject similar posts
  * 4. Cooldown management - Prevent same topic spam in short windows
+ * 5. Domain-aware limits - NPCs in different domains have separate topic pools
  */
 
 import { db, desc, gte, posts } from '@babylon/db';
+import { StaticDataRegistry } from '@babylon/engine';
 import { logger } from '../shared/logger';
 
 // =============================================================================
@@ -21,7 +23,7 @@ import { logger } from '../shared/logger';
 interface TopicCoverage {
   /** Topic identifier (normalized keywords) */
   topicKey: string;
-  /** How many times covered in current window */
+  /** How many times covered in current window (global) */
   coverageCount: number;
   /** Last time this topic was posted about */
   lastPostedAt: Date;
@@ -29,6 +31,8 @@ interface TopicCoverage {
   coveredByAgents: Set<string>;
   /** Sample content for similarity checking */
   sampleContent: string[];
+  /** Coverage count per domain (e.g., 'crypto': 3, 'politics': 2) */
+  domainCoverage: Map<string, number>;
 }
 
 interface TopicAssignment {
@@ -38,8 +42,10 @@ interface TopicAssignment {
   marketId?: string;
   /** Signal direction from arc plan (YES/NO/NEUTRAL) */
   signalDirection?: 'YES' | 'NO' | 'NEUTRAL';
-  /** Suggested angle/take for variety */
-  suggestedAngle: string;
+  /** NPC's personality from their character data */
+  personality?: string;
+  /** NPC's post style from their character data */
+  postStyle?: string;
 }
 
 export interface PredictionMarketForTopic {
@@ -56,8 +62,18 @@ export interface PredictionMarketForTopic {
 /** How long to track topic coverage (30 minutes) */
 const TOPIC_TRACKING_WINDOW_MS = 30 * 60 * 1000;
 
-/** Max posts about same topic in window before blocking */
-const MAX_TOPIC_COVERAGE = 5;
+/**
+ * Max posts about same topic in window before blocking (GLOBAL)
+ * Increased to allow more NPCs to post about hot topics
+ */
+const MAX_TOPIC_COVERAGE_GLOBAL = 20;
+
+/**
+ * Max posts per domain about same topic
+ * Allows multiple NPCs in same domain to cover a topic from different angles
+ * Note: Individual NPCs are also tracked via coveredByAgents Set
+ */
+const MAX_TOPIC_COVERAGE_PER_DOMAIN = 5;
 
 /** Minimum word overlap to consider posts similar */
 const SIMILARITY_THRESHOLD = 0.3; // Lower threshold for stricter duplicate detection
@@ -276,6 +292,28 @@ export class TopicDiversityService {
   }
 
   /**
+   * Get the primary domain for an agent (first domain in their list)
+   */
+  private getAgentPrimaryDomain(agentId: string): string {
+    const actor = StaticDataRegistry.getActor(agentId);
+    if (!actor || !actor.domain || actor.domain.length === 0) {
+      return 'general';
+    }
+    return actor.domain[0] ?? 'general';
+  }
+
+  /**
+   * Get all domains for an agent
+   */
+  private getAgentDomains(agentId: string): string[] {
+    const actor = StaticDataRegistry.getActor(agentId);
+    if (!actor || !actor.domain || actor.domain.length === 0) {
+      return ['general'];
+    }
+    return actor.domain;
+  }
+
+  /**
    * Extract repetitive phrases from content for tracking
    */
   extractRepetitivePhrases(content: string): string[] {
@@ -345,6 +383,7 @@ export class TopicDiversityService {
 
   /**
    * Record that a topic was covered by an agent
+   * Now tracks domain-level coverage for domain-aware limits
    */
   recordTopicCoverage(
     agentId: string,
@@ -355,6 +394,7 @@ export class TopicDiversityService {
 
     const key = topicKey || this.extractTopicKey(content);
     const now = new Date();
+    const agentDomain = this.getAgentPrimaryDomain(agentId);
 
     const existing = this.topicCoverage.get(key);
     if (existing) {
@@ -366,13 +406,19 @@ export class TopicDiversityService {
       if (existing.sampleContent.length > 10) {
         existing.sampleContent = existing.sampleContent.slice(-10);
       }
+      // Track domain coverage
+      const domainCount = existing.domainCoverage.get(agentDomain) ?? 0;
+      existing.domainCoverage.set(agentDomain, domainCount + 1);
     } else {
+      const domainCoverage = new Map<string, number>();
+      domainCoverage.set(agentDomain, 1);
       this.topicCoverage.set(key, {
         topicKey: key,
         coverageCount: 1,
         lastPostedAt: now,
         coveredByAgents: new Set([agentId]),
         sampleContent: [content.substring(0, 200)],
+        domainCoverage,
       });
     }
 
@@ -382,24 +428,55 @@ export class TopicDiversityService {
 
   /**
    * Check if a topic can be posted about (not over-covered)
+   * Now uses domain-aware limits so different domains have separate quotas
    */
-  canPostAboutTopic(agentId: string, topicKey: string): boolean {
+  canPostAboutTopic(agentId: string, topicKey: string): {
+    canPost: boolean;
+    reason?: string;
+  } {
     this.cleanupOldEntries();
 
     const coverage = this.topicCoverage.get(topicKey);
-    if (!coverage) return true;
-
-    // Block if too many posts about this topic
-    if (coverage.coverageCount >= MAX_TOPIC_COVERAGE) {
-      return false;
-    }
+    if (!coverage) return { canPost: true };
 
     // Block if this agent already posted about it recently
     if (coverage.coveredByAgents.has(agentId)) {
-      return false;
+      return {
+        canPost: false,
+        reason: `You already posted about this topic recently. Try a different angle or topic.`,
+      };
     }
 
-    return true;
+    // Block if global limit exceeded
+    if (coverage.coverageCount >= MAX_TOPIC_COVERAGE_GLOBAL) {
+      return {
+        canPost: false,
+        reason: `This topic is heavily covered. Try something fresh that others haven't posted about.`,
+      };
+    }
+
+    // Check domain-specific limit
+    const agentDomain = this.getAgentPrimaryDomain(agentId);
+    const domainCount = coverage.domainCoverage.get(agentDomain) ?? 0;
+
+    if (domainCount >= MAX_TOPIC_COVERAGE_PER_DOMAIN) {
+      // Suggest the agent's other domains or a unique angle
+      const agentDomains = this.getAgentDomains(agentId);
+      const otherDomains = agentDomains.filter((d) => d !== agentDomain);
+
+      if (otherDomains.length > 0) {
+        return {
+          canPost: false,
+          reason: `Too many ${agentDomain} voices on this topic. Try approaching from your ${otherDomains.join(' or ')} perspective instead.`,
+        };
+      }
+      return {
+        canPost: false,
+        reason: `Your domain already covered this topic enough. Post about something in your unique wheelhouse.`,
+      };
+    }
+
+    return { canPost: true };
   }
 
   /**
@@ -433,16 +510,16 @@ export class TopicDiversityService {
    * Returns issues if any, empty array if OK
    *
    * Focus: Prevent repetitiveness, NOT restrict creative language
+   * Now domain-aware: NPCs in different domains have separate quotas
    */
   validateContent(agentId: string, content: string): string[] {
     const issues: string[] = [];
 
-    // Check topic coverage - prevent same topic spam
+    // Check topic coverage - domain-aware limits
     const topicKey = this.extractTopicKey(content);
-    if (!this.canPostAboutTopic(agentId, topicKey)) {
-      issues.push(
-        `Topic "${topicKey}" has been covered too many times recently. Post about a different market or topic.`
-      );
+    const topicCheck = this.canPostAboutTopic(agentId, topicKey);
+    if (!topicCheck.canPost && topicCheck.reason) {
+      issues.push(topicCheck.reason);
     }
 
     // Check similarity - prevent copy-paste style repetition
@@ -467,6 +544,7 @@ export class TopicDiversityService {
   /**
    * Assign topics to agents for a batch tick
    * Ensures each agent gets a different primary topic
+   * NOW DOMAIN-AWARE: Considers each NPC's domain when assigning topics
    */
   async assignTopicsToAgents(
     agentIds: string[],
@@ -475,56 +553,78 @@ export class TopicDiversityService {
     this.cleanupOldEntries();
     this.agentAssignments.clear();
 
-    // Score markets by how under-covered they are
-    const marketScores = availableMarkets.map((market) => {
-      const topicKey = this.extractTopicKey(market.question);
-      const coverage = this.topicCoverage.get(topicKey);
-      const coverageCount = coverage?.coverageCount ?? 0;
-
-      // Higher score = less covered = better to assign
-      const freshness = Math.max(0, MAX_TOPIC_COVERAGE - coverageCount);
-
-      // Add some randomness for variety
-      const randomBonus = Math.random() * 2;
-
-      return {
-        market,
-        topicKey,
-        score: freshness + randomBonus,
-      };
-    });
-
-    // Sort by score (highest first)
-    marketScores.sort((a, b) => b.score - a.score);
-
     // Shuffle agents for fairness
     const shuffledAgents = [...agentIds].sort(() => Math.random() - 0.5);
 
-    // Assign topics round-robin
-    for (let i = 0; i < shuffledAgents.length; i++) {
-      const agentId = shuffledAgents[i];
+    // For each agent, score markets based on:
+    // 1. How under-covered the topic is in their domain
+    // 2. How relevant the market is to their domain (keyword matching)
+    // 3. Random bonus for variety
+    for (const agentId of shuffledAgents) {
       if (!agentId) continue;
 
-      // Pick market for this agent (cycle through available markets)
-      const marketIndex = i % marketScores.length;
-      const marketData = marketScores[marketIndex];
+      const agentDomains = this.getAgentDomains(agentId);
+      const primaryDomain = agentDomains[0] ?? 'general';
 
-      if (!marketData) continue;
+      // Score each market for THIS agent
+      const marketScores = availableMarkets.map((market) => {
+        const topicKey = this.extractTopicKey(market.question);
+        const coverage = this.topicCoverage.get(topicKey);
+        const globalCount = coverage?.coverageCount ?? 0;
+        const domainCount = coverage?.domainCoverage.get(primaryDomain) ?? 0;
 
-      // Pick a random angle for variety
-      const angle =
-        POSTING_ANGLES[Math.floor(Math.random() * POSTING_ANGLES.length)] ??
-        'analytical';
+        // Higher score = better for this agent
+        // Freshness: prefer topics not covered much in their domain
+        const domainFreshness = Math.max(
+          0,
+          MAX_TOPIC_COVERAGE_PER_DOMAIN - domainCount
+        );
+        const globalFreshness = Math.max(
+          0,
+          MAX_TOPIC_COVERAGE_GLOBAL - globalCount
+        );
+
+        // Relevance: check if market keywords match agent domains
+        const marketLower = market.question.toLowerCase();
+        let relevanceBonus = 0;
+        for (const domain of agentDomains) {
+          if (marketLower.includes(domain)) {
+            relevanceBonus += 2;
+          }
+        }
+
+        // Random bonus for variety
+        const randomBonus = Math.random() * 2;
+
+        return {
+          market,
+          topicKey,
+          score:
+            domainFreshness * 2 + globalFreshness + relevanceBonus + randomBonus,
+        };
+      });
+
+      // Sort by score (highest first)
+      marketScores.sort((a, b) => b.score - a.score);
+
+      // Pick the best market for this agent
+      const bestMarket = marketScores[0];
+
+      if (!bestMarket) continue;
+
+      // Get NPC's actual personality and post style from their character data
+      const actor = StaticDataRegistry.getActor(agentId);
 
       this.agentAssignments.set(agentId, {
-        primaryTopicKey: marketData.topicKey,
-        marketId: marketData.market.id,
-        suggestedAngle: angle,
+        primaryTopicKey: bestMarket.topicKey,
+        marketId: bestMarket.market.id,
+        personality: actor?.personality,
+        postStyle: actor?.postStyle,
       });
     }
 
     logger.info(
-      `Assigned topics to ${shuffledAgents.length} agents`,
+      `Assigned topics to ${shuffledAgents.length} agents (domain-aware)`,
       {
         marketsAvailable: availableMarkets.length,
         assignmentCount: this.agentAssignments.size,
@@ -576,17 +676,41 @@ export class TopicDiversityService {
   /**
    * Get diversity instructions for an agent's prompt
    *
-   * Emphasizes: Trading, events, markets, organic engagement
+   * Uses the NPC's actual character data (domains, personality, postStyle)
+   * rather than hardcoded suggestions. Now DOMAIN-AWARE for topic limits.
    */
   getDiversityInstructions(agentId: string): string {
     const assignment = this.agentAssignments.get(agentId);
-    const recentTopics = Array.from(this.topicCoverage.entries())
-      .filter(([, coverage]) => coverage.coverageCount >= 3)
-      .map(([key]) => key)
-      .slice(0, 5);
+    const agentDomains = this.getAgentDomains(agentId);
+    const primaryDomain = agentDomains[0] ?? 'general';
+
+    // Get NPC's actual character data
+    const actor = StaticDataRegistry.getActor(agentId);
+    const personality = actor?.personality || assignment?.personality || 'unique';
+    const postStyle = actor?.postStyle || assignment?.postStyle;
+
+    // Find topics that are over-covered in this NPC's domain
+    const overCoveredInDomain: string[] = [];
+    const overCoveredGlobally: string[] = [];
+
+    for (const [key, coverage] of this.topicCoverage.entries()) {
+      const domainCount = coverage.domainCoverage.get(primaryDomain) ?? 0;
+      if (domainCount >= MAX_TOPIC_COVERAGE_PER_DOMAIN) {
+        overCoveredInDomain.push(key);
+      }
+      if (coverage.coverageCount >= MAX_TOPIC_COVERAGE_GLOBAL * 0.7) {
+        overCoveredGlobally.push(key);
+      }
+    }
 
     let instructions = `
 # PLAY THE GAME - MIX IT UP
+
+## Your Personality: ${personality.toUpperCase()}
+${postStyle ? `Your posting style: ${postStyle}` : ''}
+
+## Your Domain Expertise: ${agentDomains.join(', ').toUpperCase()}
+Use your unique ${primaryDomain} perspective. Don't just repeat what others say.
 
 ## What to Do This Tick (pick what feels natural):
 - TRADE on prediction markets or perps
@@ -596,20 +720,17 @@ export class TopicDiversityService {
 - React to news, rumors, price movements
 - Dunk on a bad take or amplify a good one
 
-## Topics Others Have Covered A Lot (try something different):
-${recentTopics.length > 0 ? recentTopics.map((t) => `- ${t}`).join('\n') : '- None currently - pick any topic!'}
+## Topics OVER-COVERED in Your Domain (try something else):
+${overCoveredInDomain.length > 0 ? overCoveredInDomain.slice(0, 3).map((t) => `- ${t}`).join('\n') : '- None - you have fresh topics available!'}
 
-## Your Assigned Angle: ${assignment?.suggestedAngle?.toUpperCase() || 'UNIQUE'}
-${this.getAngleDescription(assignment?.suggestedAngle || 'analytical')}
+## Topics Covered A Lot Globally (bring a fresh angle if covering):
+${overCoveredGlobally.length > 0 ? overCoveredGlobally.slice(0, 3).map((t) => `- ${t}`).join('\n') : '- None currently'}
 
-## Post Ideas (variety is good):
-- React to a recent event or news
-- Comment on market movements or price action
-- Share a hot take on what's happening
-- Flex a winning position
-- Question something others believe
-- Dunk on a bad take
-- Just vibe about the game world
+## Post Ideas Based on YOUR Character:
+- React to current events in YOUR ${personality} way
+- Something only YOU would notice given your domains
+- A take that fits YOUR voice and posting style
+- Engage with other posts from YOUR perspective
 `;
 
     if (assignment?.marketId) {
@@ -623,33 +744,6 @@ You could trade this, post about it, or comment on price action.
     return instructions;
   }
 
-  /**
-   * Get description for a posting angle
-   */
-  private getAngleDescription(angle: string): string {
-    const descriptions: Record<string, string> = {
-      contrarian: 'Challenge the consensus view. Find what others are missing.',
-      analytical:
-        'Focus on data, numbers, and logical analysis. Be specific with figures.',
-      skeptical:
-        "Question the narrative. What doesn't add up? What's being overlooked?",
-      bullish:
-        "Be optimistic. What's the upside others don't see? Why will this succeed?",
-      bearish:
-        'Be cautious/pessimistic. What are the risks? Why might this fail?',
-      humorous:
-        'Find the absurdity. Make it entertaining while still insightful.',
-      insider:
-        "Hint at special knowledge (carefully). What do insiders know that's not public?",
-      historical:
-        'Compare to past events. What historical pattern does this follow?',
-      questioning:
-        'Ask a provocative question that gets others thinking. Engage the community.',
-      declarative: 'Make a bold, confident statement. Take a strong position.',
-    };
-
-    return descriptions[angle] || 'Bring your unique perspective.';
-  }
 
   /**
    * Clean up old entries from the tracker

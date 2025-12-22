@@ -100,9 +100,14 @@ export class SubgraphClient {
 
     let capabilities: string | undefined;
     if (meta.capabilities) {
-      const parsed = JSON.parse(meta.capabilities);
-      parseCapabilities(parsed); // Validate
-      capabilities = meta.capabilities;
+      // Safely parse capabilities - the string might not be valid JSON
+      const trimmed = meta.capabilities.trim();
+      if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+        const parsed = JSON.parse(trimmed);
+        parseCapabilities(parsed); // Validate
+        capabilities = meta.capabilities;
+      }
+      // Otherwise skip capabilities if it's not valid JSON
     }
 
     return {

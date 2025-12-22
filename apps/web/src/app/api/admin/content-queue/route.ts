@@ -224,16 +224,17 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     );
 
   return successResponse({
-    posts: reportedPosts.map((p) => ({
-      ...p,
-      type: 'post' as const,
-      isHidden: p.deletedAt !== null,
-      reactionCount: 0,
-      commentCount: 0,
-      mediaUrls: sanitizeImageUrl(p.imageUrl)
-        ? [sanitizeImageUrl(p.imageUrl)]
-        : [],
-    })),
+    posts: reportedPosts.map((p) => {
+      const sanitizedImage = sanitizeImageUrl(p.imageUrl);
+      return {
+        ...p,
+        type: 'post' as const,
+        isHidden: p.deletedAt !== null,
+        reactionCount: 0,
+        commentCount: 0,
+        mediaUrls: sanitizedImage ? [sanitizedImage] : [],
+      };
+    }),
     comments: reportedComments.map((c) => ({
       ...c,
       type: 'comment' as const,

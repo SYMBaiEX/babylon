@@ -67,13 +67,14 @@ function isAgentApiRequest(pathname: string) {
  */
 function addCorsHeaders(
   response: NextResponse,
-  origin: string | null,
-  isCredentialed: boolean
+  origin: string | null
 ): NextResponse {
   // For credentialed requests, must use specific origin (not *)
-  if (origin && isCredentialed && isAllowedOrigin(origin)) {
+  if (origin && isAllowedOrigin(origin)) {
     response.headers.set('Access-Control-Allow-Origin', origin);
     response.headers.set('Access-Control-Allow-Credentials', 'true');
+    // Vary header prevents caching issues when origin changes
+    response.headers.set('Vary', 'Origin');
   }
 
   response.headers.set(
@@ -102,13 +103,13 @@ export function middleware(request: NextRequest) {
   // Handle CORS preflight (OPTIONS) requests for API routes
   if (request.method === 'OPTIONS' && isApiRequest(pathname)) {
     const response = new NextResponse(null, { status: 204 });
-    return addCorsHeaders(response, origin, true);
+    return addCorsHeaders(response, origin);
   }
 
   // Handle API requests with CORS headers
   if (isApiRequest(pathname)) {
     const response = NextResponse.next();
-    return addCorsHeaders(response, origin, true);
+    return addCorsHeaders(response, origin);
   }
 
   // Waitlist mode handling

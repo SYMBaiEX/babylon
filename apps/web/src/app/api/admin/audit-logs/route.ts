@@ -59,7 +59,12 @@
  *         description: Admin access required
  */
 
-import { requireAdmin, successResponse, withErrorHandling } from '@babylon/api';
+import {
+  errorResponse,
+  requireAdmin,
+  successResponse,
+  withErrorHandling,
+} from '@babylon/api';
 import {
   adminAuditLogs,
   and,
@@ -75,13 +80,16 @@ import type { NextRequest } from 'next/server';
 import { z } from 'zod';
 
 // Valid action and resource types for audit logs
+// These must match the actual logged action values from logAdminAction calls
 const VALID_ACTIONS = [
-  'view',
-  'create',
-  'modify',
-  'delete',
-  'ban',
-  'privilege_change',
+  'BAN',
+  'UNBAN',
+  'PROMOTE_ADMIN',
+  'DEMOTE_ADMIN',
+  'VIEW',
+  'CREATE',
+  'MODIFY',
+  'DELETE',
 ] as const;
 
 const VALID_RESOURCE_TYPES = [
@@ -121,12 +129,11 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   });
 
   if (!parseResult.success) {
-    return successResponse(
-      {
-        error: 'Invalid query parameters',
-        details: parseResult.error.flatten(),
-      },
-      400
+    return errorResponse(
+      'Invalid query parameters',
+      'VALIDATION_ERROR',
+      400,
+      { details: parseResult.error.flatten() }
     );
   }
 

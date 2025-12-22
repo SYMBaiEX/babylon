@@ -60,6 +60,7 @@ export async function logAdminAction(
 
 /**
  * Persist audit log to database
+ * Silently fails if the AdminAuditLog table doesn't exist (migration not yet applied)
  */
 async function persistAuditLog(
   action: string,
@@ -67,18 +68,28 @@ async function persistAuditLog(
 ): Promise<void> {
   const id = await generateSnowflakeId();
 
-  await db.insert(adminAuditLogs).values({
-    id,
-    adminId: context.adminId,
-    action,
-    resourceType: context.resourceType,
-    resourceId: context.resourceId ?? null,
-    previousValue: context.previousValue ?? null,
-    newValue: context.newValue ?? null,
-    ipAddress: context.ipAddress ?? null,
-    userAgent: context.userAgent ?? null,
-    metadata: (context.metadata as JsonValue) ?? null,
-  });
+  await db
+    .insert(adminAuditLogs)
+    .values({
+      id,
+      adminId: context.adminId,
+      action,
+      resourceType: context.resourceType,
+      resourceId: context.resourceId ?? null,
+      previousValue: context.previousValue ?? null,
+      newValue: context.newValue ?? null,
+      ipAddress: context.ipAddress ?? null,
+      userAgent: context.userAgent ?? null,
+      metadata: (context.metadata as JsonValue) ?? null,
+    })
+    .catch((err: Error) => {
+      // Log but don't throw - table might not exist yet (migration not applied)
+      logger.warn(
+        `Failed to persist audit log: ${err.message}`,
+        { action, resourceType: context.resourceType },
+        'AdminAudit'
+      );
+    });
 }
 
 /**

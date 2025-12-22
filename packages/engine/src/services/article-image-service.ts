@@ -1,13 +1,20 @@
 /**
  * Article Image Generation Service
  *
- * Generates cover images for articles using fal.ai's Flux AI models.
+ * Generates SATIRICAL PARODY cover images for articles using fal.ai's Flux AI models.
  * Images are uploaded to storage and URLs are returned for database storage.
+ *
+ * KEY FEATURES:
+ * - Adds surreal/absurdist twists to ensure unique, non-IP-infringing imagery
+ * - Uses satirical style prompt to avoid generating real logos/trademarks
+ *
+ * NOTE: Article content already uses parody names (BitcAIn, TeslAI, etc.)
+ * via ArticleGenerator's character mapping. No additional name sanitization needed here.
  */
 
 import { logger } from '@babylon/shared';
 import { fal } from '@fal-ai/client';
-import { articleCover, renderPrompt } from '../prompts';
+import { articleCover, getRandomTwist, renderPrompt } from '../prompts';
 
 interface FalImage {
   url: string;
@@ -58,12 +65,15 @@ export function isImageGenerationAvailable(): boolean {
 }
 
 /**
- * Generate a cover image for an article (best-effort, non-blocking)
+ * Generate a SATIRICAL PARODY cover image for an article (best-effort, non-blocking)
  *
  * This function never throws - errors are logged and null is returned.
  * This ensures image generation failures don't block tick execution.
  *
- * @param params - Article details for image generation
+ * The prompt uses surreal/absurdist style with explicit IP avoidance rules
+ * to ensure parody aesthetic and avoid generating real logos/trademarks.
+ *
+ * @param params - Article details for image generation (already using parody names)
  * @returns URL of the generated image, or null if generation fails
  */
 export async function generateArticleImage(
@@ -78,15 +88,23 @@ export async function generateArticleImage(
     return null;
   }
 
+  // Add a random surreal twist for uniqueness and parody aesthetic
+  const twist = getRandomTwist();
+
   const prompt = renderPrompt(articleCover, {
     title: params.title,
     summary: params.summary,
     category: params.category || 'general',
+    twist,
   });
 
   logger.debug(
-    'Generating article cover image',
-    { title: params.title, category: params.category },
+    'Generating satirical article cover image',
+    {
+      title: params.title,
+      category: params.category,
+      twist,
+    },
     'ArticleImageService'
   );
 
