@@ -117,6 +117,7 @@ import {
   logger,
   OnboardingProfileSchema,
   POINTS,
+  shouldAutoPromoteToAdmin,
 } from '@babylon/shared';
 import type { User as PrivyUser } from '@privy-io/server-auth';
 import type { NextRequest } from 'next/server';
@@ -238,6 +239,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   // Fetch identity data from Privy if token provided
   let identityFarcasterUsername: string | undefined;
   let identityTwitterUsername: string | undefined;
+  let verifiedEmail: string | null = null;
 
   if (identityToken) {
     const privyClient = getPrivyClient();
@@ -246,6 +248,8 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
 
     identityFarcasterUsername = identityUser.farcaster?.username ?? undefined;
     identityTwitterUsername = identityUser.twitter?.username ?? undefined;
+    // SECURITY: Get verified email from Privy, not from user input
+    verifiedEmail = identityUser.email?.address ?? null;
   } else {
     logger.info(
       'Signup received no identity token; proceeding with provided payload only',
@@ -415,11 +419,30 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
 
         if (existingUserRecord) {
           // Update existing user
+          // Also check if user should be auto-promoted to admin (for existing users with new verified email)
+          const emailVerified = !!verifiedEmail;
+          const shouldPromoteToAdmin =
+            !existingUserRecord.isAdmin &&
+            shouldAutoPromoteToAdmin(verifiedEmail, emailVerified);
+
+          if (shouldPromoteToAdmin) {
+            logger.info(
+              'Auto-promoting existing user to admin during signup based on verified email domain',
+              {
+                userId: canonicalUserId,
+                emailDomain: verifiedEmail?.split('@')[1] ?? null,
+                emailVerified,
+              },
+              'POST /api/users/signup'
+            );
+          }
+
           const [updatedUser] = await tx
             .update(users)
             .set({
               ...baseUserData,
               referredBy: resolvedReferrerId ?? existingUserRecord.referredBy,
+              isAdmin: shouldPromoteToAdmin ? true : existingUserRecord.isAdmin,
               updatedAt: new Date(),
             })
             .where(eq(users.id, canonicalUserId))
@@ -430,6 +453,27 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
           user = updatedUser;
         } else {
           // Create new user
+          // Check if user should be auto-promoted to admin based on email domain
+          // SECURITY: Use Privy-verified email, not user-supplied email from parsedProfile
+          // This prevents attackers from submitting fake admin emails in the request body
+          const emailVerified = !!verifiedEmail;
+          const shouldBeAdmin = shouldAutoPromoteToAdmin(
+            verifiedEmail,
+            emailVerified
+          );
+
+          if (shouldBeAdmin) {
+            logger.info(
+              'Auto-promoting new signup user to admin based on verified email domain',
+              {
+                userId: canonicalUserId,
+                emailDomain: verifiedEmail?.split('@')[1] ?? null,
+                emailVerified,
+              },
+              'POST /api/users/signup'
+            );
+          }
+
           const [newUser] = await tx
             .insert(users)
             .values({
@@ -437,6 +481,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
               privyId,
               ...baseUserData,
               referredBy: resolvedReferrerId,
+              isAdmin: shouldBeAdmin,
               updatedAt: new Date(),
             })
             .returning();

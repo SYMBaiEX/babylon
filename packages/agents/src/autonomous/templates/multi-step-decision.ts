@@ -81,7 +81,9 @@ export interface AgentTickContext {
   // Topic diversity guidance
   diversityInstructions?: string;
   assignedMarketId?: string;
-  suggestedAngle?: string;
+  // NPC's actual character data for personalized guidance
+  personality?: string;
+  postStyle?: string;
 }
 
 export interface MultiStepDecision {
@@ -194,7 +196,7 @@ ${actionsCompletedText}
 ${formatAvailableActions(context.enabledFeatures)}
 
 ${context.diversityInstructions ? `${context.diversityInstructions}` : ''}
-${context.assignedMarketId ? `# YOUR FOCUS MARKET: ${context.assignedMarketId}\nConsider this market for trades or posts. Bring your "${context.suggestedAngle || 'unique'}" angle.\n` : ''}
+${context.assignedMarketId ? `# YOUR FOCUS MARKET: ${context.assignedMarketId}\nConsider this market for trades or posts. Bring your ${context.personality || 'unique'} perspective.\n` : ''}
 
 # Decision Rules
 1. **MIX IT UP**: Trade, post, comment on others' posts, respond to mentions - variety is good

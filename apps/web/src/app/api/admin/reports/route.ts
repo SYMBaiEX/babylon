@@ -112,7 +112,7 @@
  */
 
 import { requireAdmin, successResponse, withErrorHandling } from '@babylon/api';
-import { db } from '@babylon/db';
+import { and, db, desc, eq, reports, sql } from '@babylon/db';
 import { GetReportsSchema, logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 
@@ -141,66 +141,111 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     'GET /api/admin/reports'
   );
 
-  // Build where clause
-  const where: Record<string, unknown> = {};
+  // Build where conditions for SQL query
+  const whereConditions = [];
+  if (params.status) whereConditions.push(eq(reports.status, params.status));
+  if (params.category)
+    whereConditions.push(eq(reports.category, params.category));
+  if (params.priority)
+    whereConditions.push(eq(reports.priority, params.priority));
+  if (params.reportType)
+    whereConditions.push(eq(reports.reportType, params.reportType));
+  if (params.reporterId)
+    whereConditions.push(eq(reports.reporterId, params.reporterId));
+  if (params.reportedUserId)
+    whereConditions.push(eq(reports.reportedUserId, params.reportedUserId));
+  if (params.reportedPostId)
+    whereConditions.push(eq(reports.reportedPostId, params.reportedPostId));
+  const whereClause =
+    whereConditions.length > 0 ? and(...whereConditions) : undefined;
 
-  if (params.status) where.status = params.status;
-  if (params.category) where.category = params.category;
-  if (params.priority) where.priority = params.priority;
-  if (params.reportType) where.reportType = params.reportType;
-  if (params.reporterId) where.reporterId = params.reporterId;
-  if (params.reportedUserId) where.reportedUserId = params.reportedUserId;
-  if (params.reportedPostId) where.reportedPostId = params.reportedPostId;
-
-  // Build orderBy
-  const orderBy: Record<string, 'asc' | 'desc'> = {};
+  // Build orderBy SQL
+  let orderByClause;
   if (params.sortBy === 'created') {
-    orderBy.createdAt = params.sortOrder;
+    orderByClause =
+      params.sortOrder === 'desc' ? desc(reports.createdAt) : reports.createdAt;
   } else if (params.sortBy === 'updated') {
-    orderBy.updatedAt = params.sortOrder;
+    orderByClause =
+      params.sortOrder === 'desc' ? desc(reports.updatedAt) : reports.updatedAt;
   } else if (params.sortBy === 'priority') {
-    orderBy.priority = params.sortOrder;
+    orderByClause =
+      params.sortOrder === 'desc' ? desc(reports.priority) : reports.priority;
+  } else {
+    orderByClause = desc(reports.createdAt);
   }
 
-  // Get reports
-  const [reports, total] = await Promise.all([
-    db.report.findMany({
-      where,
-      orderBy,
-      take: params.limit,
-      skip: params.offset,
-      include: {
-        reporter: {
-          select: {
-            id: true,
-            username: true,
-            displayName: true,
-            profileImageUrl: true,
-          },
-        },
-        reportedUser: {
-          select: {
-            id: true,
-            username: true,
-            displayName: true,
-            profileImageUrl: true,
-            isBanned: true,
-          },
-        },
-        resolver: {
-          select: {
-            id: true,
-            username: true,
-            displayName: true,
-          },
-        },
-      },
-    }),
-    db.report.count({ where }),
-  ]);
+  // Use aliases for the multiple user joins
+  const reporterAlias = sql`"reporter"`;
+  const reportedUserAlias = sql`"reportedUser"`;
+  const resolverAlias = sql`"resolver"`;
 
-  // Parse evaluation from resolution field if it exists
-  const reportsWithEvaluation = reports.map((report) => {
+  // Query with multiple LEFT JOINs to get user data
+  const reportsQuery = await db
+    .select({
+      id: reports.id,
+      reporterId: reports.reporterId,
+      reportedUserId: reports.reportedUserId,
+      reportedPostId: reports.reportedPostId,
+      reportedCommentId: reports.reportedCommentId,
+      reportType: reports.reportType,
+      category: reports.category,
+      reason: reports.reason,
+      evidence: reports.evidence,
+      status: reports.status,
+      priority: reports.priority,
+      resolution: reports.resolution,
+      resolvedBy: reports.resolvedBy,
+      resolvedAt: reports.resolvedAt,
+      createdAt: reports.createdAt,
+      updatedAt: reports.updatedAt,
+      // Reporter user data
+      reporterUsername: sql<string | null>`${reporterAlias}."username"`,
+      reporterDisplayName: sql<string | null>`${reporterAlias}."displayName"`,
+      reporterProfileImageUrl: sql<
+        string | null
+      >`${reporterAlias}."profileImageUrl"`,
+      // Reported user data
+      reportedUserUsername: sql<string | null>`${reportedUserAlias}."username"`,
+      reportedUserDisplayName: sql<
+        string | null
+      >`${reportedUserAlias}."displayName"`,
+      reportedUserProfileImageUrl: sql<
+        string | null
+      >`${reportedUserAlias}."profileImageUrl"`,
+      reportedUserIsBanned: sql<
+        boolean | null
+      >`${reportedUserAlias}."isBanned"`,
+      // Resolver user data
+      resolverUsername: sql<string | null>`${resolverAlias}."username"`,
+      resolverDisplayName: sql<string | null>`${resolverAlias}."displayName"`,
+    })
+    .from(reports)
+    .leftJoin(
+      sql`"User" AS ${reporterAlias}`,
+      sql`${reports.reporterId} = ${reporterAlias}."id"`
+    )
+    .leftJoin(
+      sql`"User" AS ${reportedUserAlias}`,
+      sql`${reports.reportedUserId} = ${reportedUserAlias}."id"`
+    )
+    .leftJoin(
+      sql`"User" AS ${resolverAlias}`,
+      sql`${reports.resolvedBy} = ${resolverAlias}."id"`
+    )
+    .where(whereClause)
+    .orderBy(orderByClause)
+    .limit(params.limit)
+    .offset(params.offset);
+
+  // Get total count for pagination
+  const [countResult] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(reports)
+    .where(whereClause);
+  const total = countResult?.count ?? 0;
+
+  // Parse evaluation from resolution field and format response
+  const reportsWithEvaluation = reportsQuery.map((report) => {
     let evaluation = null;
     if (report.resolution) {
       // Check if it's valid JSON before parsing
@@ -214,7 +259,44 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       }
     }
     return {
-      ...report,
+      id: report.id,
+      reporterId: report.reporterId,
+      reportedUserId: report.reportedUserId,
+      reportedPostId: report.reportedPostId,
+      reportedCommentId: report.reportedCommentId,
+      reportType: report.reportType,
+      category: report.category,
+      reason: report.reason,
+      evidence: report.evidence,
+      status: report.status,
+      priority: report.priority,
+      resolution: report.resolution,
+      resolvedBy: report.resolvedBy,
+      resolvedAt: report.resolvedAt,
+      createdAt: report.createdAt,
+      updatedAt: report.updatedAt,
+      reporter: {
+        id: report.reporterId,
+        username: report.reporterUsername,
+        displayName: report.reporterDisplayName,
+        profileImageUrl: report.reporterProfileImageUrl,
+      },
+      reportedUser: report.reportedUserId
+        ? {
+            id: report.reportedUserId,
+            username: report.reportedUserUsername,
+            displayName: report.reportedUserDisplayName,
+            profileImageUrl: report.reportedUserProfileImageUrl,
+            isBanned: report.reportedUserIsBanned ?? false,
+          }
+        : null,
+      resolver: report.resolvedBy
+        ? {
+            id: report.resolvedBy,
+            username: report.resolverUsername,
+            displayName: report.resolverDisplayName,
+          }
+        : null,
       evaluation,
     };
   });

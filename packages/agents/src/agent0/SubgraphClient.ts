@@ -100,8 +100,8 @@ export class SubgraphClient {
 
     let capabilities: string | undefined;
     if (meta.capabilities) {
-      const parsed = JSON.parse(meta.capabilities);
-      parseCapabilities(parsed); // Validate
+      const parsed: unknown = JSON.parse(meta.capabilities.trim());
+      parseCapabilities(parsed); // Validate - throws on invalid structure
       capabilities = meta.capabilities;
     }
 

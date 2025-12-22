@@ -314,6 +314,30 @@ function handleDatabaseError(
         { status: 400 }
       );
 
+    case '42P01': // PostgreSQL undefined_table
+      // Table doesn't exist (migration not applied)
+      logger.warn(
+        `Database table missing: ${error.message}`,
+        { code: errorCode },
+        'DatabaseError'
+      );
+      return NextResponse.json(
+        { error: 'Database migration pending. Please try again later.' },
+        { status: 503 }
+      );
+
+    case '42703': // PostgreSQL undefined_column
+      // Column doesn't exist (migration not applied)
+      logger.warn(
+        `Database column missing: ${error.message}`,
+        { code: errorCode },
+        'DatabaseError'
+      );
+      return NextResponse.json(
+        { error: 'Database migration pending. Please try again later.' },
+        { status: 503 }
+      );
+
     default: {
       // Generic database error
       const dbErrorData: Record<string, JsonValue> = {

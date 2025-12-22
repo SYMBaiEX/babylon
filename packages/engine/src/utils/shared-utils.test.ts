@@ -60,6 +60,39 @@ describe('stripHashtagsAndEmojis', () => {
     const result = stripHashtagsAndEmojis(input);
     expect(result).toBe(input);
   });
+
+  it('should preserve double newlines for paragraph breaks', () => {
+    const input = 'First paragraph here.\n\nSecond paragraph here.';
+    const result = stripHashtagsAndEmojis(input);
+    expect(result).toBe('First paragraph here.\n\nSecond paragraph here.');
+  });
+
+  it('should normalize triple+ newlines to double newlines', () => {
+    const input = 'First paragraph.\n\n\n\nSecond paragraph.';
+    const result = stripHashtagsAndEmojis(input);
+    expect(result).toBe('First paragraph.\n\nSecond paragraph.');
+  });
+
+  it('should preserve single newlines', () => {
+    const input = 'Line one.\nLine two.';
+    const result = stripHashtagsAndEmojis(input);
+    expect(result).toBe('Line one.\nLine two.');
+  });
+
+  it('should handle mixed content with hashtags, emojis, and paragraph breaks', () => {
+    const input =
+      'First paragraph #news 🎉\n\nSecond paragraph #crypto is here.\n\nThird paragraph 🚀';
+    const result = stripHashtagsAndEmojis(input);
+    expect(result).toBe(
+      'First paragraph\n\nSecond paragraph is here.\n\nThird paragraph'
+    );
+  });
+
+  it('should clean up spaces around newlines', () => {
+    const input = 'First paragraph.   \n\n   Second paragraph.';
+    const result = stripHashtagsAndEmojis(input);
+    expect(result).toBe('First paragraph.\n\nSecond paragraph.');
+  });
 });
 
 describe('formatActorVoiceContext', () => {
