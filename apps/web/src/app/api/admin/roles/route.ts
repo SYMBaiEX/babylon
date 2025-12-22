@@ -153,30 +153,31 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     return successResponse({ error: 'Cannot revoke your own admin role' }, 400);
   }
 
-  // Check if this would remove the last super admin
-  if (existingRole.role === 'SUPER_ADMIN') {
-    const [superAdminCountResult] = await db
-      .select({ count: count(adminRoles.id) })
-      .from(adminRoles)
-      .where(
-        and(eq(adminRoles.role, 'SUPER_ADMIN'), isNull(adminRoles.revokedAt))
-      );
+  // Use transaction to prevent race condition when revoking super admin
+  // The check and revoke must be atomic to prevent concurrent revocations
+  await db.transaction(async (tx) => {
+    // Check if this would remove the last super admin
+    if (existingRole.role === 'SUPER_ADMIN') {
+      const [superAdminCountResult] = await tx
+        .select({ count: count(adminRoles.id) })
+        .from(adminRoles)
+        .where(
+          and(eq(adminRoles.role, 'SUPER_ADMIN'), isNull(adminRoles.revokedAt))
+        );
 
-    const superAdminCountValue = Number(superAdminCountResult?.count ?? 0);
-    if (superAdminCountValue <= 1) {
-      return successResponse(
-        { error: 'Cannot revoke the last super admin' },
-        400
-      );
+      const superAdminCountValue = Number(superAdminCountResult?.count ?? 0);
+      if (superAdminCountValue <= 1) {
+        throw new Error('Cannot revoke the last super admin');
+      }
     }
-  }
 
-  await db
-    .update(adminRoles)
-    .set({ revokedAt: new Date() })
-    .where(eq(adminRoles.userId, userId));
+    await tx
+      .update(adminRoles)
+      .set({ revokedAt: new Date() })
+      .where(eq(adminRoles.userId, userId));
 
-  await db.update(users).set({ isAdmin: false }).where(eq(users.id, userId));
+    await tx.update(users).set({ isAdmin: false }).where(eq(users.id, userId));
+  });
 
   logger.info(
     'Admin role revoked',

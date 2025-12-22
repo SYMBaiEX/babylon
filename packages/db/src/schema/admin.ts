@@ -75,6 +75,7 @@ export const adminRoles = pgTable(
     index('AdminRole_role_idx').on(table.role),
     index('AdminRole_userId_idx').on(table.userId),
     index('AdminRole_grantedAt_idx').on(table.grantedAt),
+    index('AdminRole_revokedAt_idx').on(table.revokedAt),
   ]
 );
 

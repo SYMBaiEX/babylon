@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS "AdminRole" (
   "userId" TEXT NOT NULL UNIQUE REFERENCES "User"("id") ON DELETE CASCADE,
   "role" TEXT NOT NULL,
   "permissions" TEXT[],
-  "grantedBy" TEXT NOT NULL,
+  "grantedBy" TEXT NOT NULL REFERENCES "User"("id") ON DELETE RESTRICT,
   "grantedAt" TIMESTAMP DEFAULT NOW() NOT NULL,
   "revokedAt" TIMESTAMP
 );
@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS "AdminRole" (
 CREATE INDEX IF NOT EXISTS "AdminRole_role_idx" ON "AdminRole"("role");
 CREATE INDEX IF NOT EXISTS "AdminRole_userId_idx" ON "AdminRole"("userId");
 CREATE INDEX IF NOT EXISTS "AdminRole_grantedAt_idx" ON "AdminRole"("grantedAt");
+CREATE INDEX IF NOT EXISTS "AdminRole_revokedAt_idx" ON "AdminRole"("revokedAt");
 
 -- Migrate existing admins to the new RBAC system
 -- All existing admins (isAdmin = true) become SUPER_ADMIN
