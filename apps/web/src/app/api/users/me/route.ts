@@ -555,7 +555,10 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     const privyUser = await privyClient.getUser(privyId);
     const verifiedEmail = privyUser.email?.address ?? null;
     const emailVerified = !!verifiedEmail;
-    const shouldBeAdmin = shouldAutoPromoteToAdmin(verifiedEmail, emailVerified);
+    const shouldBeAdmin = shouldAutoPromoteToAdmin(
+      verifiedEmail,
+      emailVerified
+    );
 
     if (shouldBeAdmin) {
       logger.info(

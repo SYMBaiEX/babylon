@@ -104,8 +104,16 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   const marketsWithPrices = marketsList.map((market) => {
     const yesShares = parseFloat(String(market.yesShares));
     const noShares = parseFloat(String(market.noShares));
-    const yesPrice = PredictionPricing.getCurrentPrice(yesShares, noShares, 'yes');
-    const noPrice = PredictionPricing.getCurrentPrice(yesShares, noShares, 'no');
+    const yesPrice = PredictionPricing.getCurrentPrice(
+      yesShares,
+      noShares,
+      'yes'
+    );
+    const noPrice = PredictionPricing.getCurrentPrice(
+      yesShares,
+      noShares,
+      'no'
+    );
 
     return {
       ...market,

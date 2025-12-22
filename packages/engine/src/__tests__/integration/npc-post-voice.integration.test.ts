@@ -23,7 +23,8 @@ const hasLLMKey = !!(
 );
 
 // Type imports for dynamic modules - avoids loading @fal-ai/client at module load time
-type PostHelpersModule = typeof import('../../services/post-generation-helpers');
+type PostHelpersModule =
+  typeof import('../../services/post-generation-helpers');
 type LLMModule = typeof import('../../llm/openai-client');
 type RegistryModule = typeof import('../../services/static-data-registry');
 
