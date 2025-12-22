@@ -73,6 +73,13 @@ interface MarketsData {
   markets: Market[];
 }
 
+interface MarketActionBody {
+  action: 'resolve' | 'extend' | 'void';
+  reason?: string;
+  resolution?: boolean;
+  newEndDate?: string;
+}
+
 export function MarketOversightTab() {
   const [data, setData] = useState<MarketsData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -107,7 +114,7 @@ export function MarketOversightTab() {
       if (showRefreshing) {
         startRefresh(fetchLogic);
       } else {
-        fetchLogic();
+        void fetchLogic();
       }
     },
     [statusFilter]
@@ -133,20 +140,18 @@ export function MarketOversightTab() {
     if (!selectedMarket) return;
 
     startActioning(async () => {
-      const body: Record<string, unknown> = {
+      // Validate extend date early
+      if (actionType === 'extend' && !extendDate) {
+        toast.error('Please select a new end date');
+        return;
+      }
+
+      const body: MarketActionBody = {
         action: actionType,
         reason: actionReason || undefined,
+        ...(actionType === 'resolve' && { resolution }),
+        ...(actionType === 'extend' && extendDate && { newEndDate: extendDate }),
       };
-
-      if (actionType === 'resolve') {
-        body.resolution = resolution;
-      } else if (actionType === 'extend') {
-        if (!extendDate) {
-          toast.error('Please select a new end date');
-          return;
-        }
-        body.newEndDate = extendDate;
-      }
 
       const response = await fetch(`/api/admin/markets/${selectedMarket.id}`, {
         method: 'POST',

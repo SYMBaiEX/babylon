@@ -95,7 +95,7 @@ export function ContentModerationTab() {
       if (showRefreshing) {
         startRefresh(fetchLogic);
       } else {
-        fetchLogic();
+        void fetchLogic();
       }
     },
     [contentType]

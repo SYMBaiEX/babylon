@@ -144,7 +144,7 @@ export function EscrowManagementTab() {
       if (showRefreshing) {
         startRefresh(fetchLogic);
       } else {
-        fetchLogic();
+        void fetchLogic();
       }
     },
     [statusFilter]

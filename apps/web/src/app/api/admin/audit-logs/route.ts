@@ -88,8 +88,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     conditions.push(eq(adminAuditLogs.resourceType, filterResourceType));
   }
 
-  const whereCondition =
-    conditions.length > 0 ? and(...conditions) : undefined;
+  const whereCondition = conditions.length > 0 ? and(...conditions) : undefined;
 
   // Get total count for proper pagination
   const [totalResult] = await db

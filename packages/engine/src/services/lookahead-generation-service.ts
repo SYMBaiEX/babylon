@@ -520,7 +520,12 @@ async function generateContentWindow(
           );
           return 1;
         }
-        return 0;
+        // Fall through to regular question-based post if organic generation fails
+        logger.debug(
+          'Organic post generation failed, falling back to question-based post',
+          { actor: actor.name },
+          'LookaheadGeneration'
+        );
       }
     }
 
@@ -572,7 +577,7 @@ async function generateContentWindow(
 
     // Weight question selection toward those with sooner resolution dates using urgency scoring
     // For diverse posts, still pick a question but the diverse topic context will be injected
-    const question =
+    let question =
       shuffledQuestions.length > 0
         ? weightedPick(shuffledQuestions, urgencyWeight(5))
         : activeQuestions[0];
@@ -586,12 +591,18 @@ async function generateContentWindow(
       const actor = creator as (typeof actorsList)[number];
       if (!shouldPostAboutTopic(actor.id, question.text)) {
         // This actor doesn't care about this topic - try another question
+        const currentQuestionId = question.id;
         const alternateQuestion = shuffledQuestions.find(
-          (q) => q.id !== question.id && shouldPostAboutTopic(actor.id, q.text)
+          (q) => q.id !== currentQuestionId && shouldPostAboutTopic(actor.id, q.text)
         );
         if (alternateQuestion) {
           // Use the domain-relevant question instead
-          // Continue with the alternate question
+          question = alternateQuestion;
+          logger.debug(
+            'Switched to domain-relevant question for actor',
+            { actor: actor.name, questionId: alternateQuestion.id },
+            'LookaheadGeneration'
+          );
         } else {
           // No relevant topics for this actor - skip or still post with lower probability
           if (secureRandom() > 0.3) {
