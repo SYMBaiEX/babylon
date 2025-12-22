@@ -593,7 +593,8 @@ async function generateContentWindow(
         // This actor doesn't care about this topic - try another question
         const currentQuestionId = question.id;
         const alternateQuestion = shuffledQuestions.find(
-          (q) => q.id !== currentQuestionId && shouldPostAboutTopic(actor.id, q.text)
+          (q) =>
+            q.id !== currentQuestionId && shouldPostAboutTopic(actor.id, q.text)
         );
         if (alternateQuestion) {
           // Use the domain-relevant question instead
