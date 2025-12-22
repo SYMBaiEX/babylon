@@ -150,7 +150,7 @@ import {
   withErrorHandling,
 } from '@babylon/api';
 import { db, eq, users } from '@babylon/db';
-import { logger } from '@babylon/shared';
+import { isAdminEmail, logger } from '@babylon/shared';
 import type { User as PrivyUser } from '@privy-io/server-auth';
 import type { NextRequest } from 'next/server';
 
@@ -416,6 +416,17 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       authUser.walletAddress?.toLowerCase() ??
       null;
 
+    // Check if user should be auto-promoted to admin based on email domain
+    const shouldBeAdmin = isAdminEmail(email);
+
+    if (shouldBeAdmin) {
+      logger.info(
+        'Auto-promoting user to admin based on email domain',
+        { privyId, email },
+        'GET /api/users/me'
+      );
+    }
+
     const [newUser] = await db
       .insert(users)
       .values({
@@ -434,6 +445,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         hasUsername: false,
         hasBio: false,
         hasProfileImage: false,
+        isAdmin: shouldBeAdmin,
         updatedAt: new Date(),
       })
       .returning(userSelectFields);

@@ -46,9 +46,16 @@ import {
 import { worldFactsService } from '../world-facts-service';
 import { generateEvents } from './event-generation-helpers';
 import {
+  getActorRivals,
+  shouldGenerateOrganicPost,
+  shouldPostAboutTopic,
+} from './npc-character-config';
+import {
   generateNPCPost,
+  generateOrganicPost,
   generateOrgArticle,
   generateOrgPost,
+  generateRivalryPost,
   loadSharedPostContext,
 } from './post-generation-helpers';
 import { StaticDataRegistry } from './static-data-registry';
@@ -60,6 +67,8 @@ import {
 const LOOKAHEAD_MINUTES = 15; // Generate 15 minutes ahead
 const GENERATION_BATCH_MINUTES = 5; // Generate in 5-minute batches
 const DIVERSITY_QUOTA = 0.2; // 20% of posts should cover diverse topics
+const ORGANIC_POST_RATIO = 0.15; // 15% of posts should be organic (no topic)
+const RIVALRY_POST_RATIO = 0.1; // 10% of posts should be rivalry-driven
 
 /**
  * Check how far ahead content is generated
@@ -411,6 +420,31 @@ async function generateContentWindow(
     diversePostIndices.add(Math.floor(secureRandom() * numPosts));
   }
 
+  // Calculate organic post indices (posts without specific topics)
+  const organicPostCount = Math.max(1, Math.floor(numPosts * ORGANIC_POST_RATIO));
+  const organicPostIndices = new Set<number>();
+  for (let o = 0; o < organicPostCount && o < numPosts; o++) {
+    // Avoid overlap with diverse posts
+    let idx = Math.floor(secureRandom() * numPosts);
+    while (diversePostIndices.has(idx) && organicPostIndices.size < numPosts - diversePostCount) {
+      idx = Math.floor(secureRandom() * numPosts);
+    }
+    organicPostIndices.add(idx);
+  }
+
+  // Calculate rivalry post indices (contrarian posts from rivals)
+  const rivalryPostCount = Math.max(1, Math.floor(numPosts * RIVALRY_POST_RATIO));
+  const rivalryPostIndices = new Set<number>();
+  for (let r = 0; r < rivalryPostCount && r < numPosts; r++) {
+    // Avoid overlap with organic and diverse posts
+    let idx = Math.floor(secureRandom() * numPosts);
+    const usedIndices = new Set([...diversePostIndices, ...organicPostIndices]);
+    while (usedIndices.has(idx) && rivalryPostIndices.size < numPosts - usedIndices.size) {
+      idx = Math.floor(secureRandom() * numPosts);
+    }
+    rivalryPostIndices.add(idx);
+  }
+
   // Generate posts in parallel for better performance
   const postPromises = Array.from({ length: numPosts }, async (_, i) => {
     // Distribute timestamps naturally across window using secure random
@@ -418,17 +452,25 @@ async function generateContentWindow(
     const postTimestamp = new Date(windowStart.getTime() + randomOffset);
     const postDayNumber = dayNumberForTimestamp(postTimestamp);
 
+    // Check if this should be an organic post (personality-driven, no topic)
+    const shouldBeOrganic = organicPostIndices.has(i);
+
+    // Check if this should be a rivalry post (contrarian to a rival)
+    const shouldBeRivalry = !shouldBeOrganic && rivalryPostIndices.has(i);
+
     // Check if this post should cover a diverse topic (off-trend)
     const shouldBeDiverse =
-      diversePostIndices.has(i) && shuffledDiverseTopics.length > 0;
+      !shouldBeOrganic && !shouldBeRivalry && diversePostIndices.has(i) && shuffledDiverseTopics.length > 0;
     const diverseTopic: DiverseTopicSuggestion | undefined = shouldBeDiverse
       ? shuffledDiverseTopics[i % shuffledDiverseTopics.length]
       : undefined;
 
     // Weighted random choice between actor and org (70% actor, 30% org if both available)
+    // Organic posts are ONLY for actors (orgs don't have "personalities")
     const useActor =
-      shuffledActors.length > 0 &&
-      (shuffledOrgs.length === 0 || secureRandom() < 0.7);
+      shouldBeOrganic ||
+      (shuffledActors.length > 0 &&
+        (shuffledOrgs.length === 0 || secureRandom() < 0.7));
 
     // Pick from shuffled lists with wraparound
     const creator = useActor
@@ -437,6 +479,80 @@ async function generateContentWindow(
 
     if (!creator) {
       return 0;
+    }
+
+    // For organic posts with actors, use the dedicated organic post generator
+    if (shouldBeOrganic && useActor) {
+      const actor = creator as (typeof actorsList)[number];
+      
+      // Check if this actor should generate organic content based on their config
+      if (!shouldGenerateOrganicPost(actor.id)) {
+        // Fall back to regular post generation if organic probability fails
+        // Continue to question-based post below
+      } else {
+        const success = await generateOrganicPost(
+          llmClient,
+          actor,
+          worldFactsContext,
+          postTimestamp,
+          postDayNumber
+        );
+        if (success) {
+          logger.debug(
+            'Created lookahead organic NPC post',
+            { actor: actor.name, timestamp: postTimestamp.toISOString() },
+            'LookaheadGeneration'
+          );
+          return 1;
+        }
+        return 0;
+      }
+    }
+
+    // For rivalry posts, generate a contrarian post if the actor has rivals
+    if (shouldBeRivalry && useActor) {
+      const actor = creator as (typeof actorsList)[number];
+      const rivals = getActorRivals(actor.id);
+
+      if (rivals.length > 0) {
+        // Pick a random rival
+        const rivalId = rivals[Math.floor(secureRandom() * rivals.length)];
+        const rivalActor = shuffledActors.find((a) => a.id === rivalId);
+
+        if (rivalActor && shuffledQuestions.length > 0) {
+          // Pick a question for the rivalry
+          const question = weightedPick(shuffledQuestions, urgencyWeight(5));
+          if (question) {
+            // Determine rival's likely position (random for now, could be smarter)
+            const rivalPosition = secureRandom() < 0.5 ? 'YES' : 'NO';
+
+            const success = await generateRivalryPost(
+              llmClient,
+              actor,
+              rivalActor.name,
+              rivalPosition,
+              question,
+              worldFactsContext,
+              postTimestamp,
+              postDayNumber
+            );
+
+            if (success) {
+              logger.debug(
+                'Created lookahead rivalry post',
+                {
+                  actor: actor.name,
+                  rival: rivalActor.name,
+                  timestamp: postTimestamp.toISOString(),
+                },
+                'LookaheadGeneration'
+              );
+              return 1;
+            }
+          }
+        }
+      }
+      // If no rivals or generation failed, fall through to regular post
     }
 
     // Weight question selection toward those with sooner resolution dates using urgency scoring
@@ -448,6 +564,27 @@ async function generateContentWindow(
 
     if (!question || !question.text) {
       return 0;
+    }
+
+    // For actors, check if they should post about this topic based on their domain
+    if (useActor) {
+      const actor = creator as (typeof actorsList)[number];
+      if (!shouldPostAboutTopic(actor.id, question.text)) {
+        // This actor doesn't care about this topic - try another question
+        const alternateQuestion = shuffledQuestions.find(
+          (q) => q.id !== question.id && shouldPostAboutTopic(actor.id, q.text)
+        );
+        if (alternateQuestion) {
+          // Use the domain-relevant question instead
+          // Continue with the alternate question
+        } else {
+          // No relevant topics for this actor - skip or still post with lower probability
+          if (secureRandom() > 0.3) {
+            // 70% chance to skip off-domain topics
+            return 0;
+          }
+        }
+      }
     }
 
     // Check if the question topic is oversaturated (apply diversity penalty)
