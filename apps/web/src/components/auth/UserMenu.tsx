@@ -1,13 +1,13 @@
 'use client';
 
 import { getDisplayReferralUrl, getReferralUrl } from '@babylon/shared';
-import { getAuthToken } from '@/lib/auth';
 import { Check, Copy, Key, LogOut, Settings } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { Avatar } from '@/components/shared/Avatar';
 import { Dropdown, DropdownItem } from '@/components/shared/Dropdown';
 import { useAuth } from '@/hooks/useAuth';
+import { getAuthToken } from '@/lib/auth';
 import { useAuthStore } from '@/stores/authStore';
 
 /**

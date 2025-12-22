@@ -13,9 +13,9 @@ import type {
   PostInteraction,
 } from '@babylon/shared';
 import { retryIfRetryable } from '@babylon/shared';
-import { getAuthToken } from '@/lib/auth';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { getAuthToken } from '@/lib/auth';
 
 interface RepostPost {
   id: string;
@@ -95,12 +95,10 @@ type PersistedInteractionState = {
   favoritedProfiles: string[];
 };
 
-// getAuthToken is now imported from @/lib/auth
-
 async function apiCall<T>(url: string, options: RequestInit = {}): Promise<T> {
   return retryIfRetryable(
     async () => {
-      const token = await getAuthToken();
+      const token = getAuthToken();
 
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',

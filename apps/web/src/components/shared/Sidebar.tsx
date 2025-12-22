@@ -1,7 +1,6 @@
 'use client';
 
 import { cn, getReferralUrl } from '@babylon/shared';
-import { getAuthToken } from '@/lib/auth';
 import {
   Bell,
   Bot,
@@ -26,6 +25,7 @@ import { Avatar } from '@/components/shared/Avatar';
 import { Separator } from '@/components/shared/Separator';
 import { useAuth } from '@/hooks/useAuth';
 import { useUnreadMessages } from '@/hooks/useUnreadMessages';
+import { getAuthToken } from '@/lib/auth';
 
 /**
  * Main sidebar content component with navigation and user menu.

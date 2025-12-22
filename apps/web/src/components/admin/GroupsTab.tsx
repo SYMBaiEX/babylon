@@ -1,7 +1,6 @@
 'use client';
 
 import { cn } from '@babylon/shared';
-import { getAuthToken } from '@/lib/auth';
 import {
   Calendar,
   MessageCircle,
@@ -12,6 +11,7 @@ import {
 } from 'lucide-react';
 import { useCallback, useEffect, useState, useTransition } from 'react';
 import { z } from 'zod';
+import { getAuthToken } from '@/lib/auth';
 
 /**
  * Participant schema for validation.

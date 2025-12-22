@@ -15,22 +15,7 @@ import { toast } from 'sonner';
 import { z } from 'zod';
 import { Avatar } from '@/components/shared/Avatar';
 import { Skeleton } from '@/components/shared/Skeleton';
-
-/**
- * Get authentication token from window if available.
- *
- * Note: Admin API routes use cookie-based authentication via requireAdmin middleware.
- * The privy-token cookie is automatically sent with requests, so explicit Authorization
- * header is optional. However, we can include it if available for consistency with
- * other admin components.
- *
- * @returns Authentication token or null
- */
-function getAuthToken(): string | null {
-  if (typeof window === 'undefined') return null;
-  // Try to get token from window if available (some admin components use this)
-  return (window as { __privyAccessToken?: string }).__privyAccessToken || null;
-}
+import { getAuthToken } from '@/lib/auth';
 
 /**
  * Escrow schema for validation.

@@ -1,7 +1,6 @@
 'use client';
 
 import { cn, getDisplayReferralUrl, getReferralUrl } from '@babylon/shared';
-import { getAuthToken } from '@/lib/auth';
 import {
   Bell,
   Check,
@@ -20,6 +19,7 @@ import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { Avatar } from '@/components/shared/Avatar';
 import { useAuth } from '@/hooks/useAuth';
+import { getAuthToken } from '@/lib/auth';
 import { useAuthStore } from '@/stores/authStore';
 
 /**

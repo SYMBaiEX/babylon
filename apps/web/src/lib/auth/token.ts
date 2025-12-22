@@ -37,13 +37,3 @@ export function getAuthToken(): string | null {
   }
   return window.__privyAccessToken ?? null;
 }
-
-/**
- * Check if an auth token is currently available.
- *
- * @returns true if a token is available, false otherwise
- */
-export function hasAuthToken(): boolean {
-  return getAuthToken() !== null;
-}
-

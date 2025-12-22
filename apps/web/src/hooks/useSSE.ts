@@ -160,7 +160,13 @@ const fetchRealtimeToken = async (
   return json.token;
 };
 
-const getAuthToken = async (channels: Channel[]): Promise<string | null> => {
+/**
+ * Get the realtime SSE token for the given channels.
+ * This fetches a specialized token for SSE connections, not the Privy access token.
+ */
+const getRealtimeToken = async (
+  channels: Channel[]
+): Promise<string | null> => {
   if (shouldUseCachedToken(channels)) {
     return cachedRealtimeToken?.token ?? null;
   }
@@ -293,7 +299,7 @@ async function ensureConnection(forceReconnect = false) {
 
   const channelsList = Array.from(requestedChannels);
 
-  const token = await getAuthToken(channelsList);
+  const token = await getRealtimeToken(channelsList);
 
   if (!token) {
     connecting = false;

@@ -6,7 +6,6 @@ import {
   POINTS,
   signInWithFarcaster,
 } from '@babylon/shared';
-import { getAuthToken } from '@/lib/auth';
 import { usePrivy } from '@privy-io/react-auth';
 import {
   Check,
@@ -30,6 +29,7 @@ import { LinkSocialAccountsModal } from '@/components/profile/LinkSocialAccounts
 import { Avatar } from '@/components/shared/Avatar';
 import { PlayerStatsModal } from '@/components/shared/PlayerStatsModal';
 import { useAuth } from '@/hooks/useAuth';
+import { getAuthToken } from '@/lib/auth';
 
 // Blog URL from environment with fallback
 const blogUrl =

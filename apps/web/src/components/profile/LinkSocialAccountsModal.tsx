@@ -1,10 +1,10 @@
 'use client';
 
 import { cn, signInWithFarcaster } from '@babylon/shared';
-import { getAuthToken } from '@/lib/auth';
 import { Check, ExternalLink, Shield, X as XIcon } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
+import { getAuthToken } from '@/lib/auth';
 import { useAuthStore } from '@/stores/authStore';
 
 /**
