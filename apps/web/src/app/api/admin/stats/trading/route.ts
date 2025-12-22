@@ -1,9 +1,4 @@
-/**
- * Admin Trading Statistics API
- *
- * @route GET /api/admin/stats/trading - Get trading statistics with filtering
- * @access Admin
- */
+// GET /api/admin/stats/trading - Trading statistics with filtering
 
 import {
   requirePermission,
@@ -15,25 +10,12 @@ import { FEE_CONFIG } from '@babylon/engine';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 
-/**
- * Parse date from query param
- */
 function parseDateParam(param: string | null): Date | null {
   if (!param) return null;
   const date = new Date(param);
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
-/**
- * GET /api/admin/stats/trading
- * Returns comprehensive trading statistics
- *
- * Query params:
- * - startDate: ISO date string (optional) - filters trades and time series
- * - endDate: ISO date string (optional) - filters trades and time series
- * - marketType: 'all' | 'prediction' | 'perpetual' (default: 'all')
- * - includeTimeSeries: 'true' | 'false' (default: 'false')
- */
 export const GET = withErrorHandling(async (request: NextRequest) => {
   await requirePermission(request, 'view_trading');
 
@@ -49,21 +31,9 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     'GET /api/admin/stats/trading'
   );
 
-  // Calculate today's date boundary
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
-  // Build date filter for queries
-  const dateFilter: { createdAt?: { gte?: Date; lte?: Date } } = {};
-  if (startDate || endDate) {
-    dateFilter.createdAt = {};
-    if (startDate) dateFilter.createdAt.gte = startDate;
-    if (endDate) dateFilter.createdAt.lte = endDate;
-  }
-
-  // Trade types are used in individual queries based on marketType filter
-
-  // Market statistics
   const [
     totalMarkets,
     activeMarkets,
@@ -82,7 +52,6 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     db.perpPosition.count({ where: { closedAt: null } }),
   ]);
 
-  // Volume and fees
   const [
     totalBalanceTransactions,
     totalNpcTrades,
@@ -115,7 +84,6 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   const feesTodayRow = feesTodayResult[0];
   const feesToday = feesTodayRow ? Number(feesTodayRow.total) : 0;
 
-  // Top traders by volume
   const topTraders = await db.$queryRaw<{
     userId: string;
     username: string | null;
@@ -140,7 +108,6 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     LIMIT 10
   `;
 
-  // Top markets by volume
   const topMarkets = await db.$queryRaw<{
     marketId: string;
     question: string;
@@ -159,7 +126,6 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     LIMIT 10
   `;
 
-  // Time series data (respects date and market type filters)
   let timeSeries: Array<{
     date: string;
     trades: number;
@@ -168,12 +134,10 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   }> = [];
 
   if (includeTimeSeries) {
-    // Use provided date range or default to last 30 days
     const timeSeriesStart =
       startDate ?? new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
     const timeSeriesEnd = endDate ?? new Date();
 
-    // Build trade type condition based on market type
     let dailyStats: Array<{
       date: string;
       trades: string;
@@ -212,7 +176,6 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         GROUP BY DATE(bt."createdAt") ORDER BY date ASC
       `;
     } else {
-      // 'all' - include all trade types
       dailyStats = await db.$queryRaw<{
         date: string;
         trades: string;
@@ -237,7 +200,6 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     }));
   }
 
-  // Recent trades (respects date and market type filters)
   let recentTrades: Array<{
     id: string;
     userId: string;
@@ -248,9 +210,8 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     createdAt: Date;
   }>;
 
-  // Build date bounds for recent trades query
-  const recentTradesStart = startDate ?? new Date(0); // epoch if no start
-  const recentTradesEnd = endDate ?? new Date(); // now if no end
+  const recentTradesStart = startDate ?? new Date(0);
+  const recentTradesEnd = endDate ?? new Date();
 
   if (marketType === 'prediction') {
     recentTrades = await db.$queryRaw`
@@ -271,7 +232,6 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       ORDER BY bt."createdAt" DESC LIMIT 20
     `;
   } else {
-    // 'all' - include all trade types
     recentTrades = await db.$queryRaw`
       SELECT bt.id, bt."userId", u.username, u."displayName", bt.type, bt.amount, bt."createdAt"
       FROM "BalanceTransaction" bt
@@ -302,7 +262,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       platformFees,
       referrerFees,
       feesToday,
-      feeRate: FEE_CONFIG.TRADING_FEE_RATE, // From centralized config
+      feeRate: FEE_CONFIG.TRADING_FEE_RATE,
     },
     topTraders: topTraders.map((t) => ({
       ...t,

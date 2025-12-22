@@ -1,9 +1,4 @@
-/**
- * Admin User Statistics API
- *
- * @route GET /api/admin/stats/users - Get user statistics with filtering
- * @access Admin
- */
+// GET /api/admin/stats/users - User statistics with filtering
 
 import {
   requirePermission,
@@ -14,18 +9,12 @@ import { db } from '@babylon/db';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 
-/**
- * Parse date from query param
- */
 function parseDateParam(param: string | null): Date | null {
   if (!param) return null;
   const date = new Date(param);
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
-/**
- * Build user type filter based on query param
- */
 function buildUserTypeFilter(userType: string): {
   isActor?: boolean;
   isAgent?: boolean;
@@ -38,20 +27,10 @@ function buildUserTypeFilter(userType: string): {
     case 'agents':
       return { isAgent: true };
     default:
-      return {}; // 'all' - no filter
+      return {};
   }
 }
 
-/**
- * GET /api/admin/stats/users
- * Returns comprehensive user statistics
- *
- * Query params:
- * - startDate: ISO date string (optional) - filters signups and time series
- * - endDate: ISO date string (optional) - filters signups and time series
- * - userType: 'all' | 'real' | 'actors' | 'agents' (default: 'all')
- * - includeTimeSeries: 'true' | 'false' (default: 'false')
- */
 export const GET = withErrorHandling(async (request: NextRequest) => {
   await requirePermission(request, 'view_users');
 
@@ -67,28 +46,21 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     'GET /api/admin/stats/users'
   );
 
-  // Calculate date boundaries for relative stats
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const yesterday = new Date(today.getTime() - 86400000); // 1 day in ms
   const lastWeek = new Date(today.getTime() - 7 * 86400000);
   const lastMonth = new Date(today.getTime() - 30 * 86400000);
 
-  // Build user type filter
   const userTypeFilter = buildUserTypeFilter(userType);
-
-  // Build date range filter for filtered queries
   const dateFilter: { createdAt?: { gte?: Date; lte?: Date } } = {};
   if (startDate || endDate) {
     dateFilter.createdAt = {};
     if (startDate) dateFilter.createdAt.gte = startDate;
     if (endDate) dateFilter.createdAt.lte = endDate;
   }
-
-  // Combine filters
   const combinedFilter = { ...userTypeFilter, ...dateFilter };
 
-  // Run parallel queries - use filters where applicable
   const [
     totalUsers,
     realUsers,
@@ -106,17 +78,14 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     withTwitter,
     withDiscord,
     withWallet,
-    // Filtered counts (when date/type filters are applied)
     filteredTotal,
   ] = await Promise.all([
-    // Overview counts (unfiltered for dashboard totals)
     db.user.count(),
     db.user.count({ where: { isActor: false, isAgent: false } }),
     db.user.count({ where: { isActor: true } }),
     db.user.count({ where: { isAgent: true } }),
     db.user.count({ where: { isBanned: true } }),
     db.user.count({ where: { isAdmin: true } }),
-    // Relative date counts (always relative to today)
     db.user.count({ where: { ...userTypeFilter, createdAt: { gte: today } } }),
     db.user.count({
       where: { ...userTypeFilter, createdAt: { gte: yesterday, lt: today } },
@@ -127,7 +96,6 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     db.user.count({
       where: { ...userTypeFilter, createdAt: { gte: lastMonth } },
     }),
-    // Profile metrics (filtered by user type)
     db.user.count({ where: { ...userTypeFilter, profileComplete: true } }),
     db.user.count({ where: { ...userTypeFilter, onChainRegistered: true } }),
     db.user.count({ where: { ...userTypeFilter, hasFarcaster: true } }),
@@ -136,23 +104,19 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     db.user.count({
       where: { ...userTypeFilter, walletAddress: { not: null } },
     }),
-    // Filtered total (when specific date range requested)
     startDate || endDate
       ? db.user.count({ where: combinedFilter })
       : Promise.resolve(null),
   ]);
 
-  // Time series data (daily signups for specified range or last 30 days)
   let timeSeries: Array<{ date: string; signups: number; cumulative: number }> =
     [];
 
   if (includeTimeSeries) {
-    // Use provided date range or default to last 30 days
     const timeSeriesStart =
       startDate ?? new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
     const timeSeriesEnd = endDate ?? new Date();
 
-    // Query differs based on user type to properly filter
     let dailySignups: Array<{ date: string; count: string }>;
 
     if (userType === 'actors') {
@@ -180,7 +144,6 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         GROUP BY DATE("createdAt") ORDER BY date ASC
       `;
     } else {
-      // 'all' - no user type filter
       dailySignups = await db.$queryRaw<{ date: string; count: string }>`
         SELECT DATE("createdAt") as date, COUNT(*) as count
         FROM "User"
@@ -200,7 +163,6 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     });
   }
 
-  // Top referrers (filtered by user type if specified)
   const topReferrers = await db.user.findMany({
     where: { ...userTypeFilter, referralCount: { gt: 0 } },
     orderBy: { referralCount: 'desc' },
@@ -214,7 +176,6 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     },
   });
 
-  // Recent signups (filtered by user type and date range)
   const recentSignups = await db.user.findMany({
     where: combinedFilter,
     orderBy: { createdAt: 'desc' },
@@ -232,7 +193,6 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     },
   });
 
-  // Calculate base count for rate calculations based on filtered results
   const baseCount =
     userType === 'actors'
       ? actors
@@ -250,7 +210,6 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       agents,
       banned: bannedUsers,
       admins: adminUsers,
-      // Include filtered total when date filters applied
       ...(filteredTotal !== null && { filteredTotal }),
     },
     signups: {

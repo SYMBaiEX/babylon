@@ -1,16 +1,5 @@
-/**
- * Integration Tests: Admin Dashboard MVP with RBAC
- *
- * Comprehensive tests for:
- * - RBAC middleware (getAdminRole, requireAdmin, requirePermission, requireSuperAdmin)
- * - Admin stats API endpoints (users, trading, system)
- * - Admin roles management API
- * - Admin permissions API
- *
- * Tests boundary conditions, error handling, and real data validation.
- *
- * Run with: bun test integration/admin-dashboard-rbac.integration.test.ts --preload ./integration/preload.ts
- */
+// Admin Dashboard RBAC Integration Tests
+// Run: bun test integration/admin-dashboard-rbac.integration.test.ts --preload ./integration/preload.ts
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import { getDevCredentials } from '@babylon/api';
@@ -34,51 +23,29 @@ let serverAvailable = false;
 let devAdminToken: string | null = null;
 let skippedTestCount = 0;
 
-// Test user IDs for cleanup
 const testUserIds: string[] = [];
 
-/**
- * Helper to require server availability.
- * Instead of silently returning, this throws a descriptive error
- * that makes it clear the test was skipped due to preconditions.
- */
 function requireServer(): void {
   if (!serverAvailable) {
     skippedTestCount++;
-    throw new Error(
-      `TEST SKIPPED: Server not available at ${BASE_URL}. Start the dev server to run this test.`
-    );
+    throw new Error(`TEST SKIPPED: Server not available at ${BASE_URL}`);
   }
 }
 
-/**
- * Helper to require authenticated admin access.
- */
 function requireAuth(): void {
   requireServer();
   if (!devAdminToken) {
     skippedTestCount++;
-    throw new Error(
-      'TEST SKIPPED: Dev admin token not available. Ensure NODE_ENV !== production.'
-    );
+    throw new Error('TEST SKIPPED: Dev admin token not available');
   }
 }
 
-/**
- * Test helper: Make authenticated admin request
- */
-async function adminRequest(
-  path: string,
-  options: RequestInit = {}
-): Promise<Response> {
-  const headers: HeadersInit = {
+async function adminRequest(path: string, options: RequestInit = {}) {
+  const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-    ...(options.headers || {}),
+    ...(options.headers as Record<string, string>),
   };
-
-  if (devAdminToken) {
-    (headers as Record<string, string>)['x-dev-admin-token'] = devAdminToken;
-  }
+  if (devAdminToken) headers['x-dev-admin-token'] = devAdminToken;
 
   return fetch(`${BASE_URL}${path}`, {
     ...options,
@@ -87,26 +54,17 @@ async function adminRequest(
   });
 }
 
-/**
- * Test helper: Make unauthenticated request
- */
-async function publicRequest(
-  path: string,
-  options: RequestInit = {}
-): Promise<Response> {
+async function publicRequest(path: string, options: RequestInit = {}) {
   return fetch(`${BASE_URL}${path}`, {
     ...options,
     headers: {
       'Content-Type': 'application/json',
-      ...(options.headers || {}),
+      ...(options.headers as Record<string, string>),
     },
     signal: AbortSignal.timeout(15000),
   });
 }
 
-/**
- * Test helper: Create a test user in the database
- */
 async function createTestUser(
   overrides: Partial<{
     username: string;
@@ -114,14 +72,12 @@ async function createTestUser(
     isAgent: boolean;
     isActor: boolean;
     isBanned: boolean;
-  }>
-): Promise<string> {
+  }> = {}
+) {
   const userId = await generateSnowflakeId();
-  const username = overrides.username || `rbac-test-${userId}`;
-
   await db.insert(users).values({
     id: userId,
-    username,
+    username: overrides.username || `rbac-test-${userId}`,
     displayName: `Test User ${userId}`,
     isAdmin: overrides.isAdmin || false,
     isAgent: overrides.isAgent || false,
@@ -129,21 +85,16 @@ async function createTestUser(
     isBanned: overrides.isBanned || false,
     updatedAt: new Date(),
   });
-
   testUserIds.push(userId);
   return userId;
 }
 
-/**
- * Test helper: Create admin role for a user
- */
 async function createAdminRole(
   userId: string,
   role: 'SUPER_ADMIN' | 'ADMIN' | 'VIEWER',
   grantedBy: string
-): Promise<string> {
+) {
   const roleId = `admin_role_${await generateSnowflakeId()}`;
-
   await db.insert(adminRoles).values({
     id: roleId,
     userId,
@@ -152,7 +103,6 @@ async function createAdminRole(
     grantedBy,
     grantedAt: new Date(),
   });
-
   return roleId;
 }
 
@@ -200,9 +150,6 @@ describe('Admin Dashboard RBAC Integration Tests', () => {
     }
   });
 
-  // ============================================
-  // RBAC CONSTANTS VERIFICATION
-  // ============================================
   describe('RBAC Constants', () => {
     test('ADMIN_ROLES contains expected roles', () => {
       expect(ADMIN_ROLES).toContain('SUPER_ADMIN');
@@ -272,15 +219,11 @@ describe('Admin Dashboard RBAC Integration Tests', () => {
     });
   });
 
-  // ============================================
-  // DATABASE RBAC OPERATIONS
-  // ============================================
   describe('Database RBAC Operations', () => {
     test('can create admin role for user', async () => {
       const userId = await createTestUser({});
       const roleId = await createAdminRole(userId, 'ADMIN', userId);
 
-      // Verify role was created
       const [role] = await db
         .select()
         .from(adminRoles)
@@ -298,13 +241,11 @@ describe('Admin Dashboard RBAC Integration Tests', () => {
       const userId = await createTestUser({});
       await createAdminRole(userId, 'VIEWER', userId);
 
-      // Revoke the role
       await db
         .update(adminRoles)
         .set({ revokedAt: new Date() })
         .where(eq(adminRoles.userId, userId));
 
-      // Verify role was revoked
       const [role] = await db
         .select()
         .from(adminRoles)
@@ -318,7 +259,6 @@ describe('Admin Dashboard RBAC Integration Tests', () => {
     test('legacy isAdmin flag still works', async () => {
       const userId = await createTestUser({ isAdmin: true });
 
-      // Query user to verify
       const [user] = await db
         .select({ isAdmin: users.isAdmin })
         .from(users)
@@ -338,7 +278,6 @@ describe('Admin Dashboard RBAC Integration Tests', () => {
         .from(users)
         .where(eq(users.id, userId))
         .limit(1);
-
       const [role] = await db
         .select()
         .from(adminRoles)
@@ -352,21 +291,15 @@ describe('Admin Dashboard RBAC Integration Tests', () => {
     });
 
     test('handles non-existent user gracefully', async () => {
-      const fakeUserId = 'non-existent-user-id-12345';
-
       const [role] = await db
         .select()
         .from(adminRoles)
-        .where(eq(adminRoles.userId, fakeUserId))
+        .where(eq(adminRoles.userId, 'non-existent-user-id'))
         .limit(1);
-
       expect(role).toBeUndefined();
     });
   });
 
-  // ============================================
-  // ADMIN STATS API - USERS
-  // ============================================
   describe('Admin Stats API - Users', () => {
     test('GET /api/admin/stats/users - requires auth', async () => {
       requireServer();
@@ -416,16 +349,11 @@ describe('Admin Dashboard RBAC Integration Tests', () => {
       expect(data.success).toBe(true);
       expect(Array.isArray(data.data.timeSeries)).toBe(true);
 
-      // Verify time series structure - require at least one entry or log warning
       if (data.data.timeSeries.length > 0) {
         const entry = data.data.timeSeries[0];
         expect(entry.date).toBeDefined();
         expect(typeof entry.signups).toBe('number');
         expect(typeof entry.cumulative).toBe('number');
-      } else {
-        console.warn(
-          '⚠️  Time series is empty - structure validation skipped. Ensure test database has signups in last 30 days.'
-        );
       }
     });
 
@@ -480,9 +408,6 @@ describe('Admin Dashboard RBAC Integration Tests', () => {
     });
   });
 
-  // ============================================
-  // ADMIN STATS API - TRADING
-  // ============================================
   describe('Admin Stats API - Trading', () => {
     test('GET /api/admin/stats/trading - requires auth', async () => {
       requireServer();
@@ -542,10 +467,6 @@ describe('Admin Dashboard RBAC Integration Tests', () => {
         expect(trader.userId).toBeDefined();
         expect(typeof trader.tradeCount).toBe('number');
         expect(typeof trader.totalVolume).toBe('number');
-      } else {
-        console.warn(
-          '⚠️  topTraders is empty - structure validation skipped. Ensure test database has trading activity.'
-        );
       }
     });
 
@@ -555,18 +476,14 @@ describe('Admin Dashboard RBAC Integration Tests', () => {
       const res = await adminRequest('/api/admin/stats/trading');
       const data = await res.json();
 
-      // Active + resolved should equal total (approximately - may have other states)
       const { totalMarkets, activeMarkets, resolvedMarkets } =
         data.data.overview;
       expect(activeMarkets + resolvedMarkets).toBeLessThanOrEqual(
         totalMarkets + 1
-      ); // +1 for potential timing issues
+      );
     });
   });
 
-  // ============================================
-  // ADMIN STATS API - SYSTEM
-  // ============================================
   describe('Admin Stats API - System', () => {
     test('GET /api/admin/stats/system - requires auth', async () => {
       requireServer();
@@ -586,29 +503,24 @@ describe('Admin Dashboard RBAC Integration Tests', () => {
 
       const stats = data.data;
 
-      // Health checks
       expect(stats.health).toBeDefined();
       expect(typeof stats.health.database).toBe('boolean');
       expect(typeof stats.health.redis).toBe('boolean');
       expect(typeof stats.health.overall).toBe('boolean');
       expect(stats.health.timestamp).toBeDefined();
 
-      // LLM stats
       expect(stats.llm).toBeDefined();
       expect(typeof stats.llm.callsLast24h).toBe('number');
       expect(typeof stats.llm.errorsLastHour).toBe('number');
 
-      // Content stats
       expect(stats.content).toBeDefined();
       expect(typeof stats.content.lookaheadMinutes).toBe('number');
       expect(typeof stats.content.isHealthy).toBe('boolean');
 
-      // Realtime stats
       expect(stats.realtime).toBeDefined();
       expect(typeof stats.realtime.outboxPending).toBe('number');
       expect(typeof stats.realtime.isHealthy).toBe('boolean');
 
-      // Environment info
       expect(stats.environment).toBeDefined();
     });
 
@@ -619,7 +531,6 @@ describe('Admin Dashboard RBAC Integration Tests', () => {
       const data = await res.json();
 
       expect(Array.isArray(data.data.database.tables)).toBe(true);
-      // Database should always have tables - this is a hard requirement
       expect(data.data.database.tables.length).toBeGreaterThan(0);
 
       const table = data.data.database.tables[0];
@@ -649,8 +560,6 @@ describe('Admin Dashboard RBAC Integration Tests', () => {
 
       expect(data.data.locks).toBeDefined();
       expect(Array.isArray(data.data.locks.active)).toBe(true);
-
-      // Active locks can legitimately be empty - validate structure if any exist
       if (data.data.locks.active.length > 0) {
         const lock = data.data.locks.active[0];
         expect(lock.id).toBeDefined();
@@ -658,13 +567,9 @@ describe('Admin Dashboard RBAC Integration Tests', () => {
         expect(lock.acquiredAt).toBeDefined();
         expect(typeof lock.ageSeconds).toBe('number');
       }
-      // Note: Empty locks array is valid (no active generation locks)
     });
   });
 
-  // ============================================
-  // ADMIN ROLES API
-  // ============================================
   describe('Admin Roles API', () => {
     test('GET /api/admin/roles - requires auth', async () => {
       requireServer();
@@ -687,7 +592,6 @@ describe('Admin Dashboard RBAC Integration Tests', () => {
     test('POST /api/admin/roles - requires super admin', async () => {
       requireServer();
 
-      // Without auth
       const res = await publicRequest('/api/admin/roles', {
         method: 'POST',
         body: JSON.stringify({
@@ -702,14 +606,12 @@ describe('Admin Dashboard RBAC Integration Tests', () => {
     test('POST /api/admin/roles - validates required fields', async () => {
       requireAuth();
 
-      // Missing action
       const res1 = await adminRequest('/api/admin/roles', {
         method: 'POST',
         body: JSON.stringify({}),
       });
       expect(res1.status).toBe(400);
 
-      // Missing userId
       const res2 = await adminRequest('/api/admin/roles', {
         method: 'POST',
         body: JSON.stringify({ action: 'grant', role: 'VIEWER' }),
@@ -763,9 +665,6 @@ describe('Admin Dashboard RBAC Integration Tests', () => {
     });
   });
 
-  // ============================================
-  // ADMIN PERMISSIONS API
-  // ============================================
   describe('Admin Permissions API', () => {
     test('GET /api/admin/permissions - requires auth', async () => {
       requireServer();
@@ -792,7 +691,6 @@ describe('Admin Dashboard RBAC Integration Tests', () => {
       const res = await adminRequest('/api/admin/permissions');
       const data = await res.json();
 
-      // Dev admin should be SUPER_ADMIN
       expect(data.data.role).toBe('SUPER_ADMIN');
       expect(data.data.permissions).toEqual(
         expect.arrayContaining(['manage_admins', 'view_stats', 'manage_users'])
@@ -800,9 +698,6 @@ describe('Admin Dashboard RBAC Integration Tests', () => {
     });
   });
 
-  // ============================================
-  // ADMIN ENVIRONMENT API
-  // ============================================
   describe('Admin Environment API', () => {
     test('GET /api/admin/environment - requires auth', async () => {
       requireServer();
@@ -831,15 +726,10 @@ describe('Admin Dashboard RBAC Integration Tests', () => {
         method: 'POST',
         body: JSON.stringify({ environment: 'invalid-env' }),
       });
-
-      // Should reject invalid environment
       expect(res.status).toBe(400);
     });
   });
 
-  // ============================================
-  // ERROR HANDLING
-  // ============================================
   describe('Error Handling', () => {
     test('invalid JSON body returns 400', async () => {
       requireAuth();
@@ -848,11 +738,10 @@ describe('Admin Dashboard RBAC Integration Tests', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-dev-admin-token': devAdminToken!, // Non-null asserted by requireAuth()
+          'x-dev-admin-token': devAdminToken!,
         },
         body: 'not valid json {{{',
       });
-
       expect(res.status).toBeLessThan(500);
     });
 
@@ -894,9 +783,6 @@ describe('Admin Dashboard RBAC Integration Tests', () => {
     });
   });
 
-  // ============================================
-  // EDGE CASES
-  // ============================================
   describe('Edge Cases', () => {
     test('handles empty time series gracefully', async () => {
       requireAuth();
@@ -953,9 +839,6 @@ describe('Admin Dashboard RBAC Integration Tests', () => {
     });
   });
 
-  // ============================================
-  // DATA INTEGRITY
-  // ============================================
   describe('Data Integrity', () => {
     test('user stats counts are consistent', async () => {
       requireAuth();
@@ -964,8 +847,6 @@ describe('Admin Dashboard RBAC Integration Tests', () => {
       const data = await res.json();
 
       const { total, realUsers, actors, agents } = data.data.overview;
-
-      // Total should be approximately sum of user types (overlap possible)
       expect(total).toBeGreaterThanOrEqual(Math.max(realUsers, actors, agents));
     });
 
@@ -987,10 +868,7 @@ describe('Admin Dashboard RBAC Integration Tests', () => {
       const data = await res.json();
 
       const timestamp = new Date(data.data.health.timestamp);
-      const now = new Date();
-      const diffSeconds = Math.abs(now.getTime() - timestamp.getTime()) / 1000;
-
-      // Timestamp should be within last 60 seconds
+      const diffSeconds = Math.abs(Date.now() - timestamp.getTime()) / 1000;
       expect(diffSeconds).toBeLessThan(60);
     });
 
