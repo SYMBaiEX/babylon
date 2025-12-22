@@ -12,13 +12,8 @@
  * Run with: bun test integration/admin-dashboard-rbac.integration.test.ts --preload ./integration/preload.ts
  */
 
-import {
-  afterAll,
-  beforeAll,
-  describe,
-  expect,
-  test,
-} from 'bun:test';
+import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
+import { getDevCredentials } from '@babylon/api';
 import {
   ADMIN_PERMISSIONS,
   ADMIN_ROLES,
@@ -28,7 +23,6 @@ import {
   ROLE_PERMISSIONS,
   users,
 } from '@babylon/db';
-import { getDevCredentials } from '@babylon/api';
 import { generateSnowflakeId } from '@babylon/shared';
 
 const BASE_URL =
@@ -85,13 +79,15 @@ async function publicRequest(
 /**
  * Test helper: Create a test user in the database
  */
-async function createTestUser(overrides: Partial<{
-  username: string;
-  isAdmin: boolean;
-  isAgent: boolean;
-  isActor: boolean;
-  isBanned: boolean;
-}>): Promise<string> {
+async function createTestUser(
+  overrides: Partial<{
+    username: string;
+    isAdmin: boolean;
+    isAgent: boolean;
+    isActor: boolean;
+    isBanned: boolean;
+  }>
+): Promise<string> {
   const userId = await generateSnowflakeId();
   const username = overrides.username || `rbac-test-${userId}`;
 
@@ -204,7 +200,9 @@ describe('Admin Dashboard RBAC Integration Tests', () => {
 
     test('ROLE_PERMISSIONS assigns correct permissions to SUPER_ADMIN', () => {
       // SUPER_ADMIN should have all permissions
-      expect(ROLE_PERMISSIONS.SUPER_ADMIN).toHaveLength(ADMIN_PERMISSIONS.length);
+      expect(ROLE_PERMISSIONS.SUPER_ADMIN).toHaveLength(
+        ADMIN_PERMISSIONS.length
+      );
       for (const perm of ADMIN_PERMISSIONS) {
         expect(ROLE_PERMISSIONS.SUPER_ADMIN).toContain(perm);
       }
@@ -436,8 +434,12 @@ describe('Admin Dashboard RBAC Integration Tests', () => {
       expect(data.data.overview.total).toBeGreaterThanOrEqual(0);
       expect(data.data.overview.realUsers).toBeGreaterThanOrEqual(0);
       expect(data.data.signups.today).toBeGreaterThanOrEqual(0);
-      expect(data.data.profileMetrics.profileCompletionRate).toBeGreaterThanOrEqual(0);
-      expect(data.data.profileMetrics.profileCompletionRate).toBeLessThanOrEqual(100);
+      expect(
+        data.data.profileMetrics.profileCompletionRate
+      ).toBeGreaterThanOrEqual(0);
+      expect(
+        data.data.profileMetrics.profileCompletionRate
+      ).toBeLessThanOrEqual(100);
     });
   });
 
@@ -512,8 +514,11 @@ describe('Admin Dashboard RBAC Integration Tests', () => {
       const data = await res.json();
 
       // Active + resolved should equal total (approximately - may have other states)
-      const { totalMarkets, activeMarkets, resolvedMarkets } = data.data.overview;
-      expect(activeMarkets + resolvedMarkets).toBeLessThanOrEqual(totalMarkets + 1); // +1 for potential timing issues
+      const { totalMarkets, activeMarkets, resolvedMarkets } =
+        data.data.overview;
+      expect(activeMarkets + resolvedMarkets).toBeLessThanOrEqual(
+        totalMarkets + 1
+      ); // +1 for potential timing issues
     });
   });
 
@@ -917,9 +922,7 @@ describe('Admin Dashboard RBAC Integration Tests', () => {
       const { total, realUsers, actors, agents } = data.data.overview;
 
       // Total should be approximately sum of user types (overlap possible)
-      expect(total).toBeGreaterThanOrEqual(
-        Math.max(realUsers, actors, agents)
-      );
+      expect(total).toBeGreaterThanOrEqual(Math.max(realUsers, actors, agents));
     });
 
     test('trading stats fees are non-negative', async () => {
