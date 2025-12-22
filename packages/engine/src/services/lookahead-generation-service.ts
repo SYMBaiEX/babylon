@@ -52,8 +52,8 @@ import {
 } from './npc-character-config';
 import {
   generateNPCPost,
-  generateOrganicPost,
   generateOrgArticle,
+  generateOrganicPost,
   generateOrgPost,
   generateRivalryPost,
   loadSharedPostContext,
@@ -421,25 +421,37 @@ async function generateContentWindow(
   }
 
   // Calculate organic post indices (posts without specific topics)
-  const organicPostCount = Math.max(1, Math.floor(numPosts * ORGANIC_POST_RATIO));
+  const organicPostCount = Math.max(
+    1,
+    Math.floor(numPosts * ORGANIC_POST_RATIO)
+  );
   const organicPostIndices = new Set<number>();
   for (let o = 0; o < organicPostCount && o < numPosts; o++) {
     // Avoid overlap with diverse posts
     let idx = Math.floor(secureRandom() * numPosts);
-    while (diversePostIndices.has(idx) && organicPostIndices.size < numPosts - diversePostCount) {
+    while (
+      diversePostIndices.has(idx) &&
+      organicPostIndices.size < numPosts - diversePostCount
+    ) {
       idx = Math.floor(secureRandom() * numPosts);
     }
     organicPostIndices.add(idx);
   }
 
   // Calculate rivalry post indices (contrarian posts from rivals)
-  const rivalryPostCount = Math.max(1, Math.floor(numPosts * RIVALRY_POST_RATIO));
+  const rivalryPostCount = Math.max(
+    1,
+    Math.floor(numPosts * RIVALRY_POST_RATIO)
+  );
   const rivalryPostIndices = new Set<number>();
   for (let r = 0; r < rivalryPostCount && r < numPosts; r++) {
     // Avoid overlap with organic and diverse posts
     let idx = Math.floor(secureRandom() * numPosts);
     const usedIndices = new Set([...diversePostIndices, ...organicPostIndices]);
-    while (usedIndices.has(idx) && rivalryPostIndices.size < numPosts - usedIndices.size) {
+    while (
+      usedIndices.has(idx) &&
+      rivalryPostIndices.size < numPosts - usedIndices.size
+    ) {
       idx = Math.floor(secureRandom() * numPosts);
     }
     rivalryPostIndices.add(idx);
@@ -460,7 +472,10 @@ async function generateContentWindow(
 
     // Check if this post should cover a diverse topic (off-trend)
     const shouldBeDiverse =
-      !shouldBeOrganic && !shouldBeRivalry && diversePostIndices.has(i) && shuffledDiverseTopics.length > 0;
+      !shouldBeOrganic &&
+      !shouldBeRivalry &&
+      diversePostIndices.has(i) &&
+      shuffledDiverseTopics.length > 0;
     const diverseTopic: DiverseTopicSuggestion | undefined = shouldBeDiverse
       ? shuffledDiverseTopics[i % shuffledDiverseTopics.length]
       : undefined;
@@ -484,7 +499,7 @@ async function generateContentWindow(
     // For organic posts with actors, use the dedicated organic post generator
     if (shouldBeOrganic && useActor) {
       const actor = creator as (typeof actorsList)[number];
-      
+
       // Check if this actor should generate organic content based on their config
       if (!shouldGenerateOrganicPost(actor.id)) {
         // Fall back to regular post generation if organic probability fails

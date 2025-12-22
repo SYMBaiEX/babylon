@@ -101,7 +101,10 @@ export const POST = withErrorHandling(
           resourceType: 'post',
           resourceId: contentId,
           previousValue: { deletedAt: null },
-          newValue: { deletedAt: new Date().toISOString(), reason: reason ?? null },
+          newValue: {
+            deletedAt: new Date().toISOString(),
+            reason: reason ?? null,
+          },
           ipAddress: request.headers.get('x-forwarded-for') ?? undefined,
           userAgent: request.headers.get('user-agent') ?? undefined,
           metadata: { action },
@@ -133,7 +136,7 @@ export const POST = withErrorHandling(
       } else if (action === 'hide' || action === 'delete') {
         await db
           .update(comments)
-          .set({ 
+          .set({
             deletedAt: new Date(),
             updatedAt: new Date(),
           })
@@ -144,7 +147,10 @@ export const POST = withErrorHandling(
           resourceType: 'comment',
           resourceId: contentId,
           previousValue: { deletedAt: null },
-          newValue: { deletedAt: new Date().toISOString(), reason: reason ?? null },
+          newValue: {
+            deletedAt: new Date().toISOString(),
+            reason: reason ?? null,
+          },
           ipAddress: request.headers.get('x-forwarded-for') ?? undefined,
           userAgent: request.headers.get('user-agent') ?? undefined,
           metadata: { action },

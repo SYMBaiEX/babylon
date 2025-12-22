@@ -73,37 +73,45 @@ export function ContentModerationTab() {
   const [isRefreshing, startRefresh] = useTransition();
   const [selectedItem, setSelectedItem] = useState<ContentItem | null>(null);
   const [showActionModal, setShowActionModal] = useState(false);
-  const [actionType, setActionType] = useState<'approve' | 'hide' | 'delete'>('approve');
+  const [actionType, setActionType] = useState<'approve' | 'hide' | 'delete'>(
+    'approve'
+  );
   const [actionReason, setActionReason] = useState('');
   const [isActioning, startActioning] = useTransition();
 
-  const fetchQueue = useCallback((showRefreshing = false) => {
-    const fetchLogic = async () => {
-      const params = new URLSearchParams();
-      if (contentType !== 'all') params.set('type', contentType);
+  const fetchQueue = useCallback(
+    (showRefreshing = false) => {
+      const fetchLogic = async () => {
+        const params = new URLSearchParams();
+        if (contentType !== 'all') params.set('type', contentType);
 
-      const response = await fetch(`/api/admin/content-queue?${params}`);
-      if (!response.ok) {
+        const response = await fetch(`/api/admin/content-queue?${params}`);
+        if (!response.ok) {
+          setLoading(false);
+          return;
+        }
+        const result = await response.json();
+        setData(result);
         setLoading(false);
-        return;
-      }
-      const result = await response.json();
-      setData(result);
-      setLoading(false);
-    };
+      };
 
-    if (showRefreshing) {
-      startRefresh(fetchLogic);
-    } else {
-      fetchLogic();
-    }
-  }, [contentType]);
+      if (showRefreshing) {
+        startRefresh(fetchLogic);
+      } else {
+        fetchLogic();
+      }
+    },
+    [contentType]
+  );
 
   useEffect(() => {
     fetchQueue();
   }, [fetchQueue]);
 
-  const handleAction = (item: ContentItem, action: 'approve' | 'hide' | 'delete') => {
+  const handleAction = (
+    item: ContentItem,
+    action: 'approve' | 'hide' | 'delete'
+  ) => {
     setSelectedItem(item);
     setActionType(action);
     setActionReason('');
@@ -114,15 +122,18 @@ export function ContentModerationTab() {
     if (!selectedItem) return;
 
     startActioning(async () => {
-      const response = await fetch(`/api/admin/content-queue/${selectedItem.id}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: actionType,
-          contentType: selectedItem.type,
-          reason: actionReason || undefined,
-        }),
-      });
+      const response = await fetch(
+        `/api/admin/content-queue/${selectedItem.id}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: actionType,
+            contentType: selectedItem.type,
+            reason: actionReason || undefined,
+          }),
+        }
+      );
 
       if (!response.ok) {
         toast.error('Failed to perform action');
@@ -157,9 +168,9 @@ export function ContentModerationTab() {
   };
 
   const ContentCard = ({ item }: { item: ContentItem }) => (
-    <div className="rounded-xl border border-border bg-card p-4 sm:p-5 transition-shadow hover:shadow-md">
+    <div className="rounded-xl border border-border bg-card p-4 transition-shadow hover:shadow-md sm:p-5">
       {/* Header */}
-      <div className="mb-2 sm:mb-3 flex flex-wrap items-start justify-between gap-2 sm:gap-4">
+      <div className="mb-2 flex flex-wrap items-start justify-between gap-2 sm:mb-3 sm:gap-4">
         <div className="flex items-center gap-3">
           <Avatar
             src={item.authorProfileImage ?? undefined}
@@ -186,7 +197,7 @@ export function ContentModerationTab() {
         <div className="flex items-center gap-2">
           <span
             className={cn(
-              'rounded px-2 py-1 text-xs font-medium',
+              'rounded px-2 py-1 font-medium text-xs',
               item.type === 'post'
                 ? 'bg-blue-500/20 text-blue-500'
                 : 'bg-green-500/20 text-green-500'
@@ -194,7 +205,7 @@ export function ContentModerationTab() {
           >
             {item.type === 'post' ? 'Post' : 'Comment'}
           </span>
-          <span className="flex items-center gap-1 rounded bg-red-500/20 px-2 py-1 text-red-500 text-xs font-medium">
+          <span className="flex items-center gap-1 rounded bg-red-500/20 px-2 py-1 font-medium text-red-500 text-xs">
             <Flag className="h-3 w-3" />
             {item.reportCount}
           </span>
@@ -203,7 +214,9 @@ export function ContentModerationTab() {
 
       {/* Content */}
       <div className="mb-4 rounded-lg bg-muted/50 p-3">
-        <p className="whitespace-pre-wrap text-sm">{truncateContent(item.content)}</p>
+        <p className="whitespace-pre-wrap text-sm">
+          {truncateContent(item.content)}
+        </p>
         {item.mediaUrls && item.mediaUrls.length > 0 && (
           <div className="mt-2 flex gap-2">
             {item.mediaUrls.slice(0, 3).map((url, i) => (
@@ -211,11 +224,7 @@ export function ContentModerationTab() {
                 key={i}
                 className="h-16 w-16 overflow-hidden rounded-lg bg-muted"
               >
-                <img
-                  src={url}
-                  alt=""
-                  className="h-full w-full object-cover"
-                />
+                <img src={url} alt="" className="h-full w-full object-cover" />
               </div>
             ))}
             {item.mediaUrls.length > 3 && (
@@ -240,21 +249,21 @@ export function ContentModerationTab() {
       <div className="flex flex-col gap-2 sm:flex-row">
         <button
           onClick={() => handleAction(item, 'approve')}
-          className="flex flex-1 items-center justify-center gap-1.5 sm:gap-2 rounded-lg bg-green-500/20 px-2.5 sm:px-3 py-2 text-green-500 text-xs sm:text-sm font-medium transition-colors hover:bg-green-500/30"
+          className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-green-500/20 px-2.5 py-2 font-medium text-green-500 text-xs transition-colors hover:bg-green-500/30 sm:gap-2 sm:px-3 sm:text-sm"
         >
           <Check className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
           Approve
         </button>
         <button
           onClick={() => handleAction(item, 'hide')}
-          className="flex flex-1 items-center justify-center gap-1.5 sm:gap-2 rounded-lg bg-yellow-500/20 px-2.5 sm:px-3 py-2 text-xs sm:text-sm font-medium text-yellow-500 transition-colors hover:bg-yellow-500/30"
+          className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-yellow-500/20 px-2.5 py-2 font-medium text-xs text-yellow-500 transition-colors hover:bg-yellow-500/30 sm:gap-2 sm:px-3 sm:text-sm"
         >
           <EyeOff className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
           Hide
         </button>
         <button
           onClick={() => handleAction(item, 'delete')}
-          className="flex flex-1 items-center justify-center gap-1.5 sm:gap-2 rounded-lg bg-red-500/20 px-2.5 sm:px-3 py-2 text-red-500 text-xs sm:text-sm font-medium transition-colors hover:bg-red-500/30"
+          className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-red-500/20 px-2.5 py-2 font-medium text-red-500 text-xs transition-colors hover:bg-red-500/30 sm:gap-2 sm:px-3 sm:text-sm"
         >
           <Trash2 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
           Delete
@@ -289,7 +298,9 @@ export function ContentModerationTab() {
   const allItems = [
     ...(contentType === 'comments' ? [] : data.posts),
     ...(contentType === 'posts' ? [] : data.comments),
-  ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  ].sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  );
 
   return (
     <div className="space-y-6">
@@ -316,7 +327,7 @@ export function ContentModerationTab() {
                   setLoading(true);
                 }}
                 className={cn(
-                  'px-2.5 py-1.5 text-xs sm:px-4 sm:py-2 sm:text-sm font-medium transition-colors first:rounded-l-lg last:rounded-r-lg',
+                  'px-2.5 py-1.5 font-medium text-xs transition-colors first:rounded-l-lg last:rounded-r-lg sm:px-4 sm:py-2 sm:text-sm',
                   contentType === t
                     ? 'bg-primary text-primary-foreground'
                     : 'text-muted-foreground hover:bg-muted'
@@ -330,9 +341,14 @@ export function ContentModerationTab() {
           <button
             onClick={() => fetchQueue(true)}
             disabled={isRefreshing}
-            className="flex items-center gap-1.5 sm:gap-2 rounded-lg bg-muted px-2.5 py-1.5 sm:px-3 sm:py-2 text-xs sm:text-sm font-medium transition-colors hover:bg-muted/80 disabled:opacity-50"
+            className="flex items-center gap-1.5 rounded-lg bg-muted px-2.5 py-1.5 font-medium text-xs transition-colors hover:bg-muted/80 disabled:opacity-50 sm:gap-2 sm:px-3 sm:py-2 sm:text-sm"
           >
-            <RefreshCw className={cn('h-3.5 w-3.5 sm:h-4 sm:w-4', isRefreshing && 'animate-spin')} />
+            <RefreshCw
+              className={cn(
+                'h-3.5 w-3.5 sm:h-4 sm:w-4',
+                isRefreshing && 'animate-spin'
+              )}
+            />
             <span className="hidden sm:inline">Refresh</span>
           </button>
         </div>
@@ -341,29 +357,35 @@ export function ContentModerationTab() {
       {/* Stats */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
         <div className="rounded-xl border border-orange-500/20 bg-orange-500/10 p-4 sm:p-5">
-          <div className="mb-1.5 sm:mb-2 flex items-center gap-2">
-            <AlertTriangle className="h-4 w-4 sm:h-5 sm:w-5 text-orange-500" />
-            <span className="font-medium text-sm sm:text-base">Pending Review</span>
+          <div className="mb-1.5 flex items-center gap-2 sm:mb-2">
+            <AlertTriangle className="h-4 w-4 text-orange-500 sm:h-5 sm:w-5" />
+            <span className="font-medium text-sm sm:text-base">
+              Pending Review
+            </span>
           </div>
-          <div className="font-bold text-2xl sm:text-3xl text-orange-500">
+          <div className="font-bold text-2xl text-orange-500 sm:text-3xl">
             {data.stats.totalPending}
           </div>
         </div>
         <div className="rounded-xl border border-blue-500/20 bg-blue-500/10 p-4 sm:p-5">
-          <div className="mb-1.5 sm:mb-2 flex items-center gap-2">
-            <MessageSquare className="h-4 w-4 sm:h-5 sm:w-5 text-blue-500" />
-            <span className="font-medium text-sm sm:text-base">Flagged Posts</span>
+          <div className="mb-1.5 flex items-center gap-2 sm:mb-2">
+            <MessageSquare className="h-4 w-4 text-blue-500 sm:h-5 sm:w-5" />
+            <span className="font-medium text-sm sm:text-base">
+              Flagged Posts
+            </span>
           </div>
-          <div className="font-bold text-2xl sm:text-3xl text-blue-500">
+          <div className="font-bold text-2xl text-blue-500 sm:text-3xl">
             {data.stats.posts.pending}
           </div>
         </div>
         <div className="rounded-xl border border-green-500/20 bg-green-500/10 p-4 sm:p-5">
-          <div className="mb-1.5 sm:mb-2 flex items-center gap-2">
-            <MessageSquare className="h-4 w-4 sm:h-5 sm:w-5 text-green-500" />
-            <span className="font-medium text-sm sm:text-base">Flagged Comments</span>
+          <div className="mb-1.5 flex items-center gap-2 sm:mb-2">
+            <MessageSquare className="h-4 w-4 text-green-500 sm:h-5 sm:w-5" />
+            <span className="font-medium text-sm sm:text-base">
+              Flagged Comments
+            </span>
           </div>
-          <div className="font-bold text-2xl sm:text-3xl text-green-500">
+          <div className="font-bold text-2xl text-green-500 sm:text-3xl">
             {data.stats.comments.pending}
           </div>
         </div>
@@ -412,14 +434,14 @@ export function ContentModerationTab() {
 
             {actionType !== 'approve' && (
               <div className="mb-4">
-                <label className="mb-2 block text-sm font-medium">
+                <label className="mb-2 block font-medium text-sm">
                   Reason (optional)
                 </label>
                 <textarea
                   value={actionReason}
                   onChange={(e) => setActionReason(e.target.value)}
                   placeholder="Enter reason for this action..."
-                  className="w-full rounded-lg border border-border bg-background px-3 py-2 resize-none"
+                  className="w-full resize-none rounded-lg border border-border bg-background px-3 py-2"
                   rows={3}
                 />
               </div>

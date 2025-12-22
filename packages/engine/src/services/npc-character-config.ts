@@ -53,11 +53,50 @@ export interface CharacterConfig {
  * Keywords that indicate personality types (matched against actor.personality)
  */
 const PERSONALITY_KEYWORDS: Record<PersonalityType, string[]> = {
-  chaotic: ['chaotic', 'unhinged', 'wild', 'erratic', 'manic', 'bipolar', 'stream of consciousness'],
-  provocative: ['provocative', 'controversial', 'aggressive', 'combative', 'narcissist', 'showman', 'bully'],
-  corporate: ['corporate', 'professional', 'measured', 'executive', 'ceo', 'director', 'responsible'],
-  analytical: ['analytical', 'data', 'technical', 'academic', 'researcher', 'scientist', 'engineer'],
-  eccentric: ['eccentric', 'quirky', 'unique', 'weird', 'philosopher', 'visionary'],
+  chaotic: [
+    'chaotic',
+    'unhinged',
+    'wild',
+    'erratic',
+    'manic',
+    'bipolar',
+    'stream of consciousness',
+  ],
+  provocative: [
+    'provocative',
+    'controversial',
+    'aggressive',
+    'combative',
+    'narcissist',
+    'showman',
+    'bully',
+  ],
+  corporate: [
+    'corporate',
+    'professional',
+    'measured',
+    'executive',
+    'ceo',
+    'director',
+    'responsible',
+  ],
+  analytical: [
+    'analytical',
+    'data',
+    'technical',
+    'academic',
+    'researcher',
+    'scientist',
+    'engineer',
+  ],
+  eccentric: [
+    'eccentric',
+    'quirky',
+    'unique',
+    'weird',
+    'philosopher',
+    'visionary',
+  ],
   default: [],
 };
 
@@ -133,7 +172,9 @@ const RIVALRY_MAP = buildRivalryMap();
 /**
  * Determine personality type from actor's personality field
  */
-function derivePersonalityType(personality: string | undefined): PersonalityType {
+function derivePersonalityType(
+  personality: string | undefined
+): PersonalityType {
   if (!personality) return 'default';
 
   const lowerPersonality = personality.toLowerCase();
@@ -313,13 +354,59 @@ export function shouldPostAboutTopic(
 
     // Domain keyword expansions
     const domainKeywords: Record<string, string[]> = {
-      ai: ['artificial intelligence', 'machine learning', 'neural', 'model', 'llm', 'gpt', 'claude', 'agi'],
-      tech: ['technology', 'software', 'hardware', 'computer', 'digital', 'app', 'platform'],
-      crypto: ['bitcoin', 'ethereum', 'blockchain', 'token', 'defi', 'nft', 'web3'],
-      finance: ['market', 'stock', 'investment', 'trading', 'fund', 'asset', 'capital'],
-      politics: ['government', 'congress', 'senate', 'election', 'policy', 'regulation'],
+      ai: [
+        'artificial intelligence',
+        'machine learning',
+        'neural',
+        'model',
+        'llm',
+        'gpt',
+        'claude',
+        'agi',
+      ],
+      tech: [
+        'technology',
+        'software',
+        'hardware',
+        'computer',
+        'digital',
+        'app',
+        'platform',
+      ],
+      crypto: [
+        'bitcoin',
+        'ethereum',
+        'blockchain',
+        'token',
+        'defi',
+        'nft',
+        'web3',
+      ],
+      finance: [
+        'market',
+        'stock',
+        'investment',
+        'trading',
+        'fund',
+        'asset',
+        'capital',
+      ],
+      politics: [
+        'government',
+        'congress',
+        'senate',
+        'election',
+        'policy',
+        'regulation',
+      ],
       health: ['medical', 'vaccine', 'disease', 'healthcare', 'pharmaceutical'],
-      climate: ['environment', 'carbon', 'renewable', 'energy', 'sustainability'],
+      climate: [
+        'environment',
+        'carbon',
+        'renewable',
+        'energy',
+        'sustainability',
+      ],
       space: ['rocket', 'satellite', 'mars', 'orbit', 'launch'],
       culture: ['art', 'music', 'fashion', 'entertainment', 'media'],
       safety: ['alignment', 'risk', 'responsible', 'constitutional'],

@@ -79,8 +79,7 @@ export function AuditLogsTab() {
           offset: String(offset),
         });
         if (actionFilter) params.set('action', actionFilter);
-        if (resourceTypeFilter)
-          params.set('resourceType', resourceTypeFilter);
+        if (resourceTypeFilter) params.set('resourceType', resourceTypeFilter);
 
         const response = await fetch(`/api/admin/audit-logs?${params}`);
         if (!response.ok) throw new Error('Failed to fetch audit logs');
@@ -149,20 +148,23 @@ export function AuditLogsTab() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="flex items-center gap-2 font-semibold text-lg sm:text-xl">
-            <ScrollText className="h-4 w-4 sm:h-5 sm:w-5 text-purple-500" />
+            <ScrollText className="h-4 w-4 text-purple-500 sm:h-5 sm:w-5" />
             Audit Logs
           </h2>
-          <p className="mt-0.5 sm:mt-1 text-muted-foreground text-xs sm:text-sm">
+          <p className="mt-0.5 text-muted-foreground text-xs sm:mt-1 sm:text-sm">
             Track all admin actions on the platform
           </p>
         </div>
         <button
           onClick={() => fetchLogs(true)}
           disabled={isRefreshing}
-          className="flex items-center gap-1.5 sm:gap-2 rounded bg-muted px-2.5 py-1.5 sm:px-3 sm:py-2 font-medium text-xs sm:text-sm transition-colors hover:bg-muted/80 disabled:opacity-50"
+          className="flex items-center gap-1.5 rounded bg-muted px-2.5 py-1.5 font-medium text-xs transition-colors hover:bg-muted/80 disabled:opacity-50 sm:gap-2 sm:px-3 sm:py-2 sm:text-sm"
         >
           <RefreshCw
-            className={cn('h-3.5 w-3.5 sm:h-4 sm:w-4', isRefreshing && 'animate-spin')}
+            className={cn(
+              'h-3.5 w-3.5 sm:h-4 sm:w-4',
+              isRefreshing && 'animate-spin'
+            )}
           />
           <span className="hidden sm:inline">Refresh</span>
         </button>
@@ -220,7 +222,7 @@ export function AuditLogsTab() {
           {data.logs.map((log) => (
             <div
               key={log.id}
-              className="rounded-lg border border-border bg-card p-3 sm:p-4 transition-colors hover:border-primary/50"
+              className="rounded-lg border border-border bg-card p-3 transition-colors hover:border-primary/50 sm:p-4"
             >
               <div className="flex items-start gap-2 sm:gap-4">
                 {/* Admin Avatar */}
@@ -235,7 +237,7 @@ export function AuditLogsTab() {
                 {/* Content */}
                 <div className="min-w-0 flex-1">
                   {/* Header */}
-                  <div className="mb-1.5 sm:mb-2 flex flex-wrap items-start justify-between gap-2">
+                  <div className="mb-1.5 flex flex-wrap items-start justify-between gap-2 sm:mb-2">
                     <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
                       <span className="font-medium text-sm sm:text-base">
                         {log.admin.displayName ||
@@ -250,11 +252,11 @@ export function AuditLogsTab() {
                       >
                         {log.action}
                       </span>
-                      <span className="rounded bg-muted px-1.5 py-0.5 text-muted-foreground text-[10px] sm:text-xs">
+                      <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground sm:text-xs">
                         {log.resourceType}
                       </span>
                     </div>
-                    <div className="flex items-center gap-1 whitespace-nowrap text-muted-foreground text-[10px] sm:text-xs">
+                    <div className="flex items-center gap-1 whitespace-nowrap text-[10px] text-muted-foreground sm:text-xs">
                       <Clock className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
                       {formatDate(log.createdAt)}
                     </div>
@@ -326,7 +328,7 @@ export function AuditLogsTab() {
             <button
               onClick={() => setOffset(Math.max(0, offset - limit))}
               disabled={offset === 0}
-              className="flex items-center gap-1 rounded bg-muted px-2 py-1 sm:px-3 sm:py-1.5 text-xs sm:text-sm transition-colors hover:bg-muted/80 disabled:opacity-50"
+              className="flex items-center gap-1 rounded bg-muted px-2 py-1 text-xs transition-colors hover:bg-muted/80 disabled:opacity-50 sm:px-3 sm:py-1.5 sm:text-sm"
             >
               <ChevronLeft className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               <span className="hidden sm:inline">Previous</span>
@@ -334,7 +336,7 @@ export function AuditLogsTab() {
             <button
               onClick={() => setOffset(offset + limit)}
               disabled={!data.pagination.hasMore}
-              className="flex items-center gap-1 rounded bg-muted px-2 py-1 sm:px-3 sm:py-1.5 text-xs sm:text-sm transition-colors hover:bg-muted/80 disabled:opacity-50"
+              className="flex items-center gap-1 rounded bg-muted px-2 py-1 text-xs transition-colors hover:bg-muted/80 disabled:opacity-50 sm:px-3 sm:py-1.5 sm:text-sm"
             >
               <span className="hidden sm:inline">Next</span>
               <ChevronRight className="h-3.5 w-3.5 sm:h-4 sm:w-4" />

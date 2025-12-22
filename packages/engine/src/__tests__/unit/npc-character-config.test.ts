@@ -90,7 +90,10 @@ describe('NPC Character Config', () => {
     });
 
     it('should work for unknown characters (no patterns to check)', () => {
-      const result = checkVoiceConsistency('unknown-actor', 'Any content here.');
+      const result = checkVoiceConsistency(
+        'unknown-actor',
+        'Any content here.'
+      );
 
       expect(result.matchesVoice).toBe(true); // No patterns = always matches
       expect(result.voiceScore).toBe(1);
@@ -100,7 +103,10 @@ describe('NPC Character Config', () => {
   describe('shouldPostAboutTopic', () => {
     it('should return true for on-domain topics', () => {
       expect(
-        shouldPostAboutTopic('dairiio-amodei', 'Will AI safety regulations pass?')
+        shouldPostAboutTopic(
+          'dairiio-amodei',
+          'Will AI safety regulations pass?'
+        )
       ).toBe(true);
 
       expect(

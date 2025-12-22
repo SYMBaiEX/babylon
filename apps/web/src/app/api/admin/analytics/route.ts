@@ -113,9 +113,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       count: count(),
     })
     .from(users)
-    .where(
-      and(gte(users.createdAt, start), lte(users.createdAt, end))
-    )
+    .where(and(gte(users.createdAt, start), lte(users.createdAt, end)))
     .groupBy(sql`DATE(${users.createdAt})`)
     .orderBy(sql`DATE(${users.createdAt})`);
 
@@ -126,9 +124,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       count: count(),
     })
     .from(posts)
-    .where(
-      and(gte(posts.createdAt, start), lte(posts.createdAt, end))
-    )
+    .where(and(gte(posts.createdAt, start), lte(posts.createdAt, end)))
     .groupBy(sql`DATE(${posts.createdAt})`)
     .orderBy(sql`DATE(${posts.createdAt})`);
 
@@ -139,9 +135,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       count: count(),
     })
     .from(comments)
-    .where(
-      and(gte(comments.createdAt, start), lte(comments.createdAt, end))
-    )
+    .where(and(gte(comments.createdAt, start), lte(comments.createdAt, end)))
     .groupBy(sql`DATE(${comments.createdAt})`)
     .orderBy(sql`DATE(${comments.createdAt})`);
 
@@ -152,9 +146,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       count: count(),
     })
     .from(reactions)
-    .where(
-      and(gte(reactions.createdAt, start), lte(reactions.createdAt, end))
-    )
+    .where(and(gte(reactions.createdAt, start), lte(reactions.createdAt, end)))
     .groupBy(sql`DATE(${reactions.createdAt})`)
     .orderBy(sql`DATE(${reactions.createdAt})`);
 
@@ -165,9 +157,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       count: count(),
     })
     .from(follows)
-    .where(
-      and(gte(follows.createdAt, start), lte(follows.createdAt, end))
-    )
+    .where(and(gte(follows.createdAt, start), lte(follows.createdAt, end)))
     .groupBy(sql`DATE(${follows.createdAt})`)
     .orderBy(sql`DATE(${follows.createdAt})`);
 

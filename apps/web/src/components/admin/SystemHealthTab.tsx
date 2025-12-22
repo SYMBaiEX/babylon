@@ -157,15 +157,15 @@ export function SystemHealthTab() {
     subValue?: string;
     status?: 'good' | 'warning' | 'error';
   }) => (
-    <div className="rounded-xl border border-border bg-card p-3 sm:p-5 transition-shadow hover:shadow-md">
-      <div className="mb-2 sm:mb-3 flex items-center justify-between">
+    <div className="rounded-xl border border-border bg-card p-3 transition-shadow hover:shadow-md sm:p-5">
+      <div className="mb-2 flex items-center justify-between sm:mb-3">
         <div className="rounded-lg bg-muted p-1.5 sm:p-2">
-          <Icon className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground" />
+          <Icon className="h-4 w-4 text-muted-foreground sm:h-5 sm:w-5" />
         </div>
         {status && (
           <div
             className={cn(
-              'h-2.5 w-2.5 sm:h-3 sm:w-3 rounded-full',
+              'h-2.5 w-2.5 rounded-full sm:h-3 sm:w-3',
               status === 'good' && 'bg-green-500',
               status === 'warning' && 'bg-yellow-500',
               status === 'error' && 'bg-red-500'
@@ -174,9 +174,13 @@ export function SystemHealthTab() {
         )}
       </div>
       <div className="font-bold text-lg sm:text-2xl">{value}</div>
-      <div className="mt-0.5 sm:mt-1 text-muted-foreground text-xs sm:text-sm">{label}</div>
+      <div className="mt-0.5 text-muted-foreground text-xs sm:mt-1 sm:text-sm">
+        {label}
+      </div>
       {subValue && (
-        <div className="mt-0.5 sm:mt-1 text-muted-foreground text-[10px] sm:text-xs">{subValue}</div>
+        <div className="mt-0.5 text-[10px] text-muted-foreground sm:mt-1 sm:text-xs">
+          {subValue}
+        </div>
       )}
     </div>
   );
@@ -210,10 +214,7 @@ export function SystemHealthTab() {
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-4">
           <div
-            className={cn(
-              'rounded-xl border p-4',
-              getStatusColor(data.status)
-            )}
+            className={cn('rounded-xl border p-4', getStatusColor(data.status))}
           >
             {getStatusIcon(data.status)}
           </div>
@@ -238,9 +239,11 @@ export function SystemHealthTab() {
           <button
             onClick={() => fetchHealth(true)}
             disabled={isRefreshing}
-            className="flex items-center gap-2 rounded-lg bg-muted px-3 py-2 text-sm font-medium transition-colors hover:bg-muted/80 disabled:opacity-50"
+            className="flex items-center gap-2 rounded-lg bg-muted px-3 py-2 font-medium text-sm transition-colors hover:bg-muted/80 disabled:opacity-50"
           >
-            <RefreshCw className={cn('h-4 w-4', isRefreshing && 'animate-spin')} />
+            <RefreshCw
+              className={cn('h-4 w-4', isRefreshing && 'animate-spin')}
+            />
             Refresh
           </button>
         </div>
@@ -277,46 +280,60 @@ export function SystemHealthTab() {
 
       {/* Game Engine Status */}
       <div className="rounded-xl border border-border bg-card p-4 sm:p-6">
-        <h3 className="mb-3 sm:mb-4 flex items-center gap-2 font-semibold text-base sm:text-lg">
-          <Zap className="h-4 w-4 sm:h-5 sm:w-5 text-yellow-500" />
+        <h3 className="mb-3 flex items-center gap-2 font-semibold text-base sm:mb-4 sm:text-lg">
+          <Zap className="h-4 w-4 text-yellow-500 sm:h-5 sm:w-5" />
           Game Engine
         </h3>
         <div className="grid grid-cols-2 gap-2 sm:gap-4 md:grid-cols-3 lg:grid-cols-5">
           <div className="rounded-lg bg-muted/50 p-2.5 sm:p-4">
-            <div className="mb-0.5 sm:mb-1 text-muted-foreground text-[10px] sm:text-xs">Status</div>
+            <div className="mb-0.5 text-[10px] text-muted-foreground sm:mb-1 sm:text-xs">
+              Status
+            </div>
             <div
               className={cn(
-                'flex items-center gap-1.5 sm:gap-2 font-semibold text-sm sm:text-base',
+                'flex items-center gap-1.5 font-semibold text-sm sm:gap-2 sm:text-base',
                 data.gameEngine.isRunning ? 'text-green-500' : 'text-yellow-500'
               )}
             >
               <div
                 className={cn(
-                  'h-1.5 w-1.5 sm:h-2 sm:w-2 rounded-full',
-                  data.gameEngine.isRunning ? 'bg-green-500 animate-pulse' : 'bg-yellow-500'
+                  'h-1.5 w-1.5 rounded-full sm:h-2 sm:w-2',
+                  data.gameEngine.isRunning
+                    ? 'animate-pulse bg-green-500'
+                    : 'bg-yellow-500'
                 )}
               />
               {data.gameEngine.isRunning ? 'Running' : 'Paused'}
             </div>
           </div>
           <div className="rounded-lg bg-muted/50 p-2.5 sm:p-4">
-            <div className="mb-0.5 sm:mb-1 text-muted-foreground text-[10px] sm:text-xs">Game Day</div>
-            <div className="font-semibold text-sm sm:text-base">Day {data.gameEngine.currentDay}</div>
+            <div className="mb-0.5 text-[10px] text-muted-foreground sm:mb-1 sm:text-xs">
+              Game Day
+            </div>
+            <div className="font-semibold text-sm sm:text-base">
+              Day {data.gameEngine.currentDay}
+            </div>
           </div>
           <div className="rounded-lg bg-muted/50 p-2.5 sm:p-4">
-            <div className="mb-0.5 sm:mb-1 text-muted-foreground text-[10px] sm:text-xs">Last Tick</div>
+            <div className="mb-0.5 text-[10px] text-muted-foreground sm:mb-1 sm:text-xs">
+              Last Tick
+            </div>
             <div className="font-semibold text-sm sm:text-base">
               {formatTimeSince(data.gameEngine.timeSinceLastTickMs)}
             </div>
           </div>
           <div className="rounded-lg bg-muted/50 p-2.5 sm:p-4">
-            <div className="mb-0.5 sm:mb-1 text-muted-foreground text-[10px] sm:text-xs">Tick Interval</div>
+            <div className="mb-0.5 text-[10px] text-muted-foreground sm:mb-1 sm:text-xs">
+              Tick Interval
+            </div>
             <div className="font-semibold text-sm sm:text-base">
               {Math.round(data.gameEngine.tickIntervalMs / 1000)}s
             </div>
           </div>
-          <div className="rounded-lg bg-muted/50 p-2.5 sm:p-4 col-span-2 md:col-span-1">
-            <div className="mb-0.5 sm:mb-1 text-muted-foreground text-[10px] sm:text-xs">Uptime</div>
+          <div className="col-span-2 rounded-lg bg-muted/50 p-2.5 sm:p-4 md:col-span-1">
+            <div className="mb-0.5 text-[10px] text-muted-foreground sm:mb-1 sm:text-xs">
+              Uptime
+            </div>
             <div className="font-semibold text-sm sm:text-base">
               {formatUptime(data.gameEngine.uptimeMs)}
             </div>
@@ -328,8 +345,8 @@ export function SystemHealthTab() {
       <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-2">
         {/* Last Hour */}
         <div className="rounded-xl border border-border bg-card p-4 sm:p-6">
-          <h3 className="mb-3 sm:mb-4 flex items-center gap-2 font-semibold text-base sm:text-lg">
-            <Clock className="h-4 w-4 sm:h-5 sm:w-5 text-blue-500" />
+          <h3 className="mb-3 flex items-center gap-2 font-semibold text-base sm:mb-4 sm:text-lg">
+            <Clock className="h-4 w-4 text-blue-500 sm:h-5 sm:w-5" />
             Last Hour
           </h3>
           <div className="grid grid-cols-2 gap-2 sm:gap-4">
@@ -378,8 +395,8 @@ export function SystemHealthTab() {
 
         {/* Last 24 Hours */}
         <div className="rounded-xl border border-border bg-card p-4 sm:p-6">
-          <h3 className="mb-3 sm:mb-4 flex items-center gap-2 font-semibold text-base sm:text-lg">
-            <Clock className="h-4 w-4 sm:h-5 sm:w-5 text-purple-500" />
+          <h3 className="mb-3 flex items-center gap-2 font-semibold text-base sm:mb-4 sm:text-lg">
+            <Clock className="h-4 w-4 text-purple-500 sm:h-5 sm:w-5" />
             Last 24 Hours
           </h3>
           <div className="grid grid-cols-2 gap-2 sm:gap-4">
@@ -438,7 +455,7 @@ export function SystemHealthTab() {
             {data.recentErrors.map((error) => (
               <div
                 key={error.id}
-                className="rounded-lg bg-red-500/5 p-3 border border-red-500/10"
+                className="rounded-lg border border-red-500/10 bg-red-500/5 p-3"
               >
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0 flex-1">
