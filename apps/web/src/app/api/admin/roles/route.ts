@@ -153,7 +153,10 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     .limit(1);
 
   if (!existingRole) {
-    return successResponse({ error: 'User does not have an active admin role' }, 400);
+    return successResponse(
+      { error: 'User does not have an active admin role' },
+      400
+    );
   }
 
   if (admin.userId === userId) {
@@ -165,10 +168,15 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     const superAdminCount = await db
       .select({ count: adminRoles.id })
       .from(adminRoles)
-      .where(and(eq(adminRoles.role, 'SUPER_ADMIN'), isNull(adminRoles.revokedAt)));
-    
+      .where(
+        and(eq(adminRoles.role, 'SUPER_ADMIN'), isNull(adminRoles.revokedAt))
+      );
+
     if (superAdminCount.length <= 1) {
-      return successResponse({ error: 'Cannot revoke the last super admin' }, 400);
+      return successResponse(
+        { error: 'Cannot revoke the last super admin' },
+        400
+      );
     }
   }
 
