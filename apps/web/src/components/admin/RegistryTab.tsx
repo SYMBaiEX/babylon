@@ -170,7 +170,9 @@ export function RegistryTab() {
         }
       } catch (err) {
         console.error('Error fetching registry:', err);
-        setError(err instanceof Error ? err.message : 'Failed to fetch registry data');
+        setError(
+          err instanceof Error ? err.message : 'Failed to fetch registry data'
+        );
       }
       setLoading(false);
     };

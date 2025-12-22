@@ -129,7 +129,9 @@ export function FeesTab() {
         setError(null);
         setLoading(false);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load fee statistics');
+        setError(
+          err instanceof Error ? err.message : 'Failed to load fee statistics'
+        );
         setLoading(false);
       }
     };
