@@ -80,7 +80,8 @@ export function AuditLogsTab() {
             offset: String(offset),
           });
           if (actionFilter) params.set('action', actionFilter);
-          if (resourceTypeFilter) params.set('resourceType', resourceTypeFilter);
+          if (resourceTypeFilter)
+            params.set('resourceType', resourceTypeFilter);
 
           const response = await fetch(`/api/admin/audit-logs?${params}`);
           if (!response.ok) {

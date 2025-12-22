@@ -600,7 +600,8 @@ async function generateContentWindow(
       const useRoundRobin = secureRandom() < 0.5;
       if (useRoundRobin) {
         // Round-robin through all active markets
-        question = shuffledQuestions[nextRoundRobinIndex % shuffledQuestions.length];
+        question =
+          shuffledQuestions[nextRoundRobinIndex % shuffledQuestions.length];
         nextRoundRobinIndex++;
         logger.debug(
           'Using round-robin market selection',

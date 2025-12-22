@@ -198,7 +198,10 @@ export default function AdminDashboard() {
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target as Node)
+      ) {
         setIsDropdownOpen(false);
       }
     };
@@ -232,7 +235,11 @@ export default function AdminDashboard() {
       items: [
         { id: 'users' as const, label: 'Users', icon: Users },
         { id: 'admins' as const, label: 'Admin Management', icon: ShieldCheck },
-        { id: 'content-moderation' as const, label: 'Content Moderation', icon: Eye },
+        {
+          id: 'content-moderation' as const,
+          label: 'Content Moderation',
+          icon: Eye,
+        },
         { id: 'reports' as const, label: 'Reports', icon: Flag },
         { id: 'human-review' as const, label: 'Human Review', icon: Scale },
       ],
@@ -250,7 +257,11 @@ export default function AdminDashboard() {
       items: [
         { id: 'agents' as const, label: 'Agents', icon: Bot },
         { id: 'ai-models' as const, label: 'AI Models', icon: Sparkles },
-        { id: 'training-data' as const, label: 'Training Data', icon: Database },
+        {
+          id: 'training-data' as const,
+          label: 'Training Data',
+          icon: Database,
+        },
       ],
     },
     {
@@ -343,7 +354,9 @@ export default function AdminDashboard() {
                           <Icon
                             className={cn(
                               'h-4 w-4',
-                              isActive ? 'text-primary' : 'text-muted-foreground'
+                              isActive
+                                ? 'text-primary'
+                                : 'text-muted-foreground'
                             )}
                           />
                           {item.label}
