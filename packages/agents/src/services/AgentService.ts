@@ -750,16 +750,18 @@ export class AgentServiceV2 {
       );
     }
 
-    // Get agent's current balance
+    // Get agent's current balance and totalDeposited
     const agentResult = await db
       .select({
         virtualBalance: users.virtualBalance,
+        totalDeposited: users.totalDeposited,
       })
       .from(users)
       .where(eq(users.id, agentUserId))
       .limit(1);
 
     const agentBalance = Number(agentResult[0]?.virtualBalance ?? 0);
+    const agentTotalDeposited = Number(agentResult[0]?.totalDeposited ?? 0);
 
     await withTransaction(async (tx) => {
       // Debit from manager
@@ -771,11 +773,12 @@ export class AgentServiceV2 {
         })
         .where(eq(users.id, managerUserId));
 
-      // Credit to agent
+      // Credit to agent (update both virtualBalance and totalDeposited)
       await tx
         .update(users)
         .set({
           virtualBalance: String(agentBalance + amount),
+          totalDeposited: String(agentTotalDeposited + amount),
           updatedAt: new Date(),
         })
         .where(eq(users.id, agentUserId));
@@ -843,16 +846,18 @@ export class AgentServiceV2 {
     );
     if (!agentWithConfig) throw new Error('Agent not found');
 
-    // Get agent's trading balance
+    // Get agent's trading balance and totalWithdrawn
     const agentResult = await db
       .select({
         virtualBalance: users.virtualBalance,
+        totalWithdrawn: users.totalWithdrawn,
       })
       .from(users)
       .where(eq(users.id, agentUserId))
       .limit(1);
 
     const agentBalance = Number(agentResult[0]?.virtualBalance ?? 0);
+    const agentTotalWithdrawn = Number(agentResult[0]?.totalWithdrawn ?? 0);
     if (agentBalance < amount) {
       throw new Error(
         `Insufficient agent trading balance. Have: $${agentBalance.toFixed(2)}, Need: $${amount.toFixed(2)}`
@@ -871,11 +876,12 @@ export class AgentServiceV2 {
     const managerBalance = Number(managerResult[0]?.virtualBalance ?? 0);
 
     await withTransaction(async (tx) => {
-      // Debit from agent
+      // Debit from agent (update both virtualBalance and totalWithdrawn)
       await tx
         .update(users)
         .set({
           virtualBalance: String(agentBalance - amount),
+          totalWithdrawn: String(agentTotalWithdrawn + amount),
           updatedAt: new Date(),
         })
         .where(eq(users.id, agentUserId));
