@@ -110,35 +110,46 @@ export function EscrowManagementTab() {
   const fetchEscrows = useCallback(
     (showRefreshing = false) => {
       const fetchLogic = async () => {
-        const token = getAuthToken();
-        const params = new URLSearchParams({
-          limit: '100',
-        });
-        if (statusFilter !== 'all') {
-          params.set('status', statusFilter);
-        }
-
-        const headers: HeadersInit = {
-          'Content-Type': 'application/json',
-        };
-        if (token) {
-          headers['Authorization'] = `Bearer ${token}`;
-        }
-
-        const response = await fetch(
-          `/api/admin/moderation-escrow/list?${params}`,
-          {
-            headers,
+        try {
+          const token = getAuthToken();
+          const params = new URLSearchParams({
+            limit: '100',
+          });
+          if (statusFilter !== 'all') {
+            params.set('status', statusFilter);
           }
-        );
-        if (!response.ok) throw new Error('Failed to fetch escrows');
-        const data = await response.json();
-        const validation = z.array(EscrowSchema).safeParse(data.escrows);
-        if (!validation.success) {
-          throw new Error('Invalid escrow data structure');
+
+          const headers: HeadersInit = {
+            'Content-Type': 'application/json',
+          };
+          if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
+          }
+
+          const response = await fetch(
+            `/api/admin/moderation-escrow/list?${params}`,
+            {
+              headers,
+            }
+          );
+          if (!response.ok) {
+            console.error('Failed to fetch escrows:', response.status);
+            setLoading(false);
+            return;
+          }
+          const data = await response.json();
+          const validation = z.array(EscrowSchema).safeParse(data.escrows);
+          if (!validation.success) {
+            console.error('Invalid escrow data structure:', validation.error);
+            setLoading(false);
+            return;
+          }
+          setEscrows(validation.data || []);
+          setLoading(false);
+        } catch (err) {
+          console.error('Error fetching escrows:', err);
+          setLoading(false);
         }
-        setEscrows(validation.data || []);
-        setLoading(false);
       };
 
       if (showRefreshing) {

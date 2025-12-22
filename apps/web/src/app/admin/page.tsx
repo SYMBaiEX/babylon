@@ -36,6 +36,7 @@ import {
   BarChart,
   Bell,
   Bot,
+  ChevronDown,
   Database,
   DollarSign,
   Eye,
@@ -54,7 +55,7 @@ import {
   Users,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { AdminManagementTab } from '@/components/admin/AdminManagementTab';
 import { AgentsTab } from '@/components/admin/AgentsTab';
 import { AIModelsTab } from '@/components/admin/AIModelsTab';
@@ -190,63 +191,171 @@ export default function AdminDashboard() {
     );
   }
 
-  const tabs = [
-    { id: 'stats' as const, label: 'Dashboard', icon: BarChart },
-    { id: 'analytics' as const, label: 'Analytics', icon: LineChart },
-    { id: 'system-health' as const, label: 'Health', icon: Server },
-    { id: 'game-control' as const, label: 'Game Control', icon: Gamepad2 },
-    { id: 'markets' as const, label: 'Markets', icon: TrendingUp },
-    { id: 'fees' as const, label: 'Fees', icon: DollarSign },
-    { id: 'trades' as const, label: 'Trades', icon: Activity },
-    { id: 'users' as const, label: 'Users', icon: Users },
-    { id: 'content-moderation' as const, label: 'Moderation', icon: Eye },
-    { id: 'reports' as const, label: 'Reports', icon: Flag },
-    { id: 'human-review' as const, label: 'Human Review', icon: Scale },
-    { id: 'admins' as const, label: 'Admins', icon: ShieldCheck },
-    { id: 'registry' as const, label: 'Registry', icon: Layers },
-    { id: 'groups' as const, label: 'Groups', icon: MessageSquare },
-    { id: 'agents' as const, label: 'Agents', icon: Bot },
-    { id: 'ai-models' as const, label: 'AI Models', icon: Sparkles },
-    { id: 'training-data' as const, label: 'Training Data', icon: Database },
-    { id: 'notifications' as const, label: 'Notifications', icon: Bell },
-    { id: 'escrow' as const, label: 'Escrow', icon: DollarSign },
-    { id: 'audit-logs' as const, label: 'Audit Logs', icon: ScrollText },
+  // Dropdown state
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Navigation items organized by category
+  const navCategories = [
+    {
+      name: 'Overview',
+      items: [
+        { id: 'stats' as const, label: 'Dashboard', icon: BarChart },
+        { id: 'analytics' as const, label: 'Analytics', icon: LineChart },
+        { id: 'system-health' as const, label: 'System Health', icon: Server },
+      ],
+    },
+    {
+      name: 'Game & Markets',
+      items: [
+        { id: 'game-control' as const, label: 'Game Control', icon: Gamepad2 },
+        { id: 'markets' as const, label: 'Markets', icon: TrendingUp },
+        { id: 'fees' as const, label: 'Fees', icon: DollarSign },
+        { id: 'trades' as const, label: 'Trades', icon: Activity },
+        { id: 'escrow' as const, label: 'Escrow', icon: DollarSign },
+      ],
+    },
+    {
+      name: 'Users & Moderation',
+      items: [
+        { id: 'users' as const, label: 'Users', icon: Users },
+        { id: 'admins' as const, label: 'Admin Management', icon: ShieldCheck },
+        { id: 'content-moderation' as const, label: 'Content Moderation', icon: Eye },
+        { id: 'reports' as const, label: 'Reports', icon: Flag },
+        { id: 'human-review' as const, label: 'Human Review', icon: Scale },
+      ],
+    },
+    {
+      name: 'Platform',
+      items: [
+        { id: 'registry' as const, label: 'Registry', icon: Layers },
+        { id: 'groups' as const, label: 'Groups', icon: MessageSquare },
+        { id: 'notifications' as const, label: 'Notifications', icon: Bell },
+      ],
+    },
+    {
+      name: 'AI & Agents',
+      items: [
+        { id: 'agents' as const, label: 'Agents', icon: Bot },
+        { id: 'ai-models' as const, label: 'AI Models', icon: Sparkles },
+        { id: 'training-data' as const, label: 'Training Data', icon: Database },
+      ],
+    },
+    {
+      name: 'Audit',
+      items: [
+        { id: 'audit-logs' as const, label: 'Audit Logs', icon: ScrollText },
+      ],
+    },
   ];
+
+  // Get current tab info by searching through categories
+  const getCurrentTab = () => {
+    for (const category of navCategories) {
+      for (const item of category.items) {
+        if (item.id === activeTab) {
+          return item;
+        }
+      }
+    }
+    return null;
+  };
+  const currentTab = getCurrentTab();
+  const CurrentIcon = currentTab?.icon || BarChart;
 
   return (
     <PageContainer className="flex flex-col">
-      {/* Header */}
-      <div className="mb-4 border-border border-b pb-4">
-        <div className="mb-1 flex items-center gap-2">
-          <Shield className="h-6 w-6 text-primary" />
-          <h1 className="font-bold text-2xl md:text-3xl">Admin Dashboard</h1>
+      {/* Header with Dropdown Navigation */}
+      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-3">
+          <Shield className="h-7 w-7 text-primary" />
+          <div>
+            <h1 className="font-bold text-xl sm:text-2xl">Admin Dashboard</h1>
+            <p className="text-muted-foreground text-xs sm:text-sm">
+              System management and monitoring
+            </p>
+          </div>
         </div>
-        <p className="text-muted-foreground">
-          System management and monitoring
-        </p>
-      </div>
 
-      {/* Tabs */}
-      <div className="mb-6 flex gap-2 overflow-x-auto border-border border-b">
-        {tabs.map((tab) => {
-          const Icon = tab.icon;
-          return (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
+        {/* Navigation Dropdown */}
+        <div className="relative" ref={dropdownRef}>
+          <button
+            onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+            className={cn(
+              'flex w-full items-center justify-between gap-3 rounded-xl border border-border bg-card px-4 py-3 font-medium transition-all sm:w-auto sm:min-w-[220px]',
+              'hover:border-primary/50 hover:bg-card/80',
+              isDropdownOpen && 'border-primary ring-2 ring-primary/20'
+            )}
+          >
+            <div className="flex items-center gap-2">
+              <CurrentIcon className="h-4 w-4 text-primary" />
+              <span>{currentTab?.label || 'Dashboard'}</span>
+            </div>
+            <ChevronDown
               className={cn(
-                'flex items-center gap-2 whitespace-nowrap px-4 py-2 font-medium transition-colors',
-                '-mb-[1px] border-b-2',
-                activeTab === tab.id
-                  ? 'border-primary text-primary'
-                  : 'border-transparent text-muted-foreground hover:border-border hover:text-foreground'
+                'h-4 w-4 text-muted-foreground transition-transform',
+                isDropdownOpen && 'rotate-180'
               )}
-            >
-              <Icon className="h-4 w-4" />
-              {tab.label}
-            </button>
-          );
-        })}
+            />
+          </button>
+
+          {/* Dropdown Menu */}
+          {isDropdownOpen && (
+            <div className="absolute right-0 z-50 mt-2 max-h-[70vh] w-full min-w-[280px] overflow-y-auto rounded-xl border border-border bg-card shadow-xl sm:w-auto">
+              {navCategories.map((category, categoryIndex) => (
+                <div key={category.name}>
+                  {categoryIndex > 0 && (
+                    <div className="mx-3 border-border border-t" />
+                  )}
+                  <div className="px-3 py-2">
+                    <div className="mb-1 px-2 font-semibold text-muted-foreground text-xs uppercase tracking-wider">
+                      {category.name}
+                    </div>
+                    {category.items.map((item) => {
+                      const Icon = item.icon;
+                      const isActive = activeTab === item.id;
+                      return (
+                        <button
+                          key={item.id}
+                          onClick={() => {
+                            setActiveTab(item.id);
+                            setIsDropdownOpen(false);
+                          }}
+                          className={cn(
+                            'flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors',
+                            isActive
+                              ? 'bg-primary/10 font-medium text-primary'
+                              : 'text-foreground hover:bg-muted'
+                          )}
+                        >
+                          <Icon
+                            className={cn(
+                              'h-4 w-4',
+                              isActive ? 'text-primary' : 'text-muted-foreground'
+                            )}
+                          />
+                          {item.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Tab Content */}

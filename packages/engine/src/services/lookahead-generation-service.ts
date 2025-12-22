@@ -317,12 +317,12 @@ async function generateContentWindow(
   // Game-relative day for this window (0-indexed since game start)
   const currentDay = dayNumberForTimestamp(windowStart);
 
-  // Get active questions
+  // Get ALL active questions to ensure diversity across markets
+  // Previously limited to 3 which caused NPCs to converge on same topics
   const activeQuestions = await db
     .select()
     .from(questions)
-    .where(eq(questions.status, 'active'))
-    .limit(3);
+    .where(eq(questions.status, 'active'));
 
   if (activeQuestions.length === 0) {
     logger.warn(
@@ -412,6 +412,10 @@ async function generateContentWindow(
   const shuffledOrgs = secureShuffle(orgsList);
   const shuffledQuestions = secureShuffle([...activeQuestions]);
   const shuffledDiverseTopics = secureShuffle([...diverseTopics]);
+
+  // Track which questions have been used in this window to ensure market diversity
+  // This prevents all NPCs from gravitating toward the same market
+  let nextRoundRobinIndex = 0;
 
   // Calculate how many diverse topic posts to generate (enforce diversity quota)
   const diversePostCount = Math.max(1, Math.floor(numPosts * DIVERSITY_QUOTA));
@@ -549,9 +553,11 @@ async function generateContentWindow(
         const rivalActor = shuffledActors.find((a) => a.id === rivalId);
 
         if (rivalActor && shuffledQuestions.length > 0) {
-          // Pick a question for the rivalry
-          const question = weightedPick(shuffledQuestions, urgencyWeight(5));
-          if (question) {
+          // Pick a question for the rivalry using round-robin for market diversity
+          const rivalryQuestion =
+            shuffledQuestions[nextRoundRobinIndex % shuffledQuestions.length];
+          nextRoundRobinIndex++;
+          if (rivalryQuestion) {
             // Determine rival's likely position (random for now, could be smarter)
             const rivalPosition = secureRandom() < 0.5 ? 'YES' : 'NO';
 
@@ -560,7 +566,7 @@ async function generateContentWindow(
               actor,
               rivalActor.name,
               rivalPosition,
-              question,
+              rivalryQuestion,
               worldFactsContext,
               postTimestamp,
               postDayNumber
@@ -584,12 +590,30 @@ async function generateContentWindow(
       // If no rivals or generation failed, fall through to regular post
     }
 
-    // Weight question selection toward those with sooner resolution dates using urgency scoring
-    // For diverse posts, still pick a question but the diverse topic context will be injected
-    let question =
-      shuffledQuestions.length > 0
-        ? weightedPick(shuffledQuestions, urgencyWeight(5))
-        : activeQuestions[0];
+    // Market diversity: alternate between round-robin (ensures all markets get coverage)
+    // and weighted selection (still favors urgent markets but with reduced bias)
+    // This prevents all NPCs from converging on a single "hot" market
+    let question: (typeof activeQuestions)[number] | undefined;
+    if (shuffledQuestions.length > 0) {
+      // 50% of posts use round-robin to guarantee market diversity
+      // 50% use weighted pick with REDUCED urgency multiplier (2 instead of 5)
+      const useRoundRobin = secureRandom() < 0.5;
+      if (useRoundRobin) {
+        // Round-robin through all active markets
+        question = shuffledQuestions[nextRoundRobinIndex % shuffledQuestions.length];
+        nextRoundRobinIndex++;
+        logger.debug(
+          'Using round-robin market selection',
+          { questionId: question?.id, index: nextRoundRobinIndex },
+          'LookaheadGeneration'
+        );
+      } else {
+        // Weighted selection with reduced urgency bias (2 instead of 5)
+        question = weightedPick(shuffledQuestions, urgencyWeight(2));
+      }
+    } else {
+      question = activeQuestions[0];
+    }
 
     if (!question || !question.text) {
       return 0;
