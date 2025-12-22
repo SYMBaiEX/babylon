@@ -125,6 +125,10 @@ export function AgentLogs({ agentId }: AgentLogsProps) {
         return 'bg-blue-500/10 border-blue-500/20';
       case 'tick':
         return 'bg-purple-500/10 border-purple-500/20';
+      case 'post':
+        return 'bg-orange-500/10 border-orange-500/20';
+      case 'comment':
+        return 'bg-cyan-500/10 border-cyan-500/20';
       default:
         return 'bg-muted/30 border-border/50';
     }
@@ -145,6 +149,8 @@ export function AgentLogs({ agentId }: AgentLogsProps) {
             <option value="chat">Chat</option>
             <option value="tick">Tick</option>
             <option value="trade">Trade</option>
+            <option value="post">Post</option>
+            <option value="comment">Comment</option>
             <option value="error">Error</option>
             <option value="system">System</option>
           </select>
