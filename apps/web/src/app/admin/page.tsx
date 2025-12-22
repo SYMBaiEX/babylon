@@ -56,7 +56,6 @@ import {
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useOnClickOutside } from '@/hooks/useOnClickOutside';
 import { AdminManagementTab } from '@/components/admin/AdminManagementTab';
 import { AgentsTab } from '@/components/admin/AgentsTab';
 import { AIModelsTab } from '@/components/admin/AIModelsTab';
@@ -80,6 +79,7 @@ import { UserManagementTab } from '@/components/admin/UserManagementTab';
 import { PageContainer } from '@/components/shared/PageContainer';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { useAuth } from '@/hooks/useAuth';
+import { useOnClickOutside } from '@/hooks/useOnClickOutside';
 
 /**
  * Available admin dashboard tabs
