@@ -114,15 +114,15 @@ export async function GET(req: NextRequest) {
 
   // Auto-expire old pending escrows before querying
   const now = new Date();
-  await db
-    .update(moderationEscrows)
-    .set({ status: 'expired' })
-    .where(
-      and(
-        eq(moderationEscrows.status, 'pending'),
-        sql`${moderationEscrows.expiresAt} < ${now.toISOString()}::timestamp`
-      )
-    );
+  await db.moderationEscrow.updateMany({
+    where: {
+      status: 'pending',
+      expiresAt: { lt: now },
+    },
+    data: {
+      status: 'expired',
+    },
+  });
 
   // Build where conditions for SQL query
   const whereConditions: ReturnType<typeof eq>[] = [];
