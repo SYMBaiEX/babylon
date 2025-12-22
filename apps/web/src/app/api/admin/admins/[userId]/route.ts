@@ -60,6 +60,8 @@
 
 import {
   BusinessLogicError,
+  getClientIp,
+  logAdminAction,
   NotFoundError,
   requireAdmin,
   successResponse,
@@ -180,6 +182,28 @@ export const POST = withErrorHandling(
         action,
       },
       'POST /api/admin/admins/[userId]'
+    );
+
+    // Audit log the privilege change (persist to database)
+    // This is a critical security operation that MUST be logged
+    void logAdminAction(
+      action === 'promote' ? 'PROMOTE_ADMIN' : 'DEMOTE_ADMIN',
+      {
+        adminId: adminUser.userId,
+        ipAddress: getClientIp(request.headers) ?? undefined,
+        resourceType: 'user',
+        resourceId: userId,
+        previousValue: {
+          isAdmin: targetUser.isAdmin,
+        },
+        newValue: {
+          isAdmin: action === 'promote',
+        },
+        metadata: {
+          targetUsername: updatedUser.username,
+          action,
+        },
+      }
     );
 
     return successResponse({

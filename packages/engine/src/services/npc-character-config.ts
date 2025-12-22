@@ -59,7 +59,7 @@ const PERSONALITY_KEYWORDS: Record<PersonalityType, string[]> = {
     'wild',
     'erratic',
     'manic',
-    'bipolar',
+    'unpredictable',
     'stream of consciousness',
   ],
   provocative: [
@@ -190,6 +190,64 @@ function buildRivalryMap(): Map<string, string[]> {
 }
 
 const RIVALRY_MAP = buildRivalryMap();
+
+/**
+ * Domain keywords for topic matching
+ * Maps broad domain categories to specific keywords
+ */
+const DOMAIN_KEYWORDS: Record<string, string[]> = {
+  ai: [
+    'artificial intelligence',
+    'machine learning',
+    'neural',
+    'model',
+    'llm',
+    'gpt',
+    'claude',
+    'agi',
+  ],
+  tech: [
+    'technology',
+    'software',
+    'hardware',
+    'computer',
+    'digital',
+    'app',
+    'platform',
+  ],
+  crypto: [
+    'bitcoin',
+    'ethereum',
+    'blockchain',
+    'token',
+    'defi',
+    'nft',
+    'web3',
+  ],
+  finance: [
+    'market',
+    'stock',
+    'investment',
+    'trading',
+    'fund',
+    'asset',
+    'capital',
+  ],
+  politics: [
+    'government',
+    'congress',
+    'senate',
+    'election',
+    'policy',
+    'regulation',
+  ],
+  health: ['medical', 'vaccine', 'disease', 'healthcare', 'pharmaceutical'],
+  climate: ['environment', 'carbon', 'renewable', 'energy', 'sustainability'],
+  space: ['rocket', 'satellite', 'mars', 'orbit', 'launch'],
+  culture: ['art', 'music', 'fashion', 'entertainment', 'media'],
+  safety: ['alignment', 'risk', 'responsible', 'constitutional'],
+  research: ['study', 'paper', 'science', 'academic'],
+};
 
 /**
  * Memoization cache for compiled voice patterns
@@ -391,67 +449,7 @@ export function shouldPostAboutTopic(
     if (topicLower.includes(domain)) return true;
 
     // Domain keyword expansions
-    const domainKeywords: Record<string, string[]> = {
-      ai: [
-        'artificial intelligence',
-        'machine learning',
-        'neural',
-        'model',
-        'llm',
-        'gpt',
-        'claude',
-        'agi',
-      ],
-      tech: [
-        'technology',
-        'software',
-        'hardware',
-        'computer',
-        'digital',
-        'app',
-        'platform',
-      ],
-      crypto: [
-        'bitcoin',
-        'ethereum',
-        'blockchain',
-        'token',
-        'defi',
-        'nft',
-        'web3',
-      ],
-      finance: [
-        'market',
-        'stock',
-        'investment',
-        'trading',
-        'fund',
-        'asset',
-        'capital',
-      ],
-      politics: [
-        'government',
-        'congress',
-        'senate',
-        'election',
-        'policy',
-        'regulation',
-      ],
-      health: ['medical', 'vaccine', 'disease', 'healthcare', 'pharmaceutical'],
-      climate: [
-        'environment',
-        'carbon',
-        'renewable',
-        'energy',
-        'sustainability',
-      ],
-      space: ['rocket', 'satellite', 'mars', 'orbit', 'launch'],
-      culture: ['art', 'music', 'fashion', 'entertainment', 'media'],
-      safety: ['alignment', 'risk', 'responsible', 'constitutional'],
-      research: ['study', 'paper', 'science', 'academic'],
-    };
-
-    const keywords = domainKeywords[domain] || [];
+    const keywords = DOMAIN_KEYWORDS[domain] || [];
     return keywords.some((kw) => topicLower.includes(kw));
   });
 
@@ -475,6 +473,20 @@ export function shouldGenerateOrganicPost(actorId: string): boolean {
 }
 
 /**
+ * Fisher-Yates shuffle for uniform randomness
+ */
+function fisherYatesShuffle<T>(array: T[]): T[] {
+  const shuffled = [...array];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    const temp = shuffled[i];
+    shuffled[i] = shuffled[j] as T;
+    shuffled[j] = temp as T;
+  }
+  return shuffled;
+}
+
+/**
  * Get template posts (postExample) for few-shot examples
  *
  * @param actorId - The actor's ID
@@ -488,8 +500,8 @@ export function getTemplatePosts(actorId: string, count: number = 3): string[] {
     return [];
   }
 
-  // Shuffle and take requested count
-  const shuffled = [...config.templatePosts].sort(() => Math.random() - 0.5);
+  // Shuffle using Fisher-Yates and take requested count
+  const shuffled = fisherYatesShuffle(config.templatePosts);
   return shuffled.slice(0, Math.min(count, shuffled.length));
 }
 
