@@ -74,18 +74,27 @@ export function AuditLogsTab() {
   const fetchLogs = useCallback(
     (showRefreshing = false) => {
       const fetchLogic = async () => {
-        const params = new URLSearchParams({
-          limit: String(limit),
-          offset: String(offset),
-        });
-        if (actionFilter) params.set('action', actionFilter);
-        if (resourceTypeFilter) params.set('resourceType', resourceTypeFilter);
+        try {
+          const params = new URLSearchParams({
+            limit: String(limit),
+            offset: String(offset),
+          });
+          if (actionFilter) params.set('action', actionFilter);
+          if (resourceTypeFilter) params.set('resourceType', resourceTypeFilter);
 
-        const response = await fetch(`/api/admin/audit-logs?${params}`);
-        if (!response.ok) throw new Error('Failed to fetch audit logs');
-        const responseData = await response.json();
-        setData(responseData);
-        setLoading(false);
+          const response = await fetch(`/api/admin/audit-logs?${params}`);
+          if (!response.ok) {
+            console.error('Failed to fetch audit logs:', response.status);
+            setLoading(false);
+            return;
+          }
+          const responseData = await response.json();
+          setData(responseData);
+          setLoading(false);
+        } catch (err) {
+          console.error('Error fetching audit logs:', err);
+          setLoading(false);
+        }
       };
 
       if (showRefreshing) {

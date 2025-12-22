@@ -823,7 +823,7 @@ Write a post that:
 - Sound exactly like your examples above
 - No hashtags, no emojis
 - Max 280 characters
-
+${getAvoidedPatternsContext(actor.id)}
 ${worldFactsContext}
 
 <response>
@@ -951,7 +951,7 @@ React to this in YOUR unique voice. You might:
 - No hashtags, no emojis
 - Max 280 characters
 - React as your personality would
-
+${getAvoidedPatternsContext(actor.id)}
 ${worldFactsContext}
 
 <response>

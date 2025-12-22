@@ -141,39 +141,54 @@ export function RegistryTab() {
   const [isCSAM, setIsCSAM] = useState(false);
   const [isBanning, setIsBanning] = useState(false);
 
-  const fetchRegistry = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    const params = new URLSearchParams();
-    if (search) params.set('search', search);
-    if (onChainOnly) params.set('onChainOnly', 'true');
+  const fetchRegistry = useCallback(() => {
+    const fetchLogic = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const params = new URLSearchParams();
+        if (search) params.set('search', search);
+        if (onChainOnly) params.set('onChainOnly', 'true');
 
-    const response = await fetch(`/api/registry/all?${params}`);
-    const result = await response.json();
+        const response = await fetch(`/api/registry/all?${params}`);
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          setError(errorData.error || 'Failed to fetch registry data');
+          setLoading(false);
+          return;
+        }
 
-    if (result.success && result.data) {
-      const validation = RegistryDataSchema.safeParse(result.data);
-      if (validation.success) {
-        setData(validation.data);
-      } else {
-        setError('Invalid data structure for registry');
+        const result = await response.json();
+
+        // The API returns data directly, not wrapped in { success, data }
+        const validation = RegistryDataSchema.safeParse(result);
+        if (validation.success) {
+          setData(validation.data);
+        } else {
+          console.error('Registry validation failed:', validation.error);
+          setError('Invalid data structure for registry');
+        }
+      } catch (err) {
+        console.error('Error fetching registry:', err);
+        setError(err instanceof Error ? err.message : 'Failed to fetch registry data');
       }
-    } else {
-      setError(result.error?.message || 'Failed to fetch registry data');
-    }
-    setLoading(false);
+      setLoading(false);
+    };
+    void fetchLogic();
   }, [search, onChainOnly]);
 
   useEffect(() => {
     fetchRegistry();
   }, [fetchRegistry]);
 
+  // Debounced search - re-fetch when search/onChainOnly changes (with 300ms delay)
   useEffect(() => {
+    if (!search && !onChainOnly) return; // Skip on initial mount
     const timer = setTimeout(() => {
       fetchRegistry();
     }, 300);
     return () => clearTimeout(timer);
-  }, [fetchRegistry]);
+  }, [search, onChainOnly, fetchRegistry]);
 
   const renderBadge = (
     _type: string,

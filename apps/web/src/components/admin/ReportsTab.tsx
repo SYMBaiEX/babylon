@@ -120,37 +120,53 @@ export function ReportsTab() {
   const [, startRefresh] = useTransition();
 
   const fetchReports = useCallback(
-    async (showRefreshing = false) => {
+    (showRefreshing = false) => {
       const fetchLogic = async () => {
-        const params = new URLSearchParams({
-          limit: '100',
-        });
-        if (statusFilter !== 'all') params.set('status', statusFilter);
-        if (priorityFilter !== 'all') params.set('priority', priorityFilter);
+        try {
+          const params = new URLSearchParams({
+            limit: '100',
+          });
+          if (statusFilter !== 'all') params.set('status', statusFilter);
+          if (priorityFilter !== 'all') params.set('priority', priorityFilter);
 
-        const response = await fetch(`/api/admin/reports?${params}`);
-        if (!response.ok) throw new Error('Failed to fetch reports');
+          const response = await fetch(`/api/admin/reports?${params}`);
+          if (!response.ok) {
+            console.error('Failed to fetch reports:', response.status);
+            setLoading(false);
+            return;
+          }
 
-        const data = await response.json();
-        setReports(data.reports || []);
-        setLoading(false);
+          const data = await response.json();
+          setReports(data.reports || []);
+          setLoading(false);
+        } catch (err) {
+          console.error('Error fetching reports:', err);
+          setLoading(false);
+        }
       };
 
       if (showRefreshing) {
         startRefresh(fetchLogic);
       } else {
-        await fetchLogic();
+        void fetchLogic();
       }
     },
     [statusFilter, priorityFilter]
   );
 
-  const fetchStats = useCallback(async () => {
-    const response = await fetch('/api/admin/reports/stats');
-    if (!response.ok) return;
+  const fetchStats = useCallback(() => {
+    const fetchLogic = async () => {
+      try {
+        const response = await fetch('/api/admin/reports/stats');
+        if (!response.ok) return;
 
-    const data = await response.json();
-    setStats(data);
+        const data = await response.json();
+        setStats(data);
+      } catch (err) {
+        console.error('Error fetching report stats:', err);
+      }
+    };
+    void fetchLogic();
   }, []);
 
   useEffect(() => {
