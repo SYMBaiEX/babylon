@@ -61,7 +61,9 @@ export const POST = withErrorHandling(
     const validContentTypes = ['post', 'comment'] as const;
     if (
       !validActions.includes(action as (typeof validActions)[number]) ||
-      !validContentTypes.includes(contentType as (typeof validContentTypes)[number])
+      !validContentTypes.includes(
+        contentType as (typeof validContentTypes)[number]
+      )
     ) {
       return successResponse({ error: 'Invalid action or contentType' }, 400);
     }

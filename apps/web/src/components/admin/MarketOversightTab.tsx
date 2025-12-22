@@ -150,7 +150,8 @@ export function MarketOversightTab() {
         action: actionType,
         reason: actionReason || undefined,
         ...(actionType === 'resolve' && { resolution }),
-        ...(actionType === 'extend' && extendDate && { newEndDate: extendDate }),
+        ...(actionType === 'extend' &&
+          extendDate && { newEndDate: extendDate }),
       };
 
       const response = await fetch(`/api/admin/markets/${selectedMarket.id}`, {
