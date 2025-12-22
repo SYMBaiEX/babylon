@@ -223,7 +223,8 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
   // Generate next cursor from the last item
   const lastLog = resultLogs[resultLogs.length - 1];
-  const nextCursor = hasMore && lastLog ? lastLog.createdAt.toISOString() : null;
+  const nextCursor =
+    hasMore && lastLog ? lastLog.createdAt.toISOString() : null;
 
   // Get unique action types for filter dropdown
   const actionTypes = await db

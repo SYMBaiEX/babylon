@@ -11,7 +11,7 @@
  * ```
  */
 
-import { useEffect, type RefObject } from 'react';
+import { type RefObject, useEffect } from 'react';
 
 type EventType = 'mousedown' | 'mouseup' | 'touchstart' | 'touchend';
 

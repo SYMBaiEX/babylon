@@ -26,10 +26,7 @@ async function checkServerHealth(): Promise<boolean> {
   return response.ok;
 }
 
-async function getWithAuth(
-  path: string,
-  token?: string
-): Promise<Response> {
+async function getWithAuth(path: string, token?: string): Promise<Response> {
   const headers: HeadersInit = {
     'Content-Type': 'application/json',
   };
@@ -314,14 +311,11 @@ describe('Admin API Endpoints Integration', () => {
   describe('Market Actions - POST /api/admin/markets/[marketId]', () => {
     test('should require authentication', async () => {
       if (!serverAvailable) return;
-      const res = await fetch(
-        `${BASE_URL}/api/admin/markets/test-market-id`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'resolve', resolution: true }),
-        }
-      );
+      const res = await fetch(`${BASE_URL}/api/admin/markets/test-market-id`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'resolve', resolution: true }),
+      });
       expect(res.status).toBe(401);
     });
 
@@ -346,17 +340,14 @@ describe('Admin API Endpoints Integration', () => {
 
     test('should validate action parameter', async () => {
       if (!serverAvailable || !adminToken) return;
-      const res = await fetch(
-        `${BASE_URL}/api/admin/markets/test-market-id`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${adminToken}`,
-          },
-          body: JSON.stringify({ action: 'invalid-action' }),
-        }
-      );
+      const res = await fetch(`${BASE_URL}/api/admin/markets/test-market-id`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${adminToken}`,
+        },
+        body: JSON.stringify({ action: 'invalid-action' }),
+      });
       expect(res.status).toBe(400);
     });
   });

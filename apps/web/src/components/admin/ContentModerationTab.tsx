@@ -177,18 +177,15 @@ export function ContentModerationTab() {
     startActioning(async () => {
       let response: Response;
       try {
-        response = await fetch(
-          `/api/admin/content-queue/${selectedItem.id}`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              action: actionType,
-              contentType: selectedItem.type,
-              reason: actionReason || undefined,
-            }),
-          }
-        );
+        response = await fetch(`/api/admin/content-queue/${selectedItem.id}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: actionType,
+            contentType: selectedItem.type,
+            reason: actionReason || undefined,
+          }),
+        });
       } catch {
         toast.error('Network error. Check your connection.');
         return;
