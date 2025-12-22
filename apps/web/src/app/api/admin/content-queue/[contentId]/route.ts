@@ -45,7 +45,10 @@ function getClientIp(request: NextRequest): string | undefined {
   const forwardedFor = request.headers.get('x-forwarded-for');
   if (!forwardedFor) return undefined;
   // Take the last IP (most reliable - added by our reverse proxy)
-  return forwardedFor.split(',').map((s) => s.trim()).pop();
+  return forwardedFor
+    .split(',')
+    .map((s) => s.trim())
+    .pop();
 }
 
 export const POST = withErrorHandling(

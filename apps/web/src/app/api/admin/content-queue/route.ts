@@ -53,11 +53,16 @@ function sanitizeImageUrl(url: string | null): string | null {
     if (parsed.protocol !== 'https:') return null;
     // Check against allowed domains (optional, can be relaxed for development)
     const isAllowedDomain = ALLOWED_IMAGE_DOMAINS.some(
-      (domain) => parsed.hostname === domain || parsed.hostname.endsWith(`.${domain}`)
+      (domain) =>
+        parsed.hostname === domain || parsed.hostname.endsWith(`.${domain}`)
     );
     // Log warning but don't block for now (can tighten in production)
     if (!isAllowedDomain) {
-      logger.warn(`Image URL from unexpected domain: ${parsed.hostname}`, {}, 'sanitizeImageUrl');
+      logger.warn(
+        `Image URL from unexpected domain: ${parsed.hostname}`,
+        {},
+        'sanitizeImageUrl'
+      );
     }
     return url;
   } catch {
@@ -87,7 +92,10 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
   if (!parseResult.success) {
     return successResponse(
-      { error: 'Invalid query parameters', details: parseResult.error.flatten() },
+      {
+        error: 'Invalid query parameters',
+        details: parseResult.error.flatten(),
+      },
       400
     );
   }
@@ -207,7 +215,9 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       isHidden: p.deletedAt !== null,
       reactionCount: 0,
       commentCount: 0,
-      mediaUrls: sanitizeImageUrl(p.imageUrl) ? [sanitizeImageUrl(p.imageUrl)] : [],
+      mediaUrls: sanitizeImageUrl(p.imageUrl)
+        ? [sanitizeImageUrl(p.imageUrl)]
+        : [],
     })),
     comments: reportedComments.map((c) => ({
       ...c,
