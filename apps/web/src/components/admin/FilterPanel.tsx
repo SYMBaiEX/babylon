@@ -64,11 +64,7 @@ export function FilterPanel({
 
       onFilterChange({
         ...filters,
-        dateRange: {
-          startDate: preset.days === 0 ? startDate : startDate,
-          endDate,
-          preset: preset.label,
-        },
+        dateRange: { startDate, endDate, preset: preset.label },
       });
     },
     [filters, onFilterChange]

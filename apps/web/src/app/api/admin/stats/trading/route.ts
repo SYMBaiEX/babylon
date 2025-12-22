@@ -48,15 +48,9 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     'GET /api/admin/stats/trading'
   );
 
-  // Get current date info
+  // Calculate today's date boundary
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const yesterday = new Date(today);
-  yesterday.setDate(yesterday.getDate() - 1);
-  const lastWeek = new Date(today);
-  lastWeek.setDate(lastWeek.getDate() - 7);
-  const lastMonth = new Date(today);
-  lastMonth.setMonth(lastMonth.getMonth() - 1);
 
   // Market statistics
   const [

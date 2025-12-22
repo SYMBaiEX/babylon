@@ -50,7 +50,7 @@ export interface AuthenticatedAdminUser extends AuthenticatedUser {
 export async function getAdminRole(
   userId: string
 ): Promise<{ role: AdminRoleType | null; permissions: AdminPermission[] }> {
-  // First check the new adminRoles table
+  // Check the adminRoles table first
   const [adminRole] = await db
     .select({
       role: adminRoles.role,
@@ -60,19 +60,14 @@ export async function getAdminRole(
     .where(eq(adminRoles.userId, userId))
     .limit(1);
 
-  if (adminRole && !adminRole.role) {
-    return { role: null, permissions: [] };
-  }
-
-  if (adminRole) {
+  if (adminRole?.role) {
     const role = adminRole.role as AdminRoleType;
-    // Use custom permissions if provided, otherwise use default role permissions
     const permissions =
       (adminRole.permissions as AdminPermission[]) || ROLE_PERMISSIONS[role];
     return { role, permissions };
   }
 
-  // Backward compatibility: Check isAdmin flag
+  // Backward compatibility: Check isAdmin flag for legacy admins
   const [user] = await db
     .select({ isAdmin: users.isAdmin })
     .from(users)
@@ -80,7 +75,6 @@ export async function getAdminRole(
     .limit(1);
 
   if (user?.isAdmin) {
-    // Legacy admins get SUPER_ADMIN permissions
     return { role: 'SUPER_ADMIN', permissions: ROLE_PERMISSIONS.SUPER_ADMIN };
   }
 
@@ -248,20 +242,9 @@ export async function requireSuperAdmin(
  * Check if a user ID has admin privileges (without requiring request auth)
  */
 export async function isUserAdmin(userId: string): Promise<boolean> {
+  // getAdminRole already handles both adminRoles table and legacy isAdmin flag
   const { role } = await getAdminRole(userId);
-  if (role) return true;
-
-  // Backward compatibility check
-  const [user] = await db
-    .select({
-      isAdmin: users.isAdmin,
-      isBanned: users.isBanned,
-    })
-    .from(users)
-    .where(eq(users.id, userId))
-    .limit(1);
-
-  return user ? user.isAdmin && !user.isBanned : false;
+  return role !== null;
 }
 
 /**

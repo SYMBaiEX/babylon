@@ -10,7 +10,7 @@ import {
   successResponse,
   withErrorHandling,
 } from '@babylon/api';
-import { db, gte, lte, sql, users } from '@babylon/db';
+import { db } from '@babylon/db';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 
@@ -48,40 +48,12 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     'GET /api/admin/stats/users'
   );
 
-  // Build date conditions
-  const dateConditions = [];
-  if (startDate) {
-    dateConditions.push(gte(users.createdAt, startDate));
-  }
-  if (endDate) {
-    dateConditions.push(lte(users.createdAt, endDate));
-  }
-
-  // Build user type conditions
-  const userTypeConditions: ReturnType<typeof sql>[] = [];
-  switch (userType) {
-    case 'real':
-      userTypeConditions.push(
-        sql`${users.isActor} = false AND ${users.isAgent} = false`
-      );
-      break;
-    case 'actors':
-      userTypeConditions.push(sql`${users.isActor} = true`);
-      break;
-    case 'agents':
-      userTypeConditions.push(sql`${users.isAgent} = true`);
-      break;
-  }
-
-  // Get current date info
+  // Calculate date boundaries
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const yesterday = new Date(today);
-  yesterday.setDate(yesterday.getDate() - 1);
-  const lastWeek = new Date(today);
-  lastWeek.setDate(lastWeek.getDate() - 7);
-  const lastMonth = new Date(today);
-  lastMonth.setMonth(lastMonth.getMonth() - 1);
+  const yesterday = new Date(today.getTime() - 86400000); // 1 day in ms
+  const lastWeek = new Date(today.getTime() - 7 * 86400000);
+  const lastMonth = new Date(today.getTime() - 30 * 86400000);
 
   // Run parallel queries
   const [
