@@ -1,10 +1,5 @@
-/**
- * Admin Roles Management API
- *
- * @route GET /api/admin/roles - List all admins with their roles
- * @route POST /api/admin/roles - Grant or revoke admin roles (SUPER_ADMIN only)
- * @access Admin (GET), Super Admin (POST)
- */
+// GET /api/admin/roles - List admins
+// POST /api/admin/roles - Grant/revoke roles (SUPER_ADMIN only)
 
 import {
   getAllAdmins,
@@ -27,10 +22,6 @@ import {
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 
-/**
- * GET /api/admin/roles
- * Returns list of all admins with their roles
- */
 export const GET = withErrorHandling(async (request: NextRequest) => {
   await requireAdmin(request);
 
@@ -51,16 +42,6 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   });
 });
 
-/**
- * POST /api/admin/roles
- * Grant or revoke admin roles
- *
- * Body:
- * - userId: string (required)
- * - action: 'grant' | 'revoke' (required)
- * - role: 'SUPER_ADMIN' | 'ADMIN' | 'VIEWER' (required for grant)
- * - permissions: string[] (optional, for custom permissions)
- */
 export const POST = withErrorHandling(async (request: NextRequest) => {
   const admin = await requireSuperAdmin(request);
 
@@ -80,7 +61,6 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     return successResponse({ error: 'action must be grant or revoke' }, 400);
   }
 
-  // Check if target user exists
   const [targetUser] = await db
     .select({
       id: users.id,
@@ -105,10 +85,8 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       );
     }
 
-    // Use custom permissions or default role permissions
     const finalPermissions = permissions || ROLE_PERMISSIONS[role];
 
-    // Check if user already has a role
     const [existingRole] = await db
       .select()
       .from(adminRoles)
@@ -116,7 +94,6 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       .limit(1);
 
     if (existingRole) {
-      // Update existing role
       await db
         .update(adminRoles)
         .set({
@@ -130,15 +107,10 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
 
       logger.info(
         'Admin role updated',
-        {
-          targetUserId: userId,
-          role,
-          updatedBy: admin.userId,
-        },
+        { targetUserId: userId, role, updatedBy: admin.userId },
         'POST /api/admin/roles'
       );
     } else {
-      // Create new role
       await db.insert(adminRoles).values({
         id: `admin_role_${generateSnowflakeId()}`,
         userId,
@@ -150,11 +122,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
 
       logger.info(
         'Admin role granted',
-        {
-          targetUserId: userId,
-          role,
-          grantedBy: admin.userId,
-        },
+        { targetUserId: userId, role, grantedBy: admin.userId },
         'POST /api/admin/roles'
       );
     }
@@ -171,8 +139,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       },
     });
   }
-  // Revoke action
-  // Check if user has an admin role
+
   const [existingRole] = await db
     .select()
     .from(adminRoles)
@@ -183,26 +150,20 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     return successResponse({ error: 'User does not have an admin role' }, 400);
   }
 
-  // Prevent self-revocation of SUPER_ADMIN
   if (admin.userId === userId) {
     return successResponse({ error: 'Cannot revoke your own admin role' }, 400);
   }
 
-  // Mark as revoked
   await db
     .update(adminRoles)
     .set({ revokedAt: new Date() })
     .where(eq(adminRoles.userId, userId));
 
-  // Also update the legacy isAdmin flag for backward compatibility
   await db.update(users).set({ isAdmin: false }).where(eq(users.id, userId));
 
   logger.info(
     'Admin role revoked',
-    {
-      targetUserId: userId,
-      revokedBy: admin.userId,
-    },
+    { targetUserId: userId, revokedBy: admin.userId },
     'POST /api/admin/roles'
   );
 

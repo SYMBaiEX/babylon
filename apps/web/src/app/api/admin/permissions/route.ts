@@ -1,9 +1,4 @@
-/**
- * Admin Permissions API
- *
- * @route GET /api/admin/permissions - Get current user's admin permissions
- * @access Admin
- */
+// GET /api/admin/permissions - Current user's admin permissions
 
 import {
   getAdminRole,
@@ -14,10 +9,6 @@ import {
 import { ADMIN_PERMISSIONS, ROLE_PERMISSIONS } from '@babylon/db';
 import type { NextRequest } from 'next/server';
 
-/**
- * GET /api/admin/permissions
- * Returns the current user's admin role and permissions
- */
 export const GET = withErrorHandling(async (request: NextRequest) => {
   const admin = await requireAdmin(request);
 

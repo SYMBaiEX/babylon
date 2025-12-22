@@ -1,9 +1,4 @@
-/**
- * Admin System Health Statistics API
- *
- * @route GET /api/admin/stats/system - Get system health statistics
- * @access Admin
- */
+// GET /api/admin/stats/system - System health statistics
 
 import {
   cronMetrics,
@@ -16,16 +11,11 @@ import { checkDatabaseHealth, db } from '@babylon/db';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 
-/**
- * GET /api/admin/stats/system
- * Returns system health and performance statistics
- */
 export const GET = withErrorHandling(async (request: NextRequest) => {
   await requirePermission(request, 'view_system');
 
   logger.info('System stats requested', {}, 'GET /api/admin/stats/system');
 
-  // Check service health
   const healthChecks = await Promise.allSettled([
     checkDatabaseHealth(),
     isRedisAvailable(),
@@ -36,15 +26,12 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   const redisHealthy =
     healthChecks[1].status === 'fulfilled' && healthChecks[1].value;
 
-  // Get game state
   const game = await db.game.findFirst({
     where: { isContinuous: true },
   });
 
-  // Get cron metrics
   const metrics = cronMetrics.getAllJobStats();
 
-  // Get recent errors from LLM call logs
   const recentLlmErrors = await db.$queryRaw<{ count: string }>`
     SELECT COUNT(*) as count
     FROM "LlmCallLog"
@@ -55,7 +42,6 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     ? Number(recentLlmErrors[0].count)
     : 0;
 
-  // Get LLM usage stats
   const llmStats = await db.$queryRaw<{
     totalCalls: string;
     totalInputTokens: string;
@@ -69,7 +55,6 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     WHERE "createdAt" >= NOW() - INTERVAL '24 hours'
   `;
 
-  // Get database table sizes
   const tableSizes = await db.$queryRaw<{
     tableName: string;
     rowCount: string;
@@ -84,7 +69,6 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     LIMIT 20
   `;
 
-  // Get realtime outbox status
   const outboxStats = await db.$queryRaw<{
     pending: string;
     oldest: Date | null;
@@ -98,20 +82,16 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
   const outboxPending = outboxStats[0] ? Number(outboxStats[0].pending) : 0;
   const outboxOldest = outboxStats[0]?.oldest ?? null;
-
-  // Calculate outbox lag in seconds
   const outboxLagSeconds = outboxOldest
     ? Math.floor((Date.now() - new Date(outboxOldest).getTime()) / 1000)
     : 0;
 
-  // Get generation lock status - check for unexpired locks
   const activeLocks = await db.generationLock.findMany({
     where: { expiresAt: { gt: new Date() } },
     orderBy: { lockedAt: 'desc' },
     take: 5,
   });
 
-  // Get posts lookahead (how far ahead content is generated)
   const latestPost = await db.post.findFirst({
     orderBy: { timestamp: 'desc' },
     select: { timestamp: true },
@@ -123,17 +103,14 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       )
     : 0;
 
-  // Get report queue status
   const pendingReports = await db.report.count({
     where: { status: 'pending' },
   });
 
-  // Get active questions
   const activeQuestions = await db.question.count({
     where: { status: 'active' },
   });
 
-  // Extract llm usage from first element
   const llmUsageRow = llmStats[0];
   const llmCallsTotal = llmUsageRow ? Number(llmUsageRow.totalCalls) : 0;
   const llmInputTokensTotal = llmUsageRow
