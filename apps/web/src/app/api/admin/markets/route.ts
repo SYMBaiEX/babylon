@@ -1,0 +1,131 @@
+/**
+ * Admin Markets Oversight API
+ *
+ * @route GET /api/admin/markets - Get market overview and stats
+ * @access Admin
+ *
+ * @description
+ * Returns market statistics and list of active/recent markets
+ * for admin oversight and management.
+ */
+
+import { requireAdmin, successResponse, withErrorHandling } from '@babylon/api';
+import {
+  and,
+  count,
+  db,
+  desc,
+  eq,
+  gte,
+  lte,
+  markets,
+  positions,
+  sql,
+} from '@babylon/db';
+import { logger } from '@babylon/shared';
+import type { NextRequest } from 'next/server';
+
+export const GET = withErrorHandling(async (request: NextRequest) => {
+  await requireAdmin(request);
+
+  const { searchParams } = new URL(request.url);
+  const status = searchParams.get('status') || 'all'; // 'all', 'active', 'resolved', 'expired'
+  const limit = parseInt(searchParams.get('limit') || '50', 10);
+
+  logger.info(
+    'Admin markets overview requested',
+    { status, limit },
+    'GET /api/admin/markets'
+  );
+
+  const now = new Date();
+
+  // Get market statistics
+  const [marketStats] = await db
+    .select({
+      total: count(),
+      active: sql<number>`COUNT(*) FILTER (WHERE ${markets.resolved} = false AND ${markets.endDate} > ${now})`,
+      expired: sql<number>`COUNT(*) FILTER (WHERE ${markets.resolved} = false AND ${markets.endDate} <= ${now})`,
+      resolved: sql<number>`COUNT(*) FILTER (WHERE ${markets.resolved} = true)`,
+      totalLiquidity: sql<number>`COALESCE(SUM(${markets.liquidity}::numeric), 0)`,
+    })
+    .from(markets);
+
+  // Get position statistics
+  const [positionStats] = await db
+    .select({
+      totalPositions: count(),
+      activePositions: sql<number>`COUNT(*) FILTER (WHERE ${positions.status} = 'active')`,
+      totalValue: sql<number>`COALESCE(SUM(${positions.amount}::numeric), 0)`,
+    })
+    .from(positions);
+
+  // Build filter for markets list
+  let statusFilter = undefined;
+  if (status === 'active') {
+    statusFilter = and(eq(markets.resolved, false), gte(markets.endDate, now));
+  } else if (status === 'expired') {
+    statusFilter = and(eq(markets.resolved, false), lte(markets.endDate, now));
+  } else if (status === 'resolved') {
+    statusFilter = eq(markets.resolved, true);
+  }
+
+  // Get markets list with statistics
+  const marketsList = await db
+    .select({
+      id: markets.id,
+      question: markets.question,
+      description: markets.description,
+      yesShares: markets.yesShares,
+      noShares: markets.noShares,
+      liquidity: markets.liquidity,
+      resolved: markets.resolved,
+      resolution: markets.resolution,
+      endDate: markets.endDate,
+      createdAt: markets.createdAt,
+      onChainMarketId: markets.onChainMarketId,
+      positionCount: sql<number>`(
+        SELECT COUNT(*) FROM "Position" 
+        WHERE "Position"."marketId" = ${markets.id}
+      )`,
+      tradeCount: sql<number>`0`,
+      totalVolume: sql<number>`0`,
+    })
+    .from(markets)
+    .where(statusFilter)
+    .orderBy(desc(markets.createdAt))
+    .limit(limit);
+
+  // Calculate yes price for each market
+  const marketsWithPrices = marketsList.map((market) => {
+    const yesShares = parseFloat(String(market.yesShares));
+    const noShares = parseFloat(String(market.noShares));
+    const totalShares = yesShares + noShares;
+    const yesPrice = totalShares > 0 ? noShares / totalShares : 0.5;
+
+    return {
+      ...market,
+      yesPrice: Math.round(yesPrice * 100),
+      noPrice: Math.round((1 - yesPrice) * 100),
+      status: market.resolved
+        ? 'resolved'
+        : new Date(market.endDate) <= now
+          ? 'expired'
+          : 'active',
+    };
+  });
+
+  return successResponse({
+    stats: {
+      total: marketStats?.total ?? 0,
+      active: Number(marketStats?.active ?? 0),
+      expired: Number(marketStats?.expired ?? 0),
+      resolved: Number(marketStats?.resolved ?? 0),
+      totalLiquidity: Number(marketStats?.totalLiquidity ?? 0),
+      totalPositions: positionStats?.totalPositions ?? 0,
+      activePositions: Number(positionStats?.activePositions ?? 0),
+      totalPositionValue: Number(positionStats?.totalValue ?? 0),
+    },
+    markets: marketsWithPrices,
+  });
+});

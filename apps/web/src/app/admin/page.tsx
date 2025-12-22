@@ -38,14 +38,19 @@ import {
   Bot,
   Database,
   DollarSign,
+  Eye,
   Flag,
   Gamepad2,
   Layers,
+  LineChart,
   MessageSquare,
   Scale,
+  ScrollText,
+  Server,
   Shield,
   ShieldCheck,
   Sparkles,
+  TrendingUp,
   Users,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
@@ -53,15 +58,20 @@ import { useCallback, useEffect, useState } from 'react';
 import { AdminManagementTab } from '@/components/admin/AdminManagementTab';
 import { AgentsTab } from '@/components/admin/AgentsTab';
 import { AIModelsTab } from '@/components/admin/AIModelsTab';
+import { AnalyticsTab } from '@/components/admin/AnalyticsTab';
+import { AuditLogsTab } from '@/components/admin/AuditLogsTab';
+import { ContentModerationTab } from '@/components/admin/ContentModerationTab';
 import { EscrowManagementTab } from '@/components/admin/EscrowManagementTab';
 import { FeesTab } from '@/components/admin/FeesTab';
 import { GameControlTab } from '@/components/admin/GameControlTab';
 import { GroupsTab } from '@/components/admin/GroupsTab';
 import { HumanReviewTab } from '@/components/admin/HumanReviewTab';
+import { MarketOversightTab } from '@/components/admin/MarketOversightTab';
 import { NotificationsTab } from '@/components/admin/NotificationsTab';
 import { RegistryTab } from '@/components/admin/RegistryTab';
 import { ReportsTab } from '@/components/admin/ReportsTab';
 import { StatsTab } from '@/components/admin/StatsTab';
+import { SystemHealthTab } from '@/components/admin/SystemHealthTab';
 import { TradingFeedTab } from '@/components/admin/TradingFeedTab';
 import { TrainingDataTab } from '@/components/admin/TrainingDataTab';
 import { UserManagementTab } from '@/components/admin/UserManagementTab';
@@ -74,10 +84,14 @@ import { useAuth } from '@/hooks/useAuth';
  */
 type Tab =
   | 'stats'
+  | 'analytics'
+  | 'system-health'
   | 'game-control'
   | 'fees'
   | 'trades'
+  | 'markets'
   | 'users'
+  | 'content-moderation'
   | 'registry'
   | 'groups'
   | 'notifications'
@@ -87,7 +101,8 @@ type Tab =
   | 'ai-models'
   | 'training-data'
   | 'agents'
-  | 'escrow';
+  | 'escrow'
+  | 'audit-logs';
 
 /**
  * Admin Dashboard Component
@@ -177,10 +192,14 @@ export default function AdminDashboard() {
 
   const tabs = [
     { id: 'stats' as const, label: 'Dashboard', icon: BarChart },
+    { id: 'analytics' as const, label: 'Analytics', icon: LineChart },
+    { id: 'system-health' as const, label: 'Health', icon: Server },
     { id: 'game-control' as const, label: 'Game Control', icon: Gamepad2 },
+    { id: 'markets' as const, label: 'Markets', icon: TrendingUp },
     { id: 'fees' as const, label: 'Fees', icon: DollarSign },
-    { id: 'trades' as const, label: 'Trading Feed', icon: Activity },
+    { id: 'trades' as const, label: 'Trades', icon: Activity },
     { id: 'users' as const, label: 'Users', icon: Users },
+    { id: 'content-moderation' as const, label: 'Moderation', icon: Eye },
     { id: 'reports' as const, label: 'Reports', icon: Flag },
     { id: 'human-review' as const, label: 'Human Review', icon: Scale },
     { id: 'admins' as const, label: 'Admins', icon: ShieldCheck },
@@ -191,6 +210,7 @@ export default function AdminDashboard() {
     { id: 'training-data' as const, label: 'Training Data', icon: Database },
     { id: 'notifications' as const, label: 'Notifications', icon: Bell },
     { id: 'escrow' as const, label: 'Escrow', icon: DollarSign },
+    { id: 'audit-logs' as const, label: 'Audit Logs', icon: ScrollText },
   ];
 
   return (
@@ -232,10 +252,14 @@ export default function AdminDashboard() {
       {/* Tab Content */}
       <div className="flex-1 overflow-auto">
         {activeTab === 'stats' && <StatsTab />}
+        {activeTab === 'analytics' && <AnalyticsTab />}
+        {activeTab === 'system-health' && <SystemHealthTab />}
         {activeTab === 'game-control' && <GameControlTab />}
+        {activeTab === 'markets' && <MarketOversightTab />}
         {activeTab === 'fees' && <FeesTab />}
         {activeTab === 'trades' && <TradingFeedTab />}
         {activeTab === 'users' && <UserManagementTab />}
+        {activeTab === 'content-moderation' && <ContentModerationTab />}
         {activeTab === 'reports' && <ReportsTab />}
         {activeTab === 'human-review' && <HumanReviewTab />}
         {activeTab === 'admins' && <AdminManagementTab />}
@@ -246,6 +270,7 @@ export default function AdminDashboard() {
         {activeTab === 'training-data' && <TrainingDataTab />}
         {activeTab === 'notifications' && <NotificationsTab />}
         {activeTab === 'escrow' && <EscrowManagementTab />}
+        {activeTab === 'audit-logs' && <AuditLogsTab />}
       </div>
     </PageContainer>
   );

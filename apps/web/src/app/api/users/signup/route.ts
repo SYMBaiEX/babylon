@@ -114,6 +114,7 @@ import {
 import type { OnboardingProfilePayload } from '@babylon/shared';
 import {
   generateSnowflakeId,
+  isAdminEmail,
   logger,
   OnboardingProfileSchema,
   POINTS,
@@ -430,6 +431,17 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
           user = updatedUser;
         } else {
           // Create new user
+          // Check if user should be auto-promoted to admin based on email domain
+          const shouldBeAdmin = isAdminEmail(parsedProfile.email);
+
+          if (shouldBeAdmin) {
+            logger.info(
+              'Auto-promoting new signup user to admin based on email domain',
+              { userId: canonicalUserId, email: parsedProfile.email },
+              'POST /api/users/signup'
+            );
+          }
+
           const [newUser] = await tx
             .insert(users)
             .values({
@@ -437,6 +449,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
               privyId,
               ...baseUserData,
               referredBy: resolvedReferrerId,
+              isAdmin: shouldBeAdmin,
               updatedAt: new Date(),
             })
             .returning();
