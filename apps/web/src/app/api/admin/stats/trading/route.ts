@@ -16,13 +16,24 @@ function parseDateParam(param: string | null): Date | null {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
+/** Valid market types for filtering - whitelist to prevent injection */
+const VALID_MARKET_TYPES = ['all', 'prediction', 'perpetual'] as const;
+type MarketType = (typeof VALID_MARKET_TYPES)[number];
+
+function validateMarketType(value: string | null): MarketType {
+  if (!value || !VALID_MARKET_TYPES.includes(value as MarketType)) {
+    return 'all';
+  }
+  return value as MarketType;
+}
+
 export const GET = withErrorHandling(async (request: NextRequest) => {
   await requirePermission(request, 'view_trading');
 
   const { searchParams } = new URL(request.url);
   const startDate = parseDateParam(searchParams.get('startDate'));
   const endDate = parseDateParam(searchParams.get('endDate'));
-  const marketType = searchParams.get('marketType') || 'all';
+  const marketType = validateMarketType(searchParams.get('marketType'));
   const includeTimeSeries = searchParams.get('includeTimeSeries') === 'true';
 
   logger.info(

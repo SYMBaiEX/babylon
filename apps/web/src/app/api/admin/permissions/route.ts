@@ -14,13 +14,13 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
   const { role, permissions } = await getAdminRole(admin.userId);
 
+  // Note: hasPermission is computed client-side from the permissions array
+  // Functions cannot be serialized in JSON responses
   return successResponse({
     userId: admin.userId,
     role,
     permissions,
     allPermissions: [...ADMIN_PERMISSIONS],
     rolePermissions: ROLE_PERMISSIONS,
-    hasPermission: (permission: string) =>
-      permissions.includes(permission as (typeof permissions)[number]),
   });
 });

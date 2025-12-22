@@ -6,7 +6,7 @@
  * @access Admin
  */
 
-import { requireAdmin, successResponse, withErrorHandling } from '@babylon/api';
+import { requireAdmin, requirePermission, successResponse, withErrorHandling } from '@babylon/api';
 import { logger } from '@babylon/shared';
 import { cookies } from 'next/headers';
 import type { NextRequest } from 'next/server';
@@ -64,7 +64,8 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
  * - environment: 'production' | 'staging' | 'development'
  */
 export const POST = withErrorHandling(async (request: NextRequest) => {
-  const admin = await requireAdmin(request);
+  // Require view_system permission - VIEWER role should not be able to change environment
+  const admin = await requirePermission(request, 'view_system');
 
   const body = await request.json();
   const { environment } = body as { environment?: AdminEnvironment };

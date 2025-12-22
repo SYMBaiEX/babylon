@@ -13,9 +13,11 @@ import {
   type AdminPermission,
   type AdminRoleType,
   adminRoles,
+  and,
   db,
   eq,
   generateSnowflakeId,
+  isNull,
   ROLE_PERMISSIONS,
   users,
 } from '@babylon/db';
@@ -127,6 +129,9 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       );
     }
 
+    // Update legacy isAdmin flag for backward compatibility
+    await db.update(users).set({ isAdmin: true }).where(eq(users.id, userId));
+
     return successResponse({
       success: true,
       message: `${role} role granted to user`,
@@ -140,18 +145,31 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     });
   }
 
+  // Only check for active (non-revoked) roles
   const [existingRole] = await db
     .select()
     .from(adminRoles)
-    .where(eq(adminRoles.userId, userId))
+    .where(and(eq(adminRoles.userId, userId), isNull(adminRoles.revokedAt)))
     .limit(1);
 
   if (!existingRole) {
-    return successResponse({ error: 'User does not have an admin role' }, 400);
+    return successResponse({ error: 'User does not have an active admin role' }, 400);
   }
 
   if (admin.userId === userId) {
     return successResponse({ error: 'Cannot revoke your own admin role' }, 400);
+  }
+
+  // Check if this would remove the last super admin
+  if (existingRole.role === 'SUPER_ADMIN') {
+    const superAdminCount = await db
+      .select({ count: adminRoles.id })
+      .from(adminRoles)
+      .where(and(eq(adminRoles.role, 'SUPER_ADMIN'), isNull(adminRoles.revokedAt)));
+    
+    if (superAdminCount.length <= 1) {
+      return successResponse({ error: 'Cannot revoke the last super admin' }, 400);
+    }
   }
 
   await db

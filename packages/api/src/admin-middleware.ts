@@ -21,6 +21,7 @@ import {
   type AdminPermission,
   type AdminRoleType,
   adminRoles,
+  and,
   db,
   eq,
   isNull,
@@ -50,14 +51,14 @@ export interface AuthenticatedAdminUser extends AuthenticatedUser {
 export async function getAdminRole(
   userId: string
 ): Promise<{ role: AdminRoleType | null; permissions: AdminPermission[] }> {
-  // Check the adminRoles table first
+  // Check the adminRoles table first - only non-revoked roles
   const [adminRole] = await db
     .select({
       role: adminRoles.role,
       permissions: adminRoles.permissions,
     })
     .from(adminRoles)
-    .where(eq(adminRoles.userId, userId))
+    .where(and(eq(adminRoles.userId, userId), isNull(adminRoles.revokedAt)))
     .limit(1);
 
   if (adminRole?.role) {
