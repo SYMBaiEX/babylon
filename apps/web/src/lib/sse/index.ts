@@ -7,15 +7,14 @@
  */
 
 export {
-  SSEManager,
+  type AuthTokenProvider,
   type Channel,
-  type DynamicChannel,
-  type StaticChannel,
-  type SSEMessage,
-  type SSECallback,
-  type SSEManagerConfig,
   type ConnectionState,
   type ConnectionStateListener,
-  type AuthTokenProvider,
+  type DynamicChannel,
+  type SSECallback,
+  SSEManager,
+  type SSEManagerConfig,
+  type SSEMessage,
+  type StaticChannel,
 } from './SSEManager';
-
