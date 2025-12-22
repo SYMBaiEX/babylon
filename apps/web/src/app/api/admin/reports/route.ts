@@ -163,14 +163,10 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   let orderByClause;
   if (params.sortBy === 'created') {
     orderByClause =
-      params.sortOrder === 'desc'
-        ? desc(reports.createdAt)
-        : reports.createdAt;
+      params.sortOrder === 'desc' ? desc(reports.createdAt) : reports.createdAt;
   } else if (params.sortBy === 'updated') {
     orderByClause =
-      params.sortOrder === 'desc'
-        ? desc(reports.updatedAt)
-        : reports.updatedAt;
+      params.sortOrder === 'desc' ? desc(reports.updatedAt) : reports.updatedAt;
   } else if (params.sortBy === 'priority') {
     orderByClause =
       params.sortOrder === 'desc' ? desc(reports.priority) : reports.priority;
@@ -209,16 +205,16 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         string | null
       >`${reporterAlias}."profileImageUrl"`,
       // Reported user data
-      reportedUserUsername: sql<
-        string | null
-      >`${reportedUserAlias}."username"`,
+      reportedUserUsername: sql<string | null>`${reportedUserAlias}."username"`,
       reportedUserDisplayName: sql<
         string | null
       >`${reportedUserAlias}."displayName"`,
       reportedUserProfileImageUrl: sql<
         string | null
       >`${reportedUserAlias}."profileImageUrl"`,
-      reportedUserIsBanned: sql<boolean | null>`${reportedUserAlias}."isBanned"`,
+      reportedUserIsBanned: sql<
+        boolean | null
+      >`${reportedUserAlias}."isBanned"`,
       // Resolver user data
       resolverUsername: sql<string | null>`${resolverAlias}."username"`,
       resolverDisplayName: sql<string | null>`${resolverAlias}."displayName"`,

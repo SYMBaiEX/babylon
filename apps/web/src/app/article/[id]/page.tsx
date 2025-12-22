@@ -109,7 +109,9 @@ export default function ArticlePage({ params }: ArticlePageProps) {
   // Helper function to format article content into paragraphs
   const formatArticleContent = (content: string): string[] => {
     // First try splitting by double newlines
-    const doubleNewlineParagraphs = content.split('\n\n').filter((p) => p.trim());
+    const doubleNewlineParagraphs = content
+      .split('\n\n')
+      .filter((p) => p.trim());
     if (doubleNewlineParagraphs.length > 1) {
       return doubleNewlineParagraphs;
     }
@@ -223,10 +225,7 @@ export default function ArticlePage({ params }: ArticlePageProps) {
             {/* Right sidebar - More Articles */}
             <aside className="hidden w-80 shrink-0 border-border border-l xl:block">
               <div className="sticky top-0 p-6">
-                <MoreArticlesWidget
-                  currentArticleId={articleId}
-                  limit={5}
-                />
+                <MoreArticlesWidget currentArticleId={articleId} limit={5} />
               </div>
             </aside>
           </div>
@@ -309,10 +308,7 @@ export default function ArticlePage({ params }: ArticlePageProps) {
 
             {/* More Articles - Mobile */}
             <div className="mt-8 border-border border-t pt-6">
-              <MoreArticlesWidget
-                currentArticleId={articleId}
-                limit={4}
-              />
+              <MoreArticlesWidget currentArticleId={articleId} limit={4} />
             </div>
           </article>
         </div>

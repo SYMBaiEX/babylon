@@ -40,7 +40,9 @@ export function MoreArticlesWidget({
     const fetchArticles = async () => {
       setIsLoading(true);
 
-      const response = await fetch(`/api/posts?type=article&limit=${limit + 1}`);
+      const response = await fetch(
+        `/api/posts?type=article&limit=${limit + 1}`
+      );
 
       if (!response.ok) {
         setIsLoading(false);
@@ -147,7 +149,9 @@ export function MoreArticlesWidget({
               <div className="mt-1 flex items-center gap-2 text-muted-foreground text-xs">
                 <span className="truncate">{article.authorName}</span>
                 <span>·</span>
-                <span className="shrink-0">{formatTimeAgo(article.timestamp)}</span>
+                <span className="shrink-0">
+                  {formatTimeAgo(article.timestamp)}
+                </span>
               </div>
             </div>
           </Link>

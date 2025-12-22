@@ -215,15 +215,7 @@ const DOMAIN_KEYWORDS: Record<string, string[]> = {
     'app',
     'platform',
   ],
-  crypto: [
-    'bitcoin',
-    'ethereum',
-    'blockchain',
-    'token',
-    'defi',
-    'nft',
-    'web3',
-  ],
+  crypto: ['bitcoin', 'ethereum', 'blockchain', 'token', 'defi', 'nft', 'web3'],
   finance: [
     'market',
     'stock',
