@@ -155,18 +155,17 @@ export const POST = withErrorHandling(
       }
 
       if (action === 'approve') {
-        // Dismiss reports for the parent post of this comment
-        // Note: The reports schema doesn't have reportedCommentId - reports are made against posts or users
+        // Dismiss reports for this comment
         await db
           .update(reports)
           .set({
             status: 'dismissed',
-            resolution: 'Comment content approved by admin',
+            resolution: 'Comment approved by admin',
             resolvedBy: admin.userId,
             resolvedAt: new Date(),
             updatedAt: new Date(),
           })
-          .where(eq(reports.reportedPostId, existingComment.postId));
+          .where(eq(reports.reportedCommentId, contentId));
 
         await logAdminModify({
           adminId: admin.userId,
@@ -179,6 +178,7 @@ export const POST = withErrorHandling(
           metadata: { action: 'approve' },
         });
       } else if (action === 'hide') {
+        // Soft delete by setting deletedAt (content can be recovered if needed)
         await db
           .update(comments)
           .set({
@@ -186,6 +186,18 @@ export const POST = withErrorHandling(
             updatedAt: new Date(),
           })
           .where(eq(comments.id, contentId));
+
+        // Mark reports as resolved (matching post hide behavior)
+        await db
+          .update(reports)
+          .set({
+            status: 'resolved',
+            resolution: reason || 'Comment hidden by admin',
+            resolvedBy: admin.userId,
+            resolvedAt: new Date(),
+            updatedAt: new Date(),
+          })
+          .where(eq(reports.reportedCommentId, contentId));
 
         await logAdminModify({
           adminId: admin.userId,
