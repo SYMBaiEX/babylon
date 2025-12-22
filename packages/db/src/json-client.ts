@@ -160,5 +160,6 @@ export function createJsonClient(): DrizzleClient {
     userApiKey: createJsonRepo('userApiKeys'),
     tickTokenStats: createJsonRepo('tickTokenStats'),
     questionArcPlan: createJsonRepo('questionArcPlans'),
+    adminRole: createJsonRepo('adminRoles'),
   };
 }

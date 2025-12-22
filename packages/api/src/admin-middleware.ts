@@ -10,9 +10,23 @@
  * - NEVER bypasses authentication based on localhost/host header
  * - Dev mode requires explicit dev admin token
  * - Production requires Privy auth + database admin flag
+ *
+ * @rbac
+ * - SUPER_ADMIN: Full access, can manage other admins
+ * - ADMIN: Can view all stats and perform admin actions
+ * - VIEWER: Read-only access to admin dashboards
  */
 
-import { db, eq, users } from '@babylon/db';
+import {
+  adminRoles,
+  type AdminPermission,
+  type AdminRoleType,
+  db,
+  eq,
+  isNull,
+  ROLE_PERMISSIONS,
+  users,
+} from '@babylon/db';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import type { AuthenticatedUser } from './auth-middleware';
@@ -23,6 +37,57 @@ import { AuthorizationError } from './errors';
 const isDevelopment = process.env.NODE_ENV !== 'production';
 
 /**
+ * Authenticated admin user with role information
+ */
+export interface AuthenticatedAdminUser extends AuthenticatedUser {
+  role: AdminRoleType | null;
+  permissions: AdminPermission[];
+}
+
+/**
+ * Get admin role and permissions for a user
+ */
+export async function getAdminRole(
+  userId: string
+): Promise<{ role: AdminRoleType | null; permissions: AdminPermission[] }> {
+  // First check the new adminRoles table
+  const [adminRole] = await db
+    .select({
+      role: adminRoles.role,
+      permissions: adminRoles.permissions,
+    })
+    .from(adminRoles)
+    .where(eq(adminRoles.userId, userId))
+    .limit(1);
+
+  if (adminRole && !adminRole.role) {
+    return { role: null, permissions: [] };
+  }
+
+  if (adminRole) {
+    const role = adminRole.role as AdminRoleType;
+    // Use custom permissions if provided, otherwise use default role permissions
+    const permissions =
+      (adminRole.permissions as AdminPermission[]) || ROLE_PERMISSIONS[role];
+    return { role, permissions };
+  }
+
+  // Backward compatibility: Check isAdmin flag
+  const [user] = await db
+    .select({ isAdmin: users.isAdmin })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+
+  if (user?.isAdmin) {
+    // Legacy admins get SUPER_ADMIN permissions
+    return { role: 'SUPER_ADMIN', permissions: ROLE_PERMISSIONS.SUPER_ADMIN };
+  }
+
+  return { role: null, permissions: [] };
+}
+
+/**
  * Authenticate request and verify admin privileges.
  *
  * In development mode:
@@ -31,11 +96,11 @@ const isDevelopment = process.env.NODE_ENV !== 'production';
  *
  * In production:
  * - Requires valid Privy authentication
- * - Requires isAdmin flag in database
+ * - Requires isAdmin flag in database OR role in adminRoles table
  */
 export async function requireAdmin(
   request: NextRequest
-): Promise<AuthenticatedUser> {
+): Promise<AuthenticatedAdminUser> {
   // In development, check for dev admin token first
   if (isDevelopment) {
     const devAdminToken = request.headers.get('x-dev-admin-token');
@@ -51,6 +116,8 @@ export async function requireAdmin(
           userId: devUser.userId,
           dbUserId: devUser.dbUserId,
           walletAddress: devUser.walletAddress,
+          role: 'SUPER_ADMIN',
+          permissions: ROLE_PERMISSIONS.SUPER_ADMIN,
         };
       }
     }
@@ -59,7 +126,7 @@ export async function requireAdmin(
   // Standard authentication flow
   const user = await authenticate(request);
 
-  // Check if user is an admin in the database
+  // Check if user is banned
   const [dbUser] = await db
     .select({
       isAdmin: users.isAdmin,
@@ -89,7 +156,10 @@ export async function requireAdmin(
     throw new AuthorizationError('User is banned', 'admin', 'access');
   }
 
-  if (!dbUser.isAdmin) {
+  // Get admin role (checks both adminRoles table and isAdmin flag)
+  const { role, permissions } = await getAdminRole(user.userId);
+
+  if (!role) {
     logger.warn(
       'Admin check failed: User is not an admin',
       {
@@ -106,17 +176,82 @@ export async function requireAdmin(
     {
       userId: user.userId,
       username: dbUser.username,
+      role,
     },
     'requireAdmin'
   );
 
-  return user;
+  return {
+    ...user,
+    role,
+    permissions,
+  };
+}
+
+/**
+ * Require specific admin permission
+ */
+export async function requirePermission(
+  request: NextRequest,
+  permission: AdminPermission
+): Promise<AuthenticatedAdminUser> {
+  const admin = await requireAdmin(request);
+
+  if (!admin.permissions.includes(permission)) {
+    logger.warn(
+      'Permission check failed',
+      {
+        userId: admin.userId,
+        role: admin.role,
+        requiredPermission: permission,
+      },
+      'requirePermission'
+    );
+    throw new AuthorizationError(
+      `Permission required: ${permission}`,
+      'admin',
+      permission
+    );
+  }
+
+  return admin;
+}
+
+/**
+ * Require SUPER_ADMIN role
+ */
+export async function requireSuperAdmin(
+  request: NextRequest
+): Promise<AuthenticatedAdminUser> {
+  const admin = await requireAdmin(request);
+
+  if (admin.role !== 'SUPER_ADMIN') {
+    logger.warn(
+      'Super admin check failed',
+      {
+        userId: admin.userId,
+        role: admin.role,
+      },
+      'requireSuperAdmin'
+    );
+    throw new AuthorizationError(
+      'Super admin access required',
+      'admin',
+      'super_admin'
+    );
+  }
+
+  return admin;
 }
 
 /**
  * Check if a user ID has admin privileges (without requiring request auth)
  */
 export async function isUserAdmin(userId: string): Promise<boolean> {
+  const { role } = await getAdminRole(userId);
+  if (role) return true;
+
+  // Backward compatibility check
   const [user] = await db
     .select({
       isAdmin: users.isAdmin,
@@ -127,4 +262,94 @@ export async function isUserAdmin(userId: string): Promise<boolean> {
     .limit(1);
 
   return user ? user.isAdmin && !user.isBanned : false;
+}
+
+/**
+ * Get all admin users with their roles
+ */
+export async function getAllAdmins(): Promise<
+  Array<{
+    userId: string;
+    username: string | null;
+    displayName: string | null;
+    profileImageUrl: string | null;
+    role: AdminRoleType;
+    permissions: AdminPermission[];
+    grantedAt: Date;
+    grantedBy: string;
+  }>
+> {
+  // Get users from adminRoles table (non-revoked)
+  const roleAdmins = await db
+    .select({
+      userId: adminRoles.userId,
+      role: adminRoles.role,
+      permissions: adminRoles.permissions,
+      grantedAt: adminRoles.grantedAt,
+      grantedBy: adminRoles.grantedBy,
+      username: users.username,
+      displayName: users.displayName,
+      profileImageUrl: users.profileImageUrl,
+    })
+    .from(adminRoles)
+    .innerJoin(users, eq(adminRoles.userId, users.id))
+    .where(isNull(adminRoles.revokedAt));
+
+  // Get legacy admins (isAdmin = true but not in adminRoles)
+  const roleUserIds = new Set(roleAdmins.map((a) => a.userId));
+  const legacyAdmins = await db
+    .select({
+      id: users.id,
+      username: users.username,
+      displayName: users.displayName,
+      profileImageUrl: users.profileImageUrl,
+      createdAt: users.createdAt,
+    })
+    .from(users)
+    .where(eq(users.isAdmin, true));
+
+  const results: Array<{
+    userId: string;
+    username: string | null;
+    displayName: string | null;
+    profileImageUrl: string | null;
+    role: AdminRoleType;
+    permissions: AdminPermission[];
+    grantedAt: Date;
+    grantedBy: string;
+  }> = [];
+
+  // Add role-based admins
+  for (const admin of roleAdmins) {
+    const role = admin.role as AdminRoleType;
+    results.push({
+      userId: admin.userId,
+      username: admin.username,
+      displayName: admin.displayName,
+      profileImageUrl: admin.profileImageUrl,
+      role,
+      permissions:
+        (admin.permissions as AdminPermission[]) || ROLE_PERMISSIONS[role],
+      grantedAt: admin.grantedAt,
+      grantedBy: admin.grantedBy,
+    });
+  }
+
+  // Add legacy admins not in adminRoles
+  for (const legacy of legacyAdmins) {
+    if (!roleUserIds.has(legacy.id)) {
+      results.push({
+        userId: legacy.id,
+        username: legacy.username,
+        displayName: legacy.displayName,
+        profileImageUrl: legacy.profileImageUrl,
+        role: 'SUPER_ADMIN',
+        permissions: ROLE_PERMISSIONS.SUPER_ADMIN,
+        grantedAt: legacy.createdAt,
+        grantedBy: legacy.id, // Self-granted for legacy
+      });
+    }
+  }
+
+  return results;
 }

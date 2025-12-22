@@ -24,7 +24,15 @@ export {
   logAdminView,
 } from './admin-audit';
 // Admin Middleware
-export { isUserAdmin, requireAdmin } from './admin-middleware';
+export {
+  type AuthenticatedAdminUser,
+  getAdminRole,
+  getAllAdmins,
+  isUserAdmin,
+  requireAdmin,
+  requirePermission,
+  requireSuperAdmin,
+} from './admin-middleware';
 // Agent Authentication
 export {
   type AgentSession,
