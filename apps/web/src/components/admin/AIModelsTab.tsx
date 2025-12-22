@@ -1,10 +1,10 @@
 'use client';
 
 import { cn } from '@babylon/shared';
-import { getAuthToken } from '@/lib/auth';
 import { AlertCircle, Bot, Check, RefreshCw, Zap } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
+import { getAuthToken } from '@/lib/auth';
 
 /**
  * AI model info structure.

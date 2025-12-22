@@ -1,13 +1,13 @@
 'use client';
 
 import { cn, logger } from '@babylon/shared';
-import { getAuthToken } from '@/lib/auth';
 import { UserMinus, UserPlus } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { useAuth } from '@/hooks/useAuth';
 import { useSocialTracking } from '@/hooks/usePostHog';
+import { getAuthToken } from '@/lib/auth';
 
 /**
  * Follow button component for following/unfollowing users.

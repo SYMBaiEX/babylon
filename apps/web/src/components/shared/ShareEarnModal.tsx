@@ -17,10 +17,10 @@
  */
 
 import { logger, POINTS } from '@babylon/shared';
-import { getAuthToken } from '@/lib/auth';
 import { Check, Lock, Twitter, X as XIcon } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
+import { getAuthToken } from '@/lib/auth';
 import { ShareVerificationModal } from './ShareVerificationModal';
 
 // Farcaster icon component

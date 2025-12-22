@@ -1,7 +1,6 @@
 'use client';
 
 import { CHAIN, cn, logger, WALLET_ERROR_MESSAGES } from '@babylon/shared';
-import { getAuthToken } from '@/lib/auth';
 import { useFundWallet, usePrivy } from '@privy-io/react-auth';
 import {
   AlertCircle,
@@ -18,6 +17,7 @@ import { Skeleton } from '@/components/shared/Skeleton';
 import { useAuth } from '@/hooks/useAuth';
 import { useBuyPointsTx } from '@/hooks/useBuyPointsTx';
 import { useSmartWalletBalance } from '@/hooks/useSmartWalletBalance';
+import { getAuthToken } from '@/lib/auth';
 
 /**
  * Buy points modal component for purchasing points with ETH.

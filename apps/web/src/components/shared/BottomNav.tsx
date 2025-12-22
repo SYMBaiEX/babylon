@@ -1,13 +1,13 @@
 'use client';
 
 import { cn } from '@babylon/shared';
-import { getAuthToken } from '@/lib/auth';
 import { Bell, Bot, Home, MessageCircle, TrendingUp } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useUnreadMessages } from '@/hooks/useUnreadMessages';
+import { getAuthToken } from '@/lib/auth';
 
 /**
  * Bottom navigation content component for mobile devices.

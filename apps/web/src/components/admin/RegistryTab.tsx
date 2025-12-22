@@ -1,7 +1,6 @@
 'use client';
 
 import { cn } from '@babylon/shared';
-import { getAuthToken } from '@/lib/auth';
 import {
   AlertCircle,
   Ban,
@@ -26,6 +25,7 @@ import { FeedbackForm } from '@/components/feedback/FeedbackForm';
 import { Avatar } from '@/components/shared/Avatar';
 import { SearchBar } from '@/components/shared/SearchBar';
 import { Skeleton } from '@/components/shared/Skeleton';
+import { getAuthToken } from '@/lib/auth';
 
 /**
  * Registry entity schema for validation.

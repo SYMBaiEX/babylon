@@ -1,10 +1,10 @@
 'use client';
 
 import { getReferralUrl } from '@babylon/shared';
-import { getAuthToken } from '@/lib/auth';
 import { Check, Copy, ExternalLink, Trophy, X } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
+import { getAuthToken } from '@/lib/auth';
 import { useAuthStore } from '@/stores/authStore';
 
 /**

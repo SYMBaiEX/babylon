@@ -1,10 +1,10 @@
 'use client';
 
 import { cn } from '@babylon/shared';
-import { getAuthToken } from '@/lib/auth';
 import { Check, X as XIcon } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
+import { getAuthToken } from '@/lib/auth';
 
 /**
  * Share verification modal component for verifying external shares.

@@ -1,7 +1,6 @@
 'use client';
 
 import { cn, logger } from '@babylon/shared';
-import { getAuthToken } from '@/lib/auth';
 import {
   Activity,
   AlertCircle,
@@ -19,6 +18,7 @@ import {
 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
+import { getAuthToken } from '@/lib/auth';
 
 /**
  * Running agent structure for agents tab.

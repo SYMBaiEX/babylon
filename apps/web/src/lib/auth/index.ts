@@ -1,2 +1,1 @@
-export { getAuthToken, hasAuthToken } from './token';
-
+export { getAuthToken } from './token';

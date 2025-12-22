@@ -1,7 +1,6 @@
 'use client';
 
 import { cn } from '@babylon/shared';
-import { getAuthToken } from '@/lib/auth';
 import {
   AlertCircle,
   CheckCircle,
@@ -11,6 +10,7 @@ import {
 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
+import { getAuthToken } from '@/lib/auth';
 
 /**
  * Training data statistics structure for training data tab.

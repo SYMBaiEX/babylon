@@ -16,10 +16,10 @@
  */
 
 import { trackExternalShare } from '@babylon/shared';
-import { getAuthToken } from '@/lib/auth';
 import { Check, Link as LinkIcon, Share2, Twitter } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
+import { getAuthToken } from '@/lib/auth';
 import { ShareVerificationModal } from './ShareVerificationModal';
 
 // Farcaster icon component

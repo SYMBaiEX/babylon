@@ -1,12 +1,12 @@
 'use client';
 
 import { getProfileUrl, POINTS } from '@babylon/shared';
-import { getAuthToken } from '@/lib/auth';
 import { ArrowRight, Award, TrendingUp, UserPlus, Users } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { Avatar } from '@/components/shared/Avatar';
 import { Skeleton } from '@/components/shared/Skeleton';
+import { getAuthToken } from '@/lib/auth';
 
 /**
  * Referred user structure for rewards widget.
