@@ -1,6 +1,7 @@
 'use client';
 
 import { cn } from '@babylon/shared';
+import { getAuthToken } from '@/lib/auth';
 import {
   Calendar,
   MessageCircle,
@@ -91,8 +92,7 @@ export function GroupsTab() {
   const fetchGroups = useCallback(async () => {
     startRefresh(async () => {
       setIsLoading(true);
-      const token =
-        typeof window !== 'undefined' ? window.__privyAccessToken : null;
+      const token = getAuthToken();
 
       if (!token) {
         throw new Error('Not authenticated');

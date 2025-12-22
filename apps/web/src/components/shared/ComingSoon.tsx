@@ -6,6 +6,7 @@ import {
   POINTS,
   signInWithFarcaster,
 } from '@babylon/shared';
+import { getAuthToken } from '@/lib/auth';
 import { usePrivy } from '@privy-io/react-auth';
 import {
   Check,
@@ -264,8 +265,7 @@ export function ComingSoon() {
     });
 
     // Send authentication data to backend for verification and linking
-    const token =
-      typeof window !== 'undefined' ? window.__privyAccessToken : null;
+    const token = getAuthToken();
     const response = await fetch('/api/auth/farcaster/callback', {
       method: 'POST',
       headers: {

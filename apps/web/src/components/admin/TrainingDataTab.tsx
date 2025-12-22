@@ -1,6 +1,7 @@
 'use client';
 
 import { cn } from '@babylon/shared';
+import { getAuthToken } from '@/lib/auth';
 import {
   AlertCircle,
   CheckCircle,
@@ -73,8 +74,7 @@ export function TrainingDataTab() {
   const [loading, setLoading] = useState(true);
 
   const fetchData = useCallback(async () => {
-    const token =
-      typeof window !== 'undefined' ? window.__privyAccessToken : null;
+    const token = getAuthToken();
     if (!token) {
       setLoading(false);
       toast.error('Not authenticated');

@@ -13,6 +13,7 @@ import type {
   PostInteraction,
 } from '@babylon/shared';
 import { retryIfRetryable } from '@babylon/shared';
+import { getAuthToken } from '@/lib/auth';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
@@ -94,15 +95,7 @@ type PersistedInteractionState = {
   favoritedProfiles: string[];
 };
 
-// Helper to get auth token from Privy
-async function getAuthToken(): Promise<string | null> {
-  // Access the token from window object that gets set by useAuth hook
-  if (typeof window !== 'undefined' && window.__privyAccessToken) {
-    return window.__privyAccessToken;
-  }
-
-  return null;
-}
+// getAuthToken is now imported from @/lib/auth
 
 async function apiCall<T>(url: string, options: RequestInit = {}): Promise<T> {
   return retryIfRetryable(

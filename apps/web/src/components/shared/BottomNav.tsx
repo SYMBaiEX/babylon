@@ -1,6 +1,7 @@
 'use client';
 
 import { cn } from '@babylon/shared';
+import { getAuthToken } from '@/lib/auth';
 import { Bell, Bot, Home, MessageCircle, TrendingUp } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -36,8 +37,7 @@ function BottomNavContent() {
     }
 
     const fetchUnreadCount = async () => {
-      const token =
-        typeof window !== 'undefined' ? window.__privyAccessToken : null;
+      const token = getAuthToken();
 
       if (!token) {
         return;

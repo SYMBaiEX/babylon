@@ -1,6 +1,7 @@
 'use client';
 
 import { getDisplayReferralUrl, getReferralUrl } from '@babylon/shared';
+import { getAuthToken } from '@/lib/auth';
 import { Check, Copy, Key, LogOut, Settings } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
@@ -65,8 +66,7 @@ export function UserMenu() {
       if (userMenuFetchInFlight) return;
       userMenuFetchInFlight = true;
 
-      const token =
-        typeof window !== 'undefined' ? window.__privyAccessToken : null;
+      const token = getAuthToken();
       if (!token) {
         userMenuFetchInFlight = false;
         return;

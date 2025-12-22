@@ -1,6 +1,7 @@
 'use client';
 
 import { cn, logger } from '@babylon/shared';
+import { getAuthToken } from '@/lib/auth';
 import { UserMinus, UserPlus } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
@@ -74,8 +75,7 @@ export function FollowButton({
         return;
       }
 
-      const token =
-        typeof window !== 'undefined' ? window.__privyAccessToken : null;
+      const token = getAuthToken();
       if (!token) {
         setIsChecking(false);
         return;
@@ -131,8 +131,7 @@ export function FollowButton({
     }
 
     setIsLoading(true);
-    const token =
-      typeof window !== 'undefined' ? window.__privyAccessToken : null;
+    const token = getAuthToken();
     if (!token) {
       toast.error('Authentication required');
       setIsLoading(false);

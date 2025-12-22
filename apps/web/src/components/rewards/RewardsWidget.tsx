@@ -1,6 +1,7 @@
 'use client';
 
 import { getProfileUrl, POINTS } from '@babylon/shared';
+import { getAuthToken } from '@/lib/auth';
 import { ArrowRight, Award, TrendingUp, UserPlus, Users } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
@@ -106,8 +107,7 @@ export function RewardsWidget({ userId }: RewardsWidgetProps) {
 
       setLoading(true);
 
-      const token =
-        typeof window !== 'undefined' ? window.__privyAccessToken : null;
+      const token = getAuthToken();
       if (!token) {
         setLoading(false);
         rewardsWidgetFetchInFlight = false;

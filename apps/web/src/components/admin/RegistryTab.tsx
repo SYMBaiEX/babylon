@@ -1,6 +1,7 @@
 'use client';
 
 import { cn } from '@babylon/shared';
+import { getAuthToken } from '@/lib/auth';
 import {
   AlertCircle,
   Ban,
@@ -646,8 +647,7 @@ export function RegistryTab() {
     }
 
     setIsBanning(true);
-    const token =
-      typeof window !== 'undefined' ? window.__privyAccessToken : null;
+    const token = getAuthToken();
     const response = await fetch(`/api/admin/users/${entity.id}/ban`, {
       method: 'POST',
       headers: {

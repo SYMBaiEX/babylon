@@ -31,6 +31,7 @@
 'use client';
 
 import { cn } from '@babylon/shared';
+import { getAuthToken } from '@/lib/auth';
 import { Loader2, Send } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
@@ -78,8 +79,7 @@ export function FeedbackForm({
 
     setSubmitting(true);
 
-    const token =
-      typeof window !== 'undefined' ? window.__privyAccessToken : null;
+    const token = getAuthToken();
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
     };

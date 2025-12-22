@@ -1,6 +1,7 @@
 'use client';
 
 import { CHAIN, cn, logger, WALLET_ERROR_MESSAGES } from '@babylon/shared';
+import { getAuthToken } from '@/lib/auth';
 import { useFundWallet, usePrivy } from '@privy-io/react-auth';
 import {
   AlertCircle,
@@ -295,8 +296,7 @@ export function BuyPointsModal({
     transactionHash: string,
     paymentRequest: PaymentRequest
   ) => {
-    const token =
-      typeof window !== 'undefined' ? window.__privyAccessToken : null;
+    const token = getAuthToken();
     if (!token) {
       logger.error('Authentication required', undefined, 'BuyPointsModal');
       setError('Authentication required');
