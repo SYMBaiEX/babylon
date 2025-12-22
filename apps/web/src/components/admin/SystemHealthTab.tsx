@@ -78,7 +78,7 @@ export function SystemHealthTab() {
         setLoading(false);
         return;
       }
-      const result = await response.json();
+      const result: SystemHealthData = await response.json();
       setData(result);
       setLastUpdated(new Date());
       setLoading(false);

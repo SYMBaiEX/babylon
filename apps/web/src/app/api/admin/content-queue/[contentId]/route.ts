@@ -20,6 +20,7 @@ import {
 import { comments, db, eq, posts, reports } from '@babylon/db';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
+import { z } from 'zod';
 
 /**
  * Moderation action types:
@@ -30,11 +31,11 @@ import type { NextRequest } from 'next/server';
  * soft deletes. If hard delete is needed in the future, it should be a
  * separate, more privileged action with additional safeguards.
  */
-interface ModerateRequest {
-  action: 'approve' | 'hide';
-  contentType: 'post' | 'comment';
-  reason?: string;
-}
+const ModerateRequestSchema = z.object({
+  action: z.enum(['approve', 'hide']),
+  contentType: z.enum(['post', 'comment']),
+  reason: z.string().optional(),
+});
 
 export const POST = withErrorHandling(
   async (
@@ -53,20 +54,15 @@ export const POST = withErrorHandling(
 
     const { contentId } = await params;
 
-    const body = (await request.json()) as ModerateRequest;
-    const { action, contentType, reason } = body;
-
-    // Validate request input
-    const validActions = ['approve', 'hide'] as const;
-    const validContentTypes = ['post', 'comment'] as const;
-    if (
-      !validActions.includes(action as (typeof validActions)[number]) ||
-      !validContentTypes.includes(
-        contentType as (typeof validContentTypes)[number]
-      )
-    ) {
-      return successResponse({ error: 'Invalid action or contentType' }, 400);
+    // Validate request body with Zod schema
+    const parseResult = ModerateRequestSchema.safeParse(await request.json());
+    if (!parseResult.success) {
+      return successResponse(
+        { error: 'Invalid request', details: parseResult.error.flatten() },
+        400
+      );
     }
+    const { action, contentType, reason } = parseResult.data;
 
     logger.info(
       'Content moderation action',
@@ -145,7 +141,11 @@ export const POST = withErrorHandling(
     } else if (contentType === 'comment') {
       // Handle comment moderation
       const [existingComment] = await db
-        .select({ id: comments.id, deletedAt: comments.deletedAt })
+        .select({
+          id: comments.id,
+          deletedAt: comments.deletedAt,
+          postId: comments.postId,
+        })
         .from(comments)
         .where(eq(comments.id, contentId))
         .limit(1);
@@ -155,17 +155,18 @@ export const POST = withErrorHandling(
       }
 
       if (action === 'approve') {
-        // Dismiss reports for this comment (matching post approval behavior)
+        // Dismiss reports for the parent post of this comment
+        // Note: The reports schema doesn't have reportedCommentId - reports are made against posts or users
         await db
           .update(reports)
           .set({
             status: 'dismissed',
-            resolution: 'Content approved by admin',
+            resolution: 'Comment content approved by admin',
             resolvedBy: admin.userId,
             resolvedAt: new Date(),
             updatedAt: new Date(),
           })
-          .where(eq(reports.reportedPostId, existingComment.id));
+          .where(eq(reports.reportedPostId, existingComment.postId));
 
         await logAdminModify({
           adminId: admin.userId,

@@ -103,6 +103,7 @@ export function MarketOversightTab() {
 
         const response = await fetch(`/api/admin/markets?${params}`);
         if (!response.ok) {
+          toast.error('Failed to load market data');
           setLoading(false);
           return;
         }

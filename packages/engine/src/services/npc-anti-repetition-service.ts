@@ -9,6 +9,25 @@
  * - Overused vocabulary
  * - Post structure patterns
  *
+ * ## Design Decision: In-Memory Storage
+ *
+ * This service intentionally uses in-memory storage rather than Redis/database:
+ *
+ * 1. **Fresh starts are acceptable**: After server restart, NPCs can repeat
+ *    patterns they used before - this is realistic behavior (people repeat themselves)
+ *
+ * 2. **Memory efficiency**: Each character only stores ~20 posts worth of data,
+ *    making total memory usage minimal even with 100+ characters
+ *
+ * 3. **Performance**: In-memory lookups are O(1), avoiding DB/Redis latency
+ *    during the critical post generation path
+ *
+ * 4. **Simplicity**: No external dependencies or connection management
+ *
+ * If persistence becomes necessary (e.g., for analytics), consider:
+ * - Periodic snapshots to database
+ * - Redis with TTL for distributed deployments
+ *
  * @module services/npc-anti-repetition-service
  */
 

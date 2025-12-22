@@ -239,6 +239,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   // Fetch identity data from Privy if token provided
   let identityFarcasterUsername: string | undefined;
   let identityTwitterUsername: string | undefined;
+  let verifiedEmail: string | null = null;
 
   if (identityToken) {
     const privyClient = getPrivyClient();
@@ -247,6 +248,8 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
 
     identityFarcasterUsername = identityUser.farcaster?.username ?? undefined;
     identityTwitterUsername = identityUser.twitter?.username ?? undefined;
+    // SECURITY: Get verified email from Privy, not from user input
+    verifiedEmail = identityUser.email?.address ?? null;
   } else {
     logger.info(
       'Signup received no identity token; proceeding with provided payload only',
@@ -432,11 +435,11 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
         } else {
           // Create new user
           // Check if user should be auto-promoted to admin based on email domain
-          // SECURITY: Requires email verification
-          // Email is considered verified if present in profile (Privy verifies emails)
-          const emailVerified = !!parsedProfile.email;
+          // SECURITY: Use Privy-verified email, not user-supplied email from parsedProfile
+          // This prevents attackers from submitting fake admin emails in the request body
+          const emailVerified = !!verifiedEmail;
           const shouldBeAdmin = shouldAutoPromoteToAdmin(
-            parsedProfile.email,
+            verifiedEmail,
             emailVerified
           );
 
@@ -445,7 +448,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
               'Auto-promoting new signup user to admin based on verified email domain',
               {
                 userId: canonicalUserId,
-                emailDomain: parsedProfile.email?.split('@')[1] ?? null,
+                emailDomain: verifiedEmail?.split('@')[1] ?? null,
                 emailVerified,
               },
               'POST /api/users/signup'
