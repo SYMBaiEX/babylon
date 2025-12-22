@@ -56,6 +56,16 @@ export const POST = withErrorHandling(
     const body = (await request.json()) as ModerateRequest;
     const { action, contentType, reason } = body;
 
+    // Validate request input
+    const validActions = ['approve', 'hide'] as const;
+    const validContentTypes = ['post', 'comment'] as const;
+    if (
+      !validActions.includes(action as (typeof validActions)[number]) ||
+      !validContentTypes.includes(contentType as (typeof validContentTypes)[number])
+    ) {
+      return successResponse({ error: 'Invalid action or contentType' }, 400);
+    }
+
     logger.info(
       'Content moderation action',
       { contentId, action, contentType, adminId: admin.userId },
@@ -143,6 +153,18 @@ export const POST = withErrorHandling(
       }
 
       if (action === 'approve') {
+        // Dismiss reports for this comment (matching post approval behavior)
+        await db
+          .update(reports)
+          .set({
+            status: 'dismissed',
+            resolution: 'Content approved by admin',
+            resolvedBy: admin.userId,
+            resolvedAt: new Date(),
+            updatedAt: new Date(),
+          })
+          .where(eq(reports.reportedPostId, existingComment.id));
+
         await logAdminModify({
           adminId: admin.userId,
           resourceType: 'comment',

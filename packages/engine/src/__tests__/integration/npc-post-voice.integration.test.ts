@@ -48,10 +48,11 @@ describe.skipIf(SKIP || !hasLLMKey)('NPC Post Voice Integration', () => {
 
   afterAll(async () => {
     // Delete test posts created during this test
+    // Note: generateNPCPost uses gameId: 'continuous', not 'test-voice'
     await db
       .delete(posts)
       .where(
-        and(gte(posts.timestamp, testTimestamp), eq(posts.gameId, 'test-voice'))
+        and(gte(posts.timestamp, testTimestamp), eq(posts.gameId, 'continuous'))
       );
   });
 

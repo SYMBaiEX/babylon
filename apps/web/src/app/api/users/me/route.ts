@@ -425,7 +425,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     if (shouldBeAdmin) {
       logger.info(
         'Auto-promoting user to admin based on verified email domain',
-        { privyId, email, emailVerified },
+        { privyId, emailDomain: email?.split('@')[1] ?? null, emailVerified },
         'GET /api/users/me'
       );
     }

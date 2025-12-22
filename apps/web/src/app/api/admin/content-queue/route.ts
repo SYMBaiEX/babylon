@@ -162,10 +162,12 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         hidden: Number(postStats?.deleted ?? 0),
       },
       comments: {
-        pending: reportedComments.length,
-        hidden: 0,
+        pending: reportedComments.filter((c) => c.deletedAt === null).length,
+        hidden: reportedComments.filter((c) => c.deletedAt !== null).length,
       },
-      totalPending: Number(postStats?.pending ?? 0) + reportedComments.length,
+      totalPending:
+        Number(postStats?.pending ?? 0) +
+        reportedComments.filter((c) => c.deletedAt === null).length,
     },
   });
 });

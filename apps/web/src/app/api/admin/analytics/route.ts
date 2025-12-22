@@ -92,11 +92,16 @@ function formatDateKey(date: Date, period: PeriodType): string {
   return isoDate ?? '';
 }
 
+const VALID_PERIODS: PeriodType[] = ['day', 'week', 'month'];
+
 export const GET = withErrorHandling(async (request: NextRequest) => {
   await requireAdmin(request);
 
   const { searchParams } = new URL(request.url);
-  const period = (searchParams.get('period') || 'week') as PeriodType;
+  const periodParam = searchParams.get('period') || 'week';
+  const period: PeriodType = VALID_PERIODS.includes(periodParam as PeriodType)
+    ? (periodParam as PeriodType)
+    : 'week';
 
   logger.info(
     'Admin analytics requested',
@@ -106,60 +111,119 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
   const { start, end } = getDateRange(period);
 
-  // Get user signups over time
-  const userSignups = await db
-    .select({
-      date: sql<string>`DATE(${users.createdAt})`.as('date'),
-      count: count(),
-    })
-    .from(users)
-    .where(and(gte(users.createdAt, start), lte(users.createdAt, end)))
-    .groupBy(sql`DATE(${users.createdAt})`)
-    .orderBy(sql`DATE(${users.createdAt})`);
+  // Execute all queries in parallel for better performance
+  const [userSignups, postsCreated, commentsCreated, reactionsCreated, followsCreated] =
+    await Promise.all([
+      // User signups
+      db
+        .select({
+          date: (period === 'month'
+            ? sql<string>`TO_CHAR(DATE_TRUNC('month', ${users.createdAt}), 'YYYY-MM')`
+            : sql<string>`DATE(${users.createdAt})`
+          ).as('date'),
+          count: count(),
+        })
+        .from(users)
+        .where(and(gte(users.createdAt, start), lte(users.createdAt, end)))
+        .groupBy(
+          period === 'month'
+            ? sql`DATE_TRUNC('month', ${users.createdAt})`
+            : sql`DATE(${users.createdAt})`
+        )
+        .orderBy(
+          period === 'month'
+            ? sql`DATE_TRUNC('month', ${users.createdAt})`
+            : sql`DATE(${users.createdAt})`
+        ),
 
-  // Get posts over time
-  const postsCreated = await db
-    .select({
-      date: sql<string>`DATE(${posts.createdAt})`.as('date'),
-      count: count(),
-    })
-    .from(posts)
-    .where(and(gte(posts.createdAt, start), lte(posts.createdAt, end)))
-    .groupBy(sql`DATE(${posts.createdAt})`)
-    .orderBy(sql`DATE(${posts.createdAt})`);
+      // Posts
+      db
+        .select({
+          date: (period === 'month'
+            ? sql<string>`TO_CHAR(DATE_TRUNC('month', ${posts.createdAt}), 'YYYY-MM')`
+            : sql<string>`DATE(${posts.createdAt})`
+          ).as('date'),
+          count: count(),
+        })
+        .from(posts)
+        .where(and(gte(posts.createdAt, start), lte(posts.createdAt, end)))
+        .groupBy(
+          period === 'month'
+            ? sql`DATE_TRUNC('month', ${posts.createdAt})`
+            : sql`DATE(${posts.createdAt})`
+        )
+        .orderBy(
+          period === 'month'
+            ? sql`DATE_TRUNC('month', ${posts.createdAt})`
+            : sql`DATE(${posts.createdAt})`
+        ),
 
-  // Get comments over time
-  const commentsCreated = await db
-    .select({
-      date: sql<string>`DATE(${comments.createdAt})`.as('date'),
-      count: count(),
-    })
-    .from(comments)
-    .where(and(gte(comments.createdAt, start), lte(comments.createdAt, end)))
-    .groupBy(sql`DATE(${comments.createdAt})`)
-    .orderBy(sql`DATE(${comments.createdAt})`);
+      // Comments
+      db
+        .select({
+          date: (period === 'month'
+            ? sql<string>`TO_CHAR(DATE_TRUNC('month', ${comments.createdAt}), 'YYYY-MM')`
+            : sql<string>`DATE(${comments.createdAt})`
+          ).as('date'),
+          count: count(),
+        })
+        .from(comments)
+        .where(and(gte(comments.createdAt, start), lte(comments.createdAt, end)))
+        .groupBy(
+          period === 'month'
+            ? sql`DATE_TRUNC('month', ${comments.createdAt})`
+            : sql`DATE(${comments.createdAt})`
+        )
+        .orderBy(
+          period === 'month'
+            ? sql`DATE_TRUNC('month', ${comments.createdAt})`
+            : sql`DATE(${comments.createdAt})`
+        ),
 
-  // Get reactions over time
-  const reactionsCreated = await db
-    .select({
-      date: sql<string>`DATE(${reactions.createdAt})`.as('date'),
-      count: count(),
-    })
-    .from(reactions)
-    .where(and(gte(reactions.createdAt, start), lte(reactions.createdAt, end)))
-    .groupBy(sql`DATE(${reactions.createdAt})`)
-    .orderBy(sql`DATE(${reactions.createdAt})`);
+      // Reactions
+      db
+        .select({
+          date: (period === 'month'
+            ? sql<string>`TO_CHAR(DATE_TRUNC('month', ${reactions.createdAt}), 'YYYY-MM')`
+            : sql<string>`DATE(${reactions.createdAt})`
+          ).as('date'),
+          count: count(),
+        })
+        .from(reactions)
+        .where(and(gte(reactions.createdAt, start), lte(reactions.createdAt, end)))
+        .groupBy(
+          period === 'month'
+            ? sql`DATE_TRUNC('month', ${reactions.createdAt})`
+            : sql`DATE(${reactions.createdAt})`
+        )
+        .orderBy(
+          period === 'month'
+            ? sql`DATE_TRUNC('month', ${reactions.createdAt})`
+            : sql`DATE(${reactions.createdAt})`
+        ),
 
-  // Get follows over time
-  const followsCreated = await db
-    .select({
-      date: sql<string>`DATE(${follows.createdAt})`.as('date'),
-      count: count(),
-    })
-    .from(follows)
-    .where(and(gte(follows.createdAt, start), lte(follows.createdAt, end)))
-    .groupBy(sql`DATE(${follows.createdAt})`)
-    .orderBy(sql`DATE(${follows.createdAt})`);
+      // Follows
+      db
+        .select({
+          date: (period === 'month'
+            ? sql<string>`TO_CHAR(DATE_TRUNC('month', ${follows.createdAt}), 'YYYY-MM')`
+            : sql<string>`DATE(${follows.createdAt})`
+          ).as('date'),
+          count: count(),
+        })
+        .from(follows)
+        .where(and(gte(follows.createdAt, start), lte(follows.createdAt, end)))
+        .groupBy(
+          period === 'month'
+            ? sql`DATE_TRUNC('month', ${follows.createdAt})`
+            : sql`DATE(${follows.createdAt})`
+        )
+        .orderBy(
+          period === 'month'
+            ? sql`DATE_TRUNC('month', ${follows.createdAt})`
+            : sql`DATE(${follows.createdAt})`
+        ),
+    ]);
 
   // Build unified time-series data
   const dateMap = new Map<

@@ -445,7 +445,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
               'Auto-promoting new signup user to admin based on verified email domain',
               {
                 userId: canonicalUserId,
-                email: parsedProfile.email,
+                emailDomain: parsedProfile.email?.split('@')[1] ?? null,
                 emailVerified,
               },
               'POST /api/users/signup'

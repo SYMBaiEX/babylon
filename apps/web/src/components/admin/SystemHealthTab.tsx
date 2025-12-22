@@ -87,7 +87,7 @@ export function SystemHealthTab() {
     if (showRefreshing) {
       startRefresh(fetchLogic);
     } else {
-      fetchLogic();
+      void fetchLogic();
     }
   }, []);
 

@@ -91,7 +91,7 @@ export function AuditLogsTab() {
       if (showRefreshing) {
         startRefresh(fetchLogic);
       } else {
-        fetchLogic();
+        void fetchLogic();
       }
     },
     [actionFilter, resourceTypeFilter, offset]

@@ -95,7 +95,7 @@ export function AnalyticsTab() {
       if (showRefreshing) {
         startRefresh(fetchLogic);
       } else {
-        fetchLogic();
+        void fetchLogic();
       }
     },
     [period]

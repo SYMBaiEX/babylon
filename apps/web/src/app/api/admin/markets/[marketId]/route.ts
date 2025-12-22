@@ -17,7 +17,7 @@ import {
   successResponse,
   withErrorHandling,
 } from '@babylon/api';
-import { db, desc, eq, markets, positions } from '@babylon/db';
+import { db, desc, eq, markets, positions, withTransaction } from '@babylon/db';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 
@@ -143,27 +143,30 @@ export const POST = withErrorHandling(
         return successResponse({ error: 'Market already resolved' }, 400);
       }
 
-      await db
-        .update(markets)
-        .set({
-          resolved: true,
-          resolution,
-          resolutionDescription:
-            reason || `Resolved by admin as ${resolution ? 'YES' : 'NO'}`,
-          updatedAt: new Date(),
-        })
-        .where(eq(markets.id, marketId));
+      // Use transaction to ensure atomic updates of market and positions
+      await withTransaction(async (tx) => {
+        await tx
+          .update(markets)
+          .set({
+            resolved: true,
+            resolution,
+            resolutionDescription:
+              reason || `Resolved by admin as ${resolution ? 'YES' : 'NO'}`,
+            updatedAt: new Date(),
+          })
+          .where(eq(markets.id, marketId));
 
-      // Update positions
-      await db
-        .update(positions)
-        .set({
-          status: 'resolved',
-          outcome: resolution,
-          resolvedAt: new Date(),
-          updatedAt: new Date(),
-        })
-        .where(eq(positions.marketId, marketId));
+        // Update positions
+        await tx
+          .update(positions)
+          .set({
+            status: 'resolved',
+            outcome: resolution,
+            resolvedAt: new Date(),
+            updatedAt: new Date(),
+          })
+          .where(eq(positions.marketId, marketId));
+      });
 
       await logAdminModify({
         adminId: admin.userId,
@@ -225,26 +228,29 @@ export const POST = withErrorHandling(
     }
 
     if (action === 'void') {
-      // Void the market - refund all positions
-      await db
-        .update(markets)
-        .set({
-          resolved: true,
-          resolution: null,
-          resolutionDescription: reason || 'Market voided by admin',
-          updatedAt: new Date(),
-        })
-        .where(eq(markets.id, marketId));
+      // Use transaction to ensure atomic updates of market and positions
+      await withTransaction(async (tx) => {
+        // Void the market - refund all positions
+        await tx
+          .update(markets)
+          .set({
+            resolved: true,
+            resolution: null,
+            resolutionDescription: reason || 'Market voided by admin',
+            updatedAt: new Date(),
+          })
+          .where(eq(markets.id, marketId));
 
-      // Mark all positions as voided
-      await db
-        .update(positions)
-        .set({
-          status: 'voided',
-          resolvedAt: new Date(),
-          updatedAt: new Date(),
-        })
-        .where(eq(positions.marketId, marketId));
+        // Mark all positions as voided
+        await tx
+          .update(positions)
+          .set({
+            status: 'voided',
+            resolvedAt: new Date(),
+            updatedAt: new Date(),
+          })
+          .where(eq(positions.marketId, marketId));
+      });
 
       await logAdminModify({
         adminId: admin.userId,
