@@ -115,20 +115,26 @@ export function useSSE(options: SSEHookOptions = {}): SSEHookReturn {
   const [isOnline, setIsOnline] = useState(true);
 
   // Track subscriptions made by this hook instance for cleanup
-  const subscriptionsRef = useRef<Map<Channel, Set<SSECallback>>>(new Map());
-  const initialChannelCallbacksRef = useRef<Map<Channel, SSECallback>>(
+  // Maps channel -> Set of { callback, unsubscribe } pairs
+  const subscriptionsRef = useRef<
+    Map<Channel, Set<{ callback: SSECallback; unsubscribe: () => void }>>
+  >(new Map());
+  // Track initial channel unsubscribe functions
+  const initialChannelUnsubscribesRef = useRef<Map<Channel, () => void>>(
     new Map()
   );
 
-  // Get manager instance (singleton)
-  const manager = useMemo(() => {
-    const instance = SSEManager.getInstance({
+  // Get manager instance (singleton) - config only applies on first call
+  const manager = useMemo(() => SSEManager.getInstance(), []);
+
+  // Update config when options change
+  useEffect(() => {
+    manager.updateConfig({
       autoReconnect,
       reconnectDelay,
       maxReconnectAttempts,
     });
-    return instance;
-  }, [autoReconnect, reconnectDelay, maxReconnectAttempts]);
+  }, [manager, autoReconnect, reconnectDelay, maxReconnectAttempts]);
 
   // Set auth provider when it changes
   useEffect(() => {
@@ -175,91 +181,94 @@ export function useSSE(options: SSEHookOptions = {}): SSEHookReturn {
     (channel: Channel, callback: SSECallback): (() => void) => {
       if (!channel) return () => {};
 
-      // Track in local ref
+      // Subscribe via manager (returns unsubscribe function)
+      const managerUnsubscribe = manager.subscribe(channel, callback);
+
+      // Track in local ref with the unsubscribe function
       let hookSubs = subscriptionsRef.current.get(channel);
       if (!hookSubs) {
         hookSubs = new Set();
         subscriptionsRef.current.set(channel, hookSubs);
       }
-      hookSubs.add(callback);
+      const subscriptionEntry = { callback, unsubscribe: managerUnsubscribe };
+      hookSubs.add(subscriptionEntry);
 
-      // Subscribe via manager (returns unsubscribe function)
-      const managerUnsubscribe = manager.subscribe(channel, callback);
-
-      // Return combined unsubscribe
+      // Return unsubscribe that only removes THIS callback
       return () => {
         const subs = subscriptionsRef.current.get(channel);
         if (subs) {
-          subs.delete(callback);
+          subs.delete(subscriptionEntry);
           if (subs.size === 0) {
             subscriptionsRef.current.delete(channel);
           }
         }
+        // Only unsubscribe this specific callback from manager
         managerUnsubscribe();
       };
     },
     [manager]
   );
 
-  // Unsubscribe all callbacks for a channel from this hook instance
-  const unsubscribe = useCallback(
-    (channel: Channel) => {
-      const hookSubs = subscriptionsRef.current.get(channel);
-      if (!hookSubs) return;
+  // Unsubscribe all callbacks for a channel from THIS hook instance only
+  const unsubscribe = useCallback((channel: Channel) => {
+    const hookSubs = subscriptionsRef.current.get(channel);
+    if (!hookSubs) return;
 
-      // Clear local tracking
-      hookSubs.clear();
-      subscriptionsRef.current.delete(channel);
+    // Call each individual unsubscribe function (preserves other components' callbacks)
+    for (const entry of hookSubs) {
+      entry.unsubscribe();
+    }
 
-      // Unsubscribe all from manager
-      manager.unsubscribeAll(channel);
-    },
-    [manager]
-  );
+    // Clear local tracking
+    hookSubs.clear();
+    subscriptionsRef.current.delete(channel);
+  }, []);
 
   // Reconnect function
   const reconnect = useCallback(() => {
     manager.reconnect();
   }, [manager]);
 
-  // Handle initial channels - memoize based on string key for stable reference
+  // Handle initial channels - memoize based on sorted string key for stable reference
   // This prevents re-subscriptions when array reference changes but contents are the same
-  const memoizedInitialChannels = useMemo(
-    () => initialChannels,
+  const initialChannelsKey = useMemo(
+    () => initialChannels.slice().sort().join(','),
     [initialChannels]
   );
 
   useEffect(() => {
-    if (memoizedInitialChannels.length === 0) return;
+    if (initialChannels.length === 0) return;
 
     // Subscribe to initial channels with no-op callbacks
-    for (const channel of memoizedInitialChannels) {
-      if (!initialChannelCallbacksRef.current.has(channel)) {
+    for (const channel of initialChannels) {
+      if (!initialChannelUnsubscribesRef.current.has(channel)) {
         const noopCallback: SSECallback = () => {};
-        initialChannelCallbacksRef.current.set(channel, noopCallback);
-        manager.subscribe(channel, noopCallback);
+        const unsubscribeFn = manager.subscribe(channel, noopCallback);
+        initialChannelUnsubscribesRef.current.set(channel, unsubscribeFn);
       }
     }
 
     return () => {
-      // Cleanup initial channel subscriptions
-      for (const [channel] of initialChannelCallbacksRef.current) {
-        manager.unsubscribeAll(channel);
+      // Cleanup initial channel subscriptions using stored unsubscribe functions
+      for (const [, unsubscribeFn] of initialChannelUnsubscribesRef.current) {
+        unsubscribeFn();
       }
-      initialChannelCallbacksRef.current.clear();
+      initialChannelUnsubscribesRef.current.clear();
     };
-  }, [memoizedInitialChannels, manager]);
+  }, [initialChannelsKey, manager]);
 
   // Cleanup all subscriptions on unmount
   useEffect(() => {
     return () => {
-      // Unsubscribe all tracked subscriptions
-      for (const [channel] of subscriptionsRef.current) {
-        manager.unsubscribeAll(channel);
+      // Unsubscribe all tracked subscriptions using individual unsubscribe functions
+      for (const [, entries] of subscriptionsRef.current) {
+        for (const entry of entries) {
+          entry.unsubscribe();
+        }
       }
       subscriptionsRef.current.clear();
     };
-  }, [manager]);
+  }, []);
 
   return {
     isConnected: connectionState === 'connected',
