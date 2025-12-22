@@ -1575,6 +1575,11 @@ export interface DrizzleClient {
     InferSelect<typeof schema.userApiKeys>,
     InferInsert<typeof schema.userApiKeys>
   >;
+  adminRole: TableRepository<
+    typeof schema.adminRoles,
+    InferSelect<typeof schema.adminRoles>,
+    InferInsert<typeof schema.adminRoles>
+  >;
   tickTokenStats: TableRepository<
     typeof schema.tickTokenStats,
     InferSelect<typeof schema.tickTokenStats>,
@@ -1944,6 +1949,7 @@ export function createDrizzleClient(drizzle: SchemaDatabase): DrizzleClient {
       'userAgentConfigs'
     ),
     userApiKey: new TableRepository(drizzle, schema.userApiKeys, 'userApiKeys'),
+    adminRole: new TableRepository(drizzle, schema.adminRoles, 'adminRoles'),
     tickTokenStats: new TableRepository(
       drizzle,
       schema.tickTokenStats,
