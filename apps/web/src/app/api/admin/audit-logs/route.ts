@@ -129,12 +129,9 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   });
 
   if (!parseResult.success) {
-    return errorResponse(
-      'Invalid query parameters',
-      'VALIDATION_ERROR',
-      400,
-      { details: parseResult.error.flatten() }
-    );
+    return errorResponse('Invalid query parameters', 'VALIDATION_ERROR', 400, {
+      details: parseResult.error.flatten(),
+    });
   }
 
   const {
