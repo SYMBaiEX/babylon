@@ -114,10 +114,10 @@ import {
 import type { OnboardingProfilePayload } from '@babylon/shared';
 import {
   generateSnowflakeId,
-  isAdminEmail,
   logger,
   OnboardingProfileSchema,
   POINTS,
+  shouldAutoPromoteToAdmin,
 } from '@babylon/shared';
 import type { User as PrivyUser } from '@privy-io/server-auth';
 import type { NextRequest } from 'next/server';
@@ -432,12 +432,22 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
         } else {
           // Create new user
           // Check if user should be auto-promoted to admin based on email domain
-          const shouldBeAdmin = isAdminEmail(parsedProfile.email);
+          // SECURITY: Requires email verification
+          // Email is considered verified if present in profile (Privy verifies emails)
+          const emailVerified = !!parsedProfile.email;
+          const shouldBeAdmin = shouldAutoPromoteToAdmin(
+            parsedProfile.email,
+            emailVerified
+          );
 
           if (shouldBeAdmin) {
             logger.info(
-              'Auto-promoting new signup user to admin based on email domain',
-              { userId: canonicalUserId, email: parsedProfile.email },
+              'Auto-promoting new signup user to admin based on verified email domain',
+              {
+                userId: canonicalUserId,
+                email: parsedProfile.email,
+                emailVerified,
+              },
               'POST /api/users/signup'
             );
           }

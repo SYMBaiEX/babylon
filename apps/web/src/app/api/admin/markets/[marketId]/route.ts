@@ -10,7 +10,9 @@
  */
 
 import {
+  checkRateLimitAndDuplicates,
   logAdminModify,
+  RATE_LIMIT_CONFIGS,
   requireAdmin,
   successResponse,
   withErrorHandling,
@@ -102,6 +104,15 @@ export const POST = withErrorHandling(
     { params }: { params: Promise<{ marketId: string }> }
   ) => {
     const admin = await requireAdmin(request);
+
+    // Rate limit admin actions to prevent abuse
+    const rateLimitResponse = checkRateLimitAndDuplicates(
+      admin.userId,
+      null,
+      RATE_LIMIT_CONFIGS.ADMIN_ACTION
+    );
+    if (rateLimitResponse) return rateLimitResponse;
+
     const { marketId } = await params;
 
     const body = (await request.json()) as MarketActionRequest;

@@ -47,18 +47,14 @@ interface SystemHealthData {
     tickIntervalMs: number;
     uptimeMs: number;
   };
-  llmMetrics: {
+  activityMetrics: {
     lastHour: {
-      totalCalls: number;
-      avgLatencyMs: number;
-      errors: number;
-      errorRate: number;
+      newUsers: number;
+      newPosts: number;
     };
     last24Hours: {
-      totalCalls: number;
-      avgLatencyMs: number;
-      errors: number;
-      errorRate: number;
+      newUsers: number;
+      newPosts: number;
     };
   };
   recentErrors: Array<{
@@ -341,7 +337,7 @@ export function SystemHealthTab() {
         </div>
       </div>
 
-      {/* API Metrics */}
+      {/* Activity Metrics */}
       <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-2">
         {/* Last Hour */}
         <div className="rounded-xl border border-border bg-card p-4 sm:p-6">
@@ -352,43 +348,15 @@ export function SystemHealthTab() {
           <div className="grid grid-cols-2 gap-2 sm:gap-4">
             <MetricCard
               icon={Activity}
-              label="LLM Calls"
-              value={data.llmMetrics.lastHour.totalCalls.toLocaleString()}
+              label="New Users"
+              value={data.activityMetrics.lastHour.newUsers.toLocaleString()}
               status="good"
             />
             <MetricCard
               icon={Cpu}
-              label="Avg Latency"
-              value={`${data.llmMetrics.lastHour.avgLatencyMs}ms`}
-              status={
-                data.llmMetrics.lastHour.avgLatencyMs > 5000
-                  ? 'warning'
-                  : 'good'
-              }
-            />
-            <MetricCard
-              icon={AlertCircle}
-              label="Errors"
-              value={data.llmMetrics.lastHour.errors}
-              status={
-                data.llmMetrics.lastHour.errors > 10
-                  ? 'error'
-                  : data.llmMetrics.lastHour.errors > 0
-                    ? 'warning'
-                    : 'good'
-              }
-            />
-            <MetricCard
-              icon={Activity}
-              label="Error Rate"
-              value={`${data.llmMetrics.lastHour.errorRate.toFixed(2)}%`}
-              status={
-                data.llmMetrics.lastHour.errorRate > 5
-                  ? 'error'
-                  : data.llmMetrics.lastHour.errorRate > 1
-                    ? 'warning'
-                    : 'good'
-              }
+              label="New Posts"
+              value={data.activityMetrics.lastHour.newPosts.toLocaleString()}
+              status="good"
             />
           </div>
         </div>
@@ -402,43 +370,15 @@ export function SystemHealthTab() {
           <div className="grid grid-cols-2 gap-2 sm:gap-4">
             <MetricCard
               icon={Activity}
-              label="LLM Calls"
-              value={data.llmMetrics.last24Hours.totalCalls.toLocaleString()}
+              label="New Users"
+              value={data.activityMetrics.last24Hours.newUsers.toLocaleString()}
               status="good"
             />
             <MetricCard
               icon={Cpu}
-              label="Avg Latency"
-              value={`${data.llmMetrics.last24Hours.avgLatencyMs}ms`}
-              status={
-                data.llmMetrics.last24Hours.avgLatencyMs > 5000
-                  ? 'warning'
-                  : 'good'
-              }
-            />
-            <MetricCard
-              icon={AlertCircle}
-              label="Errors"
-              value={data.llmMetrics.last24Hours.errors}
-              status={
-                data.llmMetrics.last24Hours.errors > 100
-                  ? 'error'
-                  : data.llmMetrics.last24Hours.errors > 10
-                    ? 'warning'
-                    : 'good'
-              }
-            />
-            <MetricCard
-              icon={Activity}
-              label="Error Rate"
-              value={`${data.llmMetrics.last24Hours.errorRate.toFixed(2)}%`}
-              status={
-                data.llmMetrics.last24Hours.errorRate > 5
-                  ? 'error'
-                  : data.llmMetrics.last24Hours.errorRate > 1
-                    ? 'warning'
-                    : 'good'
-              }
+              label="New Posts"
+              value={data.activityMetrics.last24Hours.newPosts.toLocaleString()}
+              status="good"
             />
           </div>
         </div>

@@ -159,6 +159,17 @@ export function AnalyticsTab() {
     };
   };
 
+  // Static color classes for Tailwind JIT compatibility
+  const colorClasses = {
+    blue: { bg: 'bg-blue-500/10', text: 'text-blue-500' },
+    purple: { bg: 'bg-purple-500/10', text: 'text-purple-500' },
+    green: { bg: 'bg-green-500/10', text: 'text-green-500' },
+    red: { bg: 'bg-red-500/10', text: 'text-red-500' },
+    orange: { bg: 'bg-orange-500/10', text: 'text-orange-500' },
+  } as const;
+
+  type StatCardColor = keyof typeof colorClasses;
+
   const StatCard = ({
     icon: Icon,
     label,
@@ -170,12 +181,12 @@ export function AnalyticsTab() {
     label: string;
     value: number;
     trend: { value: number; direction: 'up' | 'down' | 'neutral' };
-    color: string;
+    color: StatCardColor;
   }) => (
     <div className="rounded-xl border border-border bg-card p-5 transition-shadow hover:shadow-md">
       <div className="mb-3 flex items-center justify-between">
-        <div className={cn('rounded-lg p-2', `bg-${color}-500/10`)}>
-          <Icon className={cn('h-5 w-5', `text-${color}-500`)} />
+        <div className={cn('rounded-lg p-2', colorClasses[color].bg)}>
+          <Icon className={cn('h-5 w-5', colorClasses[color].text)} />
         </div>
         {trend.direction !== 'neutral' && (
           <div

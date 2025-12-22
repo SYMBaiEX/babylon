@@ -1,13 +1,13 @@
 /**
  * Content Moderation tab for reviewing flagged posts and comments.
  *
- * Displays a queue of reported content with approve/hide/delete actions.
+ * Displays a queue of reported content with approve/hide actions.
  * Shows content details, author info, report count, and engagement metrics.
  *
  * Features:
  * - Posts and comments queue
  * - Content type filtering
- * - Approve, hide, delete actions
+ * - Approve and hide actions (soft delete)
  * - Author information display
  * - Report count and engagement metrics
  * - Action confirmation modal
@@ -27,7 +27,6 @@ import {
   Flag,
   MessageSquare,
   RefreshCw,
-  Trash2,
 } from 'lucide-react';
 import { useCallback, useEffect, useState, useTransition } from 'react';
 import { toast } from 'sonner';
@@ -73,9 +72,7 @@ export function ContentModerationTab() {
   const [isRefreshing, startRefresh] = useTransition();
   const [selectedItem, setSelectedItem] = useState<ContentItem | null>(null);
   const [showActionModal, setShowActionModal] = useState(false);
-  const [actionType, setActionType] = useState<'approve' | 'hide' | 'delete'>(
-    'approve'
-  );
+  const [actionType, setActionType] = useState<'approve' | 'hide'>('approve');
   const [actionReason, setActionReason] = useState('');
   const [isActioning, startActioning] = useTransition();
 
@@ -108,10 +105,7 @@ export function ContentModerationTab() {
     fetchQueue();
   }, [fetchQueue]);
 
-  const handleAction = (
-    item: ContentItem,
-    action: 'approve' | 'hide' | 'delete'
-  ) => {
+  const handleAction = (item: ContentItem, action: 'approve' | 'hide') => {
     setSelectedItem(item);
     setActionType(action);
     setActionReason('');
@@ -141,11 +135,7 @@ export function ContentModerationTab() {
       }
 
       toast.success(
-        actionType === 'approve'
-          ? 'Content approved'
-          : actionType === 'hide'
-            ? 'Content hidden'
-            : 'Content deleted'
+        actionType === 'approve' ? 'Content approved' : 'Content hidden'
       );
       setShowActionModal(false);
       setSelectedItem(null);
@@ -260,13 +250,6 @@ export function ContentModerationTab() {
         >
           <EyeOff className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
           Hide
-        </button>
-        <button
-          onClick={() => handleAction(item, 'delete')}
-          className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-red-500/20 px-2.5 py-2 font-medium text-red-500 text-xs transition-colors hover:bg-red-500/30 sm:gap-2 sm:px-3 sm:text-sm"
-        >
-          <Trash2 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-          Delete
         </button>
       </div>
     </div>
@@ -411,19 +394,13 @@ export function ContentModerationTab() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="w-full max-w-lg rounded-2xl border border-border bg-card p-6">
             <h3 className="mb-4 font-bold text-xl">
-              {actionType === 'approve'
-                ? 'Approve Content'
-                : actionType === 'hide'
-                  ? 'Hide Content'
-                  : 'Delete Content'}
+              {actionType === 'approve' ? 'Approve Content' : 'Hide Content'}
             </h3>
 
             <p className="mb-4 text-muted-foreground">
               {actionType === 'approve'
                 ? 'This will dismiss all reports for this content.'
-                : actionType === 'hide'
-                  ? 'This will hide the content from public view.'
-                  : 'This will permanently delete the content.'}
+                : 'This will hide the content from public view (can be recovered if needed).'}
             </p>
 
             <div className="mb-4 rounded-lg bg-muted/50 p-3">
@@ -462,9 +439,7 @@ export function ContentModerationTab() {
                   'flex-1 rounded-lg px-4 py-2 font-medium transition-colors disabled:opacity-50',
                   actionType === 'approve'
                     ? 'bg-green-500 text-white hover:bg-green-600'
-                    : actionType === 'hide'
-                      ? 'bg-yellow-500 text-black hover:bg-yellow-600'
-                      : 'bg-red-500 text-white hover:bg-red-600'
+                    : 'bg-yellow-500 text-black hover:bg-yellow-600'
                 )}
               >
                 {isActioning ? 'Processing...' : 'Confirm'}

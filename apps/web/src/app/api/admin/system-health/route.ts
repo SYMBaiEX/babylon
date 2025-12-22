@@ -104,20 +104,9 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         ? now.getTime() - new Date(currentGame.startedAt).getTime()
         : 0,
     },
-    llmMetrics: {
-      lastHour: {
-        totalCalls: 0,
-        avgLatencyMs: 0,
-        errors: 0,
-        errorRate: 0,
-      },
-      last24Hours: {
-        totalCalls: 0,
-        avgLatencyMs: 0,
-        errors: 0,
-        errorRate: 0,
-      },
-    },
+    // NOTE: LLM metrics not currently tracked - would require adding
+    // instrumentation to LLM client. Omitted to avoid displaying
+    // misleading zeros in the UI.
     activityMetrics: {
       lastHour: {
         newUsers: userStatsHour?.newUsers ?? 0,
