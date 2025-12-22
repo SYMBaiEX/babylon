@@ -98,7 +98,9 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   if (action === 'grant') {
     if (!role || !ADMIN_ROLES.includes(role)) {
       return successResponse(
-        { error: `Valid role is required. Must be one of: ${ADMIN_ROLES.join(', ')}` },
+        {
+          error: `Valid role is required. Must be one of: ${ADMIN_ROLES.join(', ')}`,
+        },
         400
       );
     }
