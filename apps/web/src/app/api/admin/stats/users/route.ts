@@ -24,12 +24,30 @@ function parseDateParam(param: string | null): Date | null {
 }
 
 /**
+ * Build user type filter based on query param
+ */
+function buildUserTypeFilter(
+  userType: string
+): { isActor?: boolean; isAgent?: boolean } {
+  switch (userType) {
+    case 'real':
+      return { isActor: false, isAgent: false };
+    case 'actors':
+      return { isActor: true };
+    case 'agents':
+      return { isAgent: true };
+    default:
+      return {}; // 'all' - no filter
+  }
+}
+
+/**
  * GET /api/admin/stats/users
  * Returns comprehensive user statistics
  *
  * Query params:
- * - startDate: ISO date string (optional)
- * - endDate: ISO date string (optional)
+ * - startDate: ISO date string (optional) - filters signups and time series
+ * - endDate: ISO date string (optional) - filters signups and time series
  * - userType: 'all' | 'real' | 'actors' | 'agents' (default: 'all')
  * - includeTimeSeries: 'true' | 'false' (default: 'false')
  */
@@ -48,14 +66,28 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     'GET /api/admin/stats/users'
   );
 
-  // Calculate date boundaries
+  // Calculate date boundaries for relative stats
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const yesterday = new Date(today.getTime() - 86400000); // 1 day in ms
   const lastWeek = new Date(today.getTime() - 7 * 86400000);
   const lastMonth = new Date(today.getTime() - 30 * 86400000);
 
-  // Run parallel queries
+  // Build user type filter
+  const userTypeFilter = buildUserTypeFilter(userType);
+
+  // Build date range filter for filtered queries
+  const dateFilter: { createdAt?: { gte?: Date; lte?: Date } } = {};
+  if (startDate || endDate) {
+    dateFilter.createdAt = {};
+    if (startDate) dateFilter.createdAt.gte = startDate;
+    if (endDate) dateFilter.createdAt.lte = endDate;
+  }
+
+  // Combine filters
+  const combinedFilter = { ...userTypeFilter, ...dateFilter };
+
+  // Run parallel queries - use filters where applicable
   const [
     totalUsers,
     realUsers,
@@ -73,48 +105,88 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     withTwitter,
     withDiscord,
     withWallet,
+    // Filtered counts (when date/type filters are applied)
+    filteredTotal,
   ] = await Promise.all([
+    // Overview counts (unfiltered for dashboard totals)
     db.user.count(),
     db.user.count({ where: { isActor: false, isAgent: false } }),
     db.user.count({ where: { isActor: true } }),
     db.user.count({ where: { isAgent: true } }),
     db.user.count({ where: { isBanned: true } }),
     db.user.count({ where: { isAdmin: true } }),
-    db.user.count({ where: { createdAt: { gte: today } } }),
-    db.user.count({ where: { createdAt: { gte: yesterday, lt: today } } }),
-    db.user.count({ where: { createdAt: { gte: lastWeek } } }),
-    db.user.count({ where: { createdAt: { gte: lastMonth } } }),
-    db.user.count({ where: { profileComplete: true } }),
-    db.user.count({ where: { onChainRegistered: true } }),
-    db.user.count({ where: { hasFarcaster: true } }),
-    db.user.count({ where: { hasTwitter: true } }),
-    db.user.count({ where: { hasDiscord: true } }),
-    db.user.count({ where: { walletAddress: { not: null } } }),
+    // Relative date counts (always relative to today)
+    db.user.count({ where: { ...userTypeFilter, createdAt: { gte: today } } }),
+    db.user.count({
+      where: { ...userTypeFilter, createdAt: { gte: yesterday, lt: today } },
+    }),
+    db.user.count({
+      where: { ...userTypeFilter, createdAt: { gte: lastWeek } },
+    }),
+    db.user.count({
+      where: { ...userTypeFilter, createdAt: { gte: lastMonth } },
+    }),
+    // Profile metrics (filtered by user type)
+    db.user.count({ where: { ...userTypeFilter, profileComplete: true } }),
+    db.user.count({ where: { ...userTypeFilter, onChainRegistered: true } }),
+    db.user.count({ where: { ...userTypeFilter, hasFarcaster: true } }),
+    db.user.count({ where: { ...userTypeFilter, hasTwitter: true } }),
+    db.user.count({ where: { ...userTypeFilter, hasDiscord: true } }),
+    db.user.count({
+      where: { ...userTypeFilter, walletAddress: { not: null } },
+    }),
+    // Filtered total (when specific date range requested)
+    startDate || endDate
+      ? db.user.count({ where: combinedFilter })
+      : Promise.resolve(null),
   ]);
 
-  // Calculate rates
-  const profileCompletionRate =
-    realUsers > 0 ? (profileComplete / realUsers) * 100 : 0;
-  const onChainRate = realUsers > 0 ? (onChainRegistered / realUsers) * 100 : 0;
-
-  // Time series data (daily signups for last 30 days)
+  // Time series data (daily signups for specified range or last 30 days)
   let timeSeries: Array<{ date: string; signups: number; cumulative: number }> =
     [];
 
   if (includeTimeSeries) {
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    // Use provided date range or default to last 30 days
+    const timeSeriesStart =
+      startDate ?? new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const timeSeriesEnd = endDate ?? new Date();
 
-    const dailySignups = await db.$queryRaw<{ date: string; count: string }>`
-      SELECT 
-        DATE("createdAt") as date,
-        COUNT(*) as count
-      FROM "User"
-      WHERE "createdAt" >= ${thirtyDaysAgo}
-        AND "isActor" = false
-      GROUP BY DATE("createdAt")
-      ORDER BY date ASC
-    `;
+    // Query differs based on user type to properly filter
+    let dailySignups: Array<{ date: string; count: string }>;
+
+    if (userType === 'actors') {
+      dailySignups = await db.$queryRaw<{ date: string; count: string }>`
+        SELECT DATE("createdAt") as date, COUNT(*) as count
+        FROM "User"
+        WHERE "createdAt" >= ${timeSeriesStart} AND "createdAt" <= ${timeSeriesEnd}
+          AND "isActor" = true
+        GROUP BY DATE("createdAt") ORDER BY date ASC
+      `;
+    } else if (userType === 'agents') {
+      dailySignups = await db.$queryRaw<{ date: string; count: string }>`
+        SELECT DATE("createdAt") as date, COUNT(*) as count
+        FROM "User"
+        WHERE "createdAt" >= ${timeSeriesStart} AND "createdAt" <= ${timeSeriesEnd}
+          AND "isAgent" = true
+        GROUP BY DATE("createdAt") ORDER BY date ASC
+      `;
+    } else if (userType === 'real') {
+      dailySignups = await db.$queryRaw<{ date: string; count: string }>`
+        SELECT DATE("createdAt") as date, COUNT(*) as count
+        FROM "User"
+        WHERE "createdAt" >= ${timeSeriesStart} AND "createdAt" <= ${timeSeriesEnd}
+          AND "isActor" = false AND "isAgent" = false
+        GROUP BY DATE("createdAt") ORDER BY date ASC
+      `;
+    } else {
+      // 'all' - no user type filter
+      dailySignups = await db.$queryRaw<{ date: string; count: string }>`
+        SELECT DATE("createdAt") as date, COUNT(*) as count
+        FROM "User"
+        WHERE "createdAt" >= ${timeSeriesStart} AND "createdAt" <= ${timeSeriesEnd}
+        GROUP BY DATE("createdAt") ORDER BY date ASC
+      `;
+    }
 
     let cumulative = 0;
     timeSeries = dailySignups.map((row) => {
@@ -127,9 +199,9 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     });
   }
 
-  // Top referrers
+  // Top referrers (filtered by user type if specified)
   const topReferrers = await db.user.findMany({
-    where: { referralCount: { gt: 0 } },
+    where: { ...userTypeFilter, referralCount: { gt: 0 } },
     orderBy: { referralCount: 'desc' },
     take: 10,
     select: {
@@ -141,9 +213,9 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     },
   });
 
-  // Recent signups
+  // Recent signups (filtered by user type and date range)
   const recentSignups = await db.user.findMany({
-    where: { isActor: false },
+    where: combinedFilter,
     orderBy: { createdAt: 'desc' },
     take: 10,
     select: {
@@ -159,6 +231,16 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     },
   });
 
+  // Calculate base count for rate calculations based on filtered results
+  const baseCount =
+    userType === 'actors'
+      ? actors
+      : userType === 'agents'
+        ? agents
+        : userType === 'real'
+          ? realUsers
+          : totalUsers;
+
   return successResponse({
     overview: {
       total: totalUsers,
@@ -167,6 +249,8 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       agents,
       banned: bannedUsers,
       admins: adminUsers,
+      // Include filtered total when date filters applied
+      ...(filteredTotal !== null && { filteredTotal }),
     },
     signups: {
       today: usersToday,
@@ -180,9 +264,15 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     },
     profileMetrics: {
       profileComplete,
-      profileCompletionRate: Math.round(profileCompletionRate * 10) / 10,
+      profileCompletionRate:
+        baseCount > 0
+          ? Math.round((profileComplete / baseCount) * 1000) / 10
+          : 0,
       onChainRegistered,
-      onChainRate: Math.round(onChainRate * 10) / 10,
+      onChainRate:
+        baseCount > 0
+          ? Math.round((onChainRegistered / baseCount) * 1000) / 10
+          : 0,
     },
     socialConnections: {
       withFarcaster,
@@ -190,13 +280,15 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       withDiscord,
       withWallet,
       farcasterRate:
-        realUsers > 0 ? Math.round((withFarcaster / realUsers) * 1000) / 10 : 0,
+        baseCount > 0
+          ? Math.round((withFarcaster / baseCount) * 1000) / 10
+          : 0,
       twitterRate:
-        realUsers > 0 ? Math.round((withTwitter / realUsers) * 1000) / 10 : 0,
+        baseCount > 0 ? Math.round((withTwitter / baseCount) * 1000) / 10 : 0,
       discordRate:
-        realUsers > 0 ? Math.round((withDiscord / realUsers) * 1000) / 10 : 0,
+        baseCount > 0 ? Math.round((withDiscord / baseCount) * 1000) / 10 : 0,
       walletRate:
-        realUsers > 0 ? Math.round((withWallet / realUsers) * 1000) / 10 : 0,
+        baseCount > 0 ? Math.round((withWallet / baseCount) * 1000) / 10 : 0,
     },
     topReferrers,
     recentSignups: recentSignups.map((u) => ({
@@ -208,6 +300,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       startDate: startDate?.toISOString() || null,
       endDate: endDate?.toISOString() || null,
       userType,
+      applied: Boolean(startDate || endDate || userType !== 'all'),
     },
   });
 });
