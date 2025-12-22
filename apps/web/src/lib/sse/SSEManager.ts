@@ -132,6 +132,7 @@ export class SSEManager {
   // Connection state
   private eventSource: EventSource | null = null;
   private connectionState: ConnectionState = 'disconnected';
+  private lastConnectionError: string | null = null;
   private reconnectAttempts = 0;
   private reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
   private tokenRetryTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -140,11 +141,15 @@ export class SSEManager {
   private readonly channelSubscribers = new Map<Channel, Set<SSECallback>>();
   private readonly requestedChannels = new Set<Channel>();
   private connectedChannels = new Set<Channel>();
+  private connectingChannels: Set<Channel> | null = null;
+  private activeRequestedChannels: Set<Channel> | null = null;
+  private pendingChannelReconnect = false;
   private readonly lastEventIds = new Map<Channel, string>();
 
   // Auth state
   private authTokenProvider: AuthTokenProvider | null = null;
   private isAuthenticated = false;
+  private authEpoch = 0;
   private cachedToken: {
     token: string;
     expiresAt: number;
@@ -216,6 +221,11 @@ export class SSEManager {
    * This function will be called to get access tokens for SSE authentication.
    */
   setAuthProvider(provider: AuthTokenProvider): void {
+    if (this.authTokenProvider !== provider) {
+      this.authEpoch += 1;
+      this.cachedToken = null;
+      this.pendingTokenFetch = null;
+    }
     this.authTokenProvider = provider;
   }
 
@@ -228,9 +238,22 @@ export class SSEManager {
     this.isAuthenticated = authenticated;
 
     if (!authenticated) {
+      if (wasAuthenticated) {
+        this.authEpoch += 1;
+      }
+      this.reconnectAttempts = 0;
+      this.cachedToken = null;
+      this.pendingTokenFetch = null;
+      this.lastEventIds.clear();
+      this.connectingChannels = null;
+      this.pendingChannelReconnect = false;
       this.closeEventSource();
       this.notifyConnectionState('disconnected', null);
       return;
+    }
+
+    if (!wasAuthenticated && authenticated) {
+      this.authEpoch += 1;
     }
 
     // If we just became authenticated and have pending channels, connect
@@ -318,7 +341,7 @@ export class SSEManager {
   addConnectionStateListener(listener: ConnectionStateListener): () => void {
     this.connectionStateListeners.add(listener);
     // Immediately notify of current state
-    listener(this.connectionState, null);
+    listener(this.connectionState, this.lastConnectionError);
     return () => {
       this.connectionStateListeners.delete(listener);
     };
@@ -329,6 +352,7 @@ export class SSEManager {
     error: string | null
   ): void {
     this.connectionState = state;
+    this.lastConnectionError = error;
     for (const listener of this.connectionStateListeners) {
       listener(state, error);
     }
@@ -374,6 +398,16 @@ export class SSEManager {
       'SSEManager'
     );
 
+    // If we're mid-connection and this channel isn't part of the in-flight set,
+    // mark a reconnect as needed once the connection settles.
+    if (
+      this.connectionState === 'connecting' &&
+      this.connectingChannels &&
+      !this.connectingChannels.has(channel)
+    ) {
+      this.pendingChannelReconnect = true;
+    }
+
     // Trigger connection if needed
     if (!this.eventSource || previousSize !== this.requestedChannels.size) {
       void this.ensureConnection();
@@ -407,6 +441,14 @@ export class SSEManager {
         'SSEManager'
       );
 
+      if (
+        this.connectionState === 'connecting' &&
+        this.connectingChannels &&
+        this.connectingChannels.has(channel)
+      ) {
+        this.pendingChannelReconnect = true;
+      }
+
       // Close connection if no channels left
       if (this.requestedChannels.size === 0) {
         this.closeEventSource();
@@ -435,6 +477,14 @@ export class SSEManager {
       { channel },
       'SSEManager'
     );
+
+    if (
+      this.connectionState === 'connecting' &&
+      this.connectingChannels &&
+      this.connectingChannels.has(channel)
+    ) {
+      this.pendingChannelReconnect = true;
+    }
 
     if (this.requestedChannels.size === 0) {
       this.closeEventSource();
@@ -508,6 +558,29 @@ export class SSEManager {
     }
 
     this.connectedChannels.clear();
+    this.connectingChannels = null;
+    this.activeRequestedChannels = null;
+  }
+
+  private reconcileChannelDrift(): void {
+    if (this.requestedChannels.size === 0) return;
+    if (!this.pendingChannelReconnect && !this.activeRequestedChannels) return;
+    if (
+      !this.pendingChannelReconnect &&
+      this.activeRequestedChannels &&
+      this.activeRequestedChannels.size === this.requestedChannels.size
+    ) {
+      let changed = false;
+      for (const channel of this.requestedChannels) {
+        if (!this.activeRequestedChannels.has(channel)) {
+          changed = true;
+          break;
+        }
+      }
+      if (!changed) return;
+    }
+    this.pendingChannelReconnect = false;
+    void this.ensureConnection(true);
   }
 
   private channelsInSync(): boolean {
@@ -607,6 +680,9 @@ export class SSEManager {
     this.closeEventSource();
 
     const channelsList = Array.from(this.requestedChannels);
+    this.connectingChannels = new Set(channelsList);
+    this.activeRequestedChannels = new Set(channelsList);
+    this.pendingChannelReconnect = false;
 
     // Get auth token
     const token = await this.getAuthToken(channelsList);
@@ -647,10 +723,12 @@ export class SSEManager {
     eventSource.onopen = () => {
       errorHandled = false;
       this.eventSource = eventSource;
-      this.connectedChannels = new Set(this.requestedChannels);
+      this.connectedChannels = new Set(channelsList);
+      this.connectingChannels = null;
       this.reconnectAttempts = 0;
       this.notifyConnectionState('connected', null);
       logger.info('SSE connected', { channels: channelsList }, 'SSEManager');
+      this.reconcileChannelDrift();
     };
 
     // Handle the 'connected' event from server
@@ -693,6 +771,7 @@ export class SSEManager {
       );
       this.reconnectAttempts = 0;
       this.notifyConnectionState('connected', null);
+      this.reconcileChannelDrift();
     });
 
     eventSource.addEventListener('message', (event) => {
@@ -749,6 +828,8 @@ export class SSEManager {
         this.eventSource = null;
       }
       this.connectedChannels.clear();
+      this.connectingChannels = null;
+      this.activeRequestedChannels = null;
 
       // Close to stop browser auto-reconnect
       eventSource.onopen = null;
@@ -850,6 +931,7 @@ export class SSEManager {
   }
 
   private shouldUseCachedToken(channels: Channel[]): boolean {
+    if (!this.isAuthenticated) return false;
     if (!this.cachedToken) return false;
     const now = Date.now();
     if (this.cachedToken.expiresAt - now < TOKEN_REFRESH_THRESHOLD_MS)
@@ -863,10 +945,12 @@ export class SSEManager {
     channels: Channel[]
   ): Promise<string | null> {
     if (!this.authTokenProvider) return null;
+    const epoch = this.authEpoch;
 
     try {
       const accessToken = await this.authTokenProvider();
       if (!accessToken) return null;
+      if (epoch !== this.authEpoch) return null;
 
       const res = await fetch('/api/realtime/token', {
         method: 'POST',
@@ -896,6 +980,8 @@ export class SSEManager {
         typeof json.expiresAt === 'number'
           ? json.expiresAt
           : Date.now() + DEFAULT_TOKEN_TTL_MS;
+
+      if (epoch !== this.authEpoch) return null;
 
       this.cachedToken = {
         token: json.token,
