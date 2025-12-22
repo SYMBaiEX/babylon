@@ -221,7 +221,9 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     createdAt: Date;
   }>;
 
-  const recentTradesStart = startDate ?? new Date(0);
+  // Default to last 30 days if no start date provided (avoid scanning from 1970)
+  const recentTradesStart =
+    startDate ?? new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
   const recentTradesEnd = endDate ?? new Date();
 
   if (marketType === 'prediction') {

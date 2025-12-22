@@ -8,7 +8,7 @@
 
 import {
   requireAdmin,
-  requirePermission,
+  requireSuperAdmin,
   successResponse,
   withErrorHandling,
 } from '@babylon/api';
@@ -69,8 +69,9 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
  * - environment: 'production' | 'staging' | 'development'
  */
 export const POST = withErrorHandling(async (request: NextRequest) => {
-  // Require view_system permission - VIEWER role should not be able to change environment
-  const admin = await requirePermission(request, 'view_system');
+  // Environment switching is restricted to SUPER_ADMIN only
+  // as it can affect data visibility and admin operations
+  const admin = await requireSuperAdmin(request);
 
   const body = await request.json();
   const { environment } = body as { environment?: AdminEnvironment };
