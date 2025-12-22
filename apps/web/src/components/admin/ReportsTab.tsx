@@ -283,30 +283,44 @@ export function ReportsTab() {
       {stats && (
         <div className="grid grid-cols-2 gap-2 sm:gap-4 md:grid-cols-3 lg:grid-cols-5">
           <div className="rounded-lg border border-border bg-card p-3 sm:p-4">
-            <div className="mb-0.5 sm:mb-1 text-muted-foreground text-xs sm:text-sm">Total</div>
-            <div className="font-bold text-xl sm:text-2xl">{stats.totals.total}</div>
+            <div className="mb-0.5 text-muted-foreground text-xs sm:mb-1 sm:text-sm">
+              Total
+            </div>
+            <div className="font-bold text-xl sm:text-2xl">
+              {stats.totals.total}
+            </div>
           </div>
           <div className="rounded-lg border border-yellow-500/20 bg-card p-3 sm:p-4">
-            <div className="mb-0.5 sm:mb-1 text-muted-foreground text-xs sm:text-sm">Pending</div>
-            <div className="font-bold text-xl sm:text-2xl text-yellow-500">
+            <div className="mb-0.5 text-muted-foreground text-xs sm:mb-1 sm:text-sm">
+              Pending
+            </div>
+            <div className="font-bold text-xl text-yellow-500 sm:text-2xl">
               {stats.totals.pending}
             </div>
           </div>
           <div className="rounded-lg border border-blue-500/20 bg-card p-3 sm:p-4">
-            <div className="mb-0.5 sm:mb-1 text-muted-foreground text-xs sm:text-sm">Reviewing</div>
-            <div className="font-bold text-xl sm:text-2xl text-blue-500">
+            <div className="mb-0.5 text-muted-foreground text-xs sm:mb-1 sm:text-sm">
+              Reviewing
+            </div>
+            <div className="font-bold text-blue-500 text-xl sm:text-2xl">
               {stats.totals.reviewing}
             </div>
           </div>
           <div className="rounded-lg border border-green-500/20 bg-card p-3 sm:p-4">
-            <div className="mb-0.5 sm:mb-1 text-muted-foreground text-xs sm:text-sm">Resolved</div>
-            <div className="font-bold text-xl sm:text-2xl text-green-500">
+            <div className="mb-0.5 text-muted-foreground text-xs sm:mb-1 sm:text-sm">
+              Resolved
+            </div>
+            <div className="font-bold text-green-500 text-xl sm:text-2xl">
               {stats.totals.resolved}
             </div>
           </div>
-          <div className="rounded-lg border border-border bg-card p-3 sm:p-4 col-span-2 md:col-span-1">
-            <div className="mb-0.5 sm:mb-1 text-muted-foreground text-xs sm:text-sm">Dismissed</div>
-            <div className="font-bold text-xl sm:text-2xl">{stats.totals.dismissed}</div>
+          <div className="col-span-2 rounded-lg border border-border bg-card p-3 sm:p-4 md:col-span-1">
+            <div className="mb-0.5 text-muted-foreground text-xs sm:mb-1 sm:text-sm">
+              Dismissed
+            </div>
+            <div className="font-bold text-xl sm:text-2xl">
+              {stats.totals.dismissed}
+            </div>
           </div>
         </div>
       )}
@@ -314,7 +328,7 @@ export function ReportsTab() {
       {/* Filters */}
       <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:gap-4">
         <div className="flex flex-wrap gap-1.5 sm:gap-2">
-          <span className="self-center text-muted-foreground text-xs sm:text-sm mr-1">
+          <span className="mr-1 self-center text-muted-foreground text-xs sm:text-sm">
             Status:
           </span>
           {(
@@ -324,7 +338,7 @@ export function ReportsTab() {
               key={s}
               onClick={() => setStatusFilter(s)}
               className={cn(
-                'rounded px-2 py-1 sm:px-3 sm:py-1.5 font-medium text-[10px] sm:text-sm transition-colors',
+                'rounded px-2 py-1 font-medium text-[10px] transition-colors sm:px-3 sm:py-1.5 sm:text-sm',
                 statusFilter === s
                   ? 'bg-primary text-primary-foreground'
                   : 'bg-muted text-muted-foreground hover:bg-muted/80'
@@ -336,7 +350,7 @@ export function ReportsTab() {
         </div>
 
         <div className="flex flex-wrap gap-1.5 sm:gap-2">
-          <span className="self-center text-muted-foreground text-xs sm:text-sm mr-1">
+          <span className="mr-1 self-center text-muted-foreground text-xs sm:text-sm">
             Priority:
           </span>
           {(['all', 'critical', 'high', 'normal', 'low'] as const).map((p) => (
@@ -344,7 +358,7 @@ export function ReportsTab() {
               key={p}
               onClick={() => setPriorityFilter(p)}
               className={cn(
-                'rounded px-2 py-1 sm:px-3 sm:py-1.5 font-medium text-[10px] sm:text-sm transition-colors',
+                'rounded px-2 py-1 font-medium text-[10px] transition-colors sm:px-3 sm:py-1.5 sm:text-sm',
                 priorityFilter === p
                   ? 'bg-primary text-primary-foreground'
                   : 'bg-muted text-muted-foreground hover:bg-muted/80'
@@ -626,19 +640,23 @@ function EvaluationModal({
           <h3 className="mb-2 font-semibold text-sm">Evidence Collected</h3>
           <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">
             <div className="rounded-lg bg-muted/50 p-2 sm:p-3">
-              <div className="text-muted-foreground text-[10px] sm:text-xs">Chat Messages</div>
+              <div className="text-[10px] text-muted-foreground sm:text-xs">
+                Chat Messages
+              </div>
               <div className="font-bold text-base sm:text-lg">
                 {evaluation.evidenceSummary.chatMessages}
               </div>
             </div>
             <div className="rounded-lg bg-muted/50 p-2 sm:p-3">
-              <div className="text-muted-foreground text-[10px] sm:text-xs">Posts</div>
+              <div className="text-[10px] text-muted-foreground sm:text-xs">
+                Posts
+              </div>
               <div className="font-bold text-base sm:text-lg">
                 {evaluation.evidenceSummary.posts}
               </div>
             </div>
             <div className="rounded-lg bg-muted/50 p-2 sm:p-3">
-              <div className="text-muted-foreground text-[10px] sm:text-xs">
+              <div className="text-[10px] text-muted-foreground sm:text-xs">
                 Reports Received
               </div>
               <div className="font-bold text-base sm:text-lg">
@@ -646,7 +664,9 @@ function EvaluationModal({
               </div>
             </div>
             <div className="rounded-lg bg-muted/50 p-2 sm:p-3">
-              <div className="text-muted-foreground text-[10px] sm:text-xs">Reports Sent</div>
+              <div className="text-[10px] text-muted-foreground sm:text-xs">
+                Reports Sent
+              </div>
               <div className="font-bold text-base sm:text-lg">
                 {evaluation.evidenceSummary.reportsSent}
               </div>

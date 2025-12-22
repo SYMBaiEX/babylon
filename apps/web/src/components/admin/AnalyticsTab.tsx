@@ -114,7 +114,10 @@ export function AnalyticsTab() {
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);
     if (period === 'month') {
-      return date.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+      return date.toLocaleDateString('en-US', {
+        month: 'short',
+        year: '2-digit',
+      });
     }
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
@@ -137,14 +140,22 @@ export function AnalyticsTab() {
     const secondHalf = data.slice(midpoint);
 
     const firstSum = firstHalf.reduce((sum, d) => sum + (d[key] as number), 0);
-    const secondSum = secondHalf.reduce((sum, d) => sum + (d[key] as number), 0);
+    const secondSum = secondHalf.reduce(
+      (sum, d) => sum + (d[key] as number),
+      0
+    );
 
-    if (firstSum === 0) return { value: secondSum > 0 ? 100 : 0, direction: secondSum > 0 ? 'up' : 'neutral' };
+    if (firstSum === 0)
+      return {
+        value: secondSum > 0 ? 100 : 0,
+        direction: secondSum > 0 ? 'up' : 'neutral',
+      };
 
     const percentChange = ((secondSum - firstSum) / firstSum) * 100;
     return {
       value: Math.abs(percentChange),
-      direction: percentChange > 5 ? 'up' : percentChange < -5 ? 'down' : 'neutral',
+      direction:
+        percentChange > 5 ? 'up' : percentChange < -5 ? 'down' : 'neutral',
     };
   };
 
@@ -169,7 +180,7 @@ export function AnalyticsTab() {
         {trend.direction !== 'neutral' && (
           <div
             className={cn(
-              'flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium',
+              'flex items-center gap-1 rounded-full px-2 py-1 font-medium text-xs',
               trend.direction === 'up'
                 ? 'bg-green-500/10 text-green-500'
                 : 'bg-red-500/10 text-red-500'
@@ -198,7 +209,7 @@ export function AnalyticsTab() {
           ))}
         </div>
         <Skeleton className="h-64 sm:h-80" />
-        <div className="grid grid-cols-1 gap-4 lg:gap-6 lg:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-6">
           <Skeleton className="h-64 sm:h-72" />
           <Skeleton className="h-64 sm:h-72" />
         </div>
@@ -247,7 +258,7 @@ export function AnalyticsTab() {
                   setLoading(true);
                 }}
                 className={cn(
-                  'px-2.5 py-1.5 text-xs sm:px-4 sm:py-2 sm:text-sm font-medium transition-colors first:rounded-l-lg last:rounded-r-lg',
+                  'px-2.5 py-1.5 font-medium text-xs transition-colors first:rounded-l-lg last:rounded-r-lg sm:px-4 sm:py-2 sm:text-sm',
                   period === p
                     ? 'bg-primary text-primary-foreground'
                     : 'text-muted-foreground hover:bg-muted'
@@ -261,9 +272,14 @@ export function AnalyticsTab() {
           <button
             onClick={() => fetchAnalytics(true)}
             disabled={isRefreshing}
-            className="flex items-center gap-1.5 sm:gap-2 rounded-lg bg-muted px-2.5 py-1.5 sm:px-3 sm:py-2 text-xs sm:text-sm font-medium transition-colors hover:bg-muted/80 disabled:opacity-50"
+            className="flex items-center gap-1.5 rounded-lg bg-muted px-2.5 py-1.5 font-medium text-xs transition-colors hover:bg-muted/80 disabled:opacity-50 sm:gap-2 sm:px-3 sm:py-2 sm:text-sm"
           >
-            <RefreshCw className={cn('h-3.5 w-3.5 sm:h-4 sm:w-4', isRefreshing && 'animate-spin')} />
+            <RefreshCw
+              className={cn(
+                'h-3.5 w-3.5 sm:h-4 sm:w-4',
+                isRefreshing && 'animate-spin'
+              )}
+            />
             <span className="hidden sm:inline">Refresh</span>
           </button>
         </div>
@@ -377,8 +393,18 @@ export function AnalyticsTab() {
                 labelFormatter={(label) => formatDate(label)}
               />
               <Legend />
-              <Bar dataKey="posts" name="Posts" fill="#a855f7" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="comments" name="Comments" fill="#22c55e" radius={[4, 4, 0, 0]} />
+              <Bar
+                dataKey="posts"
+                name="Posts"
+                fill="#a855f7"
+                radius={[4, 4, 0, 0]}
+              />
+              <Bar
+                dataKey="comments"
+                name="Comments"
+                fill="#22c55e"
+                radius={[4, 4, 0, 0]}
+              />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -434,7 +460,7 @@ export function AnalyticsTab() {
         <h3 className="mb-4 font-semibold text-lg">Daily Breakdown</h3>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
-            <thead className="border-b border-border text-muted-foreground">
+            <thead className="border-border border-b text-muted-foreground">
               <tr>
                 <th className="pb-3 font-medium">Date</th>
                 <th className="pb-3 text-right font-medium">Users</th>
@@ -445,26 +471,32 @@ export function AnalyticsTab() {
               </tr>
             </thead>
             <tbody>
-              {data.timeSeries.slice(-10).reverse().map((row) => (
-                <tr key={row.date} className="border-b border-border/50 last:border-0">
-                  <td className="py-3 font-medium">{formatDate(row.date)}</td>
-                  <td className="py-3 text-right font-mono text-blue-500">
-                    {row.users}
-                  </td>
-                  <td className="py-3 text-right font-mono text-purple-500">
-                    {row.posts}
-                  </td>
-                  <td className="py-3 text-right font-mono text-green-500">
-                    {row.comments}
-                  </td>
-                  <td className="py-3 text-right font-mono text-red-500">
-                    {row.reactions}
-                  </td>
-                  <td className="py-3 text-right font-mono text-orange-500">
-                    {row.follows}
-                  </td>
-                </tr>
-              ))}
+              {data.timeSeries
+                .slice(-10)
+                .reverse()
+                .map((row) => (
+                  <tr
+                    key={row.date}
+                    className="border-border/50 border-b last:border-0"
+                  >
+                    <td className="py-3 font-medium">{formatDate(row.date)}</td>
+                    <td className="py-3 text-right font-mono text-blue-500">
+                      {row.users}
+                    </td>
+                    <td className="py-3 text-right font-mono text-purple-500">
+                      {row.posts}
+                    </td>
+                    <td className="py-3 text-right font-mono text-green-500">
+                      {row.comments}
+                    </td>
+                    <td className="py-3 text-right font-mono text-red-500">
+                      {row.reactions}
+                    </td>
+                    <td className="py-3 text-right font-mono text-orange-500">
+                      {row.follows}
+                    </td>
+                  </tr>
+                ))}
             </tbody>
           </table>
         </div>

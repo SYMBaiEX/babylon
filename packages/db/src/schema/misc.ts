@@ -450,6 +450,7 @@ export type TickTokenStatsRow = typeof tickTokenStats.$inferSelect;
 export type NewTickTokenStatsRow = typeof tickTokenStats.$inferInsert;
 export type AdminAuditLog = typeof adminAuditLogs.$inferSelect;
 export type NewAdminAuditLog = typeof adminAuditLogs.$inferInsert;
-export type AnalyticsDailySnapshot = typeof analyticsDailySnapshots.$inferSelect;
+export type AnalyticsDailySnapshot =
+  typeof analyticsDailySnapshots.$inferSelect;
 export type NewAnalyticsDailySnapshot =
   typeof analyticsDailySnapshots.$inferInsert;

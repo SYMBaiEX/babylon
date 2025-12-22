@@ -20,7 +20,10 @@ describe('NPC Anti-Repetition Service', () => {
       antiRepetitionService.addPost('actor1', 'Hello world');
       antiRepetitionService.addPost('actor1', 'Hello again');
 
-      const analysis = antiRepetitionService.analyzePost('actor1', 'Hello test');
+      const analysis = antiRepetitionService.analyzePost(
+        'actor1',
+        'Hello test'
+      );
 
       // Only 2 posts in history - too few to analyze
       expect(analysis.isRepetitive).toBe(false);

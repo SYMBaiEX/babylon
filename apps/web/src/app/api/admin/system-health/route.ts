@@ -10,22 +10,18 @@
  */
 
 import { requireAdmin, successResponse, withErrorHandling } from '@babylon/api';
-import {
-  count,
-  db,
-  desc,
-  games,
-  gte,
-  posts,
-  users,
-} from '@babylon/db';
+import { count, db, desc, games, gte, posts, users } from '@babylon/db';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 
 export const GET = withErrorHandling(async (request: NextRequest) => {
   await requireAdmin(request);
 
-  logger.info('System health check requested', {}, 'GET /api/admin/system-health');
+  logger.info(
+    'System health check requested',
+    {},
+    'GET /api/admin/system-health'
+  );
 
   const now = new Date();
   const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);

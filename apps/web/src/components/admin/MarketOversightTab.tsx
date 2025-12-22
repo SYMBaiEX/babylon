@@ -80,39 +80,47 @@ export function MarketOversightTab() {
   const [isRefreshing, startRefresh] = useTransition();
   const [selectedMarket, setSelectedMarket] = useState<Market | null>(null);
   const [showActionModal, setShowActionModal] = useState(false);
-  const [actionType, setActionType] = useState<'resolve' | 'extend' | 'void'>('resolve');
+  const [actionType, setActionType] = useState<'resolve' | 'extend' | 'void'>(
+    'resolve'
+  );
   const [resolution, setResolution] = useState<boolean>(true);
   const [extendDate, setExtendDate] = useState('');
   const [actionReason, setActionReason] = useState('');
   const [isActioning, startActioning] = useTransition();
 
-  const fetchMarkets = useCallback((showRefreshing = false) => {
-    const fetchLogic = async () => {
-      const params = new URLSearchParams();
-      if (statusFilter !== 'all') params.set('status', statusFilter);
+  const fetchMarkets = useCallback(
+    (showRefreshing = false) => {
+      const fetchLogic = async () => {
+        const params = new URLSearchParams();
+        if (statusFilter !== 'all') params.set('status', statusFilter);
 
-      const response = await fetch(`/api/admin/markets?${params}`);
-      if (!response.ok) {
+        const response = await fetch(`/api/admin/markets?${params}`);
+        if (!response.ok) {
+          setLoading(false);
+          return;
+        }
+        const result = await response.json();
+        setData(result);
         setLoading(false);
-        return;
-      }
-      const result = await response.json();
-      setData(result);
-      setLoading(false);
-    };
+      };
 
-    if (showRefreshing) {
-      startRefresh(fetchLogic);
-    } else {
-      fetchLogic();
-    }
-  }, [statusFilter]);
+      if (showRefreshing) {
+        startRefresh(fetchLogic);
+      } else {
+        fetchLogic();
+      }
+    },
+    [statusFilter]
+  );
 
   useEffect(() => {
     fetchMarkets();
   }, [fetchMarkets]);
 
-  const handleAction = (market: Market, action: 'resolve' | 'extend' | 'void') => {
+  const handleAction = (
+    market: Market,
+    action: 'resolve' | 'extend' | 'void'
+  ) => {
     setSelectedMarket(market);
     setActionType(action);
     setResolution(true);
@@ -183,19 +191,19 @@ export function MarketOversightTab() {
     switch (status) {
       case 'active':
         return (
-          <span className="flex items-center gap-1 rounded bg-green-500/20 px-2 py-1 text-green-500 text-xs font-medium">
+          <span className="flex items-center gap-1 rounded bg-green-500/20 px-2 py-1 font-medium text-green-500 text-xs">
             <Check className="h-3 w-3" /> Active
           </span>
         );
       case 'expired':
         return (
-          <span className="flex items-center gap-1 rounded bg-yellow-500/20 px-2 py-1 text-yellow-500 text-xs font-medium">
+          <span className="flex items-center gap-1 rounded bg-yellow-500/20 px-2 py-1 font-medium text-xs text-yellow-500">
             <Clock className="h-3 w-3" /> Expired
           </span>
         );
       case 'resolved':
         return (
-          <span className="flex items-center gap-1 rounded bg-blue-500/20 px-2 py-1 text-blue-500 text-xs font-medium">
+          <span className="flex items-center gap-1 rounded bg-blue-500/20 px-2 py-1 font-medium text-blue-500 text-xs">
             <Check className="h-3 w-3" /> Resolved
           </span>
         );
@@ -203,12 +211,14 @@ export function MarketOversightTab() {
   };
 
   const MarketCard = ({ market }: { market: Market }) => (
-    <div className="rounded-xl border border-border bg-card p-4 sm:p-5 transition-shadow hover:shadow-md">
+    <div className="rounded-xl border border-border bg-card p-4 transition-shadow hover:shadow-md sm:p-5">
       {/* Header */}
-      <div className="mb-2 sm:mb-3 flex flex-wrap items-start justify-between gap-2 sm:gap-4">
-        <div className="flex-1 min-w-0">
-          <h4 className="line-clamp-2 font-medium text-sm sm:text-base">{market.question}</h4>
-          <div className="mt-1 flex items-center gap-1.5 sm:gap-2 text-muted-foreground text-[10px] sm:text-xs">
+      <div className="mb-2 flex flex-wrap items-start justify-between gap-2 sm:mb-3 sm:gap-4">
+        <div className="min-w-0 flex-1">
+          <h4 className="line-clamp-2 font-medium text-sm sm:text-base">
+            {market.question}
+          </h4>
+          <div className="mt-1 flex items-center gap-1.5 text-[10px] text-muted-foreground sm:gap-2 sm:text-xs">
             <Calendar className="h-3 w-3 flex-shrink-0" />
             Ends {formatDate(market.endDate)}
           </div>
@@ -235,18 +245,30 @@ export function MarketOversightTab() {
       </div>
 
       {/* Stats */}
-      <div className="mb-3 sm:mb-4 grid grid-cols-3 gap-2 sm:gap-4">
-        <div className="rounded-lg bg-muted/50 p-1.5 sm:p-2 text-center">
-          <div className="font-semibold text-sm sm:text-base">{market.positionCount}</div>
-          <div className="text-muted-foreground text-[10px] sm:text-xs">Positions</div>
+      <div className="mb-3 grid grid-cols-3 gap-2 sm:mb-4 sm:gap-4">
+        <div className="rounded-lg bg-muted/50 p-1.5 text-center sm:p-2">
+          <div className="font-semibold text-sm sm:text-base">
+            {market.positionCount}
+          </div>
+          <div className="text-[10px] text-muted-foreground sm:text-xs">
+            Positions
+          </div>
         </div>
-        <div className="rounded-lg bg-muted/50 p-1.5 sm:p-2 text-center">
-          <div className="font-semibold text-sm sm:text-base">{market.tradeCount}</div>
-          <div className="text-muted-foreground text-[10px] sm:text-xs">Trades</div>
+        <div className="rounded-lg bg-muted/50 p-1.5 text-center sm:p-2">
+          <div className="font-semibold text-sm sm:text-base">
+            {market.tradeCount}
+          </div>
+          <div className="text-[10px] text-muted-foreground sm:text-xs">
+            Trades
+          </div>
         </div>
-        <div className="rounded-lg bg-muted/50 p-1.5 sm:p-2 text-center">
-          <div className="font-semibold text-sm sm:text-base">{formatCurrency(market.totalVolume)}</div>
-          <div className="text-muted-foreground text-[10px] sm:text-xs">Volume</div>
+        <div className="rounded-lg bg-muted/50 p-1.5 text-center sm:p-2">
+          <div className="font-semibold text-sm sm:text-base">
+            {formatCurrency(market.totalVolume)}
+          </div>
+          <div className="text-[10px] text-muted-foreground sm:text-xs">
+            Volume
+          </div>
         </div>
       </div>
 
@@ -264,21 +286,21 @@ export function MarketOversightTab() {
         <div className="flex flex-col gap-1.5 sm:flex-row sm:gap-2">
           <button
             onClick={() => handleAction(market, 'resolve')}
-            className="flex flex-1 items-center justify-center gap-1 rounded-lg bg-blue-500/20 px-2.5 py-1.5 sm:px-3 sm:py-2 text-blue-500 text-xs sm:text-sm font-medium transition-colors hover:bg-blue-500/30"
+            className="flex flex-1 items-center justify-center gap-1 rounded-lg bg-blue-500/20 px-2.5 py-1.5 font-medium text-blue-500 text-xs transition-colors hover:bg-blue-500/30 sm:px-3 sm:py-2 sm:text-sm"
           >
             <Check className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             Resolve
           </button>
           <button
             onClick={() => handleAction(market, 'extend')}
-            className="flex flex-1 items-center justify-center gap-1 rounded-lg bg-purple-500/20 px-2.5 py-1.5 sm:px-3 sm:py-2 text-purple-500 text-xs sm:text-sm font-medium transition-colors hover:bg-purple-500/30"
+            className="flex flex-1 items-center justify-center gap-1 rounded-lg bg-purple-500/20 px-2.5 py-1.5 font-medium text-purple-500 text-xs transition-colors hover:bg-purple-500/30 sm:px-3 sm:py-2 sm:text-sm"
           >
             <Clock className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             Extend
           </button>
           <button
             onClick={() => handleAction(market, 'void')}
-            className="flex flex-1 items-center justify-center gap-1 rounded-lg bg-red-500/20 px-2.5 py-1.5 sm:px-3 sm:py-2 text-red-500 text-xs sm:text-sm font-medium transition-colors hover:bg-red-500/30"
+            className="flex flex-1 items-center justify-center gap-1 rounded-lg bg-red-500/20 px-2.5 py-1.5 font-medium text-red-500 text-xs transition-colors hover:bg-red-500/30 sm:px-3 sm:py-2 sm:text-sm"
           >
             <XCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             Void
@@ -330,7 +352,7 @@ export function MarketOversightTab() {
 
         <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           {/* Status Filter */}
-          <div className="flex rounded-lg border border-border bg-card overflow-x-auto">
+          <div className="flex overflow-x-auto rounded-lg border border-border bg-card">
             {(['all', 'active', 'expired', 'resolved'] as const).map((s) => (
               <button
                 key={s}
@@ -339,7 +361,7 @@ export function MarketOversightTab() {
                   setLoading(true);
                 }}
                 className={cn(
-                  'px-2 py-1.5 text-xs sm:px-3 sm:py-2 sm:text-sm font-medium transition-colors first:rounded-l-lg last:rounded-r-lg whitespace-nowrap',
+                  'whitespace-nowrap px-2 py-1.5 font-medium text-xs transition-colors first:rounded-l-lg last:rounded-r-lg sm:px-3 sm:py-2 sm:text-sm',
                   statusFilter === s
                     ? 'bg-primary text-primary-foreground'
                     : 'text-muted-foreground hover:bg-muted'
@@ -353,9 +375,14 @@ export function MarketOversightTab() {
           <button
             onClick={() => fetchMarkets(true)}
             disabled={isRefreshing}
-            className="flex items-center gap-1.5 sm:gap-2 rounded-lg bg-muted px-2.5 py-1.5 sm:px-3 sm:py-2 text-xs sm:text-sm font-medium transition-colors hover:bg-muted/80 disabled:opacity-50"
+            className="flex items-center gap-1.5 rounded-lg bg-muted px-2.5 py-1.5 font-medium text-xs transition-colors hover:bg-muted/80 disabled:opacity-50 sm:gap-2 sm:px-3 sm:py-2 sm:text-sm"
           >
-            <RefreshCw className={cn('h-3.5 w-3.5 sm:h-4 sm:w-4', isRefreshing && 'animate-spin')} />
+            <RefreshCw
+              className={cn(
+                'h-3.5 w-3.5 sm:h-4 sm:w-4',
+                isRefreshing && 'animate-spin'
+              )}
+            />
             <span className="hidden sm:inline">Refresh</span>
           </button>
         </div>
@@ -364,32 +391,48 @@ export function MarketOversightTab() {
       {/* Stats */}
       <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         <div className="rounded-xl border border-border bg-card p-3 sm:p-5">
-          <div className="mb-1.5 sm:mb-2 flex items-center gap-1.5 sm:gap-2">
-            <BarChart2 className="h-4 w-4 sm:h-5 sm:w-5 text-blue-500" />
-            <span className="text-muted-foreground text-xs sm:text-sm">Total Markets</span>
+          <div className="mb-1.5 flex items-center gap-1.5 sm:mb-2 sm:gap-2">
+            <BarChart2 className="h-4 w-4 text-blue-500 sm:h-5 sm:w-5" />
+            <span className="text-muted-foreground text-xs sm:text-sm">
+              Total Markets
+            </span>
           </div>
-          <div className="font-bold text-xl sm:text-2xl">{data.stats.total}</div>
+          <div className="font-bold text-xl sm:text-2xl">
+            {data.stats.total}
+          </div>
         </div>
         <div className="rounded-xl border border-border bg-card p-3 sm:p-5">
-          <div className="mb-1.5 sm:mb-2 flex items-center gap-1.5 sm:gap-2">
-            <Check className="h-4 w-4 sm:h-5 sm:w-5 text-green-500" />
-            <span className="text-muted-foreground text-xs sm:text-sm">Active</span>
+          <div className="mb-1.5 flex items-center gap-1.5 sm:mb-2 sm:gap-2">
+            <Check className="h-4 w-4 text-green-500 sm:h-5 sm:w-5" />
+            <span className="text-muted-foreground text-xs sm:text-sm">
+              Active
+            </span>
           </div>
-          <div className="font-bold text-xl sm:text-2xl text-green-500">{data.stats.active}</div>
+          <div className="font-bold text-green-500 text-xl sm:text-2xl">
+            {data.stats.active}
+          </div>
         </div>
         <div className="rounded-xl border border-border bg-card p-3 sm:p-5">
-          <div className="mb-1.5 sm:mb-2 flex items-center gap-1.5 sm:gap-2">
-            <AlertTriangle className="h-4 w-4 sm:h-5 sm:w-5 text-yellow-500" />
-            <span className="text-muted-foreground text-xs sm:text-sm truncate">Needs Resolution</span>
+          <div className="mb-1.5 flex items-center gap-1.5 sm:mb-2 sm:gap-2">
+            <AlertTriangle className="h-4 w-4 text-yellow-500 sm:h-5 sm:w-5" />
+            <span className="truncate text-muted-foreground text-xs sm:text-sm">
+              Needs Resolution
+            </span>
           </div>
-          <div className="font-bold text-xl sm:text-2xl text-yellow-500">{data.stats.expired}</div>
+          <div className="font-bold text-xl text-yellow-500 sm:text-2xl">
+            {data.stats.expired}
+          </div>
         </div>
         <div className="rounded-xl border border-border bg-card p-3 sm:p-5">
-          <div className="mb-1.5 sm:mb-2 flex items-center gap-1.5 sm:gap-2">
-            <DollarSign className="h-4 w-4 sm:h-5 sm:w-5 text-purple-500" />
-            <span className="text-muted-foreground text-xs sm:text-sm">Total Liquidity</span>
+          <div className="mb-1.5 flex items-center gap-1.5 sm:mb-2 sm:gap-2">
+            <DollarSign className="h-4 w-4 text-purple-500 sm:h-5 sm:w-5" />
+            <span className="text-muted-foreground text-xs sm:text-sm">
+              Total Liquidity
+            </span>
           </div>
-          <div className="font-bold text-xl sm:text-2xl">{formatCurrency(data.stats.totalLiquidity)}</div>
+          <div className="font-bold text-xl sm:text-2xl">
+            {formatCurrency(data.stats.totalLiquidity)}
+          </div>
         </div>
       </div>
 
@@ -409,9 +452,11 @@ export function MarketOversightTab() {
 
       {/* Markets Grid */}
       {data.markets.length === 0 ? (
-        <div className="rounded-xl border border-border bg-card py-8 sm:py-12 text-center">
-          <BarChart2 className="mx-auto mb-3 h-10 w-10 sm:h-12 sm:w-12 opacity-50" />
-          <p className="text-muted-foreground text-sm sm:text-base">No markets found</p>
+        <div className="rounded-xl border border-border bg-card py-8 text-center sm:py-12">
+          <BarChart2 className="mx-auto mb-3 h-10 w-10 opacity-50 sm:h-12 sm:w-12" />
+          <p className="text-muted-foreground text-sm sm:text-base">
+            No markets found
+          </p>
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-3 sm:gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -434,12 +479,16 @@ export function MarketOversightTab() {
             </h3>
 
             <div className="mb-4 rounded-lg bg-muted/50 p-3">
-              <p className="line-clamp-2 font-medium">{selectedMarket.question}</p>
+              <p className="line-clamp-2 font-medium">
+                {selectedMarket.question}
+              </p>
             </div>
 
             {actionType === 'resolve' && (
               <div className="mb-4">
-                <label className="mb-2 block text-sm font-medium">Resolution</label>
+                <label className="mb-2 block font-medium text-sm">
+                  Resolution
+                </label>
                 <div className="flex gap-3">
                   <button
                     onClick={() => setResolution(true)}
@@ -471,7 +520,7 @@ export function MarketOversightTab() {
 
             {actionType === 'extend' && (
               <div className="mb-4">
-                <label className="mb-2 block text-sm font-medium">
+                <label className="mb-2 block font-medium text-sm">
                   New End Date
                 </label>
                 <input
@@ -488,21 +537,21 @@ export function MarketOversightTab() {
               <div className="mb-4 rounded-lg bg-red-500/10 p-3 text-red-500">
                 <AlertTriangle className="mb-1 h-5 w-5" />
                 <p className="text-sm">
-                  Voiding a market will refund all positions. This action cannot be
-                  undone.
+                  Voiding a market will refund all positions. This action cannot
+                  be undone.
                 </p>
               </div>
             )}
 
             <div className="mb-4">
-              <label className="mb-2 block text-sm font-medium">
+              <label className="mb-2 block font-medium text-sm">
                 Reason {actionType !== 'extend' && '(optional)'}
               </label>
               <textarea
                 value={actionReason}
                 onChange={(e) => setActionReason(e.target.value)}
                 placeholder="Enter reason..."
-                className="w-full rounded-lg border border-border bg-background px-3 py-2 resize-none"
+                className="w-full resize-none rounded-lg border border-border bg-background px-3 py-2"
                 rows={2}
               />
             </div>

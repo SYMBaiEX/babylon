@@ -859,7 +859,11 @@ ${worldFactsContext}
 
   logger.debug(
     'Generated rivalry post',
-    { actor: actor.name, rival: rivalName, preview: transformed.transformedText.slice(0, 50) },
+    {
+      actor: actor.name,
+      rival: rivalName,
+      preview: transformed.transformedText.slice(0, 50),
+    },
     'PostGeneration'
   );
 
@@ -983,7 +987,11 @@ ${worldFactsContext}
 
   logger.debug(
     'Generated player reaction post',
-    { actor: actor.name, player: playerName, preview: transformed.transformedText.slice(0, 50) },
+    {
+      actor: actor.name,
+      player: playerName,
+      preview: transformed.transformedText.slice(0, 50),
+    },
     'PostGeneration'
   );
 

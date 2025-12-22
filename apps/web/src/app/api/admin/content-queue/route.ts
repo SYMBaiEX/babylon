@@ -148,8 +148,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         pending: reportedComments.length,
         hidden: 0,
       },
-      totalPending:
-        Number(postStats?.pending ?? 0) + reportedComments.length,
+      totalPending: Number(postStats?.pending ?? 0) + reportedComments.length,
     },
   });
 });
