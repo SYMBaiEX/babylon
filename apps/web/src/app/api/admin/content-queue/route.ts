@@ -109,7 +109,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
           .innerJoin(
             reports,
             and(
-              eq(reports.reportedPostId, comments.postId),
+              eq(reports.reportedCommentId, comments.id),
               eq(reports.status, status)
             )
           )
