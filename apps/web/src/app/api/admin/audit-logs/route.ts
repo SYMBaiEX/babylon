@@ -98,12 +98,21 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
   if (!parseResult.success) {
     return successResponse(
-      { error: 'Invalid query parameters', details: parseResult.error.flatten() },
+      {
+        error: 'Invalid query parameters',
+        details: parseResult.error.flatten(),
+      },
       400
     );
   }
 
-  const { limit, offset, adminId: filterAdminId, action: filterAction, resourceType: filterResourceType } = parseResult.data;
+  const {
+    limit,
+    offset,
+    adminId: filterAdminId,
+    action: filterAction,
+    resourceType: filterResourceType,
+  } = parseResult.data;
 
   logger.info(
     'Admin audit logs requested',
