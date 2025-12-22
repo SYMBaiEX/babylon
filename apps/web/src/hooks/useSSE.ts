@@ -230,17 +230,23 @@ export function useSSE(options: SSEHookOptions = {}): SSEHookReturn {
   }, [manager]);
 
   // Handle initial channels - memoize based on sorted string key for stable reference
-  // This prevents re-subscriptions when array reference changes but contents are the same
+  // This prevents re-subscriptions when array reference changes but contents are the same.
+  // Channel names do not include commas, so the join/split is safe here.
   const initialChannelsKey = useMemo(
-    () => initialChannels.slice().sort().join(','),
+    () => initialChannels.filter(Boolean).slice().sort().join(','),
     [initialChannels]
   );
 
+  const stableInitialChannels = useMemo(() => {
+    if (!initialChannelsKey) return [] as Channel[];
+    return initialChannelsKey.split(',') as Channel[];
+  }, [initialChannelsKey]);
+
   useEffect(() => {
-    if (initialChannels.length === 0) return;
+    if (stableInitialChannels.length === 0) return;
 
     // Subscribe to initial channels with no-op callbacks
-    for (const channel of initialChannels) {
+    for (const channel of stableInitialChannels) {
       if (!initialChannelUnsubscribesRef.current.has(channel)) {
         const noopCallback: SSECallback = () => {};
         const unsubscribeFn = manager.subscribe(channel, noopCallback);
@@ -255,7 +261,7 @@ export function useSSE(options: SSEHookOptions = {}): SSEHookReturn {
       }
       initialChannelUnsubscribesRef.current.clear();
     };
-  }, [initialChannelsKey, manager]);
+  }, [stableInitialChannels, manager]);
 
   // Cleanup all subscriptions on unmount
   useEffect(() => {
