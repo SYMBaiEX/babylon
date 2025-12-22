@@ -14,6 +14,7 @@ import {
   withErrorHandling,
 } from '@babylon/api';
 import {
+  ADMIN_ROLES,
   type AdminPermission,
   type AdminRoleType,
   adminRoles,
@@ -95,9 +96,9 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   }
 
   if (action === 'grant') {
-    if (!role || !['SUPER_ADMIN', 'ADMIN', 'VIEWER'].includes(role)) {
+    if (!role || !ADMIN_ROLES.includes(role)) {
       return successResponse(
-        { error: 'Valid role is required for grant action' },
+        { error: `Valid role is required. Must be one of: ${ADMIN_ROLES.join(', ')}` },
         400
       );
     }
