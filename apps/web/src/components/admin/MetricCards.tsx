@@ -158,7 +158,11 @@ export function MetricCard({ data, size = 'md', className }: MetricCardProps) {
       <span
         className={cn(
           'flex items-center gap-0.5 text-xs',
-          change > 0 ? 'text-green-500' : change < 0 ? 'text-red-500' : 'text-muted-foreground'
+          change > 0
+            ? 'text-green-500'
+            : change < 0
+              ? 'text-red-500'
+              : 'text-muted-foreground'
         )}
       >
         {change > 0 ? (
@@ -169,7 +173,9 @@ export function MetricCard({ data, size = 'md', className }: MetricCardProps) {
           <Minus className="h-3 w-3" />
         )}
         {Math.abs(change).toFixed(1)}%
-        {changeLabel && <span className="ml-1 text-muted-foreground">{changeLabel}</span>}
+        {changeLabel && (
+          <span className="ml-1 text-muted-foreground">{changeLabel}</span>
+        )}
       </span>
     ) : null;
 
@@ -183,7 +189,9 @@ export function MetricCard({ data, size = 'md', className }: MetricCardProps) {
     >
       <div className="flex items-start justify-between">
         <div className="flex-1">
-          <p className={cn('text-muted-foreground', sizes.labelSize)}>{label}</p>
+          <p className={cn('text-muted-foreground', sizes.labelSize)}>
+            {label}
+          </p>
           <p className={cn('font-bold', sizes.valueSize, colors.valueClass)}>
             {formattedValue}
           </p>
@@ -272,10 +280,7 @@ export function MetricCardWithTrend({
 
   return (
     <div
-      className={cn(
-        'rounded-lg border border-border bg-card p-4',
-        className
-      )}
+      className={cn('rounded-lg border border-border bg-card p-4', className)}
     >
       <div className="flex items-center justify-between">
         <div>
@@ -294,11 +299,7 @@ export function MetricCardWithTrend({
             <Minus className="h-5 w-5 text-muted-foreground" />
           )}
           {/* Sparkline */}
-          <svg
-            width={width}
-            height={height}
-            className="overflow-visible"
-          >
+          <svg width={width} height={height} className="overflow-visible">
             <polyline
               points={points}
               fill="none"
@@ -338,10 +339,14 @@ export function StatItem({
 
   return (
     <div className="flex items-center gap-3">
-      {Icon && <Icon className={cn('h-4 w-4 flex-shrink-0', colors.iconClass)} />}
+      {Icon && (
+        <Icon className={cn('h-4 w-4 flex-shrink-0', colors.iconClass)} />
+      )}
       <div className="min-w-0 flex-1">
         <div className="text-muted-foreground text-sm">{label}</div>
-        <div className={cn('font-bold text-xl', colors.valueClass)}>{value}</div>
+        <div className={cn('font-bold text-xl', colors.valueClass)}>
+          {value}
+        </div>
       </div>
     </div>
   );

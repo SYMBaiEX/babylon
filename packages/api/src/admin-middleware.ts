@@ -18,9 +18,9 @@
  */
 
 import {
-  adminRoles,
   type AdminPermission,
   type AdminRoleType,
+  adminRoles,
   db,
   eq,
   isNull,

@@ -23,11 +23,7 @@ import type { NextRequest } from 'next/server';
 export const GET = withErrorHandling(async (request: NextRequest) => {
   await requirePermission(request, 'view_system');
 
-  logger.info(
-    'System stats requested',
-    {},
-    'GET /api/admin/stats/system'
-  );
+  logger.info('System stats requested', {}, 'GET /api/admin/stats/system');
 
   // Check service health
   const healthChecks = await Promise.allSettled([
@@ -35,8 +31,10 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     isRedisAvailable(),
   ]);
 
-  const databaseHealthy = healthChecks[0].status === 'fulfilled' && healthChecks[0].value;
-  const redisHealthy = healthChecks[1].status === 'fulfilled' && healthChecks[1].value;
+  const databaseHealthy =
+    healthChecks[0].status === 'fulfilled' && healthChecks[0].value;
+  const redisHealthy =
+    healthChecks[1].status === 'fulfilled' && healthChecks[1].value;
 
   // Get game state
   const game = await db.game.findFirst({
@@ -53,7 +51,9 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     WHERE "createdAt" >= NOW() - INTERVAL '1 hour'
       AND "error" IS NOT NULL
   `;
-  const llmErrorsLastHour = recentLlmErrors[0] ? Number(recentLlmErrors[0].count) : 0;
+  const llmErrorsLastHour = recentLlmErrors[0]
+    ? Number(recentLlmErrors[0].count)
+    : 0;
 
   // Get LLM usage stats
   const llmStats = await db.$queryRaw<{
@@ -70,7 +70,11 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   `;
 
   // Get database table sizes
-  const tableSizes = await db.$queryRaw<{ tableName: string; rowCount: string; sizeBytes: string }>`
+  const tableSizes = await db.$queryRaw<{
+    tableName: string;
+    rowCount: string;
+    sizeBytes: string;
+  }>`
     SELECT 
       relname as "tableName",
       n_live_tup as "rowCount",
@@ -114,7 +118,9 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   });
 
   const lookaheadMinutes = latestPost
-    ? Math.floor((new Date(latestPost.timestamp).getTime() - Date.now()) / 60000)
+    ? Math.floor(
+        (new Date(latestPost.timestamp).getTime() - Date.now()) / 60000
+      )
     : 0;
 
   // Get report queue status
@@ -130,8 +136,12 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   // Extract llm usage from first element
   const llmUsageRow = llmStats[0];
   const llmCallsTotal = llmUsageRow ? Number(llmUsageRow.totalCalls) : 0;
-  const llmInputTokensTotal = llmUsageRow ? Number(llmUsageRow.totalInputTokens) : 0;
-  const llmOutputTokensTotal = llmUsageRow ? Number(llmUsageRow.totalOutputTokens) : 0;
+  const llmInputTokensTotal = llmUsageRow
+    ? Number(llmUsageRow.totalInputTokens)
+    : 0;
+  const llmOutputTokensTotal = llmUsageRow
+    ? Number(llmUsageRow.totalOutputTokens)
+    : 0;
 
   return successResponse({
     health: {
@@ -140,17 +150,20 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       overall: databaseHealthy && redisHealthy,
       timestamp: new Date().toISOString(),
     },
-    game: game ? {
-      id: game.id,
-      isRunning: game.isRunning,
-      pausedAt: game.pausedAt?.toISOString() || null,
-      currentTick: game.currentDay,
-      lastTickAt: game.lastTickAt?.toISOString() || null,
-    } : null,
+    game: game
+      ? {
+          id: game.id,
+          isRunning: game.isRunning,
+          pausedAt: game.pausedAt?.toISOString() || null,
+          currentTick: game.currentDay,
+          lastTickAt: game.lastTickAt?.toISOString() || null,
+        }
+      : null,
     cronJobs: {
       gameTick: metrics.find((m) => m.jobName === 'game-tick') || null,
       agentTick: metrics.find((m) => m.jobName === 'agent-tick') || null,
-      realtimeDrain: metrics.find((m) => m.jobName === 'realtime-drain') || null,
+      realtimeDrain:
+        metrics.find((m) => m.jobName === 'realtime-drain') || null,
       allJobs: metrics,
     },
     llm: {
@@ -185,7 +198,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         name: t.tableName,
         rowCount: Number(t.rowCount),
         sizeBytes: Number(t.sizeBytes),
-        sizeMB: Math.round(Number(t.sizeBytes) / 1024 / 1024 * 10) / 10,
+        sizeMB: Math.round((Number(t.sizeBytes) / 1024 / 1024) * 10) / 10,
       })),
     },
     environment: {

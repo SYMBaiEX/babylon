@@ -29,6 +29,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     permissions,
     allPermissions: [...ADMIN_PERMISSIONS],
     rolePermissions: ROLE_PERMISSIONS,
-    hasPermission: (permission: string) => permissions.includes(permission as typeof permissions[number]),
+    hasPermission: (permission: string) =>
+      permissions.includes(permission as (typeof permissions)[number]),
   });
 });

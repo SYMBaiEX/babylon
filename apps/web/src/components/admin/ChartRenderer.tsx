@@ -10,6 +10,7 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
+  Legend,
   Line,
   LineChart,
   Pie,
@@ -18,7 +19,6 @@ import {
   Tooltip,
   XAxis,
   YAxis,
-  Legend,
 } from 'recharts';
 
 export type ChartType = 'line' | 'bar' | 'area' | 'pie';
@@ -86,7 +86,9 @@ function CustomTooltip({
           />
           <span className="text-muted-foreground">{entry.name}:</span>
           <span className="font-medium">
-            {formatValue ? formatValue(entry.value) : entry.value.toLocaleString()}
+            {formatValue
+              ? formatValue(entry.value)
+              : entry.value.toLocaleString()}
           </span>
         </div>
       ))}
@@ -111,7 +113,9 @@ function LineChartComponent({
   return (
     <ResponsiveContainer width="100%" height={height}>
       <LineChart data={data}>
-        {config.showGrid && <CartesianGrid strokeDasharray="3 3" stroke="#333" />}
+        {config.showGrid && (
+          <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+        )}
         <XAxis
           dataKey={config.xAxisKey || 'date'}
           stroke="#888"
@@ -140,7 +144,10 @@ function LineChartComponent({
             key={line}
             type="monotone"
             dataKey={line}
-            stroke={config.colors?.[index] || DEFAULT_COLORS[index % DEFAULT_COLORS.length]}
+            stroke={
+              config.colors?.[index] ||
+              DEFAULT_COLORS[index % DEFAULT_COLORS.length]
+            }
             strokeWidth={2}
             dot={{ r: 3 }}
             activeDot={{ r: 5 }}
@@ -168,25 +175,26 @@ function BarChartComponent({
   return (
     <ResponsiveContainer width="100%" height={height}>
       <BarChart data={data}>
-        {config.showGrid && <CartesianGrid strokeDasharray="3 3" stroke="#333" />}
+        {config.showGrid && (
+          <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+        )}
         <XAxis
           dataKey={config.xAxisKey || 'name'}
           stroke="#888"
           fontSize={12}
           tickFormatter={config.formatXAxis}
         />
-        <YAxis
-          stroke="#888"
-          fontSize={12}
-          tickFormatter={config.formatValue}
-        />
+        <YAxis stroke="#888" fontSize={12} tickFormatter={config.formatValue} />
         <Tooltip content={<CustomTooltip formatValue={config.formatValue} />} />
         {config.showLegend && <Legend />}
         {bars.map((bar, index) => (
           <Bar
             key={bar}
             dataKey={bar}
-            fill={config.colors?.[index] || DEFAULT_COLORS[index % DEFAULT_COLORS.length]}
+            fill={
+              config.colors?.[index] ||
+              DEFAULT_COLORS[index % DEFAULT_COLORS.length]
+            }
             stackId={config.stacked ? 'stack' : undefined}
             radius={[4, 4, 0, 0]}
           />
@@ -213,18 +221,16 @@ function AreaChartComponent({
   return (
     <ResponsiveContainer width="100%" height={height}>
       <AreaChart data={data}>
-        {config.showGrid && <CartesianGrid strokeDasharray="3 3" stroke="#333" />}
+        {config.showGrid && (
+          <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+        )}
         <XAxis
           dataKey={config.xAxisKey || 'date'}
           stroke="#888"
           fontSize={12}
           tickFormatter={config.formatXAxis}
         />
-        <YAxis
-          stroke="#888"
-          fontSize={12}
-          tickFormatter={config.formatValue}
-        />
+        <YAxis stroke="#888" fontSize={12} tickFormatter={config.formatValue} />
         <Tooltip content={<CustomTooltip formatValue={config.formatValue} />} />
         {config.showLegend && <Legend />}
         {areas.map((area, index) => (
@@ -232,8 +238,14 @@ function AreaChartComponent({
             key={area}
             type="monotone"
             dataKey={area}
-            stroke={config.colors?.[index] || DEFAULT_COLORS[index % DEFAULT_COLORS.length]}
-            fill={config.colors?.[index] || DEFAULT_COLORS[index % DEFAULT_COLORS.length]}
+            stroke={
+              config.colors?.[index] ||
+              DEFAULT_COLORS[index % DEFAULT_COLORS.length]
+            }
+            fill={
+              config.colors?.[index] ||
+              DEFAULT_COLORS[index % DEFAULT_COLORS.length]
+            }
             fillOpacity={0.2}
             stackId={config.stacked ? 'stack' : undefined}
           />
@@ -273,7 +285,10 @@ function PieChartComponent({
           {data.map((_, index) => (
             <Cell
               key={`cell-${index}`}
-              fill={config.colors?.[index] || DEFAULT_COLORS[index % DEFAULT_COLORS.length]}
+              fill={
+                config.colors?.[index] ||
+                DEFAULT_COLORS[index % DEFAULT_COLORS.length]
+              }
             />
           ))}
         </Pie>
@@ -325,15 +340,37 @@ export function ChartRenderer({
   const renderChart = () => {
     switch (config.type) {
       case 'line':
-        return <LineChartComponent data={data} config={config} height={chartHeight} />;
+        return (
+          <LineChartComponent
+            data={data}
+            config={config}
+            height={chartHeight}
+          />
+        );
       case 'bar':
-        return <BarChartComponent data={data} config={config} height={chartHeight} />;
+        return (
+          <BarChartComponent data={data} config={config} height={chartHeight} />
+        );
       case 'area':
-        return <AreaChartComponent data={data} config={config} height={chartHeight} />;
+        return (
+          <AreaChartComponent
+            data={data}
+            config={config}
+            height={chartHeight}
+          />
+        );
       case 'pie':
-        return <PieChartComponent data={data} config={config} height={chartHeight} />;
+        return (
+          <PieChartComponent data={data} config={config} height={chartHeight} />
+        );
       default:
-        return <LineChartComponent data={data} config={config} height={chartHeight} />;
+        return (
+          <LineChartComponent
+            data={data}
+            config={config}
+            height={chartHeight}
+          />
+        );
     }
   };
 
@@ -350,7 +387,9 @@ export function ChartRenderer({
         <div>
           <h3 className="font-semibold text-lg">{config.title}</h3>
           {config.description && (
-            <p className="text-muted-foreground text-sm">{config.description}</p>
+            <p className="text-muted-foreground text-sm">
+              {config.description}
+            </p>
           )}
         </div>
         <div className="flex gap-2">
@@ -462,7 +501,9 @@ export function DataTable({
                     )}
                   >
                     {col.format
-                      ? col.format(row[col.key] as string | number | boolean | null)
+                      ? col.format(
+                          row[col.key] as string | number | boolean | null
+                        )
                       : String(row[col.key] ?? '')}
                   </td>
                 ))}
