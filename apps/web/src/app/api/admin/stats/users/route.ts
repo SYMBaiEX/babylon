@@ -61,7 +61,9 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   const userTypeConditions: ReturnType<typeof sql>[] = [];
   switch (userType) {
     case 'real':
-      userTypeConditions.push(sql`${users.isActor} = false AND ${users.isAgent} = false`);
+      userTypeConditions.push(
+        sql`${users.isActor} = false AND ${users.isAgent} = false`
+      );
       break;
     case 'actors':
       userTypeConditions.push(sql`${users.isActor} = true`);
@@ -119,12 +121,14 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   ]);
 
   // Calculate rates
-  const profileCompletionRate = realUsers > 0 ? (profileComplete / realUsers) * 100 : 0;
+  const profileCompletionRate =
+    realUsers > 0 ? (profileComplete / realUsers) * 100 : 0;
   const onChainRate = realUsers > 0 ? (onChainRegistered / realUsers) * 100 : 0;
 
   // Time series data (daily signups for last 30 days)
-  let timeSeries: Array<{ date: string; signups: number; cumulative: number }> = [];
-  
+  let timeSeries: Array<{ date: string; signups: number; cumulative: number }> =
+    [];
+
   if (includeTimeSeries) {
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
@@ -197,7 +201,10 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       yesterday: usersYesterday,
       thisWeek: usersThisWeek,
       thisMonth: usersThisMonth,
-      growthRate: usersYesterday > 0 ? ((usersToday - usersYesterday) / usersYesterday) * 100 : 0,
+      growthRate:
+        usersYesterday > 0
+          ? ((usersToday - usersYesterday) / usersYesterday) * 100
+          : 0,
     },
     profileMetrics: {
       profileComplete,
@@ -210,10 +217,14 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       withTwitter,
       withDiscord,
       withWallet,
-      farcasterRate: realUsers > 0 ? Math.round((withFarcaster / realUsers) * 1000) / 10 : 0,
-      twitterRate: realUsers > 0 ? Math.round((withTwitter / realUsers) * 1000) / 10 : 0,
-      discordRate: realUsers > 0 ? Math.round((withDiscord / realUsers) * 1000) / 10 : 0,
-      walletRate: realUsers > 0 ? Math.round((withWallet / realUsers) * 1000) / 10 : 0,
+      farcasterRate:
+        realUsers > 0 ? Math.round((withFarcaster / realUsers) * 1000) / 10 : 0,
+      twitterRate:
+        realUsers > 0 ? Math.round((withTwitter / realUsers) * 1000) / 10 : 0,
+      discordRate:
+        realUsers > 0 ? Math.round((withDiscord / realUsers) * 1000) / 10 : 0,
+      walletRate:
+        realUsers > 0 ? Math.round((withWallet / realUsers) * 1000) / 10 : 0,
     },
     topReferrers,
     recentSignups: recentSignups.map((u) => ({

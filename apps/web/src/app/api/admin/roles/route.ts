@@ -14,9 +14,9 @@ import {
   withErrorHandling,
 } from '@babylon/api';
 import {
-  adminRoles,
   type AdminPermission,
   type AdminRoleType,
+  adminRoles,
   db,
   eq,
   generateSnowflakeId,
@@ -72,17 +72,11 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   };
 
   if (!userId || !action) {
-    return successResponse(
-      { error: 'userId and action are required' },
-      400
-    );
+    return successResponse({ error: 'userId and action are required' }, 400);
   }
 
   if (action !== 'grant' && action !== 'revoke') {
-    return successResponse(
-      { error: 'action must be grant or revoke' },
-      400
-    );
+    return successResponse({ error: 'action must be grant or revoke' }, 400);
   }
 
   // Check if target user exists
@@ -183,18 +177,12 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     .limit(1);
 
   if (!existingRole) {
-    return successResponse(
-      { error: 'User does not have an admin role' },
-      400
-    );
+    return successResponse({ error: 'User does not have an admin role' }, 400);
   }
 
   // Prevent self-revocation of SUPER_ADMIN
   if (admin.userId === userId) {
-    return successResponse(
-      { error: 'Cannot revoke your own admin role' },
-      400
-    );
+    return successResponse({ error: 'Cannot revoke your own admin role' }, 400);
   }
 
   // Mark as revoked

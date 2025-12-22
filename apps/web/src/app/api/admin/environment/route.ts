@@ -6,19 +6,19 @@
  * @access Admin
  */
 
-import {
-  requireAdmin,
-  successResponse,
-  withErrorHandling,
-} from '@babylon/api';
+import { requireAdmin, successResponse, withErrorHandling } from '@babylon/api';
 import { logger } from '@babylon/shared';
-import type { NextRequest } from 'next/server';
 import { cookies } from 'next/headers';
+import type { NextRequest } from 'next/server';
 
 export type AdminEnvironment = 'production' | 'staging' | 'development';
 
 const ENVIRONMENT_COOKIE = 'admin-environment';
-const VALID_ENVIRONMENTS: AdminEnvironment[] = ['production', 'staging', 'development'];
+const VALID_ENVIRONMENTS: AdminEnvironment[] = [
+  'production',
+  'staging',
+  'development',
+];
 
 /**
  * Get the actual environment from environment variables
@@ -38,7 +38,9 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   await requireAdmin(request);
 
   const cookieStore = await cookies();
-  const preferredEnvironment = cookieStore.get(ENVIRONMENT_COOKIE)?.value as AdminEnvironment | undefined;
+  const preferredEnvironment = cookieStore.get(ENVIRONMENT_COOKIE)?.value as
+    | AdminEnvironment
+    | undefined;
   const actualEnvironment = getActualEnvironment();
 
   return successResponse({
@@ -69,13 +71,15 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
 
   if (!environment || !VALID_ENVIRONMENTS.includes(environment)) {
     return successResponse(
-      { error: `Invalid environment. Must be one of: ${VALID_ENVIRONMENTS.join(', ')}` },
+      {
+        error: `Invalid environment. Must be one of: ${VALID_ENVIRONMENTS.join(', ')}`,
+      },
       400
     );
   }
 
   const cookieStore = await cookies();
-  
+
   // Set the environment cookie
   cookieStore.set(ENVIRONMENT_COOKIE, environment, {
     httpOnly: true,

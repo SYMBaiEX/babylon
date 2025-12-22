@@ -116,8 +116,9 @@ export function FilterPanel({
         ...filters,
         dateRange: {
           ...filters.dateRange,
-          startDate: type === 'start' ? date : (filters.dateRange?.startDate || null),
-          endDate: type === 'end' ? date : (filters.dateRange?.endDate || null),
+          startDate:
+            type === 'start' ? date : filters.dateRange?.startDate || null,
+          endDate: type === 'end' ? date : filters.dateRange?.endDate || null,
           preset: 'Custom',
         },
       });
@@ -126,9 +127,12 @@ export function FilterPanel({
   );
 
   const activeFiltersCount =
-    (filters.dateRange?.preset && filters.dateRange.preset !== 'All time' ? 1 : 0) +
+    (filters.dateRange?.preset && filters.dateRange.preset !== 'All time'
+      ? 1
+      : 0) +
     (filters.entityType && filters.entityType !== 'all' ? 1 : 0) +
-    Object.values(filters.customFilters || {}).filter((v) => v && v !== 'all').length;
+    Object.values(filters.customFilters || {}).filter((v) => v && v !== 'all')
+      .length;
 
   return (
     <div className={cn('space-y-3', className)}>
@@ -159,22 +163,27 @@ export function FilterPanel({
         </button>
 
         {/* Active Filter Chips */}
-        {filters.dateRange?.preset && filters.dateRange.preset !== 'All time' && (
-          <FilterChip
-            label={filters.dateRange.preset}
-            onRemove={() =>
-              onFilterChange({
-                ...filters,
-                dateRange: { startDate: null, endDate: null, preset: 'All time' },
-              })
-            }
-          />
-        )}
+        {filters.dateRange?.preset &&
+          filters.dateRange.preset !== 'All time' && (
+            <FilterChip
+              label={filters.dateRange.preset}
+              onRemove={() =>
+                onFilterChange({
+                  ...filters,
+                  dateRange: {
+                    startDate: null,
+                    endDate: null,
+                    preset: 'All time',
+                  },
+                })
+              }
+            />
+          )}
         {filters.entityType && filters.entityType !== 'all' && (
           <FilterChip
             label={
-              entityOptions?.find((o) => o.value === filters.entityType)?.label ||
-              filters.entityType
+              entityOptions?.find((o) => o.value === filters.entityType)
+                ?.label || filters.entityType
             }
             onRemove={() => onFilterChange({ ...filters, entityType: 'all' })}
           />
@@ -242,10 +251,14 @@ export function FilterPanel({
                     type="date"
                     value={
                       filters.dateRange.startDate
-                        ? filters.dateRange.startDate.toISOString().split('T')[0]
+                        ? filters.dateRange.startDate
+                            .toISOString()
+                            .split('T')[0]
                         : ''
                     }
-                    onChange={(e) => handleCustomDateChange('start', e.target.value)}
+                    onChange={(e) =>
+                      handleCustomDateChange('start', e.target.value)
+                    }
                     className="rounded border border-border bg-background px-2 py-1 text-sm"
                   />
                   <span className="text-muted-foreground">to</span>
@@ -256,7 +269,9 @@ export function FilterPanel({
                         ? filters.dateRange.endDate.toISOString().split('T')[0]
                         : ''
                     }
-                    onChange={(e) => handleCustomDateChange('end', e.target.value)}
+                    onChange={(e) =>
+                      handleCustomDateChange('end', e.target.value)
+                    }
                     className="rounded border border-border bg-background px-2 py-1 text-sm"
                   />
                 </div>
