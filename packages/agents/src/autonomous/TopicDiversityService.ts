@@ -60,7 +60,25 @@ const TOPIC_TRACKING_WINDOW_MS = 30 * 60 * 1000;
 const MAX_TOPIC_COVERAGE = 5;
 
 /** Minimum word overlap to consider posts similar */
-const SIMILARITY_THRESHOLD = 0.5; // Raised to allow more variety in similar topics
+const SIMILARITY_THRESHOLD = 0.3; // Lower threshold for stricter duplicate detection
+
+/** Common repetitive phrases to detect and block */
+const REPETITIVE_PHRASE_PATTERNS = [
+  // Statistical patterns
+  /\d+%\s*crowd\s*consensus/i,
+  /\d+:\d+\s*asymmetry/i,
+  /\d+%\s*(yes|no)\s*(on|for|against)/i,
+  // Trading cliches
+  /exit\s*liquidity/i,
+  /fade\s*the\s*herd/i,
+  /when\s*everyone['']?s\s*(certain|bullish|bearish|long|short)/i,
+  /security\s*(first|rule|101)/i,
+  /risk\s*asymmetry/i,
+  /consensus\s*(reversal|flips?)/i,
+  /mean[\s-]?reversion/i,
+  /cascade\s*liquidations?/i,
+  /crowded\s*(long|short|trade)/i,
+];
 
 /** Angles for variety in posting */
 const POSTING_ANGLES = [
@@ -86,6 +104,12 @@ export class TopicDiversityService {
 
   /** Agent to assigned topic mapping for current tick batch */
   private agentAssignments: Map<string, TopicAssignment> = new Map();
+
+  /** Per-agent phrase tracking to prevent repetitive patterns */
+  private agentPhraseHistory: Map<
+    string,
+    { phrases: string[]; lastUpdated: Date }
+  > = new Map();
 
   /** Last cleanup timestamp */
   private lastCleanup = 0;
@@ -252,6 +276,74 @@ export class TopicDiversityService {
   }
 
   /**
+   * Extract repetitive phrases from content for tracking
+   */
+  extractRepetitivePhrases(content: string): string[] {
+    const phrases: string[] = [];
+    for (const pattern of REPETITIVE_PHRASE_PATTERNS) {
+      const match = content.match(pattern);
+      if (match) {
+        phrases.push(match[0].toLowerCase());
+      }
+    }
+    return phrases;
+  }
+
+  /**
+   * Check if content uses repetitive phrases the agent has used recently
+   */
+  hasRepetitivePhrases(
+    agentId: string,
+    content: string
+  ): { hasRepetition: boolean; repeatedPhrase?: string } {
+    const contentPhrases = this.extractRepetitivePhrases(content);
+    if (contentPhrases.length === 0) {
+      return { hasRepetition: false };
+    }
+
+    const history = this.agentPhraseHistory.get(agentId);
+    if (!history) {
+      return { hasRepetition: false };
+    }
+
+    // Check if any phrase has been used before
+    for (const phrase of contentPhrases) {
+      // Normalize for comparison
+      const normalizedPhrase = phrase.replace(/\d+/g, 'N'); // Replace numbers with N for pattern matching
+      for (const historyPhrase of history.phrases) {
+        const normalizedHistory = historyPhrase.replace(/\d+/g, 'N');
+        if (normalizedPhrase === normalizedHistory) {
+          return { hasRepetition: true, repeatedPhrase: phrase };
+        }
+      }
+    }
+
+    return { hasRepetition: false };
+  }
+
+  /**
+   * Record phrases used by an agent
+   */
+  recordAgentPhrases(agentId: string, content: string): void {
+    const phrases = this.extractRepetitivePhrases(content);
+    const existing = this.agentPhraseHistory.get(agentId);
+
+    if (existing) {
+      // Add new phrases, keep last 20
+      existing.phrases.push(...phrases);
+      if (existing.phrases.length > 20) {
+        existing.phrases = existing.phrases.slice(-20);
+      }
+      existing.lastUpdated = new Date();
+    } else {
+      this.agentPhraseHistory.set(agentId, {
+        phrases,
+        lastUpdated: new Date(),
+      });
+    }
+  }
+
+  /**
    * Record that a topic was covered by an agent
    */
   recordTopicCoverage(
@@ -283,6 +375,9 @@ export class TopicDiversityService {
         sampleContent: [content.substring(0, 200)],
       });
     }
+
+    // Also record phrase patterns for per-agent tracking
+    this.recordAgentPhrases(agentId, content);
   }
 
   /**
@@ -355,6 +450,14 @@ export class TopicDiversityService {
     if (similarityCheck.isSimilar) {
       issues.push(
         `Content is ${Math.round((similarityCheck.similarity ?? 0) * 100)}% similar to a recent post. Add your unique take.`
+      );
+    }
+
+    // Check phrase repetition - prevent repetitive patterns
+    const phraseCheck = this.hasRepetitivePhrases(agentId, content);
+    if (phraseCheck.hasRepetition) {
+      issues.push(
+        `You've used the phrase pattern "${phraseCheck.repeatedPhrase}" recently. Try a different angle or phrasing.`
       );
     }
 
@@ -462,7 +565,10 @@ export class TopicDiversityService {
 
     logger.info(
       `Seeded topic tracker with ${recentPosts.length} recent posts`,
-      { topicsTracked: this.topicCoverage.size },
+      {
+        topicsTracked: this.topicCoverage.size,
+        agentsWithPhraseHistory: this.agentPhraseHistory.size,
+      },
       'TopicDiversityService'
     );
   }
@@ -562,6 +668,13 @@ You could trade this, post about it, or comment on price action.
         this.topicCoverage.delete(key);
       }
     }
+
+    // Also clean up old phrase history (same window)
+    for (const [agentId, history] of this.agentPhraseHistory.entries()) {
+      if (history.lastUpdated < cutoff) {
+        this.agentPhraseHistory.delete(agentId);
+      }
+    }
   }
 
   /**
@@ -570,6 +683,7 @@ You could trade this, post about it, or comment on price action.
   getTopicStats(): {
     topicsTracked: number;
     mostCovered: { topic: string; count: number }[];
+    agentsWithPhraseHistory: number;
   } {
     const sorted = Array.from(this.topicCoverage.entries())
       .map(([key, coverage]) => ({
@@ -581,6 +695,7 @@ You could trade this, post about it, or comment on price action.
     return {
       topicsTracked: this.topicCoverage.size,
       mostCovered: sorted.slice(0, 10),
+      agentsWithPhraseHistory: this.agentPhraseHistory.size,
     };
   }
 }
