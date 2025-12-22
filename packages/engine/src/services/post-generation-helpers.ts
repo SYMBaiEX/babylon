@@ -79,19 +79,36 @@ function canNPCReplyToNPC(replierNpcId: string, targetNpcId: string): boolean {
   return timeSince >= NPC_INTERACTION_COOLDOWN_MS;
 }
 
+// Track last cleanup time and interaction count for periodic cleanup
+let lastInteractionCleanupTime = Date.now();
+let interactionsSinceLastCleanup = 0;
+const CLEANUP_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
+const CLEANUP_EVERY_N_INTERACTIONS = 100;
+
 /**
  * Record an NPC-to-NPC interaction for cooldown tracking
+ * Cleanup runs periodically (every 100 interactions OR every hour) to avoid O(n) on every call
  */
 function recordNPCInteraction(replierNpcId: string, targetNpcId: string): void {
   const key = `${replierNpcId}:${targetNpcId}`;
   npcInteractionCooldowns.set(key, new Date());
+  interactionsSinceLastCleanup++;
 
-  // Clean up old entries (older than 24 hours) to prevent memory leak
-  const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-  for (const [k, v] of npcInteractionCooldowns.entries()) {
-    if (v < oneDayAgo) {
-      npcInteractionCooldowns.delete(k);
+  // Periodic cleanup: every N interactions OR every hour (whichever comes first)
+  const now = Date.now();
+  const shouldCleanup =
+    interactionsSinceLastCleanup >= CLEANUP_EVERY_N_INTERACTIONS ||
+    now - lastInteractionCleanupTime >= CLEANUP_INTERVAL_MS;
+
+  if (shouldCleanup) {
+    const oneDayAgo = new Date(now - 24 * 60 * 60 * 1000);
+    for (const [k, v] of npcInteractionCooldowns.entries()) {
+      if (v < oneDayAgo) {
+        npcInteractionCooldowns.delete(k);
+      }
     }
+    lastInteractionCleanupTime = now;
+    interactionsSinceLastCleanup = 0;
   }
 }
 
