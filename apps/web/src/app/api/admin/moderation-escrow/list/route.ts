@@ -118,7 +118,10 @@ export async function GET(req: NextRequest) {
     .update(moderationEscrows)
     .set({ status: 'expired' })
     .where(
-      and(eq(moderationEscrows.status, 'pending'), lt(moderationEscrows.expiresAt, now))
+      and(
+        eq(moderationEscrows.status, 'pending'),
+        lt(moderationEscrows.expiresAt, now)
+      )
     );
 
   // Build where conditions for SQL query
