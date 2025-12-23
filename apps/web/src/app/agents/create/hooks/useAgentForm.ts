@@ -5,147 +5,6 @@ import { useAuth } from '@/hooks/useAuth';
 
 const STORAGE_KEY = 'babylon_agent_draft';
 
-/**
- * Name component pools for generating unique agent names
- * Total combinations: 76 prefixes × 41 suffixes × 9000 numbers = 28,044,000+
- */
-const NAME_PREFIXES = [
-  // Greek letters
-  'Alpha',
-  'Beta',
-  'Gamma',
-  'Delta',
-  'Epsilon',
-  'Zeta',
-  'Eta',
-  'Theta',
-  'Iota',
-  'Kappa',
-  'Lambda',
-  'Mu',
-  'Nu',
-  'Xi',
-  'Omicron',
-  'Pi',
-  'Rho',
-  'Sigma',
-  'Tau',
-  'Upsilon',
-  'Phi',
-  'Chi',
-  'Psi',
-  'Omega',
-  // Tech/Cyber
-  'Quantum',
-  'Neo',
-  'Cyber',
-  'Nexus',
-  'Apex',
-  'Vertex',
-  'Pulse',
-  'Flux',
-  'Vector',
-  'Helix',
-  'Prism',
-  'Matrix',
-  'Cipher',
-  'Binary',
-  'Neural',
-  // Nature/Elements
-  'Nova',
-  'Solar',
-  'Lunar',
-  'Stellar',
-  'Cosmic',
-  'Astral',
-  'Phoenix',
-  'Storm',
-  'Thunder',
-  'Frost',
-  'Ember',
-  'Shadow',
-  'Dawn',
-  'Dusk',
-  // Power/Status
-  'Iron',
-  'Steel',
-  'Titan',
-  'Atlas',
-  'Orion',
-  'Vortex',
-  'Blaze',
-  'Spark',
-  'Echo',
-  'Phantom',
-  'Specter',
-  'Raven',
-  'Falcon',
-  'Hawk',
-  'Eagle',
-  // Abstract
-  'Zen',
-  'Aura',
-  'Axiom',
-  'Lumen',
-  'Photon',
-  'Quark',
-  'Volt',
-  'Arc',
-];
-
-const NAME_SUFFIXES = [
-  // Role-based
-  'Trader',
-  'Agent',
-  'Bot',
-  'AI',
-  'Mind',
-  'Brain',
-  'Sage',
-  'Oracle',
-  // Technical
-  'Core',
-  'Node',
-  'Edge',
-  'Prime',
-  'Pro',
-  'Max',
-  'Ultra',
-  'Plus',
-  'X',
-  'Zero',
-  'One',
-  'Protocol',
-  'System',
-  'Engine',
-  'Logic',
-  // Abstract
-  'Flow',
-  'Wave',
-  'Sync',
-  'Link',
-  'Net',
-  'Hub',
-  'Lab',
-  'Works',
-  'Force',
-  'Drive',
-  'Pulse',
-  'Signal',
-  'Stream',
-  'Grid',
-  'Mesh',
-];
-
-const generateAgentName = (): string => {
-  const prefix =
-    NAME_PREFIXES[Math.floor(Math.random() * NAME_PREFIXES.length)]!;
-  const suffix =
-    NAME_SUFFIXES[Math.floor(Math.random() * NAME_SUFFIXES.length)]!;
-  const number = Math.floor(Math.random() * 9000) + 1000;
-  return `${prefix}${suffix}-${number}`;
-};
-
 export interface ProfileFormData {
   username: string;
   displayName: string;
@@ -211,21 +70,8 @@ export function useAgentForm(): UseAgentFormResult {
   // Load template on mount
   useEffect(() => {
     const loadTemplate = async () => {
-      // Check for saved draft
-      const savedData = localStorage.getItem(STORAGE_KEY);
-      if (savedData) {
-        const parsed = JSON.parse(savedData);
-        if (parsed.profileData?.displayName && parsed.profileData?.username) {
-          setProfileData(parsed.profileData);
-        }
-        if (parsed.agentData?.system) {
-          setAgentData(parsed.agentData);
-        }
-        if (parsed.profileData?.displayName && parsed.profileData?.username) {
-          setIsInitialized(true);
-          return;
-        }
-      }
+      // Clear any old draft - we want fresh template with name modal
+      localStorage.removeItem(STORAGE_KEY);
 
       // Load random template
       const indexResponse = await fetch('/api/agent-templates');
@@ -253,37 +99,30 @@ export function useAgentForm(): UseAgentFormResult {
       }
 
       const template = (await templateResponse.json()) as AgentTemplate;
-      const agentName = generateAgentName();
-
-      // Process template with agent name
-      const processedTemplate = {
-        ...template,
-        name: template.name.replace('{{agentName}}', agentName),
-        system: template.system.replace(/{{agentName}}/g, agentName),
-        personality: template.personality.replace(/{{agentName}}/g, agentName),
-        tradingStrategy: template.tradingStrategy.replace(
-          /{{agentName}}/g,
-          agentName
-        ),
-      };
 
       // Random images
       const randomPfp = Math.floor(Math.random() * TOTAL_PROFILE_PICTURES) + 1;
       const randomBanner =
         Math.floor(Math.random() * TOTAL_PROFILE_PICTURES) + 1;
 
-      setProfileData({
-        username: agentName.toLowerCase().replace(/\s+/g, ''),
-        displayName: processedTemplate.name,
-        bio: processedTemplate.description,
-        profileImageUrl: `/assets/user-profiles/profile-${randomPfp}.jpg`,
-        coverImageUrl: `/assets/user-banners/banner-${randomBanner}.jpg`,
-      });
+      // Update profile data
+      setProfileData((prev) => ({
+        username: prev.username || '',
+        displayName: prev.displayName || '',
+        bio: template.description,
+        profileImageUrl:
+          prev.profileImageUrl ||
+          `/assets/user-profiles/profile-${randomPfp}.jpg`,
+        coverImageUrl:
+          prev.coverImageUrl ||
+          `/assets/user-banners/banner-${randomBanner}.jpg`,
+      }));
 
+      // Keep {{agentName}} placeholder - will be replaced when user sets their name
       setAgentData({
-        system: processedTemplate.system,
-        personality: processedTemplate.bio,
-        tradingStrategy: processedTemplate.tradingStrategy,
+        system: template.system,
+        personality: template.bio,
+        tradingStrategy: template.tradingStrategy,
         initialDeposit: 100,
       });
 
@@ -292,6 +131,25 @@ export function useAgentForm(): UseAgentFormResult {
 
     loadTemplate();
   }, []);
+
+  // Replace {{agentName}} placeholder with user's name when both are available
+  useEffect(() => {
+    if (!agentData.system || !profileData.displayName) return;
+    if (!agentData.system.includes('{{agentName}}')) return;
+
+    setAgentData((prev) => ({
+      ...prev,
+      system: prev.system.replace(/\{\{agentName\}\}/g, profileData.displayName),
+      personality: prev.personality.replace(
+        /\{\{agentName\}\}/g,
+        profileData.displayName
+      ),
+      tradingStrategy: prev.tradingStrategy.replace(
+        /\{\{agentName\}\}/g,
+        profileData.displayName
+      ),
+    }));
+  }, [agentData.system, profileData.displayName]);
 
   // Auto-save to localStorage
   useEffect(() => {
@@ -305,6 +163,23 @@ export function useAgentForm(): UseAgentFormResult {
   const updateProfileField = useCallback(
     (field: keyof ProfileFormData, value: string) => {
       setProfileData((prev) => ({ ...prev, [field]: value }));
+
+      // When displayName is set, replace {{agentName}} placeholder
+      if (field === 'displayName' && value) {
+        setAgentData((prevAgent) => {
+          if (!prevAgent.system.includes('{{agentName}}')) return prevAgent;
+
+          return {
+            ...prevAgent,
+            system: prevAgent.system.replace(/\{\{agentName\}\}/g, value),
+            personality: prevAgent.personality.replace(/\{\{agentName\}\}/g, value),
+            tradingStrategy: prevAgent.tradingStrategy.replace(
+              /\{\{agentName\}\}/g,
+              value
+            ),
+          };
+        });
+      }
     },
     []
   );
