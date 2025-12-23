@@ -75,7 +75,7 @@
  */
 
 import { requireAdmin } from '@babylon/api';
-import { and, db, desc, eq, moderationEscrows, sql } from '@babylon/db';
+import { and, db, desc, eq, lt, moderationEscrows, sql } from '@babylon/db';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
@@ -114,15 +114,12 @@ export async function GET(req: NextRequest) {
 
   // Auto-expire old pending escrows before querying
   const now = new Date();
-  await db.moderationEscrow.updateMany({
-    where: {
-      status: 'pending',
-      expiresAt: { lt: now },
-    },
-    data: {
-      status: 'expired',
-    },
-  });
+  await db
+    .update(moderationEscrows)
+    .set({ status: 'expired' })
+    .where(
+      and(eq(moderationEscrows.status, 'pending'), lt(moderationEscrows.expiresAt, now))
+    );
 
   // Build where conditions for SQL query
   const whereConditions: ReturnType<typeof eq>[] = [];

@@ -14,12 +14,12 @@ import {
   type AdminRoleType,
   adminRoles,
   and,
-  count,
   db,
   eq,
   generateSnowflakeId,
   isNull,
   ROLE_PERMISSIONS,
+  sql,
   users,
 } from '@babylon/db';
 import { logger } from '@babylon/shared';
@@ -153,19 +153,22 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     return successResponse({ error: 'Cannot revoke your own admin role' }, 400);
   }
 
-  // Use transaction to prevent race condition when revoking super admin
-  // The check and revoke must be atomic to prevent concurrent revocations
+  // Use transaction with SELECT FOR UPDATE to prevent race condition
+  // when revoking super admin - locks the rows during the check and revoke
   await db.transaction(async (tx) => {
     // Check if this would remove the last super admin
     if (existingRole.role === 'SUPER_ADMIN') {
-      const [superAdminCountResult] = await tx
-        .select({ count: count(adminRoles.id) })
-        .from(adminRoles)
-        .where(
-          and(eq(adminRoles.role, 'SUPER_ADMIN'), isNull(adminRoles.revokedAt))
-        );
+      // Use SELECT FOR UPDATE to acquire row locks and prevent concurrent revocations
+      const superAdminCountResult = await tx.execute(
+        sql`SELECT COUNT(*) as count FROM ${adminRoles}
+            WHERE ${adminRoles.role} = 'SUPER_ADMIN'
+            AND ${adminRoles.revokedAt} IS NULL
+            FOR UPDATE`
+      );
 
-      const superAdminCountValue = Number(superAdminCountResult?.count ?? 0);
+      const superAdminCountValue = Number(
+        (superAdminCountResult[0] as { count: string })?.count ?? 0
+      );
       if (superAdminCountValue <= 1) {
         throw new Error('Cannot revoke the last super admin');
       }

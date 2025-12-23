@@ -388,6 +388,21 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   });
 
   // Sort based on query parameter (for moderation metrics, we sort after fetching)
+  //
+  // KNOWN LIMITATION: Moderation-based sorting (reports_received, blocks_received,
+  // mutes_received, report_ratio, block_ratio, bad_user_score) requires fetching
+  // all users within the filter and sorting in-memory, ignoring the LIMIT parameter.
+  // This is because moderation metrics are computed from aggregated counts across
+  // multiple tables (reports, blocks, mutes) and cannot be efficiently sorted in SQL
+  // without either:
+  // 1. Pre-computing scores in a denormalized column (adds maintenance overhead)
+  // 2. Using SQL window functions with CTEs (complex query, still full scan)
+  //
+  // For typical admin use cases with < 100k users, in-memory sorting is acceptable.
+  // If performance becomes an issue, consider:
+  // - Pre-computing badUserScore in a scheduled job
+  // - Adding materialized views for moderation metrics
+  // - Caching results with TTL for repeated queries
   if (params.sortBy === 'reports_received') {
     usersWithMetrics.sort((a, b) => {
       const diff =

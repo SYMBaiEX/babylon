@@ -1,6 +1,7 @@
 // GET /api/admin/stats/trading - Trading statistics with filtering
 
 import {
+  errorResponse,
   requirePermission,
   successResponse,
   withErrorHandling,
@@ -10,10 +11,37 @@ import { FEE_CONFIG } from '@babylon/engine';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 
+/** Maximum allowed date range in days to prevent heavy queries */
+const MAX_DATE_RANGE_DAYS = 365;
+
 function parseDateParam(param: string | null): Date | null {
   if (!param) return null;
   const date = new Date(param);
   return Number.isNaN(date.getTime()) ? null : date;
+}
+
+/**
+ * Validate that the date range doesn't exceed the maximum allowed days.
+ * Returns null if valid, or an error message if invalid.
+ */
+function validateDateRange(
+  startDate: Date | null,
+  endDate: Date | null
+): string | null {
+  if (!startDate || !endDate) return null;
+
+  const diffMs = endDate.getTime() - startDate.getTime();
+  const diffDays = diffMs / (1000 * 60 * 60 * 24);
+
+  if (diffDays < 0) {
+    return 'startDate must be before endDate';
+  }
+
+  if (diffDays > MAX_DATE_RANGE_DAYS) {
+    return `Date range cannot exceed ${MAX_DATE_RANGE_DAYS} days`;
+  }
+
+  return null;
 }
 
 /** Valid market types for filtering - whitelist to prevent injection */
@@ -35,6 +63,14 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   const endDate = parseDateParam(searchParams.get('endDate'));
   const marketType = validateMarketType(searchParams.get('marketType'));
   const includeTimeSeries = searchParams.get('includeTimeSeries') === 'true';
+
+  // Validate date range to prevent heavy queries
+  const dateRangeError = validateDateRange(startDate, endDate);
+  if (dateRangeError) {
+    return errorResponse(dateRangeError, 'INVALID_DATE_RANGE', 400, {
+      maxDays: MAX_DATE_RANGE_DAYS,
+    });
+  }
 
   logger.info(
     'Trading stats requested',
