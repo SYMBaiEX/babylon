@@ -100,6 +100,7 @@ export class AgentServiceV2 {
     const {
       userId: managerUserId,
       name,
+      username: providedUsername,
       description,
       profileImageUrl,
       coverImageUrl,
@@ -128,12 +129,19 @@ export class AgentServiceV2 {
       }
     }
 
-    const baseUsername = name
-      .toLowerCase()
-      .replace(/[^a-z0-9]/g, '_')
-      .substring(0, 20);
-    const randomSuffix = Math.random().toString(36).substring(2, 8);
-    const agentUsername = `agent_${baseUsername}_${randomSuffix}`;
+    // Use provided username or generate one
+    let agentUsername: string;
+    if (providedUsername) {
+      agentUsername = providedUsername.toLowerCase().replace(/[^a-z0-9_-]/g, '');
+    } else {
+      // Auto-generate username for programmatic use cases
+      const baseUsername = name
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, '_')
+        .substring(0, 20);
+      const randomSuffix = Math.random().toString(36).substring(2, 8);
+      agentUsername = `${baseUsername}_${randomSuffix}`;
+    }
     const agentUserId = await generateSnowflakeId();
 
     const agent = await withTransaction(async (tx) => {

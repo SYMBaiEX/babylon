@@ -12,6 +12,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useAuthStore } from '@/stores/authStore';
 import {
   AgentConfigForm,
+  AgentNameModal,
   EditProfileModal,
   ProfilePreviewCard,
 } from './components';
@@ -49,8 +50,10 @@ export default function CreateAgentPage() {
     );
   }
 
+  const [showNameModal, setShowNameModal] = useState(true); // Show name modal first
   const [showEditModal, setShowEditModal] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
+  const [agentUsername, setAgentUsername] = useState(''); // Store the chosen username
 
   const {
     profileData,
@@ -63,6 +66,18 @@ export default function CreateAgentPage() {
     regenerateField,
     clearDraft,
   } = useAgentForm();
+
+  // Handle name modal submission
+  const handleNameSubmit = useCallback(
+    (displayName: string, username: string) => {
+      setAgentUsername(username);
+      // Use updateProfileField to trigger system prompt replacement
+      updateProfileField('displayName', displayName);
+      updateProfileField('username', username);
+      setShowNameModal(false);
+    },
+    [updateProfileField]
+  );
 
   // User balance for max deposit - default to 10k if balance not available
   const maxDeposit = Math.max(
@@ -148,6 +163,8 @@ export default function CreateAgentPage() {
       body: JSON.stringify({
         // API expects 'name', not 'displayName'
         name: profileData.displayName,
+        // User-chosen username
+        username: agentUsername,
         // API expects 'description' for the profile bio
         description: profileData.bio,
         profileImageUrl: profileData.profileImageUrl,
@@ -304,6 +321,13 @@ export default function CreateAgentPage() {
           </div>
         </div>
       </div>
+
+      {/* Agent Name Modal - shown first */}
+      <AgentNameModal
+        isOpen={showNameModal}
+        onClose={() => router.push('/agents')}
+        onSubmit={handleNameSubmit}
+      />
 
       {/* Edit Profile Modal */}
       {showEditModal && (
