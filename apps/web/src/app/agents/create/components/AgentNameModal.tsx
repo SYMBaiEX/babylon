@@ -186,7 +186,7 @@ export function AgentNameModal({
                   Username *
                 </label>
                 <div className="relative">
-                  <span className="absolute top-1/2 left-4 -translate-y-1/2 text-muted-foreground">
+                  <span className="-translate-y-1/2 absolute top-1/2 left-4 text-muted-foreground">
                     @
                   </span>
                   <input
@@ -195,7 +195,7 @@ export function AgentNameModal({
                     value={username}
                     onChange={handleUsernameChange}
                     placeholder="my_trading_bot"
-                    maxLength={30}
+                    maxLength={20}
                     className={cn(
                       'w-full rounded-lg border border-border bg-muted py-3 pr-10 pl-8',
                       'focus:outline-none focus:ring-2 focus:ring-primary',
@@ -205,7 +205,7 @@ export function AgentNameModal({
                     )}
                   />
                   {/* Status indicator */}
-                  <div className="absolute top-1/2 right-3 -translate-y-1/2">
+                  <div className="-translate-y-1/2 absolute top-1/2 right-3">
                     {isCheckingUsername && (
                       <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
                     )}
@@ -239,7 +239,7 @@ export function AgentNameModal({
                 )}
 
                 <p className="mt-1.5 text-muted-foreground text-xs">
-                  3-30 characters. Letters, numbers, underscores, and hyphens
+                  3-20 characters. Letters, numbers, underscores, and hyphens
                   only.
                 </p>
               </div>
@@ -275,4 +275,3 @@ export function AgentNameModal({
     </>
   );
 }
-
