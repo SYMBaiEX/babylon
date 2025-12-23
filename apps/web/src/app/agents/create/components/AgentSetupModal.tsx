@@ -374,6 +374,10 @@ export function AgentSetupModal({
                   maxLength={20}
                   className="w-full bg-transparent py-3 pr-10 focus:outline-none"
                   placeholder="agent_username"
+                  aria-invalid={
+                    usernameStatus === 'taken' || usernameStatus === 'error'
+                  }
+                  aria-describedby="username-status username-help"
                 />
                 {/* Status indicator */}
                 <div className="pr-3">
@@ -406,7 +410,7 @@ export function AgentSetupModal({
               )}
               {/* Error with retry */}
               {usernameStatus === 'error' && (
-                <p className="mt-1.5 text-yellow-600 text-xs">
+                <p className="mt-1.5 text-xs text-yellow-600">
                   Failed to check username.{' '}
                   <button
                     type="button"
@@ -418,11 +422,11 @@ export function AgentSetupModal({
                 </p>
               )}
               {localData.username && localData.username.length < 3 && (
-                <p className="mt-1.5 text-red-500 text-xs">
+                <p id="username-status" className="mt-1.5 text-red-500 text-xs">
                   Username must be at least 3 characters
                 </p>
               )}
-              <p className="mt-1.5 text-muted-foreground text-xs">
+              <p id="username-help" className="mt-1.5 text-muted-foreground text-xs">
                 3-20 characters. Letters, numbers, underscores, and hyphens
                 only.
               </p>

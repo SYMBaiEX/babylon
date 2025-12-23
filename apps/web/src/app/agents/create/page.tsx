@@ -137,6 +137,10 @@ export default function CreateAgentPage() {
       toast.error('Agent name is required');
       return;
     }
+    if (!profileData.username || profileData.username.length < 3) {
+      toast.error('Invalid username. Please set up your agent profile first.');
+      return;
+    }
     if (!agentData.system.trim()) {
       toast.error('System prompt is required');
       return;
