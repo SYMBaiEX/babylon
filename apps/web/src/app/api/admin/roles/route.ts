@@ -2,14 +2,18 @@
 // POST /api/admin/roles - Grant/revoke roles (SUPER_ADMIN only)
 
 import {
+  applyRateLimit,
   errorResponse,
   getAllAdmins,
+  rateLimitError,
+  RATE_LIMIT_CONFIGS,
   requireAdmin,
   requireSuperAdmin,
   successResponse,
   withErrorHandling,
 } from '@babylon/api';
 import {
+  ADMIN_PERMISSIONS,
   ADMIN_ROLES,
   type AdminPermission,
   type AdminRoleType,
@@ -30,30 +34,14 @@ import { z } from 'zod';
 /**
  * Zod schema for role grant/revoke request validation
  *
- * Custom permissions are validated against ADMIN_PERMISSIONS to ensure
- * only valid permissions can be granted.
+ * Uses the canonical ADMIN_ROLES and ADMIN_PERMISSIONS constants from @babylon/db
+ * to ensure validation stays in sync with the database schema.
  */
 const RoleRequestSchema = z.object({
   userId: z.string().min(1, 'userId is required'),
   action: z.enum(['grant', 'revoke']),
-  role: z.enum(['SUPER_ADMIN', 'ADMIN', 'VIEWER']).optional(),
-  permissions: z
-    .array(
-      z.enum([
-        'view_stats',
-        'view_users',
-        'manage_users',
-        'view_trading',
-        'view_system',
-        'give_feedback',
-        'manage_admins',
-        'manage_game',
-        'view_reports',
-        'resolve_reports',
-        'manage_escrow',
-      ])
-    )
-    .optional(),
+  role: z.enum(ADMIN_ROLES).optional(),
+  permissions: z.array(z.enum(ADMIN_PERMISSIONS)).optional(),
 });
 
 /**
@@ -93,6 +81,15 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
 export const POST = withErrorHandling(async (request: NextRequest) => {
   const admin = await requireSuperAdmin(request);
+
+  // Rate limit role management to prevent abuse
+  const rateLimitResult = applyRateLimit(
+    admin.userId,
+    RATE_LIMIT_CONFIGS.ADMIN_ACTION
+  );
+  if (!rateLimitResult.allowed) {
+    return rateLimitError(rateLimitResult.retryAfter);
+  }
 
   const body = await request.json();
 
