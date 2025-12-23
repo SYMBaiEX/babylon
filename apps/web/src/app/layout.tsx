@@ -10,6 +10,7 @@ import { Suspense } from 'react';
 import { Toaster } from 'sonner';
 import { FeedAuthBanner } from '@/components/auth/FeedAuthBanner';
 import { GlobalLoginModal } from '@/components/auth/GlobalLoginModal';
+import { FeedbackButton } from '@/components/feedback/FeedbackButton';
 import { Providers } from '@/components/providers/Providers';
 import { BottomNav } from '@/components/shared/BottomNav';
 import { MobileHeader } from '@/components/shared/MobileHeader';
@@ -133,6 +134,9 @@ export default function RootLayout({
             <Suspense fallback={null}>
               <FeedAuthBanner />
             </Suspense>
+
+            {/* Floating Feedback Button - shows on all pages when authenticated */}
+            <FeedbackButton />
           </WaitlistWrapper>
         </Providers>
         <Analytics />

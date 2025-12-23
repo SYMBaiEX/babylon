@@ -62,6 +62,13 @@ export const RATE_LIMIT_CONFIGS = {
   // Uploads
   UPLOAD_IMAGE: { maxRequests: 5, windowMs: 60000, actionType: 'upload_image' }, // 5 uploads per minute
 
+  // Feedback
+  SUBMIT_FEEDBACK: {
+    maxRequests: 5,
+    windowMs: 60000,
+    actionType: 'submit_feedback',
+  }, // 5 feedback submissions per minute
+
   // Profile updates
   UPDATE_PROFILE: {
     maxRequests: 5,
