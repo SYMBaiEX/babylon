@@ -12,8 +12,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useAuthStore } from '@/stores/authStore';
 import {
   AgentConfigForm,
-  AgentNameModal,
-  EditProfileModal,
+  AgentSetupModal,
   ProfilePreviewCard,
 } from './components';
 import { useAgentForm } from './hooks';
@@ -50,10 +49,8 @@ export default function CreateAgentPage() {
     );
   }
 
-  const [showNameModal, setShowNameModal] = useState(true); // Show name modal first
-  const [showEditModal, setShowEditModal] = useState(false);
+  const [showProfileModal, setShowProfileModal] = useState(true); // Show profile modal first
   const [isCreating, setIsCreating] = useState(false);
-  const [agentUsername, setAgentUsername] = useState(''); // Store the chosen username
 
   const {
     profileData,
@@ -62,21 +59,29 @@ export default function CreateAgentPage() {
     generatingField,
     updateProfileField,
     updateAgentField,
-    setProfileData,
     regenerateField,
     clearDraft,
   } = useAgentForm();
 
-  // Handle name modal submission
-  const handleNameSubmit = useCallback(
-    (displayName: string, username: string) => {
-      setAgentUsername(username);
-      // Use updateProfileField to trigger system prompt replacement
-      updateProfileField('displayName', displayName);
-      updateProfileField('username', username);
-      setShowNameModal(false);
+  // Handle profile modal save
+  const handleProfileSave = useCallback(
+    (data: typeof profileData) => {
+      // Use updateProfileField for displayName to trigger system prompt replacement
+      if (data.displayName !== profileData.displayName) {
+        updateProfileField('displayName', data.displayName);
+      }
+      if (data.username !== profileData.username) {
+        updateProfileField('username', data.username);
+      }
+      if (data.profileImageUrl !== profileData.profileImageUrl) {
+        updateProfileField('profileImageUrl', data.profileImageUrl);
+      }
+      if (data.coverImageUrl !== profileData.coverImageUrl) {
+        updateProfileField('coverImageUrl', data.coverImageUrl);
+      }
+      setShowProfileModal(false);
     },
-    [updateProfileField]
+    [profileData, updateProfileField]
   );
 
   // User balance for max deposit - default to 10k if balance not available
@@ -164,7 +169,7 @@ export default function CreateAgentPage() {
         // API expects 'name', not 'displayName'
         name: profileData.displayName,
         // User-chosen username
-        username: agentUsername,
+        username: profileData.username,
         // API expects 'description' for the profile bio
         description: profileData.bio,
         profileImageUrl: profileData.profileImageUrl,
@@ -221,7 +226,6 @@ export default function CreateAgentPage() {
           <div className="space-y-4 lg:col-span-1">
             <ProfilePreviewCard
               profileData={profileData}
-              onEdit={() => setShowEditModal(true)}
               onCycleProfilePic={(direction) =>
                 cycleImage('profile', direction)
               }
@@ -322,20 +326,13 @@ export default function CreateAgentPage() {
         </div>
       </div>
 
-      {/* Agent Name Modal - shown first */}
-      <AgentNameModal
-        isOpen={showNameModal}
-        onClose={() => router.push('/agents')}
-        onSubmit={handleNameSubmit}
-      />
-
-      {/* Edit Profile Modal */}
-      {showEditModal && (
-        <EditProfileModal
-          isOpen={showEditModal}
-          onClose={() => setShowEditModal(false)}
+      {/* Profile Modal - shown first for initial setup */}
+      {showProfileModal && (
+        <AgentSetupModal
+          isOpen={showProfileModal}
+          onClose={() => router.push('/agents')}
           profileData={profileData}
-          onSave={setProfileData}
+          onSave={handleProfileSave}
         />
       )}
     </PageContainer>
