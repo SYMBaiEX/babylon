@@ -14,6 +14,7 @@ import { useAuth } from '@/hooks/useAuth';
 interface Agent {
   id: string;
   name: string;
+  username?: string;
   description?: string;
   profileImageUrl?: string;
   pointsBalance: number;
@@ -202,6 +203,11 @@ export default function AgentsPage() {
                       <h3 className="truncate font-semibold text-lg">
                         {agent.name}
                       </h3>
+                      {agent.username && (
+                        <p className="truncate text-muted-foreground text-sm">
+                          @{agent.username}
+                        </p>
+                      )}
                       <div className="flex items-center gap-2 text-sm">
                         <span
                           className={
