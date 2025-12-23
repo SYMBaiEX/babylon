@@ -132,7 +132,9 @@ export class AgentServiceV2 {
     // Use provided username or generate one
     let agentUsername: string;
     if (providedUsername) {
-      agentUsername = providedUsername.toLowerCase().replace(/[^a-z0-9_-]/g, '');
+      agentUsername = providedUsername
+        .toLowerCase()
+        .replace(/[^a-z0-9_-]/g, '');
     } else {
       // Auto-generate username for programmatic use cases
       const baseUsername = name
