@@ -4,9 +4,16 @@
  * @route GET /api/admin/environment - Get current environment info
  * @route POST /api/admin/environment - Set preferred environment
  * @access Admin
+ *
+ * @security DISPLAY-ONLY PREFERENCE
+ * This endpoint manages the admin's UI environment preference for display purposes only.
+ * It does NOT affect which database, Redis instance, or backend services are used.
+ * The actual environment is determined by process.env.VERCEL_ENV and NODE_ENV.
+ * The preference cookie only affects how the admin dashboard displays environment context.
  */
 
 import {
+  errorResponse,
   requireAdmin,
   requireSuperAdmin,
   successResponse,
@@ -77,10 +84,9 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   const { environment } = body as { environment?: AdminEnvironment };
 
   if (!environment || !VALID_ENVIRONMENTS.includes(environment)) {
-    return successResponse(
-      {
-        error: `Invalid environment. Must be one of: ${VALID_ENVIRONMENTS.join(', ')}`,
-      },
+    return errorResponse(
+      `Invalid environment. Must be one of: ${VALID_ENVIRONMENTS.join(', ')}`,
+      'INVALID_ENVIRONMENT',
       400
     );
   }
