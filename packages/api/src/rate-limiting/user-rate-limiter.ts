@@ -110,6 +110,13 @@ export const RATE_LIMIT_CONFIGS = {
     actionType: 'admin_action',
   }, // 100 admin actions per minute
 
+  // Admin stats queries (expensive operations, stricter limits)
+  ADMIN_STATS: {
+    maxRequests: 30,
+    windowMs: 60000,
+    actionType: 'admin_stats',
+  }, // 30 stats queries per minute (expensive database operations)
+
   // Default fallback
   DEFAULT: { maxRequests: 30, windowMs: 60000, actionType: 'default' }, // 30 requests per minute
 } as const;

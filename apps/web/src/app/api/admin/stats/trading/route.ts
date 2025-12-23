@@ -1,9 +1,16 @@
 // GET /api/admin/stats/trading - Trading statistics with filtering
 
 import {
+  applyRateLimit,
   errorResponse,
+  MAX_DATE_RANGE_DAYS,
+  parseDateParam,
+  rateLimitError,
+  RATE_LIMIT_CONFIGS,
   requirePermission,
   successResponse,
+  validateDateRange,
+  validateEnum,
   withErrorHandling,
 } from '@babylon/api';
 import { db } from '@babylon/db';
@@ -11,52 +18,25 @@ import { FEE_CONFIG } from '@babylon/engine';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 
-/** Maximum allowed date range in days to prevent heavy queries */
-const MAX_DATE_RANGE_DAYS = 365;
-
-function parseDateParam(param: string | null): Date | null {
-  if (!param) return null;
-  const date = new Date(param);
-  return Number.isNaN(date.getTime()) ? null : date;
-}
-
-/**
- * Validate that the date range doesn't exceed the maximum allowed days.
- * Returns null if valid, or an error message if invalid.
- */
-function validateDateRange(
-  startDate: Date | null,
-  endDate: Date | null
-): string | null {
-  if (!startDate || !endDate) return null;
-
-  const diffMs = endDate.getTime() - startDate.getTime();
-  const diffDays = diffMs / (1000 * 60 * 60 * 24);
-
-  if (diffDays < 0) {
-    return 'startDate must be before endDate';
-  }
-
-  if (diffDays > MAX_DATE_RANGE_DAYS) {
-    return `Date range cannot exceed ${MAX_DATE_RANGE_DAYS} days`;
-  }
-
-  return null;
-}
-
 /** Valid market types for filtering - whitelist to prevent injection */
 const VALID_MARKET_TYPES = ['all', 'prediction', 'perpetual'] as const;
 type MarketType = (typeof VALID_MARKET_TYPES)[number];
 
 function validateMarketType(value: string | null): MarketType {
-  if (!value || !VALID_MARKET_TYPES.includes(value as MarketType)) {
-    return 'all';
-  }
-  return value as MarketType;
+  return validateEnum(value, VALID_MARKET_TYPES, 'all');
 }
 
 export const GET = withErrorHandling(async (request: NextRequest) => {
-  await requirePermission(request, 'view_trading');
+  const admin = await requirePermission(request, 'view_trading');
+
+  // Apply rate limiting to prevent abuse of expensive stats queries
+  const rateLimitResult = applyRateLimit(
+    admin.userId,
+    RATE_LIMIT_CONFIGS.ADMIN_STATS
+  );
+  if (!rateLimitResult.allowed) {
+    return rateLimitError(rateLimitResult.retryAfter);
+  }
 
   const { searchParams } = new URL(request.url);
   const startDate = parseDateParam(searchParams.get('startDate'));

@@ -1,57 +1,28 @@
 // GET /api/admin/stats/users - User statistics with filtering
 
 import {
+  applyRateLimit,
   errorResponse,
+  MAX_DATE_RANGE_DAYS,
+  parseDateParam,
+  rateLimitError,
+  RATE_LIMIT_CONFIGS,
   requirePermission,
   successResponse,
+  validateDateRange,
+  validateEnum,
   withErrorHandling,
 } from '@babylon/api';
 import { db } from '@babylon/db';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 
-/** Maximum allowed date range in days to prevent heavy queries */
-const MAX_DATE_RANGE_DAYS = 365;
-
-function parseDateParam(param: string | null): Date | null {
-  if (!param) return null;
-  const date = new Date(param);
-  return Number.isNaN(date.getTime()) ? null : date;
-}
-
-/**
- * Validate that the date range doesn't exceed the maximum allowed days.
- * Returns null if valid, or an error message if invalid.
- */
-function validateDateRange(
-  startDate: Date | null,
-  endDate: Date | null
-): string | null {
-  if (!startDate || !endDate) return null;
-
-  const diffMs = endDate.getTime() - startDate.getTime();
-  const diffDays = diffMs / (1000 * 60 * 60 * 24);
-
-  if (diffDays < 0) {
-    return 'startDate must be before endDate';
-  }
-
-  if (diffDays > MAX_DATE_RANGE_DAYS) {
-    return `Date range cannot exceed ${MAX_DATE_RANGE_DAYS} days`;
-  }
-
-  return null;
-}
-
 /** Valid user types for filtering - whitelist to prevent injection */
 const VALID_USER_TYPES = ['all', 'real', 'actors', 'agents'] as const;
 type UserType = (typeof VALID_USER_TYPES)[number];
 
 function validateUserType(value: string | null): UserType {
-  if (!value || !VALID_USER_TYPES.includes(value as UserType)) {
-    return 'all';
-  }
-  return value as UserType;
+  return validateEnum(value, VALID_USER_TYPES, 'all');
 }
 
 function buildUserTypeFilter(userType: UserType): {
@@ -71,7 +42,16 @@ function buildUserTypeFilter(userType: UserType): {
 }
 
 export const GET = withErrorHandling(async (request: NextRequest) => {
-  await requirePermission(request, 'view_users');
+  const admin = await requirePermission(request, 'view_users');
+
+  // Apply rate limiting to prevent abuse of expensive stats queries
+  const rateLimitResult = applyRateLimit(
+    admin.userId,
+    RATE_LIMIT_CONFIGS.ADMIN_STATS
+  );
+  if (!rateLimitResult.allowed) {
+    return rateLimitError(rateLimitResult.retryAfter);
+  }
 
   const { searchParams } = new URL(request.url);
   const startDate = parseDateParam(searchParams.get('startDate'));
@@ -108,53 +88,70 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   }
   const combinedFilter = { ...userTypeFilter, ...dateFilter };
 
-  const [
-    totalUsers,
-    realUsers,
-    actors,
-    agents,
-    bannedUsers,
-    adminUsers,
-    usersToday,
-    usersYesterday,
-    usersThisWeek,
-    usersThisMonth,
-    profileComplete,
-    onChainRegistered,
-    withFarcaster,
-    withTwitter,
-    withDiscord,
-    withWallet,
-    filteredTotal,
-  ] = await Promise.all([
-    db.user.count(),
-    db.user.count({ where: { isActor: false, isAgent: false } }),
-    db.user.count({ where: { isActor: true } }),
-    db.user.count({ where: { isAgent: true } }),
-    db.user.count({ where: { isBanned: true } }),
-    db.user.count({ where: { isAdmin: true } }),
-    db.user.count({ where: { ...userTypeFilter, createdAt: { gte: today } } }),
-    db.user.count({
-      where: { ...userTypeFilter, createdAt: { gte: yesterday, lt: today } },
-    }),
-    db.user.count({
-      where: { ...userTypeFilter, createdAt: { gte: lastWeek } },
-    }),
-    db.user.count({
-      where: { ...userTypeFilter, createdAt: { gte: lastMonth } },
-    }),
-    db.user.count({ where: { ...userTypeFilter, profileComplete: true } }),
-    db.user.count({ where: { ...userTypeFilter, onChainRegistered: true } }),
-    db.user.count({ where: { ...userTypeFilter, hasFarcaster: true } }),
-    db.user.count({ where: { ...userTypeFilter, hasTwitter: true } }),
-    db.user.count({ where: { ...userTypeFilter, hasDiscord: true } }),
-    db.user.count({
-      where: { ...userTypeFilter, walletAddress: { not: null } },
-    }),
-    startDate || endDate
-      ? db.user.count({ where: combinedFilter })
-      : Promise.resolve(null),
-  ]);
+  // Optimized: Single query with COUNT FILTER to get all user stats
+  // This reduces 17 separate queries to 1 query (massive performance improvement)
+  type UserStatsRow = {
+    total: string;
+    real_users: string;
+    actors: string;
+    agents: string;
+    banned_users: string;
+    admin_users: string;
+    users_today: string;
+    users_yesterday: string;
+    users_this_week: string;
+    users_this_month: string;
+    profile_complete: string;
+    on_chain_registered: string;
+    with_farcaster: string;
+    with_twitter: string;
+    with_discord: string;
+    with_wallet: string;
+  };
+
+  const userStatsRows = await db.$queryRaw<UserStatsRow>`
+    SELECT
+      COUNT(*)::text as total,
+      COUNT(*) FILTER (WHERE NOT "isActor" AND NOT "isAgent")::text as real_users,
+      COUNT(*) FILTER (WHERE "isActor")::text as actors,
+      COUNT(*) FILTER (WHERE "isAgent")::text as agents,
+      COUNT(*) FILTER (WHERE "isBanned")::text as banned_users,
+      COUNT(*) FILTER (WHERE "isAdmin")::text as admin_users,
+      COUNT(*) FILTER (WHERE "createdAt" >= ${today})::text as users_today,
+      COUNT(*) FILTER (WHERE "createdAt" >= ${yesterday} AND "createdAt" < ${today})::text as users_yesterday,
+      COUNT(*) FILTER (WHERE "createdAt" >= ${lastWeek})::text as users_this_week,
+      COUNT(*) FILTER (WHERE "createdAt" >= ${lastMonth})::text as users_this_month,
+      COUNT(*) FILTER (WHERE "profileComplete" = true)::text as profile_complete,
+      COUNT(*) FILTER (WHERE "onChainRegistered" = true)::text as on_chain_registered,
+      COUNT(*) FILTER (WHERE "hasFarcaster" = true)::text as with_farcaster,
+      COUNT(*) FILTER (WHERE "hasTwitter" = true)::text as with_twitter,
+      COUNT(*) FILTER (WHERE "hasDiscord" = true)::text as with_discord,
+      COUNT(*) FILTER (WHERE "walletAddress" IS NOT NULL)::text as with_wallet
+    FROM "User"
+  `;
+
+  // $queryRaw returns an array, get first row
+  const statsRow = Array.isArray(userStatsRows) ? userStatsRows[0] : userStatsRows;
+  const totalUsers = Number(statsRow?.total ?? 0);
+  const realUsers = Number(statsRow?.real_users ?? 0);
+  const actors = Number(statsRow?.actors ?? 0);
+  const agents = Number(statsRow?.agents ?? 0);
+  const bannedUsers = Number(statsRow?.banned_users ?? 0);
+  const adminUsers = Number(statsRow?.admin_users ?? 0);
+  const usersToday = Number(statsRow?.users_today ?? 0);
+  const usersYesterday = Number(statsRow?.users_yesterday ?? 0);
+  const usersThisWeek = Number(statsRow?.users_this_week ?? 0);
+  const usersThisMonth = Number(statsRow?.users_this_month ?? 0);
+  const profileComplete = Number(statsRow?.profile_complete ?? 0);
+  const onChainRegistered = Number(statsRow?.on_chain_registered ?? 0);
+  const withFarcaster = Number(statsRow?.with_farcaster ?? 0);
+  const withTwitter = Number(statsRow?.with_twitter ?? 0);
+  const withDiscord = Number(statsRow?.with_discord ?? 0);
+  const withWallet = Number(statsRow?.with_wallet ?? 0);
+
+  // Filtered total only if date range specified
+  const filteredTotal =
+    startDate || endDate ? await db.user.count({ where: combinedFilter }) : null;
 
   let timeSeries: Array<{ date: string; signups: number; cumulative: number }> =
     [];
