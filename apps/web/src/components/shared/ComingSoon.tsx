@@ -29,6 +29,7 @@ import { LinkSocialAccountsModal } from '@/components/profile/LinkSocialAccounts
 import { Avatar } from '@/components/shared/Avatar';
 import { PlayerStatsModal } from '@/components/shared/PlayerStatsModal';
 import { useAuth } from '@/hooks/useAuth';
+import { getAuthToken } from '@/lib/auth';
 
 // Blog URL from environment with fallback
 const blogUrl =
@@ -264,8 +265,7 @@ export function ComingSoon() {
     });
 
     // Send authentication data to backend for verification and linking
-    const token =
-      typeof window !== 'undefined' ? window.__privyAccessToken : null;
+    const token = getAuthToken();
     const response = await fetch('/api/auth/farcaster/callback', {
       method: 'POST',
       headers: {

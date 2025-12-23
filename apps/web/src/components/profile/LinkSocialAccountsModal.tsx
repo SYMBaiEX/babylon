@@ -4,6 +4,7 @@ import { cn, signInWithFarcaster } from '@babylon/shared';
 import { Check, ExternalLink, Shield, X as XIcon } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
+import { getAuthToken } from '@/lib/auth';
 import { useAuthStore } from '@/stores/authStore';
 
 /**
@@ -72,8 +73,7 @@ export function LinkSocialAccountsModal({
     });
 
     // Send authentication data to backend for verification and linking
-    const token =
-      typeof window !== 'undefined' ? window.__privyAccessToken : null;
+    const token = getAuthToken();
     const response = await fetch('/api/auth/farcaster/callback', {
       method: 'POST',
       headers: {

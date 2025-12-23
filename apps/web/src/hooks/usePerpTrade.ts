@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback } from 'react';
+import { getAuthToken } from '@/lib/auth';
 import type { TradeSide } from '@/types/markets';
 
 // Re-export for backwards compatibility
@@ -10,7 +11,7 @@ export type { TradeSide } from '@/types/markets';
  * Options for configuring the usePerpTrade hook.
  */
 interface UsePerpTradeOptions {
-  /** Optional function to get the access token. Falls back to window.__privyAccessToken */
+  /** Optional function to get the access token. Falls back to getAuthToken() */
   getAccessToken?: () => Promise<string | null> | string | null;
 }
 
@@ -72,15 +73,13 @@ async function resolveToken(
   resolver?: () => Promise<string | null> | string | null
 ): Promise<string | null> {
   if (!resolver) {
-    if (typeof window === 'undefined') return null;
-    return window.__privyAccessToken ?? null;
+    return getAuthToken();
   }
 
   const value = typeof resolver === 'function' ? resolver() : resolver;
   const token = await Promise.resolve(value);
   if (token) return token;
-  if (typeof window === 'undefined') return null;
-  return window.__privyAccessToken ?? null;
+  return getAuthToken();
 }
 
 function extractErrorMessage(

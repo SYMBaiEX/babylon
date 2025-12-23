@@ -15,6 +15,7 @@ import type {
 import { retryIfRetryable } from '@babylon/shared';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { getAuthToken } from '@/lib/auth';
 
 interface RepostPost {
   id: string;
@@ -94,20 +95,10 @@ type PersistedInteractionState = {
   favoritedProfiles: string[];
 };
 
-// Helper to get auth token from Privy
-async function getAuthToken(): Promise<string | null> {
-  // Access the token from window object that gets set by useAuth hook
-  if (typeof window !== 'undefined' && window.__privyAccessToken) {
-    return window.__privyAccessToken;
-  }
-
-  return null;
-}
-
 async function apiCall<T>(url: string, options: RequestInit = {}): Promise<T> {
   return retryIfRetryable(
     async () => {
-      const token = await getAuthToken();
+      const token = getAuthToken();
 
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',

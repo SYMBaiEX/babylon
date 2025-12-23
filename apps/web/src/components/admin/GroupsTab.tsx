@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { useCallback, useEffect, useState, useTransition } from 'react';
 import { z } from 'zod';
+import { getAuthToken } from '@/lib/auth';
 
 /**
  * Participant schema for validation.
@@ -91,8 +92,7 @@ export function GroupsTab() {
   const fetchGroups = useCallback(async () => {
     startRefresh(async () => {
       setIsLoading(true);
-      const token =
-        typeof window !== 'undefined' ? window.__privyAccessToken : null;
+      const token = getAuthToken();
 
       if (!token) {
         throw new Error('Not authenticated');

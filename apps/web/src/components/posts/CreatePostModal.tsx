@@ -5,6 +5,7 @@ import { Send, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
+import { getAuthToken } from '@/lib/auth';
 
 /**
  * Create post modal component for composing new posts.
@@ -93,9 +94,8 @@ export function CreatePostModal({
     if (!authenticated || !user || !content.trim()) return;
 
     setIsSubmitting(true);
-    // Get auth token from window (set by useAuth hook)
-    const token =
-      typeof window !== 'undefined' ? window.__privyAccessToken : null;
+    // Get auth token from cache (set by useAuth hook)
+    const token = getAuthToken();
 
     if (!token) {
       toast.error('Please wait for authentication to complete.');

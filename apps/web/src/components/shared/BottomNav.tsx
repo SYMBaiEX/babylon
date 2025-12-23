@@ -7,6 +7,7 @@ import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useUnreadMessages } from '@/hooks/useUnreadMessages';
+import { getAuthToken } from '@/lib/auth';
 
 /**
  * Bottom navigation content component for mobile devices.
@@ -36,8 +37,7 @@ function BottomNavContent() {
     }
 
     const fetchUnreadCount = async () => {
-      const token =
-        typeof window !== 'undefined' ? window.__privyAccessToken : null;
+      const token = getAuthToken();
 
       if (!token) {
         return;

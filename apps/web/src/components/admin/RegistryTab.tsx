@@ -25,6 +25,7 @@ import { FeedbackForm } from '@/components/feedback/FeedbackForm';
 import { Avatar } from '@/components/shared/Avatar';
 import { SearchBar } from '@/components/shared/SearchBar';
 import { Skeleton } from '@/components/shared/Skeleton';
+import { getAuthToken } from '@/lib/auth';
 
 /**
  * Registry entity schema for validation.
@@ -646,8 +647,7 @@ export function RegistryTab() {
     }
 
     setIsBanning(true);
-    const token =
-      typeof window !== 'undefined' ? window.__privyAccessToken : null;
+    const token = getAuthToken();
     const response = await fetch(`/api/admin/users/${entity.id}/ban`, {
       method: 'POST',
       headers: {
