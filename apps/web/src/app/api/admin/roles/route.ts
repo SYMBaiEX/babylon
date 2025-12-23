@@ -2,6 +2,7 @@
 // POST /api/admin/roles - Grant/revoke roles (SUPER_ADMIN only)
 
 import {
+  errorResponse,
   getAllAdmins,
   requireAdmin,
   requireSuperAdmin,
@@ -57,11 +58,19 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   };
 
   if (!userId || !action) {
-    return successResponse({ error: 'userId and action are required' }, 400);
+    return errorResponse(
+      'userId and action are required',
+      'MISSING_REQUIRED_FIELDS',
+      400
+    );
   }
 
   if (action !== 'grant' && action !== 'revoke') {
-    return successResponse({ error: 'action must be grant or revoke' }, 400);
+    return errorResponse(
+      'action must be grant or revoke',
+      'INVALID_ACTION',
+      400
+    );
   }
 
   const [targetUser] = await db
@@ -75,15 +84,14 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     .limit(1);
 
   if (!targetUser) {
-    return successResponse({ error: 'User not found' }, 404);
+    return errorResponse('User not found', 'USER_NOT_FOUND', 404);
   }
 
   if (action === 'grant') {
     if (!role || !ADMIN_ROLES.includes(role)) {
-      return successResponse(
-        {
-          error: `Valid role is required. Must be one of: ${ADMIN_ROLES.join(', ')}`,
-        },
+      return errorResponse(
+        `Valid role is required. Must be one of: ${ADMIN_ROLES.join(', ')}`,
+        'INVALID_ROLE',
         400
       );
     }
@@ -143,14 +151,19 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     .limit(1);
 
   if (!existingRole) {
-    return successResponse(
-      { error: 'User does not have an active admin role' },
+    return errorResponse(
+      'User does not have an active admin role',
+      'NO_ACTIVE_ROLE',
       400
     );
   }
 
   if (admin.userId === userId) {
-    return successResponse({ error: 'Cannot revoke your own admin role' }, 400);
+    return errorResponse(
+      'Cannot revoke your own admin role',
+      'CANNOT_REVOKE_SELF',
+      400
+    );
   }
 
   // Use transaction with SELECT FOR UPDATE to prevent race condition

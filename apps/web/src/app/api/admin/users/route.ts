@@ -99,13 +99,12 @@ import {
   desc,
   eq,
   follows,
-  ilike,
   inArray,
-  or,
   positions,
   reactions,
   reports,
   type SQL,
+  sql,
   userBlocks,
   userMutes,
   users,
@@ -168,19 +167,20 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
   if (params.search) {
     // Escape special LIKE/ILIKE characters to prevent pattern injection
+    // Using backslash as escape character, which is specified in raw SQL
     const escapedSearch = params.search
       .replace(/\\/g, '\\\\') // Escape backslashes first
       .replace(/%/g, '\\%') // Escape percent
       .replace(/_/g, '\\_'); // Escape underscore
 
-    const searchCondition = or(
-      ilike(users.username, `%${escapedSearch}%`),
-      ilike(users.displayName, `%${escapedSearch}%`),
-      ilike(users.walletAddress, `%${escapedSearch}%`)
-    );
-    if (searchCondition) {
-      conditions.push(searchCondition);
-    }
+    // Use raw SQL with ESCAPE clause to properly handle escaped wildcards
+    const searchPattern = `%${escapedSearch}%`;
+    const searchCondition = sql`(
+      ${users.username} ILIKE ${searchPattern} ESCAPE '\\' OR
+      ${users.displayName} ILIKE ${searchPattern} ESCAPE '\\' OR
+      ${users.walletAddress} ILIKE ${searchPattern} ESCAPE '\\'
+    )`;
+    conditions.push(searchCondition);
   }
 
   const whereClause = conditions.length > 0 ? and(...conditions) : undefined;

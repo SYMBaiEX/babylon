@@ -73,10 +73,12 @@
 import {
   applyRateLimit,
   errorResponse,
+  MAX_DATE_RANGE_DAYS,
   RATE_LIMIT_CONFIGS,
   rateLimitError,
   requireAdmin,
   successResponse,
+  validateDateRange,
   withErrorHandling,
 } from '@babylon/api';
 import type { WhereInput } from '@babylon/db';
@@ -99,33 +101,6 @@ import type { NextRequest } from 'next/server';
 
 // Infer the TradingFee type from the schema
 type TradingFee = typeof tradingFees.$inferSelect;
-
-/** Maximum allowed date range in days to prevent heavy queries */
-const MAX_DATE_RANGE_DAYS = 365;
-
-/**
- * Validate that the date range doesn't exceed the maximum allowed days.
- * Returns null if valid, or an error message if invalid.
- */
-function validateDateRange(
-  startDate: Date | undefined,
-  endDate: Date | undefined
-): string | null {
-  if (!startDate || !endDate) return null;
-
-  const diffMs = endDate.getTime() - startDate.getTime();
-  const diffDays = diffMs / (1000 * 60 * 60 * 24);
-
-  if (diffDays < 0) {
-    return 'startDate must be before endDate';
-  }
-
-  if (diffDays > MAX_DATE_RANGE_DAYS) {
-    return `Date range cannot exceed ${MAX_DATE_RANGE_DAYS} days`;
-  }
-
-  return null;
-}
 
 /**
  * GET /api/admin/fees
