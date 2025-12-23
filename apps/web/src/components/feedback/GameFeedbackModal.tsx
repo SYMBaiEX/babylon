@@ -1,42 +1,30 @@
 /**
  * Game Feedback Modal Component
  *
- * Provides a modal for users to submit general game feedback including:
- * - Bug reports (with steps to reproduce and screenshot upload)
- * - Feature requests (with rating)
- * - Performance issues
- *
- * Features:
- * - Multiple feedback types
- * - Screenshot upload for bug reports
- * - Star rating for feature requests
- * - Form validation
- * - Loading states
- * - Success/error handling
+ * Orchestrates feedback submission flow with sub-components for each feedback type.
  */
 
 'use client';
 
 import { cn, parseJsonString } from '@babylon/shared';
-import {
-  Bug,
-  Image as ImageIcon,
-  Loader2,
-  MessageSquare,
-  Send,
-  X,
-  Zap,
-} from 'lucide-react';
+import { Loader2, Send, X } from 'lucide-react';
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { toast } from 'sonner';
-import { StarRatingInput } from './StarRating';
-
-type FeedbackType = 'bug' | 'feature_request' | 'performance';
+import {
+  BugReportFields,
+  DescriptionField,
+  FeedbackTypeSelector,
+  FeatureRequestFields,
+  type FeedbackType,
+  getFeedbackTypeConfig,
+} from './forms';
 
 interface GameFeedbackModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
+
+const STORAGE_KEY = 'game-feedback-form';
 
 export function GameFeedbackModal({ isOpen, onClose }: GameFeedbackModalProps) {
   const [feedbackType, setFeedbackType] = useState<FeedbackType | null>(null);
@@ -52,9 +40,6 @@ export function GameFeedbackModal({ isOpen, onClose }: GameFeedbackModalProps) {
   const abortControllerRef = useRef<AbortController | null>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const [retryAfter, setRetryAfter] = useState<number | null>(null);
-
-  // Form persistence key
-  const STORAGE_KEY = 'game-feedback-form';
 
   // Load form data from sessionStorage on mount
   useEffect(() => {
@@ -83,16 +68,32 @@ export function GameFeedbackModal({ isOpen, onClose }: GameFeedbackModalProps) {
   useEffect(() => {
     if (!isOpen || !feedbackType) return;
 
-    const formData = {
-      feedbackType,
-      description,
-      stepsToReproduce,
-      rating,
-    };
+    const formData = { feedbackType, description, stepsToReproduce, rating };
     sessionStorage.setItem(STORAGE_KEY, JSON.stringify(formData));
   }, [isOpen, feedbackType, description, stepsToReproduce, rating]);
 
-  // Clear form data on successful submission
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) abortControllerRef.current.abort();
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    };
+  }, []);
+
+  // Cleanup interval when modal closes
+  useEffect(() => {
+    if (!isOpen && intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+      setRetryAfter(null);
+    }
+  }, [isOpen]);
+
+  if (!isOpen) return null;
+
   const clearFormData = () => {
     sessionStorage.removeItem(STORAGE_KEY);
     setFeedbackType(null);
@@ -105,60 +106,10 @@ export function GameFeedbackModal({ isOpen, onClose }: GameFeedbackModalProps) {
     setRetryAfter(null);
   };
 
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
-    };
-  }, []);
-
-  // Cleanup interval when modal closes (prevents memory leak during rate limiting)
-  useEffect(() => {
-    if (!isOpen && intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
-      setRetryAfter(null);
-    }
-  }, [isOpen]);
-
-  if (!isOpen) return null;
-
-  const handleScreenshotChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    // Validate file type
-    if (!file.type.startsWith('image/')) {
-      toast.error('Please select an image file');
-      return;
-    }
-
-    // Validate file size (max 10MB)
-    if (file.size > 10 * 1024 * 1024) {
-      toast.error('Image size must be less than 10MB');
-      return;
-    }
-
+  const handleScreenshotChange = (file: File | null, preview: string | null) => {
     setScreenshot(file);
-
-    // Create preview
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setScreenshotPreview(reader.result as string);
-    };
-    reader.readAsDataURL(file);
-  };
-
-  const handleRemoveScreenshot = () => {
-    setScreenshot(null);
-    setScreenshotPreview(null);
-    setScreenshotUrl(null);
+    setScreenshotPreview(preview);
+    if (!file) setScreenshotUrl(null);
   };
 
   const uploadScreenshot = async (
@@ -168,14 +119,12 @@ export function GameFeedbackModal({ isOpen, onClose }: GameFeedbackModalProps) {
 
     const formData = new FormData();
     formData.append('file', screenshot);
-    formData.append('type', 'post'); // Use 'post' type for general uploads
+    formData.append('type', 'post');
 
     const token =
       typeof window !== 'undefined' ? window.__privyAccessToken : null;
     const headers: HeadersInit = {};
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
+    if (token) headers['Authorization'] = `Bearer ${token}`;
 
     const response = await fetch('/api/upload/image', {
       method: 'POST',
@@ -215,39 +164,28 @@ export function GameFeedbackModal({ isOpen, onClose }: GameFeedbackModalProps) {
     }
 
     startSubmitting(async () => {
-      // Create abort controller for request cancellation
       abortControllerRef.current = new AbortController();
       const signal = abortControllerRef.current.signal;
 
       let uploadedScreenshotUrl: string | null = null;
 
-      // Upload screenshot if provided (optional - allow submission even if upload fails)
       if (screenshot && feedbackType === 'bug') {
         uploadedScreenshotUrl = await uploadScreenshot(signal).catch(
           (error) => {
-            if (error.name === 'AbortError') {
-              return null;
-            }
-            // Log warning but allow submission to continue
+            if (error.name === 'AbortError') return null;
             toast.warning(
               'Screenshot upload failed, but you can still submit your feedback'
             );
             return null;
           }
         );
-        if (uploadedScreenshotUrl) {
-          setScreenshotUrl(uploadedScreenshotUrl);
-        }
+        if (uploadedScreenshotUrl) setScreenshotUrl(uploadedScreenshotUrl);
       }
 
       const token =
         typeof window !== 'undefined' ? window.__privyAccessToken : null;
-      const headers: HeadersInit = {
-        'Content-Type': 'application/json',
-      };
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
+      const headers: HeadersInit = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
 
       const response = await fetch('/api/feedback/game-feedback', {
         method: 'POST',
@@ -264,7 +202,6 @@ export function GameFeedbackModal({ isOpen, onClose }: GameFeedbackModalProps) {
       });
 
       if (!response.ok) {
-        // Handle rate limiting
         if (response.status === 429) {
           const retryAfterHeader = response.headers.get('Retry-After');
           const retryAfterSeconds = retryAfterHeader
@@ -272,12 +209,8 @@ export function GameFeedbackModal({ isOpen, onClose }: GameFeedbackModalProps) {
             : 60;
           setRetryAfter(retryAfterSeconds);
 
-          // Clear any existing interval
-          if (intervalRef.current) {
-            clearInterval(intervalRef.current);
-          }
+          if (intervalRef.current) clearInterval(intervalRef.current);
 
-          // Start countdown timer
           intervalRef.current = setInterval(() => {
             setRetryAfter((prev) => {
               if (prev === null || prev <= 1) {
@@ -317,24 +250,15 @@ export function GameFeedbackModal({ isOpen, onClose }: GameFeedbackModalProps) {
         data.message || 'Thank you for your feedback! We appreciate it.'
       );
 
-      // Clear form data and close modal
       clearFormData();
-
-      // Close modal after a short delay
-      setTimeout(() => {
-        onClose();
-      }, 1000);
+      setTimeout(() => onClose(), 1000);
     });
   };
 
   const handleClose = () => {
-    if (isSubmitting) {
-      // Cancel in-flight requests
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
+    if (isSubmitting && abortControllerRef.current) {
+      abortControllerRef.current.abort();
     }
-    // Clear interval if running
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
       intervalRef.current = null;
@@ -342,38 +266,8 @@ export function GameFeedbackModal({ isOpen, onClose }: GameFeedbackModalProps) {
     onClose();
   };
 
-  const getFeedbackTypeIcon = (type: FeedbackType) => {
-    switch (type) {
-      case 'bug':
-        return Bug;
-      case 'feature_request':
-        return MessageSquare;
-      case 'performance':
-        return Zap;
-    }
-  };
-
-  const getFeedbackTypeTitle = (type: FeedbackType) => {
-    switch (type) {
-      case 'bug':
-        return 'Report a Bug';
-      case 'feature_request':
-        return 'Feature Request';
-      case 'performance':
-        return 'Performance Issue';
-    }
-  };
-
-  const getFeedbackTypeDescription = (type: FeedbackType) => {
-    switch (type) {
-      case 'bug':
-        return 'Help us fix issues by describing what happened and how to reproduce it.';
-      case 'feature_request':
-        return 'Tell us what you would like to see or change. How strongly do you feel about this?';
-      case 'performance':
-        return 'Report performance issues like lag, crashes, or graphical glitches.';
-    }
-  };
+  const config = feedbackType ? getFeedbackTypeConfig(feedbackType) : null;
+  const Icon = config?.icon;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
@@ -398,43 +292,8 @@ export function GameFeedbackModal({ isOpen, onClose }: GameFeedbackModalProps) {
 
         {/* Content */}
         <div className="space-y-6 p-6">
-          {/* Feedback Type Selection */}
           {!feedbackType ? (
-            <div className="space-y-4">
-              <h3 className="font-semibold text-foreground text-sm">
-                What type of feedback would you like to submit?
-              </h3>
-              <div className="grid gap-3 sm:grid-cols-3">
-                {(
-                  ['bug', 'feature_request', 'performance'] as FeedbackType[]
-                ).map((type) => {
-                  const Icon = getFeedbackTypeIcon(type);
-                  return (
-                    <button
-                      key={type}
-                      onClick={() => setFeedbackType(type)}
-                      className={cn(
-                        'flex flex-col items-center gap-3 rounded-lg border border-border bg-card p-4',
-                        'transition-all hover:border-[#1c9cf0] hover:bg-muted/50',
-                        'text-left'
-                      )}
-                    >
-                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#1c9cf0]/20">
-                        <Icon className="h-6 w-6 text-[#1c9cf0]" />
-                      </div>
-                      <div className="text-center">
-                        <div className="font-semibold text-foreground text-sm">
-                          {getFeedbackTypeTitle(type)}
-                        </div>
-                        <div className="mt-1 text-muted-foreground text-xs">
-                          {getFeedbackTypeDescription(type)}
-                        </div>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
+            <FeedbackTypeSelector onSelect={setFeedbackType} />
           ) : (
             <>
               {/* Back button */}
@@ -447,152 +306,45 @@ export function GameFeedbackModal({ isOpen, onClose }: GameFeedbackModalProps) {
               </button>
 
               {/* Feedback Type Header */}
-              <div className="flex items-center gap-3 rounded-lg bg-muted/30 p-4">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#1c9cf0]/20">
-                  {(() => {
-                    const Icon = getFeedbackTypeIcon(feedbackType);
-                    return <Icon className="h-5 w-5 text-[#1c9cf0]" />;
-                  })()}
-                </div>
-                <div>
-                  <h3 className="font-semibold text-foreground">
-                    {getFeedbackTypeTitle(feedbackType)}
-                  </h3>
-                  <p className="text-muted-foreground text-sm">
-                    {getFeedbackTypeDescription(feedbackType)}
-                  </p>
-                </div>
-              </div>
-
-              {/* Description */}
-              <div className="space-y-2">
-                <label
-                  htmlFor="description"
-                  className="font-medium text-foreground text-sm"
-                >
-                  Description{' '}
-                  <span className="text-muted-foreground text-xs">
-                    (required, min 10 characters)
-                  </span>
-                </label>
-                <textarea
-                  id="description"
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  placeholder={
-                    feedbackType === 'bug'
-                      ? 'Describe what happened...'
-                      : feedbackType === 'feature_request'
-                        ? 'Tell us what you would like to see or change...'
-                        : 'Describe the performance issue...'
-                  }
-                  maxLength={5000}
-                  rows={6}
-                  className={cn(
-                    'w-full rounded-lg border border-border bg-muted px-3 py-2',
-                    'text-foreground placeholder-muted-foreground',
-                    'focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1c9cf0]',
-                    'resize-none transition-colors'
-                  )}
-                />
-                <div className="flex justify-between text-muted-foreground text-xs">
-                  <span>Maximum 5000 characters</span>
-                  <span>{description.length}/5000</span>
-                </div>
-              </div>
-
-              {/* Steps to Reproduce (Bug only) */}
-              {feedbackType === 'bug' && (
-                <div className="space-y-2">
-                  <label
-                    htmlFor="stepsToReproduce"
-                    className="font-medium text-foreground text-sm"
-                  >
-                    Steps to Reproduce{' '}
-                    <span className="text-destructive">*</span>
-                  </label>
-                  <textarea
-                    id="stepsToReproduce"
-                    value={stepsToReproduce}
-                    onChange={(e) => setStepsToReproduce(e.target.value)}
-                    placeholder="1. Go to...&#10;2. Click on...&#10;3. See error..."
-                    maxLength={2000}
-                    rows={5}
-                    className={cn(
-                      'w-full rounded-lg border border-border bg-muted px-3 py-2',
-                      'text-foreground placeholder-muted-foreground',
-                      'focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1c9cf0]',
-                      'resize-none transition-colors'
-                    )}
-                  />
-                  <div className="flex justify-between text-muted-foreground text-xs">
-                    <span>Maximum 2000 characters</span>
-                    <span>{stepsToReproduce.length}/2000</span>
+              {config && Icon && (
+                <div className="flex items-center gap-3 rounded-lg bg-muted/30 p-4">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#1c9cf0]/20">
+                    <Icon className="h-5 w-5 text-[#1c9cf0]" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-foreground">
+                      {config.title}
+                    </h3>
+                    <p className="text-muted-foreground text-sm">
+                      {config.description}
+                    </p>
                   </div>
                 </div>
               )}
 
-              {/* Screenshot Upload (Bug only) */}
+              {/* Description (common to all types) */}
+              <DescriptionField
+                value={description}
+                onChange={setDescription}
+                feedbackType={feedbackType}
+              />
+
+              {/* Bug-specific fields */}
               {feedbackType === 'bug' && (
-                <div className="space-y-2">
-                  <label className="font-medium text-foreground text-sm">
-                    Screenshot (optional)
-                  </label>
-                  {screenshotPreview ? (
-                    <div className="relative">
-                      <img
-                        src={screenshotPreview}
-                        alt="Screenshot preview"
-                        className="max-h-64 w-full rounded-lg border border-border object-contain"
-                      />
-                      <button
-                        onClick={handleRemoveScreenshot}
-                        className="absolute top-2 right-2 rounded-full bg-destructive p-2 text-primary-foreground transition-colors hover:bg-destructive/90"
-                        aria-label="Remove screenshot"
-                      >
-                        <X className="h-4 w-4" />
-                      </button>
-                    </div>
-                  ) : (
-                    <label
-                      htmlFor="screenshot"
-                      className={cn(
-                        'flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-border border-dashed bg-muted/30 p-6',
-                        'transition-colors hover:border-[#1c9cf0] hover:bg-muted/50'
-                      )}
-                    >
-                      <ImageIcon className="h-8 w-8 text-muted-foreground" />
-                      <span className="text-muted-foreground text-sm">
-                        Click to upload a screenshot
-                      </span>
-                      <span className="text-muted-foreground text-xs">
-                        PNG, JPG, or GIF (max 10MB)
-                      </span>
-                      <input
-                        id="screenshot"
-                        type="file"
-                        accept="image/*"
-                        onChange={handleScreenshotChange}
-                        className="hidden"
-                      />
-                    </label>
-                  )}
-                </div>
+                <BugReportFields
+                  stepsToReproduce={stepsToReproduce}
+                  onStepsChange={setStepsToReproduce}
+                  screenshotPreview={screenshotPreview}
+                  onScreenshotChange={handleScreenshotChange}
+                />
               )}
 
-              {/* Rating (Feature Request only) */}
+              {/* Feature request-specific fields */}
               {feedbackType === 'feature_request' && (
-                <div className="space-y-3">
-                  <label className="font-medium text-foreground text-sm">
-                    How strongly do you feel about this?{' '}
-                    <span className="text-destructive">*</span>
-                  </label>
-                  <StarRatingInput
-                    value={rating * 20}
-                    onChange={(score) => setRating(score / 20)}
-                    showDescriptions={true}
-                  />
-                </div>
+                <FeatureRequestFields
+                  rating={rating}
+                  onRatingChange={setRating}
+                />
               )}
 
               {/* Action Buttons */}
