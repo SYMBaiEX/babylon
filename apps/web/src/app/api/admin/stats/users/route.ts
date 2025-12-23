@@ -5,8 +5,8 @@ import {
   errorResponse,
   MAX_DATE_RANGE_DAYS,
   parseDateParam,
-  rateLimitError,
   RATE_LIMIT_CONFIGS,
+  rateLimitError,
   requirePermission,
   successResponse,
   validateDateRange,
@@ -131,7 +131,9 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   `;
 
   // $queryRaw returns an array, get first row
-  const statsRow = Array.isArray(userStatsRows) ? userStatsRows[0] : userStatsRows;
+  const statsRow = Array.isArray(userStatsRows)
+    ? userStatsRows[0]
+    : userStatsRows;
   const totalUsers = Number(statsRow?.total ?? 0);
   const realUsers = Number(statsRow?.real_users ?? 0);
   const actors = Number(statsRow?.actors ?? 0);
@@ -151,7 +153,9 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
   // Filtered total only if date range specified
   const filteredTotal =
-    startDate || endDate ? await db.user.count({ where: combinedFilter }) : null;
+    startDate || endDate
+      ? await db.user.count({ where: combinedFilter })
+      : null;
 
   let timeSeries: Array<{ date: string; signups: number; cumulative: number }> =
     [];
