@@ -108,7 +108,7 @@ export const POSTING_ANGLES = [
   'historical', // Compare to past events
   'questioning', // Ask a question
   'declarative', // Bold statement
-];
+] as const;
 
 // =============================================================================
 // Topic Diversity Service

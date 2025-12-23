@@ -4,6 +4,7 @@ import { cn } from '@babylon/shared';
 import { AlertCircle, Bot, Check, RefreshCw, Zap } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
+import { getAuthToken } from '@/lib/auth';
 
 /**
  * AI model info structure.
@@ -51,8 +52,7 @@ export function AIModelsTab() {
   );
 
   const fetchData = useCallback(async () => {
-    const token =
-      typeof window !== 'undefined' ? window.__privyAccessToken : null;
+    const token = getAuthToken();
     if (!token) {
       toast.error('Not authenticated');
       setLoading(false);
@@ -83,8 +83,7 @@ export function AIModelsTab() {
   const handleTest = async () => {
     setTesting(true);
     setTestResult(null);
-    const token =
-      typeof window !== 'undefined' ? window.__privyAccessToken : null;
+    const token = getAuthToken();
     if (!token) {
       toast.error('Not authenticated');
       setTesting(false);

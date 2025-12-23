@@ -38,6 +38,12 @@ export const balanceTransactions = pgTable(
       table.userId,
       table.createdAt
     ),
+    // Admin stats indexes for optimized date-range queries
+    index('BalanceTransaction_type_createdAt_idx').on(
+      table.type,
+      table.createdAt
+    ),
+    index('BalanceTransaction_userId_type_idx').on(table.userId, table.type),
   ]
 );
 

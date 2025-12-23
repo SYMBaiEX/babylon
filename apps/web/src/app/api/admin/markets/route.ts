@@ -44,6 +44,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   const now = new Date();
 
   // Get market statistics
+  // Note: Raw SQL aggregations use parameterized now value; query builder filters use Date directly
   const [marketStats] = await db
     .select({
       total: count(),
