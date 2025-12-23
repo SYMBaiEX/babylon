@@ -368,7 +368,7 @@ export function AgentSetupModal({
                       ...prev,
                       username: e.target.value
                         .toLowerCase()
-                        .replace(/[^a-z0-9_-]/g, ''),
+                        .replace(/[^a-z0-9_]/g, ''),
                     }))
                   }
                   maxLength={20}
@@ -426,9 +426,11 @@ export function AgentSetupModal({
                   Username must be at least 3 characters
                 </p>
               )}
-              <p id="username-help" className="mt-1.5 text-muted-foreground text-xs">
-                3-20 characters. Letters, numbers, underscores, and hyphens
-                only.
+              <p
+                id="username-help"
+                className="mt-1.5 text-muted-foreground text-xs"
+              >
+                3-20 characters. Letters, numbers, and underscores only.
               </p>
             </div>
 
