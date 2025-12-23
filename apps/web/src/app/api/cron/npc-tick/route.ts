@@ -18,6 +18,7 @@ import {
   acquireAgentLock,
   agentRuntimeManager,
   autonomousCoordinator,
+  npcBootstrapService,
   releaseAgentLock,
 } from '@babylon/agents';
 import {
@@ -239,8 +240,16 @@ export async function POST(_req: NextRequest) {
     }
 
     try {
-      // Get ElizaOS runtime for this NPC
-      // NPCs should be registered by NPCBootstrapService at startup
+      // Check if runtime exists, if not bootstrap on-demand
+      // This handles cases where NPCBootstrapService didn't run or failed for this NPC
+      if (!agentRuntimeManager.hasRuntime(npc.id)) {
+        logger.info(
+          `NPC ${npc.name} not bootstrapped, registering on-demand`,
+          { npcId: npc.id },
+          'NPCTick'
+        );
+        await npcBootstrapService.bootstrapNpc(npc.id);
+      }
       const runtime = await agentRuntimeManager.getRuntime(npc.id);
 
       // Execute autonomous tick with isNpc=true

@@ -223,6 +223,8 @@ export const llmCallLogs = pgTable(
     index('llm_call_logs_callId_idx').on(table.callId),
     index('llm_call_logs_timestamp_idx').on(table.timestamp),
     index('llm_call_logs_trajectoryId_idx').on(table.trajectoryId),
+    // Admin stats index for createdAt time series queries
+    index('llm_call_logs_createdAt_idx').on(table.createdAt),
   ]
 );
 

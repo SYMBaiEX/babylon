@@ -56,7 +56,11 @@ export { trendingTopics } from './game/trending-topics';
 export { worldImpactAssessment } from './game/world-impact';
 // Image prompts
 export { actorBanner, actorPortrait } from './image/actor-portrait';
-export { articleCover } from './image/article-cover';
+export {
+  articleCover,
+  getRandomTwist,
+  SURREAL_TWISTS,
+} from './image/article-cover';
 export {
   organizationBanner,
   organizationLogo,

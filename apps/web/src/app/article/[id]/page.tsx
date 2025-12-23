@@ -4,6 +4,7 @@ import { ArrowLeft, MessageCircle } from 'lucide-react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { use, useEffect, useState } from 'react';
+import { MoreArticlesWidget } from '@/components/articles/MoreArticlesWidget';
 import { PageContainer } from '@/components/shared/PageContainer';
 import { Skeleton } from '@/components/shared/Skeleton';
 
@@ -105,9 +106,38 @@ export default function ArticlePage({ params }: ArticlePageProps) {
 
   const publishedDate = new Date(article.timestamp);
 
+  // Helper function to format article content into paragraphs
+  const formatArticleContent = (content: string): string[] => {
+    // First try splitting by double newlines
+    const doubleNewlineParagraphs = content
+      .split('\n\n')
+      .filter((p) => p.trim());
+    if (doubleNewlineParagraphs.length > 1) {
+      return doubleNewlineParagraphs;
+    }
+
+    // Try splitting by single newlines
+    const singleNewlineParagraphs = content.split('\n').filter((p) => p.trim());
+    if (singleNewlineParagraphs.length > 1) {
+      return singleNewlineParagraphs;
+    }
+
+    // No line breaks - split by sentences, grouping ~3-4 sentences per paragraph
+    const sentences = content.match(/[^.!?]+[.!?]+/g) || [content];
+    const paragraphs: string[] = [];
+    const sentencesPerParagraph = 4;
+
+    for (let i = 0; i < sentences.length; i += sentencesPerParagraph) {
+      const paragraphSentences = sentences.slice(i, i + sentencesPerParagraph);
+      paragraphs.push(paragraphSentences.join(' ').trim());
+    }
+
+    return paragraphs.length > 0 ? paragraphs : [content];
+  };
+
   return (
-    <PageContainer>
-      {/* Desktop: Multi-column layout */}
+    <PageContainer noPadding>
+      {/* Desktop: Multi-column layout with sidebar */}
       <div className="hidden flex-1 overflow-hidden lg:flex">
         {/* Left: Article content area */}
         <div className="flex min-w-0 flex-1 flex-col">
@@ -129,65 +159,75 @@ export default function ArticlePage({ params }: ArticlePageProps) {
             </div>
           </div>
 
-          {/* Article content */}
-          <div className="flex-1 overflow-y-auto">
-            <div className="mx-auto w-full max-w-feed">
-              <article className="px-4 py-4 sm:px-6 sm:py-5">
-                {/* Article cover image */}
-                {article.imageUrl && (
-                  <div className="relative mb-6 aspect-video w-full overflow-hidden rounded-lg">
-                    <Image
-                      src={article.imageUrl}
-                      alt={article.articleTitle || 'Article cover'}
-                      fill
-                      className="object-cover"
-                      sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 800px"
-                      priority
-                    />
-                  </div>
-                )}
-
-                {/* Article title */}
-                <h1 className="mb-4 font-bold text-3xl text-foreground leading-tight sm:text-4xl">
-                  {article.articleTitle}
-                </h1>
-
-                {/* Article metadata */}
-                <div className="mb-6 flex flex-wrap items-center gap-3 text-muted-foreground text-sm">
-                  <span className="font-semibold text-[#0066FF]">
-                    {article.authorName}
-                  </span>
-                  {article.byline && (
-                    <>
-                      <span>·</span>
-                      <span>{article.byline}</span>
-                    </>
+          {/* Article content with sidebar */}
+          <div className="flex flex-1 overflow-y-auto">
+            {/* Main article column */}
+            <div className="min-w-0 flex-1">
+              <div className="mx-auto w-full max-w-3xl">
+                <article className="px-6 py-6">
+                  {/* Article cover image */}
+                  {article.imageUrl && (
+                    <div className="relative mb-6 aspect-video w-full overflow-hidden rounded-lg">
+                      <Image
+                        src={article.imageUrl}
+                        alt={article.articleTitle || 'Article cover'}
+                        fill
+                        className="object-cover"
+                        sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 800px"
+                        priority
+                      />
+                    </div>
                   )}
-                  <span>·</span>
-                  <time>
-                    {publishedDate.toLocaleDateString('en-US', {
-                      month: 'long',
-                      day: 'numeric',
-                      year: 'numeric',
-                    })}
-                  </time>
-                </div>
 
-                {/* Full article content */}
-                <div className="prose prose-lg prose-invert mb-6 max-w-none">
-                  {(article.fullContent || article.content)
-                    .split('\n\n')
-                    .map((paragraph, i) => (
+                  {/* Article title */}
+                  <h1 className="mb-4 font-bold text-3xl text-foreground leading-tight sm:text-4xl">
+                    {article.articleTitle}
+                  </h1>
+
+                  {/* Article metadata */}
+                  <div className="mb-6 flex flex-wrap items-center gap-3 text-muted-foreground text-sm">
+                    <span className="font-semibold text-[#0066FF]">
+                      {article.authorName}
+                    </span>
+                    {article.byline && (
+                      <>
+                        <span>·</span>
+                        <span>{article.byline}</span>
+                      </>
+                    )}
+                    <span>·</span>
+                    <time>
+                      {publishedDate.toLocaleDateString('en-US', {
+                        month: 'long',
+                        day: 'numeric',
+                        year: 'numeric',
+                      })}
+                    </time>
+                  </div>
+
+                  {/* Full article content */}
+                  <div className="prose prose-lg prose-invert mb-6 max-w-none">
+                    {formatArticleContent(
+                      article.fullContent || article.content
+                    ).map((paragraph, i) => (
                       <p
                         key={i}
-                        className="mb-4 text-base text-foreground leading-relaxed sm:text-lg"
+                        className="mb-6 text-base text-foreground/90 leading-relaxed sm:text-lg"
                       >
                         {paragraph}
                       </p>
                     ))}
-                </div>
-              </article>
+                  </div>
+                </article>
+              </div>
             </div>
+
+            {/* Right sidebar - More Articles */}
+            <aside className="hidden w-80 shrink-0 border-border border-l xl:block">
+              <div className="sticky top-0 p-6">
+                <MoreArticlesWidget currentArticleId={articleId} limit={5} />
+              </div>
+            </aside>
           </div>
         </div>
       </div>
@@ -254,16 +294,21 @@ export default function ArticlePage({ params }: ArticlePageProps) {
 
             {/* Full article content */}
             <div className="prose prose-invert mb-4 max-w-none">
-              {(article.fullContent || article.content)
-                .split('\n\n')
-                .map((paragraph, i) => (
+              {formatArticleContent(article.fullContent || article.content).map(
+                (paragraph, i) => (
                   <p
                     key={i}
-                    className="mb-4 text-base text-foreground leading-relaxed"
+                    className="mb-5 text-base text-foreground/90 leading-relaxed"
                   >
                     {paragraph}
                   </p>
-                ))}
+                )
+              )}
+            </div>
+
+            {/* More Articles - Mobile */}
+            <div className="mt-8 border-border border-t pt-6">
+              <MoreArticlesWidget currentArticleId={articleId} limit={4} />
             </div>
           </article>
         </div>

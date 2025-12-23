@@ -116,20 +116,21 @@ export function EscrowManagementTab() {
             headers,
           }
         );
-        if (!response.ok) throw new Error('Failed to fetch escrows');
-        const data = await response.json();
-        const validation = z.array(EscrowSchema).safeParse(data.escrows);
-        if (!validation.success) {
-          throw new Error('Invalid escrow data structure');
+        if (!response.ok) {
+          toast.error('Failed to fetch escrows');
+          setLoading(false);
+          return;
         }
-        setEscrows(validation.data || []);
+        const data = await response.json();
+        const validated = z.array(EscrowSchema).parse(data.escrows);
+        setEscrows(validated);
         setLoading(false);
       };
 
       if (showRefreshing) {
         startRefresh(fetchLogic);
       } else {
-        fetchLogic();
+        void fetchLogic();
       }
     },
     [statusFilter]

@@ -105,13 +105,27 @@ export class NPCBootstrapService {
     );
 
     // Bootstrap each actor in sequence (to avoid overwhelming database)
+    // IMPORTANT: Errors for individual NPCs should NOT stop the entire bootstrap
     for (const actor of actorsList) {
-      const bootstrapResult = await this.bootstrapSingleNpc(actor);
-      if (bootstrapResult.registered) {
-        result.registered++;
-      }
-      if (bootstrapResult.initialized) {
-        result.initialized++;
+      try {
+        const bootstrapResult = await this.bootstrapSingleNpc(actor);
+        if (bootstrapResult.registered) {
+          result.registered++;
+        }
+        if (bootstrapResult.initialized) {
+          result.initialized++;
+        }
+      } catch (error) {
+        result.failed++;
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
+        result.errors.push({ actorId: actor.id, error: errorMessage });
+        logger.error(
+          `Failed to bootstrap NPC ${actor.name} (${actor.id}): ${errorMessage}`,
+          { actorId: actor.id, error: errorMessage },
+          'NPCBootstrapService'
+        );
+        // Continue to next NPC - don't let one failure stop the entire bootstrap
       }
     }
 
