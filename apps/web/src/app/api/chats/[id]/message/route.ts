@@ -103,7 +103,16 @@ import {
   successResponse,
   withErrorHandling,
 } from '@babylon/api';
-import { asUser, db, eq, hasBlocked, users } from '@babylon/db';
+import {
+  and,
+  asUser,
+  chatParticipants,
+  db,
+  eq,
+  groupChatMemberships,
+  hasBlocked,
+  users,
+} from '@babylon/db';
 import {
   GroupChatService,
   MessageQualityChecker,
@@ -339,9 +348,49 @@ export const POST = withErrorHandling(
           );
 
           if (!verification.canAccess) {
+            // Remove user from chat since they no longer have NFT access
+            await db
+              .update(groupChatMemberships)
+              .set({
+                isActive: false,
+                removedAt: new Date(),
+                sweepReason: 'Lost NFT access',
+              })
+              .where(
+                and(
+                  eq(groupChatMemberships.chatId, chatId),
+                  eq(groupChatMemberships.userId, user.userId),
+                  eq(groupChatMemberships.isActive, true)
+                )
+              );
+
+            await db
+              .delete(chatParticipants)
+              .where(
+                and(
+                  eq(chatParticipants.chatId, chatId),
+                  eq(chatParticipants.userId, user.userId)
+                )
+              );
+
+            // Invalidate NFT cache for this user/contract combination
+            if (userData?.walletAddress && chat.requiredNftContractAddress) {
+              await NFTVerificationService.invalidateOwnershipCache(
+                userData.walletAddress,
+                chat.requiredNftContractAddress,
+                chat.requiredNftChainId ?? undefined
+              ).catch((error) => {
+                logger.warn(
+                  'Failed to invalidate NFT cache after removal',
+                  { error, chatId, userId: user.userId },
+                  'POST /api/chats/[id]/message'
+                );
+              });
+            }
+
             throw new AuthorizationError(
               verification.reason ||
-                'You must own the required NFT to send messages in this chat',
+                'You must own the required NFT to send messages in this chat. You have been removed from this chat.',
               'chat',
               'write'
             );
