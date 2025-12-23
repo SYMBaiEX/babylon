@@ -132,17 +132,24 @@ export class AgentServiceV2 {
     // Use provided username or generate one
     let agentUsername: string;
     if (providedUsername) {
-      agentUsername = providedUsername
-        .toLowerCase()
-        .replace(/[^a-z0-9_-]/g, '');
+      const trimmed = providedUsername.trim().toLowerCase();
+
+      // Validate format - reject invalid characters instead of sanitizing
+      if (!/^[a-z0-9_-]+$/.test(trimmed)) {
+        throw new Error(
+          'Username can only contain lowercase letters, numbers, underscores, and hyphens'
+        );
+      }
 
       // Validate username length
-      if (agentUsername.length < 3) {
+      if (trimmed.length < 3) {
         throw new Error('Username must be at least 3 characters');
       }
-      if (agentUsername.length > 20) {
+      if (trimmed.length > 20) {
         throw new Error('Username must be at most 20 characters');
       }
+
+      agentUsername = trimmed;
 
       // Check uniqueness
       const existingUser = await db
