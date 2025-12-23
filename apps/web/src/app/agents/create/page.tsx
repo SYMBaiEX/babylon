@@ -12,7 +12,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useAuthStore } from '@/stores/authStore';
 import {
   AgentConfigForm,
-  EditProfileModal,
+  AgentSetupModal,
   ProfilePreviewCard,
 } from './components';
 import { useAgentForm } from './hooks';
@@ -49,7 +49,7 @@ export default function CreateAgentPage() {
     );
   }
 
-  const [showEditModal, setShowEditModal] = useState(false);
+  const [showProfileModal, setShowProfileModal] = useState(true); // Show profile modal first
   const [isCreating, setIsCreating] = useState(false);
 
   const {
@@ -59,10 +59,30 @@ export default function CreateAgentPage() {
     generatingField,
     updateProfileField,
     updateAgentField,
-    setProfileData,
     regenerateField,
     clearDraft,
   } = useAgentForm();
+
+  // Handle profile modal save
+  const handleProfileSave = useCallback(
+    (data: typeof profileData) => {
+      // Use updateProfileField for displayName to trigger system prompt replacement
+      if (data.displayName !== profileData.displayName) {
+        updateProfileField('displayName', data.displayName);
+      }
+      if (data.username !== profileData.username) {
+        updateProfileField('username', data.username);
+      }
+      if (data.profileImageUrl !== profileData.profileImageUrl) {
+        updateProfileField('profileImageUrl', data.profileImageUrl);
+      }
+      if (data.coverImageUrl !== profileData.coverImageUrl) {
+        updateProfileField('coverImageUrl', data.coverImageUrl);
+      }
+      setShowProfileModal(false);
+    },
+    [profileData, updateProfileField]
+  );
 
   // User balance for max deposit - default to 10k if balance not available
   const maxDeposit = Math.max(
@@ -117,6 +137,10 @@ export default function CreateAgentPage() {
       toast.error('Agent name is required');
       return;
     }
+    if (!profileData.username || profileData.username.length < 3) {
+      toast.error('Invalid username. Please set up your agent profile first.');
+      return;
+    }
     if (!agentData.system.trim()) {
       toast.error('System prompt is required');
       return;
@@ -148,6 +172,8 @@ export default function CreateAgentPage() {
       body: JSON.stringify({
         // API expects 'name', not 'displayName'
         name: profileData.displayName,
+        // User-chosen username
+        username: profileData.username,
         // API expects 'description' for the profile bio
         description: profileData.bio,
         profileImageUrl: profileData.profileImageUrl,
@@ -204,7 +230,6 @@ export default function CreateAgentPage() {
           <div className="space-y-4 lg:col-span-1">
             <ProfilePreviewCard
               profileData={profileData}
-              onEdit={() => setShowEditModal(true)}
               onCycleProfilePic={(direction) =>
                 cycleImage('profile', direction)
               }
@@ -305,13 +330,13 @@ export default function CreateAgentPage() {
         </div>
       </div>
 
-      {/* Edit Profile Modal */}
-      {showEditModal && (
-        <EditProfileModal
-          isOpen={showEditModal}
-          onClose={() => setShowEditModal(false)}
+      {/* Profile Modal - shown first for initial setup */}
+      {showProfileModal && (
+        <AgentSetupModal
+          isOpen={showProfileModal}
+          onClose={() => router.push('/agents')}
           profileData={profileData}
-          onSave={setProfileData}
+          onSave={handleProfileSave}
         />
       )}
     </PageContainer>
