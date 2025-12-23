@@ -2,6 +2,7 @@
 
 import { cn } from '@babylon/shared';
 import {
+  AlertCircle,
   Check,
   ChevronLeft,
   ChevronRight,
@@ -35,7 +36,7 @@ export function AgentSetupModal({
   const [localData, setLocalData] = useState<ProfileFormData>(profileData);
 
   // Username availability check
-  const { usernameStatus, usernameSuggestion, isCheckingUsername } =
+  const { usernameStatus, usernameSuggestion, isCheckingUsername, retryCheck } =
     useAgentUsernameCheck(localData.username);
   const [uploadingImage, setUploadingImage] = useState<
     'profile' | 'cover' | null
@@ -352,6 +353,7 @@ export function AgentSetupModal({
                 className={cn(
                   'flex items-center rounded-lg border bg-muted focus-within:ring-2 focus-within:ring-[#0066FF]',
                   usernameStatus === 'taken' && 'border-red-500',
+                  usernameStatus === 'error' && 'border-yellow-500',
                   usernameStatus === 'available' && 'border-green-500',
                   !usernameStatus && 'border-border'
                 )}
@@ -384,6 +386,9 @@ export function AgentSetupModal({
                   {!isCheckingUsername && usernameStatus === 'taken' && (
                     <XIcon className="h-4 w-4 text-red-500" />
                   )}
+                  {!isCheckingUsername && usernameStatus === 'error' && (
+                    <AlertCircle className="h-4 w-4 text-yellow-500" />
+                  )}
                 </div>
               </div>
               {/* Suggestion */}
@@ -396,6 +401,19 @@ export function AgentSetupModal({
                     className="text-primary underline hover:text-primary/80"
                   >
                     {usernameSuggestion}
+                  </button>
+                </p>
+              )}
+              {/* Error with retry */}
+              {usernameStatus === 'error' && (
+                <p className="mt-1.5 text-yellow-600 text-xs">
+                  Failed to check username.{' '}
+                  <button
+                    type="button"
+                    onClick={retryCheck}
+                    className="underline hover:text-yellow-500"
+                  >
+                    Retry
                   </button>
                 </p>
               )}
