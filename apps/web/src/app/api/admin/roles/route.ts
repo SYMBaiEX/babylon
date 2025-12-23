@@ -135,42 +135,59 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       );
     }
 
-    // Use default permissions for role if not provided, otherwise use validated custom permissions
-    // Note: Zod already validates that permissions are valid ADMIN_PERMISSIONS values
-    const finalPermissions: AdminPermission[] =
-      permissions ?? ROLE_PERMISSIONS[role];
+    // Get default permissions for the role
+    const roleDefaultPermissions = ROLE_PERMISSIONS[role];
+
+    // If custom permissions provided, validate they are a subset of role's allowed permissions
+    if (permissions) {
+      const invalidPermissions = permissions.filter(
+        (p) => !roleDefaultPermissions.includes(p)
+      );
+      if (invalidPermissions.length > 0) {
+        return errorResponse(
+          `Custom permissions must be a subset of ${role} permissions. Invalid: ${invalidPermissions.join(', ')}`,
+          'INVALID_PERMISSIONS',
+          400
+        );
+      }
+    }
+
+    const finalPermissions: AdminPermission[] = permissions ?? roleDefaultPermissions;
     const now = new Date();
 
-    // Use upsert (onConflictDoUpdate) to prevent race conditions
-    await db
-      .insert(adminRoles)
-      .values({
-        id: `admin_role_${generateSnowflakeId()}`,
-        userId,
-        role,
-        permissions: finalPermissions,
-        grantedBy: admin.userId,
-        grantedAt: now,
-      })
-      .onConflictDoUpdate({
-        target: adminRoles.userId,
-        set: {
+    // Use transaction to ensure atomic role grant + isAdmin flag update
+    await db.transaction(async (tx) => {
+      // Use upsert (onConflictDoUpdate) to prevent race conditions
+      await tx
+        .insert(adminRoles)
+        .values({
+          id: `admin_role_${generateSnowflakeId()}`,
+          userId,
           role,
           permissions: finalPermissions,
           grantedBy: admin.userId,
           grantedAt: now,
-          revokedAt: null,
-        },
-      });
+        })
+        .onConflictDoUpdate({
+          target: adminRoles.userId,
+          set: {
+            role,
+            permissions: finalPermissions,
+            grantedBy: admin.userId,
+            grantedAt: now,
+            revokedAt: null,
+          },
+        });
+
+      // Update legacy isAdmin flag for backward compatibility (atomic with role grant)
+      await tx.update(users).set({ isAdmin: true }).where(eq(users.id, userId));
+    });
 
     logger.info(
       'Admin role granted/updated',
       { targetUserId: userId, role, grantedBy: admin.userId },
       'POST /api/admin/roles'
     );
-
-    // Update legacy isAdmin flag for backward compatibility
-    await db.update(users).set({ isAdmin: true }).where(eq(users.id, userId));
 
     return successResponse({
       success: true,
