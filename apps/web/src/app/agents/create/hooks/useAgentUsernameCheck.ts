@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
 
-export type UsernameStatus = 'available' | 'taken' | 'checking' | null;
+export type UsernameStatus = 'available' | 'taken' | 'checking' | 'error' | null;
 
 interface UseAgentUsernameCheckResult {
   usernameStatus: UsernameStatus;
   usernameSuggestion: string | null;
   isCheckingUsername: boolean;
   checkUsername: (username: string) => void;
+  retryCheck: () => void;
 }
 
 /**
@@ -50,17 +51,25 @@ export function useAgentUsernameCheck(
           result.available ? null : result.suggestion || null
         );
       } else {
-        setUsernameStatus(null);
+        setUsernameStatus('error');
         setUsernameSuggestion(null);
       }
     } catch (error) {
       console.error('Username check failed:', error);
-      setUsernameStatus(null);
+      setUsernameStatus('error');
       setUsernameSuggestion(null);
     } finally {
       setIsCheckingUsername(false);
     }
   }, []);
+
+  // Retry the username check
+  const retryCheck = useCallback(() => {
+    const trimmed = username.trim().toLowerCase();
+    if (trimmed && trimmed.length >= 3) {
+      void checkUsername(trimmed);
+    }
+  }, [username, checkUsername]);
 
   // Debounced effect for automatic checking
   useEffect(() => {
@@ -84,5 +93,6 @@ export function useAgentUsernameCheck(
     usernameSuggestion,
     isCheckingUsername,
     checkUsername,
+    retryCheck,
   };
 }

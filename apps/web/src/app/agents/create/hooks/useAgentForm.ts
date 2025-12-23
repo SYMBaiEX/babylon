@@ -30,7 +30,6 @@ interface UseAgentFormResult {
     field: keyof AgentFormData,
     value: string | number
   ) => void;
-  setProfileData: React.Dispatch<React.SetStateAction<ProfileFormData>>;
   regenerateField: (field: string) => Promise<void>;
   clearDraft: () => void;
 }
@@ -251,7 +250,6 @@ export function useAgentForm(): UseAgentFormResult {
     generatingField,
     updateProfileField,
     updateAgentField,
-    setProfileData,
     regenerateField,
     clearDraft,
   };

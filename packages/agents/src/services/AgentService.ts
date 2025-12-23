@@ -135,6 +135,24 @@ export class AgentServiceV2 {
       agentUsername = providedUsername
         .toLowerCase()
         .replace(/[^a-z0-9_-]/g, '');
+
+      // Validate username length
+      if (agentUsername.length < 3) {
+        throw new Error('Username must be at least 3 characters');
+      }
+      if (agentUsername.length > 20) {
+        throw new Error('Username must be at most 20 characters');
+      }
+
+      // Check uniqueness
+      const existingUser = await db
+        .select({ id: users.id })
+        .from(users)
+        .where(eq(users.username, agentUsername))
+        .limit(1);
+      if (existingUser.length > 0) {
+        throw new Error(`Username '${agentUsername}' is already taken`);
+      }
     } else {
       // Auto-generate username for programmatic use cases
       const baseUsername = name
