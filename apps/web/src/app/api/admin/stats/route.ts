@@ -62,8 +62,8 @@
 
 import {
   applyRateLimit,
-  rateLimitError,
   RATE_LIMIT_CONFIGS,
+  rateLimitError,
   requireAdmin,
   successResponse,
   withErrorHandling,
