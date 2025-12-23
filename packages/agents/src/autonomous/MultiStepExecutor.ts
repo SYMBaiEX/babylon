@@ -224,11 +224,12 @@ export class MultiStepExecutor {
         break;
       }
 
-      // Execute the chosen action with parameters
+      // Execute the chosen action with parameters (pass enabledFeatures for enforcement)
       const actionResult = await this.executeAction(
         agentUserId,
         decision.action,
         decision.parameters,
+        enabledFeatures,
         { prompt, completion: rawResponse, thought: decision.thought }
       );
 
@@ -291,23 +292,31 @@ export class MultiStepExecutor {
       pnl = walletBalance.lifetimePnL;
     }
 
-    // Get prediction markets
-    const predictionMarkets = await this.getPredictionMarkets();
+    // Only fetch data for enabled features (saves DB queries and tokens)
+    const canTrade = enabledFeatures.includes('trading');
+    const canComment = enabledFeatures.includes('commenting');
+    const canRespondDMs = enabledFeatures.includes('DMs');
 
-    // Get perp markets
-    const perpMarkets = await this.getPerpMarkets();
+    // Get prediction markets (only if trading enabled)
+    const predictionMarkets = canTrade ? await this.getPredictionMarkets() : [];
 
-    // Get agent's positions
+    // Get perp markets (only if trading enabled)
+    const perpMarkets = canTrade ? await this.getPerpMarkets() : [];
+
+    // Get agent's positions (always needed for context, even if not trading)
     const agentPositions = await this.getAgentPositions(agentUserId);
 
-    // Get recent posts to engage with
-    const recentPosts = await this.getRecentPosts(agentUserId);
+    // Get recent posts to engage with (only if commenting enabled)
+    const recentPosts = canComment
+      ? await this.getRecentPosts(agentUserId)
+      : [];
 
-    // Get pending interactions
-    const pendingInteractions =
-      await autonomousBatchResponseService.gatherPendingInteractions(
-        agentUserId
-      );
+    // Get pending interactions (only if DMs enabled)
+    const pendingInteractions = canRespondDMs
+      ? await autonomousBatchResponseService.gatherPendingInteractions(
+          agentUserId
+        )
+      : [];
 
     // Get topic diversity guidance for this agent
     const diversityInstructions =
@@ -643,20 +652,48 @@ export class MultiStepExecutor {
 
   /**
    * Execute a single action using DIRECT executors (no LLM calls)
+   * Enforces enabledFeatures - will reject actions the agent hasn't enabled
    */
   private async executeAction(
     agentUserId: string,
     action: string,
     parameters: Record<string, unknown>,
+    enabledFeatures: string[],
     logContext?: { prompt: string; completion: string; thought: string }
   ): Promise<ActionTraceResult> {
     const normalizedAction = action.toUpperCase();
 
     logger.info(
       `[MultiStep] Executing action: ${normalizedAction}`,
-      { parameters },
+      { parameters, enabledFeatures },
       'MultiStepExecutor'
     );
+
+    // Enforce enabled features - reject actions that aren't enabled
+    const actionToFeature: Record<string, string> = {
+      TRADE: 'trading',
+      POST: 'posting',
+      COMMENT: 'commenting',
+      RESPOND: 'DMs',
+      DM: 'DMs',
+    };
+
+    const requiredFeature = actionToFeature[normalizedAction];
+    if (requiredFeature && !enabledFeatures.includes(requiredFeature)) {
+      logger.warn(
+        `[MultiStep] Action ${normalizedAction} blocked - ${requiredFeature} not enabled`,
+        { agentUserId, enabledFeatures },
+        'MultiStepExecutor'
+      );
+      return {
+        actionType: normalizedAction,
+        success: false,
+        summary: `Action blocked: ${requiredFeature} is not enabled for this agent`,
+        error: `Feature "${requiredFeature}" is disabled`,
+        parameters,
+        timestamp: Date.now(),
+      };
+    }
 
     switch (normalizedAction) {
       case 'TRADE': {
