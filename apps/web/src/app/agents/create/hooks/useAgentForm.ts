@@ -132,24 +132,9 @@ export function useAgentForm(): UseAgentFormResult {
     loadTemplate();
   }, []);
 
-  // Replace {{agentName}} placeholder with user's name when both are available
-  useEffect(() => {
-    if (!agentData.system || !profileData.displayName) return;
-    if (!agentData.system.includes('{{agentName}}')) return;
-
-    setAgentData((prev) => ({
-      ...prev,
-      system: prev.system.replace(/\{\{agentName\}\}/g, profileData.displayName),
-      personality: prev.personality.replace(
-        /\{\{agentName\}\}/g,
-        profileData.displayName
-      ),
-      tradingStrategy: prev.tradingStrategy.replace(
-        /\{\{agentName\}\}/g,
-        profileData.displayName
-      ),
-    }));
-  }, [agentData.system, profileData.displayName]);
+  // Note: {{agentName}} placeholder replacement is handled in updateProfileField
+  // when displayName is first set. Once replaced, subsequent displayName changes
+  // do not update the system prompt (it's user-editable at that point).
 
   // Auto-save to localStorage
   useEffect(() => {
@@ -172,7 +157,10 @@ export function useAgentForm(): UseAgentFormResult {
           return {
             ...prevAgent,
             system: prevAgent.system.replace(/\{\{agentName\}\}/g, value),
-            personality: prevAgent.personality.replace(/\{\{agentName\}\}/g, value),
+            personality: prevAgent.personality.replace(
+              /\{\{agentName\}\}/g,
+              value
+            ),
             tradingStrategy: prevAgent.tradingStrategy.replace(
               /\{\{agentName\}\}/g,
               value
