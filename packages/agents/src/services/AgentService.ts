@@ -135,9 +135,9 @@ export class AgentServiceV2 {
       const trimmed = providedUsername.trim().toLowerCase();
 
       // Validate format - reject invalid characters instead of sanitizing
-      if (!/^[a-z0-9_-]+$/.test(trimmed)) {
+      if (!/^[a-z0-9_]+$/.test(trimmed)) {
         throw new Error(
-          'Username can only contain lowercase letters, numbers, underscores, and hyphens'
+          'Username can only contain lowercase letters, numbers, and underscores'
         );
       }
 
