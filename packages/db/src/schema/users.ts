@@ -200,7 +200,10 @@ export const users = pgTable(
     index('User_earnedPoints_idx').on(table.earnedPoints),
     index('User_invitePoints_idx').on(table.invitePoints),
     index('User_isActor_idx').on(table.isActor),
+    // Admin stats indexes for optimized user signups queries
+    index('User_isActor_createdAt_idx').on(table.isActor, table.createdAt),
     index('User_isAgent_idx').on(table.isAgent),
+    index('User_isAgent_createdAt_idx').on(table.isAgent, table.createdAt),
     index('User_isAgent_managedBy_idx').on(table.isAgent, table.managedBy),
     index('User_isBanned_isActor_idx').on(table.isBanned, table.isActor),
     index('User_isScammer_idx').on(table.isScammer),

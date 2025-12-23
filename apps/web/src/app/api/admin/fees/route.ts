@@ -71,9 +71,14 @@
  */
 
 import {
+  applyRateLimit,
   errorResponse,
+  MAX_DATE_RANGE_DAYS,
+  RATE_LIMIT_CONFIGS,
+  rateLimitError,
   requireAdmin,
   successResponse,
+  validateDateRange,
   withErrorHandling,
 } from '@babylon/api';
 import type { WhereInput } from '@babylon/db';
@@ -103,7 +108,16 @@ type TradingFee = typeof tradingFees.$inferSelect;
  */
 export const GET = withErrorHandling(async (request: NextRequest) => {
   // Verify admin access
-  await requireAdmin(request);
+  const admin = await requireAdmin(request);
+
+  // Apply rate limiting to prevent abuse of expensive stats queries
+  const rateLimitResult = applyRateLimit(
+    admin.userId,
+    RATE_LIMIT_CONFIGS.ADMIN_STATS
+  );
+  if (!rateLimitResult.allowed) {
+    return rateLimitError(rateLimitResult.retryAfter);
+  }
 
   // Parse query parameters
   const { searchParams } = new URL(request.url);
@@ -129,6 +143,14 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       400,
       { endDate: endDateParam }
     );
+  }
+
+  // Validate date range to prevent heavy queries
+  const dateRangeError = validateDateRange(startDate, endDate);
+  if (dateRangeError) {
+    return errorResponse(dateRangeError, 'INVALID_DATE_RANGE', 400, {
+      maxDays: MAX_DATE_RANGE_DAYS,
+    });
   }
 
   const parsedLimit = limitParam ? Number.parseInt(limitParam, 10) : 10;
