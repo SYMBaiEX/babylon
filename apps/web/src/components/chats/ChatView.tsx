@@ -7,6 +7,7 @@ import { ChatViewHeader } from './ChatViewHeader';
 import { FeedbackMessages } from './FeedbackMessages';
 import { MessageInput } from './MessageInput';
 import { MessageList } from './MessageList';
+import { NftVerificationBanner } from './NftVerificationBanner';
 import type { ChatDetails } from './types';
 
 interface ChatViewProps {
@@ -94,6 +95,14 @@ export function ChatView({
         <div className="px-4">
           <Separator />
         </div>
+
+        {/* NFT Verification Banner */}
+        {chatDetails.chat.nftRequirement && (
+          <NftVerificationBanner
+            chatDetails={chatDetails}
+            currentUserId={currentUserId}
+          />
+        )}
       </div>
 
       {/* Messages - Scrollable */}

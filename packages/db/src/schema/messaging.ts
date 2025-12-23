@@ -26,6 +26,10 @@ export const chats = pgTable(
     createdAt: timestamp('createdAt', { mode: 'date' }).notNull().defaultNow(),
     updatedAt: timestamp('updatedAt', { mode: 'date' }).notNull(),
     groupId: text('groupId'),
+    requiredNftContractAddress: text('requiredNftContractAddress'),
+    requiredNftTokenId: integer('requiredNftTokenId'),
+    requiredNftChainId: integer('requiredNftChainId'),
+    nftGated: boolean('nftGated').notNull().default(false),
   },
   (table) => [
     index('Chat_gameId_dayNumber_idx').on(table.gameId, table.dayNumber),
@@ -34,6 +38,10 @@ export const chats = pgTable(
     index('Chat_createdBy_idx').on(table.createdBy),
     index('Chat_npcAdminId_idx').on(table.npcAdminId),
     index('Chat_relatedQuestion_idx').on(table.relatedQuestion),
+    index('Chat_nftGated_idx').on(table.nftGated),
+    index('Chat_requiredNftContractAddress_idx').on(
+      table.requiredNftContractAddress
+    ),
   ]
 );
 

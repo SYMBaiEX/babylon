@@ -1,9 +1,8 @@
+export { BugReportFields } from './BugReportFields';
+export { DescriptionField } from './DescriptionField';
+export { FeatureRequestFields } from './FeatureRequestFields';
 export {
+  type FeedbackType,
   FeedbackTypeSelector,
   getFeedbackTypeConfig,
-  type FeedbackType,
 } from './FeedbackTypeSelector';
-export { DescriptionField } from './DescriptionField';
-export { BugReportFields } from './BugReportFields';
-export { FeatureRequestFields } from './FeatureRequestFields';
-

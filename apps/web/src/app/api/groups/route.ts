@@ -156,6 +156,12 @@ import { z } from 'zod';
 const CreateGroupSchema = z.object({
   name: z.string().min(1).max(100),
   memberIds: z.array(z.string()).optional().default([]),
+  requiredNftContractAddress: z
+    .string()
+    .regex(/^0x[a-fA-F0-9]{40}$/, 'Invalid contract address format')
+    .optional(),
+  requiredNftTokenId: z.number().int().positive().nullable().optional(),
+  requiredNftChainId: z.number().int().positive().optional(),
 });
 
 /**
@@ -304,6 +310,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     }
 
     // Create associated chat for the group
+    const nftGated = !!data.requiredNftContractAddress;
     const chat = await db.chat.create({
       data: {
         id: nanoid(),
@@ -312,6 +319,10 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
         groupId: newGroup.id, // Link chat to group
         createdAt: new Date(),
         updatedAt: new Date(),
+        requiredNftContractAddress: data.requiredNftContractAddress || null,
+        requiredNftTokenId: data.requiredNftTokenId ?? null,
+        requiredNftChainId: data.requiredNftChainId ?? null,
+        nftGated,
       },
     });
 

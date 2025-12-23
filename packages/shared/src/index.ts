@@ -40,6 +40,8 @@ export * from './perps-types';
 
 // Assets utilities (URL helpers)
 export * from './utils/assets';
+// Chain utilities (chain name mapping)
+export * from './utils/chain-utils';
 // Content analysis (pure functions, no external deps)
 export * from './utils/content-analysis';
 // Content safety (pure functions, no external deps)

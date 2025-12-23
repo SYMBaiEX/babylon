@@ -59,6 +59,7 @@ export const CACHE_KEYS = {
   MARKETS_LIST: 'markets:list',
   TRENDING_TAGS: 'trending:tags',
   WIDGET: 'widget',
+  NFT_OWNERSHIP: 'nft:ownership',
 } as const;
 
 /**
@@ -83,6 +84,7 @@ export const DEFAULT_TTLS = {
   USER: 300, // 5 minutes
   TRENDING_TAGS: 300, // 5 minutes
   WIDGET: 300, // 5 minutes
+  NFT_OWNERSHIP: 60, // 1 minute (NFT ownership can change, shorter TTL for security)
 
   // Rarely changing data - long TTL
   ACTOR: 3600, // 1 hour

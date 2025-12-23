@@ -96,13 +96,14 @@ import {
   broadcastChatMessage,
   checkRateLimitAndDuplicates,
   DUPLICATE_DETECTION_CONFIGS,
+  NFTVerificationService,
   notifyDMMessage,
   notifyGroupChatMessage,
   RATE_LIMIT_CONFIGS,
   successResponse,
   withErrorHandling,
 } from '@babylon/api';
-import { asUser, hasBlocked } from '@babylon/db';
+import { asUser, db, eq, hasBlocked, users } from '@babylon/db';
 import {
   GroupChatService,
   MessageQualityChecker,
@@ -320,6 +321,31 @@ export const POST = withErrorHandling(
             'chat',
             'write'
           );
+        }
+
+        // Verify NFT ownership for NFT-gated chats (cached)
+        if (chat.nftGated && chat.requiredNftContractAddress) {
+          const [userData] = await db
+            .select({ walletAddress: users.walletAddress })
+            .from(users)
+            .where(eq(users.id, user.userId))
+            .limit(1);
+
+          const verification = await NFTVerificationService.verifyChatAccess(
+            userData?.walletAddress ?? null,
+            chat.requiredNftContractAddress,
+            chat.requiredNftTokenId ?? null,
+            chat.requiredNftChainId ?? undefined
+          );
+
+          if (!verification.canAccess) {
+            throw new AuthorizationError(
+              verification.reason ||
+                'You must own the required NFT to send messages in this chat',
+              'chat',
+              'write'
+            );
+          }
         }
       }
     }

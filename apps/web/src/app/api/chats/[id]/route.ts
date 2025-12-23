@@ -72,7 +72,12 @@ import {
   users,
 } from '@babylon/db';
 import { StaticDataRegistry } from '@babylon/engine';
-import { ChatQuerySchema, logger } from '@babylon/shared';
+import {
+  ChatQuerySchema,
+  getChainName,
+  getCurrentChainId,
+  logger,
+} from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 
 /**
@@ -344,15 +349,40 @@ export const GET = withErrorHandling(
       'GET /api/chats/[id]'
     );
 
+    const chatResponse: {
+      id: string;
+      name: string | null;
+      isGroup: boolean;
+      createdAt: Date;
+      updatedAt: Date;
+      otherUser: typeof otherUser;
+      nftRequirement?: {
+        contractAddress: string;
+        tokenId: number | null;
+        chainId: number;
+        chainName: string;
+      };
+    } = {
+      id: chat.id,
+      name: displayName || chat.name,
+      isGroup: chat.isGroup,
+      createdAt: chat.createdAt,
+      updatedAt: chat.updatedAt,
+      otherUser: otherUser,
+    };
+
+    if (chat.nftGated && chat.requiredNftContractAddress) {
+      const chainId = chat.requiredNftChainId ?? getCurrentChainId();
+      chatResponse.nftRequirement = {
+        contractAddress: chat.requiredNftContractAddress,
+        tokenId: chat.requiredNftTokenId,
+        chainId,
+        chainName: getChainName(chainId),
+      };
+    }
+
     return successResponse({
-      chat: {
-        id: chat.id,
-        name: displayName || chat.name,
-        isGroup: chat.isGroup,
-        createdAt: chat.createdAt,
-        updatedAt: chat.updatedAt,
-        otherUser: otherUser,
-      },
+      chat: chatResponse,
       messages: messagesInOrder.map((msg) => ({
         id: msg.id,
         content: msg.content,

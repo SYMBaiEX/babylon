@@ -19,6 +19,12 @@ export interface Chat {
     username: string | null;
     profileImageUrl: string | null;
   };
+  nftRequirement?: {
+    contractAddress: string;
+    tokenId: number | null;
+    chainId: number;
+    chainName: string;
+  };
 }
 
 export interface Message {
@@ -48,6 +54,12 @@ export interface ChatDetails {
       username: string | null;
       profileImageUrl: string | null;
     } | null;
+    nftRequirement?: {
+      contractAddress: string;
+      tokenId: number | null;
+      chainId: number;
+      chainName: string;
+    };
   };
   messages: Message[];
   participants: ChatParticipant[];
