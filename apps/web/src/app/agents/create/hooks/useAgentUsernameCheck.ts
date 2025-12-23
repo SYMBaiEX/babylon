@@ -32,11 +32,8 @@ export function useAgentUsernameCheck(
       return;
     }
 
-    if (trimmed.length > 30) {
-      setUsernameStatus('taken');
-      setUsernameSuggestion(trimmed.substring(0, 30));
-      return;
-    }
+    // Note: maxLength={20} on the input prevents usernames > 20 chars
+    // The API also enforces a 20-char limit
 
     setIsCheckingUsername(true);
     setUsernameStatus('checking');
@@ -49,7 +46,9 @@ export function useAgentUsernameCheck(
       if (response.ok) {
         const result = await response.json();
         setUsernameStatus(result.available ? 'available' : 'taken');
-        setUsernameSuggestion(result.available ? null : result.suggestion || null);
+        setUsernameSuggestion(
+          result.available ? null : result.suggestion || null
+        );
       } else {
         setUsernameStatus(null);
         setUsernameSuggestion(null);
@@ -87,4 +86,3 @@ export function useAgentUsernameCheck(
     checkUsername,
   };
 }
-
