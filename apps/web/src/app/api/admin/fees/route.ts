@@ -71,7 +71,10 @@
  */
 
 import {
+  applyRateLimit,
   errorResponse,
+  rateLimitError,
+  RATE_LIMIT_CONFIGS,
   requireAdmin,
   successResponse,
   withErrorHandling,
@@ -130,7 +133,16 @@ function validateDateRange(
  */
 export const GET = withErrorHandling(async (request: NextRequest) => {
   // Verify admin access
-  await requireAdmin(request);
+  const admin = await requireAdmin(request);
+
+  // Apply rate limiting to prevent abuse of expensive stats queries
+  const rateLimitResult = applyRateLimit(
+    admin.userId,
+    RATE_LIMIT_CONFIGS.ADMIN_STATS
+  );
+  if (!rateLimitResult.allowed) {
+    return rateLimitError(rateLimitResult.retryAfter);
+  }
 
   // Parse query parameters
   const { searchParams } = new URL(request.url);
