@@ -25,6 +25,51 @@ import {
 } from '@babylon/db';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
+import { z } from 'zod';
+
+/**
+ * Zod schema for role grant/revoke request validation
+ *
+ * Custom permissions are validated against ADMIN_PERMISSIONS to ensure
+ * only valid permissions can be granted.
+ */
+const RoleRequestSchema = z.object({
+  userId: z.string().min(1, 'userId is required'),
+  action: z.enum(['grant', 'revoke']),
+  role: z.enum(['SUPER_ADMIN', 'ADMIN', 'VIEWER']).optional(),
+  permissions: z
+    .array(
+      z.enum([
+        'view_stats',
+        'view_users',
+        'manage_users',
+        'view_trading',
+        'view_system',
+        'give_feedback',
+        'manage_admins',
+        'manage_game',
+        'view_reports',
+        'resolve_reports',
+        'manage_escrow',
+      ])
+    )
+    .optional(),
+});
+
+/**
+ * Custom error class for role operations that need to be caught
+ * and converted to proper API responses
+ */
+class RoleOperationError extends Error {
+  constructor(
+    message: string,
+    public code: string,
+    public statusCode: number = 400
+  ) {
+    super(message);
+    this.name = 'RoleOperationError';
+  }
+}
 
 export const GET = withErrorHandling(async (request: NextRequest) => {
   await requireAdmin(request);
@@ -50,28 +95,25 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   const admin = await requireSuperAdmin(request);
 
   const body = await request.json();
-  const { userId, action, role, permissions } = body as {
+
+  // Validate request body with Zod
+  const parseResult = RoleRequestSchema.safeParse(body);
+  if (!parseResult.success) {
+    const firstIssue = parseResult.error.issues[0];
+    return errorResponse(
+      firstIssue?.message ?? 'Invalid request body',
+      'VALIDATION_ERROR',
+      400
+    );
+  }
+
+  // Extract validated data with proper typing
+  const { userId, action, role, permissions } = parseResult.data as {
     userId: string;
     action: 'grant' | 'revoke';
     role?: AdminRoleType;
     permissions?: AdminPermission[];
   };
-
-  if (!userId || !action) {
-    return errorResponse(
-      'userId and action are required',
-      'MISSING_REQUIRED_FIELDS',
-      400
-    );
-  }
-
-  if (action !== 'grant' && action !== 'revoke') {
-    return errorResponse(
-      'action must be grant or revoke',
-      'INVALID_ACTION',
-      400
-    );
-  }
 
   const [targetUser] = await db
     .select({
@@ -88,7 +130,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   }
 
   if (action === 'grant') {
-    if (!role || !ADMIN_ROLES.includes(role)) {
+    if (!role) {
       return errorResponse(
         `Valid role is required. Must be one of: ${ADMIN_ROLES.join(', ')}`,
         'INVALID_ROLE',
@@ -96,7 +138,10 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       );
     }
 
-    const finalPermissions = permissions || ROLE_PERMISSIONS[role];
+    // Use default permissions for role if not provided, otherwise use validated custom permissions
+    // Note: Zod already validates that permissions are valid ADMIN_PERMISSIONS values
+    const finalPermissions: AdminPermission[] =
+      permissions ?? ROLE_PERMISSIONS[role];
     const now = new Date();
 
     // Use upsert (onConflictDoUpdate) to prevent race conditions
@@ -168,32 +213,46 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
 
   // Use transaction with SELECT FOR UPDATE to prevent race condition
   // when revoking super admin - locks the rows during the check and revoke
-  await db.transaction(async (tx) => {
-    // Check if this would remove the last super admin
-    if (existingRole.role === 'SUPER_ADMIN') {
-      // Use SELECT FOR UPDATE to acquire row locks and prevent concurrent revocations
-      const superAdminCountResult = await tx.execute(
-        sql`SELECT COUNT(*) as count FROM ${adminRoles}
-            WHERE ${adminRoles.role} = 'SUPER_ADMIN'
-            AND ${adminRoles.revokedAt} IS NULL
-            FOR UPDATE`
-      );
+  try {
+    await db.transaction(async (tx) => {
+      // Check if this would remove the last super admin
+      if (existingRole.role === 'SUPER_ADMIN') {
+        // Use SELECT FOR UPDATE to acquire row locks and prevent concurrent revocations
+        const superAdminCountResult = await tx.execute(
+          sql`SELECT COUNT(*) as count FROM ${adminRoles}
+              WHERE ${adminRoles.role} = 'SUPER_ADMIN'
+              AND ${adminRoles.revokedAt} IS NULL
+              FOR UPDATE`
+        );
 
-      const superAdminCountValue = Number(
-        (superAdminCountResult[0] as { count: string })?.count ?? 0
-      );
-      if (superAdminCountValue <= 1) {
-        throw new Error('Cannot revoke the last super admin');
+        const superAdminCountValue = Number(
+          (superAdminCountResult[0] as { count: string })?.count ?? 0
+        );
+        if (superAdminCountValue <= 1) {
+          throw new RoleOperationError(
+            'Cannot revoke the last super admin',
+            'LAST_SUPER_ADMIN',
+            400
+          );
+        }
       }
+
+      await tx
+        .update(adminRoles)
+        .set({ revokedAt: new Date() })
+        .where(eq(adminRoles.userId, userId));
+
+      await tx
+        .update(users)
+        .set({ isAdmin: false })
+        .where(eq(users.id, userId));
+    });
+  } catch (error) {
+    if (error instanceof RoleOperationError) {
+      return errorResponse(error.message, error.code, error.statusCode);
     }
-
-    await tx
-      .update(adminRoles)
-      .set({ revokedAt: new Date() })
-      .where(eq(adminRoles.userId, userId));
-
-    await tx.update(users).set({ isAdmin: false }).where(eq(users.id, userId));
-  });
+    throw error; // Re-throw unexpected errors to be handled by withErrorHandling
+  }
 
   logger.info(
     'Admin role revoked',

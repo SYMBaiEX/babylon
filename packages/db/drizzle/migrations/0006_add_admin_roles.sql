@@ -1,5 +1,22 @@
 -- Admin Roles Table for RBAC
 -- This migration adds role-based access control to replace/complement the simple isAdmin boolean
+--
+-- DESIGN NOTES:
+-- 1. The "grantedBy" column uses ON DELETE RESTRICT intentionally:
+--    - This preserves the audit trail of who granted admin access
+--    - Users with admin roles granted by them cannot be hard-deleted
+--    - This is aligned with the soft-delete pattern (using revokedAt)
+--    - To remove a user who granted roles, first reassign or revoke those roles
+--
+-- 2. Soft-delete approach with "revokedAt":
+--    - Admin roles are never hard-deleted, only soft-deleted via revokedAt
+--    - This maintains a complete audit history of admin access
+--    - Active roles have revokedAt = NULL
+--    - Query active roles with: WHERE "revokedAt" IS NULL
+--
+-- 3. The "userId" column uses ON DELETE CASCADE:
+--    - If a user is deleted, their admin role is also removed
+--    - This is safe because the user no longer exists
 
 CREATE TABLE IF NOT EXISTS "AdminRole" (
   "id" TEXT PRIMARY KEY,

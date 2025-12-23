@@ -25,6 +25,7 @@ import {
   db,
   eq,
   isNull,
+  notInArray,
   ROLE_PERMISSIONS,
   users,
 } from '@babylon/db';
@@ -298,6 +299,13 @@ export async function isUserAdmin(userId: string): Promise<boolean> {
 
 /**
  * Get all admin users with their roles
+ *
+ * This function returns all admins from two sources:
+ * 1. Users with active roles in the AdminRole table (non-revoked)
+ * 2. Legacy admins (isAdmin = true) who haven't been migrated to AdminRole
+ *
+ * Performance: Uses SQL NOT IN to filter legacy admins at database level,
+ * avoiding fetching all legacy admins and filtering in memory.
  */
 export async function getAllAdmins(): Promise<
   Array<{
@@ -327,8 +335,11 @@ export async function getAllAdmins(): Promise<
     .innerJoin(users, eq(adminRoles.userId, users.id))
     .where(isNull(adminRoles.revokedAt));
 
-  // Get legacy admins (isAdmin = true but not in adminRoles)
-  const roleUserIds = new Set(roleAdmins.map((a) => a.userId));
+  // Extract user IDs for NOT IN clause
+  const roleUserIds = roleAdmins.map((a) => a.userId);
+
+  // Get legacy admins (isAdmin = true but NOT in adminRoles)
+  // Use SQL NOT IN to filter at database level instead of in memory
   const legacyAdmins = await db
     .select({
       id: users.id,
@@ -338,7 +349,11 @@ export async function getAllAdmins(): Promise<
       createdAt: users.createdAt,
     })
     .from(users)
-    .where(eq(users.isAdmin, true));
+    .where(
+      roleUserIds.length > 0
+        ? and(eq(users.isAdmin, true), notInArray(users.id, roleUserIds))
+        : eq(users.isAdmin, true)
+    );
 
   const results: Array<{
     userId: string;
@@ -367,20 +382,18 @@ export async function getAllAdmins(): Promise<
     });
   }
 
-  // Add legacy admins not in adminRoles
+  // Add legacy admins (already filtered by database - not in adminRoles)
   for (const legacy of legacyAdmins) {
-    if (!roleUserIds.has(legacy.id)) {
-      results.push({
-        userId: legacy.id,
-        username: legacy.username,
-        displayName: legacy.displayName,
-        profileImageUrl: legacy.profileImageUrl,
-        role: 'SUPER_ADMIN',
-        permissions: ROLE_PERMISSIONS.SUPER_ADMIN,
-        grantedAt: legacy.createdAt,
-        grantedBy: legacy.id, // Self-granted for legacy
-      });
-    }
+    results.push({
+      userId: legacy.id,
+      username: legacy.username,
+      displayName: legacy.displayName,
+      profileImageUrl: legacy.profileImageUrl,
+      role: 'SUPER_ADMIN',
+      permissions: ROLE_PERMISSIONS.SUPER_ADMIN,
+      grantedAt: legacy.createdAt,
+      grantedBy: legacy.id, // Self-granted for legacy
+    });
   }
 
   return results;
