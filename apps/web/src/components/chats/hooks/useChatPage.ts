@@ -334,6 +334,12 @@ export function useChatPage() {
   // Load new DM chat
   const loadNewDMChat = useCallback(
     async (chatId: string, targetUserId: string) => {
+      // Guard: user must be available
+      if (!user) {
+        console.error('Cannot load DM chat: user not available');
+        return;
+      }
+
       setLoadingChat(true);
 
       const token = await getAccessToken();
@@ -368,10 +374,10 @@ export function useChatPage() {
         messages: [],
         participants: [
           {
-            id: user!.id,
-            displayName: user!.displayName || user!.username || 'You',
-            username: user!.username,
-            profileImageUrl: user!.profileImageUrl,
+            id: user.id,
+            displayName: user.displayName || user.username || 'You',
+            username: user.username,
+            profileImageUrl: user.profileImageUrl,
           },
           {
             id: targetUser.id,
