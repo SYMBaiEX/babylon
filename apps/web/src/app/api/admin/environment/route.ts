@@ -88,10 +88,11 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   const cookieStore = await cookies();
 
   // Set the environment cookie
+  // Using 'strict' for sameSite to prevent CSRF attacks on this sensitive endpoint
   cookieStore.set(ENVIRONMENT_COOKIE, environment, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
+    sameSite: 'strict',
     maxAge: 60 * 60 * 24 * 7, // 7 days
     path: '/',
   });
