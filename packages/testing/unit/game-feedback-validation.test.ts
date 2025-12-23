@@ -1,36 +1,12 @@
 /**
  * Comprehensive unit tests for Game Feedback validation schema
  *
- * Tests the Zod schema used in /api/feedback/game-feedback
+ * Tests the shared Zod schema used in /api/feedback/game-feedback
  * Covers boundary conditions, invalid inputs, and edge cases
  */
 
+import { GameFeedbackSchema } from '@babylon/shared';
 import { describe, expect, test } from 'bun:test';
-import { z } from 'zod';
-
-// Recreate the schema exactly as in the route for testing
-const GameFeedbackSchema = z
-  .object({
-    feedbackType: z.enum(['bug', 'feature_request', 'performance']),
-    description: z
-      .string()
-      .min(10, 'Description must be at least 10 characters')
-      .max(5000),
-    stepsToReproduce: z.string().max(2000).optional(),
-    screenshotUrl: z.string().url().optional().or(z.literal('')),
-    rating: z.number().int().min(1).max(5).optional(),
-  })
-  .refine((data) => data.feedbackType !== 'bug' || !!data.stepsToReproduce, {
-    message: 'Steps to reproduce are required for bug reports',
-    path: ['stepsToReproduce'],
-  })
-  .refine(
-    (data) => data.feedbackType !== 'feature_request' || data.rating !== undefined,
-    {
-      message: 'Rating is required for feature requests',
-      path: ['rating'],
-    }
-  );
 
 describe('Game Feedback Validation Schema', () => {
   // ============================================
@@ -478,7 +454,9 @@ describe('Game Feedback Validation Schema', () => {
       const result = GameFeedbackSchema.safeParse(input);
       expect(result.success).toBe(true);
       if (result.success) {
-        expect((result.data as Record<string, unknown>).extraField).toBeUndefined();
+        expect(
+          (result.data as Record<string, unknown>).extraField
+        ).toBeUndefined();
       }
     });
   });
@@ -524,4 +502,3 @@ describe('Game Feedback Validation Schema', () => {
     });
   });
 });
-

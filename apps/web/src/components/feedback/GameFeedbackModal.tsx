@@ -105,7 +105,7 @@ export function GameFeedbackModal({ isOpen, onClose }: GameFeedbackModalProps) {
     setRetryAfter(null);
   };
 
-  // Cleanup on unmount or close
+  // Cleanup on unmount
   useEffect(() => {
     return () => {
       if (abortControllerRef.current) {
@@ -117,6 +117,15 @@ export function GameFeedbackModal({ isOpen, onClose }: GameFeedbackModalProps) {
       }
     };
   }, []);
+
+  // Cleanup interval when modal closes (prevents memory leak during rate limiting)
+  useEffect(() => {
+    if (!isOpen && intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+      setRetryAfter(null);
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 

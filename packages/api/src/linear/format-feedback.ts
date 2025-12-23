@@ -17,35 +17,62 @@ const TYPE_CONFIG: Record<FeedbackType, { label: string; heading: string }> = {
   performance: { label: '⚡ Performance', heading: 'Performance Issue' },
 };
 
+/**
+ * Escape HTML entities to prevent XSS in Linear's UI
+ */
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
 export function formatFeedbackForLinear(feedback: FeedbackData): {
   title: string;
   description: string;
 } {
   const config = TYPE_CONFIG[feedback.feedbackType];
+
+  // Sanitize user-provided content to prevent XSS in Linear's UI
+  const safeDescription = escapeHtml(feedback.description);
+  const safeSteps = feedback.stepsToReproduce
+    ? escapeHtml(feedback.stepsToReproduce)
+    : null;
+  const safeEmail = feedback.userEmail ? escapeHtml(feedback.userEmail) : null;
+
   const truncatedDesc =
-    feedback.description.length > 80
-      ? `${feedback.description.substring(0, 77)}...`
-      : feedback.description;
+    safeDescription.length > 80
+      ? `${safeDescription.substring(0, 77)}...`
+      : safeDescription;
 
   const lines: string[] = [
     `## ${config.heading}`,
     '',
     '### Description',
     '',
-    feedback.description,
+    safeDescription,
     '',
   ];
 
-  if (feedback.stepsToReproduce) {
-    lines.push('### Steps to Reproduce', '', feedback.stepsToReproduce, '');
+  if (safeSteps) {
+    lines.push('### Steps to Reproduce', '', safeSteps, '');
   }
 
   if (feedback.screenshotUrl) {
-    lines.push('### Screenshot', '', `![Screenshot](${feedback.screenshotUrl})`, '');
+    // URL is already validated by Zod schema, but escape for safety
+    const safeUrl = escapeHtml(feedback.screenshotUrl);
+    lines.push('### Screenshot', '', `![Screenshot](${safeUrl})`, '');
   }
 
   if (feedback.rating != null) {
-    lines.push('### Importance Rating', '', `${'⭐'.repeat(feedback.rating)} (${feedback.rating}/5)`, '');
+    lines.push(
+      '### Importance Rating',
+      '',
+      `${'⭐'.repeat(feedback.rating)} (${feedback.rating}/5)`,
+      ''
+    );
   }
 
   lines.push(
@@ -53,9 +80,9 @@ export function formatFeedbackForLinear(feedback: FeedbackData): {
     '',
     '### Submission Details',
     '',
-    `- **Submitted by:** ${feedback.userEmail ?? 'Unknown'}`,
-    `- **User ID:** \`${feedback.userId}\``,
-    `- **Feedback ID:** \`${feedback.id}\``,
+    `- **Submitted by:** ${safeEmail ?? 'Unknown'}`,
+    `- **User ID:** \`${escapeHtml(feedback.userId)}\``,
+    `- **Feedback ID:** \`${escapeHtml(feedback.id)}\``,
     `- **Type:** ${config.heading}`
   );
 

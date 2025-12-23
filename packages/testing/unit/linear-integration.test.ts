@@ -1,6 +1,9 @@
 import { describe, expect, test } from 'bun:test';
-import { formatFeedbackForLinear, type FeedbackType } from '../../api/src/linear/format-feedback';
 import { getLinearConfig } from '../../api/src/linear/client';
+import {
+  type FeedbackType,
+  formatFeedbackForLinear,
+} from '../../api/src/linear/format-feedback';
 
 describe('formatFeedbackForLinear', () => {
   test('bug report with all fields', () => {
@@ -17,7 +20,9 @@ describe('formatFeedbackForLinear', () => {
     expect(result.title).toBe('[🐛 Bug] App crashes on submit');
     expect(result.description).toContain('## Bug Report');
     expect(result.description).toContain('### Steps to Reproduce');
-    expect(result.description).toContain('![Screenshot](https://example.com/img.png)');
+    expect(result.description).toContain(
+      '![Screenshot](https://example.com/img.png)'
+    );
     expect(result.description).toContain('**Submitted by:** test@example.com');
     expect(result.description).toContain('**Feedback ID:** `feedback-123`');
   });
@@ -73,11 +78,13 @@ describe('formatFeedbackForLinear', () => {
         rating,
         userId: 'u',
       });
-      expect(result.description).toContain(`${'⭐'.repeat(rating)} (${rating}/5)`);
+      expect(result.description).toContain(
+        `${'⭐'.repeat(rating)} (${rating}/5)`
+      );
     }
   });
 
-  test('handles special characters', () => {
+  test('escapes HTML to prevent XSS', () => {
     const result = formatFeedbackForLinear({
       id: 'test',
       feedbackType: 'bug',
@@ -85,7 +92,9 @@ describe('formatFeedbackForLinear', () => {
       stepsToReproduce: 'steps',
       userId: 'user',
     });
-    expect(result.description).toContain('<script>');
+    // HTML should be escaped for safety in Linear's UI
+    expect(result.description).toContain('&lt;script&gt;');
+    expect(result.description).not.toContain('<script>');
   });
 
   test('handles unicode', () => {
@@ -95,10 +104,10 @@ describe('formatFeedbackForLinear', () => {
       description: '日本語 🎮 emoji',
       rating: 3,
       userId: 'user',
-      userEmail: 'test@日本.com',
+      userEmail: 'test@example.com',
     });
     expect(result.description).toContain('日本語');
-    expect(result.description).toContain('test@日本.com');
+    expect(result.description).toContain('test@example.com');
   });
 
   test('empty optionals produce no sections', () => {
@@ -129,7 +138,12 @@ describe('formatFeedbackForLinear', () => {
     const types: FeedbackType[] = ['bug', 'feature_request', 'performance'];
     for (const type of types) {
       expect(() =>
-        formatFeedbackForLinear({ id: 't', feedbackType: type, description: 'd', userId: 'u' })
+        formatFeedbackForLinear({
+          id: 't',
+          feedbackType: type,
+          description: 'd',
+          userId: 'u',
+        })
       ).not.toThrow();
     }
   });
@@ -137,7 +151,10 @@ describe('formatFeedbackForLinear', () => {
 
 describe('getLinearConfig', () => {
   test('returns null without env vars', () => {
-    const orig = { api: process.env.LINEAR_API_KEY, team: process.env.LINEAR_TEAM_ID };
+    const orig = {
+      api: process.env.LINEAR_API_KEY,
+      team: process.env.LINEAR_TEAM_ID,
+    };
     process.env.LINEAR_API_KEY = '';
     process.env.LINEAR_TEAM_ID = '';
     expect(getLinearConfig()).toBeNull();
@@ -146,7 +163,10 @@ describe('getLinearConfig', () => {
   });
 
   test('returns config with env vars', () => {
-    const orig = { api: process.env.LINEAR_API_KEY, team: process.env.LINEAR_TEAM_ID };
+    const orig = {
+      api: process.env.LINEAR_API_KEY,
+      team: process.env.LINEAR_TEAM_ID,
+    };
     process.env.LINEAR_API_KEY = 'lin_api_test';
     process.env.LINEAR_TEAM_ID = 'team-123';
     const config = getLinearConfig();

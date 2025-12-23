@@ -110,6 +110,16 @@ export {
 } from './errors';
 // Fetch utilities
 export { type ApiFetchOptions, apiFetch, getPrivyAccessToken } from './fetch';
+// Linear Integration
+export {
+  type CreateIssueInput,
+  createLinearIssue,
+  type FeedbackType,
+  formatFeedbackForLinear,
+  getLinearConfig,
+  type LinearFeedbackData,
+  type LinearIssue,
+} from './linear';
 // Monitoring
 export { cronMetrics, recordCronExecution } from './monitoring/cron-metrics';
 export * from './monitoring/monitored-cache';
@@ -194,16 +204,6 @@ export {
 export * from './swagger';
 // Types
 export type { ErrorLike, JsonValue, StringRecord } from './types';
-// Linear Integration
-export {
-  createLinearIssue,
-  type CreateIssueInput,
-  type FeedbackType,
-  formatFeedbackForLinear,
-  getLinearConfig,
-  type LinearFeedbackData,
-  type LinearIssue,
-} from './linear';
 // User management utilities
 export {
   type CanonicalUser,

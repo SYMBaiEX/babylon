@@ -4,7 +4,10 @@
  */
 
 import { afterAll, describe, expect, test } from 'bun:test';
-import { createLinearIssue, getLinearConfig } from '../../api/src/linear/client';
+import {
+  createLinearIssue,
+  getLinearConfig,
+} from '../../api/src/linear/client';
 import { formatFeedbackForLinear } from '../../api/src/linear/format-feedback';
 
 const SHOULD_RUN = process.env.LINEAR_TEST === 'true';
@@ -42,7 +45,9 @@ describeOrSkip('Linear API Integration', () => {
       teamId: config!.teamId,
       title: formatted.title,
       description: formatted.description,
-      labelIds: config!.gameFeedbackLabelId ? [config!.gameFeedbackLabelId] : undefined,
+      labelIds: config!.gameFeedbackLabelId
+        ? [config!.gameFeedbackLabelId]
+        : undefined,
     });
 
     createdIssueId = issue.identifier;
@@ -53,14 +58,22 @@ describeOrSkip('Linear API Integration', () => {
 
   test('createLinearIssue rejects invalid API key', async () => {
     await expect(
-      createLinearIssue('lin_api_invalid', { teamId: 'fake', title: 'test', description: 'test' })
+      createLinearIssue('lin_api_invalid', {
+        teamId: 'fake',
+        title: 'test',
+        description: 'test',
+      })
     ).rejects.toThrow();
   });
 
   test('createLinearIssue rejects invalid team ID', async () => {
     expect(config).not.toBeNull();
     await expect(
-      createLinearIssue(config!.apiKey, { teamId: 'invalid', title: 'test', description: 'test' })
+      createLinearIssue(config!.apiKey, {
+        teamId: 'invalid',
+        title: 'test',
+        description: 'test',
+      })
     ).rejects.toThrow();
   });
 });

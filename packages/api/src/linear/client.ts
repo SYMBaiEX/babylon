@@ -55,7 +55,10 @@ export async function createLinearIssue(
   }
 
   const { issue } = response.issueCreate;
-  logger.info('Linear issue created', { id: issue.id, identifier: issue.identifier });
+  logger.info('Linear issue created', {
+    id: issue.id,
+    identifier: issue.identifier,
+  });
 
   return issue;
 }
@@ -72,6 +75,6 @@ export function getLinearConfig(): {
   return {
     apiKey,
     teamId,
-    gameFeedbackLabelId: process.env.LINEAR_GAME_FEEDBACK_LABEL_ID ?? '44492495-2a60-4852-8525-b351a93087c5',
+    gameFeedbackLabelId: process.env.LINEAR_GAME_FEEDBACK_LABEL_ID ?? null,
   };
 }

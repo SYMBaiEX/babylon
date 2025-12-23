@@ -19,7 +19,10 @@ for (const file of ['.env', '.env.test', '.env.local']) {
   }
 }
 
-import { createLinearIssue, getLinearConfig } from '../packages/api/src/linear/client';
+import {
+  createLinearIssue,
+  getLinearConfig,
+} from '../packages/api/src/linear/client';
 import { formatFeedbackForLinear } from '../packages/api/src/linear/format-feedback';
 
 const config = getLinearConfig();
@@ -28,7 +31,10 @@ if (!config) {
   process.exit(1);
 }
 
-console.log('Config:', { teamId: config.teamId, apiKey: config.apiKey.substring(0, 12) + '...' });
+console.log('Config:', {
+  teamId: config.teamId,
+  apiKey: config.apiKey.substring(0, 12) + '...',
+});
 
 const formatted = formatFeedbackForLinear({
   id: `test-${Date.now()}`,
@@ -43,7 +49,9 @@ const issue = await createLinearIssue(config.apiKey, {
   teamId: config.teamId,
   title: formatted.title,
   description: formatted.description,
-  labelIds: config.gameFeedbackLabelId ? [config.gameFeedbackLabelId] : undefined,
+  labelIds: config.gameFeedbackLabelId
+    ? [config.gameFeedbackLabelId]
+    : undefined,
 });
 
 console.log('Created:', issue.identifier, issue.url);
