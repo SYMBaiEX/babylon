@@ -302,31 +302,55 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       },
     });
 
-    // Add initial members if provided
+    // Send invitations to initial members (they must accept to join)
     if (data.memberIds.length > 0) {
       const otherMembers = data.memberIds.filter((id) => id !== user.userId);
 
       if (otherMembers.length > 0) {
-        // Add to GroupMember table
-        await db.groupMember.createMany({
-          data: otherMembers.map((userId) => ({
-            id: nanoid(),
-            groupId,
-            userId,
-            role: 'member',
-            addedBy: user.userId,
-          })),
+        // Check which users are agents (agents get auto-added, users get invites)
+        const memberUsers = await db.user.findMany({
+          where: { id: { in: otherMembers } },
+          select: { id: true, isAgent: true },
         });
 
-        // Add to chat participants
-        await db.chatParticipant.createMany({
-          data: otherMembers.map((userId) => ({
-            id: nanoid(),
-            chatId,
-            userId,
-            joinedAt: new Date(),
-          })),
-        });
+        const agentIds = memberUsers.filter((u) => u.isAgent).map((u) => u.id);
+        const humanIds = memberUsers.filter((u) => !u.isAgent).map((u) => u.id);
+
+        // Auto-add agents directly (they don't need to accept invites)
+        if (agentIds.length > 0) {
+          await db.groupMember.createMany({
+            data: agentIds.map((userId) => ({
+              id: nanoid(),
+              groupId,
+              userId,
+              role: 'member',
+              addedBy: user.userId,
+            })),
+          });
+
+          await db.chatParticipant.createMany({
+            data: agentIds.map((userId) => ({
+              id: nanoid(),
+              chatId,
+              userId,
+              joinedAt: new Date(),
+            })),
+          });
+        }
+
+        // Send invitations to human users (they must accept)
+        if (humanIds.length > 0) {
+          await db.groupInvite.createMany({
+            data: humanIds.map((userId) => ({
+              id: nanoid(),
+              groupId,
+              invitedUserId: userId,
+              invitedBy: user.userId,
+              status: 'pending',
+              message: `You've been invited to join "${data.name}"`,
+            })),
+          });
+        }
       }
     }
 
