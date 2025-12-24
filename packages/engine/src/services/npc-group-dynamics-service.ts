@@ -43,7 +43,7 @@ import {
   generateWorldContext,
   validateNoRealNames,
 } from '@babylon/engine';
-import { generateSnowflakeId, logger } from '@babylon/shared';
+import { GROUP_CONFIG, generateSnowflakeId, logger } from '@babylon/shared';
 import { MarketContextService } from './market-context-service';
 import { NPCGroupDynamicsCalculations } from './npc-group-dynamics-calculations';
 import { StaticDataRegistry } from './static-data-registry';
@@ -62,11 +62,11 @@ export interface GroupDynamicsResult {
 
 export class NPCGroupDynamicsService {
   // Probabilities for actions per tick
-  private static readonly FORM_NEW_GROUP_CHANCE = 0.05; // 5% chance per NPC
+  private static readonly FORM_NEW_GROUP_CHANCE = 0.05; // 5% chance for each eligible NPC
   private static readonly JOIN_GROUP_CHANCE = 0.1; // 10% chance if eligible
   private static readonly LEAVE_GROUP_CHANCE = 0.02; // 2% chance per membership
   private static readonly POST_MESSAGE_CHANCE = 0.25; // 25% chance per active group
-  private static readonly INVITE_USER_CHANCE = 0.08; // 8% chance per group with space
+  private static readonly INVITE_USER_CHANCE = 0.08; // 8% chance per eligible group
   private static readonly KICK_CHECK_CHANCE = 0.15; // 15% chance to check for kicks
 
   // Group size limits
@@ -74,9 +74,7 @@ export class NPCGroupDynamicsService {
   private static readonly MAX_GROUP_SIZE = 12;
   private static readonly IDEAL_GROUP_SIZE = 7;
 
-  // User group participation limits (prevent unlimited accumulation)
-  private static readonly MAX_ACTIVE_USER_GROUPS = 5; // Max groups a user can be in simultaneously
-  private static readonly INVITE_COOLDOWN_HOURS = 4; // Hours after joining before next invite eligible
+  // User group participation limits - now use GROUP_CONFIG from @babylon/shared
 
   /**
    * Process all NPC group dynamics for one tick
@@ -512,29 +510,25 @@ export class NPCGroupDynamicsService {
         .orderBy(desc(messages.createdAt))
         .limit(10);
 
-      // Get user details for participants
+      // Get NPCs in this group by checking StaticDataRegistry
+      // NPCs are not in the User table, they're in the static registry
       const participantUserIds = participantList.map((p) => p.userId);
-      const participantUsers =
-        participantUserIds.length > 0
-          ? await db
-              .select({
-                id: users.id,
-                displayName: users.displayName,
-                isActor: users.isActor,
-              })
-              .from(users)
-              .where(inArray(users.id, participantUserIds))
-          : [];
+      const npcParticipants: Array<{ id: string; displayName: string }> = [];
 
-      // Get NPCs in this group
-      const npcUsers = participantUsers.filter((u) => u.isActor);
+      for (const userId of participantUserIds) {
+        const actor = StaticDataRegistry.getActor(userId);
+        if (actor) {
+          npcParticipants.push({ id: actor.id, displayName: actor.name });
+        }
+      }
 
-      if (npcUsers.length === 0) {
+      if (npcParticipants.length === 0) {
         continue; // No NPCs in this group
       }
 
       // Pick a random NPC to post
-      const randomNpc = npcUsers[Math.floor(Math.random() * npcUsers.length)];
+      const randomNpc =
+        npcParticipants[Math.floor(Math.random() * npcParticipants.length)];
       if (!randomNpc) continue;
 
       // Get full NPC actor data from static registry
@@ -1288,25 +1282,27 @@ Return your response as XML:
     const filtered: T[] = [];
 
     for (const candidate of candidates) {
-      // Check 1: Total active groups limit (using unified groupMembers)
+      // Check 1: Total active NPC groups limit (only NPC groups count toward limit)
       const [countResult] = await db
         .select({ count: count() })
         .from(groupMembers)
+        .innerJoin(groups, eq(groupMembers.groupId, groups.id))
         .where(
           and(
             eq(groupMembers.userId, candidate.user.id),
-            eq(groupMembers.isActive, true)
+            eq(groupMembers.isActive, true),
+            eq(groups.type, 'npc')
           )
         );
-      const activeGroupCount = countResult?.count ?? 0;
+      const activeNpcGroupCount = countResult?.count ?? 0;
 
-      if (activeGroupCount >= NPCGroupDynamicsService.MAX_ACTIVE_USER_GROUPS) {
+      if (activeNpcGroupCount >= GROUP_CONFIG.MAX_ACTIVE_USER_GROUPS) {
         logger.debug(
-          'User at group limit, skipping invite',
+          'User at NPC group limit, skipping invite',
           {
             userId: candidate.user.id,
-            activeGroups: activeGroupCount,
-            maxGroups: NPCGroupDynamicsService.MAX_ACTIVE_USER_GROUPS,
+            activeNpcGroups: activeNpcGroupCount,
+            maxNpcGroups: GROUP_CONFIG.MAX_ACTIVE_USER_GROUPS,
           },
           'NPCGroupDynamicsService'
         );
@@ -1330,13 +1326,13 @@ Return your response as XML:
         const hoursSinceJoin =
           (Date.now() - latestMembership.joinedAt.getTime()) / (1000 * 60 * 60);
 
-        if (hoursSinceJoin < NPCGroupDynamicsService.INVITE_COOLDOWN_HOURS) {
+        if (hoursSinceJoin < GROUP_CONFIG.INVITE_COOLDOWN_HOURS) {
           logger.debug(
             'User in invite cooldown, skipping',
             {
               userId: candidate.user.id,
               hoursSinceJoin: hoursSinceJoin.toFixed(2),
-              cooldownRequired: NPCGroupDynamicsService.INVITE_COOLDOWN_HOURS,
+              cooldownRequired: GROUP_CONFIG.INVITE_COOLDOWN_HOURS,
             },
             'NPCGroupDynamicsService'
           );

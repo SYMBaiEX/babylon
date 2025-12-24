@@ -14,7 +14,7 @@ import {
   withErrorHandling,
 } from '@babylon/api';
 import { asUser } from '@babylon/db';
-import { logger } from '@babylon/shared';
+import { GROUP_CONFIG, logger } from '@babylon/shared';
 import { nanoid } from 'nanoid';
 import type { NextRequest } from 'next/server';
 
@@ -46,6 +46,33 @@ export const POST = withErrorHandling(
 
       if (invite.status !== 'pending') {
         throw new ApiError('This invite has already been processed', 400);
+      }
+
+      // Check if user is at the NPC group limit (only NPC groups count toward the limit)
+      const npcGroupMemberships = await db.groupMember.findMany({
+        where: {
+          userId: user.userId,
+          isActive: true,
+        },
+      });
+
+      // Filter to only NPC groups
+      let npcGroupCount = 0;
+      for (const membership of npcGroupMemberships) {
+        const group = await db.group.findUnique({
+          where: { id: membership.groupId },
+          select: { type: true },
+        });
+        if (group?.type === 'npc') {
+          npcGroupCount++;
+        }
+      }
+
+      if (npcGroupCount >= GROUP_CONFIG.MAX_ACTIVE_USER_GROUPS) {
+        throw new ApiError(
+          `You can only be in ${GROUP_CONFIG.MAX_ACTIVE_USER_GROUPS} NPC groups at a time. Leave a group first.`,
+          400
+        );
       }
 
       // Check if user already has a member record (unique constraint on groupId + userId)

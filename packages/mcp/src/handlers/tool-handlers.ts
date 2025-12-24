@@ -15,7 +15,12 @@ import {
 import { db, eq, perpMarketSnapshots, users } from '@babylon/db';
 import { StaticDataRegistry } from '@babylon/engine';
 import type { JsonValue, StringRecord } from '@babylon/shared';
-import { generateSnowflakeId, getAPIBaseUrl, logger } from '@babylon/shared';
+import {
+  GROUP_CONFIG,
+  generateSnowflakeId,
+  getAPIBaseUrl,
+  logger,
+} from '@babylon/shared';
 import type {
   AcceptGroupInviteArgs,
   AcceptGroupInviteResult,
@@ -1609,6 +1614,32 @@ export async function executeAcceptGroupInvite(
   });
   if (!invite || invite.invitedUserId !== agent.userId) {
     throw new Error('Invite not found or access denied');
+  }
+
+  // Check if agent is at the NPC group limit (only NPC groups count toward limit)
+  const activeGroupMemberships = await db.groupMember.findMany({
+    where: {
+      userId: agent.userId,
+      isActive: true,
+    },
+  });
+
+  // Filter to only NPC groups
+  let npcGroupCount = 0;
+  for (const membership of activeGroupMemberships) {
+    const group = await db.group.findUnique({
+      where: { id: membership.groupId },
+      select: { type: true },
+    });
+    if (group?.type === 'npc') {
+      npcGroupCount++;
+    }
+  }
+
+  if (npcGroupCount >= GROUP_CONFIG.MAX_ACTIVE_USER_GROUPS) {
+    throw new Error(
+      `You can only be in ${GROUP_CONFIG.MAX_ACTIVE_USER_GROUPS} NPC groups at a time. Leave a group first.`
+    );
   }
 
   // Find the chat for this group (Chat.groupId → Group.id)

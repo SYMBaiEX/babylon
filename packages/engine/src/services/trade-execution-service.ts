@@ -182,7 +182,8 @@ export class TradeExecutionService {
           errorMessage.includes('Market expired') ||
           errorMessage.includes('Order size exceeds market limit') ||
           errorMessage.includes('Position already closed') ||
-          errorMessage.includes('Position not found');
+          errorMessage.includes('Position not found') ||
+          errorMessage.includes('Already have an open');
         const logLevel = isExpectedFailure ? 'warn' : 'error';
 
         logger[logLevel](
