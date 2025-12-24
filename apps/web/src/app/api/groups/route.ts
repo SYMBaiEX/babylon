@@ -210,9 +210,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     );
 
     // Build role map from memberships
-    const roleMap = new Map(
-      memberships.map((m) => [m.groupId, m.role])
-    );
+    const roleMap = new Map(memberships.map((m) => [m.groupId, m.role]));
 
     // Get chat IDs for each group (Chat.groupId → Group.id)
     const groupIdList = userGroups.map((g) => g.id);
@@ -234,8 +232,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       role: roleMap.get(group.id) ?? 'member',
       isOwner: group.ownerId === user.userId,
       isAdmin:
-        roleMap.get(group.id) === 'admin' ||
-        roleMap.get(group.id) === 'owner',
+        roleMap.get(group.id) === 'admin' || roleMap.get(group.id) === 'owner',
     }));
   });
 

@@ -330,12 +330,13 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
     // Get chat IDs via Chat.groupId relationship
     const groupIds = memberships.map((m) => m.groupId);
-    const groupChatsWithGroupId = groupIds.length > 0
-      ? await dbClient
-          .select()
-          .from(chats)
-          .where(inArray(chats.groupId, groupIds))
-      : [];
+    const groupChatsWithGroupId =
+      groupIds.length > 0
+        ? await dbClient
+            .select()
+            .from(chats)
+            .where(inArray(chats.groupId, groupIds))
+        : [];
     const groupChatIds = groupChatsWithGroupId.map((c) => c.id);
     // Map groupId -> chatId for lookup
     const groupIdToChatId = new Map(

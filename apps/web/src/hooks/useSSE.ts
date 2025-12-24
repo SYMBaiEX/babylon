@@ -81,11 +81,11 @@ let reconnectAttempts = 0;
 let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
 let pendingTokenRetry: ReturnType<typeof setTimeout> | null = null;
 const connectionListeners = new Set<ConnectionListener>();
-let getAccessTokenRef: (() => Promise<string | null>) | null = null;
-let authenticatedRef = false;
-let autoReconnectRef = true;
-let reconnectDelayRef = 3000;
-let maxReconnectAttemptsRef = 5;
+const getAccessTokenRef: (() => Promise<string | null>) | null = null;
+const authenticatedRef = false;
+const autoReconnectRef = true;
+const reconnectDelayRef = 3000;
+const maxReconnectAttemptsRef = 5;
 const lastEventIds = new Map<Channel, string>();
 let cachedRealtimeToken: {
   token: string;

@@ -168,7 +168,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   // Record the invite using unified Group/GroupMember schema
   await asSystem(async (db) => {
     // Find or create the group for this chat
-    let chat = await db.chat.findUnique({
+    const chat = await db.chat.findUnique({
       where: { id: finalChatId },
     });
 

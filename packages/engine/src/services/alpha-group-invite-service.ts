@@ -11,15 +11,7 @@
  * - Small random chance each tick (0.5% for highly engaged users)
  */
 
-import {
-  and,
-  count,
-  db,
-  desc,
-  eq,
-  groupMembers,
-  gte,
-} from '@babylon/db';
+import { and, count, db, desc, eq, groupMembers, gte } from '@babylon/db';
 import { logger } from '@babylon/shared';
 import { GroupChatService } from './group-chat-service';
 import { NPCInteractionTracker } from './npc-interaction-tracker';
@@ -117,7 +109,7 @@ export class AlphaGroupInviteService {
       }
 
       // Check if already in a group managed by this NPC (unified schema)
-      // The GroupChatService.recordInvite will handle duplicates, 
+      // The GroupChatService.recordInvite will handle duplicates,
       // but we do a quick check here for efficiency
       const [existingMembership] = await db
         .select()

@@ -322,10 +322,7 @@ export class GroupChatService {
       });
 
       // Update chat with groupId
-      await db
-        .update(chats)
-        .set({ groupId })
-        .where(eq(chats.id, chatId));
+      await db.update(chats).set({ groupId }).where(eq(chats.id, chatId));
     } else {
       groupId = existingChat.groupId;
     }

@@ -144,10 +144,7 @@ export const DELETE = withErrorHandling(
       }
 
       if (targetMembership.role === 'owner') {
-        throw new ApiError(
-          'Cannot demote the group owner',
-          400
-        );
+        throw new ApiError('Cannot demote the group owner', 400);
       }
 
       if (targetMembership.role === 'member') {
