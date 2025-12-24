@@ -152,8 +152,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       }
     }
 
-    const finalPermissions: AdminPermission[] =
-      permissions ?? roleDefaultPermissions;
+    const finalPermissions: AdminPermission[] = permissions ?? roleDefaultPermissions;
     const now = new Date();
 
     // Use transaction to ensure atomic role grant + isAdmin flag update
