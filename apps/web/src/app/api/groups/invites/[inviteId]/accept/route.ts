@@ -48,25 +48,50 @@ export const POST = withErrorHandling(
         throw new ApiError('This invite has already been processed', 400);
       }
 
-      // Check if user is already a member (unified GroupMember)
+      // Check if user already has a member record (unique constraint on groupId + userId)
       const existingMember = await db.groupMember.findFirst({
         where: {
           groupId: invite.groupId,
           userId: user.userId,
-          isActive: true,
         },
       });
 
       if (existingMember) {
-        // Update invite status and return
-        await db.groupInvite.update({
-          where: { id: inviteId },
+        if (existingMember.isActive) {
+          // Already an active member
+          await db.groupInvite.update({
+            where: { id: inviteId },
+            data: {
+              status: 'accepted',
+              respondedAt: new Date(),
+            },
+          });
+          throw new ApiError('You are already a member of this group', 400);
+        }
+
+        // Reactivate inactive member (was kicked/left before)
+        await db.groupMember.update({
+          where: { id: existingMember.id },
           data: {
-            status: 'accepted',
-            respondedAt: new Date(),
+            isActive: true,
+            role: 'member',
+            joinedAt: new Date(),
+            addedBy: invite.invitedBy,
+            kickedAt: null,
+            kickReason: null,
           },
         });
-        throw new ApiError('You are already a member of this group', 400);
+      } else {
+        // Create new member record
+        await db.groupMember.create({
+          data: {
+            id: nanoid(),
+            groupId: invite.groupId,
+            userId: user.userId,
+            role: 'member',
+            addedBy: invite.invitedBy,
+          },
+        });
       }
 
       // Find the chat for this group (Chat.groupId → Group.id)
@@ -75,27 +100,38 @@ export const POST = withErrorHandling(
         select: { id: true },
       });
 
-      // Add user as member (unified GroupMember)
-      await db.groupMember.create({
-        data: {
-          id: nanoid(),
-          groupId: invite.groupId,
-          userId: user.userId,
-          role: 'member',
-          addedBy: invite.invitedBy,
-        },
-      });
-
-      // Add to associated chat
+      // Add to associated chat (handle existing inactive participant)
       if (groupChat) {
-        await db.chatParticipant.create({
-          data: {
-            id: nanoid(),
+        const existingParticipant = await db.chatParticipant.findFirst({
+          where: {
             chatId: groupChat.id,
             userId: user.userId,
-            joinedAt: new Date(),
           },
         });
+
+        if (existingParticipant) {
+          // Reactivate if inactive
+          if (!existingParticipant.isActive) {
+            await db.chatParticipant.update({
+              where: { id: existingParticipant.id },
+              data: {
+                isActive: true,
+                joinedAt: new Date(),
+                kickedAt: null,
+                kickReason: null,
+              },
+            });
+          }
+        } else {
+          await db.chatParticipant.create({
+            data: {
+              id: nanoid(),
+              chatId: groupChat.id,
+              userId: user.userId,
+              joinedAt: new Date(),
+            },
+          });
+        }
       }
 
       // Update invite status (unified GroupInvite)
