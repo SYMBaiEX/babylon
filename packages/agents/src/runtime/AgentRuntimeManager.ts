@@ -541,7 +541,6 @@ export class AgentRuntimeManager {
     // Create runtime with standard plugins
     const plugins: Plugin[] = [
       agentCorePlugin as Plugin,
-      // experiencePlugin removed - was causing ReferenceError (import was commented out)
       trajectoryLoggerPlugin as Plugin,
       // Conditionally add LLM plugins based on available API keys
       ...(process.env.GROQ_API_KEY ? [groqPlugin as Plugin] : []),
