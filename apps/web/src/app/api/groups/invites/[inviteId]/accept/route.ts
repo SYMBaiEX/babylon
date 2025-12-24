@@ -1,46 +1,10 @@
 /**
  * Group Invite Accept API
  *
+ * REFACTORED: Now uses unified Group/GroupMember/GroupInvite tables.
+ *
  * @route POST /api/groups/invites/[inviteId]/accept - Accept group invite
  * @access Authenticated
- *
- * @description
- * Accepts a group invitation. Adds the authenticated user to the group
- * and removes the invite. User must be the invitee.
- *
- * @openapi
- * /api/groups/invites/{inviteId}/accept:
- *   post:
- *     tags:
- *       - Groups
- *     summary: Accept group invite
- *     description: Accepts a group invitation (authenticated user only)
- *     security:
- *       - PrivyAuth: []
- *     parameters:
- *       - in: path
- *         name: inviteId
- *         required: true
- *         schema:
- *           type: string
- *         description: Invite ID
- *     responses:
- *       200:
- *         description: Invite accepted successfully
- *       401:
- *         description: Unauthorized
- *       403:
- *         description: Not the invitee
- *       404:
- *         description: Invite not found
- *
- * @example
- * ```typescript
- * await fetch(`/api/groups/invites/${inviteId}/accept`, {
- *   method: 'POST',
- *   headers: { 'Authorization': `Bearer ${token}` }
- * });
- * ```
  */
 
 import {
@@ -56,7 +20,7 @@ import type { NextRequest } from 'next/server';
 
 /**
  * POST /api/groups/invites/[inviteId]/accept
- * Accept a group invitation
+ * Accept a group invitation (unified schema)
  */
 export const POST = withErrorHandling(
   async (
@@ -67,8 +31,8 @@ export const POST = withErrorHandling(
     const { inviteId } = await params;
 
     const result = await asUser(user, async (db) => {
-      // Get the invite
-      const invite = await db.userGroupInvite.findUnique({
+      // Get the invite (unified GroupInvite)
+      const invite = await db.groupInvite.findUnique({
         where: { id: inviteId },
       });
 
@@ -84,17 +48,18 @@ export const POST = withErrorHandling(
         throw new ApiError('This invite has already been processed', 400);
       }
 
-      // Check if user is already a member
-      const existingMember = await db.userGroupMember.findFirst({
+      // Check if user is already a member (unified GroupMember)
+      const existingMember = await db.groupMember.findFirst({
         where: {
           groupId: invite.groupId,
           userId: user.userId,
+          isActive: true,
         },
       });
 
       if (existingMember) {
         // Update invite status and return
-        await db.userGroupInvite.update({
+        await db.groupInvite.update({
           where: { id: inviteId },
           data: {
             status: 'accepted',
@@ -104,38 +69,37 @@ export const POST = withErrorHandling(
         throw new ApiError('You are already a member of this group', 400);
       }
 
-      // Add user as member
-      await db.userGroupMember.create({
+      // Find the chat for this group (Chat.groupId → Group.id)
+      const groupChat = await db.chat.findFirst({
+        where: { groupId: invite.groupId },
+        select: { id: true },
+      });
+
+      // Add user as member (unified GroupMember)
+      await db.groupMember.create({
         data: {
           id: nanoid(),
           groupId: invite.groupId,
           userId: user.userId,
+          role: 'member',
           addedBy: invite.invitedBy,
-          joinedAt: new Date(),
         },
       });
 
       // Add to associated chat
-      const chat = await db.chat.findFirst({
-        where: {
-          groupId: invite.groupId,
-          isGroup: true,
-        },
-      });
-
-      if (chat) {
+      if (groupChat) {
         await db.chatParticipant.create({
           data: {
             id: nanoid(),
-            chatId: chat.id,
+            chatId: groupChat.id,
             userId: user.userId,
             joinedAt: new Date(),
           },
         });
       }
 
-      // Update invite status
-      await db.userGroupInvite.update({
+      // Update invite status (unified GroupInvite)
+      await db.groupInvite.update({
         where: { id: inviteId },
         data: {
           status: 'accepted',
@@ -156,7 +120,7 @@ export const POST = withErrorHandling(
 
       return {
         groupId: invite.groupId,
-        chatId: chat?.id,
+        chatId: groupChat?.id || null,
       };
     });
 

@@ -1,68 +1,10 @@
 /**
  * Group Invites API
  *
+ * REFACTORED: Now uses unified Group/GroupMember/GroupInvite tables.
+ *
  * @route GET /api/groups/invites - Get pending group invites
  * @access Authenticated
- *
- * @description
- * Returns all pending group invites for the authenticated user. Includes group
- * details and metadata for each invite.
- *
- * @openapi
- * /api/groups/invites:
- *   get:
- *     tags:
- *       - Groups
- *     summary: Get pending group invites
- *     description: Returns all pending group invites for the current user
- *     security:
- *       - PrivyAuth: []
- *     responses:
- *       200:
- *         description: Invites retrieved successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 invites:
- *                   type: array
- *                   items:
- *                     type: object
- *                     properties:
- *                       id:
- *                         type: string
- *                       groupId:
- *                         type: string
- *                       group:
- *                         type: object
- *                         properties:
- *                           id:
- *                             type: string
- *                           name:
- *                             type: string
- *                           description:
- *                             type: string
- *                           memberCount:
- *                             type: integer
- *                       invitedAt:
- *                         type: string
- *                         format: date-time
- *                       status:
- *                         type: string
- *                         enum: [pending, accepted, declined]
- *       401:
- *         description: Unauthorized
- *
- * @example
- * ```typescript
- * const response = await fetch('/api/groups/invites', {
- *   headers: { 'Authorization': `Bearer ${token}` }
- * });
- * const { invites } = await response.json();
- * ```
- *
- * @see {@link /lib/db/context} RLS context
  */
 
 import { authenticate, successResponse, withErrorHandling } from '@babylon/api';
@@ -72,13 +14,14 @@ import type { NextRequest } from 'next/server';
 
 /**
  * GET /api/groups/invites
- * Get all pending group invites for the current user
+ * Get all pending group invites for the current user (unified schema)
  */
 export const GET = withErrorHandling(async (request: NextRequest) => {
   const user = await authenticate(request);
 
   const invites = await asUser(user, async (db) => {
-    const pendingInvites = await db.userGroupInvite.findMany({
+    // Get pending invites (unified GroupInvite)
+    const pendingInvites = await db.groupInvite.findMany({
       where: {
         invitedUserId: user.userId,
         status: 'pending',
@@ -88,9 +31,13 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       },
     });
 
-    // Fetch group details separately
+    if (pendingInvites.length === 0) {
+      return [];
+    }
+
+    // Fetch group details (unified Group)
     const groupIds = pendingInvites.map((inv) => inv.groupId);
-    const groups = await db.userGroup.findMany({
+    const groups = await db.group.findMany({
       where: {
         id: { in: groupIds },
       },
@@ -99,7 +46,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     // Get member counts for each group
     const memberCounts = await Promise.all(
       groupIds.map((gid) =>
-        db.userGroupMember.count({ where: { groupId: gid } })
+        db.groupMember.count({ where: { groupId: gid, isActive: true } })
       )
     );
     const memberCountMap = new Map(
@@ -114,9 +61,11 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         groupId: invite.groupId,
         groupName: group?.name || 'Unknown Group',
         groupDescription: group?.description,
+        groupType: group?.type,
         memberCount: memberCountMap.get(invite.groupId) ?? 0,
         invitedAt: invite.invitedAt,
         invitedBy: invite.invitedBy,
+        message: invite.message,
       };
     });
   });

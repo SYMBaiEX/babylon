@@ -133,12 +133,20 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     return NextResponse.json({ error: 'User not found' }, { status: 404 });
   }
 
-  // Check if user is already a member
+  // Check if user is already a member (using unified GroupMember)
+  const finalChatIdCheck = chatId || `${npcId}-owned-chat`;
   const existingMembership = await asSystem(async (db) => {
-    return await db.groupChatMembership.findFirst({
+    // First find the group for this chat
+    const chat = await db.chat.findUnique({
+      where: { id: finalChatIdCheck },
+      select: { groupId: true },
+    });
+    if (!chat?.groupId) return null;
+
+    return await db.groupMember.findFirst({
       where: {
+        groupId: chat.groupId,
         userId,
-        chatId: chatId || `${npcId}-owned-chat`,
         isActive: true,
       },
     });
@@ -157,26 +165,63 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     'name' in npc ? npc.name : npc.displayName || npc.username || 'Unknown';
   const finalChatName = chatName || `${npcName}'s Inner Circle`;
 
-  // Record the invite
+  // Record the invite using unified Group/GroupMember schema
   await asSystem(async (db) => {
-    // Use the GroupChatInvite service, but we need to bypass RLS
-    // So we'll replicate the logic here with asSystem
-
-    // Create chat if it doesn't exist
-    await db.chat.upsert({
+    // Find or create the group for this chat
+    let chat = await db.chat.findUnique({
       where: { id: finalChatId },
-      update: {},
-      create: {
-        id: finalChatId,
-        name: finalChatName,
-        isGroup: true,
-        gameId: 'realtime',
-        updatedAt: new Date(),
-      },
     });
 
+    let groupId: string;
+
+    if (!chat) {
+      // Create Group first
+      groupId = await generateSnowflakeId();
+      await db.group.create({
+        data: {
+          id: groupId,
+          name: finalChatName,
+          type: 'npc',
+          ownerId: npcId,
+          createdById: npcId,
+          updatedAt: new Date(),
+        },
+      });
+
+      // Create Chat with groupId link
+      await db.chat.create({
+        data: {
+          id: finalChatId,
+          name: finalChatName,
+          isGroup: true,
+          gameId: 'realtime',
+          groupId,
+          updatedAt: new Date(),
+        },
+      });
+    } else if (!chat.groupId) {
+      // Chat exists but no group - create one
+      groupId = await generateSnowflakeId();
+      await db.group.create({
+        data: {
+          id: groupId,
+          name: finalChatName,
+          type: 'npc',
+          ownerId: npcId,
+          createdById: npcId,
+          updatedAt: new Date(),
+        },
+      });
+
+      await db.chat.update({
+        where: { id: finalChatId },
+        data: { groupId },
+      });
+    } else {
+      groupId = chat.groupId;
+    }
+
     // Add user to chat participants
-    // Check if participant exists first (compound key lookup)
     const existingParticipant = await db.chatParticipant.findFirst({
       where: {
         chatId: finalChatId,
@@ -194,13 +239,14 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       });
     }
 
-    // Record membership
-    await db.groupChatMembership.create({
+    // Record membership in unified GroupMember table
+    await db.groupMember.create({
       data: {
         id: await generateSnowflakeId(),
+        groupId,
         userId,
-        chatId: finalChatId,
-        npcAdminId: npcId,
+        role: 'member',
+        addedBy: npcId,
       },
     });
 

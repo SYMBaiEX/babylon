@@ -85,9 +85,9 @@ import {
   chats,
   desc,
   eq,
+  groups,
   inArray,
   messages,
-  userGroups,
   users,
 } from '@babylon/db';
 import { StaticDataRegistry } from '@babylon/engine';
@@ -204,13 +204,16 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
           profileImageUrl: a.profileImageUrl,
         }));
 
-      // Get all user groups
+      // Get all groups (unified schema) - indexed by ID for lookup
       const allUserGroups = await database
         .select({
-          name: userGroups.name,
-          createdById: userGroups.createdById,
+          id: groups.id,
+          name: groups.name,
+          createdById: groups.createdById,
+          ownerId: groups.ownerId,
+          type: groups.type,
         })
-        .from(userGroups);
+        .from(groups);
 
       // Group participants and messages by chat
       const participantsByChat = new Map<string, typeof participantsList>();
@@ -250,7 +253,10 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   // Create maps for quick lookup
   const usersMap = new Map(allUsers.map((u) => [u.id, u]));
   const actorsMap = new Map(allActors.map((a) => [a.id, a]));
-  const userGroupsMap = new Map(
+  // Map by ID for lookup via chat.groupId (new unified schema)
+  const groupsById = new Map(allUserGroups.map((g) => [g.id, g]));
+  // Legacy: Map by name for chats without groupId
+  const groupsByName = new Map(
     allUserGroups.filter((g) => g.name).map((g) => [g.name!, g])
   );
 
@@ -275,36 +281,60 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     let creatorName = 'Unknown';
     let creatorId: string | null = null;
 
-    if (hasNPCs && !hasUsers) {
-      groupType = 'npc-only';
-      // Find creator from chat name or first NPC
-      const creator =
-        actorsInChat.find((a) => chat.name?.includes(a.name)) ||
-        actorsInChat[0];
-      if (creator) {
-        creatorName = creator.name;
-        creatorId = creator.id;
-      }
-    } else if (hasNPCs && hasUsers) {
-      groupType = 'npc-mixed';
-      // Alpha group - NPC created
-      const creator =
-        actorsInChat.find((a) => chat.name?.includes(a.name)) ||
-        actorsInChat[0];
-      if (creator) {
-        creatorName = creator.name;
-        creatorId = creator.id;
+    // First, try to get type from unified Group schema (authoritative)
+    const linkedGroup = chat.groupId ? groupsById.get(chat.groupId) : null;
+
+    if (linkedGroup) {
+      // Use authoritative type from Group table
+      groupType = linkedGroup.type; // 'user' | 'npc' | 'agent'
+      const ownerId = linkedGroup.ownerId || linkedGroup.createdById;
+
+      // Find the owner/creator
+      const ownerUser = ownerId ? usersMap.get(ownerId) : null;
+      const ownerActor = ownerId ? actorsMap.get(ownerId) : null;
+
+      if (ownerActor) {
+        creatorName = ownerActor.name;
+        creatorId = ownerActor.id;
+      } else if (ownerUser) {
+        creatorName = ownerUser.displayName || ownerUser.username || 'Unknown';
+        creatorId = ownerUser.id;
       }
     } else {
-      groupType = 'user';
-      // Check UserGroup table from map
-      const userGroup = chat.name ? userGroupsMap.get(chat.name) : null;
-
-      if (userGroup) {
-        const creator = usersInChat.find((u) => u.id === userGroup.createdById);
+      // Legacy: fallback to heuristics for chats without linked Group
+      if (hasNPCs && !hasUsers) {
+        groupType = 'npc-only';
+        // Find creator from chat name or first NPC
+        const creator =
+          actorsInChat.find((a) => chat.name?.includes(a.name)) ||
+          actorsInChat[0];
         if (creator) {
-          creatorName = creator.displayName || creator.username || 'Unknown';
+          creatorName = creator.name;
           creatorId = creator.id;
+        }
+      } else if (hasNPCs && hasUsers) {
+        groupType = 'npc-mixed';
+        // Alpha group - NPC created
+        const creator =
+          actorsInChat.find((a) => chat.name?.includes(a.name)) ||
+          actorsInChat[0];
+        if (creator) {
+          creatorName = creator.name;
+          creatorId = creator.id;
+        }
+      } else {
+        groupType = 'user';
+        // Check Group table by name (legacy lookup)
+        const groupByName = chat.name ? groupsByName.get(chat.name) : null;
+
+        if (groupByName) {
+          const creator = usersInChat.find(
+            (u) => u.id === groupByName.createdById
+          );
+          if (creator) {
+            creatorName = creator.displayName || creator.username || 'Unknown';
+            creatorId = creator.id;
+          }
         }
       }
     }

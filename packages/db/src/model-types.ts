@@ -44,14 +44,9 @@ export type PredictionPriceHistory = InferSelectModel<
 >;
 export type Chat = InferSelectModel<typeof schema.chats>;
 export type ChatParticipant = InferSelectModel<typeof schema.chatParticipants>;
-export type ChatAdmin = InferSelectModel<typeof schema.chatAdmins>;
-export type ChatInvite = InferSelectModel<typeof schema.chatInvites>;
 export type Message = InferSelectModel<typeof schema.messages>;
 export type Notification = InferSelectModel<typeof schema.notifications>;
 export type DMAcceptance = InferSelectModel<typeof schema.dmAcceptances>;
-export type GroupChatMembership = InferSelectModel<
-  typeof schema.groupChatMemberships
->;
 export type UserInteraction = InferSelectModel<typeof schema.userInteractions>;
 export type AgentRegistry = InferSelectModel<typeof schema.agentRegistries>;
 export type AgentCapability = InferSelectModel<typeof schema.agentCapabilities>;
@@ -79,10 +74,6 @@ export type PointsTransaction = InferSelectModel<
   typeof schema.pointsTransactions
 >;
 export type UserActorFollow = InferSelectModel<typeof schema.userActorFollows>;
-export type UserGroup = InferSelectModel<typeof schema.userGroups>;
-export type UserGroupAdmin = InferSelectModel<typeof schema.userGroupAdmins>;
-export type UserGroupInvite = InferSelectModel<typeof schema.userGroupInvites>;
-export type UserGroupMember = InferSelectModel<typeof schema.userGroupMembers>;
 export type UserBlock = InferSelectModel<typeof schema.userBlocks>;
 export type UserMute = InferSelectModel<typeof schema.userMutes>;
 export type Report = InferSelectModel<typeof schema.reports>;
@@ -136,6 +127,11 @@ export type UserAgentConfig = InferSelectModel<typeof schema.userAgentConfigs>;
 export type UserApiKey = InferSelectModel<typeof schema.userApiKeys>;
 export type TickTokenStats = InferSelectModel<typeof schema.tickTokenStats>;
 
+// Unified Group types
+export type Group = InferSelectModel<typeof schema.groups>;
+export type GroupMember = InferSelectModel<typeof schema.groupMembers>;
+export type GroupInvite = InferSelectModel<typeof schema.groupInvites>;
+
 // ============================================================================
 // Insert Types (what you provide when inserting into the database)
 // ============================================================================
@@ -168,14 +164,9 @@ export type NewChat = InferInsertModel<typeof schema.chats>;
 export type NewChatParticipant = InferInsertModel<
   typeof schema.chatParticipants
 >;
-export type NewChatAdmin = InferInsertModel<typeof schema.chatAdmins>;
-export type NewChatInvite = InferInsertModel<typeof schema.chatInvites>;
 export type NewMessage = InferInsertModel<typeof schema.messages>;
 export type NewNotification = InferInsertModel<typeof schema.notifications>;
 export type NewDMAcceptance = InferInsertModel<typeof schema.dmAcceptances>;
-export type NewGroupChatMembership = InferInsertModel<
-  typeof schema.groupChatMemberships
->;
 export type NewUserInteraction = InferInsertModel<
   typeof schema.userInteractions
 >;
@@ -210,14 +201,6 @@ export type NewPointsTransaction = InferInsertModel<
 >;
 export type NewUserActorFollow = InferInsertModel<
   typeof schema.userActorFollows
->;
-export type NewUserGroup = InferInsertModel<typeof schema.userGroups>;
-export type NewUserGroupAdmin = InferInsertModel<typeof schema.userGroupAdmins>;
-export type NewUserGroupInvite = InferInsertModel<
-  typeof schema.userGroupInvites
->;
-export type NewUserGroupMember = InferInsertModel<
-  typeof schema.userGroupMembers
 >;
 export type NewUserBlock = InferInsertModel<typeof schema.userBlocks>;
 export type NewUserMute = InferInsertModel<typeof schema.userMutes>;
@@ -278,6 +261,11 @@ export type NewUserAgentConfig = InferInsertModel<
 export type NewUserApiKey = InferInsertModel<typeof schema.userApiKeys>;
 export type NewTickTokenStats = InferInsertModel<typeof schema.tickTokenStats>;
 
+// Unified Group types
+export type NewGroup = InferInsertModel<typeof schema.groups>;
+export type NewGroupMember = InferInsertModel<typeof schema.groupMembers>;
+export type NewGroupInvite = InferInsertModel<typeof schema.groupInvites>;
+
 // ============================================================================
 // Types with Relations (for queries using include/with)
 // ============================================================================
@@ -296,7 +284,6 @@ export type ChatWithParticipantsAndMessages = Chat & {
 /** Chat with all common relations */
 export type ChatWithRelations = Chat & {
   ChatParticipant?: ChatParticipant[];
-  ChatAdmin?: ChatAdmin[];
   Message?: Message[];
 };
 

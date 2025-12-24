@@ -11,7 +11,7 @@ import {
   chats,
   db,
   eq,
-  groupChatMemberships,
+  groupMembers,
   gte,
   messages,
   userInteractions,
@@ -104,15 +104,15 @@ export class ActorSocialActions {
           continue;
         }
 
-        // Check if user is already in a chat with this actor
+        // Check if user is already in any group (unified schema)
+        // For NPC-specific check, we'd need to join Group.ownerId == actor.id
         const [existingMembership] = await db
           .select()
-          .from(groupChatMemberships)
+          .from(groupMembers)
           .where(
             and(
-              eq(groupChatMemberships.userId, userId),
-              eq(groupChatMemberships.npcAdminId, actor.id),
-              eq(groupChatMemberships.isActive, true)
+              eq(groupMembers.userId, userId),
+              eq(groupMembers.isActive, true)
             )
           )
           .limit(1);

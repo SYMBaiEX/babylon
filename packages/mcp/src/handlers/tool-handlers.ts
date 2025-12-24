@@ -1359,23 +1359,43 @@ export async function executeSendMessage(
 }
 
 /**
- * Execute create_group tool
+ * Execute create_group tool (using unified schema)
+ * Chat.groupId → Group.id relationship
  */
 export async function executeCreateGroup(
   agent: AuthenticatedAgent,
   args: CreateGroupArgs
 ): Promise<CreateGroupResult> {
   const chatId = await generateSnowflakeId();
+  const groupId = await generateSnowflakeId();
+
+  // Create Group first (unified schema)
+  await db.group.create({
+    data: {
+      id: groupId,
+      name: args.name,
+      description: args.description,
+      type: 'agent', // Agent-created group
+      ownerId: agent.userId,
+      createdById: agent.userId,
+      updatedAt: new Date(),
+    },
+  });
+
+  // Create chat with groupId link (Chat.groupId → Group.id)
   const chat = await db.chat.create({
     data: {
       id: chatId,
       name: args.name,
       description: args.description,
       isGroup: true,
+      groupId, // Link Chat → Group
       createdBy: agent.userId,
       updatedAt: new Date(),
     },
   });
+
+  // Create chat participants
   const participantIds = await Promise.all([
     generateSnowflakeId(),
     ...args.memberIds.map(() => generateSnowflakeId()),
@@ -1390,6 +1410,31 @@ export async function executeCreateGroup(
       })),
     ],
   });
+
+  // Create GroupMember records (unified schema)
+  const memberIds = await Promise.all([
+    generateSnowflakeId(),
+    ...args.memberIds.map(() => generateSnowflakeId()),
+  ]);
+  await db.groupMember.createMany({
+    data: [
+      {
+        id: memberIds[0]!,
+        groupId,
+        userId: agent.userId,
+        role: 'owner',
+        addedBy: agent.userId,
+      },
+      ...args.memberIds.map((memberId, idx) => ({
+        id: memberIds[idx + 1]!,
+        groupId,
+        userId: memberId,
+        role: 'member' as const,
+        addedBy: agent.userId,
+      })),
+    ],
+  });
+
   return {
     success: true,
     chatId: chat.id,
@@ -1398,13 +1443,14 @@ export async function executeCreateGroup(
 }
 
 /**
- * Execute leave_chat tool
+ * Execute leave_chat tool (using unified schema)
+ * Chat.groupId → Group.id relationship
  */
 export async function executeLeaveChat(
   agent: AuthenticatedAgent,
   args: LeaveChatArgs
 ): Promise<LeaveChatResult> {
-  // agent used for userId in updateMany where clause
+  // Mark chat participant as inactive
   await db.chatParticipant.updateMany({
     where: {
       chatId: args.chatId,
@@ -1412,6 +1458,28 @@ export async function executeLeaveChat(
     },
     data: { isActive: false },
   });
+
+  // Find the chat to get its groupId
+  const chat = await db.chat.findUnique({
+    where: { id: args.chatId },
+    select: { groupId: true },
+  });
+
+  // Also update GroupMember if there's an associated group
+  if (chat?.groupId) {
+    await db.groupMember.updateMany({
+      where: {
+        groupId: chat.groupId,
+        userId: agent.userId,
+      },
+      data: {
+        isActive: false,
+        kickedAt: new Date(),
+        kickReason: 'User left',
+      },
+    });
+  }
+
   return { success: true };
 }
 
@@ -1474,86 +1542,142 @@ export async function executeMarkNotificationsRead(
 }
 
 /**
- * Execute get_group_invites tool
+ * Execute get_group_invites tool (using unified schema)
+ * Chat.groupId → Group.id relationship
  */
 export async function executeGetGroupInvites(
   agent: AuthenticatedAgent,
   _args: GetGroupInvitesArgs
 ): Promise<GetGroupInvitesResult> {
-  const invitesList = await db.chatInvite.findMany({
+  // Use unified GroupInvite table
+  const invitesList = await db.groupInvite.findMany({
     where: {
       invitedUserId: agent.userId,
       status: 'pending',
     },
   });
-  const chatIds = invitesList.map((inv) => inv.chatId);
+
+  if (invitesList.length === 0) {
+    return { invites: [] };
+  }
+
+  const groupIds = invitesList.map((inv) => inv.groupId);
+  const groupsMap = new Map(
+    (
+      await db.group.findMany({
+        where: { id: { in: groupIds } },
+        select: { id: true, name: true },
+      })
+    ).map((g) => [g.id, g])
+  );
+
+  // Get chats for groups (Chat.groupId → Group.id)
   const chatsMap = new Map(
     (
       await db.chat.findMany({
-        where: { id: { in: chatIds } },
-        select: { id: true, name: true },
+        where: { groupId: { in: groupIds } },
+        select: { id: true, groupId: true },
       })
-    ).map((c) => [c.id, c])
+    ).map((c) => [c.groupId, c.id])
   );
+
   return {
-    invites: invitesList.map((invite) => ({
-      id: invite.id,
-      groupId: invite.chatId,
-      groupName: chatsMap.get(invite.chatId)?.name || null,
-      inviterId: invite.invitedBy,
-      timestamp: invite.invitedAt.toISOString(),
-    })),
+    invites: invitesList.map((invite) => {
+      const group = groupsMap.get(invite.groupId);
+      return {
+        id: invite.id,
+        groupId: chatsMap.get(invite.groupId) || invite.groupId, // Return chatId for backward compat
+        groupName: group?.name || null,
+        inviterId: invite.invitedBy,
+        timestamp: invite.invitedAt.toISOString(),
+      };
+    }),
   };
 }
 
 /**
- * Execute accept_group_invite tool
+ * Execute accept_group_invite tool (using unified schema)
+ * Chat.groupId → Group.id relationship
  */
 export async function executeAcceptGroupInvite(
   agent: AuthenticatedAgent,
   args: AcceptGroupInviteArgs
 ): Promise<AcceptGroupInviteResult> {
-  const invite = await db.chatInvite.findUnique({
+  // Use unified GroupInvite table
+  const invite = await db.groupInvite.findUnique({
     where: { id: args.inviteId },
   });
   if (!invite || invite.invitedUserId !== agent.userId) {
     throw new Error('Invite not found or access denied');
   }
-  await db.chatInvite.update({
-    where: { id: args.inviteId },
-    data: { status: 'accepted' },
+
+  // Find the chat for this group (Chat.groupId → Group.id)
+  const groupChat = await db.chat.findFirst({
+    where: { groupId: invite.groupId },
+    select: { id: true },
   });
-  await db.chatParticipant.create({
+
+  // Update invite status
+  await db.groupInvite.update({
+    where: { id: args.inviteId },
     data: {
-      id: await generateSnowflakeId(),
-      chatId: invite.chatId,
-      userId: agent.userId,
-      invitedBy: invite.invitedBy,
+      status: 'accepted',
+      respondedAt: new Date(),
     },
   });
+
+  // Add to chat participants
+  if (groupChat) {
+    await db.chatParticipant.create({
+      data: {
+        id: await generateSnowflakeId(),
+        chatId: groupChat.id,
+        userId: agent.userId,
+        invitedBy: invite.invitedBy,
+      },
+    });
+  }
+
+  // Add to GroupMember (unified schema)
+  await db.groupMember.create({
+    data: {
+      id: await generateSnowflakeId(),
+      groupId: invite.groupId,
+      userId: agent.userId,
+      role: 'member',
+      addedBy: invite.invitedBy,
+    },
+  });
+
   return {
     success: true,
-    chatId: invite.chatId,
+    chatId: groupChat?.id || invite.groupId,
   };
 }
 
 /**
- * Execute decline_group_invite tool
+ * Execute decline_group_invite tool (using unified schema)
  */
 export async function executeDeclineGroupInvite(
   agent: AuthenticatedAgent,
   args: DeclineGroupInviteArgs
 ): Promise<DeclineGroupInviteResult> {
-  const invite = await db.chatInvite.findUnique({
+  // Use unified GroupInvite table
+  const invite = await db.groupInvite.findUnique({
     where: { id: args.inviteId },
   });
   if (!invite || invite.invitedUserId !== agent.userId) {
     throw new Error('Invite not found or access denied');
   }
-  await db.chatInvite.update({
+
+  await db.groupInvite.update({
     where: { id: args.inviteId },
-    data: { status: 'declined' },
+    data: {
+      status: 'declined',
+      respondedAt: new Date(),
+    },
   });
+
   return { success: true };
 }
 

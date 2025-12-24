@@ -22,7 +22,9 @@ import {
   desc,
   eq,
   follows,
-  groupChatMemberships,
+  groupInvites,
+  groupMembers,
+  groups,
   gte,
   inArray,
   lt,
@@ -33,7 +35,6 @@ import {
   posts,
   reactions,
   shares,
-  userGroupInvites,
   userInteractions,
   users,
 } from '@babylon/db';
@@ -204,12 +205,25 @@ export class NPCGroupDynamicsService {
 
       // Create the group chat
       const chatId = await generateSnowflakeId();
+      const groupId = await generateSnowflakeId();
       const chatName = `${npc.name}'s Circle`;
 
+      // Create Group first (unified schema)
+      await db.insert(groups).values({
+        id: groupId,
+        name: chatName,
+        type: 'npc',
+        ownerId: npc.id,
+        createdById: npc.id,
+        updatedAt: new Date(),
+      });
+
+      // Create Chat with groupId link (Chat.groupId → Group.id)
       await db.insert(chats).values({
         id: chatId,
         name: chatName,
         isGroup: true,
+        groupId, // Link Chat → Group
         updatedAt: new Date(),
       });
 
@@ -222,6 +236,18 @@ export class NPCGroupDynamicsService {
         }))
       );
       await db.insert(chatParticipants).values(participantValues);
+
+      // Create GroupMember records (unified schema)
+      const memberValues = await Promise.all(
+        Array.from(memberIds).map(async (memberId) => ({
+          id: await generateSnowflakeId(),
+          groupId,
+          userId: memberId,
+          role: memberId === npc.id ? 'owner' : ('member' as const),
+          addedBy: npc.id,
+        }))
+      );
+      await db.insert(groupMembers).values(memberValues);
 
       groupsCreated++;
       logger.info(
@@ -304,12 +330,24 @@ export class NPCGroupDynamicsService {
 
         // Must have at least 2 friends in the group
         if (relationships.length >= 2) {
-          // Add to group
+          // Add to chatParticipants
           await db.insert(chatParticipants).values({
             id: await generateSnowflakeId(),
             chatId: group.id,
             userId: candidate.id,
           });
+
+          // Also add to groupMembers if chat has a groupId (unified schema)
+          if (group.groupId) {
+            await db.insert(groupMembers).values({
+              id: await generateSnowflakeId(),
+              groupId: group.groupId,
+              userId: candidate.id,
+              role: 'member',
+              isActive: true,
+              addedBy: null, // NPC joining autonomously
+            });
+          }
 
           joinsProcessed++;
           logger.info(
@@ -397,6 +435,23 @@ export class NPCGroupDynamicsService {
           await db
             .delete(chatParticipants)
             .where(eq(chatParticipants.id, membership.id));
+
+          // Also update groupMembers if chat has a groupId (unified schema)
+          if (chat.groupId) {
+            await db
+              .update(groupMembers)
+              .set({
+                isActive: false,
+                kickedAt: new Date(),
+                kickReason: `Left - ${negativeRelationships.length} negative relationships`,
+              })
+              .where(
+                and(
+                  eq(groupMembers.groupId, chat.groupId),
+                  eq(groupMembers.userId, membership.userId)
+                )
+              );
+          }
 
           leavesProcessed++;
           logger.info(
@@ -1132,16 +1187,74 @@ Return your response as XML:
       // Get NPC name for logging from STATIC REGISTRY (no DB call!)
       const npcData = StaticDataRegistry.getActor(invitingNpcId);
 
-      // Create the invitation
-      await db.insert(userGroupInvites).values({
-        id: await generateSnowflakeId(),
-        groupId: group.id,
-        invitedUserId: selectedCandidate.user.id,
-        invitedBy: invitingNpcId,
-        status: 'pending',
-        message: `Join our group chat "${group.name}"!`,
-        invitedAt: new Date(),
-      });
+      // Find or create Group record for this chat
+      // Chat.groupId → Group.id relationship
+      let groupId = group.groupId;
+
+      if (!groupId) {
+        // Create Group record if it doesn't exist (for legacy chats)
+        const newGroupId = await generateSnowflakeId();
+        await db.insert(groups).values({
+          id: newGroupId,
+          name: group.name || 'NPC Group',
+          type: 'npc',
+          ownerId: invitingNpcId,
+          createdById: invitingNpcId,
+          updatedAt: new Date(),
+        });
+
+        // Update chat with groupId
+        await db
+          .update(chats)
+          .set({ groupId: newGroupId })
+          .where(eq(chats.id, group.id));
+
+        groupId = newGroupId;
+      }
+
+      if (!groupId) continue;
+
+      // Check for existing invite (unique constraint on groupId + invitedUserId)
+      const [existingInvite] = await db
+        .select({ id: groupInvites.id, status: groupInvites.status })
+        .from(groupInvites)
+        .where(
+          and(
+            eq(groupInvites.groupId, groupId),
+            eq(groupInvites.invitedUserId, selectedCandidate.user.id)
+          )
+        )
+        .limit(1);
+
+      if (existingInvite) {
+        if (existingInvite.status === 'pending') {
+          // Already has pending invite, skip
+          continue;
+        }
+        // For declined invites, reset to pending (re-invite flow)
+        if (existingInvite.status === 'declined') {
+          await db
+            .update(groupInvites)
+            .set({
+              status: 'pending',
+              invitedBy: invitingNpcId,
+              invitedAt: new Date(),
+              respondedAt: null,
+              message: `Join our group chat "${group.name}"!`,
+            })
+            .where(eq(groupInvites.id, existingInvite.id));
+        }
+      } else {
+        // Create new invitation using unified GroupInvite
+        await db.insert(groupInvites).values({
+          id: await generateSnowflakeId(),
+          groupId,
+          invitedUserId: selectedCandidate.user.id,
+          invitedBy: invitingNpcId,
+          status: 'pending',
+          message: `Join our group chat "${group.name}"!`,
+        });
+      }
       usersInvited++;
       logger.info(
         'User invited to NPC group (reply guy score)',
@@ -1175,14 +1288,14 @@ Return your response as XML:
     const filtered: T[] = [];
 
     for (const candidate of candidates) {
-      // Check 1: Total active groups limit
+      // Check 1: Total active groups limit (using unified groupMembers)
       const [countResult] = await db
         .select({ count: count() })
-        .from(groupChatMemberships)
+        .from(groupMembers)
         .where(
           and(
-            eq(groupChatMemberships.userId, candidate.user.id),
-            eq(groupChatMemberships.isActive, true)
+            eq(groupMembers.userId, candidate.user.id),
+            eq(groupMembers.isActive, true)
           )
         );
       const activeGroupCount = countResult?.count ?? 0;
@@ -1200,17 +1313,17 @@ Return your response as XML:
         continue;
       }
 
-      // Check 2: Invite cooldown
+      // Check 2: Invite cooldown (using unified groupMembers)
       const [latestMembership] = await db
         .select()
-        .from(groupChatMemberships)
+        .from(groupMembers)
         .where(
           and(
-            eq(groupChatMemberships.userId, candidate.user.id),
-            eq(groupChatMemberships.isActive, true)
+            eq(groupMembers.userId, candidate.user.id),
+            eq(groupMembers.isActive, true)
           )
         )
-        .orderBy(desc(groupChatMemberships.joinedAt))
+        .orderBy(desc(groupMembers.joinedAt))
         .limit(1);
 
       if (latestMembership) {
@@ -1381,20 +1494,23 @@ Return your response as XML:
               )
             );
 
-          // If GroupChatMembership exists, mark as removed
-          await db
-            .update(groupChatMemberships)
-            .set({
-              isActive: false,
-              removedAt: new Date(),
-              sweepReason: reason,
-            })
-            .where(
-              and(
-                eq(groupChatMemberships.chatId, group.id),
-                eq(groupChatMemberships.userId, userId)
-              )
-            );
+          // If GroupMember exists, mark as removed (unified schema)
+          // Chat.groupId → Group.id relationship
+          if (group.groupId) {
+            await db
+              .update(groupMembers)
+              .set({
+                isActive: false,
+                kickedAt: new Date(),
+                kickReason: reason,
+              })
+              .where(
+                and(
+                  eq(groupMembers.groupId, group.groupId),
+                  eq(groupMembers.userId, userId)
+                )
+              );
+          }
 
           usersKicked++;
           logger.info(

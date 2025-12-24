@@ -19,25 +19,26 @@ export const chats = pgTable(
     description: text('description'),
     isGroup: boolean('isGroup').notNull().default(false),
     createdBy: text('createdBy'),
-    npcAdminId: text('npcAdminId'),
     gameId: text('gameId'),
     dayNumber: integer('dayNumber'),
     relatedQuestion: integer('relatedQuestion'),
     createdAt: timestamp('createdAt', { mode: 'date' }).notNull().defaultNow(),
     updatedAt: timestamp('updatedAt', { mode: 'date' }).notNull(),
-    groupId: text('groupId'),
+    groupId: text('groupId'), // Link to unified Group table
   },
   (table) => [
     index('Chat_gameId_dayNumber_idx').on(table.gameId, table.dayNumber),
     index('Chat_groupId_idx').on(table.groupId),
     index('Chat_isGroup_idx').on(table.isGroup),
     index('Chat_createdBy_idx').on(table.createdBy),
-    index('Chat_npcAdminId_idx').on(table.npcAdminId),
     index('Chat_relatedQuestion_idx').on(table.relatedQuestion),
   ]
 );
 
 // ChatParticipant
+// Low-level messaging access. For group chats, use GroupMember for role/quality tracking.
+// Note: messageCount, qualityScore, kickedAt, kickReason fields are legacy for group chats.
+// New group chats should track these in GroupMember instead.
 export const chatParticipants = pgTable(
   'ChatParticipant',
   {
@@ -47,6 +48,7 @@ export const chatParticipants = pgTable(
     joinedAt: timestamp('joinedAt', { mode: 'date' }).notNull().defaultNow(),
     invitedBy: text('invitedBy'),
     isActive: boolean('isActive').notNull().default(true),
+    // Legacy fields for group chats - use GroupMember.* instead for new code
     lastMessageAt: timestamp('lastMessageAt', { mode: 'date' }),
     messageCount: integer('messageCount').notNull().default(0),
     qualityScore: doublePrecision('qualityScore').notNull().default(1.0),
@@ -67,50 +69,6 @@ export const chatParticipants = pgTable(
       table.userId,
       table.isActive
     ),
-  ]
-);
-
-// ChatAdmin
-export const chatAdmins = pgTable(
-  'ChatAdmin',
-  {
-    id: text('id').primaryKey(),
-    chatId: text('chatId').notNull(),
-    userId: text('userId').notNull(),
-    grantedAt: timestamp('grantedAt', { mode: 'date' }).notNull().defaultNow(),
-    grantedBy: text('grantedBy').notNull(),
-  },
-  (table) => [
-    unique('ChatAdmin_chatId_userId_key').on(table.chatId, table.userId),
-    index('ChatAdmin_chatId_idx').on(table.chatId),
-    index('ChatAdmin_userId_idx').on(table.userId),
-  ]
-);
-
-// ChatInvite
-export const chatInvites = pgTable(
-  'ChatInvite',
-  {
-    id: text('id').primaryKey(),
-    chatId: text('chatId').notNull(),
-    invitedUserId: text('invitedUserId').notNull(),
-    invitedBy: text('invitedBy').notNull(),
-    status: text('status').notNull().default('pending'),
-    message: text('message'),
-    invitedAt: timestamp('invitedAt', { mode: 'date' }).notNull().defaultNow(),
-    respondedAt: timestamp('respondedAt', { mode: 'date' }),
-  },
-  (table) => [
-    unique('ChatInvite_chatId_invitedUserId_key').on(
-      table.chatId,
-      table.invitedUserId
-    ),
-    index('ChatInvite_chatId_idx').on(table.chatId),
-    index('ChatInvite_invitedUserId_status_idx').on(
-      table.invitedUserId,
-      table.status
-    ),
-    index('ChatInvite_status_idx').on(table.status),
   ]
 );
 
@@ -149,39 +107,6 @@ export const dmAcceptances = pgTable(
       table.createdAt
     ),
     index('DMAcceptance_userId_status_idx').on(table.userId, table.status),
-  ]
-);
-
-// GroupChatMembership
-export const groupChatMemberships = pgTable(
-  'GroupChatMembership',
-  {
-    id: text('id').primaryKey(),
-    userId: text('userId').notNull(),
-    chatId: text('chatId').notNull(),
-    npcAdminId: text('npcAdminId').notNull(),
-    joinedAt: timestamp('joinedAt', { mode: 'date' }).notNull().defaultNow(),
-    lastMessageAt: timestamp('lastMessageAt', { mode: 'date' }),
-    messageCount: integer('messageCount').notNull().default(0),
-    qualityScore: doublePrecision('qualityScore').notNull().default(1.0),
-    isActive: boolean('isActive').notNull().default(true),
-    sweepReason: text('sweepReason'),
-    removedAt: timestamp('removedAt', { mode: 'date' }),
-  },
-  (table) => [
-    unique('GroupChatMembership_userId_chatId_key').on(
-      table.userId,
-      table.chatId
-    ),
-    index('GroupChatMembership_chatId_isActive_idx').on(
-      table.chatId,
-      table.isActive
-    ),
-    index('GroupChatMembership_lastMessageAt_idx').on(table.lastMessageAt),
-    index('GroupChatMembership_userId_isActive_idx').on(
-      table.userId,
-      table.isActive
-    ),
   ]
 );
 
@@ -225,92 +150,115 @@ export const notifications = pgTable(
   ]
 );
 
-// UserGroup
-export const userGroups = pgTable(
-  'UserGroup',
+// ============================================================================
+// UNIFIED GROUP SYSTEM
+// ============================================================================
+
+/**
+ * Group - unified table for all group types
+ * Supports: user-created groups, NPC-managed groups, agent-created groups
+ *
+ * Relationship: Chat.groupId → Group.id (one Chat per Group)
+ */
+export const groups = pgTable(
+  'Group',
   {
     id: text('id').primaryKey(),
     name: text('name').notNull(),
     description: text('description'),
+    // 'user' = user-created group
+    // 'npc' = NPC-managed group (has quality tracking, kick mechanics)
+    // 'agent' = agent-created group
+    type: text('type').notNull(),
+    ownerId: text('ownerId').notNull(), // user/NPC/agent who controls it
     createdById: text('createdById').notNull(),
     createdAt: timestamp('createdAt', { mode: 'date' }).notNull().defaultNow(),
     updatedAt: timestamp('updatedAt', { mode: 'date' }).notNull(),
   },
   (table) => [
-    index('UserGroup_createdAt_idx').on(table.createdAt),
-    index('UserGroup_createdById_idx').on(table.createdById),
+    index('Group_type_idx').on(table.type),
+    index('Group_ownerId_idx').on(table.ownerId),
+    index('Group_createdById_idx').on(table.createdById),
+    index('Group_createdAt_idx').on(table.createdAt),
   ]
 );
 
-// UserGroupAdmin
-export const userGroupAdmins = pgTable(
-  'UserGroupAdmin',
+/**
+ * GroupMember - unified membership table with roles and quality tracking
+ */
+export const groupMembers = pgTable(
+  'GroupMember',
   {
     id: text('id').primaryKey(),
     groupId: text('groupId').notNull(),
     userId: text('userId').notNull(),
-    grantedAt: timestamp('grantedAt', { mode: 'date' }).notNull().defaultNow(),
-    grantedBy: text('grantedBy').notNull(),
+    // 'owner' = creator/controller of the group
+    // 'admin' = can manage members
+    // 'member' = regular participant
+    role: text('role').notNull().default('member'),
+    joinedAt: timestamp('joinedAt', { mode: 'date' }).notNull().defaultNow(),
+    addedBy: text('addedBy'),
+    isActive: boolean('isActive').notNull().default(true),
+    // Quality tracking (used for NPC groups' kick mechanics)
+    lastMessageAt: timestamp('lastMessageAt', { mode: 'date' }),
+    messageCount: integer('messageCount').notNull().default(0),
+    qualityScore: doublePrecision('qualityScore').notNull().default(1.0),
+    // Kick tracking
+    kickedAt: timestamp('kickedAt', { mode: 'date' }),
+    kickReason: text('kickReason'),
   },
   (table) => [
-    unique('UserGroupAdmin_groupId_userId_key').on(table.groupId, table.userId),
-    index('UserGroupAdmin_groupId_idx').on(table.groupId),
-    index('UserGroupAdmin_userId_idx').on(table.userId),
+    unique('GroupMember_groupId_userId_key').on(table.groupId, table.userId),
+    index('GroupMember_groupId_idx').on(table.groupId),
+    index('GroupMember_userId_idx').on(table.userId),
+    index('GroupMember_groupId_isActive_idx').on(table.groupId, table.isActive),
+    index('GroupMember_userId_isActive_idx').on(table.userId, table.isActive),
+    index('GroupMember_lastMessageAt_idx').on(table.lastMessageAt),
+    index('GroupMember_role_idx').on(table.role),
   ]
 );
 
-// UserGroupInvite
-export const userGroupInvites = pgTable(
-  'UserGroupInvite',
+/**
+ * GroupInvite - unified invite system
+ */
+export const groupInvites = pgTable(
+  'GroupInvite',
   {
     id: text('id').primaryKey(),
     groupId: text('groupId').notNull(),
     invitedUserId: text('invitedUserId').notNull(),
     invitedBy: text('invitedBy').notNull(),
+    // 'pending' | 'accepted' | 'declined'
     status: text('status').notNull().default('pending'),
+    message: text('message'),
     invitedAt: timestamp('invitedAt', { mode: 'date' }).notNull().defaultNow(),
     respondedAt: timestamp('respondedAt', { mode: 'date' }),
-    message: text('message'),
   },
   (table) => [
-    unique('UserGroupInvite_groupId_invitedUserId_key').on(
+    unique('GroupInvite_groupId_invitedUserId_key').on(
       table.groupId,
       table.invitedUserId
     ),
-    index('UserGroupInvite_groupId_idx').on(table.groupId),
-    index('UserGroupInvite_invitedUserId_status_idx').on(
+    index('GroupInvite_groupId_idx').on(table.groupId),
+    index('GroupInvite_invitedUserId_status_idx').on(
       table.invitedUserId,
       table.status
     ),
-    index('UserGroupInvite_status_idx').on(table.status),
+    index('GroupInvite_status_idx').on(table.status),
   ]
 );
 
-// UserGroupMember
-export const userGroupMembers = pgTable(
-  'UserGroupMember',
-  {
-    id: text('id').primaryKey(),
-    groupId: text('groupId').notNull(),
-    userId: text('userId').notNull(),
-    joinedAt: timestamp('joinedAt', { mode: 'date' }).notNull().defaultNow(),
-    addedBy: text('addedBy').notNull(),
-  },
-  (table) => [
-    unique('UserGroupMember_groupId_userId_key').on(
-      table.groupId,
-      table.userId
-    ),
-    index('UserGroupMember_groupId_idx').on(table.groupId),
-    index('UserGroupMember_userId_idx').on(table.userId),
-  ]
-);
+// ============================================================================
+// RELATIONS
+// ============================================================================
 
-// Relations
-export const chatsRelations = relations(chats, ({ many }) => ({
+export const chatsRelations = relations(chats, ({ one, many }) => ({
   ChatParticipant: many(chatParticipants),
-  ChatAdmin: many(chatAdmins),
   Message: many(messages),
+  group: one(groups, {
+    fields: [chats.groupId],
+    references: [groups.id],
+  }),
 }));
 
 export const chatParticipantsRelations = relations(
@@ -323,13 +271,6 @@ export const chatParticipantsRelations = relations(
   })
 );
 
-export const chatAdminsRelations = relations(chatAdmins, ({ one }) => ({
-  chat: one(chats, {
-    fields: [chatAdmins.chatId],
-    references: [chats.id],
-  }),
-}));
-
 export const messagesRelations = relations(messages, ({ one }) => ({
   chat: one(chats, {
     fields: [messages.chatId],
@@ -337,53 +278,50 @@ export const messagesRelations = relations(messages, ({ one }) => ({
   }),
 }));
 
-export const userGroupsRelations = relations(userGroups, ({ many }) => ({
-  UserGroupAdmin: many(userGroupAdmins),
-  UserGroupMember: many(userGroupMembers),
+export const groupsRelations = relations(groups, ({ many }) => ({
+  chats: many(chats),
+  members: many(groupMembers),
+  invites: many(groupInvites),
 }));
 
-export const userGroupAdminsRelations = relations(
-  userGroupAdmins,
-  ({ one }) => ({
-    group: one(userGroups, {
-      fields: [userGroupAdmins.groupId],
-      references: [userGroups.id],
-    }),
-  })
-);
+export const groupMembersRelations = relations(groupMembers, ({ one }) => ({
+  group: one(groups, {
+    fields: [groupMembers.groupId],
+    references: [groups.id],
+  }),
+}));
 
-export const userGroupMembersRelations = relations(
-  userGroupMembers,
-  ({ one }) => ({
-    group: one(userGroups, {
-      fields: [userGroupMembers.groupId],
-      references: [userGroups.id],
-    }),
-  })
-);
+export const groupInvitesRelations = relations(groupInvites, ({ one }) => ({
+  group: one(groups, {
+    fields: [groupInvites.groupId],
+    references: [groups.id],
+  }),
+}));
 
-// Type exports
+// ============================================================================
+// TYPE EXPORTS
+// ============================================================================
+
 export type Chat = typeof chats.$inferSelect;
 export type NewChat = typeof chats.$inferInsert;
 export type ChatParticipant = typeof chatParticipants.$inferSelect;
 export type NewChatParticipant = typeof chatParticipants.$inferInsert;
-export type ChatAdmin = typeof chatAdmins.$inferSelect;
-export type NewChatAdmin = typeof chatAdmins.$inferInsert;
-export type ChatInvite = typeof chatInvites.$inferSelect;
-export type NewChatInvite = typeof chatInvites.$inferInsert;
 export type Message = typeof messages.$inferSelect;
 export type NewMessage = typeof messages.$inferInsert;
 export type DMAcceptance = typeof dmAcceptances.$inferSelect;
 export type NewDMAcceptance = typeof dmAcceptances.$inferInsert;
-export type GroupChatMembership = typeof groupChatMemberships.$inferSelect;
-export type NewGroupChatMembership = typeof groupChatMemberships.$inferInsert;
 export type Notification = typeof notifications.$inferSelect;
 export type NewNotification = typeof notifications.$inferInsert;
-export type UserGroup = typeof userGroups.$inferSelect;
-export type NewUserGroup = typeof userGroups.$inferInsert;
-export type UserGroupAdmin = typeof userGroupAdmins.$inferSelect;
-export type NewUserGroupAdmin = typeof userGroupAdmins.$inferInsert;
-export type UserGroupInvite = typeof userGroupInvites.$inferSelect;
-export type NewUserGroupInvite = typeof userGroupInvites.$inferInsert;
-export type UserGroupMember = typeof userGroupMembers.$inferSelect;
-export type NewUserGroupMember = typeof userGroupMembers.$inferInsert;
+
+// Unified Group types
+export type Group = typeof groups.$inferSelect;
+export type NewGroup = typeof groups.$inferInsert;
+export type GroupMember = typeof groupMembers.$inferSelect;
+export type NewGroupMember = typeof groupMembers.$inferInsert;
+export type GroupInvite = typeof groupInvites.$inferSelect;
+export type NewGroupInvite = typeof groupInvites.$inferInsert;
+
+// Type enums (for type safety)
+export type GroupType = 'user' | 'npc' | 'agent';
+export type GroupMemberRole = 'owner' | 'admin' | 'member';
+export type GroupInviteStatus = 'pending' | 'accepted' | 'declined';

@@ -1,6 +1,8 @@
 /**
  * Group Management API
  *
+ * REFACTORED: Now uses unified Group/GroupMember tables.
+ *
  * @route GET /api/groups/[groupId] - Get group details
  * @route PUT /api/groups/[groupId] - Update group
  * @route DELETE /api/groups/[groupId] - Delete group
@@ -8,131 +10,8 @@
  *
  * @description
  * Manages individual group details, settings, and lifecycle. GET returns group
- * information with members and admins. PUT updates group name/description (admin only).
- * DELETE removes the group (creator/admin only).
- *
- * @openapi
- * /api/groups/{groupId}:
- *   get:
- *     tags:
- *       - Groups
- *     summary: Get group details
- *     description: Returns group information including members and admins
- *     security:
- *       - PrivyAuth: []
- *     parameters:
- *       - in: path
- *         name: groupId
- *         required: true
- *         schema:
- *           type: string
- *         description: Group ID
- *     responses:
- *       200:
- *         description: Group details retrieved successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 group:
- *                   type: object
- *                   properties:
- *                     id:
- *                       type: string
- *                     name:
- *                       type: string
- *                     description:
- *                       type: string
- *                     members:
- *                       type: array
- *                     admins:
- *                       type: array
- *       401:
- *         description: Unauthorized
- *       403:
- *         description: Not a group member
- *       404:
- *         description: Group not found
- *   put:
- *     tags:
- *       - Groups
- *     summary: Update group
- *     description: Updates group name and description (admin only)
- *     security:
- *       - PrivyAuth: []
- *     parameters:
- *       - in: path
- *         name: groupId
- *         required: true
- *         schema:
- *           type: string
- *         description: Group ID
- *     requestBody:
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               name:
- *                 type: string
- *                 minLength: 1
- *                 maxLength: 100
- *               description:
- *                 type: string
- *                 maxLength: 500
- *     responses:
- *       200:
- *         description: Group updated successfully
- *       401:
- *         description: Unauthorized
- *       403:
- *         description: Not a group admin
- *       404:
- *         description: Group not found
- *   delete:
- *     tags:
- *       - Groups
- *     summary: Delete group
- *     description: Permanently deletes group (creator/admin only)
- *     security:
- *       - PrivyAuth: []
- *     parameters:
- *       - in: path
- *         name: groupId
- *         required: true
- *         schema:
- *           type: string
- *         description: Group ID
- *     responses:
- *       200:
- *         description: Group deleted successfully
- *       401:
- *         description: Unauthorized
- *       403:
- *         description: Not authorized to delete group
- *       404:
- *         description: Group not found
- *
- * @example
- * ```typescript
- * // Get group details
- * const group = await fetch(`/api/groups/${groupId}`, {
- *   headers: { 'Authorization': `Bearer ${token}` }
- * });
- *
- * // Update group
- * await fetch(`/api/groups/${groupId}`, {
- *   method: 'PUT',
- *   headers: { 'Authorization': `Bearer ${token}` },
- *   body: JSON.stringify({
- *     name: 'New Group Name',
- *     description: 'Updated description'
- *   })
- * });
- * ```
- *
- * @see {@link /lib/db/context} RLS context
+ * information with members. PUT updates group name/description (admin/owner only).
+ * DELETE removes the group (owner only).
  */
 
 import {
@@ -153,7 +32,7 @@ const UpdateGroupSchema = z.object({
 
 /**
  * GET /api/groups/[groupId]
- * Get group details including members and admins
+ * Get group details including members (using unified schema)
  */
 export const GET = withErrorHandling(
   async (
@@ -164,8 +43,8 @@ export const GET = withErrorHandling(
     const { groupId } = await params;
 
     const groupDetails = await asUser(user, async (db) => {
-      // Fetch the group
-      const group = await db.userGroup.findUnique({
+      // Fetch the group (unified schema)
+      const group = await db.group.findUnique({
         where: { id: groupId },
       });
 
@@ -173,51 +52,59 @@ export const GET = withErrorHandling(
         throw new ApiError('Group not found', 404);
       }
 
-      // Fetch members and admins separately
-      const groupMembers = await db.userGroupMember.findMany({
-        where: { groupId },
+      // Fetch members (unified GroupMember)
+      const members = await db.groupMember.findMany({
+        where: { groupId, isActive: true },
       });
 
-      const groupAdmins = await db.userGroupAdmin.findMany({
-        where: { groupId },
-      });
-
-      const isMember = groupMembers.some((m) => m.userId === user.userId);
-      const isAdmin = groupAdmins.some((a) => a.userId === user.userId);
-
-      if (!isMember && !isAdmin) {
+      // Check if user is a member
+      const userMembership = members.find((m) => m.userId === user.userId);
+      if (!userMembership) {
         throw new ApiError('You are not a member of this group', 403);
       }
 
-      // Fetch member details
-      const memberIds = groupMembers.map((m) => m.userId);
-      const members = await db.user.findMany({
+      // Fetch member user details
+      const memberIds = members.map((m) => m.userId);
+      const memberUsers = await db.user.findMany({
         where: {
           id: { in: memberIds },
         },
       });
 
-      const adminIds = groupAdmins.map((a) => a.userId);
+      // Get the chat for this group (Chat.groupId → Group.id)
+      const groupChat = await db.chat.findFirst({
+        where: { groupId },
+        select: { id: true },
+      });
 
       return {
         id: group.id,
         name: group.name,
         description: group.description,
+        type: group.type,
+        chatId: groupChat?.id || null,
+        ownerId: group.ownerId,
         createdById: group.createdById,
         createdAt: group.createdAt,
         updatedAt: group.updatedAt,
-        members: members.map((m) => ({
-          id: m.id,
-          displayName: m.displayName,
-          username: m.username,
-          profileImageUrl: m.profileImageUrl,
-          isAdmin: adminIds.includes(m.id),
-          joinedAt:
-            groupMembers.find((gm) => gm.userId === m.id)?.joinedAt ||
-            new Date(),
-        })),
-        isAdmin,
-        isCreator: group.createdById === user.userId,
+        members: memberUsers.map((u) => {
+          const membership = members.find((m) => m.userId === u.id);
+          return {
+            id: u.id,
+            displayName: u.displayName,
+            username: u.username,
+            profileImageUrl: u.profileImageUrl,
+            role: membership?.role ?? 'member',
+            isAdmin:
+              membership?.role === 'admin' || membership?.role === 'owner',
+            isOwner: membership?.role === 'owner',
+            joinedAt: membership?.joinedAt || new Date(),
+          };
+        }),
+        userRole: userMembership.role,
+        isAdmin:
+          userMembership.role === 'admin' || userMembership.role === 'owner',
+        isOwner: userMembership.role === 'owner',
       };
     });
 
@@ -233,7 +120,7 @@ export const GET = withErrorHandling(
 
 /**
  * PATCH /api/groups/[groupId]
- * Update group details (admin only)
+ * Update group details (admin/owner only, using unified schema)
  */
 export const PATCH = withErrorHandling(
   async (
@@ -246,20 +133,21 @@ export const PATCH = withErrorHandling(
     const data = UpdateGroupSchema.parse(body);
 
     const updatedGroup = await asUser(user, async (db) => {
-      // Check if user is admin
-      const isAdmin = await db.userGroupAdmin.findFirst({
+      // Check if user is admin or owner (unified GroupMember)
+      const membership = await db.groupMember.findFirst({
         where: {
           groupId,
           userId: user.userId,
+          isActive: true,
         },
       });
 
-      if (!isAdmin) {
+      if (!membership || !['admin', 'owner'].includes(membership.role)) {
         throw new ApiError('Only group admins can update group details', 403);
       }
 
-      // Update group
-      const group = await db.userGroup.update({
+      // Update group (unified schema)
+      const group = await db.group.update({
         where: { id: groupId },
         data: {
           ...data,
@@ -267,13 +155,10 @@ export const PATCH = withErrorHandling(
         },
       });
 
-      // Update associated chat name if name changed
+      // Update associated chat name if name changed (Chat.groupId → Group.id)
       if (data.name) {
         await db.chat.updateMany({
-          where: {
-            groupId: groupId,
-            isGroup: true,
-          },
+          where: { groupId },
           data: {
             name: data.name,
             updatedAt: new Date(),
@@ -296,7 +181,7 @@ export const PATCH = withErrorHandling(
 
 /**
  * DELETE /api/groups/[groupId]
- * Delete a group (admin only)
+ * Delete a group (owner only, using unified schema)
  */
 export const DELETE = withErrorHandling(
   async (
@@ -307,24 +192,57 @@ export const DELETE = withErrorHandling(
     const { groupId } = await params;
 
     await asUser(user, async (db) => {
-      // Check if user is admin
-      const isAdmin = await db.userGroupAdmin.findFirst({
+      // Check if user is owner (unified GroupMember)
+      const membership = await db.groupMember.findFirst({
         where: {
           groupId,
           userId: user.userId,
+          isActive: true,
         },
       });
 
-      if (!isAdmin) {
-        throw new ApiError('Only group admins can delete the group', 403);
+      if (!membership || membership.role !== 'owner') {
+        throw new ApiError('Only the group owner can delete the group', 403);
       }
 
-      // Delete group (cascades to members and admins)
-      await db.userGroup.delete({
+      // Find the chat for this group (Chat.groupId → Group.id)
+      const groupChat = await db.chat.findFirst({
+        where: { groupId },
+        select: { id: true },
+      });
+
+      // Delete group members
+      await db.groupMember.deleteMany({
+        where: { groupId },
+      });
+
+      // Delete group invites
+      await db.groupInvite.deleteMany({
+        where: { groupId },
+      });
+
+      // Delete the group
+      await db.group.delete({
         where: { id: groupId },
       });
 
-      // Note: Associated chats remain but could be cleaned up separately
+      // Clean up chat and related data if chat exists
+      if (groupChat) {
+        // Delete messages first (foreign key constraint)
+        await db.message.deleteMany({
+          where: { chatId: groupChat.id },
+        });
+
+        // Delete chat participants
+        await db.chatParticipant.deleteMany({
+          where: { chatId: groupChat.id },
+        });
+
+        // Delete the chat itself
+        await db.chat.delete({
+          where: { id: groupChat.id },
+        });
+      }
     });
 
     logger.info(

@@ -83,7 +83,7 @@ import {
   eq,
   feedbacks,
   followStatuses,
-  groupChatMemberships,
+  groupMembers,
   poolDeposits,
   referrals,
   shareActions,
@@ -180,10 +180,10 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       .delete(userInteractions)
       .where(eq(userInteractions.userId, userId));
 
-    // Delete group chat memberships
+    // Delete group memberships (unified GroupMember)
     await tx
-      .delete(groupChatMemberships)
-      .where(eq(groupChatMemberships.userId, userId));
+      .delete(groupMembers)
+      .where(eq(groupMembers.userId, userId));
 
     // Delete follow status
     await tx.delete(followStatuses).where(eq(followStatuses.userId, userId));

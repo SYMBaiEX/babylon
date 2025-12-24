@@ -1,45 +1,10 @@
 /**
  * Group Invite Decline API
  *
+ * REFACTORED: Now uses unified GroupInvite table.
+ *
  * @route POST /api/groups/invites/[inviteId]/decline - Decline group invite
  * @access Authenticated
- *
- * @description
- * Declines a group invitation. Removes the invite. User must be the invitee.
- *
- * @openapi
- * /api/groups/invites/{inviteId}/decline:
- *   post:
- *     tags:
- *       - Groups
- *     summary: Decline group invite
- *     description: Declines a group invitation (authenticated user only)
- *     security:
- *       - PrivyAuth: []
- *     parameters:
- *       - in: path
- *         name: inviteId
- *         required: true
- *         schema:
- *           type: string
- *         description: Invite ID
- *     responses:
- *       200:
- *         description: Invite declined successfully
- *       401:
- *         description: Unauthorized
- *       403:
- *         description: Not the invitee
- *       404:
- *         description: Invite not found
- *
- * @example
- * ```typescript
- * await fetch(`/api/groups/invites/${inviteId}/decline`, {
- *   method: 'POST',
- *   headers: { 'Authorization': `Bearer ${token}` }
- * });
- * ```
  */
 
 import {
@@ -54,7 +19,7 @@ import type { NextRequest } from 'next/server';
 
 /**
  * POST /api/groups/invites/[inviteId]/decline
- * Decline a group invitation
+ * Decline a group invitation (unified schema)
  */
 export const POST = withErrorHandling(
   async (
@@ -65,8 +30,8 @@ export const POST = withErrorHandling(
     const { inviteId } = await params;
 
     await asUser(user, async (db) => {
-      // Get the invite
-      const invite = await db.userGroupInvite.findUnique({
+      // Get the invite (unified GroupInvite)
+      const invite = await db.groupInvite.findUnique({
         where: { id: inviteId },
       });
 
@@ -82,8 +47,8 @@ export const POST = withErrorHandling(
         throw new ApiError('This invite has already been processed', 400);
       }
 
-      // Update invite status
-      await db.userGroupInvite.update({
+      // Update invite status (unified GroupInvite)
+      await db.groupInvite.update({
         where: { id: inviteId },
         data: {
           status: 'declined',

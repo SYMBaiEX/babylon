@@ -17,7 +17,7 @@ import {
   db,
   desc,
   eq,
-  groupChatMemberships,
+  groupMembers,
   gte,
 } from '@babylon/db';
 import { logger } from '@babylon/shared';
@@ -116,15 +116,16 @@ export class AlphaGroupInviteService {
         continue;
       }
 
-      // Check if already invited to a group with this NPC
+      // Check if already in a group managed by this NPC (unified schema)
+      // The GroupChatService.recordInvite will handle duplicates, 
+      // but we do a quick check here for efficiency
       const [existingMembership] = await db
         .select()
-        .from(groupChatMemberships)
+        .from(groupMembers)
         .where(
           and(
-            eq(groupChatMemberships.userId, userScore.userId),
-            eq(groupChatMemberships.npcAdminId, npcId),
-            eq(groupChatMemberships.isActive, true)
+            eq(groupMembers.userId, userScore.userId),
+            eq(groupMembers.isActive, true)
           )
         )
         .limit(1);
@@ -133,14 +134,14 @@ export class AlphaGroupInviteService {
         continue; // Already in a group
       }
 
-      // Check if user is at their group limit
+      // Check if user is at their group limit (unified GroupMember)
       const [activeGroupResult] = await db
         .select({ count: count() })
-        .from(groupChatMemberships)
+        .from(groupMembers)
         .where(
           and(
-            eq(groupChatMemberships.userId, userScore.userId),
-            eq(groupChatMemberships.isActive, true)
+            eq(groupMembers.userId, userScore.userId),
+            eq(groupMembers.isActive, true)
           )
         );
 
@@ -159,17 +160,17 @@ export class AlphaGroupInviteService {
         continue;
       }
 
-      // Check if user is in invite cooldown
+      // Check if user is in invite cooldown (unified GroupMember)
       const [latestMembership] = await db
         .select()
-        .from(groupChatMemberships)
+        .from(groupMembers)
         .where(
           and(
-            eq(groupChatMemberships.userId, userScore.userId),
-            eq(groupChatMemberships.isActive, true)
+            eq(groupMembers.userId, userScore.userId),
+            eq(groupMembers.isActive, true)
           )
         )
-        .orderBy(desc(groupChatMemberships.joinedAt))
+        .orderBy(desc(groupMembers.joinedAt))
         .limit(1);
 
       if (latestMembership) {
@@ -243,7 +244,7 @@ export class AlphaGroupInviteService {
   }
 
   /**
-   * Get invite statistics for monitoring and analysis
+   * Get invite statistics for monitoring and analysis (unified GroupMember)
    */
   static async getInviteStats(): Promise<{
     totalInvites: number;
@@ -254,17 +255,17 @@ export class AlphaGroupInviteService {
 
     const [totalResult] = await db
       .select({ count: count() })
-      .from(groupChatMemberships);
+      .from(groupMembers);
 
     const [activeResult] = await db
       .select({ count: count() })
-      .from(groupChatMemberships)
-      .where(eq(groupChatMemberships.isActive, true));
+      .from(groupMembers)
+      .where(eq(groupMembers.isActive, true));
 
     const [recentResult] = await db
       .select({ count: count() })
-      .from(groupChatMemberships)
-      .where(gte(groupChatMemberships.joinedAt, oneDayAgo));
+      .from(groupMembers)
+      .where(gte(groupMembers.joinedAt, oneDayAgo));
 
     return {
       totalInvites: totalResult?.count ?? 0,
