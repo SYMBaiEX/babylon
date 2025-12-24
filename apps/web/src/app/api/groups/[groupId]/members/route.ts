@@ -175,19 +175,17 @@ export const POST = withErrorHandling(
           if (existingInvite.status === 'pending') {
             throw new ApiError('User already has a pending invite', 400);
           }
-          // For declined invites, reset to pending (re-invite flow)
-          if (existingInvite.status === 'declined') {
-            await db.groupInvite.update({
-              where: { id: existingInvite.id },
-              data: {
-                status: 'pending',
-                invitedBy: user.userId,
-                invitedAt: new Date(),
-                respondedAt: null,
-              },
-            });
-            inviteId = existingInvite.id;
-          }
+          // For declined or accepted (user left) invites, reset to pending (re-invite flow)
+          await db.groupInvite.update({
+            where: { id: existingInvite.id },
+            data: {
+              status: 'pending',
+              invitedBy: user.userId,
+              invitedAt: new Date(),
+              respondedAt: null,
+            },
+          });
+          inviteId = existingInvite.id;
         }
 
         // Create new invite only if no existing invite was found
