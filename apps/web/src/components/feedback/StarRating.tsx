@@ -230,11 +230,11 @@ interface StarRatingInputProps {
 }
 
 const RATING_DESCRIPTIONS: Record<number, string> = {
-  1: 'Poor',
-  2: 'Below Average',
-  3: 'Average',
-  4: 'Good',
-  5: 'Excellent',
+  1: 'Nice to have',
+  2: 'Would be helpful',
+  3: 'Important',
+  4: 'Very important',
+  5: 'Must have',
 };
 
 export function StarRatingInput({

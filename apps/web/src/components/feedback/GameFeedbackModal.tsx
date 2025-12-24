@@ -270,7 +270,6 @@ export function GameFeedbackModal({ isOpen, onClose }: GameFeedbackModalProps) {
   };
 
   const config = feedbackType ? getFeedbackTypeConfig(feedbackType) : null;
-  const Icon = config?.icon;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
@@ -309,19 +308,14 @@ export function GameFeedbackModal({ isOpen, onClose }: GameFeedbackModalProps) {
               </button>
 
               {/* Feedback Type Header */}
-              {config && Icon && (
-                <div className="flex items-center gap-3 rounded-lg bg-muted/30 p-4">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#1c9cf0]/20">
-                    <Icon className="h-5 w-5 text-[#1c9cf0]" />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-foreground">
-                      {config.title}
-                    </h3>
-                    <p className="text-muted-foreground text-sm">
-                      {config.description}
-                    </p>
-                  </div>
+              {config && (
+                <div className="rounded-lg bg-muted/30 p-4">
+                  <h3 className="font-semibold text-foreground">
+                    {config.title}
+                  </h3>
+                  <p className="mt-1 text-muted-foreground text-sm">
+                    {config.description}
+                  </p>
                 </div>
               )}
 
