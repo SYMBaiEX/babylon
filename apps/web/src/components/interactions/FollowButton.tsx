@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { useAuth } from '@/hooks/useAuth';
 import { useSocialTracking } from '@/hooks/usePostHog';
+import { getAuthToken } from '@/lib/auth';
 
 /**
  * Follow button component for following/unfollowing users.
@@ -74,8 +75,7 @@ export function FollowButton({
         return;
       }
 
-      const token =
-        typeof window !== 'undefined' ? window.__privyAccessToken : null;
+      const token = getAuthToken();
       if (!token) {
         setIsChecking(false);
         return;
@@ -131,8 +131,7 @@ export function FollowButton({
     }
 
     setIsLoading(true);
-    const token =
-      typeof window !== 'undefined' ? window.__privyAccessToken : null;
+    const token = getAuthToken();
     if (!token) {
       toast.error('Authentication required');
       setIsLoading(false);

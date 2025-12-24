@@ -25,6 +25,7 @@ import { Avatar } from '@/components/shared/Avatar';
 import { Separator } from '@/components/shared/Separator';
 import { useAuth } from '@/hooks/useAuth';
 import { useUnreadMessages } from '@/hooks/useUnreadMessages';
+import { getAuthToken } from '@/lib/auth';
 
 /**
  * Main sidebar content component with navigation and user menu.
@@ -80,8 +81,7 @@ function SidebarContent() {
     }
 
     const fetchUnreadCount = async () => {
-      const token =
-        typeof window !== 'undefined' ? window.__privyAccessToken : null;
+      const token = getAuthToken();
 
       if (!token) {
         return;

@@ -1,3 +1,3 @@
 export { AgentConfigForm } from './AgentConfigForm';
-export { EditProfileModal } from './EditProfileModal';
+export { AgentSetupModal } from './AgentSetupModal';
 export { ProfilePreviewCard } from './ProfilePreviewCard';

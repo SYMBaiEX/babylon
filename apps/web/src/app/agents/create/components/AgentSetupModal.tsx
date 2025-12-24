@@ -1,30 +1,43 @@
 'use client';
 
 import { cn } from '@babylon/shared';
-import { ChevronLeft, ChevronRight, Upload, X as XIcon } from 'lucide-react';
+import {
+  AlertCircle,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  Loader2,
+  Upload,
+  X as XIcon,
+} from 'lucide-react';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
 import type { ProfileFormData } from '../hooks/useAgentForm';
+import { useAgentUsernameCheck } from '../hooks/useAgentUsernameCheck';
 
 const TOTAL_PROFILE_PICTURES = 100;
 const TOTAL_BANNERS = 100;
 
-interface EditProfileModalProps {
+interface AgentSetupModalProps {
   isOpen: boolean;
   onClose: () => void;
   profileData: ProfileFormData;
   onSave: (data: ProfileFormData) => void;
 }
 
-export function EditProfileModal({
+export function AgentSetupModal({
   isOpen,
   onClose,
   profileData,
   onSave,
-}: EditProfileModalProps) {
+}: AgentSetupModalProps) {
   const { getAccessToken } = useAuth();
   const [localData, setLocalData] = useState<ProfileFormData>(profileData);
+
+  // Username availability check
+  const { usernameStatus, usernameSuggestion, isCheckingUsername, retryCheck } =
+    useAgentUsernameCheck(localData.username);
   const [uploadingImage, setUploadingImage] = useState<
     'profile' | 'cover' | null
   >(null);
@@ -165,9 +178,17 @@ export function EditProfileModal({
     [handleImageUpload]
   );
 
-  const handleSave = () => {
+  const handleContinue = () => {
     if (!localData.username.trim()) {
       toast.error('Username is required');
+      return;
+    }
+    if (localData.username.length < 3) {
+      toast.error('Username must be at least 3 characters');
+      return;
+    }
+    if (usernameStatus !== 'available') {
+      toast.error('Please choose an available username');
       return;
     }
     if (!localData.displayName.trim()) {
@@ -179,8 +200,22 @@ export function EditProfileModal({
       profileImageUrl: currentProfileImage,
       coverImageUrl: currentBanner,
     });
-    onClose();
+    // Note: onSave handler in page.tsx closes the modal via setShowProfileModal(false)
+    // Don't call onClose() here as that redirects away
   };
+
+  const handleUseSuggestion = useCallback(() => {
+    if (usernameSuggestion) {
+      setLocalData((prev) => ({ ...prev, username: usernameSuggestion }));
+    }
+  }, [usernameSuggestion]);
+
+  const isContinueDisabled =
+    !localData.displayName.trim() ||
+    !localData.username.trim() ||
+    localData.username.length < 3 ||
+    usernameStatus !== 'available' ||
+    isCheckingUsername;
 
   if (!isOpen) return null;
 
@@ -197,13 +232,17 @@ export function EditProfileModal({
             >
               <XIcon className="h-5 w-5" />
             </button>
-            <h2 className="truncate font-bold text-lg">Edit Agent Profile</h2>
+            <h2 className="truncate font-bold text-lg">Set Up Your Agent</h2>
           </div>
           <button
-            onClick={handleSave}
-            className="shrink-0 rounded-lg bg-[#0066FF] px-4 py-2 font-medium text-primary-foreground text-sm transition-colors hover:bg-[#2952d9]"
+            onClick={handleContinue}
+            disabled={isContinueDisabled}
+            className={cn(
+              'shrink-0 rounded-lg bg-[#0066FF] px-4 py-2 font-medium text-primary-foreground text-sm transition-colors hover:bg-[#2952d9]',
+              'disabled:cursor-not-allowed disabled:opacity-50'
+            )}
           >
-            Save
+            Continue
           </button>
         </div>
 
@@ -310,7 +349,15 @@ export function EditProfileModal({
               >
                 Username *
               </label>
-              <div className="flex items-center rounded-lg border border-border bg-muted focus-within:ring-2 focus-within:ring-[#0066FF]">
+              <div
+                className={cn(
+                  'flex items-center rounded-lg border bg-muted focus-within:ring-2 focus-within:ring-[#0066FF]',
+                  usernameStatus === 'taken' && 'border-red-500',
+                  usernameStatus === 'error' && 'border-yellow-500',
+                  usernameStatus === 'available' && 'border-green-500',
+                  !usernameStatus && 'border-border'
+                )}
+              >
                 <span className="px-4 text-muted-foreground">@</span>
                 <input
                   id="edit-username"
@@ -321,13 +368,70 @@ export function EditProfileModal({
                       ...prev,
                       username: e.target.value
                         .toLowerCase()
-                        .replace(/[^a-z0-9_-]/g, ''),
+                        .replace(/[^a-z0-9_]/g, ''),
                     }))
                   }
-                  className="w-full bg-transparent py-3 pr-4 focus:outline-none"
+                  maxLength={20}
+                  className="w-full bg-transparent py-3 pr-10 focus:outline-none"
                   placeholder="agent_username"
+                  aria-invalid={
+                    usernameStatus === 'taken' || usernameStatus === 'error'
+                  }
+                  aria-describedby="username-status username-help"
                 />
+                {/* Status indicator */}
+                <div className="pr-3">
+                  {isCheckingUsername && (
+                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                  )}
+                  {!isCheckingUsername && usernameStatus === 'available' && (
+                    <Check className="h-4 w-4 text-green-500" />
+                  )}
+                  {!isCheckingUsername && usernameStatus === 'taken' && (
+                    <XIcon className="h-4 w-4 text-red-500" />
+                  )}
+                  {!isCheckingUsername && usernameStatus === 'error' && (
+                    <AlertCircle className="h-4 w-4 text-yellow-500" />
+                  )}
+                </div>
               </div>
+              {/* Suggestion */}
+              {usernameStatus === 'taken' && usernameSuggestion && (
+                <p className="mt-1.5 text-muted-foreground text-xs">
+                  Username taken. Try:{' '}
+                  <button
+                    type="button"
+                    onClick={handleUseSuggestion}
+                    className="text-primary underline hover:text-primary/80"
+                  >
+                    {usernameSuggestion}
+                  </button>
+                </p>
+              )}
+              {/* Error with retry */}
+              {usernameStatus === 'error' && (
+                <p className="mt-1.5 text-xs text-yellow-600">
+                  Failed to check username.{' '}
+                  <button
+                    type="button"
+                    onClick={retryCheck}
+                    className="underline hover:text-yellow-500"
+                  >
+                    Retry
+                  </button>
+                </p>
+              )}
+              {localData.username && localData.username.length < 3 && (
+                <p id="username-status" className="mt-1.5 text-red-500 text-xs">
+                  Username must be at least 3 characters
+                </p>
+              )}
+              <p
+                id="username-help"
+                className="mt-1.5 text-muted-foreground text-xs"
+              >
+                3-20 characters. Letters, numbers, and underscores only.
+              </p>
             </div>
 
             {/* Display Name */}
@@ -353,29 +457,6 @@ export function EditProfileModal({
                   'focus:outline-none focus:ring-2 focus:ring-[#0066FF]'
                 )}
                 placeholder="My Awesome Agent"
-              />
-            </div>
-
-            {/* Bio */}
-            <div>
-              <label
-                htmlFor="edit-bio"
-                className="mb-2 block font-medium text-sm"
-              >
-                Bio
-              </label>
-              <textarea
-                id="edit-bio"
-                value={localData.bio}
-                onChange={(e) =>
-                  setLocalData((prev) => ({ ...prev, bio: e.target.value }))
-                }
-                placeholder="A brief description of your agent..."
-                rows={3}
-                className={cn(
-                  'w-full resize-none rounded-lg border border-border bg-muted px-4 py-3',
-                  'focus:outline-none focus:ring-2 focus:ring-[#0066FF]'
-                )}
               />
             </div>
           </div>

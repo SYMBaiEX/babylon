@@ -34,6 +34,7 @@ import { cn } from '@babylon/shared';
 import { Loader2, Send } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
+import { getAuthToken } from '@/lib/auth';
 import { ScoreSlider } from './ScoreSlider';
 import { StarRatingInput } from './StarRating';
 
@@ -78,8 +79,7 @@ export function FeedbackForm({
 
     setSubmitting(true);
 
-    const token =
-      typeof window !== 'undefined' ? window.__privyAccessToken : null;
+    const token = getAuthToken();
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
     };

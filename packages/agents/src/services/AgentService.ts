@@ -100,6 +100,7 @@ export class AgentServiceV2 {
     const {
       userId: managerUserId,
       name,
+      username: providedUsername,
       description,
       profileImageUrl,
       coverImageUrl,
@@ -128,12 +129,46 @@ export class AgentServiceV2 {
       }
     }
 
-    const baseUsername = name
-      .toLowerCase()
-      .replace(/[^a-z0-9]/g, '_')
-      .substring(0, 20);
-    const randomSuffix = Math.random().toString(36).substring(2, 8);
-    const agentUsername = `agent_${baseUsername}_${randomSuffix}`;
+    // Use provided username or generate one
+    let agentUsername: string;
+    if (providedUsername) {
+      const trimmed = providedUsername.trim().toLowerCase();
+
+      // Validate format - reject invalid characters instead of sanitizing
+      if (!/^[a-z0-9_]+$/.test(trimmed)) {
+        throw new Error(
+          'Username can only contain lowercase letters, numbers, and underscores'
+        );
+      }
+
+      // Validate username length
+      if (trimmed.length < 3) {
+        throw new Error('Username must be at least 3 characters');
+      }
+      if (trimmed.length > 20) {
+        throw new Error('Username must be at most 20 characters');
+      }
+
+      agentUsername = trimmed;
+
+      // Check uniqueness
+      const existingUser = await db
+        .select({ id: users.id })
+        .from(users)
+        .where(eq(users.username, agentUsername))
+        .limit(1);
+      if (existingUser.length > 0) {
+        throw new Error(`Username '${agentUsername}' is already taken`);
+      }
+    } else {
+      // Auto-generate username for programmatic use cases
+      const baseUsername = name
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, '_')
+        .substring(0, 20);
+      const randomSuffix = Math.random().toString(36).substring(2, 8);
+      agentUsername = `${baseUsername}_${randomSuffix}`;
+    }
     const agentUserId = await generateSnowflakeId();
 
     const agent = await withTransaction(async (tx) => {

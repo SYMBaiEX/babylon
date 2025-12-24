@@ -113,6 +113,11 @@ export async function GET(req: NextRequest) {
   const { recipientId, adminId, status, limit, offset } = validation.data;
 
   // Auto-expire old pending escrows before querying
+  // NOTE: This is a side-effect in a read endpoint for convenience.
+  // It ensures expired escrows are marked correctly when admins view the list.
+  // The update is idempotent (only affects pending escrows past their expiresAt)
+  // and uses a single atomic UPDATE, so concurrent requests are safe.
+  // For high-traffic production, consider moving this to a cron job instead.
   const now = new Date();
   await db
     .update(moderationEscrows)

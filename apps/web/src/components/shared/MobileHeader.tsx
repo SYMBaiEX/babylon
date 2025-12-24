@@ -19,6 +19,7 @@ import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { Avatar } from '@/components/shared/Avatar';
 import { useAuth } from '@/hooks/useAuth';
+import { getAuthToken } from '@/lib/auth';
 import { useAuthStore } from '@/stores/authStore';
 
 /**
@@ -99,8 +100,7 @@ function MobileHeaderContent() {
         return;
       }
 
-      const token =
-        typeof window !== 'undefined' ? window.__privyAccessToken : null;
+      const token = getAuthToken();
       if (!token) {
         // No token available yet, skip fetching protected data
         return;
@@ -162,8 +162,7 @@ function MobileHeaderContent() {
     }
 
     const fetchUnreadCount = async () => {
-      const token =
-        typeof window !== 'undefined' ? window.__privyAccessToken : null;
+      const token = getAuthToken();
 
       if (!token) {
         return;

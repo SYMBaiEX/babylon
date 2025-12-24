@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { Avatar } from '@/components/shared/Avatar';
 import { Skeleton } from '@/components/shared/Skeleton';
+import { getAuthToken } from '@/lib/auth';
 
 /**
  * Referred user structure for rewards widget.
@@ -106,8 +107,7 @@ export function RewardsWidget({ userId }: RewardsWidgetProps) {
 
       setLoading(true);
 
-      const token =
-        typeof window !== 'undefined' ? window.__privyAccessToken : null;
+      const token = getAuthToken();
       if (!token) {
         setLoading(false);
         rewardsWidgetFetchInFlight = false;
