@@ -1,6 +1,5 @@
 {
   "lockfileVersion": 1,
-  "configVersion": 0,
   "workspaces": {
     "": {
       "name": "babylon",
@@ -267,7 +266,7 @@
         "@babylon/engine": "workspace:*",
         "@babylon/shared": "workspace:*",
         "@babylon/training": "workspace:*",
-        "@elizaos/core": "^1.6.4",
+        "@elizaos/core": "^1.7.0",
         "@elizaos/plugin-anthropic": "^1.5.12",
         "@elizaos/plugin-openai": "^1.5.18",
         "@huggingface/hub": "^2.6.12",
