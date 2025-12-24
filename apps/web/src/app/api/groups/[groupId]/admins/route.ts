@@ -1,8 +1,6 @@
 /**
  * Group Admins Management API
  *
- * REFACTORED: Now uses unified GroupMember.role instead of separate UserGroupAdmin table.
- *
  * @route POST /api/groups/[groupId]/admins - Promote member to admin
  * @route DELETE /api/groups/[groupId]/admins - Demote admin to member
  * @access Authenticated (group admin/owner only)
@@ -25,7 +23,7 @@ const PromoteAdminSchema = z.object({
 
 /**
  * POST /api/groups/[groupId]/admins
- * Promote a member to admin (admin/owner only, unified schema)
+ * Promote a member to admin (admin/owner only)
  */
 export const POST = withErrorHandling(
   async (
@@ -38,7 +36,7 @@ export const POST = withErrorHandling(
     const data = PromoteAdminSchema.parse(body);
 
     await asUser(user, async (db) => {
-      // Check if user is admin or owner (unified GroupMember)
+      // Check if user is admin or owner
       const userMembership = await db.groupMember.findFirst({
         where: {
           groupId,
@@ -57,7 +55,7 @@ export const POST = withErrorHandling(
         );
       }
 
-      // Get target user's membership (unified GroupMember)
+      // Get target user's membership
       const targetMembership = await db.groupMember.findFirst({
         where: {
           groupId,
@@ -97,7 +95,7 @@ export const POST = withErrorHandling(
 
 /**
  * DELETE /api/groups/[groupId]/admins
- * Demote admin to member (admin/owner only, unified schema)
+ * Demote admin to member (admin/owner only)
  */
 export const DELETE = withErrorHandling(
   async (
@@ -114,7 +112,7 @@ export const DELETE = withErrorHandling(
     }
 
     await asUser(user, async (db) => {
-      // Check if user is admin or owner (unified GroupMember)
+      // Check if user is admin or owner
       const userMembership = await db.groupMember.findFirst({
         where: {
           groupId,
@@ -130,7 +128,7 @@ export const DELETE = withErrorHandling(
         throw new ApiError('Only group admins can demote admins', 403);
       }
 
-      // Get target user's membership (unified GroupMember)
+      // Get target user's membership
       const targetMembership = await db.groupMember.findFirst({
         where: {
           groupId,

@@ -24,7 +24,7 @@ export const chats = pgTable(
     relatedQuestion: integer('relatedQuestion'),
     createdAt: timestamp('createdAt', { mode: 'date' }).notNull().defaultNow(),
     updatedAt: timestamp('updatedAt', { mode: 'date' }).notNull(),
-    groupId: text('groupId'), // Link to unified Group table
+    groupId: text('groupId'),
   },
   (table) => [
     index('Chat_gameId_dayNumber_idx').on(table.gameId, table.dayNumber),
@@ -151,11 +151,11 @@ export const notifications = pgTable(
 );
 
 // ============================================================================
-// UNIFIED GROUP SYSTEM
+// GROUP SYSTEM
 // ============================================================================
 
 /**
- * Group - unified table for all group types
+ * Group table for all group types
  * Supports: user-created groups, NPC-managed groups, agent-created groups
  *
  * Relationship: Chat.groupId → Group.id (one Chat per Group)
@@ -184,7 +184,7 @@ export const groups = pgTable(
 );
 
 /**
- * GroupMember - unified membership table with roles and quality tracking
+ * GroupMember - membership table with roles and quality tracking
  */
 export const groupMembers = pgTable(
   'GroupMember',
@@ -219,7 +219,7 @@ export const groupMembers = pgTable(
 );
 
 /**
- * GroupInvite - unified invite system
+ * GroupInvite - invite system
  */
 export const groupInvites = pgTable(
   'GroupInvite',
@@ -313,7 +313,7 @@ export type NewDMAcceptance = typeof dmAcceptances.$inferInsert;
 export type Notification = typeof notifications.$inferSelect;
 export type NewNotification = typeof notifications.$inferInsert;
 
-// Unified Group types
+// Group types
 export type Group = typeof groups.$inferSelect;
 export type NewGroup = typeof groups.$inferInsert;
 export type GroupMember = typeof groupMembers.$inferSelect;

@@ -16,7 +16,6 @@
  * - Over-posting (spam behavior)
  * - Low quality (average quality below threshold)
  *
- * REFACTORED: Now uses unified Group/GroupMember/GroupInvite tables
  */
 
 import {
@@ -270,7 +269,7 @@ export class GroupChatService {
   }
 
   /**
-   * Record a group chat invite - uses unified Group system
+   * Record a group chat invite
    * Chat.groupId → Group.id relationship
    */
   static async recordInvite(
@@ -357,7 +356,7 @@ export class GroupChatService {
       .limit(1);
 
     if (!existingMember) {
-      // Record membership in unified GroupMember table
+      // Record membership
       await db.insert(groupMembers).values({
         id: await generateSnowflakeId(),
         groupId,
@@ -388,7 +387,7 @@ export class GroupChatService {
    * Chat.groupId → Group.id relationship
    */
   static async getUserGroupChats(userId: string): Promise<GroupChatData[]> {
-    // Query using unified tables - join through Chat.groupId
+    // Query via Chat.groupId
     const memberships = await db
       .select({
         groupId: groups.id,

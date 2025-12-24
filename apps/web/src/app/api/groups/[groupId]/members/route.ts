@@ -1,8 +1,6 @@
 /**
  * Group Members API
  *
- * REFACTORED: Now uses unified Group/GroupMember/GroupInvite tables.
- *
  * @route POST /api/groups/[groupId]/members - Add member to group (sends invite)
  * @route DELETE /api/groups/[groupId]/members - Remove member from group
  * @access Authenticated (admins can add/remove, members can self-remove)
@@ -27,7 +25,7 @@ const AddMemberSchema = z.object({
 
 /**
  * POST /api/groups/[groupId]/members
- * Add a member to the group via invite (admin only, using unified schema)
+ * Add a member to the group via invite (admin only)
  */
 export const POST = withErrorHandling(
   async (
@@ -44,7 +42,7 @@ export const POST = withErrorHandling(
     let isAgent = false;
 
     await asUser(user, async (db) => {
-      // Check if user is admin or owner (unified GroupMember)
+      // Check if user is admin or owner
       const membership = await db.groupMember.findFirst({
         where: {
           groupId,
@@ -64,7 +62,7 @@ export const POST = withErrorHandling(
       });
       isAgent = invitee?.isAgent === true;
 
-      // Check if user is already a member (unified GroupMember)
+      // Check if user is already a member
       const existingMember = await db.groupMember.findFirst({
         where: {
           groupId,
@@ -77,7 +75,7 @@ export const POST = withErrorHandling(
         throw new ApiError('User is already a member of this group', 400);
       }
 
-      // Get group details for notification (unified Group)
+      // Get group details for notification
       const group = await db.group.findUnique({
         where: { id: groupId },
         select: { name: true },
@@ -227,7 +225,7 @@ export const POST = withErrorHandling(
 
 /**
  * DELETE /api/groups/[groupId]/members
- * Remove a member from the group (admin only or self, using unified schema)
+ * Remove a member from the group (admin only or self)
  */
 export const DELETE = withErrorHandling(
   async (
@@ -279,7 +277,7 @@ export const DELETE = withErrorHandling(
         throw new ApiError('Cannot remove the group owner', 400);
       }
 
-      // Mark member as inactive (soft delete) - unified GroupMember
+      // Mark member as inactive (soft delete)
       await db.groupMember.update({
         where: { id: targetMembership.id },
         data: {

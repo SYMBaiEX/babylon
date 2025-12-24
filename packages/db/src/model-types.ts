@@ -127,7 +127,7 @@ export type UserAgentConfig = InferSelectModel<typeof schema.userAgentConfigs>;
 export type UserApiKey = InferSelectModel<typeof schema.userApiKeys>;
 export type TickTokenStats = InferSelectModel<typeof schema.tickTokenStats>;
 
-// Unified Group types
+// Group types
 export type Group = InferSelectModel<typeof schema.groups>;
 export type GroupMember = InferSelectModel<typeof schema.groupMembers>;
 export type GroupInvite = InferSelectModel<typeof schema.groupInvites>;
@@ -261,7 +261,7 @@ export type NewUserAgentConfig = InferInsertModel<
 export type NewUserApiKey = InferInsertModel<typeof schema.userApiKeys>;
 export type NewTickTokenStats = InferInsertModel<typeof schema.tickTokenStats>;
 
-// Unified Group types
+// Group types
 export type NewGroup = InferInsertModel<typeof schema.groups>;
 export type NewGroupMember = InferInsertModel<typeof schema.groupMembers>;
 export type NewGroupInvite = InferInsertModel<typeof schema.groupInvites>;

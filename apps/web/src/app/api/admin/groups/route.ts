@@ -204,7 +204,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
           profileImageUrl: a.profileImageUrl,
         }));
 
-      // Get all groups (unified schema) - indexed by ID for lookup
+      // Get all groups - indexed by ID for lookup
       const allUserGroups = await database
         .select({
           id: groups.id,
@@ -253,7 +253,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   // Create maps for quick lookup
   const usersMap = new Map(allUsers.map((u) => [u.id, u]));
   const actorsMap = new Map(allActors.map((a) => [a.id, a]));
-  // Map by ID for lookup via chat.groupId (new unified schema)
+  // Map by ID for lookup via chat.groupId
   const groupsById = new Map(allUserGroups.map((g) => [g.id, g]));
   // Legacy: Map by name for chats without groupId
   const groupsByName = new Map(
@@ -281,7 +281,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     let creatorName = 'Unknown';
     let creatorId: string | null = null;
 
-    // First, try to get type from unified Group schema (authoritative)
+    // First, try to get type from Group schema (authoritative)
     const linkedGroup = chat.groupId ? groupsById.get(chat.groupId) : null;
 
     if (linkedGroup) {

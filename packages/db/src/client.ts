@@ -1556,7 +1556,7 @@ export interface DrizzleClient {
     InferInsert<typeof schema.questionArcPlans>
   >;
 
-  // Unified Group system (replaces UserGroup*, GroupChatMembership, ChatInvite, ChatAdmin)
+  // Group system
   group: TableRepository<
     typeof schema.groups,
     InferSelect<typeof schema.groups>,
@@ -1920,7 +1920,7 @@ export function createDrizzleClient(drizzle: SchemaDatabase): DrizzleClient {
       'questionArcPlans'
     ),
 
-    // Unified Group system
+    // Group system
     group: new TableRepository(drizzle, schema.groups, 'groups'),
     groupMember: new TableRepository(
       drizzle,

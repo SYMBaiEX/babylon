@@ -1,8 +1,6 @@
 /**
  * Group Management API
  *
- * REFACTORED: Now uses unified Group/GroupMember tables.
- *
  * @route GET /api/groups/[groupId] - Get group details
  * @route PUT /api/groups/[groupId] - Update group
  * @route DELETE /api/groups/[groupId] - Delete group
@@ -32,7 +30,7 @@ const UpdateGroupSchema = z.object({
 
 /**
  * GET /api/groups/[groupId]
- * Get group details including members (using unified schema)
+ * Get group details including members
  */
 export const GET = withErrorHandling(
   async (
@@ -43,7 +41,7 @@ export const GET = withErrorHandling(
     const { groupId } = await params;
 
     const groupDetails = await asUser(user, async (db) => {
-      // Fetch the group (unified schema)
+      // Fetch the group
       const group = await db.group.findUnique({
         where: { id: groupId },
       });
@@ -52,7 +50,7 @@ export const GET = withErrorHandling(
         throw new ApiError('Group not found', 404);
       }
 
-      // Fetch members (unified GroupMember)
+      // Fetch members
       const members = await db.groupMember.findMany({
         where: { groupId, isActive: true },
       });
@@ -120,7 +118,7 @@ export const GET = withErrorHandling(
 
 /**
  * PATCH /api/groups/[groupId]
- * Update group details (admin/owner only, using unified schema)
+ * Update group details (admin/owner only)
  */
 export const PATCH = withErrorHandling(
   async (
@@ -133,7 +131,7 @@ export const PATCH = withErrorHandling(
     const data = UpdateGroupSchema.parse(body);
 
     const updatedGroup = await asUser(user, async (db) => {
-      // Check if user is admin or owner (unified GroupMember)
+      // Check if user is admin or owner
       const membership = await db.groupMember.findFirst({
         where: {
           groupId,
@@ -146,7 +144,7 @@ export const PATCH = withErrorHandling(
         throw new ApiError('Only group admins can update group details', 403);
       }
 
-      // Update group (unified schema)
+      // Update group
       const group = await db.group.update({
         where: { id: groupId },
         data: {
@@ -181,7 +179,7 @@ export const PATCH = withErrorHandling(
 
 /**
  * DELETE /api/groups/[groupId]
- * Delete a group (owner only, using unified schema)
+ * Delete a group (owner only)
  */
 export const DELETE = withErrorHandling(
   async (
@@ -192,7 +190,7 @@ export const DELETE = withErrorHandling(
     const { groupId } = await params;
 
     await asUser(user, async (db) => {
-      // Check if user is owner (unified GroupMember)
+      // Check if user is owner
       const membership = await db.groupMember.findFirst({
         where: {
           groupId,

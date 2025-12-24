@@ -155,7 +155,7 @@ export function createJsonClient(): DrizzleClient {
     questionArcPlan: createJsonRepo('questionArcPlans'),
     adminRole: createJsonRepo('adminRoles'),
 
-    // Unified Group system
+    // Group system
     group: createJsonRepo('groups'),
     groupMember: createJsonRepo('groupMembers'),
     groupInvite: createJsonRepo('groupInvites'),

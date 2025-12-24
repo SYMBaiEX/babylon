@@ -180,7 +180,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       .delete(userInteractions)
       .where(eq(userInteractions.userId, userId));
 
-    // Delete group memberships (unified GroupMember)
+    // Delete group memberships
     await tx.delete(groupMembers).where(eq(groupMembers.userId, userId));
 
     // Delete follow status

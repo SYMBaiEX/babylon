@@ -104,7 +104,7 @@ export class ActorSocialActions {
           continue;
         }
 
-        // Check if user is already in any group (unified schema)
+        // Check if user is already in any group
         // For NPC-specific check, we'd need to join Group.ownerId == actor.id
         const [existingMembership] = await db
           .select()

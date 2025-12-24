@@ -1,8 +1,6 @@
 /**
  * Group Invite Accept API
  *
- * REFACTORED: Now uses unified Group/GroupMember/GroupInvite tables.
- *
  * @route POST /api/groups/invites/[inviteId]/accept - Accept group invite
  * @access Authenticated
  */
@@ -20,7 +18,7 @@ import type { NextRequest } from 'next/server';
 
 /**
  * POST /api/groups/invites/[inviteId]/accept
- * Accept a group invitation (unified schema)
+ * Accept a group invitation
  */
 export const POST = withErrorHandling(
   async (
@@ -31,7 +29,7 @@ export const POST = withErrorHandling(
     const { inviteId } = await params;
 
     const result = await asUser(user, async (db) => {
-      // Get the invite (unified GroupInvite)
+      // Get the invite
       const invite = await db.groupInvite.findUnique({
         where: { id: inviteId },
       });
@@ -161,7 +159,7 @@ export const POST = withErrorHandling(
         }
       }
 
-      // Update invite status (unified GroupInvite)
+      // Update invite status
       await db.groupInvite.update({
         where: { id: inviteId },
         data: {

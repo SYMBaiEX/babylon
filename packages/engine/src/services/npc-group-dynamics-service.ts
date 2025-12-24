@@ -206,7 +206,7 @@ export class NPCGroupDynamicsService {
       const groupId = await generateSnowflakeId();
       const chatName = `${npc.name}'s Circle`;
 
-      // Create Group first (unified schema)
+      // Create Group
       await db.insert(groups).values({
         id: groupId,
         name: chatName,
@@ -235,7 +235,7 @@ export class NPCGroupDynamicsService {
       );
       await db.insert(chatParticipants).values(participantValues);
 
-      // Create GroupMember records (unified schema)
+      // Create GroupMember records
       const memberValues = await Promise.all(
         Array.from(memberIds).map(async (memberId) => ({
           id: await generateSnowflakeId(),
@@ -335,7 +335,7 @@ export class NPCGroupDynamicsService {
             userId: candidate.id,
           });
 
-          // Also add to groupMembers if chat has a groupId (unified schema)
+          // Also add to groupMembers if chat has a groupId
           if (group.groupId) {
             await db.insert(groupMembers).values({
               id: await generateSnowflakeId(),
@@ -434,7 +434,7 @@ export class NPCGroupDynamicsService {
             .delete(chatParticipants)
             .where(eq(chatParticipants.id, membership.id));
 
-          // Also update groupMembers if chat has a groupId (unified schema)
+          // Also update groupMembers if chat has a groupId
           if (chat.groupId) {
             await db
               .update(groupMembers)
@@ -1239,7 +1239,7 @@ Return your response as XML:
             .where(eq(groupInvites.id, existingInvite.id));
         }
       } else {
-        // Create new invitation using unified GroupInvite
+        // Create new invitation
         await db.insert(groupInvites).values({
           id: await generateSnowflakeId(),
           groupId,
@@ -1309,7 +1309,7 @@ Return your response as XML:
         continue;
       }
 
-      // Check 2: Invite cooldown (using unified groupMembers)
+      // Check 2: Invite cooldown
       const [latestMembership] = await db
         .select()
         .from(groupMembers)
@@ -1490,7 +1490,7 @@ Return your response as XML:
               )
             );
 
-          // If GroupMember exists, mark as removed (unified schema)
+          // If GroupMember exists, mark as removed
           // Chat.groupId → Group.id relationship
           if (group.groupId) {
             await db

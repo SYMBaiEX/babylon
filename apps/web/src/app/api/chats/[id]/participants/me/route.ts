@@ -1,8 +1,6 @@
 /**
  * Chat Leave API
  *
- * REFACTORED: Now uses unified Group/GroupMember tables.
- *
  * @route DELETE /api/chats/[id]/participants/me - Leave chat
  * @access Authenticated
  */

@@ -133,7 +133,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     return NextResponse.json({ error: 'User not found' }, { status: 404 });
   }
 
-  // Check if user is already a member (using unified GroupMember)
+  // Check if user is already a member
   const finalChatIdCheck = chatId || `${npcId}-owned-chat`;
   const existingMembership = await asSystem(async (db) => {
     // First find the group for this chat
@@ -165,7 +165,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     'name' in npc ? npc.name : npc.displayName || npc.username || 'Unknown';
   const finalChatName = chatName || `${npcName}'s Inner Circle`;
 
-  // Record the invite using unified Group/GroupMember schema
+  // Record the invite
   await asSystem(async (db) => {
     // Find or create the group for this chat
     const chat = await db.chat.findUnique({
@@ -239,7 +239,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       });
     }
 
-    // Record membership in unified GroupMember table
+    // Record membership
     await db.groupMember.create({
       data: {
         id: await generateSnowflakeId(),

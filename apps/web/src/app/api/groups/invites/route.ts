@@ -1,8 +1,6 @@
 /**
  * Group Invites API
  *
- * REFACTORED: Now uses unified Group/GroupMember/GroupInvite tables.
- *
  * @route GET /api/groups/invites - Get pending group invites
  * @access Authenticated
  */
@@ -14,13 +12,13 @@ import type { NextRequest } from 'next/server';
 
 /**
  * GET /api/groups/invites
- * Get all pending group invites for the current user (unified schema)
+ * Get all pending group invites for the current user
  */
 export const GET = withErrorHandling(async (request: NextRequest) => {
   const user = await authenticate(request);
 
   const invites = await asUser(user, async (db) => {
-    // Get pending invites (unified GroupInvite)
+    // Get pending invites
     const pendingInvites = await db.groupInvite.findMany({
       where: {
         invitedUserId: user.userId,
@@ -35,7 +33,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       return [];
     }
 
-    // Fetch group details (unified Group)
+    // Fetch group details
     const groupIds = pendingInvites.map((inv) => inv.groupId);
     const groups = await db.group.findMany({
       where: {

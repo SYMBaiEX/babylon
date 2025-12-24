@@ -6,9 +6,6 @@
  * discussion groups, etc. Provides group listing, creation, and automatic
  * chat integration for each group.
  *
- * REFACTORED: Now uses unified Group/GroupMember tables instead of
- * UserGroup/UserGroupMember/UserGroupAdmin.
- *
  * **Features:**
  * - Create custom groups
  * - Multi-member support
@@ -166,13 +163,13 @@ const CreateGroupSchema = z.object({
 
 /**
  * GET /api/groups
- * List all groups the user is a member of (using unified schema)
+ * List all groups the user is a member of
  */
 export const GET = withErrorHandling(async (request: NextRequest) => {
   const user = await authenticate(request);
 
   const groups = await asUser(user, async (db) => {
-    // Find groups where user is a member (unified GroupMember table)
+    // Find groups where user is a member
     const memberships = await db.groupMember.findMany({
       where: {
         userId: user.userId,
@@ -247,7 +244,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
 /**
  * POST /api/groups
- * Create a new group (using unified schema)
+ * Create a new group
  */
 export const POST = withErrorHandling(async (request: NextRequest) => {
   const user = await authenticate(request);
@@ -255,7 +252,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   const data = CreateGroupSchema.parse(body);
 
   const result = await asUser(user, async (db) => {
-    // Create the group first (unified schema)
+    // Create the group
     const groupId = nanoid();
     const newGroup = await db.group.create({
       data: {
@@ -281,7 +278,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       },
     });
 
-    // Add creator as owner (unified GroupMember with role)
+    // Add creator as owner
     await db.groupMember.create({
       data: {
         id: nanoid(),

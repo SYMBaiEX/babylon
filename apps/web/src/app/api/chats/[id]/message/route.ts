@@ -386,7 +386,7 @@ export const POST = withErrorHandling(
             qualityResult.score
           );
 
-          // 9. Get updated membership stats (unified GroupMember)
+          // 9. Get updated membership stats
           // First get the group for this chat
           const chatForGroup = await db.chat.findUnique({
             where: { id: chatId },

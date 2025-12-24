@@ -1364,7 +1364,7 @@ export async function executeSendMessage(
 }
 
 /**
- * Execute create_group tool (using unified schema)
+ * Execute create_group tool
  * Chat.groupId → Group.id relationship
  */
 export async function executeCreateGroup(
@@ -1374,7 +1374,7 @@ export async function executeCreateGroup(
   const chatId = await generateSnowflakeId();
   const groupId = await generateSnowflakeId();
 
-  // Create Group first (unified schema)
+  // Create Group
   await db.group.create({
     data: {
       id: groupId,
@@ -1416,7 +1416,7 @@ export async function executeCreateGroup(
     ],
   });
 
-  // Create GroupMember records (unified schema)
+  // Create GroupMember records
   const memberIds = await Promise.all([
     generateSnowflakeId(),
     ...args.memberIds.map(() => generateSnowflakeId()),
@@ -1448,7 +1448,7 @@ export async function executeCreateGroup(
 }
 
 /**
- * Execute leave_chat tool (using unified schema)
+ * Execute leave_chat tool
  * Chat.groupId → Group.id relationship
  */
 export async function executeLeaveChat(
@@ -1547,14 +1547,13 @@ export async function executeMarkNotificationsRead(
 }
 
 /**
- * Execute get_group_invites tool (using unified schema)
+ * Execute get_group_invites tool
  * Chat.groupId → Group.id relationship
  */
 export async function executeGetGroupInvites(
   agent: AuthenticatedAgent,
   _args: GetGroupInvitesArgs
 ): Promise<GetGroupInvitesResult> {
-  // Use unified GroupInvite table
   const invitesList = await db.groupInvite.findMany({
     where: {
       invitedUserId: agent.userId,
@@ -1601,14 +1600,13 @@ export async function executeGetGroupInvites(
 }
 
 /**
- * Execute accept_group_invite tool (using unified schema)
+ * Execute accept_group_invite tool
  * Chat.groupId → Group.id relationship
  */
 export async function executeAcceptGroupInvite(
   agent: AuthenticatedAgent,
   args: AcceptGroupInviteArgs
 ): Promise<AcceptGroupInviteResult> {
-  // Use unified GroupInvite table
   const invite = await db.groupInvite.findUnique({
     where: { id: args.inviteId },
   });
@@ -1669,7 +1667,7 @@ export async function executeAcceptGroupInvite(
     });
   }
 
-  // Add to GroupMember (unified schema)
+  // Add to GroupMember
   await db.groupMember.create({
     data: {
       id: await generateSnowflakeId(),
@@ -1687,13 +1685,12 @@ export async function executeAcceptGroupInvite(
 }
 
 /**
- * Execute decline_group_invite tool (using unified schema)
+ * Execute decline_group_invite tool
  */
 export async function executeDeclineGroupInvite(
   agent: AuthenticatedAgent,
   args: DeclineGroupInviteArgs
 ): Promise<DeclineGroupInviteResult> {
-  // Use unified GroupInvite table
   const invite = await db.groupInvite.findUnique({
     where: { id: args.inviteId },
   });

@@ -316,7 +316,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
   // Get user's chats with proper RLS context
   const { groupChats, directChats } = await asUser(user, async (dbClient) => {
-    // Get user's group memberships (unified GroupMember schema)
+    // Get user's group memberships
     const memberships = await dbClient
       .select()
       .from(groupMembers)

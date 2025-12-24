@@ -1,8 +1,6 @@
 /**
  * Group Invite Decline API
  *
- * REFACTORED: Now uses unified GroupInvite table.
- *
  * @route POST /api/groups/invites/[inviteId]/decline - Decline group invite
  * @access Authenticated
  */
@@ -19,7 +17,7 @@ import type { NextRequest } from 'next/server';
 
 /**
  * POST /api/groups/invites/[inviteId]/decline
- * Decline a group invitation (unified schema)
+ * Decline a group invitation
  */
 export const POST = withErrorHandling(
   async (
@@ -30,7 +28,7 @@ export const POST = withErrorHandling(
     const { inviteId } = await params;
 
     await asUser(user, async (db) => {
-      // Get the invite (unified GroupInvite)
+      // Get the invite
       const invite = await db.groupInvite.findUnique({
         where: { id: inviteId },
       });
@@ -47,7 +45,7 @@ export const POST = withErrorHandling(
         throw new ApiError('This invite has already been processed', 400);
       }
 
-      // Update invite status (unified GroupInvite)
+      // Update invite status
       await db.groupInvite.update({
         where: { id: inviteId },
         data: {

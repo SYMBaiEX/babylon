@@ -115,7 +115,7 @@ export class AlphaGroupInviteService {
         continue;
       }
 
-      // Check if already in a group managed by this NPC (unified schema)
+      // Check if already in a group managed by this NPC
       // The GroupChatService.recordInvite will handle duplicates,
       // but we do a quick check here for efficiency
       const [existingMembership] = await db
@@ -161,7 +161,7 @@ export class AlphaGroupInviteService {
         continue;
       }
 
-      // Check if user is in invite cooldown (unified GroupMember)
+      // Check if user is in invite cooldown
       const [latestMembership] = await db
         .select()
         .from(groupMembers)
@@ -245,7 +245,7 @@ export class AlphaGroupInviteService {
   }
 
   /**
-   * Get invite statistics for monitoring and analysis (unified GroupMember)
+   * Get invite statistics for monitoring and analysis
    */
   static async getInviteStats(): Promise<{
     totalInvites: number;
