@@ -39,4 +39,3 @@ export const GameFeedbackSchema = z
   );
 
 export type GameFeedback = z.infer<typeof GameFeedbackSchema>;
-

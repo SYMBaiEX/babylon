@@ -13,9 +13,9 @@ import { toast } from 'sonner';
 import {
   BugReportFields,
   DescriptionField,
-  FeedbackTypeSelector,
   FeatureRequestFields,
   type FeedbackType,
+  FeedbackTypeSelector,
   getFeedbackTypeConfig,
 } from './forms';
 
@@ -106,7 +106,10 @@ export function GameFeedbackModal({ isOpen, onClose }: GameFeedbackModalProps) {
     setRetryAfter(null);
   };
 
-  const handleScreenshotChange = (file: File | null, preview: string | null) => {
+  const handleScreenshotChange = (
+    file: File | null,
+    preview: string | null
+  ) => {
     setScreenshot(file);
     setScreenshotPreview(preview);
     if (!file) setScreenshotUrl(null);

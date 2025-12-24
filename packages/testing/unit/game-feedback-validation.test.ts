@@ -5,8 +5,8 @@
  * Covers boundary conditions, invalid inputs, and edge cases
  */
 
-import { GameFeedbackSchema } from '@babylon/shared';
 import { describe, expect, test } from 'bun:test';
+import { GameFeedbackSchema } from '@babylon/shared';
 
 describe('Game Feedback Validation Schema', () => {
   // ============================================

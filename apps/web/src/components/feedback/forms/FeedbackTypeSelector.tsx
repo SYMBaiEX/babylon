@@ -1,7 +1,7 @@
 'use client';
 
 import { cn } from '@babylon/shared';
-import { Bug, MessageSquare, Zap, type LucideIcon } from 'lucide-react';
+import { Bug, type LucideIcon, MessageSquare, Zap } from 'lucide-react';
 
 export type FeedbackType = 'bug' | 'feature_request' | 'performance';
 
@@ -80,4 +80,3 @@ export function getFeedbackTypeConfig(type: FeedbackType): FeedbackTypeConfig {
   // Type guard: FEEDBACK_TYPES always has the bug type, so this is safe
   return config ?? FEEDBACK_TYPES[0]!;
 }
-
