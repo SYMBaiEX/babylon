@@ -253,12 +253,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   // Create maps for quick lookup
   const usersMap = new Map(allUsers.map((u) => [u.id, u]));
   const actorsMap = new Map(allActors.map((a) => [a.id, a]));
-  // Map by ID for lookup via chat.groupId
   const groupsById = new Map(allUserGroups.map((g) => [g.id, g]));
-  // Legacy: Map by name for chats without groupId
-  const groupsByName = new Map(
-    allUserGroups.filter((g) => g.name).map((g) => [g.name!, g])
-  );
 
   // Enrich with creator and participant details
   const enrichedChats = chatsList.map((chat) => {
@@ -301,41 +296,23 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         creatorId = ownerUser.id;
       }
     } else {
-      // Legacy: fallback to heuristics for chats without linked Group
+      // Legacy chats without linked Group - infer type from participants
       if (hasNPCs && !hasUsers) {
         groupType = 'npc-only';
-        // Find creator from chat name or first NPC
-        const creator =
-          actorsInChat.find((a) => chat.name?.includes(a.name)) ||
-          actorsInChat[0];
+        const creator = actorsInChat[0];
         if (creator) {
           creatorName = creator.name;
           creatorId = creator.id;
         }
       } else if (hasNPCs && hasUsers) {
         groupType = 'npc-mixed';
-        // Alpha group - NPC created
-        const creator =
-          actorsInChat.find((a) => chat.name?.includes(a.name)) ||
-          actorsInChat[0];
+        const creator = actorsInChat[0];
         if (creator) {
           creatorName = creator.name;
           creatorId = creator.id;
         }
       } else {
         groupType = 'user';
-        // Check Group table by name (legacy lookup)
-        const groupByName = chat.name ? groupsByName.get(chat.name) : null;
-
-        if (groupByName) {
-          const creator = usersInChat.find(
-            (u) => u.id === groupByName.createdById
-          );
-          if (creator) {
-            creatorName = creator.displayName || creator.username || 'Unknown';
-            creatorId = creator.id;
-          }
-        }
       }
     }
 
