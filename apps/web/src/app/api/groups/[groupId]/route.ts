@@ -209,22 +209,9 @@ export const DELETE = withErrorHandling(
         select: { id: true },
       });
 
-      // Delete group members
-      await db.groupMember.deleteMany({
-        where: { groupId },
-      });
-
-      // Delete group invites
-      await db.groupInvite.deleteMany({
-        where: { groupId },
-      });
-
-      // Delete the group
-      await db.group.delete({
-        where: { id: groupId },
-      });
-
-      // Clean up chat and related data if chat exists
+      // Clean up chat and related data FIRST (before deleting group)
+      // This ensures we don't have orphaned chat data if group deletion succeeds
+      // but chat cleanup fails
       if (groupChat) {
         // Delete messages first (foreign key constraint)
         await db.message.deleteMany({
@@ -241,6 +228,21 @@ export const DELETE = withErrorHandling(
           where: { id: groupChat.id },
         });
       }
+
+      // Delete group members
+      await db.groupMember.deleteMany({
+        where: { groupId },
+      });
+
+      // Delete group invites
+      await db.groupInvite.deleteMany({
+        where: { groupId },
+      });
+
+      // Delete the group last
+      await db.group.delete({
+        where: { id: groupId },
+      });
     });
 
     logger.info(

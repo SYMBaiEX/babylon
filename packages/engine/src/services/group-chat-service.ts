@@ -420,22 +420,14 @@ export class GroupChatService {
    * Chat.groupId → Group.id relationship
    */
   static async isInChat(userId: string, chatId: string): Promise<boolean> {
-    // First find the chat to get its groupId
-    const [chat] = await db
-      .select()
-      .from(chats)
-      .where(eq(chats.id, chatId))
-      .limit(1);
-
-    if (!chat || !chat.groupId) return false;
-
-    // Then check membership
+    // Single query with join
     const [membership] = await db
-      .select()
-      .from(groupMembers)
+      .select({ id: groupMembers.id })
+      .from(chats)
+      .innerJoin(groupMembers, eq(chats.groupId, groupMembers.groupId))
       .where(
         and(
-          eq(groupMembers.groupId, chat.groupId),
+          eq(chats.id, chatId),
           eq(groupMembers.userId, userId),
           eq(groupMembers.isActive, true)
         )

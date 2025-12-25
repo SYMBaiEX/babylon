@@ -25,6 +25,7 @@ import { generateSnowflakeId } from '@babylon/shared';
 const testIds = {
   userIds: [] as string[],
   actorIds: [] as string[],
+  groupIds: [] as string[],
   chatIds: [] as string[],
   participantIds: [] as string[],
   membershipIds: [] as string[],
@@ -98,23 +99,38 @@ async function createTestActor(options: {
 async function createTestGroupChat(options: {
   name?: string;
   npcAdminId: string;
-}): Promise<{ id: string; name: string }> {
+}): Promise<{ id: string; name: string; groupId: string }> {
   const id = await generateSnowflakeId();
   const name = options.name || `Test Group ${id.slice(-6)}`;
 
+  // Create Group first
+  const groupId = await generateSnowflakeId();
+  await db.group.create({
+    data: {
+      id: groupId,
+      name,
+      type: 'npc',
+      ownerId: options.npcAdminId,
+      createdById: options.npcAdminId,
+      updatedAt: new Date(),
+    },
+  });
+  testIds.groupIds.push(groupId);
+
+  // Create Chat linked to Group
   await db.chat.create({
     data: {
       id,
       name,
       isGroup: true,
-      npcAdminId: options.npcAdminId,
+      groupId,
       gameId: 'realtime',
       updatedAt: new Date(),
     },
   });
 
   testIds.chatIds.push(id);
-  return { id, name };
+  return { id, name, groupId };
 }
 
 // Helper to add participant to chat
@@ -141,19 +157,20 @@ async function addChatParticipant(options: {
 
 // Helper to create group membership (for NPC-managed groups)
 async function createGroupMembership(options: {
-  chatId: string;
+  groupId: string;
   userId: string;
-  npcAdminId: string;
+  addedBy?: string;
   joinedAt?: Date;
 }): Promise<string> {
   const id = await generateSnowflakeId();
 
-  await db.groupChatMembership.create({
+  await db.groupMember.create({
     data: {
       id,
-      chatId: options.chatId,
+      groupId: options.groupId,
       userId: options.userId,
-      npcAdminId: options.npcAdminId,
+      addedBy: options.addedBy,
+      role: 'member',
       isActive: true,
       joinedAt: options.joinedAt || new Date(),
     },
@@ -193,7 +210,7 @@ async function cleanupTestData(): Promise<void> {
     await db.message.deleteMany({ where: { id: { in: testIds.messageIds } } });
   }
   if (testIds.membershipIds.length > 0) {
-    await db.groupChatMembership.deleteMany({
+    await db.groupMember.deleteMany({
       where: { id: { in: testIds.membershipIds } },
     });
   }
@@ -205,6 +222,9 @@ async function cleanupTestData(): Promise<void> {
   if (testIds.chatIds.length > 0) {
     await db.chat.deleteMany({ where: { id: { in: testIds.chatIds } } });
   }
+  if (testIds.groupIds.length > 0) {
+    await db.group.deleteMany({ where: { id: { in: testIds.groupIds } } });
+  }
   if (testIds.userIds.length > 0) {
     await db.user.deleteMany({ where: { id: { in: testIds.userIds } } });
   }
@@ -215,6 +235,7 @@ async function cleanupTestData(): Promise<void> {
   // Reset tracking
   testIds.userIds = [];
   testIds.actorIds = [];
+  testIds.groupIds = [];
   testIds.chatIds = [];
   testIds.participantIds = [];
   testIds.membershipIds = [];
@@ -248,9 +269,9 @@ describe('Group Chat Gameplay Mechanics', () => {
         invitedBy: npc.id,
       });
       await createGroupMembership({
-        chatId: chat.id,
+        groupId: chat.groupId,
         userId: user.id,
-        npcAdminId: npc.id,
+        addedBy: npc.id,
       });
 
       // NPC posts candid alpha info
@@ -288,9 +309,9 @@ describe('Group Chat Gameplay Mechanics', () => {
         invitedBy: npc.id,
       });
       const membershipId = await createGroupMembership({
-        chatId: chat.id,
+        groupId: chat.groupId,
         userId: user.id,
-        npcAdminId: npc.id,
+        addedBy: npc.id,
       });
 
       // Info before kick
@@ -305,16 +326,14 @@ describe('Group Chat Gameplay Mechanics', () => {
         where: { id: participantId },
         data: {
           isActive: false,
-          kickedAt: new Date(),
-          kickReason: 'Over-posting',
         },
       });
-      await db.groupChatMembership.update({
+      await db.groupMember.update({
         where: { id: membershipId },
         data: {
           isActive: false,
-          removedAt: new Date(),
-          sweepReason: 'Over-posting',
+          kickedAt: new Date(),
+          kickReason: 'Over-posting',
         },
       });
 
@@ -523,9 +542,9 @@ describe('Group Chat Gameplay Mechanics', () => {
         invitedBy: npc.id,
       });
       await createGroupMembership({
-        chatId: chat.id,
+        groupId: chat.groupId,
         userId: user.id,
-        npcAdminId: npc.id,
+        addedBy: npc.id,
       });
 
       // Add agent
@@ -535,9 +554,9 @@ describe('Group Chat Gameplay Mechanics', () => {
         invitedBy: npc.id,
       });
       await createGroupMembership({
-        chatId: chat.id,
+        groupId: chat.groupId,
         userId: agent.id,
-        npcAdminId: npc.id,
+        addedBy: npc.id,
       });
 
       // Verify both are participants
@@ -576,17 +595,17 @@ describe('Group Chat Gameplay Mechanics', () => {
 
       // Create memberships - inactive user joined 3 days ago
       await createGroupMembership({
-        chatId: chat.id,
+        groupId: chat.groupId,
         userId: inactiveUser.id,
-        npcAdminId: npc.id,
+        addedBy: npc.id,
         joinedAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
       });
 
       // Active user joined 3 days ago too
       await createGroupMembership({
-        chatId: chat.id,
+        groupId: chat.groupId,
         userId: activeUser.id,
-        npcAdminId: npc.id,
+        addedBy: npc.id,
         joinedAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
       });
 
@@ -640,14 +659,14 @@ describe('Group Chat Gameplay Mechanics', () => {
           invitedBy: npc.id,
         });
         await createGroupMembership({
-          chatId: chat.id,
+          groupId: chat.groupId,
           userId: user.id,
-          npcAdminId: npc.id,
+          addedBy: npc.id,
         });
       }
 
       // Count user's active groups
-      const activeGroups = await db.groupChatMembership.count({
+      const activeGroups = await db.groupMember.count({
         where: { userId: user.id, isActive: true },
       });
 

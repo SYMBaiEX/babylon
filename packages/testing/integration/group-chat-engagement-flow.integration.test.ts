@@ -30,6 +30,7 @@ import { generateSnowflakeId } from '@babylon/shared';
 const testIds = {
   userIds: [] as string[],
   actorIds: [] as string[],
+  groupIds: [] as string[],
   chatIds: [] as string[],
   postIds: [] as string[],
   reactionIds: [] as string[],
@@ -215,12 +216,27 @@ async function createGroupChat(
 ): Promise<string> {
   const id = await generateSnowflakeId();
 
+  // Create Group first
+  const groupId = await generateSnowflakeId();
+  await db.group.create({
+    data: {
+      id: groupId,
+      name,
+      type: 'npc',
+      ownerId: npcAdminId,
+      createdById: npcAdminId,
+      updatedAt: new Date(),
+    },
+  });
+  testIds.groupIds.push(groupId);
+
+  // Create Chat linked to Group
   await db.chat.create({
     data: {
       id,
       name,
       isGroup: true,
-      npcAdminId,
+      groupId,
       gameId: 'realtime',
       updatedAt: new Date(),
     },
@@ -245,12 +261,12 @@ async function createGroupChat(
 async function cleanupTestData(): Promise<void> {
   // Delete in reverse order of dependencies
   if (testIds.inviteIds.length > 0) {
-    await db.userGroupInvite.deleteMany({
+    await db.groupInvite.deleteMany({
       where: { id: { in: testIds.inviteIds } },
     });
   }
   if (testIds.membershipIds.length > 0) {
-    await db.groupChatMembership.deleteMany({
+    await db.groupMember.deleteMany({
       where: { id: { in: testIds.membershipIds } },
     });
   }
@@ -258,6 +274,12 @@ async function cleanupTestData(): Promise<void> {
     await db.chatParticipant.deleteMany({
       where: { id: { in: testIds.participantIds } },
     });
+  }
+  if (testIds.chatIds.length > 0) {
+    await db.chat.deleteMany({ where: { id: { in: testIds.chatIds } } });
+  }
+  if (testIds.groupIds.length > 0) {
+    await db.group.deleteMany({ where: { id: { in: testIds.groupIds } } });
   }
   if (testIds.interactionIds.length > 0) {
     await db.userInteraction.deleteMany({

@@ -20,6 +20,7 @@ import { generateSnowflakeId } from '@babylon/shared';
 const testIds: {
   userIds: string[];
   actorIds: string[];
+  groupIds: string[];
   chatIds: string[];
   participantIds: string[];
   membershipIds: string[];
@@ -27,6 +28,7 @@ const testIds: {
 } = {
   userIds: [],
   actorIds: [],
+  groupIds: [],
   chatIds: [],
   participantIds: [],
   membershipIds: [],
@@ -100,23 +102,38 @@ async function createTestActor(options: {
 async function createTestGroupChat(options: {
   name?: string;
   npcAdminId: string;
-}): Promise<{ id: string; name: string }> {
+}): Promise<{ id: string; name: string; groupId: string }> {
   const id = await generateSnowflakeId();
   const name = options.name || `Test Group ${id.slice(-6)}`;
 
+  // Create Group first
+  const groupId = await generateSnowflakeId();
+  await db.group.create({
+    data: {
+      id: groupId,
+      name,
+      type: 'npc',
+      ownerId: options.npcAdminId,
+      createdById: options.npcAdminId,
+      updatedAt: new Date(),
+    },
+  });
+  testIds.groupIds.push(groupId);
+
+  // Create Chat linked to Group
   await db.chat.create({
     data: {
       id,
       name,
       isGroup: true,
-      npcAdminId: options.npcAdminId,
+      groupId,
       gameId: 'realtime',
       updatedAt: new Date(),
     },
   });
 
   testIds.chatIds.push(id);
-  return { id, name };
+  return { id, name, groupId };
 }
 
 // Helper to add participant to chat
@@ -143,18 +160,19 @@ async function addChatParticipant(options: {
 
 // Helper to create group membership (for NPC-managed groups)
 async function createGroupMembership(options: {
-  chatId: string;
+  groupId: string;
   userId: string;
-  npcAdminId: string;
+  addedBy?: string;
 }): Promise<string> {
   const id = await generateSnowflakeId();
 
-  await db.groupChatMembership.create({
+  await db.groupMember.create({
     data: {
       id,
-      chatId: options.chatId,
+      groupId: options.groupId,
       userId: options.userId,
-      npcAdminId: options.npcAdminId,
+      addedBy: options.addedBy,
+      role: 'member',
       isActive: true,
     },
   });
@@ -193,7 +211,7 @@ async function cleanupTestData(): Promise<void> {
     await db.message.deleteMany({ where: { id: { in: testIds.messageIds } } });
   }
   if (testIds.membershipIds.length > 0) {
-    await db.groupChatMembership.deleteMany({
+    await db.groupMember.deleteMany({
       where: { id: { in: testIds.membershipIds } },
     });
   }
@@ -204,6 +222,9 @@ async function cleanupTestData(): Promise<void> {
   }
   if (testIds.chatIds.length > 0) {
     await db.chat.deleteMany({ where: { id: { in: testIds.chatIds } } });
+  }
+  if (testIds.groupIds && testIds.groupIds.length > 0) {
+    await db.group.deleteMany({ where: { id: { in: testIds.groupIds } } });
   }
   if (testIds.userIds.length > 0) {
     await db.user.deleteMany({ where: { id: { in: testIds.userIds } } });
@@ -394,9 +415,9 @@ describe('Group Chat Dynamics Integration Tests', () => {
 
       // Create membership
       await createGroupMembership({
-        chatId: chat.id,
+        groupId: chat.groupId,
         userId: user.id,
-        npcAdminId: npc.id,
+        addedBy: npc.id,
       });
 
       // Add some messages from NPC (but none from user)
@@ -652,7 +673,7 @@ describe('Group Chat Information Access', () => {
     // Simulate kick by marking participant as inactive
     await db.chatParticipant.update({
       where: { id: participantId },
-      data: { isActive: false, kickedAt: new Date(), kickReason: 'Test kick' },
+      data: { isActive: false },
     });
 
     // New message after kick

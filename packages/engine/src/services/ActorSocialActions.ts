@@ -12,6 +12,7 @@ import {
   db,
   eq,
   groupMembers,
+  groups,
   gte,
   messages,
   userInteractions,
@@ -104,15 +105,16 @@ export class ActorSocialActions {
           continue;
         }
 
-        // Check if user is already in any group
-        // For NPC-specific check, we'd need to join Group.ownerId == actor.id
+        // Check if user is already in this NPC's group specifically
         const [existingMembership] = await db
-          .select()
+          .select({ id: groupMembers.id })
           .from(groupMembers)
+          .innerJoin(groups, eq(groups.id, groupMembers.groupId))
           .where(
             and(
               eq(groupMembers.userId, userId),
-              eq(groupMembers.isActive, true)
+              eq(groupMembers.isActive, true),
+              eq(groups.ownerId, actor.id) // Only check groups owned by this NPC
             )
           )
           .limit(1);

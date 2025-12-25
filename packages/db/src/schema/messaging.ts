@@ -4,11 +4,15 @@ import {
   doublePrecision,
   index,
   integer,
+  pgEnum,
   pgTable,
   text,
   timestamp,
   unique,
 } from 'drizzle-orm/pg-core';
+
+// Enum for group types
+export const groupTypeEnum = pgEnum('group_type', ['user', 'npc', 'agent']);
 
 // Chat
 export const chats = pgTable(
@@ -156,10 +160,7 @@ export const groups = pgTable(
     id: text('id').primaryKey(),
     name: text('name').notNull(),
     description: text('description'),
-    // 'user' = user-created group
-    // 'npc' = NPC-managed group (has quality tracking, kick mechanics)
-    // 'agent' = agent-created group
-    type: text('type').notNull(),
+    type: groupTypeEnum('type').notNull(),
     ownerId: text('ownerId').notNull(), // user/NPC/agent who controls it
     createdById: text('createdById').notNull(),
     createdAt: timestamp('createdAt', { mode: 'date' }).notNull().defaultNow(),

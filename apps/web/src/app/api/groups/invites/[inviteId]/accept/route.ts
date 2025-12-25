@@ -64,9 +64,7 @@ export const POST = withErrorHandling(
             })
           : [];
 
-      const npcGroupCount = memberGroups.filter(
-        (g) => g.type === 'npc'
-      ).length;
+      const npcGroupCount = memberGroups.filter((g) => g.type === 'npc').length;
 
       if (npcGroupCount >= GROUP_CONFIG.MAX_ACTIVE_USER_GROUPS) {
         throw new ApiError(

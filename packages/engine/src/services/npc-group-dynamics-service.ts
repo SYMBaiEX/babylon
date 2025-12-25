@@ -1225,6 +1225,10 @@ Return your response as XML:
           // Already has pending invite, skip
           continue;
         }
+        if (existingInvite.status === 'accepted') {
+          // Already accepted, nothing to do - don't count as new invite
+          continue;
+        }
         // For declined invites, reset to pending (re-invite flow)
         if (existingInvite.status === 'declined') {
           await db
