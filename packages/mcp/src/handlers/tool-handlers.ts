@@ -1615,24 +1615,24 @@ export async function executeAcceptGroupInvite(
   }
 
   // Check if agent is at the NPC group limit (only NPC groups count toward limit)
-  const activeGroupMemberships = await db.groupMember.findMany({
+  const activeMemberships = await db.groupMember.findMany({
     where: {
       userId: agent.userId,
       isActive: true,
     },
   });
 
-  // Filter to only NPC groups
-  let npcGroupCount = 0;
-  for (const membership of activeGroupMemberships) {
-    const group = await db.group.findUnique({
-      where: { id: membership.groupId },
-      select: { type: true },
-    });
-    if (group?.type === 'npc') {
-      npcGroupCount++;
-    }
-  }
+  // Fetch all groups in one query to avoid N+1
+  const groupIds = activeMemberships.map((m) => m.groupId);
+  const memberGroups =
+    groupIds.length > 0
+      ? await db.group.findMany({
+          where: { id: { in: groupIds } },
+          select: { id: true, type: true },
+        })
+      : [];
+
+  const npcGroupCount = memberGroups.filter((g) => g.type === 'npc').length;
 
   if (npcGroupCount >= GROUP_CONFIG.MAX_ACTIVE_USER_GROUPS) {
     throw new Error(

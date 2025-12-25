@@ -35,10 +35,7 @@ export const chats = pgTable(
   ]
 );
 
-// ChatParticipant
-// Low-level messaging access. For group chats, use GroupMember for role/quality tracking.
-// Note: messageCount, qualityScore, kickedAt, kickReason fields are legacy for group chats.
-// New group chats should track these in GroupMember instead.
+// ChatParticipant - low-level messaging access
 export const chatParticipants = pgTable(
   'ChatParticipant',
   {
@@ -48,12 +45,6 @@ export const chatParticipants = pgTable(
     joinedAt: timestamp('joinedAt', { mode: 'date' }).notNull().defaultNow(),
     invitedBy: text('invitedBy'),
     isActive: boolean('isActive').notNull().default(true),
-    // Legacy fields for group chats - use GroupMember.* instead for new code
-    lastMessageAt: timestamp('lastMessageAt', { mode: 'date' }),
-    messageCount: integer('messageCount').notNull().default(0),
-    qualityScore: doublePrecision('qualityScore').notNull().default(1.0),
-    kickedAt: timestamp('kickedAt', { mode: 'date' }),
-    kickReason: text('kickReason'),
     addedBy: text('addedBy'),
   },
   (table) => [
@@ -64,7 +55,6 @@ export const chatParticipants = pgTable(
       table.chatId,
       table.isActive
     ),
-    index('ChatParticipant_lastMessageAt_idx').on(table.lastMessageAt),
     index('ChatParticipant_userId_isActive_idx').on(
       table.userId,
       table.isActive
