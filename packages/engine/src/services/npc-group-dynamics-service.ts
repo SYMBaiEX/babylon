@@ -1313,14 +1313,16 @@ Return your response as XML:
         continue;
       }
 
-      // Check 2: Invite cooldown
+      // Check 2: Invite cooldown (only NPC groups count toward cooldown)
       const [latestMembership] = await db
-        .select()
+        .select({ joinedAt: groupMembers.joinedAt })
         .from(groupMembers)
+        .innerJoin(groups, eq(groupMembers.groupId, groups.id))
         .where(
           and(
             eq(groupMembers.userId, candidate.user.id),
-            eq(groupMembers.isActive, true)
+            eq(groupMembers.isActive, true),
+            eq(groups.type, 'npc')
           )
         )
         .orderBy(desc(groupMembers.joinedAt))
