@@ -169,6 +169,21 @@ def __getattr__(name: str):
         )
         return locals()[name]
     
+    # Service manager (lazy - requires requests)
+    if name in (
+        "ServiceManager",
+        "ServiceConfig",
+        "ServiceStatus",
+        "check_prerequisites",
+    ):
+        from .service_manager import (  # noqa: F401
+            ServiceManager,
+            ServiceConfig,
+            ServiceStatus,
+            check_prerequisites,
+        )
+        return locals()[name]
+    
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
@@ -241,4 +256,9 @@ __all__ = [
     "get_available_archetypes",
     "reload_rubrics",
     "DEFAULT_RUBRIC",
+    # Service manager
+    "ServiceManager",
+    "ServiceConfig",
+    "ServiceStatus",
+    "check_prerequisites",
 ]
