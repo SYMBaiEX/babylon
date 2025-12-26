@@ -59,6 +59,20 @@ RESEARCHER_GOOD_ACCURACY = 0.5  # Good accuracy
 MAX_BEHAVIOR_BONUS = 0.5   # Maximum behavior bonus
 MIN_BEHAVIOR_PENALTY = -0.5  # Maximum behavior penalty
 
+# Bonus amounts (tunable parameters)
+BONUS_EXCELLENT = 0.20  # Excellent archetype-aligned behavior
+BONUS_GOOD = 0.15       # Good archetype-aligned behavior
+BONUS_MODERATE = 0.10   # Moderate archetype-aligned behavior
+BONUS_MINOR = 0.05      # Minor positive signal
+PENALTY_MODERATE = -0.10  # Moderate archetype violation
+PENALTY_SEVERE = -0.15    # Severe archetype violation
+PENALTY_CRITICAL = -0.20  # Critical archetype failure
+
+
+def clamp_bonus(bonus: float) -> float:
+    """Clamp behavior bonus to valid range [-0.5, 0.5]."""
+    return max(MIN_BEHAVIOR_PENALTY, min(MAX_BEHAVIOR_BONUS, bonus))
+
 # =============================================================================
 # Archetype-Specific Reward Weights
 # =============================================================================
@@ -663,7 +677,7 @@ def _calculate_degen_bonus(metrics: BehaviorMetrics) -> float:
     if abs(metrics.largest_win) > 100 or abs(metrics.largest_loss) > 100:
         bonus += 0.05
 
-    return max(MIN_BEHAVIOR_PENALTY, min(MAX_BEHAVIOR_BONUS, bonus))
+    return clamp_bonus(bonus)
 
 
 def _calculate_social_butterfly_bonus(metrics: BehaviorMetrics) -> float:
@@ -712,7 +726,7 @@ def _calculate_social_butterfly_bonus(metrics: BehaviorMetrics) -> float:
     if metrics.social_to_trade_ratio < 0.5 and metrics.trades_executed > 5:
         bonus -= 0.10
 
-    return max(MIN_BEHAVIOR_PENALTY, min(MAX_BEHAVIOR_BONUS, bonus))
+    return clamp_bonus(bonus)
 
 
 def _calculate_scammer_bonus(metrics: BehaviorMetrics) -> float:
@@ -746,7 +760,7 @@ def _calculate_scammer_bonus(metrics: BehaviorMetrics) -> float:
     elif metrics.reputation_delta < -20:
         bonus -= 0.10  # Got caught
 
-    return max(MIN_BEHAVIOR_PENALTY, min(MAX_BEHAVIOR_BONUS, bonus))
+    return clamp_bonus(bonus)
 
 
 def _calculate_trader_bonus(metrics: BehaviorMetrics) -> float:
@@ -778,7 +792,7 @@ def _calculate_trader_bonus(metrics: BehaviorMetrics) -> float:
     if metrics.trades_executed >= 5:
         bonus += 0.05
 
-    return max(MIN_BEHAVIOR_PENALTY, min(MAX_BEHAVIOR_BONUS, bonus))
+    return clamp_bonus(bonus)
 
 
 def _calculate_researcher_bonus(metrics: BehaviorMetrics) -> float:
@@ -808,7 +822,7 @@ def _calculate_researcher_bonus(metrics: BehaviorMetrics) -> float:
     if metrics.win_rate >= 0.60 and metrics.trades_executed <= 10:
         bonus += 0.10
 
-    return max(MIN_BEHAVIOR_PENALTY, min(MAX_BEHAVIOR_BONUS, bonus))
+    return clamp_bonus(bonus)
 
 
 def _calculate_information_trader_bonus(metrics: BehaviorMetrics) -> float:
@@ -841,7 +855,7 @@ def _calculate_information_trader_bonus(metrics: BehaviorMetrics) -> float:
     if metrics.total_pnl > 0:
         bonus += 0.10
 
-    return max(MIN_BEHAVIOR_PENALTY, min(MAX_BEHAVIOR_BONUS, bonus))
+    return clamp_bonus(bonus)
 
 
 def _calculate_goody_twoshoes_bonus(metrics: BehaviorMetrics) -> float:
@@ -876,7 +890,7 @@ def _calculate_goody_twoshoes_bonus(metrics: BehaviorMetrics) -> float:
     if metrics.followers_gained >= 5:
         bonus += 0.08
 
-    return max(MIN_BEHAVIOR_PENALTY, min(MAX_BEHAVIOR_BONUS, bonus))
+    return clamp_bonus(bonus)
 
 
 def _calculate_ass_kisser_bonus(metrics: BehaviorMetrics) -> float:
@@ -911,7 +925,7 @@ def _calculate_ass_kisser_bonus(metrics: BehaviorMetrics) -> float:
     if metrics.dms_initiated >= 5:
         bonus += 0.05
 
-    return max(MIN_BEHAVIOR_PENALTY, min(MAX_BEHAVIOR_BONUS, bonus))
+    return clamp_bonus(bonus)
 
 
 def _calculate_perps_trader_bonus(metrics: BehaviorMetrics) -> float:
@@ -945,7 +959,7 @@ def _calculate_perps_trader_bonus(metrics: BehaviorMetrics) -> float:
     elif metrics.total_pnl < -200:
         bonus -= 0.15  # Big losses = blown up
 
-    return max(MIN_BEHAVIOR_PENALTY, min(MAX_BEHAVIOR_BONUS, bonus))
+    return clamp_bonus(bonus)
 
 
 def _calculate_super_predictor_bonus(metrics: BehaviorMetrics) -> float:
@@ -979,7 +993,7 @@ def _calculate_super_predictor_bonus(metrics: BehaviorMetrics) -> float:
     if metrics.total_pnl > 0 and metrics.prediction_accuracy >= 0.55:
         bonus += 0.08
 
-    return max(MIN_BEHAVIOR_PENALTY, min(MAX_BEHAVIOR_BONUS, bonus))
+    return clamp_bonus(bonus)
 
 
 def _calculate_infosec_bonus(metrics: BehaviorMetrics) -> float:
@@ -1012,7 +1026,7 @@ def _calculate_infosec_bonus(metrics: BehaviorMetrics) -> float:
     if metrics.dms_initiated < 3:
         bonus += 0.05  # Cautious with DMs
 
-    return max(MIN_BEHAVIOR_PENALTY, min(MAX_BEHAVIOR_BONUS, bonus))
+    return clamp_bonus(bonus)
 
 
 def _calculate_liar_bonus(metrics: BehaviorMetrics) -> float:
@@ -1047,7 +1061,7 @@ def _calculate_liar_bonus(metrics: BehaviorMetrics) -> float:
     elif metrics.posts_created >= 2:
         bonus += 0.04
 
-    return max(MIN_BEHAVIOR_PENALTY, min(MAX_BEHAVIOR_BONUS, bonus))
+    return clamp_bonus(bonus)
 
 
 # =============================================================================

@@ -269,10 +269,25 @@ class BabylonRLAIFEnv(BaseEnv):
             if group_key not in groups:
                 groups[group_key] = []
 
-            # Parse steps JSON
-            steps = json.loads(row['stepsJson'] or '[]')
+            # Parse steps JSON with error handling
+            try:
+                steps = json.loads(row['stepsJson'] or '[]')
+            except json.JSONDecodeError as e:
+                logger.warning(
+                    f"Malformed stepsJson for trajectory {row['trajectoryId']}: {e}"
+                )
+                continue
+
             if len(steps) < self.config.min_actions_per_trajectory:
                 continue
+
+            # Get archetype with warning for NULL values
+            archetype = row['archetype']
+            if archetype is None:
+                logger.debug(
+                    f"Trajectory {row['trajectoryId']} has NULL archetype, using 'default'"
+                )
+                archetype = 'default'
 
             groups[group_key].append({
                 'trajectory_id': row['trajectoryId'],
@@ -280,7 +295,7 @@ class BabylonRLAIFEnv(BaseEnv):
                 'agent_name': row['agent_name'] or row['agentId'][:8],
                 'window_id': row['windowId'],
                 'scenario_id': row['scenarioId'],
-                'archetype': row['archetype'] or 'default',
+                'archetype': archetype,
                 'steps': steps,
                 'final_pnl': float(row['finalPnL'] or 0),
                 'episode_length': row['episodeLength'] or len(steps),
@@ -579,12 +594,17 @@ You receive market updates and must analyze, reason, and then act."""
             traj = item["trajectory"]
             generated_response = item["generated_response"]
 
-            # 1. Get archetype from trajectory
+            # 1. Get archetype from trajectory with validation
             archetype = traj.get("archetype", "default")
             archetype_norm = normalize_archetype(archetype)
 
-            # Log archetype-aware scoring
-            if has_custom_rubric(archetype_norm):
+            # Validate archetype and warn for unknown values
+            if not has_custom_rubric(archetype_norm) and archetype_norm != "default":
+                logger.warning(
+                    f"Unknown archetype '{archetype}' for trajectory, using default scoring"
+                )
+                archetype_norm = "default"
+            elif has_custom_rubric(archetype_norm):
                 logger.debug(f"Scoring with custom rubric for archetype: {archetype_norm}")
 
             # 2. Quality Scores (Format & Reasoning) - archetype-aware weights
