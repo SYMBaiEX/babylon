@@ -9,20 +9,25 @@ Key features:
 - Pulls batches from Atropos API server
 - Implements GRPO training loop with transformers/vLLM
 - Supports checkpoint saving and vLLM model reloading
-- Optional logging to file or console
+- Optional W&B logging (online or offline mode)
+- Learning rate scheduling (constant, linear, cosine)
+- Checkpoint resume support
 
 Based on: https://github.com/NousResearch/atropos/blob/main/example_trainer/grpo.py
 """
 
 import atexit
+import json
+import logging
 import math
 import os
 import shutil
 import subprocess
 import time
 from datetime import datetime, timezone
+from enum import Enum
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import List, Literal, Optional, Tuple
 
 import numpy as np
 import requests
@@ -32,9 +37,8 @@ from dotenv import load_dotenv
 from pydantic import BaseModel, Field
 from tenacity import retry, stop_after_attempt, wait_exponential
 from torch.optim import AdamW
+from torch.optim.lr_scheduler import LambdaLR
 from transformers import AutoModelForCausalLM, AutoTokenizer
-import logging
-import json
 
 logger = logging.getLogger(__name__)
 
@@ -58,17 +62,26 @@ def cleanup_vllm():
     if vllm_process:
         logger.info("Terminating vLLM process...")
         vllm_process.terminate()
-        try:
-            vllm_process.wait(timeout=5)
-            logger.info("vLLM process terminated.")
-        except subprocess.TimeoutExpired:
+        deadline = time.time() + 5
+        while vllm_process.poll() is None and time.time() < deadline:
+            time.sleep(0.1)
+        if vllm_process.poll() is None:
             logger.warning("vLLM process did not terminate gracefully, killing.")
             vllm_process.kill()
             vllm_process.wait()
+        else:
+            logger.info("vLLM process terminated.")
         vllm_process = None
 
 
 atexit.register(cleanup_vllm)
+
+
+class LRSchedulerType(str, Enum):
+    """Learning rate scheduler types"""
+    CONSTANT = "constant"
+    LINEAR = "linear"
+    COSINE = "cosine"
 
 
 class AtroposTrainingConfig(BaseModel):
@@ -87,12 +100,20 @@ class AtroposTrainingConfig(BaseModel):
     )
     
     # Training hyperparameters
-    learning_rate: float = Field(default=1e-5, description="Learning rate")
+    learning_rate: float = Field(default=1e-5, description="Initial learning rate")
+    min_learning_rate: float = Field(default=1e-7, description="Minimum learning rate for scheduling")
     training_steps: int = Field(default=100, description="Number of training steps")
     batch_size: int = Field(default=4, description="Batch size per step")
     gradient_accumulation_steps: int = Field(default=8, description="Gradient accumulation steps")
     seq_len: int = Field(default=4096, description="Maximum sequence length")
     max_grad_norm: float = Field(default=1.0, description="Gradient clipping norm")
+    
+    # Learning rate scheduling
+    lr_scheduler: LRSchedulerType = Field(
+        default=LRSchedulerType.COSINE,
+        description="Learning rate scheduler type"
+    )
+    warmup_steps: int = Field(default=10, description="Number of warmup steps")
     
     # Device settings
     device: str = Field(
@@ -111,6 +132,13 @@ class AtroposTrainingConfig(BaseModel):
         description="Directory to save checkpoints"
     )
     save_every_steps: int = Field(default=5, description="Save checkpoint every N steps")
+    keep_checkpoints: int = Field(default=3, description="Number of recent checkpoints to keep")
+    
+    # Resume settings
+    resume_from: Optional[str] = Field(
+        default=None,
+        description="Path to checkpoint to resume from"
+    )
     
     # Atropos API settings
     api_url: str = Field(default="http://localhost:8000", description="Atropos API URL")
@@ -125,6 +153,56 @@ class AtroposTrainingConfig(BaseModel):
     # Logging settings
     log_to_file: bool = Field(default=True, description="Log metrics to file")
     log_file: str = Field(default="./logs/training_metrics.jsonl", description="Metrics log file")
+    
+    # W&B settings
+    use_wandb: bool = Field(default=True, description="Enable W&B logging")
+    wandb_project: str = Field(default="babylon-training", description="W&B project name")
+    wandb_entity: Optional[str] = Field(default=None, description="W&B entity/team")
+    wandb_run_name: Optional[str] = Field(default=None, description="W&B run name")
+
+
+def get_lr_scheduler(
+    optimizer: AdamW,
+    scheduler_type: LRSchedulerType,
+    num_training_steps: int,
+    warmup_steps: int,
+    min_lr_ratio: float,
+) -> LambdaLR:
+    """
+    Create a learning rate scheduler.
+    
+    Args:
+        optimizer: The optimizer to schedule
+        scheduler_type: Type of scheduler (constant, linear, cosine)
+        num_training_steps: Total number of training steps
+        warmup_steps: Number of warmup steps
+        min_lr_ratio: Minimum LR as a ratio of initial LR
+    """
+    
+    def lr_lambda(current_step: int) -> float:
+        # Warmup phase
+        if current_step < warmup_steps:
+            return float(current_step) / float(max(1, warmup_steps))
+        
+        # After warmup
+        progress = float(current_step - warmup_steps) / float(max(1, num_training_steps - warmup_steps))
+        progress = min(1.0, progress)  # Clamp to [0, 1]
+        
+        if scheduler_type == LRSchedulerType.CONSTANT:
+            return 1.0
+        
+        elif scheduler_type == LRSchedulerType.LINEAR:
+            # Linear decay from 1.0 to min_lr_ratio
+            return max(min_lr_ratio, 1.0 - progress * (1.0 - min_lr_ratio))
+        
+        elif scheduler_type == LRSchedulerType.COSINE:
+            # Cosine decay from 1.0 to min_lr_ratio
+            cosine_decay = 0.5 * (1.0 + math.cos(math.pi * progress))
+            return min_lr_ratio + (1.0 - min_lr_ratio) * cosine_decay
+        
+        return 1.0
+    
+    return LambdaLR(optimizer, lr_lambda)
 
 
 class BabylonAtroposTrainer:
@@ -136,6 +214,7 @@ class BabylonAtroposTrainer:
     2. Pulls batches of scored trajectories
     3. Trains using GRPO (Group Relative Policy Optimization)
     4. Periodically saves checkpoints and restarts vLLM
+    5. Logs metrics to W&B and/or JSONL
     """
     
     def __init__(self, config: AtroposTrainingConfig):
@@ -143,12 +222,15 @@ class BabylonAtroposTrainer:
         self.model: Optional[AutoModelForCausalLM] = None
         self.tokenizer: Optional[AutoTokenizer] = None
         self.optimizer: Optional[AdamW] = None
+        self.scheduler: Optional[LambdaLR] = None
         self.current_step: int = 0
         self.vllm_process: Optional[subprocess.Popen] = None
         self.run_id: str = datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')
+        self._wandb_initialized: bool = False
+        self._checkpoint_history: List[str] = []
         
     def setup(self):
-        """Initialize model, tokenizer, and optimizer"""
+        """Initialize model, tokenizer, optimizer, and scheduler"""
         logger.info(f"Loading model: {self.config.model_name}")
         
         self.tokenizer = AutoTokenizer.from_pretrained(
@@ -168,26 +250,167 @@ class BabylonAtroposTrainer:
         
         self.optimizer = AdamW(self.model.parameters(), lr=self.config.learning_rate)
         
+        # Create LR scheduler
+        min_lr_ratio = self.config.min_learning_rate / self.config.learning_rate
+        self.scheduler = get_lr_scheduler(
+            optimizer=self.optimizer,
+            scheduler_type=self.config.lr_scheduler,
+            num_training_steps=self.config.training_steps,
+            warmup_steps=self.config.warmup_steps,
+            min_lr_ratio=min_lr_ratio,
+        )
+        
         logger.info(f"Model loaded on {self.config.device}")
+        logger.info(f"LR scheduler: {self.config.lr_scheduler.value} (warmup: {self.config.warmup_steps} steps)")
+        
+    def setup_wandb(self) -> bool:
+        """
+        Initialize Weights & Biases logging.
+        
+        Returns True if W&B was successfully initialized, False otherwise.
+        Automatically falls back to offline mode if no API key is set.
+        """
+        if not self.config.use_wandb:
+            logger.info("W&B logging disabled via config")
+            return False
+        
+        import wandb
+        
+        api_key = os.getenv("WANDB_API_KEY")
+        if not api_key:
+            logger.warning("WANDB_API_KEY not set, using offline mode")
+            mode = "offline"
+        else:
+            mode = "online"
+        
+        # Prepare config dict for W&B
+        wandb_config = {
+            "model_name": self.config.model_name,
+            "learning_rate": self.config.learning_rate,
+            "min_learning_rate": self.config.min_learning_rate,
+            "lr_scheduler": self.config.lr_scheduler.value,
+            "warmup_steps": self.config.warmup_steps,
+            "training_steps": self.config.training_steps,
+            "batch_size": self.config.batch_size,
+            "gradient_accumulation_steps": self.config.gradient_accumulation_steps,
+            "seq_len": self.config.seq_len,
+            "max_grad_norm": self.config.max_grad_norm,
+            "device": self.config.device,
+            "judge_model": self.config.judge_model,
+        }
+        
+        run_name = self.config.wandb_run_name or f"babylon-grpo-{self.run_id}"
+        
+        wandb.init(
+            project=self.config.wandb_project,
+            entity=self.config.wandb_entity,
+            name=run_name,
+            config=wandb_config,
+            mode=mode,
+            resume="allow" if self.config.resume_from else None,
+        )
+        
+        self._wandb_initialized = True
+        logger.info(f"W&B initialized: project={self.config.wandb_project}, mode={mode}")
+        
+        return True
         
     def setup_logging(self):
-        """Initialize metrics logging"""
+        """Initialize metrics logging (file and W&B)"""
         if self.config.log_to_file:
             log_dir = Path(self.config.log_file).parent
             log_dir.mkdir(parents=True, exist_ok=True)
             logger.info(f"Metrics will be logged to: {self.config.log_file}")
+        
+        # Initialize W&B
+        self.setup_wandb()
             
     def log_metrics(self, metrics: dict, step: int):
-        """Log metrics to file"""
+        """Log metrics to file and W&B"""
+        # Add common fields
+        full_metrics = {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "run_id": self.run_id,
+            "step": step,
+            **metrics
+        }
+        
+        # Log to file
         if self.config.log_to_file:
-            metrics_entry = {
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-                "run_id": self.run_id,
-                "step": step,
-                **metrics
-            }
             with open(self.config.log_file, 'a') as f:
-                f.write(json.dumps(metrics_entry) + '\n')
+                f.write(json.dumps(full_metrics) + '\n')
+        
+        # Log to W&B
+        if self._wandb_initialized:
+            import wandb
+            # W&B expects flat dict with step
+            wandb.log(metrics, step=step)
+    
+    def load_checkpoint(self, checkpoint_path: str) -> int:
+        """
+        Load model, optimizer, and scheduler state from checkpoint.
+        
+        Returns the step number to resume from.
+        """
+        logger.info(f"Loading checkpoint from: {checkpoint_path}")
+        
+        checkpoint_dir = Path(checkpoint_path)
+        
+        # Load model
+        self.model = AutoModelForCausalLM.from_pretrained(
+            checkpoint_dir,
+            torch_dtype=torch.bfloat16,
+            trust_remote_code=True
+        )
+        self.model.to(self.config.device)
+        self.model.gradient_checkpointing_enable()
+        self.model.train()
+        
+        # Load tokenizer
+        self.tokenizer = AutoTokenizer.from_pretrained(
+            checkpoint_dir,
+            trust_remote_code=True
+        )
+        
+        # Re-create optimizer
+        self.optimizer = AdamW(self.model.parameters(), lr=self.config.learning_rate)
+        
+        # Load optimizer state if available
+        optimizer_path = checkpoint_dir / "optimizer.pt"
+        if optimizer_path.exists():
+            optimizer_state = torch.load(optimizer_path, map_location=self.config.device)
+            self.optimizer.load_state_dict(optimizer_state["optimizer"])
+            resume_step = optimizer_state.get("step", 0)
+            logger.info(f"Loaded optimizer state from step {resume_step}")
+        else:
+            resume_step = self._extract_step_from_path(checkpoint_path)
+            logger.warning(f"No optimizer state found, resuming from step {resume_step}")
+        
+        # Re-create scheduler and advance to current step
+        min_lr_ratio = self.config.min_learning_rate / self.config.learning_rate
+        self.scheduler = get_lr_scheduler(
+            optimizer=self.optimizer,
+            scheduler_type=self.config.lr_scheduler,
+            num_training_steps=self.config.training_steps,
+            warmup_steps=self.config.warmup_steps,
+            min_lr_ratio=min_lr_ratio,
+        )
+        
+        # Advance scheduler to current step
+        for _ in range(resume_step):
+            self.scheduler.step()
+        
+        logger.info(f"Checkpoint loaded, resuming from step {resume_step}")
+        return resume_step
+    
+    def _extract_step_from_path(self, path: str) -> int:
+        """Extract step number from checkpoint path like 'step_50'"""
+        name = Path(path).name
+        if name.startswith("step_"):
+            step_str = name.replace("step_", "")
+            if step_str.isdigit():
+                return int(step_str)
+        return 0
         
     @retry(stop=stop_after_attempt(5), wait=wait_exponential(multiplier=1, min=2, max=30))
     def register_with_api(self):
@@ -230,9 +453,10 @@ class BabylonAtroposTrainer:
         if self.vllm_process:
             logger.info("Terminating existing vLLM process...")
             self.vllm_process.terminate()
-            try:
-                self.vllm_process.wait(timeout=5)
-            except subprocess.TimeoutExpired:
+            deadline = time.time() + 5
+            while self.vllm_process.poll() is None and time.time() < deadline:
+                time.sleep(0.1)
+            if self.vllm_process.poll() is None:
                 self.vllm_process.kill()
                 self.vllm_process.wait()
             self.vllm_process = None
@@ -255,18 +479,13 @@ class BabylonAtroposTrainer:
         
         logger.info(f"Starting vLLM: {' '.join(cmd)}")
         
-        try:
-            self.vllm_process = subprocess.Popen(cmd)
-            vllm_process = self.vllm_process  # Update global for cleanup
-            
-            logger.info(f"vLLM started with PID: {self.vllm_process.pid}")
-            
-            # Wait for server to be ready with health check
-            self._wait_for_vllm_ready()
-            
-        except Exception as e:
-            logger.error(f"Failed to start vLLM: {e}")
-            self.vllm_process = None
+        self.vllm_process = subprocess.Popen(cmd)
+        vllm_process = self.vllm_process  # Update global for cleanup
+        
+        logger.info(f"vLLM started with PID: {self.vllm_process.pid}")
+        
+        # Wait for server to be ready with health check
+        self._wait_for_vllm_ready()
             
     def _wait_for_vllm_ready(self, timeout: int = 120, poll_interval: float = 2.0):
         """Wait for vLLM server to be ready, with health checks"""
@@ -395,6 +614,7 @@ class BabylonAtroposTrainer:
         """Execute one GRPO training step"""
         assert self.model is not None
         assert self.optimizer is not None
+        assert self.scheduler is not None
         
         total_loss = 0.0
         total_pos_logp = 0.0
@@ -462,6 +682,10 @@ class BabylonAtroposTrainer:
         self.optimizer.step()
         self.optimizer.zero_grad()
         
+        # Update learning rate
+        self.scheduler.step()
+        current_lr = self.scheduler.get_last_lr()[0]
+        
         # Normalize metrics
         if total_pos > 0:
             total_pos_logp /= total_pos
@@ -471,30 +695,51 @@ class BabylonAtroposTrainer:
         return {
             "loss": total_loss,
             "grad_norm": grad_norm.item(),
+            "learning_rate": current_lr,
             "pos_logp": total_pos_logp,
             "neg_logp": total_neg_logp,
             "total_pos": total_pos,
             "total_neg": total_neg,
         }
         
-    def save_checkpoint(self, step: int, is_final: bool = False):
-        """Save model checkpoint"""
+    def save_checkpoint(self, step: int, is_final: bool = False) -> str:
+        """Save model checkpoint with optimizer state"""
         assert self.model is not None
         assert self.tokenizer is not None
+        assert self.optimizer is not None
         
         checkpoint_name = "final_model" if is_final else f"step_{step}"
         checkpoint_path = os.path.join(self.config.save_path, checkpoint_name)
         
-        # Remove existing checkpoint
+        # Remove existing checkpoint with same name
         if os.path.exists(checkpoint_path):
             shutil.rmtree(checkpoint_path)
             
         os.makedirs(checkpoint_path, exist_ok=True)
         
+        # Save model and tokenizer
         self.model.save_pretrained(checkpoint_path)
         self.tokenizer.save_pretrained(checkpoint_path)
         
+        # Save optimizer state
+        optimizer_state = {
+            "optimizer": self.optimizer.state_dict(),
+            "step": step,
+            "run_id": self.run_id,
+        }
+        torch.save(optimizer_state, os.path.join(checkpoint_path, "optimizer.pt"))
+        
         logger.info(f"Checkpoint saved: {checkpoint_path}")
+        
+        # Manage checkpoint history (keep last N)
+        if not is_final:
+            self._checkpoint_history.append(checkpoint_path)
+            while len(self._checkpoint_history) > self.config.keep_checkpoints:
+                old_checkpoint = self._checkpoint_history.pop(0)
+                if os.path.exists(old_checkpoint) and old_checkpoint != checkpoint_path:
+                    logger.info(f"Removing old checkpoint: {old_checkpoint}")
+                    shutil.rmtree(old_checkpoint)
+        
         return checkpoint_path
         
     async def train(self, steps: Optional[int] = None, batch_size: Optional[int] = None) -> dict:
@@ -508,10 +753,23 @@ class BabylonAtroposTrainer:
         
     def _train_sync(self) -> dict:
         """Synchronous training loop"""
-        logger.info(f"Starting training for {self.config.training_steps} steps")
+        logger.info("=" * 60)
+        logger.info("BABYLON GRPO TRAINING")
+        logger.info("=" * 60)
+        logger.info(f"Model: {self.config.model_name}")
+        logger.info(f"Steps: {self.config.training_steps}")
+        logger.info(f"Batch size: {self.config.batch_size}")
+        logger.info(f"LR: {self.config.learning_rate} (scheduler: {self.config.lr_scheduler.value})")
+        logger.info(f"Device: {self.config.device}")
+        logger.info("=" * 60)
         
-        # Setup
-        self.setup()
+        # Check for resume
+        if self.config.resume_from:
+            self.current_step = self.load_checkpoint(self.config.resume_from)
+        else:
+            # Fresh setup
+            self.setup()
+        
         self.setup_logging()
         self.register_with_api()
         
@@ -524,7 +782,8 @@ class BabylonAtroposTrainer:
         batches_buffer: List = []
         all_metrics: List[dict] = []
         
-        for step in range(self.config.training_steps):
+        start_step = self.current_step
+        for step in range(start_step, self.config.training_steps):
             self.current_step = step + 1
             logger.info(f"Step {self.current_step}/{self.config.training_steps}")
             
@@ -555,12 +814,17 @@ class BabylonAtroposTrainer:
                 token_batches, label_batches, advantage_batches, temperature_batches
             )
             
-            logger.info(f"  Loss: {metrics['loss']:.4f}, Grad norm: {metrics['grad_norm']:.4f}")
+            logger.info(
+                f"  Loss: {metrics['loss']:.4f}, "
+                f"Grad norm: {metrics['grad_norm']:.4f}, "
+                f"LR: {metrics['learning_rate']:.2e}"
+            )
             
             # Log metrics
             self.log_metrics({
                 "train/loss": metrics["loss"],
                 "train/grad_norm": metrics["grad_norm"],
+                "train/learning_rate": metrics["learning_rate"],
                 "train/pos_logp": metrics["pos_logp"],
                 "train/neg_logp": metrics["neg_logp"],
             }, self.current_step)
@@ -569,21 +833,30 @@ class BabylonAtroposTrainer:
                 
             # Checkpoint and vLLM restart
             should_checkpoint = (
-                self.current_step % self.config.vllm_restart_interval == 0 or
+                self.current_step % self.config.save_every_steps == 0 or
                 self.current_step == self.config.training_steps
             )
             
             if should_checkpoint:
                 checkpoint_path = self.save_checkpoint(self.current_step)
                 
-                # Restart vLLM with new weights
+                # Restart vLLM with new weights (if not final step)
                 if self.current_step < self.config.training_steps:
-                    self.start_vllm(checkpoint_path)
+                    if self.current_step % self.config.vllm_restart_interval == 0:
+                        self.start_vllm(checkpoint_path)
                     
         # Final save
         final_checkpoint = self.save_checkpoint(self.current_step, is_final=True)
+        
+        # Finish W&B run
+        if self._wandb_initialized:
+            import wandb
+            wandb.finish()
             
-        logger.info("Training complete!")
+        logger.info("=" * 60)
+        logger.info("TRAINING COMPLETE")
+        logger.info(f"Final checkpoint: {final_checkpoint}")
+        logger.info("=" * 60)
         
         return {
             "steps": self.current_step,
@@ -602,14 +875,41 @@ def main():
     )
     
     parser = argparse.ArgumentParser(description="Babylon GRPO Trainer with Atropos")
+    
+    # Model settings
     parser.add_argument("--model", default="Qwen/Qwen2.5-3B-Instruct", help="Model to train")
     parser.add_argument("--steps", type=int, default=100, help="Training steps")
     parser.add_argument("--batch-size", type=int, default=4, help="Batch size")
-    parser.add_argument("--lr", type=float, default=1e-5, help="Learning rate")
+    
+    # Learning rate settings
+    parser.add_argument("--lr", type=float, default=1e-5, help="Initial learning rate")
+    parser.add_argument("--min-lr", type=float, default=1e-7, help="Minimum learning rate")
+    parser.add_argument(
+        "--lr-scheduler",
+        choices=["constant", "linear", "cosine"],
+        default="cosine",
+        help="Learning rate scheduler"
+    )
+    parser.add_argument("--warmup-steps", type=int, default=10, help="LR warmup steps")
+    
+    # Checkpoint settings
     parser.add_argument("--save-path", default="./trained_models", help="Checkpoint directory")
+    parser.add_argument("--save-every", type=int, default=5, help="Save checkpoint every N steps")
+    parser.add_argument("--keep-checkpoints", type=int, default=3, help="Checkpoints to keep")
+    parser.add_argument("--resume", help="Resume from checkpoint path")
+    
+    # API settings
     parser.add_argument("--api-url", default="http://localhost:8000", help="Atropos API URL")
     parser.add_argument("--vllm-port", type=int, default=9001, help="vLLM server port")
+    
+    # Logging settings
     parser.add_argument("--log-file", default="./logs/training_metrics.jsonl", help="Metrics log file")
+    
+    # W&B settings
+    parser.add_argument("--no-wandb", action="store_true", help="Disable W&B logging")
+    parser.add_argument("--wandb-project", default="babylon-training", help="W&B project")
+    parser.add_argument("--wandb-entity", help="W&B entity/team")
+    parser.add_argument("--wandb-run-name", help="W&B run name")
     
     args = parser.parse_args()
     
@@ -618,10 +918,20 @@ def main():
         training_steps=args.steps,
         batch_size=args.batch_size,
         learning_rate=args.lr,
+        min_learning_rate=args.min_lr,
+        lr_scheduler=LRSchedulerType(args.lr_scheduler),
+        warmup_steps=args.warmup_steps,
         save_path=args.save_path,
+        save_every_steps=args.save_every,
+        keep_checkpoints=args.keep_checkpoints,
+        resume_from=args.resume,
         api_url=args.api_url,
         vllm_port=args.vllm_port,
         log_file=args.log_file,
+        use_wandb=not args.no_wandb,
+        wandb_project=args.wandb_project,
+        wandb_entity=args.wandb_entity,
+        wandb_run_name=args.wandb_run_name,
     )
     
     trainer = BabylonAtroposTrainer(config)
