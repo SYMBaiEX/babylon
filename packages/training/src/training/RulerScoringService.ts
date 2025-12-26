@@ -32,6 +32,7 @@ import {
   type TrajectoryForTraining,
   type TrajectoryStepForTraining,
 } from '../dependencies';
+import { getRubric, normalizeArchetype } from '../rubrics';
 import { logger, splitIntoBatches } from '../utils';
 import type { TrajectoryStep as TrainingTrajectoryStep } from './types';
 
@@ -195,12 +196,14 @@ export class RulerScoringService {
       scenarioId: string | null;
       finalPnL: number | null;
       episodeLength: number | null;
+      archetype: string | null;
     }>,
     scenarioId: string
   ): Promise<number> {
     const richTrajectories: Array<{
       traj: RichTrajectory;
       messages: Array<{ role: string; content: string }>;
+      archetype: string;
     }> = [];
 
     for (const dbTraj of trajectoriesData) {
@@ -302,7 +305,8 @@ export class RulerScoringService {
 
       const toARTMessages = getToTrainingMessages();
       const messages = toARTMessages(richTraj);
-      richTrajectories.push({ traj: richTraj, messages });
+      const archetype = normalizeArchetype(dbTraj.archetype || 'default');
+      richTrajectories.push({ traj: richTraj, messages, archetype });
     }
 
     if (richTrajectories.length < this.minGroupSize) {
@@ -404,6 +408,7 @@ export class RulerScoringService {
     richTrajectories: Array<{
       traj: RichTrajectory;
       messages: Array<{ role: string; content: string }>;
+      archetype: string;
     }>,
     commonPrefix: Array<{ role: string; content: string }>,
     scenarioId: string
@@ -420,6 +425,7 @@ export class RulerScoringService {
       const trajId = `trajectory-${i + 1}`;
 
       contextParts.push(`\n${trajId}:`);
+      contextParts.push(`  - Archetype: ${rt.archetype}`);
       contextParts.push(
         `  - Final P&L: $${rt.traj.metrics.finalPnL?.toFixed(2) || '0.00'}`
       );
@@ -480,12 +486,27 @@ export class RulerScoringService {
 
     const prompt = `${userContent}${contextParts.join('\n')}\n\nTrajectories:\n\n${trajectorySections.join('\n\n')}`;
 
-    const systemPrompt = `You are an expert evaluator of AI agent performance. All trajectories below were given the same goal/scenario. Your job is to compare them and assign scores from 0 to 1 based on how well each trajectory achieved its goal.
+    // Determine archetype-specific rubric
+    // If all trajectories share the same archetype, use that archetype's rubric
+    // Otherwise, fall back to the default rubric
+    const archetypes = [...new Set(richTrajectories.map((rt) => rt.archetype))];
+    const isSingleArchetype =
+      archetypes.length === 1 && archetypes[0] !== 'default';
+    const rubric = isSingleArchetype
+      ? getRubric(archetypes[0]!)
+      : DEFAULT_RUBRIC;
+    const archetypeContext = isSingleArchetype
+      ? `\n\nYou are evaluating ${archetypes[0]!.toUpperCase()} agents. Score them based on how well they embody that archetype's behavior and goals.`
+      : archetypes.length > 1
+        ? `\n\nNote: This group contains mixed archetypes (${archetypes.join(', ')}). Consider each agent's archetype when scoring.`
+        : '';
+
+    const systemPrompt = `You are an expert evaluator of AI agent performance. All trajectories below were given the same goal/scenario. Your job is to compare them and assign scores from 0 to 1 based on how well each trajectory achieved its goal.${archetypeContext}
 
 Grading standards:
-${DEFAULT_RUBRIC}
+${rubric}
 
-Important: Use the performance context provided (P&L, episode length, success rate) to inform your scoring, but also consider the quality of decision-making, efficiency, and goal achievement shown in the trajectory messages.`;
+Important: Use the performance context provided (P&L, episode length, success rate, archetype) to inform your scoring, but also consider the quality of decision-making, efficiency, and goal achievement shown in the trajectory messages.`;
 
     return JSON.stringify({
       system: systemPrompt,
@@ -614,6 +635,7 @@ Return ONLY the JSON, no other text.`;
       scenarioId: string | null;
       finalPnL: number | null;
       episodeLength: number | null;
+      archetype: string | null;
     }>
   ): Array<{ scenarioId: string; trajectories: typeof trajectoriesData }> {
     const groups = new Map<string, typeof trajectoriesData>();
@@ -644,6 +666,7 @@ Return ONLY the JSON, no other text.`;
           scenarioId: trajectories.scenarioId,
           finalPnL: trajectories.finalPnL,
           episodeLength: trajectories.episodeLength,
+          archetype: trajectories.archetype,
         })
         .from(trajectories)
         .where(
@@ -662,6 +685,7 @@ Return ONLY the JSON, no other text.`;
         scenarioId: trajectories.scenarioId,
         finalPnL: trajectories.finalPnL,
         episodeLength: trajectories.episodeLength,
+        archetype: trajectories.archetype,
       })
       .from(trajectories)
       .where(

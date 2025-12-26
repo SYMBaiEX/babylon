@@ -394,11 +394,20 @@ The metrics provided are CONTEXT to inform your judgment. Use them to understand
     // Format based on value type
     if (typeof value === 'number') {
       // Check if it's a rate/percentage
-      if (key.includes('Rate') || key.includes('Accuracy') || key.includes('Score')) {
+      if (
+        key.includes('Rate') ||
+        key.includes('Accuracy') ||
+        key.includes('Score')
+      ) {
         return `${(value * 100).toFixed(1)}%`;
       }
       // Check if it's a currency
-      if (key.includes('PnL') || key.includes('Win') || key.includes('Loss') || key.includes('Drawdown')) {
+      if (
+        key.includes('PnL') ||
+        key.includes('Win') ||
+        key.includes('Loss') ||
+        key.includes('Drawdown')
+      ) {
         return `$${value.toFixed(2)}`;
       }
       // Check if it's a ratio

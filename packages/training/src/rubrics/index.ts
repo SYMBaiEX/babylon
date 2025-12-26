@@ -112,10 +112,17 @@ export const PRIORITY_METRICS: Record<string, string[]> = {
 };
 
 /**
+ * Normalize archetype string to canonical format (lowercase, hyphens)
+ */
+export function normalizeArchetype(archetype: string): string {
+  return archetype.toLowerCase().trim().replace(/_/g, '-');
+}
+
+/**
  * Get the rubric for an archetype
  */
 export function getRubric(archetype: string): string {
-  const normalized = archetype.toLowerCase().trim();
+  const normalized = normalizeArchetype(archetype);
   return RUBRICS[normalized] || DEFAULT_RUBRIC;
 }
 
@@ -123,7 +130,7 @@ export function getRubric(archetype: string): string {
  * Get priority metrics for an archetype
  */
 export function getPriorityMetrics(archetype: string): string[] {
-  const normalized = archetype.toLowerCase().trim();
+  const normalized = normalizeArchetype(archetype);
   return PRIORITY_METRICS[normalized] || DEFAULT_PRIORITY_METRICS;
 }
 
@@ -131,7 +138,7 @@ export function getPriorityMetrics(archetype: string): string[] {
  * Check if an archetype has a custom rubric
  */
 export function hasCustomRubric(archetype: string): boolean {
-  const normalized = archetype.toLowerCase().trim();
+  const normalized = normalizeArchetype(archetype);
   return normalized in RUBRICS;
 }
 
