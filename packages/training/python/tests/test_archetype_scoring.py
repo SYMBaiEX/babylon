@@ -10,6 +10,9 @@ Comprehensive test coverage for:
 6. Behavior metrics extraction
 """
 
+import sys
+sys.path.insert(0, ".")
+
 import pytest
 from src.training.rewards import (
     TrajectoryRewardInputs,

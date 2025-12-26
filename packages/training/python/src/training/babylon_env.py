@@ -40,7 +40,6 @@ from atroposlib.envs.base import (
 
 from .rewards import (
     TrajectoryRewardInputs,
-    composite_reward,
     BehaviorMetrics,
     archetype_composite_reward,
 )
@@ -703,7 +702,7 @@ You receive market updates and must analyze, reason, and then act."""
                 trade_actions += 1
 
                 # Track P&L from result
-                if "pnl" in result:
+                if "pnl" in result and result["pnl"] is not None:
                     pnl = float(result["pnl"])
                     pnl_history.append(pnl)
                     if pnl > 0:
@@ -768,16 +767,24 @@ You receive market updates and must analyze, reason, and then act."""
             elif action_type in ("share_info", "share"):
                 metrics.info_shared += 1
 
-            # Track reputation from environment state
+            # Track reputation from environment state (support both camelCase and snake_case)
             env_state = step.get("environmentState", step.get("environment_state", {}))
             if "reputationDelta" in env_state:
                 metrics.reputation_delta = int(env_state["reputationDelta"])
+            elif "reputation_delta" in env_state:
+                metrics.reputation_delta = int(env_state["reputation_delta"])
             if "followersGained" in env_state:
                 metrics.followers_gained = int(env_state["followersGained"])
+            elif "followers_gained" in env_state:
+                metrics.followers_gained = int(env_state["followers_gained"])
             if "positiveReactions" in env_state:
                 metrics.positive_reactions = int(env_state["positiveReactions"])
+            elif "positive_reactions" in env_state:
+                metrics.positive_reactions = int(env_state["positive_reactions"])
             if "informationSpread" in env_state:
                 metrics.information_spread = int(env_state["informationSpread"])
+            elif "information_spread" in env_state:
+                metrics.information_spread = int(env_state["information_spread"])
 
         # Calculate derived metrics
         metrics.unique_users_interacted = len(unique_users)

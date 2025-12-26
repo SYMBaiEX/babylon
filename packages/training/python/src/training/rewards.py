@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 from typing import Dict, Optional
 import math
 
-from .rubric_loader import get_priority_metrics, normalize_archetype
+from .rubric_loader import normalize_archetype
 
 
 # =============================================================================
@@ -58,6 +58,10 @@ RESEARCHER_GOOD_ACCURACY = 0.5  # Good accuracy
 # Bonus/penalty caps
 MAX_BEHAVIOR_BONUS = 0.5   # Maximum behavior bonus
 MIN_BEHAVIOR_PENALTY = -0.5  # Maximum behavior penalty
+
+# Archetype-aware scoring multipliers
+# Note: Legacy composite_reward uses 0.5, archetype version uses 0.3 (more lenient)
+ARCHETYPE_RISK_PENALTY_MULTIPLIER = 0.3  # Per-risky-action penalty for non-degen archetypes
 
 # Bonus amounts (tunable parameters)
 BONUS_EXCELLENT = 0.20  # Excellent archetype-aligned behavior
@@ -771,26 +775,26 @@ def _calculate_trader_bonus(metrics: BehaviorMetrics) -> float:
     bonus = 0.0
 
     # Reward good win rate
-    if metrics.win_rate >= 0.60:
-        bonus += 0.15
-    elif metrics.win_rate >= 0.50:
+    if metrics.win_rate >= TRADER_HIGH_WIN_RATE:
+        bonus += BONUS_GOOD
+    elif metrics.win_rate >= TRADER_GOOD_WIN_RATE:
         bonus += 0.08
-    elif metrics.win_rate < 0.40 and metrics.trades_executed >= 5:
-        bonus -= 0.10
+    elif metrics.win_rate < TRADER_LOW_WIN_RATE and metrics.trades_executed >= 5:
+        bonus += PENALTY_MODERATE
 
     # Reward diversification
-    if metrics.markets_traded >= 4:
-        bonus += 0.10
-    elif metrics.markets_traded >= 2:
-        bonus += 0.05
+    if metrics.markets_traded >= TRADER_HIGH_DIVERSIFICATION:
+        bonus += BONUS_MODERATE
+    elif metrics.markets_traded >= TRADER_MIN_DIVERSIFICATION:
+        bonus += BONUS_MINOR
 
     # Penalize high social to trade ratio (should be trading, not socializing)
     if metrics.social_to_trade_ratio > 1.0:
-        bonus -= 0.10
+        bonus += PENALTY_MODERATE
 
     # Reward consistent activity
     if metrics.trades_executed >= 5:
-        bonus += 0.05
+        bonus += BONUS_MINOR
 
     return clamp_bonus(bonus)
 
@@ -803,24 +807,24 @@ def _calculate_researcher_bonus(metrics: BehaviorMetrics) -> float:
     bonus = 0.0
 
     # Reward research actions
-    if metrics.research_actions >= 10:
-        bonus += 0.20
-    elif metrics.research_actions >= 5:
+    if metrics.research_actions >= RESEARCHER_HIGH_ACTIONS:
+        bonus += BONUS_EXCELLENT
+    elif metrics.research_actions >= RESEARCHER_MOD_ACTIONS:
         bonus += 0.12
     elif metrics.research_actions >= 2:
         bonus += 0.06
     elif metrics.research_actions == 0:
-        bonus -= 0.15  # Not researching = not a researcher
+        bonus += PENALTY_SEVERE  # Not researching = not a researcher
 
     # Reward high prediction accuracy
-    if metrics.prediction_accuracy >= 0.70:
-        bonus += 0.20
-    elif metrics.prediction_accuracy >= 0.55:
-        bonus += 0.10
+    if metrics.prediction_accuracy >= RESEARCHER_HIGH_ACCURACY:
+        bonus += BONUS_EXCELLENT
+    elif metrics.prediction_accuracy >= RESEARCHER_GOOD_ACCURACY:
+        bonus += BONUS_MODERATE
 
     # Reward quality over quantity (fewer but better trades)
-    if metrics.win_rate >= 0.60 and metrics.trades_executed <= 10:
-        bonus += 0.10
+    if metrics.win_rate >= TRADER_HIGH_WIN_RATE and metrics.trades_executed <= 10:
+        bonus += BONUS_MODERATE
 
     return clamp_bonus(bonus)
 
@@ -1113,7 +1117,7 @@ def archetype_composite_reward(
 
     # 2. Risk penalty for risky actions (except for degens who embrace risk)
     if inputs.risky_actions_count > 0 and archetype_norm != "degen":
-        pnl_score -= (inputs.risky_actions_count * 0.3)
+        pnl_score -= (inputs.risky_actions_count * ARCHETYPE_RISK_PENALTY_MULTIPLIER)
 
     # 3. Format and reasoning scores
     format_score = inputs.format_score

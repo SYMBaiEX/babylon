@@ -57,6 +57,16 @@ describe('getRubric', () => {
     }
   });
 
+  it('should return custom rubrics (not default) for all available archetypes', () => {
+    const archetypes = getAvailableArchetypes();
+    for (const archetype of archetypes) {
+      expect(hasCustomRubric(archetype)).toBe(true);
+      // Also verify the rubric is different from default
+      const rubric = getRubric(archetype);
+      expect(rubric).not.toBe(DEFAULT_RUBRIC);
+    }
+  });
+
   it('should return default rubric for unknown archetypes', () => {
     const rubric = getRubric('unknown-archetype-xyz');
     expect(rubric).toBe(DEFAULT_RUBRIC);
