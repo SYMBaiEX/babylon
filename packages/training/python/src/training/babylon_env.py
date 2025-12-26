@@ -149,6 +149,11 @@ class BabylonRLAIFEnv(BaseEnv):
         self.windows_processed: int = 0
         self.eval_metrics: List[Dict] = []
         self.judgement_samples: List[Tuple[str, str, str]] = []
+        
+        # Track AI Judge scores for metrics
+        self.judge_scores_buffer: List[float] = []
+        self.judge_format_scores: List[float] = []
+        self.judge_reasoning_scores: List[float] = []
 
         # Initialize OpenAI client (Legacy/Fallback)
         self.judge_client = openai.AsyncOpenAI()
@@ -307,6 +312,19 @@ class BabylonRLAIFEnv(BaseEnv):
             wandb_metrics["eval/avg_pnl"] = sum(
                 m.get('avg_pnl', 0) for m in self.eval_metrics
             ) / len(self.eval_metrics) if self.eval_metrics else 0
+        
+        # Add AI Judge reward metrics
+        if len(self.judge_scores_buffer) > 0:
+            wandb_metrics["train/aiJudgeReward"] = sum(self.judge_scores_buffer) / len(self.judge_scores_buffer)
+            wandb_metrics["train/aiJudgeReward_min"] = min(self.judge_scores_buffer)
+            wandb_metrics["train/aiJudgeReward_max"] = max(self.judge_scores_buffer)
+            wandb_metrics["train/format_score"] = sum(self.judge_format_scores) / len(self.judge_format_scores)
+            wandb_metrics["train/reasoning_score"] = sum(self.judge_reasoning_scores) / len(self.judge_reasoning_scores)
+            
+            # Clear after logging
+            self.judge_scores_buffer = []
+            self.judge_format_scores = []
+            self.judge_reasoning_scores = []
 
         self.judgement_samples = []  # Clear after logging
         await super().wandb_log(wandb_metrics)
@@ -600,6 +618,11 @@ You receive market updates and must analyze, reason, and then act."""
             # 3. Compute Composite Score
             final_score = composite_reward(reward_inputs)
             scores.append(final_score)
+            
+            # Track for metrics
+            self.judge_scores_buffer.append(final_score)
+            self.judge_format_scores.append(fmt_score)
+            self.judge_reasoning_scores.append(rsn_score)
 
             # Logging sample for WandB
             if len(self.judgement_samples) < 10:
