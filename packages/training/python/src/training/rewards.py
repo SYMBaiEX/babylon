@@ -7,13 +7,123 @@ Computes various reward signals for RL training:
 - Efficiency: Reward per action taken
 - Action quality: Based on success rate and correctness
 - Composite: Weighted combination of multiple signals
+- Archetype-aware: Different archetypes have different success criteria
 
 Also provides utilities for normalizing and comparing rewards.
 """
 
-from dataclasses import dataclass
-from typing import Optional
+from dataclasses import dataclass, field
+from typing import Dict, Optional
 import math
+
+from .rubric_loader import get_priority_metrics, normalize_archetype
+
+
+# =============================================================================
+# Archetype-Specific Reward Weights
+# =============================================================================
+# Each archetype has different success criteria. These weights determine
+# how much each component contributes to the final score.
+
+ARCHETYPE_REWARD_WEIGHTS: Dict[str, Dict[str, float]] = {
+    # Traders prioritize P&L and risk management
+    "trader": {
+        "pnl": 0.55,
+        "format": 0.20,
+        "reasoning": 0.15,
+        "behavior": 0.10,
+    },
+    # Degens prioritize activity and risk-taking over profitability
+    "degen": {
+        "pnl": 0.15,  # Reduced - losses are acceptable
+        "format": 0.15,
+        "reasoning": 0.10,
+        "behavior": 0.60,  # High bonus for degen behaviors
+    },
+    # Social butterflies deprioritize trading entirely
+    "social-butterfly": {
+        "pnl": 0.10,
+        "format": 0.20,
+        "reasoning": 0.15,
+        "behavior": 0.55,
+    },
+    # Scammers need to profit through manipulation
+    "scammer": {
+        "pnl": 0.35,
+        "format": 0.15,
+        "reasoning": 0.20,
+        "behavior": 0.30,
+    },
+    # Researchers prioritize analysis quality
+    "researcher": {
+        "pnl": 0.25,
+        "format": 0.25,
+        "reasoning": 0.30,
+        "behavior": 0.20,
+    },
+    # Information traders balance social intel with trading
+    "information-trader": {
+        "pnl": 0.35,
+        "format": 0.20,
+        "reasoning": 0.20,
+        "behavior": 0.25,
+    },
+    # Goody two-shoes prioritize reputation and helpfulness
+    "goody-twoshoes": {
+        "pnl": 0.15,
+        "format": 0.25,
+        "reasoning": 0.20,
+        "behavior": 0.40,
+    },
+    # Ass-kissers prioritize reputation gains through flattery
+    "ass-kisser": {
+        "pnl": 0.10,
+        "format": 0.20,
+        "reasoning": 0.15,
+        "behavior": 0.55,
+    },
+    # Perps traders prioritize risk-adjusted P&L
+    "perps-trader": {
+        "pnl": 0.50,
+        "format": 0.15,
+        "reasoning": 0.20,
+        "behavior": 0.15,
+    },
+    # Super predictors prioritize accuracy
+    "super-predictor": {
+        "pnl": 0.30,
+        "format": 0.20,
+        "reasoning": 0.25,
+        "behavior": 0.25,
+    },
+    # Infosec agents prioritize security and caution
+    "infosec": {
+        "pnl": 0.25,
+        "format": 0.25,
+        "reasoning": 0.30,
+        "behavior": 0.20,
+    },
+    # Liars prioritize successful deception
+    "liar": {
+        "pnl": 0.20,
+        "format": 0.15,
+        "reasoning": 0.25,
+        "behavior": 0.40,
+    },
+    # Default balanced weights
+    "default": {
+        "pnl": 0.50,
+        "format": 0.25,
+        "reasoning": 0.15,
+        "behavior": 0.10,
+    },
+}
+
+
+def get_archetype_weights(archetype: str) -> Dict[str, float]:
+    """Get reward weights for an archetype."""
+    normalized = normalize_archetype(archetype)
+    return ARCHETYPE_REWARD_WEIGHTS.get(normalized, ARCHETYPE_REWARD_WEIGHTS["default"])
 
 
 @dataclass
@@ -367,3 +477,589 @@ class RewardNormalizer:
             List of normalized rewards
         """
         return [self.normalize(r) for r in rewards]
+
+
+# =============================================================================
+# Archetype Behavior Metrics
+# =============================================================================
+
+@dataclass
+class BehaviorMetrics:
+    """Metrics extracted from trajectory for archetype-aware scoring."""
+
+    # Trading metrics
+    trades_executed: int = 0
+    profitable_trades: int = 0
+    win_rate: float = 0.0
+    total_pnl: float = 0.0
+    pnl_variance: float = 0.0
+    largest_win: float = 0.0
+    largest_loss: float = 0.0
+    markets_traded: int = 0
+    avg_position_size: float = 0.0
+
+    # Social metrics
+    unique_users_interacted: int = 0
+    group_chats_joined: int = 0
+    dms_initiated: int = 0
+    posts_created: int = 0
+    comments_made: int = 0
+    mentions_given: int = 0
+
+    # Influence metrics
+    followers_gained: int = 0
+    reputation_delta: int = 0
+    positive_reactions: int = 0
+    information_spread: int = 0
+
+    # Research/information metrics
+    research_actions: int = 0
+    predictions_made: int = 0
+    correct_predictions: int = 0
+    prediction_accuracy: float = 0.0
+    info_requests_sent: int = 0
+    info_shared: int = 0
+
+    # Behavior patterns
+    actions_per_tick: float = 0.0
+    social_to_trade_ratio: float = 0.0
+    episode_length: int = 0
+
+
+def calculate_archetype_behavior_bonus(
+    archetype: str,
+    metrics: BehaviorMetrics,
+) -> float:
+    """
+    Calculate behavior bonus/penalty based on archetype-aligned actions.
+
+    Each archetype has specific behaviors that should be rewarded or penalized.
+    Returns a score from -0.5 to +0.5 that will be weighted in the composite.
+
+    Args:
+        archetype: Normalized archetype name
+        metrics: Extracted behavior metrics from trajectory
+
+    Returns:
+        Behavior bonus score in range [-0.5, 0.5]
+    """
+    archetype = normalize_archetype(archetype)
+
+    if archetype == "degen":
+        return _calculate_degen_bonus(metrics)
+    elif archetype == "social-butterfly":
+        return _calculate_social_butterfly_bonus(metrics)
+    elif archetype == "scammer":
+        return _calculate_scammer_bonus(metrics)
+    elif archetype == "trader":
+        return _calculate_trader_bonus(metrics)
+    elif archetype == "researcher":
+        return _calculate_researcher_bonus(metrics)
+    elif archetype == "information-trader":
+        return _calculate_information_trader_bonus(metrics)
+    elif archetype == "goody-twoshoes":
+        return _calculate_goody_twoshoes_bonus(metrics)
+    elif archetype == "ass-kisser":
+        return _calculate_ass_kisser_bonus(metrics)
+    elif archetype == "perps-trader":
+        return _calculate_perps_trader_bonus(metrics)
+    elif archetype == "super-predictor":
+        return _calculate_super_predictor_bonus(metrics)
+    elif archetype == "infosec":
+        return _calculate_infosec_bonus(metrics)
+    elif archetype == "liar":
+        return _calculate_liar_bonus(metrics)
+    else:
+        return 0.0  # Default: no bonus
+
+
+def _calculate_degen_bonus(metrics: BehaviorMetrics) -> float:
+    """
+    Degen: Reward high activity, risk-taking, and volatility.
+    Penalize conservative behavior.
+    """
+    bonus = 0.0
+
+    # Reward high trade volume (10+ trades = good degen)
+    if metrics.trades_executed >= 20:
+        bonus += 0.20
+    elif metrics.trades_executed >= 10:
+        bonus += 0.15
+    elif metrics.trades_executed >= 5:
+        bonus += 0.08
+    elif metrics.trades_executed < 2:
+        bonus -= 0.15  # Penalty for low activity
+
+    # Reward high variance (big swings = degen behavior)
+    if metrics.pnl_variance > 500:
+        bonus += 0.15
+    elif metrics.pnl_variance > 100:
+        bonus += 0.08
+
+    # Reward large position sizes
+    if metrics.avg_position_size > 500:
+        bonus += 0.10
+    elif metrics.avg_position_size > 200:
+        bonus += 0.05
+
+    # Reward big wins/losses (sign of bold trades)
+    if abs(metrics.largest_win) > 100 or abs(metrics.largest_loss) > 100:
+        bonus += 0.05
+
+    return max(-0.5, min(0.5, bonus))
+
+
+def _calculate_social_butterfly_bonus(metrics: BehaviorMetrics) -> float:
+    """
+    Social Butterfly: Reward extensive networking and engagement.
+    Penalize trading-focused behavior.
+    """
+    bonus = 0.0
+
+    # Reward unique connections (15+ = excellent)
+    if metrics.unique_users_interacted >= 15:
+        bonus += 0.20
+    elif metrics.unique_users_interacted >= 8:
+        bonus += 0.12
+    elif metrics.unique_users_interacted >= 3:
+        bonus += 0.06
+    elif metrics.unique_users_interacted < 2:
+        bonus -= 0.15  # Penalty for isolation
+
+    # Reward group chat activity
+    if metrics.group_chats_joined >= 5:
+        bonus += 0.15
+    elif metrics.group_chats_joined >= 2:
+        bonus += 0.08
+
+    # Reward DM activity
+    if metrics.dms_initiated >= 10:
+        bonus += 0.10
+    elif metrics.dms_initiated >= 3:
+        bonus += 0.05
+
+    # Reward posting/commenting
+    total_posts = metrics.posts_created + metrics.comments_made
+    if total_posts >= 10:
+        bonus += 0.08
+    elif total_posts >= 3:
+        bonus += 0.04
+
+    # Penalize heavy trading focus
+    if metrics.social_to_trade_ratio < 0.5 and metrics.trades_executed > 5:
+        bonus -= 0.10
+
+    return max(-0.5, min(0.5, bonus))
+
+
+def _calculate_scammer_bonus(metrics: BehaviorMetrics) -> float:
+    """
+    Scammer: Reward profit through social manipulation.
+    Penalize honest trading without social element.
+    """
+    bonus = 0.0
+
+    # Must have some social engagement (need marks to scam)
+    if metrics.unique_users_interacted >= 5:
+        bonus += 0.10
+    elif metrics.unique_users_interacted < 2:
+        bonus -= 0.20  # Hard penalty for no social manipulation
+
+    # Reward DM activity (private manipulation channels)
+    if metrics.dms_initiated >= 5:
+        bonus += 0.10
+    elif metrics.dms_initiated >= 2:
+        bonus += 0.05
+
+    # Must profit to be a successful scammer
+    if metrics.total_pnl > 0:
+        bonus += 0.15
+    else:
+        bonus -= 0.15  # Failed scammer
+
+    # Reward maintaining reputation (building trust to exploit)
+    if metrics.reputation_delta > 0:
+        bonus += 0.10
+    elif metrics.reputation_delta < -20:
+        bonus -= 0.10  # Got caught
+
+    return max(-0.5, min(0.5, bonus))
+
+
+def _calculate_trader_bonus(metrics: BehaviorMetrics) -> float:
+    """
+    Trader: Reward disciplined, profitable trading.
+    Penalize social distractions.
+    """
+    bonus = 0.0
+
+    # Reward good win rate
+    if metrics.win_rate >= 0.60:
+        bonus += 0.15
+    elif metrics.win_rate >= 0.50:
+        bonus += 0.08
+    elif metrics.win_rate < 0.40 and metrics.trades_executed >= 5:
+        bonus -= 0.10
+
+    # Reward diversification
+    if metrics.markets_traded >= 4:
+        bonus += 0.10
+    elif metrics.markets_traded >= 2:
+        bonus += 0.05
+
+    # Penalize high social to trade ratio (should be trading, not socializing)
+    if metrics.social_to_trade_ratio > 1.0:
+        bonus -= 0.10
+
+    # Reward consistent activity
+    if metrics.trades_executed >= 5:
+        bonus += 0.05
+
+    return max(-0.5, min(0.5, bonus))
+
+
+def _calculate_researcher_bonus(metrics: BehaviorMetrics) -> float:
+    """
+    Researcher: Reward analysis and research activity.
+    Reward correlation between research and accurate predictions.
+    """
+    bonus = 0.0
+
+    # Reward research actions
+    if metrics.research_actions >= 10:
+        bonus += 0.20
+    elif metrics.research_actions >= 5:
+        bonus += 0.12
+    elif metrics.research_actions >= 2:
+        bonus += 0.06
+    elif metrics.research_actions == 0:
+        bonus -= 0.15  # Not researching = not a researcher
+
+    # Reward high prediction accuracy
+    if metrics.prediction_accuracy >= 0.70:
+        bonus += 0.20
+    elif metrics.prediction_accuracy >= 0.55:
+        bonus += 0.10
+
+    # Reward quality over quantity (fewer but better trades)
+    if metrics.win_rate >= 0.60 and metrics.trades_executed <= 10:
+        bonus += 0.10
+
+    return max(-0.5, min(0.5, bonus))
+
+
+def _calculate_information_trader_bonus(metrics: BehaviorMetrics) -> float:
+    """
+    Information Trader: Reward balance of social intel gathering and trading.
+    """
+    bonus = 0.0
+
+    # Need balanced social-to-trade ratio (0.5 to 1.5 is ideal)
+    if 0.5 <= metrics.social_to_trade_ratio <= 1.5:
+        bonus += 0.15
+    elif metrics.social_to_trade_ratio > 3.0:
+        bonus -= 0.10  # Too social, not trading on info
+    elif metrics.social_to_trade_ratio < 0.2 and metrics.trades_executed > 3:
+        bonus -= 0.10  # Pure trading, no intel gathering
+
+    # Reward group chat participation (info sources)
+    if metrics.group_chats_joined >= 3:
+        bonus += 0.10
+
+    # Reward DM conversations (private intel)
+    if metrics.dms_initiated >= 3:
+        bonus += 0.08
+
+    # Reward info requests (actively seeking intel)
+    if metrics.info_requests_sent >= 3:
+        bonus += 0.08
+
+    # Must still profit from the intel
+    if metrics.total_pnl > 0:
+        bonus += 0.10
+
+    return max(-0.5, min(0.5, bonus))
+
+
+def _calculate_goody_twoshoes_bonus(metrics: BehaviorMetrics) -> float:
+    """
+    Goody Two-Shoes: Reward helpfulness and reputation building.
+    """
+    bonus = 0.0
+
+    # Reward reputation gains (most important)
+    if metrics.reputation_delta >= 30:
+        bonus += 0.25
+    elif metrics.reputation_delta >= 10:
+        bonus += 0.15
+    elif metrics.reputation_delta >= 0:
+        bonus += 0.05
+    else:
+        bonus -= 0.15  # Losing reputation = not being good
+
+    # Reward information sharing
+    if metrics.info_shared >= 5:
+        bonus += 0.12
+    elif metrics.info_shared >= 2:
+        bonus += 0.06
+
+    # Reward positive reactions
+    if metrics.positive_reactions >= 10:
+        bonus += 0.10
+    elif metrics.positive_reactions >= 3:
+        bonus += 0.05
+
+    # Reward follower gains
+    if metrics.followers_gained >= 5:
+        bonus += 0.08
+
+    return max(-0.5, min(0.5, bonus))
+
+
+def _calculate_ass_kisser_bonus(metrics: BehaviorMetrics) -> float:
+    """
+    Ass-Kisser: Reward reputation and follower gains through flattery.
+    """
+    bonus = 0.0
+
+    # Reputation gains are everything
+    if metrics.reputation_delta >= 50:
+        bonus += 0.30
+    elif metrics.reputation_delta >= 20:
+        bonus += 0.20
+    elif metrics.reputation_delta >= 5:
+        bonus += 0.10
+    elif metrics.reputation_delta < 0:
+        bonus -= 0.20  # Failed flattery
+
+    # Reward follower gains
+    if metrics.followers_gained >= 10:
+        bonus += 0.15
+    elif metrics.followers_gained >= 3:
+        bonus += 0.08
+
+    # Reward commenting activity (public flattery)
+    if metrics.comments_made >= 10:
+        bonus += 0.08
+    elif metrics.comments_made >= 5:
+        bonus += 0.04
+
+    # Reward DM activity (personal flattery)
+    if metrics.dms_initiated >= 5:
+        bonus += 0.05
+
+    return max(-0.5, min(0.5, bonus))
+
+
+def _calculate_perps_trader_bonus(metrics: BehaviorMetrics) -> float:
+    """
+    Perps Trader: Reward risk-managed leveraged trading.
+    Penalize over-leverage and liquidations.
+    """
+    bonus = 0.0
+
+    # Reward good win rate (direction calling)
+    if metrics.win_rate >= 0.55:
+        bonus += 0.15
+    elif metrics.win_rate < 0.40 and metrics.trades_executed >= 5:
+        bonus -= 0.15  # Wrong direction too often
+
+    # Reward active perp trading
+    if metrics.trades_executed >= 10:
+        bonus += 0.10
+    elif metrics.trades_executed >= 5:
+        bonus += 0.05
+    elif metrics.trades_executed < 2:
+        bonus -= 0.10  # Not trading perps
+
+    # Penalize high variance (poor risk management with leverage)
+    if metrics.pnl_variance > 1000:
+        bonus -= 0.10  # Too volatile for leveraged trading
+
+    # Reward profitability (must make money with leverage)
+    if metrics.total_pnl > 0:
+        bonus += 0.10
+    elif metrics.total_pnl < -200:
+        bonus -= 0.15  # Big losses = blown up
+
+    return max(-0.5, min(0.5, bonus))
+
+
+def _calculate_super_predictor_bonus(metrics: BehaviorMetrics) -> float:
+    """
+    Super Predictor: Reward high prediction accuracy.
+    Quality over quantity.
+    """
+    bonus = 0.0
+
+    # Prediction accuracy is king
+    if metrics.prediction_accuracy >= 0.75:
+        bonus += 0.30
+    elif metrics.prediction_accuracy >= 0.60:
+        bonus += 0.18
+    elif metrics.prediction_accuracy >= 0.50:
+        bonus += 0.08
+    elif metrics.predictions_made >= 5 and metrics.prediction_accuracy < 0.45:
+        bonus -= 0.20  # Wrong too often
+
+    # Reward research (should analyze before predicting)
+    if metrics.research_actions >= 3:
+        bonus += 0.08
+
+    # Reward making predictions
+    if metrics.predictions_made >= 5:
+        bonus += 0.08
+    elif metrics.predictions_made == 0:
+        bonus -= 0.15  # Not predicting = not a predictor
+
+    # Reward translating predictions to profit
+    if metrics.total_pnl > 0 and metrics.prediction_accuracy >= 0.55:
+        bonus += 0.08
+
+    return max(-0.5, min(0.5, bonus))
+
+
+def _calculate_infosec_bonus(metrics: BehaviorMetrics) -> float:
+    """
+    Infosec: Reward caution, verification, and avoiding manipulation.
+    """
+    bonus = 0.0
+
+    # Reward low information sharing (protective)
+    if metrics.info_shared <= 1:
+        bonus += 0.15
+    elif metrics.info_shared >= 5:
+        bonus -= 0.10  # Oversharing
+
+    # Reward avoiding big losses (didn't fall for scams)
+    if metrics.largest_loss > -50:  # Small losses only
+        bonus += 0.15
+    elif metrics.largest_loss < -200:
+        bonus -= 0.15  # Big loss = got scammed
+
+    # Reward research/verification
+    if metrics.research_actions >= 3:
+        bonus += 0.10
+
+    # Reward consistent, steady behavior
+    if metrics.pnl_variance < 100:
+        bonus += 0.10
+
+    # Penalize high DM response (could be manipulation attempts)
+    if metrics.dms_initiated < 3:
+        bonus += 0.05  # Cautious with DMs
+
+    return max(-0.5, min(0.5, bonus))
+
+
+def _calculate_liar_bonus(metrics: BehaviorMetrics) -> float:
+    """
+    Liar: Reward successful deception and information spread.
+    """
+    bonus = 0.0
+
+    # Reward information spread (lies propagating)
+    if metrics.information_spread >= 10:
+        bonus += 0.20
+    elif metrics.information_spread >= 3:
+        bonus += 0.10
+
+    # Reward social engagement (audience for lies)
+    if metrics.unique_users_interacted >= 8:
+        bonus += 0.12
+    elif metrics.unique_users_interacted >= 3:
+        bonus += 0.06
+    elif metrics.unique_users_interacted < 2:
+        bonus -= 0.15  # No audience
+
+    # Reward maintaining reputation despite lying
+    if metrics.reputation_delta >= 0:
+        bonus += 0.15  # Not caught
+    elif metrics.reputation_delta < -20:
+        bonus -= 0.15  # Got exposed
+
+    # Reward posting activity (platforms for misinformation)
+    if metrics.posts_created >= 5:
+        bonus += 0.08
+    elif metrics.posts_created >= 2:
+        bonus += 0.04
+
+    return max(-0.5, min(0.5, bonus))
+
+
+# =============================================================================
+# Archetype Composite Reward
+# =============================================================================
+
+def archetype_composite_reward(
+    inputs: TrajectoryRewardInputs,
+    archetype: str,
+    behavior_metrics: Optional[BehaviorMetrics] = None,
+) -> float:
+    """
+    Compute archetype-aware composite reward.
+
+    Different archetypes have different success criteria. This function
+    combines PnL, format, reasoning, and behavior scores using weights
+    specific to the archetype.
+
+    Args:
+        inputs: Standard trajectory reward inputs (PnL, format, reasoning scores)
+        archetype: Agent archetype (e.g., "degen", "trader", "social-butterfly")
+        behavior_metrics: Optional extracted behavior metrics for behavior bonus
+
+    Returns:
+        Composite reward score in range [-1.0, 1.0]
+    """
+    archetype_norm = normalize_archetype(archetype)
+    weights = get_archetype_weights(archetype_norm)
+
+    # 1. Calculate PnL Score
+    if inputs.end_balance != inputs.starting_balance:
+        pnl_score = calculate_pnl_reward(inputs.starting_balance, inputs.end_balance)
+    else:
+        end_bal = inputs.starting_balance + inputs.final_pnl
+        pnl_score = calculate_pnl_reward(inputs.starting_balance, end_bal)
+
+    # Archetype-specific PnL adjustments
+    if archetype_norm == "degen" and pnl_score < 0:
+        # Degens shouldn't be heavily penalized for losses
+        pnl_score = pnl_score * 0.3
+
+    if archetype_norm == "social-butterfly" and pnl_score < 0:
+        # Social butterflies shouldn't care much about trading losses
+        pnl_score = pnl_score * 0.5
+
+    # Bankruptcy still matters for most archetypes
+    if pnl_score <= -5.0 and archetype_norm not in ("degen", "social-butterfly"):
+        return max(-1.0, pnl_score)
+
+    # 2. Risk penalty for risky actions (except for degens who embrace risk)
+    if inputs.risky_actions_count > 0 and archetype_norm != "degen":
+        pnl_score -= (inputs.risky_actions_count * 0.3)
+
+    # 3. Format and reasoning scores
+    format_score = inputs.format_score
+    reasoning_score = inputs.reasoning_score
+
+    # 4. Behavior bonus
+    behavior_bonus = 0.0
+    if behavior_metrics is not None:
+        behavior_bonus = calculate_archetype_behavior_bonus(archetype_norm, behavior_metrics)
+
+    # 5. Compute weighted composite
+    total_weight = (
+        weights["pnl"]
+        + weights["format"]
+        + weights["reasoning"]
+        + weights["behavior"]
+    )
+
+    composite = (
+        pnl_score * weights["pnl"]
+        + format_score * weights["format"]
+        + reasoning_score * weights["reasoning"]
+        + behavior_bonus * weights["behavior"]
+    ) / total_weight
+
+    return max(-1.0, min(1.0, composite))

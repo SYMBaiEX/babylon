@@ -31,6 +31,12 @@ from .rewards import (
     ranking_to_scores,
     pairwise_preferences_to_scores,
     RewardNormalizer,
+    # Archetype-aware scoring
+    BehaviorMetrics,
+    archetype_composite_reward,
+    calculate_archetype_behavior_bonus,
+    get_archetype_weights,
+    ARCHETYPE_REWARD_WEIGHTS,
 )
 
 # Quality utilities (no torch dependency)
@@ -79,7 +85,13 @@ from .rubric_loader import (
     get_priority_metrics,
     get_available_archetypes,
     reload_rubrics,
+    get_rubric_hash,
+    get_all_rubrics_hash,
+    get_rubrics_version,
+    normalize_archetype,
+    has_custom_rubric,
     DEFAULT_RUBRIC,
+    RUBRICS_VERSION,
 )
 
 # Lazy imports for torch-dependent modules
@@ -198,6 +210,12 @@ __all__ = [
     "ranking_to_scores",
     "pairwise_preferences_to_scores",
     "RewardNormalizer",
+    # Archetype-aware scoring
+    "BehaviorMetrics",
+    "archetype_composite_reward",
+    "calculate_archetype_behavior_bonus",
+    "get_archetype_weights",
+    "ARCHETYPE_REWARD_WEIGHTS",
     # Fast rollout generation (lazy - may require torch)
     "FastRolloutGenerator",
     "RolloutConfig",
@@ -236,9 +254,16 @@ __all__ = [
     "ArchetypeTrainer",
     "ArchetypeTrainingConfig",
     "ArchetypeTrainingResult",
+    # Rubric loading
     "get_rubric",
     "get_priority_metrics",
     "get_available_archetypes",
     "reload_rubrics",
+    "get_rubric_hash",
+    "get_all_rubrics_hash",
+    "get_rubrics_version",
+    "normalize_archetype",
+    "has_custom_rubric",
     "DEFAULT_RUBRIC",
+    "RUBRICS_VERSION",
 ]

@@ -3,12 +3,18 @@ Rubric Loader - Single Source of Truth
 
 Loads archetype rubrics from the canonical JSON config file.
 This eliminates duplication between TypeScript and Python.
+
+Includes versioning for cache invalidation and reproducibility.
 """
 
+import hashlib
 import json
-import os
 from pathlib import Path
 from typing import Dict, List, Optional
+
+# Rubric version - increment when rubrics change significantly
+# This should match RUBRICS_VERSION in packages/training/src/rubrics/index.ts
+RUBRICS_VERSION = "1.0.0"
 
 # Find the config directory relative to this file
 _CURRENT_DIR = Path(__file__).parent
@@ -76,6 +82,26 @@ class RubricConfig:
         normalized = archetype.lower().strip().replace("_", "-")
         return normalized in self._rubrics
     
+    def get_rubric_hash(self, archetype: str) -> str:
+        """
+        Get content hash for a specific archetype's rubric.
+        Used for cache invalidation when rubric content changes.
+        """
+        rubric = self.get_rubric(archetype)
+        return hashlib.sha256(rubric.encode()).hexdigest()[:16]
+    
+    def get_all_rubrics_hash(self) -> str:
+        """
+        Get combined hash of all rubrics.
+        Used for detecting any rubric changes.
+        """
+        all_rubrics = "::".join(sorted(self._rubrics.values())) + self._default_rubric
+        return hashlib.sha256(all_rubrics.encode()).hexdigest()[:16]
+    
+    def get_version(self) -> str:
+        """Get the current rubrics version."""
+        return RUBRICS_VERSION
+    
     def reload(self) -> None:
         """Reload configuration from file."""
         self._load_config()
@@ -133,6 +159,26 @@ def has_custom_rubric(archetype: str) -> bool:
 def reload_rubrics() -> None:
     """Reload rubrics from file."""
     _config.reload()
+
+
+def get_rubric_hash(archetype: str) -> str:
+    """Get content hash for a specific archetype's rubric."""
+    return _config.get_rubric_hash(archetype)
+
+
+def get_all_rubrics_hash() -> str:
+    """Get combined hash of all rubrics."""
+    return _config.get_all_rubrics_hash()
+
+
+def get_rubrics_version() -> str:
+    """Get the current rubrics version."""
+    return RUBRICS_VERSION
+
+
+def normalize_archetype(archetype: str) -> str:
+    """Normalize archetype name to canonical form (lowercase, hyphenated)."""
+    return archetype.lower().strip().replace("_", "-")
 
 
 # For backwards compatibility, expose DEFAULT_RUBRIC
