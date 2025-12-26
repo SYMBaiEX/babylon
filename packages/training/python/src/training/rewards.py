@@ -20,10 +20,61 @@ from .rubric_loader import get_priority_metrics, normalize_archetype
 
 
 # =============================================================================
+# Archetype Scoring Constants
+# =============================================================================
+# Thresholds for behavior bonuses. Extracted from behavior functions for clarity.
+
+# Degen thresholds
+DEGEN_HIGH_TRADES = 20  # Excellent degen activity
+DEGEN_GOOD_TRADES = 10  # Good degen activity
+DEGEN_MIN_TRADES = 5    # Minimum for positive bonus
+DEGEN_HIGH_VARIANCE = 500  # High P&L variance (bold trades)
+DEGEN_MOD_VARIANCE = 100   # Moderate variance
+DEGEN_HIGH_POSITION = 500  # Large position size
+DEGEN_MOD_POSITION = 200   # Moderate position size
+
+# Social Butterfly thresholds
+SOCIAL_EXCELLENT_CONNECTIONS = 15  # Top networking
+SOCIAL_GOOD_CONNECTIONS = 8        # Good networking
+SOCIAL_MIN_CONNECTIONS = 3         # Minimum for bonus
+SOCIAL_HIGH_GROUPS = 5             # Many group chats
+SOCIAL_MIN_GROUPS = 2              # Minimum groups
+SOCIAL_HIGH_DMS = 10               # High DM activity
+SOCIAL_MIN_DMS = 3                 # Minimum DMs
+
+# Trader thresholds
+TRADER_HIGH_WIN_RATE = 0.60  # Excellent discipline
+TRADER_GOOD_WIN_RATE = 0.50  # Good discipline
+TRADER_LOW_WIN_RATE = 0.40   # Poor discipline
+TRADER_HIGH_DIVERSIFICATION = 4  # Well diversified
+TRADER_MIN_DIVERSIFICATION = 2   # Some diversification
+
+# Researcher thresholds
+RESEARCHER_HIGH_ACTIONS = 10   # Heavy research
+RESEARCHER_MOD_ACTIONS = 5     # Moderate research
+RESEARCHER_HIGH_ACCURACY = 0.7  # Excellent accuracy
+RESEARCHER_GOOD_ACCURACY = 0.5  # Good accuracy
+
+# Bonus/penalty caps
+MAX_BEHAVIOR_BONUS = 0.5   # Maximum behavior bonus
+MIN_BEHAVIOR_PENALTY = -0.5  # Maximum behavior penalty
+
+# =============================================================================
 # Archetype-Specific Reward Weights
 # =============================================================================
 # Each archetype has different success criteria. These weights determine
-# how much each component contributes to the final score.
+# how much each component contributes to the final score:
+#
+# - pnl: Financial performance (P&L-based reward)
+# - format: Response format quality (proper structure, valid JSON)
+# - reasoning: Quality of reasoning in LLM calls
+# - behavior: Archetype-aligned behavioral bonus/penalty
+#
+# Design principles:
+# 1. Weights sum to 1.0 for each archetype
+# 2. Archetypes that don't focus on profit have lower pnl weight
+# 3. Behavior weight is higher for personality-driven archetypes
+# 4. Format/reasoning provide baseline quality signals
 
 ARCHETYPE_REWARD_WEIGHTS: Dict[str, Dict[str, float]] = {
     # Traders prioritize P&L and risk management
@@ -577,79 +628,91 @@ def _calculate_degen_bonus(metrics: BehaviorMetrics) -> float:
     """
     Degen: Reward high activity, risk-taking, and volatility.
     Penalize conservative behavior.
+
+    Scoring rationale:
+    - Degens are rewarded for high trade volume regardless of profitability
+    - High P&L variance indicates bold trading style
+    - Large position sizes show commitment to risk-taking
+    - Low activity is the antithesis of degen behavior
     """
     bonus = 0.0
 
-    # Reward high trade volume (10+ trades = good degen)
-    if metrics.trades_executed >= 20:
-        bonus += 0.20
-    elif metrics.trades_executed >= 10:
-        bonus += 0.15
-    elif metrics.trades_executed >= 5:
-        bonus += 0.08
+    # Reward high trade volume
+    if metrics.trades_executed >= DEGEN_HIGH_TRADES:
+        bonus += 0.20  # Excellent degen activity
+    elif metrics.trades_executed >= DEGEN_GOOD_TRADES:
+        bonus += 0.15  # Good activity
+    elif metrics.trades_executed >= DEGEN_MIN_TRADES:
+        bonus += 0.08  # Some activity
     elif metrics.trades_executed < 2:
         bonus -= 0.15  # Penalty for low activity
 
     # Reward high variance (big swings = degen behavior)
-    if metrics.pnl_variance > 500:
-        bonus += 0.15
-    elif metrics.pnl_variance > 100:
-        bonus += 0.08
+    if metrics.pnl_variance > DEGEN_HIGH_VARIANCE:
+        bonus += 0.15  # High volatility trading
+    elif metrics.pnl_variance > DEGEN_MOD_VARIANCE:
+        bonus += 0.08  # Moderate volatility
 
     # Reward large position sizes
-    if metrics.avg_position_size > 500:
-        bonus += 0.10
-    elif metrics.avg_position_size > 200:
-        bonus += 0.05
+    if metrics.avg_position_size > DEGEN_HIGH_POSITION:
+        bonus += 0.10  # Bold position sizing
+    elif metrics.avg_position_size > DEGEN_MOD_POSITION:
+        bonus += 0.05  # Moderate positions
 
     # Reward big wins/losses (sign of bold trades)
     if abs(metrics.largest_win) > 100 or abs(metrics.largest_loss) > 100:
         bonus += 0.05
 
-    return max(-0.5, min(0.5, bonus))
+    return max(MIN_BEHAVIOR_PENALTY, min(MAX_BEHAVIOR_BONUS, bonus))
 
 
 def _calculate_social_butterfly_bonus(metrics: BehaviorMetrics) -> float:
     """
     Social Butterfly: Reward extensive networking and engagement.
     Penalize trading-focused behavior.
+
+    Scoring rationale:
+    - Social butterflies prioritize connections over profits
+    - Group chats and DMs indicate networking activity
+    - Posting/commenting shows community engagement
+    - Heavy trading focus contradicts the archetype
     """
     bonus = 0.0
 
-    # Reward unique connections (15+ = excellent)
-    if metrics.unique_users_interacted >= 15:
-        bonus += 0.20
-    elif metrics.unique_users_interacted >= 8:
-        bonus += 0.12
-    elif metrics.unique_users_interacted >= 3:
-        bonus += 0.06
+    # Reward unique connections
+    if metrics.unique_users_interacted >= SOCIAL_EXCELLENT_CONNECTIONS:
+        bonus += 0.20  # Excellent networking
+    elif metrics.unique_users_interacted >= SOCIAL_GOOD_CONNECTIONS:
+        bonus += 0.12  # Good networking
+    elif metrics.unique_users_interacted >= SOCIAL_MIN_CONNECTIONS:
+        bonus += 0.06  # Some networking
     elif metrics.unique_users_interacted < 2:
         bonus -= 0.15  # Penalty for isolation
 
     # Reward group chat activity
-    if metrics.group_chats_joined >= 5:
-        bonus += 0.15
-    elif metrics.group_chats_joined >= 2:
-        bonus += 0.08
+    if metrics.group_chats_joined >= SOCIAL_HIGH_GROUPS:
+        bonus += 0.15  # Heavy group involvement
+    elif metrics.group_chats_joined >= SOCIAL_MIN_GROUPS:
+        bonus += 0.08  # Some group activity
 
     # Reward DM activity
-    if metrics.dms_initiated >= 10:
-        bonus += 0.10
-    elif metrics.dms_initiated >= 3:
-        bonus += 0.05
+    if metrics.dms_initiated >= SOCIAL_HIGH_DMS:
+        bonus += 0.10  # High direct engagement
+    elif metrics.dms_initiated >= SOCIAL_MIN_DMS:
+        bonus += 0.05  # Some direct engagement
 
     # Reward posting/commenting
     total_posts = metrics.posts_created + metrics.comments_made
     if total_posts >= 10:
-        bonus += 0.08
+        bonus += 0.08  # Active poster
     elif total_posts >= 3:
-        bonus += 0.04
+        bonus += 0.04  # Some content creation
 
     # Penalize heavy trading focus
     if metrics.social_to_trade_ratio < 0.5 and metrics.trades_executed > 5:
         bonus -= 0.10
 
-    return max(-0.5, min(0.5, bonus))
+    return max(MIN_BEHAVIOR_PENALTY, min(MAX_BEHAVIOR_BONUS, bonus))
 
 
 def _calculate_scammer_bonus(metrics: BehaviorMetrics) -> float:
@@ -683,7 +746,7 @@ def _calculate_scammer_bonus(metrics: BehaviorMetrics) -> float:
     elif metrics.reputation_delta < -20:
         bonus -= 0.10  # Got caught
 
-    return max(-0.5, min(0.5, bonus))
+    return max(MIN_BEHAVIOR_PENALTY, min(MAX_BEHAVIOR_BONUS, bonus))
 
 
 def _calculate_trader_bonus(metrics: BehaviorMetrics) -> float:
@@ -715,7 +778,7 @@ def _calculate_trader_bonus(metrics: BehaviorMetrics) -> float:
     if metrics.trades_executed >= 5:
         bonus += 0.05
 
-    return max(-0.5, min(0.5, bonus))
+    return max(MIN_BEHAVIOR_PENALTY, min(MAX_BEHAVIOR_BONUS, bonus))
 
 
 def _calculate_researcher_bonus(metrics: BehaviorMetrics) -> float:
@@ -745,7 +808,7 @@ def _calculate_researcher_bonus(metrics: BehaviorMetrics) -> float:
     if metrics.win_rate >= 0.60 and metrics.trades_executed <= 10:
         bonus += 0.10
 
-    return max(-0.5, min(0.5, bonus))
+    return max(MIN_BEHAVIOR_PENALTY, min(MAX_BEHAVIOR_BONUS, bonus))
 
 
 def _calculate_information_trader_bonus(metrics: BehaviorMetrics) -> float:
@@ -778,7 +841,7 @@ def _calculate_information_trader_bonus(metrics: BehaviorMetrics) -> float:
     if metrics.total_pnl > 0:
         bonus += 0.10
 
-    return max(-0.5, min(0.5, bonus))
+    return max(MIN_BEHAVIOR_PENALTY, min(MAX_BEHAVIOR_BONUS, bonus))
 
 
 def _calculate_goody_twoshoes_bonus(metrics: BehaviorMetrics) -> float:
@@ -813,7 +876,7 @@ def _calculate_goody_twoshoes_bonus(metrics: BehaviorMetrics) -> float:
     if metrics.followers_gained >= 5:
         bonus += 0.08
 
-    return max(-0.5, min(0.5, bonus))
+    return max(MIN_BEHAVIOR_PENALTY, min(MAX_BEHAVIOR_BONUS, bonus))
 
 
 def _calculate_ass_kisser_bonus(metrics: BehaviorMetrics) -> float:
@@ -848,7 +911,7 @@ def _calculate_ass_kisser_bonus(metrics: BehaviorMetrics) -> float:
     if metrics.dms_initiated >= 5:
         bonus += 0.05
 
-    return max(-0.5, min(0.5, bonus))
+    return max(MIN_BEHAVIOR_PENALTY, min(MAX_BEHAVIOR_BONUS, bonus))
 
 
 def _calculate_perps_trader_bonus(metrics: BehaviorMetrics) -> float:
@@ -882,7 +945,7 @@ def _calculate_perps_trader_bonus(metrics: BehaviorMetrics) -> float:
     elif metrics.total_pnl < -200:
         bonus -= 0.15  # Big losses = blown up
 
-    return max(-0.5, min(0.5, bonus))
+    return max(MIN_BEHAVIOR_PENALTY, min(MAX_BEHAVIOR_BONUS, bonus))
 
 
 def _calculate_super_predictor_bonus(metrics: BehaviorMetrics) -> float:
@@ -916,7 +979,7 @@ def _calculate_super_predictor_bonus(metrics: BehaviorMetrics) -> float:
     if metrics.total_pnl > 0 and metrics.prediction_accuracy >= 0.55:
         bonus += 0.08
 
-    return max(-0.5, min(0.5, bonus))
+    return max(MIN_BEHAVIOR_PENALTY, min(MAX_BEHAVIOR_BONUS, bonus))
 
 
 def _calculate_infosec_bonus(metrics: BehaviorMetrics) -> float:
@@ -949,7 +1012,7 @@ def _calculate_infosec_bonus(metrics: BehaviorMetrics) -> float:
     if metrics.dms_initiated < 3:
         bonus += 0.05  # Cautious with DMs
 
-    return max(-0.5, min(0.5, bonus))
+    return max(MIN_BEHAVIOR_PENALTY, min(MAX_BEHAVIOR_BONUS, bonus))
 
 
 def _calculate_liar_bonus(metrics: BehaviorMetrics) -> float:
@@ -984,7 +1047,7 @@ def _calculate_liar_bonus(metrics: BehaviorMetrics) -> float:
     elif metrics.posts_created >= 2:
         bonus += 0.04
 
-    return max(-0.5, min(0.5, bonus))
+    return max(MIN_BEHAVIOR_PENALTY, min(MAX_BEHAVIOR_BONUS, bonus))
 
 
 # =============================================================================

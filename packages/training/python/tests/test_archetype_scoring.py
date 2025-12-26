@@ -846,3 +846,177 @@ class TestCrossArchetypeComparison:
         # Social butterfly should score higher for social trajectory
         assert social_score2 > trader_score2, "Social butterfly should beat trader for social activity"
 
+
+class TestMixedArchetypeScenarios:
+    """Tests for edge cases in mixed archetype scoring scenarios."""
+
+    def test_null_archetype_defaults_to_default(self):
+        """Null/None archetype should use default weights."""
+        inputs = TrajectoryRewardInputs(
+            final_pnl=100.0, starting_balance=10000.0, end_balance=10100.0,
+            format_score=0.7, reasoning_score=0.6,
+        )
+        metrics = BehaviorMetrics(trades_executed=5, win_rate=0.6)
+
+        # Test with None-like values
+        none_score = archetype_composite_reward(inputs, "", metrics)
+        default_score = archetype_composite_reward(inputs, "default", metrics)
+
+        # Both should use default weights
+        assert abs(none_score - default_score) < 0.01, "Empty string should use default weights"
+
+    def test_unknown_archetype_uses_default(self):
+        """Unknown archetypes should fall back to default."""
+        inputs = TrajectoryRewardInputs(
+            final_pnl=200.0, starting_balance=10000.0, end_balance=10200.0,
+            format_score=0.8, reasoning_score=0.7,
+        )
+        metrics = BehaviorMetrics(trades_executed=10, win_rate=0.7)
+
+        unknown_score = archetype_composite_reward(inputs, "unknown-archetype-xyz", metrics)
+        default_score = archetype_composite_reward(inputs, "default", metrics)
+
+        assert abs(unknown_score - default_score) < 0.01, "Unknown archetype should use default"
+
+    def test_archetype_normalization_preserves_scoring(self):
+        """Different archetype formats should produce same scores."""
+        inputs = TrajectoryRewardInputs(
+            final_pnl=150.0, starting_balance=10000.0, end_balance=10150.0,
+            format_score=0.75, reasoning_score=0.65,
+        )
+        metrics = BehaviorMetrics(trades_executed=15, pnl_variance=200)
+
+        # Test various formats of the same archetype
+        degen_lower = archetype_composite_reward(inputs, "degen", metrics)
+        degen_upper = archetype_composite_reward(inputs, "DEGEN", metrics)
+        degen_mixed = archetype_composite_reward(inputs, "Degen", metrics)
+        degen_spaces = archetype_composite_reward(inputs, "  degen  ", metrics)
+
+        assert abs(degen_lower - degen_upper) < 0.001
+        assert abs(degen_lower - degen_mixed) < 0.001
+        assert abs(degen_lower - degen_spaces) < 0.001
+
+    def test_underscore_hyphen_equivalence(self):
+        """Underscores should be treated as hyphens in archetype names."""
+        inputs = TrajectoryRewardInputs(
+            final_pnl=0.0, starting_balance=10000.0, end_balance=10000.0,
+            format_score=0.7, reasoning_score=0.6,
+        )
+        metrics = BehaviorMetrics(
+            unique_users_interacted=20, group_chats_joined=5, dms_initiated=10
+        )
+
+        hyphen_score = archetype_composite_reward(inputs, "social-butterfly", metrics)
+        underscore_score = archetype_composite_reward(inputs, "social_butterfly", metrics)
+
+        assert abs(hyphen_score - underscore_score) < 0.001
+
+
+class TestBehaviorMetricsEdgeCases:
+    """Tests for edge cases in behavior metrics handling."""
+
+    def test_all_zero_metrics_scores_reasonably(self):
+        """Agent with zero activity should still get a valid score."""
+        inputs = TrajectoryRewardInputs(
+            final_pnl=0.0, starting_balance=10000.0, end_balance=10000.0,
+            format_score=0.5, reasoning_score=0.5,
+        )
+        metrics = BehaviorMetrics()  # All zeros
+
+        for archetype in ["trader", "degen", "social-butterfly", "researcher"]:
+            score = archetype_composite_reward(inputs, archetype, metrics)
+            assert -1.0 <= score <= 1.0, f"Score for {archetype} out of bounds: {score}"
+
+    def test_extreme_activity_capped(self):
+        """Extreme behavior metrics should not produce unbounded scores."""
+        inputs = TrajectoryRewardInputs(
+            final_pnl=10000.0, starting_balance=10000.0, end_balance=20000.0,
+            format_score=1.0, reasoning_score=1.0,
+        )
+        metrics = BehaviorMetrics(
+            trades_executed=1000,
+            unique_users_interacted=500,
+            group_chats_joined=100,
+            dms_initiated=500,
+            pnl_variance=100000,
+            win_rate=1.0,
+            research_actions=200,
+            predictions_made=500,
+            correct_predictions=500,
+            prediction_accuracy=1.0,
+        )
+
+        for archetype in ["trader", "degen", "social-butterfly", "super-predictor"]:
+            score = archetype_composite_reward(inputs, archetype, metrics)
+            assert -1.0 <= score <= 1.0, f"Extreme score for {archetype} out of bounds: {score}"
+
+    def test_negative_metrics_handled(self):
+        """Negative metrics should be handled gracefully."""
+        inputs = TrajectoryRewardInputs(
+            final_pnl=-5000.0, starting_balance=10000.0, end_balance=5000.0,
+            format_score=0.3, reasoning_score=0.2,
+        )
+        metrics = BehaviorMetrics(
+            total_pnl=-5000.0,
+            largest_loss=-2000.0,
+            reputation_delta=-100,
+        )
+
+        for archetype in ["trader", "scammer", "goody-twoshoes"]:
+            score = archetype_composite_reward(inputs, archetype, metrics)
+            assert -1.0 <= score <= 1.0, f"Negative metrics score for {archetype}: {score}"
+            # Losing money should generally result in lower scores
+            if archetype == "trader":
+                assert score < 0.5, "Trader with big losses should score low"
+
+
+class TestRulerMixedArchetypeGroups:
+    """Tests for RULER-style comparisons with mixed archetypes."""
+
+    def test_relative_ranking_consistent(self):
+        """Ranking should be consistent within archetype groups."""
+        # Two traders: one profitable, one losing
+        profitable_inputs = TrajectoryRewardInputs(
+            final_pnl=500.0, starting_balance=10000.0, end_balance=10500.0,
+            format_score=0.7, reasoning_score=0.7,
+        )
+        losing_inputs = TrajectoryRewardInputs(
+            final_pnl=-500.0, starting_balance=10000.0, end_balance=9500.0,
+            format_score=0.7, reasoning_score=0.7,
+        )
+        metrics = BehaviorMetrics(trades_executed=10, win_rate=0.5)
+
+        profitable_trader = archetype_composite_reward(profitable_inputs, "trader", metrics)
+        losing_trader = archetype_composite_reward(losing_inputs, "trader", metrics)
+
+        assert profitable_trader > losing_trader, "Profitable trader should rank higher"
+
+    def test_archetype_aware_comparison(self):
+        """Different archetypes should be evaluated by their own criteria."""
+        # Same trajectory, different archetype evaluations
+        inputs = TrajectoryRewardInputs(
+            final_pnl=-100.0, starting_balance=10000.0, end_balance=9900.0,
+            format_score=0.7, reasoning_score=0.6,
+        )
+
+        # Degen metrics (high activity, high variance)
+        degen_metrics = BehaviorMetrics(
+            trades_executed=25,
+            pnl_variance=800,
+            avg_position_size=400,
+        )
+
+        # Trader metrics (disciplined, diversified)
+        trader_metrics = BehaviorMetrics(
+            trades_executed=8,
+            win_rate=0.45,
+            markets_traded=4,
+        )
+
+        degen_score = archetype_composite_reward(inputs, "degen", degen_metrics)
+        trader_score = archetype_composite_reward(inputs, "trader", trader_metrics)
+
+        # Degen with high activity but losses should still score reasonably
+        # Trader with losses and low win rate should score poorly
+        assert degen_score > trader_score, "Active degen should beat disciplined trader with losses"
+
