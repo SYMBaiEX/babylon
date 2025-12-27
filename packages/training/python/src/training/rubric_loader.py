@@ -176,8 +176,13 @@ def get_rubrics_version() -> str:
     return RUBRICS_VERSION
 
 
-def normalize_archetype(archetype: str) -> str:
-    """Normalize archetype name to canonical form (lowercase, hyphenated)."""
+def normalize_archetype(archetype: Optional[str]) -> str:
+    """
+    Normalize archetype name to canonical form (lowercase, hyphenated).
+    Returns 'default' for None or empty string.
+    """
+    if not archetype or not archetype.strip():
+        return "default"
     return archetype.lower().strip().replace("_", "-")
 
 

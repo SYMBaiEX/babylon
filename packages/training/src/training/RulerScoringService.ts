@@ -32,7 +32,7 @@ import {
   type TrajectoryForTraining,
   type TrajectoryStepForTraining,
 } from '../dependencies';
-import { getRubric, normalizeArchetype } from '../rubrics';
+import { getRubric, sanitizeArchetype } from '../rubrics';
 import { logger, splitIntoBatches } from '../utils';
 import type { TrajectoryStep as TrainingTrajectoryStep } from './types';
 
@@ -305,7 +305,8 @@ export class RulerScoringService {
 
       const toARTMessages = getToTrainingMessages();
       const messages = toARTMessages(richTraj);
-      const archetype = normalizeArchetype(dbTraj.archetype || 'default');
+      // Sanitize archetype to prevent prompt injection and handle null/empty values
+      const archetype = sanitizeArchetype(dbTraj.archetype);
       richTrajectories.push({ traj: richTraj, messages, archetype });
     }
 

@@ -112,10 +112,57 @@ export const PRIORITY_METRICS: Record<string, string[]> = {
 };
 
 /**
- * Normalize archetype string to canonical format (lowercase, hyphens)
+ * Valid canonical archetype names for whitelist validation
  */
-export function normalizeArchetype(archetype: string): string {
+export const VALID_ARCHETYPES = new Set([
+  'trader',
+  'social-butterfly',
+  'scammer',
+  'degen',
+  'researcher',
+  'information-trader',
+  'goody-twoshoes',
+  'ass-kisser',
+  'perps-trader',
+  'super-predictor',
+  'infosec',
+  'liar',
+]);
+
+/**
+ * Normalize archetype string to canonical format (lowercase, hyphens)
+ * Returns 'default' for empty/null/invalid archetypes
+ */
+export function normalizeArchetype(
+  archetype: string | null | undefined
+): string {
+  if (!archetype || archetype.trim() === '') {
+    return 'default';
+  }
   return archetype.toLowerCase().trim().replace(/_/g, '-');
+}
+
+/**
+ * Validate that an archetype is in the allowed whitelist
+ * Prevents prompt injection attacks via malicious archetype strings
+ */
+export function isValidArchetype(archetype: string): boolean {
+  const normalized = normalizeArchetype(archetype);
+  return normalized === 'default' || VALID_ARCHETYPES.has(normalized);
+}
+
+/**
+ * Sanitize archetype for safe use in LLM prompts
+ * Returns normalized archetype if valid, 'default' otherwise
+ */
+export function sanitizeArchetype(
+  archetype: string | null | undefined
+): string {
+  const normalized = normalizeArchetype(archetype);
+  if (normalized === 'default' || VALID_ARCHETYPES.has(normalized)) {
+    return normalized;
+  }
+  return 'default';
 }
 
 /**

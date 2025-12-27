@@ -768,22 +768,23 @@ You receive market updates and must analyze, reason, and then act."""
                 metrics.info_shared += 1
 
             # Track reputation from environment state (support both camelCase and snake_case)
+            # Only convert to int if the value exists and is not None
             env_state = step.get("environmentState", step.get("environment_state", {}))
-            if "reputationDelta" in env_state:
+            if "reputationDelta" in env_state and env_state["reputationDelta"] is not None:
                 metrics.reputation_delta = int(env_state["reputationDelta"])
-            elif "reputation_delta" in env_state:
+            elif "reputation_delta" in env_state and env_state["reputation_delta"] is not None:
                 metrics.reputation_delta = int(env_state["reputation_delta"])
-            if "followersGained" in env_state:
+            if "followersGained" in env_state and env_state["followersGained"] is not None:
                 metrics.followers_gained = int(env_state["followersGained"])
-            elif "followers_gained" in env_state:
+            elif "followers_gained" in env_state and env_state["followers_gained"] is not None:
                 metrics.followers_gained = int(env_state["followers_gained"])
-            if "positiveReactions" in env_state:
+            if "positiveReactions" in env_state and env_state["positiveReactions"] is not None:
                 metrics.positive_reactions = int(env_state["positiveReactions"])
-            elif "positive_reactions" in env_state:
+            elif "positive_reactions" in env_state and env_state["positive_reactions"] is not None:
                 metrics.positive_reactions = int(env_state["positive_reactions"])
-            if "informationSpread" in env_state:
+            if "informationSpread" in env_state and env_state["informationSpread"] is not None:
                 metrics.information_spread = int(env_state["informationSpread"])
-            elif "information_spread" in env_state:
+            elif "information_spread" in env_state and env_state["information_spread"] is not None:
                 metrics.information_spread = int(env_state["information_spread"])
 
         # Calculate derived metrics

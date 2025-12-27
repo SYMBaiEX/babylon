@@ -189,6 +189,25 @@ ARCHETYPE_REWARD_WEIGHTS: Dict[str, Dict[str, float]] = {
 }
 
 
+def _validate_archetype_weights() -> None:
+    """
+    Validate that all archetype weight dictionaries sum to 1.0.
+    Called at module load time to catch configuration errors early.
+    """
+    TOLERANCE = 1e-9
+    for archetype, weights in ARCHETYPE_REWARD_WEIGHTS.items():
+        total = sum(weights.values())
+        if abs(total - 1.0) > TOLERANCE:
+            raise ValueError(
+                f"Archetype '{archetype}' weights sum to {total}, expected 1.0. "
+                f"Weights: {weights}"
+            )
+
+
+# Validate weights at module load time
+_validate_archetype_weights()
+
+
 def get_archetype_weights(archetype: str) -> Dict[str, float]:
     """Get reward weights for an archetype."""
     normalized = normalize_archetype(archetype)
