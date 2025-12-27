@@ -104,7 +104,9 @@ export class MarketMetricsService {
    * @param lookbackHours - Hours to look back for metrics (default: 24)
    * @returns Market metrics context
    */
-  static async gatherMetrics(lookbackHours = 24): Promise<MarketMetricsContext> {
+  static async gatherMetrics(
+    lookbackHours = 24
+  ): Promise<MarketMetricsContext> {
     const startTime = Date.now();
     const lookbackDate = new Date(Date.now() - lookbackHours * 60 * 60 * 1000);
 
@@ -128,7 +130,10 @@ export class MarketMetricsService {
 
     const trendingPerps = perpMetrics
       .filter((m) => m.isTrending)
-      .sort((a, b) => Math.abs(b.priceChangePercent) - Math.abs(a.priceChangePercent))
+      .sort(
+        (a, b) =>
+          Math.abs(b.priceChangePercent) - Math.abs(a.priceChangePercent)
+      )
       .slice(0, 5);
 
     // Summary statistics
@@ -140,7 +145,8 @@ export class MarketMetricsService {
 
     const avgPerpVolatility =
       perpMetrics.length > 0
-        ? perpMetrics.reduce((sum, m) => sum + m.volatility, 0) / perpMetrics.length
+        ? perpMetrics.reduce((sum, m) => sum + m.volatility, 0) /
+          perpMetrics.length
         : 0;
 
     const totalActivePositions = predictionMetrics.reduce(
@@ -233,7 +239,7 @@ export class MarketMetricsService {
       positionCounts.map((p) => [p.marketId, p.count])
     );
 
-    // Get price history for volatility calculation
+    // Get price history for volatility calculation (limit to prevent unbounded growth)
     const priceHistories = await db
       .select({
         marketId: predictionPriceHistories.marketId,
@@ -242,7 +248,8 @@ export class MarketMetricsService {
       })
       .from(predictionPriceHistories)
       .where(gte(predictionPriceHistories.createdAt, lookbackDate))
-      .orderBy(desc(predictionPriceHistories.createdAt));
+      .orderBy(desc(predictionPriceHistories.createdAt))
+      .limit(1000);
 
     // Group price history by market
     const historyByMarket = new Map<
@@ -259,7 +266,8 @@ export class MarketMetricsService {
       const yesShares = Number(market.yesShares);
       const noShares = Number(market.noShares);
       const totalShares = yesShares + noShares;
-      const currentProbability = totalShares > 0 ? yesShares / totalShares : 0.5;
+      const currentProbability =
+        totalShares > 0 ? yesShares / totalShares : 0.5;
       const liquidity = Number(market.liquidity);
       const positionCount = positionCountMap.get(market.id) || 0;
 
@@ -308,7 +316,7 @@ export class MarketMetricsService {
       orgNameMap.set(org.id, org.name);
     }
 
-    // Get recent stock prices
+    // Get recent stock prices (limit to prevent unbounded growth)
     const recentPrices = await db
       .select({
         orgId: stockPrices.organizationId,
@@ -317,7 +325,8 @@ export class MarketMetricsService {
       })
       .from(stockPrices)
       .where(gte(stockPrices.timestamp, lookbackDate))
-      .orderBy(desc(stockPrices.timestamp));
+      .orderBy(desc(stockPrices.timestamp))
+      .limit(500);
 
     // Group by organization
     const pricesByOrg = new Map<
@@ -346,7 +355,9 @@ export class MarketMetricsService {
       const currentPrice = prices[0]!.price;
       const oldestPrice = prices[prices.length - 1]!.price;
       const priceChangePercent =
-        oldestPrice > 0 ? ((currentPrice - oldestPrice) / oldestPrice) * 100 : 0;
+        oldestPrice > 0
+          ? ((currentPrice - oldestPrice) / oldestPrice) * 100
+          : 0;
 
       const volatility = this.calculateVolatility(
         prices.map((p) => Number(p.price))
@@ -355,7 +366,11 @@ export class MarketMetricsService {
       // Trending if > 10% change
       const isTrending = Math.abs(priceChangePercent) > 10;
       const trendDirection: 'up' | 'down' | 'neutral' =
-        priceChangePercent > 5 ? 'up' : priceChangePercent < -5 ? 'down' : 'neutral';
+        priceChangePercent > 5
+          ? 'up'
+          : priceChangePercent < -5
+            ? 'down'
+            : 'neutral';
 
       metrics.push({
         orgId,
@@ -474,4 +489,3 @@ export class MarketMetricsService {
     return `MARKET METRICS (use for context-aware question generation):\n${parts.join('\n\n')}`;
   }
 }
-

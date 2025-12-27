@@ -150,6 +150,10 @@ export class MarketDecisionEngine {
   } | null = null;
   private recentEventsCache: { events: string; timestamp: number } | null =
     null;
+  private eventMarketSignalsCache: {
+    signals: string;
+    timestamp: number;
+  } | null = null;
   private readonly CACHE_TTL_MS = 60000; // 1 minute TTL for caches
 
   /**
@@ -2181,9 +2185,6 @@ ${prompt}`
    * Get cached event-market signals or fetch if expired (BAB-5)
    * Provides context about how recent events affect prediction markets
    */
-  private eventMarketSignalsCache: { signals: string; timestamp: number } | null =
-    null;
-
   private async getCachedEventMarketSignals(): Promise<string> {
     const now = Date.now();
 
@@ -2210,7 +2211,8 @@ ${prompt}`
     }
 
     // Fetch fresh event-market summaries
-    const summaries = await EventMarketLinkerService.getMarketEventSummaries(24);
+    const summaries =
+      await EventMarketLinkerService.getMarketEventSummaries(24);
     const signals = EventMarketLinkerService.formatForTradingContext(summaries);
 
     // Cache it

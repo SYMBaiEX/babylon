@@ -30,6 +30,8 @@ import { babylonPlugin } from '../plugins/babylon';
 import { enhanceRuntimeWithBabylon } from '../plugins/babylon/integration';
 import { groqPlugin } from '../plugins/groq';
 import { agentCorePlugin } from '../plugins/plugin-agent-core/src';
+// TODO: experiencePlugin disabled due to missing plugin implementation
+// Re-enable when plugin-experience is properly implemented and exports valid Plugin
 // import { experiencePlugin } from '../plugins/plugin-experience/src';
 import { trajectoryLoggerPlugin } from '../plugins/plugin-trajectory-logger/src';
 import {

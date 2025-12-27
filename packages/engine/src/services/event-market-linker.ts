@@ -22,6 +22,7 @@ import {
   desc,
   eq,
   gte,
+  inArray,
   markets,
   questions,
   worldEvents,
@@ -143,7 +144,8 @@ export class EventMarketLinkerService {
     return events.map((event) => {
       const direction = this.determineDirection(event.pointsToward);
       // Without sentiment data in DB, use moderate defaults based on direction
-      const impactStrength = this.determineImpactStrengthFromDirection(direction);
+      const impactStrength =
+        this.determineImpactStrengthFromDirection(direction);
       const suggestedPriceImpact = this.calculateSuggestedImpact(
         direction,
         impactStrength,
@@ -220,9 +222,12 @@ export class EventMarketLinkerService {
       eventsByQuestion.set(event.relatedQuestion, existing);
     }
 
-    // Get all relevant questions
+    // Get all relevant questions - use inArray for DB-level filtering
     const questionNumbers = Array.from(eventsByQuestion.keys());
-    const questionsList = await db
+    if (questionNumbers.length === 0) {
+      return [];
+    }
+    const questionsWithEvents = await db
       .select({
         id: questions.id,
         text: questions.text,
@@ -232,18 +237,17 @@ export class EventMarketLinkerService {
       .from(questions)
       .where(
         and(
-          eq(questions.status, 'active')
-          // questionNumber IN questionNumbers - but drizzle needs inArray
+          eq(questions.status, 'active'),
+          inArray(questions.questionNumber, questionNumbers)
         )
       )
       .limit(50);
 
-    // Filter to only questions we have events for
-    const questionsWithEvents = questionsList.filter((q) =>
-      questionNumbers.includes(q.questionNumber)
-    );
-
-    // Get markets for these questions
+    // Get markets for these questions - filter by known question IDs
+    const questionIds = questionsWithEvents.map((q) => q.id);
+    if (questionIds.length === 0) {
+      return [];
+    }
     const marketsList = await db
       .select({
         id: markets.id,
@@ -252,7 +256,7 @@ export class EventMarketLinkerService {
         resolved: markets.resolved,
       })
       .from(markets)
-      .where(eq(markets.resolved, false))
+      .where(and(eq(markets.resolved, false), inArray(markets.id, questionIds)))
       .limit(50);
 
     const marketMap = new Map(marketsList.map((m) => [m.id, m]));
@@ -271,12 +275,14 @@ export class EventMarketLinkerService {
       const yesShares = Number(market.yesShares);
       const noShares = Number(market.noShares);
       const totalShares = yesShares + noShares;
-      const currentProbability = totalShares > 0 ? yesShares / totalShares : 0.5;
+      const currentProbability =
+        totalShares > 0 ? yesShares / totalShares : 0.5;
 
       // Calculate impacts for each event
       const recentImpacts: EventMarketImpact[] = events.map((event) => {
         const direction = this.determineDirection(event.pointsToward);
-        const impactStrength = this.determineImpactStrengthFromDirection(direction);
+        const impactStrength =
+          this.determineImpactStrengthFromDirection(direction);
         const suggestedPriceImpact = this.calculateSuggestedImpact(
           direction,
           impactStrength,
@@ -356,7 +362,12 @@ export class EventMarketLinkerService {
     }
 
     const parts = tradingRelevant.slice(0, 5).map((summary) => {
-      const arrow = summary.netDirection === 'YES' ? '↑' : summary.netDirection === 'NO' ? '↓' : '→';
+      const arrow =
+        summary.netDirection === 'YES'
+          ? '↑'
+          : summary.netDirection === 'NO'
+            ? '↓'
+            : '→';
       const recentEventDesc =
         summary.recentImpacts.length > 0
           ? summary.recentImpacts[0]!.eventDescription.substring(0, 50)
@@ -409,4 +420,3 @@ export class EventMarketLinkerService {
     return baseImpact * clarityMultiplier;
   }
 }
-
