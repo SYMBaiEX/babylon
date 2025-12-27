@@ -27,7 +27,7 @@ import time
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
-from typing import List, Literal, Optional, Tuple
+from typing import List, Optional, Tuple
 
 import numpy as np
 import requests
@@ -88,16 +88,7 @@ class AtroposTrainingConfig(BaseModel):
     """Configuration for Atropos GRPO training"""
     
     # Model settings
-    model_name: str = Field(
-        default="Qwen/Qwen2.5-3B-Instruct",
-        description="Base model to train"
-    )
-    
-    # Database settings (for trajectory loading)
-    database_url: Optional[str] = Field(
-        default=None,
-        description="PostgreSQL connection URL"
-    )
+    model_name: str = Field(default="Qwen/Qwen2.5-3B-Instruct", description="Base model to train")
     
     # Training hyperparameters
     learning_rate: float = Field(default=1e-5, description="Initial learning rate")
@@ -109,10 +100,7 @@ class AtroposTrainingConfig(BaseModel):
     max_grad_norm: float = Field(default=1.0, description="Gradient clipping norm")
     
     # Learning rate scheduling
-    lr_scheduler: LRSchedulerType = Field(
-        default=LRSchedulerType.COSINE,
-        description="Learning rate scheduler type"
-    )
+    lr_scheduler: LRSchedulerType = Field(default=LRSchedulerType.COSINE, description="LR scheduler type")
     warmup_steps: int = Field(default=10, description="Number of warmup steps")
     
     # Device settings
@@ -127,28 +115,13 @@ class AtroposTrainingConfig(BaseModel):
     vllm_gpu_utilization: float = Field(default=0.45, description="GPU memory for vLLM")
     
     # Checkpoint settings
-    save_path: str = Field(
-        default="./trained_models",
-        description="Directory to save checkpoints"
-    )
+    save_path: str = Field(default="./trained_models", description="Directory to save checkpoints")
     save_every_steps: int = Field(default=5, description="Save checkpoint every N steps")
     keep_checkpoints: int = Field(default=3, description="Number of recent checkpoints to keep")
-    
-    # Resume settings
-    resume_from: Optional[str] = Field(
-        default=None,
-        description="Path to checkpoint to resume from"
-    )
+    resume_from: Optional[str] = Field(default=None, description="Path to checkpoint to resume from")
     
     # Atropos API settings
     api_url: str = Field(default="http://localhost:8000", description="Atropos API URL")
-    
-    # Judge model for RLAIF scoring
-    judge_model: str = Field(default="gpt-4o-mini", description="LLM model for scoring")
-    
-    # Data collection settings
-    min_agents_per_window: int = Field(default=2, description="Minimum agents per window")
-    lookback_hours: int = Field(default=72, description="Hours to look back for trajectories")
     
     # Logging settings
     log_to_file: bool = Field(default=True, description="Log metrics to file")
@@ -327,23 +300,18 @@ class BabylonAtroposTrainer:
             
     def log_metrics(self, metrics: dict, step: int):
         """Log metrics to file and W&B"""
-        # Add common fields
-        full_metrics = {
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "run_id": self.run_id,
-            "step": step,
-            **metrics
-        }
-        
-        # Log to file
         if self.config.log_to_file:
+            full_metrics = {
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "run_id": self.run_id,
+                "step": step,
+                **metrics
+            }
             with open(self.config.log_file, 'a') as f:
                 f.write(json.dumps(full_metrics) + '\n')
         
-        # Log to W&B
         if self._wandb_initialized:
             import wandb
-            # W&B expects flat dict with step
             wandb.log(metrics, step=step)
     
     def load_checkpoint(self, checkpoint_path: str) -> int:

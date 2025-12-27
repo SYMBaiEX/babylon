@@ -157,11 +157,10 @@ class TrainingOrchestrator:
         self.trainer_process: Optional[subprocess.Popen] = None
         self._service_manager = None
         self._shutdown_requested = False
+        self._log_handles: list = []  # Track open file handles
         
-        # Create log directory
         self.log_dir.mkdir(parents=True, exist_ok=True)
         
-        # Register cleanup
         signal.signal(signal.SIGINT, self._signal_handler)
         signal.signal(signal.SIGTERM, self._signal_handler)
         
@@ -178,31 +177,31 @@ class TrainingOrchestrator:
         
     def cleanup(self):
         """Clean up all subprocesses and services"""
-        # Stop trainer
-        if self.trainer_process:
-            logger.info("Stopping trainer...")
-            self.trainer_process.terminate()
-            deadline = time.time() + 10
-            while self.trainer_process.poll() is None and time.time() < deadline:
-                time.sleep(0.5)
-            if self.trainer_process.poll() is None:
-                self.trainer_process.kill()
-                self.trainer_process.wait()
+        self._stop_process(self.trainer_process, "trainer")
+        self._stop_process(self.env_process, "environment")
         
-        # Stop environment
-        if self.env_process:
-            logger.info("Stopping environment...")
-            self.env_process.terminate()
-            deadline = time.time() + 10
-            while self.env_process.poll() is None and time.time() < deadline:
-                time.sleep(0.5)
-            if self.env_process.poll() is None:
-                self.env_process.kill()
-                self.env_process.wait()
-        
-        # Stop services
         if self._service_manager:
             self._service_manager.stop_all()
+        
+        for handle in self._log_handles:
+            handle.close()
+        self._log_handles.clear()
+    
+    def _stop_process(self, proc: Optional[subprocess.Popen], name: str, timeout: int = 10) -> None:
+        """Stop a subprocess gracefully"""
+        if not proc:
+            return
+        
+        logger.info(f"Stopping {name}...")
+        proc.terminate()
+        
+        deadline = time.time() + timeout
+        while proc.poll() is None and time.time() < deadline:
+            time.sleep(0.5)
+        
+        if proc.poll() is None:
+            proc.kill()
+            proc.wait()
                     
     def start_services(self) -> bool:
         """Start background services using ServiceManager"""
@@ -249,6 +248,7 @@ class TrainingOrchestrator:
         
         log_file = self.log_dir / "environment.log"
         log_handle = open(log_file, "w")
+        self._log_handles.append(log_handle)
         
         self.env_process = subprocess.Popen(
             env_cmd,
@@ -257,16 +257,14 @@ class TrainingOrchestrator:
             stderr=subprocess.STDOUT,
         )
         
-        # Wait for environment to initialize
-        time.sleep(5)
+        time.sleep(5)  # Wait for environment to initialize
         
         if self.env_process.poll() is not None:
             logger.error(f"Environment failed to start (exit code: {self.env_process.returncode})")
             logger.error(f"Check logs at: {log_file}")
             return False
         
-        logger.info(f"Environment started (PID: {self.env_process.pid})")
-        logger.info(f"Environment logs: {log_file}")
+        logger.info(f"Environment started (PID: {self.env_process.pid}), logs: {log_file}")
         return True
             
     def start_trainer(self) -> bool:
@@ -293,20 +291,14 @@ class TrainingOrchestrator:
         
         if self.resume_from:
             trainer_cmd.extend(["--resume", self.resume_from])
-        
         if not self.use_wandb:
             trainer_cmd.append("--no-wandb")
-        
         if self.wandb_entity:
             trainer_cmd.extend(["--wandb-entity", self.wandb_entity])
-        
         if self.wandb_run_name:
             trainer_cmd.extend(["--wandb-run-name", self.wandb_run_name])
         
-        log_file = self.log_dir / "trainer.log"
-        log_handle = open(log_file, "w")
-        
-        # Also print trainer output to console
+        # Pipe stdout for streaming to console
         self.trainer_process = subprocess.Popen(
             trainer_cmd,
             cwd=str(Path(__file__).parent.parent),
@@ -315,65 +307,24 @@ class TrainingOrchestrator:
         )
         
         logger.info(f"Trainer started (PID: {self.trainer_process.pid})")
-        logger.info(f"Trainer logs: {log_file}")
         return True
             
     def run(self) -> int:
         """Run the complete training pipeline"""
-        logger.info("=" * 70)
-        logger.info("BABYLON RL TRAINING PIPELINE")
-        logger.info("=" * 70)
-        logger.info(f"Model: {self.model_name}")
-        logger.info(f"Steps: {self.training_steps}")
-        logger.info(f"Batch size: {self.batch_size}")
-        logger.info(f"Learning rate: {self.learning_rate} (scheduler: {self.lr_scheduler})")
-        logger.info(f"Save path: {self.save_path}")
-        logger.info(f"W&B: {'enabled' if self.use_wandb else 'disabled'}")
-        if self.resume_from:
-            logger.info(f"Resuming from: {self.resume_from}")
-        logger.info("=" * 70)
-        
+        self._log_config()
         start_time = time.time()
         
         try:
-            # Start services
-            if not self.start_services():
-                logger.error("Failed to start services")
-                self.cleanup()
-                return 1
+            for name, starter in [
+                ("services", self.start_services),
+                ("environment", self.start_environment),
+                ("trainer", self.start_trainer),
+            ]:
+                if not starter():
+                    logger.error(f"Failed to start {name}")
+                    return 1
             
-            # Start environment
-            if not self.start_environment():
-                logger.error("Failed to start environment")
-                self.cleanup()
-                return 1
-            
-            # Start trainer
-            if not self.start_trainer():
-                logger.error("Failed to start trainer")
-                self.cleanup()
-                return 1
-            
-            # Stream trainer output to console
-            logger.info("\n" + "-" * 70)
-            logger.info("TRAINING IN PROGRESS")
-            logger.info("-" * 70 + "\n")
-            
-            log_file = self.log_dir / "trainer.log"
-            log_handle = open(log_file, "w")
-            
-            assert self.trainer_process is not None
-            assert self.trainer_process.stdout is not None
-            
-            for line in iter(self.trainer_process.stdout.readline, b''):
-                decoded = line.decode('utf-8', errors='replace')
-                print(decoded, end='')
-                log_handle.write(decoded)
-                log_handle.flush()
-            
-            return_code = self.trainer_process.wait()
-            log_handle.close()
-            
+            return_code = self._stream_trainer_output()
             elapsed = time.time() - start_time
             
             if return_code == 0:
@@ -387,9 +338,43 @@ class TrainingOrchestrator:
                 logger.error(f"Check logs at: {self.log_dir}")
                 
             return return_code
-            
         finally:
             self.cleanup()
+    
+    def _log_config(self):
+        """Log training configuration"""
+        logger.info("=" * 70)
+        logger.info("BABYLON RL TRAINING PIPELINE")
+        logger.info("=" * 70)
+        logger.info(f"Model: {self.model_name}")
+        logger.info(f"Steps: {self.training_steps}")
+        logger.info(f"Batch size: {self.batch_size}")
+        logger.info(f"Learning rate: {self.learning_rate} (scheduler: {self.lr_scheduler})")
+        logger.info(f"Save path: {self.save_path}")
+        logger.info(f"W&B: {'enabled' if self.use_wandb else 'disabled'}")
+        if self.resume_from:
+            logger.info(f"Resuming from: {self.resume_from}")
+        logger.info("=" * 70)
+    
+    def _stream_trainer_output(self) -> int:
+        """Stream trainer output to console and log file"""
+        logger.info("\n" + "-" * 70)
+        logger.info("TRAINING IN PROGRESS")
+        logger.info("-" * 70 + "\n")
+        
+        log_file = self.log_dir / "trainer.log"
+        
+        assert self.trainer_process is not None
+        assert self.trainer_process.stdout is not None
+        
+        with open(log_file, "w") as log_handle:
+            for line in iter(self.trainer_process.stdout.readline, b''):
+                decoded = line.decode('utf-8', errors='replace')
+                print(decoded, end='')
+                log_handle.write(decoded)
+                log_handle.flush()
+        
+        return self.trainer_process.wait()
 
 
 def main():
