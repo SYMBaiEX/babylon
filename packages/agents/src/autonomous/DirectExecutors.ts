@@ -16,6 +16,7 @@ import {
   comments,
   db,
   eq,
+  gte,
   isNull,
   markets,
   messages,
@@ -231,7 +232,7 @@ async function executePredictionTrade(params: {
         .where(
           and(
             eq(actorState.id, agentUserId),
-            sql`${actorState.tradingBalance}::numeric >= ${amount}`
+            gte(sql<number>`${actorState.tradingBalance}::numeric`, amount)
           )
         )
         .returning({ id: actorState.id });
@@ -388,7 +389,7 @@ async function executePerpTrade(params: {
               .where(
                 and(
                   eq(actorState.id, uid),
-                  sql`${actorState.tradingBalance}::numeric >= ${amt}`
+                  gte(sql<number>`${actorState.tradingBalance}::numeric`, amt)
                 )
               )
               .returning({ id: actorState.id });

@@ -939,7 +939,7 @@ export class TradeExecutionService {
           .where(
             and(
               eq(actorState.id, actorId),
-              gte(actorState.tradingBalance, String(amount))
+              gte(sql<number>`${actorState.tradingBalance}::numeric`, amount)
             )
           )
           .returning({ id: actorState.id });
