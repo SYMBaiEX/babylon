@@ -15,11 +15,28 @@ import {
 import { db } from '@babylon/db';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
+import { z } from 'zod';
 
-interface FeedbackMetadata {
-  linearIssueId?: string;
-  linearIssueIdentifier?: string;
-  linearIssueUrl?: string;
+/**
+ * Zod schema for validating Linear-synced feedback metadata.
+ * Uses .catch() to provide safe defaults for missing/malformed fields.
+ */
+const LinearSyncedMetadataSchema = z.object({
+  linearIssueId: z.string().optional().catch(undefined),
+  linearIssueIdentifier: z.string().optional().catch(undefined),
+  linearIssueUrl: z.string().optional().catch(undefined),
+});
+
+type LinearSyncedMetadata = z.infer<typeof LinearSyncedMetadataSchema>;
+
+/**
+ * Safely parse feedback metadata from DB, returning validated Linear sync fields.
+ * Returns a safe default object if parsing fails.
+ */
+function parseLinearSyncedMetadata(rawMetadata: unknown): LinearSyncedMetadata {
+  const normalizedMetadata =
+    rawMetadata && typeof rawMetadata === 'object' ? rawMetadata : {};
+  return LinearSyncedMetadataSchema.parse(normalizedMetadata);
 }
 
 interface RouteContext {
@@ -61,8 +78,8 @@ export const POST = withErrorHandling(
       return errorResponse('Feedback not found', 'FEEDBACK_NOT_FOUND', 404);
     }
 
-    // Check if already synced
-    const metadata = (feedback.metadata ?? {}) as FeedbackMetadata;
+    // Check if already synced - validate metadata at runtime
+    const metadata = parseLinearSyncedMetadata(feedback.metadata);
     if (metadata.linearIssueId) {
       return successResponse({
         success: true,
@@ -101,8 +118,8 @@ export const POST = withErrorHandling(
       select: { metadata: true },
     });
 
-    const updatedMetadata = (updatedFeedback?.metadata ??
-      {}) as FeedbackMetadata;
+    // Validate updated metadata at runtime
+    const updatedMetadata = parseLinearSyncedMetadata(updatedFeedback?.metadata);
 
     logger.info('Manual Linear sync completed', {
       feedbackId,

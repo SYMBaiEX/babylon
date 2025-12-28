@@ -17,7 +17,7 @@ mock.module('@babylon/api/linear', () => ({
   getLinearConfig: () => null,
 }));
 
-// Mock auth to return a test user
+// Mock auth to return a test user (includes requireAdmin for admin endpoint tests)
 const testUserId = `test-user-${Date.now()}`;
 mock.module('@babylon/api', () => {
   const actual = require('@babylon/api');
@@ -29,6 +29,7 @@ mock.module('@babylon/api', () => {
       id: testUserId,
       email: 'test@example.com',
     }),
+    requireAdmin: async () => ({ userId: testUserId, isAdmin: true }),
   };
 });
 
@@ -216,22 +217,7 @@ describe('General Game Feedback API', () => {
   });
 });
 
-// Mock admin auth for admin endpoint tests
-mock.module('@babylon/api', () => {
-  const actual = require('@babylon/api');
-  return {
-    ...actual,
-    authenticate: async () => ({ userId: testUserId }),
-    checkRateLimitAndDuplicates: () => null,
-    requireUserByIdentifier: async () => ({
-      id: testUserId,
-      email: 'test@example.com',
-    }),
-    requireAdmin: async () => ({ userId: testUserId, isAdmin: true }),
-  };
-});
-
-// Dynamic import for admin endpoint (after mock)
+// Dynamic import for admin endpoint (uses requireAdmin from the consolidated mock above)
 const { GET: getAdminFeedback } = await import(
   '@/app/api/admin/feedback/route'
 );

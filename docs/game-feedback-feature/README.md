@@ -34,10 +34,12 @@ If not set, feedback still works but Linear issues aren't created.
 **LINEAR_GAME_FEEDBACK_LABEL_ID (optional):**
 1. Create a label in Linear (e.g., "Game Feedback")
 2. Get the ID via API:
+
    ```bash
    curl -H "Authorization: $LINEAR_API_KEY" https://api.linear.app/graphql \
      -d '{"query":"{ issueLabels { nodes { id name } } }"}'
    ```
+
 3. Find your label in the response and copy the `id`
 
 If `LINEAR_GAME_FEEDBACK_LABEL_ID` is not set, issues are created without labels.
