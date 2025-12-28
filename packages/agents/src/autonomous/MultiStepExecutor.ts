@@ -277,14 +277,24 @@ export class MultiStepExecutor {
         .where(eq(actorState.id, agentUserId))
         .limit(1);
 
-      if (!actor?.tradingBalance) {
+      if (!actor) {
+        // Missing actorState record is a data issue that should be fixed at bootstrap
+        throw new Error(
+          `NPC ${agentUserId} has no actorState record. Run NPC bootstrap to create it.`
+        );
+      }
+
+      if (actor.tradingBalance === null || actor.tradingBalance === undefined) {
+        // Record exists but balance is null - graceful degradation for edge case
         logger.warn(
-          `NPC ${agentUserId} missing actorState - using default balance`,
+          `NPC ${agentUserId} actorState exists but tradingBalance is null - using default`,
           { defaultBalance: DEFAULT_NPC_BALANCE },
           'MultiStepExecutor'
         );
+        balance = DEFAULT_NPC_BALANCE;
+      } else {
+        balance = Number(actor.tradingBalance);
       }
-      balance = Number(actor?.tradingBalance ?? DEFAULT_NPC_BALANCE);
       pnl = 0;
     } else {
       const walletBalance = await WalletService.getBalance(agentUserId);
