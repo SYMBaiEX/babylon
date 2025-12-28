@@ -353,12 +353,6 @@ export async function POST(_req: NextRequest) {
       // Always 1pt per tick for USER agents
       const pointsCost = 1;
 
-      await agentService.deductPoints(
-        eligibleAgent.user.id,
-        pointsCost,
-        'Autonomous tick'
-      );
-
       // Use agent runtime manager for both USER and NPC agents
       const runtime = await agentRuntimeManager.getRuntime(
         eligibleAgent.agentId
@@ -385,6 +379,14 @@ export async function POST(_req: NextRequest) {
         runtime,
         true, // Always record trajectories
         false // isNpc = false for user agents
+      );
+
+      // Deduct points AFTER tick execution to prevent loss on failure
+      // Points are charged whether tick succeeded or not, as long as it ran
+      await agentService.deductPoints(
+        eligibleAgent.user.id,
+        pointsCost,
+        'Autonomous tick'
       );
 
       // Validation: Verify tick executed successfully
