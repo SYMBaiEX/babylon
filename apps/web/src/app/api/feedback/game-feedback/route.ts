@@ -51,12 +51,12 @@ import {
   getLinearConfig,
   RATE_LIMIT_CONFIGS,
   requireUserByIdentifier,
+  successResponse,
   syncFeedbackToLinear,
   withErrorHandling,
 } from '@babylon/api';
 import { GameFeedbackSchema, logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
-import { NextResponse } from 'next/server';
 
 export const POST = withErrorHandling(async (request: NextRequest) => {
   const authUser = await authenticate(request);
@@ -97,12 +97,12 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     );
   }
 
-  return NextResponse.json(
+  return successResponse(
     {
       success: true,
       feedbackId: feedback.id,
       message: 'Thank you for your feedback!',
     },
-    { status: 201 }
+    201
   );
 });

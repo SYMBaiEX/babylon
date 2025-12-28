@@ -14,6 +14,42 @@ export const FeedbackTypeSchema = z.enum([
 ]);
 export type FeedbackType = z.infer<typeof FeedbackTypeSchema>;
 
+/**
+ * Allowed domains for screenshot URLs.
+ * Prevents users from injecting arbitrary URLs.
+ */
+const ALLOWED_SCREENSHOT_DOMAINS = [
+  // Vercel Blob Storage (production)
+  '.public.blob.vercel-storage.com',
+  // MinIO (local development)
+  'localhost:9000',
+  '127.0.0.1:9000',
+];
+
+/**
+ * Validates that a screenshot URL is from an allowed domain.
+ * Also allows relative URLs (local uploads like /uploads/...).
+ */
+function isAllowedScreenshotUrl(url: string): boolean {
+  // Allow relative URLs (local uploads)
+  if (url.startsWith('/uploads/')) {
+    return true;
+  }
+
+  // Parse the URL and check domain
+  try {
+    const parsed = new URL(url);
+    return ALLOWED_SCREENSHOT_DOMAINS.some(
+      (domain) =>
+        parsed.hostname === domain ||
+        parsed.hostname.endsWith(domain) ||
+        parsed.host === domain
+    );
+  } catch {
+    return false;
+  }
+}
+
 export const GameFeedbackSchema = z
   .object({
     feedbackType: FeedbackTypeSchema,
@@ -25,10 +61,13 @@ export const GameFeedbackSchema = z
     stepsToReproduce: z.string().trim().max(2000).optional(),
     screenshotUrl: z
       .string()
-      .url()
       .optional()
       .or(z.literal(''))
-      .transform((val) => (val === '' ? undefined : val)),
+      .transform((val) => (val === '' ? undefined : val))
+      .refine(
+        (val) => val === undefined || isAllowedScreenshotUrl(val),
+        'Screenshot URL must be from an allowed domain'
+      ),
     rating: z.number().int().min(1).max(5).optional(),
   })
   .refine((data) => data.feedbackType !== 'bug' || !!data.stepsToReproduce, {

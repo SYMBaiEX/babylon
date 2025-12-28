@@ -3,10 +3,24 @@
  * This function is designed to be fire-and-forget from the API route.
  */
 
-import { db, type JsonValue } from '@babylon/db';
+import { db } from '@babylon/db';
 import { logger } from '@babylon/shared';
+import { z } from 'zod';
 import { createLinearIssue } from './client';
 import { type FeedbackType, formatFeedbackForLinear } from './format-feedback';
+
+/**
+ * Zod schema for validating feedback metadata from the database.
+ * Ensures type safety when parsing JSON metadata.
+ */
+const FeedbackMetadataSchema = z.object({
+  feedbackType: z.enum(['bug', 'feature_request', 'performance']).catch('bug'),
+  stepsToReproduce: z.string().nullable().catch(null),
+  screenshotUrl: z.string().nullable().catch(null),
+  rating: z.number().nullable().catch(null),
+});
+
+type FeedbackMetadata = z.infer<typeof FeedbackMetadataSchema>;
 
 export interface LinearConfig {
   apiKey: string;
@@ -39,18 +53,20 @@ export async function syncFeedbackToLinear(
     return;
   }
 
-  const metadata =
+  // Safely parse metadata using Zod schema
+  const rawMetadata =
     feedback.metadata && typeof feedback.metadata === 'object'
-      ? (feedback.metadata as Record<string, JsonValue>)
+      ? feedback.metadata
       : {};
+  const metadata: FeedbackMetadata = FeedbackMetadataSchema.parse(rawMetadata);
 
   const formatted = formatFeedbackForLinear({
     id: feedbackId,
-    feedbackType: (metadata.feedbackType as FeedbackType) ?? 'bug',
+    feedbackType: metadata.feedbackType as FeedbackType,
     description: feedback.comment ?? '',
-    stepsToReproduce: (metadata.stepsToReproduce as string | null) ?? null,
-    screenshotUrl: (metadata.screenshotUrl as string | null) ?? null,
-    rating: (metadata.rating as number | null) ?? null,
+    stepsToReproduce: metadata.stepsToReproduce,
+    screenshotUrl: metadata.screenshotUrl,
+    rating: metadata.rating,
     userId: user.id,
     userEmail: user.email,
   });
