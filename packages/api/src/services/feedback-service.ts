@@ -41,7 +41,9 @@ export const FEEDBACK_CATEGORY_MAP: Record<FeedbackType, string> = {
  * @param rating - Optional rating from 1-5
  * @returns Score from 20-100 (if rating provided) or 50 (default)
  */
-export function calculateFeedbackScore(rating: number | null | undefined): number {
+export function calculateFeedbackScore(
+  rating: number | null | undefined
+): number {
   if (rating != null) {
     return rating * RATING_SCORE_MULTIPLIER;
   }
