@@ -119,7 +119,9 @@ export const POST = withErrorHandling(
     });
 
     // Validate updated metadata at runtime
-    const updatedMetadata = parseLinearSyncedMetadata(updatedFeedback?.metadata);
+    const updatedMetadata = parseLinearSyncedMetadata(
+      updatedFeedback?.metadata
+    );
 
     logger.info('Manual Linear sync completed', {
       feedbackId,
