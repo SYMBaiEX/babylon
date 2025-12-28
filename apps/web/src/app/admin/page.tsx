@@ -44,6 +44,7 @@ import {
   Gamepad2,
   Layers,
   LineChart,
+  MessageCircle,
   MessageSquare,
   Scale,
   ScrollText,
@@ -63,6 +64,7 @@ import { AnalyticsTab } from '@/components/admin/AnalyticsTab';
 import { AuditLogsTab } from '@/components/admin/AuditLogsTab';
 import { ContentModerationTab } from '@/components/admin/ContentModerationTab';
 import { EscrowManagementTab } from '@/components/admin/EscrowManagementTab';
+import { FeedbackTab } from '@/components/admin/FeedbackTab';
 import { FeesTab } from '@/components/admin/FeesTab';
 import { GameControlTab } from '@/components/admin/GameControlTab';
 import { GroupsTab } from '@/components/admin/GroupsTab';
@@ -99,6 +101,7 @@ type Tab =
   | 'notifications'
   | 'admins'
   | 'reports'
+  | 'feedback'
   | 'human-review'
   | 'ai-models'
   | 'training-data'
@@ -230,6 +233,7 @@ export default function AdminDashboard() {
           icon: Eye,
         },
         { id: 'reports' as const, label: 'Reports', icon: Flag },
+        { id: 'feedback' as const, label: 'Game Feedback', icon: MessageCircle },
         { id: 'human-review' as const, label: 'Human Review', icon: Scale },
       ],
     },
@@ -380,6 +384,7 @@ export default function AdminDashboard() {
         {activeTab === 'users' && <UserManagementTab />}
         {activeTab === 'content-moderation' && <ContentModerationTab />}
         {activeTab === 'reports' && <ReportsTab />}
+        {activeTab === 'feedback' && <FeedbackTab />}
         {activeTab === 'human-review' && <HumanReviewTab />}
         {activeTab === 'admins' && <AdminManagementTab />}
         {activeTab === 'registry' && <RegistryTab />}
