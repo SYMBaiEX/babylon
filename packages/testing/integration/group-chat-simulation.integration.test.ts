@@ -354,9 +354,6 @@ async function cleanupTestData(): Promise<void> {
   if (testIds.postIds.length > 0) {
     await db.post.deleteMany({ where: { id: { in: testIds.postIds } } });
   }
-  if (testIds.chatIds.length > 0) {
-    await db.chat.deleteMany({ where: { id: { in: testIds.chatIds } } });
-  }
   if (testIds.userIds.length > 0) {
     await db.user.deleteMany({ where: { id: { in: testIds.userIds } } });
   }

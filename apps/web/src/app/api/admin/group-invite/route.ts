@@ -166,15 +166,17 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
         userId,
         isActive: true,
       },
+      select: { groupId: true },
     });
     const groupIds = memberships.map((m) => m.groupId);
-    const memberGroups =
-      groupIds.length > 0
-        ? await db.group.findMany({
-            where: { id: { in: groupIds } },
-          })
-        : [];
-    return memberGroups.filter((g) => g.type === 'npc').length;
+    if (groupIds.length === 0) return 0;
+    const npcGroups = await db.group.count({
+      where: {
+        id: { in: groupIds },
+        type: 'npc',
+      },
+    });
+    return npcGroups;
   });
 
   const { GROUP_CONFIG } = await import('@babylon/shared');
