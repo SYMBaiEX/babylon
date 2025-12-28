@@ -58,7 +58,6 @@ import {
   agentRuntimeManager,
   agentService,
   autonomousCoordinator,
-  getAgentConfig,
   releaseAgentLock,
 } from '@babylon/agents';
 import {
@@ -67,7 +66,7 @@ import {
   verifyCronAuth,
 } from '@babylon/api';
 import type { User, UserAgentConfig } from '@babylon/db';
-import { db, eq, userAgentConfigs, users } from '@babylon/db';
+import { db, eq, inArray, userAgentConfigs, users } from '@babylon/db';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
@@ -228,48 +227,62 @@ export async function POST(_req: NextRequest) {
     config: UserAgentConfig | null;
   }> = [];
 
-  for (const agent of registeredAgents) {
-    if (agent.type === AgentType.USER_CONTROLLED && agent.userId) {
-      // Check User-specific autonomous settings and points
-      const [user] = await db
+  // Collect all userIds from USER_CONTROLLED agents for batch fetching
+  const userControlledAgents = registeredAgents.filter(
+    (agent) => agent.type === AgentType.USER_CONTROLLED && agent.userId
+  );
+  const userIds = userControlledAgents.map((agent) => agent.userId!);
+
+  // Batch fetch all users and configs in 2 queries (instead of 2N queries)
+  let usersMap = new Map<string, User>();
+  let configsMap = new Map<string, UserAgentConfig>();
+
+  if (userIds.length > 0) {
+    const [allUsers, allConfigs] = await Promise.all([
+      db.select().from(users).where(inArray(users.id, userIds)),
+      db
         .select()
-        .from(users)
-        .where(eq(users.id, agent.userId))
-        .limit(1);
+        .from(userAgentConfigs)
+        .where(inArray(userAgentConfigs.userId, userIds)),
+    ]);
 
-      // Get agent config from separate table
-      const config = await getAgentConfig(agent.userId);
-
-      // Guard: USER_CONTROLLED agents must have a user record
-      if (!user) {
-        logger.warn(
-          'USER_CONTROLLED agent missing user record - skipping',
-          { agentId: agent.agentId, userId: agent.userId },
-          'AgentTick'
-        );
-        continue;
-      }
-
-      if (
-        user.isAgent &&
-        (config?.pointsBalance ?? 0) >= 1 &&
-        (config?.autonomousTrading ||
-          config?.autonomousPosting ||
-          config?.autonomousCommenting ||
-          config?.autonomousDMs ||
-          config?.autonomousGroupChats)
-      ) {
-        eligibleAgents.push({
-          agentId: agent.agentId,
-          type: agent.type,
-          name: agent.name,
-          user,
-          config,
-        });
-      }
-    }
-    // NPCs are no longer processed here - they use /api/cron/npc-tick
+    usersMap = new Map(allUsers.map((u) => [u.id, u]));
+    configsMap = new Map(allConfigs.map((c) => [c.userId, c]));
   }
+
+  for (const agent of userControlledAgents) {
+    const user = usersMap.get(agent.userId!);
+    const config = configsMap.get(agent.userId!) ?? null;
+
+    // Guard: USER_CONTROLLED agents must have a user record
+    if (!user) {
+      logger.warn(
+        'USER_CONTROLLED agent missing user record - skipping',
+        { agentId: agent.agentId, userId: agent.userId },
+        'AgentTick'
+      );
+      continue;
+    }
+
+    if (
+      user.isAgent &&
+      (config?.pointsBalance ?? 0) >= 1 &&
+      (config?.autonomousTrading ||
+        config?.autonomousPosting ||
+        config?.autonomousCommenting ||
+        config?.autonomousDMs ||
+        config?.autonomousGroupChats)
+    ) {
+      eligibleAgents.push({
+        agentId: agent.agentId,
+        type: agent.type,
+        name: agent.name,
+        user,
+        config,
+      });
+    }
+  }
+  // NPCs are no longer processed here - they use /api/cron/npc-tick
 
   // Validation: Check if agents were found
   if (eligibleAgents.length === 0) {
