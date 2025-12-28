@@ -13,19 +13,15 @@
  */
 'use client';
 
-import {
-  cn,
-  FEEDBACK_TYPE_CONFIG,
-  type FeedbackType,
-} from '@babylon/shared';
+import { cn, FEEDBACK_TYPE_CONFIG, type FeedbackType } from '@babylon/shared';
 import {
   AlertTriangle,
   Bug,
   ExternalLink,
   Image as ImageIcon,
-  type LucideIcon,
   Lightbulb,
   Loader2,
+  type LucideIcon,
   RefreshCw,
   Search,
   Star,
@@ -95,7 +91,10 @@ interface FeedbackTypeUIConfig {
   bgColor: string;
 }
 
-const FEEDBACK_TYPE_UI_CONFIG: Record<FeedbackType | 'unknown', FeedbackTypeUIConfig> = {
+const FEEDBACK_TYPE_UI_CONFIG: Record<
+  FeedbackType | 'unknown',
+  FeedbackTypeUIConfig
+> = {
   bug: {
     label: FEEDBACK_TYPE_CONFIG.bug.label,
     icon: Bug,

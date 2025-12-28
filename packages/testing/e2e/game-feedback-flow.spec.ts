@@ -19,7 +19,8 @@ const BASE_URL =
  * Strict mode for CI: fails instead of skipping when elements aren't found.
  * Set CI=true or STRICT_E2E_TESTS=true to enable.
  */
-const STRICT_MODE = process.env.CI === 'true' || process.env.STRICT_E2E_TESTS === 'true';
+const STRICT_MODE =
+  process.env.CI === 'true' || process.env.STRICT_E2E_TESTS === 'true';
 
 /**
  * Skip or fail a test based on strict mode.
