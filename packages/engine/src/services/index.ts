@@ -29,6 +29,8 @@ export * from './npc-group-dynamics-service';
 export * from './npc-interaction-tracker';
 export * from './npc-persona-generator';
 export * from './reply-rate-limiter';
+export * from './tier-config';
+export * from './tiered-group-service';
 
 // =============================================================================
 // Market Services

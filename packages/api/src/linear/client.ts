@@ -42,7 +42,10 @@ export async function createLinearIssue(
   const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
 
   const client = new GraphQLClient(LINEAR_API_URL, {
-    headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
     signal: controller.signal,
   });
 

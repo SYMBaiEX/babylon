@@ -58,6 +58,9 @@ export interface GroupDynamicsResult {
   usersInvited: number;
   usersKicked: number;
   messagesPosted: number;
+  tieredInvites: number;
+  tieredPromotions: number;
+  tieredDemotions: number;
 }
 
 export class NPCGroupDynamicsService {
@@ -65,7 +68,7 @@ export class NPCGroupDynamicsService {
   private static readonly FORM_NEW_GROUP_CHANCE = 0.05; // 5% chance for each eligible NPC
   private static readonly JOIN_GROUP_CHANCE = 0.1; // 10% chance if eligible
   private static readonly LEAVE_GROUP_CHANCE = 0.02; // 2% chance per membership
-  private static readonly POST_MESSAGE_CHANCE = 0.25; // 25% chance per active group
+  // Message frequency is now tier-based: T1=25%, T2=15%, T3=5%
   private static readonly INVITE_USER_CHANCE = 0.08; // 8% chance per eligible group
   private static readonly KICK_CHECK_CHANCE = 0.15; // 15% chance to check for kicks
 
@@ -88,6 +91,9 @@ export class NPCGroupDynamicsService {
       usersInvited: 0,
       usersKicked: 0,
       messagesPosted: 0,
+      tieredInvites: 0,
+      tieredPromotions: 0,
+      tieredDemotions: 0,
     };
 
     logger.info(
@@ -125,6 +131,14 @@ export class NPCGroupDynamicsService {
     // 6. Kick users based on weighted participation metrics
     const kicks = await NPCGroupDynamicsService.kickUsersWithWeightedLogic();
     result.usersKicked = kicks;
+
+    // 7. Process tiered group system (promotions/demotions run ~daily)
+    const { TieredGroupService } = await import('./tiered-group-service');
+    if (Math.random() < 0.0007) {
+      // ~once per day at 1-min tick rate
+      result.tieredPromotions = await TieredGroupService.processAllPromotions();
+      result.tieredDemotions = await TieredGroupService.processAllDemotions();
+    }
 
     const duration = Date.now() - startTime;
     logger.info(
@@ -538,16 +552,34 @@ export class NPCGroupDynamicsService {
   ): Promise<number> {
     let messagesPosted = 0;
 
-    // Get active group chats
+    // Get active group chats with their group tier info
     const groupList = await db
-      .select()
+      .select({
+        id: chats.id,
+        name: chats.name,
+        groupId: chats.groupId,
+      })
       .from(chats)
       .where(eq(chats.isGroup, true))
       .limit(20);
 
     for (const group of groupList) {
-      // Random chance to post
-      if (Math.random() > NPCGroupDynamicsService.POST_MESSAGE_CHANCE) {
+      // Get tier from Group table if available
+      let tier: 1 | 2 | 3 | null = null;
+      if (group.groupId) {
+        const [grp] = await db
+          .select({ tier: groups.tier })
+          .from(groups)
+          .where(eq(groups.id, group.groupId))
+          .limit(1);
+        tier = grp?.tier as 1 | 2 | 3 | null;
+      }
+
+      // Tier-based message frequency: T1=25%, T2=15%, T3=5%, legacy=25%
+      const messageChance =
+        tier === 1 ? 0.25 : tier === 2 ? 0.15 : tier === 3 ? 0.05 : 0.25;
+
+      if (Math.random() > messageChance) {
         continue;
       }
 
@@ -659,9 +691,29 @@ export class NPCGroupDynamicsService {
       // Get world context for consistent parody names and market awareness
       const worldContext = await generateWorldContext({ maxActors: 20 });
 
-      // Generate INSIDER message - this is the key asymmetric information mechanic!
-      // Each NPC generates their message INDEPENDENTLY with their own personal context
-      const prompt = `You are ${randomNpc.displayName} in a PRIVATE group chat with trusted insiders.
+      // Generate message based on tier - tier determines content level
+      const tierGuidance =
+        tier === 1 || tier === null
+          ? `TIER 1 INNER CIRCLE - share FULL ALPHA:
+- "Just loaded up $50k on [ticker] before the announcement"
+- "Between us, [company] Q3 is $2.3B but they'll announce $2.1B"
+- "Get out of [ticker] before 3pm - trust me"
+- Specific positions, amounts, dates, sources
+- Contradict your public statements with real strategy`
+          : tier === 2
+            ? `TIER 2 COMMUNITY - share PARTIAL ALPHA (hints, not specifics):
+- "Feeling bearish on tech this week"
+- "Smart money is moving out of [sector]"
+- Directional hints without exact amounts
+- Industry insights and sentiment
+- NO exact dollar amounts or dates`
+            : `TIER 3 FOLLOWERS - PUBLIC-FACING content only:
+- "Did you see what happened at [event]? Wild!"
+- "Markets are crazy right now"
+- Personality, banter, engagement
+- NO insider info, NO trading hints`;
+
+      const prompt = `You are ${randomNpc.displayName} in a ${tier ? `TIER ${tier}` : 'private'} group chat.
 ${affiliationContext}
 
 ${personalEventsContext}
@@ -673,32 +725,15 @@ ${positionContext}
 ${worldContext.worldActors}
 ${worldContext.currentMarkets}
 
-This is PRIVATE - share STRATEGIC insider information that you would NEVER post publicly:
+${tierGuidance}
 
-WHAT TO SHARE (pick one that's relevant):
-- React to events that happened to YOU (see above) with insider perspective
-- "Just loaded up on [ticker] before the announcement drops"
-- "Between us, [company] numbers look terrible this quarter"
-- "I'm hearing [rival] is in serious trouble"
-- "Get out of [ticker] now - trust me on this"
-- "Real talk: market is wrong about [question]"
-- Your actual position and why (contradict public statements if needed)
-- Insider knowledge about your affiliated organizations
-- Strategic advice for friends in this group
-
-PRIVATE vs PUBLIC:
-- PUBLIC feed: What you want the market to think
-- PRIVATE chat: What you actually know/believe/plan
-- Help friends make money, hurt enemies
-
-Write a private message (max 200 chars) with ACTIONABLE insider info.
-Be SPECIFIC with tickers, positions, or predictions. Reference your recent events if relevant.
+Write a private message (max 200 chars) appropriate for this tier.
 NO hashtags. Emojis OK (🤫 👀 🔥).
 Use parody names from World Actors (AIlon Musk, not Elon Musk).
 
 Return your response as XML:
 <response>
-  <message>your insider message here</message>
+  <message>your message here</message>
 </response>`;
 
       const rawResponse = await llm.generateJSON<
