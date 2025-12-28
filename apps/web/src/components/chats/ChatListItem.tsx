@@ -61,7 +61,7 @@ export function ChatListItem({
             {chat.nftRequirement && (
               <div
                 className="shrink-0"
-                title={`NFT Required: ${chat.nftRequirement.tokenId ? `Token #${chat.nftRequirement.tokenId}` : 'Any token'} from ${chat.nftRequirement.contractAddress.slice(0, 6)}...${chat.nftRequirement.contractAddress.slice(-4)} on ${chat.nftRequirement.chainName}`}
+                title={`NFT Required: ${chat.nftRequirement.tokenId !== null && chat.nftRequirement.tokenId !== undefined ? `Token #${chat.nftRequirement.tokenId}` : 'Any token'} from ${chat.nftRequirement.contractAddress.slice(0, 6)}...${chat.nftRequirement.contractAddress.slice(-4)} on ${chat.nftRequirement.chainName}`}
               >
                 <Shield className="h-3.5 w-3.5 text-primary" />
               </div>

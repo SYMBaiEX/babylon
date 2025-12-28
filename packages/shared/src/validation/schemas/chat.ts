@@ -43,7 +43,8 @@ export const ChatCreateSchema = z
   })
   .refine(
     (data) =>
-      !data.requiredNftTokenId ||
+      data.requiredNftTokenId === null ||
+      data.requiredNftTokenId === undefined ||
       (data.requiredNftTokenId !== null && data.requiredNftContractAddress),
     {
       message: 'Contract address is required when specifying a token ID',
