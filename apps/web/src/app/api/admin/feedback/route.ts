@@ -25,7 +25,9 @@ interface FeedbackMetadata {
 function safeParseInt(value: string | null, defaultValue: number): number {
   if (!value) return defaultValue;
   const parsed = parseInt(value, 10);
-  return Number.isFinite(parsed) && !Number.isNaN(parsed) ? parsed : defaultValue;
+  return Number.isFinite(parsed) && !Number.isNaN(parsed)
+    ? parsed
+    : defaultValue;
 }
 
 /**

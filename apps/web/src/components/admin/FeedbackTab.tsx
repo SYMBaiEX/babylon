@@ -447,7 +447,12 @@ export function FeedbackTab() {
                         <Icon className={cn('h-6 w-6', config.color)} />
                       </div>
                       <div>
-                        <h3 id="feedback-modal-title" className="font-bold text-lg">{config.label}</h3>
+                        <h3
+                          id="feedback-modal-title"
+                          className="font-bold text-lg"
+                        >
+                          {config.label}
+                        </h3>
                         <p className="text-muted-foreground text-sm">
                           ID: {selectedFeedback.id}
                         </p>
