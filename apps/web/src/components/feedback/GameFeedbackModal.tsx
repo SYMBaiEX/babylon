@@ -8,6 +8,7 @@
 
 import { cn, parseJsonString } from '@babylon/shared';
 import { Loader2, Send, X } from 'lucide-react';
+import { getAuthToken } from '@/lib/auth';
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { toast } from 'sonner';
 import {
@@ -124,8 +125,7 @@ export function GameFeedbackModal({ isOpen, onClose }: GameFeedbackModalProps) {
     formData.append('file', screenshot);
     formData.append('type', 'post');
 
-    const token =
-      typeof window !== 'undefined' ? window.__privyAccessToken : null;
+    const token = getAuthToken();
     const headers: HeadersInit = {};
     if (token) headers['Authorization'] = `Bearer ${token}`;
 
@@ -177,8 +177,7 @@ export function GameFeedbackModal({ isOpen, onClose }: GameFeedbackModalProps) {
         if (uploadedScreenshotUrl) setScreenshotUrl(uploadedScreenshotUrl);
       }
 
-      const token =
-        typeof window !== 'undefined' ? window.__privyAccessToken : null;
+      const token = getAuthToken();
       const headers: HeadersInit = { 'Content-Type': 'application/json' };
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
