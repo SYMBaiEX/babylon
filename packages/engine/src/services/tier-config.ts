@@ -13,6 +13,26 @@ import { GROUP_CONFIG } from '@babylon/shared';
 export type TierLevel = 1 | 2 | 3;
 export type AlphaLevel = 'full' | 'partial' | 'public';
 
+/** Valid tier levels */
+const VALID_TIERS: readonly TierLevel[] = [1, 2, 3] as const;
+
+/** Type guard to check if a value is a valid TierLevel */
+export function isValidTier(value: unknown): value is TierLevel {
+  return (
+    typeof value === 'number' && VALID_TIERS.includes(value as TierLevel)
+  );
+}
+
+/** Assert and return a valid TierLevel, throws if invalid */
+export function assertTierLevel(value: unknown): TierLevel {
+  if (!isValidTier(value)) {
+    throw new Error(
+      `Invalid tier value: ${value}. Expected 1, 2, or 3.`
+    );
+  }
+  return value;
+}
+
 export interface TierConfig {
   name: string;
   suffix: string;
@@ -123,3 +143,37 @@ export const getTotalNpcCapacity = (): number =>
   TIER_CONFIG[1].maxMembers +
   TIER_CONFIG[2].maxMembers +
   TIER_CONFIG[3].maxMembers;
+
+/**
+ * Tier-specific message guidance for NPC group chat content generation.
+ * These prompts control the alpha/insider information level shared in each tier.
+ */
+export const TIER_MESSAGE_GUIDANCE: Record<TierLevel, string> = {
+  1: `TIER 1 INNER CIRCLE - share FULL ALPHA:
+- "Just loaded up $50k on [ticker] before the announcement"
+- "Between us, [company] Q3 is $2.3B but they'll announce $2.1B"
+- "Get out of [ticker] before 3pm - trust me"
+- Specific positions, amounts, dates, sources
+- Contradict your public statements with real strategy`,
+
+  2: `TIER 2 COMMUNITY - share PARTIAL ALPHA (hints, not specifics):
+- "Feeling bearish on tech this week"
+- "Smart money is moving out of [sector]"
+- Directional hints without exact amounts
+- Industry insights and sentiment
+- NO exact dollar amounts or dates`,
+
+  3: `TIER 3 FOLLOWERS - PUBLIC-FACING content only:
+- "Did you see what happened at [event]? Wild!"
+- "Markets are crazy right now"
+- Personality, banter, engagement
+- NO insider info, NO trading hints`,
+};
+
+/** Get message guidance for a tier, defaults to Tier 1 for null/legacy groups */
+export function getTierMessageGuidance(tier: TierLevel | null): string {
+  if (tier === null || !isValidTier(tier)) {
+    return TIER_MESSAGE_GUIDANCE[1]; // Legacy groups get full alpha
+  }
+  return TIER_MESSAGE_GUIDANCE[tier];
+}

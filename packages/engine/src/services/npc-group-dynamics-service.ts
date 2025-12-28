@@ -133,9 +133,10 @@ export class NPCGroupDynamicsService {
     result.usersKicked = kicks;
 
     // 7. Process tiered group system (promotions/demotions run ~daily)
+    // Probability math: 0.0007 * 60 ticks/hr * 24 hrs = ~1.0 times per day
     const { TieredGroupService } = await import('./tiered-group-service');
-    if (Math.random() < 0.0007) {
-      // ~once per day at 1-min tick rate
+    const DAILY_TICK_PROBABILITY = 0.0007;
+    if (Math.random() < DAILY_TICK_PROBABILITY) {
       result.tieredPromotions = await TieredGroupService.processAllPromotions();
       result.tieredDemotions = await TieredGroupService.processAllDemotions();
     }
@@ -692,26 +693,9 @@ export class NPCGroupDynamicsService {
       const worldContext = await generateWorldContext({ maxActors: 20 });
 
       // Generate message based on tier - tier determines content level
-      const tierGuidance =
-        tier === 1 || tier === null
-          ? `TIER 1 INNER CIRCLE - share FULL ALPHA:
-- "Just loaded up $50k on [ticker] before the announcement"
-- "Between us, [company] Q3 is $2.3B but they'll announce $2.1B"
-- "Get out of [ticker] before 3pm - trust me"
-- Specific positions, amounts, dates, sources
-- Contradict your public statements with real strategy`
-          : tier === 2
-            ? `TIER 2 COMMUNITY - share PARTIAL ALPHA (hints, not specifics):
-- "Feeling bearish on tech this week"
-- "Smart money is moving out of [sector]"
-- Directional hints without exact amounts
-- Industry insights and sentiment
-- NO exact dollar amounts or dates`
-            : `TIER 3 FOLLOWERS - PUBLIC-FACING content only:
-- "Did you see what happened at [event]? Wild!"
-- "Markets are crazy right now"
-- Personality, banter, engagement
-- NO insider info, NO trading hints`;
+      // Tier guidance extracted to tier-config.ts for maintainability
+      const { getTierMessageGuidance } = await import('./tier-config');
+      const tierGuidance = getTierMessageGuidance(tier);
 
       const prompt = `You are ${randomNpc.displayName} in a ${tier ? `TIER ${tier}` : 'private'} group chat.
 ${affiliationContext}

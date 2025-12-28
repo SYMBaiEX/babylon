@@ -232,6 +232,13 @@ export const groupMembers = pgTable(
     index('GroupMember_lastMessageAt_idx').on(table.lastMessageAt),
     index('GroupMember_role_idx').on(table.role),
     index('GroupMember_tier_idx').on(table.tier),
+    // Composite indexes for tier queries (added for PR #670 fixes)
+    index('GroupMember_userId_isActive_tier_idx').on(
+      table.userId,
+      table.isActive,
+      table.tier
+    ),
+    index('GroupMember_isActive_tier_idx').on(table.isActive, table.tier),
   ]
 );
 

@@ -19,10 +19,12 @@ import {
   eq,
   groupMembers,
   groups,
+  inArray,
   isNotNull,
   isNull,
   ne,
 } from '@babylon/db';
+import { DistributedLockService } from '@babylon/api';
 import { GROUP_CONFIG, generateSnowflakeId, logger } from '@babylon/shared';
 
 import { NPCInteractionTracker } from './npc-interaction-tracker';
@@ -35,6 +37,7 @@ import {
   getTierForEngagementScore,
   getTierGroupName,
   isEligibleForPromotion,
+  isValidTier,
   shouldDemote,
   TIER_CONFIG,
   type TierLevel,
@@ -95,7 +98,7 @@ export class TieredGroupService {
 
     const existingTierMap = new Map(
       existingGroups
-        .filter((g) => g.tier !== null)
+        .filter((g) => isValidTier(g.tier))
         .map((g) => [g.tier as TierLevel, g])
     );
 
@@ -252,12 +255,22 @@ export class TieredGroupService {
         .where(eq(chats.groupId, g.id))
         .limit(1);
 
-      const config = getTierConfig(g.tier as TierLevel);
+      // Validate tier before processing
+      if (!isValidTier(g.tier)) {
+        logger.warn(
+          `Invalid tier value ${g.tier} for group ${g.id}, skipping`,
+          { groupId: g.id, tier: g.tier },
+          'TieredGroupService'
+        );
+        continue;
+      }
+
+      const config = getTierConfig(g.tier);
       const maxMembers = g.maxMembers ?? config.maxMembers;
       const memberCount = countResult?.count ?? 0;
 
       result.push({
-        tier: g.tier as TierLevel,
+        tier: g.tier,
         groupId: g.id,
         chatId: chat?.id ?? null,
         groupName: g.name,
@@ -306,8 +319,8 @@ export class TieredGroupService {
     let canBePromoted = false;
     let promotionBlockedReason: string | null = null;
 
-    if (membership?.tier !== null && membership?.tier !== undefined) {
-      const currentTier = membership.tier as TierLevel;
+    if (isValidTier(membership?.tier)) {
+      const currentTier = membership.tier;
       const daysInTier = Math.floor(
         (Date.now() - membership.joinedAt.getTime()) / (1000 * 60 * 60 * 24)
       );
@@ -345,7 +358,7 @@ export class TieredGroupService {
     return {
       userId,
       npcId,
-      currentTier: (membership?.tier as TierLevel) ?? null,
+      currentTier: isValidTier(membership?.tier) ? membership.tier : null,
       groupId: membership?.groupId ?? null,
       joinedAt: membership?.joinedAt ?? null,
       engagementScore,
@@ -357,12 +370,30 @@ export class TieredGroupService {
 
   /**
    * Invite user to appropriate tier based on engagement
+   *
+   * Uses distributed locking to prevent race conditions where multiple
+   * concurrent invites could exceed group capacity.
    */
   static async inviteUserToTier(
     userId: string,
     npcId: string
   ): Promise<{ success: boolean; tier: TierLevel | null; reason: string }> {
-    // Check if already in a tier with this NPC
+    // Validate that npcId is a valid NPC
+    const actor = StaticDataRegistry.getActor(npcId);
+    if (!actor) {
+      logger.warn(
+        `inviteUserToTier called with invalid NPC ID: ${npcId}`,
+        { userId, npcId },
+        'TieredGroupService'
+      );
+      return {
+        success: false,
+        tier: null,
+        reason: `Invalid NPC ID: ${npcId}`,
+      };
+    }
+
+    // Check if already in a tier with this NPC (fast-fail before lock)
     const [existing] = await db
       .select({ id: groupMembers.id })
       .from(groupMembers)
@@ -385,7 +416,7 @@ export class TieredGroupService {
       };
     }
 
-    // Check group limit
+    // Check group limit (fast-fail before lock)
     const [groupCount] = await db
       .select({ count: count() })
       .from(groupMembers)
@@ -406,76 +437,107 @@ export class TieredGroupService {
       };
     }
 
-    // Get engagement score
+    // Get engagement score (before lock to minimize lock duration)
     const interactionScore =
       await NPCInteractionTracker.calculateEngagementScore(userId, npcId);
     const engagementScore = interactionScore.engagementScore;
 
-    // Ensure tiers exist
+    // Ensure tiers exist (before lock)
     await this.ensureAllTiersExist(npcId);
 
-    // Find available tier
-    const tiers = await this.getNpcTiers(npcId);
-    let targetTier: TierInfo | null = null;
+    // Generate unique process ID for lock ownership
+    const processId = `invite-${npcId}-${userId}-${Date.now()}`;
+    const lockId = `tier-invite:${npcId}`;
 
-    for (const tier of ALL_TIERS) {
-      if (engagementScore < TIER_CONFIG[tier].minEngagementScore) continue;
-      const tierInfo = tiers.find((t) => t.tier === tier);
-      if (tierInfo && !tierInfo.isFull) {
-        targetTier = tierInfo;
-        break;
-      }
-    }
+    // Acquire distributed lock to prevent race condition on capacity check
+    const lockAcquired = await DistributedLockService.acquireLock({
+      lockId,
+      durationMs: 10_000, // 10 second lock
+      operation: 'tier-invite',
+      processId,
+    });
 
-    if (!targetTier) {
+    if (!lockAcquired) {
       return {
         success: false,
         tier: null,
-        reason: `No available tier (score: ${engagementScore.toFixed(0)}, min: ${TIER_CONFIG[3].minEngagementScore})`,
+        reason: 'Another invite operation in progress, please retry',
       };
     }
 
-    // Add to group
-    await db.insert(groupMembers).values({
-      id: await generateSnowflakeId(),
-      groupId: targetTier.groupId,
-      userId,
-      role: 'member',
-      addedBy: npcId,
-      tier: targetTier.tier,
-    });
+    try {
+      // Re-check capacity inside lock (critical section)
+      const tiers = await this.getNpcTiers(npcId);
+      let targetTier: TierInfo | null = null;
 
-    // Add to chat if exists
-    if (targetTier.chatId) {
-      await db.insert(chatParticipants).values({
-        id: await generateSnowflakeId(),
-        chatId: targetTier.chatId,
-        userId,
-        invitedBy: npcId,
+      for (const tier of ALL_TIERS) {
+        if (engagementScore < TIER_CONFIG[tier].minEngagementScore) continue;
+        const tierInfo = tiers.find((t) => t.tier === tier);
+        if (tierInfo && !tierInfo.isFull) {
+          targetTier = tierInfo;
+          break;
+        }
+      }
+
+      if (!targetTier) {
+        return {
+          success: false,
+          tier: null,
+          reason: `No available tier (score: ${engagementScore.toFixed(0)}, min: ${TIER_CONFIG[3].minEngagementScore})`,
+        };
+      }
+
+      // Wrap multi-step operation in transaction
+      await db.$transaction(async (tx) => {
+        // Add to group
+        await tx.insert(groupMembers).values({
+          id: await generateSnowflakeId(),
+          groupId: targetTier.groupId,
+          userId,
+          role: 'member',
+          addedBy: npcId,
+          tier: targetTier.tier,
+        });
+
+        // Add to chat if exists
+        if (targetTier.chatId) {
+          await tx.insert(chatParticipants).values({
+            id: await generateSnowflakeId(),
+            chatId: targetTier.chatId,
+            userId,
+            invitedBy: npcId,
+          });
+        }
       });
-    }
 
-    logger.info(
-      'User invited to tier',
-      {
-        userId,
-        npcId,
+      logger.info(
+        'User invited to tier',
+        {
+          userId,
+          npcId,
+          tier: targetTier.tier,
+          groupName: targetTier.groupName,
+          engagementScore,
+        },
+        'TieredGroupService'
+      );
+
+      return {
+        success: true,
         tier: targetTier.tier,
-        groupName: targetTier.groupName,
-        engagementScore,
-      },
-      'TieredGroupService'
-    );
-
-    return {
-      success: true,
-      tier: targetTier.tier,
-      reason: `Invited to ${targetTier.groupName}`,
-    };
+        reason: `Invited to ${targetTier.groupName}`,
+      };
+    } finally {
+      // Always release lock
+      await DistributedLockService.releaseLock(lockId, processId);
+    }
   }
 
   /**
    * Promote user to higher tier
+   *
+   * Uses distributed locking to prevent race conditions where multiple
+   * concurrent promotions could exceed group capacity.
    */
   static async promoteUser(userId: string, npcId: string): Promise<boolean> {
     const status = await this.getUserTierStatus(userId, npcId);
@@ -485,100 +547,143 @@ export class TieredGroupService {
     const higherTier = getHigherTier(status.currentTier);
     if (!higherTier) return false;
 
-    const tiers = await this.getNpcTiers(npcId);
-    const targetTier = tiers.find((t) => t.tier === higherTier);
-    if (!targetTier || targetTier.isFull) return false;
+    // Generate unique process ID for lock ownership
+    const processId = `promote-${npcId}-${userId}-${Date.now()}`;
+    const lockId = `tier-promote:${npcId}`;
 
-    // Deactivate old membership
-    await db
-      .update(groupMembers)
-      .set({
-        isActive: false,
-        kickReason: `Promoted to Tier ${higherTier}`,
-        kickedAt: new Date(),
-      })
-      .where(
-        and(
-          eq(groupMembers.groupId, status.groupId),
-          eq(groupMembers.userId, userId)
-        )
-      );
-
-    // Find and deactivate old chat participant
-    const [oldChat] = await db
-      .select({ id: chats.id })
-      .from(chats)
-      .where(eq(chats.groupId, status.groupId))
-      .limit(1);
-
-    if (oldChat) {
-      await db
-        .update(chatParticipants)
-        .set({ isActive: false })
-        .where(
-          and(
-            eq(chatParticipants.chatId, oldChat.id),
-            eq(chatParticipants.userId, userId)
-          )
-        );
-    }
-
-    // Add to new tier
-    await db.insert(groupMembers).values({
-      id: await generateSnowflakeId(),
-      groupId: targetTier.groupId,
-      userId,
-      role: 'member',
-      addedBy: npcId,
-      tier: higherTier,
-      previousTier: status.currentTier,
-      promotedAt: new Date(),
+    // Acquire distributed lock to prevent race condition on capacity check
+    const lockAcquired = await DistributedLockService.acquireLock({
+      lockId,
+      durationMs: 10_000, // 10 second lock
+      operation: 'tier-promote',
+      processId,
     });
 
-    if (targetTier.chatId) {
-      await db.insert(chatParticipants).values({
-        id: await generateSnowflakeId(),
-        chatId: targetTier.chatId,
-        userId,
-        invitedBy: npcId,
-      });
+    if (!lockAcquired) {
+      logger.info(
+        'Promote operation skipped - another promotion in progress',
+        { userId, npcId },
+        'TieredGroupService'
+      );
+      return false;
     }
 
-    logger.info(
-      'User promoted',
-      { userId, npcId, fromTier: status.currentTier, toTier: higherTier },
-      'TieredGroupService'
-    );
+    try {
+      // Re-check capacity inside lock (critical section)
+      const tiers = await this.getNpcTiers(npcId);
+      const targetTier = tiers.find((t) => t.tier === higherTier);
+      if (!targetTier || targetTier.isFull) return false;
 
-    return true;
+      // Capture values for use in transaction (TypeScript narrowing doesn't carry into callbacks)
+      const currentGroupId = status.groupId;
+      const currentTier = status.currentTier;
+
+      // Wrap multi-step operation in transaction to prevent orphaned state
+      await db.$transaction(async (tx) => {
+        // Deactivate old membership
+        await tx
+          .update(groupMembers)
+          .set({
+            isActive: false,
+            kickReason: `Promoted to Tier ${higherTier}`,
+            kickedAt: new Date(),
+          })
+          .where(
+            and(
+              eq(groupMembers.groupId, currentGroupId),
+              eq(groupMembers.userId, userId)
+            )
+          );
+
+        // Find and deactivate old chat participant
+        const [oldChat] = await tx
+          .select({ id: chats.id })
+          .from(chats)
+          .where(eq(chats.groupId, currentGroupId))
+          .limit(1);
+
+        if (oldChat) {
+          await tx
+            .update(chatParticipants)
+            .set({ isActive: false })
+            .where(
+              and(
+                eq(chatParticipants.chatId, oldChat.id),
+                eq(chatParticipants.userId, userId)
+              )
+            );
+        }
+
+        // Add to new tier
+        await tx.insert(groupMembers).values({
+          id: await generateSnowflakeId(),
+          groupId: targetTier.groupId,
+          userId,
+          role: 'member',
+          addedBy: npcId,
+          tier: higherTier,
+          previousTier: currentTier,
+          promotedAt: new Date(),
+        });
+
+        if (targetTier.chatId) {
+          await tx.insert(chatParticipants).values({
+            id: await generateSnowflakeId(),
+            chatId: targetTier.chatId,
+            userId,
+            invitedBy: npcId,
+          });
+        }
+      });
+
+      logger.info(
+        'User promoted',
+        { userId, npcId, fromTier: currentTier, toTier: higherTier },
+        'TieredGroupService'
+      );
+
+      return true;
+    } finally {
+      // Always release lock
+      await DistributedLockService.releaseLock(lockId, processId);
+    }
   }
 
   /**
    * Process promotions for all NPC groups (run daily)
+   *
+   * Optimized: Single batch query for all NPC memberships instead of N+1 pattern.
    */
   static async processAllPromotions(): Promise<number> {
     let promotions = 0;
     const actors = StaticDataRegistry.getAllActors();
+    const actorIds = actors.map((a) => a.id);
 
-    for (const actor of actors) {
-      const memberships = await db
-        .select({ userId: groupMembers.userId, tier: groupMembers.tier })
-        .from(groupMembers)
-        .innerJoin(groups, eq(groupMembers.groupId, groups.id))
-        .where(
-          and(
-            eq(groups.ownerId, actor.id),
-            eq(groups.type, 'npc'),
-            eq(groupMembers.isActive, true),
-            isNotNull(groupMembers.tier),
-            ne(groupMembers.tier, 1)
-          )
-        );
+    if (actorIds.length === 0) return 0;
 
-      for (const m of memberships) {
-        if (await this.promoteUser(m.userId, actor.id)) {
-          promotions++;
-        }
+    // Batch query: Get all promotable memberships across all NPCs in one query
+    const allMemberships = await db
+      .select({
+        userId: groupMembers.userId,
+        tier: groupMembers.tier,
+        npcId: groups.ownerId,
+      })
+      .from(groupMembers)
+      .innerJoin(groups, eq(groupMembers.groupId, groups.id))
+      .where(
+        and(
+          inArray(groups.ownerId, actorIds),
+          eq(groups.type, 'npc'),
+          eq(groupMembers.isActive, true),
+          isNotNull(groupMembers.tier),
+          ne(groupMembers.tier, 1) // Already at highest tier
+        )
+      );
+
+    // Process each membership (promoteUser still needs individual checks)
+    for (const m of allMemberships) {
+      if (await this.promoteUser(m.userId, m.npcId)) {
+        promotions++;
       }
     }
 
@@ -587,34 +692,49 @@ export class TieredGroupService {
 
   /**
    * Process demotions for inactive users (run daily)
+   *
+   * Optimized: Single batch query for all NPC memberships instead of N+1 pattern.
    */
   static async processAllDemotions(): Promise<number> {
     let demotions = 0;
     const actors = StaticDataRegistry.getAllActors();
+    const actorIds = actors.map((a) => a.id);
     const now = Date.now();
 
-    for (const actor of actors) {
-      const memberships = await db
-        .select({
-          userId: groupMembers.userId,
-          groupId: groupMembers.groupId,
-          tier: groupMembers.tier,
-          lastMessageAt: groupMembers.lastMessageAt,
-          joinedAt: groupMembers.joinedAt,
-        })
-        .from(groupMembers)
-        .innerJoin(groups, eq(groupMembers.groupId, groups.id))
-        .where(
-          and(
-            eq(groups.ownerId, actor.id),
-            eq(groups.type, 'npc'),
-            eq(groupMembers.isActive, true),
-            isNotNull(groupMembers.tier)
-          )
-        );
+    if (actorIds.length === 0) return 0;
 
-      for (const m of memberships) {
-        const tier = m.tier as TierLevel;
+    // Batch query: Get all memberships across all NPCs in one query
+    const allMemberships = await db
+      .select({
+        userId: groupMembers.userId,
+        groupId: groupMembers.groupId,
+        tier: groupMembers.tier,
+        lastMessageAt: groupMembers.lastMessageAt,
+        joinedAt: groupMembers.joinedAt,
+        npcId: groups.ownerId,
+      })
+      .from(groupMembers)
+      .innerJoin(groups, eq(groupMembers.groupId, groups.id))
+      .where(
+        and(
+          inArray(groups.ownerId, actorIds),
+          eq(groups.type, 'npc'),
+          eq(groupMembers.isActive, true),
+          isNotNull(groupMembers.tier)
+        )
+      );
+
+    for (const m of allMemberships) {
+        // Validate tier (should be valid due to isNotNull filter, but be defensive)
+        if (!isValidTier(m.tier)) {
+          logger.warn(
+            `Invalid tier value ${m.tier} for membership, skipping demotion check`,
+            { userId: m.userId, groupId: m.groupId, tier: m.tier },
+            'TieredGroupService'
+          );
+          continue;
+        }
+        const tier = m.tier;
         const lastActivity = m.lastMessageAt ?? m.joinedAt;
         const daysSince = Math.floor(
           (now - lastActivity.getTime()) / (1000 * 60 * 60 * 24)
@@ -624,19 +744,47 @@ export class TieredGroupService {
           const lowerTier = getLowerTier(tier);
           const reason = `Inactive for ${daysSince} days`;
 
-          // Deactivate current membership
-          await db
-            .update(groupMembers)
-            .set({ isActive: false, kickReason: reason, kickedAt: new Date() })
-            .where(eq(groupMembers.id, m.groupId));
+          // Pre-fetch data needed for transaction
+          const tiers = lowerTier ? await this.getNpcTiers(m.npcId) : [];
+          const targetTier = lowerTier
+            ? tiers.find((t) => t.tier === lowerTier)
+            : null;
 
-          if (lowerTier) {
-            // Find and add to lower tier
-            const tiers = await this.getNpcTiers(actor.id);
-            const targetTier = tiers.find((t) => t.tier === lowerTier);
+          // Wrap multi-step demotion in transaction to prevent orphaned state
+          await db.$transaction(async (tx) => {
+            // Deactivate current membership
+            await tx
+              .update(groupMembers)
+              .set({ isActive: false, kickReason: reason, kickedAt: new Date() })
+              .where(
+                and(
+                  eq(groupMembers.groupId, m.groupId),
+                  eq(groupMembers.userId, m.userId)
+                )
+              );
 
-            if (targetTier && !targetTier.isFull) {
-              await db.insert(groupMembers).values({
+            // Deactivate chat participant for the old tier's chat
+            const [oldChat] = await tx
+              .select({ id: chats.id })
+              .from(chats)
+              .where(eq(chats.groupId, m.groupId))
+              .limit(1);
+
+            if (oldChat) {
+              await tx
+                .update(chatParticipants)
+                .set({ isActive: false })
+                .where(
+                  and(
+                    eq(chatParticipants.chatId, oldChat.id),
+                    eq(chatParticipants.userId, m.userId)
+                  )
+                );
+            }
+
+            if (lowerTier && targetTier && !targetTier.isFull) {
+              // Add to lower tier
+              await tx.insert(groupMembers).values({
                 id: await generateSnowflakeId(),
                 groupId: targetTier.groupId,
                 userId: m.userId,
@@ -647,21 +795,21 @@ export class TieredGroupService {
               });
 
               if (targetTier.chatId) {
-                await db.insert(chatParticipants).values({
+                await tx.insert(chatParticipants).values({
                   id: await generateSnowflakeId(),
                   chatId: targetTier.chatId,
                   userId: m.userId,
                 });
               }
             }
-          }
+          });
 
           demotions++;
           logger.info(
             'User demoted',
             {
               userId: m.userId,
-              npcId: actor.id,
+              npcId: m.npcId,
               fromTier: tier,
               toTier: lowerTier,
               reason,
@@ -670,13 +818,14 @@ export class TieredGroupService {
           );
         }
       }
-    }
 
     return demotions;
   }
 
   /**
    * Get global tier analytics
+   *
+   * Optimized to use batch queries instead of N+1 pattern.
    */
   static async getGlobalAnalytics(): Promise<{
     totalNpcs: number;
@@ -692,6 +841,34 @@ export class TieredGroupService {
     }[];
   }> {
     const actors = StaticDataRegistry.getAllActors();
+
+    // Batch query 1: Get all NPC tier groups with member counts in a single query
+    const tierGroupsWithCounts = await db
+      .select({
+        groupId: groups.id,
+        ownerId: groups.ownerId,
+        tier: groups.tier,
+        maxMembers: groups.maxMembers,
+        memberCount: count(groupMembers.id),
+      })
+      .from(groups)
+      .leftJoin(
+        groupMembers,
+        and(
+          eq(groupMembers.groupId, groups.id),
+          eq(groupMembers.isActive, true)
+        )
+      )
+      .where(
+        and(
+          eq(groups.type, 'npc'),
+          isNotNull(groups.tier)
+        )
+      )
+      .groupBy(groups.id, groups.ownerId, groups.tier, groups.maxMembers);
+
+    // Track unique NPCs with groups
+    const npcsWithGroups = new Set<string>();
     let totalGroups = 0;
     let totalMembers = 0;
     let totalCapacity = 0;
@@ -703,16 +880,20 @@ export class TieredGroupService {
         3: { members: 0, capacity: 0 },
       };
 
-    for (const actor of actors) {
-      const tiers = await this.getNpcTiers(actor.id);
-      totalGroups += tiers.length;
+    for (const g of tierGroupsWithCounts) {
+      if (!isValidTier(g.tier)) continue;
 
-      for (const t of tiers) {
-        totalMembers += t.memberCount;
-        totalCapacity += t.maxMembers;
-        tierTotals[t.tier].members += t.memberCount;
-        tierTotals[t.tier].capacity += t.maxMembers;
-      }
+      npcsWithGroups.add(g.ownerId);
+      totalGroups++;
+
+      const config = getTierConfig(g.tier);
+      const maxMembers = g.maxMembers ?? config.maxMembers;
+      const memberCount = g.memberCount ?? 0;
+
+      totalMembers += memberCount;
+      totalCapacity += maxMembers;
+      tierTotals[g.tier].members += memberCount;
+      tierTotals[g.tier].capacity += maxMembers;
     }
 
     return {
