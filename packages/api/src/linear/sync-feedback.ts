@@ -6,7 +6,7 @@
 import { db, type JsonValue } from '@babylon/db';
 import { logger } from '@babylon/shared';
 import { createLinearIssue } from './client';
-import { formatFeedbackForLinear, type FeedbackType } from './format-feedback';
+import { type FeedbackType, formatFeedbackForLinear } from './format-feedback';
 
 export interface LinearConfig {
   apiKey: string;
@@ -83,4 +83,3 @@ export async function syncFeedbackToLinear(
     identifier: issue.identifier,
   });
 }
-

@@ -8,9 +8,9 @@
 
 import { cn, parseJsonString } from '@babylon/shared';
 import { Loader2, Send, X } from 'lucide-react';
-import { getAuthToken } from '@/lib/auth';
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { toast } from 'sonner';
+import { getAuthToken } from '@/lib/auth';
 import {
   BugReportFields,
   DescriptionField,
@@ -170,72 +170,82 @@ export function GameFeedbackModal({ isOpen, onClose }: GameFeedbackModalProps) {
       abortControllerRef.current = new AbortController();
       const signal = abortControllerRef.current.signal;
 
-      let uploadedScreenshotUrl: string | null = null;
+      try {
+        let uploadedScreenshotUrl: string | null = null;
 
-      if (screenshot && feedbackType === 'bug') {
-        uploadedScreenshotUrl = await uploadScreenshot(signal);
-        if (uploadedScreenshotUrl) setScreenshotUrl(uploadedScreenshotUrl);
-      }
+        if (screenshot && feedbackType === 'bug') {
+          uploadedScreenshotUrl = await uploadScreenshot(signal);
+          if (uploadedScreenshotUrl) setScreenshotUrl(uploadedScreenshotUrl);
+        }
 
-      const token = getAuthToken();
-      const headers: HeadersInit = { 'Content-Type': 'application/json' };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
+        const token = getAuthToken();
+        const headers: HeadersInit = { 'Content-Type': 'application/json' };
+        if (token) headers['Authorization'] = `Bearer ${token}`;
 
-      const response = await fetch('/api/feedback/game-feedback', {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          feedbackType,
-          description: description.trim(),
-          stepsToReproduce:
-            feedbackType === 'bug' ? stepsToReproduce.trim() : undefined,
-          screenshotUrl: uploadedScreenshotUrl || screenshotUrl || undefined,
-          rating: feedbackType === 'feature_request' ? rating : undefined,
-        }),
-        signal,
-      });
+        const response = await fetch('/api/feedback/game-feedback', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            feedbackType,
+            description: description.trim(),
+            stepsToReproduce:
+              feedbackType === 'bug' ? stepsToReproduce.trim() : undefined,
+            screenshotUrl: uploadedScreenshotUrl || screenshotUrl || undefined,
+            rating: feedbackType === 'feature_request' ? rating : undefined,
+          }),
+          signal,
+        });
 
-      if (!response.ok) {
-        if (response.status === 429) {
-          const retryAfterHeader = response.headers.get('Retry-After');
-          const retryAfterSeconds = retryAfterHeader
-            ? parseInt(retryAfterHeader, 10)
-            : 60;
-          setRetryAfter(retryAfterSeconds);
+        if (!response.ok) {
+          if (response.status === 429) {
+            const retryAfterHeader = response.headers.get('Retry-After');
+            const retryAfterSeconds = retryAfterHeader
+              ? parseInt(retryAfterHeader, 10)
+              : 60;
+            setRetryAfter(retryAfterSeconds);
 
-          if (intervalRef.current) clearInterval(intervalRef.current);
+            if (intervalRef.current) clearInterval(intervalRef.current);
 
-          intervalRef.current = setInterval(() => {
-            setRetryAfter((prev) => {
-              if (prev === null || prev <= 1) {
-                if (intervalRef.current) {
-                  clearInterval(intervalRef.current);
-                  intervalRef.current = null;
+            intervalRef.current = setInterval(() => {
+              setRetryAfter((prev) => {
+                if (prev === null || prev <= 1) {
+                  if (intervalRef.current) {
+                    clearInterval(intervalRef.current);
+                    intervalRef.current = null;
+                  }
+                  return null;
                 }
-                return null;
-              }
-              return prev - 1;
-            });
-          }, 1000);
+                return prev - 1;
+              });
+            }, 1000);
 
-          toast.error(
-            `Rate limit exceeded. Please try again in ${retryAfterSeconds} seconds.`
-          );
+            toast.error(
+              `Rate limit exceeded. Please try again in ${retryAfterSeconds} seconds.`
+            );
+            return;
+          }
+
+          const error = await response.json();
+          toast.error(error.error || 'Failed to submit feedback');
           return;
         }
 
-        const error = await response.json();
-        toast.error(error.error || 'Failed to submit feedback');
-        return;
+        const data = await response.json();
+        toast.success(
+          data.message || 'Thank you for your feedback! We appreciate it.'
+        );
+
+        clearFormData();
+        setTimeout(() => onClose(), 1000);
+      } catch (error) {
+        // Silently ignore abort errors (user cancelled)
+        if (error instanceof Error && error.name === 'AbortError') return;
+
+        // Boundary error handling: network failures, JSON parse errors, etc.
+        const message =
+          error instanceof Error ? error.message : 'Failed to submit feedback';
+        toast.error(message);
       }
-
-      const data = await response.json();
-      toast.success(
-        data.message || 'Thank you for your feedback! We appreciate it.'
-      );
-
-      clearFormData();
-      setTimeout(() => onClose(), 1000);
     });
   };
 
