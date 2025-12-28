@@ -15,23 +15,41 @@
  * - Inactivity (not posting for extended periods)
  * - Over-posting (spam behavior)
  * - Low quality (average quality below threshold)
+ *
  */
 
 import {
   and,
-  chatParticipants,
   chats,
   db,
   desc,
   eq,
   followStatuses,
-  groupChatMemberships,
+  getRawDrizzle,
+  groupInvites,
+  groupMembers,
+  groups,
   gte,
   messages,
   userInteractions,
 } from '@babylon/db';
 import type { GroupChat } from '@babylon/shared';
 import { generateSnowflakeId } from '@babylon/shared';
+
+/**
+ * Generate a deterministic group ID from a chat ID.
+ * This ensures idempotency - same chatId always produces same groupId.
+ */
+function deterministicGroupId(chatId: string): string {
+  let hash = 0;
+  for (let i = 0; i < chatId.length; i++) {
+    const char = chatId.charCodeAt(i);
+    hash = (hash << 5) - hash + char;
+    hash = hash & hash;
+  }
+  const absHash = Math.abs(hash);
+  return `grp_${chatId}_${absHash.toString().padStart(10, '0')}`;
+}
 
 // =============================================================================
 // Types
@@ -154,20 +172,27 @@ export class GroupChatService {
       };
     }
 
-    // Check if already in a chat with this NPC
-    const [existingMembership] = await db
-      .select()
-      .from(groupChatMemberships)
+    // Check if already in a group with this NPC as owner
+    // Join groups with groupMembers to find active membership
+    const existingMemberships = await db
+      .select({
+        groupId: groups.id,
+        ownerId: groups.ownerId,
+        isActive: groupMembers.isActive,
+      })
+      .from(groupMembers)
+      .innerJoin(groups, eq(groupMembers.groupId, groups.id))
       .where(
         and(
-          eq(groupChatMemberships.userId, userId),
-          eq(groupChatMemberships.npcAdminId, npcId),
-          eq(groupChatMemberships.isActive, true)
+          eq(groupMembers.userId, userId),
+          eq(groups.ownerId, npcId),
+          eq(groups.type, 'npc'),
+          eq(groupMembers.isActive, true)
         )
       )
       .limit(1);
 
-    if (existingMembership) {
+    if (existingMemberships.length > 0) {
       return {
         willInvite: false,
         probability: 0,
@@ -261,6 +286,13 @@ export class GroupChatService {
 
   /**
    * Record a group chat invite
+   * Creates a pending GroupInvite that requires user acceptance.
+   * Chat.groupId → Group.id relationship
+   *
+   * Uses atomic upserts to prevent race conditions:
+   * - Deterministic groupId based on chatId ensures idempotency
+   * - INSERT ON CONFLICT for group/chat creation
+   * - Proper invite status handling
    */
   static async recordInvite(
     userId: string,
@@ -268,86 +300,144 @@ export class GroupChatService {
     chatId: string,
     chatName: string
   ): Promise<void> {
-    // Check if chat exists
-    const [existingChat] = await db
-      .select()
-      .from(chats)
-      .where(eq(chats.id, chatId))
-      .limit(1);
+    // Use deterministic groupId to prevent race conditions
+    const groupId = deterministicGroupId(chatId);
+    const now = new Date();
 
-    if (!existingChat) {
-      await db.insert(chats).values({
-        id: chatId,
-        name: chatName,
-        isGroup: true,
-        gameId: 'realtime',
-        updatedAt: new Date(),
-      });
-    }
+    // Get raw Drizzle instance for transaction with upsert support
+    const rawDb = getRawDrizzle();
 
-    // Check if participant exists
-    const [existingParticipant] = await db
+    // Check for existing invite first (before any modifications)
+    const [existingInvite] = await db
       .select()
-      .from(chatParticipants)
+      .from(groupInvites)
       .where(
         and(
-          eq(chatParticipants.chatId, chatId),
-          eq(chatParticipants.userId, userId)
+          eq(groupInvites.groupId, groupId),
+          eq(groupInvites.invitedUserId, userId)
         )
       )
       .limit(1);
 
-    if (!existingParticipant) {
-      await db.insert(chatParticipants).values({
-        id: await generateSnowflakeId(),
-        chatId,
-        userId,
-      });
+    // Early return if already pending or accepted
+    if (existingInvite) {
+      if (existingInvite.status === 'pending') {
+        return;
+      }
+      if (existingInvite.status === 'accepted') {
+        return;
+      }
     }
 
-    // Record membership
-    await db.insert(groupChatMemberships).values({
-      id: await generateSnowflakeId(),
-      userId,
-      chatId,
-      npcAdminId: npcId,
+    let inviteId: string;
+
+    // Use transaction with atomic upserts
+    await rawDb.transaction(async (tx) => {
+      // Step 1: Upsert Group (INSERT ... ON CONFLICT DO NOTHING)
+      await tx
+        .insert(groups)
+        .values({
+          id: groupId,
+          name: chatName,
+          type: 'npc',
+          ownerId: npcId,
+          createdById: npcId,
+          createdAt: now,
+          updatedAt: now,
+        })
+        .onConflictDoNothing({ target: groups.id });
+
+      // Step 2: Upsert Chat (INSERT ... ON CONFLICT DO UPDATE to set groupId)
+      await tx
+        .insert(chats)
+        .values({
+          id: chatId,
+          name: chatName,
+          isGroup: true,
+          gameId: 'realtime',
+          groupId,
+          createdAt: now,
+          updatedAt: now,
+        })
+        .onConflictDoUpdate({
+          target: chats.id,
+          set: {
+            groupId,
+            updatedAt: now,
+          },
+        });
+
+      // Step 3: Handle invite
+      if (existingInvite) {
+        // Re-invite flow for declined invites
+        inviteId = existingInvite.id;
+        await tx
+          .update(groupInvites)
+          .set({
+            status: 'pending',
+            invitedBy: npcId,
+            invitedAt: now,
+            respondedAt: null,
+            message: `Join our group chat "${chatName}"!`,
+          })
+          .where(eq(groupInvites.id, existingInvite.id));
+      } else {
+        // Create new pending invite
+        inviteId = await generateSnowflakeId();
+        await tx.insert(groupInvites).values({
+          id: inviteId,
+          groupId,
+          invitedUserId: userId,
+          invitedBy: npcId,
+          status: 'pending',
+          message: `Join our group chat "${chatName}"!`,
+        });
+      }
+
+      // Mark interaction as leading to invite
+      await tx
+        .update(userInteractions)
+        .set({ wasInvitedToChat: true })
+        .where(
+          and(
+            eq(userInteractions.userId, userId),
+            eq(userInteractions.npcId, npcId)
+          )
+        );
     });
 
-    // Mark interaction as leading to invite
-    await db
-      .update(userInteractions)
-      .set({ wasInvitedToChat: true })
-      .where(
-        and(
-          eq(userInteractions.userId, userId),
-          eq(userInteractions.npcId, npcId)
-        )
-      );
-
-    // Send notification to user about the invite
+    // Send notification to user about the invite (with inviteId for proper linking)
     const { notifyGroupChatInvite } = await import('@babylon/api');
-    await notifyGroupChatInvite(userId, npcId, chatId, chatName);
+    await notifyGroupChatInvite(userId, npcId, groupId, chatName, inviteId!);
   }
 
   /**
    * Get all group chats a user is in
+   * Chat.groupId → Group.id relationship
    */
   static async getUserGroupChats(userId: string): Promise<GroupChatData[]> {
+    // Query via Chat.groupId
     const memberships = await db
-      .select()
-      .from(groupChatMemberships)
+      .select({
+        groupId: groups.id,
+        chatId: chats.id,
+        groupName: groups.name,
+        ownerId: groups.ownerId,
+        type: groups.type,
+        joinedAt: groupMembers.joinedAt,
+      })
+      .from(groupMembers)
+      .innerJoin(groups, eq(groupMembers.groupId, groups.id))
+      .innerJoin(chats, eq(chats.groupId, groups.id))
       .where(
-        and(
-          eq(groupChatMemberships.userId, userId),
-          eq(groupChatMemberships.isActive, true)
-        )
+        and(eq(groupMembers.userId, userId), eq(groupMembers.isActive, true))
       )
-      .orderBy(groupChatMemberships.joinedAt);
+      .orderBy(groupMembers.joinedAt);
 
     return memberships.map((m) => ({
       id: m.chatId,
-      name: `${m.npcAdminId}'s Chat`,
-      admin: m.npcAdminId,
+      name: m.groupName,
+      admin: m.ownerId,
       members: [userId],
       theme: 'default',
       messageCount: 0,
@@ -355,21 +445,25 @@ export class GroupChatService {
   }
 
   /**
-   * Check if user is in a specific chat
+   * Check if user is in a specific chat (by chatId)
+   * Chat.groupId → Group.id relationship
    */
   static async isInChat(userId: string, chatId: string): Promise<boolean> {
+    // Single query with join
     const [membership] = await db
-      .select()
-      .from(groupChatMemberships)
+      .select({ id: groupMembers.id })
+      .from(chats)
+      .innerJoin(groupMembers, eq(chats.groupId, groupMembers.groupId))
       .where(
         and(
-          eq(groupChatMemberships.userId, userId),
-          eq(groupChatMemberships.chatId, chatId)
+          eq(chats.id, chatId),
+          eq(groupMembers.userId, userId),
+          eq(groupMembers.isActive, true)
         )
       )
       .limit(1);
 
-    return membership?.isActive ?? false;
+    return !!membership;
   }
 
   // ---------------------------------------------------------------------------
@@ -378,20 +472,17 @@ export class GroupChatService {
 
   /**
    * Calculate the probability that a user should be removed from a group chat
+   * Chat.groupId → Group.id relationship
    */
   static async calculateKickChance(
     userId: string,
     chatId: string
   ): Promise<SweepDecision> {
-    const [membership] = await db
+    // Find chat to get its groupId
+    const [chat] = await db
       .select()
-      .from(groupChatMemberships)
-      .where(
-        and(
-          eq(groupChatMemberships.userId, userId),
-          eq(groupChatMemberships.chatId, chatId)
-        )
-      )
+      .from(chats)
+      .where(eq(chats.id, chatId))
       .limit(1);
 
     const baseStats = {
@@ -400,6 +491,25 @@ export class GroupChatService {
       averageQuality: 0,
       totalMessages: 0,
     };
+
+    if (!chat || !chat.groupId) {
+      return {
+        kickChance: 0,
+        reason: 'Group not found',
+        stats: baseStats,
+      };
+    }
+
+    const [membership] = await db
+      .select()
+      .from(groupMembers)
+      .where(
+        and(
+          eq(groupMembers.groupId, chat.groupId),
+          eq(groupMembers.userId, userId)
+        )
+      )
+      .limit(1);
 
     if (!membership || !membership.isActive) {
       return {
@@ -507,43 +617,65 @@ export class GroupChatService {
 
   /**
    * Remove a user from a group chat
+   * Chat.groupId → Group.id relationship
    */
   static async removeFromChat(
     userId: string,
     chatId: string,
     reason: string
   ): Promise<void> {
+    // Find chat to get its groupId
+    const [chat] = await db
+      .select()
+      .from(chats)
+      .where(eq(chats.id, chatId))
+      .limit(1);
+
+    if (!chat || !chat.groupId) return;
+
     await db
-      .update(groupChatMemberships)
+      .update(groupMembers)
       .set({
         isActive: false,
-        sweepReason: reason,
-        removedAt: new Date(),
+        kickReason: reason,
+        kickedAt: new Date(),
       })
       .where(
         and(
-          eq(groupChatMemberships.userId, userId),
-          eq(groupChatMemberships.chatId, chatId),
-          eq(groupChatMemberships.isActive, true)
+          eq(groupMembers.groupId, chat.groupId),
+          eq(groupMembers.userId, userId),
+          eq(groupMembers.isActive, true)
         )
       );
   }
 
   /**
    * Run sweep on all members of a chat
+   * Chat.groupId → Group.id relationship
    */
   static async sweepChat(chatId: string): Promise<{
     checked: number;
     removed: number;
     reasons: Record<string, number>;
   }> {
+    // Find chat to get its groupId
+    const [chat] = await db
+      .select()
+      .from(chats)
+      .where(eq(chats.id, chatId))
+      .limit(1);
+
+    if (!chat || !chat.groupId) {
+      return { checked: 0, removed: 0, reasons: {} };
+    }
+
     const memberships = await db
       .select()
-      .from(groupChatMemberships)
+      .from(groupMembers)
       .where(
         and(
-          eq(groupChatMemberships.chatId, chatId),
-          eq(groupChatMemberships.isActive, true)
+          eq(groupMembers.groupId, chat.groupId),
+          eq(groupMembers.isActive, true)
         )
       );
 
@@ -602,19 +734,29 @@ export class GroupChatService {
 
   /**
    * Update user's quality score in chat
+   * Chat.groupId → Group.id relationship
    */
   static async updateQualityScore(
     userId: string,
     chatId: string,
     newMessageQuality: number
   ): Promise<void> {
+    // Find chat to get its groupId
+    const [chat] = await db
+      .select()
+      .from(chats)
+      .where(eq(chats.id, chatId))
+      .limit(1);
+
+    if (!chat || !chat.groupId) return;
+
     const [membership] = await db
       .select()
-      .from(groupChatMemberships)
+      .from(groupMembers)
       .where(
         and(
-          eq(groupChatMemberships.userId, userId),
-          eq(groupChatMemberships.chatId, chatId)
+          eq(groupMembers.groupId, chat.groupId),
+          eq(groupMembers.userId, userId)
         )
       )
       .limit(1);
@@ -627,7 +769,7 @@ export class GroupChatService {
       totalMessages;
 
     await db
-      .update(groupChatMemberships)
+      .update(groupMembers)
       .set({
         messageCount: totalMessages,
         qualityScore: newAvgQuality,
@@ -635,8 +777,8 @@ export class GroupChatService {
       })
       .where(
         and(
-          eq(groupChatMemberships.userId, userId),
-          eq(groupChatMemberships.chatId, chatId)
+          eq(groupMembers.groupId, chat.groupId),
+          eq(groupMembers.userId, userId)
         )
       );
   }

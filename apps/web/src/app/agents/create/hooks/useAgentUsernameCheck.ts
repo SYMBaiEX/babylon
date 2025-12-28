@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
 
-export type UsernameStatus = 'available' | 'taken' | 'checking' | 'error' | null;
+export type UsernameStatus =
+  | 'available'
+  | 'taken'
+  | 'checking'
+  | 'error'
+  | null;
 
 interface UseAgentUsernameCheckResult {
   usernameStatus: UsernameStatus;

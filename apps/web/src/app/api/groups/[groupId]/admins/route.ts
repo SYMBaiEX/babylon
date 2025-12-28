@@ -2,88 +2,8 @@
  * Group Admins Management API
  *
  * @route POST /api/groups/[groupId]/admins - Promote member to admin
- * @route DELETE /api/groups/[groupId]/admins - Remove admin
- * @access Authenticated (group admin only)
- *
- * @description
- * Manages group administrators. POST promotes a member to admin. DELETE
- * removes admin status. Only group admins can perform these actions.
- *
- * @openapi
- * /api/groups/{groupId}/admins:
- *   post:
- *     tags:
- *       - Groups
- *     summary: Promote member to admin
- *     description: Promotes a group member to admin (group admin only)
- *     security:
- *       - PrivyAuth: []
- *     parameters:
- *       - in: path
- *         name: groupId
- *         required: true
- *         schema:
- *           type: string
- *         description: Group ID
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - userId
- *             properties:
- *               userId:
- *                 type: string
- *     responses:
- *       200:
- *         description: Member promoted successfully
- *       401:
- *         description: Unauthorized
- *       403:
- *         description: Not group admin
- *       404:
- *         description: Group or user not found
- *   delete:
- *     tags:
- *       - Groups
- *     summary: Remove admin
- *     description: Removes admin status from a member (group admin only)
- *     security:
- *       - PrivyAuth: []
- *     parameters:
- *       - in: path
- *         name: groupId
- *         required: true
- *         schema:
- *           type: string
- *         description: Group ID
- *       - in: query
- *         name: userId
- *         required: true
- *         schema:
- *           type: string
- *         description: User ID to remove admin from
- *     responses:
- *       200:
- *         description: Admin removed successfully
- *       401:
- *         description: Unauthorized
- *       403:
- *         description: Not group admin
- *       404:
- *         description: Group or user not found
- *
- * @example
- * ```typescript
- * // Promote to admin
- * await fetch(`/api/groups/${groupId}/admins`, {
- *   method: 'POST',
- *   headers: { 'Authorization': `Bearer ${token}` },
- *   body: JSON.stringify({ userId: 'user-id' })
- * });
- * ```
+ * @route DELETE /api/groups/[groupId]/admins - Demote admin to member
+ * @access Authenticated (group admin/owner only)
  */
 
 import {
@@ -94,7 +14,6 @@ import {
 } from '@babylon/api';
 import { asUser } from '@babylon/db';
 import { logger } from '@babylon/shared';
-import { nanoid } from 'nanoid';
 import type { NextRequest } from 'next/server';
 import { z } from 'zod';
 
@@ -104,7 +23,7 @@ const PromoteAdminSchema = z.object({
 
 /**
  * POST /api/groups/[groupId]/admins
- * Promote a member to admin (admin only)
+ * Promote a member to admin (admin/owner only)
  */
 export const POST = withErrorHandling(
   async (
@@ -117,54 +36,50 @@ export const POST = withErrorHandling(
     const data = PromoteAdminSchema.parse(body);
 
     await asUser(user, async (db) => {
-      // Check if user is admin
-      const isAdmin = await db.userGroupAdmin.findFirst({
+      // Check if user is admin or owner
+      const userMembership = await db.groupMember.findFirst({
         where: {
           groupId,
           userId: user.userId,
+          isActive: true,
         },
       });
 
-      if (!isAdmin) {
+      if (
+        !userMembership ||
+        !['admin', 'owner'].includes(userMembership.role)
+      ) {
         throw new ApiError(
           'Only group admins can promote members to admin',
           403
         );
       }
 
-      // Check if target user is a member
-      const isMember = await db.userGroupMember.findFirst({
+      // Get target user's membership
+      const targetMembership = await db.groupMember.findFirst({
         where: {
           groupId,
           userId: data.userId,
+          isActive: true,
         },
       });
 
-      if (!isMember) {
+      if (!targetMembership) {
         throw new ApiError('User must be a member of the group', 400);
       }
 
-      // Check if already an admin
-      const existingAdmin = await db.userGroupAdmin.findFirst({
-        where: {
-          groupId,
-          userId: data.userId,
-        },
-      });
-
-      if (existingAdmin) {
+      if (targetMembership.role === 'admin') {
         throw new ApiError('User is already an admin', 400);
       }
 
-      // Promote to admin
-      await db.userGroupAdmin.create({
-        data: {
-          id: nanoid(),
-          groupId,
-          userId: data.userId,
-          grantedBy: user.userId,
-          grantedAt: new Date(),
-        },
+      if (targetMembership.role === 'owner') {
+        throw new ApiError('Cannot change owner role', 400);
+      }
+
+      // Promote to admin by updating role
+      await db.groupMember.update({
+        where: { id: targetMembership.id },
+        data: { role: 'admin' },
       });
     });
 
@@ -180,7 +95,7 @@ export const POST = withErrorHandling(
 
 /**
  * DELETE /api/groups/[groupId]/admins
- * Remove admin status from a member (admin only)
+ * Demote admin to member (admin/owner only)
  */
 export const DELETE = withErrorHandling(
   async (
@@ -190,49 +105,60 @@ export const DELETE = withErrorHandling(
     const user = await authenticate(request);
     const { groupId } = await params;
     const { searchParams } = new URL(request.url);
-    const userIdToRemove = searchParams.get('userId');
+    const userIdToDemote = searchParams.get('userId');
 
-    if (!userIdToRemove) {
+    if (!userIdToDemote) {
       throw new ApiError('userId parameter is required', 400);
     }
 
     await asUser(user, async (db) => {
-      // Check if user is admin
-      const isAdmin = await db.userGroupAdmin.findFirst({
+      // Check if user is admin or owner
+      const userMembership = await db.groupMember.findFirst({
         where: {
           groupId,
           userId: user.userId,
+          isActive: true,
         },
       });
 
-      if (!isAdmin) {
-        throw new ApiError('Only group admins can remove admin status', 403);
+      if (
+        !userMembership ||
+        !['admin', 'owner'].includes(userMembership.role)
+      ) {
+        throw new ApiError('Only group admins can demote admins', 403);
       }
 
-      // Cannot remove admin status from creator
-      const group = await db.userGroup.findUnique({
-        where: { id: groupId },
-      });
-
-      if (group?.createdById === userIdToRemove) {
-        throw new ApiError(
-          'Cannot remove admin status from group creator',
-          400
-        );
-      }
-
-      // Remove admin status
-      await db.userGroupAdmin.deleteMany({
+      // Get target user's membership
+      const targetMembership = await db.groupMember.findFirst({
         where: {
           groupId,
-          userId: userIdToRemove,
+          userId: userIdToDemote,
+          isActive: true,
         },
+      });
+
+      if (!targetMembership) {
+        throw new ApiError('User is not a member of this group', 404);
+      }
+
+      if (targetMembership.role === 'owner') {
+        throw new ApiError('Cannot demote the group owner', 400);
+      }
+
+      if (targetMembership.role === 'member') {
+        throw new ApiError('User is not an admin', 400);
+      }
+
+      // Demote to member by updating role
+      await db.groupMember.update({
+        where: { id: targetMembership.id },
+        data: { role: 'member' },
       });
     });
 
     logger.info(
-      'Admin status removed',
-      { userId: user.userId, groupId, removedAdminUserId: userIdToRemove },
+      'Admin demoted to member',
+      { userId: user.userId, groupId, demotedUserId: userIdToDemote },
       'DELETE /api/groups/:groupId/admins'
     );
 
