@@ -73,7 +73,7 @@ export function GameFeedbackModal({ isOpen, onClose }: GameFeedbackModalProps) {
   const [screenshotUrl, setScreenshotUrl] = useState<string | null>(null);
   const [isSubmitting, startSubmitting] = useTransition();
   const abortControllerRef = useRef<AbortController | null>(null);
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [retryAfter, setRetryAfter] = useState<number | null>(null);
 
   // Load form data from sessionStorage on mount
@@ -111,18 +111,18 @@ export function GameFeedbackModal({ isOpen, onClose }: GameFeedbackModalProps) {
   useEffect(() => {
     return () => {
       if (abortControllerRef.current) abortControllerRef.current.abort();
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
       }
     };
   }, []);
 
-  // Cleanup interval when modal closes
+  // Cleanup timeout when modal closes
   useEffect(() => {
-    if (!isOpen && intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
+    if (!isOpen && timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
       setRetryAfter(null);
     }
   }, [isOpen]);
@@ -252,20 +252,20 @@ export function GameFeedbackModal({ isOpen, onClose }: GameFeedbackModalProps) {
               : 60;
             setRetryAfter(retryAfterSeconds);
 
-            if (intervalRef.current) clearInterval(intervalRef.current);
+            // Use recursive setTimeout for more accurate timing than setInterval
+            const startCountdown = (seconds: number) => {
+              if (seconds <= 0) {
+                setRetryAfter(null);
+                return;
+              }
+              setRetryAfter(seconds);
+              timeoutRef.current = setTimeout(() => {
+                startCountdown(seconds - 1);
+              }, 1000);
+            };
 
-            intervalRef.current = setInterval(() => {
-              setRetryAfter((prev) => {
-                if (prev === null || prev <= 1) {
-                  if (intervalRef.current) {
-                    clearInterval(intervalRef.current);
-                    intervalRef.current = null;
-                  }
-                  return null;
-                }
-                return prev - 1;
-              });
-            }, 1000);
+            if (timeoutRef.current) clearTimeout(timeoutRef.current);
+            startCountdown(retryAfterSeconds);
 
             toast.error(
               `Rate limit exceeded. Please try again in ${retryAfterSeconds} seconds.`
@@ -299,9 +299,9 @@ export function GameFeedbackModal({ isOpen, onClose }: GameFeedbackModalProps) {
     if (isSubmitting && abortControllerRef.current) {
       abortControllerRef.current.abort();
     }
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
     }
     onClose();
   };

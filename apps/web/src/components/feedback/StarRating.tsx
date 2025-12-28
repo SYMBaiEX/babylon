@@ -222,14 +222,12 @@ export function StarRatingCompact({
  *
  * Star rating with text description labels
  */
-interface StarRatingInputProps {
-  value?: number;
-  onChange?: (score: number) => void;
-  showDescriptions?: boolean;
-  className?: string;
-}
 
-const RATING_DESCRIPTIONS: Record<number, string> = {
+/**
+ * Default rating descriptions for the 1-5 star scale.
+ * Can be overridden via the `descriptions` prop.
+ */
+export const DEFAULT_RATING_DESCRIPTIONS: Record<number, string> = {
   1: 'Nice to have',
   2: 'Would be helpful',
   3: 'Important',
@@ -237,10 +235,20 @@ const RATING_DESCRIPTIONS: Record<number, string> = {
   5: 'Must have',
 };
 
+interface StarRatingInputProps {
+  value?: number;
+  onChange?: (score: number) => void;
+  showDescriptions?: boolean;
+  /** Custom labels for each star rating (1-5). Defaults to DEFAULT_RATING_DESCRIPTIONS. */
+  descriptions?: Record<number, string>;
+  className?: string;
+}
+
 export function StarRatingInput({
   value = 0,
   onChange,
   showDescriptions = true,
+  descriptions = DEFAULT_RATING_DESCRIPTIONS,
   className = '',
 }: StarRatingInputProps) {
   const currentStars = scoreToStars(value);
@@ -249,7 +257,7 @@ export function StarRatingInput({
   // Show description for hovered stars, or current stars if not hovering
   const displayStars = hoveredStars !== null ? hoveredStars : currentStars;
   const description =
-    displayStars > 0 ? RATING_DESCRIPTIONS[Math.ceil(displayStars)] : '';
+    displayStars > 0 ? descriptions[Math.ceil(displayStars)] : '';
 
   const handleChange = (newScore: number) => {
     if (onChange) {
