@@ -83,8 +83,16 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
   // CRITICAL: Validate feedbackType against allowed enum values to prevent SQL injection
   if (feedbackType) {
-    if (!VALID_FEEDBACK_TYPES.includes(feedbackType as typeof VALID_FEEDBACK_TYPES[number])) {
-      return errorResponse('Invalid feedback type', 'INVALID_FEEDBACK_TYPE', 400);
+    if (
+      !VALID_FEEDBACK_TYPES.includes(
+        feedbackType as (typeof VALID_FEEDBACK_TYPES)[number]
+      )
+    ) {
+      return errorResponse(
+        'Invalid feedback type',
+        'INVALID_FEEDBACK_TYPE',
+        400
+      );
     }
     conditions.push(
       sql`${feedbacks.metadata}->>'feedbackType' = ${feedbackType}`

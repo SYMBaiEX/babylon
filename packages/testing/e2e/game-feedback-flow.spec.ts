@@ -30,14 +30,19 @@ test.describe('Game Feedback Button', () => {
     );
 
     // The button should be visible on the page
-    const isVisible = await feedbackButton.first().isVisible({ timeout: 10000 }).catch(() => false);
-    
+    const isVisible = await feedbackButton
+      .first()
+      .isVisible({ timeout: 10000 })
+      .catch(() => false);
+
     if (isVisible) {
       console.log('✅ Feedback button is visible on the page');
       await expect(feedbackButton.first()).toBeVisible();
     } else {
       // If not visible, it might be in a collapsed menu or only shown when authenticated
-      console.log('ℹ️ Feedback button not directly visible - may require authentication');
+      console.log(
+        'ℹ️ Feedback button not directly visible - may require authentication'
+      );
     }
   });
 });
@@ -52,12 +57,16 @@ test.describe('Game Feedback Modal (Authenticated)', () => {
     await page.waitForTimeout(1000);
 
     // Find and click the feedback button
-    const feedbackButton = page.locator(
-      'button:has-text("Feedback"), [data-testid="feedback-button"], button[aria-label*="feedback"]'
-    ).first();
+    const feedbackButton = page
+      .locator(
+        'button:has-text("Feedback"), [data-testid="feedback-button"], button[aria-label*="feedback"]'
+      )
+      .first();
 
-    const buttonVisible = await feedbackButton.isVisible({ timeout: 5000 }).catch(() => false);
-    
+    const buttonVisible = await feedbackButton
+      .isVisible({ timeout: 5000 })
+      .catch(() => false);
+
     if (!buttonVisible) {
       console.log('ℹ️ Feedback button not found - skipping modal test');
       test.skip();
@@ -68,7 +77,9 @@ test.describe('Game Feedback Modal (Authenticated)', () => {
     await page.waitForTimeout(500);
 
     // Check for modal dialog
-    const modal = page.locator('[role="dialog"], [data-testid="feedback-modal"]');
+    const modal = page.locator(
+      '[role="dialog"], [data-testid="feedback-modal"]'
+    );
     await expect(modal).toBeVisible({ timeout: 5000 });
 
     console.log('✅ Feedback modal opened successfully');
@@ -79,11 +90,13 @@ test.describe('Game Feedback Modal (Authenticated)', () => {
     await page.waitForLoadState('networkidle');
 
     // Open feedback modal
-    const feedbackButton = page.locator(
-      'button:has-text("Feedback"), [data-testid="feedback-button"]'
-    ).first();
+    const feedbackButton = page
+      .locator('button:has-text("Feedback"), [data-testid="feedback-button"]')
+      .first();
 
-    const buttonVisible = await feedbackButton.isVisible({ timeout: 5000 }).catch(() => false);
+    const buttonVisible = await feedbackButton
+      .isVisible({ timeout: 5000 })
+      .catch(() => false);
     if (!buttonVisible) {
       test.skip();
       return;
@@ -94,14 +107,27 @@ test.describe('Game Feedback Modal (Authenticated)', () => {
 
     // Check for feedback type options
     const bugOption = page.locator('text=Bug Report, button:has-text("Bug")');
-    const featureOption = page.locator('text=Feature Request, button:has-text("Feature")');
-    const performanceOption = page.locator('text=Performance, button:has-text("Performance")');
+    const featureOption = page.locator(
+      'text=Feature Request, button:has-text("Feature")'
+    );
+    const performanceOption = page.locator(
+      'text=Performance, button:has-text("Performance")'
+    );
 
     // At least one type option should be visible
-    const hasOptions = 
-      await bugOption.first().isVisible({ timeout: 3000 }).catch(() => false) ||
-      await featureOption.first().isVisible({ timeout: 3000 }).catch(() => false) ||
-      await performanceOption.first().isVisible({ timeout: 3000 }).catch(() => false);
+    const hasOptions =
+      (await bugOption
+        .first()
+        .isVisible({ timeout: 3000 })
+        .catch(() => false)) ||
+      (await featureOption
+        .first()
+        .isVisible({ timeout: 3000 })
+        .catch(() => false)) ||
+      (await performanceOption
+        .first()
+        .isVisible({ timeout: 3000 })
+        .catch(() => false));
 
     expect(hasOptions).toBe(true);
     console.log('✅ Feedback type options are visible');
@@ -112,11 +138,13 @@ test.describe('Game Feedback Modal (Authenticated)', () => {
     await page.waitForLoadState('networkidle');
 
     // Open feedback modal
-    const feedbackButton = page.locator(
-      'button:has-text("Feedback"), [data-testid="feedback-button"]'
-    ).first();
+    const feedbackButton = page
+      .locator('button:has-text("Feedback"), [data-testid="feedback-button"]')
+      .first();
 
-    const buttonVisible = await feedbackButton.isVisible({ timeout: 5000 }).catch(() => false);
+    const buttonVisible = await feedbackButton
+      .isVisible({ timeout: 5000 })
+      .catch(() => false);
     if (!buttonVisible) {
       test.skip();
       return;
@@ -126,28 +154,39 @@ test.describe('Game Feedback Modal (Authenticated)', () => {
     await page.waitForTimeout(500);
 
     // Try to submit without filling required fields
-    const submitButton = page.locator('button[type="submit"], button:has-text("Submit")').first();
-    
-    const submitVisible = await submitButton.isVisible({ timeout: 3000 }).catch(() => false);
+    const submitButton = page
+      .locator('button[type="submit"], button:has-text("Submit")')
+      .first();
+
+    const submitVisible = await submitButton
+      .isVisible({ timeout: 3000 })
+      .catch(() => false);
     if (!submitVisible) {
-      console.log('ℹ️ Submit button not immediately visible - modal may require type selection first');
+      console.log(
+        'ℹ️ Submit button not immediately visible - modal may require type selection first'
+      );
       return;
     }
 
     // Check that submit is disabled or shows error on click
     const isDisabled = await submitButton.isDisabled();
-    
+
     if (isDisabled) {
       console.log('✅ Submit button is disabled when form is incomplete');
     } else {
       // Click submit and check for validation error
       await submitButton.click();
       await page.waitForTimeout(500);
-      
+
       // Look for error message
-      const errorMessage = page.locator('text=required, text=at least, [class*="error"]');
-      const hasError = await errorMessage.first().isVisible({ timeout: 3000 }).catch(() => false);
-      
+      const errorMessage = page.locator(
+        'text=required, text=at least, [class*="error"]'
+      );
+      const hasError = await errorMessage
+        .first()
+        .isVisible({ timeout: 3000 })
+        .catch(() => false);
+
       if (hasError) {
         console.log('✅ Validation error shown for required fields');
       }
@@ -171,17 +210,21 @@ test.describe('Admin Feedback Panel (Authenticated)', () => {
     }
 
     // Look for feedback tab
-    const feedbackTab = page.locator(
-      'text=Game Feedback, text=Feedback, button:has-text("Feedback")'
-    ).first();
+    const feedbackTab = page
+      .locator('text=Game Feedback, text=Feedback, button:has-text("Feedback")')
+      .first();
 
-    const tabVisible = await feedbackTab.isVisible({ timeout: 5000 }).catch(() => false);
-    
+    const tabVisible = await feedbackTab
+      .isVisible({ timeout: 5000 })
+      .catch(() => false);
+
     if (tabVisible) {
       console.log('✅ Feedback tab is visible in admin panel');
       await expect(feedbackTab).toBeVisible();
     } else {
-      console.log('ℹ️ Feedback tab not found - may not be implemented or named differently');
+      console.log(
+        'ℹ️ Feedback tab not found - may not be implemented or named differently'
+      );
     }
   });
 
@@ -196,11 +239,13 @@ test.describe('Admin Feedback Panel (Authenticated)', () => {
     }
 
     // Click on feedback tab
-    const feedbackTab = page.locator(
-      'text=Game Feedback, text=Feedback, button:has-text("Feedback")'
-    ).first();
+    const feedbackTab = page
+      .locator('text=Game Feedback, text=Feedback, button:has-text("Feedback")')
+      .first();
 
-    const tabVisible = await feedbackTab.isVisible({ timeout: 5000 }).catch(() => false);
+    const tabVisible = await feedbackTab
+      .isVisible({ timeout: 5000 })
+      .catch(() => false);
     if (!tabVisible) {
       test.skip();
       return;
@@ -210,8 +255,13 @@ test.describe('Admin Feedback Panel (Authenticated)', () => {
     await page.waitForTimeout(1000);
 
     // Check for feedback list or empty state
-    const feedbackList = page.locator('[class*="feedback"], text=Bug Report, text=Feature Request, text=No feedback');
-    const hasContent = await feedbackList.first().isVisible({ timeout: 5000 }).catch(() => false);
+    const feedbackList = page.locator(
+      '[class*="feedback"], text=Bug Report, text=Feature Request, text=No feedback'
+    );
+    const hasContent = await feedbackList
+      .first()
+      .isVisible({ timeout: 5000 })
+      .catch(() => false);
 
     if (hasContent) {
       console.log('✅ Feedback content loaded in admin panel');
@@ -228,8 +278,12 @@ test.describe('Admin Feedback Panel (Authenticated)', () => {
     }
 
     // Click on feedback tab
-    const feedbackTab = page.locator('text=Game Feedback, text=Feedback').first();
-    const tabVisible = await feedbackTab.isVisible({ timeout: 5000 }).catch(() => false);
+    const feedbackTab = page
+      .locator('text=Game Feedback, text=Feedback')
+      .first();
+    const tabVisible = await feedbackTab
+      .isVisible({ timeout: 5000 })
+      .catch(() => false);
     if (!tabVisible) {
       test.skip();
       return;
@@ -239,8 +293,13 @@ test.describe('Admin Feedback Panel (Authenticated)', () => {
     await page.waitForTimeout(1000);
 
     // Look for filter dropdowns
-    const typeFilter = page.locator('select, [role="combobox"]').filter({ hasText: /type|bug|feature/i });
-    const hasFilters = await typeFilter.first().isVisible({ timeout: 3000 }).catch(() => false);
+    const typeFilter = page
+      .locator('select, [role="combobox"]')
+      .filter({ hasText: /type|bug|feature/i });
+    const hasFilters = await typeFilter
+      .first()
+      .isVisible({ timeout: 3000 })
+      .catch(() => false);
 
     if (hasFilters) {
       console.log('✅ Feedback type filter is available');

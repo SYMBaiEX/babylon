@@ -150,10 +150,7 @@ const IMAGE_MAGIC_BYTES: Record<string, number[][]> = {
  * Validates that file bytes match the declared MIME type.
  * Prevents uploading executables disguised as images.
  */
-function validateImageMagicBytes(
-  buffer: Buffer,
-  mimeType: string
-): boolean {
+function validateImageMagicBytes(buffer: Buffer, mimeType: string): boolean {
   const signatures = IMAGE_MAGIC_BYTES[mimeType];
   if (!signatures) {
     return false;

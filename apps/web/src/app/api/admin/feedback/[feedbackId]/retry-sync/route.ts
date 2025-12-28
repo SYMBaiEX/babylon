@@ -85,7 +85,11 @@ export const POST = withErrorHandling(
       : null;
 
     if (!user) {
-      return errorResponse('User not found for feedback', 'USER_NOT_FOUND', 400);
+      return errorResponse(
+        'User not found for feedback',
+        'USER_NOT_FOUND',
+        400
+      );
     }
 
     // Perform sync (not fire-and-forget - we want to return the result)
@@ -97,7 +101,8 @@ export const POST = withErrorHandling(
       select: { metadata: true },
     });
 
-    const updatedMetadata = (updatedFeedback?.metadata ?? {}) as FeedbackMetadata;
+    const updatedMetadata = (updatedFeedback?.metadata ??
+      {}) as FeedbackMetadata;
 
     logger.info('Manual Linear sync completed', {
       feedbackId,

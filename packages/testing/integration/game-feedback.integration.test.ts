@@ -323,9 +323,8 @@ describe('Admin Feedback API', () => {
 
     const json = await response.json();
     // Should find our test feedback
-    const found = json.feedback.some(
-      (item: { description: string | null }) =>
-        item.description?.includes('searchable')
+    const found = json.feedback.some((item: { description: string | null }) =>
+      item.description?.includes('searchable')
     );
     expect(found).toBe(true);
   });
