@@ -59,6 +59,16 @@ apps/* → packages/* → contracts
 
 ## Development Workflow
 
+### Critical Rules (High Priority)
+
+**NEVER add co-authoring to commits.** Do not include `Co-Authored-By` lines or any AI attribution in commit messages.
+
+**ALWAYS target `staging` branch for PRs.** Never open PRs against `main` - all PRs go to `staging`.
+
+**ALWAYS wait for AI reviewer feedback.** After creating a PR, stop and wait for `claude[bot]` and `coderabbitai[bot]` to complete their reviews. Do not proceed or merge until review comments are addressed.
+
+**ALWAYS prefer parallel agents.** When facing multiple independent tasks, use the Task tool to spawn parallel agents instead of working sequentially. This maximizes efficiency.
+
 ### Before Marking Work Complete
 **CRITICAL:** Run these commands in sequence:
 1. `bun run typecheck` - Must pass
