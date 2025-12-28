@@ -13,9 +13,14 @@ import {
   successResponse,
   withErrorHandling,
 } from '@babylon/api';
-import { asUser } from '@babylon/db';
+import {
+  asUser,
+  chatParticipants,
+  generateSnowflakeId,
+  groupMembers,
+  sql,
+} from '@babylon/db';
 import { logger } from '@babylon/shared';
-import { nanoid } from 'nanoid';
 import type { NextRequest } from 'next/server';
 import { z } from 'zod';
 
@@ -89,73 +94,60 @@ export const POST = withErrorHandling(
       });
 
       if (isAgent) {
-        // Agents are auto-accepted - add them directly
+        // Agents are auto-accepted - add them directly using atomic upserts
+        const now = new Date();
 
-        // Handle existing inactive member (unique constraint)
-        const inactiveMember = await db.groupMember.findFirst({
-          where: {
-            groupId,
-            userId: data.userId,
-            isActive: false,
-          },
-        });
+        await db.transaction(async (tx) => {
+          // Upsert GroupMember - use raw SQL for partial index compatibility
+          const memberId = await generateSnowflakeId();
+          await tx.execute(sql`
+            INSERT INTO "GroupMember" (
+              "id", "groupId", "userId", "role", "addedBy", "joinedAt", "isActive",
+              "messageCount", "qualityScore"
+            ) VALUES (
+              ${memberId}, ${groupId}, ${data.userId}, 'member', ${user.userId}, ${now}, true,
+              0, 1.0
+            )
+            ON CONFLICT ("groupId", "userId") WHERE "isActive" = true
+            DO NOTHING
+          `);
 
-        if (inactiveMember) {
-          // Reactivate
-          await db.groupMember.update({
-            where: { id: inactiveMember.id },
-            data: {
+          // Update any inactive records to active
+          await tx
+            .update(groupMembers)
+            .set({
               isActive: true,
               role: 'member',
-              joinedAt: new Date(),
               addedBy: user.userId,
+              joinedAt: now,
               kickedAt: null,
               kickReason: null,
-            },
-          });
-        } else {
-          // Create new member
-          await db.groupMember.create({
-            data: {
-              id: nanoid(),
-              groupId,
-              userId: data.userId,
-              role: 'member',
-              addedBy: user.userId,
-            },
-          });
-        }
+            })
+            .where(
+              sql`${groupMembers.groupId} = ${groupId} AND ${groupMembers.userId} = ${data.userId} AND ${groupMembers.isActive} = false`
+            );
 
-        // Add to chat
-        if (groupChat) {
-          const existingParticipant = await db.chatParticipant.findFirst({
-            where: {
-              chatId: groupChat.id,
-              userId: data.userId,
-            },
-          });
-
-          if (existingParticipant) {
-            if (!existingParticipant.isActive) {
-              await db.chatParticipant.update({
-                where: { id: existingParticipant.id },
-                data: {
-                  isActive: true,
-                  joinedAt: new Date(),
-                },
-              });
-            }
-          } else {
-            await db.chatParticipant.create({
-              data: {
-                id: nanoid(),
+          // Upsert ChatParticipant if chat exists
+          if (groupChat) {
+            const participantId = await generateSnowflakeId();
+            await tx
+              .insert(chatParticipants)
+              .values({
+                id: participantId,
                 chatId: groupChat.id,
                 userId: data.userId,
-                joinedAt: new Date(),
-              },
-            });
+                joinedAt: now,
+                isActive: true,
+              })
+              .onConflictDoUpdate({
+                target: [chatParticipants.chatId, chatParticipants.userId],
+                set: {
+                  isActive: true,
+                  joinedAt: now,
+                },
+              });
           }
-        }
+        });
       } else {
         // Regular users get an invite
 
@@ -186,7 +178,7 @@ export const POST = withErrorHandling(
 
         // Create new invite only if no existing invite was found
         if (!inviteId) {
-          inviteId = nanoid();
+          inviteId = await generateSnowflakeId();
           await db.groupInvite.create({
             data: {
               id: inviteId,

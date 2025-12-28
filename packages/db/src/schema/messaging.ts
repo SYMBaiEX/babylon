@@ -176,6 +176,13 @@ export const groups = pgTable(
 
 /**
  * GroupMember - membership table with roles and quality tracking
+ *
+ * Note: Unique constraint is a PARTIAL INDEX created via migration:
+ * CREATE UNIQUE INDEX "GroupMember_groupId_userId_active_key"
+ *   ON "GroupMember" ("groupId", "userId") WHERE "isActive" = true;
+ *
+ * This allows multiple inactive records (history) but ensures only one
+ * active member per (groupId, userId) pair.
  */
 export const groupMembers = pgTable(
   'GroupMember',
@@ -199,7 +206,8 @@ export const groupMembers = pgTable(
     kickReason: text('kickReason'),
   },
   (table) => [
-    unique('GroupMember_groupId_userId_key').on(table.groupId, table.userId),
+    // Note: Partial unique index is managed via migration, not here
+    // See migration 0011_fix_group_member_partial_unique.sql
     index('GroupMember_groupId_idx').on(table.groupId),
     index('GroupMember_userId_idx').on(table.userId),
     index('GroupMember_groupId_isActive_idx').on(table.groupId, table.isActive),

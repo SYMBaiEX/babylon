@@ -73,11 +73,38 @@ import {
   requireAdmin,
   withErrorHandling,
 } from '@babylon/api';
-import { asSystem } from '@babylon/db';
+import {
+  asSystem,
+  chatParticipants,
+  chats,
+  generateSnowflakeId,
+  groupMembers,
+  groups,
+  sql,
+} from '@babylon/db';
 import { StaticDataRegistry } from '@babylon/engine';
-import { generateSnowflakeId } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
+
+/**
+ * Generate a deterministic group ID from a chat ID.
+ * This ensures idempotency - same chatId always produces same groupId.
+ * Uses a hash-based approach to generate a consistent snowflake-like ID.
+ */
+function deterministicGroupId(chatId: string): string {
+  // Create a deterministic hash from chatId
+  // Use a simple but consistent hash that produces a snowflake-like ID
+  let hash = 0;
+  for (let i = 0; i < chatId.length; i++) {
+    const char = chatId.charCodeAt(i);
+    hash = (hash << 5) - hash + char;
+    hash = hash & hash; // Convert to 32bit integer
+  }
+  // Combine with a fixed prefix to ensure uniqueness and snowflake-like format
+  // Use absolute value and pad to ensure consistent length
+  const absHash = Math.abs(hash);
+  return `grp_${chatId}_${absHash.toString().padStart(10, '0')}`;
+}
 
 /**
  * POST /api/admin/group-invite
@@ -195,117 +222,113 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     'name' in npc ? npc.name : npc.displayName || npc.username || 'Unknown';
   const finalChatName = chatName || `${npcName}'s Inner Circle`;
 
-  // Record the invite
-  await asSystem(async (db) => {
-    // Find or create the group for this chat
-    const chat = await db.chat.findUnique({
-      where: { id: finalChatId },
-    });
+  // Use deterministic groupId to prevent race conditions when creating groups
+  // Same chatId will always produce the same groupId
+  const deterministicGrpId = deterministicGroupId(finalChatId);
 
-    let groupId: string;
+  // Record the invite using atomic upsert operations to prevent race conditions
+  const groupId = await asSystem(async (db) => {
+    // Use transaction for atomicity
+    return await db.transaction(async (tx) => {
+      const now = new Date();
 
-    if (!chat) {
-      // Create Group first
-      groupId = await generateSnowflakeId();
-      await db.group.create({
-        data: {
-          id: groupId,
+      // Step 1: Upsert the Group (INSERT ... ON CONFLICT DO NOTHING)
+      // Using deterministic ID ensures same group is used even with concurrent requests
+      await tx
+        .insert(groups)
+        .values({
+          id: deterministicGrpId,
           name: finalChatName,
           type: 'npc',
           ownerId: npcId,
           createdById: npcId,
-          updatedAt: new Date(),
-        },
-      });
+          createdAt: now,
+          updatedAt: now,
+        })
+        .onConflictDoNothing({ target: groups.id });
 
-      // Create Chat with groupId link
-      await db.chat.create({
-        data: {
+      // Step 2: Upsert the Chat (INSERT ... ON CONFLICT DO UPDATE to set groupId)
+      await tx
+        .insert(chats)
+        .values({
           id: finalChatId,
           name: finalChatName,
           isGroup: true,
           gameId: 'realtime',
-          groupId,
-          updatedAt: new Date(),
-        },
-      });
-    } else if (!chat.groupId) {
-      // Chat exists but no group - create one
-      groupId = await generateSnowflakeId();
-      await db.group.create({
-        data: {
-          id: groupId,
-          name: finalChatName,
-          type: 'npc',
-          ownerId: npcId,
-          createdById: npcId,
-          updatedAt: new Date(),
-        },
-      });
+          groupId: deterministicGrpId,
+          createdAt: now,
+          updatedAt: now,
+        })
+        .onConflictDoUpdate({
+          target: chats.id,
+          set: {
+            groupId: deterministicGrpId,
+            updatedAt: now,
+          },
+        });
 
-      await db.chat.update({
-        where: { id: finalChatId },
-        data: { groupId },
-      });
-    } else {
-      groupId = chat.groupId;
-    }
-
-    // Add user to chat participants
-    const existingParticipant = await db.chatParticipant.findFirst({
-      where: {
-        chatId: finalChatId,
-        userId,
-      },
-    });
-
-    if (!existingParticipant) {
-      await db.chatParticipant.create({
-        data: {
-          id: await generateSnowflakeId(),
+      // Step 3: Upsert ChatParticipant
+      const participantId = await generateSnowflakeId();
+      await tx
+        .insert(chatParticipants)
+        .values({
+          id: participantId,
           chatId: finalChatId,
           userId,
-        },
-      });
-    }
+          joinedAt: now,
+          isActive: true,
+        })
+        .onConflictDoUpdate({
+          target: [chatParticipants.chatId, chatParticipants.userId],
+          set: {
+            isActive: true,
+            joinedAt: now,
+          },
+        });
 
-    // Record membership - check existing and update/create to handle race conditions
-    const existingGroupMember = await db.groupMember.findFirst({
-      where: {
-        groupId,
-        userId,
-      },
-    });
+      // Step 4: Upsert GroupMember - use raw SQL for partial index compatibility
+      // The partial unique index only applies to active members, so we use
+      // INSERT ... ON CONFLICT DO UPDATE for the active case
+      const memberId = await generateSnowflakeId();
+      await tx.execute(sql`
+        INSERT INTO "GroupMember" (
+          "id", "groupId", "userId", "role", "addedBy", "joinedAt", "isActive",
+          "messageCount", "qualityScore"
+        ) VALUES (
+          ${memberId}, ${deterministicGrpId}, ${userId}, 'member', ${npcId}, ${now}, true,
+          0, 1.0
+        )
+        ON CONFLICT ("groupId", "userId") WHERE "isActive" = true
+        DO UPDATE SET
+          "role" = 'member',
+          "addedBy" = ${npcId},
+          "joinedAt" = ${now},
+          "kickedAt" = NULL,
+          "kickReason" = NULL
+      `);
 
-    if (existingGroupMember) {
-      // Reactivate existing member
-      await db.groupMember.update({
-        where: { id: existingGroupMember.id },
-        data: {
+      // Also handle the case where there's an inactive record (not covered by partial index)
+      // Update any inactive records to active
+      await tx
+        .update(groupMembers)
+        .set({
           isActive: true,
           role: 'member',
           addedBy: npcId,
-          joinedAt: new Date(),
+          joinedAt: now,
           kickedAt: null,
           kickReason: null,
-        },
-      });
-    } else {
-      // Create new member
-      await db.groupMember.create({
-        data: {
-          id: await generateSnowflakeId(),
-          groupId,
-          userId,
-          role: 'member',
-          addedBy: npcId,
-        },
-      });
-    }
+        })
+        .where(
+          sql`${groupMembers.groupId} = ${deterministicGrpId} AND ${groupMembers.userId} = ${userId} AND ${groupMembers.isActive} = false`
+        );
 
-    // Send notification to user (admin adds are immediate, no inviteId needed)
-    await notifyGroupChatInvite(userId, npcId, groupId, finalChatName);
+      return deterministicGrpId;
+    });
   });
+
+  // Send notification to user (admin adds are immediate, no inviteId needed)
+  await notifyGroupChatInvite(userId, npcId, groupId, finalChatName);
 
   return NextResponse.json({
     success: true,
