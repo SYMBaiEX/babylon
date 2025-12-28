@@ -3,44 +3,6 @@
  *
  * @route DELETE /api/chats/[id]/participants/me - Leave chat
  * @access Authenticated
- *
- * @description
- * Allows the authenticated user to leave a chat. Removes user from chat
- * participants. User must be a participant.
- *
- * @openapi
- * /api/chats/{id}/participants/me:
- *   delete:
- *     tags:
- *       - Chats
- *     summary: Leave chat
- *     description: Removes authenticated user from chat participants
- *     security:
- *       - PrivyAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *         description: Chat ID
- *     responses:
- *       200:
- *         description: Left chat successfully
- *       401:
- *         description: Unauthorized
- *       403:
- *         description: Not a participant
- *       404:
- *         description: Chat not found
- *
- * @example
- * ```typescript
- * await fetch(`/api/chats/${chatId}/participants/me`, {
- *   method: 'DELETE',
- *   headers: { 'Authorization': `Bearer ${token}` }
- * });
- * ```
  */
 
 import {
@@ -52,6 +14,7 @@ import {
 import { asUser } from '@babylon/db';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
+
 export const DELETE = withErrorHandling(
   async (
     request: NextRequest,
@@ -77,27 +40,41 @@ export const DELETE = withErrorHandling(
         );
       }
 
-      // For NPC-run chats, we mark the membership as inactive to preserve history
-      const groupMembership = await db.groupChatMembership.findFirst({
-        where: {
-          AND: [
-            { userId: { equals: user.userId } },
-            { chatId: { equals: chatId } },
-          ],
-        },
+      // Find the chat to get its groupId (Chat.groupId → Group.id)
+      const chat = await db.chat.findUnique({
+        where: { id: chatId },
+        select: { groupId: true },
       });
 
-      if (groupMembership) {
-        await db.groupChatMembership.update({
+      // If there's a group associated, mark membership as inactive
+      if (chat?.groupId) {
+        const membership = await db.groupMember.findFirst({
           where: {
-            id: groupMembership.id,
-          },
-          data: {
-            isActive: false,
-            removedAt: new Date(),
-            sweepReason: 'User left',
+            groupId: chat.groupId,
+            userId: user.userId,
+            isActive: true,
           },
         });
+
+        if (membership) {
+          // Cannot leave if you're the owner
+          if (membership.role === 'owner') {
+            throw errorResponse(
+              'Group owners cannot leave. Transfer ownership or delete the group.',
+              'FORBIDDEN',
+              403
+            );
+          }
+
+          await db.groupMember.update({
+            where: { id: membership.id },
+            data: {
+              isActive: false,
+              kickedAt: new Date(),
+              kickReason: 'User left',
+            },
+          });
+        }
       }
 
       // For all chats (NPC or user-created), we remove the participant record

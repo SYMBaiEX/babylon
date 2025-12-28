@@ -471,13 +471,13 @@ export function useChatPage() {
 
   // Update chatDetails with realtime messages
   useEffect(() => {
-    if (chatDetails && realtimeMessages.length > 0) {
+    if (realtimeMessages.length > 0) {
       setChatDetails((prev) => {
         if (!prev) return prev;
         return { ...prev, messages: realtimeMessages };
       });
     }
-  }, [realtimeMessages, chatDetails]);
+  }, [realtimeMessages]);
 
   // Scroll to bottom on new messages
   useEffect(() => {

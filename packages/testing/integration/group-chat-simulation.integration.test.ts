@@ -38,6 +38,7 @@ import { generateSnowflakeId } from '@babylon/shared';
 const testIds = {
   userIds: [] as string[],
   actorIds: [] as string[],
+  groupIds: [] as string[],
   chatIds: [] as string[],
   postIds: [] as string[],
   reactionIds: [] as string[],
@@ -219,19 +220,21 @@ async function recordUserInteraction(
 }
 
 async function createGroupMembership(options: {
-  chatId: string;
+  groupId: string;
   userId: string;
-  npcAdminId: string;
+  addedBy?: string;
   joinedAt?: Date;
+  role?: 'owner' | 'admin' | 'member';
 }): Promise<string> {
   const id = await generateSnowflakeId();
 
-  await db.groupChatMembership.create({
+  await db.groupMember.create({
     data: {
       id,
-      chatId: options.chatId,
+      groupId: options.groupId,
       userId: options.userId,
-      npcAdminId: options.npcAdminId,
+      role: options.role || 'member',
+      addedBy: options.addedBy,
       isActive: true,
       joinedAt: options.joinedAt || new Date(),
     },
@@ -243,16 +246,30 @@ async function createGroupMembership(options: {
 
 async function createGroupChat(
   name: string,
-  npcAdminId: string
-): Promise<string> {
-  const id = await generateSnowflakeId();
+  npcOwnerId: string
+): Promise<{ chatId: string; groupId: string }> {
+  const groupId = await generateSnowflakeId();
+  const chatId = await generateSnowflakeId();
 
+  // Create Group first (unified schema)
+  await db.group.create({
+    data: {
+      id: groupId,
+      name,
+      type: 'npc',
+      ownerId: npcOwnerId,
+      createdById: npcOwnerId,
+      updatedAt: new Date(),
+    },
+  });
+
+  // Create Chat with groupId link
   await db.chat.create({
     data: {
-      id,
+      id: chatId,
       name,
       isGroup: true,
-      npcAdminId,
+      groupId,
       gameId: 'realtime',
       updatedAt: new Date(),
     },
@@ -263,15 +280,16 @@ async function createGroupChat(
   await db.chatParticipant.create({
     data: {
       id: participantId,
-      chatId: id,
-      userId: npcAdminId,
+      chatId,
+      userId: npcOwnerId,
       isActive: true,
     },
   });
 
-  testIds.chatIds.push(id);
+  testIds.groupIds.push(groupId);
+  testIds.chatIds.push(chatId);
   testIds.participantIds.push(participantId);
-  return id;
+  return { chatId, groupId };
 }
 
 async function createMessage(options: {
@@ -302,7 +320,7 @@ async function cleanupTestData(): Promise<void> {
     await db.message.deleteMany({ where: { id: { in: testIds.messageIds } } });
   }
   if (testIds.membershipIds.length > 0) {
-    await db.groupChatMembership.deleteMany({
+    await db.groupMember.deleteMany({
       where: { id: { in: testIds.membershipIds } },
     });
   }
@@ -310,6 +328,12 @@ async function cleanupTestData(): Promise<void> {
     await db.chatParticipant.deleteMany({
       where: { id: { in: testIds.participantIds } },
     });
+  }
+  if (testIds.chatIds.length > 0) {
+    await db.chat.deleteMany({ where: { id: { in: testIds.chatIds } } });
+  }
+  if (testIds.groupIds.length > 0) {
+    await db.group.deleteMany({ where: { id: { in: testIds.groupIds } } });
   }
   if (testIds.interactionIds.length > 0) {
     await db.userInteraction.deleteMany({
@@ -329,9 +353,6 @@ async function cleanupTestData(): Promise<void> {
   }
   if (testIds.postIds.length > 0) {
     await db.post.deleteMany({ where: { id: { in: testIds.postIds } } });
-  }
-  if (testIds.chatIds.length > 0) {
-    await db.chat.deleteMany({ where: { id: { in: testIds.chatIds } } });
   }
   if (testIds.userIds.length > 0) {
     await db.user.deleteMany({ where: { id: { in: testIds.userIds } } });
@@ -600,16 +621,16 @@ describe('Group Chat Simulation - End to End Flow', () => {
 
       // Create 5 groups, each with a different NPC admin
       for (let i = 0; i < 5; i++) {
-        const chatId = await createGroupChat(`Group ${i}`, npcs[i]!.id);
+        const { groupId } = await createGroupChat(`Group ${i}`, npcs[i]!.id);
         await createGroupMembership({
-          chatId,
+          groupId,
           userId: user.id,
-          npcAdminId: npcs[i]!.id,
+          addedBy: npcs[i]!.id,
         });
       }
 
       // Count user's active groups
-      const activeGroups = await db.groupChatMembership.count({
+      const activeGroups = await db.groupMember.count({
         where: { userId: user.id, isActive: true },
       });
 
@@ -762,23 +783,23 @@ describe('Group Chat Simulation - End to End Flow', () => {
         displayName: 'AI Agent',
       });
 
-      const chatId = await createGroupChat('Mixed Group', npc.id);
+      const { groupId } = await createGroupChat('Mixed Group', npc.id);
 
       // Add both to group
       await createGroupMembership({
-        chatId,
+        groupId,
         userId: user.id,
-        npcAdminId: npc.id,
+        addedBy: npc.id,
       });
       await createGroupMembership({
-        chatId,
+        groupId,
         userId: agent.id,
-        npcAdminId: npc.id,
+        addedBy: npc.id,
       });
 
       // Verify both are members
-      const memberships = await db.groupChatMembership.findMany({
-        where: { chatId, isActive: true },
+      const memberships = await db.groupMember.findMany({
+        where: { groupId, isActive: true },
       });
 
       expect(memberships.length).toBe(2);
@@ -830,7 +851,10 @@ describe('Group Chat Simulation - End to End Flow', () => {
       });
       const activeUser = await createTestUser({ displayName: 'Active User' });
 
-      const chatId = await createGroupChat('Activity Test Group', npc.id);
+      const { chatId, groupId } = await createGroupChat(
+        'Activity Test Group',
+        npc.id
+      );
 
       // Add participant records
       const inactiveParticipantId = await generateSnowflakeId();
@@ -863,12 +887,13 @@ describe('Group Chat Simulation - End to End Flow', () => {
 
       // For inactive user: create membership directly with old joinedAt
       const inactiveMembershipId = await generateSnowflakeId();
-      await db.groupChatMembership.create({
+      await db.groupMember.create({
         data: {
           id: inactiveMembershipId,
-          chatId,
+          groupId,
           userId: inactiveUser.id,
-          npcAdminId: npc.id,
+          role: 'member',
+          addedBy: npc.id,
           isActive: true,
           joinedAt: twoDaysAgo,
         },
@@ -877,12 +902,13 @@ describe('Group Chat Simulation - End to End Flow', () => {
 
       // For active user: create membership with old joinedAt too
       const activeMembershipId = await generateSnowflakeId();
-      await db.groupChatMembership.create({
+      await db.groupMember.create({
         data: {
           id: activeMembershipId,
-          chatId,
+          groupId,
           userId: activeUser.id,
-          npcAdminId: npc.id,
+          role: 'member',
+          addedBy: npc.id,
           isActive: true,
           joinedAt: twoDaysAgo,
         },
@@ -994,16 +1020,20 @@ describe('Group Chat Simulation - End to End Flow', () => {
       const npc = await createTestNPC('Quality Test NPC');
       const user = await createTestUser({ displayName: 'Quality User' });
 
-      const chatId = await createGroupChat('Quality Test Group', npc.id);
+      const { chatId, groupId } = await createGroupChat(
+        'Quality Test Group',
+        npc.id
+      );
 
       // Create membership
       const membershipId = await generateSnowflakeId();
-      await db.groupChatMembership.create({
+      await db.groupMember.create({
         data: {
           id: membershipId,
-          chatId,
+          groupId,
           userId: user.id,
-          npcAdminId: npc.id,
+          role: 'member',
+          addedBy: npc.id,
           isActive: true,
           qualityScore: 1.0, // Start at 1.0
           messageCount: 0,
@@ -1015,8 +1045,8 @@ describe('Group Chat Simulation - End to End Flow', () => {
       await GroupChatService.updateQualityScore(user.id, chatId, 0.8);
 
       // Verify the score was updated
-      const membership = await db.groupChatMembership.findFirst({
-        where: { userId: user.id, chatId },
+      const membership = await db.groupMember.findFirst({
+        where: { userId: user.id, groupId },
       });
 
       expect(membership).not.toBeNull();
@@ -1029,16 +1059,20 @@ describe('Group Chat Simulation - End to End Flow', () => {
       const npc = await createTestNPC('Avg Quality NPC');
       const user = await createTestUser({ displayName: 'Avg Quality User' });
 
-      const chatId = await createGroupChat('Avg Quality Group', npc.id);
+      const { chatId, groupId } = await createGroupChat(
+        'Avg Quality Group',
+        npc.id
+      );
 
       // Create membership with some existing messages
       const membershipId = await generateSnowflakeId();
-      await db.groupChatMembership.create({
+      await db.groupMember.create({
         data: {
           id: membershipId,
-          chatId,
+          groupId,
           userId: user.id,
-          npcAdminId: npc.id,
+          role: 'member',
+          addedBy: npc.id,
           isActive: true,
           qualityScore: 0.8, // Existing average
           messageCount: 4, // 4 prior messages
@@ -1050,8 +1084,8 @@ describe('Group Chat Simulation - End to End Flow', () => {
       await GroupChatService.updateQualityScore(user.id, chatId, 1.0);
 
       // Verify running average: (0.8 * 4 + 1.0) / 5 = 4.2 / 5 = 0.84
-      const membership = await db.groupChatMembership.findFirst({
-        where: { userId: user.id, chatId },
+      const membership = await db.groupMember.findFirst({
+        where: { userId: user.id, groupId },
       });
 
       expect(membership?.messageCount).toBe(5);
@@ -1117,20 +1151,21 @@ describe('Group Chat Simulation - End to End Flow', () => {
       await cleanupTestData();
     });
 
-    test('should enforce unique membership per user per chat', async () => {
+    test('should enforce unique membership per user per group', async () => {
       const npc = await createTestNPC('Unique Constraint NPC');
       const user = await createTestUser({ displayName: 'Unique User' });
 
-      const chatId = await createGroupChat('Unique Test Group', npc.id);
+      const { groupId } = await createGroupChat('Unique Test Group', npc.id);
 
       // Create first membership
       const membershipId1 = await generateSnowflakeId();
-      await db.groupChatMembership.create({
+      await db.groupMember.create({
         data: {
           id: membershipId1,
-          chatId,
+          groupId,
           userId: user.id,
-          npcAdminId: npc.id,
+          role: 'member',
+          addedBy: npc.id,
           isActive: true,
         },
       });
@@ -1140,12 +1175,13 @@ describe('Group Chat Simulation - End to End Flow', () => {
       const membershipId2 = await generateSnowflakeId();
       let duplicateError = false;
       try {
-        await db.groupChatMembership.create({
+        await db.groupMember.create({
           data: {
             id: membershipId2,
-            chatId,
+            groupId,
             userId: user.id, // Same user
-            npcAdminId: npc.id,
+            role: 'member',
+            addedBy: npc.id,
             isActive: true,
           },
         });
@@ -1156,30 +1192,30 @@ describe('Group Chat Simulation - End to End Flow', () => {
       expect(duplicateError).toBe(true);
     });
 
-    test('should allow same user in different chats', async () => {
+    test('should allow same user in different groups', async () => {
       const npc1 = await createTestNPC('Multi Chat NPC 1');
       const npc2 = await createTestNPC('Multi Chat NPC 2');
       const user = await createTestUser({ displayName: 'Multi Chat User' });
 
-      const chatId1 = await createGroupChat('Chat 1', npc1.id);
-      const chatId2 = await createGroupChat('Chat 2', npc2.id);
+      const { groupId: groupId1 } = await createGroupChat('Chat 1', npc1.id);
+      const { groupId: groupId2 } = await createGroupChat('Chat 2', npc2.id);
 
-      // Add to first chat
+      // Add to first group
       await createGroupMembership({
-        chatId: chatId1,
+        groupId: groupId1,
         userId: user.id,
-        npcAdminId: npc1.id,
+        addedBy: npc1.id,
       });
 
-      // Add to second chat (different chat, should work)
+      // Add to second group (different group, should work)
       await createGroupMembership({
-        chatId: chatId2,
+        groupId: groupId2,
         userId: user.id,
-        npcAdminId: npc2.id,
+        addedBy: npc2.id,
       });
 
       // Count should be 2
-      const membershipCount = await db.groupChatMembership.count({
+      const membershipCount = await db.groupMember.count({
         where: { userId: user.id, isActive: true },
       });
 

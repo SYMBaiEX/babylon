@@ -268,13 +268,14 @@ export const POST = withErrorHandling(
         )
       );
 
-      // Get updated chat info
+      // Get updated chat info (including groupId for notification linking)
       const updatedChat = await db.chat.findUnique({
         where: { id: chatId },
         select: {
           id: true,
           name: true,
           isGroup: true,
+          groupId: true,
         },
       });
 
@@ -292,7 +293,7 @@ export const POST = withErrorHandling(
           notifyGroupChatInvite(
             newUser.id,
             user.userId,
-            chatId,
+            updatedChat?.groupId,
             updatedChat?.name || 'a group chat'
           )
         )

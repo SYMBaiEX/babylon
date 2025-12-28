@@ -307,19 +307,19 @@ async function runMigrations(): Promise<void> {
   await Promise.race([migrationPromise, timeoutPromise]);
 }
 
-// Query actors table directly to check if database is ready
+// Query User table directly to check if database is ready
 // This avoids potential issues with the health check returning false incorrectly
-let actorCount = 0;
+let userCount = 0;
 let needsMigrations = false;
 let needsSeed = false;
 
 try {
   // Use a simple query via bun shell to avoid connection state issues
   const countResult =
-    await $`docker exec babylon-postgres psql -U babylon -d babylon -t -c "SELECT count(*) FROM \"Actor\";"`.quiet();
-  actorCount = parseInt(countResult.text().trim(), 10);
-  if (isNaN(actorCount)) actorCount = 0;
-  console.info(`✅ Database connected (${actorCount} actors)`);
+    await $`docker exec babylon-postgres psql -U babylon -d babylon -t -c "SELECT count(*) FROM \"User\";"`.quiet();
+  userCount = parseInt(countResult.text().trim(), 10);
+  if (isNaN(userCount)) userCount = 0;
+  console.info(`✅ Database connected (${userCount} users)`);
 } catch (error: unknown) {
   const errorMessage = error instanceof Error ? error.message : String(error);
   if (
@@ -339,7 +339,7 @@ if (needsMigrations) {
   await runMigrations();
 }
 
-if (needsSeed || actorCount === 0) {
+if (needsSeed || userCount === 0) {
   console.info('Running database seed...');
   // Explicitly set DATABASE_URL and DIRECT_DATABASE_URL to local for the seed subprocess
   await $`DATABASE_URL=${LOCAL_DATABASE_URL} DIRECT_DATABASE_URL=${LOCAL_DATABASE_URL} DEPLOYMENT_ENV=localnet bun run db:seed`;
@@ -379,3 +379,6 @@ if (isLocalnet) {
   console.info('Starting services (Next.js, Cron)...');
 }
 console.info('='.repeat(60));
+
+// Force exit to prevent hanging from open handles (Redis, etc.)
+process.exit(0);
