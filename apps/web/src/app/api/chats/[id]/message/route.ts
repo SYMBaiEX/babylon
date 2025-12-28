@@ -349,29 +349,32 @@ export const POST = withErrorHandling(
 
           if (!verification.canAccess) {
             // Remove user from chat since they no longer have NFT access
-            await db
-              .update(groupChatMemberships)
-              .set({
-                isActive: false,
-                removedAt: new Date(),
-                sweepReason: 'Lost NFT access',
-              })
-              .where(
-                and(
-                  eq(groupChatMemberships.chatId, chatId),
-                  eq(groupChatMemberships.userId, user.userId),
-                  eq(groupChatMemberships.isActive, true)
-                )
-              );
+            // Wrap in transaction for consistency
+            await db.transaction(async (tx) => {
+              await tx
+                .update(groupChatMemberships)
+                .set({
+                  isActive: false,
+                  removedAt: new Date(),
+                  sweepReason: 'Lost NFT access',
+                })
+                .where(
+                  and(
+                    eq(groupChatMemberships.chatId, chatId),
+                    eq(groupChatMemberships.userId, user.userId),
+                    eq(groupChatMemberships.isActive, true)
+                  )
+                );
 
-            await db
-              .delete(chatParticipants)
-              .where(
-                and(
-                  eq(chatParticipants.chatId, chatId),
-                  eq(chatParticipants.userId, user.userId)
-                )
-              );
+              await tx
+                .delete(chatParticipants)
+                .where(
+                  and(
+                    eq(chatParticipants.chatId, chatId),
+                    eq(chatParticipants.userId, user.userId)
+                  )
+                );
+            });
 
             // Invalidate NFT cache for this user/contract combination
             if (userData?.walletAddress && chat.requiredNftContractAddress) {

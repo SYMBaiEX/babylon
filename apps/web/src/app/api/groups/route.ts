@@ -160,7 +160,7 @@ const CreateGroupSchema = z.object({
     .string()
     .regex(/^0x[a-fA-F0-9]{40}$/, 'Invalid contract address format')
     .optional(),
-  requiredNftTokenId: z.number().int().positive().nullable().optional(),
+  requiredNftTokenId: z.number().int().min(0).nullable().optional(),
   requiredNftChainId: z.number().int().positive().optional(),
 });
 

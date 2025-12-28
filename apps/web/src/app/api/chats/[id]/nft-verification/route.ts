@@ -6,7 +6,7 @@ import {
   successResponse,
   withErrorHandling,
 } from '@babylon/api';
-import { asUser, db, eq, users } from '@babylon/db';
+import { asUser } from '@babylon/db';
 import type { NextRequest } from 'next/server';
 
 export const GET = withErrorHandling(
@@ -45,11 +45,11 @@ export const GET = withErrorHandling(
         };
       }
 
-      const [userData] = await db
-        .select({ walletAddress: users.walletAddress })
-        .from(users)
-        .where(eq(users.id, user.userId))
-        .limit(1);
+      // Use dbClient (Prisma) instead of global db (Drizzle) to maintain RLS context
+      const userData = await dbClient.user.findUnique({
+        where: { id: user.userId },
+        select: { walletAddress: true },
+      });
 
       if (!userData?.walletAddress) {
         return {
