@@ -29,6 +29,32 @@ const STORAGE_KEY = 'game-feedback-form';
 const SCREENSHOT_UPLOAD_TIMEOUT_MS = 30000; // 30 second timeout for screenshot uploads
 
 /**
+ * Combines multiple AbortSignals into one that aborts when any signal aborts.
+ * Provides a fallback for browsers that don't support AbortSignal.any() (pre-2023).
+ */
+function combineAbortSignals(signals: AbortSignal[]): AbortSignal {
+  // Use native AbortSignal.any() if available (Chrome 116+, Firefox 124+, Safari 17.4+)
+  if ('any' in AbortSignal && typeof AbortSignal.any === 'function') {
+    return AbortSignal.any(signals);
+  }
+
+  // Fallback for older browsers
+  const controller = new AbortController();
+  for (const signal of signals) {
+    if (signal.aborted) {
+      controller.abort(signal.reason);
+      return controller.signal;
+    }
+    signal.addEventListener(
+      'abort',
+      () => controller.abort(signal.reason),
+      { once: true }
+    );
+  }
+  return controller.signal;
+}
+
+/**
  * Sanitizes error messages to prevent exposing sensitive server details.
  * Returns a user-friendly message for display in toast notifications.
  */
@@ -171,7 +197,7 @@ export function GameFeedbackModal({ isOpen, onClose }: GameFeedbackModalProps) {
 
     // Combine the external signal with our timeout signal
     const combinedSignal = signal
-      ? AbortSignal.any([signal, timeoutController.signal])
+      ? combineAbortSignals([signal, timeoutController.signal])
       : timeoutController.signal;
 
     try {
@@ -218,9 +244,25 @@ export function GameFeedbackModal({ isOpen, onClose }: GameFeedbackModalProps) {
       abortControllerRef.current = new AbortController();
       const signal = abortControllerRef.current.signal;
 
-      try {
-        let uploadedScreenshotUrl: string | null = null;
+      // Track uploaded screenshot URL for cleanup on failure
+      let uploadedScreenshotUrl: string | null = null;
 
+      // Helper to cleanup orphaned screenshot on submission failure
+      const cleanupOrphanedScreenshot = async (url: string) => {
+        const token = getAuthToken();
+        const headers: HeadersInit = {};
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+        // Fire-and-forget cleanup - don't block on failure
+        fetch('/api/upload/image', {
+          method: 'DELETE',
+          headers: { ...headers, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url }),
+        }).catch(() => {
+          // Silently ignore cleanup failures - not critical
+        });
+      };
+
+      try {
         if (screenshot && feedbackType === 'bug') {
           uploadedScreenshotUrl = await uploadScreenshot(signal);
           if (uploadedScreenshotUrl) setScreenshotUrl(uploadedScreenshotUrl);
@@ -245,6 +287,11 @@ export function GameFeedbackModal({ isOpen, onClose }: GameFeedbackModalProps) {
         });
 
         if (!response.ok) {
+          // Clean up uploaded screenshot if submission failed
+          if (uploadedScreenshotUrl) {
+            cleanupOrphanedScreenshot(uploadedScreenshotUrl);
+          }
+
           if (response.status === 429) {
             const retryAfterHeader = response.headers.get('Retry-After');
             const retryAfterSeconds = retryAfterHeader
@@ -252,9 +299,10 @@ export function GameFeedbackModal({ isOpen, onClose }: GameFeedbackModalProps) {
               : 60;
             setRetryAfter(retryAfterSeconds);
 
-            // Use recursive setTimeout for more accurate timing than setInterval
+            // Use recursive setTimeout with isOpen check to prevent memory leaks
             const startCountdown = (seconds: number) => {
-              if (seconds <= 0) {
+              // Stop countdown if component is closing
+              if (!isOpen || seconds <= 0) {
                 setRetryAfter(null);
                 return;
               }
@@ -286,6 +334,11 @@ export function GameFeedbackModal({ isOpen, onClose }: GameFeedbackModalProps) {
         clearFormData();
         setTimeout(() => onClose(), 1000);
       } catch (error) {
+        // Clean up uploaded screenshot on any error
+        if (uploadedScreenshotUrl) {
+          cleanupOrphanedScreenshot(uploadedScreenshotUrl);
+        }
+
         // Silently ignore abort errors (user cancelled)
         if (error instanceof Error && error.name === 'AbortError') return;
 
