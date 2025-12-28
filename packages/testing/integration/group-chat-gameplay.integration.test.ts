@@ -321,13 +321,11 @@ describe('Group Chat Gameplay Mechanics', () => {
         content: 'Tip: Buy BABEL before the earnings call',
       });
 
-      // Simulate kick
+      // Simulate kick - kick info only stored on groupMember now
       await db.chatParticipant.update({
         where: { id: participantId },
         data: {
           isActive: false,
-          kickedAt: new Date(),
-          kickReason: 'Over-posting',
         },
       });
       await db.groupMember.update({

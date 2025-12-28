@@ -351,8 +351,6 @@ export class NPCGroupDynamicsService {
                 .set({
                   isActive: true,
                   joinedAt: new Date(),
-                  kickedAt: null,
-                  kickReason: null,
                 })
                 .where(eq(chatParticipants.id, existingParticipant.id));
             }

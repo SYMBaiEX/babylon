@@ -1700,8 +1700,6 @@ export async function executeAcceptGroupInvite(
             data: {
               isActive: true,
               joinedAt: new Date(),
-              kickedAt: null,
-              kickReason: null,
             },
           });
         }

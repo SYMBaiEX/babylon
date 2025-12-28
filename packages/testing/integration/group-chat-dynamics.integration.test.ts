@@ -675,7 +675,7 @@ describe('Group Chat Information Access', () => {
     // Simulate kick by marking participant as inactive
     await db.chatParticipant.update({
       where: { id: participantId },
-      data: { isActive: false, kickedAt: new Date(), kickReason: 'Test kick' },
+      data: { isActive: false },
     });
 
     // New message after kick
