@@ -348,11 +348,21 @@ export async function POST(_req: NextRequest) {
       continue;
     }
 
+    // Always 1pt per tick for USER agents
+    const pointsCost = 1;
+
+    // CRITICAL: Deduct points immediately after lock acquisition, BEFORE tick execution.
+    // This ensures points are always charged once we commit to running the tick.
+    // If we deducted after tick execution, errors in executeAutonomousTick() would
+    // skip the deduction (catch block), allowing agents to get free actions on errors.
+    await agentService.deductPoints(
+      eligibleAgent.user.id,
+      pointsCost,
+      'Autonomous tick'
+    );
+
     // Process agent with error handling to ensure lock is always released
     try {
-      // Always 1pt per tick for USER agents
-      const pointsCost = 1;
-
       // Use agent runtime manager for both USER and NPC agents
       const runtime = await agentRuntimeManager.getRuntime(
         eligibleAgent.agentId
@@ -379,14 +389,6 @@ export async function POST(_req: NextRequest) {
         runtime,
         true, // Always record trajectories
         false // isNpc = false for user agents
-      );
-
-      // Deduct points AFTER tick execution to prevent loss on failure
-      // Points are charged whether tick succeeded or not, as long as it ran
-      await agentService.deductPoints(
-        eligibleAgent.user.id,
-        pointsCost,
-        'Autonomous tick'
       );
 
       // Validation: Verify tick executed successfully
