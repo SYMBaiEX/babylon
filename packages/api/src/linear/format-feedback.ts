@@ -1,4 +1,6 @@
-export type FeedbackType = 'bug' | 'feature_request' | 'performance';
+import type { FeedbackType } from '@babylon/shared';
+
+export type { FeedbackType };
 
 export interface FeedbackData {
   id: string;

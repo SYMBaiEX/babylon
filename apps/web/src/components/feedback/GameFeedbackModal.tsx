@@ -173,15 +173,7 @@ export function GameFeedbackModal({ isOpen, onClose }: GameFeedbackModalProps) {
       let uploadedScreenshotUrl: string | null = null;
 
       if (screenshot && feedbackType === 'bug') {
-        uploadedScreenshotUrl = await uploadScreenshot(signal).catch(
-          (error) => {
-            if (error.name === 'AbortError') return null;
-            toast.warning(
-              'Screenshot upload failed, but you can still submit your feedback'
-            );
-            return null;
-          }
-        );
+        uploadedScreenshotUrl = await uploadScreenshot(signal);
         if (uploadedScreenshotUrl) setScreenshotUrl(uploadedScreenshotUrl);
       }
 
@@ -233,22 +225,12 @@ export function GameFeedbackModal({ isOpen, onClose }: GameFeedbackModalProps) {
           return;
         }
 
-        let error;
-        try {
-          error = await response.json();
-        } catch {
-          error = { error: 'Failed to submit feedback' };
-        }
+        const error = await response.json();
         toast.error(error.error || 'Failed to submit feedback');
         return;
       }
 
-      let data;
-      try {
-        data = await response.json();
-      } catch {
-        data = { message: 'Thank you for your feedback! We appreciate it.' };
-      }
+      const data = await response.json();
       toast.success(
         data.message || 'Thank you for your feedback! We appreciate it.'
       );

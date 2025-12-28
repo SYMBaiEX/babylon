@@ -32,6 +32,9 @@ export function BugReportFields({
     }
 
     const reader = new FileReader();
+    reader.onerror = () => {
+      toast.error('Failed to read the image file');
+    };
     reader.onloadend = () => {
       onScreenshotChange(file, reader.result as string);
     };

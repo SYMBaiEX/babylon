@@ -123,10 +123,13 @@ export {
   type CreateIssueInput,
   createLinearIssue,
   type FeedbackType,
+  type FeedbackUser,
   formatFeedbackForLinear,
   getLinearConfig,
+  type LinearConfig,
   type LinearFeedbackData,
   type LinearIssue,
+  syncFeedbackToLinear,
 } from './linear';
 // Monitoring
 export { cronMetrics, recordCronExecution } from './monitoring/cron-metrics';

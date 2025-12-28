@@ -1,8 +1,8 @@
 'use client';
 
-import { cn } from '@babylon/shared';
+import { cn, type FeedbackType } from '@babylon/shared';
 
-export type FeedbackType = 'bug' | 'feature_request' | 'performance';
+export type { FeedbackType };
 
 interface FeedbackTypeConfig {
   type: FeedbackType;

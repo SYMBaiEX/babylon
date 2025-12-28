@@ -47,25 +47,23 @@
 import {
   authenticate,
   checkRateLimitAndDuplicates,
-  createLinearIssue,
-  type FeedbackType,
-  formatFeedbackForLinear,
   getLinearConfig,
   RATE_LIMIT_CONFIGS,
   requireUserByIdentifier,
+  syncFeedbackToLinear,
   withErrorHandling,
 } from '@babylon/api';
 import { db, type JsonValue } from '@babylon/db';
 import {
+  type FeedbackType,
   GameFeedbackSchema,
   generateSnowflakeId,
   logger,
-  type FeedbackType as SharedFeedbackType,
 } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 
-const CATEGORY_MAP: Record<SharedFeedbackType, string> = {
+const CATEGORY_MAP: Record<FeedbackType, string> = {
   bug: 'bug_report',
   feature_request: 'feature_request',
   performance: 'performance_issue',
@@ -141,68 +139,3 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     { status: 201 }
   );
 });
-
-async function syncFeedbackToLinear(
-  config: {
-    apiKey: string;
-    teamId: string;
-    gameFeedbackLabelId: string | null;
-  },
-  feedbackId: string,
-  user: { id: string; email: string | null }
-): Promise<void> {
-  // Fetch feedback from DB to get current state (ensures consistency)
-  const feedback = await db.feedback.findUnique({
-    where: { id: feedbackId },
-    select: { comment: true, metadata: true },
-  });
-
-  if (!feedback) {
-    logger.warn('Feedback not found for Linear sync', { feedbackId });
-    return;
-  }
-
-  const metadata =
-    feedback.metadata && typeof feedback.metadata === 'object'
-      ? (feedback.metadata as Record<string, JsonValue>)
-      : {};
-
-  const formatted = formatFeedbackForLinear({
-    id: feedbackId,
-    feedbackType: (metadata.feedbackType as FeedbackType) ?? 'bug',
-    description: feedback.comment ?? '',
-    stepsToReproduce: (metadata.stepsToReproduce as string | null) ?? null,
-    screenshotUrl: (metadata.screenshotUrl as string | null) ?? null,
-    rating: (metadata.rating as number | null) ?? null,
-    userId: user.id,
-    userEmail: user.email,
-  });
-
-  const issue = await createLinearIssue(config.apiKey, {
-    teamId: config.teamId,
-    title: formatted.title,
-    description: formatted.description,
-    labelIds: config.gameFeedbackLabelId
-      ? [config.gameFeedbackLabelId]
-      : undefined,
-  });
-
-  // Atomic update: merge Linear info with existing metadata
-  await db.feedback.update({
-    where: { id: feedbackId },
-    data: {
-      metadata: {
-        ...metadata,
-        linearIssueId: issue.id,
-        linearIssueIdentifier: issue.identifier,
-        linearIssueUrl: issue.url,
-      },
-    },
-  });
-
-  logger.info('Linear issue created', {
-    feedbackId,
-    issueId: issue.id,
-    identifier: issue.identifier,
-  });
-}
