@@ -10,6 +10,7 @@
  * - Tier 3 (Followers): 500 members, public content
  */
 
+import { DistributedLockService } from '@babylon/api';
 import {
   and,
   chatParticipants,
@@ -24,7 +25,6 @@ import {
   isNull,
   ne,
 } from '@babylon/db';
-import { DistributedLockService } from '@babylon/api';
 import { GROUP_CONFIG, generateSnowflakeId, logger } from '@babylon/shared';
 
 import { NPCInteractionTracker } from './npc-interaction-tracker';
@@ -725,99 +725,99 @@ export class TieredGroupService {
       );
 
     for (const m of allMemberships) {
-        // Validate tier (should be valid due to isNotNull filter, but be defensive)
-        if (!isValidTier(m.tier)) {
-          logger.warn(
-            `Invalid tier value ${m.tier} for membership, skipping demotion check`,
-            { userId: m.userId, groupId: m.groupId, tier: m.tier },
-            'TieredGroupService'
-          );
-          continue;
-        }
-        const tier = m.tier;
-        const lastActivity = m.lastMessageAt ?? m.joinedAt;
-        const daysSince = Math.floor(
-          (now - lastActivity.getTime()) / (1000 * 60 * 60 * 24)
+      // Validate tier (should be valid due to isNotNull filter, but be defensive)
+      if (!isValidTier(m.tier)) {
+        logger.warn(
+          `Invalid tier value ${m.tier} for membership, skipping demotion check`,
+          { userId: m.userId, groupId: m.groupId, tier: m.tier },
+          'TieredGroupService'
         );
+        continue;
+      }
+      const tier = m.tier;
+      const lastActivity = m.lastMessageAt ?? m.joinedAt;
+      const daysSince = Math.floor(
+        (now - lastActivity.getTime()) / (1000 * 60 * 60 * 24)
+      );
 
-        if (shouldDemote(tier, daysSince)) {
-          const lowerTier = getLowerTier(tier);
-          const reason = `Inactive for ${daysSince} days`;
+      if (shouldDemote(tier, daysSince)) {
+        const lowerTier = getLowerTier(tier);
+        const reason = `Inactive for ${daysSince} days`;
 
-          // Pre-fetch data needed for transaction
-          const tiers = lowerTier ? await this.getNpcTiers(m.npcId) : [];
-          const targetTier = lowerTier
-            ? tiers.find((t) => t.tier === lowerTier)
-            : null;
+        // Pre-fetch data needed for transaction
+        const tiers = lowerTier ? await this.getNpcTiers(m.npcId) : [];
+        const targetTier = lowerTier
+          ? tiers.find((t) => t.tier === lowerTier)
+          : null;
 
-          // Wrap multi-step demotion in transaction to prevent orphaned state
-          await db.$transaction(async (tx) => {
-            // Deactivate current membership
+        // Wrap multi-step demotion in transaction to prevent orphaned state
+        await db.$transaction(async (tx) => {
+          // Deactivate current membership
+          await tx
+            .update(groupMembers)
+            .set({ isActive: false, kickReason: reason, kickedAt: new Date() })
+            .where(
+              and(
+                eq(groupMembers.groupId, m.groupId),
+                eq(groupMembers.userId, m.userId)
+              )
+            );
+
+          // Deactivate chat participant for the old tier's chat
+          const [oldChat] = await tx
+            .select({ id: chats.id })
+            .from(chats)
+            .where(eq(chats.groupId, m.groupId))
+            .limit(1);
+
+          if (oldChat) {
             await tx
-              .update(groupMembers)
-              .set({ isActive: false, kickReason: reason, kickedAt: new Date() })
+              .update(chatParticipants)
+              .set({ isActive: false })
               .where(
                 and(
-                  eq(groupMembers.groupId, m.groupId),
-                  eq(groupMembers.userId, m.userId)
+                  eq(chatParticipants.chatId, oldChat.id),
+                  eq(chatParticipants.userId, m.userId)
                 )
               );
+          }
 
-            // Deactivate chat participant for the old tier's chat
-            const [oldChat] = await tx
-              .select({ id: chats.id })
-              .from(chats)
-              .where(eq(chats.groupId, m.groupId))
-              .limit(1);
-
-            if (oldChat) {
-              await tx
-                .update(chatParticipants)
-                .set({ isActive: false })
-                .where(
-                  and(
-                    eq(chatParticipants.chatId, oldChat.id),
-                    eq(chatParticipants.userId, m.userId)
-                  )
-                );
-            }
-
-            if (lowerTier && targetTier && !targetTier.isFull) {
-              // Add to lower tier
-              await tx.insert(groupMembers).values({
-                id: await generateSnowflakeId(),
-                groupId: targetTier.groupId,
-                userId: m.userId,
-                role: 'member',
-                tier: lowerTier,
-                previousTier: tier,
-                demotedAt: new Date(),
-              });
-
-              if (targetTier.chatId) {
-                await tx.insert(chatParticipants).values({
-                  id: await generateSnowflakeId(),
-                  chatId: targetTier.chatId,
-                  userId: m.userId,
-                });
-              }
-            }
-          });
-
-          demotions++;
-          logger.info(
-            'User demoted',
-            {
+          if (lowerTier && targetTier && !targetTier.isFull) {
+            // Add to lower tier
+            await tx.insert(groupMembers).values({
+              id: await generateSnowflakeId(),
+              groupId: targetTier.groupId,
               userId: m.userId,
-              npcId: m.npcId,
-              fromTier: tier,
-              toTier: lowerTier,
-              reason,
-            },
-            'TieredGroupService'
-          );
-        }
+              role: 'member',
+              tier: lowerTier,
+              previousTier: tier,
+              demotedAt: new Date(),
+            });
+
+            if (targetTier.chatId) {
+              await tx.insert(chatParticipants).values({
+                id: await generateSnowflakeId(),
+                chatId: targetTier.chatId,
+                userId: m.userId,
+              });
+            }
+          }
+        });
+
+        demotions++;
+        logger.info(
+          'User demoted',
+          {
+            userId: m.userId,
+            npcId: m.npcId,
+            fromTier: tier,
+            toTier: lowerTier,
+            reason,
+          },
+          'TieredGroupService'
+        );
       }
+    }
 
     return demotions;
   }
@@ -859,12 +859,7 @@ export class TieredGroupService {
           eq(groupMembers.isActive, true)
         )
       )
-      .where(
-        and(
-          eq(groups.type, 'npc'),
-          isNotNull(groups.tier)
-        )
-      )
+      .where(and(eq(groups.type, 'npc'), isNotNull(groups.tier)))
       .groupBy(groups.id, groups.ownerId, groups.tier, groups.maxMembers);
 
     // Track unique NPCs with groups

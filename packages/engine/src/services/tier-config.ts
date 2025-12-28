@@ -18,17 +18,13 @@ const VALID_TIERS: readonly TierLevel[] = [1, 2, 3] as const;
 
 /** Type guard to check if a value is a valid TierLevel */
 export function isValidTier(value: unknown): value is TierLevel {
-  return (
-    typeof value === 'number' && VALID_TIERS.includes(value as TierLevel)
-  );
+  return typeof value === 'number' && VALID_TIERS.includes(value as TierLevel);
 }
 
 /** Assert and return a valid TierLevel, throws if invalid */
 export function assertTierLevel(value: unknown): TierLevel {
   if (!isValidTier(value)) {
-    throw new Error(
-      `Invalid tier value: ${value}. Expected 1, 2, or 3.`
-    );
+    throw new Error(`Invalid tier value: ${value}. Expected 1, 2, or 3.`);
   }
   return value;
 }
