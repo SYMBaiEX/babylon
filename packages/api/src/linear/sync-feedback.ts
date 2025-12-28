@@ -5,10 +5,10 @@
  */
 
 import { db } from '@babylon/db';
-import { logger } from '@babylon/shared';
+import { FeedbackTypeSchema, logger } from '@babylon/shared';
 import { z } from 'zod';
 import { createLinearIssue } from './client';
-import { type FeedbackType, formatFeedbackForLinear } from './format-feedback';
+import { formatFeedbackForLinear } from './format-feedback';
 
 /** Maximum number of retry attempts for Linear API calls */
 const MAX_RETRIES = 3;
@@ -59,9 +59,10 @@ async function withRetry<T>(
 /**
  * Zod schema for validating feedback metadata from the database.
  * Ensures type safety when parsing JSON metadata.
+ * Reuses FeedbackTypeSchema from shared package for DRY compliance.
  */
 const FeedbackMetadataSchema = z.object({
-  feedbackType: z.enum(['bug', 'feature_request', 'performance']).catch('bug'),
+  feedbackType: FeedbackTypeSchema.catch('bug'),
   stepsToReproduce: z.string().nullable().catch(null),
   screenshotUrl: z.string().nullable().catch(null),
   rating: z.number().nullable().catch(null),
@@ -109,7 +110,7 @@ export async function syncFeedbackToLinear(
 
   const formatted = formatFeedbackForLinear({
     id: feedbackId,
-    feedbackType: metadata.feedbackType as FeedbackType,
+    feedbackType: metadata.feedbackType,
     description: feedback.comment ?? '',
     stepsToReproduce: metadata.stepsToReproduce,
     screenshotUrl: metadata.screenshotUrl,

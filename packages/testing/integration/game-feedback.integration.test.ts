@@ -62,7 +62,8 @@ describe('General Game Feedback API', () => {
     const payload = {
       feedbackType: 'bug',
       description: 'Test bug report - the button does not work correctly',
-      stepsToReproduce: '1. Click button\n2. Nothing happens\n3. Expected: modal opens',
+      stepsToReproduce:
+        '1. Click button\n2. Nothing happens\n3. Expected: modal opens',
     };
 
     const request = new NextRequest(
@@ -126,7 +127,8 @@ describe('General Game Feedback API', () => {
   test('POST /api/feedback/game-feedback - performance issue succeeds', async () => {
     const payload = {
       feedbackType: 'performance',
-      description: 'Test performance issue - game lags when many agents are online',
+      description:
+        'Test performance issue - game lags when many agents are online',
     };
 
     const request = new NextRequest(
