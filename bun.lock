@@ -293,6 +293,8 @@
         "@babylon/shared": "workspace:*",
         "@privy-io/server-auth": "^1.18.4",
         "@vercel/blob": "^2.0.0",
+        "graphql": "^16.10.0",
+        "graphql-request": "^7.2.0",
         "ioredis": "^5.6.1",
         "nanoid": "^5.1.6",
         "viem": "^2.41.2",

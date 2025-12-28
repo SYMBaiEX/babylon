@@ -15,6 +15,8 @@ export {
   DistributedLockService,
   type LockOptions,
 } from './distributed-lock-service';
+// Feedback Service
+export * from './feedback-service';
 // Generation Lock Service
 export * from './generation-lock-service';
 // Moderation Services
