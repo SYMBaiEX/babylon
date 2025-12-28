@@ -47,11 +47,15 @@ apps/* → packages/* → contracts
 
 ### Key Packages
 - **engine:** Game world, perpetuals, simulation logic (domain)
-- **agents:** Agent runtime, Agent0/A2A/MCP integrations
+- **agents:** Agent runtime, autonomous execution, multi-step actions
+- **core:** Market services (perps, prediction), shared domain logic
 - **api:** Server utilities (auth, rate limit, redis, SSE, token counting)
 - **db:** Drizzle schema and client
 - **shared:** Client-safe types, utils, config
 - **contracts:** Smart contracts (Hardhat + Foundry)
+- **a2a:** Agent-to-Agent protocol integration
+- **mcp:** Model Context Protocol server
+- **training:** Agent training pipelines
 
 ## Development Workflow
 
@@ -85,6 +89,48 @@ Only consider work done after all three pass without errors.
 - **Commits:** Imperative mood, prefixed (`feat:`, `fix:`, `chore:`)
 - **Main branch:** `staging` (not `main`)
 - **Pre-commit:** Biome format check via Husky
+
+### PR Review Process
+- PRs are automatically reviewed by `claude[bot]` and `coderabbitai[bot]`
+- Wait for both reviews before merging
+- Address review comments or explain design decisions by tagging `@claude`
+- If reviewers disagree with intentional design choices, consult by commenting with rationale
+
+### Parallel Development
+- Use git worktrees for independent fixes: `git worktree add ../path branch-name`
+- Can run multiple fixes in parallel when issues don't overlap
+- Each worktree gets its own feature branch → separate PR
+
+### Code Patterns
+
+**Trust the Schema**
+- If column has `.notNull().default()`, don't add defensive null checks
+- Fail fast on invariant violations rather than masking with defaults
+
+**Drizzle Decimal Comparisons**
+```typescript
+// ❌ String comparison bug: "100" < "9"
+gte(decimalColumn, String(amount))
+
+// ✅ Proper numeric comparison
+gte(sql<number>`${decimalColumn}::numeric`, amount)
+```
+
+**Avoid N+1 Queries**
+```typescript
+// ❌ Query per iteration
+for (const item of items) {
+  const data = await db.select().where(eq(table.id, item.id));
+}
+
+// ✅ Batch fetch + Map lookup
+const allData = await db.select().where(inArray(table.id, ids));
+const dataMap = new Map(allData.map(d => [d.id, d]));
+```
+
+**Rate-Limited Resources**
+- Charge/deduct after lock acquisition, before execution
+- Prevents abuse via intentional errors to get free actions
 
 ## Migration Context
 
@@ -150,9 +196,12 @@ All cron jobs are defined in [`vercel.json`](vercel.json):
 
 | Job | Schedule | Purpose |
 |-----|----------|---------|
-| `game-tick` | Every minute | Content generation, NPC trading, question resolution |
+| `game-tick` | Every minute | Content generation, question resolution |
+| `npc-tick` | Every minute | NPC trading decisions |
 | `agent-tick` | Every minute | Autonomous agent actions |
 | `realtime-drain` | Every minute | Flush SSE outbox to Redis |
+| `health-check` | Every 5 minutes | Cron health monitoring |
+| `training-check` | Hourly | Check training job status |
 | `reputation-sync` | Daily 2am | Sync reputation to blockchain |
 | `perp-funding` | Every 8 hours | Calculate perpetual funding rates |
 | `world-facts` | Every 6 hours | Fetch RSS feeds, generate parody headlines |
