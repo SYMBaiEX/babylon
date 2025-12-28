@@ -233,7 +233,11 @@ export default function AdminDashboard() {
           icon: Eye,
         },
         { id: 'reports' as const, label: 'Reports', icon: Flag },
-        { id: 'feedback' as const, label: 'Game Feedback', icon: MessageCircle },
+        {
+          id: 'feedback' as const,
+          label: 'Game Feedback',
+          icon: MessageCircle,
+        },
         { id: 'human-review' as const, label: 'Human Review', icon: Scale },
       ],
     },

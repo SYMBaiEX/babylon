@@ -326,7 +326,8 @@ export function FeedbackTab() {
                       )}
                       {item.screenshotUrl && (
                         <span className="text-muted-foreground text-xs">
-                          <ImageIcon className="inline h-3 w-3" /> Has screenshot
+                          <ImageIcon className="inline h-3 w-3" /> Has
+                          screenshot
                         </span>
                       )}
                       {item.linearIssue && (
@@ -352,7 +353,9 @@ export function FeedbackTab() {
                         <div className="flex items-center gap-1.5">
                           <Avatar
                             src={item.user.profileImageUrl ?? undefined}
-                            name={item.user.displayName ?? item.user.username ?? '?'}
+                            name={
+                              item.user.displayName ?? item.user.username ?? '?'
+                            }
                             size="sm"
                           />
                           <span>
@@ -506,7 +509,11 @@ export function FeedbackTab() {
                 <div className="flex items-center gap-3">
                   <Avatar
                     src={selectedFeedback.user.profileImageUrl ?? undefined}
-                    name={selectedFeedback.user.displayName ?? selectedFeedback.user.username ?? '?'}
+                    name={
+                      selectedFeedback.user.displayName ??
+                      selectedFeedback.user.username ??
+                      '?'
+                    }
                     size="md"
                   />
                   <div>
