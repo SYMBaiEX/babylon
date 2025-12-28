@@ -64,6 +64,7 @@ export const POST = withErrorHandling(
             })
           : [];
 
+      // Count NPC groups
       const npcGroupCount = memberGroups.filter((g) => g.type === 'npc').length;
 
       if (npcGroupCount >= GROUP_CONFIG.MAX_ACTIVE_USER_GROUPS) {
@@ -83,14 +84,7 @@ export const POST = withErrorHandling(
 
       if (existingMember) {
         if (existingMember.isActive) {
-          // Already an active member
-          await db.groupInvite.update({
-            where: { id: inviteId },
-            data: {
-              status: 'accepted',
-              respondedAt: new Date(),
-            },
-          });
+          // Already an active member - don't modify invite state, just return error
           throw new ApiError('You are already a member of this group', 400);
         }
 

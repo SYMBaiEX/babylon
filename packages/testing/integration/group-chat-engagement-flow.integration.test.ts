@@ -212,28 +212,27 @@ async function recordUserInteraction(
 
 async function createGroupChat(
   name: string,
-  npcAdminId: string
-): Promise<string> {
-  const id = await generateSnowflakeId();
-
-  // Create Group first
+  npcOwnerId: string
+): Promise<{ chatId: string; groupId: string }> {
   const groupId = await generateSnowflakeId();
+  const chatId = await generateSnowflakeId();
+
+  // Create Group first (unified schema)
   await db.group.create({
     data: {
       id: groupId,
       name,
       type: 'npc',
-      ownerId: npcAdminId,
-      createdById: npcAdminId,
+      ownerId: npcOwnerId,
+      createdById: npcOwnerId,
       updatedAt: new Date(),
     },
   });
-  testIds.groupIds.push(groupId);
 
-  // Create Chat linked to Group
+  // Create Chat with groupId link
   await db.chat.create({
     data: {
-      id,
+      id: chatId,
       name,
       isGroup: true,
       groupId,
@@ -247,15 +246,16 @@ async function createGroupChat(
   await db.chatParticipant.create({
     data: {
       id: participantId,
-      chatId: id,
-      userId: npcAdminId,
+      chatId,
+      userId: npcOwnerId,
       isActive: true,
     },
   });
 
-  testIds.chatIds.push(id);
+  testIds.groupIds.push(groupId);
+  testIds.chatIds.push(chatId);
   testIds.participantIds.push(participantId);
-  return id;
+  return { chatId, groupId };
 }
 
 async function cleanupTestData(): Promise<void> {
@@ -570,7 +570,7 @@ describe('Full Engagement → Invite Flow', () => {
     // Setup: Create NPCs and a group chat
     const npc1 = await createTestNPC('Alpha Leader');
     const npc2 = await createTestNPC('Group Member NPC');
-    const groupChatId = await createGroupChat(`${npc1.name}'s Circle`, npc1.id);
+    const { chatId: groupChatId } = await createGroupChat(`${npc1.name}'s Circle`, npc1.id);
 
     // Add second NPC to group
     const participant2Id = await generateSnowflakeId();

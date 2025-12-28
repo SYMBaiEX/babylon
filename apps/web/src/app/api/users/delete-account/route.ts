@@ -83,7 +83,9 @@ import {
   eq,
   feedbacks,
   followStatuses,
+  groupInvites,
   groupMembers,
+  or,
   poolDeposits,
   referrals,
   shareActions,
@@ -182,6 +184,16 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
 
     // Delete group memberships
     await tx.delete(groupMembers).where(eq(groupMembers.userId, userId));
+
+    // Delete group invites (both received and sent)
+    await tx
+      .delete(groupInvites)
+      .where(
+        or(
+          eq(groupInvites.invitedUserId, userId),
+          eq(groupInvites.invitedBy, userId)
+        )
+      );
 
     // Delete follow status
     await tx.delete(followStatuses).where(eq(followStatuses.userId, userId));

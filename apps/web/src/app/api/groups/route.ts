@@ -145,7 +145,12 @@
  * ```
  */
 
-import { authenticate, successResponse, withErrorHandling } from '@babylon/api';
+import {
+  authenticate,
+  notifyUserGroupInvite,
+  successResponse,
+  withErrorHandling,
+} from '@babylon/api';
 import { asUser } from '@babylon/db';
 import { logger } from '@babylon/shared';
 import { nanoid } from 'nanoid';
@@ -337,16 +342,31 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
 
         // Send invitations to human users (they must accept)
         if (humanIds.length > 0) {
+          const inviteData = humanIds.map((userId) => ({
+            id: nanoid(),
+            groupId,
+            invitedUserId: userId,
+            invitedBy: user.userId,
+            status: 'pending' as const,
+            message: `You've been invited to join "${data.name}"`,
+          }));
+
           await db.groupInvite.createMany({
-            data: humanIds.map((userId) => ({
-              id: nanoid(),
-              groupId,
-              invitedUserId: userId,
-              invitedBy: user.userId,
-              status: 'pending',
-              message: `You've been invited to join "${data.name}"`,
-            })),
+            data: inviteData,
           });
+
+          // Send notifications to all invited users
+          await Promise.all(
+            inviteData.map((invite) =>
+              notifyUserGroupInvite(
+                invite.invitedUserId,
+                user.userId,
+                groupId,
+                data.name,
+                invite.id
+              )
+            )
+          );
         }
       }
     }

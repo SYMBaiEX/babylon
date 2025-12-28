@@ -36,6 +36,13 @@
       "when": 1734249420000,
       "tag": "0004_add_market_resolution_columns",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1766616474665,
+      "tag": "0005_salty_the_leader",
+      "breakpoints": true
     }
   ]
 }

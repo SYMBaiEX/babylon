@@ -328,23 +328,77 @@ export class NPCGroupDynamicsService {
 
         // Must have at least 2 friends in the group
         if (relationships.length >= 2) {
-          // Add to chatParticipants
-          await db.insert(chatParticipants).values({
-            id: await generateSnowflakeId(),
-            chatId: group.id,
-            userId: candidate.id,
-          });
+          // Check if already a participant (could be inactive)
+          const [existingParticipant] = await db
+            .select({ id: chatParticipants.id, isActive: chatParticipants.isActive })
+            .from(chatParticipants)
+            .where(
+              and(
+                eq(chatParticipants.chatId, group.id),
+                eq(chatParticipants.userId, candidate.id)
+              )
+            )
+            .limit(1);
 
-          // Also add to groupMembers if chat has a groupId
-          if (group.groupId) {
-            await db.insert(groupMembers).values({
+          if (existingParticipant) {
+            // Reactivate if inactive
+            if (!existingParticipant.isActive) {
+              await db
+                .update(chatParticipants)
+                .set({
+                  isActive: true,
+                  joinedAt: new Date(),
+                  kickedAt: null,
+                  kickReason: null,
+                })
+                .where(eq(chatParticipants.id, existingParticipant.id));
+            }
+          } else {
+            // Add new participant
+            await db.insert(chatParticipants).values({
               id: await generateSnowflakeId(),
-              groupId: group.groupId,
+              chatId: group.id,
               userId: candidate.id,
-              role: 'member',
-              isActive: true,
-              addedBy: null, // NPC joining autonomously
             });
+          }
+
+          // Also handle groupMembers if chat has a groupId
+          if (group.groupId) {
+            const [existingMember] = await db
+              .select({ id: groupMembers.id, isActive: groupMembers.isActive })
+              .from(groupMembers)
+              .where(
+                and(
+                  eq(groupMembers.groupId, group.groupId),
+                  eq(groupMembers.userId, candidate.id)
+                )
+              )
+              .limit(1);
+
+            if (existingMember) {
+              // Reactivate if inactive
+              if (!existingMember.isActive) {
+                await db
+                  .update(groupMembers)
+                  .set({
+                    isActive: true,
+                    joinedAt: new Date(),
+                    kickedAt: null,
+                    kickReason: null,
+                  })
+                  .where(eq(groupMembers.id, existingMember.id));
+              }
+            } else {
+              // Add new member
+              await db.insert(groupMembers).values({
+                id: await generateSnowflakeId(),
+                groupId: group.groupId,
+                userId: candidate.id,
+                role: 'member',
+                isActive: true,
+                addedBy: null, // NPC joining autonomously
+              });
+            }
           }
 
           joinsProcessed++;
@@ -1202,6 +1256,42 @@ Return your response as XML:
           .update(chats)
           .set({ groupId: newGroupId })
           .where(eq(chats.id, group.id));
+
+        // Backfill GroupMember for existing chat participants
+        const existingParticipants = await db
+          .select({ userId: chatParticipants.userId })
+          .from(chatParticipants)
+          .where(
+            and(
+              eq(chatParticipants.chatId, group.id),
+              eq(chatParticipants.isActive, true)
+            )
+          );
+
+        for (const participant of existingParticipants) {
+          // Check if GroupMember already exists
+          const [existingMember] = await db
+            .select({ id: groupMembers.id })
+            .from(groupMembers)
+            .where(
+              and(
+                eq(groupMembers.groupId, newGroupId),
+                eq(groupMembers.userId, participant.userId)
+              )
+            )
+            .limit(1);
+
+          if (!existingMember) {
+            const isOwner = participant.userId === invitingNpcId;
+            await db.insert(groupMembers).values({
+              id: await generateSnowflakeId(),
+              groupId: newGroupId,
+              userId: participant.userId,
+              role: isOwner ? 'owner' : 'member',
+              addedBy: invitingNpcId,
+            });
+          }
+        }
 
         groupId = newGroupId;
       }

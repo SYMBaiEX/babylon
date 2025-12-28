@@ -116,21 +116,22 @@ export class AlphaGroupInviteService {
       }
 
       // Check if already in a group managed by this NPC
-      // The GroupChatService.recordInvite will handle duplicates,
-      // but we do a quick check here for efficiency
+      // Join with groups to filter by ownerId (the NPC who owns the group)
       const [existingMembership] = await db
         .select()
         .from(groupMembers)
+        .innerJoin(groups, eq(groupMembers.groupId, groups.id))
         .where(
           and(
             eq(groupMembers.userId, userScore.userId),
-            eq(groupMembers.isActive, true)
+            eq(groupMembers.isActive, true),
+            eq(groups.ownerId, npcId)
           )
         )
         .limit(1);
 
       if (existingMembership) {
-        continue; // Already in a group
+        continue; // Already in this NPC's group
       }
 
       // Check if user is at their NPC group limit (only NPC groups count)

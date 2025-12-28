@@ -159,6 +159,34 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     );
   }
 
+  // Check if user is at the NPC group limit (consistent with regular accept flow)
+  const npcGroupCount = await asSystem(async (db) => {
+    const memberships = await db.groupMember.findMany({
+      where: {
+        userId,
+        isActive: true,
+      },
+    });
+    const groupIds = memberships.map((m) => m.groupId);
+    const memberGroups =
+      groupIds.length > 0
+        ? await db.group.findMany({
+            where: { id: { in: groupIds } },
+          })
+        : [];
+    return memberGroups.filter((g) => g.type === 'npc').length;
+  });
+
+  const { GROUP_CONFIG } = await import('@babylon/shared');
+  if (npcGroupCount >= GROUP_CONFIG.MAX_ACTIVE_USER_GROUPS) {
+    return NextResponse.json(
+      {
+        error: `User is already in ${GROUP_CONFIG.MAX_ACTIVE_USER_GROUPS} NPC groups. They must leave a group first.`,
+      },
+      { status: 400 }
+    );
+  }
+
   // Generate chat ID and name if not provided
   const finalChatId = chatId || `${npcId}-owned-chat`;
   const npcName =
@@ -239,16 +267,39 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       });
     }
 
-    // Record membership
-    await db.groupMember.create({
-      data: {
-        id: await generateSnowflakeId(),
+    // Record membership - check existing and update/create to handle race conditions
+    const existingGroupMember = await db.groupMember.findFirst({
+      where: {
         groupId,
         userId,
-        role: 'member',
-        addedBy: npcId,
       },
     });
+
+    if (existingGroupMember) {
+      // Reactivate existing member
+      await db.groupMember.update({
+        where: { id: existingGroupMember.id },
+        data: {
+          isActive: true,
+          role: 'member',
+          addedBy: npcId,
+          joinedAt: new Date(),
+          kickedAt: null,
+          kickReason: null,
+        },
+      });
+    } else {
+      // Create new member
+      await db.groupMember.create({
+        data: {
+          id: await generateSnowflakeId(),
+          groupId,
+          userId,
+          role: 'member',
+          addedBy: npcId,
+        },
+      });
+    }
 
     // Send notification to user
     await notifyGroupChatInvite(userId, npcId, finalChatId, finalChatName);

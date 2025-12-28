@@ -224,6 +224,7 @@ async function createGroupMembership(options: {
   userId: string;
   addedBy?: string;
   joinedAt?: Date;
+  role?: 'owner' | 'admin' | 'member';
 }): Promise<string> {
   const id = await generateSnowflakeId();
 
@@ -232,8 +233,8 @@ async function createGroupMembership(options: {
       id,
       groupId: options.groupId,
       userId: options.userId,
+      role: options.role || 'member',
       addedBy: options.addedBy,
-      role: 'member',
       isActive: true,
       joinedAt: options.joinedAt || new Date(),
     },
@@ -245,25 +246,24 @@ async function createGroupMembership(options: {
 
 async function createGroupChat(
   name: string,
-  npcAdminId: string
+  npcOwnerId: string
 ): Promise<{ chatId: string; groupId: string }> {
-  const chatId = await generateSnowflakeId();
   const groupId = await generateSnowflakeId();
+  const chatId = await generateSnowflakeId();
 
-  // Create Group first
+  // Create Group first (unified schema)
   await db.group.create({
     data: {
       id: groupId,
       name,
       type: 'npc',
-      ownerId: npcAdminId,
-      createdById: npcAdminId,
+      ownerId: npcOwnerId,
+      createdById: npcOwnerId,
       updatedAt: new Date(),
     },
   });
-  testIds.groupIds.push(groupId);
 
-  // Create Chat linked to Group
+  // Create Chat with groupId link
   await db.chat.create({
     data: {
       id: chatId,
@@ -281,11 +281,12 @@ async function createGroupChat(
     data: {
       id: participantId,
       chatId,
-      userId: npcAdminId,
+      userId: npcOwnerId,
       isActive: true,
     },
   });
 
+  testIds.groupIds.push(groupId);
   testIds.chatIds.push(chatId);
   testIds.participantIds.push(participantId);
   return { chatId, groupId };
@@ -327,6 +328,12 @@ async function cleanupTestData(): Promise<void> {
     await db.chatParticipant.deleteMany({
       where: { id: { in: testIds.participantIds } },
     });
+  }
+  if (testIds.chatIds.length > 0) {
+    await db.chat.deleteMany({ where: { id: { in: testIds.chatIds } } });
+  }
+  if (testIds.groupIds.length > 0) {
+    await db.group.deleteMany({ where: { id: { in: testIds.groupIds } } });
   }
   if (testIds.interactionIds.length > 0) {
     await db.userInteraction.deleteMany({
@@ -847,10 +854,7 @@ describe('Group Chat Simulation - End to End Flow', () => {
       });
       const activeUser = await createTestUser({ displayName: 'Active User' });
 
-      const { chatId, groupId } = await createGroupChat(
-        'Activity Test Group',
-        npc.id
-      );
+      const { chatId, groupId } = await createGroupChat('Activity Test Group', npc.id);
 
       // Add participant records
       const inactiveParticipantId = await generateSnowflakeId();
@@ -888,8 +892,8 @@ describe('Group Chat Simulation - End to End Flow', () => {
           id: inactiveMembershipId,
           groupId,
           userId: inactiveUser.id,
-          addedBy: npc.id,
           role: 'member',
+          addedBy: npc.id,
           isActive: true,
           joinedAt: twoDaysAgo,
         },
@@ -903,8 +907,8 @@ describe('Group Chat Simulation - End to End Flow', () => {
           id: activeMembershipId,
           groupId,
           userId: activeUser.id,
-          addedBy: npc.id,
           role: 'member',
+          addedBy: npc.id,
           isActive: true,
           joinedAt: twoDaysAgo,
         },
@@ -1016,10 +1020,7 @@ describe('Group Chat Simulation - End to End Flow', () => {
       const npc = await createTestNPC('Quality Test NPC');
       const user = await createTestUser({ displayName: 'Quality User' });
 
-      const { chatId, groupId } = await createGroupChat(
-        'Quality Test Group',
-        npc.id
-      );
+      const { chatId, groupId } = await createGroupChat('Quality Test Group', npc.id);
 
       // Create membership
       const membershipId = await generateSnowflakeId();
@@ -1028,8 +1029,8 @@ describe('Group Chat Simulation - End to End Flow', () => {
           id: membershipId,
           groupId,
           userId: user.id,
-          addedBy: npc.id,
           role: 'member',
+          addedBy: npc.id,
           isActive: true,
           qualityScore: 1.0, // Start at 1.0
           messageCount: 0,
@@ -1055,10 +1056,7 @@ describe('Group Chat Simulation - End to End Flow', () => {
       const npc = await createTestNPC('Avg Quality NPC');
       const user = await createTestUser({ displayName: 'Avg Quality User' });
 
-      const { chatId, groupId } = await createGroupChat(
-        'Avg Quality Group',
-        npc.id
-      );
+      const { chatId, groupId } = await createGroupChat('Avg Quality Group', npc.id);
 
       // Create membership with some existing messages
       const membershipId = await generateSnowflakeId();
@@ -1067,8 +1065,8 @@ describe('Group Chat Simulation - End to End Flow', () => {
           id: membershipId,
           groupId,
           userId: user.id,
-          addedBy: npc.id,
           role: 'member',
+          addedBy: npc.id,
           isActive: true,
           qualityScore: 0.8, // Existing average
           messageCount: 4, // 4 prior messages
@@ -1160,8 +1158,8 @@ describe('Group Chat Simulation - End to End Flow', () => {
           id: membershipId1,
           groupId,
           userId: user.id,
-          addedBy: npc.id,
           role: 'member',
+          addedBy: npc.id,
           isActive: true,
         },
       });
@@ -1176,8 +1174,8 @@ describe('Group Chat Simulation - End to End Flow', () => {
             id: membershipId2,
             groupId,
             userId: user.id, // Same user
-            addedBy: npc.id,
             role: 'member',
+            addedBy: npc.id,
             isActive: true,
           },
         });

@@ -12,7 +12,15 @@ import {
   handleRefundEscrowPayment,
   handleVerifyEscrowPayment,
 } from '@babylon/a2a';
-import { db, eq, perpMarketSnapshots, users } from '@babylon/db';
+import {
+  and,
+  db,
+  eq,
+  groupMembers,
+  groups,
+  perpMarketSnapshots,
+  users,
+} from '@babylon/db';
 import { StaticDataRegistry } from '@babylon/engine';
 import type { JsonValue, StringRecord } from '@babylon/shared';
 import {
@@ -1374,6 +1382,11 @@ export async function executeCreateGroup(
   const chatId = await generateSnowflakeId();
   const groupId = await generateSnowflakeId();
 
+  // Deduplicate memberIds and exclude the owner (agent.userId)
+  const uniqueMemberIds = [...new Set(args.memberIds)].filter(
+    (id) => id !== agent.userId
+  );
+
   // Create Group
   await db.group.create({
     data: {
@@ -1403,12 +1416,12 @@ export async function executeCreateGroup(
   // Create chat participants
   const participantIds = await Promise.all([
     generateSnowflakeId(),
-    ...args.memberIds.map(() => generateSnowflakeId()),
+    ...uniqueMemberIds.map(() => generateSnowflakeId()),
   ]);
   await db.chatParticipant.createMany({
     data: [
       { id: participantIds[0]!, chatId, userId: agent.userId },
-      ...args.memberIds.map((memberId, idx) => ({
+      ...uniqueMemberIds.map((memberId, idx) => ({
         id: participantIds[idx + 1]!,
         chatId,
         userId: memberId,
@@ -1417,21 +1430,21 @@ export async function executeCreateGroup(
   });
 
   // Create GroupMember records
-  const memberIds = await Promise.all([
+  const memberRecordIds = await Promise.all([
     generateSnowflakeId(),
-    ...args.memberIds.map(() => generateSnowflakeId()),
+    ...uniqueMemberIds.map(() => generateSnowflakeId()),
   ]);
   await db.groupMember.createMany({
     data: [
       {
-        id: memberIds[0]!,
+        id: memberRecordIds[0]!,
         groupId,
         userId: agent.userId,
         role: 'owner',
         addedBy: agent.userId,
       },
-      ...args.memberIds.map((memberId, idx) => ({
-        id: memberIds[idx + 1]!,
+      ...uniqueMemberIds.map((memberId, idx) => ({
+        id: memberRecordIds[idx + 1]!,
         groupId,
         userId: memberId,
         role: 'member' as const,
@@ -1614,30 +1627,42 @@ export async function executeAcceptGroupInvite(
     throw new Error('Invite not found or access denied');
   }
 
-  // Check if agent is at the NPC group limit (only NPC groups count toward limit)
-  const activeMemberships = await db.groupMember.findMany({
-    where: {
-      userId: agent.userId,
-      isActive: true,
-    },
-  });
+  // Check invite status for idempotency
+  if (invite.status !== 'pending') {
+    throw new Error('This invite has already been processed');
+  }
 
-  // Fetch all groups in one query to avoid N+1
-  const groupIds = activeMemberships.map((m) => m.groupId);
-  const memberGroups =
-    groupIds.length > 0
-      ? await db.group.findMany({
-          where: { id: { in: groupIds } },
-          select: { id: true, type: true },
-        })
-      : [];
+  // Check if agent is at the NPC group limit - use join to avoid N+1
+  const activeNpcGroups = await db
+    .select({ groupId: groupMembers.groupId })
+    .from(groupMembers)
+    .innerJoin(groups, eq(groupMembers.groupId, groups.id))
+    .where(
+      and(
+        eq(groupMembers.userId, agent.userId),
+        eq(groupMembers.isActive, true),
+        eq(groups.type, 'npc')
+      )
+    );
 
-  const npcGroupCount = memberGroups.filter((g) => g.type === 'npc').length;
+  const npcGroupCount = activeNpcGroups.length;
 
   if (npcGroupCount >= GROUP_CONFIG.MAX_ACTIVE_USER_GROUPS) {
     throw new Error(
       `You can only be in ${GROUP_CONFIG.MAX_ACTIVE_USER_GROUPS} NPC groups at a time. Leave a group first.`
     );
+  }
+
+  // Check for existing membership (idempotency)
+  const existingMember = await db.groupMember.findFirst({
+    where: {
+      groupId: invite.groupId,
+      userId: agent.userId,
+    },
+  });
+
+  if (existingMember?.isActive) {
+    throw new Error('You are already a member of this group');
   }
 
   // Find the chat for this group (Chat.groupId → Group.id)
@@ -1655,28 +1680,63 @@ export async function executeAcceptGroupInvite(
     },
   });
 
-  // Add to chat participants
+  // Add to chat participants (handle existing inactive participant)
   if (groupChat) {
-    await db.chatParticipant.create({
-      data: {
-        id: await generateSnowflakeId(),
+    const existingParticipant = await db.chatParticipant.findFirst({
+      where: {
         chatId: groupChat.id,
         userId: agent.userId,
-        invitedBy: invite.invitedBy,
+      },
+    });
+
+    if (existingParticipant) {
+      if (!existingParticipant.isActive) {
+        await db.chatParticipant.update({
+          where: { id: existingParticipant.id },
+          data: {
+            isActive: true,
+            joinedAt: new Date(),
+            kickedAt: null,
+            kickReason: null,
+          },
+        });
+      }
+    } else {
+      await db.chatParticipant.create({
+        data: {
+          id: await generateSnowflakeId(),
+          chatId: groupChat.id,
+          userId: agent.userId,
+          invitedBy: invite.invitedBy,
+        },
+      });
+    }
+  }
+
+  // Add to GroupMember (handle existing inactive member)
+  if (existingMember) {
+    await db.groupMember.update({
+      where: { id: existingMember.id },
+      data: {
+        isActive: true,
+        role: 'member',
+        joinedAt: new Date(),
+        addedBy: invite.invitedBy,
+        kickedAt: null,
+        kickReason: null,
+      },
+    });
+  } else {
+    await db.groupMember.create({
+      data: {
+        id: await generateSnowflakeId(),
+        groupId: invite.groupId,
+        userId: agent.userId,
+        role: 'member',
+        addedBy: invite.invitedBy,
       },
     });
   }
-
-  // Add to GroupMember
-  await db.groupMember.create({
-    data: {
-      id: await generateSnowflakeId(),
-      groupId: invite.groupId,
-      userId: agent.userId,
-      role: 'member',
-      addedBy: invite.invitedBy,
-    },
-  });
 
   return {
     success: true,
