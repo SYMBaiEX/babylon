@@ -27,7 +27,9 @@ async function main() {
       ON "GroupMember" ("groupId", "userId") 
       WHERE "isActive" = true
     `;
-    console.log('✓ GroupMember_groupId_userId_active_key (partial unique index)');
+    console.log(
+      '✓ GroupMember_groupId_userId_active_key (partial unique index)'
+    );
   } catch (e) {
     const error = e as Error;
     if (error.message?.includes('already exists')) {
