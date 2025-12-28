@@ -20,11 +20,13 @@ import {
   ExternalLink,
   Image as ImageIcon,
   Lightbulb,
+  Loader2,
+  RefreshCw,
   Search,
   Star,
   Zap,
 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Avatar } from '@/components/shared/Avatar';
 import { Skeleton } from '@/components/shared/Skeleton';
 
@@ -122,6 +124,8 @@ export function FeedbackTab() {
     offset: 0,
     hasMore: false,
   });
+  const [syncing, setSyncing] = useState(false);
+  const [syncError, setSyncError] = useState<string | null>(null);
 
   // Debounce search query
   useEffect(() => {
@@ -182,6 +186,45 @@ export function FeedbackTab() {
   const handleRefresh = () => {
     setDebouncedSearch(searchQuery); // Trigger refetch
   };
+
+  // Retry Linear sync for a feedback item
+  const handleRetrySync = useCallback(async (feedbackId: string) => {
+    setSyncing(true);
+    setSyncError(null);
+
+    const response = await fetch(
+      `/api/admin/feedback/${feedbackId}/retry-sync`,
+      { method: 'POST' }
+    );
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      setSyncError(`Sync failed: ${errorText}`);
+      setSyncing(false);
+      return;
+    }
+
+    const data = await response.json();
+
+    // Update the feedback item in the list with the new Linear issue
+    if (data.linearIssue) {
+      setFeedback((prev) =>
+        prev.map((item) =>
+          item.id === feedbackId
+            ? { ...item, linearIssue: data.linearIssue }
+            : item
+        )
+      );
+      // Also update selected feedback if it's the same item
+      setSelectedFeedback((prev) =>
+        prev?.id === feedbackId
+          ? { ...prev, linearIssue: data.linearIssue }
+          : prev
+      );
+    }
+
+    setSyncing(false);
+  }, []);
 
   const getTypeConfig = (type: string) => {
     return (
@@ -414,7 +457,6 @@ export function FeedbackTab() {
       {pagination.total > 0 && (
         <div className="text-center text-muted-foreground text-sm">
           Showing {feedback.length} of {pagination.total} feedback items
-          {pagination.hasMore && ' • Load more by scrolling'}
         </div>
       )}
 
@@ -530,9 +572,9 @@ export function FeedbackTab() {
             )}
 
             {/* Linear Issue */}
-            {selectedFeedback.linearIssue && (
-              <div className="mb-4">
-                <h4 className="mb-2 font-medium text-sm">Linear Issue</h4>
+            <div className="mb-4">
+              <h4 className="mb-2 font-medium text-sm">Linear Issue</h4>
+              {selectedFeedback.linearIssue ? (
                 <a
                   href={selectedFeedback.linearIssue.url ?? '#'}
                   target="_blank"
@@ -542,8 +584,30 @@ export function FeedbackTab() {
                   <ExternalLink className="h-4 w-4" />
                   {selectedFeedback.linearIssue.identifier}
                 </a>
-              </div>
-            )}
+              ) : (
+                <div className="space-y-2">
+                  <p className="text-muted-foreground text-sm">
+                    Not synced to Linear
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => handleRetrySync(selectedFeedback.id)}
+                    disabled={syncing}
+                    className="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-2 text-primary-foreground text-sm hover:bg-primary/90 disabled:opacity-50"
+                  >
+                    {syncing ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <RefreshCw className="h-4 w-4" />
+                    )}
+                    {syncing ? 'Syncing...' : 'Retry Sync to Linear'}
+                  </button>
+                  {syncError && (
+                    <p className="text-red-500 text-sm">{syncError}</p>
+                  )}
+                </div>
+              )}
+            </div>
 
             {/* Submitter */}
             {selectedFeedback.user && (

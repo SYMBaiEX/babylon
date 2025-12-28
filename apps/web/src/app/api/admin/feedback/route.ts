@@ -4,10 +4,19 @@
  * Provides endpoints for admins to view and manage game feedback submissions.
  */
 
-import { requireAdmin, successResponse, withErrorHandling } from '@babylon/api';
+import {
+  errorResponse,
+  requireAdmin,
+  successResponse,
+  withErrorHandling,
+} from '@babylon/api';
 import { db, desc, eq, feedbacks, ilike, sql, users } from '@babylon/db';
+import { FeedbackTypeSchema } from '@babylon/shared';
 import { and, gte, lte } from 'drizzle-orm';
 import type { NextRequest } from 'next/server';
+
+/** Valid feedback types for SQL filter validation */
+const VALID_FEEDBACK_TYPES = FeedbackTypeSchema.options;
 
 interface FeedbackMetadata {
   feedbackType?: string;
@@ -72,7 +81,11 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   // Build conditions using SQL for JSON field access
   const conditions = [eq(feedbacks.interactionType, 'general_game_feedback')];
 
+  // CRITICAL: Validate feedbackType against allowed enum values to prevent SQL injection
   if (feedbackType) {
+    if (!VALID_FEEDBACK_TYPES.includes(feedbackType as typeof VALID_FEEDBACK_TYPES[number])) {
+      return errorResponse('Invalid feedback type', 'INVALID_FEEDBACK_TYPE', 400);
+    }
     conditions.push(
       sql`${feedbacks.metadata}->>'feedbackType' = ${feedbackType}`
     );

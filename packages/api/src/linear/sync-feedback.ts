@@ -133,12 +133,23 @@ export async function syncFeedbackToLinear(
     { feedbackId }
   );
 
-  // Atomic update: merge Linear info with existing metadata
+  // Atomic update: fetch fresh metadata to prevent race conditions
+  // Another process could have updated metadata between our initial read and now
+  const freshFeedback = await db.feedback.findUnique({
+    where: { id: feedbackId },
+    select: { metadata: true },
+  });
+
+  const freshMetadata =
+    freshFeedback?.metadata && typeof freshFeedback.metadata === 'object'
+      ? (freshFeedback.metadata as Record<string, unknown>)
+      : {};
+
   await db.feedback.update({
     where: { id: feedbackId },
     data: {
       metadata: {
-        ...metadata,
+        ...freshMetadata,
         linearIssueId: issue.id,
         linearIssueIdentifier: issue.identifier,
         linearIssueUrl: issue.url,

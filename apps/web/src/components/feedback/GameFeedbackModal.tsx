@@ -98,7 +98,13 @@ export function GameFeedbackModal({ isOpen, onClose }: GameFeedbackModalProps) {
   const [isSubmitting, startSubmitting] = useTransition();
   const abortControllerRef = useRef<AbortController | null>(null);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isOpenRef = useRef(isOpen); // Track isOpen in ref to avoid stale closure
   const [retryAfter, setRetryAfter] = useState<number | null>(null);
+
+  // Keep isOpenRef in sync with isOpen prop
+  useEffect(() => {
+    isOpenRef.current = isOpen;
+  }, [isOpen]);
 
   // Load form data from sessionStorage on mount
   useEffect(() => {
@@ -298,10 +304,10 @@ export function GameFeedbackModal({ isOpen, onClose }: GameFeedbackModalProps) {
               : 60;
             setRetryAfter(retryAfterSeconds);
 
-            // Use recursive setTimeout with isOpen check to prevent memory leaks
+            // Use recursive setTimeout with ref check to avoid stale closure
             const startCountdown = (seconds: number) => {
-              // Stop countdown if component is closing
-              if (!isOpen || seconds <= 0) {
+              // Stop countdown if modal is closing (use ref to get current value)
+              if (!isOpenRef.current || seconds <= 0) {
                 setRetryAfter(null);
                 return;
               }

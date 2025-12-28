@@ -126,6 +126,47 @@ const MIME_TO_EXT: Record<string, string> = {
   'image/webp': 'webp',
 };
 
+/**
+ * Magic byte signatures for image validation.
+ * Prevents uploading executables disguised as images.
+ */
+const IMAGE_MAGIC_BYTES: Record<string, number[][]> = {
+  'image/jpeg': [
+    [0xff, 0xd8, 0xff], // JPEG/JFIF
+  ],
+  'image/png': [
+    [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a], // PNG
+  ],
+  'image/gif': [
+    [0x47, 0x49, 0x46, 0x38, 0x37, 0x61], // GIF87a
+    [0x47, 0x49, 0x46, 0x38, 0x39, 0x61], // GIF89a
+  ],
+  'image/webp': [
+    [0x52, 0x49, 0x46, 0x46], // RIFF (WebP container)
+  ],
+};
+
+/**
+ * Validates that file bytes match the declared MIME type.
+ * Prevents uploading executables disguised as images.
+ */
+function validateImageMagicBytes(
+  buffer: Buffer,
+  mimeType: string
+): boolean {
+  const signatures = IMAGE_MAGIC_BYTES[mimeType];
+  if (!signatures) {
+    return false;
+  }
+
+  return signatures.some((signature) => {
+    if (buffer.length < signature.length) {
+      return false;
+    }
+    return signature.every((byte, i) => buffer[i] === byte);
+  });
+}
+
 // Configuration - only allow local storage in development
 const USE_LOCAL_STORAGE =
   process.env.USE_LOCAL_STORAGE === 'true' &&
@@ -182,6 +223,13 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   // Convert file to buffer
   const bytes = await file.arrayBuffer();
   const buffer = Buffer.from(bytes);
+
+  // Validate magic bytes match declared MIME type (prevents fake file uploads)
+  if (!validateImageMagicBytes(buffer, file.type)) {
+    throw new Error(
+      'File content does not match declared type. Ensure you are uploading a valid image.'
+    );
+  }
 
   if (USE_LOCAL_STORAGE) {
     // Check if we're in a Node.js environment with file system access

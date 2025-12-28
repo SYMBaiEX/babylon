@@ -215,3 +215,149 @@ describe('General Game Feedback API', () => {
     expect(response.status).toBe(400);
   });
 });
+
+// Mock admin auth for admin endpoint tests
+mock.module('@babylon/api', () => {
+  const actual = require('@babylon/api');
+  return {
+    ...actual,
+    authenticate: async () => ({ userId: testUserId }),
+    checkRateLimitAndDuplicates: () => null,
+    requireUserByIdentifier: async () => ({
+      id: testUserId,
+      email: 'test@example.com',
+    }),
+    requireAdmin: async () => ({ userId: testUserId, isAdmin: true }),
+  };
+});
+
+// Dynamic import for admin endpoint (after mock)
+const { GET: getAdminFeedback } = await import(
+  '@/app/api/admin/feedback/route'
+);
+
+describe('Admin Feedback API', () => {
+  let createdFeedbackId: string;
+
+  beforeAll(async () => {
+    // Create test feedback for admin queries
+    const payload = {
+      feedbackType: 'bug',
+      description: 'Admin test bug - searchable description for testing',
+      stepsToReproduce: '1. Test step\n2. Another step',
+    };
+
+    const request = new NextRequest(
+      'http://localhost/api/feedback/game-feedback',
+      {
+        method: 'POST',
+        body: JSON.stringify(payload),
+        headers: new Headers({ 'Content-Type': 'application/json' }),
+      }
+    );
+
+    const response = await submitGameFeedback(request);
+    const json = await response.json();
+    createdFeedbackId = json.feedbackId;
+  });
+
+  afterAll(async () => {
+    // Cleanup
+    if (createdFeedbackId) {
+      await db.feedback
+        .delete({ where: { id: createdFeedbackId } })
+        .catch(() => {});
+    }
+  });
+
+  test('GET /api/admin/feedback - returns feedback list', async () => {
+    const request = new NextRequest('http://localhost/api/admin/feedback', {
+      method: 'GET',
+    });
+
+    const response = await getAdminFeedback(request);
+    expect(response.status).toBe(200);
+
+    const json = await response.json();
+    expect(json.feedback).toBeDefined();
+    expect(Array.isArray(json.feedback)).toBe(true);
+    expect(json.pagination).toBeDefined();
+    expect(json.pagination.total).toBeGreaterThanOrEqual(0);
+    expect(json.stats).toBeDefined();
+  });
+
+  test('GET /api/admin/feedback - filters by type', async () => {
+    const request = new NextRequest(
+      'http://localhost/api/admin/feedback?type=bug',
+      { method: 'GET' }
+    );
+
+    const response = await getAdminFeedback(request);
+    expect(response.status).toBe(200);
+
+    const json = await response.json();
+    // All returned feedback should be bugs
+    for (const item of json.feedback) {
+      expect(item.feedbackType).toBe('bug');
+    }
+  });
+
+  test('GET /api/admin/feedback - rejects invalid type', async () => {
+    const request = new NextRequest(
+      'http://localhost/api/admin/feedback?type=invalid_type',
+      { method: 'GET' }
+    );
+
+    const response = await getAdminFeedback(request);
+    expect(response.status).toBe(400);
+  });
+
+  test('GET /api/admin/feedback - search works', async () => {
+    const request = new NextRequest(
+      'http://localhost/api/admin/feedback?search=searchable',
+      { method: 'GET' }
+    );
+
+    const response = await getAdminFeedback(request);
+    expect(response.status).toBe(200);
+
+    const json = await response.json();
+    // Should find our test feedback
+    const found = json.feedback.some(
+      (item: { description: string | null }) =>
+        item.description?.includes('searchable')
+    );
+    expect(found).toBe(true);
+  });
+
+  test('GET /api/admin/feedback - pagination params work', async () => {
+    const request = new NextRequest(
+      'http://localhost/api/admin/feedback?limit=5&offset=0',
+      { method: 'GET' }
+    );
+
+    const response = await getAdminFeedback(request);
+    expect(response.status).toBe(200);
+
+    const json = await response.json();
+    expect(json.pagination.limit).toBe(5);
+    expect(json.pagination.offset).toBe(0);
+    expect(json.feedback.length).toBeLessThanOrEqual(5);
+  });
+
+  test('GET /api/admin/feedback - hasLinearIssue filter works', async () => {
+    const request = new NextRequest(
+      'http://localhost/api/admin/feedback?hasLinearIssue=false',
+      { method: 'GET' }
+    );
+
+    const response = await getAdminFeedback(request);
+    expect(response.status).toBe(200);
+
+    const json = await response.json();
+    // All returned feedback should NOT have Linear issue
+    for (const item of json.feedback) {
+      expect(item.linearIssue).toBeNull();
+    }
+  });
+});
