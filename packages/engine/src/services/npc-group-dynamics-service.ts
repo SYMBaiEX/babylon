@@ -330,7 +330,10 @@ export class NPCGroupDynamicsService {
         if (relationships.length >= 2) {
           // Check if already a participant (could be inactive)
           const [existingParticipant] = await db
-            .select({ id: chatParticipants.id, isActive: chatParticipants.isActive })
+            .select({
+              id: chatParticipants.id,
+              isActive: chatParticipants.isActive,
+            })
             .from(chatParticipants)
             .where(
               and(

@@ -854,7 +854,10 @@ describe('Group Chat Simulation - End to End Flow', () => {
       });
       const activeUser = await createTestUser({ displayName: 'Active User' });
 
-      const { chatId, groupId } = await createGroupChat('Activity Test Group', npc.id);
+      const { chatId, groupId } = await createGroupChat(
+        'Activity Test Group',
+        npc.id
+      );
 
       // Add participant records
       const inactiveParticipantId = await generateSnowflakeId();
@@ -1020,7 +1023,10 @@ describe('Group Chat Simulation - End to End Flow', () => {
       const npc = await createTestNPC('Quality Test NPC');
       const user = await createTestUser({ displayName: 'Quality User' });
 
-      const { chatId, groupId } = await createGroupChat('Quality Test Group', npc.id);
+      const { chatId, groupId } = await createGroupChat(
+        'Quality Test Group',
+        npc.id
+      );
 
       // Create membership
       const membershipId = await generateSnowflakeId();
@@ -1056,7 +1062,10 @@ describe('Group Chat Simulation - End to End Flow', () => {
       const npc = await createTestNPC('Avg Quality NPC');
       const user = await createTestUser({ displayName: 'Avg Quality User' });
 
-      const { chatId, groupId } = await createGroupChat('Avg Quality Group', npc.id);
+      const { chatId, groupId } = await createGroupChat(
+        'Avg Quality Group',
+        npc.id
+      );
 
       // Create membership with some existing messages
       const membershipId = await generateSnowflakeId();

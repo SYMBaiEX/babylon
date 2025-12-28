@@ -570,7 +570,10 @@ describe('Full Engagement → Invite Flow', () => {
     // Setup: Create NPCs and a group chat
     const npc1 = await createTestNPC('Alpha Leader');
     const npc2 = await createTestNPC('Group Member NPC');
-    const { chatId: groupChatId } = await createGroupChat(`${npc1.name}'s Circle`, npc1.id);
+    const { chatId: groupChatId } = await createGroupChat(
+      `${npc1.name}'s Circle`,
+      npc1.id
+    );
 
     // Add second NPC to group
     const participant2Id = await generateSnowflakeId();
