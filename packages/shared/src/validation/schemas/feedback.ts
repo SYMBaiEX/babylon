@@ -19,10 +19,16 @@ export const GameFeedbackSchema = z
     feedbackType: FeedbackTypeSchema,
     description: z
       .string()
+      .trim()
       .min(10, 'Description must be at least 10 characters')
       .max(5000),
-    stepsToReproduce: z.string().max(2000).optional(),
-    screenshotUrl: z.string().url().optional().or(z.literal('')),
+    stepsToReproduce: z.string().trim().max(2000).optional(),
+    screenshotUrl: z
+      .string()
+      .url()
+      .optional()
+      .or(z.literal(''))
+      .transform((val) => (val === '' ? undefined : val)),
     rating: z.number().int().min(1).max(5).optional(),
   })
   .refine((data) => data.feedbackType !== 'bug' || !!data.stepsToReproduce, {

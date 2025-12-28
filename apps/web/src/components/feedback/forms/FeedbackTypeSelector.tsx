@@ -44,6 +44,7 @@ export function FeedbackTypeSelector({ onSelect }: FeedbackTypeSelectorProps) {
       <div className="grid gap-3 sm:grid-cols-3">
         {FEEDBACK_TYPES.map(({ type, title, description }) => (
           <button
+            type="button"
             key={type}
             onClick={() => onSelect(type)}
             className={cn(

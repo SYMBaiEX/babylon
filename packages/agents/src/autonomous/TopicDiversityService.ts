@@ -299,7 +299,9 @@ export class TopicDiversityService {
     if (!actor || !actor.domain || actor.domain.length === 0) {
       return 'general';
     }
-    return actor.domain[0] ?? 'general';
+    // Handle empty strings in domain array (e.g., [""])
+    const firstDomain = actor.domain[0];
+    return firstDomain && firstDomain.trim() !== '' ? firstDomain : 'general';
   }
 
   /**
@@ -310,7 +312,9 @@ export class TopicDiversityService {
     if (!actor || !actor.domain || actor.domain.length === 0) {
       return ['general'];
     }
-    return actor.domain;
+    // Filter out empty strings in domain array
+    const validDomains = actor.domain.filter((d) => d && d.trim() !== '');
+    return validDomains.length > 0 ? validDomains : ['general'];
   }
 
   /**

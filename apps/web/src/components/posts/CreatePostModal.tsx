@@ -135,11 +135,9 @@ export function CreatePostModal({
       }
       onClose();
     } else {
-      let errorMessage = 'Failed to create post. Please try again.';
-      const errorData = await response.json().catch(() => null);
-      if (errorData?.error) {
-        errorMessage = errorData.error;
-      }
+      const errorData = await response.json();
+      const errorMessage =
+        errorData?.error || 'Failed to create post. Please try again.';
       logger.error('Failed to create post:', errorData, 'CreatePostModal');
       toast.error(errorMessage);
     }

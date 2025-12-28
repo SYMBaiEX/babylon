@@ -29,6 +29,7 @@ export function FeedbackButton() {
   return (
     <>
       <button
+        type="button"
         onClick={() => setIsModalOpen(true)}
         className={cn(
           // Position to the left of the post button (which is at right-4/right-6)
