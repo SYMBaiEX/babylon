@@ -1,6 +1,10 @@
 'use client';
 
-import { cn } from '@babylon/shared';
+import {
+  cn,
+  FEEDBACK_DESCRIPTION_MAX_LENGTH,
+  FEEDBACK_DESCRIPTION_MIN_LENGTH,
+} from '@babylon/shared';
 import type { FeedbackType } from './FeedbackTypeSelector';
 
 const PLACEHOLDERS: Record<FeedbackType, string> = {
@@ -20,7 +24,7 @@ export function DescriptionField({
   value,
   onChange,
   feedbackType,
-  maxLength = 5000,
+  maxLength = FEEDBACK_DESCRIPTION_MAX_LENGTH,
 }: DescriptionFieldProps) {
   return (
     <div className="space-y-2">
@@ -30,7 +34,7 @@ export function DescriptionField({
       >
         Description{' '}
         <span className="text-muted-foreground text-xs">
-          (required, min 10 characters)
+          (required, min {FEEDBACK_DESCRIPTION_MIN_LENGTH} characters)
         </span>
       </label>
       <textarea

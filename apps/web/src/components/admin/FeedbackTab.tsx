@@ -24,7 +24,7 @@ import {
   Star,
   Zap,
 } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Avatar } from '@/components/shared/Avatar';
 import { Skeleton } from '@/components/shared/Skeleton';
 
@@ -108,9 +108,11 @@ export function FeedbackTab() {
   const [feedback, setFeedback] = useState<FeedbackItem[]>([]);
   const [stats, setStats] = useState<FeedbackResponse['stats'] | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [typeFilter, setTypeFilter] = useState<FeedbackTypeFilter>('all');
   const [linearFilter, setLinearFilter] = useState<LinearFilter>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [selectedFeedback, setSelectedFeedback] = useState<FeedbackItem | null>(
     null
   );
@@ -121,49 +123,65 @@ export function FeedbackTab() {
     hasMore: false,
   });
 
-  const fetchFeedback = useCallback(async () => {
-    setLoading(true);
-    const params = new URLSearchParams({ limit: '50' });
-
-    if (typeFilter !== 'all') {
-      params.set('type', typeFilter);
-    }
-    if (linearFilter === 'synced') {
-      params.set('hasLinearIssue', 'true');
-    } else if (linearFilter === 'not_synced') {
-      params.set('hasLinearIssue', 'false');
-    }
-    if (searchQuery.trim()) {
-      params.set('search', searchQuery.trim());
-    }
-
-    const response = await fetch(`/api/admin/feedback?${params}`);
-    if (!response.ok) {
-      console.error('Failed to fetch feedback:', response.status);
-      setLoading(false);
-      return;
-    }
-
-    const data: FeedbackResponse = await response.json();
-    setFeedback(data.feedback);
-    setStats(data.stats);
-    setPagination(data.pagination);
-    setLoading(false);
-  }, [typeFilter, linearFilter, searchQuery]);
-
-  useEffect(() => {
-    fetchFeedback();
-  }, [fetchFeedback]);
-
-  // Debounced search
+  // Debounce search query
   useEffect(() => {
     const timer = setTimeout(() => {
-      if (searchQuery !== '') {
-        fetchFeedback();
-      }
+      setDebouncedSearch(searchQuery);
     }, 300);
     return () => clearTimeout(timer);
-  }, [searchQuery, fetchFeedback]);
+  }, [searchQuery]);
+
+  // Fetch feedback when filters change (single consolidated effect)
+  useEffect(() => {
+    const fetchFeedback = async () => {
+      setLoading(true);
+      setError(null);
+      const params = new URLSearchParams({ limit: '50' });
+
+      if (typeFilter !== 'all') {
+        params.set('type', typeFilter);
+      }
+      if (linearFilter === 'synced') {
+        params.set('hasLinearIssue', 'true');
+      } else if (linearFilter === 'not_synced') {
+        params.set('hasLinearIssue', 'false');
+      }
+      if (debouncedSearch.trim()) {
+        params.set('search', debouncedSearch.trim());
+      }
+
+      const response = await fetch(`/api/admin/feedback?${params}`);
+      if (!response.ok) {
+        console.error('Failed to fetch feedback:', response.status);
+        setError(`Failed to load feedback (${response.status})`);
+        setLoading(false);
+        return;
+      }
+
+      const data: FeedbackResponse = await response.json();
+      setFeedback(data.feedback);
+      setStats(data.stats);
+      setPagination(data.pagination);
+      setLoading(false);
+    };
+
+    fetchFeedback();
+  }, [typeFilter, linearFilter, debouncedSearch]);
+
+  // Escape key to close modal
+  useEffect(() => {
+    if (!selectedFeedback) return;
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setSelectedFeedback(null);
+    };
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, [selectedFeedback]);
+
+  // Manual refresh function for button
+  const handleRefresh = () => {
+    setDebouncedSearch(searchQuery); // Trigger refetch
+  };
 
   const getTypeConfig = (type: string) => {
     return (
@@ -268,12 +286,29 @@ export function FeedbackTab() {
         {/* Refresh */}
         <button
           type="button"
-          onClick={() => fetchFeedback()}
+          onClick={handleRefresh}
           className="h-10 rounded-lg border border-border bg-background px-4 text-sm hover:bg-muted"
         >
           Refresh
         </button>
       </div>
+
+      {/* Error State */}
+      {error && (
+        <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-red-400">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="h-5 w-5" />
+            <span>{error}</span>
+          </div>
+          <button
+            type="button"
+            onClick={handleRefresh}
+            className="mt-2 text-sm underline hover:no-underline"
+          >
+            Try again
+          </button>
+        </div>
+      )}
 
       {/* Feedback List */}
       <div className="space-y-3">
@@ -386,6 +421,9 @@ export function FeedbackTab() {
       {/* Selected Feedback Detail Modal */}
       {selectedFeedback && (
         <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="feedback-modal-title"
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
           onClick={() => setSelectedFeedback(null)}
         >
@@ -409,7 +447,7 @@ export function FeedbackTab() {
                         <Icon className={cn('h-6 w-6', config.color)} />
                       </div>
                       <div>
-                        <h3 className="font-bold text-lg">{config.label}</h3>
+                        <h3 id="feedback-modal-title" className="font-bold text-lg">{config.label}</h3>
                         <p className="text-muted-foreground text-sm">
                           ID: {selectedFeedback.id}
                         </p>

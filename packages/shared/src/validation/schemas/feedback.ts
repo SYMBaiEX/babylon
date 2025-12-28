@@ -15,6 +15,14 @@ export const FeedbackTypeSchema = z.enum([
 export type FeedbackType = z.infer<typeof FeedbackTypeSchema>;
 
 /**
+ * Validation limits exported for UI consumption.
+ * Keeps schema and UI character counters in sync.
+ */
+export const FEEDBACK_DESCRIPTION_MIN_LENGTH = 10;
+export const FEEDBACK_DESCRIPTION_MAX_LENGTH = 5000;
+export const FEEDBACK_STEPS_MAX_LENGTH = 2000;
+
+/**
  * Allowed domains for screenshot URLs.
  * Prevents users from injecting arbitrary URLs.
  */
@@ -56,9 +64,16 @@ export const GameFeedbackSchema = z
     description: z
       .string()
       .trim()
-      .min(10, 'Description must be at least 10 characters')
-      .max(5000),
-    stepsToReproduce: z.string().trim().max(2000).optional(),
+      .min(
+        FEEDBACK_DESCRIPTION_MIN_LENGTH,
+        `Description must be at least ${FEEDBACK_DESCRIPTION_MIN_LENGTH} characters`
+      )
+      .max(FEEDBACK_DESCRIPTION_MAX_LENGTH),
+    stepsToReproduce: z
+      .string()
+      .trim()
+      .max(FEEDBACK_STEPS_MAX_LENGTH)
+      .optional(),
     screenshotUrl: z
       .string()
       .optional()

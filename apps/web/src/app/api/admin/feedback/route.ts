@@ -20,6 +20,31 @@ interface FeedbackMetadata {
 }
 
 /**
+ * Safely parse an integer from a string, returning a default if invalid.
+ */
+function safeParseInt(value: string | null, defaultValue: number): number {
+  if (!value) return defaultValue;
+  const parsed = parseInt(value, 10);
+  return Number.isFinite(parsed) && !Number.isNaN(parsed) ? parsed : defaultValue;
+}
+
+/**
+ * Escape SQL ILIKE metacharacters to prevent pattern injection.
+ */
+function escapeIlike(str: string): string {
+  return str.replace(/[%_\\]/g, (char) => `\\${char}`);
+}
+
+/**
+ * Validate and parse a date string, returning null if invalid.
+ */
+function parseDate(dateStr: string | null): Date | null {
+  if (!dateStr) return null;
+  const parsed = new Date(dateStr);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+/**
  * GET /api/admin/feedback
  *
  * Fetches game feedback submissions with optional filtering.
@@ -28,13 +53,19 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   await requireAdmin(request);
 
   const { searchParams } = new URL(request.url);
-  const limit = Math.min(parseInt(searchParams.get('limit') ?? '50', 10), 200);
-  const offset = parseInt(searchParams.get('offset') ?? '0', 10);
+
+  // Safely parse pagination params with fallbacks
+  const rawLimit = safeParseInt(searchParams.get('limit'), 50);
+  const limit = Math.min(Math.max(rawLimit, 1), 200); // Clamp between 1-200
+  const offset = Math.max(safeParseInt(searchParams.get('offset'), 0), 0);
+
   const feedbackType = searchParams.get('type'); // bug, feature_request, performance
   const hasLinearIssue = searchParams.get('hasLinearIssue'); // true, false
   const search = searchParams.get('search'); // search in comment
-  const fromDate = searchParams.get('fromDate');
-  const toDate = searchParams.get('toDate');
+
+  // Validate date params
+  const fromDate = parseDate(searchParams.get('fromDate'));
+  const toDate = parseDate(searchParams.get('toDate'));
 
   // Build conditions using SQL for JSON field access
   const conditions = [eq(feedbacks.interactionType, 'general_game_feedback')];
@@ -52,16 +83,20 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   }
 
   if (search) {
-    conditions.push(ilike(feedbacks.comment, `%${search}%`));
+    // Escape ILIKE metacharacters to prevent pattern injection
+    conditions.push(ilike(feedbacks.comment, `%${escapeIlike(search)}%`));
   }
 
   if (fromDate) {
-    conditions.push(gte(feedbacks.createdAt, new Date(fromDate)));
+    conditions.push(gte(feedbacks.createdAt, fromDate));
   }
 
   if (toDate) {
-    conditions.push(lte(feedbacks.createdAt, new Date(toDate)));
+    conditions.push(lte(feedbacks.createdAt, toDate));
   }
+
+  // Combine all conditions for reuse in count query
+  const whereClause = and(...conditions);
 
   // Fetch feedback with user info via join
   const feedbackItems = await db
@@ -82,19 +117,19 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     })
     .from(feedbacks)
     .leftJoin(users, eq(feedbacks.fromUserId, users.id))
-    .where(and(...conditions))
+    .where(whereClause)
     .orderBy(desc(feedbacks.createdAt))
     .limit(limit)
     .offset(offset);
 
-  // Get total count for pagination
+  // Get total count for pagination - use same filters as main query
   const countResult = await db
     .select({ count: sql<number>`COUNT(*)::int` })
     .from(feedbacks)
-    .where(eq(feedbacks.interactionType, 'general_game_feedback'));
+    .where(whereClause);
   const totalCount = countResult[0]?.count ?? 0;
 
-  // Get stats by feedback type
+  // Get stats by feedback type (unfiltered to show overall distribution)
   const statsResult = await db
     .select({
       feedbackType: sql<string>`${feedbacks.metadata}->>'feedbackType'`,
@@ -144,7 +179,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       hasMore: offset + feedbackItems.length < totalCount,
     },
     stats: {
-      total: totalCount,
+      total: statsResult.reduce((acc, s) => acc + s.count, 0),
       byType: Object.fromEntries(
         statsResult.map((s) => [s.feedbackType ?? 'unknown', s.count])
       ),

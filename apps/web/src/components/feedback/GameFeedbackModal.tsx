@@ -246,17 +246,18 @@ export function GameFeedbackModal({ isOpen, onClose }: GameFeedbackModalProps) {
       let uploadedScreenshotUrl: string | null = null;
 
       // Helper to cleanup orphaned screenshot on submission failure
-      const cleanupOrphanedScreenshot = async (url: string) => {
+      const cleanupOrphanedScreenshot = (url: string) => {
         const token = getAuthToken();
         const headers: HeadersInit = {};
         if (token) headers['Authorization'] = `Bearer ${token}`;
-        // Fire-and-forget cleanup - don't block on failure
-        fetch('/api/upload/image', {
+        // Fire-and-forget cleanup - log failures for observability but don't block
+        void fetch('/api/upload/image', {
           method: 'DELETE',
           headers: { ...headers, 'Content-Type': 'application/json' },
           body: JSON.stringify({ url }),
-        }).catch(() => {
-          // Silently ignore cleanup failures - not critical
+        }).catch((error) => {
+          // Log for observability but don't block user flow
+          console.warn('Failed to cleanup orphaned screenshot:', url, error);
         });
       };
 
@@ -371,6 +372,7 @@ export function GameFeedbackModal({ isOpen, onClose }: GameFeedbackModalProps) {
             </p>
           </div>
           <button
+            type="button"
             onClick={handleClose}
             disabled={isSubmitting}
             className="rounded-lg p-2 transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
@@ -388,6 +390,7 @@ export function GameFeedbackModal({ isOpen, onClose }: GameFeedbackModalProps) {
             <>
               {/* Back button */}
               <button
+                type="button"
                 onClick={() => setFeedbackType(null)}
                 disabled={isSubmitting}
                 className="text-muted-foreground text-sm transition-colors hover:text-foreground disabled:opacity-50"
@@ -435,6 +438,7 @@ export function GameFeedbackModal({ isOpen, onClose }: GameFeedbackModalProps) {
               {/* Action Buttons */}
               <div className="flex items-center gap-3 pt-4">
                 <button
+                  type="button"
                   onClick={handleSubmit}
                   disabled={
                     isSubmitting || (retryAfter !== null && retryAfter > 0)
@@ -463,6 +467,7 @@ export function GameFeedbackModal({ isOpen, onClose }: GameFeedbackModalProps) {
                   )}
                 </button>
                 <button
+                  type="button"
                   onClick={handleClose}
                   disabled={isSubmitting}
                   className={cn(
