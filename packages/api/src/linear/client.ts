@@ -63,6 +63,10 @@ export async function createLinearIssue(
   return issue;
 }
 
+/**
+ * Get Linear configuration from environment variables.
+ * Returns null if not configured or if credentials appear invalid.
+ */
 export function getLinearConfig(): {
   apiKey: string;
   teamId: string;
@@ -71,6 +75,14 @@ export function getLinearConfig(): {
   const apiKey = process.env.LINEAR_API_KEY;
   const teamId = process.env.LINEAR_TEAM_ID;
   if (!apiKey || !teamId) return null;
+
+  // Validate API key format (Linear API keys start with "lin_api_")
+  if (!apiKey.startsWith('lin_api_')) {
+    logger.warn(
+      'LINEAR_API_KEY appears invalid (should start with "lin_api_"). Linear integration disabled.'
+    );
+    return null;
+  }
 
   return {
     apiKey,

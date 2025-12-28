@@ -82,8 +82,18 @@ export interface FeedbackUser {
 }
 
 /**
+ * Zod schema for validating Linear sync metadata from the database.
+ * Used for idempotency check to prevent duplicate issue creation.
+ */
+const LinearSyncMetadataSchema = z.object({
+  linearIssueId: z.string().optional().catch(undefined),
+});
+
+/**
  * Syncs a feedback record to Linear by creating an issue.
  * Updates the feedback metadata with the Linear issue reference.
+ *
+ * Idempotent: If feedback already has a linearIssueId, skips creation.
  */
 export async function syncFeedbackToLinear(
   config: LinearConfig,
@@ -106,6 +116,17 @@ export async function syncFeedbackToLinear(
     feedback.metadata && typeof feedback.metadata === 'object'
       ? feedback.metadata
       : {};
+
+  // Idempotency check: skip if already synced to Linear
+  const syncMetadata = LinearSyncMetadataSchema.parse(rawMetadata);
+  if (syncMetadata.linearIssueId) {
+    logger.info('Feedback already synced to Linear, skipping', {
+      feedbackId,
+      linearIssueId: syncMetadata.linearIssueId,
+    });
+    return;
+  }
+
   const metadata: FeedbackMetadata = FeedbackMetadataSchema.parse(rawMetadata);
 
   const formatted = formatFeedbackForLinear({
@@ -133,8 +154,10 @@ export async function syncFeedbackToLinear(
     { feedbackId }
   );
 
-  // Atomic update: fetch fresh metadata to prevent race conditions
-  // Another process could have updated metadata between our initial read and now
+  // Merge update: fetch fresh metadata to preserve concurrent updates.
+  // Note: This is not truly atomic (TOCTOU gap exists), but the idempotency
+  // check above prevents duplicate Linear issues, and metadata merge is
+  // additive only. Risk is acceptable for fire-and-forget background sync.
   const freshFeedback = await db.feedback.findUnique({
     where: { id: feedbackId },
     select: { metadata: true },

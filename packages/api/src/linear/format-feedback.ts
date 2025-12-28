@@ -1,4 +1,4 @@
-import type { FeedbackType } from '@babylon/shared';
+import { FEEDBACK_TYPE_CONFIG, type FeedbackType } from '@babylon/shared';
 
 export type { FeedbackType };
 
@@ -13,11 +13,14 @@ export interface FeedbackData {
   userEmail?: string | null;
 }
 
-const TYPE_CONFIG: Record<FeedbackType, { label: string; heading: string }> = {
-  bug: { label: '🐛 Bug', heading: 'Bug Report' },
-  feature_request: { label: '✨ Feature', heading: 'Feature Request' },
-  performance: { label: '⚡ Performance', heading: 'Performance Issue' },
-};
+/**
+ * Get formatted label with emoji for Linear issue titles.
+ * Uses shared FEEDBACK_TYPE_CONFIG for DRY compliance.
+ */
+function getLinearLabel(feedbackType: FeedbackType): string {
+  const config = FEEDBACK_TYPE_CONFIG[feedbackType];
+  return `${config.emoji} ${config.heading.split(' ')[0]}`; // "🐛 Bug", "✨ Feature", "⚡ Performance"
+}
 
 /**
  * Escape HTML entities to prevent XSS in Linear's UI
@@ -35,7 +38,7 @@ export function formatFeedbackForLinear(feedback: FeedbackData): {
   title: string;
   description: string;
 } {
-  const config = TYPE_CONFIG[feedback.feedbackType];
+  const config = FEEDBACK_TYPE_CONFIG[feedback.feedbackType];
 
   // Sanitize user-provided content to prevent XSS in Linear's UI
   const safeDescription = escapeHtml(feedback.description);
@@ -89,7 +92,7 @@ export function formatFeedbackForLinear(feedback: FeedbackData): {
   );
 
   return {
-    title: `[${config.label}] ${truncatedDesc}`,
+    title: `[${getLinearLabel(feedback.feedbackType)}] ${truncatedDesc}`,
     description: lines.join('\n'),
   };
 }

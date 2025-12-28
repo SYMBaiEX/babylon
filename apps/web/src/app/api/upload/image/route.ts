@@ -129,6 +129,8 @@ const MIME_TO_EXT: Record<string, string> = {
 /**
  * Magic byte signatures for image validation.
  * Prevents uploading executables disguised as images.
+ *
+ * Note: WebP requires special handling - see validateImageMagicBytes.
  */
 const IMAGE_MAGIC_BYTES: Record<string, number[][]> = {
   'image/jpeg': [
@@ -141,16 +143,30 @@ const IMAGE_MAGIC_BYTES: Record<string, number[][]> = {
     [0x47, 0x49, 0x46, 0x38, 0x37, 0x61], // GIF87a
     [0x47, 0x49, 0x46, 0x38, 0x39, 0x61], // GIF89a
   ],
-  'image/webp': [
-    [0x52, 0x49, 0x46, 0x46], // RIFF (WebP container)
-  ],
 };
+
+/** WebP magic bytes: RIFF at bytes 0-3, WEBP at bytes 8-11 */
+const WEBP_RIFF_HEADER = [0x52, 0x49, 0x46, 0x46]; // "RIFF"
+const WEBP_FORMAT_MARKER = [0x57, 0x45, 0x42, 0x50]; // "WEBP"
 
 /**
  * Validates that file bytes match the declared MIME type.
  * Prevents uploading executables disguised as images.
  */
 function validateImageMagicBytes(buffer: Buffer, mimeType: string): boolean {
+  // WebP requires special handling: RIFF container at bytes 0-3,
+  // file size at bytes 4-7 (variable), WEBP marker at bytes 8-11
+  if (mimeType === 'image/webp') {
+    if (buffer.length < 12) return false;
+    const hasRiffHeader = WEBP_RIFF_HEADER.every(
+      (byte, i) => buffer[i] === byte
+    );
+    const hasWebpMarker = WEBP_FORMAT_MARKER.every(
+      (byte, i) => buffer[8 + i] === byte
+    );
+    return hasRiffHeader && hasWebpMarker;
+  }
+
   const signatures = IMAGE_MAGIC_BYTES[mimeType];
   if (!signatures) {
     return false;

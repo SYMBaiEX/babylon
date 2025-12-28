@@ -13,12 +13,17 @@
  */
 'use client';
 
-import { cn } from '@babylon/shared';
+import {
+  cn,
+  FEEDBACK_TYPE_CONFIG,
+  type FeedbackType,
+} from '@babylon/shared';
 import {
   AlertTriangle,
   Bug,
   ExternalLink,
   Image as ImageIcon,
+  type LucideIcon,
   Lightbulb,
   Loader2,
   RefreshCw,
@@ -76,24 +81,35 @@ interface FeedbackResponse {
 /**
  * Filter types
  */
-type FeedbackTypeFilter = 'all' | 'bug' | 'feature_request' | 'performance';
+type FeedbackTypeFilter = 'all' | FeedbackType;
 type LinearFilter = 'all' | 'synced' | 'not_synced';
 
-const FEEDBACK_TYPE_CONFIG = {
+/**
+ * UI-specific feedback type config.
+ * Extends shared FEEDBACK_TYPE_CONFIG with icons and colors for the admin UI.
+ */
+interface FeedbackTypeUIConfig {
+  label: string;
+  icon: LucideIcon;
+  color: string;
+  bgColor: string;
+}
+
+const FEEDBACK_TYPE_UI_CONFIG: Record<FeedbackType | 'unknown', FeedbackTypeUIConfig> = {
   bug: {
-    label: 'Bug Report',
+    label: FEEDBACK_TYPE_CONFIG.bug.label,
     icon: Bug,
     color: 'text-red-500',
     bgColor: 'bg-red-500/10',
   },
   feature_request: {
-    label: 'Feature Request',
+    label: FEEDBACK_TYPE_CONFIG.feature_request.label,
     icon: Lightbulb,
     color: 'text-amber-500',
     bgColor: 'bg-amber-500/10',
   },
   performance: {
-    label: 'Performance Issue',
+    label: FEEDBACK_TYPE_CONFIG.performance.label,
     icon: Zap,
     color: 'text-blue-500',
     bgColor: 'bg-blue-500/10',
@@ -226,10 +242,10 @@ export function FeedbackTab() {
     setSyncing(false);
   }, []);
 
-  const getTypeConfig = (type: string) => {
+  const getTypeConfig = (type: string): FeedbackTypeUIConfig => {
     return (
-      FEEDBACK_TYPE_CONFIG[type as keyof typeof FEEDBACK_TYPE_CONFIG] ??
-      FEEDBACK_TYPE_CONFIG.unknown
+      FEEDBACK_TYPE_UI_CONFIG[type as keyof typeof FEEDBACK_TYPE_UI_CONFIG] ??
+      FEEDBACK_TYPE_UI_CONFIG.unknown
     );
   };
 

@@ -15,6 +15,39 @@ export const FeedbackTypeSchema = z.enum([
 export type FeedbackType = z.infer<typeof FeedbackTypeSchema>;
 
 /**
+ * Shared feedback type configuration.
+ * Contains base labels and formatting used across UI and Linear integration.
+ * Consumers can extend with their own properties (icons, colors, etc.).
+ */
+export const FEEDBACK_TYPE_CONFIG: Record<
+  FeedbackType,
+  {
+    /** Human-readable label for the feedback type */
+    label: string;
+    /** Short heading for issue titles/reports */
+    heading: string;
+    /** Emoji representation for text contexts (Linear, notifications) */
+    emoji: string;
+  }
+> = {
+  bug: {
+    label: 'Bug Report',
+    heading: 'Bug Report',
+    emoji: '🐛',
+  },
+  feature_request: {
+    label: 'Feature Request',
+    heading: 'Feature Request',
+    emoji: '✨',
+  },
+  performance: {
+    label: 'Performance Issue',
+    heading: 'Performance Issue',
+    emoji: '⚡',
+  },
+};
+
+/**
  * Validation limits exported for UI consumption.
  * Keeps schema and UI character counters in sync.
  */

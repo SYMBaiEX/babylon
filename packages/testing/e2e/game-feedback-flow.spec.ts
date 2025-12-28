@@ -15,14 +15,33 @@ const BASE_URL =
   process.env.NEXT_PUBLIC_APP_URL ||
   'http://localhost:3000';
 
+/**
+ * Strict mode for CI: fails instead of skipping when elements aren't found.
+ * Set CI=true or STRICT_E2E_TESTS=true to enable.
+ */
+const STRICT_MODE = process.env.CI === 'true' || process.env.STRICT_E2E_TESTS === 'true';
+
+/**
+ * Skip or fail a test based on strict mode.
+ * In CI/strict mode, fails with a descriptive message.
+ * In local dev, logs info and skips.
+ */
+function skipOrFail(message: string): void {
+  if (STRICT_MODE) {
+    throw new Error(`[STRICT MODE] ${message}`);
+  }
+  console.log(`ℹ️ ${message}`);
+  test.skip();
+}
+
 test.describe('Game Feedback Button', () => {
   test('should display feedback button on main pages', async ({ page }) => {
     // Navigate to the feed page
     await page.goto(`${BASE_URL}/feed?dev=true`);
 
-    // Wait for page to load
+    // Wait for page to load and hydrate
     await page.waitForLoadState('domcontentloaded');
-    await page.waitForTimeout(2000); // Wait for React hydration
+    await page.waitForLoadState('networkidle');
 
     // Look for the feedback button (floating in bottom right or header)
     const feedbackButton = page.locator(
@@ -54,7 +73,6 @@ test.describe('Game Feedback Modal (Authenticated)', () => {
   test('should open feedback modal when button clicked', async ({ page }) => {
     await page.goto(`${BASE_URL}/feed`);
     await page.waitForLoadState('networkidle');
-    await page.waitForTimeout(1000);
 
     // Find and click the feedback button
     const feedbackButton = page
@@ -68,13 +86,11 @@ test.describe('Game Feedback Modal (Authenticated)', () => {
       .catch(() => false);
 
     if (!buttonVisible) {
-      console.log('ℹ️ Feedback button not found - skipping modal test');
-      test.skip();
+      skipOrFail('Feedback button not found - skipping modal test');
       return;
     }
 
     await feedbackButton.click();
-    await page.waitForTimeout(500);
 
     // Check for modal dialog
     const modal = page.locator(
@@ -98,12 +114,11 @@ test.describe('Game Feedback Modal (Authenticated)', () => {
       .isVisible({ timeout: 5000 })
       .catch(() => false);
     if (!buttonVisible) {
-      test.skip();
+      skipOrFail('Feedback button not found - skipping feedback type test');
       return;
     }
 
     await feedbackButton.click();
-    await page.waitForTimeout(500);
 
     // Check for feedback type options
     const bugOption = page.locator('text=Bug Report, button:has-text("Bug")');
@@ -146,12 +161,11 @@ test.describe('Game Feedback Modal (Authenticated)', () => {
       .isVisible({ timeout: 5000 })
       .catch(() => false);
     if (!buttonVisible) {
-      test.skip();
+      skipOrFail('Feedback button not found - skipping validation test');
       return;
     }
 
     await feedbackButton.click();
-    await page.waitForTimeout(500);
 
     // Try to submit without filling required fields
     const submitButton = page
@@ -176,7 +190,6 @@ test.describe('Game Feedback Modal (Authenticated)', () => {
     } else {
       // Click submit and check for validation error
       await submitButton.click();
-      await page.waitForTimeout(500);
 
       // Look for error message
       const errorMessage = page.locator(
@@ -204,8 +217,7 @@ test.describe('Admin Feedback Panel (Authenticated)', () => {
     // Check if we're on admin page
     const isAdmin = page.url().includes('/admin');
     if (!isAdmin) {
-      console.log('ℹ️ Not on admin page - may not have admin access');
-      test.skip();
+      skipOrFail('Not on admin page - may not have admin access');
       return;
     }
 
@@ -234,7 +246,7 @@ test.describe('Admin Feedback Panel (Authenticated)', () => {
 
     // Check if we're on admin page
     if (!page.url().includes('/admin')) {
-      test.skip();
+      skipOrFail('Not on admin page - may not have admin access');
       return;
     }
 
@@ -247,14 +259,13 @@ test.describe('Admin Feedback Panel (Authenticated)', () => {
       .isVisible({ timeout: 5000 })
       .catch(() => false);
     if (!tabVisible) {
-      test.skip();
+      skipOrFail('Feedback tab not found in admin panel');
       return;
     }
 
     await feedbackTab.click();
-    await page.waitForTimeout(1000);
 
-    // Check for feedback list or empty state
+    // Check for feedback list or empty state (wait for content to load)
     const feedbackList = page.locator(
       '[class*="feedback"], text=Bug Report, text=Feature Request, text=No feedback'
     );
@@ -273,7 +284,7 @@ test.describe('Admin Feedback Panel (Authenticated)', () => {
     await page.waitForLoadState('networkidle');
 
     if (!page.url().includes('/admin')) {
-      test.skip();
+      skipOrFail('Not on admin page - may not have admin access');
       return;
     }
 
@@ -285,12 +296,11 @@ test.describe('Admin Feedback Panel (Authenticated)', () => {
       .isVisible({ timeout: 5000 })
       .catch(() => false);
     if (!tabVisible) {
-      test.skip();
+      skipOrFail('Feedback tab not found in admin panel');
       return;
     }
 
     await feedbackTab.click();
-    await page.waitForTimeout(1000);
 
     // Look for filter dropdowns
     const typeFilter = page

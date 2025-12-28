@@ -93,26 +93,34 @@ export const POST = withErrorHandling(
       });
     }
 
-    // Get user info for the sync
-    const user = feedback.fromUserId
-      ? await db.user.findUnique({
-          where: { id: feedback.fromUserId },
-          select: { id: true, email: true },
-        })
-      : null;
-
-    if (!user) {
+    // Get user info for the sync - distinguish between orphaned feedback and deleted user
+    if (!feedback.fromUserId) {
       return errorResponse(
-        'User not found for feedback',
-        'USER_NOT_FOUND',
+        'Feedback has no associated user (orphaned feedback)',
+        'ORPHANED_FEEDBACK',
         400
       );
     }
 
-    // Perform sync (not fire-and-forget - we want to return the result)
+    const user = await db.user.findUnique({
+      where: { id: feedback.fromUserId },
+      select: { id: true, email: true },
+    });
+
+    if (!user) {
+      return errorResponse(
+        'User for feedback not found (may have been deleted)',
+        'USER_NOT_FOUND',
+        404
+      );
+    }
+
+    // Perform sync synchronously - unlike the fire-and-forget pattern in
+    // game-feedback submission, we wait for completion to return results.
+    // syncFeedbackToLinear updates metadata as a side effect, so we refetch.
     await syncFeedbackToLinear(linearConfig, feedbackId, user);
 
-    // Fetch updated feedback to get Linear issue info
+    // Refetch to get canonical metadata after sync (avoids returning stale data)
     const updatedFeedback = await db.feedback.findUnique({
       where: { id: feedbackId },
       select: { metadata: true },
