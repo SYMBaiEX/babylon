@@ -301,8 +301,8 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       });
     }
 
-    // Send notification to user
-    await notifyGroupChatInvite(userId, npcId, finalChatId, finalChatName);
+    // Send notification to user (admin adds are immediate, no inviteId needed)
+    await notifyGroupChatInvite(userId, npcId, groupId, finalChatName);
   });
 
   return NextResponse.json({

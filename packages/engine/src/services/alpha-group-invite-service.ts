@@ -162,14 +162,16 @@ export class AlphaGroupInviteService {
         continue;
       }
 
-      // Check if user is in invite cooldown
+      // Check if user is in invite cooldown (only NPC groups affect cooldown)
       const [latestMembership] = await db
-        .select()
+        .select({ joinedAt: groupMembers.joinedAt })
         .from(groupMembers)
+        .innerJoin(groups, eq(groupMembers.groupId, groups.id))
         .where(
           and(
             eq(groupMembers.userId, userScore.userId),
-            eq(groupMembers.isActive, true)
+            eq(groupMembers.isActive, true),
+            eq(groups.type, 'npc')
           )
         )
         .orderBy(desc(groupMembers.joinedAt))

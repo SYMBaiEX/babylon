@@ -54,11 +54,12 @@ export const POST = withErrorHandling(
         },
       });
 
-      // Mark notification as read
+      // Mark only this specific invite's notification as read
       await db.notification.updateMany({
         where: {
           userId: user.userId,
           type: 'group_invite',
+          inviteId: inviteId,
         },
         data: {
           read: true,

@@ -20,12 +20,12 @@
 
 import {
   and,
-  chatParticipants,
   chats,
   db,
   desc,
   eq,
   followStatuses,
+  groupInvites,
   groupMembers,
   groups,
   gte,
@@ -270,6 +270,7 @@ export class GroupChatService {
 
   /**
    * Record a group chat invite
+   * Creates a pending GroupInvite that requires user acceptance.
    * Chat.groupId → Group.id relationship
    */
   static async recordInvite(
@@ -326,43 +327,51 @@ export class GroupChatService {
       groupId = existingChat.groupId;
     }
 
-    // Check if participant exists
-    const [existingParticipant] = await db
+    // Check for existing invite (unique constraint on groupId + invitedUserId)
+    const [existingInvite] = await db
       .select()
-      .from(chatParticipants)
+      .from(groupInvites)
       .where(
         and(
-          eq(chatParticipants.chatId, chatId),
-          eq(chatParticipants.userId, userId)
+          eq(groupInvites.groupId, groupId),
+          eq(groupInvites.invitedUserId, userId)
         )
       )
       .limit(1);
 
-    if (!existingParticipant) {
-      await db.insert(chatParticipants).values({
-        id: await generateSnowflakeId(),
-        chatId,
-        userId,
-      });
-    }
+    let inviteId: string;
 
-    // Check if already a member
-    const [existingMember] = await db
-      .select()
-      .from(groupMembers)
-      .where(
-        and(eq(groupMembers.groupId, groupId), eq(groupMembers.userId, userId))
-      )
-      .limit(1);
-
-    if (!existingMember) {
-      // Record membership
-      await db.insert(groupMembers).values({
-        id: await generateSnowflakeId(),
+    if (existingInvite) {
+      if (existingInvite.status === 'pending') {
+        // Already has pending invite, nothing to do
+        return;
+      }
+      if (existingInvite.status === 'accepted') {
+        // Already accepted, nothing to do
+        return;
+      }
+      // For declined invites, reset to pending (re-invite flow)
+      inviteId = existingInvite.id;
+      await db
+        .update(groupInvites)
+        .set({
+          status: 'pending',
+          invitedBy: npcId,
+          invitedAt: new Date(),
+          respondedAt: null,
+          message: `Join our group chat "${chatName}"!`,
+        })
+        .where(eq(groupInvites.id, existingInvite.id));
+    } else {
+      // Create new pending invite
+      inviteId = await generateSnowflakeId();
+      await db.insert(groupInvites).values({
+        id: inviteId,
         groupId,
-        userId,
-        role: 'member',
-        addedBy: npcId,
+        invitedUserId: userId,
+        invitedBy: npcId,
+        status: 'pending',
+        message: `Join our group chat "${chatName}"!`,
       });
     }
 
@@ -377,9 +386,9 @@ export class GroupChatService {
         )
       );
 
-    // Send notification to user about the invite
+    // Send notification to user about the invite (with inviteId for proper linking)
     const { notifyGroupChatInvite } = await import('@babylon/api');
-    await notifyGroupChatInvite(userId, npcId, chatId, chatName);
+    await notifyGroupChatInvite(userId, npcId, groupId, chatName, inviteId);
   }
 
   /**

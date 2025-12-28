@@ -473,12 +473,14 @@ export async function notifyReactionOnComment(
 
 /**
  * Create notification for group chat invite
+ * groupId is optional for user-to-user chats that don't have a Group record
  */
 export async function notifyGroupChatInvite(
   userId: string,
   inviterId: string,
-  _chatId: string,
-  chatName: string
+  groupId: string | null | undefined,
+  chatName: string,
+  inviteId?: string
 ): Promise<void> {
   // Don't notify if user invited themselves (shouldn't happen but safety check)
   if (userId === inviterId) {
@@ -498,12 +500,16 @@ export async function notifyGroupChatInvite(
   const inviterName = inviter?.displayName || inviter?.username || 'Someone';
   const message = `${inviterName} invited you to "${chatName}"`;
 
-  await createNotification({
+  // Create notification with groupId and inviteId for proper linking
+  await db.insert(notifications).values({
+    id: await generateSnowflakeId(),
     userId,
-    type: 'system',
+    type: 'group_invite',
     actorId: inviterId,
     title: 'Group Chat Invite',
     message,
+    groupId: groupId ?? undefined,
+    inviteId,
   });
 }
 

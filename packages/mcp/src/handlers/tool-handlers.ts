@@ -1615,11 +1615,13 @@ export async function executeGetGroupInvites(
 /**
  * Execute accept_group_invite tool
  * Chat.groupId → Group.id relationship
+ * Wrapped in transaction for atomicity
  */
 export async function executeAcceptGroupInvite(
   agent: AuthenticatedAgent,
   args: AcceptGroupInviteArgs
 ): Promise<AcceptGroupInviteResult> {
+  // Pre-transaction validation (read-only operations)
   const invite = await db.groupInvite.findUnique({
     where: { id: args.inviteId },
   });
@@ -1671,77 +1673,80 @@ export async function executeAcceptGroupInvite(
     select: { id: true },
   });
 
-  // Update invite status
-  await db.groupInvite.update({
-    where: { id: args.inviteId },
-    data: {
-      status: 'accepted',
-      respondedAt: new Date(),
-    },
-  });
-
-  // Add to chat participants (handle existing inactive participant)
-  if (groupChat) {
-    const existingParticipant = await db.chatParticipant.findFirst({
-      where: {
-        chatId: groupChat.id,
-        userId: agent.userId,
+  // Wrap state-changing operations in a transaction for atomicity
+  return await db.$transaction(async (tx) => {
+    // Update invite status
+    await tx.groupInvite.update({
+      where: { id: args.inviteId },
+      data: {
+        status: 'accepted',
+        respondedAt: new Date(),
       },
     });
 
-    if (existingParticipant) {
-      if (!existingParticipant.isActive) {
-        await db.chatParticipant.update({
-          where: { id: existingParticipant.id },
+    // Add to chat participants (handle existing inactive participant)
+    if (groupChat) {
+      const existingParticipant = await tx.chatParticipant.findFirst({
+        where: {
+          chatId: groupChat.id,
+          userId: agent.userId,
+        },
+      });
+
+      if (existingParticipant) {
+        if (!existingParticipant.isActive) {
+          await tx.chatParticipant.update({
+            where: { id: existingParticipant.id },
+            data: {
+              isActive: true,
+              joinedAt: new Date(),
+              kickedAt: null,
+              kickReason: null,
+            },
+          });
+        }
+      } else {
+        await tx.chatParticipant.create({
           data: {
-            isActive: true,
-            joinedAt: new Date(),
-            kickedAt: null,
-            kickReason: null,
+            id: await generateSnowflakeId(),
+            chatId: groupChat.id,
+            userId: agent.userId,
+            invitedBy: invite.invitedBy,
           },
         });
       }
+    }
+
+    // Add to GroupMember (handle existing inactive member)
+    if (existingMember) {
+      await tx.groupMember.update({
+        where: { id: existingMember.id },
+        data: {
+          isActive: true,
+          role: 'member',
+          joinedAt: new Date(),
+          addedBy: invite.invitedBy,
+          kickedAt: null,
+          kickReason: null,
+        },
+      });
     } else {
-      await db.chatParticipant.create({
+      await tx.groupMember.create({
         data: {
           id: await generateSnowflakeId(),
-          chatId: groupChat.id,
+          groupId: invite.groupId,
           userId: agent.userId,
-          invitedBy: invite.invitedBy,
+          role: 'member',
+          addedBy: invite.invitedBy,
         },
       });
     }
-  }
 
-  // Add to GroupMember (handle existing inactive member)
-  if (existingMember) {
-    await db.groupMember.update({
-      where: { id: existingMember.id },
-      data: {
-        isActive: true,
-        role: 'member',
-        joinedAt: new Date(),
-        addedBy: invite.invitedBy,
-        kickedAt: null,
-        kickReason: null,
-      },
-    });
-  } else {
-    await db.groupMember.create({
-      data: {
-        id: await generateSnowflakeId(),
-        groupId: invite.groupId,
-        userId: agent.userId,
-        role: 'member',
-        addedBy: invite.invitedBy,
-      },
-    });
-  }
-
-  return {
-    success: true,
-    chatId: groupChat?.id || invite.groupId,
-  };
+    return {
+      success: true,
+      chatId: groupChat?.id || invite.groupId,
+    };
+  });
 }
 
 /**
