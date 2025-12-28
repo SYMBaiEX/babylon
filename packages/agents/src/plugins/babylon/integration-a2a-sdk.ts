@@ -12,7 +12,7 @@
 import type { Message, Task } from '@a2a-js/sdk';
 import { A2AClient } from '@a2a-js/sdk/client';
 import { db } from '@babylon/db';
-import { StaticDataRegistry } from '@babylon/engine/services';
+import { StaticDataRegistry } from '@babylon/engine';
 import type { AgentRuntime, Plugin } from '@elizaos/core';
 import { agentWalletService } from '../../identity/AgentWalletService';
 import { logger } from '../../shared/logger';
