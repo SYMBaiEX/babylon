@@ -26,6 +26,40 @@ interface GameFeedbackModalProps {
 }
 
 const STORAGE_KEY = 'game-feedback-form';
+const SCREENSHOT_UPLOAD_TIMEOUT_MS = 30000; // 30 second timeout for screenshot uploads
+
+/**
+ * Sanitizes error messages to prevent exposing sensitive server details.
+ * Returns a user-friendly message for display in toast notifications.
+ */
+function sanitizeErrorMessage(error: unknown): string {
+  // Default user-friendly message
+  const defaultMessage = 'Something went wrong. Please try again.';
+
+  if (!(error instanceof Error)) {
+    return defaultMessage;
+  }
+
+  const message = error.message.toLowerCase();
+
+  // Map known error patterns to user-friendly messages
+  if (message.includes('network') || message.includes('fetch')) {
+    return 'Network error. Please check your connection and try again.';
+  }
+  if (message.includes('timeout') || message.includes('timed out')) {
+    return 'Request timed out. Please try again.';
+  }
+  if (message.includes('abort')) {
+    return 'Request was cancelled.';
+  }
+  if (message.includes('upload')) {
+    return 'Failed to upload screenshot. Please try again.';
+  }
+
+  // For any other error, return a generic message
+  // to avoid exposing potentially sensitive server details
+  return defaultMessage;
+}
 
 export function GameFeedbackModal({ isOpen, onClose }: GameFeedbackModalProps) {
   const [feedbackType, setFeedbackType] = useState<FeedbackType | null>(null);
@@ -129,20 +163,34 @@ export function GameFeedbackModal({ isOpen, onClose }: GameFeedbackModalProps) {
     const headers: HeadersInit = {};
     if (token) headers['Authorization'] = `Bearer ${token}`;
 
-    const response = await fetch('/api/upload/image', {
-      method: 'POST',
-      headers,
-      body: formData,
-      signal,
-    });
+    // Create a timeout signal that aborts after SCREENSHOT_UPLOAD_TIMEOUT_MS
+    const timeoutController = new AbortController();
+    const timeoutId = setTimeout(() => {
+      timeoutController.abort();
+    }, SCREENSHOT_UPLOAD_TIMEOUT_MS);
 
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || 'Failed to upload screenshot');
+    // Combine the external signal with our timeout signal
+    const combinedSignal = signal
+      ? AbortSignal.any([signal, timeoutController.signal])
+      : timeoutController.signal;
+
+    try {
+      const response = await fetch('/api/upload/image', {
+        method: 'POST',
+        headers,
+        body: formData,
+        signal: combinedSignal,
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to upload screenshot');
+      }
+
+      const data = await response.json();
+      return data.url;
+    } finally {
+      clearTimeout(timeoutId);
     }
-
-    const data = await response.json();
-    return data.url;
   };
 
   const handleSubmit = () => {
@@ -225,8 +273,8 @@ export function GameFeedbackModal({ isOpen, onClose }: GameFeedbackModalProps) {
             return;
           }
 
-          const error = await response.json();
-          toast.error(error.error || 'Failed to submit feedback');
+          // Don't expose raw server error messages to users
+          toast.error('Failed to submit feedback. Please try again.');
           return;
         }
 
@@ -241,10 +289,8 @@ export function GameFeedbackModal({ isOpen, onClose }: GameFeedbackModalProps) {
         // Silently ignore abort errors (user cancelled)
         if (error instanceof Error && error.name === 'AbortError') return;
 
-        // Boundary error handling: network failures, JSON parse errors, etc.
-        const message =
-          error instanceof Error ? error.message : 'Failed to submit feedback';
-        toast.error(message);
+        // Sanitize error messages before displaying to prevent exposing sensitive info
+        toast.error(sanitizeErrorMessage(error));
       }
     });
   };

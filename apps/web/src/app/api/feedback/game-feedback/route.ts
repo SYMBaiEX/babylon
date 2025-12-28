@@ -47,27 +47,16 @@
 import {
   authenticate,
   checkRateLimitAndDuplicates,
+  createGameFeedback,
   getLinearConfig,
   RATE_LIMIT_CONFIGS,
   requireUserByIdentifier,
   syncFeedbackToLinear,
   withErrorHandling,
 } from '@babylon/api';
-import { db, type JsonValue } from '@babylon/db';
-import {
-  type FeedbackType,
-  GameFeedbackSchema,
-  generateSnowflakeId,
-  logger,
-} from '@babylon/shared';
+import { GameFeedbackSchema, logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-
-const CATEGORY_MAP: Record<FeedbackType, string> = {
-  bug: 'bug_report',
-  feature_request: 'feature_request',
-  performance: 'performance_issue',
-};
 
 export const POST = withErrorHandling(async (request: NextRequest) => {
   const authUser = await authenticate(request);
@@ -81,36 +70,14 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
 
   const parsed = GameFeedbackSchema.parse(await request.json());
   const fromUser = await requireUserByIdentifier(authUser.userId);
-  const now = new Date();
 
-  const metadata: Record<string, JsonValue> = {
-    feedbackType: parsed.feedbackType,
-    stepsToReproduce: parsed.stepsToReproduce ?? null,
-    screenshotUrl: parsed.screenshotUrl ?? null,
-    rating: parsed.rating ?? null,
-  };
-
-  const feedback = await db.feedback.create({
-    data: {
-      id: await generateSnowflakeId(),
-      fromUserId: fromUser.id,
-      toUserId: null,
-      score: parsed.rating ? parsed.rating * 20 : 50,
-      comment: parsed.description,
-      category: CATEGORY_MAP[parsed.feedbackType],
-      interactionType: 'general_game_feedback',
-      metadata,
-      createdAt: now,
-      updatedAt: now,
-    },
-  });
-
-  logger.info('Game feedback submitted', {
-    feedbackId: feedback.id,
+  // Create feedback using package-level service (handles scoring logic)
+  const feedback = await createGameFeedback({
     userId: fromUser.id,
-    type: parsed.feedbackType,
+    parsed,
   });
 
+  // Fire-and-forget Linear sync (documented in sync-feedback.ts)
   const linearConfig = getLinearConfig();
   if (linearConfig) {
     syncFeedbackToLinear(linearConfig, feedback.id, fromUser).catch(

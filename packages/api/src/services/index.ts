@@ -29,3 +29,5 @@ export * from './prediction-market-onchain';
 export * from './referral-service';
 export * from './reputation-service';
 export * from './waitlist-service';
+// Feedback Service
+export * from './feedback-service';
