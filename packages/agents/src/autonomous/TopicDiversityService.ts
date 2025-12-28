@@ -296,7 +296,7 @@ export class TopicDiversityService {
    */
   private getAgentPrimaryDomain(agentId: string): string {
     const actor = StaticDataRegistry.getActor(agentId);
-    if (!actor || !actor.domain || actor.domain.length === 0) {
+    if (!actor || actor.domain.length === 0) {
       return 'general';
     }
     // Handle empty strings in domain array (e.g., [""])
@@ -309,7 +309,7 @@ export class TopicDiversityService {
    */
   private getAgentDomains(agentId: string): string[] {
     const actor = StaticDataRegistry.getActor(agentId);
-    if (!actor || !actor.domain || actor.domain.length === 0) {
+    if (!actor || actor.domain.length === 0) {
       return ['general'];
     }
     // Filter out empty strings in domain array
