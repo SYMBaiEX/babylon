@@ -37,8 +37,11 @@ describe('normalizeArchetype', () => {
     expect(normalizeArchetype('PERPS_TRADER')).toBe('perps-trader');
   });
 
-  it('should handle empty string', () => {
-    expect(normalizeArchetype('')).toBe('');
+  it('should return "default" for empty/null/undefined', () => {
+    expect(normalizeArchetype('')).toBe('default');
+    expect(normalizeArchetype('   ')).toBe('default');
+    expect(normalizeArchetype(null)).toBe('default');
+    expect(normalizeArchetype(undefined)).toBe('default');
   });
 
   it('should handle already normalized archetypes', () => {

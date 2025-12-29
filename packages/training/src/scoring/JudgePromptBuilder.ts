@@ -368,7 +368,7 @@ The metrics provided are CONTEXT to inform your judgment. Use them to understand
     if (!category || !key) return 'N/A';
 
     // Access nested metric value based on category
-    let value: unknown;
+    let value: number | string | string[] | undefined;
     switch (category) {
       case 'trading':
         value = metrics.trading[key as keyof typeof metrics.trading];

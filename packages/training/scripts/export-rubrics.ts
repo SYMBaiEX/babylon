@@ -55,7 +55,7 @@ if (!fs.existsSync(configDir)) {
   fs.mkdirSync(configDir, { recursive: true });
 }
 
-fs.writeFileSync(outputPath, JSON.stringify(exportData, null, 2));
+fs.writeFileSync(outputPath, `${JSON.stringify(exportData, null, 2)}\n`);
 console.log(`✓ Exported rubrics to ${outputPath}`);
 console.log(`  - ${Object.keys(canonicalRubrics).length} rubric entries`);
 console.log(`  - ${availableArchetypes.length} available archetypes`);

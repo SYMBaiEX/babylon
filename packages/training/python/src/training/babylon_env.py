@@ -696,7 +696,7 @@ You receive market updates and must analyze, reason, and then act."""
             # Trading actions
             if action_type in (
                 "buy", "sell", "buy_prediction", "sell_prediction",
-                "open_perp", "close_perp", "trade", "predict", "bet"
+                "open_perp", "close_perp", "trade"
             ):
                 metrics.trades_executed += 1
                 trade_actions += 1
@@ -722,11 +722,28 @@ You receive market updates and must analyze, reason, and then act."""
                 if size:
                     metrics.avg_position_size += float(size)
 
-            # Prediction actions
-            elif action_type in ("predict", "bet", "forecast"):
+            # Prediction actions (also count as trades but track accuracy separately)
+            if action_type in ("predict", "bet", "forecast"):
                 metrics.predictions_made += 1
+                # Also count as trading actions
+                if action_type not in ("buy", "sell", "buy_prediction", "sell_prediction", "open_perp", "close_perp", "trade"):
+                    metrics.trades_executed += 1
+                    trade_actions += 1
+                
+                # Track accuracy
                 if result.get("correct") or result.get("predictionCorrect"):
                     metrics.correct_predictions += 1
+                
+                # Track P&L from predictions
+                if "pnl" in result and result["pnl"] is not None:
+                    pnl = float(result["pnl"])
+                    pnl_history.append(pnl)
+                    if pnl > 0:
+                        metrics.profitable_trades += 1
+                        if pnl > metrics.largest_win:
+                            metrics.largest_win = pnl
+                    elif pnl < metrics.largest_loss:
+                        metrics.largest_loss = pnl
 
             # Social actions
             elif action_type in ("send_dm", "direct_message", "dm"):
@@ -767,8 +784,10 @@ You receive market updates and must analyze, reason, and then act."""
             elif action_type in ("share_info", "share"):
                 metrics.info_shared += 1
 
-            # Track reputation from environment state (support both camelCase and snake_case)
-            # Only convert to int if the value exists and is not None
+            # Track reputation/influence metrics from environment state
+            # NOTE: We assume these are CUMULATIVE values (final totals) similar to
+            # agentBalance/agentPnL, not per-step deltas. We take the last step's value
+            # as the episode total. If these turn out to be per-step deltas, change = to +=
             env_state = step.get("environmentState", step.get("environment_state", {}))
             if "reputationDelta" in env_state and env_state["reputationDelta"] is not None:
                 metrics.reputation_delta = int(env_state["reputationDelta"])

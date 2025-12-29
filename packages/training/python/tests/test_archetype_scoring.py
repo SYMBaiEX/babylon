@@ -617,9 +617,10 @@ class TestArchetypeNormalizationEdgeCases:
         assert normalize_archetype("super__predictor") == "super--predictor"
 
     def test_empty_string(self):
-        """Empty string should return empty string."""
-        assert normalize_archetype("") == ""
-        assert normalize_archetype("   ") == ""
+        """Empty string should return 'default'."""
+        assert normalize_archetype("") == "default"
+        assert normalize_archetype("   ") == "default"
+        assert normalize_archetype(None) == "default"
 
     def test_unknown_archetype_fallback(self):
         """Unknown archetypes should get default weights."""
@@ -827,7 +828,6 @@ class TestCrossArchetypeComparison:
         )
 
         trader_score = archetype_composite_reward(trading_inputs, "trader", trading_metrics)
-        degen_score = archetype_composite_reward(trading_inputs, "degen", trading_metrics)
         social_score = archetype_composite_reward(trading_inputs, "social-butterfly", trading_metrics)
 
         # Trader should score highest for profitable trading

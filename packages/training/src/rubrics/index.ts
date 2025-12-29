@@ -113,25 +113,14 @@ export const PRIORITY_METRICS: Record<string, string[]> = {
 
 /**
  * Valid canonical archetype names for whitelist validation
+ * Derived from RUBRICS keys to maintain single source of truth
  */
-export const VALID_ARCHETYPES = new Set([
-  'trader',
-  'social-butterfly',
-  'scammer',
-  'degen',
-  'researcher',
-  'information-trader',
-  'goody-twoshoes',
-  'ass-kisser',
-  'perps-trader',
-  'super-predictor',
-  'infosec',
-  'liar',
-]);
+export const VALID_ARCHETYPES = new Set(Object.keys(RUBRICS));
 
 /**
  * Normalize archetype string to canonical format (lowercase, hyphens)
- * Returns 'default' for empty/null/invalid archetypes
+ * Returns 'default' for empty/null values
+ * Note: Does NOT validate against whitelist - use sanitizeArchetype() for that
  */
 export function normalizeArchetype(
   archetype: string | null | undefined
@@ -245,8 +234,10 @@ export function getRubricHash(archetype: string): string {
 /**
  * Get the hash of all rubrics combined
  * Used for detecting any rubric changes
+ * Note: Sorted to match Python implementation for cross-language consistency
  */
 export function getAllRubricsHash(): string {
-  const allRubrics = Object.values(RUBRICS).join('::') + DEFAULT_RUBRIC;
+  const allRubrics =
+    Object.values(RUBRICS).sort().join('::') + DEFAULT_RUBRIC;
   return createHash('sha256').update(allRubrics).digest('hex').substring(0, 16);
 }
