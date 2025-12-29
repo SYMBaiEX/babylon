@@ -17,8 +17,6 @@
 
 ---
 
-# 🎮 Babylon
-
 A real-time prediction market game with autonomous NPCs, perpetual futures, and gamified social mechanics.
 
 **NOTE**: This is currently in development. We expect to launch publicly around December 1st, 2025. This repo will change heavily in the meantime.

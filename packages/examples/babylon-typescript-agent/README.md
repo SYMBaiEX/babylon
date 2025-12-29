@@ -243,21 +243,25 @@ Provide at least one API key.
 ## Development
 
 ### Run Tests
+
 ```bash
 bun test
 ```
 
 ### Test Individual Route
+
 ```bash
 bun run test:routes
 ```
 
 ### Type Check
+
 ```bash
 npx tsc --noEmit
 ```
 
 ### Lint
+
 ```bash
 npx eslint src/ tests/
 ```

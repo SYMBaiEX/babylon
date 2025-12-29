@@ -16,7 +16,7 @@ There is **NO database fallback mode**. A2A is the **ONLY** supported communicat
 2. Configure `BABYLON_A2A_ENDPOINT` in `.env.local`
 3. Configure `AGENT_DEFAULT_PRIVATE_KEY` in `.env.local`
 
-**See:** `A2A_SETUP.md` for setup.
+**See:** `apps/docs/content/a2a/server-configuration.mdx` for setup.
 
 ---
 
@@ -428,8 +428,8 @@ AGENT_DEFAULT_PRIVATE_KEY="0x<generated_key>"
 
 ## Documentation
 
-- **A2A_SETUP.md** - A2A server setup and configuration
-- **A2A Protocol Spec** - `/packages/a2a/README.md`
+- **A2A Setup** - See `apps/docs/content/a2a/server-configuration.mdx`
+- **A2A Protocol Spec** - See `apps/docs/vendor/A2A_protocol.md`
 
 ---
 
