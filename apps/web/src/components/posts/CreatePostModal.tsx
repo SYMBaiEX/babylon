@@ -91,9 +91,18 @@ export function CreatePostModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!authenticated || !user || !content.trim()) return;
+    if (!content.trim()) {
+      toast.error('Please enter some content');
+      return;
+    }
+
+    if (!authenticated || !user) {
+      toast.error('Please log in to post');
+      return;
+    }
 
     setIsSubmitting(true);
+
     // Get auth token from cache (set by useAuth hook)
     const token = getAuthToken();
 
@@ -119,15 +128,18 @@ export function CreatePostModal({
     if (response.ok) {
       const data = await response.json();
       setContent('');
+      toast.success('Post created!');
       // Pass the created post data to the callback
       if (data.post) {
         onPostCreated?.(data.post);
       }
       onClose();
     } else {
-      const error = await response.json();
-      logger.error('Failed to create post:', error, 'CreatePostModal');
-      toast.error(error.error || 'Failed to create post. Please try again.');
+      const errorData = await response.json();
+      const errorMessage =
+        errorData?.error || 'Failed to create post. Please try again.';
+      logger.error('Failed to create post:', errorData, 'CreatePostModal');
+      toast.error(errorMessage);
     }
     setIsSubmitting(false);
   };

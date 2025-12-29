@@ -292,6 +292,32 @@ export class TopicDiversityService {
   }
 
   /**
+   * Get the primary domain for an agent (first domain in their list)
+   */
+  private getAgentPrimaryDomain(agentId: string): string {
+    const actor = StaticDataRegistry.getActor(agentId);
+    if (!actor || actor.domain.length === 0) {
+      return 'general';
+    }
+    // Handle empty strings in domain array (e.g., [""])
+    const firstDomain = actor.domain[0];
+    return firstDomain && firstDomain.trim() !== '' ? firstDomain : 'general';
+  }
+
+  /**
+   * Get all domains for an agent
+   */
+  private getAgentDomains(agentId: string): string[] {
+    const actor = StaticDataRegistry.getActor(agentId);
+    if (!actor || actor.domain.length === 0) {
+      return ['general'];
+    }
+    // Filter out empty strings in domain array
+    const validDomains = actor.domain.filter((d) => d && d.trim() !== '');
+    return validDomains.length > 0 ? validDomains : ['general'];
+  }
+
+  /**
    * Extract repetitive phrases from content for tracking
    */
   extractRepetitivePhrases(content: string): string[] {
@@ -357,28 +383,6 @@ export class TopicDiversityService {
         lastUpdated: new Date(),
       });
     }
-  }
-
-  /**
-   * Get the primary domain for an agent (first domain in their list)
-   */
-  private getAgentPrimaryDomain(agentId: string): string {
-    const actor = StaticDataRegistry.getActor(agentId);
-    if (!actor || !actor.domain || actor.domain.length === 0) {
-      return 'general';
-    }
-    return actor.domain[0] ?? 'general';
-  }
-
-  /**
-   * Get all domains for an agent
-   */
-  private getAgentDomains(agentId: string): string[] {
-    const actor = StaticDataRegistry.getActor(agentId);
-    if (!actor || !actor.domain || actor.domain.length === 0) {
-      return ['general'];
-    }
-    return actor.domain;
   }
 
   /**

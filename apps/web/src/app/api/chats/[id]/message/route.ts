@@ -387,14 +387,18 @@ export const POST = withErrorHandling(
           );
 
           // 9. Get updated membership stats
-          const mem = await db.groupChatMembership.findFirst({
-            where: {
-              AND: [
-                { userId: { equals: user.userId } },
-                { chatId: { equals: chatId } },
-              ],
-            },
+          const chatForGroup = await db.chat.findUnique({
+            where: { id: chatId },
+            select: { groupId: true },
           });
+          const mem = chatForGroup?.groupId
+            ? await db.groupMember.findFirst({
+                where: {
+                  groupId: chatForGroup.groupId,
+                  userId: user.userId,
+                },
+              })
+            : null;
           return { message: msg, membership: mem };
         }
 

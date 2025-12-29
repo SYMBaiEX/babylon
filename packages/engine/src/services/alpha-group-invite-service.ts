@@ -17,10 +17,11 @@ import {
   db,
   desc,
   eq,
-  groupChatMemberships,
+  groupMembers,
+  groups,
   gte,
 } from '@babylon/db';
-import { logger } from '@babylon/shared';
+import { GROUP_CONFIG, logger } from '@babylon/shared';
 import { GroupChatService } from './group-chat-service';
 import { NPCInteractionTracker } from './npc-interaction-tracker';
 import { StaticDataRegistry } from './static-data-registry';
@@ -44,9 +45,7 @@ export class AlphaGroupInviteService {
   // Maximum invites per tick (prevent too many at once)
   private static readonly MAX_INVITES_PER_TICK = 5;
 
-  // User group participation limits (prevent unlimited accumulation)
-  private static readonly MAX_ACTIVE_USER_GROUPS = 5; // Max groups a user can be in simultaneously
-  private static readonly INVITE_COOLDOWN_HOURS = 4; // Hours after joining before next invite eligible
+  // User group participation limits - now use GROUP_CONFIG from @babylon/shared
 
   /**
    * Process alpha group invites for one tick
@@ -116,73 +115,79 @@ export class AlphaGroupInviteService {
         continue;
       }
 
-      // Check if already invited to a group with this NPC
+      // Check if already in a group managed by this NPC
+      // Join with groups to filter by ownerId (the NPC who owns the group)
       const [existingMembership] = await db
         .select()
-        .from(groupChatMemberships)
+        .from(groupMembers)
+        .innerJoin(groups, eq(groupMembers.groupId, groups.id))
         .where(
           and(
-            eq(groupChatMemberships.userId, userScore.userId),
-            eq(groupChatMemberships.npcAdminId, npcId),
-            eq(groupChatMemberships.isActive, true)
+            eq(groupMembers.userId, userScore.userId),
+            eq(groupMembers.isActive, true),
+            eq(groups.ownerId, npcId)
           )
         )
         .limit(1);
 
       if (existingMembership) {
-        continue; // Already in a group
+        continue; // Already in this NPC's group
       }
 
-      // Check if user is at their group limit
+      // Check if user is at their NPC group limit (only NPC groups count)
       const [activeGroupResult] = await db
         .select({ count: count() })
-        .from(groupChatMemberships)
+        .from(groupMembers)
+        .innerJoin(groups, eq(groupMembers.groupId, groups.id))
         .where(
           and(
-            eq(groupChatMemberships.userId, userScore.userId),
-            eq(groupChatMemberships.isActive, true)
+            eq(groupMembers.userId, userScore.userId),
+            eq(groupMembers.isActive, true),
+            eq(groups.type, 'npc')
           )
         );
 
-      const activeGroupCount = activeGroupResult?.count ?? 0;
+      const activeNpcGroupCount = activeGroupResult?.count ?? 0;
 
-      if (activeGroupCount >= AlphaGroupInviteService.MAX_ACTIVE_USER_GROUPS) {
+      if (activeNpcGroupCount >= GROUP_CONFIG.MAX_ACTIVE_USER_GROUPS) {
         logger.debug(
-          'User at group limit, skipping invite',
+          'User at NPC group limit, skipping invite',
           {
             userId: userScore.userId,
-            activeGroups: activeGroupCount,
-            maxGroups: AlphaGroupInviteService.MAX_ACTIVE_USER_GROUPS,
+            activeNpcGroups: activeNpcGroupCount,
+            maxNpcGroups: GROUP_CONFIG.MAX_ACTIVE_USER_GROUPS,
           },
           'AlphaGroupInviteService'
         );
         continue;
       }
 
-      // Check if user is in invite cooldown
+      // Check if user is in invite cooldown (only NPC groups affect cooldown)
       const [latestMembership] = await db
-        .select()
-        .from(groupChatMemberships)
+        .select({ joinedAt: groupMembers.joinedAt })
+        .from(groupMembers)
+        .innerJoin(groups, eq(groupMembers.groupId, groups.id))
         .where(
           and(
-            eq(groupChatMemberships.userId, userScore.userId),
-            eq(groupChatMemberships.isActive, true)
+            eq(groupMembers.userId, userScore.userId),
+            eq(groupMembers.isActive, true),
+            eq(groups.type, 'npc')
           )
         )
-        .orderBy(desc(groupChatMemberships.joinedAt))
+        .orderBy(desc(groupMembers.joinedAt))
         .limit(1);
 
       if (latestMembership) {
         const hoursSinceJoin =
           (Date.now() - latestMembership.joinedAt.getTime()) / (1000 * 60 * 60);
 
-        if (hoursSinceJoin < AlphaGroupInviteService.INVITE_COOLDOWN_HOURS) {
+        if (hoursSinceJoin < GROUP_CONFIG.INVITE_COOLDOWN_HOURS) {
           logger.debug(
             'User in invite cooldown, skipping',
             {
               userId: userScore.userId,
               hoursSinceJoin: hoursSinceJoin.toFixed(2),
-              cooldownRequired: AlphaGroupInviteService.INVITE_COOLDOWN_HOURS,
+              cooldownRequired: GROUP_CONFIG.INVITE_COOLDOWN_HOURS,
             },
             'AlphaGroupInviteService'
           );
@@ -254,17 +259,17 @@ export class AlphaGroupInviteService {
 
     const [totalResult] = await db
       .select({ count: count() })
-      .from(groupChatMemberships);
+      .from(groupMembers);
 
     const [activeResult] = await db
       .select({ count: count() })
-      .from(groupChatMemberships)
-      .where(eq(groupChatMemberships.isActive, true));
+      .from(groupMembers)
+      .where(eq(groupMembers.isActive, true));
 
     const [recentResult] = await db
       .select({ count: count() })
-      .from(groupChatMemberships)
-      .where(gte(groupChatMemberships.joinedAt, oneDayAgo));
+      .from(groupMembers)
+      .where(gte(groupMembers.joinedAt, oneDayAgo));
 
     return {
       totalInvites: totalResult?.count ?? 0,

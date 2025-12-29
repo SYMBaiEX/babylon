@@ -118,6 +118,19 @@ export {
 } from './errors';
 // Fetch utilities
 export { type ApiFetchOptions, apiFetch, getPrivyAccessToken } from './fetch';
+// Linear Integration
+export {
+  type CreateIssueInput,
+  createLinearIssue,
+  type FeedbackType,
+  type FeedbackUser,
+  formatFeedbackForLinear,
+  getLinearConfig,
+  type LinearConfig,
+  type LinearFeedbackData,
+  type LinearIssue,
+  syncFeedbackToLinear,
+} from './linear';
 // Monitoring
 export { cronMetrics, recordCronExecution } from './monitoring/cron-metrics';
 export * from './monitoring/monitored-cache';

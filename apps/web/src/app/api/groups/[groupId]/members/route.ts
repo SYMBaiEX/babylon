@@ -1,138 +1,9 @@
 /**
  * Group Members API
  *
- * @route GET /api/groups/[groupId]/members - Get group members
- * @route POST /api/groups/[groupId]/members - Add member to group
+ * @route POST /api/groups/[groupId]/members - Add member to group (sends invite)
  * @route DELETE /api/groups/[groupId]/members - Remove member from group
- * @access Authenticated (members can view, admins can add/remove)
- *
- * @description
- * Manages group membership. GET returns list of members. POST adds a new member
- * (admin only, sends notification). DELETE removes a member (admin only or self-remove).
- *
- * @openapi
- * /api/groups/{groupId}/members:
- *   get:
- *     tags:
- *       - Groups
- *     summary: Get group members
- *     description: Returns list of group members
- *     security:
- *       - PrivyAuth: []
- *     parameters:
- *       - in: path
- *         name: groupId
- *         required: true
- *         schema:
- *           type: string
- *         description: Group ID
- *     responses:
- *       200:
- *         description: Members retrieved successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 members:
- *                   type: array
- *                   items:
- *                     type: object
- *                     properties:
- *                       userId:
- *                         type: string
- *                       joinedAt:
- *                         type: string
- *                         format: date-time
- *       401:
- *         description: Unauthorized
- *       403:
- *         description: Not a group member
- *       404:
- *         description: Group not found
- *   post:
- *     tags:
- *       - Groups
- *     summary: Add member to group
- *     description: Adds a user to the group (admin only, sends notification)
- *     security:
- *       - PrivyAuth: []
- *     parameters:
- *       - in: path
- *         name: groupId
- *         required: true
- *         schema:
- *           type: string
- *         description: Group ID
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - userId
- *             properties:
- *               userId:
- *                 type: string
- *                 description: User ID to add
- *     responses:
- *       201:
- *         description: Member added successfully
- *       400:
- *         description: User already a member
- *       401:
- *         description: Unauthorized
- *       403:
- *         description: Not a group admin
- *       404:
- *         description: Group or user not found
- *   delete:
- *     tags:
- *       - Groups
- *     summary: Remove member from group
- *     description: Removes a member from the group (admin only or self-remove)
- *     security:
- *       - PrivyAuth: []
- *     parameters:
- *       - in: path
- *         name: groupId
- *         required: true
- *         schema:
- *           type: string
- *         description: Group ID
- *       - in: query
- *         name: userId
- *         required: true
- *         schema:
- *           type: string
- *         description: User ID to remove
- *     responses:
- *       200:
- *         description: Member removed successfully
- *       401:
- *         description: Unauthorized
- *       403:
- *         description: Not authorized to remove member
- *       404:
- *         description: Group or member not found
- *
- * @example
- * ```typescript
- * // Get members
- * const members = await fetch(`/api/groups/${groupId}/members`, {
- *   headers: { 'Authorization': `Bearer ${token}` }
- * });
- *
- * // Add member
- * await fetch(`/api/groups/${groupId}/members`, {
- *   method: 'POST',
- *   headers: { 'Authorization': `Bearer ${token}` },
- *   body: JSON.stringify({ userId: 'user_123' })
- * });
- * ```
- *
- * @see {@link /lib/services/notification-service} Notification service
+ * @access Authenticated (admins can add/remove, members can self-remove)
  */
 
 import {
@@ -142,9 +13,14 @@ import {
   successResponse,
   withErrorHandling,
 } from '@babylon/api';
-import { asUser } from '@babylon/db';
+import {
+  asUser,
+  chatParticipants,
+  generateSnowflakeId,
+  groupMembers,
+  sql,
+} from '@babylon/db';
 import { logger } from '@babylon/shared';
-import { nanoid } from 'nanoid';
 import type { NextRequest } from 'next/server';
 import { z } from 'zod';
 
@@ -154,7 +30,7 @@ const AddMemberSchema = z.object({
 
 /**
  * POST /api/groups/[groupId]/members
- * Add a member to the group (admin only)
+ * Add a member to the group via invite (admin only)
  */
 export const POST = withErrorHandling(
   async (
@@ -168,25 +44,35 @@ export const POST = withErrorHandling(
 
     let groupName = 'Unknown';
     let inviteId = '';
+    let isAgent = false;
 
     await asUser(user, async (db) => {
-      // Check if user is admin
-      const isAdmin = await db.userGroupAdmin.findFirst({
+      // Check if user is admin or owner
+      const membership = await db.groupMember.findFirst({
         where: {
           groupId,
           userId: user.userId,
+          isActive: true,
         },
       });
 
-      if (!isAdmin) {
+      if (!membership || !['admin', 'owner'].includes(membership.role)) {
         throw new ApiError('Only group admins can add members', 403);
       }
 
+      // Check if invitee is an agent (auto-accept, agents can't manually accept invites)
+      const invitee = await db.user.findUnique({
+        where: { id: data.userId },
+        select: { isAgent: true },
+      });
+      isAgent = invitee?.isAgent === true;
+
       // Check if user is already a member
-      const existingMember = await db.userGroupMember.findFirst({
+      const existingMember = await db.groupMember.findFirst({
         where: {
           groupId,
           userId: data.userId,
+          isActive: true,
         },
       });
 
@@ -194,56 +80,136 @@ export const POST = withErrorHandling(
         throw new ApiError('User is already a member of this group', 400);
       }
 
-      // Check if there's already a pending invite
-      const existingInvite = await db.userGroupInvite.findFirst({
-        where: {
-          groupId,
-          invitedUserId: data.userId,
-          status: 'pending',
-        },
-      });
-
-      if (existingInvite) {
-        throw new ApiError('User already has a pending invite', 400);
-      }
-
       // Get group details for notification
-      const group = await db.userGroup.findUnique({
+      const group = await db.group.findUnique({
         where: { id: groupId },
         select: { name: true },
       });
       groupName = group?.name || 'Unknown';
 
-      // Create invite - handle unique constraint race condition
-      inviteId = nanoid();
-      await db.userGroupInvite.create({
-        data: {
-          id: inviteId,
-          groupId,
-          invitedUserId: data.userId,
-          invitedBy: user.userId,
-          status: 'pending',
-          invitedAt: new Date(),
-        },
+      // Find the chat for this group
+      const groupChat = await db.chat.findFirst({
+        where: { groupId },
+        select: { id: true },
       });
+
+      if (isAgent) {
+        // Agents are auto-accepted - add them directly using atomic upserts
+        const now = new Date();
+
+        await db.transaction(async (tx) => {
+          // Upsert GroupMember - use raw SQL for partial index compatibility
+          const memberId = await generateSnowflakeId();
+          await tx.execute(sql`
+            INSERT INTO "GroupMember" (
+              "id", "groupId", "userId", "role", "addedBy", "joinedAt", "isActive",
+              "messageCount", "qualityScore"
+            ) VALUES (
+              ${memberId}, ${groupId}, ${data.userId}, 'member', ${user.userId}, ${now}, true,
+              0, 1.0
+            )
+            ON CONFLICT ("groupId", "userId") WHERE "isActive" = true
+            DO NOTHING
+          `);
+
+          // Update any inactive records to active
+          await tx
+            .update(groupMembers)
+            .set({
+              isActive: true,
+              role: 'member',
+              addedBy: user.userId,
+              joinedAt: now,
+              kickedAt: null,
+              kickReason: null,
+            })
+            .where(
+              sql`${groupMembers.groupId} = ${groupId} AND ${groupMembers.userId} = ${data.userId} AND ${groupMembers.isActive} = false`
+            );
+
+          // Upsert ChatParticipant if chat exists
+          if (groupChat) {
+            const participantId = await generateSnowflakeId();
+            await tx
+              .insert(chatParticipants)
+              .values({
+                id: participantId,
+                chatId: groupChat.id,
+                userId: data.userId,
+                joinedAt: now,
+                isActive: true,
+              })
+              .onConflictDoUpdate({
+                target: [chatParticipants.chatId, chatParticipants.userId],
+                set: {
+                  isActive: true,
+                  joinedAt: now,
+                },
+              });
+          }
+        });
+      } else {
+        // Regular users get an invite
+
+        // Check if there's already an existing invite (unique constraint on groupId + invitedUserId)
+        const existingInvite = await db.groupInvite.findFirst({
+          where: {
+            groupId,
+            invitedUserId: data.userId,
+          },
+        });
+
+        if (existingInvite) {
+          if (existingInvite.status === 'pending') {
+            throw new ApiError('User already has a pending invite', 400);
+          }
+          // For declined or accepted (user left) invites, reset to pending (re-invite flow)
+          await db.groupInvite.update({
+            where: { id: existingInvite.id },
+            data: {
+              status: 'pending',
+              invitedBy: user.userId,
+              invitedAt: new Date(),
+              respondedAt: null,
+            },
+          });
+          inviteId = existingInvite.id;
+        }
+
+        // Create new invite only if no existing invite was found
+        if (!inviteId) {
+          inviteId = await generateSnowflakeId();
+          await db.groupInvite.create({
+            data: {
+              id: inviteId,
+              groupId,
+              invitedUserId: data.userId,
+              invitedBy: user.userId,
+              status: 'pending',
+            },
+          });
+        }
+      }
     });
 
-    // Send notification to the invited user (outside of asUser context)
-    await notifyUserGroupInvite(
-      data.userId,
-      user.userId,
-      groupId,
-      groupName,
-      inviteId
-    );
+    // Send notification to the invited user (only for non-agents)
+    if (!isAgent && inviteId) {
+      await notifyUserGroupInvite(
+        data.userId,
+        user.userId,
+        groupId,
+        groupName,
+        inviteId
+      );
+    }
 
     logger.info(
-      'Member added to group',
-      { userId: user.userId, groupId, newMemberId: data.userId },
+      'Member invited to group',
+      { userId: user.userId, groupId, invitedUserId: data.userId },
       'POST /api/groups/:groupId/members'
     );
 
-    return successResponse({ success: true });
+    return successResponse({ success: true, inviteId });
   }
 );
 
@@ -266,57 +232,62 @@ export const DELETE = withErrorHandling(
     }
 
     await asUser(user, async (db) => {
-      // Check if user is admin or removing themselves
-      const isAdmin = await db.userGroupAdmin.findFirst({
+      // Check if user is admin/owner or removing themselves
+      const userMembership = await db.groupMember.findFirst({
         where: {
           groupId,
           userId: user.userId,
+          isActive: true,
         },
       });
 
       const isSelf = user.userId === userIdToRemove;
+      const isAdmin =
+        userMembership && ['admin', 'owner'].includes(userMembership.role);
 
       if (!isAdmin && !isSelf) {
         throw new ApiError('Only group admins can remove members', 403);
       }
 
-      // Cannot remove the creator
-      const group = await db.userGroup.findUnique({
-        where: { id: groupId },
+      // Get target member
+      const targetMembership = await db.groupMember.findFirst({
+        where: {
+          groupId,
+          userId: userIdToRemove,
+          isActive: true,
+        },
       });
 
-      if (group?.createdById === userIdToRemove) {
-        throw new ApiError('Cannot remove the group creator', 400);
+      if (!targetMembership) {
+        throw new ApiError('User is not a member of this group', 404);
       }
 
-      // Remove member
-      await db.userGroupMember.deleteMany({
-        where: {
-          groupId,
-          userId: userIdToRemove,
+      // Cannot remove the owner
+      if (targetMembership.role === 'owner') {
+        throw new ApiError('Cannot remove the group owner', 400);
+      }
+
+      // Mark member as inactive (soft delete)
+      await db.groupMember.update({
+        where: { id: targetMembership.id },
+        data: {
+          isActive: false,
+          kickedAt: new Date(),
+          kickReason: isSelf ? 'left' : 'removed by admin',
         },
       });
 
-      // Also remove admin status if they have it
-      await db.userGroupAdmin.deleteMany({
-        where: {
-          groupId,
-          userId: userIdToRemove,
-        },
+      // Find chat for this group (Chat.groupId → Group.id)
+      const groupChat = await db.chat.findFirst({
+        where: { groupId },
+        select: { id: true },
       });
 
       // Remove from associated chat
-      const chat = await db.chat.findFirst({
-        where: {
-          groupId: groupId,
-          isGroup: true,
-        },
-      });
-
-      if (chat) {
+      if (groupChat) {
         await db.chatParticipant.deleteMany({
           where: {
-            chatId: chat.id,
+            chatId: groupChat.id,
             userId: userIdToRemove,
           },
         });

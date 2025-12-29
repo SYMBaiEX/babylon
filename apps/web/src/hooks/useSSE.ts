@@ -24,6 +24,7 @@ import {
   type ConnectionState,
   type SSECallback,
   SSEManager,
+  type SSEMessage,
 } from '@/lib/sse';
 
 // Re-export types for backwards compatibility
@@ -34,6 +35,24 @@ export type {
   SSEMessage,
   StaticChannel,
 } from '@/lib/sse';
+
+// Simple console logger for client-side SSE
+const logger = {
+  debug: (...args: unknown[]) => {
+    if (process.env.NODE_ENV === 'development') {
+      console.debug('[SSE]', ...args);
+    }
+  },
+  info: (...args: unknown[]) => {
+    console.info('[SSE]', ...args);
+  },
+  warn: (...args: unknown[]) => {
+    console.warn('[SSE]', ...args);
+  },
+  error: (...args: unknown[]) => {
+    console.error('[SSE]', ...args);
+  },
+};
 
 /**
  * Options for configuring the SSE hook.
@@ -69,7 +88,6 @@ interface SSEHookReturn {
   reconnect: () => void;
 }
 
-type SSECallback = (message: SSEMessage) => void;
 type ConnectionListener = (connected: boolean, error: string | null) => void;
 
 const channelSubscribers = new Map<Channel, Set<SSECallback>>();
@@ -81,11 +99,11 @@ let reconnectAttempts = 0;
 let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
 let pendingTokenRetry: ReturnType<typeof setTimeout> | null = null;
 const connectionListeners = new Set<ConnectionListener>();
-let getAccessTokenRef: (() => Promise<string | null>) | null = null;
-let authenticatedRef = false;
-let autoReconnectRef = true;
-let reconnectDelayRef = 3000;
-let maxReconnectAttemptsRef = 5;
+const getAccessTokenRef: (() => Promise<string | null>) | null = null;
+const authenticatedRef = false;
+const autoReconnectRef = true;
+const reconnectDelayRef = 3000;
+const maxReconnectAttemptsRef = 5;
 const lastEventIds = new Map<Channel, string>();
 let cachedRealtimeToken: {
   token: string;
@@ -107,11 +125,14 @@ const shouldUseCachedToken = (channels: Channel[]) => {
   return cachedRealtimeToken.channelsKey === channelsKeyFromList(channels);
 };
 
+type GetAccessTokenFn = () => Promise<string | null>;
+
 const fetchRealtimeToken = async (
   channels: Channel[]
 ): Promise<string | null> => {
-  if (!getAccessTokenRef) return null;
-  const accessToken = await getAccessTokenRef();
+  const tokenFn = getAccessTokenRef as GetAccessTokenFn | null;
+  if (!tokenFn) return null;
+  const accessToken = await tokenFn();
   if (!accessToken) return null;
 
   const res = await fetch('/api/realtime/token', {

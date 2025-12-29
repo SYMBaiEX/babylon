@@ -92,12 +92,9 @@ export function createJsonClient(): DrizzleClient {
     predictionPriceHistory: createJsonRepo('predictionPriceHistories'),
     chat: createJsonRepo('chats'),
     chatParticipant: createJsonRepo('chatParticipants'),
-    chatAdmin: createJsonRepo('chatAdmins'),
-    chatInvite: createJsonRepo('chatInvites'),
     message: createJsonRepo('messages'),
     notification: createJsonRepo('notifications'),
     dmAcceptance: createJsonRepo('dmAcceptances'),
-    groupChatMembership: createJsonRepo('groupChatMemberships'),
     userInteraction: createJsonRepo('userInteractions'),
     agentRegistry: createJsonRepo('agentRegistries'),
     agentCapability: createJsonRepo('agentCapabilities'),
@@ -115,10 +112,6 @@ export function createJsonClient(): DrizzleClient {
     balanceTransaction: createJsonRepo('balanceTransactions'),
     pointsTransaction: createJsonRepo('pointsTransactions'),
     userActorFollow: createJsonRepo('userActorFollows'),
-    userGroup: createJsonRepo('userGroups'),
-    userGroupAdmin: createJsonRepo('userGroupAdmins'),
-    userGroupInvite: createJsonRepo('userGroupInvites'),
-    userGroupMember: createJsonRepo('userGroupMembers'),
     userBlock: createJsonRepo('userBlocks'),
     userMute: createJsonRepo('userMutes'),
     report: createJsonRepo('reports'),
@@ -161,5 +154,10 @@ export function createJsonClient(): DrizzleClient {
     tickTokenStats: createJsonRepo('tickTokenStats'),
     questionArcPlan: createJsonRepo('questionArcPlans'),
     adminRole: createJsonRepo('adminRoles'),
+
+    // Group system
+    group: createJsonRepo('groups'),
+    groupMember: createJsonRepo('groupMembers'),
+    groupInvite: createJsonRepo('groupInvites'),
   };
 }

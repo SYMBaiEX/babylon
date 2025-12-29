@@ -8,6 +8,8 @@ export * from './agent';
 export * from './chat';
 // Export all common schemas
 export * from './common';
+// Export all feedback schemas
+export * from './feedback';
 // Export all game/utility schemas
 export * from './game';
 // Export all market/position schemas

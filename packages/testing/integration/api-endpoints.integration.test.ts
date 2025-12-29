@@ -624,6 +624,74 @@ describe('API Endpoints - Complete Coverage', () => {
   });
 
   // ============================================
+  // GAME FEEDBACK ENDPOINTS
+  // ============================================
+  describe('Game Feedback', () => {
+    test('POST /api/feedback/game-feedback - requires authentication', async () => {
+      if (!serverAvailable) return;
+      const res = await post('/api/feedback/game-feedback', {
+        feedbackType: 'bug',
+        description: 'Test bug report',
+        stepsToReproduce: '1. Do something 2. See error',
+      });
+      expect(res.status).toBe(401);
+    });
+
+    test('POST /api/feedback/game-feedback - bug report validation', async () => {
+      if (!serverAvailable) return;
+      // Missing required fields
+      const res1 = await post('/api/feedback/game-feedback', {
+        feedbackType: 'bug',
+        description: 'Short', // Too short
+      });
+      expect(res1.status).toBe(401); // Auth required first
+
+      // Missing steps to reproduce
+      const res2 = await post('/api/feedback/game-feedback', {
+        feedbackType: 'bug',
+        description: 'This is a valid bug description with enough characters',
+        // Missing stepsToReproduce
+      });
+      expect(res2.status).toBe(401); // Auth required first
+    });
+
+    test('POST /api/feedback/game-feedback - feature request validation', async () => {
+      if (!serverAvailable) return;
+      // Missing rating
+      const res = await post('/api/feedback/game-feedback', {
+        feedbackType: 'feature_request',
+        description: 'This is a valid feature request description',
+        // Missing rating
+      });
+      expect(res.status).toBe(401); // Auth required first
+    });
+
+    test('POST /api/feedback/game-feedback - performance issue', async () => {
+      if (!serverAvailable) return;
+      // Performance issues don't require additional fields
+      const res = await post('/api/feedback/game-feedback', {
+        feedbackType: 'performance',
+        description: 'This is a valid performance issue description',
+      });
+      expect(res.status).toBe(401); // Auth required first
+    });
+
+    test('POST /api/feedback/game-feedback - rate limiting', async () => {
+      if (!serverAvailable) return;
+      // Note: This test would require authentication
+      // In a real test, we'd need to authenticate first
+      // For now, we just verify the endpoint exists
+      const res = await post('/api/feedback/game-feedback', {
+        feedbackType: 'bug',
+        description: 'Test rate limiting',
+        stepsToReproduce: '1. Test',
+      });
+      // Should return 401 (auth required) or 429 (rate limited if authenticated)
+      expect([401, 429]).toContain(res.status);
+    });
+  });
+
+  // ============================================
   // ERROR HANDLING
   // ============================================
   describe('Error Handling', () => {

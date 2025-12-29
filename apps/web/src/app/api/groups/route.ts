@@ -9,19 +9,17 @@
  * **Features:**
  * - Create custom groups
  * - Multi-member support
- * - Admin role assignment
+ * - Role-based access (owner, admin, member)
  * - Automatic chat creation for each group
- * - Member and admin tracking
  * - Group discovery
  *
- * **Group Roles:**
- * - **Creator:** Original group creator (also admin)
- * - **Admin:** Can manage group settings and members
- * - **Member:** Can participate in group chat
+ * **Group Roles (stored in GroupMember.role):**
+ * - **owner:** Original group creator (full control)
+ * - **admin:** Can manage group settings and members
+ * - **member:** Can participate in group chat
  *
  * **Automatic Features:**
- * - Group creator automatically becomes admin
- * - Group creator automatically becomes member
+ * - Group creator automatically becomes owner
  * - Group gets dedicated chat room
  * - All members added to chat automatically
  *
@@ -31,7 +29,7 @@
  *     tags:
  *       - Groups
  *     summary: List user's groups
- *     description: Returns all groups where user is a member or admin
+ *     description: Returns all groups where user is a member
  *     security:
  *       - PrivyAuth: []
  *     responses:
@@ -53,11 +51,13 @@
  *                         type: string
  *                       description:
  *                         type: string
+ *                       type:
+ *                         type: string
  *                       memberCount:
  *                         type: integer
- *                       isAdmin:
- *                         type: boolean
- *                       isCreator:
+ *                       role:
+ *                         type: string
+ *                       isOwner:
  *                         type: boolean
  *                       createdAt:
  *                         type: string
@@ -125,7 +125,9 @@
  *
  * groups.forEach(group => {
  *   console.log(`${group.name}: ${group.memberCount} members`);
- *   if (group.isAdmin) console.log('  (You are admin)');
+ *   if (group.role === 'admin' || group.role === 'owner') {
+ *     console.log('  (You can manage this group)');
+ *   }
  * });
  *
  * // Create new group
@@ -141,12 +143,14 @@
  * const { group } = await newGroup.json();
  * console.log(`Created group: ${group.id}, Chat: ${group.chatId}`);
  * ```
- *
- * @see {@link /lib/db/context} RLS context
- * @see {@link /src/app/groups/page.tsx} Groups UI
  */
 
-import { authenticate, successResponse, withErrorHandling } from '@babylon/api';
+import {
+  authenticate,
+  notifyUserGroupInvite,
+  successResponse,
+  withErrorHandling,
+} from '@babylon/api';
 import { asUser } from '@babylon/db';
 import { logger } from '@babylon/shared';
 import { nanoid } from 'nanoid';
@@ -156,84 +160,81 @@ import { z } from 'zod';
 const CreateGroupSchema = z.object({
   name: z.string().min(1).max(100),
   memberIds: z.array(z.string()).optional().default([]),
+  // Note: 'type' is intentionally NOT accepted from client.
+  // User-created groups always get type: 'user'.
+  // NPC groups (type: 'npc') are created by backend services.
+  // Agent groups (type: 'agent') are created via MCP tools.
 });
 
 /**
  * GET /api/groups
- * List all groups the user is a member or admin of
+ * List all groups the user is a member of
  */
 export const GET = withErrorHandling(async (request: NextRequest) => {
   const user = await authenticate(request);
 
   const groups = await asUser(user, async (db) => {
-    // Find groups where user is either a member or admin
-    // First, get all group IDs where user is a member or admin
-    const [memberGroups, adminGroups] = await Promise.all([
-      db.userGroupMember.findMany({
-        where: { userId: user.userId },
-        select: { groupId: true },
-      }),
-      db.userGroupAdmin.findMany({
-        where: { userId: user.userId },
-        select: { groupId: true },
-      }),
-    ]);
+    // Find groups where user is a member
+    const memberships = await db.groupMember.findMany({
+      where: {
+        userId: user.userId,
+        isActive: true,
+      },
+    });
 
-    const groupIds = new Set([
-      ...memberGroups.map((m) => m.groupId),
-      ...adminGroups.map((a) => a.groupId),
-    ]);
-
-    if (groupIds.size === 0) {
+    if (memberships.length === 0) {
       return [];
     }
 
+    const groupIds = memberships.map((m) => m.groupId);
+
     // Get the groups
-    const groupIdsArray = Array.from(groupIds);
-    const userGroups = await db.userGroup.findMany({
+    const userGroups = await db.group.findMany({
       where: {
-        id: { in: groupIdsArray },
+        id: { in: groupIds },
       },
       orderBy: {
         createdAt: 'desc',
       },
     });
 
-    // Get member and admin data for all groups
-    const [_allMembers, allAdmins, memberCounts] = await Promise.all([
-      db.userGroupMember.findMany({
-        where: { groupId: { in: groupIdsArray } },
-      }),
-      db.userGroupAdmin.findMany({
-        where: { groupId: { in: groupIdsArray } },
-      }),
-      Promise.all(
-        groupIdsArray.map((gid) =>
-          db.userGroupMember.count({ where: { groupId: gid } })
-        )
-      ),
-    ]);
+    // Get member counts for all groups
+    const memberCounts = await Promise.all(
+      groupIds.map((gid) =>
+        db.groupMember.count({
+          where: { groupId: gid, isActive: true },
+        })
+      )
+    );
 
     const memberCountMap = new Map(
-      groupIdsArray.map((gid, i) => [gid, memberCounts[i] ?? 0])
+      groupIds.map((gid, i) => [gid, memberCounts[i] ?? 0])
     );
-    const adminMap = new Map<string, Set<string>>();
-    allAdmins.forEach((admin) => {
-      if (!adminMap.has(admin.groupId)) {
-        adminMap.set(admin.groupId, new Set());
-      }
-      adminMap.get(admin.groupId)!.add(admin.userId);
+
+    // Build role map from memberships
+    const roleMap = new Map(memberships.map((m) => [m.groupId, m.role]));
+
+    // Get chat IDs for each group (Chat.groupId → Group.id)
+    const groupIdList = userGroups.map((g) => g.id);
+    const groupChats = await db.chat.findMany({
+      where: { groupId: { in: groupIdList } },
+      select: { id: true, groupId: true },
     });
+    const chatIdMap = new Map(groupChats.map((c) => [c.groupId, c.id]));
 
     return userGroups.map((group) => ({
       id: group.id,
       name: group.name,
       description: group.description,
+      type: group.type,
+      chatId: chatIdMap.get(group.id) || null,
       createdAt: group.createdAt,
       updatedAt: group.updatedAt,
       memberCount: memberCountMap.get(group.id) ?? 0,
-      isAdmin: adminMap.get(group.id)?.has(user.userId) ?? false,
-      isCreator: group.createdById === user.userId,
+      role: roleMap.get(group.id) ?? 'member',
+      isOwner: group.ownerId === user.userId,
+      isAdmin:
+        roleMap.get(group.id) === 'admin' || roleMap.get(group.id) === 'owner',
     }));
   });
 
@@ -255,98 +256,140 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   const body = await request.json();
   const data = CreateGroupSchema.parse(body);
 
-  const group = await asUser(user, async (db) => {
+  const result = await asUser(user, async (db) => {
     // Create the group
-    const newGroup = await db.userGroup.create({
+    const groupId = nanoid();
+    const newGroup = await db.group.create({
       data: {
-        id: nanoid(),
+        id: groupId,
         name: data.name,
+        type: 'user', // User-created group
+        ownerId: user.userId,
         createdById: user.userId,
         updatedAt: new Date(),
       },
     });
 
-    // Add creator as admin
-    await db.userGroupAdmin.create({
+    // Create associated chat with groupId link (Chat.groupId → Group.id)
+    const chatId = nanoid();
+    await db.chat.create({
       data: {
-        id: nanoid(),
-        groupId: newGroup.id,
-        userId: user.userId,
-        grantedBy: user.userId,
-        grantedAt: new Date(),
-      },
-    });
-
-    // Add creator as member
-    await db.userGroupMember.create({
-      data: {
-        id: nanoid(),
-        groupId: newGroup.id,
-        userId: user.userId,
-        addedBy: user.userId,
-        joinedAt: new Date(),
-      },
-    });
-
-    // Add initial members if provided
-    if (data.memberIds.length > 0) {
-      await db.userGroupMember.createMany({
-        data: data.memberIds
-          .filter((id) => id !== user.userId) // Don't add creator twice
-          .map((userId) => ({
-            id: nanoid(),
-            groupId: newGroup.id,
-            userId,
-            addedBy: user.userId,
-            joinedAt: new Date(),
-          })),
-      });
-    }
-
-    // Create associated chat for the group
-    const chat = await db.chat.create({
-      data: {
-        id: nanoid(),
+        id: chatId,
         name: data.name,
         isGroup: true,
-        groupId: newGroup.id, // Link chat to group
+        groupId, // Link Chat → Group
         createdAt: new Date(),
         updatedAt: new Date(),
       },
     });
 
-    // Add all members to chat
-    const allMemberIds = [
-      user.userId,
-      ...data.memberIds.filter((id) => id !== user.userId),
-    ];
-    await db.chatParticipant.createMany({
-      data: allMemberIds.map((userId) => ({
+    // Add creator as owner
+    await db.groupMember.create({
+      data: {
         id: nanoid(),
-        chatId: chat.id,
-        userId,
-        joinedAt: new Date(),
-      })),
+        groupId,
+        userId: user.userId,
+        role: 'owner',
+        addedBy: user.userId,
+      },
     });
+
+    // Add creator to chat participants
+    await db.chatParticipant.create({
+      data: {
+        id: nanoid(),
+        chatId,
+        userId: user.userId,
+        joinedAt: new Date(),
+      },
+    });
+
+    // Send invitations to initial members (they must accept to join)
+    if (data.memberIds.length > 0) {
+      const otherMembers = data.memberIds.filter((id) => id !== user.userId);
+
+      if (otherMembers.length > 0) {
+        // Check which users are agents (agents get auto-added, users get invites)
+        const memberUsers = await db.user.findMany({
+          where: { id: { in: otherMembers } },
+          select: { id: true, isAgent: true },
+        });
+
+        const agentIds = memberUsers.filter((u) => u.isAgent).map((u) => u.id);
+        const humanIds = memberUsers.filter((u) => !u.isAgent).map((u) => u.id);
+
+        // Auto-add agents directly (they don't need to accept invites)
+        if (agentIds.length > 0) {
+          await db.groupMember.createMany({
+            data: agentIds.map((userId) => ({
+              id: nanoid(),
+              groupId,
+              userId,
+              role: 'member',
+              addedBy: user.userId,
+            })),
+          });
+
+          await db.chatParticipant.createMany({
+            data: agentIds.map((userId) => ({
+              id: nanoid(),
+              chatId,
+              userId,
+              joinedAt: new Date(),
+            })),
+          });
+        }
+
+        // Send invitations to human users (they must accept)
+        if (humanIds.length > 0) {
+          const inviteData = humanIds.map((userId) => ({
+            id: nanoid(),
+            groupId,
+            invitedUserId: userId,
+            invitedBy: user.userId,
+            status: 'pending' as const,
+            message: `You've been invited to join "${data.name}"`,
+          }));
+
+          await db.groupInvite.createMany({
+            data: inviteData,
+          });
+
+          // Send notifications to all invited users
+          await Promise.all(
+            inviteData.map((invite) =>
+              notifyUserGroupInvite(
+                invite.invitedUserId,
+                user.userId,
+                groupId,
+                data.name,
+                invite.id
+              )
+            )
+          );
+        }
+      }
+    }
 
     return {
       group: newGroup,
-      chatId: chat.id,
+      chatId,
     };
   });
 
   logger.info(
     'Group created',
-    { userId: user.userId, groupId: group.group.id, chatId: group.chatId },
+    { userId: user.userId, groupId: result.group.id, chatId: result.chatId },
     'POST /api/groups'
   );
 
   return successResponse({
     group: {
-      id: group.group.id,
-      name: group.group.name,
-      createdAt: group.group.createdAt,
-      chatId: group.chatId,
+      id: result.group.id,
+      name: result.group.name,
+      type: result.group.type,
+      createdAt: result.group.createdAt,
+      chatId: result.chatId,
     },
   });
 });
