@@ -6,7 +6,7 @@
  * Supports automatic stale lock recovery.
  */
 
-import { db, eq, generationLocks } from '@babylon/db';
+import { and, db, eq, generationLocks, isNull, lte, or } from '@babylon/db';
 import { logger } from '@babylon/shared';
 import { randomBytes } from 'crypto';
 
@@ -21,10 +21,10 @@ export class DistributedLockService {
   /**
    * Acquire a distributed lock
    *
-   * @description Uses a "check-first, create-second" pattern to avoid triggering
-   * unique constraint errors in normal cases. Race conditions (multiple processes
-   * checking and creating simultaneously) are handled gracefully with proper error
-   * recovery. Supports automatic stale lock recovery for expired locks.
+   * @description Uses atomic conditional UPDATE with RETURNING to prevent TOCTOU
+   * race conditions. First attempts to update an existing expired lock, then falls
+   * back to INSERT if no lock exists. This pattern is safe against concurrent
+   * acquisition attempts from multiple processes.
    *
    * @param {LockOptions} options - Lock acquisition options
    * @param {string} options.lockId - Unique lock identifier
@@ -42,7 +42,38 @@ export class DistributedLockService {
     const lockHolder =
       processId || `serverless-${Date.now()}-${randomBytes(8).toString('hex')}`;
 
-    // First, check if lock already exists (avoids unique constraint errors in most cases)
+    // First, try to atomically update an existing expired lock
+    // This is TOCTOU-safe: only succeeds if lock is expired at update time
+    const updateResult = await db
+      .update(generationLocks)
+      .set({
+        lockedBy: lockHolder,
+        lockedAt: now,
+        expiresAt: expiry,
+        operation,
+      })
+      .where(
+        and(
+          eq(generationLocks.id, lockId),
+          or(isNull(generationLocks.expiresAt), lte(generationLocks.expiresAt, now))
+        )
+      )
+      .returning({ id: generationLocks.id });
+
+    if (updateResult.length > 0) {
+      logger.info(
+        `Lock ${lockId} acquired (recovered stale)`,
+        {
+          lockId,
+          lockHolder,
+          expiresAt: expiry.toISOString(),
+        },
+        'DistributedLockService'
+      );
+      return true;
+    }
+
+    // Check if lock exists and is still valid
     const [existingLock] = await db
       .select()
       .from(generationLocks)
@@ -50,42 +81,7 @@ export class DistributedLockService {
       .limit(1);
 
     if (existingLock) {
-      // Lock exists - check if it's expired
-      if (existingLock.expiresAt <= now) {
-        // Expired - try to recover atomically using conditional update
-        await db
-          .update(generationLocks)
-          .set({
-            lockedBy: lockHolder,
-            lockedAt: now,
-            expiresAt: expiry,
-            operation,
-          })
-          .where(eq(generationLocks.id, lockId));
-
-        // Check if we updated (need to verify the lock is still expired)
-        const [updatedLock] = await db
-          .select()
-          .from(generationLocks)
-          .where(eq(generationLocks.id, lockId))
-          .limit(1);
-
-        if (updatedLock && updatedLock.lockedBy === lockHolder) {
-          logger.info(
-            `Lock ${lockId} acquired (recovered stale)`,
-            {
-              lockId,
-              lockHolder,
-              expiresAt: expiry.toISOString(),
-            },
-            'DistributedLockService'
-          );
-          return true;
-        }
-        // Someone else recovered it between our check and update - fall through to log
-      }
-
-      // Lock exists and is valid (or was just recovered by another process)
+      // Lock exists and is not expired (otherwise update would have succeeded)
       const ageMinutes = Math.round(
         (now.getTime() - existingLock.lockedAt.getTime()) / 1000 / 60
       );
@@ -105,24 +101,42 @@ export class DistributedLockService {
     }
 
     // No lock exists - try to create it
-    await db.insert(generationLocks).values({
-      id: lockId,
-      lockedBy: lockHolder,
-      lockedAt: now,
-      expiresAt: expiry,
-      operation,
-    });
+    // Use try-catch for unique constraint violation (race with another insert)
+    try {
+      await db.insert(generationLocks).values({
+        id: lockId,
+        lockedBy: lockHolder,
+        lockedAt: now,
+        expiresAt: expiry,
+        operation,
+      });
 
-    logger.info(
-      `Lock ${lockId} acquired (created)`,
-      {
-        lockId,
-        lockHolder,
-        expiresAt: expiry.toISOString(),
-      },
-      'DistributedLockService'
-    );
-    return true;
+      logger.info(
+        `Lock ${lockId} acquired (created)`,
+        {
+          lockId,
+          lockHolder,
+          expiresAt: expiry.toISOString(),
+        },
+        'DistributedLockService'
+      );
+      return true;
+    } catch (error) {
+      // Unique constraint violation means another process created the lock
+      // between our check and insert - this is expected in race conditions
+      if (
+        error instanceof Error &&
+        error.message.includes('unique constraint')
+      ) {
+        logger.info(
+          `Lock ${lockId} lost race to another process`,
+          { lockId },
+          'DistributedLockService'
+        );
+        return false;
+      }
+      throw error;
+    }
   }
 
   /**

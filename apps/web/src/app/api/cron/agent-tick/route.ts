@@ -62,6 +62,7 @@ import {
   releaseAgentLock,
 } from '@babylon/agents';
 import {
+  DistributedLockService,
   recordCronExecution,
   relayCronToStaging,
   verifyCronAuth,
@@ -140,6 +141,30 @@ export async function POST(_req: NextRequest) {
     });
   }
 
+  // 1.5 Acquire global lock to prevent overlapping cron invocations
+  const globalLockAcquired = await DistributedLockService.acquireLock({
+    lockId: 'agent-tick-global',
+    durationMs: 55 * 1000, // 55 seconds - less than 1 minute cron interval
+    operation: 'agent-tick-global',
+    processId,
+  });
+  if (!globalLockAcquired) {
+    logger.info(
+      'Agent tick skipped - previous tick still running',
+      { processId },
+      'AgentTick'
+    );
+    return NextResponse.json({
+      success: true,
+      skipped: true,
+      reason: 'Previous tick still running',
+      processed: 0,
+      skippedLocked: 0,
+    });
+  }
+
+  // Wrap remaining logic in try-finally to ensure global lock release
+  try {
   // 2. Check GAME_START environment variable (manual override)
   const gameStartEnv = process.env.GAME_START?.toLowerCase();
   if (gameStartEnv === 'false' || gameStartEnv === '0') {
@@ -568,4 +593,8 @@ export async function POST(_req: NextRequest) {
     errors,
     results,
   });
+  } finally {
+    // Always release global lock
+    await DistributedLockService.releaseLock('agent-tick-global', processId);
+  }
 }
