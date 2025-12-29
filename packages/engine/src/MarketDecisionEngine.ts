@@ -82,6 +82,7 @@ import {
   npcMarketDecisions,
   renderPrompt,
 } from './prompts';
+import { EventMarketLinkerService } from './services/event-market-linker';
 import type { MarketContextService } from './services/market-context-service';
 import { StaticDataRegistry } from './services/static-data-registry';
 import { isSimulationMode } from './storage-bridge';
@@ -149,6 +150,10 @@ export class MarketDecisionEngine {
   } | null = null;
   private recentEventsCache: { events: string; timestamp: number } | null =
     null;
+  private eventMarketSignalsCache: {
+    signals: string;
+    timestamp: number;
+  } | null = null;
   private readonly CACHE_TTL_MS = 60000; // 1 minute TTL for caches
 
   /**
@@ -628,6 +633,9 @@ Current Focus: ${recentTopics || 'Market General'}
     // Get recent events with caching
     const recentEventsText = await this.getCachedRecentEvents();
 
+    // Get event-market signals for trading context (BAB-5)
+    const eventMarketSignals = await this.getCachedEventMarketSignals();
+
     // Build valid IDs/tickers for the prompt
     // Note: Removed redundant fields (validNpcIds, validTickers) as they are now in the dashboards
     const validNpcIds = contexts.map((ctx) => ctx.npcId).join(', ');
@@ -658,6 +666,8 @@ Current Focus: ${recentTopics || 'Market General'}
       recentEvents: recentEventsText,
       // Add rich narrative context if available
       richGameContext: worldContext.richGameContext || '',
+      // BAB-5: Event-market signals for informed trading decisions
+      eventMarketSignals,
     });
 
     // Count tokens and enforce limit
@@ -2172,6 +2182,51 @@ ${prompt}`
   }
 
   /**
+   * Get cached event-market signals or fetch if expired (BAB-5)
+   * Provides context about how recent events affect prediction markets
+   */
+  private async getCachedEventMarketSignals(): Promise<string> {
+    const now = Date.now();
+
+    // Return cached if still valid
+    if (
+      this.eventMarketSignalsCache &&
+      now - this.eventMarketSignalsCache.timestamp < this.CACHE_TTL_MS
+    ) {
+      logger.debug(
+        'Using cached event-market signals',
+        { age: now - this.eventMarketSignalsCache.timestamp },
+        'MarketDecisionEngine'
+      );
+      return this.eventMarketSignalsCache.signals;
+    }
+
+    // Simulation mode bypass
+    if (isSimulationMode()) {
+      const mockSignals = `EVENT-MARKET SIGNALS:
+- "Will BitcAIn hit $150k?" ↑ +5.2% (Positive development announced...)
+- "Will TeslAI announce Model 2?" ↓ -3.1% (Leak suggests delays...)`;
+      this.eventMarketSignalsCache = { signals: mockSignals, timestamp: now };
+      return mockSignals;
+    }
+
+    // Fetch fresh event-market summaries
+    const summaries =
+      await EventMarketLinkerService.getMarketEventSummaries(24);
+    const signals = EventMarketLinkerService.formatForTradingContext(summaries);
+
+    // Cache it
+    this.eventMarketSignalsCache = { signals, timestamp: now };
+    logger.debug(
+      'Cached event-market signals',
+      { summaryCount: summaries.length },
+      'MarketDecisionEngine'
+    );
+
+    return signals;
+  }
+
+  /**
    * Clear all caches
    * Call this when you want to force fresh data on next query
    */
@@ -2179,6 +2234,7 @@ ${prompt}`
     this.worldContextCache = null;
     this.activeQuestionsCache = null;
     this.recentEventsCache = null;
+    this.eventMarketSignalsCache = null;
     logger.debug('Cleared all caches', {}, 'MarketDecisionEngine');
   }
 
