@@ -94,6 +94,42 @@ from .rubric_loader import (
     RUBRICS_VERSION,
 )
 
+# Schema validation for data integrity
+from .schemas import (
+    TrajectorySchema,
+    StepSchema,
+    ActionSchema,
+    LLMCallSchema,
+    EnvironmentStateSchema,
+    validate_trajectory,
+    validate_step,
+    validate_llm_call,
+    validate_trajectory_file,
+    compare_trajectory_formats,
+    ValidationResult as SchemaValidationResult,
+)
+
+# Error recovery and graceful degradation
+from .error_recovery import (
+    ErrorCategory,
+    TrainingError,
+    classify_error,
+    is_recoverable,
+    with_retry,
+    with_retry_async,
+    RecoveryResult,
+    recover_json_parse,
+    recover_trajectory_archetype,
+    filter_valid_trajectories,
+    DatabaseConnectionManager,
+    GracefulShutdown,
+    TrainingProgress,
+    safe_divide,
+    clamp,
+    require_env,
+    get_env_or_default,
+)
+
 # Lazy imports for torch-dependent modules
 # These imports are dynamically returned via __getattr__ - not unused  # noqa: F401
 def __getattr__(name: str):
@@ -286,4 +322,34 @@ __all__ = [
     "ServiceConfig",
     "ServiceStatus",
     "check_prerequisites",
+    # Schema validation
+    "TrajectorySchema",
+    "StepSchema",
+    "ActionSchema",
+    "LLMCallSchema",
+    "EnvironmentStateSchema",
+    "validate_trajectory",
+    "validate_step",
+    "validate_llm_call",
+    "validate_trajectory_file",
+    "compare_trajectory_formats",
+    "SchemaValidationResult",
+    # Error recovery
+    "ErrorCategory",
+    "TrainingError",
+    "classify_error",
+    "is_recoverable",
+    "with_retry",
+    "with_retry_async",
+    "RecoveryResult",
+    "recover_json_parse",
+    "recover_trajectory_archetype",
+    "filter_valid_trajectories",
+    "DatabaseConnectionManager",
+    "GracefulShutdown",
+    "TrainingProgress",
+    "safe_divide",
+    "clamp",
+    "require_env",
+    "get_env_or_default",
 ]
