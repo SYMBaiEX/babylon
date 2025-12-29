@@ -503,7 +503,9 @@ export class TieredGroupService {
 
       // Generate IDs before transaction to minimize transaction duration
       const memberId = await generateSnowflakeId();
-      const participantId = targetTier.chatId ? await generateSnowflakeId() : null;
+      const participantId = targetTier.chatId
+        ? await generateSnowflakeId()
+        : null;
 
       // Wrap multi-step operation in transaction
       await db.$transaction(async (tx) => {
