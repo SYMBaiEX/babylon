@@ -38,6 +38,50 @@ import type { EventContext, FeedPostContext } from '../types/market-context';
 import { stripHashtagsAndEmojis } from '../utils/shared-utils';
 import { generateArticleImageWithRetry } from './article-image-service';
 import { characterMappingService } from './character-mapping-service';
+
+/**
+ * Safely extract content from LLM response that may be wrapped in XML structure.
+ * Guards against LLM returning raw strings instead of objects.
+ */
+function safeExtractFromResponse<T>(
+  response: unknown,
+  fieldName: string
+): T | null {
+  // Handle raw string responses (LLM returned text instead of XML)
+  if (typeof response === 'string') {
+    return response as T;
+  }
+
+  // Not an object
+  if (typeof response !== 'object' || response === null) {
+    return null;
+  }
+
+  // Check for wrapped response structure
+  if (
+    'response' in response &&
+    typeof (response as Record<string, unknown>).response === 'object' &&
+    (response as Record<string, unknown>).response !== null
+  ) {
+    const innerResponse = (response as Record<string, unknown>).response;
+    if (
+      typeof innerResponse === 'object' &&
+      innerResponse !== null &&
+      fieldName in (innerResponse as Record<string, unknown>)
+    ) {
+      const value = (innerResponse as Record<string, unknown>)[fieldName];
+      return value !== undefined ? (value as T) : null;
+    }
+  }
+
+  // Check for direct field access
+  if (fieldName in response) {
+    const value = (response as Record<string, unknown>)[fieldName];
+    return value !== undefined ? (value as T) : null;
+  }
+
+  return null;
+}
 import {
   getArcPlan,
   getPhaseForDay,
@@ -564,13 +608,7 @@ ${worldFactsContext}
     }
   );
 
-  const postContent =
-    'response' in response &&
-    response.response &&
-    typeof response.response === 'object' &&
-    'post' in response.response
-      ? (response.response as { post: string }).post
-      : (response as { post: string }).post;
+  const postContent = safeExtractFromResponse<string>(response, 'post');
 
   if (!postContent || postContent.trim().length === 0) {
     logger.warn(
@@ -704,13 +742,7 @@ ${worldFactsContext}
     }
   );
 
-  const postContent =
-    'response' in response &&
-    response.response &&
-    typeof response.response === 'object' &&
-    'post' in response.response
-      ? (response.response as { post: string }).post
-      : (response as { post: string }).post;
+  const postContent = safeExtractFromResponse<string>(response, 'post');
 
   if (!postContent || postContent.trim().length === 0) {
     logger.warn(
@@ -850,13 +882,7 @@ ${worldFactsContext}
     }
   );
 
-  const postContent =
-    'response' in response &&
-    response.response &&
-    typeof response.response === 'object' &&
-    'post' in response.response
-      ? (response.response as { post: string }).post
-      : (response as { post: string }).post;
+  const postContent = safeExtractFromResponse<string>(response, 'post');
 
   if (!postContent || postContent.trim().length === 0) {
     return false;
@@ -978,13 +1004,7 @@ ${worldFactsContext}
     }
   );
 
-  const postContent =
-    'response' in response &&
-    response.response &&
-    typeof response.response === 'object' &&
-    'post' in response.response
-      ? (response.response as { post: string }).post
-      : (response as { post: string }).post;
+  const postContent = safeExtractFromResponse<string>(response, 'post');
 
   if (!postContent || postContent.trim().length === 0) {
     return false;
@@ -1064,13 +1084,7 @@ ${worldFactsContext}
     }
   );
 
-  const postContent =
-    'response' in response &&
-    response.response &&
-    typeof response.response === 'object' &&
-    'post' in response.response
-      ? (response.response as { post: string }).post
-      : (response as { post: string }).post;
+  const postContent = safeExtractFromResponse<string>(response, 'post');
 
   if (!postContent || postContent.trim().length === 0) {
     logger.warn(
@@ -1178,16 +1192,28 @@ Return your response as XML in this exact format:
     }
   );
 
-  const articleData =
-    'response' in response && response.response
-      ? (response.response as {
-          title: string;
-          summary: string;
-          article: string;
-        })
-      : (response as { title: string; summary: string; article: string });
+  // Safely extract article data, guarding against string responses
+  let articleData: { title: string; summary: string; article: string };
+  if (typeof response === 'string') {
+    logger.warn(
+      'LLM returned raw string instead of article object',
+      { orgName: org.name, questionId: question.id },
+      'PostGeneration'
+    );
+    return false;
+  }
+  if (
+    typeof response === 'object' &&
+    response !== null &&
+    'response' in response &&
+    response.response
+  ) {
+    articleData = response.response as typeof articleData;
+  } else {
+    articleData = response as typeof articleData;
+  }
 
-  if (!articleData.title || !articleData.summary || !articleData.article) {
+  if (!articleData?.title || !articleData?.summary || !articleData?.article) {
     logger.warn(
       'Empty article generated',
       { orgName: org.name, questionId: question.id },
@@ -1618,13 +1644,7 @@ Return your response as XML in this exact format:
     }
   );
 
-  const replyContent =
-    'response' in response &&
-    response.response &&
-    typeof response.response === 'object' &&
-    'reply' in response.response
-      ? (response.response as { reply: string }).reply
-      : (response as { reply: string }).reply;
+  const replyContent = safeExtractFromResponse<string>(response, 'reply');
 
   if (!replyContent || replyContent.trim().length === 0) {
     logger.warn(
@@ -1766,13 +1786,7 @@ Return your response as XML in this exact format:
     }
   );
 
-  const quoteComment =
-    'response' in response &&
-    response.response &&
-    typeof response.response === 'object' &&
-    'quote_comment' in response.response
-      ? (response.response as { quote_comment: string }).quote_comment
-      : (response as { quote_comment: string }).quote_comment;
+  const quoteComment = safeExtractFromResponse<string>(response, 'quote_comment');
 
   if (!quoteComment || quoteComment.trim().length === 0) {
     logger.warn(

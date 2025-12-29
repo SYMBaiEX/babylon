@@ -11,11 +11,13 @@ import {
   eq,
   games,
   generateSnowflakeId,
+  inArray,
   organizationState,
   perpMarketSnapshots,
   pools,
   rssFeedSources,
   sql,
+  users,
 } from '@babylon/db';
 import type { ActorTier } from '@babylon/shared';
 import { logger } from '@babylon/shared';
@@ -86,6 +88,7 @@ export interface GameBootstrapResult {
   actorsCreated: number;
   actorsUpdated: number;
   actorsToppedUp: number;
+  npcUsersCreated: number;
   organizationsCreated: number;
   organizationsUpdated: number;
   poolsCreated: number;
@@ -120,6 +123,7 @@ export class GameBootstrapService {
       actorsCreated: 0,
       actorsUpdated: 0,
       actorsToppedUp: 0,
+      npcUsersCreated: 0,
       organizationsCreated: 0,
       organizationsUpdated: 0,
       poolsCreated: 0,
@@ -166,6 +170,9 @@ export class GameBootstrapService {
       // 4. Ensure pools exist
       result.poolsCreated = await this.ensureActorPools();
 
+      // 4b. Ensure NPC User records exist (for wallet/payout operations)
+      result.npcUsersCreated = await this.ensureNpcUsers(staticActors);
+
       // 5. Ensure game state exists
       result.gameStateInitialized = await this.ensureGameState();
 
@@ -179,6 +186,7 @@ export class GameBootstrapService {
       const hasChanges =
         result.actorsCreated > 0 ||
         result.actorsToppedUp > 0 ||
+        result.npcUsersCreated > 0 ||
         result.organizationsCreated > 0 ||
         result.poolsCreated > 0 ||
         result.rssFeedsCreated > 0 ||
@@ -210,6 +218,7 @@ export class GameBootstrapService {
       actorsCreated: 0,
       actorsUpdated: 0,
       actorsToppedUp: 0,
+      npcUsersCreated: 0,
       organizationsCreated: 0,
       organizationsUpdated: 0,
       poolsCreated: 0,
@@ -464,6 +473,63 @@ export class GameBootstrapService {
 
         created++;
       }
+    }
+
+    return created;
+  }
+
+  /**
+   * Ensure User records exist for NPC actors
+   * This allows NPCs to receive wallet credits during payouts
+   */
+  private static async ensureNpcUsers(
+    staticActors: Array<{ id: string; name: string }>
+  ): Promise<number> {
+    if (staticActors.length === 0) {
+      return 0;
+    }
+
+    const actorIds = staticActors.map((a) => a.id);
+
+    // Get existing NPC users
+    const existingUsers = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(inArray(users.id, actorIds));
+
+    const existingUserIds = new Set(existingUsers.map((u) => u.id));
+
+    // Create User records for NPCs that don't have them
+    let created = 0;
+    const now = new Date();
+
+    for (const actor of staticActors) {
+      if (existingUserIds.has(actor.id)) {
+        continue;
+      }
+
+      await db.insert(users).values({
+        id: actor.id,
+        displayName: actor.name,
+        username: actor.id, // Use actor ID as username
+        isActor: true,
+        virtualBalance: '10000', // NPCs get starting balance
+        totalDeposited: '10000',
+        totalWithdrawn: '0',
+        lifetimePnL: '0',
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      created++;
+    }
+
+    if (created > 0) {
+      logger.info(
+        `Created ${created} NPC User records`,
+        { created },
+        'GameBootstrapService'
+      );
     }
 
     return created;

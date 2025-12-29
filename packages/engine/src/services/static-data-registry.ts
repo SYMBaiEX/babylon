@@ -260,6 +260,73 @@ export class StaticDataRegistry {
         this.orgMappings.set(org.originalName.toLowerCase(), mapping);
       }
     }
+
+    // Add fallback mappings for common social platforms not in static data
+    const fallbackMappings: OrganizationMapping[] = [
+      {
+        realName: 'Discord',
+        parodyName: 'DIscord',
+        category: 'platform',
+        aliases: [],
+        priority: 80,
+      },
+      {
+        realName: 'Reddit',
+        parodyName: 'AIeddit',
+        category: 'platform',
+        aliases: [],
+        priority: 80,
+      },
+      {
+        realName: 'LinkedIn',
+        parodyName: 'LinkAIdIn',
+        category: 'platform',
+        aliases: [],
+        priority: 80,
+      },
+      {
+        realName: 'TikTok',
+        parodyName: 'TikTAIk',
+        category: 'platform',
+        aliases: [],
+        priority: 80,
+      },
+      {
+        realName: 'Instagram',
+        parodyName: 'InstAIgram',
+        category: 'platform',
+        aliases: [],
+        priority: 80,
+      },
+      {
+        realName: 'YouTube',
+        parodyName: 'YoutAIbe',
+        category: 'platform',
+        aliases: [],
+        priority: 80,
+      },
+      {
+        realName: 'Facebook',
+        parodyName: 'FAIcebook',
+        category: 'platform',
+        aliases: [],
+        priority: 80,
+      },
+      {
+        realName: 'Twitter',
+        parodyName: 'XAI',
+        category: 'platform',
+        aliases: ['X'],
+        priority: 80,
+      },
+    ];
+
+    for (const mapping of fallbackMappings) {
+      const key = mapping.realName.toLowerCase();
+      if (!this.orgMappings.has(key)) {
+        this.orgMappings.set(key, mapping);
+      }
+    }
   }
 
   // ==========================================================================

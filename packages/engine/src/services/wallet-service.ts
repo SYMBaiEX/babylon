@@ -24,7 +24,7 @@ import {
 import {
   generateSnowflakeId,
   InsufficientFundsError,
-  NotFoundError,
+  logger,
 } from '@babylon/shared';
 import { EarnedPointsService } from './earned-points-service';
 
@@ -141,7 +141,14 @@ export class WalletService {
 
     const [user] = result;
     if (!user) {
-      throw new NotFoundError('User', userId);
+      // Skip balance changes for NPCs/actors who don't have User records
+      // This allows NPC trading without requiring User records for payouts
+      logger.debug(
+        `Skipping balance change for non-existent user (likely NPC)`,
+        { userId, delta, type },
+        'WalletService'
+      );
+      return;
     }
 
     const currentBalance = Number(user.virtualBalance);
@@ -361,7 +368,17 @@ export class WalletService {
 
       const [user] = result;
       if (!user) {
-        throw new Error(`User not found: ${userId}`);
+        // Skip PnL recording for NPCs/actors who don't have User records
+        logger.debug(
+          `Skipping PnL recording for non-existent user (likely NPC)`,
+          { userId, pnl, tradeType },
+          'WalletService'
+        );
+        return {
+          previousLifetimePnL: 0,
+          newLifetimePnL: 0,
+          earnedPointsDelta: 0,
+        };
       }
 
       const previousLifetimePnL = Number(user.lifetimePnL);
