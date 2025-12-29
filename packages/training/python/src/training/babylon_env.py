@@ -25,7 +25,6 @@ import random
 from datetime import timedelta
 from typing import Dict, List, Optional, Tuple, TYPE_CHECKING
 
-import openai
 import wandb
 from dotenv import load_dotenv
 from pydantic import Field
@@ -44,7 +43,6 @@ from .rewards import (
     BehaviorMetrics,
     archetype_composite_reward,
 )
-from .quality_utils import calculate_detailed_tick_quality
 from .rubric_loader import has_custom_rubric, normalize_archetype
 from ..models import Action
 
@@ -160,9 +158,6 @@ class BabylonRLAIFEnv(BaseEnv):
         self.judge_scores_buffer: List[float] = []
         self.judge_format_scores: List[float] = []
         self.judge_reasoning_scores: List[float] = []
-
-        # Initialize OpenAI client (Legacy/Fallback)
-        self.judge_client = openai.AsyncOpenAI()
 
         # Optional Tinker client (set externally for Tinker-based training)
         self._tinker_client: Optional["BabylonTinkerClient"] = None
