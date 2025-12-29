@@ -78,6 +78,7 @@ export interface MultiStepExecutorResult {
 
 export class MultiStepExecutor {
   private readonly maxIterations: number;
+  private currentRuntime: IAgentRuntime | null = null;
 
   constructor(maxIterations = 5) {
     this.maxIterations = maxIterations;
@@ -100,6 +101,9 @@ export class MultiStepExecutor {
   ): Promise<MultiStepExecutorResult> {
     const startTime = Date.now();
     const trace: ActionTraceResult[] = [];
+
+    // Store runtime for use in executeAction (needed for RESPOND action)
+    this.currentRuntime = runtime;
 
     logger.info(
       `[MultiStep] Starting multi-step execution for agent ${agentUserId}`,
@@ -297,26 +301,27 @@ export class MultiStepExecutor {
     const canComment = enabledFeatures.includes('commenting');
     const canRespondDMs = enabledFeatures.includes('DMs');
 
-    // Get prediction markets (only if trading enabled)
-    const predictionMarkets = canTrade ? await this.getPredictionMarkets() : [];
-
-    // Get perp markets (only if trading enabled)
-    const perpMarkets = canTrade ? await this.getPerpMarkets() : [];
-
-    // Get agent's positions (always needed for context, even if not trading)
-    const agentPositions = await this.getAgentPositions(agentUserId);
-
-    // Get recent posts to engage with (only if commenting enabled)
-    const recentPosts = canComment
-      ? await this.getRecentPosts(agentUserId)
-      : [];
-
-    // Get pending interactions (only if DMs enabled)
-    const pendingInteractions = canRespondDMs
-      ? await autonomousBatchResponseService.gatherPendingInteractions(
-          agentUserId
-        )
-      : [];
+    // Gather context in parallel - all these queries are independent
+    const [
+      predictionMarkets,
+      perpMarkets,
+      agentPositions,
+      recentPosts,
+      pendingInteractions,
+    ] = await Promise.all([
+      // Get prediction markets (only if trading enabled)
+      canTrade ? this.getPredictionMarkets() : Promise.resolve([]),
+      // Get perp markets (only if trading enabled)
+      canTrade ? this.getPerpMarkets() : Promise.resolve([]),
+      // Get agent's positions (always needed for context, even if not trading)
+      this.getAgentPositions(agentUserId),
+      // Get recent posts to engage with (only if commenting enabled)
+      canComment ? this.getRecentPosts(agentUserId) : Promise.resolve([]),
+      // Get pending interactions (only if DMs enabled)
+      canRespondDMs
+        ? autonomousBatchResponseService.gatherPendingInteractions(agentUserId)
+        : Promise.resolve([]),
+    ]);
 
     // Get topic diversity guidance for this agent
     const diversityInstructions =
@@ -438,11 +443,10 @@ export class MultiStepExecutor {
     if (marketIds.length > 0) {
       const marketData = await db
         .select({ id: markets.id, question: markets.question })
-        .from(markets);
+        .from(markets)
+        .where(inArray(markets.id, marketIds));
       for (const m of marketData) {
-        if (marketIds.includes(m.id)) {
-          marketQuestions.set(m.id, m.question);
-        }
+        marketQuestions.set(m.id, m.question);
       }
     }
 
@@ -536,11 +540,10 @@ export class MultiStepExecutor {
           displayName: users.displayName,
           username: users.username,
         })
-        .from(users);
+        .from(users)
+        .where(inArray(users.id, missingIds));
       for (const u of dbUsers) {
-        if (missingIds.includes(u.id)) {
-          authorNames.set(u.id, u.displayName || u.username || 'User');
-        }
+        authorNames.set(u.id, u.displayName || u.username || 'User');
       }
     }
 
@@ -860,9 +863,19 @@ export class MultiStepExecutor {
         // RESPOND still uses the batch service which has its own LLM
         // for deciding WHICH interactions to respond to
         // This is acceptable as it's a different kind of decision
+        if (!this.currentRuntime) {
+          return {
+            actionType: 'RESPOND',
+            success: false,
+            summary: 'Runtime not available for RESPOND action',
+            error: 'No runtime context',
+            parameters,
+            timestamp: Date.now(),
+          };
+        }
         const responses = await autonomousBatchResponseService.processBatch(
           agentUserId,
-          {} as IAgentRuntime // Runtime not needed for batch response
+          this.currentRuntime
         );
 
         return {
