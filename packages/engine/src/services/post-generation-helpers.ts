@@ -82,6 +82,7 @@ function safeExtractFromResponse<T>(
 
   return null;
 }
+
 import {
   getArcPlan,
   getPhaseForDay,
@@ -1786,7 +1787,10 @@ Return your response as XML in this exact format:
     }
   );
 
-  const quoteComment = safeExtractFromResponse<string>(response, 'quote_comment');
+  const quoteComment = safeExtractFromResponse<string>(
+    response,
+    'quote_comment'
+  );
 
   if (!quoteComment || quoteComment.trim().length === 0) {
     logger.warn(

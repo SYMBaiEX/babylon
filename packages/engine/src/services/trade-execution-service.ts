@@ -399,7 +399,7 @@ export class TradeExecutionService {
 
     const leverage = 5; // Standard leverage for NPCs
     const side = decision.action === 'open_long' ? 'long' : 'short';
-    
+
     // Cap position size to market limit (max 10,000 or 10% of open interest)
     // This prevents NPC trades from exceeding market limits
     const MAX_POSITION_SIZE = 10_000;
@@ -423,7 +423,7 @@ export class TradeExecutionService {
     // Open position via PerpMarketService (uses perpPositions table)
     // Use org.ticker for perp market lookup (e.g., "NVDAI" not "nvidai")
     const tradeTicker = org.ticker || org.id;
-    
+
     const result = await perpService.openPosition({
       userId: actorId, // Use actorId as userId for NPC
       ticker: tradeTicker,
