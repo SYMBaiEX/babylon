@@ -6,7 +6,7 @@
  * Supports automatic stale lock recovery.
  */
 
-import { and, db, eq, generationLocks, isNull, lte, or } from '@babylon/db';
+import { and, db, eq, generationLocks, lte } from '@babylon/db';
 import { logger } from '@babylon/shared';
 import { randomBytes } from 'crypto';
 
@@ -44,6 +44,7 @@ export class DistributedLockService {
 
     // First, try to atomically update an existing expired lock
     // This is TOCTOU-safe: only succeeds if lock is expired at update time
+    // Note: expiresAt is notNull per schema, so we only check lte()
     const updateResult = await db
       .update(generationLocks)
       .set({
@@ -53,10 +54,7 @@ export class DistributedLockService {
         operation,
       })
       .where(
-        and(
-          eq(generationLocks.id, lockId),
-          or(isNull(generationLocks.expiresAt), lte(generationLocks.expiresAt, now))
-        )
+        and(eq(generationLocks.id, lockId), lte(generationLocks.expiresAt, now))
       )
       .returning({ id: generationLocks.id });
 
@@ -166,7 +164,10 @@ export class DistributedLockService {
     const deleteResult = await db
       .delete(generationLocks)
       .where(
-        and(eq(generationLocks.id, lockId), eq(generationLocks.lockedBy, processId))
+        and(
+          eq(generationLocks.id, lockId),
+          eq(generationLocks.lockedBy, processId)
+        )
       )
       .returning({ id: generationLocks.id });
 
