@@ -56,6 +56,8 @@ interface TrainingDataConfig {
   useCausalSimulation: boolean;
   /** Number of days to simulate (default: 1) */
   simulationDays: number;
+  /** Number of hours per day to simulate (default: 24, use lower for quick tests) */
+  hoursPerDay: number;
   /** Random seed for reproducibility */
   seed: number;
   /** Number of NPCs in the simulation */
@@ -74,6 +76,7 @@ function parseArgs(): TrainingDataConfig {
   return {
     useCausalSimulation: args.includes('--causal'),
     simulationDays: parseInt(getArgValue(args, '--days') ?? '1', 10),
+    hoursPerDay: parseInt(getArgValue(args, '--hours') ?? '24', 10),
     seed: parseInt(getArgValue(args, '--seed') ?? String(Date.now()), 10),
     numNPCs: parseInt(getArgValue(args, '--npcs') ?? '10', 10),
     outcome: true,
@@ -159,6 +162,7 @@ async function main() {
     `   Mode: ${config.useCausalSimulation ? 'CAUSAL SIMULATION' : 'RANDOM WALK'}`
   );
   console.log(`   Days: ${config.simulationDays}`);
+  console.log(`   Hours/Day: ${config.hoursPerDay}`);
   console.log(`   Seed: ${config.seed}`);
   console.log(`   NPCs: ${config.numNPCs}`);
   console.log('===========================================');
@@ -316,7 +320,7 @@ async function main() {
   for (let day = 1; day <= config.simulationDays; day++) {
     console.log(`\n📅 === DAY ${day} ===`);
 
-    for (let hour = 0; hour < 24; hour++) {
+    for (let hour = 0; hour < config.hoursPerDay; hour++) {
       currentTick++;
       console.log(`\n--- Tick ${currentTick}: Day ${day}, Hour ${hour}:00 ---`);
 
