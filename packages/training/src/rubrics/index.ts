@@ -237,7 +237,6 @@ export function getRubricHash(archetype: string): string {
  * Note: Sorted to match Python implementation for cross-language consistency
  */
 export function getAllRubricsHash(): string {
-  const allRubrics =
-    Object.values(RUBRICS).sort().join('::') + DEFAULT_RUBRIC;
+  const allRubrics = Object.values(RUBRICS).sort().join('::') + DEFAULT_RUBRIC;
   return createHash('sha256').update(allRubrics).digest('hex').substring(0, 16);
 }
