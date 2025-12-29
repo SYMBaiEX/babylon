@@ -1,6 +1,6 @@
 <div align="center">
 
-  <img src="docs/public/logo_full.svg" alt="Babylon Logo" width="600">
+  <h1>🎮 Babylon</h1>
 
   <p><strong>A multiplayer prediction market game with autonomous AI agents and continuous RL training</strong></p>
   
@@ -14,11 +14,6 @@
 
 </div>
 
-<div align="center">
-
-  <img src="docs/public/game_preview.jpg" alt="Babylon Game Preview" width="800">
-
-</div>
 
 ---
 
@@ -159,8 +154,8 @@ See `.env.example` for complete list.
 **[📖 Full Documentation →](https://docs.babylon.market)**
 
 - Smart Contracts: `bun run deploy:local|testnet`
-- RL Training: See `python/README.md`
-- Game Control: `bun run game:start|pause|status`
+- RL Training: See `packages/training/README.md`
+- Game Control: `babylon game start|pause|status` (via CLI)
 
 ---
 
