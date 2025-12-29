@@ -24,7 +24,10 @@ import {
 } from '@babylon/db';
 import { trajectoryRecorder } from '@babylon/training';
 import type { IAgentRuntime } from '@elizaos/core';
-import { setTrajectoryContext } from '../plugins/plugin-trajectory-logger/src/action-interceptor';
+import {
+  clearTrajectoryContext,
+  setTrajectoryContext,
+} from '../plugins/plugin-trajectory-logger/src/action-interceptor';
 import { agentRuntimeManager } from '../runtime/AgentRuntimeManager';
 import { getAgentConfig } from '../shared/agent-config';
 import { logger } from '../shared/logger';
@@ -129,135 +132,148 @@ export class AutonomousCoordinator {
     // Get agent config (only for USER_CONTROLLED agents, NPCs don't have UserAgentConfig)
     const config = isNpc ? null : await getAgentConfig(agentUserId);
 
-    // Check if agent has goals configured
-    const hasGoals =
-      (await db.agentGoal.count({
-        where: {
-          agentUserId,
-          status: 'active',
-        },
-      })) > 0;
+    // Helper to clean up trajectory context
+    const cleanupTrajectory = async (): Promise<void> => {
+      if (recordTrajectories && trajId) {
+        const finalState = await this.captureEnvironmentState(agentUserId);
+        await trajectoryRecorder.endTrajectory(trajId, {
+          finalBalance: finalState.agentBalance,
+          finalPnL: finalState.agentPnL,
+          gameKnowledge: {
+            trueProbabilities: {},
+            actualOutcomes: {},
+          },
+        });
+        // Clear trajectory context from WeakMap and runtime
+        clearTrajectoryContext(runtime);
+        (runtime as { currentTrajectoryId?: string }).currentTrajectoryId =
+          undefined;
+      }
+    };
 
-    // Use planning coordinator if agent has goals and multi-action planning enabled
-    if (hasGoals && config?.planningHorizon === 'multi') {
+    try {
+      // Check if agent has goals configured
+      const hasGoals =
+        (await db.agentGoal.count({
+          where: {
+            agentUserId,
+            status: 'active',
+          },
+        })) > 0;
+
+      // Use planning coordinator if agent has goals and multi-action planning enabled
+      if (hasGoals && config?.planningHorizon === 'multi') {
+        logger.info(
+          'Using goal-oriented planning coordinator',
+          undefined,
+          'AutonomousCoordinator'
+        );
+
+        // Generate comprehensive action plan
+        const plan = await autonomousPlanningCoordinator.generateActionPlan(
+          agentUserId,
+          runtime
+        );
+
+        // Execute the plan
+        const executionResult = await autonomousPlanningCoordinator.executePlan(
+          agentUserId,
+          runtime,
+          plan
+        );
+
+        // Map results to standard format
+        for (const actionResult of executionResult.results) {
+          if (actionResult.success) {
+            switch (actionResult.action.type) {
+              case 'trade':
+                result.actionsExecuted.trades++;
+                break;
+              case 'post':
+                result.actionsExecuted.posts++;
+                break;
+              case 'comment':
+              case 'respond':
+                result.actionsExecuted.comments++;
+                break;
+              case 'message':
+                result.actionsExecuted.messages++;
+                break;
+            }
+          }
+        }
+
+        result.success = executionResult.successful > 0;
+        result.method = 'planning_coordinator';
+        result.duration = Date.now() - startTime;
+
+        logger.info(
+          'Completed autonomous tick via planning coordinator',
+          {
+            agentId: agentUserId,
+            planned: executionResult.planned,
+            executed: executionResult.executed,
+            successful: executionResult.successful,
+            duration: result.duration,
+          },
+          'AutonomousCoordinator'
+        );
+
+        return result;
+      }
+
+      // === USE MULTI-STEP EXECUTOR (Default Mode) ===
+      // The multi-step executor lets the LLM decide what actions to take
+      // based on current context, iterating up to 5 times per tick.
       logger.info(
-        'Using goal-oriented planning coordinator',
+        'Using multi-step executor for autonomous actions',
         undefined,
         'AutonomousCoordinator'
       );
 
-      // Generate comprehensive action plan
-      const plan = await autonomousPlanningCoordinator.generateActionPlan(
-        agentUserId,
-        runtime
-      );
-
-      // Execute the plan
-      const executionResult = await autonomousPlanningCoordinator.executePlan(
+      const multiStepResult = await multiStepExecutor.execute(
         agentUserId,
         runtime,
-        plan
+        isNpc
       );
 
-      // Map results to standard format
-      for (const actionResult of executionResult.results) {
-        if (actionResult.success) {
-          switch (actionResult.action.type) {
-            case 'trade':
-              result.actionsExecuted.trades++;
-              break;
-            case 'post':
-              result.actionsExecuted.posts++;
-              break;
-            case 'comment':
-            case 'respond':
-              result.actionsExecuted.comments++;
-              break;
-            case 'message':
-              result.actionsExecuted.messages++;
-              break;
-          }
-        }
+      // Map multi-step results to standard format
+      result.actionsExecuted.trades = multiStepResult.actionsExecuted.trades;
+      result.actionsExecuted.posts = multiStepResult.actionsExecuted.posts;
+      result.actionsExecuted.comments =
+        multiStepResult.actionsExecuted.comments;
+      result.actionsExecuted.messages =
+        multiStepResult.actionsExecuted.messages;
+      result.method = 'multi_step';
+      result.success = multiStepResult.success;
+      result.duration = multiStepResult.duration;
+
+      // Handle group chats separately (not yet in multi-step)
+      if (config?.autonomousGroupChats) {
+        const groupMessages =
+          await autonomousGroupChatService.participateInGroupChats(
+            agentUserId,
+            runtime
+          );
+        result.actionsExecuted.groupMessages += groupMessages;
       }
 
-      result.success = executionResult.successful > 0;
-      result.method = 'planning_coordinator';
-      result.duration = Date.now() - startTime;
-
       logger.info(
-        'Completed autonomous tick via planning coordinator',
+        `Autonomous tick completed for agent ${agentUserId}`,
         {
-          agentId: agentUserId,
-          planned: executionResult.planned,
-          executed: executionResult.executed,
-          successful: executionResult.successful,
           duration: result.duration,
+          actions: result.actionsExecuted,
+          method: result.method,
+          trajectoryId: trajId,
         },
         'AutonomousCoordinator'
       );
 
       return result;
+    } finally {
+      // Always clean up trajectory context, even on exception
+      await cleanupTrajectory();
     }
-
-    // === USE MULTI-STEP EXECUTOR (Default Mode) ===
-    // The multi-step executor lets the LLM decide what actions to take
-    // based on current context, iterating up to 5 times per tick.
-    logger.info(
-      'Using multi-step executor for autonomous actions',
-      undefined,
-      'AutonomousCoordinator'
-    );
-
-    const multiStepResult = await multiStepExecutor.execute(
-      agentUserId,
-      runtime,
-      isNpc
-    );
-
-    // Map multi-step results to standard format
-    result.actionsExecuted.trades = multiStepResult.actionsExecuted.trades;
-    result.actionsExecuted.posts = multiStepResult.actionsExecuted.posts;
-    result.actionsExecuted.comments = multiStepResult.actionsExecuted.comments;
-    result.actionsExecuted.messages = multiStepResult.actionsExecuted.messages;
-    result.method = 'multi_step';
-    result.success = multiStepResult.success;
-    result.duration = multiStepResult.duration;
-
-    // Handle group chats separately (not yet in multi-step)
-    if (config?.autonomousGroupChats) {
-      const groupMessages =
-        await autonomousGroupChatService.participateInGroupChats(
-          agentUserId,
-          runtime
-        );
-      result.actionsExecuted.groupMessages += groupMessages;
-    }
-
-    // End trajectory recording if enabled
-    if (recordTrajectories && trajId) {
-      const finalState = await this.captureEnvironmentState(agentUserId);
-      await trajectoryRecorder.endTrajectory(trajId, {
-        finalBalance: finalState.agentBalance,
-        finalPnL: finalState.agentPnL,
-        gameKnowledge: {
-          trueProbabilities: {},
-          actualOutcomes: {},
-        },
-      });
-    }
-
-    logger.info(
-      `Autonomous tick completed for agent ${agentUserId}`,
-      {
-        duration: result.duration,
-        actions: result.actionsExecuted,
-        method: result.method,
-        trajectoryId: trajId,
-      },
-      'AutonomousCoordinator'
-    );
-
-    return result;
   }
 
   /**

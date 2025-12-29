@@ -49,6 +49,14 @@ export function getTrajectoryContext(
 }
 
 /**
+ * Clear trajectory context for a runtime
+ * Should be called after ending a trajectory to prevent stale context
+ */
+export function clearTrajectoryContext(runtime: IAgentRuntime): void {
+  trajectoryContexts.delete(runtime);
+}
+
+/**
  * Wrap an action with logging
  */
 export function wrapActionWithLogging(
