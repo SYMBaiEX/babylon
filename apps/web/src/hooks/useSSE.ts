@@ -19,10 +19,12 @@
 
 import { usePrivy } from '@privy-io/react-auth';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { logger } from '@babylon/shared';
 import {
   type Channel,
   type ConnectionState,
   type SSECallback,
+  type SSEMessage,
   SSEManager,
   type SSEMessage,
 } from '@/lib/sse';
