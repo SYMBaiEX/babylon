@@ -16,9 +16,12 @@
 import { logger } from '@babylon/shared';
 // Import types from training package for causal simulation
 import {
+  type ArchetypeResolver,
   type BenchmarkConfig,
   BenchmarkDataGenerator,
+  deriveArchetype,
   type GroundTruth,
+  type NPCCharacteristics,
 } from '@babylon/training';
 import {
   BabylonLLMClient,
@@ -189,18 +192,50 @@ async function main() {
     maxOutputTokens: modelConfig.maxOutputTokens,
   });
 
-  // The 'Trajectory' engine wraps it to record the (Observation -> Thought -> Action) loop
-  const trajectoryEngine = new TrajectoryMarketEngine(rawMarketEngine, {
-    enableRecording: true,
-    samplingRate: 1.0, // Record 100% of decisions for the dataset
-  });
-  console.log('✅ Trajectory Recorder: ATTACHED');
-
-  // 5. Setup Game World & Loop
+  // 5. Setup Game World first (we need NPCs for archetype resolver)
   const world = new GameWorld(
     { outcome: config.outcome, numNPCs: config.numNPCs },
     llmClient
   );
+
+  // Initialize world to create NPCs
+  await world.generate();
+
+  // Create archetype resolver from world NPCs
+  const worldNPCs = world.getNPCs();
+  const archetypeResolver: ArchetypeResolver = (npcId: string): string => {
+    const npc = worldNPCs.find((n) => n.id === npcId);
+    if (!npc) {
+      console.warn(`NPC not found for archetype resolution: ${npcId}`);
+      return 'trader';
+    }
+    // Convert NPC to NPCCharacteristics for archetype derivation
+    const characteristics: NPCCharacteristics = {
+      id: npc.id,
+      name: npc.name,
+      role: npc.role,
+      personality: npc.personality,
+      reliability: npc.reliability,
+      willingToLie: npc.role === 'deceiver' || npc.reliability < 0.3,
+    };
+    return deriveArchetype(characteristics);
+  };
+
+  // Log archetype assignments
+  console.log('📊 NPC Archetype Assignments:');
+  for (const npc of worldNPCs) {
+    const archetype = archetypeResolver(npc.id);
+    console.log(`   - ${npc.name} (${npc.role}): ${archetype}`);
+  }
+
+  // The 'Trajectory' engine wraps it to record the (Observation -> Thought -> Action) loop
+  const trajectoryEngine = new TrajectoryMarketEngine(rawMarketEngine, {
+    enableRecording: true,
+    samplingRate: 1.0, // Record 100% of decisions for the dataset
+    archetypeResolver, // Archetype resolver for RL scoring
+  });
+  console.log('✅ Trajectory Recorder: ATTACHED with archetype resolver');
+
   const loop = new GameLoop(world, feed, trajectoryEngine, relationships);
 
   // 6. Setup Causal Simulation if enabled
@@ -273,8 +308,7 @@ async function main() {
   console.log('\n🧠 STARTING SIMULATION LOOP...');
   const gameId = `training-batch-${Date.now()}`;
 
-  // Initialize world state (create initial events/posts)
-  await world.generate();
+  // Note: world.generate() already called above when setting up archetype resolver
 
   let currentTick = 0;
 

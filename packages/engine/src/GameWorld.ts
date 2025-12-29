@@ -360,6 +360,30 @@ export class GameWorld extends EventEmitter implements TypedGameWorldEmitter {
   }
 
   /**
+   * Get all NPCs in the world
+   *
+   * @returns Array of NPCs with their roles, personalities, and reliability
+   *
+   * @description
+   * Returns the list of NPCs created for this world. Each NPC has:
+   * - id: Unique identifier (e.g., 'npc-0')
+   * - name: Display name (e.g., 'Insider Ian')
+   * - role: Role type (insider, expert, journalist, etc.)
+   * - personality: Personality description
+   * - reliability: How often they tell truth (0-1)
+   * - knowsTruth: Whether they know the actual outcome
+   *
+   * @example
+   * ```typescript
+   * const npcs = world.getNPCs();
+   * const insiders = npcs.filter(npc => npc.role === 'insider');
+   * ```
+   */
+  getNPCs(): NPC[] {
+    return this.npcs;
+  }
+
+  /**
    * Generate complete game world simulation
    *
    * @returns Complete world state with 30-day timeline, events, and NPCs
