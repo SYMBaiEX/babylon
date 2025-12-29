@@ -67,6 +67,25 @@ mock.module('@babylon/db', () => {
   // Mock schema tables as empty objects
   const mockTable: Record<string, never> = {};
 
+  // Mock Drizzle query builder (chainable and awaitable)
+  const createQueryBuilder = () => {
+    const builder = {
+      set: mock(() => builder),
+      where: mock(() => builder),
+      values: mock(() => builder),
+      from: mock(() => builder),
+      limit: mock(() => builder),
+      returning: mock(async () => [{ id: 'mock-lock-id' }]),
+      onConflictDoNothing: mock(() => builder),
+      // Make the builder awaitable (for insert/update, return success; for select, return empty)
+      then: (resolve: (value: Array<{ id: string }>) => void) => {
+        // Return non-empty array for inserts (successful lock acquisition)
+        resolve([{ id: 'mock-lock-id' }]);
+      },
+    };
+    return builder;
+  };
+
   return {
     db: {
       game: createModelMock(),
@@ -77,6 +96,11 @@ mock.module('@babylon/db', () => {
         if (typeof fn === 'function') return fn({} as MockDb);
         return Promise.all(fn);
       },
+      // Core Drizzle methods
+      update: mock(() => createQueryBuilder()),
+      insert: mock(() => createQueryBuilder()),
+      delete: mock(() => createQueryBuilder()),
+      select: mock(() => createQueryBuilder()),
     },
     // Schema exports (tables)
     schema: {},
@@ -92,6 +116,7 @@ mock.module('@babylon/db', () => {
     poolPositions: mockTable,
     markets: mockTable,
     questions: mockTable,
+    generationLocks: mockTable,
     // Operators
     eq: (): SqlCondition => ({}),
     ne: (): SqlCondition => ({}),
