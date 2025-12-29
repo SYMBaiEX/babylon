@@ -161,35 +161,26 @@ export class DistributedLockService {
       return;
     }
 
-    // Only delete if we're the holder
-    const [existingLock] = await db
-      .select()
-      .from(generationLocks)
-      .where(eq(generationLocks.id, lockId))
-      .limit(1);
+    // Atomic delete with ownership check - prevents TOCTOU race condition
+    // Only deletes if we still own the lock at delete time
+    const deleteResult = await db
+      .delete(generationLocks)
+      .where(
+        and(eq(generationLocks.id, lockId), eq(generationLocks.lockedBy, processId))
+      )
+      .returning({ id: generationLocks.id });
 
-    if (existingLock && existingLock.lockedBy === processId) {
-      await db.delete(generationLocks).where(eq(generationLocks.id, lockId));
-
+    if (deleteResult.length > 0) {
       logger.info(
         `Lock ${lockId} released`,
         { lockId, lockHolder: processId },
         'DistributedLockService'
       );
-    } else if (existingLock) {
-      logger.warn(
-        `Lock ${lockId} not held by this process`,
-        {
-          lockId,
-          requestedHolder: processId,
-          actualHolder: existingLock.lockedBy,
-        },
-        'DistributedLockService'
-      );
     } else {
+      // Lock either doesn't exist, expired and was taken by another process, or we don't own it
       logger.info(
-        `Lock ${lockId} already released or expired`,
-        { lockId },
+        `Lock ${lockId} not released - not held by this process or already released`,
+        { lockId, processId },
         'DistributedLockService'
       );
     }

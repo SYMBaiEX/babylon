@@ -142,9 +142,10 @@ export async function POST(_req: NextRequest) {
   }
 
   // 1.5 Acquire global lock to prevent overlapping cron invocations
+  // Duration matches function timeout (800s) to prevent overlap when ticks take longer than cron interval
   const globalLockAcquired = await DistributedLockService.acquireLock({
     lockId: 'agent-tick-global',
-    durationMs: 55 * 1000, // 55 seconds - less than 1 minute cron interval
+    durationMs: 800 * 1000, // 800 seconds (13.3 minutes) - matches function timeout
     operation: 'agent-tick-global',
     processId,
   });
