@@ -1,5 +1,6 @@
 'use client';
 
+import { logger } from '@babylon/shared';
 import type {
   AreaSeriesOptions,
   ChartOptions,
@@ -167,6 +168,8 @@ export function useLightweightChart(
 
     let rafId: number | null = null;
     let mounted = true;
+    let retryCount = 0;
+    const MAX_RETRIES = 60; // ~1 second at 60fps
 
     const createChartInstance = () => {
       const container = chartContainerRef.current;
@@ -178,6 +181,15 @@ export function useLightweightChart(
       // Check if container has dimensions
       const { width, height } = container.getBoundingClientRect();
       if (width === 0 || height === 0) {
+        retryCount++;
+        if (retryCount >= MAX_RETRIES) {
+          logger.warn(
+            'Chart container never acquired dimensions after max retries',
+            { retryCount },
+            'useLightweightChart'
+          );
+          return;
+        }
         // Container not ready yet, retry on next frame
         rafId = requestAnimationFrame(createChartInstance);
         return;
@@ -195,7 +207,11 @@ export function useLightweightChart(
           setChart(chartInstance);
         }
       } catch (error) {
-        console.error('Failed to create chart:', error);
+        logger.error(
+          'Failed to create chart',
+          { error },
+          'useLightweightChart'
+        );
       }
     };
 

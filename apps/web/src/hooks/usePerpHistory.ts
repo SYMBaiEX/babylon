@@ -91,12 +91,14 @@ export function usePerpHistory(
     if (history.length > 0) return;
 
     // Try seed.currentPrice first, then fallback to livePrice
+    // Note: Number.isFinite already returns false for null/undefined,
+    // so the > 0 check is sufficient after the type guard.
     const seedPrice = options?.seed?.currentPrice;
     const livePriceValue = livePrice?.price;
     const priceToUse =
-      Number.isFinite(seedPrice) && (seedPrice ?? 0) > 0
+      Number.isFinite(seedPrice) && seedPrice! > 0
         ? seedPrice
-        : Number.isFinite(livePriceValue) && (livePriceValue ?? 0) > 0
+        : Number.isFinite(livePriceValue) && livePriceValue! > 0
           ? livePriceValue
           : null;
 

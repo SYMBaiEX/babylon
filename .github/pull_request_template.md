@@ -162,7 +162,8 @@ Choose ONE of the following:
 
 <!-- Delete the option that doesn't apply: -->
 
-**Option A: Visual demo**
+### Option A: Visual demo
+
 | Feature | Before | After |
 |---------|--------|-------|
 | … | … | … |
@@ -170,7 +171,8 @@ Choose ONE of the following:
 *Demo script (for recording):*
 1. …
 
-**Option B: No visual changes**
+### Option B: No visual changes
+
 - Reason: …
 
 ## Checklist (author)

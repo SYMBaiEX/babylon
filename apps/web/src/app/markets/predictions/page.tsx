@@ -213,12 +213,17 @@ export default function PredictionsPage() {
       setPredictions((prev) =>
         prev.map((market) => {
           if (market.id.toString() !== event.marketId) return market;
+          // Check if market should still be active based on resolutionDate
+          const now = Date.now();
+          const isResolved =
+            market.resolutionDate &&
+            new Date(market.resolutionDate).getTime() < now;
           return {
             ...market,
             yesShares: event.yesShares,
             noShares: event.noShares,
-            status: 'active',
-            resolvedOutcome: undefined,
+            status: isResolved ? 'resolved' : 'active',
+            resolvedOutcome: isResolved ? market.resolvedOutcome : undefined,
           };
         })
       );
