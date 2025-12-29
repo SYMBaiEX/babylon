@@ -202,19 +202,62 @@ export const GET = withErrorHandling(
       skip: queryParams.offset,
     });
 
-    // Fetch NPC actors
+    // Fetch NPC actors - first try DB, then fallback to StaticDataRegistry
     const npcActorIds = [...new Set(npcTrades.map((t) => t.npcActorId))];
-    const actors = await db.user.findMany({
-      where: { id: { in: npcActorIds }, isActor: true },
-      select: {
-        id: true,
-        username: true,
-        displayName: true,
-        profileImageUrl: true,
-        isActor: true,
-      },
-    });
-    const actorsMap = new Map(actors.map((a) => [a.id, a]));
+    const dbActors =
+      npcActorIds.length > 0
+        ? await db.user.findMany({
+            where: { id: { in: npcActorIds }, isActor: true },
+            select: {
+              id: true,
+              username: true,
+              displayName: true,
+              profileImageUrl: true,
+              isActor: true,
+            },
+          })
+        : [];
+    const dbActorsMap = new Map(dbActors.map((a) => [a.id, a]));
+
+    // Build actorsMap with StaticDataRegistry fallback for actors not in DB
+    const actorsMap = new Map<
+      string,
+      {
+        id: string;
+        username: string | null;
+        displayName: string | null;
+        profileImageUrl: string | null;
+        isActor: boolean;
+      }
+    >();
+
+    for (const actorId of npcActorIds) {
+      const dbActor = dbActorsMap.get(actorId);
+      const staticActor = StaticDataRegistry.getActor(actorId);
+
+      if (dbActor) {
+        // Prefer DB data, but fallback to static registry for displayName if missing
+        actorsMap.set(actorId, {
+          id: dbActor.id,
+          username:
+            dbActor.username ||
+            dbActor.displayName?.toLowerCase().replace(/\s+/g, '-') ||
+            actorId,
+          displayName: dbActor.displayName || staticActor?.name || actorId,
+          profileImageUrl: dbActor.profileImageUrl,
+          isActor: true,
+        });
+      } else if (staticActor) {
+        // Fallback to StaticDataRegistry when actor not in DB
+        actorsMap.set(actorId, {
+          id: staticActor.id,
+          username: staticActor.name.toLowerCase().replace(/\s+/g, '-'),
+          displayName: staticActor.name,
+          profileImageUrl: staticActor.profileImageUrl ?? null,
+          isActor: true,
+        });
+      }
+    }
 
     // Get balance transactions for these perp positions
     const positionIds = perpPositions.map((p) => p.id);
