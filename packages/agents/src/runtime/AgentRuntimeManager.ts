@@ -30,7 +30,7 @@ import { babylonPlugin } from '../plugins/babylon';
 import { enhanceRuntimeWithBabylon } from '../plugins/babylon/integration';
 import { groqPlugin } from '../plugins/groq';
 import { agentCorePlugin } from '../plugins/plugin-agent-core/src';
-import { experiencePlugin } from '../plugins/plugin-experience/src';
+// import { experiencePlugin } from '../plugins/plugin-experience/src';
 import { trajectoryLoggerPlugin } from '../plugins/plugin-trajectory-logger/src';
 import {
   wrapPluginActions,
