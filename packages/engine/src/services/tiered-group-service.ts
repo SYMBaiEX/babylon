@@ -255,7 +255,13 @@ export class TieredGroupService {
           isNotNull(groups.tier)
         )
       )
-      .groupBy(groups.id, groups.tier, groups.name, groups.maxMembers, chats.id);
+      .groupBy(
+        groups.id,
+        groups.tier,
+        groups.name,
+        groups.maxMembers,
+        chats.id
+      );
 
     const result: TierInfo[] = [];
 
@@ -793,57 +799,61 @@ export class TieredGroupService {
 
           // Wrap multi-step demotion in transaction to prevent orphaned state
           await db.$transaction(async (tx) => {
-          // Deactivate current membership
-          await tx
-            .update(groupMembers)
-            .set({ isActive: false, kickReason: reason, kickedAt: new Date() })
-            .where(
-              and(
-                eq(groupMembers.groupId, m.groupId),
-                eq(groupMembers.userId, m.userId)
-              )
-            );
-
-          // Deactivate chat participant for the old tier's chat
-          const [oldChat] = await tx
-            .select({ id: chats.id })
-            .from(chats)
-            .where(eq(chats.groupId, m.groupId))
-            .limit(1);
-
-          if (oldChat) {
+            // Deactivate current membership
             await tx
-              .update(chatParticipants)
-              .set({ isActive: false })
+              .update(groupMembers)
+              .set({
+                isActive: false,
+                kickReason: reason,
+                kickedAt: new Date(),
+              })
               .where(
                 and(
-                  eq(chatParticipants.chatId, oldChat.id),
-                  eq(chatParticipants.userId, m.userId)
+                  eq(groupMembers.groupId, m.groupId),
+                  eq(groupMembers.userId, m.userId)
                 )
               );
-          }
 
-          if (lowerTier && targetTier && !targetTier.isFull) {
-            // Add to lower tier
-            await tx.insert(groupMembers).values({
-              id: await generateSnowflakeId(),
-              groupId: targetTier.groupId,
-              userId: m.userId,
-              role: 'member',
-              tier: lowerTier,
-              previousTier: tier,
-              demotedAt: new Date(),
-            });
+            // Deactivate chat participant for the old tier's chat
+            const [oldChat] = await tx
+              .select({ id: chats.id })
+              .from(chats)
+              .where(eq(chats.groupId, m.groupId))
+              .limit(1);
 
-            if (targetTier.chatId) {
-              await tx.insert(chatParticipants).values({
-                id: await generateSnowflakeId(),
-                chatId: targetTier.chatId,
-                userId: m.userId,
-              });
+            if (oldChat) {
+              await tx
+                .update(chatParticipants)
+                .set({ isActive: false })
+                .where(
+                  and(
+                    eq(chatParticipants.chatId, oldChat.id),
+                    eq(chatParticipants.userId, m.userId)
+                  )
+                );
             }
-          }
-        });
+
+            if (lowerTier && targetTier && !targetTier.isFull) {
+              // Add to lower tier
+              await tx.insert(groupMembers).values({
+                id: await generateSnowflakeId(),
+                groupId: targetTier.groupId,
+                userId: m.userId,
+                role: 'member',
+                tier: lowerTier,
+                previousTier: tier,
+                demotedAt: new Date(),
+              });
+
+              if (targetTier.chatId) {
+                await tx.insert(chatParticipants).values({
+                  id: await generateSnowflakeId(),
+                  chatId: targetTier.chatId,
+                  userId: m.userId,
+                });
+              }
+            }
+          });
 
           demotions++;
           logger.info(

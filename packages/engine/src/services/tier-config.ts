@@ -8,7 +8,7 @@
  * - Tier 3 (Followers): Low barrier, public content
  */
 
-import { GROUP_CONFIG, type AlphaLevel, type TierLevel } from '@babylon/shared';
+import { type AlphaLevel, GROUP_CONFIG, type TierLevel } from '@babylon/shared';
 
 // Re-export for convenience
 export type { AlphaLevel, TierLevel } from '@babylon/shared';
