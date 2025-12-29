@@ -266,7 +266,8 @@ class ServiceManager:
     def _start_atropos(self) -> bool:
         """Start the Atropos API server"""
         host, port = self.config.atropos_host, self.config.atropos_port
-        health_url = f"http://{host}:{port}/health"
+        # Atropos doesn't have /health endpoint, use / which returns 200
+        health_url = f"http://{host}:{port}/"
         
         logger.info(f"Starting Atropos API server on port {port}...")
         

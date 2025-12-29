@@ -111,6 +111,7 @@ class AtroposTrainingConfig(BaseModel):
     
     # vLLM settings
     vllm_port: int = Field(default=9001, description="Port for vLLM inference server")
+    skip_vllm: bool = Field(default=False, description="Skip vLLM startup (assumes already running)")
     vllm_restart_interval: int = Field(default=5, description="Restart vLLM every N steps")
     vllm_gpu_utilization: float = Field(default=0.45, description="GPU memory for vLLM")
     
@@ -130,8 +131,12 @@ class AtroposTrainingConfig(BaseModel):
     # W&B settings
     use_wandb: bool = Field(default=True, description="Enable W&B logging")
     wandb_project: str = Field(default="babylon-training", description="W&B project name")
+    wandb_group: str = Field(default="babylon-training", description="W&B run group")
     wandb_entity: Optional[str] = Field(default=None, description="W&B entity/team")
     wandb_run_name: Optional[str] = Field(default=None, description="W&B run name")
+    
+    # Judge model settings
+    judge_model: str = Field(default="gpt-4o-mini", description="Model for AI judge scoring")
 
 
 def get_lr_scheduler(
@@ -388,7 +393,8 @@ class BabylonAtroposTrainer:
         response = requests.post(
             f"{self.config.api_url}/register",
             json={
-                "run_id": self.run_id,
+                "wandb_group": self.config.wandb_group,
+                "wandb_project": self.config.wandb_project,
                 "batch_size": self.config.batch_size * self.config.gradient_accumulation_steps,
                 "max_token_len": self.config.seq_len,
                 "starting_step": self.current_step,
@@ -741,8 +747,11 @@ class BabylonAtroposTrainer:
         self.setup_logging()
         self.register_with_api()
         
-        # Start vLLM
-        self.start_vllm()
+        # Start vLLM (unless skipped)
+        if not self.config.skip_vllm:
+            self.start_vllm()
+        else:
+            logger.info("Skipping vLLM startup (--skip-vllm flag set)")
         
         # Create save directory
         os.makedirs(self.config.save_path, exist_ok=True)
@@ -808,8 +817,8 @@ class BabylonAtroposTrainer:
             if should_checkpoint:
                 checkpoint_path = self.save_checkpoint(self.current_step)
                 
-                # Restart vLLM with new weights (if not final step)
-                if self.current_step < self.config.training_steps:
+                # Restart vLLM with new weights (if not final step and not skipped)
+                if not self.config.skip_vllm and self.current_step < self.config.training_steps:
                     if self.current_step % self.config.vllm_restart_interval == 0:
                         self.start_vllm(checkpoint_path)
                     
@@ -869,6 +878,7 @@ def main():
     # API settings
     parser.add_argument("--api-url", default="http://localhost:8000", help="Atropos API URL")
     parser.add_argument("--vllm-port", type=int, default=9001, help="vLLM server port")
+    parser.add_argument("--skip-vllm", action="store_true", help="Skip vLLM startup (assumes already running)")
     
     # Logging settings
     parser.add_argument("--log-file", default="./logs/training_metrics.jsonl", help="Metrics log file")
@@ -895,6 +905,7 @@ def main():
         resume_from=args.resume,
         api_url=args.api_url,
         vllm_port=args.vllm_port,
+        skip_vllm=args.skip_vllm,
         log_file=args.log_file,
         use_wandb=not args.no_wandb,
         wandb_project=args.wandb_project,

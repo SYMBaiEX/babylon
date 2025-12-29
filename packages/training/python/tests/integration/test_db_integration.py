@@ -87,11 +87,12 @@ class TestDatabaseTrajectoryOperations:
             '''
             INSERT INTO trajectories (
                 "id", "trajectoryId", "agentId", "archetype", "windowId",
-                "stepsJson", "finalPnL", "episodeLength", "totalReward",
+                "stepsJson", "rewardComponentsJson", "metricsJson", "metadataJson",
+                "finalPnL", "episodeLength", "totalReward",
                 "finalStatus", "isTrainingData", "startTime", "endTime",
                 "durationMs", "createdAt", "updatedAt"
             ) VALUES (
-                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
             )
             ''',
             (
@@ -101,6 +102,9 @@ class TestDatabaseTrajectoryOperations:
                 archetype,
                 window_id,
                 json.dumps(steps),
+                "{}",  # rewardComponentsJson
+                "{}",  # metricsJson
+                "{}",  # metadataJson
                 final_pnl,
                 episode_length,
                 0.5,
@@ -220,16 +224,17 @@ class TestDatabaseTrajectoryOperations:
             '''
             INSERT INTO trajectories (
                 "id", "trajectoryId", "agentId", "archetype", "windowId",
-                "stepsJson", "finalPnL", "episodeLength", "totalReward",
+                "stepsJson", "rewardComponentsJson", "metricsJson", "metadataJson",
+                "finalPnL", "episodeLength", "totalReward",
                 "finalStatus", "isTrainingData", "startTime", "endTime",
                 "durationMs", "createdAt", "updatedAt"
             ) VALUES (
-                %s, %s, %s, NULL, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+                %s, %s, %s, NULL, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
             )
             ''',
             (
                 traj_id, traj_id, "test-agent", f"{self.test_prefix}-window-null",
-                "[]", 100.0, 3, 0.5, "completed", True,
+                "[]", "{}", "{}", "{}", 100.0, 3, 0.5, "completed", True,
                 datetime.now(), datetime.now(), 5000, datetime.now(), datetime.now(),
             )
         )
@@ -297,17 +302,18 @@ class TestDatabaseScoring:
             '''
             INSERT INTO trajectories (
                 "id", "trajectoryId", "agentId", "archetype", "windowId",
-                "stepsJson", "finalPnL", "episodeLength", "totalReward",
+                "stepsJson", "rewardComponentsJson", "metricsJson", "metadataJson",
+                "finalPnL", "episodeLength", "totalReward",
                 "finalStatus", "isTrainingData", "startTime", "endTime",
                 "durationMs", "createdAt", "updatedAt"
             ) VALUES (
-                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
             )
             RETURNING "trajectoryId", "archetype", "stepsJson", "finalPnL", "episodeLength"
             ''',
             (
                 traj_id, traj_id, f"agent-{archetype}", archetype, window_id,
-                json.dumps(steps), final_pnl, len(steps), 0.5, "completed", True,
+                json.dumps(steps), "{}", "{}", "{}", final_pnl, len(steps), 0.5, "completed", True,
                 datetime.now(), datetime.now(), 5000, datetime.now(), datetime.now(),
             )
         )
@@ -412,16 +418,17 @@ class TestDatabaseScoring:
                 '''
                 INSERT INTO trajectories (
                     "id", "trajectoryId", "agentId", "archetype", "windowId",
-                    "stepsJson", "finalPnL", "episodeLength", "totalReward",
+                    "stepsJson", "rewardComponentsJson", "metricsJson", "metadataJson",
+                    "finalPnL", "episodeLength", "totalReward",
                     "finalStatus", "isTrainingData", "startTime", "endTime",
                     "durationMs", "createdAt", "updatedAt"
                 ) VALUES (
-                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
                 )
                 ''',
                 (
                     traj_id, traj_id, f"agent-{i}", archetype, window_id,
-                    "[]", 100.0 * (i + 1), 3, 0.5, "completed", True,
+                    "[]", "{}", "{}", "{}", 100.0 * (i + 1), 3, 0.5, "completed", True,
                     datetime.now(), datetime.now(), 5000, datetime.now(), datetime.now(),
                 )
             )
@@ -503,16 +510,17 @@ class TestEndToEndDatabasePipeline:
                 '''
                 INSERT INTO trajectories (
                     "id", "trajectoryId", "agentId", "archetype", "windowId",
-                    "stepsJson", "finalPnL", "episodeLength", "totalReward",
+                    "stepsJson", "rewardComponentsJson", "metricsJson", "metadataJson",
+                    "finalPnL", "episodeLength", "totalReward",
                     "finalStatus", "isTrainingData", "startTime", "endTime",
                     "durationMs", "createdAt", "updatedAt"
                 ) VALUES (
-                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
                 )
                 ''',
                 (
                     traj_id, traj_id, traj.agent_id, traj.archetype, window_id,
-                    json.dumps(traj.steps), traj.final_pnl, traj.episode_length,
+                    json.dumps(traj.steps), "{}", "{}", "{}", traj.final_pnl, traj.episode_length,
                     traj.total_reward, "completed", True,
                     datetime.now(), datetime.now(), 5000, datetime.now(), datetime.now(),
                 )
@@ -591,16 +599,17 @@ class TestEndToEndDatabasePipeline:
                 '''
                 INSERT INTO trajectories (
                     "id", "trajectoryId", "agentId", "archetype", "windowId",
-                    "stepsJson", "finalPnL", "episodeLength", "totalReward",
+                    "stepsJson", "rewardComponentsJson", "metricsJson", "metadataJson",
+                    "finalPnL", "episodeLength", "totalReward",
                     "finalStatus", "isTrainingData", "startTime", "endTime",
                     "durationMs", "createdAt", "updatedAt"
                 ) VALUES (
-                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
                 )
                 ''',
                 (
                     traj_id, traj_id, f"agent-{archetype}", archetype, window_id,
-                    "[]", 100.0 + i * 10, 3, 0.5, "completed", True,
+                    "[]", "{}", "{}", "{}", 100.0 + i * 10, 3, 0.5, "completed", True,
                     datetime.now(), datetime.now(), 5000, datetime.now(), datetime.now(),
                 )
             )

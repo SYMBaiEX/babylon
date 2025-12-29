@@ -237,14 +237,14 @@ class TrainingOrchestrator:
         env_cmd = [
             sys.executable, "-m", "src.training.babylon_env", "serve",
             "--slurm", "false",
-            "--env--tokenizer_name", self.model_name,
-            "--env--rollout_server_url", f"http://localhost:{self.api_port}",
-            "--openai--model_name", self.model_name,
-            "--openai--base_url", f"http://localhost:{self.vllm_port}/v1",
+            "--env.tokenizer_name", self.model_name,
+            "--env.rollout_server_url", f"http://localhost:{self.api_port}",
+            "--openai.model_name", self.model_name,
+            "--openai.base_url", f"http://localhost:{self.vllm_port}/v1",
         ]
         
         if not self.use_wandb:
-            env_cmd.extend(["--env--use_wandb", "false"])
+            env_cmd.extend(["--env.use_wandb", "false"])
         
         log_file = self.log_dir / "environment.log"
         log_handle = open(log_file, "w")
@@ -255,6 +255,7 @@ class TrainingOrchestrator:
             cwd=str(Path(__file__).parent.parent),
             stdout=log_handle,
             stderr=subprocess.STDOUT,
+            env=os.environ.copy(),  # Pass environment variables including DATABASE_URL
         )
         
         time.sleep(5)  # Wait for environment to initialize
@@ -287,6 +288,7 @@ class TrainingOrchestrator:
             "--keep-checkpoints", str(self.keep_checkpoints),
             "--log-file", str(self.log_dir / "training_metrics.jsonl"),
             "--wandb-project", self.wandb_project,
+            "--skip-vllm",  # vLLM already started by ServiceManager
         ]
         
         if self.resume_from:

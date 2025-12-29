@@ -350,9 +350,9 @@ class TestIntegrationStartEnvironment:
             assert "-m" in cmd
             assert "src.training.babylon_env" in cmd
             assert "serve" in cmd
-            assert "--env--tokenizer_name" in cmd
+            assert "--env.tokenizer_name" in cmd
             assert "test/model" in cmd
-            assert "--env--use_wandb" in cmd
+            assert "--env.use_wandb" in cmd
             assert "false" in cmd
     
     @patch('subprocess.Popen')

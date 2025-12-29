@@ -239,27 +239,36 @@ docker compose -f docker-compose.test.yml down -v
 **What it tests:** Complete training pipeline including vLLM inference, Atropos API, W&B logging.
 
 **Requirements:** 
-- Tier 3 setup
-- NVIDIA GPU with 24GB+ VRAM
+- Tier 3 setup complete
+- NVIDIA GPU with 12GB+ VRAM (24GB+ recommended for larger models)
 - CUDA 12.1+
 - vLLM installed
+- OpenAI API key (for AI judge scoring)
 - W&B account (optional)
+
+**GPU Memory Guidelines:**
+| GPU VRAM | Recommended Model | Notes |
+|----------|-------------------|-------|
+| 12GB | Qwen2.5-1.5B-Instruct | Works on RTX 3060/4070 |
+| 16GB | Qwen2.5-3B-Instruct | Works on RTX 4080/A4000 |
+| 24GB+ | Qwen2.5-7B-Instruct | RTX 4090/A5000/A6000 |
 
 #### Step 1: Prerequisites Check
 
 ```bash
 cd packages/training/python
-python -c "from training.service_manager import check_prerequisites; print(check_prerequisites())"
+source venv/bin/activate
+python -c "import sys; sys.path.insert(0, '.'); from src.training.service_manager import check_prerequisites; issues = check_prerequisites(); print('Issues:', issues if issues else 'None - all prerequisites met!')"
 ```
 
 **Expected Output:**
 
 ```
-GPU detected: NVIDIA RTX 4090 (24.0 GB)
-[]  # Empty list = all prerequisites met
+Issues: None - all prerequisites met!
 ```
 
 If you see errors:
+- `DATABASE_URL not set` → `export DATABASE_URL=postgresql://...`
 - `Atropos API not found` → `pip install atroposlib`
 - `vLLM not installed` → `pip install vllm`
 - `CUDA not available` → Install CUDA or use `--skip-vllm`
