@@ -89,6 +89,7 @@ Only consider work done after all three pass without errors.
 - **Commits:** Imperative mood, prefixed (`feat:`, `fix:`, `chore:`)
 - **Main branch:** `staging` (not `main`)
 - **Pre-commit:** Biome format check via Husky
+- **PR maintenance:** Update PR title and description after each commit if scope changes. Use `gh pr edit <number> --title "..." --body "..."` to keep the PR summary accurate.
 
 ### PR Review Process
 - PRs are automatically reviewed by `claude[bot]` and `coderabbitai[bot]`
