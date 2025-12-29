@@ -23,8 +23,8 @@ import {
   type Channel,
   type ConnectionState,
   type SSECallback,
-  type SSEMessage,
   SSEManager,
+  type SSEMessage,
 } from '@/lib/sse';
 
 // Re-export types for backwards compatibility

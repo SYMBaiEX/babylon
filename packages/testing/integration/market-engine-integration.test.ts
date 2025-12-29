@@ -798,7 +798,8 @@ describe('Market-Engine Integration (BAB-5)', () => {
 
   describe('2.1 - EventMarketLinkerService', () => {
     test('should get market event summaries without errors', async () => {
-      const summaries = await EventMarketLinkerService.getMarketEventSummaries(24);
+      const summaries =
+        await EventMarketLinkerService.getMarketEventSummaries(24);
 
       // Should return array
       expect(summaries).toBeInstanceOf(Array);
@@ -817,7 +818,8 @@ describe('Market-Engine Integration (BAB-5)', () => {
     });
 
     test('should return valid aggregated impact values (-1 to 1)', async () => {
-      const summaries = await EventMarketLinkerService.getMarketEventSummaries(24);
+      const summaries =
+        await EventMarketLinkerService.getMarketEventSummaries(24);
 
       for (const summary of summaries) {
         expect(summary.aggregatedImpact).toBeGreaterThanOrEqual(-1);
@@ -826,7 +828,8 @@ describe('Market-Engine Integration (BAB-5)', () => {
     });
 
     test('should return valid probability values (0-1)', async () => {
-      const summaries = await EventMarketLinkerService.getMarketEventSummaries(24);
+      const summaries =
+        await EventMarketLinkerService.getMarketEventSummaries(24);
 
       for (const summary of summaries) {
         expect(summary.currentProbability).toBeGreaterThanOrEqual(0);
@@ -835,8 +838,10 @@ describe('Market-Engine Integration (BAB-5)', () => {
     });
 
     test('should format trading context correctly', async () => {
-      const summaries = await EventMarketLinkerService.getMarketEventSummaries(24);
-      const context = EventMarketLinkerService.formatForTradingContext(summaries);
+      const summaries =
+        await EventMarketLinkerService.getMarketEventSummaries(24);
+      const context =
+        EventMarketLinkerService.formatForTradingContext(summaries);
 
       // Should be a string
       expect(typeof context).toBe('string');
@@ -849,7 +854,8 @@ describe('Market-Engine Integration (BAB-5)', () => {
     });
 
     test('should sort summaries by absolute aggregated impact', async () => {
-      const summaries = await EventMarketLinkerService.getMarketEventSummaries(24);
+      const summaries =
+        await EventMarketLinkerService.getMarketEventSummaries(24);
 
       if (summaries.length >= 2) {
         for (let i = 0; i < summaries.length - 1; i++) {
@@ -861,7 +867,8 @@ describe('Market-Engine Integration (BAB-5)', () => {
     });
 
     test('should mark high-impact summaries as trading relevant', async () => {
-      const summaries = await EventMarketLinkerService.getMarketEventSummaries(24);
+      const summaries =
+        await EventMarketLinkerService.getMarketEventSummaries(24);
 
       for (const summary of summaries) {
         // Trading relevant threshold is 0.03
@@ -872,12 +879,15 @@ describe('Market-Engine Integration (BAB-5)', () => {
     });
 
     test('should have valid impact directions in recentImpacts', async () => {
-      const summaries = await EventMarketLinkerService.getMarketEventSummaries(24);
+      const summaries =
+        await EventMarketLinkerService.getMarketEventSummaries(24);
 
       for (const summary of summaries) {
         for (const impact of summary.recentImpacts) {
           expect(['YES', 'NO', 'NEUTRAL']).toContain(impact.direction);
-          expect(['weak', 'moderate', 'strong']).toContain(impact.impactStrength);
+          expect(['weak', 'moderate', 'strong']).toContain(
+            impact.impactStrength
+          );
           expect(impact.suggestedPriceImpact).toBeGreaterThanOrEqual(0);
           expect(impact.confidence).toBeGreaterThanOrEqual(0);
           expect(impact.confidence).toBeLessThanOrEqual(1);
