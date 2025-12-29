@@ -6,15 +6,7 @@
  * Supports automatic stale lock recovery.
  */
 
-import {
-  and,
-  db,
-  eq,
-  generationLocks,
-  isUniqueConstraintError,
-  lte,
-  toDatabaseErrorType,
-} from '@babylon/db';
+import { and, db, eq, generationLocks, lte } from '@babylon/db';
 import { logger } from '@babylon/shared';
 import { randomBytes } from 'crypto';
 
@@ -107,16 +99,20 @@ export class DistributedLockService {
     }
 
     // No lock exists - try to create it
-    // Use try-catch for unique constraint violation (race with another insert)
-    try {
-      await db.insert(generationLocks).values({
+    // Use onConflictDoNothing to handle race with another insert
+    const insertResult = await db
+      .insert(generationLocks)
+      .values({
         id: lockId,
         lockedBy: lockHolder,
         lockedAt: now,
         expiresAt: expiry,
         operation,
-      });
+      })
+      .onConflictDoNothing()
+      .returning({ id: generationLocks.id });
 
+    if (insertResult.length > 0) {
       logger.info(
         `Lock ${lockId} acquired (created)`,
         {
@@ -127,19 +123,15 @@ export class DistributedLockService {
         'DistributedLockService'
       );
       return true;
-    } catch (error) {
-      // Unique constraint violation means another process created the lock
-      // between our check and insert - this is expected in race conditions
-      if (isUniqueConstraintError(toDatabaseErrorType(error))) {
-        logger.info(
-          `Lock ${lockId} lost race to another process`,
-          { lockId },
-          'DistributedLockService'
-        );
-        return false;
-      }
-      throw error;
     }
+
+    // Another process won the race between our check and insert
+    logger.info(
+      `Lock ${lockId} lost race to another process`,
+      { lockId },
+      'DistributedLockService'
+    );
+    return false;
   }
 
   /**
