@@ -6,7 +6,15 @@
  * Supports automatic stale lock recovery.
  */
 
-import { and, db, eq, generationLocks, lte } from '@babylon/db';
+import {
+  and,
+  db,
+  eq,
+  generationLocks,
+  isUniqueConstraintError,
+  lte,
+  toDatabaseErrorType,
+} from '@babylon/db';
 import { logger } from '@babylon/shared';
 import { randomBytes } from 'crypto';
 
@@ -122,10 +130,7 @@ export class DistributedLockService {
     } catch (error) {
       // Unique constraint violation means another process created the lock
       // between our check and insert - this is expected in race conditions
-      if (
-        error instanceof Error &&
-        error.message.includes('unique constraint')
-      ) {
+      if (isUniqueConstraintError(toDatabaseErrorType(error))) {
         logger.info(
           `Lock ${lockId} lost race to another process`,
           { lockId },
