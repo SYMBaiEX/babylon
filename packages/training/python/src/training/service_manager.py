@@ -410,7 +410,14 @@ class ServiceManager:
         return False
     
     def _port_in_use(self, host: str, port: int) -> bool:
-        """Check if a port is already in use"""
+        """
+        Check if a port is already in use.
+        
+        Note: There is an inherent TOCTOU (time-of-check to time-of-use) race condition
+        between this check and actually starting the process. If another process grabs
+        the port between check and Popen, startup will fail. This is acceptable for our
+        use case since we primarily use this to detect already-running services.
+        """
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
             sock.settimeout(1)
             return sock.connect_ex((host, port)) == 0
@@ -501,7 +508,10 @@ def check_prerequisites() -> list[str]:
         errors.append("PyTorch not installed. Install with: pip install torch")
     
     if not os.getenv("DATABASE_URL"):
-        errors.append("DATABASE_URL not set. Required for loading training trajectories.")
+        errors.append(
+            "DATABASE_URL not set. Required for loading training trajectories. "
+            "Set with: export DATABASE_URL=postgresql://user:pass@host:5432/dbname"
+        )
     
     return errors
 

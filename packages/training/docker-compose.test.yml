@@ -7,6 +7,12 @@
 # They run on non-standard ports (5434, 6381) and use tmpfs (data is not persisted).
 # NEVER use these credentials in production or development environments.
 #
+# PORT CONFIGURATION:
+# - PostgreSQL: 5434 (host) -> 5432 (container) [dev uses 5432, prod uses 5432]
+# - Redis: 6381 (host) -> 6379 (container) [dev uses 6379]
+# To use custom ports, set environment variables before starting:
+#   TEST_POSTGRES_PORT=5435 TEST_REDIS_PORT=6382 docker compose -f docker-compose.test.yml up -d
+#
 # Usage:
 #   docker compose -f docker-compose.test.yml up -d
 #   pytest python/tests/integration/
