@@ -57,14 +57,14 @@ A fully autonomous AI agent that trades on Babylon prediction markets and perpet
 
 ```bash
 cd examples/babylon-typescript-agent
-npm install
+bun install
 ```
 
 ### Run Tests
 
 ```bash
 # Run all 117 tests
-npm test
+bun test
 
 # Expected output:
 # ✅ 117 pass
@@ -75,7 +75,7 @@ npm test
 ### Run Agent
 
 ```bash
-npm start
+bun run agent
 
 # Output:
 # 🤖 Starting Autonomous Babylon Agent...
@@ -236,28 +236,32 @@ Live server verification:
 The agent tries providers in order:
 1. **Groq** (primary) - Fast inference with `llama-3.1-8b-instant`
 2. **Claude** (fallback) - `claude-sonnet-4-5`
-3. **OpenAGI** (fallback) - `gpt-5-nano`
+3. **OpenAI** (fallback) - `gpt-5.1`
 
 Provide at least one API key.
 
 ## Development
 
 ### Run Tests
+
 ```bash
-npm test
+bun test
 ```
 
 ### Test Individual Route
+
 ```bash
-npm run test:routes
+bun run test:routes
 ```
 
 ### Type Check
+
 ```bash
 npx tsc --noEmit
 ```
 
 ### Lint
+
 ```bash
 npx eslint src/ tests/
 ```
@@ -274,7 +278,7 @@ npx eslint src/ tests/
 
 ### Run All Tests
 ```bash
-npm test
+bun test
 
 # Output:
 # ✅ 117 pass
@@ -309,7 +313,7 @@ TICK_INTERVAL=60000  # 1 minute
 
 ### Run
 ```bash
-npm start
+bun run agent
 ```
 
 ### Monitor

@@ -3,7 +3,7 @@
 Purpose: domain service for offchain prediction markets (CPMM).
 
 Include:
-- CPMM pricing (yes/no), optional concentrated liquidity if adopted.
+- CPMM pricing (yes/no market AMM).
 - `PredictionMarketService`: init market, buy/sell (AMM + fees), resolve/payout, snapshots/trades/broadcast, cache invalidation via ports.
 - Required ports: DB (markets/positions/history), Wallet, Fees config, Broadcast, Cache, Clock, Onchain (future).
 

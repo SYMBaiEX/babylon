@@ -86,7 +86,7 @@ uv run pytest tests/test_a2a_integration.py -v -s
 ### 4. Start Agent
 ```bash
 # Make sure Babylon server is running first!
-# In another terminal: cd /Users/shawwalters/babylon && npm run dev
+# In another terminal: cd /path/to/babylon && bun run dev
 
 # Production mode: Run indefinitely
 uv run python agent.py
@@ -219,7 +219,7 @@ All tools include:
    Metadata: ipfs://Qm...
 
 🔌 Phase 2: Babylon A2A Connection
-✅ Connected to ws://localhost:3000/a2a
+✅ Connected to http://localhost:3000/api/a2a
    Session: abc123...
    Agent ID: 11155111:1234
 

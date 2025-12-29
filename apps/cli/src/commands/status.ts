@@ -125,7 +125,7 @@ async function checkGameStatus(): Promise<void> {
     );
 
     if (!game.isRunning) {
-      console.log('\n💡 To start: bun run game:start');
+      console.log('\n💡 To start: babylon game start');
     }
   } else {
     logger.warn('No game state found');
@@ -348,7 +348,7 @@ async function checkAgent0Status(): Promise<void> {
       }
     } else {
       logger.warn('No registration found in database');
-      console.log('   Run: bun run agent0:setup');
+      console.log('   See CLAUDE.md for Agent0 setup instructions');
     }
   } catch {
     logger.warn('Database not available');
