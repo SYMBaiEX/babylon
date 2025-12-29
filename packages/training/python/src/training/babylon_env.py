@@ -612,7 +612,13 @@ You receive market updates and must analyze, reason, and then act."""
             generated_response = item["generated_response"]
 
             # 1. Get archetype from trajectory with validation
-            archetype = traj.get("archetype", "default")
+            # First try trajectory-level archetype, then fall back to step-level
+            archetype = traj.get("archetype")
+            if archetype is None or archetype == "default":
+                # Try to extract from first step's action parameters (batch recording mode)
+                archetype = self._extract_archetype_from_steps(traj.get("steps", []))
+            if archetype is None:
+                archetype = "default"
             archetype_norm = normalize_archetype(archetype)
 
             # Validate archetype and warn for unknown values
@@ -690,6 +696,21 @@ You receive market updates and must analyze, reason, and then act."""
             scored_group["inference_logprobs"].append(rollout["logprobs"])
 
         return scored_group
+
+    def _extract_archetype_from_steps(self, steps: List[Dict]) -> Optional[str]:
+        """
+        Extract archetype from step action parameters.
+
+        Used when trajectory-level archetype is not set (batch recording mode).
+        Returns the first non-null archetype found in any step's action parameters.
+        """
+        for step in steps:
+            action = step.get("action", {})
+            params = action.get("parameters", {})
+            archetype = params.get("archetype")
+            if archetype:
+                return str(archetype)
+        return None
 
     def _extract_behavior_metrics(self, traj: Dict) -> BehaviorMetrics:
         """
