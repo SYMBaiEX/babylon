@@ -42,9 +42,6 @@ import {
 } from './DirectExecutors';
 import { topicDiversityService } from './TopicDiversityService';
 
-/** Default trading balance for NPCs without actorState record */
-const DEFAULT_NPC_BALANCE = 10000;
-
 import {
   type ActionTraceResult,
   type AgentTickContext,
@@ -277,14 +274,14 @@ export class MultiStepExecutor {
         .where(eq(actorState.id, agentUserId))
         .limit(1);
 
-      if (!actor?.tradingBalance) {
-        logger.warn(
-          `NPC ${agentUserId} missing actorState - using default balance`,
-          { defaultBalance: DEFAULT_NPC_BALANCE },
-          'MultiStepExecutor'
+      if (!actor) {
+        // Missing actorState record is a data issue that should be fixed at bootstrap
+        throw new Error(
+          `NPC ${agentUserId} has no actorState record. Run NPC bootstrap to create it.`
         );
       }
-      balance = Number(actor?.tradingBalance ?? DEFAULT_NPC_BALANCE);
+
+      balance = Number(actor.tradingBalance);
       pnl = 0;
     } else {
       const walletBalance = await WalletService.getBalance(agentUserId);
