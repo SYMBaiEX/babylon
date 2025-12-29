@@ -722,13 +722,12 @@ You receive market updates and must analyze, reason, and then act."""
                 if size:
                     metrics.avg_position_size += float(size)
 
-            # Prediction actions (also count as trades but track accuracy separately)
+            # Prediction actions count as trades for archetype scoring (Degen rewards high trade volume)
+            # These are tracked separately from buy/sell actions but contribute to trades_executed
             if action_type in ("predict", "bet", "forecast"):
                 metrics.predictions_made += 1
-                # Also count as trading actions
-                if action_type not in ("buy", "sell", "buy_prediction", "sell_prediction", "open_perp", "close_perp", "trade"):
-                    metrics.trades_executed += 1
-                    trade_actions += 1
+                metrics.trades_executed += 1
+                trade_actions += 1
                 
                 # Track accuracy
                 if result.get("correct") or result.get("predictionCorrect"):
