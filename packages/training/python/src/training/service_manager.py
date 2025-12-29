@@ -132,10 +132,12 @@ class ServiceManager:
     
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:
         """Context manager exit - stop all services"""
-        self.stop_all()
-        # Restore original signal handlers
-        signal.signal(signal.SIGINT, self._original_sigint)
-        signal.signal(signal.SIGTERM, self._original_sigterm)
+        try:
+            self.stop_all()
+        finally:
+            # Always restore original signal handlers
+            signal.signal(signal.SIGINT, self._original_sigint)
+            signal.signal(signal.SIGTERM, self._original_sigterm)
     
     def _signal_handler(self, signum: int, frame) -> None:
         """Handle shutdown signals gracefully"""
@@ -281,12 +283,17 @@ class ServiceManager:
         log_file = self._log_dir / "atropos.log"
         log_handle = open(log_file, "w")
         
-        process = subprocess.Popen(
-            ["run-api", "--port", str(port)],
-            stdout=log_handle,
-            stderr=subprocess.STDOUT,
-            env=os.environ.copy(),
-        )
+        try:
+            process = subprocess.Popen(
+                ["run-api", "--port", str(port)],
+                stdout=log_handle,
+                stderr=subprocess.STDOUT,
+                env=os.environ.copy(),
+            )
+        except Exception as e:
+            log_handle.close()
+            logger.error(f"Failed to start Atropos: {e}")
+            raise
         
         self._processes["atropos"] = ManagedProcess(
             name="atropos",
@@ -334,7 +341,12 @@ class ServiceManager:
         env = os.environ.copy()
         env.setdefault("CUDA_VISIBLE_DEVICES", "0")
         
-        process = subprocess.Popen(cmd, stdout=log_handle, stderr=subprocess.STDOUT, env=env)
+        try:
+            process = subprocess.Popen(cmd, stdout=log_handle, stderr=subprocess.STDOUT, env=env)
+        except Exception as e:
+            log_handle.close()
+            logger.error(f"Failed to start vLLM: {e}")
+            raise
         
         self._processes["vllm"] = ManagedProcess(
             name="vllm",

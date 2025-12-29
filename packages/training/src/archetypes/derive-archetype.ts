@@ -171,7 +171,10 @@ export function deriveArchetype(npc: NPCCharacteristics): string {
       if (matchCount > 0) {
         const effectivePriority = mapping.priority * matchCount;
         if (!bestMatch || effectivePriority > bestMatch.priority) {
-          bestMatch = { archetype: mapping.archetype, priority: effectivePriority };
+          bestMatch = {
+            archetype: mapping.archetype,
+            priority: effectivePriority,
+          };
         }
       }
     }
@@ -241,4 +244,3 @@ export function getRoleArchetype(role: string): string {
 export function getValidArchetypes(): string[] {
   return getAvailableArchetypes();
 }
-

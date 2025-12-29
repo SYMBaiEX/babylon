@@ -3,6 +3,10 @@
 # Provides isolated database for integration testing.
 # Runs on different ports to avoid conflicts with dev environment.
 #
+# SECURITY NOTE: These are TEST-ONLY credentials for ephemeral test containers.
+# They run on non-standard ports (5434, 6381) and use tmpfs (data is not persisted).
+# NEVER use these credentials in production or development environments.
+#
 # Usage:
 #   docker compose -f docker-compose.test.yml up -d
 #   pytest python/tests/integration/
@@ -15,6 +19,7 @@ services:
     ports:
       - "5434:5432"
     environment:
+      # TEST-ONLY credentials - see security note above
       POSTGRES_USER: babylon_test
       POSTGRES_PASSWORD: test_password
       POSTGRES_DB: babylon_test

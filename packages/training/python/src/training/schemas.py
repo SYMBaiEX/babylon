@@ -280,6 +280,8 @@ def validate_trajectory(data: Dict[str, Any]) -> Tuple[bool, List[str]]:
             steps = json.loads(steps_json)
             if not isinstance(steps, list):
                 errors.append(f"stepsJson must be an array, got {type(steps).__name__}")
+            elif len(steps) == 0:
+                errors.append("stepsJson is empty - trajectory has no steps")
             else:
                 for i, step in enumerate(steps):
                     step_errors = _validate_step(step, i)

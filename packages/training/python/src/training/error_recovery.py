@@ -528,6 +528,9 @@ class GracefulShutdown:
 class TrainingProgress:
     """Tracks training progress for recovery purposes"""
     
+    # Maximum errors to keep in memory (prevents unbounded growth during long runs)
+    MAX_ERRORS_IN_MEMORY: int = 200
+    
     current_step: int = 0
     total_steps: int = 0
     trajectories_processed: int = 0
@@ -535,6 +538,15 @@ class TrainingProgress:
     last_checkpoint_step: int = 0
     errors_encountered: List[str] = field(default_factory=list)
     start_time: float = field(default_factory=time.time)
+    total_errors_count: int = 0  # Track total even when list is truncated
+    
+    def add_error(self, error: str) -> None:
+        """Add an error, truncating old errors if list grows too large"""
+        self.errors_encountered.append(error)
+        self.total_errors_count += 1
+        # Keep only the most recent errors
+        if len(self.errors_encountered) > self.MAX_ERRORS_IN_MEMORY:
+            self.errors_encountered = self.errors_encountered[-self.MAX_ERRORS_IN_MEMORY:]
     
     @property
     def elapsed_time(self) -> float:
@@ -556,7 +568,8 @@ class TrainingProgress:
             "trajectories_processed": self.trajectories_processed,
             "trajectories_skipped": self.trajectories_skipped,
             "last_checkpoint_step": self.last_checkpoint_step,
-            "errors_encountered": self.errors_encountered[-100:],  # Keep last 100
+            "errors_encountered": self.errors_encountered[-100:],  # Keep last 100 in checkpoint
+            "total_errors_count": self.total_errors_count,
             "elapsed_time": self.elapsed_time,
         }
     
@@ -570,6 +583,7 @@ class TrainingProgress:
             trajectories_skipped=data.get("trajectories_skipped", 0),
             last_checkpoint_step=data.get("last_checkpoint_step", 0),
             errors_encountered=data.get("errors_encountered", []),
+            total_errors_count=data.get("total_errors_count", len(data.get("errors_encountered", []))),
         )
         return progress
     
@@ -580,7 +594,7 @@ class TrainingProgress:
             f"({self.progress_pct:.1f}%) | "
             f"Trajectories: {self.trajectories_processed} processed, "
             f"{self.trajectories_skipped} skipped | "
-            f"Errors: {len(self.errors_encountered)} | "
+            f"Errors: {self.total_errors_count} | "
             f"Elapsed: {self.elapsed_time:.0f}s"
         )
 
