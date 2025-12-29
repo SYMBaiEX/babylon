@@ -85,24 +85,35 @@ export function usePerpHistory(
 
   // If we previously loaded before the market seed was available (common in staging),
   // ensure we still render a minimal chart instead of staying empty forever.
+  // Uses seed.currentPrice first, then falls back to livePrice from SSE.
   useEffect(() => {
-    const seed = options?.seed?.currentPrice;
     if (!ticker) return;
-    if (!Number.isFinite(seed ?? Number.NaN) || (seed ?? 0) <= 0) return;
     if (history.length > 0) return;
+
+    // Try seed.currentPrice first, then fallback to livePrice
+    const seedPrice = options?.seed?.currentPrice;
+    const livePriceValue = livePrice?.price;
+    const priceToUse =
+      Number.isFinite(seedPrice) && (seedPrice ?? 0) > 0
+        ? seedPrice
+        : Number.isFinite(livePriceValue) && (livePriceValue ?? 0) > 0
+          ? livePriceValue
+          : null;
+
+    if (!priceToUse) return;
 
     const now = Date.now();
     const seeded: PerpHistoryPoint[] = [
       {
         time: now - 60_000,
-        price: seed as number,
+        price: priceToUse,
         change: 0,
         changePercent: 0,
         volume: 0,
       },
       {
         time: now,
-        price: seed as number,
+        price: priceToUse,
         change: 0,
         changePercent: 0,
         volume: 0,
@@ -110,8 +121,8 @@ export function usePerpHistory(
     ];
 
     setHistory(seeded);
-    lastAppendedPriceRef.current = seed as number;
-  }, [ticker, options?.seed?.currentPrice, history.length]);
+    lastAppendedPriceRef.current = priceToUse;
+  }, [ticker, options?.seed?.currentPrice, livePrice?.price, history.length]);
 
   const formatHistory = useCallback(
     (
