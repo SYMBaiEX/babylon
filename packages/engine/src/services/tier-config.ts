@@ -8,10 +8,10 @@
  * - Tier 3 (Followers): Low barrier, public content
  */
 
-import { GROUP_CONFIG } from '@babylon/shared';
+import { GROUP_CONFIG, type AlphaLevel, type TierLevel } from '@babylon/shared';
 
-export type TierLevel = 1 | 2 | 3;
-export type AlphaLevel = 'full' | 'partial' | 'public';
+// Re-export for convenience
+export type { AlphaLevel, TierLevel } from '@babylon/shared';
 
 /** Valid tier levels */
 const VALID_TIERS: readonly TierLevel[] = [1, 2, 3] as const;

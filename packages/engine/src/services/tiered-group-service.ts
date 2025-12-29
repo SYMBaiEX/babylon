@@ -140,8 +140,13 @@ export class TieredGroupService {
           isFull: memberCount >= maxMembers,
         });
       } else {
-        // Create new tier group
-        const groupId = await generateSnowflakeId();
+        // Create new tier group - batch generate all IDs upfront
+        const [groupId, chatId, memberId, participantId] = await Promise.all([
+          generateSnowflakeId(),
+          generateSnowflakeId(),
+          generateSnowflakeId(),
+          generateSnowflakeId(),
+        ]);
         const groupName = getTierGroupName(actor.name, tier);
 
         if (tier === 1) parentGroupId = groupId;
@@ -159,7 +164,6 @@ export class TieredGroupService {
         });
 
         // Create associated chat
-        const chatId = await generateSnowflakeId();
         await db.insert(chats).values({
           id: chatId,
           name: groupName,
@@ -170,7 +174,7 @@ export class TieredGroupService {
 
         // Add NPC as owner
         await db.insert(groupMembers).values({
-          id: await generateSnowflakeId(),
+          id: memberId,
           groupId,
           userId: npcId,
           role: 'owner',
@@ -178,7 +182,7 @@ export class TieredGroupService {
         });
 
         await db.insert(chatParticipants).values({
-          id: await generateSnowflakeId(),
+          id: participantId,
           chatId,
           userId: npcId,
         });
@@ -221,40 +225,41 @@ export class TieredGroupService {
 
   /**
    * Get all tier groups for an NPC
+   *
+   * Optimized: Single query with LEFT JOINs and GROUP BY instead of N+1 pattern.
    */
   static async getNpcTiers(npcId: string): Promise<TierInfo[]> {
-    const tierGroups = await db
+    // Single batch query with joins for member counts and chat IDs
+    const tierGroupsWithData = await db
       .select({
         id: groups.id,
         tier: groups.tier,
         name: groups.name,
         maxMembers: groups.maxMembers,
+        chatId: chats.id,
+        memberCount: count(groupMembers.id),
       })
       .from(groups)
+      .leftJoin(chats, eq(chats.groupId, groups.id))
+      .leftJoin(
+        groupMembers,
+        and(
+          eq(groupMembers.groupId, groups.id),
+          eq(groupMembers.isActive, true)
+        )
+      )
       .where(
         and(
           eq(groups.ownerId, npcId),
           eq(groups.type, 'npc'),
           isNotNull(groups.tier)
         )
-      );
+      )
+      .groupBy(groups.id, groups.tier, groups.name, groups.maxMembers, chats.id);
 
     const result: TierInfo[] = [];
 
-    for (const g of tierGroups) {
-      const [countResult] = await db
-        .select({ count: count() })
-        .from(groupMembers)
-        .where(
-          and(eq(groupMembers.groupId, g.id), eq(groupMembers.isActive, true))
-        );
-
-      const [chat] = await db
-        .select({ id: chats.id })
-        .from(chats)
-        .where(eq(chats.groupId, g.id))
-        .limit(1);
-
+    for (const g of tierGroupsWithData) {
       // Validate tier before processing
       if (!isValidTier(g.tier)) {
         logger.warn(
@@ -267,12 +272,12 @@ export class TieredGroupService {
 
       const config = getTierConfig(g.tier);
       const maxMembers = g.maxMembers ?? config.maxMembers;
-      const memberCount = countResult?.count ?? 0;
+      const memberCount = g.memberCount ?? 0;
 
       result.push({
         tier: g.tier,
         groupId: g.id,
-        chatId: chat?.id ?? null,
+        chatId: g.chatId ?? null,
         groupName: g.name,
         memberCount,
         maxMembers,
@@ -529,7 +534,15 @@ export class TieredGroupService {
       };
     } finally {
       // Always release lock
-      await DistributedLockService.releaseLock(lockId, processId);
+      await DistributedLockService.releaseLock(lockId, processId).catch(
+        (err) => {
+          logger.error(
+            'Failed to release invite lock',
+            { lockId, processId, error: String(err) },
+            'TieredGroupService'
+          );
+        }
+      );
     }
   }
 
@@ -645,7 +658,15 @@ export class TieredGroupService {
       return true;
     } finally {
       // Always release lock
-      await DistributedLockService.releaseLock(lockId, processId);
+      await DistributedLockService.releaseLock(lockId, processId).catch(
+        (err) => {
+          logger.error(
+            'Failed to release promotion lock',
+            { lockId, processId, error: String(err) },
+            'TieredGroupService'
+          );
+        }
+      );
     }
   }
 
@@ -741,17 +762,37 @@ export class TieredGroupService {
       );
 
       if (shouldDemote(tier, daysSince)) {
-        const lowerTier = getLowerTier(tier);
-        const reason = `Inactive for ${daysSince} days`;
+        // Acquire distributed lock to prevent concurrent demotion of same user
+        const lockId = `tier-op-${m.npcId}-${m.userId}`;
+        const processId = `tiered-group-service-demotion-${await generateSnowflakeId()}`;
+        const lockAcquired = await DistributedLockService.acquireLock({
+          lockId,
+          durationMs: 5000,
+          operation: 'tier-op-demotion',
+          processId,
+        });
 
-        // Pre-fetch data needed for transaction
-        const tiers = lowerTier ? await this.getNpcTiers(m.npcId) : [];
-        const targetTier = lowerTier
-          ? tiers.find((t) => t.tier === lowerTier)
-          : null;
+        if (!lockAcquired) {
+          logger.warn(
+            'Failed to acquire lock for demotion operation',
+            { lockId, userId: m.userId, npcId: m.npcId },
+            'TieredGroupService'
+          );
+          continue;
+        }
 
-        // Wrap multi-step demotion in transaction to prevent orphaned state
-        await db.$transaction(async (tx) => {
+        try {
+          const lowerTier = getLowerTier(tier);
+          const reason = `Inactive for ${daysSince} days`;
+
+          // Pre-fetch data needed for transaction
+          const tiers = lowerTier ? await this.getNpcTiers(m.npcId) : [];
+          const targetTier = lowerTier
+            ? tiers.find((t) => t.tier === lowerTier)
+            : null;
+
+          // Wrap multi-step demotion in transaction to prevent orphaned state
+          await db.$transaction(async (tx) => {
           // Deactivate current membership
           await tx
             .update(groupMembers)
@@ -804,18 +845,29 @@ export class TieredGroupService {
           }
         });
 
-        demotions++;
-        logger.info(
-          'User demoted',
-          {
-            userId: m.userId,
-            npcId: m.npcId,
-            fromTier: tier,
-            toTier: lowerTier,
-            reason,
-          },
-          'TieredGroupService'
-        );
+          demotions++;
+          logger.info(
+            'User demoted',
+            {
+              userId: m.userId,
+              npcId: m.npcId,
+              fromTier: tier,
+              toTier: lowerTier,
+              reason,
+            },
+            'TieredGroupService'
+          );
+        } finally {
+          await DistributedLockService.releaseLock(lockId, processId).catch(
+            (err) => {
+              logger.error(
+                'Failed to release demotion lock',
+                { lockId, processId, error: String(err) },
+                'TieredGroupService'
+              );
+            }
+          );
+        }
       }
     }
 

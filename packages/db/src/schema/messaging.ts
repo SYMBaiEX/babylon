@@ -349,4 +349,4 @@ export type NewGroupInvite = typeof groupInvites.$inferInsert;
 export type GroupType = 'user' | 'npc' | 'agent';
 export type GroupMemberRole = 'owner' | 'admin' | 'member';
 export type GroupInviteStatus = 'pending' | 'accepted' | 'declined';
-export type TierLevel = 1 | 2 | 3;
+// TierLevel is exported from @babylon/shared - use that canonical definition

@@ -47,6 +47,8 @@ import { GROUP_CONFIG, generateSnowflakeId, logger } from '@babylon/shared';
 import { MarketContextService } from './market-context-service';
 import { NPCGroupDynamicsCalculations } from './npc-group-dynamics-calculations';
 import { StaticDataRegistry } from './static-data-registry';
+import { getTierMessageGuidance } from './tier-config';
+import { TieredGroupService } from './tiered-group-service';
 
 // Singleton for NPC context
 const marketContextService = new MarketContextService();
@@ -58,7 +60,6 @@ export interface GroupDynamicsResult {
   usersInvited: number;
   usersKicked: number;
   messagesPosted: number;
-  tieredInvites: number;
   tieredPromotions: number;
   tieredDemotions: number;
 }
@@ -91,7 +92,6 @@ export class NPCGroupDynamicsService {
       usersInvited: 0,
       usersKicked: 0,
       messagesPosted: 0,
-      tieredInvites: 0,
       tieredPromotions: 0,
       tieredDemotions: 0,
     };
@@ -134,7 +134,6 @@ export class NPCGroupDynamicsService {
 
     // 7. Process tiered group system (promotions/demotions run ~daily)
     // Probability math: 0.0007 * 60 ticks/hr * 24 hrs = ~1.0 times per day
-    const { TieredGroupService } = await import('./tiered-group-service');
     const DAILY_TICK_PROBABILITY = 0.0007;
     if (Math.random() < DAILY_TICK_PROBABILITY) {
       result.tieredPromotions = await TieredGroupService.processAllPromotions();
@@ -694,7 +693,6 @@ export class NPCGroupDynamicsService {
 
       // Generate message based on tier - tier determines content level
       // Tier guidance extracted to tier-config.ts for maintainability
-      const { getTierMessageGuidance } = await import('./tier-config');
       const tierGuidance = getTierMessageGuidance(tier);
 
       const prompt = `You are ${randomNpc.displayName} in a ${tier ? `TIER ${tier}` : 'private'} group chat.
