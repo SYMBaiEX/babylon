@@ -21,6 +21,8 @@ export {
   isNetworkError,
   isValidationError,
 } from './errors';
+// Group types (tiers, alpha levels)
+export * from './groups';
 // Social interaction types
 export * from './interactions';
 // Agent monitoring types

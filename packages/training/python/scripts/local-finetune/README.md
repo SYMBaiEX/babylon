@@ -5,8 +5,8 @@ This directory contains scripts to train RL adapters from Babylon simulation log
 ## Workflow
 
 1. **Generate Data:** Run `bun packages/engine/examples/generate-training-data.ts`
-2. **Score & Format:** Run `python inject_and_score.py`
-3. **Train:** Run `python train.py`
+2. **Score & Format:** Run `python ingest_and_score.py`
+3. **Train:** Run `python train_from_csv.py`
 4. **Test:** Run `python test_adapter.py`
 
 ## Quick Start
@@ -35,7 +35,7 @@ Converts raw JSON logs into a scored CSV dataset (System/User/Assistant format).
 
 ```bash
 cd packages/training/python/scripts/local-finetune
-python inject_and_score.py
+python ingest_and_score.py
 ```
 
 _Output:_ `packages/training/data/scored_trajectories.csv`
@@ -45,7 +45,7 @@ _Output:_ `packages/training/data/scored_trajectories.csv`
 Fine-tunes a base model (Qwen2.5-0.5B by default) on your scored data using LoRA.
 
 ```bash
-python train.py --output ./my-model-v1
+python train_from_csv.py --output ./my-model-v1
 ```
 
 ### Step 4: Test Inference

@@ -153,6 +153,11 @@ export const notifications = pgTable(
  * Supports: user-created groups, NPC-managed groups, agent-created groups
  *
  * Relationship: Chat.groupId → Group.id (one Chat per Group)
+ *
+ * Tiered System (NPC groups only):
+ * - Tier 1 (Inner Circle): 12 members, full alpha
+ * - Tier 2 (Community): 50 members, partial alpha
+ * - Tier 3 (Followers): 500 members, public content
  */
 export const groups = pgTable(
   'Group',
@@ -165,12 +170,19 @@ export const groups = pgTable(
     createdById: text('createdById').notNull(),
     createdAt: timestamp('createdAt', { mode: 'date' }).notNull().defaultNow(),
     updatedAt: timestamp('updatedAt', { mode: 'date' }).notNull(),
+    // Tiered group system fields (NPC groups only)
+    tier: integer('tier'), // 1 = Inner Circle, 2 = Community, 3 = Followers (null for user/agent groups)
+    maxMembers: integer('maxMembers'), // Tier-specific member limit (null uses default)
+    parentGroupId: text('parentGroupId'), // Links tier groups to same NPC's group family
   },
   (table) => [
     index('Group_type_idx').on(table.type),
     index('Group_ownerId_idx').on(table.ownerId),
     index('Group_createdById_idx').on(table.createdById),
     index('Group_createdAt_idx').on(table.createdAt),
+    index('Group_tier_idx').on(table.tier),
+    index('Group_ownerId_tier_idx').on(table.ownerId, table.tier),
+    index('Group_parentGroupId_idx').on(table.parentGroupId),
   ]
 );
 
@@ -204,6 +216,11 @@ export const groupMembers = pgTable(
     // Kick tracking
     kickedAt: timestamp('kickedAt', { mode: 'date' }),
     kickReason: text('kickReason'),
+    // Tiered group system fields (for promotion/demotion tracking)
+    tier: integer('tier'), // Mirrors Group.tier for query efficiency
+    promotedAt: timestamp('promotedAt', { mode: 'date' }),
+    demotedAt: timestamp('demotedAt', { mode: 'date' }),
+    previousTier: integer('previousTier'),
   },
   (table) => [
     // Note: Partial unique index is managed via migration, not here
@@ -214,6 +231,14 @@ export const groupMembers = pgTable(
     index('GroupMember_userId_isActive_idx').on(table.userId, table.isActive),
     index('GroupMember_lastMessageAt_idx').on(table.lastMessageAt),
     index('GroupMember_role_idx').on(table.role),
+    index('GroupMember_tier_idx').on(table.tier),
+    // Composite indexes for tier queries (added for PR #670 fixes)
+    index('GroupMember_userId_isActive_tier_idx').on(
+      table.userId,
+      table.isActive,
+      table.tier
+    ),
+    index('GroupMember_isActive_tier_idx').on(table.isActive, table.tier),
   ]
 );
 
@@ -324,3 +349,4 @@ export type NewGroupInvite = typeof groupInvites.$inferInsert;
 export type GroupType = 'user' | 'npc' | 'agent';
 export type GroupMemberRole = 'owner' | 'admin' | 'member';
 export type GroupInviteStatus = 'pending' | 'accepted' | 'declined';
+// TierLevel is exported from @babylon/shared - use that canonical definition

@@ -29,7 +29,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ### Deployment & Operations
 - **Deploy contracts:** `bun run deploy:local|testnet|mainnet`
 - **CLI tool:** `bun run babylon <command>` (or `bun run apps/cli/src/index.ts`)
-- **Generate vendor docs:** `bun run docs:generate` (pulls to `docs/vendors/*`)
+- **Generate vendor docs:** `bun run docs:generate` (creates `docs/vendors/*` on first run)
 
 ## Architecture Overview
 
@@ -99,6 +99,7 @@ Only consider work done after all three pass without errors.
 - **Commits:** Imperative mood, prefixed (`feat:`, `fix:`, `chore:`)
 - **Main branch:** `staging` (not `main`)
 - **Pre-commit:** Biome format check via Husky
+- **PR maintenance:** Update PR title and description after each commit if scope changes. Use `gh pr edit <number> --title "..." --body "..."` to keep the PR summary accurate.
 
 ### PR Review Process
 - PRs are automatically reviewed by `claude[bot]` and `coderabbitai[bot]`
@@ -148,7 +149,7 @@ Currently migrating architecture while keeping new code portable:
 - Write route handlers to be framework-agnostic (easily portable to Elysia)
 - Keep domain logic in packages, not in React components or route handlers
 - Use `@babylon/api` for server-side concerns (auth, rate limiting, SSE)
-- Prefer reading vendor docs from `docs/vendors/{vendor}` over external sources
+- Prefer reading vendor docs from `docs/vendors/{vendor}` over external sources (run `bun run docs:generate` first if directory doesn't exist)
 
 ## Real-time Features
 - **SSE (Server-Sent Events):** For feed updates, market prices, news, chat

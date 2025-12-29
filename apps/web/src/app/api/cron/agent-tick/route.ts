@@ -58,7 +58,6 @@ import {
   agentRuntimeManager,
   agentService,
   autonomousCoordinator,
-  getAgentConfig,
   releaseAgentLock,
 } from '@babylon/agents';
 import {
@@ -68,7 +67,7 @@ import {
   verifyCronAuth,
 } from '@babylon/api';
 import type { User, UserAgentConfig } from '@babylon/db';
-import { db, eq, userAgentConfigs, users } from '@babylon/db';
+import { db, eq, inArray, userAgentConfigs, users } from '@babylon/db';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
@@ -190,25 +189,72 @@ export async function POST(_req: NextRequest) {
       where: { isContinuous: true },
     });
 
-    // Skip if no continuous game exists
-    if (!gameState) {
-      logger.info(
-        '⏸️  Agent tick skipped (No continuous game found)',
-        {
-          status: 'skipped',
-        },
+  // Filter USER_CONTROLLED agents with sufficient points and autonomous features enabled
+  // NPCs are handled by /api/cron/npc-tick
+  const eligibleAgents: Array<{
+    agentId: string;
+    type: AgentType;
+    name: string;
+    user: User;
+    config: UserAgentConfig | null;
+  }> = [];
+
+  // Collect all userIds from USER_CONTROLLED agents for batch fetching
+  const userControlledAgents = registeredAgents.filter(
+    (agent) => agent.type === AgentType.USER_CONTROLLED && agent.userId
+  );
+  const userIds = userControlledAgents.map((agent) => agent.userId!);
+
+  // Batch fetch all users and configs in 2 queries (instead of 2N queries)
+  let usersMap = new Map<string, User>();
+  let configsMap = new Map<string, UserAgentConfig>();
+
+  if (userIds.length > 0) {
+    const [allUsers, allConfigs] = await Promise.all([
+      db.select().from(users).where(inArray(users.id, userIds)),
+      db
+        .select()
+        .from(userAgentConfigs)
+        .where(inArray(userAgentConfigs.userId, userIds)),
+    ]);
+
+    usersMap = new Map(allUsers.map((u) => [u.id, u]));
+    configsMap = new Map(allConfigs.map((c) => [c.userId, c]));
+  }
+
+  for (const agent of userControlledAgents) {
+    const user = usersMap.get(agent.userId!);
+    const config = configsMap.get(agent.userId!) ?? null;
+
+    // Guard: USER_CONTROLLED agents must have a user record
+    if (!user) {
+      logger.warn(
+        'USER_CONTROLLED agent missing user record - skipping',
+        { agentId: agent.agentId, userId: agent.userId },
         'AgentTick'
       );
+      continue;
+    }
 
-      return NextResponse.json({
-        success: true,
-        skipped: true,
-        reason: 'No continuous game found',
-        duration: Date.now() - startTime,
-        processed: 0,
-        skippedLocked: 0,
+    if (
+      user.isAgent &&
+      (config?.pointsBalance ?? 0) >= 1 &&
+      (config?.autonomousTrading ||
+        config?.autonomousPosting ||
+        config?.autonomousCommenting ||
+        config?.autonomousDMs ||
+        config?.autonomousGroupChats)
+    ) {
+      eligibleAgents.push({
+        agentId: agent.agentId,
+        type: agent.type,
+        name: agent.name,
+        user,
+        config,
       });
     }
+  }
+  // NPCs are no longer processed here - they use /api/cron/npc-tick
 
     // Skip if game exists but is not running
     if (!gameState.isRunning) {

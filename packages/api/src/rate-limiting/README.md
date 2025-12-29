@@ -97,11 +97,7 @@ export async function POST(request: NextRequest) {
 ## Testing
 
 ```bash
-npm test tests/unit/rate-limiting.test.ts
+bun test packages/testing/unit/rate-limiting.test.ts
 ```
-
-## Documentation
-
-See `RATE_LIMITING_SUMMARY.md` in the project root for comprehensive documentation.
 
 

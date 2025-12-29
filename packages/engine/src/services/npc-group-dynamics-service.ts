@@ -47,6 +47,8 @@ import { GROUP_CONFIG, generateSnowflakeId, logger } from '@babylon/shared';
 import { MarketContextService } from './market-context-service';
 import { NPCGroupDynamicsCalculations } from './npc-group-dynamics-calculations';
 import { StaticDataRegistry } from './static-data-registry';
+import { getTierMessageGuidance } from './tier-config';
+import { TieredGroupService } from './tiered-group-service';
 
 // Singleton for NPC context
 const marketContextService = new MarketContextService();
@@ -58,6 +60,8 @@ export interface GroupDynamicsResult {
   usersInvited: number;
   usersKicked: number;
   messagesPosted: number;
+  tieredPromotions: number;
+  tieredDemotions: number;
 }
 
 export class NPCGroupDynamicsService {
@@ -65,7 +69,7 @@ export class NPCGroupDynamicsService {
   private static readonly FORM_NEW_GROUP_CHANCE = 0.05; // 5% chance for each eligible NPC
   private static readonly JOIN_GROUP_CHANCE = 0.1; // 10% chance if eligible
   private static readonly LEAVE_GROUP_CHANCE = 0.02; // 2% chance per membership
-  private static readonly POST_MESSAGE_CHANCE = 0.25; // 25% chance per active group
+  // Message frequency is now tier-based: T1=25%, T2=15%, T3=5%
   private static readonly INVITE_USER_CHANCE = 0.08; // 8% chance per eligible group
   private static readonly KICK_CHECK_CHANCE = 0.15; // 15% chance to check for kicks
 
@@ -88,6 +92,8 @@ export class NPCGroupDynamicsService {
       usersInvited: 0,
       usersKicked: 0,
       messagesPosted: 0,
+      tieredPromotions: 0,
+      tieredDemotions: 0,
     };
 
     logger.info(
@@ -125,6 +131,14 @@ export class NPCGroupDynamicsService {
     // 6. Kick users based on weighted participation metrics
     const kicks = await NPCGroupDynamicsService.kickUsersWithWeightedLogic();
     result.usersKicked = kicks;
+
+    // 7. Process tiered group system (promotions/demotions run ~daily)
+    // Probability math: 0.0007 * 60 ticks/hr * 24 hrs = ~1.0 times per day
+    const DAILY_TICK_PROBABILITY = 0.0007;
+    if (Math.random() < DAILY_TICK_PROBABILITY) {
+      result.tieredPromotions = await TieredGroupService.processAllPromotions();
+      result.tieredDemotions = await TieredGroupService.processAllDemotions();
+    }
 
     const duration = Date.now() - startTime;
     logger.info(
@@ -532,22 +546,36 @@ export class NPCGroupDynamicsService {
    * - Insider knowledge about questions/markets
    * - Contradictions to their public statements
    * - Strategic coordination with allies
+   *
+   * Optimized: Single query with LEFT JOIN to get tier data upfront instead of N+1.
    */
   private static async postGroupMessages(
     llm: BabylonLLMClient
   ): Promise<number> {
     let messagesPosted = 0;
 
-    // Get active group chats
+    // Get active group chats with tier info in a single query (avoids N+1)
     const groupList = await db
-      .select()
+      .select({
+        id: chats.id,
+        name: chats.name,
+        groupId: chats.groupId,
+        tier: groups.tier,
+      })
       .from(chats)
+      .leftJoin(groups, eq(groups.id, chats.groupId))
       .where(eq(chats.isGroup, true))
       .limit(20);
 
     for (const group of groupList) {
-      // Random chance to post
-      if (Math.random() > NPCGroupDynamicsService.POST_MESSAGE_CHANCE) {
+      // Tier is already available from the JOIN
+      const tier = group.tier as 1 | 2 | 3 | null;
+
+      // Tier-based message frequency: T1=25%, T2=15%, T3=5%, legacy=25%
+      const messageChance =
+        tier === 1 ? 0.25 : tier === 2 ? 0.15 : tier === 3 ? 0.05 : 0.25;
+
+      if (Math.random() > messageChance) {
         continue;
       }
 
@@ -659,9 +687,11 @@ export class NPCGroupDynamicsService {
       // Get world context for consistent parody names and market awareness
       const worldContext = await generateWorldContext({ maxActors: 20 });
 
-      // Generate INSIDER message - this is the key asymmetric information mechanic!
-      // Each NPC generates their message INDEPENDENTLY with their own personal context
-      const prompt = `You are ${randomNpc.displayName} in a PRIVATE group chat with trusted insiders.
+      // Generate message based on tier - tier determines content level
+      // Tier guidance extracted to tier-config.ts for maintainability
+      const tierGuidance = getTierMessageGuidance(tier);
+
+      const prompt = `You are ${randomNpc.displayName} in a ${tier ? `TIER ${tier}` : 'private'} group chat.
 ${affiliationContext}
 
 ${personalEventsContext}
@@ -673,32 +703,15 @@ ${positionContext}
 ${worldContext.worldActors}
 ${worldContext.currentMarkets}
 
-This is PRIVATE - share STRATEGIC insider information that you would NEVER post publicly:
+${tierGuidance}
 
-WHAT TO SHARE (pick one that's relevant):
-- React to events that happened to YOU (see above) with insider perspective
-- "Just loaded up on [ticker] before the announcement drops"
-- "Between us, [company] numbers look terrible this quarter"
-- "I'm hearing [rival] is in serious trouble"
-- "Get out of [ticker] now - trust me on this"
-- "Real talk: market is wrong about [question]"
-- Your actual position and why (contradict public statements if needed)
-- Insider knowledge about your affiliated organizations
-- Strategic advice for friends in this group
-
-PRIVATE vs PUBLIC:
-- PUBLIC feed: What you want the market to think
-- PRIVATE chat: What you actually know/believe/plan
-- Help friends make money, hurt enemies
-
-Write a private message (max 200 chars) with ACTIONABLE insider info.
-Be SPECIFIC with tickers, positions, or predictions. Reference your recent events if relevant.
+Write a private message (max 200 chars) appropriate for this tier.
 NO hashtags. Emojis OK (🤫 👀 🔥).
 Use parody names from World Actors (AIlon Musk, not Elon Musk).
 
 Return your response as XML:
 <response>
-  <message>your insider message here</message>
+  <message>your message here</message>
 </response>`;
 
       const rawResponse = await llm.generateJSON<

@@ -87,3 +87,7 @@ packages/training/training-data-output
 # Local metrics and audit files
 .metrics/
 **/MARKETS_FRONTEND_AUDIT.md
+
+# Continuous Claude cache (local only)
+.claude/cache/
+/thoughts

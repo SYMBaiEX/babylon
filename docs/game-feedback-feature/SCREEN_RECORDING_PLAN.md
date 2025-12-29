@@ -1,5 +1,9 @@
 # Screen Recording for Game Feedback - Implementation Plan
 
+> **Status: DRAFT - NOT YET IMPLEMENTED**
+>
+> This document outlines a planned feature. The screen recording functionality described below has not been implemented yet. Phase 1 implementation has not started.
+
 ## Overview
 
 Add screen recording capability to the game feedback system, allowing users to capture video demonstrations of bugs, feature requests, or performance issues.
