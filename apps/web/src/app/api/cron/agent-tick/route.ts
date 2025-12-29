@@ -189,72 +189,25 @@ export async function POST(_req: NextRequest) {
       where: { isContinuous: true },
     });
 
-  // Filter USER_CONTROLLED agents with sufficient points and autonomous features enabled
-  // NPCs are handled by /api/cron/npc-tick
-  const eligibleAgents: Array<{
-    agentId: string;
-    type: AgentType;
-    name: string;
-    user: User;
-    config: UserAgentConfig | null;
-  }> = [];
-
-  // Collect all userIds from USER_CONTROLLED agents for batch fetching
-  const userControlledAgents = registeredAgents.filter(
-    (agent) => agent.type === AgentType.USER_CONTROLLED && agent.userId
-  );
-  const userIds = userControlledAgents.map((agent) => agent.userId!);
-
-  // Batch fetch all users and configs in 2 queries (instead of 2N queries)
-  let usersMap = new Map<string, User>();
-  let configsMap = new Map<string, UserAgentConfig>();
-
-  if (userIds.length > 0) {
-    const [allUsers, allConfigs] = await Promise.all([
-      db.select().from(users).where(inArray(users.id, userIds)),
-      db
-        .select()
-        .from(userAgentConfigs)
-        .where(inArray(userAgentConfigs.userId, userIds)),
-    ]);
-
-    usersMap = new Map(allUsers.map((u) => [u.id, u]));
-    configsMap = new Map(allConfigs.map((c) => [c.userId, c]));
-  }
-
-  for (const agent of userControlledAgents) {
-    const user = usersMap.get(agent.userId!);
-    const config = configsMap.get(agent.userId!) ?? null;
-
-    // Guard: USER_CONTROLLED agents must have a user record
-    if (!user) {
-      logger.warn(
-        'USER_CONTROLLED agent missing user record - skipping',
-        { agentId: agent.agentId, userId: agent.userId },
+    // Skip if no continuous game exists
+    if (!gameState) {
+      logger.info(
+        '⏸️  Agent tick skipped (No continuous game found)',
+        {
+          status: 'skipped',
+        },
         'AgentTick'
       );
-      continue;
-    }
 
-    if (
-      user.isAgent &&
-      (config?.pointsBalance ?? 0) >= 1 &&
-      (config?.autonomousTrading ||
-        config?.autonomousPosting ||
-        config?.autonomousCommenting ||
-        config?.autonomousDMs ||
-        config?.autonomousGroupChats)
-    ) {
-      eligibleAgents.push({
-        agentId: agent.agentId,
-        type: agent.type,
-        name: agent.name,
-        user,
-        config,
+      return NextResponse.json({
+        success: true,
+        skipped: true,
+        reason: 'No continuous game found',
+        duration: Date.now() - startTime,
+        processed: 0,
+        skippedLocked: 0,
       });
     }
-  }
-  // NPCs are no longer processed here - they use /api/cron/npc-tick
 
     // Skip if game exists but is not running
     if (!gameState.isRunning) {
@@ -300,48 +253,62 @@ export async function POST(_req: NextRequest) {
       config: UserAgentConfig | null;
     }> = [];
 
-    for (const agent of registeredAgents) {
-      if (agent.type === AgentType.USER_CONTROLLED && agent.userId) {
-        // Check User-specific autonomous settings and points
-        const [user] = await db
+    // Collect all userIds from USER_CONTROLLED agents for batch fetching
+    const userControlledAgents = registeredAgents.filter(
+      (agent) => agent.type === AgentType.USER_CONTROLLED && agent.userId
+    );
+    const userIds = userControlledAgents.map((agent) => agent.userId!);
+
+    // Batch fetch all users and configs in 2 queries (instead of 2N queries)
+    let usersMap = new Map<string, User>();
+    let configsMap = new Map<string, UserAgentConfig>();
+
+    if (userIds.length > 0) {
+      const [allUsers, allConfigs] = await Promise.all([
+        db.select().from(users).where(inArray(users.id, userIds)),
+        db
           .select()
-          .from(users)
-          .where(eq(users.id, agent.userId))
-          .limit(1);
+          .from(userAgentConfigs)
+          .where(inArray(userAgentConfigs.userId, userIds)),
+      ]);
 
-        // Get agent config from separate table
-        const config = await getAgentConfig(agent.userId);
-
-        // Guard: USER_CONTROLLED agents must have a user record
-        if (!user) {
-          logger.warn(
-            'USER_CONTROLLED agent missing user record - skipping',
-            { agentId: agent.agentId, userId: agent.userId },
-            'AgentTick'
-          );
-          continue;
-        }
-
-        if (
-          user.isAgent &&
-          (config?.pointsBalance ?? 0) >= 1 &&
-          (config?.autonomousTrading ||
-            config?.autonomousPosting ||
-            config?.autonomousCommenting ||
-            config?.autonomousDMs ||
-            config?.autonomousGroupChats)
-        ) {
-          eligibleAgents.push({
-            agentId: agent.agentId,
-            type: agent.type,
-            name: agent.name,
-            user,
-            config,
-          });
-        }
-      }
-      // NPCs are no longer processed here - they use /api/cron/npc-tick
+      usersMap = new Map(allUsers.map((u) => [u.id, u]));
+      configsMap = new Map(allConfigs.map((c) => [c.userId, c]));
     }
+
+    for (const agent of userControlledAgents) {
+      const user = usersMap.get(agent.userId!);
+      const config = configsMap.get(agent.userId!) ?? null;
+
+      // Guard: USER_CONTROLLED agents must have a user record
+      if (!user) {
+        logger.warn(
+          'USER_CONTROLLED agent missing user record - skipping',
+          { agentId: agent.agentId, userId: agent.userId },
+          'AgentTick'
+        );
+        continue;
+      }
+
+      if (
+        user.isAgent &&
+        (config?.pointsBalance ?? 0) >= 1 &&
+        (config?.autonomousTrading ||
+          config?.autonomousPosting ||
+          config?.autonomousCommenting ||
+          config?.autonomousDMs ||
+          config?.autonomousGroupChats)
+      ) {
+        eligibleAgents.push({
+          agentId: agent.agentId,
+          type: agent.type,
+          name: agent.name,
+          user,
+          config,
+        });
+      }
+    }
+    // NPCs are no longer processed here - they use /api/cron/npc-tick
 
     // Validation: Check if agents were found
     if (eligibleAgents.length === 0) {
@@ -420,17 +387,21 @@ export async function POST(_req: NextRequest) {
         continue;
       }
 
+      // Always 1pt per tick for USER agents
+      const pointsCost = 1;
+
+      // CRITICAL: Deduct points immediately after lock acquisition, BEFORE tick execution.
+      // This ensures points are always charged once we commit to running the tick.
+      // If we deducted after tick execution, errors in executeAutonomousTick() would
+      // skip the deduction (catch block), allowing agents to get free actions on errors.
+      await agentService.deductPoints(
+        eligibleAgent.user.id,
+        pointsCost,
+        'Autonomous tick'
+      );
+
       // Process agent with error handling to ensure lock is always released
       try {
-        // Always 1pt per tick for USER agents
-        const pointsCost = 1;
-
-        await agentService.deductPoints(
-          eligibleAgent.user.id,
-          pointsCost,
-          'Autonomous tick'
-        );
-
         // Use agent runtime manager for both USER and NPC agents
         const runtime = await agentRuntimeManager.getRuntime(
           eligibleAgent.agentId
