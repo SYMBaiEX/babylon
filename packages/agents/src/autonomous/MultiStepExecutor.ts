@@ -78,7 +78,6 @@ export interface MultiStepExecutorResult {
 
 export class MultiStepExecutor {
   private readonly maxIterations: number;
-  private currentRuntime: IAgentRuntime | null = null;
 
   constructor(maxIterations = 5) {
     this.maxIterations = maxIterations;
@@ -101,9 +100,6 @@ export class MultiStepExecutor {
   ): Promise<MultiStepExecutorResult> {
     const startTime = Date.now();
     const trace: ActionTraceResult[] = [];
-
-    // Store runtime for use in executeAction (needed for RESPOND action)
-    this.currentRuntime = runtime;
 
     logger.info(
       `[MultiStep] Starting multi-step execution for agent ${agentUserId}`,
@@ -234,6 +230,7 @@ export class MultiStepExecutor {
         decision.action,
         decision.parameters,
         enabledFeatures,
+        runtime,
         { prompt, completion: rawResponse, thought: decision.thought }
       );
 
@@ -662,6 +659,7 @@ export class MultiStepExecutor {
     action: string,
     parameters: Record<string, unknown>,
     enabledFeatures: string[],
+    runtime: IAgentRuntime,
     logContext?: { prompt: string; completion: string; thought: string }
   ): Promise<ActionTraceResult> {
     const normalizedAction = action.toUpperCase();
@@ -863,19 +861,9 @@ export class MultiStepExecutor {
         // RESPOND still uses the batch service which has its own LLM
         // for deciding WHICH interactions to respond to
         // This is acceptable as it's a different kind of decision
-        if (!this.currentRuntime) {
-          return {
-            actionType: 'RESPOND',
-            success: false,
-            summary: 'Runtime not available for RESPOND action',
-            error: 'No runtime context',
-            parameters,
-            timestamp: Date.now(),
-          };
-        }
         const responses = await autonomousBatchResponseService.processBatch(
           agentUserId,
-          this.currentRuntime
+          runtime
         );
 
         return {
