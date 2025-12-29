@@ -18,6 +18,7 @@ import { useAgentUsernameCheck } from '../hooks/useAgentUsernameCheck';
 
 const TOTAL_PROFILE_PICTURES = 100;
 const TOTAL_BANNERS = 100;
+const MAX_BIO_LENGTH = 160;
 
 interface AgentSetupModalProps {
   isOpen: boolean;
@@ -36,12 +37,12 @@ export function AgentSetupModal({
   const [localData, setLocalData] = useState<ProfileFormData>(profileData);
 
   // Sync bio from profileData when template loads (bio comes from template.description)
-  // Truncate to 160 characters if needed
+  // Truncate to MAX_BIO_LENGTH characters if needed
   useEffect(() => {
     if (profileData.bio && !localData.bio) {
       setLocalData((prev) => ({
         ...prev,
-        bio: profileData.bio.slice(0, 160),
+        bio: profileData.bio.slice(0, MAX_BIO_LENGTH),
       }));
     }
   }, [profileData.bio, localData.bio]);
@@ -474,21 +475,18 @@ export function AgentSetupModal({
             {/* Bio */}
             <div>
               <div className="mb-2 flex items-center justify-between">
-                <label
-                  htmlFor="edit-bio"
-                  className="block font-medium text-sm"
-                >
+                <label htmlFor="edit-bio" className="block font-medium text-sm">
                   Bio
                 </label>
                 <span
                   className={cn(
                     'text-xs',
-                    localData.bio.length > 160
+                    localData.bio.length > MAX_BIO_LENGTH
                       ? 'text-red-500'
                       : 'text-muted-foreground'
                   )}
                 >
-                  {localData.bio.length}/160
+                  {localData.bio.length}/{MAX_BIO_LENGTH}
                 </span>
               </div>
               <textarea
@@ -496,14 +494,14 @@ export function AgentSetupModal({
                 value={localData.bio}
                 onChange={(e) => {
                   const value = e.target.value;
-                  if (value.length <= 160) {
+                  if (value.length <= MAX_BIO_LENGTH) {
                     setLocalData((prev) => ({
                       ...prev,
                       bio: value,
                     }));
                   }
                 }}
-                maxLength={160}
+                maxLength={MAX_BIO_LENGTH}
                 rows={3}
                 className={cn(
                   'w-full resize-none rounded-lg border border-border bg-muted px-4 py-3',
