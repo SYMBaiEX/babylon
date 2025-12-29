@@ -86,6 +86,7 @@ export function AgentChat({ agent, onBalanceUpdate }: AgentChatProps) {
   }, []);
 
   // Resize textarea when input value changes
+  // biome-ignore lint/correctness/useExhaustiveDependencies: input triggers resize even though not directly used
   useEffect(() => {
     resizeTextarea();
   }, [input, resizeTextarea]);

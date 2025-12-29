@@ -69,6 +69,7 @@ const GENERATION_BATCH_MINUTES = 5; // Generate in 5-minute batches
 const DIVERSITY_QUOTA = 0.2; // 20% of posts should cover diverse topics
 const ORGANIC_POST_RATIO = 0.15; // 15% of posts should be organic (no topic)
 const RIVALRY_POST_RATIO = 0.1; // 10% of posts should be rivalry-driven
+const ACTOR_POST_RATIO = 0.95; // 95% of posts should be from actors (NPCs)
 
 /**
  * Check how far ahead content is generated
@@ -333,8 +334,9 @@ async function generateContentWindow(
     return;
   }
 
-  // Vary post count per window (6-10) using biased random for natural distribution
-  const numPosts = biasedRandomCount(6, 10);
+  // Target 5-10 NPC posts per minute = 25-50 per 5-minute window
+  // Using biased random for natural distribution
+  const numPosts = biasedRandomCount(25, 50);
   const windowDuration = windowEnd.getTime() - windowStart.getTime();
 
   // Generate events probabilistically using secure random
@@ -493,12 +495,13 @@ async function generateContentWindow(
       ? shuffledDiverseTopics[i % shuffledDiverseTopics.length]
       : undefined;
 
-    // Weighted random choice between actor and org (70% actor, 30% org if both available)
+    // Weighted random choice between actor and org (95% actor, 5% org if both available)
+    // Articles are now event-driven only, so orgs just post (no articles in lookahead)
     // Organic posts are ONLY for actors (orgs don't have "personalities")
     const useActor =
       shouldBeOrganic ||
       (shuffledActors.length > 0 &&
-        (shuffledOrgs.length === 0 || secureRandom() < 0.7));
+        (shuffledOrgs.length === 0 || secureRandom() < ACTOR_POST_RATIO));
 
     // Pick from shuffled lists with wraparound
     const creator = useActor
@@ -711,8 +714,9 @@ async function generateContentWindow(
       }
     }
 
-    // 10% chance to generate a full article instead of a short post
-    const shouldCreateArticle = secureRandom() < 0.1;
+    // 5% chance to generate a full article (reduced from 10%)
+    // Articles are primarily event-driven, but orgs can still publish occasional articles
+    const shouldCreateArticle = secureRandom() < 0.05;
     let success = false;
 
     if (shouldCreateArticle) {
