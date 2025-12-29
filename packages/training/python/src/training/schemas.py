@@ -300,7 +300,7 @@ def validate_trajectory(data: Dict[str, Any]) -> Tuple[bool, List[str]]:
     episode_length = data.get("episodeLength", data.get("episode_length"))
     if episode_length is not None:
         if not isinstance(episode_length, int) or episode_length < 0:
-            errors.append(f"episodeLength must be a non-negative integer")
+            errors.append("episodeLength must be a non-negative integer")
     
     return len(errors) == 0, errors
 

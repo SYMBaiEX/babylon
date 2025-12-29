@@ -147,16 +147,19 @@ export function deriveArchetype(npc: NPCCharacteristics): string {
   }
 
   // 2. Analyze reliability for deception indicators
-  if (npc.reliability !== undefined) {
-    if (npc.reliability < 0.3 || npc.willingToLie === true) {
-      // Low reliability + willing to lie = scammer or liar
-      return npc.willingToLie ? 'scammer' : 'liar';
-    }
-    if (npc.reliability >= 0.8) {
-      // High reliability = information trader or researcher
-      return 'information-trader';
-    }
+  // Only classify as deceptive if BOTH low reliability AND willingToLie
+  // This avoids misclassifying legitimate low-reliability NPCs (e.g., unreliable but honest)
+  if (
+    npc.reliability !== undefined &&
+    npc.reliability < 0.3 &&
+    npc.willingToLie === true
+  ) {
+    // Confirmed deceptive: low reliability + actively willing to lie
+    return 'scammer';
   }
+
+  // Note: High reliability is factored into personality analysis below, not used as an override.
+  // This prevents highly reliable journalists from becoming information-traders.
 
   // 3. Analyze personality keywords
   if (npc.personality) {

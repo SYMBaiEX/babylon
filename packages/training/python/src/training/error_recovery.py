@@ -55,16 +55,29 @@ class ErrorCategory(Enum):
     FATAL = "fatal"
 
 
-@dataclass
-class TrainingError:
-    """Structured training error for handling decisions"""
+class TrainingError(Exception):
+    """
+    Structured training error for handling decisions.
     
-    category: ErrorCategory
-    message: str
-    component: str
-    recoverable: bool
-    details: Dict[str, Any] = field(default_factory=dict)
-    original_exception: Optional[Exception] = None
+    Inherits from Exception so it can be raised and caught properly.
+    """
+    
+    def __init__(
+        self,
+        category: ErrorCategory,
+        message: str,
+        component: str,
+        recoverable: bool,
+        details: Optional[Dict[str, Any]] = None,
+        original_exception: Optional[Exception] = None,
+    ):
+        super().__init__(message)
+        self.category = category
+        self.message = message
+        self.component = component
+        self.recoverable = recoverable
+        self.details = details or {}
+        self.original_exception = original_exception
     
     def __str__(self) -> str:
         return f"[{self.category.value}] {self.component}: {self.message}"

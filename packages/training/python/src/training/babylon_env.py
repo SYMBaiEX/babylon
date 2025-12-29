@@ -17,6 +17,7 @@ Tinker integration: https://tinker-docs.thinkingmachines.ai/
 """
 
 import asyncpg
+import aiohttp
 import copy
 import json
 import logging
@@ -397,14 +398,11 @@ class BabylonRLAIFEnv(BaseEnv):
         # Collect responses from the training model for each trajectory
         rollout_data = []
 
-        # Direct call to vLLM using aiohttp
-        import aiohttp
-        
-        # Get vLLM URL from config (default to localhost:9001)
-        vllm_url = "http://localhost:9001/v1"
+        # Get vLLM URL from server config (first config is the inference server)
+        vllm_base_url = self.server_configs[0].base_url if self.server_configs else "http://localhost:9001/v1"
         model_name = self.config.tokenizer_name
         
-        logger.debug(f"Using vLLM at {vllm_url}, model: {model_name}")
+        logger.debug(f"Using vLLM at {vllm_base_url}, model: {model_name}")
         
         async with aiohttp.ClientSession() as session:
             for traj in trajectory_group:
@@ -432,7 +430,7 @@ class BabylonRLAIFEnv(BaseEnv):
                 }
                 
                 async with session.post(
-                    f"{vllm_url}/chat/completions",
+                    f"{vllm_base_url}/chat/completions",
                     json=payload,
                     headers={"Content-Type": "application/json"},
                     timeout=aiohttp.ClientTimeout(total=120),
