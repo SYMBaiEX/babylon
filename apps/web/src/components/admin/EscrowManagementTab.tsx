@@ -15,22 +15,7 @@ import { toast } from 'sonner';
 import { z } from 'zod';
 import { Avatar } from '@/components/shared/Avatar';
 import { Skeleton } from '@/components/shared/Skeleton';
-
-/**
- * Get authentication token from window if available.
- *
- * Note: Admin API routes use cookie-based authentication via requireAdmin middleware.
- * The privy-token cookie is automatically sent with requests, so explicit Authorization
- * header is optional. However, we can include it if available for consistency with
- * other admin components.
- *
- * @returns Authentication token or null
- */
-function getAuthToken(): string | null {
-  if (typeof window === 'undefined') return null;
-  // Try to get token from window if available (some admin components use this)
-  return (window as { __privyAccessToken?: string }).__privyAccessToken || null;
-}
+import { getAuthToken } from '@/lib/auth';
 
 /**
  * Escrow schema for validation.
@@ -131,20 +116,21 @@ export function EscrowManagementTab() {
             headers,
           }
         );
-        if (!response.ok) throw new Error('Failed to fetch escrows');
-        const data = await response.json();
-        const validation = z.array(EscrowSchema).safeParse(data.escrows);
-        if (!validation.success) {
-          throw new Error('Invalid escrow data structure');
+        if (!response.ok) {
+          toast.error('Failed to fetch escrows');
+          setLoading(false);
+          return;
         }
-        setEscrows(validation.data || []);
+        const data = await response.json();
+        const validated = z.array(EscrowSchema).parse(data.escrows);
+        setEscrows(validated);
         setLoading(false);
       };
 
       if (showRefreshing) {
         startRefresh(fetchLogic);
       } else {
-        fetchLogic();
+        void fetchLogic();
       }
     },
     [statusFilter]

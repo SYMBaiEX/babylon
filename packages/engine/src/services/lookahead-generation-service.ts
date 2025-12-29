@@ -46,9 +46,16 @@ import {
 import { worldFactsService } from '../world-facts-service';
 import { generateEvents } from './event-generation-helpers';
 import {
+  getActorRivals,
+  shouldGenerateOrganicPost,
+  shouldPostAboutTopic,
+} from './npc-character-config';
+import {
   generateNPCPost,
   generateOrgArticle,
+  generateOrganicPost,
   generateOrgPost,
+  generateRivalryPost,
   loadSharedPostContext,
 } from './post-generation-helpers';
 import { StaticDataRegistry } from './static-data-registry';
@@ -60,6 +67,8 @@ import {
 const LOOKAHEAD_MINUTES = 15; // Generate 15 minutes ahead
 const GENERATION_BATCH_MINUTES = 5; // Generate in 5-minute batches
 const DIVERSITY_QUOTA = 0.2; // 20% of posts should cover diverse topics
+const ORGANIC_POST_RATIO = 0.15; // 15% of posts should be organic (no topic)
+const RIVALRY_POST_RATIO = 0.1; // 10% of posts should be rivalry-driven
 
 /**
  * Check how far ahead content is generated
@@ -308,12 +317,12 @@ async function generateContentWindow(
   // Game-relative day for this window (0-indexed since game start)
   const currentDay = dayNumberForTimestamp(windowStart);
 
-  // Get active questions
+  // Get ALL active questions to ensure diversity across markets
+  // Previously limited to 3 which caused NPCs to converge on same topics
   const activeQuestions = await db
     .select()
     .from(questions)
-    .where(eq(questions.status, 'active'))
-    .limit(3);
+    .where(eq(questions.status, 'active'));
 
   if (activeQuestions.length === 0) {
     logger.warn(
@@ -404,11 +413,61 @@ async function generateContentWindow(
   const shuffledQuestions = secureShuffle([...activeQuestions]);
   const shuffledDiverseTopics = secureShuffle([...diverseTopics]);
 
+  // Track which questions have been used in this window to ensure market diversity
+  // This prevents all NPCs from gravitating toward the same market
+  let nextRoundRobinIndex = 0;
+
   // Calculate how many diverse topic posts to generate (enforce diversity quota)
   const diversePostCount = Math.max(1, Math.floor(numPosts * DIVERSITY_QUOTA));
   const diversePostIndices = new Set<number>();
   for (let d = 0; d < diversePostCount && d < numPosts; d++) {
     diversePostIndices.add(Math.floor(secureRandom() * numPosts));
+  }
+
+  // Calculate organic post indices (posts without specific topics)
+  const organicPostCount = Math.max(
+    1,
+    Math.floor(numPosts * ORGANIC_POST_RATIO)
+  );
+  const organicPostIndices = new Set<number>();
+  for (let o = 0; o < organicPostCount && o < numPosts; o++) {
+    // Avoid overlap with diverse posts
+    let idx = Math.floor(secureRandom() * numPosts);
+    let attempts = 0;
+    const maxAttempts = numPosts * 2;
+    while (diversePostIndices.has(idx) && attempts < maxAttempts) {
+      idx = Math.floor(secureRandom() * numPosts);
+      attempts++;
+    }
+    // Only add if no collision exists
+    if (!diversePostIndices.has(idx)) {
+      organicPostIndices.add(idx);
+    }
+  }
+
+  // Calculate rivalry post indices (contrarian posts from rivals)
+  const rivalryPostCount = Math.max(
+    1,
+    Math.floor(numPosts * RIVALRY_POST_RATIO)
+  );
+  const rivalryPostIndices = new Set<number>();
+  const usedByOrganicAndDiverse = new Set([
+    ...diversePostIndices,
+    ...organicPostIndices,
+  ]);
+  for (let r = 0; r < rivalryPostCount && r < numPosts; r++) {
+    // Avoid overlap with organic and diverse posts
+    let idx = Math.floor(secureRandom() * numPosts);
+    let attempts = 0;
+    const maxAttempts = numPosts * 2;
+    while (usedByOrganicAndDiverse.has(idx) && attempts < maxAttempts) {
+      idx = Math.floor(secureRandom() * numPosts);
+      attempts++;
+    }
+    // Only add if no collision exists
+    if (!usedByOrganicAndDiverse.has(idx)) {
+      rivalryPostIndices.add(idx);
+    }
   }
 
   // Generate posts in parallel for better performance
@@ -418,17 +477,28 @@ async function generateContentWindow(
     const postTimestamp = new Date(windowStart.getTime() + randomOffset);
     const postDayNumber = dayNumberForTimestamp(postTimestamp);
 
+    // Check if this should be an organic post (personality-driven, no topic)
+    const shouldBeOrganic = organicPostIndices.has(i);
+
+    // Check if this should be a rivalry post (contrarian to a rival)
+    const shouldBeRivalry = !shouldBeOrganic && rivalryPostIndices.has(i);
+
     // Check if this post should cover a diverse topic (off-trend)
     const shouldBeDiverse =
-      diversePostIndices.has(i) && shuffledDiverseTopics.length > 0;
+      !shouldBeOrganic &&
+      !shouldBeRivalry &&
+      diversePostIndices.has(i) &&
+      shuffledDiverseTopics.length > 0;
     const diverseTopic: DiverseTopicSuggestion | undefined = shouldBeDiverse
       ? shuffledDiverseTopics[i % shuffledDiverseTopics.length]
       : undefined;
 
     // Weighted random choice between actor and org (70% actor, 30% org if both available)
+    // Organic posts are ONLY for actors (orgs don't have "personalities")
     const useActor =
-      shuffledActors.length > 0 &&
-      (shuffledOrgs.length === 0 || secureRandom() < 0.7);
+      shouldBeOrganic ||
+      (shuffledActors.length > 0 &&
+        (shuffledOrgs.length === 0 || secureRandom() < 0.7));
 
     // Pick from shuffled lists with wraparound
     const creator = useActor
@@ -439,15 +509,143 @@ async function generateContentWindow(
       return 0;
     }
 
-    // Weight question selection toward those with sooner resolution dates using urgency scoring
-    // For diverse posts, still pick a question but the diverse topic context will be injected
-    const question =
-      shuffledQuestions.length > 0
-        ? weightedPick(shuffledQuestions, urgencyWeight(5))
-        : activeQuestions[0];
+    // For organic posts with actors, use the dedicated organic post generator
+    if (shouldBeOrganic && useActor) {
+      const actor = creator as (typeof actorsList)[number];
+
+      // Check if this actor should generate organic content based on their config
+      if (!shouldGenerateOrganicPost(actor.id)) {
+        // Fall back to regular post generation if organic probability fails
+        // Continue to question-based post below
+      } else {
+        const success = await generateOrganicPost(
+          llmClient,
+          actor,
+          worldFactsContext,
+          postTimestamp,
+          postDayNumber
+        );
+        if (success) {
+          logger.debug(
+            'Created lookahead organic NPC post',
+            { actor: actor.name, timestamp: postTimestamp.toISOString() },
+            'LookaheadGeneration'
+          );
+          return 1;
+        }
+        // Fall through to regular question-based post if organic generation fails
+        logger.debug(
+          'Organic post generation failed, falling back to question-based post',
+          { actor: actor.name },
+          'LookaheadGeneration'
+        );
+      }
+    }
+
+    // For rivalry posts, generate a contrarian post if the actor has rivals
+    if (shouldBeRivalry && useActor) {
+      const actor = creator as (typeof actorsList)[number];
+      const rivals = getActorRivals(actor.id);
+
+      if (rivals.length > 0) {
+        // Pick a random rival
+        const rivalId = rivals[Math.floor(secureRandom() * rivals.length)];
+        const rivalActor = shuffledActors.find((a) => a.id === rivalId);
+
+        if (rivalActor && shuffledQuestions.length > 0) {
+          // Pick a question for the rivalry using round-robin for market diversity
+          const rivalryQuestion =
+            shuffledQuestions[nextRoundRobinIndex % shuffledQuestions.length];
+          nextRoundRobinIndex++;
+          if (rivalryQuestion) {
+            // Determine rival's likely position (random for now, could be smarter)
+            const rivalPosition = secureRandom() < 0.5 ? 'YES' : 'NO';
+
+            const success = await generateRivalryPost(
+              llmClient,
+              actor,
+              rivalActor.name,
+              rivalPosition,
+              rivalryQuestion,
+              worldFactsContext,
+              postTimestamp,
+              postDayNumber
+            );
+
+            if (success) {
+              logger.debug(
+                'Created lookahead rivalry post',
+                {
+                  actor: actor.name,
+                  rival: rivalActor.name,
+                  timestamp: postTimestamp.toISOString(),
+                },
+                'LookaheadGeneration'
+              );
+              return 1;
+            }
+          }
+        }
+      }
+      // If no rivals or generation failed, fall through to regular post
+    }
+
+    // Market diversity: alternate between round-robin (ensures all markets get coverage)
+    // and weighted selection (still favors urgent markets but with reduced bias)
+    // This prevents all NPCs from converging on a single "hot" market
+    let question: (typeof activeQuestions)[number] | undefined;
+    if (shuffledQuestions.length > 0) {
+      // 50% of posts use round-robin to guarantee market diversity
+      // 50% use weighted pick with REDUCED urgency multiplier (2 instead of 5)
+      const useRoundRobin = secureRandom() < 0.5;
+      if (useRoundRobin) {
+        // Round-robin through all active markets
+        question =
+          shuffledQuestions[nextRoundRobinIndex % shuffledQuestions.length];
+        nextRoundRobinIndex++;
+        logger.debug(
+          'Using round-robin market selection',
+          { questionId: question?.id, index: nextRoundRobinIndex },
+          'LookaheadGeneration'
+        );
+      } else {
+        // Weighted selection with reduced urgency bias (2 instead of 5)
+        question = weightedPick(shuffledQuestions, urgencyWeight(2));
+      }
+    } else {
+      question = activeQuestions[0];
+    }
 
     if (!question || !question.text) {
       return 0;
+    }
+
+    // For actors, check if they should post about this topic based on their domain
+    if (useActor) {
+      const actor = creator as (typeof actorsList)[number];
+      if (!shouldPostAboutTopic(actor.id, question.text)) {
+        // This actor doesn't care about this topic - try another question
+        const currentQuestionId = question.id;
+        const alternateQuestion = shuffledQuestions.find(
+          (q) =>
+            q.id !== currentQuestionId && shouldPostAboutTopic(actor.id, q.text)
+        );
+        if (alternateQuestion) {
+          // Use the domain-relevant question instead
+          question = alternateQuestion;
+          logger.debug(
+            'Switched to domain-relevant question for actor',
+            { actor: actor.name, questionId: alternateQuestion.id },
+            'LookaheadGeneration'
+          );
+        } else {
+          // No relevant topics for this actor - skip or still post with lower probability
+          if (secureRandom() > 0.3) {
+            // 70% chance to skip off-domain topics
+            return 0;
+          }
+        }
+      }
     }
 
     // Check if the question topic is oversaturated (apply diversity penalty)

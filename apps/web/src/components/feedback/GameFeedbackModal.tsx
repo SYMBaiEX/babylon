@@ -10,6 +10,7 @@ import { cn, parseJsonString } from '@babylon/shared';
 import { Loader2, Send, X } from 'lucide-react';
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { toast } from 'sonner';
+import { getAuthToken } from '@/lib/auth';
 import {
   BugReportFields,
   DescriptionField,
@@ -25,6 +26,64 @@ interface GameFeedbackModalProps {
 }
 
 const STORAGE_KEY = 'game-feedback-form';
+const SCREENSHOT_UPLOAD_TIMEOUT_MS = 30000; // 30 second timeout for screenshot uploads
+
+/**
+ * Combines multiple AbortSignals into one that aborts when any signal aborts.
+ * Provides a fallback for browsers that don't support AbortSignal.any() (pre-2023).
+ */
+function combineAbortSignals(signals: AbortSignal[]): AbortSignal {
+  // Use native AbortSignal.any() if available (Chrome 116+, Firefox 124+, Safari 17.4+)
+  if ('any' in AbortSignal && typeof AbortSignal.any === 'function') {
+    return AbortSignal.any(signals);
+  }
+
+  // Fallback for older browsers
+  const controller = new AbortController();
+  for (const signal of signals) {
+    if (signal.aborted) {
+      controller.abort(signal.reason);
+      return controller.signal;
+    }
+    signal.addEventListener('abort', () => controller.abort(signal.reason), {
+      once: true,
+    });
+  }
+  return controller.signal;
+}
+
+/**
+ * Sanitizes error messages to prevent exposing sensitive server details.
+ * Returns a user-friendly message for display in toast notifications.
+ */
+function sanitizeErrorMessage(error: unknown): string {
+  // Default user-friendly message
+  const defaultMessage = 'Something went wrong. Please try again.';
+
+  if (!(error instanceof Error)) {
+    return defaultMessage;
+  }
+
+  const message = error.message.toLowerCase();
+
+  // Map known error patterns to user-friendly messages
+  if (message.includes('network') || message.includes('fetch')) {
+    return 'Network error. Please check your connection and try again.';
+  }
+  if (message.includes('timeout') || message.includes('timed out')) {
+    return 'Request timed out. Please try again.';
+  }
+  if (message.includes('abort')) {
+    return 'Request was cancelled.';
+  }
+  if (message.includes('upload')) {
+    return 'Failed to upload screenshot. Please try again.';
+  }
+
+  // For any other error, return a generic message
+  // to avoid exposing potentially sensitive server details
+  return defaultMessage;
+}
 
 export function GameFeedbackModal({ isOpen, onClose }: GameFeedbackModalProps) {
   const [feedbackType, setFeedbackType] = useState<FeedbackType | null>(null);
@@ -38,8 +97,14 @@ export function GameFeedbackModal({ isOpen, onClose }: GameFeedbackModalProps) {
   const [screenshotUrl, setScreenshotUrl] = useState<string | null>(null);
   const [isSubmitting, startSubmitting] = useTransition();
   const abortControllerRef = useRef<AbortController | null>(null);
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isOpenRef = useRef(isOpen); // Track isOpen in ref to avoid stale closure
   const [retryAfter, setRetryAfter] = useState<number | null>(null);
+
+  // Keep isOpenRef in sync with isOpen prop
+  useEffect(() => {
+    isOpenRef.current = isOpen;
+  }, [isOpen]);
 
   // Load form data from sessionStorage on mount
   useEffect(() => {
@@ -76,18 +141,18 @@ export function GameFeedbackModal({ isOpen, onClose }: GameFeedbackModalProps) {
   useEffect(() => {
     return () => {
       if (abortControllerRef.current) abortControllerRef.current.abort();
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
       }
     };
   }, []);
 
-  // Cleanup interval when modal closes
+  // Cleanup timeout when modal closes
   useEffect(() => {
-    if (!isOpen && intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
+    if (!isOpen && timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
       setRetryAfter(null);
     }
   }, [isOpen]);
@@ -124,25 +189,38 @@ export function GameFeedbackModal({ isOpen, onClose }: GameFeedbackModalProps) {
     formData.append('file', screenshot);
     formData.append('type', 'post');
 
-    const token =
-      typeof window !== 'undefined' ? window.__privyAccessToken : null;
+    const token = getAuthToken();
     const headers: HeadersInit = {};
     if (token) headers['Authorization'] = `Bearer ${token}`;
 
-    const response = await fetch('/api/upload/image', {
-      method: 'POST',
-      headers,
-      body: formData,
-      signal,
-    });
+    // Create a timeout signal that aborts after SCREENSHOT_UPLOAD_TIMEOUT_MS
+    const timeoutController = new AbortController();
+    const timeoutId = setTimeout(() => {
+      timeoutController.abort();
+    }, SCREENSHOT_UPLOAD_TIMEOUT_MS);
 
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || 'Failed to upload screenshot');
+    // Combine the external signal with our timeout signal
+    const combinedSignal = signal
+      ? combineAbortSignals([signal, timeoutController.signal])
+      : timeoutController.signal;
+
+    try {
+      const response = await fetch('/api/upload/image', {
+        method: 'POST',
+        headers,
+        body: formData,
+        signal: combinedSignal,
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to upload screenshot');
+      }
+
+      const data = await response.json();
+      return data.url;
+    } finally {
+      clearTimeout(timeoutId);
     }
-
-    const data = await response.json();
-    return data.url;
   };
 
   const handleSubmit = () => {
@@ -170,91 +248,108 @@ export function GameFeedbackModal({ isOpen, onClose }: GameFeedbackModalProps) {
       abortControllerRef.current = new AbortController();
       const signal = abortControllerRef.current.signal;
 
+      // Track uploaded screenshot URL for cleanup on failure
       let uploadedScreenshotUrl: string | null = null;
 
-      if (screenshot && feedbackType === 'bug') {
-        uploadedScreenshotUrl = await uploadScreenshot(signal).catch(
-          (error) => {
-            if (error.name === 'AbortError') return null;
-            toast.warning(
-              'Screenshot upload failed, but you can still submit your feedback'
-            );
-            return null;
+      // Helper to cleanup orphaned screenshot on submission failure
+      const cleanupOrphanedScreenshot = (url: string) => {
+        const token = getAuthToken();
+        const headers: HeadersInit = {};
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+        // Fire-and-forget cleanup - log failures for observability but don't block
+        void fetch('/api/upload/image', {
+          method: 'DELETE',
+          headers: { ...headers, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url }),
+        }).catch((error) => {
+          // Log for observability but don't block user flow
+          console.warn('Failed to cleanup orphaned screenshot:', url, error);
+        });
+      };
+
+      try {
+        if (screenshot && feedbackType === 'bug') {
+          uploadedScreenshotUrl = await uploadScreenshot(signal);
+          if (uploadedScreenshotUrl) setScreenshotUrl(uploadedScreenshotUrl);
+        }
+
+        const token = getAuthToken();
+        const headers: HeadersInit = { 'Content-Type': 'application/json' };
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+
+        const response = await fetch('/api/feedback/game-feedback', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            feedbackType,
+            description: description.trim(),
+            stepsToReproduce:
+              feedbackType === 'bug' ? stepsToReproduce.trim() : undefined,
+            screenshotUrl: uploadedScreenshotUrl || screenshotUrl || undefined,
+            rating: feedbackType === 'feature_request' ? rating : undefined,
+          }),
+          signal,
+        });
+
+        if (!response.ok) {
+          // Clean up uploaded screenshot if submission failed
+          if (uploadedScreenshotUrl) {
+            cleanupOrphanedScreenshot(uploadedScreenshotUrl);
           }
-        );
-        if (uploadedScreenshotUrl) setScreenshotUrl(uploadedScreenshotUrl);
-      }
 
-      const token =
-        typeof window !== 'undefined' ? window.__privyAccessToken : null;
-      const headers: HeadersInit = { 'Content-Type': 'application/json' };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
+          if (response.status === 429) {
+            const retryAfterHeader = response.headers.get('Retry-After');
+            const retryAfterSeconds = retryAfterHeader
+              ? parseInt(retryAfterHeader, 10)
+              : 60;
+            setRetryAfter(retryAfterSeconds);
 
-      const response = await fetch('/api/feedback/game-feedback', {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          feedbackType,
-          description: description.trim(),
-          stepsToReproduce:
-            feedbackType === 'bug' ? stepsToReproduce.trim() : undefined,
-          screenshotUrl: uploadedScreenshotUrl || screenshotUrl || undefined,
-          rating: feedbackType === 'feature_request' ? rating : undefined,
-        }),
-        signal,
-      });
-
-      if (!response.ok) {
-        if (response.status === 429) {
-          const retryAfterHeader = response.headers.get('Retry-After');
-          const retryAfterSeconds = retryAfterHeader
-            ? parseInt(retryAfterHeader, 10)
-            : 60;
-          setRetryAfter(retryAfterSeconds);
-
-          if (intervalRef.current) clearInterval(intervalRef.current);
-
-          intervalRef.current = setInterval(() => {
-            setRetryAfter((prev) => {
-              if (prev === null || prev <= 1) {
-                if (intervalRef.current) {
-                  clearInterval(intervalRef.current);
-                  intervalRef.current = null;
-                }
-                return null;
+            // Use recursive setTimeout with ref check to avoid stale closure
+            const startCountdown = (seconds: number) => {
+              // Stop countdown if modal is closing (use ref to get current value)
+              if (!isOpenRef.current || seconds <= 0) {
+                setRetryAfter(null);
+                return;
               }
-              return prev - 1;
-            });
-          }, 1000);
+              setRetryAfter(seconds);
+              timeoutRef.current = setTimeout(() => {
+                startCountdown(seconds - 1);
+              }, 1000);
+            };
 
-          toast.error(
-            `Rate limit exceeded. Please try again in ${retryAfterSeconds} seconds.`
-          );
+            if (timeoutRef.current) clearTimeout(timeoutRef.current);
+            startCountdown(retryAfterSeconds);
+
+            toast.error(
+              `Rate limit exceeded. Please try again in ${retryAfterSeconds} seconds.`
+            );
+            return;
+          }
+
+          // Don't expose raw server error messages to users
+          toast.error('Failed to submit feedback. Please try again.');
           return;
         }
 
-        let error;
-        try {
-          error = await response.json();
-        } catch {
-          error = { error: 'Failed to submit feedback' };
+        const data = await response.json();
+        toast.success(
+          data.message || 'Thank you for your feedback! We appreciate it.'
+        );
+
+        clearFormData();
+        setTimeout(() => onClose(), 1000);
+      } catch (error) {
+        // Clean up uploaded screenshot on any error
+        if (uploadedScreenshotUrl) {
+          cleanupOrphanedScreenshot(uploadedScreenshotUrl);
         }
-        toast.error(error.error || 'Failed to submit feedback');
-        return;
-      }
 
-      let data;
-      try {
-        data = await response.json();
-      } catch {
-        data = { message: 'Thank you for your feedback! We appreciate it.' };
-      }
-      toast.success(
-        data.message || 'Thank you for your feedback! We appreciate it.'
-      );
+        // Silently ignore abort errors (user cancelled)
+        if (error instanceof Error && error.name === 'AbortError') return;
 
-      clearFormData();
-      setTimeout(() => onClose(), 1000);
+        // Sanitize error messages before displaying to prevent exposing sensitive info
+        toast.error(sanitizeErrorMessage(error));
+      }
     });
   };
 
@@ -262,15 +357,14 @@ export function GameFeedbackModal({ isOpen, onClose }: GameFeedbackModalProps) {
     if (isSubmitting && abortControllerRef.current) {
       abortControllerRef.current.abort();
     }
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
     }
     onClose();
   };
 
   const config = feedbackType ? getFeedbackTypeConfig(feedbackType) : null;
-  const Icon = config?.icon;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
@@ -284,6 +378,7 @@ export function GameFeedbackModal({ isOpen, onClose }: GameFeedbackModalProps) {
             </p>
           </div>
           <button
+            type="button"
             onClick={handleClose}
             disabled={isSubmitting}
             className="rounded-lg p-2 transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
@@ -301,6 +396,7 @@ export function GameFeedbackModal({ isOpen, onClose }: GameFeedbackModalProps) {
             <>
               {/* Back button */}
               <button
+                type="button"
                 onClick={() => setFeedbackType(null)}
                 disabled={isSubmitting}
                 className="text-muted-foreground text-sm transition-colors hover:text-foreground disabled:opacity-50"
@@ -309,19 +405,14 @@ export function GameFeedbackModal({ isOpen, onClose }: GameFeedbackModalProps) {
               </button>
 
               {/* Feedback Type Header */}
-              {config && Icon && (
-                <div className="flex items-center gap-3 rounded-lg bg-muted/30 p-4">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#1c9cf0]/20">
-                    <Icon className="h-5 w-5 text-[#1c9cf0]" />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-foreground">
-                      {config.title}
-                    </h3>
-                    <p className="text-muted-foreground text-sm">
-                      {config.description}
-                    </p>
-                  </div>
+              {config && (
+                <div className="rounded-lg bg-muted/30 p-4">
+                  <h3 className="font-semibold text-foreground">
+                    {config.title}
+                  </h3>
+                  <p className="mt-1 text-muted-foreground text-sm">
+                    {config.description}
+                  </p>
                 </div>
               )}
 
@@ -353,6 +444,7 @@ export function GameFeedbackModal({ isOpen, onClose }: GameFeedbackModalProps) {
               {/* Action Buttons */}
               <div className="flex items-center gap-3 pt-4">
                 <button
+                  type="button"
                   onClick={handleSubmit}
                   disabled={
                     isSubmitting || (retryAfter !== null && retryAfter > 0)
@@ -381,6 +473,7 @@ export function GameFeedbackModal({ isOpen, onClose }: GameFeedbackModalProps) {
                   )}
                 </button>
                 <button
+                  type="button"
                   onClick={handleClose}
                   disabled={isSubmitting}
                   className={cn(

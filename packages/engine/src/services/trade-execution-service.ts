@@ -182,7 +182,8 @@ export class TradeExecutionService {
           errorMessage.includes('Market expired') ||
           errorMessage.includes('Order size exceeds market limit') ||
           errorMessage.includes('Position already closed') ||
-          errorMessage.includes('Position not found');
+          errorMessage.includes('Position not found') ||
+          errorMessage.includes('Already have an open');
         const logLevel = isExpectedFailure ? 'warn' : 'error';
 
         logger[logLevel](
@@ -938,7 +939,7 @@ export class TradeExecutionService {
           .where(
             and(
               eq(actorState.id, actorId),
-              gte(actorState.tradingBalance, String(amount))
+              gte(sql<number>`${actorState.tradingBalance}::numeric`, amount)
             )
           )
           .returning({ id: actorState.id });

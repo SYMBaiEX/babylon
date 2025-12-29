@@ -7,6 +7,7 @@
  */
 
 import { and, db, desc, eq, gte, messages } from '@babylon/db';
+import { shuffleArray } from '@babylon/engine';
 import type { IAgentRuntime } from '@elizaos/core';
 import { callGroqDirect } from '../llm/direct-groq';
 import { getAgentConfig } from '../shared/agent-config';
@@ -43,11 +44,15 @@ export class AutonomousGroupChatService {
       with: {
         chat: true,
       },
+      limit: 20,
     });
 
     let messagesCreated = 0;
 
-    for (const chatParticipant of groupChatsRaw) {
+    // Shuffle to prevent starvation (deterministic order would always favor same chats)
+    const shuffledChats = shuffleArray(groupChatsRaw);
+
+    for (const chatParticipant of shuffledChats) {
       const chat = chatParticipant.chat;
       if (!chat || !chat.isGroup) continue; // Skip DMs
 
@@ -64,17 +69,21 @@ export class AutonomousGroupChatService {
 
       if (recentMessages.length === 0) continue;
 
-      // Check if agent was mentioned or should respond
+      // Check if agent was mentioned (exclude agent's own messages)
       const agentMentioned = recentMessages.some(
         (m: { content: string; senderId: string }) =>
+          m.senderId !== agentUserId &&
           m.content.toLowerCase().includes(agentDisplayName.toLowerCase())
       );
 
-      // Don't spam - only respond if mentioned or if it's been a while
+      // Don't spam - only respond if mentioned OR significant conversation activity
       const agentLastMessage = recentMessages.find(
         (m: { content: string; senderId: string }) => m.senderId === agentUserId
       );
-      if (!agentMentioned && agentLastMessage) {
+      const hasRecentConversation = recentMessages.length >= 3;
+      const shouldRespond =
+        agentMentioned || (!agentLastMessage && hasRecentConversation);
+      if (!shouldRespond) {
         continue;
       }
 
@@ -117,7 +126,11 @@ Generate ONLY the message text, or "SKIP" if you shouldn't respond.`;
 
       const cleanContent = responseContent.trim().replace(/^["']|["']$/g, '');
 
-      if (!cleanContent || cleanContent.length < 5 || cleanContent === 'SKIP') {
+      if (
+        !cleanContent ||
+        cleanContent.length < 5 ||
+        cleanContent.toUpperCase() === 'SKIP'
+      ) {
         continue;
       }
 

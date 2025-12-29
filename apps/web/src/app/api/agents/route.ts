@@ -167,6 +167,7 @@ export async function POST(req: NextRequest) {
   const body = await req.json();
   const {
     name,
+    username,
     description,
     profileImageUrl,
     coverImageUrl,
@@ -180,6 +181,7 @@ export async function POST(req: NextRequest) {
   const agentUser = await agentService.createAgent({
     userId: user.id,
     name,
+    username,
     description,
     profileImageUrl,
     coverImageUrl,

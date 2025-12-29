@@ -1245,16 +1245,6 @@ export interface DrizzleClient {
     InferSelect<typeof schema.chatParticipants>,
     InferInsert<typeof schema.chatParticipants>
   >;
-  chatAdmin: TableRepository<
-    typeof schema.chatAdmins,
-    InferSelect<typeof schema.chatAdmins>,
-    InferInsert<typeof schema.chatAdmins>
-  >;
-  chatInvite: TableRepository<
-    typeof schema.chatInvites,
-    InferSelect<typeof schema.chatInvites>,
-    InferInsert<typeof schema.chatInvites>
-  >;
   message: TableRepository<
     typeof schema.messages,
     InferSelect<typeof schema.messages>,
@@ -1269,11 +1259,6 @@ export interface DrizzleClient {
     typeof schema.dmAcceptances,
     InferSelect<typeof schema.dmAcceptances>,
     InferInsert<typeof schema.dmAcceptances>
-  >;
-  groupChatMembership: TableRepository<
-    typeof schema.groupChatMemberships,
-    InferSelect<typeof schema.groupChatMemberships>,
-    InferInsert<typeof schema.groupChatMemberships>
   >;
   userInteraction: TableRepository<
     typeof schema.userInteractions,
@@ -1359,26 +1344,6 @@ export interface DrizzleClient {
     typeof schema.userActorFollows,
     InferSelect<typeof schema.userActorFollows>,
     InferInsert<typeof schema.userActorFollows>
-  >;
-  userGroup: TableRepository<
-    typeof schema.userGroups,
-    InferSelect<typeof schema.userGroups>,
-    InferInsert<typeof schema.userGroups>
-  >;
-  userGroupAdmin: TableRepository<
-    typeof schema.userGroupAdmins,
-    InferSelect<typeof schema.userGroupAdmins>,
-    InferInsert<typeof schema.userGroupAdmins>
-  >;
-  userGroupInvite: TableRepository<
-    typeof schema.userGroupInvites,
-    InferSelect<typeof schema.userGroupInvites>,
-    InferInsert<typeof schema.userGroupInvites>
-  >;
-  userGroupMember: TableRepository<
-    typeof schema.userGroupMembers,
-    InferSelect<typeof schema.userGroupMembers>,
-    InferInsert<typeof schema.userGroupMembers>
   >;
   userBlock: TableRepository<
     typeof schema.userBlocks,
@@ -1575,6 +1540,11 @@ export interface DrizzleClient {
     InferSelect<typeof schema.userApiKeys>,
     InferInsert<typeof schema.userApiKeys>
   >;
+  adminRole: TableRepository<
+    typeof schema.adminRoles,
+    InferSelect<typeof schema.adminRoles>,
+    InferInsert<typeof schema.adminRoles>
+  >;
   tickTokenStats: TableRepository<
     typeof schema.tickTokenStats,
     InferSelect<typeof schema.tickTokenStats>,
@@ -1584,6 +1554,23 @@ export interface DrizzleClient {
     typeof schema.questionArcPlans,
     InferSelect<typeof schema.questionArcPlans>,
     InferInsert<typeof schema.questionArcPlans>
+  >;
+
+  // Group system
+  group: TableRepository<
+    typeof schema.groups,
+    InferSelect<typeof schema.groups>,
+    InferInsert<typeof schema.groups>
+  >;
+  groupMember: TableRepository<
+    typeof schema.groupMembers,
+    InferSelect<typeof schema.groupMembers>,
+    InferInsert<typeof schema.groupMembers>
+  >;
+  groupInvite: TableRepository<
+    typeof schema.groupInvites,
+    InferSelect<typeof schema.groupInvites>,
+    InferInsert<typeof schema.groupInvites>
   >;
 }
 
@@ -1714,8 +1701,6 @@ export function createDrizzleClient(drizzle: SchemaDatabase): DrizzleClient {
       schema.chatParticipants,
       'chatParticipants'
     ),
-    chatAdmin: new TableRepository(drizzle, schema.chatAdmins, 'chatAdmins'),
-    chatInvite: new TableRepository(drizzle, schema.chatInvites, 'chatInvites'),
     message: new TableRepository(drizzle, schema.messages, 'messages'),
     notification: new TableRepository(
       drizzle,
@@ -1726,11 +1711,6 @@ export function createDrizzleClient(drizzle: SchemaDatabase): DrizzleClient {
       drizzle,
       schema.dmAcceptances,
       'dmAcceptances'
-    ),
-    groupChatMembership: new TableRepository(
-      drizzle,
-      schema.groupChatMemberships,
-      'groupChatMemberships'
     ),
     userInteraction: new TableRepository(
       drizzle,
@@ -1796,22 +1776,6 @@ export function createDrizzleClient(drizzle: SchemaDatabase): DrizzleClient {
       drizzle,
       schema.userActorFollows,
       'userActorFollows'
-    ),
-    userGroup: new TableRepository(drizzle, schema.userGroups, 'userGroups'),
-    userGroupAdmin: new TableRepository(
-      drizzle,
-      schema.userGroupAdmins,
-      'userGroupAdmins'
-    ),
-    userGroupInvite: new TableRepository(
-      drizzle,
-      schema.userGroupInvites,
-      'userGroupInvites'
-    ),
-    userGroupMember: new TableRepository(
-      drizzle,
-      schema.userGroupMembers,
-      'userGroupMembers'
     ),
     userBlock: new TableRepository(drizzle, schema.userBlocks, 'userBlocks'),
     userMute: new TableRepository(drizzle, schema.userMutes, 'userMutes'),
@@ -1944,6 +1908,7 @@ export function createDrizzleClient(drizzle: SchemaDatabase): DrizzleClient {
       'userAgentConfigs'
     ),
     userApiKey: new TableRepository(drizzle, schema.userApiKeys, 'userApiKeys'),
+    adminRole: new TableRepository(drizzle, schema.adminRoles, 'adminRoles'),
     tickTokenStats: new TableRepository(
       drizzle,
       schema.tickTokenStats,
@@ -1953,6 +1918,19 @@ export function createDrizzleClient(drizzle: SchemaDatabase): DrizzleClient {
       drizzle,
       schema.questionArcPlans,
       'questionArcPlans'
+    ),
+
+    // Group system
+    group: new TableRepository(drizzle, schema.groups, 'groups'),
+    groupMember: new TableRepository(
+      drizzle,
+      schema.groupMembers,
+      'groupMembers'
+    ),
+    groupInvite: new TableRepository(
+      drizzle,
+      schema.groupInvites,
+      'groupInvites'
     ),
   };
 }

@@ -81,7 +81,9 @@ export interface AgentTickContext {
   // Topic diversity guidance
   diversityInstructions?: string;
   assignedMarketId?: string;
-  suggestedAngle?: string;
+  // NPC's actual character data for personalized guidance
+  personality?: string;
+  postStyle?: string;
 }
 
 export interface MultiStepDecision {
@@ -141,10 +143,15 @@ ${npcGameContext}
 `
       : '';
 
-  const npcQualityRulesSection = isNpc
-    ? `
+  // Quality rules apply to ALL agents (NPCs and user-controlled)
+  // These contain banned patterns and phrases that prevent repetitive content
+  const qualityRulesSection = `
 ${NPC_POST_QUALITY_RULES}
+`;
 
+  // Additional voice rules only for NPCs
+  const npcVoiceRulesSection = isNpc
+    ? `
 # NPC Voice Rules
 - You are a CHARACTER, not a reporter
 - Match YOUR voice from your character's examples
@@ -153,6 +160,33 @@ ${NPC_POST_QUALITY_RULES}
 - Sound like a PERSON on social media, not an AI
 
 `
+    : '';
+
+  // Determine enabled features for conditional sections
+  const canTrade = context.enabledFeatures.includes('trading');
+  const canComment = context.enabledFeatures.includes('commenting');
+  const canRespondDMs = context.enabledFeatures.includes('DMs');
+
+  // Build conditional sections (only show context for enabled features)
+  const tradingSection = canTrade
+    ? `
+# Available Prediction Markets
+${formatPredictionMarkets(context.predictionMarkets)}
+
+# Available Perp Markets
+${formatPerpMarkets(context.perpMarkets)}`
+    : '';
+
+  const commentingSection = canComment
+    ? `
+# Recent Posts (can comment on)
+${formatRecentPosts(context.recentPosts)}`
+    : '';
+
+  const dmsSection = canRespondDMs
+    ? `
+# Pending Interactions
+${formatPendingInteractions(context.pendingInteractionDetails)}`
     : '';
 
   return `You are ${agentName}, an autonomous agent on Babylon prediction markets.
@@ -169,18 +203,9 @@ ${npcContextSection}
 
 # Your Open Positions
 ${formatAgentPositions(context.agentPositions)}
-
-# Available Prediction Markets
-${formatPredictionMarkets(context.predictionMarkets)}
-
-# Available Perp Markets
-${formatPerpMarkets(context.perpMarkets)}
-
-# Recent Posts (can comment on)
-${formatRecentPosts(context.recentPosts)}
-
-# Pending Interactions
-${formatPendingInteractions(context.pendingInteractionDetails)}
+${tradingSection}
+${commentingSection}
+${dmsSection}
 
 # Actions Completed This Tick
 ${actionsCompletedText}
@@ -189,36 +214,39 @@ ${actionsCompletedText}
 ${formatAvailableActions(context.enabledFeatures)}
 
 ${context.diversityInstructions ? `${context.diversityInstructions}` : ''}
-${context.assignedMarketId ? `# YOUR FOCUS MARKET: ${context.assignedMarketId}\nConsider this market for trades or posts. Bring your "${context.suggestedAngle || 'unique'}" angle.\n` : ''}
+${context.assignedMarketId && canTrade ? `# YOUR FOCUS MARKET: ${context.assignedMarketId}\nConsider this market for trades or posts. Bring your ${context.personality || 'unique'} perspective.\n` : ''}
 
 # Decision Rules
-1. **MIX IT UP**: Trade, post, comment on others' posts, respond to mentions - variety is good
-2. **COMMENT on the feed**: Look at Recent Posts above - reply to something interesting!
-3. **Be Specific**: Provide exact IDs (from "id: xxx") in parameters, amounts, and content
-4. **One Action**: Choose ONE action per iteration
-5. **No Duplicates**: Don't repeat the same action on the same target
-6. **Know When to Stop**: Set isFinish=true after 2-3 meaningful actions or when done
+1. **Be Specific**: Provide exact IDs (from "id: xxx") in parameters, amounts, and content
+2. **One Action**: Choose ONE action per iteration
+3. **No Duplicates**: Don't repeat the same action on the same target
+4. **Know When to Stop**: Set isFinish=true after 2-3 meaningful actions or when done
+${canComment ? '5. **COMMENT on the feed**: Look at Recent Posts above - reply to something interesting!' : ''}
 
-# Action Ideas (variety encouraged)
-- **TRADE**: Take a position on a market
-- **POST**: Share your take on events, markets, or anything
-- **COMMENT**: Reply to someone's post from the feed above (use postId)
-- **RESPOND**: Reply to pending DMs/mentions if you have any
+# Action Ideas
+${canTrade ? '- **TRADE**: Take a position on a market' : ''}
+${context.enabledFeatures.includes('posting') ? '- **POST**: Share your take on events, markets, or anything' : ''}
+${canComment ? "- **COMMENT**: Reply to someone's post from the feed above (use postId)" : ''}
+${canRespondDMs ? '- **RESPOND**: Reply to pending DMs/mentions if you have any' : ''}
 
-# Post/Comment Ideas:
+${
+  context.enabledFeatures.includes('posting') || canComment
+    ? `# Post/Comment Ideas:
 - React to what someone else posted
 - Events happening in the game world
 - What the market is doing (price action, volume, trends)
 - Hot takes on news or rumors
 - Your positions and thesis
-- Just vibing about the chaos
+- Just vibing about the chaos`
+    : ''
+}
 
 # Post Style (MEME-STYLE ENCOURAGED)
 - Have conviction - don't be wishy-washy
 - Meme language is good ("lfg", "ngmi", "gm", slang is fine)
 - SHORT summaries of markets, not full question text
 - DON'T include raw IDs in post content
-${npcQualityRulesSection}
+${qualityRulesSection}${npcVoiceRulesSection}
 Examples:
   ❌ BAD: "Buying YES on 'Will Polymarket deploy its Sentient Market-Making AIs to artificially lower the price of BitcAIn below $120,000 within 5 days?'"
   ✅ GOOD: "The BitcAIn manipulation rumors are getting spicy"
@@ -230,13 +258,15 @@ Examples:
 # Output Format (JSON only, no markdown)
 {
   "thought": "Brief reasoning for this decision",
-  "action": "TRADE" | "POST" | "COMMENT" | "RESPOND" | "",
+  "action": "${[canTrade ? 'TRADE' : '', context.enabledFeatures.includes('posting') ? 'POST' : '', canComment ? 'COMMENT' : '', canRespondDMs ? 'RESPOND' : '', '""'].filter(Boolean).join(' | ')}",
   "parameters": { /* action-specific, see below */ },
   "isFinish": false
 }
 
 ## Parameter Schemas
-
+${
+  canTrade
+    ? `
 TRADE (prediction):
 {
   "marketType": "prediction",
@@ -253,22 +283,36 @@ TRADE (perp):
   "side": "open_long" | "open_short",
   "amount": 100,
   "reasoning": "Why this trade"
+}`
+    : ''
 }
-
+${
+  context.enabledFeatures.includes('posting')
+    ? `
 POST:
 {
   "content": "Short post (1-2 sentences). NO full market questions! Use summaries like 'the TeslAI bet' or 'BitcAIn drop prediction'"
+}`
+    : ''
 }
-
+${
+  canComment
+    ? `
 COMMENT:
 {
   "postId": "exact_post_id_from_list",
   "content": "Your comment (1-2 sentences)",
   "parentCommentId": "optional_if_replying_to_comment"
+}`
+    : ''
 }
-
+${
+  canRespondDMs
+    ? `
 RESPOND:
-{} (batch responds to pending interactions)
+{} (batch responds to pending interactions)`
+    : ''
+}
 
 FINISH (empty action):
 {

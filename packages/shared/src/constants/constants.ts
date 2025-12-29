@@ -150,3 +150,24 @@ export const RELATIONSHIP_TYPES = {
   ACQUAINTANCES: 'acquaintances',
   FORMER_COLLEAGUES: 'former-colleagues',
 } as const;
+
+/**
+ * Group chat configuration
+ * Controls group participation limits
+ */
+export const GROUP_CONFIG = {
+  /** Max NPC groups a user can be in simultaneously (env: MAX_ACTIVE_USER_GROUPS)
+   * Note: User-created groups don't count toward this limit */
+  MAX_ACTIVE_USER_GROUPS: Number.parseInt(
+    process.env.MAX_ACTIVE_USER_GROUPS || '5',
+    10
+  ),
+  /** Min members for NPC group */
+  MIN_GROUP_SIZE: 3,
+  /** Max members for any group */
+  MAX_GROUP_SIZE: 12,
+  /** Ideal NPC group size */
+  IDEAL_GROUP_SIZE: 7,
+  /** Hours after joining before next invite eligible */
+  INVITE_COOLDOWN_HOURS: 4,
+} as const;

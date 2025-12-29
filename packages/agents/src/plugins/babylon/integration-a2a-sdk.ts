@@ -11,7 +11,8 @@
 
 import type { Message, Task } from '@a2a-js/sdk';
 import { A2AClient } from '@a2a-js/sdk/client';
-import { db, executeRaw, sql } from '@babylon/db';
+import { db } from '@babylon/db';
+import { StaticDataRegistry } from '@babylon/engine';
 import type { AgentRuntime, Plugin } from '@elizaos/core';
 import { agentWalletService } from '../../identity/AgentWalletService';
 import { logger } from '../../shared/logger';
@@ -45,7 +46,7 @@ const AGENT_IDENTITY_MAX_SIZE = 10000;
 /**
  * Get agent identity from cache or database
  * Optimized for high concurrency with lazy refresh
- * Supports both USER_CONTROLLED agents (User table) and NPCs (Actor table)
+ * Supports both USER_CONTROLLED agents (User table) and NPCs (StaticDataRegistry)
  */
 async function getCachedAgentIdentity(
   agentUserId: string
@@ -83,13 +84,9 @@ async function getCachedAgentIdentity(
     return identity;
   }
 
-  // Fall back to Actor table (NPC agents) using raw SQL
-  // Actor table is a legacy table not in Drizzle schema
-  const actorResult = await executeRaw<{ id: string; name: string }>(
-    sql`SELECT id, name FROM "Actor" WHERE id = ${agentUserId} LIMIT 1`
-  );
-
-  const actor = actorResult[0];
+  // Fall back to static actor data (NPC agents)
+  // Actor data is now stored in TypeScript files via StaticDataRegistry
+  const actor = StaticDataRegistry.getActor(agentUserId);
   if (actor) {
     // NPCs don't have wallets or tokens - create minimal identity
     const identity: CachedAgentIdentity = {

@@ -17,6 +17,7 @@ import { Skeleton } from '@/components/shared/Skeleton';
 import { useAuth } from '@/hooks/useAuth';
 import { useBuyPointsTx } from '@/hooks/useBuyPointsTx';
 import { useSmartWalletBalance } from '@/hooks/useSmartWalletBalance';
+import { getAuthToken } from '@/lib/auth';
 
 /**
  * Buy points modal component for purchasing points with ETH.
@@ -295,8 +296,7 @@ export function BuyPointsModal({
     transactionHash: string,
     paymentRequest: PaymentRequest
   ) => {
-    const token =
-      typeof window !== 'undefined' ? window.__privyAccessToken : null;
+    const token = getAuthToken();
     if (!token) {
       logger.error('Authentication required', undefined, 'BuyPointsModal');
       setError('Authentication required');

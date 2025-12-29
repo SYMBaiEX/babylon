@@ -44,6 +44,15 @@ import {
   getPhaseGuidance,
   getSignalDirection,
 } from './narrative-state-service';
+import {
+  antiRepetitionService,
+  getAvoidedPatternsContext,
+} from './npc-anti-repetition-service';
+import {
+  getCharacterConfig,
+  getTemplatePosts,
+  logVoiceMetrics,
+} from './npc-character-config';
 import { StaticDataRegistry } from './static-data-registry';
 import type { GeneratedTag } from './tag-service';
 import { generateTagsFromPost, storeTagsForPost } from './tag-service';
@@ -70,19 +79,41 @@ function canNPCReplyToNPC(replierNpcId: string, targetNpcId: string): boolean {
   return timeSince >= NPC_INTERACTION_COOLDOWN_MS;
 }
 
+// Track last cleanup time and interaction count for periodic cleanup
+let lastInteractionCleanupTime = Date.now();
+let interactionsSinceLastCleanup = 0;
+const CLEANUP_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
+const CLEANUP_EVERY_N_INTERACTIONS = 100;
+
 /**
  * Record an NPC-to-NPC interaction for cooldown tracking
+ * Cleanup runs periodically (every 100 interactions OR every hour) to avoid O(n) on every call
  */
 function recordNPCInteraction(replierNpcId: string, targetNpcId: string): void {
   const key = `${replierNpcId}:${targetNpcId}`;
   npcInteractionCooldowns.set(key, new Date());
+  interactionsSinceLastCleanup++;
 
-  // Clean up old entries (older than 24 hours) to prevent memory leak
-  const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-  for (const [k, v] of npcInteractionCooldowns.entries()) {
-    if (v < oneDayAgo) {
-      npcInteractionCooldowns.delete(k);
+  // Periodic cleanup: every N interactions OR every hour (whichever comes first)
+  const now = Date.now();
+  const shouldCleanup =
+    interactionsSinceLastCleanup >= CLEANUP_EVERY_N_INTERACTIONS ||
+    now - lastInteractionCleanupTime >= CLEANUP_INTERVAL_MS;
+
+  if (shouldCleanup) {
+    const beforeSize = npcInteractionCooldowns.size;
+    const oneDayAgo = new Date(now - 24 * 60 * 60 * 1000);
+    for (const [k, v] of npcInteractionCooldowns.entries()) {
+      if (v < oneDayAgo) {
+        npcInteractionCooldowns.delete(k);
+      }
     }
+    logger.debug('NPC interaction cooldown cleanup', {
+      entriesRemoved: beforeSize - npcInteractionCooldowns.size,
+      entriesRemaining: npcInteractionCooldowns.size,
+    });
+    lastInteractionCleanupTime = now;
+    interactionsSinceLastCleanup = 0;
   }
 }
 
@@ -332,16 +363,9 @@ ${eventLines}`);
 ${postLines}`);
   }
 
-  // Recent feed - what others are saying (WITH AUTHOR NAMES)
-  if (context.recentFeedPosts.length > 0) {
-    const feedLines = context.recentFeedPosts
-      .slice(0, 8)
-      .map((p) => `- @${p.authorName}: "${p.content}"`)
-      .join('\n');
-    sections.push(`=== WHAT OTHERS ARE POSTING ===
-Current discourse on the feed (react to, agree with, or challenge these):
-${feedLines}`);
-  }
+  // REMOVED: "What others are posting" section
+  // This was causing a feedback loop where NPCs copied each other's syntactic patterns.
+  // NPCs should post based on their character and world events, not other posts.
 
   // Positions context for informed public discourse
   if (context.positions && context.positions.length > 0) {
@@ -431,15 +455,12 @@ export async function generateNPCPost(
   const voiceContext = actor.postStyle
     ? `Writing Style: ${actor.postStyle}`
     : '';
-  const examplesContext =
-    actor.postExample && actor.postExample.length > 0
-      ? `Example posts (MATCH THIS STYLE):\n${actor.postExample
-          .slice(0, 3)
-          .map((ex, i) => `  ${i + 1}. "${ex}"`)
-          .join('\n')}`
-      : '';
+
+  // Get character-specific configuration
+  const charConfig = getCharacterConfig(actor.id);
 
   // Build signal guidance from arc plan if available
+  // ENHANCED: Stronger signals based on phase and role
   let signalGuidance = '';
   if (currentDay !== undefined) {
     const arcPlan = await getArcPlan(question.id);
@@ -449,11 +470,24 @@ export async function generateNPCPost(
       const signal = getSignalDirection(arcPlan, phase, actor.id, outcome);
 
       if (signal.reason === 'insider') {
-        signalGuidance = `[INTERNAL: You have insider knowledge that the answer is likely ${signal.direction}.
-          Subtly reflect this confidence in your post without being too obvious or explicit about predictions.]`;
+        // ENHANCED: Phase-aware insider guidance
+        if (phase === 'early') {
+          signalGuidance = `[INTERNAL: You have insider knowledge that the answer is likely ${signal.direction}.
+            In this early phase, be cryptic - drop subtle hints that only make sense in retrospect.
+            Don't be explicit, but your confidence should show through.]`;
+        } else if (phase === 'late' || phase === 'climax') {
+          signalGuidance = `[INTERNAL: You KNOW the answer is ${signal.direction}.
+            The truth is emerging. Be more direct now - drop specific details that confirm your insider knowledge.
+            Show confidence without explicitly predicting the outcome.]`;
+        } else {
+          signalGuidance = `[INTERNAL: You have insider knowledge that the answer is likely ${signal.direction}.
+            Subtly reflect this confidence in your post without being too obvious.]`;
+        }
       } else if (signal.reason === 'deceiver') {
-        signalGuidance = `[INTERNAL: You believe (perhaps incorrectly) that the answer is ${signal.direction}.
-          Post with confidence in this direction. You might be spreading misinformation.]`;
+        // ENHANCED: More aggressive misdirection
+        signalGuidance = `[INTERNAL: You firmly believe (incorrectly) that the answer is ${signal.direction}.
+          Spread this misinformation confidently. Dismiss or mock anyone suggesting otherwise.
+          You are convinced you're right even though you're wrong.]`;
       } else {
         // Regular NPC - phase-appropriate guidance
         signalGuidance = getPhaseGuidance(phase);
@@ -475,42 +509,42 @@ export async function generateNPCPost(
     }
   }
 
-  const prompt = `${signalGuidance ? `${signalGuidance}\n\n` : ''}You ARE ${actor.name}. Post EXACTLY as they would.
+  // Build examples context: Combine actor's examples with character template posts
+  const actorExamples = actor.postExample?.slice(0, 4) || [];
+  const templateExamples = getTemplatePosts(actor.id, 3);
+  const allExamples = [...new Set([...actorExamples, ...templateExamples])]
+    .slice(0, 6)
+    .map((ex) => `"${ex}"`)
+    .join('\n');
 
-=== YOUR CHARACTER ===
+  // Get anti-repetition context to prevent overused patterns
+  const antiRepetitionContext = getAvoidedPatternsContext(actor.id);
+
+  const prompt = `${signalGuidance ? `${signalGuidance}\n\n` : ''}You ARE ${actor.name}. Write a single post exactly as they would.
+
+=== WHO YOU ARE ===
 ${actor.description || ''}
 ${personalityContext}
 ${voiceContext}
-${examplesContext}
+
+=== HOW YOU WRITE (match this style exactly) ===
+${allExamples || 'Use short, authentic posts matching your personality.'}
+
+=== WHAT'S HAPPENING ===
+"${question.text}"
 
 ${npcContextFormatted}
 
-=== CONTEXT ===
-Something happening in the world: "${question.text}"
-This is background - post as YOUR character naturally would, not as a reporter.
-
-=== VOICE MATCHING ===
-Your post MUST sound like the examples above. Match:
-- Their length (short/long)
-- Their tone (sarcastic/earnest/cryptic/etc)
-- Their vocabulary and style
-- Their typical post structure
-
-A reader should identify ${actor.name} without seeing the author name.
-
-=== DO NOT ===
-- Mention specific dates ("by Dec 13", "in 3 days")
-- Sound like a market analyst or news reporter
-- Use phrases like "cautiously optimistic", "this suggests", "implications"
-- Explain predictions or markets
-- NO HASHTAGS, NO EMOJIS
-- DON'T repeat previous posts
-
+=== RULES ===
+- Sound exactly like the examples above
+- No hashtags, no emojis
+- No dates ("by Dec 13")
+- Max 280 characters
+${antiRepetitionContext}
 ${worldFactsContext}
 
-Return as XML:
 <response>
-  <post>your post (max 280 chars)</post>
+  <post>your post here</post>
 </response>`;
 
   const response = await llmClient.generateJSON<
@@ -524,7 +558,7 @@ Return as XML:
       required: ['post'],
     },
     {
-      temperature: 0.9,
+      temperature: charConfig.temperature, // Character-specific temperature
       maxTokens: MAX_POST_TOKENS,
       format: 'xml',
     }
@@ -572,6 +606,417 @@ Return as XML:
     timestamp,
   });
 
+  // Track for anti-repetition analysis
+  antiRepetitionService.addPost(actor.id, transformed.transformedText);
+
+  // Log voice metrics for monitoring character consistency
+  logVoiceMetrics(actor.id, transformed.transformedText);
+
+  return true;
+}
+
+/**
+ * Generate an organic (personality-driven) post for an NPC
+ *
+ * Unlike generateNPCPost, this doesn't require a question/topic.
+ * The NPC posts something natural to their personality - random thoughts,
+ * observations, or ongoing interests.
+ *
+ * @param llmClient - LLM client for generation
+ * @param actor - The NPC actor generating the post
+ * @param worldFactsContext - Shared world facts (parody names, etc)
+ * @param timestamp - Timestamp for the post
+ * @param currentDay - Current game day
+ */
+export async function generateOrganicPost(
+  llmClient: BabylonLLMClient,
+  actor: ActorForPost,
+  worldFactsContext: string,
+  timestamp: Date,
+  currentDay?: number
+): Promise<boolean> {
+  const charConfig = getCharacterConfig(actor.id);
+
+  // Build personality context
+  const personalityContext = actor.personality
+    ? `Personality: ${actor.personality}`
+    : '';
+  const voiceContext = actor.postStyle
+    ? `Writing Style: ${actor.postStyle}`
+    : '';
+
+  // Get template posts for this character
+  const actorExamples = actor.postExample?.slice(0, 4) || [];
+  const templateExamples = getTemplatePosts(actor.id, 4);
+  const allExamples = [...new Set([...actorExamples, ...templateExamples])]
+    .slice(0, 6)
+    .map((ex) => `"${ex}"`)
+    .join('\n');
+
+  // Organic prompt - no specific topic, just be yourself
+  const prompt = `You ARE ${actor.name}. Write a single post that's naturally YOU.
+
+=== WHO YOU ARE ===
+${actor.description || ''}
+${personalityContext}
+${voiceContext}
+
+=== HOW YOU WRITE (match this style exactly) ===
+${allExamples || 'Use short, authentic posts matching your personality.'}
+
+=== YOUR TASK ===
+Write a post that's 100% YOU. This isn't about any specific news - 
+just share a thought, observation, or opinion that fits your personality.
+
+Ideas (pick one or create your own):
+- A random thought you'd naturally share
+- An opinion on something you care about
+- A cryptic statement that's very "you"
+- Something you're working on or thinking about
+- A reaction to your industry/domain in general
+
+=== RULES ===
+- Sound exactly like the examples above
+- No hashtags, no emojis
+- Max 280 characters
+- Be authentic to your personality
+${getAvoidedPatternsContext(actor.id)}
+${worldFactsContext}
+
+<response>
+  <post>your organic post here</post>
+</response>`;
+
+  const response = await llmClient.generateJSON<
+    { post: string } | { response: { post: string } }
+  >(
+    prompt,
+    {
+      properties: {
+        post: { type: 'string' },
+      },
+      required: ['post'],
+    },
+    {
+      temperature: Math.min(1.0, charConfig.temperature + 0.05), // Slightly higher for organic posts, max 1.0
+      maxTokens: MAX_POST_TOKENS,
+      format: 'xml',
+    }
+  );
+
+  const postContent =
+    'response' in response &&
+    response.response &&
+    typeof response.response === 'object' &&
+    'post' in response.response
+      ? (response.response as { post: string }).post
+      : (response as { post: string }).post;
+
+  if (!postContent || postContent.trim().length === 0) {
+    logger.warn(
+      'Empty organic post generated',
+      { actorName: actor.name },
+      'PostGeneration'
+    );
+    return false;
+  }
+
+  // Strip hashtags and emojis first
+  const cleaned = stripHashtagsAndEmojis(postContent.trim());
+
+  // Then replace real names with parody names
+  const transformed = await characterMappingService.transformText(cleaned);
+  if (transformed.replacementCount > 0) {
+    logger.warn(
+      `Fixed ${transformed.replacementCount} real name(s) in organic post`,
+      { actor: actor.name },
+      'PostGeneration'
+    );
+  }
+
+  await getDbInstance().createPostWithAllFields({
+    id: await generateSnowflakeId(),
+    content: transformed.transformedText,
+    authorId: actor.id,
+    gameId: 'continuous',
+    dayNumber: currentDay,
+    timestamp,
+  });
+
+  // Track for anti-repetition analysis
+  antiRepetitionService.addPost(actor.id, transformed.transformedText);
+
+  // Log voice metrics
+  logVoiceMetrics(actor.id, transformed.transformedText);
+
+  logger.debug(
+    'Generated organic post',
+    { actor: actor.name, preview: transformed.transformedText.slice(0, 50) },
+    'PostGeneration'
+  );
+
+  return true;
+}
+
+/**
+ * Generate a contrarian post responding to a rival's position
+ *
+ * When a rival NPC takes a position, this generates a counter-post
+ * without directly seeing/copying the rival's text.
+ *
+ * @param llmClient - LLM client
+ * @param actor - The NPC generating the counter-post
+ * @param rivalName - Name of the rival NPC
+ * @param rivalPosition - What position the rival is taking (YES/NO/topic)
+ * @param question - The question being discussed
+ * @param worldFactsContext - World context
+ * @param timestamp - Post timestamp
+ * @param currentDay - Current game day
+ */
+export async function generateRivalryPost(
+  llmClient: BabylonLLMClient,
+  actor: ActorForPost,
+  rivalName: string,
+  rivalPosition: 'YES' | 'NO' | string,
+  question: QuestionForPost,
+  worldFactsContext: string,
+  timestamp: Date,
+  currentDay?: number
+): Promise<boolean> {
+  const charConfig = getCharacterConfig(actor.id);
+
+  const personalityContext = actor.personality
+    ? `Personality: ${actor.personality}`
+    : '';
+  const voiceContext = actor.postStyle
+    ? `Writing Style: ${actor.postStyle}`
+    : '';
+
+  const actorExamples = actor.postExample?.slice(0, 4) || [];
+  const templateExamples = getTemplatePosts(actor.id, 3);
+  const allExamples = [...new Set([...actorExamples, ...templateExamples])]
+    .slice(0, 6)
+    .map((ex) => `"${ex}"`)
+    .join('\n');
+
+  // Determine the contrarian position
+  const contraryPosition = rivalPosition === 'YES' ? 'NO' : 'YES';
+
+  const prompt = `You ARE ${actor.name}. Write a post taking the OPPOSITE position from your rival.
+
+=== WHO YOU ARE ===
+${actor.description || ''}
+${personalityContext}
+${voiceContext}
+
+=== HOW YOU WRITE ===
+${allExamples || 'Use short, authentic posts matching your personality.'}
+
+=== THE SITUATION ===
+Topic: "${question.text}"
+Your rival ${rivalName} is taking the ${rivalPosition} position.
+You DISAGREE. You believe the answer is ${contraryPosition}.
+
+=== YOUR TASK ===
+Write a post that:
+- Takes the opposite position from ${rivalName}
+- Matches YOUR unique voice (not theirs)
+- Subtly or directly challenges their view
+- Does NOT mention them by name (optional - your choice)
+
+=== RULES ===
+- Sound exactly like your examples above
+- No hashtags, no emojis
+- Max 280 characters
+${getAvoidedPatternsContext(actor.id)}
+${worldFactsContext}
+
+<response>
+  <post>your contrarian post here</post>
+</response>`;
+
+  const response = await llmClient.generateJSON<
+    { post: string } | { response: { post: string } }
+  >(
+    prompt,
+    {
+      properties: { post: { type: 'string' } },
+      required: ['post'],
+    },
+    {
+      temperature: charConfig.temperature,
+      maxTokens: MAX_POST_TOKENS,
+      format: 'xml',
+    }
+  );
+
+  const postContent =
+    'response' in response &&
+    response.response &&
+    typeof response.response === 'object' &&
+    'post' in response.response
+      ? (response.response as { post: string }).post
+      : (response as { post: string }).post;
+
+  if (!postContent || postContent.trim().length === 0) {
+    return false;
+  }
+
+  const cleaned = stripHashtagsAndEmojis(postContent.trim());
+  const transformed = await characterMappingService.transformText(cleaned);
+
+  await getDbInstance().createPostWithAllFields({
+    id: await generateSnowflakeId(),
+    content: transformed.transformedText,
+    authorId: actor.id,
+    gameId: 'continuous',
+    dayNumber: currentDay,
+    timestamp,
+  });
+
+  // Track for anti-repetition analysis
+  antiRepetitionService.addPost(actor.id, transformed.transformedText);
+
+  logVoiceMetrics(actor.id, transformed.transformedText);
+
+  logger.debug(
+    'Generated rivalry post',
+    {
+      actor: actor.name,
+      rival: rivalName,
+      preview: transformed.transformedText.slice(0, 50),
+    },
+    'PostGeneration'
+  );
+
+  return true;
+}
+
+/**
+ * Generate a post reacting to a big player bet
+ *
+ * NPCs notice when players make significant market moves and comment on them.
+ *
+ * @param llmClient - LLM client
+ * @param actor - The NPC reacting
+ * @param playerName - Display name of the player (or "Someone")
+ * @param betDetails - Description of the bet (e.g., "massive long on TeslAI")
+ * @param worldFactsContext - World context
+ * @param timestamp - Post timestamp
+ * @param currentDay - Current game day
+ */
+export async function generatePlayerReactionPost(
+  llmClient: BabylonLLMClient,
+  actor: ActorForPost,
+  playerName: string,
+  betDetails: string,
+  worldFactsContext: string,
+  timestamp: Date,
+  currentDay?: number
+): Promise<boolean> {
+  const charConfig = getCharacterConfig(actor.id);
+
+  const personalityContext = actor.personality
+    ? `Personality: ${actor.personality}`
+    : '';
+  const voiceContext = actor.postStyle
+    ? `Writing Style: ${actor.postStyle}`
+    : '';
+
+  const actorExamples = actor.postExample?.slice(0, 4) || [];
+  const templateExamples = getTemplatePosts(actor.id, 3);
+  const allExamples = [...new Set([...actorExamples, ...templateExamples])]
+    .slice(0, 6)
+    .map((ex) => `"${ex}"`)
+    .join('\n');
+
+  const prompt = `You ARE ${actor.name}. React to a big market move you noticed.
+
+=== WHO YOU ARE ===
+${actor.description || ''}
+${personalityContext}
+${voiceContext}
+
+=== HOW YOU WRITE ===
+${allExamples || 'Use short, authentic posts matching your personality.'}
+
+=== WHAT YOU NOTICED ===
+${playerName} just made a significant move: ${betDetails}
+
+=== YOUR TASK ===
+React to this in YOUR unique voice. You might:
+- Comment on whether you think it's smart or dumb
+- Wonder if they know something
+- Make a prediction about what happens next
+- Show skepticism or excitement
+- Reference your own position (if relevant)
+
+=== RULES ===
+- Sound exactly like your examples above
+- No hashtags, no emojis
+- Max 280 characters
+- React as your personality would
+${getAvoidedPatternsContext(actor.id)}
+${worldFactsContext}
+
+<response>
+  <post>your reaction post here</post>
+</response>`;
+
+  const response = await llmClient.generateJSON<
+    { post: string } | { response: { post: string } }
+  >(
+    prompt,
+    {
+      properties: { post: { type: 'string' } },
+      required: ['post'],
+    },
+    {
+      temperature: charConfig.temperature,
+      maxTokens: MAX_POST_TOKENS,
+      format: 'xml',
+    }
+  );
+
+  const postContent =
+    'response' in response &&
+    response.response &&
+    typeof response.response === 'object' &&
+    'post' in response.response
+      ? (response.response as { post: string }).post
+      : (response as { post: string }).post;
+
+  if (!postContent || postContent.trim().length === 0) {
+    return false;
+  }
+
+  const cleaned = stripHashtagsAndEmojis(postContent.trim());
+  const transformed = await characterMappingService.transformText(cleaned);
+
+  await getDbInstance().createPostWithAllFields({
+    id: await generateSnowflakeId(),
+    content: transformed.transformedText,
+    authorId: actor.id,
+    gameId: 'continuous',
+    dayNumber: currentDay,
+    timestamp,
+  });
+
+  // Track for anti-repetition analysis
+  antiRepetitionService.addPost(actor.id, transformed.transformedText);
+
+  logVoiceMetrics(actor.id, transformed.transformedText);
+
+  logger.debug(
+    'Generated player reaction post',
+    {
+      actor: actor.name,
+      player: playerName,
+      preview: transformed.transformedText.slice(0, 50),
+    },
+    'PostGeneration'
+  );
+
   return true;
 }
 
@@ -590,24 +1035,16 @@ export async function generateOrgPost(
 
   const prompt = `You are ${orgName}, a media organization.
 
-=== YOUR IDENTITY ===
 ${org.description || 'A news and media organization'}
-Style: Professional news organization
 
-=== TASK ===
-Write a brief news-style post (max 280 chars) about: "${question.text}"
+Write a brief news post (max 280 chars) about: "${question.text}"
 
-=== CRITICAL RULES ===
-- ABSOLUTELY NO HASHTAGS (no #crypto, #AI, #news, #breaking, NOTHING with #)
-- NO EMOJIS
-- Be informative and engaging
-- Sound like a real news outlet, not a marketing bot
+Rules: No hashtags, no emojis. Sound like a real news outlet.
 
 ${worldFactsContext}
 
-Return your response as XML in this exact format:
 <response>
-  <post>your post content here</post>
+  <post>your post here</post>
 </response>`;
 
   const response = await llmClient.generateJSON<
@@ -621,7 +1058,7 @@ Return your response as XML in this exact format:
       required: ['post'],
     },
     {
-      temperature: 0.9,
+      temperature: 0.8,
       maxTokens: MAX_POST_TOKENS,
       format: 'xml',
     }
@@ -1174,7 +1611,7 @@ Return your response as XML in this exact format:
       required: ['reply'],
     },
     {
-      temperature: 0.9,
+      temperature: 0.8,
       maxTokens: MAX_POST_TOKENS,
       format: 'xml',
       promptType: 'npc_reply_to_post',
@@ -1322,7 +1759,7 @@ Return your response as XML in this exact format:
       required: ['quote_comment'],
     },
     {
-      temperature: 0.9,
+      temperature: 0.8,
       maxTokens: MAX_POST_TOKENS,
       format: 'xml',
       promptType: 'npc_quote_post',

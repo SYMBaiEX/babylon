@@ -28,10 +28,11 @@
   },
   "dependencies": {
     "@babylon/api": "workspace:*",
-    "@babylon/shared": "workspace:*",
-    "@babylon/db": "workspace:*",
     "@babylon/contracts": "workspace:*",
     "@babylon/core": "workspace:*",
+    "@babylon/db": "workspace:*",
+    "@babylon/shared": "workspace:*",
+    "@fal-ai/client": "^1.8.1",
     "xml2js": "^0.6.2"
   },
   "peerDependencies": {

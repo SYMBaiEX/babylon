@@ -30,7 +30,9 @@ import { babylonPlugin } from '../plugins/babylon';
 import { enhanceRuntimeWithBabylon } from '../plugins/babylon/integration';
 import { groqPlugin } from '../plugins/groq';
 import { agentCorePlugin } from '../plugins/plugin-agent-core/src';
-import { experiencePlugin } from '../plugins/plugin-experience/src';
+// TODO: experiencePlugin disabled due to missing plugin implementation
+// Re-enable when plugin-experience is properly implemented and exports valid Plugin
+// import { experiencePlugin } from '../plugins/plugin-experience/src';
 import { trajectoryLoggerPlugin } from '../plugins/plugin-trajectory-logger/src';
 import {
   wrapPluginActions,
@@ -237,7 +239,7 @@ export class AgentRuntimeManager {
     // Type cast plugins to ensure compatibility across different @elizaos/core versions
     const plugins: Plugin[] = [
       agentCorePlugin as Plugin,
-      experiencePlugin as Plugin,
+      // experiencePlugin as Plugin,
       trajectoryLoggerPlugin as Plugin,
       // Conditionally add LLM plugins based on available API keys
       ...(process.env.GROQ_API_KEY ? [groqPlugin as Plugin] : []),
@@ -316,6 +318,10 @@ export class AgentRuntimeManager {
       // customLogger matches the structure of runtime.logger
       runtime.logger = customLogger as typeof runtime.logger;
     }
+
+    // Initialize runtime to signal services that runtime is ready
+    // This prevents 30s timeout errors in services waiting for runtime initialization
+    await runtime.initialize();
 
     // Wrap Babylon plugin BEFORE registering (so wrapped version is used)
     // This ensures all actions and provider accesses are logged when executed
@@ -537,7 +543,6 @@ export class AgentRuntimeManager {
     // Create runtime with standard plugins
     const plugins: Plugin[] = [
       agentCorePlugin as Plugin,
-      experiencePlugin as Plugin,
       trajectoryLoggerPlugin as Plugin,
       // Conditionally add LLM plugins based on available API keys
       ...(process.env.GROQ_API_KEY ? [groqPlugin as Plugin] : []),

@@ -4,6 +4,7 @@
 // Tables and Relations
 export * from './actor-state';
 export * from './actors';
+export * from './admin';
 export * from './agents';
 // Enums
 export * from './enums';

@@ -31,6 +31,7 @@ import { StaticDataRegistry, WalletService } from '@babylon/engine';
 import type { IAgentRuntime } from '@elizaos/core';
 import { callGroqDirect } from '../llm/direct-groq';
 import { getNpcGameContext } from '../plugins/babylon/providers/npc-game-context';
+import { agentService } from '../services/AgentService';
 import { getAgentConfig } from '../shared/agent-config';
 import { logger } from '../shared/logger';
 import { autonomousBatchResponseService } from './AutonomousBatchResponseService';
@@ -40,9 +41,6 @@ import {
   executeDirectTrade,
 } from './DirectExecutors';
 import { topicDiversityService } from './TopicDiversityService';
-
-/** Default trading balance for NPCs without actorState record */
-const DEFAULT_NPC_BALANCE = 10000;
 
 import {
   type ActionTraceResult,
@@ -186,14 +184,14 @@ export class MultiStepExecutor {
       });
 
       // Get LLM decision
-      const decision = await this.getDecision(
+      const decisionResult = await this.getDecision(
         prompt,
         runtime,
         iteration,
         systemPrompt
       );
 
-      if (!decision) {
+      if (!decisionResult) {
         logger.warn(
           `[MultiStep] Failed to parse decision at iteration ${iteration}, finishing`,
           undefined,
@@ -201,6 +199,8 @@ export class MultiStepExecutor {
         );
         break;
       }
+
+      const { decision, rawResponse } = decisionResult;
 
       logger.info(
         `[MultiStep] Decision: ${decision.action || 'FINISH'}`,
@@ -221,11 +221,14 @@ export class MultiStepExecutor {
         break;
       }
 
-      // Execute the chosen action with parameters
+      // Execute the chosen action with parameters (pass enabledFeatures for enforcement)
       const actionResult = await this.executeAction(
         agentUserId,
         decision.action,
-        decision.parameters
+        decision.parameters,
+        enabledFeatures,
+        runtime,
+        { prompt, completion: rawResponse, thought: decision.thought }
       );
 
       trace.push(actionResult);
@@ -272,14 +275,14 @@ export class MultiStepExecutor {
         .where(eq(actorState.id, agentUserId))
         .limit(1);
 
-      if (!actor?.tradingBalance) {
-        logger.warn(
-          `NPC ${agentUserId} missing actorState - using default balance`,
-          { defaultBalance: DEFAULT_NPC_BALANCE },
-          'MultiStepExecutor'
+      if (!actor) {
+        // Missing actorState record is a data issue that should be fixed at bootstrap
+        throw new Error(
+          `NPC ${agentUserId} has no actorState record. Run NPC bootstrap to create it.`
         );
       }
-      balance = Number(actor?.tradingBalance ?? DEFAULT_NPC_BALANCE);
+
+      balance = Number(actor.tradingBalance);
       pnl = 0;
     } else {
       const walletBalance = await WalletService.getBalance(agentUserId);
@@ -287,23 +290,32 @@ export class MultiStepExecutor {
       pnl = walletBalance.lifetimePnL;
     }
 
-    // Get prediction markets
-    const predictionMarkets = await this.getPredictionMarkets();
+    // Only fetch data for enabled features (saves DB queries and tokens)
+    const canTrade = enabledFeatures.includes('trading');
+    const canComment = enabledFeatures.includes('commenting');
+    const canRespondDMs = enabledFeatures.includes('DMs');
 
-    // Get perp markets
-    const perpMarkets = await this.getPerpMarkets();
-
-    // Get agent's positions
-    const agentPositions = await this.getAgentPositions(agentUserId);
-
-    // Get recent posts to engage with
-    const recentPosts = await this.getRecentPosts(agentUserId);
-
-    // Get pending interactions
-    const pendingInteractions =
-      await autonomousBatchResponseService.gatherPendingInteractions(
-        agentUserId
-      );
+    // Gather context in parallel - all these queries are independent
+    const [
+      predictionMarkets,
+      perpMarkets,
+      agentPositions,
+      recentPosts,
+      pendingInteractions,
+    ] = await Promise.all([
+      // Get prediction markets (only if trading enabled)
+      canTrade ? this.getPredictionMarkets() : Promise.resolve([]),
+      // Get perp markets (only if trading enabled)
+      canTrade ? this.getPerpMarkets() : Promise.resolve([]),
+      // Get agent's positions (always needed for context, even if not trading)
+      this.getAgentPositions(agentUserId),
+      // Get recent posts to engage with (only if commenting enabled)
+      canComment ? this.getRecentPosts(agentUserId) : Promise.resolve([]),
+      // Get pending interactions (only if DMs enabled)
+      canRespondDMs
+        ? autonomousBatchResponseService.gatherPendingInteractions(agentUserId)
+        : Promise.resolve([]),
+    ]);
 
     // Get topic diversity guidance for this agent
     const diversityInstructions =
@@ -330,7 +342,9 @@ export class MultiStepExecutor {
       // Topic diversity
       diversityInstructions,
       assignedMarketId: assignment?.marketId,
-      suggestedAngle: assignment?.suggestedAngle,
+      // NPC's actual character data for personalized guidance
+      personality: assignment?.personality,
+      postStyle: assignment?.postStyle,
     };
   }
 
@@ -423,11 +437,10 @@ export class MultiStepExecutor {
     if (marketIds.length > 0) {
       const marketData = await db
         .select({ id: markets.id, question: markets.question })
-        .from(markets);
+        .from(markets)
+        .where(inArray(markets.id, marketIds));
       for (const m of marketData) {
-        if (marketIds.includes(m.id)) {
-          marketQuestions.set(m.id, m.question);
-        }
+        marketQuestions.set(m.id, m.question);
       }
     }
 
@@ -521,11 +534,10 @@ export class MultiStepExecutor {
           displayName: users.displayName,
           username: users.username,
         })
-        .from(users);
+        .from(users)
+        .where(inArray(users.id, missingIds));
       for (const u of dbUsers) {
-        if (missingIds.includes(u.id)) {
-          authorNames.set(u.id, u.displayName || u.username || 'User');
-        }
+        authorNames.set(u.id, u.displayName || u.username || 'User');
       }
     }
 
@@ -568,13 +580,14 @@ export class MultiStepExecutor {
 
   /**
    * Get LLM decision with retry logic
+   * Returns both parsed decision and raw response for logging
    */
   private async getDecision(
     prompt: string,
     runtime: IAgentRuntime,
     _iteration: number,
     systemPrompt?: string
-  ): Promise<MultiStepDecision | null> {
+  ): Promise<{ decision: MultiStepDecision; rawResponse: string } | null> {
     const maxRetries = 3;
 
     // Use agent's system prompt + JSON instruction
@@ -621,7 +634,7 @@ export class MultiStepExecutor {
           parsed.thought = '';
         }
 
-        return parsed;
+        return { decision: parsed, rawResponse: response };
       } catch {
         logger.warn(
           `[MultiStep] Failed to parse JSON (attempt ${attempt})`,
@@ -636,19 +649,49 @@ export class MultiStepExecutor {
 
   /**
    * Execute a single action using DIRECT executors (no LLM calls)
+   * Enforces enabledFeatures - will reject actions the agent hasn't enabled
    */
   private async executeAction(
     agentUserId: string,
     action: string,
-    parameters: Record<string, unknown>
+    parameters: Record<string, unknown>,
+    enabledFeatures: string[],
+    runtime: IAgentRuntime,
+    logContext?: { prompt: string; completion: string; thought: string }
   ): Promise<ActionTraceResult> {
     const normalizedAction = action.toUpperCase();
 
     logger.info(
       `[MultiStep] Executing action: ${normalizedAction}`,
-      { parameters },
+      { parameters, enabledFeatures },
       'MultiStepExecutor'
     );
+
+    // Enforce enabled features - reject actions that aren't enabled
+    const actionToFeature: Record<string, string> = {
+      TRADE: 'trading',
+      POST: 'posting',
+      COMMENT: 'commenting',
+      RESPOND: 'DMs',
+      DM: 'DMs',
+    };
+
+    const requiredFeature = actionToFeature[normalizedAction];
+    if (requiredFeature && !enabledFeatures.includes(requiredFeature)) {
+      logger.warn(
+        `[MultiStep] Action ${normalizedAction} blocked - ${requiredFeature} not enabled`,
+        { agentUserId, enabledFeatures },
+        'MultiStepExecutor'
+      );
+      return {
+        actionType: normalizedAction,
+        success: false,
+        summary: `Action blocked: ${requiredFeature} is not enabled for this agent`,
+        error: `Feature "${requiredFeature}" is disabled`,
+        parameters,
+        timestamp: Date.now(),
+      };
+    }
 
     switch (normalizedAction) {
       case 'TRADE': {
@@ -720,6 +763,22 @@ export class MultiStepExecutor {
           content,
         });
 
+        // Log the post with prompt and completion for debugging/review
+        if (postResult.success && logContext) {
+          await agentService.createLog(agentUserId, {
+            type: 'post',
+            level: 'info',
+            message: `Created post: ${content.substring(0, 100)}${content.length > 100 ? '...' : ''}`,
+            prompt: logContext.prompt,
+            completion: logContext.completion,
+            thinking: logContext.thought,
+            metadata: {
+              postId: postResult.postId ?? null,
+              contentLength: content.length,
+            },
+          });
+        }
+
         return {
           actionType: 'POST',
           success: postResult.success,
@@ -761,6 +820,24 @@ export class MultiStepExecutor {
           parentCommentId,
         });
 
+        // Log the comment with prompt and completion for debugging/review
+        if (commentResult.success && logContext) {
+          await agentService.createLog(agentUserId, {
+            type: 'comment',
+            level: 'info',
+            message: `Created comment on post ${postId}${parentCommentId ? ` (reply to ${parentCommentId})` : ''}: ${content.substring(0, 100)}${content.length > 100 ? '...' : ''}`,
+            prompt: logContext.prompt,
+            completion: logContext.completion,
+            thinking: logContext.thought,
+            metadata: {
+              commentId: commentResult.commentId ?? null,
+              postId,
+              parentCommentId: parentCommentId ?? null,
+              contentLength: content.length,
+            },
+          });
+        }
+
         return {
           actionType: 'COMMENT',
           success: commentResult.success,
@@ -783,7 +860,7 @@ export class MultiStepExecutor {
         // This is acceptable as it's a different kind of decision
         const responses = await autonomousBatchResponseService.processBatch(
           agentUserId,
-          {} as IAgentRuntime // Runtime not needed for batch response
+          runtime
         );
 
         return {

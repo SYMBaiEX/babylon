@@ -29,6 +29,11 @@ import { LinkSocialAccountsModal } from '@/components/profile/LinkSocialAccounts
 import { Avatar } from '@/components/shared/Avatar';
 import { PlayerStatsModal } from '@/components/shared/PlayerStatsModal';
 import { useAuth } from '@/hooks/useAuth';
+import { getAuthToken } from '@/lib/auth';
+
+// Blog URL from environment with fallback
+const blogUrl =
+  process.env.NEXT_PUBLIC_BLOG_URL || 'https://blog.babylon.market';
 
 /**
  * Waitlist data structure containing user position and points information.
@@ -260,8 +265,7 @@ export function ComingSoon() {
     });
 
     // Send authentication data to backend for verification and linking
-    const token =
-      typeof window !== 'undefined' ? window.__privyAccessToken : null;
+    const token = getAuthToken();
     const response = await fetch('/api/auth/farcaster/callback', {
       method: 'POST',
       headers: {
@@ -1799,7 +1803,7 @@ export function ComingSoon() {
                 Choose your path into the Social Arena for Humans and Agents.
               </h3>
 
-              <div className="mb-10 grid grid-cols-1 gap-4 sm:mb-12 sm:grid-cols-2 sm:gap-6 md:mb-16 md:grid-cols-3 md:gap-8">
+              <div className="mb-10 grid grid-cols-1 gap-4 sm:mb-12 sm:grid-cols-2 sm:gap-6 md:mb-16 md:gap-8 lg:grid-cols-4">
                 {/* Join Waitlist */}
                 <button
                   onClick={handleJoinWaitlist}
@@ -1833,13 +1837,28 @@ export function ComingSoon() {
                   href="https://docs.babylon.market"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="group block touch-manipulation rounded-none border border-primary/20 bg-primary p-6 text-center backdrop-blur-md transition-all duration-300 hover:bg-primary/90 active:scale-95 sm:col-span-2 sm:p-8 md:col-span-1 md:p-10"
+                  className="group block touch-manipulation rounded-none border border-primary/20 bg-primary p-6 text-center backdrop-blur-md transition-all duration-300 hover:bg-primary/90 active:scale-95 sm:p-8 md:p-10"
                 >
                   <h3 className="mb-2 font-bold text-primary-foreground text-xl transition-colors group-hover:text-white sm:mb-3 sm:text-2xl">
                     Read Whitepaper
                   </h3>
                   <p className="text-primary-foreground/80 text-sm leading-relaxed sm:text-base">
                     Deep dive into tech
+                  </p>
+                </a>
+
+                {/* Read Blog */}
+                <a
+                  href={blogUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="group block touch-manipulation rounded-none border border-primary/20 bg-primary p-6 text-center backdrop-blur-md transition-all duration-300 hover:bg-primary/90 active:scale-95 sm:p-8 md:p-10"
+                >
+                  <h3 className="mb-2 font-bold text-primary-foreground text-xl transition-colors group-hover:text-white sm:mb-3 sm:text-2xl">
+                    Read Blog
+                  </h3>
+                  <p className="text-primary-foreground/80 text-sm leading-relaxed sm:text-base">
+                    Explore our innovation
                   </p>
                 </a>
               </div>
@@ -1887,6 +1906,31 @@ export function ComingSoon() {
                 The Social Arena for Humans and Agents. Where AI and humans
                 compete in real-time prediction markets.
               </p>
+
+              {/* Resources Section */}
+              <div className="w-full space-y-3">
+                <h3 className="font-semibold text-base text-foreground uppercase tracking-wider sm:text-lg">
+                  RESOURCES
+                </h3>
+                <nav className="flex flex-col gap-2 text-muted-foreground text-sm">
+                  <a
+                    href="https://docs.babylon.market"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="touch-manipulation transition-colors duration-200 hover:text-primary"
+                  >
+                    Documentation
+                  </a>
+                  <a
+                    href={blogUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="touch-manipulation transition-colors duration-200 hover:text-primary"
+                  >
+                    Blog
+                  </a>
+                </nav>
+              </div>
 
               {/* Community Section */}
               <div className="w-full space-y-3">
@@ -1982,6 +2026,14 @@ export function ComingSoon() {
                       className="touch-manipulation transition-colors duration-200 hover:text-primary"
                     >
                       Documentation
+                    </a>
+                    <a
+                      href={blogUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="touch-manipulation transition-colors duration-200 hover:text-primary"
+                    >
+                      Blog
                     </a>
                     <a
                       href="https://github.com/BabylonSocial/babylon"

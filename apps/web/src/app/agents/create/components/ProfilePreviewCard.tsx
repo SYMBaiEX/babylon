@@ -1,6 +1,6 @@
 'use client';
 
-import { ChevronLeft, ChevronRight, Edit } from 'lucide-react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { memo } from 'react';
 import { Avatar } from '@/components/shared/Avatar';
 import { Skeleton } from '@/components/shared/Skeleton';
@@ -8,7 +8,6 @@ import type { ProfileFormData } from '../hooks/useAgentForm';
 
 interface ProfilePreviewCardProps {
   profileData: ProfileFormData;
-  onEdit: () => void;
   onCycleProfilePic: (direction: 'next' | 'prev') => void;
   onCycleBanner: (direction: 'next' | 'prev') => void;
   isLoading?: boolean;
@@ -16,7 +15,6 @@ interface ProfilePreviewCardProps {
 
 export const ProfilePreviewCard = memo(function ProfilePreviewCard({
   profileData,
-  onEdit,
   onCycleProfilePic,
   onCycleBanner,
   isLoading = false,
@@ -105,23 +103,12 @@ export const ProfilePreviewCard = memo(function ProfilePreviewCard({
 
         {/* Info */}
         <div className="mt-2">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="font-bold text-lg">
-                {profileData.displayName || 'Agent Name'}
-              </h3>
-              <p className="text-muted-foreground text-sm">
-                @{profileData.username || 'username'}
-              </p>
-            </div>
-            <button
-              onClick={onEdit}
-              className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-muted-foreground text-sm transition-colors hover:bg-muted hover:text-foreground"
-            >
-              <Edit className="h-3 w-3" />
-              Edit
-            </button>
-          </div>
+          <h3 className="font-bold text-lg">
+            {profileData.displayName || 'Agent Name'}
+          </h3>
+          <p className="text-muted-foreground text-sm">
+            @{profileData.username || 'username'}
+          </p>
 
           {profileData.bio && (
             <p className="mt-3 line-clamp-3 text-muted-foreground text-sm">

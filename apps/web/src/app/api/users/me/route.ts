@@ -150,7 +150,7 @@ import {
   withErrorHandling,
 } from '@babylon/api';
 import { db, eq, users } from '@babylon/db';
-import { logger } from '@babylon/shared';
+import { logger, shouldAutoPromoteToAdmin } from '@babylon/shared';
 import type { User as PrivyUser } from '@privy-io/server-auth';
 import type { NextRequest } from 'next/server';
 
@@ -416,6 +416,20 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       authUser.walletAddress?.toLowerCase() ??
       null;
 
+    // Check if user should be auto-promoted to admin based on email domain
+    // SECURITY: Requires email verification (Privy emails are verified by design)
+    // If email exists in Privy, it has been verified through their email verification flow
+    const emailVerified = !!privyUser.email?.address;
+    const shouldBeAdmin = shouldAutoPromoteToAdmin(email, emailVerified);
+
+    if (shouldBeAdmin) {
+      logger.info(
+        'Auto-promoting user to admin based on verified email domain',
+        { privyId, emailDomain: email?.split('@')[1] ?? null, emailVerified },
+        'GET /api/users/me'
+      );
+    }
+
     const [newUser] = await db
       .insert(users)
       .values({
@@ -434,6 +448,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         hasUsername: false,
         hasBio: false,
         hasProfileImage: false,
+        isAdmin: shouldBeAdmin,
         updatedAt: new Date(),
       })
       .returning(userSelectFields);
@@ -531,6 +546,41 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   // At this point dbUser should always be defined (either fetched or created)
   if (!dbUser) {
     throw new InternalServerError('Failed to create or find user record');
+  }
+
+  // Auto-promote existing users to admin if they have a verified admin domain email
+  // This ensures users who later link/verify a company email get admin access
+  if (dbUser && !dbUser.isAdmin) {
+    const privyClient = getPrivyClient();
+    const privyUser = await privyClient.getUser(privyId);
+    const verifiedEmail = privyUser.email?.address ?? null;
+    const emailVerified = !!verifiedEmail;
+    const shouldBeAdmin = shouldAutoPromoteToAdmin(
+      verifiedEmail,
+      emailVerified
+    );
+
+    if (shouldBeAdmin) {
+      logger.info(
+        'Auto-promoting existing user to admin based on verified email domain',
+        {
+          userId: dbUser.id,
+          emailDomain: verifiedEmail?.split('@')[1] ?? null,
+          emailVerified,
+        },
+        'GET /api/users/me'
+      );
+
+      const [updatedUser] = await db
+        .update(users)
+        .set({ isAdmin: true, updatedAt: new Date() })
+        .where(eq(users.id, dbUser.id))
+        .returning(userSelectFields);
+
+      if (updatedUser) {
+        dbUser = updatedUser;
+      }
+    }
   }
 
   // Get cached profile stats

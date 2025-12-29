@@ -20,6 +20,7 @@ import { logger, POINTS } from '@babylon/shared';
 import { Check, Lock, Twitter, X as XIcon } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
+import { getAuthToken } from '@/lib/auth';
 import { ShareVerificationModal } from './ShareVerificationModal';
 
 // Farcaster icon component
@@ -113,8 +114,7 @@ export function ShareEarnModal({
   const checkExistingShares = useCallback(async () => {
     if (!user) return;
 
-    const token =
-      typeof window !== 'undefined' ? window.__privyAccessToken : null;
+    const token = getAuthToken();
     if (!token) return;
 
     setCheckingExistingShares(true);
@@ -181,8 +181,7 @@ export function ShareEarnModal({
       return { success: false };
     }
 
-    const token =
-      typeof window !== 'undefined' ? window.__privyAccessToken : null;
+    const token = getAuthToken();
     if (!token) {
       logger.warn('No access token available', undefined, 'ShareEarnModal');
       return { success: false };

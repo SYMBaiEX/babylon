@@ -24,7 +24,15 @@ export {
   logAdminView,
 } from './admin-audit';
 // Admin Middleware
-export { isUserAdmin, requireAdmin } from './admin-middleware';
+export {
+  type AuthenticatedAdminUser,
+  getAdminRole,
+  getAllAdmins,
+  isUserAdmin,
+  requireAdmin,
+  requirePermission,
+  requireSuperAdmin,
+} from './admin-middleware';
 // Agent Authentication
 export {
   type AgentSession,
@@ -115,10 +123,13 @@ export {
   type CreateIssueInput,
   createLinearIssue,
   type FeedbackType,
+  type FeedbackUser,
   formatFeedbackForLinear,
   getLinearConfig,
+  type LinearConfig,
   type LinearFeedbackData,
   type LinearIssue,
+  syncFeedbackToLinear,
 } from './linear';
 // Monitoring
 export { cronMetrics, recordCronExecution } from './monitoring/cron-metrics';
@@ -138,6 +149,14 @@ export {
   updateProfileBackendSigned,
   verifyBackendSignedUpdate,
 } from './profile';
+// Query Parameter Utilities
+export {
+  createEnumValidator,
+  MAX_DATE_RANGE_DAYS,
+  parseDateParam,
+  validateDateRange,
+  validateEnum,
+} from './query-params';
 // Rate Limiting
 export {
   addRateLimitHeaders,

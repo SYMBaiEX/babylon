@@ -5,3 +5,5 @@ export type {
   FeedbackType,
 } from './format-feedback';
 export { formatFeedbackForLinear } from './format-feedback';
+export type { FeedbackUser, LinearConfig } from './sync-feedback';
+export { syncFeedbackToLinear } from './sync-feedback';

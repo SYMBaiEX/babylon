@@ -33,6 +33,7 @@ import {
   Activity,
   ArrowLeft,
   Bot,
+  ExternalLink,
   FileText,
   MessageCircle,
   Settings,
@@ -109,6 +110,7 @@ function TabLoadingSkeleton() {
 interface Agent {
   id: string;
   name: string;
+  username?: string;
   description?: string;
   profileImageUrl?: string;
   system: string;
@@ -277,8 +279,26 @@ export default function AgentDetailPage() {
               src={agent.profileImageUrl}
               imageUrl={agent.profileImageUrl}
             />
-            <div>
-              <h1 className="mb-1 font-bold text-2xl">{agent.name}</h1>
+            <div className="flex-1">
+              <div className="flex items-start justify-between">
+                <div>
+                  <h1 className="mb-1 font-bold text-2xl">{agent.name}</h1>
+                  {agent.username && (
+                    <p className="mb-1 text-muted-foreground">
+                      @{agent.username}
+                    </p>
+                  )}
+                </div>
+                {agent.username && (
+                  <Link
+                    href={`/profile/${agent.username}`}
+                    className="flex items-center gap-1.5 rounded-lg bg-muted/50 px-3 py-1.5 text-muted-foreground text-sm transition-colors hover:bg-muted hover:text-foreground"
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                    View Profile
+                  </Link>
+                )}
+              </div>
               {agent.description && (
                 <p className="mb-2 text-foreground/80">{agent.description}</p>
               )}

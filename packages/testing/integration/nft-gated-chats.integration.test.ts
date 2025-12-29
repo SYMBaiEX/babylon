@@ -16,7 +16,6 @@ import {
   chats,
   db,
   eq,
-  groupChatMemberships,
   inArray,
   users,
 } from '@babylon/db';
@@ -137,9 +136,6 @@ describe('NFT-Gated Group Chats - Integration Tests', () => {
   afterEach(async () => {
     // Clean up test data
     if (testChatIds.length > 0) {
-      await db
-        .delete(groupChatMemberships)
-        .where(inArray(groupChatMemberships.chatId, testChatIds));
       await db
         .delete(chatParticipants)
         .where(inArray(chatParticipants.chatId, testChatIds));
@@ -528,16 +524,14 @@ describe('NFT-Gated Group Chats - Integration Tests', () => {
       const chatId = createData.chat.id;
       testChatIds.push(chatId);
 
-      // Manually add non-owner to membership (bypassing verification for test)
+      // Manually add non-owner to chat participants (bypassing verification for test)
       // In real scenario, this wouldn't happen, but we test message enforcement
-      const membershipId = await generateSnowflakeId();
-      await db.insert(groupChatMemberships).values({
-        id: membershipId,
+      const participantId = await generateSnowflakeId();
+      await db.insert(chatParticipants).values({
+        id: participantId,
         chatId,
         userId: nonOwner.id,
-        npcAdminId: owner.id, // Required field - use owner as admin
         joinedAt: new Date(),
-        isActive: true,
       });
 
       // Try to send message without NFT

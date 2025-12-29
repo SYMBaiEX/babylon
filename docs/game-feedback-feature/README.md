@@ -16,11 +16,33 @@ User submits feedback → Saved to DB → Response returned → Linear issue cre
 ## Configuration
 
 ```bash
+# Required for Linear integration (optional - feedback works without these)
 LINEAR_API_KEY=lin_api_...
-LINEAR_TEAM_ID=dbaea5df-7f3b-4747-b260-4aa5f6270228
+LINEAR_TEAM_ID=           # Your team ID (see below)
+LINEAR_GAME_FEEDBACK_LABEL_ID=  # Optional label ID (see below)
 ```
 
 If not set, feedback still works but Linear issues aren't created.
+
+### Finding Your Linear IDs
+
+**LINEAR_TEAM_ID:**
+1. Open Linear and go to Settings → Team → General
+2. The team ID is in the URL: `linear.app/settings/teams/[TEAM_ID]`
+3. Or use the API: `curl -H "Authorization: $LINEAR_API_KEY" https://api.linear.app/graphql -d '{"query":"{ teams { nodes { id name } } }"}'`
+
+**LINEAR_GAME_FEEDBACK_LABEL_ID (optional):**
+1. Create a label in Linear (e.g., "Game Feedback")
+2. Get the ID via API:
+
+   ```bash
+   curl -H "Authorization: $LINEAR_API_KEY" https://api.linear.app/graphql \
+     -d '{"query":"{ issueLabels { nodes { id name } } }"}'
+   ```
+
+3. Find your label in the response and copy the `id`
+
+If `LINEAR_GAME_FEEDBACK_LABEL_ID` is not set, issues are created without labels.
 
 ## Files
 

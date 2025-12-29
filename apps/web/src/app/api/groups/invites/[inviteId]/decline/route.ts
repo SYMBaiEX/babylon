@@ -3,43 +3,6 @@
  *
  * @route POST /api/groups/invites/[inviteId]/decline - Decline group invite
  * @access Authenticated
- *
- * @description
- * Declines a group invitation. Removes the invite. User must be the invitee.
- *
- * @openapi
- * /api/groups/invites/{inviteId}/decline:
- *   post:
- *     tags:
- *       - Groups
- *     summary: Decline group invite
- *     description: Declines a group invitation (authenticated user only)
- *     security:
- *       - PrivyAuth: []
- *     parameters:
- *       - in: path
- *         name: inviteId
- *         required: true
- *         schema:
- *           type: string
- *         description: Invite ID
- *     responses:
- *       200:
- *         description: Invite declined successfully
- *       401:
- *         description: Unauthorized
- *       403:
- *         description: Not the invitee
- *       404:
- *         description: Invite not found
- *
- * @example
- * ```typescript
- * await fetch(`/api/groups/invites/${inviteId}/decline`, {
- *   method: 'POST',
- *   headers: { 'Authorization': `Bearer ${token}` }
- * });
- * ```
  */
 
 import {
@@ -66,7 +29,7 @@ export const POST = withErrorHandling(
 
     await asUser(user, async (db) => {
       // Get the invite
-      const invite = await db.userGroupInvite.findUnique({
+      const invite = await db.groupInvite.findUnique({
         where: { id: inviteId },
       });
 
@@ -83,7 +46,7 @@ export const POST = withErrorHandling(
       }
 
       // Update invite status
-      await db.userGroupInvite.update({
+      await db.groupInvite.update({
         where: { id: inviteId },
         data: {
           status: 'declined',
@@ -91,11 +54,12 @@ export const POST = withErrorHandling(
         },
       });
 
-      // Mark notification as read
+      // Mark only this specific invite's notification as read
       await db.notification.updateMany({
         where: {
           userId: user.userId,
           type: 'group_invite',
+          inviteId: inviteId,
         },
         data: {
           read: true,

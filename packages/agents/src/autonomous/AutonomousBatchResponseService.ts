@@ -25,15 +25,15 @@ import {
   inArray,
   isNull,
   messages,
-  ne,
   posts,
+  type UserAgentConfig,
 } from '@babylon/db';
 import type { IAgentRuntime } from '@elizaos/core';
 import { parseKeyValueXml } from '@elizaos/core';
 import { callGroqDirect } from '../llm/direct-groq';
 import { getAgentConfig } from '../shared/agent-config';
 import { logger } from '../shared/logger';
-import { getAgentContext } from './agent-context';
+import { type AgentContext, getAgentContext } from './agent-context';
 import { executeDirectComment, executeDirectMessage } from './DirectExecutors';
 
 // =============================================================================
@@ -497,48 +497,64 @@ ${chatLines.join('\n\n')}`);
       .leftJoin(chats, eq(chatParticipants.chatId, chats.id))
       .where(eq(chatParticipants.userId, agentUserId));
 
-    for (const chatParticipant of agentChats) {
-      const chat = chatParticipant.chat;
+    // Filter to valid chats
+    const validChats = agentChats.filter((c) => c.chat !== null);
+    if (validChats.length === 0) {
+      return interactions;
+    }
+
+    const chatIds = validChats.map((c) => c.chatId);
+    const chatMap = new Map(validChats.map((c) => [c.chatId, c.chat!]));
+
+    // Batch fetch all recent messages for all chats in one query
+    // This replaces N queries (one per chat) with a single query
+    const allRecentMessages = await db
+      .select()
+      .from(messages)
+      .where(
+        and(
+          inArray(messages.chatId, chatIds),
+          gte(messages.createdAt, windowStart)
+        )
+      )
+      .orderBy(desc(messages.createdAt));
+
+    // Group messages by chatId
+    const messagesByChatId = new Map<string, typeof allRecentMessages>();
+    for (const msg of allRecentMessages) {
+      const existing = messagesByChatId.get(msg.chatId) || [];
+      existing.push(msg);
+      messagesByChatId.set(msg.chatId, existing);
+    }
+
+    // Process each chat using the pre-fetched messages
+    for (const chatId of chatIds) {
+      const chat = chatMap.get(chatId);
       if (!chat) continue;
 
-      // Get recent messages from others in this chat
-      const chatMessages = await db
-        .select()
-        .from(messages)
-        .where(
-          and(
-            eq(messages.chatId, chat.id),
-            ne(messages.senderId, agentUserId),
-            gte(messages.createdAt, windowStart)
-          )
-        )
-        .orderBy(desc(messages.createdAt))
-        .limit(3);
-
+      const chatMessages = messagesByChatId.get(chatId) || [];
       if (chatMessages.length === 0) continue;
 
-      // Check if agent already responded to the latest message
-      const latestFromOther = chatMessages[0];
+      // Find the latest message from someone other than the agent
+      const messagesFromOthers = chatMessages.filter(
+        (m) => m.senderId !== agentUserId
+      );
+      if (messagesFromOthers.length === 0) continue;
+
+      const latestFromOther = messagesFromOthers[0];
       if (!latestFromOther) continue;
 
-      // Get the agent's most recent message in this chat
-      // We compare Snowflake IDs (monotonically increasing) rather than timestamps
-      // to avoid precision issues with timestamp comparison
-      const agentLastMessage = await db
-        .select({ id: messages.id, createdAt: messages.createdAt })
-        .from(messages)
-        .where(
-          and(eq(messages.chatId, chat.id), eq(messages.senderId, agentUserId))
-        )
-        .orderBy(desc(messages.createdAt))
-        .limit(1);
+      // Find the agent's last message in this chat
+      const agentMessages = chatMessages.filter(
+        (m) => m.senderId === agentUserId
+      );
+      const agentLastMessage = agentMessages[0]; // Already sorted by desc createdAt
 
       // If agent's last message ID is greater than user's last message ID,
       // the agent has already responded (Snowflake IDs are monotonically increasing)
       if (
-        agentLastMessage.length > 0 &&
-        agentLastMessage[0] &&
-        BigInt(agentLastMessage[0].id) > BigInt(latestFromOther.id)
+        agentLastMessage &&
+        BigInt(agentLastMessage.id) > BigInt(latestFromOther.id)
       ) {
         logger.info(
           `Agent already responded to message in chat ${chat.id} - skipping`,
@@ -546,23 +562,18 @@ ${chatLines.join('\n\n')}`);
             chatId: chat.id,
             lastUserMessageId: latestFromOther.id,
             lastUserMessageAt: latestFromOther.createdAt.toISOString(),
-            agentLastMessageId: agentLastMessage[0].id,
-            agentLastMessageAt: agentLastMessage[0].createdAt?.toISOString(),
+            agentLastMessageId: agentLastMessage.id,
+            agentLastMessageAt: agentLastMessage.createdAt?.toISOString(),
           },
           'AutonomousBatchResponse'
         );
         continue; // Agent already responded
       }
 
-      // Get recent conversation context
-      const recentMessages = await db
-        .select()
-        .from(messages)
-        .where(eq(messages.chatId, chat.id))
-        .orderBy(desc(messages.createdAt))
-        .limit(5);
-
+      // Build context from the 5 most recent messages (already have them)
+      const recentMessages = chatMessages.slice(0, 5);
       const contextMessages = recentMessages
+        .slice()
         .reverse()
         .map(
           (m) => `${m.senderId === agentUserId ? 'You' : 'User'}: ${m.content}`
@@ -608,27 +619,17 @@ ${chatLines.join('\n\n')}`);
   async evaluateInteractions(
     agentUserId: string,
     _runtime: IAgentRuntime,
-    interactions: PendingInteraction[]
+    interactions: PendingInteraction[],
+    agentContext: AgentContext,
+    agentConfig: UserAgentConfig | null
   ): Promise<ResponseDecision[]> {
     if (interactions.length === 0) {
       return [];
     }
 
-    // Cap interactions to prevent context overflow (30 max)
-    const cappedInteractions = interactions.slice(0, 30);
-    if (cappedInteractions.length < interactions.length) {
-      logger.info(
-        `Capped interactions from ${interactions.length} to 30 to prevent context overflow`,
-        undefined,
-        'AutonomousBatchResponse'
-      );
-    }
-
-    // Resolve agent context (NPC vs USER_CONTROLLED)
-    const { displayName: agentDisplayName } =
-      await getAgentContext(agentUserId);
-
-    const config = await getAgentConfig(agentUserId);
+    // Use pre-fetched agent context and config (passed from processBatch)
+    const agentDisplayName = agentContext.displayName;
+    const config = agentConfig;
 
     // Build evaluation prompt - ask for IDs instead of positional true/false
     // This is more robust as it doesn't rely on counting/ordering
@@ -660,7 +661,7 @@ IMPORTANT: If same author has multiple interactions on the same post, respond to
 
 Pending Interactions (grouped by post):
 
-${this.formatInteractionsGroupedByPost(cappedInteractions)}
+${this.formatInteractionsGroupedByPost(interactions)}
 
 Task: Decide which interactions you want to respond to.
 
@@ -774,7 +775,7 @@ Do NOT include any explanations, only the XML format above.`;
             .filter(Boolean);
 
           // Validate that IDs exist in our interactions
-          const validIds = new Set(cappedInteractions.map((i) => i.id));
+          const validIds = new Set(interactions.map((i) => i.id));
           const parsedIds = new Set<string>();
 
           for (const id of ids) {
@@ -793,7 +794,7 @@ Do NOT include any explanations, only the XML format above.`;
         }
 
         logger.info(
-          `Agent selected ${respondToIds.size}/${cappedInteractions.length} interactions to respond to`,
+          `Agent selected ${respondToIds.size}/${interactions.length} interactions to respond to`,
           undefined,
           'AutonomousBatchResponse'
         );
@@ -827,7 +828,7 @@ Do NOT include any explanations, only the XML format above.`;
     }
 
     // Convert to ResponseDecision array (maintaining order of original interactions)
-    return cappedInteractions.map((interaction) => ({
+    return interactions.map((interaction) => ({
       shouldRespond: respondToIds!.has(interaction.id),
     }));
   }
@@ -839,13 +840,13 @@ Do NOT include any explanations, only the XML format above.`;
     agentUserId: string,
     _runtime: IAgentRuntime,
     interactions: PendingInteraction[],
-    decisions: ResponseDecision[]
+    decisions: ResponseDecision[],
+    agentContext: AgentContext,
+    agentConfig: UserAgentConfig | null
   ): Promise<number> {
-    // Resolve agent context (NPC vs USER_CONTROLLED)
-    const { displayName: agentDisplayName } =
-      await getAgentContext(agentUserId);
-
-    const respConfig = await getAgentConfig(agentUserId);
+    // Use pre-fetched agent context and config (passed from processBatch)
+    const agentDisplayName = agentContext.displayName;
+    const respConfig = agentConfig;
 
     let responsesCreated = 0;
 
@@ -1081,9 +1082,9 @@ LEAVE EMPTY IF:
     );
 
     // Step 1: Gather all pending interactions
-    const interactions = await this.gatherPendingInteractions(agentUserId);
+    const allInteractions = await this.gatherPendingInteractions(agentUserId);
 
-    if (interactions.length === 0) {
+    if (allInteractions.length === 0) {
       logger.info(
         'No pending interactions to process',
         undefined,
@@ -1093,21 +1094,38 @@ LEAVE EMPTY IF:
     }
 
     logger.info(
-      `Found ${interactions.length} pending interactions`,
+      `Found ${allInteractions.length} pending interactions`,
       undefined,
       'AutonomousBatchResponse'
     );
+
+    // Cap interactions BEFORE evaluation to prevent context overflow
+    // and ensure array alignment between interactions and decisions
+    const cappedInteractions = allInteractions.slice(0, 30);
+    if (cappedInteractions.length < allInteractions.length) {
+      logger.info(
+        `Capped interactions from ${allInteractions.length} to 30`,
+        undefined,
+        'AutonomousBatchResponse'
+      );
+    }
+
+    // Cache agent context and config to avoid duplicate fetches
+    const agentContext = await getAgentContext(agentUserId);
+    const agentConfig = await getAgentConfig(agentUserId);
 
     // Step 2: Evaluate which ones warrant responses
     const decisions = await this.evaluateInteractions(
       agentUserId,
       _runtime,
-      interactions
+      cappedInteractions,
+      agentContext,
+      agentConfig
     );
 
     const responseCount = decisions.filter((d) => d.shouldRespond).length;
     logger.info(
-      `Agent decided to respond to ${responseCount}/${interactions.length} interactions`,
+      `Agent decided to respond to ${responseCount}/${cappedInteractions.length} interactions`,
       undefined,
       'AutonomousBatchResponse'
     );
@@ -1116,12 +1134,14 @@ LEAVE EMPTY IF:
       return 0;
     }
 
-    // Step 3: Generate and post responses
+    // Step 3: Generate and post responses (pass CAPPED interactions to match decisions)
     const responsesCreated = await this.executeResponses(
       agentUserId,
       _runtime,
-      interactions,
-      decisions
+      cappedInteractions,
+      decisions,
+      agentContext,
+      agentConfig
     );
 
     logger.info(

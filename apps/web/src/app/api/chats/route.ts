@@ -182,7 +182,7 @@ import {
   count,
   desc,
   eq,
-  groupChatMemberships,
+  groupMembers,
   inArray,
   messages,
   users,
@@ -318,24 +318,34 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
   // Get user's chats with proper RLS context
   const { groupChats, directChats } = await asUser(user, async (dbClient) => {
-    // Get user's group chat memberships
+    // Get user's group memberships
     const memberships = await dbClient
       .select()
-      .from(groupChatMemberships)
+      .from(groupMembers)
       .where(
         and(
-          eq(groupChatMemberships.userId, user.userId),
-          eq(groupChatMemberships.isActive, true)
+          eq(groupMembers.userId, user.userId),
+          eq(groupMembers.isActive, true)
         )
       )
-      .orderBy(desc(groupChatMemberships.lastMessageAt));
+      .orderBy(desc(groupMembers.lastMessageAt));
 
-    // Get chat details for group chats
-    const groupChatIds = memberships.map((m) => m.chatId);
-    const groupChatDetails = await dbClient
-      .select()
-      .from(chats)
-      .where(inArray(chats.id, groupChatIds));
+    // Get chat IDs via Chat.groupId relationship
+    const groupIds = memberships.map((m) => m.groupId);
+    const groupChatsWithGroupId =
+      groupIds.length > 0
+        ? await dbClient
+            .select()
+            .from(chats)
+            .where(inArray(chats.groupId, groupIds))
+        : [];
+    const groupChatIds = groupChatsWithGroupId.map((c) => c.id);
+    // Map groupId -> chatId for lookup
+    const groupIdToChatId = new Map(
+      groupChatsWithGroupId.map((c) => [c.groupId, c.id])
+    );
+    // Map chatId -> chat details
+    const chatDetailsMap = new Map(groupChatsWithGroupId.map((c) => [c.id, c]));
 
     // Get last messages for group chats
     const groupChatMessages = await Promise.all(
@@ -352,8 +362,6 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     const groupMessagesMap = new Map(
       groupChatMessages.map(({ chatId, messages }) => [chatId, messages])
     );
-
-    const chatDetailsMap = new Map(groupChatDetails.map((c) => [c.id, c]));
 
     // Get DM chats the user participates in
     const dmParticipantsList = await dbClient
@@ -411,13 +419,15 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       messagesByChatId.set(chatId, messages);
     });
 
-    // Format group chats
-    const groupChatsList = memberships
+    // Format group chats - use groupId -> chatId mapping
+    const formattedGroupChats = memberships
       .map((membership) => {
-        const chat = chatDetailsMap.get(membership.chatId);
+        // Get the chatId from groupId
+        const chatId = groupIdToChatId.get(membership.groupId);
+        if (!chatId) return null;
+        const chat = chatDetailsMap.get(chatId);
         if (!chat) return null;
-        const lastMessage =
-          groupMessagesMap.get(membership.chatId)?.[0] || null;
+        const lastMessage = groupMessagesMap.get(chatId)?.[0] || null;
         const result: {
           id: string;
           name: string;
@@ -434,7 +444,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
             chainName: string;
           };
         } = {
-          id: membership.chatId,
+          id: chatId,
           name: chat.name || 'Unnamed Group',
           isGroup: true,
           lastMessage,
@@ -514,7 +524,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       })
     ).then((chatsList) => chatsList.filter((c) => c !== null));
 
-    return { groupChats: groupChatsList, directChats: directChatsList };
+    return { groupChats: formattedGroupChats, directChats: directChatsList };
   });
 
   logger.info(
@@ -601,7 +611,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     throw new Error('Failed to create chat');
   }
 
-  // Award points for creating a private channel (group chat created directly, not through UserGroup)
+  // Award points for creating a private channel (group chat created directly, not through Group)
   if (isGroup && !chat.groupId) {
     await PointsService.awardPrivateChannelCreate(user.userId, chat.id).catch(
       (error: unknown) => {

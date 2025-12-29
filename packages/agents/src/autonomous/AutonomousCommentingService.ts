@@ -30,6 +30,7 @@ import { StaticDataRegistry } from '@babylon/engine';
 import type { IAgentRuntime } from '@elizaos/core';
 import { parseKeyValueXml } from '@elizaos/core';
 import { callGroqDirect } from '../llm/direct-groq';
+import { agentService } from '../services/AgentService';
 import { getAgentConfig } from '../shared/agent-config';
 import { logger } from '../shared/logger';
 import { getAgentContext } from './agent-context';
@@ -467,73 +468,68 @@ If you want to skip (no relevant posts):
       content?: string;
       reason?: string;
     } | null = null;
+    let llmCompletion: string | null = null;
+    let usedPrompt: string | null = null;
 
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-      try {
-        const isRetry = attempt > 1;
-        const currentPrompt = isRetry
-          ? `${finalPrompt}\n\nREMINDER: No <think> tags. Start DIRECTLY with <response>. Output only valid XML.`
-          : finalPrompt;
+      const isRetry = attempt > 1;
+      const currentPrompt = isRetry
+        ? `${finalPrompt}\n\nREMINDER: No <think> tags. Start DIRECTLY with <response>. Output only valid XML.`
+        : finalPrompt;
 
-        const responseText = await Promise.race([
-          callGroqDirect({
-            prompt: currentPrompt,
-            system: config?.systemPrompt ?? undefined,
-            modelSize: 'large',
-            runtime: _runtime,
-            temperature: isRetry ? 0.5 : 0.7,
-            maxTokens: 16384,
-            actionType: 'evaluate_comment_opportunity',
-            purpose: 'evaluation',
-          }),
-          new Promise<string>((_, reject) => {
-            setTimeout(() => reject(new Error('Timeout')), 20000);
-          }),
-        ]);
+      const responseText = await Promise.race([
+        callGroqDirect({
+          prompt: currentPrompt,
+          system: config?.systemPrompt ?? undefined,
+          modelSize: 'large',
+          runtime: _runtime,
+          temperature: isRetry ? 0.5 : 0.7,
+          maxTokens: 16384,
+          actionType: 'evaluate_comment_opportunity',
+          purpose: 'evaluation',
+        }),
+        new Promise<string>((_, reject) => {
+          setTimeout(() => reject(new Error('Timeout')), 20000);
+        }),
+      ]);
 
-        // Extract response block
-        const responseMatch = responseText.match(
-          /<response>([\s\S]*?)<\/response>/i
-        );
-        if (!responseMatch) {
-          logger.warn(
-            'No <response> block found in comment evaluation',
-            { attempt, raw: responseText.substring(0, 200) },
-            'AutonomousCommenting'
-          );
-          continue;
-        }
-
-        const parsed = parseKeyValueXml(responseMatch[0]) as {
-          action?: string;
-          post_index?: string;
-          reply_to_comment_id?: string;
-          content?: string;
-          reason?: string;
-        } | null;
-
-        if (!parsed?.action) {
-          continue;
-        }
-
-        decision = {
-          action: parsed.action,
-          postIndex: parsed.post_index
-            ? parseInt(parsed.post_index, 10)
-            : undefined,
-          replyToCommentId: parsed.reply_to_comment_id || undefined,
-          content: parsed.content,
-          reason: parsed.reason,
-        };
-        break;
-      } catch (error) {
-        const errorMsg = error instanceof Error ? error.message : String(error);
+      // Extract response block
+      const responseMatch = responseText.match(
+        /<response>([\s\S]*?)<\/response>/i
+      );
+      if (!responseMatch) {
         logger.warn(
-          `Comment evaluation attempt ${attempt} failed: ${errorMsg}`,
-          { agentUserId },
+          'No <response> block found in comment evaluation',
+          { attempt, raw: responseText.substring(0, 200) },
           'AutonomousCommenting'
         );
+        continue;
       }
+
+      const parsed = parseKeyValueXml(responseMatch[0]) as {
+        action?: string;
+        post_index?: string;
+        reply_to_comment_id?: string;
+        content?: string;
+        reason?: string;
+      } | null;
+
+      if (!parsed?.action) {
+        continue;
+      }
+
+      decision = {
+        action: parsed.action,
+        postIndex: parsed.post_index
+          ? parseInt(parsed.post_index, 10)
+          : undefined,
+        replyToCommentId: parsed.reply_to_comment_id || undefined,
+        content: parsed.content,
+        reason: parsed.reason,
+      };
+      llmCompletion = responseText;
+      usedPrompt = currentPrompt;
+      break;
     }
 
     if (!decision) {
@@ -616,6 +612,22 @@ If you want to skip (no relevant posts):
         );
         return null;
       }
+
+      // Log the comment with prompt and completion for debugging/review
+      await agentService.createLog(agentUserId, {
+        type: 'comment',
+        level: 'info',
+        message: `Created comment on post ${selectedPost.id}${parentCommentId ? ` (reply to ${parentCommentId})` : ''}: ${cleanContent.substring(0, 100)}${cleanContent.length > 100 ? '...' : ''}`,
+        prompt: usedPrompt ?? undefined,
+        completion: llmCompletion ?? undefined,
+        metadata: {
+          commentId: result.commentId ?? null,
+          postId: selectedPost.id,
+          parentCommentId: parentCommentId ?? null,
+          contentLength: cleanContent.length,
+          agentDisplayName,
+        },
+      });
 
       logger.info(
         `Agent ${agentDisplayName} commented on post ${selectedPost.id}${parentCommentId ? ` (reply to ${parentCommentId})` : ''}`,

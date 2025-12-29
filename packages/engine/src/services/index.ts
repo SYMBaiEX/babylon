@@ -29,6 +29,8 @@ export * from './npc-group-dynamics-service';
 export * from './npc-interaction-tracker';
 export * from './npc-persona-generator';
 export * from './reply-rate-limiter';
+export * from './tier-config';
+export * from './tiered-group-service';
 
 // =============================================================================
 // Market Services
@@ -38,6 +40,8 @@ export {
   type EventArcValidationResult,
   EventArcValidator,
 } from './event-arc-validator';
+export * from './event-market-linker'; // BAB-5: Event-market connection
+export * from './market-metrics-service'; // BAB-5: Metrics-based question generation
 export * from './market-mover-agent';
 export * from './onchain-market-service';
 export * from './price-update-service';
@@ -51,6 +55,8 @@ export * from './trajectory-market-engine';
 export * from './article-image-service';
 export * from './event-generation-helpers';
 export * from './narrative-state-service';
+export * from './npc-anti-repetition-service';
+export * from './npc-character-config';
 export * from './parody-headline-generator';
 export * from './post-generation-helpers';
 export * from './question-arc-planner';

@@ -19,7 +19,11 @@ export function FeatureRequestFields({
       </label>
       <StarRatingInput
         value={rating * 20}
-        onChange={(score) => onRatingChange(score / 20)}
+        onChange={(score) => {
+          const normalized = Math.round(score / 20);
+          const clamped = Math.max(1, Math.min(5, normalized));
+          onRatingChange(clamped);
+        }}
         showDescriptions={true}
       />
     </div>

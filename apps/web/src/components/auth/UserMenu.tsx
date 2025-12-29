@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Avatar } from '@/components/shared/Avatar';
 import { Dropdown, DropdownItem } from '@/components/shared/Dropdown';
 import { useAuth } from '@/hooks/useAuth';
+import { getAuthToken } from '@/lib/auth';
 import { useAuthStore } from '@/stores/authStore';
 
 /**
@@ -65,8 +66,7 @@ export function UserMenu() {
       if (userMenuFetchInFlight) return;
       userMenuFetchInFlight = true;
 
-      const token =
-        typeof window !== 'undefined' ? window.__privyAccessToken : null;
+      const token = getAuthToken();
       if (!token) {
         userMenuFetchInFlight = false;
         return;

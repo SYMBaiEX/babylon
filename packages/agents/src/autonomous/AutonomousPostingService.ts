@@ -15,6 +15,7 @@ import {
 import type { IAgentRuntime } from '@elizaos/core';
 import { parseKeyValueXml } from '@elizaos/core';
 import { callGroqDirect } from '../llm/direct-groq';
+import { agentService } from '../services/AgentService';
 import { getAgentConfig } from '../shared/agent-config';
 import { logger } from '../shared/logger';
 import { getAgentContext } from './agent-context';
@@ -96,8 +97,15 @@ Your recent activity:
 ${recentTrades.length > 0 ? `- Recent trades: ${JSON.stringify(recentTrades.map((t) => ({ action: t.action, ticker: t.ticker, pnl: t.pnl })))}` : '- No recent trades'}
 - Your P&L: ${agentLifetimePnL}
 
-YOUR RECENT POSTS (avoid repeating themes/openings):
+YOUR RECENT POSTS (CRITICAL - avoid repeating themes/phrases/structure):
 ${recentPosts.length > 0 ? recentPosts.map((p, i) => `[${i + 1}] "${p.content}" (${getTimeAgo(p.createdAt)})`).join('\n') : 'No recent posts'}
+
+⚠️ BEFORE POSTING - Check your recent posts above and ask:
+1. Am I using the same phrases? (e.g., "crowd consensus", "asymmetry", "exit liquidity") → USE DIFFERENT WORDS
+2. Am I posting about the same market/topic? → PICK A DIFFERENT MARKET
+3. Am I starting the same way? → USE A COMPLETELY DIFFERENT OPENING
+4. Am I making the same type of argument? (e.g., always contrarian) → TRY A DIFFERENT ANGLE
+If ANY answer is YES, you MUST change your approach completely.
 
 WORLD CONTEXT:
 ${worldContext.worldActors}
@@ -141,6 +149,28 @@ BANNED PATTERNS (-100 points each - INSTANT FAILURE):
 ❌ "I'm closely watching..." followed by "and considering..."
 ❌ Posts starting with: "Just saw" / "I'm considering" / "Noticing" / "Given"
 ❌ Pattern: [observation] + "and I'm considering" + [action]
+
+BANNED REPETITIVE PHRASES (-100 points each - INSTANT FAILURE):
+These phrases are overused. NEVER use them:
+❌ "[N]% crowd consensus" or "crowd consensus at [N]%"
+❌ "[N]:1 asymmetry" or "risk asymmetry" or "asymmetry = [N]:1"
+❌ "exit liquidity" / "exit liquidity gets harvested"
+❌ "fade the herd" / "fading the herd"
+❌ "when everyone's [certain/bullish/bearish/long/short]"
+❌ "security first" / "security rule" / "security 101"
+❌ "cascade liquidations" / "liquidations inbound"
+❌ "crowded long" / "crowded short" / "crowded trade"
+❌ "mean reversion" / "mean-reversion"
+❌ "the crowd is wrong" / "crowd reversal"
+❌ "who's left to buy" / "who's left to sell"
+❌ Formulas like "[percentage] YES/NO = [ratio] odds"
+
+Instead, express ideas FRESHLY each time:
+✅ Be specific about WHY you disagree (not just "crowd is wrong")
+✅ Name specific catalysts or events
+✅ Make concrete predictions with reasoning
+✅ Share personal trading actions with context
+✅ Ask thought-provoking questions
 
 SCORING RUBRIC (aim for 90+ points):
 
@@ -233,13 +263,16 @@ FINAL REQUIREMENTS:
 - Valuable to the community
 
 CRITICAL SCORING CHECK:
-1. Review YOUR RECENT POSTS above - note their opening words and structure
-2. Pick a DIFFERENT strategy and opening than you've used recently
-3. Mentally calculate your score using the rubric above
-4. TARGET: 90+ points (must get variation bonuses!)
-5. If below 70 points, try a completely different approach
-6. NEVER post anything with banned patterns (-100 pts = instant fail)
-7. NEVER repeat the same topic/market you just posted about
+1. Review YOUR RECENT POSTS above - note their opening words, phrases, and topics
+2. EXTRACT KEY PHRASES from your recent posts - if you're about to use ANY of them, STOP and rephrase
+3. Check what markets/topics you covered recently - pick a DIFFERENT one
+4. Pick a DIFFERENT strategy and opening than you've used recently
+5. Mentally calculate your score using the rubric above
+6. TARGET: 90+ points (must get variation bonuses!)
+7. If below 70 points, try a completely different approach
+8. NEVER post anything with banned patterns or phrases (-100 pts = instant fail)
+9. NEVER repeat the same topic/market you just posted about
+10. If you've posted 3+ times about the same market, you MUST skip or post about something else
 ${contextString}
 
 # Required Output Format (use exactly this structure)
@@ -276,85 +309,82 @@ To skip (if you've recently covered this topic or have nothing new to add):
     // Use large model (qwen3-32b or trained W&B model) for post generation with retry loop
     const MAX_ATTEMPTS = 3;
     let cleanContent: string | null = null;
+    let llmCompletion: string | null = null;
+    let usedPrompt: string | null = null;
 
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-      try {
-        const isRetry = attempt > 1;
-        const currentPrompt = isRetry
-          ? `${finalPrompt}\n\nREMINDER: You MUST output valid XML. Start with <response>, include <action> (post or skip), and <text> for posts. No <think> tags.`
-          : finalPrompt;
+      const isRetry = attempt > 1;
+      const currentPrompt = isRetry
+        ? `${finalPrompt}\n\nREMINDER: You MUST output valid XML. Start with <response>, include <action> (post or skip), and <text> for posts. No <think> tags.`
+        : finalPrompt;
 
-        const postContent = await callGroqDirect({
-          prompt: currentPrompt,
-          system: config?.systemPrompt ?? undefined,
-          modelSize: 'large', // Uses trained W&B model if available, else qwen3-32b
-          runtime: _runtime, // Pass runtime to access W&B trained models AND trajectory context
-          temperature: isRetry ? 0.6 : 0.8,
-          maxTokens: MAX_TOKENS,
-          actionType: 'generate_autonomous_post',
-          purpose: 'action', // RLAIF: This is a content generation action
-        });
+      const postContent = await callGroqDirect({
+        prompt: currentPrompt,
+        system: config?.systemPrompt ?? undefined,
+        modelSize: 'large', // Uses trained W&B model if available, else qwen3-32b
+        runtime: _runtime, // Pass runtime to access W&B trained models AND trajectory context
+        temperature: isRetry ? 0.6 : 0.8,
+        maxTokens: MAX_TOKENS,
+        actionType: 'generate_autonomous_post',
+        purpose: 'action', // RLAIF: This is a content generation action
+      });
 
-        // Extract <response>...</response> block before parsing
-        const responseMatch = postContent.match(
-          /<response>([\s\S]*?)<\/response>/i
+      // Extract <response>...</response> block before parsing
+      const responseMatch = postContent.match(
+        /<response>([\s\S]*?)<\/response>/i
+      );
+      if (!responseMatch) {
+        logger.warn(
+          'No <response> block found in post generation',
+          {
+            agentUserId,
+            attempt,
+            raw: postContent.substring(0, 300),
+          },
+          'AutonomousPosting'
         );
-        if (!responseMatch) {
-          logger.warn(
-            'No <response> block found in post generation',
-            {
-              agentUserId,
-              attempt,
-              raw: postContent.substring(0, 300),
-            },
-            'AutonomousPosting'
-          );
-          continue;
-        }
-
-        // Parse the extracted XML response
-        const parsed = parseKeyValueXml(responseMatch[0]) as {
-          action?: string;
-          text?: string;
-          reason?: string;
-        } | null;
-
-        // Check if agent chose to skip
-        if (parsed?.action === 'skip') {
-          logger.info(
-            `Agent ${agentDisplayName} chose to skip posting`,
-            {
-              agentUserId,
-              reason: parsed.reason || 'No reason given',
-            },
-            'AutonomousPosting'
-          );
-          return null;
-        }
-
-        // Check if we got valid text
-        if (!parsed?.text || parsed.text.trim().length === 0) {
-          logger.warn(
-            'Failed to parse XML response in post generation',
-            {
-              agentUserId,
-              attempt,
-              raw: postContent.substring(0, 300),
-            },
-            'AutonomousPosting'
-          );
-          continue;
-        }
-
-        // Success! Clean up the response
-        cleanContent = parsed.text.trim().replace(/^["']|["']$/g, '');
-        break;
-      } catch (error) {
-        logger.warn(`Post generation attempt ${attempt} failed`, {
-          agentUserId,
-          error: String(error),
-        });
+        continue;
       }
+
+      // Parse the extracted XML response
+      const parsed = parseKeyValueXml(responseMatch[0]) as {
+        action?: string;
+        text?: string;
+        reason?: string;
+      } | null;
+
+      // Check if agent chose to skip
+      if (parsed?.action === 'skip') {
+        logger.info(
+          `Agent ${agentDisplayName} chose to skip posting`,
+          {
+            agentUserId,
+            reason: parsed.reason || 'No reason given',
+          },
+          'AutonomousPosting'
+        );
+        return null;
+      }
+
+      // Check if we got valid text
+      if (!parsed?.text || parsed.text.trim().length === 0) {
+        logger.warn(
+          'Failed to parse XML response in post generation',
+          {
+            agentUserId,
+            attempt,
+            raw: postContent.substring(0, 300),
+          },
+          'AutonomousPosting'
+        );
+        continue;
+      }
+
+      // Success! Clean up the response and capture LLM output
+      cleanContent = parsed.text.trim().replace(/^["']|["']$/g, '');
+      llmCompletion = postContent;
+      usedPrompt = currentPrompt;
+      break;
     }
 
     // If all attempts failed, return null
@@ -418,6 +448,20 @@ To skip (if you've recently covered this topic or have nothing new to add):
       );
       return null;
     }
+
+    // Log the post with prompt and completion for debugging/review
+    await agentService.createLog(agentUserId, {
+      type: 'post',
+      level: 'info',
+      message: `Created post: ${cleanContent.substring(0, 100)}${cleanContent.length > 100 ? '...' : ''}`,
+      prompt: usedPrompt ?? undefined,
+      completion: llmCompletion ?? undefined,
+      metadata: {
+        postId: result.postId ?? null,
+        contentLength: cleanContent.length,
+        agentDisplayName,
+      },
+    });
 
     logger.info(
       `Agent ${agentDisplayName} created post: ${result.postId}`,

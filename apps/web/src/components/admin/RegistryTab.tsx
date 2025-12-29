@@ -25,6 +25,7 @@ import { FeedbackForm } from '@/components/feedback/FeedbackForm';
 import { Avatar } from '@/components/shared/Avatar';
 import { SearchBar } from '@/components/shared/SearchBar';
 import { Skeleton } from '@/components/shared/Skeleton';
+import { getAuthToken } from '@/lib/auth';
 
 /**
  * Registry entity schema for validation.
@@ -141,39 +142,48 @@ export function RegistryTab() {
   const [isCSAM, setIsCSAM] = useState(false);
   const [isBanning, setIsBanning] = useState(false);
 
-  const fetchRegistry = useCallback(async () => {
+  const fetchRegistry = useCallback(() => {
     setLoading(true);
     setError(null);
+
     const params = new URLSearchParams();
     if (search) params.set('search', search);
     if (onChainOnly) params.set('onChainOnly', 'true');
 
-    const response = await fetch(`/api/registry/all?${params}`);
-    const result = await response.json();
-
-    if (result.success && result.data) {
-      const validation = RegistryDataSchema.safeParse(result.data);
-      if (validation.success) {
-        setData(validation.data);
-      } else {
-        setError('Invalid data structure for registry');
-      }
-    } else {
-      setError(result.error?.message || 'Failed to fetch registry data');
-    }
-    setLoading(false);
+    fetch(`/api/registry/all?${params}`)
+      .then((response) => {
+        if (!response.ok) {
+          return response.json().then((errorData) => {
+            throw new Error(errorData.error || 'Failed to fetch registry data');
+          });
+        }
+        return response.json();
+      })
+      .then((result) => {
+        // The API returns data directly, not wrapped in { success, data }
+        const validated = RegistryDataSchema.parse(result);
+        setData(validated);
+      })
+      .catch((err: Error) => {
+        setError(err.message || 'Failed to fetch registry data');
+      })
+      .finally(() => {
+        setLoading(false);
+      });
   }, [search, onChainOnly]);
 
   useEffect(() => {
     fetchRegistry();
   }, [fetchRegistry]);
 
+  // Debounced re-fetch when search/onChainOnly changes (with 300ms delay)
   useEffect(() => {
+    if (!search && !onChainOnly) return; // Skip if no filters applied
     const timer = setTimeout(() => {
       fetchRegistry();
     }, 300);
     return () => clearTimeout(timer);
-  }, [fetchRegistry]);
+  }, [search, onChainOnly, fetchRegistry]);
 
   const renderBadge = (
     _type: string,
@@ -637,8 +647,7 @@ export function RegistryTab() {
     }
 
     setIsBanning(true);
-    const token =
-      typeof window !== 'undefined' ? window.__privyAccessToken : null;
+    const token = getAuthToken();
     const response = await fetch(`/api/admin/users/${entity.id}/ban`, {
       method: 'POST',
       headers: {

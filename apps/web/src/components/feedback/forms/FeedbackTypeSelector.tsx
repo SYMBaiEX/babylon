@@ -1,13 +1,11 @@
 'use client';
 
-import { cn } from '@babylon/shared';
-import { Bug, type LucideIcon, MessageSquare, Zap } from 'lucide-react';
+import { cn, type FeedbackType } from '@babylon/shared';
 
-export type FeedbackType = 'bug' | 'feature_request' | 'performance';
+export type { FeedbackType };
 
 interface FeedbackTypeConfig {
   type: FeedbackType;
-  icon: LucideIcon;
   title: string;
   description: string;
 }
@@ -15,21 +13,18 @@ interface FeedbackTypeConfig {
 const FEEDBACK_TYPES: FeedbackTypeConfig[] = [
   {
     type: 'bug',
-    icon: Bug,
     title: 'Report a Bug',
     description:
       'Help us fix issues by describing what happened and how to reproduce it.',
   },
   {
     type: 'feature_request',
-    icon: MessageSquare,
     title: 'Feature Request',
     description:
       'Tell us what you would like to see or change. How strongly do you feel about this?',
   },
   {
     type: 'performance',
-    icon: Zap,
     title: 'Performance Issue',
     description:
       'Report performance issues like lag, crashes, or graphical glitches.',
@@ -47,27 +42,19 @@ export function FeedbackTypeSelector({ onSelect }: FeedbackTypeSelectorProps) {
         What type of feedback would you like to submit?
       </h3>
       <div className="grid gap-3 sm:grid-cols-3">
-        {FEEDBACK_TYPES.map(({ type, icon: Icon, title, description }) => (
+        {FEEDBACK_TYPES.map(({ type, title, description }) => (
           <button
+            type="button"
             key={type}
             onClick={() => onSelect(type)}
             className={cn(
-              'flex flex-col items-center gap-3 rounded-lg border border-border bg-card p-4',
+              'flex flex-col gap-2 rounded-lg border border-border bg-card p-4',
               'transition-all hover:border-[#1c9cf0] hover:bg-muted/50',
               'text-left'
             )}
           >
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#1c9cf0]/20">
-              <Icon className="h-6 w-6 text-[#1c9cf0]" />
-            </div>
-            <div className="text-center">
-              <div className="font-semibold text-foreground text-sm">
-                {title}
-              </div>
-              <div className="mt-1 text-muted-foreground text-xs">
-                {description}
-              </div>
-            </div>
+            <div className="font-semibold text-foreground text-sm">{title}</div>
+            <div className="text-muted-foreground text-xs">{description}</div>
           </button>
         ))}
       </div>

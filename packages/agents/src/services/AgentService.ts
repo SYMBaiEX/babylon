@@ -100,6 +100,7 @@ export class AgentServiceV2 {
     const {
       userId: managerUserId,
       name,
+      username: providedUsername,
       description,
       profileImageUrl,
       coverImageUrl,
@@ -128,12 +129,46 @@ export class AgentServiceV2 {
       }
     }
 
-    const baseUsername = name
-      .toLowerCase()
-      .replace(/[^a-z0-9]/g, '_')
-      .substring(0, 20);
-    const randomSuffix = Math.random().toString(36).substring(2, 8);
-    const agentUsername = `agent_${baseUsername}_${randomSuffix}`;
+    // Use provided username or generate one
+    let agentUsername: string;
+    if (providedUsername) {
+      const trimmed = providedUsername.trim().toLowerCase();
+
+      // Validate format - reject invalid characters instead of sanitizing
+      if (!/^[a-z0-9_]+$/.test(trimmed)) {
+        throw new Error(
+          'Username can only contain lowercase letters, numbers, and underscores'
+        );
+      }
+
+      // Validate username length
+      if (trimmed.length < 3) {
+        throw new Error('Username must be at least 3 characters');
+      }
+      if (trimmed.length > 20) {
+        throw new Error('Username must be at most 20 characters');
+      }
+
+      agentUsername = trimmed;
+
+      // Check uniqueness
+      const existingUser = await db
+        .select({ id: users.id })
+        .from(users)
+        .where(eq(users.username, agentUsername))
+        .limit(1);
+      if (existingUser.length > 0) {
+        throw new Error(`Username '${agentUsername}' is already taken`);
+      }
+    } else {
+      // Auto-generate username for programmatic use cases
+      const baseUsername = name
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, '_')
+        .substring(0, 20);
+      const randomSuffix = Math.random().toString(36).substring(2, 8);
+      agentUsername = `${baseUsername}_${randomSuffix}`;
+    }
     const agentUserId = await generateSnowflakeId();
 
     const agent = await withTransaction(async (tx) => {
@@ -750,16 +785,18 @@ export class AgentServiceV2 {
       );
     }
 
-    // Get agent's current balance
+    // Get agent's current balance and totalDeposited
     const agentResult = await db
       .select({
         virtualBalance: users.virtualBalance,
+        totalDeposited: users.totalDeposited,
       })
       .from(users)
       .where(eq(users.id, agentUserId))
       .limit(1);
 
     const agentBalance = Number(agentResult[0]?.virtualBalance ?? 0);
+    const agentTotalDeposited = Number(agentResult[0]?.totalDeposited ?? 0);
 
     await withTransaction(async (tx) => {
       // Debit from manager
@@ -771,11 +808,12 @@ export class AgentServiceV2 {
         })
         .where(eq(users.id, managerUserId));
 
-      // Credit to agent
+      // Credit to agent (update both virtualBalance and totalDeposited)
       await tx
         .update(users)
         .set({
           virtualBalance: String(agentBalance + amount),
+          totalDeposited: String(agentTotalDeposited + amount),
           updatedAt: new Date(),
         })
         .where(eq(users.id, agentUserId));
@@ -843,16 +881,18 @@ export class AgentServiceV2 {
     );
     if (!agentWithConfig) throw new Error('Agent not found');
 
-    // Get agent's trading balance
+    // Get agent's trading balance and totalWithdrawn
     const agentResult = await db
       .select({
         virtualBalance: users.virtualBalance,
+        totalWithdrawn: users.totalWithdrawn,
       })
       .from(users)
       .where(eq(users.id, agentUserId))
       .limit(1);
 
     const agentBalance = Number(agentResult[0]?.virtualBalance ?? 0);
+    const agentTotalWithdrawn = Number(agentResult[0]?.totalWithdrawn ?? 0);
     if (agentBalance < amount) {
       throw new Error(
         `Insufficient agent trading balance. Have: $${agentBalance.toFixed(2)}, Need: $${amount.toFixed(2)}`
@@ -871,11 +911,12 @@ export class AgentServiceV2 {
     const managerBalance = Number(managerResult[0]?.virtualBalance ?? 0);
 
     await withTransaction(async (tx) => {
-      // Debit from agent
+      // Debit from agent (update both virtualBalance and totalWithdrawn)
       await tx
         .update(users)
         .set({
           virtualBalance: String(agentBalance - amount),
+          totalWithdrawn: String(agentTotalWithdrawn + amount),
           updatedAt: new Date(),
         })
         .where(eq(users.id, agentUserId));

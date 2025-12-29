@@ -40,15 +40,22 @@
     {
       "idx": 5,
       "version": "7",
-      "when": 1735000000000,
-      "tag": "0006_add_nft_gating_to_chats",
+      "when": 1766616474665,
+      "tag": "0005_salty_the_leader",
       "breakpoints": true
     },
     {
       "idx": 6,
       "version": "7",
-      "when": 1735000001000,
-      "tag": "0007_rollback_nft_gating_from_chats",
+      "when": 1766952269293,
+      "tag": "0006_abandoned_maginty",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1767100000000,
+      "tag": "0015_add_nft_gating_to_chats",
       "breakpoints": true
     }
   ]

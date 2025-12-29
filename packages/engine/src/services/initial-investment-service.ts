@@ -576,7 +576,10 @@ Generate investments for ALL ${npcs.length} NPCs. Each NPC must have 2-5 investm
       .where(
         and(
           eq(actorState.id, investment.npcId),
-          gte(actorState.tradingBalance, String(investment.amount))
+          gte(
+            sql<number>`${actorState.tradingBalance}::numeric`,
+            investment.amount
+          )
         )
       )
       .returning({ id: actorState.id });
