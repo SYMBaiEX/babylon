@@ -18,7 +18,7 @@ describe('Game Feedback Validation Schema', () => {
         feedbackType: 'bug',
         description: 'This is a valid bug description',
         stepsToReproduce: '1. Do this\n2. See that',
-        screenshotUrl: 'https://example.com/image.png',
+        screenshotUrl: 'https://test.public.blob.vercel-storage.com/image.png',
       };
       const result = GameFeedbackSchema.safeParse(input);
       expect(result.success).toBe(true);
@@ -119,13 +119,13 @@ describe('Game Feedback Validation Schema', () => {
       expect(result.success).toBe(false);
     });
 
-    test('whitespace-only description counts toward length', () => {
+    test('whitespace-only description is trimmed and rejected', () => {
       const input = {
         feedbackType: 'performance',
         description: ' '.repeat(10),
       };
       const result = GameFeedbackSchema.safeParse(input);
-      expect(result.success).toBe(true); // 10 spaces = 10 chars
+      expect(result.success).toBe(false); // Schema trims whitespace, so 10 spaces becomes empty
     });
   });
 
@@ -295,23 +295,23 @@ describe('Game Feedback Validation Schema', () => {
   // SCREENSHOT URL VALIDATION
   // ============================================
   describe('Screenshot URL Validation', () => {
-    test('valid https URL', () => {
+    test('valid https URL from allowed domain', () => {
       const input = {
         feedbackType: 'bug',
         description: 'Valid bug description',
         stepsToReproduce: 'Steps',
-        screenshotUrl: 'https://example.com/image.png',
+        screenshotUrl: 'https://test.public.blob.vercel-storage.com/image.png',
       };
       const result = GameFeedbackSchema.safeParse(input);
       expect(result.success).toBe(true);
     });
 
-    test('valid http URL', () => {
+    test('valid http URL from allowed domain (local dev)', () => {
       const input = {
         feedbackType: 'bug',
         description: 'Valid bug description',
         stepsToReproduce: 'Steps',
-        screenshotUrl: 'http://localhost:3000/screenshot.jpg',
+        screenshotUrl: 'http://localhost:9000/screenshot.jpg',
       };
       const result = GameFeedbackSchema.safeParse(input);
       expect(result.success).toBe(true);
