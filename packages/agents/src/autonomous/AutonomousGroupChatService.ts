@@ -7,6 +7,7 @@
  */
 
 import { and, db, desc, eq, gte, messages } from '@babylon/db';
+import { shuffleArray } from '@babylon/engine';
 import type { IAgentRuntime } from '@elizaos/core';
 import { callGroqDirect } from '../llm/direct-groq';
 import { getAgentConfig } from '../shared/agent-config';
@@ -162,13 +163,6 @@ Generate ONLY the message text, or "SKIP" if you shouldn't respond.`;
 
     return messagesCreated;
   }
-}
-
-/**
- * Shuffles an array randomly to prevent deterministic ordering starvation
- */
-function shuffleArray<T>(array: T[]): T[] {
-  return [...array].sort(() => Math.random() - 0.5);
 }
 
 export const autonomousGroupChatService = new AutonomousGroupChatService();
