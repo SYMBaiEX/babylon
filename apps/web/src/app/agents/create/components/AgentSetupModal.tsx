@@ -10,7 +10,7 @@ import {
   Upload,
   X as XIcon,
 } from 'lucide-react';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
 import type { ProfileFormData } from '../hooks/useAgentForm';
@@ -34,6 +34,17 @@ export function AgentSetupModal({
 }: AgentSetupModalProps) {
   const { getAccessToken } = useAuth();
   const [localData, setLocalData] = useState<ProfileFormData>(profileData);
+
+  // Sync bio from profileData when template loads (bio comes from template.description)
+  // Truncate to 160 characters if needed
+  useEffect(() => {
+    if (profileData.bio && !localData.bio) {
+      setLocalData((prev) => ({
+        ...prev,
+        bio: profileData.bio.slice(0, 160),
+      }));
+    }
+  }, [profileData.bio, localData.bio]);
 
   // Username availability check
   const { usernameStatus, usernameSuggestion, isCheckingUsername, retryCheck } =
@@ -458,6 +469,51 @@ export function AgentSetupModal({
                 )}
                 placeholder="My Awesome Agent"
               />
+            </div>
+
+            {/* Bio */}
+            <div>
+              <div className="mb-2 flex items-center justify-between">
+                <label
+                  htmlFor="edit-bio"
+                  className="block font-medium text-sm"
+                >
+                  Bio
+                </label>
+                <span
+                  className={cn(
+                    'text-xs',
+                    localData.bio.length > 160
+                      ? 'text-red-500'
+                      : 'text-muted-foreground'
+                  )}
+                >
+                  {localData.bio.length}/160
+                </span>
+              </div>
+              <textarea
+                id="edit-bio"
+                value={localData.bio}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  if (value.length <= 160) {
+                    setLocalData((prev) => ({
+                      ...prev,
+                      bio: value,
+                    }));
+                  }
+                }}
+                maxLength={160}
+                rows={3}
+                className={cn(
+                  'w-full resize-none rounded-lg border border-border bg-muted px-4 py-3',
+                  'focus:outline-none focus:ring-2 focus:ring-[#0066FF]'
+                )}
+                placeholder="A short description of your agent..."
+              />
+              <p className="mt-1.5 text-muted-foreground text-xs">
+                This will appear on your agent's profile.
+              </p>
             </div>
           </div>
         </div>

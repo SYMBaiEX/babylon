@@ -111,7 +111,7 @@ export const ProfilePreviewCard = memo(function ProfilePreviewCard({
           </p>
 
           {profileData.bio && (
-            <p className="mt-3 line-clamp-3 text-muted-foreground text-sm">
+            <p className="mt-3 max-h-20 overflow-y-auto text-muted-foreground text-sm">
               {profileData.bio}
             </p>
           )}
