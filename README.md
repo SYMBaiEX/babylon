@@ -119,6 +119,23 @@ Visit `http://localhost:3000`
 
 ---
 
+## 🤖 AI Assistants (Ruler)
+
+This repo uses **Ruler** to centralize AI coding instructions in `.ruler/**`.
+
+```bash
+# Install deps
+bun install
+
+# Generate local agent config files (gitignored)
+bun run ruler:apply
+```
+
+- Edit rules in `.ruler/**` only (generated files like `AGENTS.md`, `CLAUDE.md`, MCP configs should not be edited manually).
+- For OpenAI Codex CLI to pick up the project config/MCP, set `CODEX_HOME="$(pwd)/.codex"`.
+
+---
+
 ## 🧪 Testing
 
 ```bash

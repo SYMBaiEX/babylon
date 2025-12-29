@@ -712,8 +712,7 @@ Result: Clear causal chain creates learnable pattern:
 - `packages/engine/src/llm/openai-client.ts` - BabylonLLMClient
 
 **Related Documentation:**
-- `AGENTS.md` - Repository guidelines
-- `.cursorrules` - Code style and testing requirements
+- `.ruler/**` - Centralized AI coding instructions (source of truth)
 
 **External References:**
 - Real-world event → price correlation research (to be investigated)
