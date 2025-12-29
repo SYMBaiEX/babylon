@@ -68,6 +68,8 @@ export interface UserTierStatus {
 export class TieredGroupService {
   /**
    * Ensure all 3 tier groups exist for an NPC
+   *
+   * Optimized: Uses batch queries with JOINs instead of N+1 pattern for existing tiers.
    */
   static async ensureAllTiersExist(npcId: string): Promise<TierInfo[]> {
     const actor = StaticDataRegistry.getActor(npcId);
@@ -80,24 +82,42 @@ export class TieredGroupService {
       return [];
     }
 
-    const existingGroups = await db
+    // Single batch query with JOINs for all existing tier data (member counts + chat IDs)
+    const existingTiersWithData = await db
       .select({
         id: groups.id,
         tier: groups.tier,
         name: groups.name,
         maxMembers: groups.maxMembers,
+        chatId: chats.id,
+        memberCount: count(groupMembers.id),
       })
       .from(groups)
+      .leftJoin(chats, eq(chats.groupId, groups.id))
+      .leftJoin(
+        groupMembers,
+        and(
+          eq(groupMembers.groupId, groups.id),
+          eq(groupMembers.isActive, true)
+        )
+      )
       .where(
         and(
           eq(groups.ownerId, npcId),
           eq(groups.type, 'npc'),
           isNotNull(groups.tier)
         )
+      )
+      .groupBy(
+        groups.id,
+        groups.tier,
+        groups.name,
+        groups.maxMembers,
+        chats.id
       );
 
     const existingTierMap = new Map(
-      existingGroups
+      existingTiersWithData
         .filter((g) => isValidTier(g.tier))
         .map((g) => [g.tier as TierLevel, g])
     );
@@ -110,30 +130,13 @@ export class TieredGroupService {
       const config = getTierConfig(tier);
 
       if (existing) {
-        const [countResult] = await db
-          .select({ count: count() })
-          .from(groupMembers)
-          .where(
-            and(
-              eq(groupMembers.groupId, existing.id),
-              eq(groupMembers.isActive, true)
-            )
-          );
-
-        const memberCount = countResult?.count ?? 0;
+        const memberCount = existing.memberCount ?? 0;
         const maxMembers = existing.maxMembers ?? config.maxMembers;
-
-        // Find associated chat
-        const [chat] = await db
-          .select({ id: chats.id })
-          .from(chats)
-          .where(eq(chats.groupId, existing.id))
-          .limit(1);
 
         result.push({
           tier,
           groupId: existing.id,
-          chatId: chat?.id ?? null,
+          chatId: existing.chatId ?? null,
           groupName: existing.name,
           memberCount,
           maxMembers,
@@ -498,11 +501,15 @@ export class TieredGroupService {
         };
       }
 
+      // Generate IDs before transaction to minimize transaction duration
+      const memberId = await generateSnowflakeId();
+      const participantId = targetTier.chatId ? await generateSnowflakeId() : null;
+
       // Wrap multi-step operation in transaction
       await db.$transaction(async (tx) => {
         // Add to group
         await tx.insert(groupMembers).values({
-          id: await generateSnowflakeId(),
+          id: memberId,
           groupId: targetTier.groupId,
           userId,
           role: 'member',
@@ -511,9 +518,9 @@ export class TieredGroupService {
         });
 
         // Add to chat if exists
-        if (targetTier.chatId) {
+        if (targetTier.chatId && participantId) {
           await tx.insert(chatParticipants).values({
-            id: await generateSnowflakeId(),
+            id: participantId,
             chatId: targetTier.chatId,
             userId,
             invitedBy: npcId,
@@ -597,6 +604,19 @@ export class TieredGroupService {
       const currentGroupId = status.groupId;
       const currentTier = status.currentTier;
 
+      // Generate IDs before transaction to minimize transaction duration
+      const newMemberId = await generateSnowflakeId();
+      const newParticipantId = targetTier.chatId
+        ? await generateSnowflakeId()
+        : null;
+
+      // Pre-fetch old chat ID before transaction
+      const [oldChat] = await db
+        .select({ id: chats.id })
+        .from(chats)
+        .where(eq(chats.groupId, currentGroupId))
+        .limit(1);
+
       // Wrap multi-step operation in transaction to prevent orphaned state
       await db.$transaction(async (tx) => {
         // Deactivate old membership
@@ -614,13 +634,7 @@ export class TieredGroupService {
             )
           );
 
-        // Find and deactivate old chat participant
-        const [oldChat] = await tx
-          .select({ id: chats.id })
-          .from(chats)
-          .where(eq(chats.groupId, currentGroupId))
-          .limit(1);
-
+        // Deactivate old chat participant
         if (oldChat) {
           await tx
             .update(chatParticipants)
@@ -635,7 +649,7 @@ export class TieredGroupService {
 
         // Add to new tier
         await tx.insert(groupMembers).values({
-          id: await generateSnowflakeId(),
+          id: newMemberId,
           groupId: targetTier.groupId,
           userId,
           role: 'member',
@@ -645,9 +659,9 @@ export class TieredGroupService {
           promotedAt: new Date(),
         });
 
-        if (targetTier.chatId) {
+        if (targetTier.chatId && newParticipantId) {
           await tx.insert(chatParticipants).values({
-            id: await generateSnowflakeId(),
+            id: newParticipantId,
             chatId: targetTier.chatId,
             userId,
             invitedBy: npcId,
@@ -797,6 +811,23 @@ export class TieredGroupService {
             ? tiers.find((t) => t.tier === lowerTier)
             : null;
 
+          // Pre-fetch old chat ID before transaction
+          const [oldChat] = await db
+            .select({ id: chats.id })
+            .from(chats)
+            .where(eq(chats.groupId, m.groupId))
+            .limit(1);
+
+          // Generate IDs before transaction to minimize transaction duration
+          const newMemberId =
+            lowerTier && targetTier && !targetTier.isFull
+              ? await generateSnowflakeId()
+              : null;
+          const newParticipantId =
+            newMemberId && targetTier?.chatId
+              ? await generateSnowflakeId()
+              : null;
+
           // Wrap multi-step demotion in transaction to prevent orphaned state
           await db.$transaction(async (tx) => {
             // Deactivate current membership
@@ -815,12 +846,6 @@ export class TieredGroupService {
               );
 
             // Deactivate chat participant for the old tier's chat
-            const [oldChat] = await tx
-              .select({ id: chats.id })
-              .from(chats)
-              .where(eq(chats.groupId, m.groupId))
-              .limit(1);
-
             if (oldChat) {
               await tx
                 .update(chatParticipants)
@@ -833,10 +858,10 @@ export class TieredGroupService {
                 );
             }
 
-            if (lowerTier && targetTier && !targetTier.isFull) {
+            if (lowerTier && targetTier && !targetTier.isFull && newMemberId) {
               // Add to lower tier
               await tx.insert(groupMembers).values({
-                id: await generateSnowflakeId(),
+                id: newMemberId,
                 groupId: targetTier.groupId,
                 userId: m.userId,
                 role: 'member',
@@ -845,9 +870,9 @@ export class TieredGroupService {
                 demotedAt: new Date(),
               });
 
-              if (targetTier.chatId) {
+              if (targetTier.chatId && newParticipantId) {
                 await tx.insert(chatParticipants).values({
-                  id: await generateSnowflakeId(),
+                  id: newParticipantId,
                   chatId: targetTier.chatId,
                   userId: m.userId,
                 });

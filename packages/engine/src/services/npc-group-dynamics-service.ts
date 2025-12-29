@@ -546,34 +546,30 @@ export class NPCGroupDynamicsService {
    * - Insider knowledge about questions/markets
    * - Contradictions to their public statements
    * - Strategic coordination with allies
+   *
+   * Optimized: Single query with LEFT JOIN to get tier data upfront instead of N+1.
    */
   private static async postGroupMessages(
     llm: BabylonLLMClient
   ): Promise<number> {
     let messagesPosted = 0;
 
-    // Get active group chats with their group tier info
+    // Get active group chats with tier info in a single query (avoids N+1)
     const groupList = await db
       .select({
         id: chats.id,
         name: chats.name,
         groupId: chats.groupId,
+        tier: groups.tier,
       })
       .from(chats)
+      .leftJoin(groups, eq(groups.id, chats.groupId))
       .where(eq(chats.isGroup, true))
       .limit(20);
 
     for (const group of groupList) {
-      // Get tier from Group table if available
-      let tier: 1 | 2 | 3 | null = null;
-      if (group.groupId) {
-        const [grp] = await db
-          .select({ tier: groups.tier })
-          .from(groups)
-          .where(eq(groups.id, group.groupId))
-          .limit(1);
-        tier = grp?.tier as 1 | 2 | 3 | null;
-      }
+      // Tier is already available from the JOIN
+      const tier = group.tier as 1 | 2 | 3 | null;
 
       // Tier-based message frequency: T1=25%, T2=15%, T3=5%, legacy=25%
       const messageChance =
