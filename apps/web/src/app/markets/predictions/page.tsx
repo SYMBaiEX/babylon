@@ -1,7 +1,7 @@
 'use client';
 
 import { cn, logger } from '@babylon/shared';
-import { ArrowUpDown, Clock, Flame, Search } from 'lucide-react';
+import { ArrowUpDown, CheckCircle, Clock, Flame, Search } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import {
   useCallback,
@@ -38,6 +38,7 @@ export default function PredictionsPage() {
   const deferredSearchQuery = useDeferredValue(searchQuery);
   const [predictionSort, setPredictionSort] =
     useState<PredictionSort>('trending');
+  const [showResolved, setShowResolved] = useState(false);
   const [showCategoryPnLShareModal, setShowCategoryPnLShareModal] =
     useState(false);
 
@@ -254,8 +255,18 @@ export default function PredictionsPage() {
   );
 
   // Sort predictions based on selected option
+  // Filter for truly active markets: status is 'active' AND resolutionDate is in the future (or not set)
   const sortedPredictions = useMemo(() => {
-    const active = filteredPredictions.filter((p) => p.status === 'active');
+    const now = Date.now();
+    const active = filteredPredictions.filter((p) => {
+      // Must have 'active' status
+      if (p.status !== 'active') return false;
+      // If resolutionDate exists and is in the past, it's not active
+      if (p.resolutionDate && new Date(p.resolutionDate).getTime() < now) {
+        return false;
+      }
+      return true;
+    });
 
     const sorted = [...active].sort((a, b) => {
       switch (predictionSort) {
@@ -299,9 +310,17 @@ export default function PredictionsPage() {
   }, [filteredPredictions, predictionSort]);
 
   const activePredictions = sortedPredictions;
-  const resolvedPredictions = filteredPredictions.filter(
-    (p) => p.status === 'resolved'
-  );
+  // Resolved includes: status 'resolved' OR resolutionDate in the past
+  const resolvedPredictions = useMemo(() => {
+    const now = Date.now();
+    return filteredPredictions.filter((p) => {
+      if (p.status === 'resolved') return true;
+      if (p.resolutionDate && new Date(p.resolutionDate).getTime() < now) {
+        return true;
+      }
+      return false;
+    });
+  }, [filteredPredictions]);
 
   // Category P&L data
   const predictionPnLData = useMemo(() => {
@@ -442,7 +461,7 @@ export default function PredictionsPage() {
           </h2>
 
           {/* Sorting Controls */}
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={() => setPredictionSort('trending')}
               className={cn(
@@ -489,6 +508,26 @@ export default function PredictionsPage() {
             >
               <Clock className="mr-1 inline h-3 w-3" />
               Ending Soon
+            </button>
+
+            {/* Separator */}
+            <div className="mx-1 h-4 w-px bg-border" />
+
+            {/* Show Resolved Toggle */}
+            <button
+              onClick={() => setShowResolved(!showResolved)}
+              className={cn(
+                'whitespace-nowrap rounded-full px-3 py-1.5 font-medium text-xs transition-all',
+                showResolved
+                  ? 'bg-purple-600 text-white'
+                  : 'bg-muted/50 text-muted-foreground hover:bg-muted'
+              )}
+              title={
+                showResolved ? 'Hide resolved markets' : 'Show resolved markets'
+              }
+            >
+              <CheckCircle className="mr-1 inline h-3 w-3" />
+              Resolved ({resolvedPredictions.length})
             </button>
           </div>
         </div>
@@ -604,7 +643,7 @@ export default function PredictionsPage() {
           })}
         </div>
 
-        {resolvedPredictions.length > 0 && (
+        {showResolved && resolvedPredictions.length > 0 && (
           <>
             <h2 className="mt-6 font-bold text-muted-foreground text-sm">
               RESOLVED ({resolvedPredictions.length})
