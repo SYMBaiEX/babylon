@@ -109,7 +109,13 @@ def evaluate_trajectory(traj: BabylonTrajectory):
 
 
 def main():
-    source_dir = "../engine/training-data-output/trajectories"
+    # Look for trajectory data in the training package output directory
+    source_dir = Path(__file__).parent.parent.parent / "training-data-output" / "trajectories"
+    if not source_dir.exists():
+        # Fallback to engine output if training output doesn't exist
+        source_dir = Path(__file__).parent.parent.parent.parent / "engine" / "training-data-output" / "trajectories"
+    
+    source_dir = str(source_dir)
     try:
         reader = JsonTrajectoryReader(source_dir)
         window_ids = reader.get_window_ids()

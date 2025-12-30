@@ -274,6 +274,8 @@ async function runBenchmark() {
   for (const ranking of report.rankings) {
     console.log(`    ${ranking}`);
   }
+
+  process.exit(0);
 }
 
 /**
