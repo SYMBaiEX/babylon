@@ -144,9 +144,36 @@ Goal: make PRs easy to review + easy to ship.
 </details>
 
 ## Screenshots / recordings (UI)
-<!-- UI changes: add before/after screenshots, or a short recording. -->
+<!--
+⚠️ REQUIRED SECTION - Do not leave empty.
 
-- …
+Choose ONE of the following:
+
+1. **If visual changes exist**: Add screenshots (before/after) or a short recording.
+   - For recordings: describe the "demo script" (what to show, user flow, expected behavior).
+   - For screenshots: describe what the screenshot demonstrates.
+
+2. **If no visual changes**: Explain WHY a screenshot/recording is not relevant.
+   Examples:
+   - "Backend-only change, no UI impact"
+   - "Refactor with no behavior change"
+   - "API route change, not user-facing"
+-->
+
+<!-- Delete the option that doesn't apply: -->
+
+### Option A: Visual demo
+
+| Feature | Before | After |
+|---------|--------|-------|
+| … | … | … |
+
+*Demo script (for recording):*
+1. …
+
+### Option B: No visual changes
+
+- Reason: …
 
 ## Checklist (author)
 - [ ] Self-review done (diff + critical paths)
@@ -158,3 +185,4 @@ Goal: make PRs easy to review + easy to ship.
 - [ ] Tests added/updated for behavior changes (or rationale provided)
 - [ ] Dependency changes are intentional (`bun.lock` updated)
 - [ ] Code owners requested (auto via CODEOWNERS or manual)
+- [ ] **Screenshots/recordings section filled** (visual demo OR explanation why N/A)
