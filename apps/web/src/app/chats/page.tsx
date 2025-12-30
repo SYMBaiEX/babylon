@@ -125,8 +125,8 @@ export default function ChatsPage() {
   return (
     <>
       {/* Use fixed viewport heights to ensure proper scroll containment */}
-      {/* Mobile: 100dvh - 56px header - 56px bottom nav = calc(100dvh - 112px) */}
-      {/* Desktop: full viewport height */}
+      {/* Mobile: 100dvh - 56px (MobileHeader pt-14) - 56px (BottomNav pb-14) = 112px */}
+      {/* Desktop: full viewport height (no header/nav padding) */}
       <div className="flex h-[calc(100dvh-112px)] flex-col overflow-hidden md:h-dvh">
         {/* Desktop: Two Column Layout */}
         <div className="hidden min-h-0 flex-1 flex-col overflow-hidden xl:flex">
@@ -232,12 +232,7 @@ export default function ChatsPage() {
 
               {/* Chat View (full screen on mobile, shared on tablet) */}
               {selectedChatId && chatDetails && (
-                <div
-                  className={cn(
-                    'h-full min-h-0 flex-1 bg-background',
-                    !selectedChatId ? 'hidden lg:block' : 'block'
-                  )}
-                >
+                <div className="block h-full min-h-0 flex-1 bg-background">
                   <ChatView
                     chatDetails={chatDetails}
                     currentUserId={user?.id}

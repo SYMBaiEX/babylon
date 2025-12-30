@@ -77,7 +77,7 @@ export function MessageInput({
             'max-h-40 min-h-[44px] flex-1 resize-none overflow-y-auto rounded-lg px-4 py-3 text-sm',
             'message-input bg-sidebar-accent/50',
             'text-foreground placeholder:text-muted-foreground',
-            'outline-none',
+            'outline-none focus:ring-2 focus:ring-primary/50',
             'disabled:cursor-not-allowed disabled:opacity-50'
           )}
         />
