@@ -10,6 +10,7 @@
  * Uses the Unicode character Ƀ (U+0243) - Latin Capital Letter B with Stroke
  *
  * Chosen for its horizontal stroke through B, giving a distinct Babylon identity
+ * Better rendering and prominence than lowercase variant
  */
 export const BABYLON_POINTS_SYMBOL = 'Ƀ';
 

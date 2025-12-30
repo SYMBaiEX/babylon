@@ -278,7 +278,7 @@ export default function PredictionDetailPage() {
 
     const amountNum = Number.parseFloat(amount) || 0;
     if (amountNum < 1) {
-      toast.error('Minimum bet is ₿1');
+      toast.error(`Minimum bet is ${BABYLON_POINTS_SYMBOL}1`);
       return;
     }
 

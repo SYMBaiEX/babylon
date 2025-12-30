@@ -135,7 +135,7 @@ export function PredictionTradingModal({
     if (!user) return;
 
     if (amountNum < 1) {
-      toast.error('Minimum bet is ₿1');
+      toast.error(`Minimum bet is ${BABYLON_POINTS_SYMBOL}1`);
       return;
     }
 
@@ -332,7 +332,7 @@ export function PredictionTradingModal({
                 'w-full rounded bg-muted/50 px-4 py-3 font-medium text-base text-foreground focus:bg-muted focus:outline-none focus:ring-2 focus:ring-[#0066FF]/30 sm:text-lg',
                 loading && 'cursor-not-allowed opacity-50'
               )}
-              placeholder="Min: $1"
+              placeholder={`Min: ${BABYLON_POINTS_SYMBOL}1`}
             />
           </div>
 

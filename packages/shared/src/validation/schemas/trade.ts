@@ -266,7 +266,7 @@ export const PredictionMarketTradeSchema = z.object({
   amount: z
     .number()
     .positive({ message: 'Amount must be positive' })
-    .min(1, { message: 'Minimum order size is $1' }),
+    .min(1, { message: 'Minimum order size is Ƀ1' }),
 });
 
 /**

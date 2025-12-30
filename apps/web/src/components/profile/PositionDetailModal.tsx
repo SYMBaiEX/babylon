@@ -5,7 +5,8 @@ import {
   PredictionPricing,
 } from '@babylon/core/markets/prediction/client';
 import type { PerpPositionFromAPI, PredictionPosition } from '@babylon/shared';
-import { cn, type JsonValue } from '@babylon/shared';
+import { BABYLON_POINTS_SYMBOL, cn, type JsonValue } from '@babylon/shared';
+import { formatPrice } from '@/app/markets/_lib/formatters';
 import { usePrivy } from '@privy-io/react-auth';
 import {
   AlertTriangle,
@@ -206,7 +207,7 @@ export function PositionDetailModal({
 
     const sizeNum = parseFloat(size) || 0;
     if (sizeNum < perpMarket.minOrderSize) {
-      toast.error(`Minimum order size is $${perpMarket.minOrderSize}`);
+      toast.error(`Minimum order size is ${BABYLON_POINTS_SYMBOL}${perpMarket.minOrderSize}`);
       return;
     }
 
@@ -255,7 +256,7 @@ export function PositionDetailModal({
 
     const amountNum = parseFloat(amount) || 0;
     if (amountNum < 1) {
-      toast.error('Minimum bet is ₿1');
+      toast.error(`Minimum bet is ${BABYLON_POINTS_SYMBOL}1`);
       return;
     }
 
@@ -304,10 +305,6 @@ export function PositionDetailModal({
     return points.toLocaleString('en-US', {
       maximumFractionDigits: 0,
     });
-  };
-
-  const formatPrice = (price: number) => {
-    return `$${price.toFixed(2)}`;
   };
 
   const formatPercent = (value: number) => {
@@ -727,7 +724,7 @@ export function PositionDetailModal({
                       min="1"
                       step="1"
                       className="w-full rounded bg-muted/50 px-4 py-3 font-medium text-base text-foreground focus:bg-muted focus:outline-none focus:ring-2 focus:ring-[#0066FF]/30"
-                      placeholder="Min: $1"
+                      placeholder={`Min: ${BABYLON_POINTS_SYMBOL}1`}
                     />
                   </div>
 
@@ -835,7 +832,7 @@ export function PositionDetailModal({
                         min={perpMarket.minOrderSize}
                         step="10"
                         className="w-32 rounded bg-background/50 px-3 py-1.5 text-right font-medium text-foreground focus:bg-background focus:outline-none focus:ring-2 focus:ring-[#0066FF]/30"
-                        placeholder={`Min: $${perpMarket.minOrderSize}`}
+                        placeholder={`Min: ${BABYLON_POINTS_SYMBOL}${perpMarket.minOrderSize}`}
                       />
                     </div>
                     <div>

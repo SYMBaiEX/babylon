@@ -1,7 +1,7 @@
 'use client';
 
 import { FEE_CONFIG } from '@babylon/engine/config/fees';
-import { cn } from '@babylon/shared';
+import { BABYLON_POINTS_SYMBOL, cn } from '@babylon/shared';
 import { formatPrice, formatVolume } from '@/app/markets/_lib/formatters';
 import {
   AlertTriangle,
@@ -112,7 +112,7 @@ export default function PerpDetailPage() {
 
     const sizeNum = Number.parseFloat(size) || 0;
     if (sizeNum < market.minOrderSize) {
-      toast.error(`Minimum order size is $${market.minOrderSize}`);
+      toast.error(`Minimum order size is ${BABYLON_POINTS_SYMBOL}${market.minOrderSize}`);
       return;
     }
 
@@ -385,7 +385,7 @@ export default function PerpDetailPage() {
                   min={market.minOrderSize}
                   step="10"
                   className="w-full rounded bg-background px-4 py-3 font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-[#0066FF]/30"
-                  placeholder={`Min: $${market.minOrderSize}`}
+                  placeholder={`Min: ${BABYLON_POINTS_SYMBOL}${market.minOrderSize}`}
                 />
               </div>
               <div>
