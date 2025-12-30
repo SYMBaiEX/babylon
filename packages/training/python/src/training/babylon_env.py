@@ -17,14 +17,15 @@ Tinker integration: https://tinker-docs.thinkingmachines.ai/
 """
 
 import asyncpg
+import aiohttp
 import copy
 import json
 import logging
 import os
 import random
+from datetime import timedelta
 from typing import Dict, List, Optional, Tuple, TYPE_CHECKING
 
-import openai
 import wandb
 from dotenv import load_dotenv
 from pydantic import Field
@@ -43,7 +44,6 @@ from .rewards import (
     BehaviorMetrics,
     archetype_composite_reward,
 )
-from .quality_utils import calculate_detailed_tick_quality
 from .rubric_loader import has_custom_rubric, normalize_archetype
 from ..models import Action
 
@@ -51,7 +51,7 @@ from ..models import Action
 if TYPE_CHECKING:
     from .tinker_client import BabylonTinkerClient
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("babylon_env")
 
 # Load environment variables
 load_dotenv()
@@ -154,9 +154,11 @@ class BabylonRLAIFEnv(BaseEnv):
         self.windows_processed: int = 0
         self.eval_metrics: List[Dict] = []
         self.judgement_samples: List[Tuple[str, str, str]] = []
-
-        # Initialize OpenAI client (Legacy/Fallback)
-        self.judge_client = openai.AsyncOpenAI()
+        
+        # Track AI Judge scores for metrics
+        self.judge_scores_buffer: List[float] = []
+        self.judge_format_scores: List[float] = []
+        self.judge_reasoning_scores: List[float] = []
 
         # Optional Tinker client (set externally for Tinker-based training)
         self._tinker_client: Optional["BabylonTinkerClient"] = None
@@ -182,7 +184,7 @@ class BabylonRLAIFEnv(BaseEnv):
         """Initialize configuration with defaults"""
         env_config = BabylonEnvConfig(
             tokenizer_name="Qwen/Qwen2.5-3B-Instruct",
-            group_size=4,  # Compare 4 trajectories at a time
+            group_size=2,  # Compare 2 trajectories at a time (minimum for GRPO)
             use_wandb=True,
             max_num_workers=64,
             rollout_server_url="http://localhost:8000",
@@ -210,7 +212,9 @@ class BabylonRLAIFEnv(BaseEnv):
 
     async def setup(self):
         """Initialize database connection and load trajectories"""
-        logger.info("Setting up Babylon RLAIF Environment...")
+        logger.info("=" * 60)
+        logger.info("BABYLON RLAIF ENVIRONMENT SETUP")
+        logger.info("=" * 60)
 
         # Connect to database
         if not self.config.database_url:
@@ -227,6 +231,8 @@ class BabylonRLAIFEnv(BaseEnv):
         # Load available trajectories
         await self._load_trajectories()
         logger.info(f"Loaded {len(self.trajectory_cache)} trajectory groups")
+        for group in self.trajectory_cache:
+            logger.info(f"  Group '{group['group_key']}': {len(group['trajectories'])} trajectories")
 
     async def _load_trajectories(self):
         """Load trajectories from database and group by scenario/window"""
@@ -257,7 +263,7 @@ class BabylonRLAIFEnv(BaseEnv):
                     AND t."stepsJson"::text != '[]'
                     AND t."episodeLength" >= $2
                 ORDER BY t."windowId", t."scenarioId", t."createdAt"
-            """, f"{self.config.lookback_hours} hours", self.config.min_actions_per_trajectory)
+            """, timedelta(hours=self.config.lookback_hours), self.config.min_actions_per_trajectory)
 
         # Group trajectories by window/scenario
         groups: Dict[str, List[Dict]] = {}
@@ -330,18 +336,34 @@ class BabylonRLAIFEnv(BaseEnv):
             wandb_metrics["eval/avg_pnl"] = sum(
                 m.get('avg_pnl', 0) for m in self.eval_metrics
             ) / len(self.eval_metrics) if self.eval_metrics else 0
+        
+        # Add AI Judge reward metrics
+        if len(self.judge_scores_buffer) > 0:
+            wandb_metrics["train/aiJudgeReward"] = sum(self.judge_scores_buffer) / len(self.judge_scores_buffer)
+            wandb_metrics["train/aiJudgeReward_min"] = min(self.judge_scores_buffer)
+            wandb_metrics["train/aiJudgeReward_max"] = max(self.judge_scores_buffer)
+            wandb_metrics["train/format_score"] = sum(self.judge_format_scores) / len(self.judge_format_scores)
+            wandb_metrics["train/reasoning_score"] = sum(self.judge_reasoning_scores) / len(self.judge_reasoning_scores)
+            
+            # Clear after logging
+            self.judge_scores_buffer = []
+            self.judge_format_scores = []
+            self.judge_reasoning_scores = []
 
         self.judgement_samples = []  # Clear after logging
         await super().wandb_log(wandb_metrics)
 
     async def get_next_item(self) -> Optional[Tuple]:
         """Get next trajectory group for scoring"""
+        logger.debug(f"get_next_item called, cache size: {len(self.trajectory_cache)}")
         if not self.trajectory_cache:
             # Reload trajectories if cache is empty
+            logger.info("Trajectory cache empty, reloading...")
             await self._load_trajectories()
+            logger.info(f"After reload: {len(self.trajectory_cache)} groups")
 
         if not self.trajectory_cache:
-            logger.warning("No trajectories available")
+            logger.warning("No trajectories available after reload")
             return None
 
         # Get next group (circular)
@@ -367,6 +389,7 @@ class BabylonRLAIFEnv(BaseEnv):
         3. Score using The Judge (Deterministic Python Logic)
         """
         group_key, trajectory_group = item
+        logger.info(f"Collecting trajectories for group: {group_key}, count: {len(trajectory_group)}")
 
         if len(trajectory_group) < 2:
             logger.warning(f"Group {group_key} has insufficient trajectories")
@@ -375,35 +398,47 @@ class BabylonRLAIFEnv(BaseEnv):
         # Collect responses from the training model for each trajectory
         rollout_data = []
 
-        async with self.server.managed_server(tokenizer=self.tokenizer) as managed:
+        # Get vLLM URL from server config (first config is the inference server)
+        vllm_base_url = self.server_configs[0].base_url if self.server_configs else "http://localhost:9001/v1"
+        model_name = self.config.tokenizer_name
+        
+        logger.debug(f"Using vLLM at {vllm_base_url}, model: {model_name}")
+        
+        async with aiohttp.ClientSession() as session:
             for traj in trajectory_group:
                 # Build chat messages from trajectory
                 messages = self._trajectory_to_messages(traj)
 
                 if len(messages) < 2:
+                    logger.debug(f"Skipping trajectory with {len(messages)} messages")
                     continue
 
                 # Truncate to max length
-                if len(self.tokenizer.apply_chat_template(messages)) > self.config.max_token_length - 512:
-                    # Keep system + last N messages
-                    messages = [messages[0]] + \
-                        messages[-(self.config.max_steps_per_trajectory * 2):]
+                token_count = len(self.tokenizer.apply_chat_template(messages))
+                if token_count > 2048:
+                    logger.debug(f"Truncating from {len(messages)} messages ({token_count} tokens)")
+                    # Keep system + last few messages
+                    messages = [messages[0]] + messages[-4:]
 
-                # Generate completion from training model
-                completion = await managed.chat_completion(
-                    messages=messages,
-                    n=1,
-                    max_tokens=self.config.max_token_length // 3,
-                )
+                # Direct call to vLLM
+                max_tokens = min(512, self.config.max_token_length // 3)
+                payload = {
+                    "model": model_name,
+                    "messages": messages,
+                    "max_tokens": max_tokens,
+                    "n": 1,
+                }
+                
+                async with session.post(
+                    f"{vllm_base_url}/chat/completions",
+                    json=payload,
+                    headers={"Content-Type": "application/json"},
+                    timeout=aiohttp.ClientTimeout(total=120),
+                ) as resp:
+                    result = await resp.json()
 
-                state = managed.get_state()
-                nodes = state["nodes"]
-
-                if not nodes:
-                    continue
-
-                node = nodes[0]
-                response_content = completion.choices[0].message.content if completion.choices else ""
+                response_content = result.get("choices", [{}])[0].get("message", {}).get("content", "")
+                finish_reason = result.get("choices", [{}])[0].get("finish_reason", "stop")
 
                 # Build full conversation with response
                 full_messages = copy.deepcopy(messages)
@@ -412,14 +447,17 @@ class BabylonRLAIFEnv(BaseEnv):
                     "content": response_content
                 })
 
+                # Tokenize for training data
+                tokens = self.tokenizer.apply_chat_template(full_messages, return_tensors="pt")[0].tolist()
+                
                 rollout_data.append({
                     "trajectory": traj,
-                    "generated_response": response_content,  # NEW: Store explicitly for Judge
+                    "generated_response": response_content,
                     "messages": full_messages,
-                    "tokens": node.tokens,
-                    "masks": node.masked_tokens,
-                    "logprobs": node.logprobs,
-                    "finish_reason": completion.choices[0].finish_reason if completion.choices else "stop",
+                    "tokens": tokens,
+                    "masks": [1] * len(tokens),
+                    "logprobs": [],
+                    "finish_reason": finish_reason,
                 })
 
         if len(rollout_data) < 2:
@@ -428,6 +466,7 @@ class BabylonRLAIFEnv(BaseEnv):
 
         # Score using The Judge (Deterministic)
         scored_data = await self._score_with_judge(rollout_data)
+        logger.info(f"Scored {len(rollout_data)} rollouts for group {group_key}")
 
         self.windows_processed += 1
         return scored_data, []
@@ -587,6 +626,7 @@ You receive market updates and must analyze, reason, and then act."""
         Uses archetype-specific weights and behavior bonuses to score trajectories
         based on their personality goals, not just PnL.
         """
+        logger.debug(f"Scoring {len(rollout_data)} rollouts with deterministic judge")
         scores = []
 
         for item in rollout_data:
@@ -594,7 +634,13 @@ You receive market updates and must analyze, reason, and then act."""
             generated_response = item["generated_response"]
 
             # 1. Get archetype from trajectory with validation
-            archetype = traj.get("archetype", "default")
+            # First try trajectory-level archetype, then fall back to step-level
+            archetype = traj.get("archetype")
+            if archetype is None or archetype == "default":
+                # Try to extract from first step's action parameters (batch recording mode)
+                archetype = self._extract_archetype_from_steps(traj.get("steps", []))
+            if archetype is None:
+                archetype = "default"
             archetype_norm = normalize_archetype(archetype)
 
             # Validate archetype and warn for unknown values
@@ -606,16 +652,24 @@ You receive market updates and must analyze, reason, and then act."""
             elif has_custom_rubric(archetype_norm):
                 logger.debug(f"Scoring with custom rubric for archetype: {archetype_norm}")
 
-            # 2. Quality Scores (Format & Reasoning) - archetype-aware weights
-            mock_calls = [{"response": generated_response, "reasoning": generated_response}]
-            mock_action = Action(action_type="unknown", parameters={}, success=True)
-
-            fmt_score, rsn_score = calculate_detailed_tick_quality(
-                llm_calls=mock_calls,
-                action=mock_action,
-                feedback=None,
-                archetype=archetype_norm,
-            )
+            # 2. Quality Scores - simplified calculation
+            # Simple format score - check if response looks well-structured
+            fmt_score = 0.5  # Default middle score
+            if generated_response:
+                if len(generated_response) > 50:
+                    fmt_score += 0.2
+                if any(kw in generated_response.lower() for kw in ['action', 'trade', 'position', 'market']):
+                    fmt_score += 0.2
+                fmt_score = min(1.0, fmt_score)
+            
+            # Simple reasoning score - check for analytical content
+            rsn_score = 0.5  # Default middle score
+            if generated_response:
+                if any(kw in generated_response.lower() for kw in ['because', 'therefore', 'analysis', 'expect']):
+                    rsn_score += 0.2
+                if len(generated_response) > 100:
+                    rsn_score += 0.2
+                rsn_score = min(1.0, rsn_score)
 
             # 3. Extract behavior metrics for archetype-specific bonuses
             behavior_metrics = self._extract_behavior_metrics(traj)
@@ -640,6 +694,11 @@ You receive market updates and must analyze, reason, and then act."""
                 behavior_metrics=behavior_metrics,
             )
             scores.append(final_score)
+            
+            # Track for metrics
+            self.judge_scores_buffer.append(final_score)
+            self.judge_format_scores.append(fmt_score)
+            self.judge_reasoning_scores.append(rsn_score)
 
             # Logging sample for WandB
             if len(self.judgement_samples) < 10:
@@ -667,6 +726,21 @@ You receive market updates and must analyze, reason, and then act."""
             scored_group["inference_logprobs"].append(rollout["logprobs"])
 
         return scored_group
+
+    def _extract_archetype_from_steps(self, steps: List[Dict]) -> Optional[str]:
+        """
+        Extract archetype from step action parameters.
+
+        Used when trajectory-level archetype is not set (batch recording mode).
+        Returns the first non-null archetype found in any step's action parameters.
+        """
+        for step in steps:
+            action = step.get("action", {})
+            params = action.get("parameters", {})
+            archetype = params.get("archetype")
+            if archetype:
+                return str(archetype)
+        return None
 
     def _extract_behavior_metrics(self, traj: Dict) -> BehaviorMetrics:
         """

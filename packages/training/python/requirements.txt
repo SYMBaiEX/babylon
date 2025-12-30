@@ -46,6 +46,11 @@ pytest>=7.4.0
 pytest-asyncio>=0.21.0
 
 # ===========================================
+# Experiment Tracking (Optional)
+# ===========================================
+wandb>=0.16.0  # W&B integration, falls back to offline mode if no API key
+
+# ===========================================
 # Utilities
 # ===========================================
 tqdm>=4.66.0
