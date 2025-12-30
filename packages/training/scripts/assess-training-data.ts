@@ -166,7 +166,7 @@ async function main() {
   result.counts.llmCallLogs = llmLogsCount[0]?.count ?? 0;
   console.log(`  LLM call logs: ${result.counts.llmCallLogs}`);
 
-  // 10. Get archetype breakdown from agent names/goals
+  // 10. Get archetype breakdown from agent names
   console.log('\nAnalyzing archetype distribution...');
   const allAgents = await db
     .select({
@@ -174,7 +174,6 @@ async function main() {
       displayName: users.displayName,
       username: users.username,
       lifetimePnL: users.lifetimePnL,
-      agentGoals: users.agentGoals,
     })
     .from(users)
     .where(eq(users.isAgent, true))
@@ -187,39 +186,27 @@ async function main() {
   >();
 
   for (const agent of allAgents) {
-    // Try to detect archetype from goals or name
+    // Detect archetype from name
     let archetype = 'unknown';
-
-    // Check agentGoals for archetype info
-    if (agent.agentGoals && typeof agent.agentGoals === 'object') {
-      const goals = agent.agentGoals as Record<string, unknown>;
-      if (goals.archetype && typeof goals.archetype === 'string') {
-        archetype = goals.archetype;
-      }
-    }
-
-    // Fallback: detect from name
-    if (archetype === 'unknown') {
-      const name = (agent.displayName || agent.username || '').toLowerCase();
-      const archetypes = [
-        'trader',
-        'degen',
-        'scammer',
-        'social-butterfly',
-        'researcher',
-        'information-trader',
-        'goody-twoshoes',
-        'ass-kisser',
-        'perps-trader',
-        'super-predictor',
-        'infosec',
-        'liar',
-      ];
-      for (const a of archetypes) {
-        if (name.includes(a.replace('-', '')) || name.includes(a)) {
-          archetype = a;
-          break;
-        }
+    const name = (agent.displayName || agent.username || '').toLowerCase();
+    const archetypes = [
+      'trader',
+      'degen',
+      'scammer',
+      'social-butterfly',
+      'researcher',
+      'information-trader',
+      'goody-twoshoes',
+      'ass-kisser',
+      'perps-trader',
+      'super-predictor',
+      'infosec',
+      'liar',
+    ];
+    for (const a of archetypes) {
+      if (name.includes(a.replace('-', '')) || name.includes(a)) {
+        archetype = a;
+        break;
       }
     }
 
@@ -431,6 +418,8 @@ ${result.summary.recommendations.length > 0 ? result.summary.recommendations.map
   console.log(
     '\n═══════════════════════════════════════════════════════════════'
   );
+
+  process.exit(0);
 }
 
 main().catch((err) => {
