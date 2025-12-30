@@ -96,6 +96,14 @@ export function BuyPointsModal({
   // AbortController for canceling async operations
   const abortControllerRef = useRef<AbortController | null>(null);
 
+  // Ref to track smartWalletReady state for use in while loop (avoids stale closure)
+  const smartWalletReadyRef = useRef(smartWalletReady);
+
+  // Keep ref updated when smartWalletReady changes
+  useEffect(() => {
+    smartWalletReadyRef.current = smartWalletReady;
+  }, [smartWalletReady]);
+
   const ensureFunds = useCallback(
     async (requiredAmountWei: bigint, signal?: AbortSignal) => {
       if (!smartWalletAddress) {
@@ -152,7 +160,7 @@ export function BuyPointsModal({
           await new Promise((resolve) => {
             const timeout = setTimeout(resolve, pollInterval);
             // Cancel timeout if operation is aborted
-            signal?.addEventListener('abort', () => clearTimeout(timeout));
+            signal?.addEventListener('abort', () => clearTimeout(timeout), { once: true });
           });
         }
       }
@@ -243,13 +251,13 @@ export function BuyPointsModal({
       const checkInterval = 100;
       const startTime = Date.now();
 
-      while (!smartWalletReady && Date.now() - startTime < maxWaitTime) {
+      while (!smartWalletReadyRef.current && Date.now() - startTime < maxWaitTime) {
         await new Promise((resolve) => setTimeout(resolve, checkInterval));
       }
 
       setWalletInitializing(false);
 
-      if (!smartWalletReady) {
+      if (!smartWalletReadyRef.current) {
         toast.error(
           'Wallet is still initializing. Please try again in a moment.'
         );
