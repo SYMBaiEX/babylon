@@ -136,14 +136,14 @@ describe('safeExtractFromResponse', () => {
       expect(result).toBeNull();
     });
 
-    it('should prefer direct field over wrapped response', () => {
+    it('should prefer wrapped response over direct field', () => {
       const response = {
         content: 'direct value',
         response: {
           content: 'wrapped value',
         },
       };
-      // The function checks wrapped first, so wrapped value wins
+      // The function checks wrapped response.response.field first
       const result = safeExtractFromResponse<string>(response, 'content');
       expect(result).toBe('wrapped value');
     });

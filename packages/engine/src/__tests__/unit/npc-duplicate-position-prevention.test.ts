@@ -40,7 +40,11 @@ describe('NPC Duplicate Position Prevention', () => {
 
   describe('Allocation Skipping Logic', () => {
     /**
-     * Simulates the baseline decision building logic
+     * Simulates the baseline decision building logic.
+     *
+     * NOTE: This mirrors the allocation logic in NPCInvestmentManager.buildBaselineDecisions().
+     * If that logic changes, this mock should be updated to match.
+     * See: packages/engine/src/npc/npc-investment-manager.ts
      */
     function buildMockDecisions(
       targetTickers: string[],

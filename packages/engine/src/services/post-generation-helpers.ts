@@ -42,12 +42,35 @@ import { characterMappingService } from './character-mapping-service';
 /**
  * Safely extract content from LLM response that may be wrapped in XML structure.
  * Guards against LLM returning raw strings instead of objects.
+ *
+ * @typeParam T - The expected type of the extracted field. When the LLM returns
+ *   a raw string instead of an XML-parsed object, the string is returned directly
+ *   as T. This is safe when T is `string`, but callers expecting complex types
+ *   should handle the raw string case appropriately.
+ *
+ * @param response - The LLM response (could be raw string, object, or wrapped object)
+ * @param fieldName - The field to extract from the response object
+ * @returns The extracted value as T, or null if not found
+ *
+ * @remarks
+ * **Type Safety Warning:** When response is a raw string, it is returned as T without
+ * runtime validation. This is acceptable for string extraction but may cause type
+ * mismatches if T is a complex object type. Callers should validate the return type
+ * if T is not string.
+ *
+ * Priority order:
+ * 1. If response is a string, return it directly (LLM returned raw text)
+ * 2. If response has response.{fieldName}, extract from wrapped structure
+ * 3. If response has {fieldName} directly, extract it
+ * 4. Return null if field not found
  */
 export function safeExtractFromResponse<T>(
   response: unknown,
   fieldName: string
 ): T | null {
   // Handle raw string responses (LLM returned text instead of XML)
+  // Note: This returns the string as T, which is safe when T is string
+  // but may cause type mismatches for complex T types
   if (typeof response === 'string') {
     return response as T;
   }

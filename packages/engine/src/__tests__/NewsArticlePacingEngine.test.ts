@@ -508,6 +508,26 @@ describe('NewsArticlePacingEngine', () => {
         expect(selected.length).toBe(1);
       });
 
+      it('should default maxOrgs to 2 when not specified', () => {
+        // Create 5 orgs to verify the default limit of 2
+        const manyOrgs = [
+          { id: 'org-1', name: 'Org 1' },
+          { id: 'org-2', name: 'Org 2' },
+          { id: 'org-3', name: 'Org 3' },
+          { id: 'org-4', name: 'Org 4' },
+          { id: 'org-5', name: 'Org 5' },
+        ];
+
+        const selected = pacer.selectOrgsForArcEvent(
+          'arc-default',
+          'created',
+          manyOrgs
+        );
+
+        // Default maxOrgs is 2
+        expect(selected.length).toBe(2);
+      });
+
       it('should clear arc event coverage', () => {
         pacer.recordArcEventCoverage('arc-1', 'org-1', 'created', 'article-1');
         expect(
