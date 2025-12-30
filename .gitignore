@@ -79,11 +79,18 @@ debug/
 # Training simulation output
 packages/engine/training-data-output
 packages/training/data/scored_trajectories.csv
-simulation-output/state.json
+simulation-output/
 packages/training/trained_models
 packages/training/benchmark-results
 packages/training/benchmarks
 packages/training/training-data-output
+
+# Generated output directories (benchmarks, research, etc.)
+benchmark-output/
+research-output/
+
+# Dependency analysis artifacts
+circular-deps.*
 
 # Local metrics and audit files
 .metrics/

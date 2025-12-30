@@ -79,10 +79,17 @@ mock.module('@babylon/db', () => {
       onConflictDoNothing: mock(() => builder),
       // Make the builder awaitable
       then: <TResult1 = Array<{ id: string }>, TResult2 = never>(
-        onFulfilled?: ((value: Array<{ id: string }>) => TResult1 | PromiseLike<TResult1>) | null,
-        onRejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null
+        onFulfilled?:
+          | ((value: Array<{ id: string }>) => TResult1 | PromiseLike<TResult1>)
+          | null,
+        onRejected?:
+          | ((reason: unknown) => TResult2 | PromiseLike<TResult2>)
+          | null
       ): Promise<TResult1 | TResult2> => {
-        return Promise.resolve([{ id: 'mock-lock-id' }]).then(onFulfilled, onRejected);
+        return Promise.resolve([{ id: 'mock-lock-id' }]).then(
+          onFulfilled,
+          onRejected
+        );
       },
     };
     return builder;
