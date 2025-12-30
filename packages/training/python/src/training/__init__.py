@@ -109,6 +109,62 @@ from .schemas import (
     ValidationResult as SchemaValidationResult,
 )
 
+# Phase 1 & 2: Online GRPO Training Infrastructure
+from .scenario_pool import (
+    Scenario,
+    ScenarioPool,
+    ScenarioPoolConfig,
+    CurriculumManager,
+    MarketState,
+    PerpetualState,
+    NewsItem,
+    SocialPost,
+    PortfolioState as ScenarioPortfolioState,
+)
+
+from .tokenization_utils import (
+    TokenizationResult,
+    tokenize_for_trainer,
+    tokenize_conversation_for_trainer,
+    validate_masks,
+    create_masks_from_response_start,
+    fix_historical_masks,
+)
+
+from .action_executor import (
+    ActionResult,
+    ActionExecutor,
+    PortfolioState as ExecutorPortfolioState,
+    validate_action,
+    execute_action_for_training,
+    calculate_action_quality_bonus,
+)
+
+from .format_validator import (
+    ThinkTagResult,
+    ActionValidationResult,
+    ReasoningQualityResult,
+    LengthAnalysisResult,
+    FormatValidationResult,
+    validate_response_format,
+    validate_think_tags,
+    validate_action_json,
+    get_format_and_reasoning_scores,
+    validate_for_training,
+)
+
+from .quality_scorer import (
+    QualityScore,
+    calculate_thinking_length_penalty,
+    calculate_response_length_penalty,
+    calculate_combined_length_penalty,
+    score_response,
+    score_response_for_reward,
+    get_quality_bonus_for_archetype,
+    score_response_batch,
+    get_relative_quality_scores,
+)
+
 # Error recovery and graceful degradation
 from .error_recovery import (
     ErrorCategory,
@@ -151,6 +207,16 @@ def __getattr__(name: str):
         from .babylon_env import (  # noqa: F401
             BabylonRLAIFEnv,
             BabylonEnvConfig,
+        )
+        return locals()[name]
+    
+    if name in (
+        "BabylonOnlineEnv",
+        "BabylonOnlineEnvConfig",
+    ):
+        from .online_env import (  # noqa: F401
+            BabylonOnlineEnv,
+            BabylonOnlineEnvConfig,
         )
         return locals()[name]
     
@@ -241,6 +307,49 @@ __all__ = [
     "AtroposTrainingConfig",
     "BabylonRLAIFEnv",
     "BabylonEnvConfig",
+    "BabylonOnlineEnv",
+    "BabylonOnlineEnvConfig",
+    # Phase 1 & 2: Online GRPO Training Infrastructure
+    "Scenario",
+    "ScenarioPool",
+    "ScenarioPoolConfig",
+    "CurriculumManager",
+    "MarketState",
+    "PerpetualState",
+    "NewsItem",
+    "SocialPost",
+    "ScenarioPortfolioState",
+    "TokenizationResult",
+    "tokenize_for_trainer",
+    "tokenize_conversation_for_trainer",
+    "validate_masks",
+    "create_masks_from_response_start",
+    "fix_historical_masks",
+    "ActionResult",
+    "ActionExecutor",
+    "ExecutorPortfolioState",
+    "validate_action",
+    "execute_action_for_training",
+    "calculate_action_quality_bonus",
+    "ThinkTagResult",
+    "ActionValidationResult",
+    "ReasoningQualityResult",
+    "LengthAnalysisResult",
+    "FormatValidationResult",
+    "validate_response_format",
+    "validate_think_tags",
+    "validate_action_json",
+    "get_format_and_reasoning_scores",
+    "validate_for_training",
+    "QualityScore",
+    "calculate_thinking_length_penalty",
+    "calculate_response_length_penalty",
+    "calculate_combined_length_penalty",
+    "score_response",
+    "score_response_for_reward",
+    "get_quality_bonus_for_archetype",
+    "score_response_batch",
+    "get_relative_quality_scores",
     # Tinker trainer (lazy - requires tinker)
     "BabylonTinkerClient",
     "TinkerConfig",
