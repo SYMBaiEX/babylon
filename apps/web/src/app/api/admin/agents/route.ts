@@ -38,7 +38,7 @@
  *                         type: string
  *                       modelTier:
  *                         type: string
- *                       pointsBalance:
+ *                       balance:
  *                         type: number
  *                       autonomousTrading:
  *                         type: boolean
@@ -193,7 +193,7 @@ export const GET = withErrorHandling(async (req: NextRequest) => {
         ? creatorMap.get(agent.managedBy) || null
         : 'System',
       modelTier: config?.modelTier || 'lite',
-      pointsBalance: config?.pointsBalance || 0,
+      balance: Number(agent.virtualBalance || 0),
 
       // Autonomous status
       autonomousEnabled,
@@ -247,7 +247,7 @@ export const GET = withErrorHandling(async (req: NextRequest) => {
       creatorId: 'external',
       creatorName: 'External',
       modelTier: 'external' as const,
-      pointsBalance: 0,
+      balance: 0,
 
       // External agent specific
       type: 'EXTERNAL' as const,

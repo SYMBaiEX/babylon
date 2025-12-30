@@ -12,7 +12,7 @@
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import { createTestAgent, getAgentConfig } from '@babylon/agents';
-import { asSystem, db, eq, userAgentConfigs } from '@babylon/db';
+import { asSystem, db, eq, users } from '@babylon/db';
 import { generateSnowflakeId } from '@babylon/shared';
 
 const BASE_URL =
@@ -124,7 +124,6 @@ describe('Agent Autonomous Tick Integration', () => {
       autonomousTrading: true,
       autonomousPosting: true,
       autonomousCommenting: true,
-      pointsBalance: 100,
       virtualBalance: 10000,
     });
     console.log('Test agent created:', agentResult.agentId);
@@ -260,7 +259,12 @@ describe('Agent Autonomous Tick Integration', () => {
 
     expect(agentBefore).toBeTruthy();
     expect(agentBefore?.isAgent).toBe(true);
-    expect(configBefore?.pointsBalance ?? 0).toBeGreaterThanOrEqual(1);
+    // Balance check uses virtualBalance from user record
+    const userBefore = await db.user.findUnique({
+      where: { id: testAgentId },
+      select: { virtualBalance: true },
+    });
+    expect(Number(userBefore?.virtualBalance ?? 0)).toBeGreaterThanOrEqual(1);
     expect(
       configBefore?.autonomousTrading ||
         configBefore?.autonomousPosting ||
@@ -359,13 +363,15 @@ describe('Agent Autonomous Tick Integration', () => {
     // Verify agent exists and meets criteria before tick
     const agentBefore = await db.user.findUnique({
       where: { id: testAgentId },
-      select: { isAgent: true },
+      select: { isAgent: true, virtualBalance: true },
     });
-    const agentConfigBefore = await getAgentConfig(testAgentId);
 
     expect(agentBefore).toBeTruthy();
     expect(agentBefore?.isAgent).toBe(true);
-    expect(agentConfigBefore?.pointsBalance ?? 0).toBeGreaterThanOrEqual(1);
+    // Balance check uses virtualBalance from user record
+    expect(
+      Number(agentBefore?.virtualBalance ?? 0)
+    ).toBeGreaterThanOrEqual(1);
 
     const cronSecret = process.env.CRON_SECRET || 'development';
     const response = await fetch(`${BASE_URL}/api/cron/agent-tick`, {
@@ -453,19 +459,22 @@ describe('Agent Autonomous Tick Integration', () => {
     expect(logs[0]?.metadata).toHaveProperty('actions');
   }, 30000);
 
-  test('should deduct points after tick', async () => {
+  test('should deduct balance after tick', async () => {
     // Server and cron endpoint must be available - fail fast if not
     expect(serverAvailable).toBe(true);
     expect(cronEndpointAvailable).toBe(true);
 
-    // Ensure agent has points
+    // Ensure agent has balance (uses virtualBalance from user record)
     await db
-      .update(userAgentConfigs)
-      .set({ pointsBalance: 100, updatedAt: new Date() })
-      .where(eq(userAgentConfigs.userId, testAgentId));
+      .update(users)
+      .set({ virtualBalance: '100', updatedAt: new Date() })
+      .where(eq(users.id, testAgentId));
 
-    const beforeConfig = await getAgentConfig(testAgentId);
-    const beforeBalance = beforeConfig?.pointsBalance || 0;
+    const beforeUser = await db.user.findUnique({
+      where: { id: testAgentId },
+      select: { virtualBalance: true },
+    });
+    const beforeBalance = Number(beforeUser?.virtualBalance || 0);
 
     const cronSecret = process.env.CRON_SECRET || 'development';
     const response = await fetch(`${BASE_URL}/api/cron/agent-tick`, {
@@ -483,7 +492,7 @@ describe('Agent Autonomous Tick Integration', () => {
 
     // If no agents were processed, skip
     if (result.processed === 0) {
-      console.log('⚠️  No agents processed, skipping points deduction test');
+      console.log('⚠️  No agents processed, skipping balance deduction test');
       return;
     }
 
@@ -517,11 +526,14 @@ describe('Agent Autonomous Tick Integration', () => {
     // Wait for database update
     await new Promise((resolve) => setTimeout(resolve, 500));
 
-    const afterConfig = await getAgentConfig(testAgentId);
-    const afterBalance = afterConfig?.pointsBalance || 0;
+    const afterUser = await db.user.findUnique({
+      where: { id: testAgentId },
+      select: { virtualBalance: true },
+    });
+    const afterBalance = Number(afterUser?.virtualBalance || 0);
 
-    // Points should be deducted (1 point per tick) - even if processing had errors
-    // Points are deducted before executeAutonomousTick, so they should always be deducted
+    // Balance should be deducted (1 point per tick) - even if processing had errors
+    // Balance is deducted before executeAutonomousTick, so it should always be deducted
     expect(afterBalance).toBeLessThan(beforeBalance);
     expect(beforeBalance - afterBalance).toBe(1);
   }, 30000);

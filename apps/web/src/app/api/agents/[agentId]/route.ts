@@ -251,12 +251,6 @@ export async function GET(
           );
           return tradingStrategyMatch ? tradingStrategyMatch[1]!.trim() : '';
         })(),
-      // Points balance (for operations)
-      pointsBalance: config?.pointsBalance ?? 0,
-      totalDeposited: config?.totalDeposited ?? 0,
-      totalWithdrawn: config?.totalWithdrawn ?? 0,
-      totalPointsSpent: config?.totalPointsSpent ?? 0,
-      // Trading balance (for trades)
       virtualBalance: Number(agent!.virtualBalance),
       isActive: config?.status === 'active',
       autonomousEnabled: config?.autonomousTrading ?? false,
@@ -352,7 +346,7 @@ export async function PUT(
       name: agent.displayName,
       description: agent.bio,
       profileImageUrl: agent.profileImageUrl,
-      pointsBalance: updatedConfig?.pointsBalance ?? 0,
+      virtualBalance: Number(agent.virtualBalance),
       autonomousTrading: updatedConfig?.autonomousTrading ?? false,
       autonomousPosting: updatedConfig?.autonomousPosting ?? false,
       modelTier: updatedConfig?.modelTier ?? 'lite',

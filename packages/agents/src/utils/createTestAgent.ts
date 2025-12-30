@@ -17,7 +17,6 @@ export interface TestAgentConfig {
   username?: string;
   displayName?: string;
   virtualBalance?: number;
-  pointsBalance?: number;
   autonomousTrading?: boolean;
   autonomousPosting?: boolean;
   autonomousCommenting?: boolean;
@@ -53,7 +52,6 @@ export async function createTestAgent(
     username,
     displayName = `${prefix} ${Date.now().toString().slice(-6)}`,
     virtualBalance = 10000,
-    pointsBalance = 1000,
     autonomousTrading = true,
     autonomousPosting = true,
     autonomousCommenting = true,
@@ -118,7 +116,6 @@ export async function createTestAgent(
       autonomousGroupChats,
       systemPrompt,
       modelTier,
-      pointsBalance,
       updatedAt: new Date(),
     });
 

@@ -134,13 +134,18 @@ async function seedAutonomousAgents(): Promise<number> {
             autonomousTrading: config.autonomousTrading,
             autonomousPosting: config.autonomousPosting,
             autonomousCommenting: config.autonomousCommenting,
-            pointsBalance:
-              existingConfig[0]!.pointsBalance < 10000
-                ? 10000
-                : existingConfig[0]!.pointsBalance,
             updatedAt: new Date(),
           })
           .where(eq(userAgentConfigs.userId, existing.id));
+
+        // Ensure agent has sufficient balance
+        const currentBalance = Number(existing.virtualBalance);
+        if (currentBalance < 10000) {
+          await db
+            .update(users)
+            .set({ virtualBalance: '10000', updatedAt: new Date() })
+            .where(eq(users.id, existing.id));
+        }
       } else {
         await db.insert(userAgentConfigs).values({
           id: await generateSnowflakeId(),
@@ -154,7 +159,6 @@ async function seedAutonomousAgents(): Promise<number> {
           autonomousCommenting: config.autonomousCommenting,
           autonomousDMs: true,
           autonomousGroupChats: true,
-          pointsBalance: 10000,
           status: 'running',
           createdAt: new Date(),
           updatedAt: new Date(),
@@ -193,7 +197,6 @@ async function seedAutonomousAgents(): Promise<number> {
       personality: config.personality,
       tradingStrategy: config.tradingStrategy,
       modelTier: config.modelTier,
-      pointsBalance: 10000,
       status: 'running',
       autonomousTrading: config.autonomousTrading,
       autonomousPosting: config.autonomousPosting,
@@ -351,7 +354,6 @@ async function seedA2ATestAgents(): Promise<number> {
           .set({
             systemPrompt: config.system,
             ...config.features,
-            pointsBalance: 1000,
             modelTier: 'free',
             updatedAt: new Date(),
           })
@@ -362,7 +364,6 @@ async function seedA2ATestAgents(): Promise<number> {
           userId: existing.id,
           systemPrompt: config.system,
           ...config.features,
-          pointsBalance: 1000,
           modelTier: 'free',
           status: 'idle',
           createdAt: new Date(),
@@ -410,7 +411,6 @@ async function seedA2ATestAgents(): Promise<number> {
       userId: agentId,
       systemPrompt: config.system,
       ...config.features,
-      pointsBalance: 1000,
       modelTier: 'free',
       status: 'idle',
       createdAt: new Date(),
@@ -489,7 +489,6 @@ async function seedBenchmarkAgents(): Promise<number> {
       systemPrompt:
         'You are a disciplined trading agent focused on consistent profits.',
       modelTier: 'lite',
-      pointsBalance: 10000,
       autonomousTrading: true,
       autonomousPosting: true,
       autonomousCommenting: false,

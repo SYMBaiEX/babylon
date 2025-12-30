@@ -17,7 +17,7 @@ interface Agent {
   username?: string;
   description?: string;
   profileImageUrl?: string;
-  pointsBalance: number;
+  virtualBalance?: number;
   isActive: boolean;
   autonomousEnabled: boolean;
   modelTier: 'free' | 'pro';
@@ -187,8 +187,12 @@ export default function AgentsPage() {
         ) : (
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
             {agents.map((agent) => (
-              <Link key={agent.id} href={`/agents/${agent.id}`}>
-                <div className="cursor-pointer rounded-lg border border-transparent bg-muted/30 p-6 transition-all hover:border-[#0066FF]/30 hover:bg-muted">
+              <Link
+                key={agent.id}
+                href={`/agents/${agent.id}`}
+                className="h-full"
+              >
+                <div className="flex h-full cursor-pointer flex-col rounded-lg border border-transparent bg-muted/30 p-6 transition-all hover:border-[#0066FF]/30 hover:bg-muted">
                   {/* Header */}
                   <div className="mb-4 flex items-start gap-4">
                     <Avatar
@@ -233,21 +237,23 @@ export default function AgentsPage() {
                     </div>
                   </div>
 
-                  {/* Description */}
-                  {agent.description && (
-                    <p className="mb-4 line-clamp-2 text-muted-foreground text-sm">
-                      {agent.description}
-                    </p>
-                  )}
+                  {/* Description - flex-1 ensures consistent card heights */}
+                  <div className="mb-4 flex-1">
+                    {agent.description && (
+                      <p className="line-clamp-2 text-muted-foreground text-sm">
+                        {agent.description}
+                      </p>
+                    )}
+                  </div>
 
                   {/* Stats */}
-                  <div className="grid grid-cols-2 gap-4 border-border border-t pt-4">
+                  <div className="mt-auto grid grid-cols-2 gap-4 border-border border-t pt-4">
                     <div>
                       <div className="mb-1 text-muted-foreground text-xs">
                         Balance
                       </div>
                       <div className="font-semibold">
-                        {agent.pointsBalance} pts
+                        {(agent.virtualBalance ?? 0).toFixed(2)} pts
                       </div>
                     </div>
                     <div>

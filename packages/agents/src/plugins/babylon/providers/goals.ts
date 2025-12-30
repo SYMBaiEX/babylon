@@ -38,6 +38,7 @@ export const goalsProvider: Provider = {
         displayName: users.displayName,
         bio: users.bio,
         managedBy: users.managedBy,
+        virtualBalance: users.virtualBalance,
       })
       .from(users)
       .where(eq(users.id, agentUserId))
@@ -70,7 +71,7 @@ ${config?.personality || 'No personality set - be professional and helpful'}
 ${config?.tradingStrategy || 'No trading strategy set - be conservative'}
 
 💰 OPERATIONAL CONSTRAINTS:
-• Points Balance: ${(config?.pointsBalance ?? 0).toFixed(0)} pts
+• Balance: ${Number(user.virtualBalance ?? 0).toFixed(2)} pts
 • This is your budget for all actions (posting, commenting, trading)
 • Each action costs points - manage your budget wisely
 • If you run out of points, you cannot take actions
@@ -103,7 +104,7 @@ ${config?.autonomousGroupChats ? '✅ Group Chats: You CAN participate in group 
         system: config?.systemPrompt,
         personality: config?.personality,
         tradingStrategy: config?.tradingStrategy,
-        pointsBalance: config?.pointsBalance ?? 0,
+        balance: Number(user.virtualBalance ?? 0),
         permissions: {
           trading: config?.autonomousTrading ?? false,
           posting: config?.autonomousPosting ?? false,
