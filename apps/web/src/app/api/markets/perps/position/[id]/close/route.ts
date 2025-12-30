@@ -1,10 +1,12 @@
 import { authenticate, successResponse, withErrorHandling } from '@babylon/api';
-import { PerpDbAdapter, PerpMarketService } from '@babylon/core/markets/perps';
-import { FEE_CONFIG, FeeService, WalletService } from '@babylon/engine';
 import { ClosePerpPositionSchema } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { z } from 'zod';
 import { trackServerEvent } from '@/lib/posthog/server';
+import {
+  applyUserTradePriceImpact,
+  createPerpMarketService,
+} from '../../../_adapters';
 
 const IdParamSchema = z.object({
   id: z.string(),
@@ -12,7 +14,9 @@ const IdParamSchema = z.object({
 
 /**
  * POST /api/markets/perps/position/[id]/close
- * Close an existing perpetual futures position
+ * Close an existing perpetual futures position.
+ *
+ * Uses PerpMarketService with SSE broadcast enabled for real-time UI updates.
  */
 export const POST = withErrorHandling(
   async (
@@ -33,46 +37,10 @@ export const POST = withErrorHandling(
       ClosePerpPositionSchema.parse(body);
     }
 
-    const service = new PerpMarketService({
-      db: new PerpDbAdapter(),
-      wallet: {
-        debit: ({ userId, amount, reason, description, relatedId }) =>
-          WalletService.debit(
-            userId,
-            amount,
-            reason,
-            description ?? '',
-            relatedId
-          ),
-        credit: ({ userId, amount, reason, description, relatedId }) =>
-          WalletService.credit(
-            userId,
-            amount,
-            reason,
-            description ?? '',
-            relatedId
-          ),
-        recordPnL: async ({ userId, pnl, reason, relatedId }) => {
-          await WalletService.recordPnL(userId, pnl, reason, relatedId);
-        },
-        getBalance: (userId: string) => WalletService.getBalance(userId),
-      },
-      fees: {
-        tradingFeeRate: FEE_CONFIG.TRADING_FEE_RATE,
-        platformShare: FEE_CONFIG.PLATFORM_SHARE,
-        referrerShare: FEE_CONFIG.REFERRER_SHARE,
-        minFeeAmount: FEE_CONFIG.MIN_FEE_AMOUNT,
-      },
-      feeProcessor: {
-        processTradingFee: ({ userId, amount, type, relatedId, positionId }) =>
-          FeeService.processTradingFee(
-            userId,
-            type as (typeof FEE_CONFIG.FEE_TYPES)[keyof typeof FEE_CONFIG.FEE_TYPES],
-            amount,
-            positionId,
-            relatedId
-          ),
-      },
+    // Create service with fee processor and broadcast for real-time updates
+    const service = createPerpMarketService({
+      withFeeProcessor: true,
+      withBroadcast: true,
     });
 
     const result = await service.closePosition({
@@ -80,6 +48,16 @@ export const POST = withErrorHandling(
       positionId,
     });
 
+    // Apply price impact from the trade
+    // Wait for it to complete to ensure price is updated before response
+    try {
+      await applyUserTradePriceImpact(result.ticker);
+    } catch (error) {
+      // Log but don't fail the trade - price impact is enhancement
+      console.error('[PerpClose] Price impact failed:', error);
+    }
+
+    // Track analytics event (fire and forget)
     trackServerEvent(user.userId, 'trade_closed', {
       type: 'perp',
       ticker: result.ticker,

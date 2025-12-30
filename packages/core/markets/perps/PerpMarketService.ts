@@ -180,7 +180,7 @@ export class PerpMarketService {
       });
     }
 
-    return {
+    const result: PerpTradeResult = {
       positionId: position.id,
       ticker,
       side,
@@ -192,6 +192,23 @@ export class PerpMarketService {
       feePaid: fee,
       balance: (await this.deps.wallet.getBalance(input.userId)).balance,
     };
+
+    // Broadcast trade event for real-time UI updates
+    await this.emitTradeEvent({
+      type: 'perp_trade',
+      action: 'open',
+      ticker,
+      side,
+      size,
+      leverage,
+      entryPrice,
+      positionId: position.id,
+      openInterest: newOpenInterest,
+      volume24h: market.volume24h + size,
+      timestamp: now.toISOString(),
+    });
+
+    return result;
   }
 
   /**
@@ -328,7 +345,7 @@ export class PerpMarketService {
       });
     }
 
-    return {
+    const result: PerpTradeResult = {
       positionId: position.id,
       ticker: position.ticker,
       side: position.side,
@@ -344,6 +361,25 @@ export class PerpMarketService {
       remainingSize: isFullClose ? 0 : remainingSize,
       fullyClosed: isFullClose,
     };
+
+    // Broadcast trade event for real-time UI updates
+    await this.emitTradeEvent({
+      type: 'perp_trade',
+      action: isFullClose ? 'close' : 'partial_close',
+      ticker: position.ticker,
+      side: position.side,
+      size: closeSize,
+      leverage: position.leverage,
+      entryPrice: position.entryPrice,
+      exitPrice,
+      positionId: position.id,
+      realizedPnL,
+      openInterest: newOpenInterest,
+      volume24h: market.volume24h + closeSize,
+      timestamp: (this.deps.clock?.now() ?? new Date()).toISOString(),
+    });
+
+    return result;
   }
 
   /**
@@ -597,6 +633,21 @@ export class PerpMarketService {
   private calculateFee(notional: number): number {
     const fee = notional * this.deps.fees.tradingFeeRate;
     return Math.max(fee, this.deps.fees.minFeeAmount);
+  }
+
+  /**
+   * Emit a trade event via the broadcast port for real-time UI updates.
+   * Silently skips if no broadcast port is configured.
+   */
+  private async emitTradeEvent(
+    payload: Record<string, unknown>
+  ): Promise<void> {
+    if (!this.deps.broadcast) return;
+    try {
+      await this.deps.broadcast.emit('markets', payload);
+    } catch {
+      // Broadcast is optional - don't fail the trade if SSE fails
+    }
   }
 
   private calculateMaxPositionSize(openInterest: number): number {
