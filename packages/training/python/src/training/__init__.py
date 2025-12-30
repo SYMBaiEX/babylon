@@ -165,6 +165,42 @@ from .quality_scorer import (
     get_relative_quality_scores,
 )
 
+# Phase 3: Evaluation & Monitoring
+from .evaluation import (
+    EvaluationSuite,
+    EvalResult,
+    ArchetypeMetrics,
+    TestScenarioManager,
+    TestScenario,
+    BaselineManager,
+    BaselineResult,
+    RolloutDumper,
+    RolloutRecord,
+    get_wandb_config,
+    STEP_METRICS,
+    EVAL_METRICS,
+)
+
+# Phase 4: Advanced Features
+from .kl_controller import (
+    KLConfig,
+    KLStats,
+    KLControllerBase,
+    create_kl_controller,
+    compute_kl_divergence,
+)
+
+from .multi_turn import (
+    TurnData,
+    EpisodeBuffer,
+    GAEConfig,
+    MultiTurnEpisodeManager,
+    EpisodeCollector,
+    shape_trading_rewards,
+    compute_episode_return,
+    normalize_episode_rewards,
+)
+
 # Error recovery and graceful degradation
 from .error_recovery import (
     ErrorCategory,
@@ -350,6 +386,33 @@ __all__ = [
     "get_quality_bonus_for_archetype",
     "score_response_batch",
     "get_relative_quality_scores",
+    # Phase 3: Evaluation & Monitoring
+    "EvaluationSuite",
+    "EvalResult",
+    "ArchetypeMetrics",
+    "TestScenarioManager",
+    "TestScenario",
+    "BaselineManager",
+    "BaselineResult",
+    "RolloutDumper",
+    "RolloutRecord",
+    "get_wandb_config",
+    "STEP_METRICS",
+    "EVAL_METRICS",
+    # Phase 4: Advanced Features
+    "KLConfig",
+    "KLStats",
+    "KLControllerBase",
+    "create_kl_controller",
+    "compute_kl_divergence",
+    "TurnData",
+    "EpisodeBuffer",
+    "GAEConfig",
+    "MultiTurnEpisodeManager",
+    "EpisodeCollector",
+    "shape_trading_rewards",
+    "compute_episode_return",
+    "normalize_episode_rewards",
     # Tinker trainer (lazy - requires tinker)
     "BabylonTinkerClient",
     "TinkerConfig",
