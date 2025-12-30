@@ -9,7 +9,6 @@
  *   await initializeTrainingPackage();
  */
 
-import { logger } from '@babylon/shared';
 import {
   configureTrainingDependencies,
   type IAgentRuntimeManager,
@@ -17,6 +16,7 @@ import {
   type IAutonomousCoordinator,
   type ILLMCaller,
 } from './dependencies';
+import { logger } from './utils/logger';
 
 let initialized = false;
 

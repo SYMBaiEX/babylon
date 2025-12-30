@@ -12,9 +12,9 @@
  */
 
 import { db, eq, trajectories } from '@babylon/db';
-import { logger } from '@babylon/shared';
 import { createHash } from 'crypto';
 import { getRubricHash, RUBRICS_VERSION } from '../rubrics';
+import { logger } from '../utils/logger';
 
 /**
  * Cached score entry

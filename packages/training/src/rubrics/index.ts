@@ -179,25 +179,19 @@ export function hasCustomRubric(archetype: string): boolean {
 }
 
 /**
+ * Canonical archetype names (with hyphens, no aliases)
+ * Single source of truth - derived from PRIORITY_METRICS keys which only contains canonical names
+ */
+export const CANONICAL_ARCHETYPES = Object.keys(
+  PRIORITY_METRICS
+) as readonly string[];
+
+/**
  * Get all available archetype names (canonical names only, no aliases)
+ * Uses CANONICAL_ARCHETYPES to maintain single source of truth
  */
 export function getAvailableArchetypes(): string[] {
-  // Return only canonical archetype names (with hyphens)
-  // Excludes aliases like 'socialbutterfly', 'goodytwoshoes', etc.
-  return [
-    'trader',
-    'social-butterfly',
-    'scammer',
-    'degen',
-    'researcher',
-    'information-trader',
-    'goody-twoshoes',
-    'ass-kisser',
-    'perps-trader',
-    'super-predictor',
-    'infosec',
-    'liar',
-  ];
+  return [...CANONICAL_ARCHETYPES];
 }
 
 // Re-export individual rubrics
