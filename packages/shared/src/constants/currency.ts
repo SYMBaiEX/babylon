@@ -1,18 +1,17 @@
 /**
  * Currency constants for Babylon points system
  *
- * Babylon uses a custom points currency system represented by ₿ (strikethrough B)
- * NOT to be confused with USD ($) or Bitcoin (₿ without strikethrough)
+ * Babylon uses a custom points currency system represented by ƀ (B with stroke)
+ * NOT to be confused with USD ($) or Bitcoin (₿)
  */
 
 /**
  * Symbol used for displaying Babylon points in the UI
- * Uses the Unicode character ₿ (U+20BF) - Bitcoin sign
+ * Uses the Unicode character ƀ (U+0180) - Latin Small Letter B with Stroke
  *
- * Note: The actual Babylon symbol has a strikethrough, but ₿ is used
- * as the closest Unicode representation for text contexts
+ * Chosen for its horizontal stroke through B, giving a distinct Babylon identity
  */
-export const BABYLON_POINTS_SYMBOL = '₿';
+export const BABYLON_POINTS_SYMBOL = 'ƀ';
 
 /**
  * Abbreviated text representation for Babylon points
