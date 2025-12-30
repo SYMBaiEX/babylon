@@ -247,11 +247,12 @@ docker compose -f docker-compose.test.yml down -v
 - W&B account (optional)
 
 **GPU Memory Guidelines:**
-| GPU VRAM | Recommended Model | Notes |
-|----------|-------------------|-------|
-| 12GB | Qwen2.5-1.5B-Instruct | Works on RTX 3060/4070 |
-| 16GB | Qwen2.5-3B-Instruct | Works on RTX 4080/A4000 |
-| 24GB+ | Qwen2.5-7B-Instruct | RTX 4090/A5000/A6000 |
+| GPU VRAM | Recommended Model | vLLM Memory | Notes |
+|----------|-------------------|-------------|-------|
+| 12GB | Qwen2.5-0.5B-Instruct | 25% | RTX 3060/4070 - use `--vllm-gpu-memory 0.25` |
+| 16GB | Qwen2.5-1.5B-Instruct | 45% | RTX 4080/A4000 |
+| 24GB+ | Qwen2.5-3B-Instruct | 45% | RTX 4090/A5000/A6000 |
+| 48GB+ | Qwen2.5-7B-Instruct | 50% | A40/A100 |
 
 #### Step 1: Prerequisites Check
 
@@ -327,7 +328,10 @@ source venv/bin/activate
 export DATABASE_URL=postgresql://babylon_test:test_password@localhost:5434/babylon_test
 export WANDB_MODE=offline  # or set WANDB_API_KEY for real logging
 
-# With vLLM on GPU (RTX 3060 - use 1.5B model)
+# RTX 3060 (12GB) - use 0.5B model with reduced vLLM memory
+python scripts/run_training.py --model Qwen/Qwen2.5-0.5B-Instruct --steps 1 --batch-size 1 --no-wandb --vllm-gpu-memory 0.25
+
+# RTX 4080/A4000 (16GB+) - can use 1.5B model
 python scripts/run_training.py --model Qwen/Qwen2.5-1.5B-Instruct --steps 1 --batch-size 1 --no-wandb
 
 # Check logs while training
@@ -340,7 +344,7 @@ tail -f logs/environment.log
 ```
 BABYLON RL TRAINING PIPELINE
 ======================================================================
-Model: Qwen/Qwen2.5-1.5B-Instruct
+Model: Qwen/Qwen2.5-0.5B-Instruct
 Steps: 1
 ...
   ✓ atropos is ready
