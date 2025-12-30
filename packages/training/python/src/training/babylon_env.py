@@ -404,7 +404,6 @@ class BabylonRLAIFEnv(BaseEnv):
         model_name = self.config.tokenizer_name
         
         logger.debug(f"Using vLLM at {vllm_base_url}, model: {model_name}")
-        logger.debug(f"Using vLLM at {vllm_base_url}, model: {model_name}")
         
         async with aiohttp.ClientSession() as session:
             for traj in trajectory_group:

@@ -131,13 +131,13 @@ export const SIMULATION_STRATEGIES: readonly SimulationStrategy[] = [
  * Default perpetual market prices for simulation mode.
  * Used across GameLoop, MarketContextService, and tests.
  */
-export const SIMULATION_DEFAULT_PRICES: Record<string, number> = {
+export const SIMULATION_DEFAULT_PRICES = {
   BTCAI: 120000,
   ETHAI: 4000,
   SOLAI: 200,
   TSLAI: 450,
   METAI: 520,
-} as const;
+} as const satisfies Record<string, number>;
 
 /**
  * Default prediction markets for simulation mode.

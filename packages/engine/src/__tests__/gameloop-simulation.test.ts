@@ -126,6 +126,24 @@ describe('GameLoop - Simulation Mode Price Overrides', () => {
     expect(tickers).toContain('ETHAI');
   });
 
+  test('returns only override keys when overrides is non-empty', () => {
+    const priceOverrides = new Map([
+      ['CUSTOMTOKEN', 500],
+      ['BTCAI', 125000],
+    ]);
+
+    // Should return ONLY the keys from the override map
+    const tickers = getSimulationTickers(priceOverrides);
+
+    expect(tickers).toHaveLength(2);
+    expect(tickers).toContain('CUSTOMTOKEN');
+    expect(tickers).toContain('BTCAI');
+    // Should NOT include defaults that aren't in overrides
+    expect(tickers).not.toContain('ETHAI');
+    expect(tickers).not.toContain('SOLAI');
+    expect(tickers).not.toContain('METAI');
+  });
+
   test('price overrides maintain precision', () => {
     const priceOverrides = new Map([
       ['BTCAI', 125432.789123], // High precision
