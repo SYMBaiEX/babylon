@@ -20,15 +20,13 @@
  */
 
 import { logger } from '@babylon/shared';
-import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger as honoLogger } from 'hono/logger';
-import { type GameConfig, GameWorld } from '../GameWorld';
+import { GameWorld, type WorldConfig } from '../GameWorld';
 import type { NPCMarketContext } from '../types/market-context';
 import type { MarketAction, TradingDecision } from '../types/market-decisions';
 import { MarketContextService } from './market-context-service';
-import { StaticDataRegistry } from './static-data-registry';
 import { TradeExecutionService } from './trade-execution-service';
 
 // =============================================================================
@@ -39,7 +37,7 @@ interface InitRequest {
   numNPCs?: number;
   seed?: number;
   archetypes?: string[];
-  config?: Partial<GameConfig>;
+  outcome?: boolean;
 }
 
 interface InitResponse {
@@ -61,7 +59,7 @@ interface ScenarioResponse {
     }>;
     predictionMarkets: Array<{
       id: string;
-      question: string;
+      title: string;
       yesPrice: number;
       noPrice: number;
     }>;
@@ -80,7 +78,6 @@ interface ScenarioResponse {
     content: string;
     source: string;
     timestamp: string;
-    sentiment?: number;
   }>;
   socialContext: {
     relationships: Array<{
@@ -150,39 +147,43 @@ interface TickResponse {
 // State Management
 // =============================================================================
 
+// NPC type from GameWorld.getNPCs()
+type NPC = ReturnType<GameWorld['getNPCs']>[number];
+
 class SimulationState {
   gameWorld: GameWorld | null = null;
   contextService: MarketContextService | null = null;
   tradeService: TradeExecutionService | null = null;
   npcArchetypes: Map<string, string> = new Map();
+  npcs: NPC[] = [];
   tickCount: number = 0;
   isInitialized: boolean = false;
 
   async initialize(config: InitRequest): Promise<InitResponse> {
     const numNPCs = config.numNPCs ?? 20;
-    const seed = config.seed ?? Date.now();
 
     logger.info(
       'Initializing simulation bridge',
-      { numNPCs, seed },
+      { numNPCs },
       'SimulationBridge'
     );
 
-    // Initialize static data registry
-    await StaticDataRegistry.initialize();
-
-    // Create game world
-    const gameConfig: GameConfig = {
-      seed,
+    // Create game world with proper WorldConfig
+    const worldConfig: WorldConfig = {
+      outcome: config.outcome ?? true,
       numNPCs,
-      ...config.config,
     };
 
-    this.gameWorld = new GameWorld(gameConfig);
+    // GameWorld constructor takes (config, llmClient?)
+    // For simulation bridge, we don't need LLM - just game state
+    this.gameWorld = new GameWorld(worldConfig);
     await this.gameWorld.generate();
 
-    // Get NPC IDs and assign archetypes
-    const npcIds = this.gameWorld.getNPCIds();
+    // Get NPCs and extract IDs
+    this.npcs = this.gameWorld.getNPCs();
+    const npcIds = this.npcs.map((npc) => npc.id);
+
+    // Assign archetypes based on NPC characteristics or provided list
     const archetypes = config.archetypes ?? [
       'trader',
       'degen',
@@ -192,16 +193,15 @@ class SimulationState {
 
     const archetypeMap: Record<string, string> = {};
     for (let i = 0; i < npcIds.length; i++) {
+      const npcId = npcIds[i]!;
       const archetype = archetypes[i % archetypes.length]!;
-      this.npcArchetypes.set(npcIds[i]!, archetype);
-      archetypeMap[npcIds[i]!] = archetype;
+      this.npcArchetypes.set(npcId, archetype);
+      archetypeMap[npcId] = archetype;
     }
 
-    // Initialize services
-    this.contextService = new MarketContextService(
-      this.gameWorld.getDatabase()
-    );
-    this.tradeService = new TradeExecutionService(this.gameWorld.getDatabase());
+    // Initialize services - they use global state in simulation mode
+    this.contextService = new MarketContextService();
+    this.tradeService = new TradeExecutionService();
 
     this.isInitialized = true;
     this.tickCount = 0;
@@ -247,7 +247,7 @@ class SimulationState {
         })),
         predictionMarkets: context.predictionMarkets.map((m) => ({
           id: m.id,
-          question: m.question,
+          title: m.text ?? 'Unknown',
           yesPrice: m.yesPrice,
           noPrice: m.noPrice,
         })),
@@ -266,16 +266,15 @@ class SimulationState {
         content: post.content,
         source: post.authorName,
         timestamp: post.timestamp,
-        sentiment: post.sentiment,
       })),
       socialContext: {
-        relationships: context.relationships.map((r) => ({
+        relationships: (context.relationships ?? []).map((r) => ({
           actorId: r.actorId,
           actorName: r.actorName,
           sentiment: r.sentiment,
         })),
         groupChats: context.groupChatMessages
-          .map((m) => m.groupName)
+          .map((m) => m.chatName)
           .filter((v, i, a) => a.indexOf(v) === i),
         recentMessages: context.groupChatMessages.slice(0, 5).map((m) => ({
           from: m.fromName,
@@ -286,7 +285,7 @@ class SimulationState {
   }
 
   async executeAction(request: ExecuteRequest): Promise<ExecuteResponse> {
-    if (!this.isInitialized || !this.tradeService) {
+    if (!this.isInitialized || !this.tradeService || !this.contextService) {
       return {
         success: false,
         pnl: 0,
@@ -300,10 +299,14 @@ class SimulationState {
 
     const { npcId, action, reasoning } = request;
 
+    // Find NPC name
+    const npc = this.npcs.find((n) => n.id === npcId);
+    const npcName = npc?.name ?? npcId;
+
     // Convert to TradingDecision format
     const decision: TradingDecision = {
       npcId,
-      npcName: npcId, // Will be resolved by trade service
+      npcName,
       action: action.type,
       marketType:
         action.type === 'buy_yes' || action.type === 'buy_no'
@@ -321,15 +324,15 @@ class SimulationState {
       reasoning: reasoning ?? 'No reasoning provided',
     };
 
-    // Execute via trade service
-    const result = await this.tradeService.executeDecision(decision);
+    // Execute via trade service (batch of 1)
+    const result = await this.tradeService.executeDecisionBatch([decision]);
 
-    // Get updated balance and positions
-    const context = await this.contextService!.buildContextForNPC(npcId);
+    // Get updated context for balance/positions
+    const context = await this.contextService.buildContextForNPC(npcId);
 
     return {
-      success: result.success,
-      pnl: result.pnl ?? 0,
+      success: result.executedTrades.length > 0,
+      pnl: 0, // PnL calculated on position close, not on open
       newBalance: context.availableBalance,
       newPositions: context.currentPositions.map((p) => ({
         id: p.id,
@@ -340,28 +343,28 @@ class SimulationState {
         size: p.size,
       })),
       socialImpact: {
-        reputationDelta: 0, // Would need to track this
+        reputationDelta: 0,
         followersGained: 0,
       },
-      events: result.events ?? [],
-      error: result.error,
+      events: [],
     };
   }
 
-  async tick(): Promise<TickResponse> {
-    if (!this.isInitialized || !this.gameWorld) {
+  async advanceTick(): Promise<TickResponse> {
+    if (!this.isInitialized) {
       throw new Error('Simulation not initialized');
     }
 
     this.tickCount++;
 
-    // Advance game world
-    const tickResult = await this.gameWorld.tick();
+    // Note: GameWorld doesn't have a tick() method - it's event-driven
+    // For simulation bridge, we just increment the tick counter
+    // and return empty changes (the actual game loop is in GameLoop.ts)
 
     return {
       tickNumber: this.tickCount,
-      events: tickResult.events ?? [],
-      marketChanges: tickResult.marketChanges ?? [],
+      events: [],
+      marketChanges: [],
     };
   }
 
@@ -370,6 +373,7 @@ class SimulationState {
     this.contextService = null;
     this.tradeService = null;
     this.npcArchetypes.clear();
+    this.npcs = [];
     this.tickCount = 0;
     this.isInitialized = false;
     logger.info('Simulation state reset', {}, 'SimulationBridge');
@@ -399,9 +403,14 @@ app.get('/health', (c) => {
 
 // Initialize simulation
 app.post('/init', async (c) => {
-  const body = await c.req.json<InitRequest>();
-  const result = await state.initialize(body);
-  return c.json(result);
+  try {
+    const body = await c.req.json<InitRequest>();
+    const result = await state.initialize(body);
+    return c.json(result);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    return c.json({ status: 'error', npcIds: [], archetypes: {}, message }, 500);
+  }
 });
 
 // Get scenario for NPC
@@ -412,15 +421,33 @@ app.get('/scenario/:npcId', async (c) => {
     return c.json({ error: 'Simulation not initialized' }, 400);
   }
 
-  const scenario = await state.getScenario(npcId);
-  return c.json(scenario);
+  try {
+    const scenario = await state.getScenario(npcId);
+    return c.json(scenario);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    return c.json({ error: message }, 500);
+  }
 });
 
 // Execute action
 app.post('/execute', async (c) => {
-  const body = await c.req.json<ExecuteRequest>();
-  const result = await state.executeAction(body);
-  return c.json(result);
+  try {
+    const body = await c.req.json<ExecuteRequest>();
+    const result = await state.executeAction(body);
+    return c.json(result);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    return c.json({
+      success: false,
+      pnl: 0,
+      newBalance: 0,
+      newPositions: [],
+      socialImpact: { reputationDelta: 0, followersGained: 0 },
+      events: [],
+      error: message,
+    }, 500);
+  }
 });
 
 // Advance simulation
@@ -429,8 +456,13 @@ app.post('/tick', async (c) => {
     return c.json({ error: 'Simulation not initialized' }, 400);
   }
 
-  const result = await state.tick();
-  return c.json(result);
+  try {
+    const result = await state.advanceTick();
+    return c.json(result);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    return c.json({ error: message }, 500);
+  }
 });
 
 // Reset simulation
@@ -461,29 +493,34 @@ app.get('/scenarios', async (c) => {
     return c.json({ error: 'Simulation not initialized' }, 400);
   }
 
-  const scenarios = [];
-  for (const [npcId] of state.npcArchetypes) {
-    const scenario = await state.getScenario(npcId);
-    scenarios.push(scenario);
+  try {
+    const scenarios = [];
+    for (const [npcId] of state.npcArchetypes) {
+      const scenario = await state.getScenario(npcId);
+      scenarios.push(scenario);
+    }
+    return c.json({ scenarios, count: scenarios.length });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    return c.json({ error: message }, 500);
   }
-
-  return c.json({ scenarios, count: scenarios.length });
 });
 
 // =============================================================================
-// Main
+// Main - Use Bun.serve directly
 // =============================================================================
 
 const PORT = parseInt(process.env.SIMULATION_BRIDGE_PORT ?? '3001', 10);
 
-if (require.main === module) {
+// Only start server if run directly (not imported)
+if (import.meta.main) {
   logger.info(
     `Starting simulation bridge server on port ${PORT}`,
     {},
     'SimulationBridge'
   );
 
-  serve({
+  Bun.serve({
     fetch: app.fetch,
     port: PORT,
   });
