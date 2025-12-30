@@ -344,4 +344,202 @@ describe('NewsArticlePacingEngine', () => {
       expect(stats.resolution).toBe(1);
     });
   });
+
+  describe('Arc Event Coverage', () => {
+    describe('shouldGenerateArcEventArticle Validation', () => {
+      it('should throw on invalid arcEventId', () => {
+        expect(() => {
+          pacer.shouldGenerateArcEventArticle('', 'org-1', 'created');
+        }).toThrow('Invalid arcEventId');
+
+        expect(() => {
+          pacer.shouldGenerateArcEventArticle('   ', 'org-1', 'created');
+        }).toThrow('Invalid arcEventId');
+      });
+
+      it('should throw on invalid orgId', () => {
+        expect(() => {
+          pacer.shouldGenerateArcEventArticle('arc-1', '', 'created');
+        }).toThrow('Invalid orgId');
+      });
+
+      it('should throw on invalid currentStatus', () => {
+        expect(() => {
+          pacer.shouldGenerateArcEventArticle(
+            'arc-1',
+            'org-1',
+            'invalid' as never
+          );
+        }).toThrow('Invalid currentStatus');
+      });
+    });
+
+    describe('recordArcEventCoverage Validation', () => {
+      it('should throw on invalid arcEventId', () => {
+        expect(() => {
+          pacer.recordArcEventCoverage('', 'org-1', 'created', 'article-1');
+        }).toThrow('Invalid arcEventId');
+      });
+
+      it('should throw on invalid orgId', () => {
+        expect(() => {
+          pacer.recordArcEventCoverage('arc-1', '', 'created', 'article-1');
+        }).toThrow('Invalid orgId');
+      });
+
+      it('should throw on invalid status', () => {
+        expect(() => {
+          pacer.recordArcEventCoverage(
+            'arc-1',
+            'org-1',
+            'invalid' as never,
+            'article-1'
+          );
+        }).toThrow('Invalid status');
+      });
+
+      it('should throw on invalid articleId', () => {
+        expect(() => {
+          pacer.recordArcEventCoverage('arc-1', 'org-1', 'created', '');
+        }).toThrow('Invalid articleId');
+      });
+    });
+
+    describe('selectOrgsForArcEvent Validation', () => {
+      const orgs = [
+        { id: 'org-1', name: 'Org 1' },
+        { id: 'org-2', name: 'Org 2' },
+      ];
+
+      it('should throw on invalid arcEventId', () => {
+        expect(() => {
+          pacer.selectOrgsForArcEvent('', 'created', orgs);
+        }).toThrow('Invalid arcEventId');
+      });
+
+      it('should throw on invalid currentStatus', () => {
+        expect(() => {
+          pacer.selectOrgsForArcEvent('arc-1', 'invalid' as never, orgs);
+        }).toThrow('Invalid currentStatus');
+      });
+
+      it('should throw on empty availableOrgs', () => {
+        expect(() => {
+          pacer.selectOrgsForArcEvent('arc-1', 'created', []);
+        }).toThrow('availableOrgs cannot be empty');
+      });
+
+      it('should throw on invalid maxOrgs', () => {
+        expect(() => {
+          pacer.selectOrgsForArcEvent('arc-1', 'created', orgs, 0);
+        }).toThrow('Invalid maxOrgs');
+      });
+
+      it('should throw on org missing id', () => {
+        expect(() => {
+          pacer.selectOrgsForArcEvent('arc-1', 'created', [
+            { id: '', name: 'Test' },
+          ]);
+        }).toThrow('Organization missing id');
+      });
+
+      it('should throw on org missing name', () => {
+        expect(() => {
+          pacer.selectOrgsForArcEvent('arc-1', 'created', [
+            { id: 'org-1', name: '' },
+          ]);
+        }).toThrow('Organization missing name');
+      });
+    });
+
+    describe('Arc Event Coverage Flow', () => {
+      const orgs = [
+        { id: 'cnn', name: 'CNN' },
+        { id: 'fox', name: 'Fox News' },
+        { id: 'bbc', name: 'BBC' },
+      ];
+
+      it('should allow first coverage of an arc event', () => {
+        expect(
+          pacer.shouldGenerateArcEventArticle('arc-1', 'org-1', 'created')
+        ).toBe(true);
+      });
+
+      it('should prevent duplicate coverage at same status', () => {
+        pacer.recordArcEventCoverage('arc-1', 'org-1', 'created', 'article-1');
+
+        expect(
+          pacer.shouldGenerateArcEventArticle('arc-1', 'org-1', 'created')
+        ).toBe(false);
+      });
+
+      it('should allow coverage when status changes', () => {
+        pacer.recordArcEventCoverage('arc-1', 'org-1', 'created', 'article-1');
+
+        expect(
+          pacer.shouldGenerateArcEventArticle('arc-1', 'org-1', 'updated')
+        ).toBe(true);
+      });
+
+      it('should allow different orgs to cover same event', () => {
+        pacer.recordArcEventCoverage('arc-1', 'org-1', 'created', 'article-1');
+
+        expect(
+          pacer.shouldGenerateArcEventArticle('arc-1', 'org-2', 'created')
+        ).toBe(true);
+      });
+
+      it('should select orgs that have not covered the event', () => {
+        pacer.recordArcEventCoverage('arc-1', 'cnn', 'created', 'article-1');
+
+        const selected = pacer.selectOrgsForArcEvent('arc-1', 'created', orgs);
+
+        expect(selected.every((org) => org.id !== 'cnn')).toBe(true);
+      });
+
+      it('should respect maxOrgs limit', () => {
+        const selected = pacer.selectOrgsForArcEvent(
+          'arc-1',
+          'created',
+          orgs,
+          1
+        );
+
+        expect(selected.length).toBe(1);
+      });
+
+      it('should default maxOrgs to 2 when not specified', () => {
+        // Create 5 orgs to verify the default limit of 2
+        const manyOrgs = [
+          { id: 'org-1', name: 'Org 1' },
+          { id: 'org-2', name: 'Org 2' },
+          { id: 'org-3', name: 'Org 3' },
+          { id: 'org-4', name: 'Org 4' },
+          { id: 'org-5', name: 'Org 5' },
+        ];
+
+        const selected = pacer.selectOrgsForArcEvent(
+          'arc-default',
+          'created',
+          manyOrgs
+        );
+
+        // Default maxOrgs is 2
+        expect(selected.length).toBe(2);
+      });
+
+      it('should clear arc event coverage', () => {
+        pacer.recordArcEventCoverage('arc-1', 'org-1', 'created', 'article-1');
+        expect(
+          pacer.shouldGenerateArcEventArticle('arc-1', 'org-1', 'created')
+        ).toBe(false);
+
+        pacer.clearArcEventCoverage('arc-1');
+
+        expect(
+          pacer.shouldGenerateArcEventArticle('arc-1', 'org-1', 'created')
+        ).toBe(true);
+      });
+    });
+  });
 });

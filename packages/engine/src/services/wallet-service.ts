@@ -21,11 +21,7 @@ import {
   users,
   withTransaction,
 } from '@babylon/db';
-import {
-  generateSnowflakeId,
-  InsufficientFundsError,
-  NotFoundError,
-} from '@babylon/shared';
+import { generateSnowflakeId, InsufficientFundsError } from '@babylon/shared';
 import { EarnedPointsService } from './earned-points-service';
 
 /**
@@ -141,7 +137,11 @@ export class WalletService {
 
     const [user] = result;
     if (!user) {
-      throw new NotFoundError('User', userId);
+      // Fail-fast: NPCs should have User records after bootstrap (ensureNpcUsers).
+      // A missing user here indicates a bug in bootstrap or an invalid userId.
+      throw new Error(
+        `User not found for wallet operation: ${userId}. NPCs should have User records after bootstrap.`
+      );
     }
 
     const currentBalance = Number(user.virtualBalance);
@@ -361,7 +361,11 @@ export class WalletService {
 
       const [user] = result;
       if (!user) {
-        throw new Error(`User not found: ${userId}`);
+        // Fail-fast: NPCs should have User records after bootstrap (ensureNpcUsers).
+        // A missing user here indicates a bug in bootstrap or an invalid userId.
+        throw new Error(
+          `User not found for PnL recording: ${userId}. NPCs should have User records after bootstrap.`
+        );
       }
 
       const previousLifetimePnL = Number(user.lifetimePnL);

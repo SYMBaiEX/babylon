@@ -38,6 +38,31 @@ import { shuffleArray } from './utils/randomization';
 export type ArticleStage = 'breaking' | 'commentary' | 'resolution';
 
 /**
+ * Arc event status - determines when an org can report again
+ */
+export type ArcEventStatus =
+  | 'created' // Arc event just created (breaking news)
+  | 'updated' // Significant new information added
+  | 'resolved'; // Arc event concluded/resolved
+
+/** Valid arc event statuses for type guard validation */
+const VALID_ARC_EVENT_STATUSES: readonly ArcEventStatus[] = [
+  'created',
+  'updated',
+  'resolved',
+] as const;
+
+/**
+ * Type guard to validate if a value is a valid ArcEventStatus
+ */
+export function isValidArcEventStatus(value: unknown): value is ArcEventStatus {
+  return (
+    typeof value === 'string' &&
+    VALID_ARC_EVENT_STATUSES.includes(value as ArcEventStatus)
+  );
+}
+
+/**
  * Record of which orgs have published articles for which questions
  */
 interface ArticleRecord {
@@ -46,6 +71,19 @@ interface ArticleRecord {
   stage: ArticleStage;
   tick: number;
   articleId: string;
+}
+
+/**
+ * Record of arc event coverage by organization
+ * Once an org reports on an event's status, they cannot report again
+ * until the status changes (event resolves or updates with new info)
+ */
+interface ArcEventCoverageRecord {
+  arcEventId: string;
+  orgId: string;
+  lastReportedStatus: ArcEventStatus;
+  articleId: string;
+  timestamp: Date;
 }
 
 /**
@@ -66,6 +104,10 @@ interface ArticleRecord {
 export class NewsArticlePacingEngine {
   private articleRecords: ArticleRecord[] = [];
   private stageOrgCounts: Map<string, Map<string, Set<string>>> = new Map(); // questionId -> stage -> Set<orgId>
+
+  // ARC EVENT TRACKING - event-driven articles only
+  private arcEventCoverage: Map<string, Map<string, ArcEventCoverageRecord>> =
+    new Map(); // arcEventId -> orgId -> coverage record
 
   /**
    * Check if an organization should generate an article
@@ -357,6 +399,214 @@ export class NewsArticlePacingEngine {
         .length,
       resolution: this.articleRecords.filter((r) => r.stage === 'resolution')
         .length,
+    };
+  }
+
+  // ============================================================================
+  // ARC EVENT COVERAGE TRACKING
+  // Articles are now event-driven: only generated when arc events occur
+  // An org can only report on an arc event once per status (created/updated/resolved)
+  // ============================================================================
+
+  /**
+   * Check if an organization should generate an article for an arc event
+   *
+   * @param arcEventId - Arc event ID
+   * @param orgId - News organization ID
+   * @param currentStatus - Current status of the arc event
+   * @returns True if article should be generated (org hasn't reported this status yet)
+   */
+  shouldGenerateArcEventArticle(
+    arcEventId: string,
+    orgId: string,
+    currentStatus: ArcEventStatus
+  ): boolean {
+    // Validate inputs (consistent with shouldGenerateArticle)
+    if (!arcEventId || arcEventId.trim().length === 0) {
+      throw new Error(`Invalid arcEventId: ${arcEventId}`);
+    }
+    if (!orgId || orgId.trim().length === 0) {
+      throw new Error(`Invalid orgId: ${orgId}`);
+    }
+    if (!isValidArcEventStatus(currentStatus)) {
+      throw new Error(`Invalid currentStatus: ${currentStatus}`);
+    }
+
+    // Get coverage for this arc event
+    const eventCoverage = this.arcEventCoverage.get(arcEventId);
+    if (!eventCoverage) {
+      // No coverage yet - org can report
+      return true;
+    }
+
+    // Check if this org has already reported
+    const orgCoverage = eventCoverage.get(orgId);
+    if (!orgCoverage) {
+      // This org hasn't reported yet - can report
+      return true;
+    }
+
+    // Org has reported before - check if status has changed
+    // Only report again if the event has a NEW status
+    if (orgCoverage.lastReportedStatus === currentStatus) {
+      logger.debug(
+        `${orgId} already reported ${currentStatus} for arc event ${arcEventId}`,
+        undefined,
+        'NewsArticlePacingEngine'
+      );
+      return false;
+    }
+
+    // Status has changed - org can report again
+    logger.debug(
+      `${orgId} can report on arc event ${arcEventId}: status changed from ${orgCoverage.lastReportedStatus} to ${currentStatus}`,
+      undefined,
+      'NewsArticlePacingEngine'
+    );
+    return true;
+  }
+
+  /**
+   * Record that an organization has covered an arc event
+   *
+   * @param arcEventId - Arc event ID
+   * @param orgId - News organization ID
+   * @param status - Status of the arc event at time of coverage
+   * @param articleId - Generated article ID
+   */
+  recordArcEventCoverage(
+    arcEventId: string,
+    orgId: string,
+    status: ArcEventStatus,
+    articleId: string
+  ): void {
+    // Validate inputs (consistent with other methods)
+    if (!arcEventId || arcEventId.trim().length === 0) {
+      throw new Error(
+        `Invalid arcEventId for recordArcEventCoverage: ${arcEventId}`
+      );
+    }
+    if (!orgId || orgId.trim().length === 0) {
+      throw new Error(`Invalid orgId for recordArcEventCoverage: ${orgId}`);
+    }
+    if (!isValidArcEventStatus(status)) {
+      throw new Error(`Invalid status for recordArcEventCoverage: ${status}`);
+    }
+    if (!articleId || articleId.trim().length === 0) {
+      throw new Error(
+        `Invalid articleId for recordArcEventCoverage: ${articleId}`
+      );
+    }
+
+    // Initialize map for this arc event if needed
+    if (!this.arcEventCoverage.has(arcEventId)) {
+      this.arcEventCoverage.set(arcEventId, new Map());
+    }
+
+    const eventCoverage = this.arcEventCoverage.get(arcEventId)!;
+
+    // Record/update coverage for this org
+    eventCoverage.set(orgId, {
+      arcEventId,
+      orgId,
+      lastReportedStatus: status,
+      articleId,
+      timestamp: new Date(),
+    });
+
+    logger.info(
+      `Recorded arc event coverage: ${orgId} reported ${status} for event ${arcEventId}`,
+      { articleId },
+      'NewsArticlePacingEngine'
+    );
+  }
+
+  /**
+   * Get organizations that haven't covered an arc event at the current status
+   *
+   * @param arcEventId - Arc event ID
+   * @param currentStatus - Current status of the arc event
+   * @param availableOrgs - All news organizations
+   * @param maxOrgs - Maximum number of orgs to return (default 2)
+   * @returns Orgs that should publish (haven't reported this status yet)
+   */
+  selectOrgsForArcEvent<T extends { id: string; name: string }>(
+    arcEventId: string,
+    currentStatus: ArcEventStatus,
+    availableOrgs: T[],
+    maxOrgs: number = 2
+  ): T[] {
+    // Validate inputs (consistent with selectOrgsForStage)
+    if (!arcEventId || arcEventId.trim().length === 0) {
+      throw new Error(
+        `Invalid arcEventId for selectOrgsForArcEvent: ${arcEventId}`
+      );
+    }
+    if (!isValidArcEventStatus(currentStatus)) {
+      throw new Error(
+        `Invalid currentStatus for selectOrgsForArcEvent: ${currentStatus}`
+      );
+    }
+    if (!availableOrgs || availableOrgs.length === 0) {
+      throw new Error('availableOrgs cannot be empty');
+    }
+    if (maxOrgs <= 0) {
+      throw new Error(`Invalid maxOrgs: ${maxOrgs}`);
+    }
+
+    // Validate each org has required fields
+    for (const org of availableOrgs) {
+      if (!org.id || org.id.trim().length === 0) {
+        throw new Error(`Organization missing id: ${JSON.stringify(org)}`);
+      }
+      if (!org.name || org.name.trim().length === 0) {
+        throw new Error(`Organization missing name: ${JSON.stringify(org)}`);
+      }
+    }
+
+    // Filter to orgs that haven't reported this status yet
+    const eligibleOrgs = availableOrgs.filter((org) =>
+      this.shouldGenerateArcEventArticle(arcEventId, org.id, currentStatus)
+    );
+
+    if (eligibleOrgs.length === 0) {
+      return [];
+    }
+
+    // Shuffle and take maxOrgs
+    const shuffled = shuffleArray(eligibleOrgs);
+    return shuffled.slice(0, maxOrgs);
+  }
+
+  /**
+   * Clear arc event coverage records (e.g., on cleanup)
+   */
+  clearArcEventCoverage(arcEventId: string): void {
+    this.arcEventCoverage.delete(arcEventId);
+    logger.info(
+      `Cleared arc event coverage for ${arcEventId}`,
+      undefined,
+      'NewsArticlePacingEngine'
+    );
+  }
+
+  /**
+   * Get arc event coverage statistics
+   */
+  getArcEventCoverageStats(): {
+    totalEvents: number;
+    totalCoverage: number;
+    eventIds: string[];
+  } {
+    const eventIds = Array.from(this.arcEventCoverage.keys());
+    let totalCoverage = 0;
+    for (const coverage of this.arcEventCoverage.values()) {
+      totalCoverage += coverage.size;
+    }
+    return {
+      totalEvents: eventIds.length,
+      totalCoverage,
+      eventIds,
     };
   }
 }

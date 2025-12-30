@@ -399,7 +399,13 @@ export class TradeExecutionService {
 
     const leverage = 5; // Standard leverage for NPCs
     const side = decision.action === 'open_long' ? 'long' : 'short';
-    const positionSize = decision.amount * leverage;
+
+    // Cap position size to market limit (max 10,000 or 10% of open interest)
+    // This prevents NPC trades from exceeding market limits
+    const MAX_POSITION_SIZE = 10_000;
+    const maxAmount = MAX_POSITION_SIZE / leverage; // e.g., 10,000 / 5 = 2,000
+    const cappedAmount = Math.min(decision.amount, maxAmount);
+    const positionSize = cappedAmount * leverage;
 
     // Use PerpMarketService for consistency with user trades
     // This ensures NPC positions get funding and liquidation applied
@@ -417,6 +423,7 @@ export class TradeExecutionService {
     // Open position via PerpMarketService (uses perpPositions table)
     // Use org.ticker for perp market lookup (e.g., "NVDAI" not "nvidai")
     const tradeTicker = org.ticker || org.id;
+
     const result = await perpService.openPosition({
       userId: actorId, // Use actorId as userId for NPC
       ticker: tradeTicker,
@@ -434,7 +441,7 @@ export class TradeExecutionService {
       ticker: tradeTicker,
       action: decision.action,
       side,
-      amount: decision.amount,
+      amount: cappedAmount,
       price: result.entryPrice,
       sentiment: decision.confidence * (side === 'long' ? 1 : -1),
       reason: decision.reasoning,
@@ -448,7 +455,7 @@ export class TradeExecutionService {
       ticker: decision.ticker,
       action: decision.action,
       side,
-      amount: decision.amount,
+      amount: cappedAmount,
       size: positionSize,
       executionPrice: result.entryPrice,
       confidence: decision.confidence,

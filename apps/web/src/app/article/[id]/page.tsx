@@ -5,6 +5,7 @@ import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { use, useEffect, useState } from 'react';
 import { MoreArticlesWidget } from '@/components/articles/MoreArticlesWidget';
+import { Response } from '@/components/chat/Response';
 import { PageContainer } from '@/components/shared/PageContainer';
 import { Skeleton } from '@/components/shared/Skeleton';
 
@@ -106,34 +107,8 @@ export default function ArticlePage({ params }: ArticlePageProps) {
 
   const publishedDate = new Date(article.timestamp);
 
-  // Helper function to format article content into paragraphs
-  const formatArticleContent = (content: string): string[] => {
-    // First try splitting by double newlines
-    const doubleNewlineParagraphs = content
-      .split('\n\n')
-      .filter((p) => p.trim());
-    if (doubleNewlineParagraphs.length > 1) {
-      return doubleNewlineParagraphs;
-    }
-
-    // Try splitting by single newlines
-    const singleNewlineParagraphs = content.split('\n').filter((p) => p.trim());
-    if (singleNewlineParagraphs.length > 1) {
-      return singleNewlineParagraphs;
-    }
-
-    // No line breaks - split by sentences, grouping ~3-4 sentences per paragraph
-    const sentences = content.match(/[^.!?]+[.!?]+/g) || [content];
-    const paragraphs: string[] = [];
-    const sentencesPerParagraph = 4;
-
-    for (let i = 0; i < sentences.length; i += sentencesPerParagraph) {
-      const paragraphSentences = sentences.slice(i, i + sentencesPerParagraph);
-      paragraphs.push(paragraphSentences.join(' ').trim());
-    }
-
-    return paragraphs.length > 0 ? paragraphs : [content];
-  };
+  // Get article body content for markdown rendering
+  const articleBody = article.fullContent || article.content;
 
   return (
     <PageContainer noPadding>
@@ -205,19 +180,10 @@ export default function ArticlePage({ params }: ArticlePageProps) {
                     </time>
                   </div>
 
-                  {/* Full article content */}
-                  <div className="prose prose-lg prose-invert mb-6 max-w-none">
-                    {formatArticleContent(
-                      article.fullContent || article.content
-                    ).map((paragraph, i) => (
-                      <p
-                        key={i}
-                        className="mb-6 text-base text-foreground/90 leading-relaxed sm:text-lg"
-                      >
-                        {paragraph}
-                      </p>
-                    ))}
-                  </div>
+                  {/* Full article content with markdown rendering */}
+                  <Response className="mb-6 max-w-none text-foreground/90 [&_a]:text-[#0066FF] [&_a]:underline hover:[&_a]:text-[#0066FF]/80 [&_blockquote]:my-6 [&_blockquote]:border-[#0066FF] [&_blockquote]:border-l-4 [&_blockquote]:pl-4 [&_blockquote]:text-muted-foreground [&_blockquote]:italic [&_code]:rounded [&_code]:bg-muted [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-sm [&_em]:italic [&_h1]:mt-8 [&_h1]:mb-4 [&_h1]:font-bold [&_h1]:text-2xl [&_h2]:mt-6 [&_h2]:mb-3 [&_h2]:font-semibold [&_h2]:text-xl [&_h3]:mt-4 [&_h3]:mb-2 [&_h3]:font-medium [&_h3]:text-lg [&_hr]:my-8 [&_hr]:border-border [&_li]:my-2 [&_li]:text-base [&_li]:leading-relaxed [&_ol]:my-4 [&_ol]:list-decimal [&_ol]:pl-6 [&_p]:mb-6 [&_p]:text-base [&_p]:leading-relaxed sm:[&_p]:text-lg [&_pre]:my-4 [&_pre]:overflow-x-auto [&_pre]:rounded-lg [&_pre]:bg-muted [&_pre]:p-4 [&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_strong]:font-bold [&_ul]:my-4 [&_ul]:list-disc [&_ul]:pl-6">
+                    {articleBody}
+                  </Response>
                 </article>
               </div>
             </div>
@@ -292,19 +258,10 @@ export default function ArticlePage({ params }: ArticlePageProps) {
               </time>
             </div>
 
-            {/* Full article content */}
-            <div className="prose prose-invert mb-4 max-w-none">
-              {formatArticleContent(article.fullContent || article.content).map(
-                (paragraph, i) => (
-                  <p
-                    key={i}
-                    className="mb-5 text-base text-foreground/90 leading-relaxed"
-                  >
-                    {paragraph}
-                  </p>
-                )
-              )}
-            </div>
+            {/* Full article content with markdown rendering */}
+            <Response className="mb-4 max-w-none text-foreground/90 [&_a]:text-[#0066FF] [&_a]:underline hover:[&_a]:text-[#0066FF]/80 [&_blockquote]:my-4 [&_blockquote]:border-[#0066FF] [&_blockquote]:border-l-4 [&_blockquote]:pl-4 [&_blockquote]:text-muted-foreground [&_blockquote]:italic [&_code]:rounded [&_code]:bg-muted [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-sm [&_em]:italic [&_h1]:mt-6 [&_h1]:mb-3 [&_h1]:font-bold [&_h1]:text-xl [&_h2]:mt-5 [&_h2]:mb-2 [&_h2]:font-semibold [&_h2]:text-lg [&_h3]:mt-4 [&_h3]:mb-2 [&_h3]:font-medium [&_h3]:text-base [&_hr]:my-6 [&_hr]:border-border [&_li]:my-1.5 [&_li]:text-base [&_li]:leading-relaxed [&_ol]:my-3 [&_ol]:list-decimal [&_ol]:pl-5 [&_p]:mb-5 [&_p]:text-base [&_p]:leading-relaxed [&_pre]:my-3 [&_pre]:overflow-x-auto [&_pre]:rounded-lg [&_pre]:bg-muted [&_pre]:p-3 [&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_strong]:font-bold [&_ul]:my-3 [&_ul]:list-disc [&_ul]:pl-5">
+              {articleBody}
+            </Response>
 
             {/* More Articles - Mobile */}
             <div className="mt-8 border-border border-t pt-6">
