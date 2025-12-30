@@ -1330,11 +1330,6 @@ export default function ProfilePage() {
           }
           userId={user.id}
           type={followListModal.type}
-          initialCount={
-            followListModal.type === 'followers'
-              ? (user.stats?.followers ?? 0)
-              : (optimisticFollowingCount ?? user.stats?.following ?? 0)
-          }
         />
       )}
     </PageContainer>

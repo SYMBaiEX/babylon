@@ -13,8 +13,7 @@ import { useAuth } from '@/hooks/useAuth';
  * FollowListModal component for displaying followers or following lists.
  *
  * Shows a scrollable list of users with their avatars, names, and follow/unfollow
- * buttons. Supports infinite scroll for large lists and provides mutual follow
- * indicators.
+ * buttons. Displays up to 100 users per list.
  *
  * @param props - FollowListModal component props
  * @returns Follow list modal element or null if not open
@@ -50,7 +49,6 @@ interface FollowListModalProps {
   userId: string;
   type: 'followers' | 'following';
   title?: string;
-  initialCount?: number;
 }
 
 export function FollowListModal({
@@ -59,7 +57,6 @@ export function FollowListModal({
   userId,
   type,
   title,
-  initialCount = 0,
 }: FollowListModalProps) {
   const { authenticated, user, getAccessToken } = useAuth();
   const [users, setUsers] = useState<FollowUser[]>([]);
@@ -82,48 +79,53 @@ export function FollowListModal({
     setIsLoading(true);
     setError(null);
 
-    const token = await getAccessToken();
-    const headers: HeadersInit = {
-      'Content-Type': 'application/json',
-    };
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-
-    const response = await fetch(
-      `/api/users/${encodeURIComponent(userId)}/${type}?page=1&limit=100&includeMutual=true`,
-      { headers }
-    );
-
-    if (!response.ok) {
-      setError('Failed to load list');
-      setIsLoading(false);
-      return;
-    }
-
-    const data = await response.json();
-    const list = type === 'followers' ? data.followers : data.following;
-    setUsers(list || []);
-
-    // Initialize following status for each user
-    if (authenticated && user) {
-      const statusMap: Record<string, boolean> = {};
-      for (const u of list || []) {
-        if (type === 'following' && userId === user.id) {
-          // Viewing own following list - current user follows everyone in this list
-          statusMap[u.id] = true;
-        } else if (type === 'followers') {
-          // Viewing followers list - use isMutualFollow which indicates if current user follows them
-          statusMap[u.id] = u.isMutualFollow || false;
-        } else {
-          // Viewing someone else's following list - use isMutualFollow
-          statusMap[u.id] = u.isMutualFollow || false;
-        }
+    try {
+      const token = await getAccessToken();
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+      };
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
       }
-      setFollowingStatus(statusMap);
-    }
 
-    setIsLoading(false);
+      const response = await fetch(
+        `/api/users/${encodeURIComponent(userId)}/${type}?page=1&limit=100&includeMutual=true`,
+        { headers }
+      );
+
+      if (!response.ok) {
+        setError('Failed to load list');
+        setIsLoading(false);
+        return;
+      }
+
+      const data = await response.json();
+      const list = type === 'followers' ? data.followers : data.following;
+      setUsers(list || []);
+
+      // Initialize following status for each user
+      if (authenticated && user) {
+        const statusMap: Record<string, boolean> = {};
+        for (const u of list || []) {
+          if (type === 'following' && userId === user.id) {
+            // Viewing own following list - current user follows everyone in this list
+            statusMap[u.id] = true;
+          } else if (type === 'followers') {
+            // Viewing followers list - use isMutualFollow which indicates if current user follows them
+            statusMap[u.id] = u.isMutualFollow || false;
+          } else {
+            // Viewing someone else's following list - use isMutualFollow
+            statusMap[u.id] = u.isMutualFollow || false;
+          }
+        }
+        setFollowingStatus(statusMap);
+      }
+
+      setIsLoading(false);
+    } catch {
+      setError('Network error. Please try again.');
+      setIsLoading(false);
+    }
   }, [isOpen, userId, type, authenticated, user, getAccessToken]);
 
   useEffect(() => {
@@ -186,30 +188,39 @@ export function FollowListModal({
       [targetUserId]: !isCurrentlyFollowing,
     }));
 
-    const response = await fetch(
-      `/api/users/${encodeURIComponent(targetUserId)}/follow`,
-      {
-        method,
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      }
-    );
+    try {
+      const response = await fetch(
+        `/api/users/${encodeURIComponent(targetUserId)}/follow`,
+        {
+          method,
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
 
-    if (!response.ok) {
-      // Revert optimistic update
+      if (!response.ok) {
+        // Revert optimistic update
+        setFollowingStatus((prev) => ({
+          ...prev,
+          [targetUserId]: isCurrentlyFollowing,
+        }));
+        toast.error('Failed to update follow status');
+      } else {
+        // Dispatch event to update profile stats
+        window.dispatchEvent(
+          new CustomEvent('profile-updated', {
+            detail: { type: isCurrentlyFollowing ? 'unfollow' : 'follow' },
+          })
+        );
+      }
+    } catch {
+      // Revert optimistic update on network error
       setFollowingStatus((prev) => ({
         ...prev,
         [targetUserId]: isCurrentlyFollowing,
       }));
-      toast.error('Failed to update follow status');
-    } else {
-      // Dispatch event to update profile stats
-      window.dispatchEvent(
-        new CustomEvent('profile-updated', {
-          detail: { type: isCurrentlyFollowing ? 'unfollow' : 'follow' },
-        })
-      );
+      toast.error('Network error. Please try again.');
     }
 
     setLoadingFollow((prev) => ({ ...prev, [targetUserId]: false }));

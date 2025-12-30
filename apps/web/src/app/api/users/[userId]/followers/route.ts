@@ -96,6 +96,7 @@ import {
   eq,
   followStatuses,
   follows,
+  inArray,
   not,
   userActorFollows,
   users,
@@ -304,31 +305,37 @@ export const GET = withErrorHandling(
         .filter((f) => f.isActor)
         .map((f) => f.id);
 
-      // Check which followers the authenticated user follows
+      // Check which followers the authenticated user follows (using inArray for efficiency)
       const followedUserIds = new Set<string>();
       if (followerIds.length > 0) {
-        const allUserFollows = await db
+        const userFollowResults = await db
           .select({ followingId: follows.followingId })
           .from(follows)
-          .where(eq(follows.followerId, authUser.userId));
-        for (const f of allUserFollows) {
-          if (followerIds.includes(f.followingId)) {
-            followedUserIds.add(f.followingId);
-          }
+          .where(
+            and(
+              eq(follows.followerId, authUser.userId),
+              inArray(follows.followingId, followerIds)
+            )
+          );
+        for (const f of userFollowResults) {
+          followedUserIds.add(f.followingId);
         }
       }
 
-      // Check actor follows
+      // Check actor follows (using inArray for efficiency)
       const followedActorIds = new Set<string>();
       if (actorFollowerIds.length > 0) {
-        const allActorFollows = await db
+        const actorFollowResults = await db
           .select({ actorId: userActorFollows.actorId })
           .from(userActorFollows)
-          .where(eq(userActorFollows.userId, authUser.userId));
-        for (const f of allActorFollows) {
-          if (actorFollowerIds.includes(f.actorId)) {
-            followedActorIds.add(f.actorId);
-          }
+          .where(
+            and(
+              eq(userActorFollows.userId, authUser.userId),
+              inArray(userActorFollows.actorId, actorFollowerIds)
+            )
+          );
+        for (const f of actorFollowResults) {
+          followedActorIds.add(f.actorId);
         }
       }
 

@@ -1302,11 +1302,6 @@ export default function ActorProfilePage() {
           }
           userId={actorInfo.id}
           type={followListModal.type}
-          initialCount={
-            followListModal.type === 'followers'
-              ? (optimisticFollowerCount ?? actorInfo.stats?.followers ?? 0)
-              : (actorInfo.stats?.following ?? 0)
-          }
         />
       )}
     </PageContainer>
