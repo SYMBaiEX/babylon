@@ -2,9 +2,11 @@
 
 import { cn } from '@babylon/shared';
 import { Send } from 'lucide-react';
-import React from 'react';
+import React, { useCallback, useEffect, useRef } from 'react';
 import { LoginButton } from '@/components/auth/LoginButton';
 import { Skeleton } from '@/components/shared/Skeleton';
+
+const MAX_TEXTAREA_HEIGHT = 160;
 
 interface MessageInputProps {
   value: string;
@@ -21,11 +23,30 @@ export function MessageInput({
   sending,
   authenticated,
 }: MessageInputProps) {
-  const handleKeyPress = (e: React.KeyboardEvent) => {
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Resize textarea based on content
+  const resizeTextarea = useCallback(() => {
+    const textarea = textareaRef.current;
+    if (textarea) {
+      textarea.style.height = 'auto';
+      textarea.style.height =
+        Math.min(textarea.scrollHeight, MAX_TEXTAREA_HEIGHT) + 'px';
+    }
+  }, []);
+
+  // Resize textarea when value changes
+  // biome-ignore lint/correctness/useExhaustiveDependencies: value is intentionally included to trigger resize when content changes
+  useEffect(() => {
+    resizeTextarea();
+  }, [value, resizeTextarea]);
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       onSend();
     }
+    // Shift+Enter will insert a newline (default behavior)
   };
 
   if (!authenticated) {
@@ -43,16 +64,17 @@ export function MessageInput({
 
   return (
     <div className="bg-background px-4 py-3">
-      <div className="flex gap-2 md:gap-3">
-        <input
-          type="text"
+      <div className="flex items-end gap-2 md:gap-3">
+        <textarea
+          ref={textareaRef}
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          onKeyPress={handleKeyPress}
+          onKeyDown={handleKeyDown}
           placeholder="Type a message..."
           disabled={sending}
+          rows={1}
           className={cn(
-            'flex-1 rounded-lg px-4 py-3 text-sm',
+            'max-h-40 min-h-[44px] flex-1 resize-none overflow-y-auto rounded-lg px-4 py-3 text-sm',
             'message-input bg-sidebar-accent/50',
             'text-foreground placeholder:text-muted-foreground',
             'outline-none',
@@ -63,7 +85,7 @@ export function MessageInput({
           onClick={onSend}
           disabled={!value.trim() || sending}
           className={cn(
-            'flex items-center gap-2 rounded-lg px-4 py-3 font-semibold md:gap-3',
+            'flex h-[44px] items-center gap-2 rounded-lg px-4 py-3 font-semibold md:gap-3',
             'chat-button bg-sidebar-accent/50 text-primary',
             'transition-all duration-300',
             'disabled:cursor-not-allowed disabled:text-muted-foreground disabled:opacity-50'

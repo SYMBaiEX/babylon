@@ -124,13 +124,16 @@ export default function ChatsPage() {
 
   return (
     <>
-      <PageContainer noPadding className="flex flex-col">
+      {/* Use fixed viewport heights to ensure proper scroll containment */}
+      {/* Mobile: 100dvh - 56px header - 56px bottom nav = calc(100dvh - 112px) */}
+      {/* Desktop: full viewport height */}
+      <div className="flex h-[calc(100dvh-112px)] flex-col overflow-hidden md:h-dvh">
         {/* Desktop: Two Column Layout */}
-        <div className="hidden flex-1 flex-col overflow-hidden xl:flex">
-          <div className="flex-1 overflow-hidden">
-            <div className="flex h-full">
+        <div className="hidden min-h-0 flex-1 flex-col overflow-hidden xl:flex">
+          <div className="min-h-0 flex-1 overflow-hidden">
+            <div className="flex h-full min-h-0">
               {/* Left Column: Chat List with Filters */}
-              <div className="flex h-full w-96 flex-col bg-background">
+              <div className="flex h-full min-h-0 w-96 flex-col bg-background">
                 <ChatHeader
                   isConnected={globalSSEConnected}
                   activeFilter={activeFilter}
@@ -141,7 +144,7 @@ export default function ChatsPage() {
                 <ChatSearchBar value={searchQuery} onChange={setSearchQuery} />
 
                 {/* Scrollable chat list */}
-                <div className="flex-1 overflow-y-auto">
+                <div className="min-h-0 flex-1 overflow-y-auto">
                   <ChatList
                     chats={filteredChats}
                     selectedChatId={selectedChatId}
@@ -157,7 +160,7 @@ export default function ChatsPage() {
               <Separator orientation="vertical" className="shrink-0" />
 
               {/* Right Column: Chat View */}
-              <div className="h-full flex-1 bg-background">
+              <div className="h-full min-h-0 flex-1 bg-background">
                 <ChatView
                   chatDetails={chatDetails}
                   currentUserId={user?.id}
@@ -187,13 +190,13 @@ export default function ChatsPage() {
         </div>
 
         {/* Mobile/Tablet: Responsive Layout */}
-        <div className="flex flex-1 flex-col overflow-hidden xl:hidden">
-          <div className="flex-1 overflow-hidden">
-            <div className="flex h-full">
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden xl:hidden">
+          <div className="min-h-0 flex-1 overflow-hidden">
+            <div className="flex h-full min-h-0">
               {/* Chat List (full screen on mobile, side panel on tablet when chat selected) */}
               <div
                 className={cn(
-                  'h-full w-full flex-col bg-background',
+                  'h-full min-h-0 w-full flex-col bg-background',
                   selectedChatId ? 'hidden lg:flex lg:w-96' : 'flex'
                 )}
               >
@@ -207,7 +210,7 @@ export default function ChatsPage() {
                 <ChatSearchBar value={searchQuery} onChange={setSearchQuery} />
 
                 {/* Scrollable chat list */}
-                <div className="flex-1 overflow-y-auto">
+                <div className="min-h-0 flex-1 overflow-y-auto">
                   <ChatList
                     chats={filteredChats}
                     selectedChatId={selectedChatId}
@@ -231,7 +234,7 @@ export default function ChatsPage() {
               {selectedChatId && chatDetails && (
                 <div
                   className={cn(
-                    'h-full flex-1 bg-background',
+                    'h-full min-h-0 flex-1 bg-background',
                     !selectedChatId ? 'hidden lg:block' : 'block'
                   )}
                 >
@@ -265,7 +268,7 @@ export default function ChatsPage() {
             </div>
           </div>
         </div>
-      </PageContainer>
+      </div>
 
       {/* Leave Chat Confirmation Dialog */}
       <AlertDialog open={isLeaveConfirmOpen} onOpenChange={setLeaveConfirmOpen}>
