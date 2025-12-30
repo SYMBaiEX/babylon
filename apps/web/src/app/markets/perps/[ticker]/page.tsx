@@ -178,9 +178,33 @@ export default function PerpDetailPage() {
       leverage,
     })
       .then(async () => {
-        toast.success('Position opened!', {
-          description: `Opened ${leverage}x ${side} on ${market.ticker} at ${formatPrice(displayPrice)}`,
-        });
+        // Show appropriate success message based on action type
+        if (rebalanceInfo) {
+          const messages = {
+            add: {
+              title: 'Position increased!',
+              description: `Added ${formatPrice(sizeNum)} to your ${side.toUpperCase()} position`,
+            },
+            reduce: {
+              title: 'Position reduced!',
+              description: `Reduced your position by ${formatPrice(sizeNum)}`,
+            },
+            close: {
+              title: 'Position closed!',
+              description: `Closed your ${existingPosition?.side?.toUpperCase()} position`,
+            },
+            flip: {
+              title: 'Position flipped!',
+              description: `Flipped to ${leverage}x ${side.toUpperCase()} on ${market.ticker}`,
+            },
+          };
+          const msg = messages[rebalanceInfo.type];
+          toast.success(msg.title, { description: msg.description });
+        } else {
+          toast.success('Position opened!', {
+            description: `Opened ${leverage}x ${side} on ${market.ticker} at ${formatPrice(displayPrice)}`,
+          });
+        }
 
         // Invalidate caches to ensure fresh data
         invalidatePerpMarketsCache();
@@ -210,7 +234,54 @@ export default function PerpDetailPage() {
 
   // Check if user already has an open position on this ticker
   const existingPosition = userPositions.find((p) => !p.closedAt);
-  const hasExistingPosition = !!existingPosition;
+
+  // Determine the rebalance action type if position exists
+  const rebalanceInfo = useMemo(() => {
+    if (!existingPosition) return null;
+
+    const isSameSide = existingPosition.side === side;
+    const newTotalSize = existingPosition.size + sizeNum;
+
+    if (isSameSide) {
+      // Adding to position
+      const avgEntryPrice =
+        (existingPosition.size * existingPosition.entryPrice +
+          sizeNum * displayPrice) /
+        newTotalSize;
+      return {
+        type: 'add' as const,
+        label: 'Add to Position',
+        description: `Adding ${formatPrice(sizeNum)} to your ${existingPosition.side.toUpperCase()} position`,
+        newSize: newTotalSize,
+        avgEntryPrice,
+      };
+    } else {
+      // Opposite side - reduce, close, or flip
+      if (sizeNum < existingPosition.size) {
+        return {
+          type: 'reduce' as const,
+          label: 'Reduce Position',
+          description: `Reducing your ${existingPosition.side.toUpperCase()} by ${formatPrice(sizeNum)}`,
+          newSize: existingPosition.size - sizeNum,
+        };
+      } else if (Math.abs(sizeNum - existingPosition.size) < 0.01) {
+        return {
+          type: 'close' as const,
+          label: 'Close Position',
+          description: `Closing your ${existingPosition.side.toUpperCase()} position`,
+          newSize: 0,
+        };
+      } else {
+        const flipSize = sizeNum - existingPosition.size;
+        return {
+          type: 'flip' as const,
+          label: 'Flip Position',
+          description: `Closing ${existingPosition.side.toUpperCase()} and opening ${side.toUpperCase()} ${formatPrice(flipSize)}`,
+          newSize: flipSize,
+        };
+      }
+    }
+  }, [existingPosition, side, sizeNum, displayPrice]);
 
   const liquidationPrice =
     side === 'long'
@@ -561,17 +632,62 @@ export default function PerpDetailPage() {
               </div>
             )}
 
-            {/* Existing Position Warning */}
-            {hasExistingPosition && (
-              <div className="mb-4 flex items-start gap-2 rounded-lg bg-blue-500/15 p-3">
-                <Info className="mt-0.5 h-5 w-5 flex-shrink-0 text-blue-500" />
+            {/* Rebalance Info Banner */}
+            {rebalanceInfo && (
+              <div
+                className={cn(
+                  'mb-4 flex items-start gap-2 rounded-lg p-3',
+                  rebalanceInfo.type === 'add'
+                    ? 'bg-blue-500/15'
+                    : rebalanceInfo.type === 'flip'
+                      ? 'bg-orange-500/15'
+                      : 'bg-yellow-500/15'
+                )}
+              >
+                <Info
+                  className={cn(
+                    'mt-0.5 h-5 w-5 flex-shrink-0',
+                    rebalanceInfo.type === 'add'
+                      ? 'text-blue-500'
+                      : rebalanceInfo.type === 'flip'
+                        ? 'text-orange-500'
+                        : 'text-yellow-500'
+                  )}
+                />
                 <div className="text-sm">
-                  <div className="mb-1 font-bold text-blue-600">
-                    Position Already Open
+                  <div
+                    className={cn(
+                      'mb-1 font-bold',
+                      rebalanceInfo.type === 'add'
+                        ? 'text-blue-600'
+                        : rebalanceInfo.type === 'flip'
+                          ? 'text-orange-600'
+                          : 'text-yellow-600'
+                    )}
+                  >
+                    {rebalanceInfo.label}
                   </div>
                   <p className="text-muted-foreground">
-                    You have an existing {existingPosition?.side?.toUpperCase()}{' '}
-                    position on {ticker}. Close it first to open a new position.
+                    {rebalanceInfo.description}
+                    {rebalanceInfo.type === 'add' &&
+                      rebalanceInfo.avgEntryPrice && (
+                        <>
+                          <br />
+                          <span className="text-foreground">
+                            New avg entry:{' '}
+                            {formatPrice(rebalanceInfo.avgEntryPrice)} | New
+                            size: {formatPrice(rebalanceInfo.newSize)}
+                          </span>
+                        </>
+                      )}
+                    {rebalanceInfo.type === 'reduce' && (
+                      <>
+                        <br />
+                        <span className="text-foreground">
+                          Remaining size: {formatPrice(rebalanceInfo.newSize)}
+                        </span>
+                      </>
+                    )}
                   </p>
                 </div>
               </div>
@@ -582,18 +698,21 @@ export default function PerpDetailPage() {
               onClick={handleSubmit}
               disabled={
                 submitting ||
-                hasExistingPosition ||
                 sizeNum < market.minOrderSize ||
                 (authenticated && showBalanceWarning) ||
                 balanceLoading
               }
               className={cn(
                 'w-full cursor-pointer rounded-lg py-4 font-bold text-lg text-primary-foreground transition-all',
-                side === 'long'
-                  ? 'bg-green-600 hover:bg-green-700'
-                  : 'bg-red-600 hover:bg-red-700',
+                rebalanceInfo?.type === 'flip'
+                  ? 'bg-orange-600 hover:bg-orange-700'
+                  : rebalanceInfo?.type === 'reduce' ||
+                      rebalanceInfo?.type === 'close'
+                    ? 'bg-yellow-600 hover:bg-yellow-700'
+                    : side === 'long'
+                      ? 'bg-green-600 hover:bg-green-700'
+                      : 'bg-red-600 hover:bg-red-700',
                 (submitting ||
-                  hasExistingPosition ||
                   sizeNum < market.minOrderSize ||
                   (authenticated && showBalanceWarning) ||
                   balanceLoading) &&
@@ -603,10 +722,16 @@ export default function PerpDetailPage() {
               {submitting ? (
                 <span className="flex items-center justify-center gap-2">
                   <div className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                  Opening Position...
+                  {rebalanceInfo
+                    ? rebalanceInfo.label + '...'
+                    : 'Opening Position...'}
                 </span>
               ) : authenticated ? (
-                `${side === 'long' ? 'LONG' : 'SHORT'} ${market.ticker} ${leverage}x`
+                rebalanceInfo ? (
+                  rebalanceInfo.label
+                ) : (
+                  `${side === 'long' ? 'LONG' : 'SHORT'} ${market.ticker} ${leverage}x`
+                )
               ) : (
                 'Connect Wallet to Trade'
               )}

@@ -84,16 +84,19 @@ export class PerpMarketService {
       );
     }
 
-    // Check for existing position on same ticker (prevent duplicates)
+    // Check for existing position on same ticker → rebalance instead of rejecting
     const existingPosition = await this.db.getOpenPositionByUserAndTicker(
       input.userId,
       ticker
     );
     if (existingPosition) {
-      throw new Error(
-        `Already have an open ${existingPosition.side} position on ${ticker} ` +
-          `(ID: ${existingPosition.id}). Close or modify existing position first.`
-      );
+      if (existingPosition.side === side) {
+        // Same side → add to position (increase size, average entry price)
+        return this.addToPosition(existingPosition, input, market);
+      } else {
+        // Opposite side → reduce, close, or flip position
+        return this.reduceOrFlipPosition(existingPosition, input, market);
+      }
     }
 
     // Check total user exposure across all positions
@@ -647,6 +650,322 @@ export class PerpMarketService {
       await this.deps.broadcast.emit('markets', payload);
     } catch {
       // Broadcast is optional - don't fail the trade if SSE fails
+    }
+  }
+
+  /**
+   * Add to an existing position (same side).
+   * Calculates weighted average entry price and increases position size.
+   */
+  private async addToPosition(
+    existing: PerpPositionRecord,
+    input: PerpOpenInput,
+    market: PerpMarketRecord
+  ): Promise<PerpTradeResult> {
+    const { size: addedSize } = input;
+    const currentPrice = market.currentPrice;
+
+    // Validate added size
+    const minOrderSize = market.minOrderSize ?? DEFAULT_MIN_ORDER_SIZE;
+    if (addedSize < minOrderSize) {
+      throw new Error(`Order size below minimum (${minOrderSize})`);
+    }
+
+    // Check max position size
+    const maxPositionSize = this.calculateMaxPositionSize(market.openInterest);
+    const newTotalSize = existing.size + addedSize;
+    if (newTotalSize > maxPositionSize) {
+      throw new Error(
+        `Total position size would exceed market limit (${maxPositionSize.toLocaleString()})`
+      );
+    }
+
+    // Check total user exposure
+    const userPositions = await this.db.getOpenPositionsByUser(input.userId);
+    const currentExposure = userPositions.reduce(
+      (sum, p) => sum + p.size * p.leverage,
+      0
+    );
+    // Use existing leverage for the added portion (consistent with industry standard)
+    const effectiveLeverage = existing.leverage;
+    const addedNotional = addedSize * effectiveLeverage;
+    if (currentExposure + addedNotional > MAX_USER_EXPOSURE) {
+      throw new Error(
+        `Total exposure would exceed limit: current ${currentExposure.toLocaleString()}, ` +
+          `adding ${addedNotional.toLocaleString()}, max ${MAX_USER_EXPOSURE.toLocaleString()}`
+      );
+    }
+
+    // Calculate weighted average entry price
+    const newEntryPrice =
+      (existing.size * existing.entryPrice + addedSize * currentPrice) /
+      newTotalSize;
+
+    // Recalculate liquidation price with new entry
+    const newLiquidationPrice = calculateLiquidationPrice(
+      newEntryPrice,
+      existing.side,
+      effectiveLeverage
+    );
+
+    // Calculate margin and fees for added portion only
+    const marginRequired = addedSize / effectiveLeverage;
+    const fee = this.calculateFee(addedSize);
+    const totalCost = marginRequired + fee;
+
+    // Debit wallet for additional margin
+    await this.deps.wallet.debit({
+      userId: input.userId,
+      amount: totalCost,
+      reason: 'perp_add_to_position',
+      description: `Add ${addedSize} to ${effectiveLeverage}x ${existing.side} ${existing.ticker}`,
+    });
+
+    const now = this.deps.clock?.now() ?? new Date();
+
+    // Calculate unrealized PnL with new entry price
+    const { pnl, pnlPercent } = calculateUnrealizedPnL(
+      newEntryPrice,
+      currentPrice,
+      existing.side,
+      newTotalSize
+    );
+
+    // Update the existing position
+    await this.db.updateOpenPosition(existing.id, {
+      size: newTotalSize,
+      entryPrice: newEntryPrice,
+      currentPrice,
+      liquidationPrice: newLiquidationPrice,
+      unrealizedPnL: pnl,
+      unrealizedPnLPercent: pnlPercent,
+      lastUpdated: now,
+    });
+
+    // Update market stats
+    const newOpenInterest = market.openInterest + addedSize;
+    await this.db.updateMarketStats(existing.ticker, {
+      openInterest: newOpenInterest,
+      volume24h: market.volume24h + addedSize,
+    });
+
+    // Process fees
+    if (this.deps.feeProcessor) {
+      await this.deps.feeProcessor.processTradingFee({
+        userId: input.userId,
+        amount: addedSize,
+        type: 'perp_add_to_position',
+        relatedId: existing.ticker,
+        positionId: existing.id,
+      });
+    }
+
+    const result: PerpTradeResult = {
+      positionId: existing.id,
+      ticker: existing.ticker,
+      side: existing.side,
+      size: newTotalSize,
+      leverage: effectiveLeverage,
+      entryPrice: newEntryPrice,
+      liquidationPrice: newLiquidationPrice,
+      marginPaid: marginRequired,
+      feePaid: fee,
+      balance: (await this.deps.wallet.getBalance(input.userId)).balance,
+      isRebalance: true,
+      rebalanceType: 'add',
+      previousSize: existing.size,
+      previousEntryPrice: existing.entryPrice,
+    };
+
+    // Broadcast trade event
+    await this.emitTradeEvent({
+      type: 'perp_trade',
+      action: 'add_to_position',
+      ticker: existing.ticker,
+      side: existing.side,
+      size: newTotalSize,
+      addedSize,
+      leverage: effectiveLeverage,
+      entryPrice: newEntryPrice,
+      previousEntryPrice: existing.entryPrice,
+      positionId: existing.id,
+      openInterest: newOpenInterest,
+      volume24h: market.volume24h + addedSize,
+      timestamp: now.toISOString(),
+    });
+
+    return result;
+  }
+
+  /**
+   * Reduce, close, or flip an existing position (opposite side trade).
+   *
+   * - If tradeSize < existingSize: Partial close (reduce position)
+   * - If tradeSize = existingSize: Full close (flatten)
+   * - If tradeSize > existingSize: Close existing + open inverse (flip)
+   */
+  private async reduceOrFlipPosition(
+    existing: PerpPositionRecord,
+    input: PerpOpenInput,
+    market: PerpMarketRecord
+  ): Promise<PerpTradeResult> {
+    const { size: tradeSize, side: tradeSide, leverage } = input;
+
+    // Validate trade size
+    const minOrderSize = market.minOrderSize ?? DEFAULT_MIN_ORDER_SIZE;
+    if (tradeSize < minOrderSize) {
+      throw new Error(`Order size below minimum (${minOrderSize})`);
+    }
+
+    const now = this.deps.clock?.now() ?? new Date();
+
+    if (tradeSize < existing.size) {
+      // REDUCE: Partial close of existing position
+      const closePercentage = tradeSize / existing.size;
+      const closeResult = await this.closePosition({
+        userId: input.userId,
+        positionId: existing.id,
+        percentage: closePercentage,
+      });
+
+      return {
+        ...closeResult,
+        isRebalance: true,
+        rebalanceType: 'reduce',
+        previousSize: existing.size,
+        previousEntryPrice: existing.entryPrice,
+      };
+    } else if (Math.abs(tradeSize - existing.size) < 0.01) {
+      // CLOSE: Full close (sizes are equal within tolerance)
+      const closeResult = await this.closePosition({
+        userId: input.userId,
+        positionId: existing.id,
+        percentage: 1,
+      });
+
+      return {
+        ...closeResult,
+        isRebalance: true,
+        rebalanceType: 'close',
+        previousSize: existing.size,
+        previousEntryPrice: existing.entryPrice,
+      };
+    } else {
+      // FLIP: Close existing and open inverse position
+      // Use transaction for atomicity
+      return this.db.transaction(async (_tx) => {
+        // First, fully close the existing position
+        const closeResult = await this.closePosition({
+          userId: input.userId,
+          positionId: existing.id,
+          percentage: 1,
+        });
+
+        // Calculate the inverse position size
+        const inverseSize = tradeSize - existing.size;
+
+        // Open new position in the opposite direction
+        // We need to call openPosition but skip the existing position check
+        // since we just closed it. We'll create the position directly.
+        const maxLeverage = market.maxLeverage ?? DEFAULT_MAX_LEVERAGE;
+        const effectiveLeverage = Math.min(leverage, maxLeverage);
+
+        const entryPrice = market.currentPrice;
+        const liquidationPrice = calculateLiquidationPrice(
+          entryPrice,
+          tradeSide,
+          effectiveLeverage
+        );
+        const marginRequired = inverseSize / effectiveLeverage;
+        const fee = this.calculateFee(inverseSize);
+        const totalCost = marginRequired + fee;
+
+        // Debit wallet for new position
+        await this.deps.wallet.debit({
+          userId: input.userId,
+          amount: totalCost,
+          reason: 'perp_flip_position',
+          description: `Flip to ${effectiveLeverage}x ${tradeSide} ${existing.ticker}`,
+        });
+
+        // Create new position
+        const newPosition = await this.db.upsertPosition({
+          id: undefined,
+          userId: input.userId,
+          ticker: existing.ticker,
+          organizationId: existing.organizationId,
+          side: tradeSide,
+          entryPrice,
+          currentPrice: entryPrice,
+          size: inverseSize,
+          leverage: effectiveLeverage,
+          liquidationPrice,
+          unrealizedPnL: 0,
+          unrealizedPnLPercent: 0,
+          fundingPaid: 0,
+          openedAt: now,
+          lastUpdated: now,
+        });
+
+        // Update market stats (OI changes: -existing.size + inverseSize)
+        const netOiChange = inverseSize - existing.size;
+        const newOpenInterest = Math.max(0, market.openInterest + netOiChange);
+        const volumeTraded = existing.size + inverseSize; // Total volume of both legs
+        await this.db.updateMarketStats(existing.ticker, {
+          openInterest: newOpenInterest,
+          volume24h: market.volume24h + volumeTraded,
+        });
+
+        // Process fees for the new position
+        if (this.deps.feeProcessor) {
+          await this.deps.feeProcessor.processTradingFee({
+            userId: input.userId,
+            amount: inverseSize,
+            type: 'perp_flip_position',
+            relatedId: existing.ticker,
+            positionId: newPosition.id,
+          });
+        }
+
+        const result: PerpTradeResult = {
+          positionId: newPosition.id,
+          ticker: existing.ticker,
+          side: tradeSide,
+          size: inverseSize,
+          leverage: effectiveLeverage,
+          entryPrice,
+          liquidationPrice,
+          marginPaid: marginRequired,
+          feePaid: fee + (closeResult.feePaid ?? 0), // Combined fees
+          realizedPnL: closeResult.realizedPnL, // PnL from closing old position
+          balance: (await this.deps.wallet.getBalance(input.userId)).balance,
+          isRebalance: true,
+          rebalanceType: 'flip',
+          previousSize: existing.size,
+          previousEntryPrice: existing.entryPrice,
+        };
+
+        // Broadcast flip event
+        await this.emitTradeEvent({
+          type: 'perp_trade',
+          action: 'flip_position',
+          ticker: existing.ticker,
+          previousSide: existing.side,
+          newSide: tradeSide,
+          closedSize: existing.size,
+          newSize: inverseSize,
+          leverage: effectiveLeverage,
+          entryPrice,
+          realizedPnL: closeResult.realizedPnL,
+          positionId: newPosition.id,
+          previousPositionId: existing.id,
+          openInterest: newOpenInterest,
+          volume24h: market.volume24h + volumeTraded,
+          timestamp: now.toISOString(),
+        });
+
+        return result;
+      });
     }
   }
 
