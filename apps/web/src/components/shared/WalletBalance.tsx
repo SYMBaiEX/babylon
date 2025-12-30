@@ -1,6 +1,6 @@
 'use client';
 
-import { cn } from '@babylon/shared';
+import { cn, formatCurrency } from '@babylon/shared';
 import { TrendingDown, TrendingUp, Wallet } from 'lucide-react';
 import { useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
@@ -42,15 +42,6 @@ export function WalletBalance({ refreshTrigger }: WalletBalanceProps = {}) {
     return null;
   }
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(amount);
-  };
-
   const isProfit = lifetimePnL >= 0;
   const startingBalance = 1000;
 
@@ -70,7 +61,7 @@ export function WalletBalance({ refreshTrigger }: WalletBalanceProps = {}) {
                   : 'text-foreground'
             )}
           >
-            {loading ? '...' : formatCurrency(balance)}
+            {loading ? '...' : formatCurrency(balance, 0)}
           </div>
         </div>
       </div>
@@ -92,7 +83,7 @@ export function WalletBalance({ refreshTrigger }: WalletBalanceProps = {}) {
             )}
           >
             {loading ? '...' : isProfit ? '+' : ''}
-            {formatCurrency(lifetimePnL)}
+            {formatCurrency(lifetimePnL, 0)}
           </div>
         </div>
       </div>

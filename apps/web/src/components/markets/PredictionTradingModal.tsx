@@ -4,7 +4,7 @@ import {
   calculateExpectedPayout,
   PredictionPricing,
 } from '@babylon/core/markets/prediction/client';
-import { cn, logger } from '@babylon/shared';
+import { BABYLON_POINTS_SYMBOL, cn, logger } from '@babylon/shared';
 import { usePrivy } from '@privy-io/react-auth';
 import { CheckCircle, Clock, Wallet, X, XCircle } from 'lucide-react';
 import { useEffect, useState } from 'react';
@@ -135,7 +135,7 @@ export function PredictionTradingModal({
     if (!user) return;
 
     if (amountNum < 1) {
-      toast.error('Minimum bet is $1');
+      toast.error(`Minimum bet is ${BABYLON_POINTS_SYMBOL}1`);
       return;
     }
 
@@ -211,12 +211,7 @@ export function PredictionTradingModal({
   };
 
   const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }).format(price);
+    return `${BABYLON_POINTS_SYMBOL}${price.toFixed(2)}`;
   };
 
   return (
@@ -324,7 +319,7 @@ export function PredictionTradingModal({
           {/* Amount Input */}
           <div className="mb-6">
             <label className="mb-2 block text-muted-foreground text-sm">
-              Amount (USD)
+              Amount (PTS)
             </label>
             <input
               type="number"
@@ -337,7 +332,7 @@ export function PredictionTradingModal({
                 'w-full rounded bg-muted/50 px-4 py-3 font-medium text-base text-foreground focus:bg-muted focus:outline-none focus:ring-2 focus:ring-[#0066FF]/30 sm:text-lg',
                 loading && 'cursor-not-allowed opacity-50'
               )}
-              placeholder="Min: $1"
+              placeholder={`Min: ${BABYLON_POINTS_SYMBOL}1`}
             />
           </div>
 

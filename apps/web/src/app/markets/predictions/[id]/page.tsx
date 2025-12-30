@@ -5,7 +5,7 @@ import {
   PredictionPricing,
 } from '@babylon/core/markets/prediction/client';
 import type { UserPredictionPosition } from '@babylon/shared';
-import { cn } from '@babylon/shared';
+import { BABYLON_POINTS_SYMBOL, cn } from '@babylon/shared';
 import {
   ArrowLeft,
   CheckCircle,
@@ -278,7 +278,7 @@ export default function PredictionDetailPage() {
 
     const amountNum = Number.parseFloat(amount) || 0;
     if (amountNum < 1) {
-      toast.error('Minimum bet is $1');
+      toast.error(`Minimum bet is ${BABYLON_POINTS_SYMBOL}1`);
       return;
     }
 
@@ -335,12 +335,7 @@ export default function PredictionDetailPage() {
   };
 
   const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }).format(price);
+    return `${BABYLON_POINTS_SYMBOL}${price.toFixed(2)}`;
   };
 
   const getTimeUntilResolution = () => {
@@ -619,7 +614,7 @@ export default function PredictionDetailPage() {
             {/* Amount Input */}
             <div className="mb-4">
               <label className="mb-2 block font-medium text-muted-foreground text-sm">
-                Amount (USD)
+                Amount (PTS)
               </label>
               <input
                 type="number"
@@ -628,7 +623,7 @@ export default function PredictionDetailPage() {
                 min="1"
                 step="1"
                 className="w-full rounded bg-background px-4 py-3 font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-[#0066FF]/30"
-                placeholder="Min: $1"
+                placeholder={`Min: ${BABYLON_POINTS_SYMBOL}1`}
               />
             </div>
 

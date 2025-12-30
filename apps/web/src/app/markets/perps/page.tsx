@@ -11,6 +11,7 @@ import {
   useRef,
   useState,
 } from 'react';
+import { formatPrice, formatVolume } from '@/app/markets/_lib/formatters';
 import { CategoryPnLCard } from '@/components/markets/CategoryPnLCard';
 import { CategoryPnLShareModal } from '@/components/markets/CategoryPnLShareModal';
 import { PerpPositionsList } from '@/components/markets/PerpPositionsList';
@@ -122,13 +123,6 @@ export default function PerpsPage() {
 
   const handleMarketClick = (market: PerpMarket) => {
     router.push(`/markets/perps/${market.ticker}?from=list`);
-  };
-
-  const formatPrice = (p: number) => `$${p.toFixed(2)}`;
-  const formatVolume = (v: number) => {
-    if (v >= 1e9) return `$${(v / 1e9).toFixed(2)}B`;
-    if (v >= 1e6) return `$${(v / 1e6).toFixed(2)}M`;
-    return `$${(v / 1e3).toFixed(2)}K`;
   };
 
   if (loading) {

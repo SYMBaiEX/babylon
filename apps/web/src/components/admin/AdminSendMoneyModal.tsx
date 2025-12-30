@@ -1,14 +1,14 @@
 'use client';
 
-import { CHAIN, cn, logger, WALLET_ERROR_MESSAGES } from '@babylon/shared';
-import { useFundWallet, usePrivy } from '@privy-io/react-auth';
 import {
-  AlertCircle,
-  CheckCircle2,
-  DollarSign,
-  Loader2,
-  X,
-} from 'lucide-react';
+  BABYLON_POINTS_SYMBOL,
+  CHAIN,
+  cn,
+  logger,
+  WALLET_ERROR_MESSAGES,
+} from '@babylon/shared';
+import { useFundWallet, usePrivy } from '@privy-io/react-auth';
+import { AlertCircle, CheckCircle2, Coins, Loader2, X } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import type { Address } from 'viem';
@@ -240,12 +240,12 @@ export function AdminSendMoneyModal({
     }
 
     if (amountNum < 0.01) {
-      toast.error('Minimum amount is $0.01');
+      toast.error(`Minimum amount is ${BABYLON_POINTS_SYMBOL}0.01`);
       return;
     }
 
     if (amountNum > 10000) {
-      toast.error('Maximum amount is $10,000');
+      toast.error(`Maximum amount is ${BABYLON_POINTS_SYMBOL}10,000`);
       return;
     }
 
@@ -392,7 +392,9 @@ export function AdminSendMoneyModal({
     }
 
     setStep('success');
-    toast.success(`Successfully sent $${amountNum} to ${recipientName}!`);
+    toast.success(
+      `Successfully sent ${BABYLON_POINTS_SYMBOL}${amountNum} to ${recipientName}!`
+    );
 
     if (onSuccess) {
       onSuccess();
@@ -426,10 +428,10 @@ export function AdminSendMoneyModal({
 
               <div>
                 <label className="mb-2 block font-medium text-sm">
-                  Amount (USD)
+                  Amount (PTS)
                 </label>
                 <div className="relative">
-                  <DollarSign className="-translate-y-1/2 absolute top-1/2 left-3 h-5 w-5 text-muted-foreground" />
+                  <Coins className="-translate-y-1/2 absolute top-1/2 left-3 h-5 w-5 text-muted-foreground" />
                   <input
                     type="number"
                     min="0.01"
@@ -443,7 +445,9 @@ export function AdminSendMoneyModal({
                   />
                 </div>
                 <p className="mt-1 text-muted-foreground text-xs">
-                  Min: $0.01 • Max: $10,000
+                  Min: {BABYLON_POINTS_SYMBOL}0.01 • Max:{' '}
+                  {BABYLON_POINTS_SYMBOL}
+                  10,000
                 </p>
               </div>
 
@@ -498,7 +502,7 @@ export function AdminSendMoneyModal({
                   </>
                 ) : (
                   <>
-                    <DollarSign className="h-4 w-4" />
+                    <Coins className="h-4 w-4" />
                     Create Payment
                   </>
                 )}
@@ -542,7 +546,8 @@ export function AdminSendMoneyModal({
             </div>
             <p className="mb-2 font-semibold text-lg">Payment Sent!</p>
             <p className="text-muted-foreground text-sm">
-              ${amountNum} sent to {recipientName}
+              {BABYLON_POINTS_SYMBOL}
+              {amountNum} sent to {recipientName}
             </p>
             {txHash && (
               <p className="mt-2 font-mono text-muted-foreground text-xs">

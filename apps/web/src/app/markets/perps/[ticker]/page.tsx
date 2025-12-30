@@ -1,7 +1,7 @@
 'use client';
 
 import { FEE_CONFIG } from '@babylon/engine/config/fees';
-import { cn } from '@babylon/shared';
+import { BABYLON_POINTS_SYMBOL, cn } from '@babylon/shared';
 import {
   AlertTriangle,
   ArrowLeft,
@@ -13,6 +13,7 @@ import {
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
+import { formatPrice, formatVolume } from '@/app/markets/_lib/formatters';
 import { AssetTradesFeed } from '@/components/markets/AssetTradesFeed';
 import { PerpPositionsList } from '@/components/markets/PerpPositionsList';
 import { PerpPriceChart } from '@/components/markets/PerpPriceChart';
@@ -111,7 +112,9 @@ export default function PerpDetailPage() {
 
     const sizeNum = Number.parseFloat(size) || 0;
     if (sizeNum < market.minOrderSize) {
-      toast.error(`Minimum order size is $${market.minOrderSize}`);
+      toast.error(
+        `Minimum order size is ${BABYLON_POINTS_SYMBOL}${market.minOrderSize}`
+      );
       return;
     }
 
@@ -139,7 +142,7 @@ export default function PerpDetailPage() {
     })
       .then(async () => {
         toast.success('Position opened!', {
-          description: `Opened ${leverage}x ${side} on ${market.ticker} at $${displayPrice.toFixed(2)}`,
+          description: `Opened ${leverage}x ${side} on ${market.ticker} at ${formatPrice(displayPrice)}`,
         });
 
         await Promise.all([
@@ -154,21 +157,6 @@ export default function PerpDetailPage() {
       .finally(() => {
         setSubmitting(false);
       });
-  };
-
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }).format(price);
-  };
-
-  const formatVolume = (v: number) => {
-    if (v >= 1e9) return `$${(v / 1e9).toFixed(2)}B`;
-    if (v >= 1e6) return `$${(v / 1e6).toFixed(2)}M`;
-    return `$${(v / 1e3).toFixed(2)}K`;
   };
 
   const sizeNum = Number.parseFloat(size) || 0;
@@ -390,7 +378,7 @@ export default function PerpDetailPage() {
             <div className="mb-4 space-y-4 rounded-lg bg-muted/30 p-4">
               <div>
                 <label className="mb-2 block font-medium text-muted-foreground text-sm">
-                  Position Size (USD)
+                  Position Size (PTS)
                 </label>
                 <input
                   type="number"
@@ -399,7 +387,7 @@ export default function PerpDetailPage() {
                   min={market.minOrderSize}
                   step="10"
                   className="w-full rounded bg-background px-4 py-3 font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-[#0066FF]/30"
-                  placeholder={`Min: $${market.minOrderSize}`}
+                  placeholder={`Min: ${BABYLON_POINTS_SYMBOL}${market.minOrderSize}`}
                 />
               </div>
               <div>
