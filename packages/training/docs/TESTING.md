@@ -273,35 +273,95 @@ If you see errors:
 - `vLLM not installed` → `pip install vllm`
 - `CUDA not available` → Install CUDA or use `--skip-vllm`
 
-#### Step 2: Start Infrastructure
+#### Step 2: Start Infrastructure & Push Schema
 
 ```bash
-# Terminal 1: PostgreSQL
+# Start PostgreSQL and Redis
 cd packages/training
-docker compose -f docker-compose.test.yml up postgres
+docker compose -f docker-compose.test.yml up -d
 
-# Terminal 2: Set environment
-export DATABASE_URL=postgresql://babylon_test:test_password@localhost:5434/babylon_test
-export WANDB_MODE=offline  # or set WANDB_API_KEY for real logging
+# Wait for healthy status
+docker compose -f docker-compose.test.yml ps
+
+# Push database schema
+cd ../db
+DATABASE_URL=postgresql://babylon_test:test_password@localhost:5434/babylon_test \
+  bunx drizzle-kit push --force
 ```
 
-#### Step 3: Run Training (Dry Run)
+#### Step 3: Generate & Import Training Data
+
+The training pipeline requires trajectory data. Generate it with the engine and import to DB:
+
+```bash
+# Generate trajectories (from project root)
+cd /path/to/babs
+bun run packages/engine/examples/generate-training-data.ts --causal --hours 2 --npcs 5
+
+# Import to database
+cd packages/training/python
+source venv/bin/activate
+DATABASE_URL=postgresql://babylon_test:test_password@localhost:5434/babylon_test \
+  python scripts/import_json_trajectories.py --source ../../training-data-output --verbose
+```
+
+**Expected Output:**
+
+```
+Found 15 trajectory files in .../training-data-output/trajectories
+Connected to database
+...
+IMPORT SUMMARY
+==================================================
+Total files:          15
+Valid trajectories:   14
+Inserted:             14
+```
+
+#### Step 4: Run Training
 
 ```bash
 cd packages/training/python
+source venv/bin/activate
 
-# Dry run validates everything without actual training
-python src/training/run_training.py --dry-run --steps 1
+export DATABASE_URL=postgresql://babylon_test:test_password@localhost:5434/babylon_test
+export WANDB_MODE=offline  # or set WANDB_API_KEY for real logging
+
+# With vLLM on GPU (RTX 3060 - use 1.5B model)
+python scripts/run_training.py --model Qwen/Qwen2.5-1.5B-Instruct --steps 1 --batch-size 1 --no-wandb
+
+# Check logs while training
+tail -f logs/trainer.log
+tail -f logs/environment.log
 ```
 
-#### Step 4: Run Full Training
+**Expected Output (services starting):**
+
+```
+BABYLON RL TRAINING PIPELINE
+======================================================================
+Model: Qwen/Qwen2.5-1.5B-Instruct
+Steps: 1
+...
+  ✓ atropos is ready
+  ✓ vllm is ready
+All services ready in 22.0s
+Environment started (PID: ...)
+Trainer started (PID: ...)
+TRAINING IN PROGRESS
+```
+
+#### Step 5: Cleanup
 
 ```bash
-# With real vLLM (requires GPU)
-python src/training/run_training.py --steps 10 --batch-size 4
+# Stop training (Ctrl+C or)
+pkill -f "run_training.py"
+pkill -f "vllm"
+pkill -f "atropos"
 
-# Without vLLM (use external inference)
-python src/training/run_training.py --skip-vllm --steps 10
+# Stop Docker
+cd packages/training
+docker compose -f docker-compose.test.yml down -v
 ```
 
 ---
