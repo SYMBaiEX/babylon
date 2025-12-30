@@ -73,81 +73,104 @@ class TestImports:
 
 
 class TestRewardFunctions:
-    """Test reward calculation functions"""
+    """Test reward calculation functions using archetype-aware API"""
     
     def test_pnl_reward_positive(self):
-        from src.training.rewards import pnl_reward
+        from src.training.rewards import pnl_reward, TrajectoryRewardInputs
         
-        # Positive P&L should give > 0.5
-        reward = pnl_reward(500.0, initial_balance=10000.0)
-        assert 0.5 < reward <= 1.0
+        # Positive P&L should give positive reward
+        inputs = TrajectoryRewardInputs(
+            final_pnl=500.0,
+            starting_balance=10000.0,
+            end_balance=10500.0,
+        )
+        reward = pnl_reward(inputs)
+        assert reward > 0.0
         
     def test_pnl_reward_negative(self):
-        from src.training.rewards import pnl_reward
+        from src.training.rewards import pnl_reward, TrajectoryRewardInputs
         
-        # Negative P&L should give < 0.5
-        reward = pnl_reward(-500.0, initial_balance=10000.0)
-        assert 0.0 <= reward < 0.5
+        # Negative P&L should give negative reward
+        inputs = TrajectoryRewardInputs(
+            final_pnl=-500.0,
+            starting_balance=10000.0,
+            end_balance=9500.0,
+        )
+        reward = pnl_reward(inputs)
+        assert reward < 0.0
         
     def test_pnl_reward_zero(self):
-        from src.training.rewards import pnl_reward
+        from src.training.rewards import pnl_reward, TrajectoryRewardInputs
         
-        # Zero P&L should give ~0.5
-        reward = pnl_reward(0.0, initial_balance=10000.0)
-        assert 0.45 <= reward <= 0.55
-        
-    def test_efficiency_reward(self):
-        from src.training.rewards import efficiency_reward
-        
-        reward = efficiency_reward(
-            final_pnl=500.0,
-            episode_length=10,
-            trades_executed=5
+        # Zero P&L should give ~0
+        inputs = TrajectoryRewardInputs(
+            final_pnl=0.0,
+            starting_balance=10000.0,
+            end_balance=10000.0,
         )
+        reward = pnl_reward(inputs)
+        assert -0.1 <= reward <= 0.1
+        
+    def test_archetype_composite_reward(self):
+        from src.training.rewards import (
+            archetype_composite_reward,
+            TrajectoryRewardInputs,
+            BehaviorMetrics,
+        )
+        
+        inputs = TrajectoryRewardInputs(
+            final_pnl=500.0,
+            starting_balance=10000.0,
+            end_balance=10500.0,
+            format_score=0.8,
+            reasoning_score=0.75,
+        )
+        behavior = BehaviorMetrics(
+            trades_executed=5,
+            total_pnl=500.0,
+            episode_length=10,
+        )
+        
+        reward = archetype_composite_reward(inputs, "trader", behavior)
         assert 0.0 <= reward <= 1.0
         
-    def test_composite_reward(self):
-        from src.training.rewards import composite_reward
+    def test_composite_reward_with_inputs(self):
+        from src.training.rewards import composite_reward, TrajectoryRewardInputs
         
-        trajectory = {
-            "final_pnl": 500.0,
-            "episode_length": 10,
-            "trades_executed": 5,
-            "steps": [{"action": {"success": True}} for _ in range(10)]
-        }
+        inputs = TrajectoryRewardInputs(
+            final_pnl=500.0,
+            starting_balance=10000.0,
+            end_balance=10500.0,
+        )
         
-        reward = composite_reward(trajectory)
+        reward = composite_reward(inputs)
         assert 0.0 <= reward <= 1.0
         
     def test_relative_scores(self):
         from src.training.rewards import relative_scores
         
-        trajectories = [
-            {"final_pnl": 1000.0, "episode_length": 10, "trades_executed": 5, "steps": []},
-            {"final_pnl": 0.0, "episode_length": 10, "trades_executed": 5, "steps": []},
-            {"final_pnl": -500.0, "episode_length": 10, "trades_executed": 5, "steps": []},
-        ]
+        # relative_scores expects a list of raw reward floats
+        rewards = [0.8, 0.5, 0.2]  # High, medium, low rewards
         
-        scores = relative_scores(trajectories)
+        scores = relative_scores(rewards)
         
-        # Scores should be centered at 0
-        assert abs(sum(scores) / len(scores)) < 0.1
-        # Best trajectory should have highest score
+        # Should return normalized scores in [0, 1]
+        assert all(0.0 <= s <= 1.0 for s in scores)
+        # Best reward should have highest relative score
         assert scores[0] > scores[1] > scores[2]
         
     def test_reward_normalizer(self):
         from src.training.rewards import RewardNormalizer
         
-        normalizer = RewardNormalizer(decay=0.9)
+        normalizer = RewardNormalizer()
         
         # Update with some rewards
-        normalizer.update([0.5, 0.6, 0.7, 0.8])
-        normalizer.update([0.55, 0.65, 0.75, 0.85])
+        for r in [0.5, 0.6, 0.7, 0.8, 0.55, 0.65, 0.75, 0.85]:
+            normalizer.update(r)
         
-        # Normalize should center around 0
-        normalized = normalizer.normalize([0.65])
-        assert isinstance(normalized, list)
-        assert len(normalized) == 1
+        # Normalize should work
+        normalized = normalizer.normalize(0.65)
+        assert isinstance(normalized, float)
 
 
 class TestConverter:

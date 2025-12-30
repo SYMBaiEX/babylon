@@ -19,6 +19,7 @@ import {
 import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
+import { formatPrice } from '@/app/markets/_lib/formatters';
 import { PageContainer } from '@/components/shared/PageContainer';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { useAuth } from '@/hooks/useAuth';
@@ -110,8 +111,6 @@ export default function OnChainBettingPage() {
     setSelectedMarket(null);
     setBetAmount('');
   };
-
-  const formatPrice = (price: number) => `$${price.toFixed(2)}`;
 
   const getDaysLeft = (date?: string) => {
     if (!date) return null;

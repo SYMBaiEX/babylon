@@ -11,3 +11,12 @@ export {
   type ArchetypeTraits,
   archetypeConfigService,
 } from './ArchetypeConfigService';
+
+export {
+  type ArchetypeResolver,
+  createArchetypeResolver,
+  deriveArchetype,
+  getRoleArchetype,
+  getValidArchetypes,
+  type NPCCharacteristics,
+} from './derive-archetype';

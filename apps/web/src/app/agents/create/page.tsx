@@ -9,7 +9,7 @@ import { LoginButton } from '@/components/auth/LoginButton';
 import { PageContainer } from '@/components/shared/PageContainer';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { useAuth } from '@/hooks/useAuth';
-import { useAuthStore } from '@/stores/authStore';
+import { useWalletBalance } from '@/hooks/useWalletBalance';
 import {
   AgentConfigForm,
   AgentSetupModal,
@@ -23,10 +23,12 @@ const DEFAULT_MAX_DEPOSIT = 10000;
 
 export default function CreateAgentPage() {
   const router = useRouter();
-  const { user } = useAuthStore();
-  const { ready, authenticated, getAccessToken } = useAuth();
+  const { ready, authenticated, getAccessToken, user: authUser } = useAuth();
 
-  const balance = user?.reputationPoints ?? 0;
+  // Fetch balance fresh from API instead of using cached authStore data
+  const { balance, loading: balanceLoading } = useWalletBalance(authUser?.id, {
+    enabled: authenticated,
+  });
 
   // Show sign-in prompt for unauthenticated users
   if (!ready || !authenticated) {
@@ -73,6 +75,9 @@ export default function CreateAgentPage() {
       if (data.username !== profileData.username) {
         updateProfileField('username', data.username);
       }
+      if (data.bio !== profileData.bio) {
+        updateProfileField('bio', data.bio);
+      }
       if (data.profileImageUrl !== profileData.profileImageUrl) {
         updateProfileField('profileImageUrl', data.profileImageUrl);
       }
@@ -87,7 +92,7 @@ export default function CreateAgentPage() {
   // User balance for max deposit - default to 10k if balance not available
   const maxDeposit = Math.max(
     100,
-    Math.min(balance ?? DEFAULT_MAX_DEPOSIT, DEFAULT_MAX_DEPOSIT)
+    Math.min(balance || DEFAULT_MAX_DEPOSIT, DEFAULT_MAX_DEPOSIT)
   );
 
   // Cycle through pre-made images with direction (next/prev)
@@ -253,7 +258,7 @@ export default function CreateAgentPage() {
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Your Balance</span>
                   <span className="font-medium font-mono">
-                    {(balance ?? 0).toLocaleString()} pts
+                    {balanceLoading ? '...' : balance.toLocaleString()} pts
                   </span>
                 </div>
               </div>

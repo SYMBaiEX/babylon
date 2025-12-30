@@ -112,10 +112,53 @@ export const PRIORITY_METRICS: Record<string, string[]> = {
 };
 
 /**
+ * Valid canonical archetype names for whitelist validation
+ * Derived from RUBRICS keys to maintain single source of truth
+ */
+export const VALID_ARCHETYPES = new Set(Object.keys(RUBRICS));
+
+/**
+ * Normalize archetype string to canonical format (lowercase, hyphens)
+ * Returns 'default' for empty/null values
+ * Note: Does NOT validate against whitelist - use sanitizeArchetype() for that
+ */
+export function normalizeArchetype(
+  archetype: string | null | undefined
+): string {
+  if (!archetype || archetype.trim() === '') {
+    return 'default';
+  }
+  return archetype.toLowerCase().trim().replace(/_/g, '-');
+}
+
+/**
+ * Validate that an archetype is in the allowed whitelist
+ * Prevents prompt injection attacks via malicious archetype strings
+ */
+export function isValidArchetype(archetype: string): boolean {
+  const normalized = normalizeArchetype(archetype);
+  return normalized === 'default' || VALID_ARCHETYPES.has(normalized);
+}
+
+/**
+ * Sanitize archetype for safe use in LLM prompts
+ * Returns normalized archetype if valid, 'default' otherwise
+ */
+export function sanitizeArchetype(
+  archetype: string | null | undefined
+): string {
+  const normalized = normalizeArchetype(archetype);
+  if (normalized === 'default' || VALID_ARCHETYPES.has(normalized)) {
+    return normalized;
+  }
+  return 'default';
+}
+
+/**
  * Get the rubric for an archetype
  */
 export function getRubric(archetype: string): string {
-  const normalized = archetype.toLowerCase().trim();
+  const normalized = normalizeArchetype(archetype);
   return RUBRICS[normalized] || DEFAULT_RUBRIC;
 }
 
@@ -123,7 +166,7 @@ export function getRubric(archetype: string): string {
  * Get priority metrics for an archetype
  */
 export function getPriorityMetrics(archetype: string): string[] {
-  const normalized = archetype.toLowerCase().trim();
+  const normalized = normalizeArchetype(archetype);
   return PRIORITY_METRICS[normalized] || DEFAULT_PRIORITY_METRICS;
 }
 
@@ -131,7 +174,7 @@ export function getPriorityMetrics(archetype: string): string[] {
  * Check if an archetype has a custom rubric
  */
 export function hasCustomRubric(archetype: string): boolean {
-  const normalized = archetype.toLowerCase().trim();
+  const normalized = normalizeArchetype(archetype);
   return normalized in RUBRICS;
 }
 
@@ -191,8 +234,9 @@ export function getRubricHash(archetype: string): string {
 /**
  * Get the hash of all rubrics combined
  * Used for detecting any rubric changes
+ * Note: Sorted to match Python implementation for cross-language consistency
  */
 export function getAllRubricsHash(): string {
-  const allRubrics = Object.values(RUBRICS).join('::') + DEFAULT_RUBRIC;
+  const allRubrics = Object.values(RUBRICS).sort().join('::') + DEFAULT_RUBRIC;
   return createHash('sha256').update(allRubrics).digest('hex').substring(0, 16);
 }

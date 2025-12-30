@@ -1284,8 +1284,13 @@ async function generateOrganizationContent(
       );
       const postDayNumber = dayNumberForTimestamp(timestampWithOffset);
 
-      // 20% chance of article, 80% chance of post
-      const shouldCreateArticle = Math.random() < 0.2;
+      // 5% chance of article (reduced from 20%), 95% chance of post
+      // Rationale: Articles are now primarily event-driven (arc events, question resolution)
+      // via NewsArticlePacingEngine. Random articles still occur but at lower frequency to:
+      // 1. Keep the feed fresh with occasional background coverage
+      // 2. Not overwhelm the event-driven article generation
+      // 3. Maintain realistic org behavior (not everything is breaking news)
+      const shouldCreateArticle = Math.random() < 0.05;
 
       if (shouldCreateArticle) {
         const success = await generateOrgArticle(
@@ -1341,11 +1346,18 @@ async function generateOrganizationContent(
  * Generates multiple articles concurrently to maximize throughput
  */
 async function generateArticles(
-  timestamp: Date,
+  _timestamp: Date,
   llm: BabylonLLMClient,
   deadlineMs: number,
   dayNumberForTimestamp: (t: Date) => number | undefined
 ): Promise<number> {
+  // Generate articles for active questions (with coverage tracking to prevent duplicates)
+  const questionArticlesCreated = await generateArticlesForActiveQuestions(
+    llm,
+    deadlineMs,
+    dayNumberForTimestamp
+  );
+
   // Get recent events (from last 2 hours, up to current time)
   const now = new Date();
   const twoHoursAgo = new Date(now.getTime() - 2 * 60 * 60 * 1000);
@@ -1362,47 +1374,8 @@ async function generateArticles(
     .orderBy(desc(worldEvents.timestamp))
     .limit(10);
 
-  // CRITICAL: Ensure each active question has 1-3 articles
-  const questionArticlesCreated = await generateArticlesForActiveQuestions(
-    llm,
-    deadlineMs,
-    dayNumberForTimestamp
-  );
-
-  // If no recent events, generate baseline articles about general topics
-  if (recentEvents.length === 0) {
-    logger.info(
-      'No recent events - generating baseline articles in parallel',
-      {},
-      'GameTick'
-    );
-    // Get media organizations from static registry
-    const newsOrgs = StaticDataRegistry.getAllOrganizations()
-      .filter((org) => org.type === 'media')
-      .slice(0, 5);
-
-    if (newsOrgs.length === 0) {
-      logger.warn(
-        'No news organizations found for baseline articles',
-        {},
-        'GameTick'
-      );
-      return questionArticlesCreated;
-    }
-
-    const baselineArticlesCreated = await generateBaselineArticlesParallel(
-      newsOrgs,
-      timestamp,
-      llm,
-      deadlineMs,
-      dayNumberForTimestamp
-    );
-    return questionArticlesCreated + baselineArticlesCreated;
-  }
-
-  // Get news organizations and actors from STATIC REGISTRY (no DB call!)
+  // Get news organizations from STATIC REGISTRY
   const newsOrgs = StaticDataRegistry.getOrganizationsByType('media');
-  const actorsList = StaticDataRegistry.getTopActors(50);
 
   if (newsOrgs.length === 0) {
     logger.warn(
@@ -1410,12 +1383,34 @@ async function generateArticles(
       {},
       'GameTick'
     );
-    return 0;
+    return questionArticlesCreated;
   }
+
+  // No recent events = generate baseline articles about actors/companies/topics
+  if (recentEvents.length === 0) {
+    logger.info(
+      'No recent events - generating baseline articles instead',
+      { questionArticles: questionArticlesCreated },
+      'GameTick'
+    );
+
+    const baselineArticlesCreated = await generateBaselineArticlesParallel(
+      newsOrgs,
+      new Date(),
+      llm,
+      deadlineMs,
+      dayNumberForTimestamp
+    );
+
+    return questionArticlesCreated + baselineArticlesCreated;
+  }
+
+  // Get actors from STATIC REGISTRY
+  const actorsList = StaticDataRegistry.getTopActors(50);
 
   if (actorsList.length === 0) {
     logger.warn('No actors found for article generation', {}, 'GameTick');
-    return 0;
+    return questionArticlesCreated;
   }
 
   // Initialize article generator
@@ -1660,7 +1655,16 @@ async function generateArticles(
 }
 
 /**
- * Generate articles for active questions - ensures each question has 1-3 articles
+ * Generate articles for active questions with coverage tracking
+ *
+ * @description
+ * Generates articles for active questions with proper pacing:
+ * - Breaking stage: 1-2 orgs when question first created
+ * - Commentary stage: 2-3 orgs for ongoing analysis
+ * - Resolution stage: All major orgs for outcome coverage
+ *
+ * Uses NewsArticlePacingEngine to prevent duplicate reporting.
+ * Each org can only report on a question once per stage.
  */
 async function generateArticlesForActiveQuestions(
   llm: BabylonLLMClient,
@@ -1678,7 +1682,7 @@ async function generateArticlesForActiveQuestions(
     return 0;
   }
 
-  // Get news organizations and actors from STATIC REGISTRY (no DB call!)
+  // Get news organizations from STATIC REGISTRY
   const newsOrgs = StaticDataRegistry.getOrganizationsByType('media');
   const actorsList = StaticDataRegistry.getTopActors(50);
 
@@ -1700,6 +1704,7 @@ async function generateArticlesForActiveQuestions(
     .select({
       content: posts.content,
       articleTitle: posts.articleTitle,
+      authorId: posts.authorId,
     })
     .from(posts)
     .where(
@@ -1710,9 +1715,33 @@ async function generateArticlesForActiveQuestions(
       )
     );
 
+  // Build a map of question -> orgs that have already covered it
+  const questionCoverage = new Map<string, Set<string>>();
+  for (const article of recentArticles) {
+    // Try to match article to a question by content
+    for (const q of activeQuestions) {
+      const questionKeywords = q.text
+        .toLowerCase()
+        .split(/\s+/)
+        .filter((w) => w.length > 3);
+      const articleText =
+        `${article.articleTitle || ''} ${article.content || ''}`.toLowerCase();
+      const matchingKeywords = questionKeywords.filter((keyword) =>
+        articleText.includes(keyword)
+      );
+
+      if (matchingKeywords.length >= 2 && article.authorId) {
+        if (!questionCoverage.has(q.id)) {
+          questionCoverage.set(q.id, new Set());
+        }
+        questionCoverage.get(q.id)!.add(article.authorId);
+      }
+    }
+  }
+
   const actorList = actorsList
-    .filter((a: (typeof actorsList)[number]) => a && a.id && a.name)
-    .map((a: (typeof actorsList)[number]) => ({
+    .filter((a) => a && a.id && a.name)
+    .map((a) => ({
       id: a.id,
       name: a.name,
       description: a.description || '',
@@ -1730,7 +1759,6 @@ async function generateArticlesForActiveQuestions(
   // Initialize article generator
   const articleGen = new ArticleGenerator(llm);
 
-  // Check each question and generate articles if needed (1-3 per question)
   let totalArticlesCreated = 0;
   const articlePromises: Array<Promise<number>> = [];
 
@@ -1738,101 +1766,52 @@ async function generateArticlesForActiveQuestions(
     if (Date.now() > deadlineMs) {
       logger.warn(
         'Article generation for questions aborted due to deadline',
-        {
-          questionsProcessed: totalArticlesCreated,
-        },
+        { questionsProcessed: articlePromises.length },
         'GameTick'
       );
       break;
     }
 
-    // Count existing articles about this question
-    const questionKeywords = question.text
-      .toLowerCase()
-      .split(/\s+/)
-      .filter((w) => w.length > 3);
-    const existingArticleCount = recentArticles.filter((article) => {
-      const articleText =
-        `${article.articleTitle || ''} ${article.content || ''}`.toLowerCase();
-      // Check if article mentions at least 2 keywords from the question
-      const matchingKeywords = questionKeywords.filter((keyword) =>
-        articleText.includes(keyword)
-      );
-      return matchingKeywords.length >= 2;
-    }).length;
+    // Check which orgs have already covered this question
+    const coveredOrgs = questionCoverage.get(question.id) || new Set();
 
-    // Check topic diversity - avoid oversaturating coverage of any single question topic
-    const diversityService = getTopicDiversityService();
-    const topicPenalty = await diversityService.getTopicPenalty(question.text);
+    // Filter to orgs that haven't covered yet
+    const eligibleOrgs = newsOrgs.filter((org) => !coveredOrgs.has(org.id));
 
-    // Generate 1-3 articles per question, but reduce if topic is oversaturated
-    // If none exist, generate 1-3. If 1-2 exist, fill up to 3. If 3+ exist, skip.
-    let targetArticleCount: number;
-    if (existingArticleCount === 0) {
-      // No articles yet - generate 1-3 articles
-      // But reduce based on topic saturation penalty
-      const baseCount = 1 + Math.floor(Math.random() * 3); // Random 1-3
-      const penaltyReduction = Math.floor(topicPenalty * 2); // 0-2 reduction based on saturation
-      targetArticleCount = Math.max(
-        1,
-        Math.min(baseCount - penaltyReduction, newsOrgs.length)
-      );
-    } else if (existingArticleCount < 3) {
-      // Some articles exist - fill up to 3 total, but respect saturation
-      const remainingSlots = 3 - existingArticleCount;
-      // If topic is >50% saturated, only generate 1 more max
-      const maxAllowed = topicPenalty > 0.5 ? 1 : remainingSlots;
-      targetArticleCount = Math.min(maxAllowed, newsOrgs.length);
-    } else {
-      // Already has 3+ articles - skip
-      targetArticleCount = 0;
-    }
-
-    // Log when we reduce articles due to saturation
-    if (topicPenalty > 0.3) {
-      logger.info(
-        `Topic saturation penalty applied for Q${question.questionNumber}`,
-        {
-          questionId: question.id,
-          topicPenalty: topicPenalty.toFixed(2),
-          existingArticles: existingArticleCount,
-          targetArticles: targetArticleCount,
-        },
-        'GameTick'
-      );
-    }
-
-    if (targetArticleCount <= 0) {
+    if (eligibleOrgs.length === 0) {
       logger.debug(
-        `Question Q${question.questionNumber} already has ${existingArticleCount} articles, skipping`,
-        {
-          questionId: question.id,
-          questionText: question.text,
-        },
+        `Question Q${question.questionNumber} already fully covered`,
+        { questionId: question.id, coveredOrgs: coveredOrgs.size },
         'GameTick'
       );
       continue;
     }
 
+    // Determine stage based on coverage
+    // New question (no coverage) = breaking, some coverage = commentary
+    const stage = coveredOrgs.size === 0 ? 'breaking' : 'commentary';
+
+    // Breaking: 1-2 orgs, Commentary: 1-2 additional orgs
+    const targetCount =
+      stage === 'breaking'
+        ? 1 + Math.floor(Math.random() * 2) // 1-2 orgs
+        : Math.min(1, eligibleOrgs.length); // 1 more org for commentary
+
+    const shuffledOrgs = [...eligibleOrgs].sort(() => Math.random() - 0.5);
+    const orgsForQuestion = shuffledOrgs.slice(0, targetCount);
+
     logger.info(
-      `Generating ${targetArticleCount} articles for question Q${question.questionNumber}`,
+      `Generating ${orgsForQuestion.length} ${stage} articles for Q${question.questionNumber}`,
       {
         questionId: question.id,
-        questionText: question.text,
-        existingArticles: existingArticleCount,
-        targetArticles: targetArticleCount,
+        stage,
+        existingCoverage: coveredOrgs.size,
       },
       'GameTick'
     );
 
-    // Select random news organizations for this question
-    const shuffledOrgs = [...newsOrgs].sort(() => Math.random() - 0.5);
-    const orgsForQuestion = shuffledOrgs.slice(0, targetArticleCount);
-
-    // Generate articles for this question in parallel
     for (const orgData of orgsForQuestion) {
       const articlePromise = (async () => {
-        // Transform org to Organization type
         const org: Organization = {
           id: orgData.id,
           name: orgData.name || 'Unknown Organization',
@@ -1840,10 +1819,9 @@ async function generateArticlesForActiveQuestions(
           type: (orgData.type as 'company' | 'media' | 'government') || 'media',
           canBeInvolved: orgData.canBeInvolved,
           initialPrice: orgData.initialPrice ?? undefined,
-          currentPrice: orgData.initialPrice ?? undefined, // Use initial price as default (static data)
+          currentPrice: orgData.initialPrice ?? undefined,
         };
 
-        // Use 'commentary' stage for ongoing questions
         const article = await articleGen.generateArticleForQuestion(
           {
             id: question.id,
@@ -1857,9 +1835,9 @@ async function generateArticlesForActiveQuestions(
             status: question.status as 'active' | 'resolved' | 'cancelled',
           },
           org,
-          'commentary', // Use commentary stage for active questions
+          stage,
           actorList,
-          [] // No recent events needed for question articles
+          []
         );
 
         // Transform content to replace real names with parody names
@@ -1880,17 +1858,14 @@ async function generateArticlesForActiveQuestions(
         ) {
           logger.warn(
             `Fixed ${transformedSummary.replacementCount + transformedContent.replacementCount + transformedTitle.replacementCount} real name(s) in question article`,
-            {
-              questionId: question.id,
-              title: article.title,
-            },
+            { questionId: question.id, title: article.title },
             'GameTick'
           );
         }
 
         const articleTimestamp = article.publishedAt || new Date();
 
-        // Generate article cover image (non-blocking, with retry)
+        // Generate article cover image
         let questionImageUrl: string | null = null;
         if (process.env.FAL_KEY) {
           questionImageUrl = await generateArticleImageWithRetry({
@@ -1924,6 +1899,7 @@ async function generateArticlesForActiveQuestions(
             questionId: question.id,
             questionNumber: question.questionNumber,
             org: org.name,
+            stage,
             title: article.title,
           },
           'GameTick'
@@ -1936,7 +1912,6 @@ async function generateArticlesForActiveQuestions(
     }
   }
 
-  // Wait for all article generation to complete
   const results = await Promise.allSettled(articlePromises);
 
   totalArticlesCreated = results.reduce((sum, result) => {
@@ -1968,7 +1943,13 @@ async function generateArticlesForActiveQuestions(
 
 /**
  * Generate baseline articles in parallel with game context
- * Generates articles about active questions, actors, or companies instead of generic topics
+ * Generates articles about actors, companies, or diverse topics (not just questions)
+ *
+ * @description
+ * This function provides variety in the news feed by generating articles about:
+ * - Prominent actors (S-tier, A-tier) and their activities
+ * - Companies and their market performance
+ * - Diverse story seeds (not tied to specific questions)
  */
 async function generateBaselineArticlesParallel(
   newsOrgs: Array<{
@@ -1982,17 +1963,13 @@ async function generateBaselineArticlesParallel(
   dayNumberForTimestamp: (t: Date) => number | undefined
 ): Promise<number> {
   // Gather game context for relevant articles
-  // NOTE: Question articles are handled by generateArticlesForActiveQuestions()
-  // Static data from registry, dynamic state from DB
   const [orgStates, worldFactsContext, worldContext] = await Promise.all([
     dbService().getAllOrganizationStates(),
     worldFactsService.generatePromptContext(),
-    (async () => {
-      return generateWorldContext({
-        maxActors: 30,
-        realityGroundingLevel: 'concise',
-      });
-    })(),
+    generateWorldContext({
+      maxActors: 30,
+      realityGroundingLevel: 'concise',
+    }),
   ]);
 
   // Get actors with main/supporting roles from static registry
@@ -2021,12 +1998,10 @@ async function generateBaselineArticlesParallel(
     }));
 
   // Build article topics using DIVERSE story seeds
-  // This breaks the "trending flywheel" by generating topics NOT tied to questions
   const articleTopics: Array<{
     topic: string;
     category: string;
     context: string;
-    orgId?: string; // Preferred org for this topic based on beat
   }> = [];
 
   // Get diverse story seeds from the story seed service
@@ -2034,10 +2009,9 @@ async function generateBaselineArticlesParallel(
   const diversityService = getTopicDiversityService();
 
   // Generate diverse stories - these are NOT tied to questions
-  const storySeeds = await storySeedService.generateDiverseStories(5);
+  const storySeeds = await storySeedService.generateDiverseStories(3);
 
   for (const seed of storySeeds) {
-    // Check if this topic is oversaturated
     const shouldSkip = await diversityService.shouldSkipTopic(seed.headline);
     if (shouldSkip) {
       logger.debug(
@@ -2055,7 +2029,7 @@ async function generateBaselineArticlesParallel(
     });
   }
 
-  // Add 1-2 actor/company topics for game relevance, but check diversity first
+  // Add 1-2 actor topics for game relevance
   const actorTopicsToAdd = Math.min(1, actorsList.length);
   for (const actor of actorsList
     .filter((a) => a.tier === 'S_TIER' || a.tier === 'A_TIER')
@@ -2066,7 +2040,6 @@ async function generateBaselineArticlesParallel(
     const domain = domainStr || 'tech';
     const topicText = `${actor.name} and their recent activities`;
 
-    // Check saturation before adding
     const shouldSkip = await diversityService.shouldSkipTopic(topicText);
     if (!shouldSkip) {
       articleTopics.push({
@@ -2078,7 +2051,7 @@ async function generateBaselineArticlesParallel(
   }
 
   // Add 1 company topic if we have room
-  if (articleTopics.length < 6 && companiesList.length > 0) {
+  if (articleTopics.length < 4 && companiesList.length > 0) {
     const company = companiesList[0];
     if (company) {
       const currentPrice = company.currentPrice || company.initialPrice || 100;
@@ -2098,31 +2071,20 @@ async function generateBaselineArticlesParallel(
     }
   }
 
-  // Log diversity stats
-  const coverageStats = await diversityService.getCoverageStats();
-  logger.info(
-    'Topic diversity stats for baseline articles',
-    {
-      totalTopics: coverageStats.topicCount,
-      totalArticles: coverageStats.totalArticles,
-      topTopics: coverageStats.topTopics
-        .slice(0, 3)
-        .map((t) => `${t.topic}: ${t.percentage.toFixed(0)}%`),
-      beatDistribution: Object.entries(coverageStats.beatDistribution)
-        .filter(([_, count]) => count > 0)
-        .map(([beat, count]) => `${beat}: ${count}`)
-        .join(', '),
-    },
-    'GameTick'
-  );
+  // Limit to 2-3 baseline articles per tick (reduced from 5)
+  const articlesToGenerate = Math.min(3, newsOrgs.length, articleTopics.length);
 
-  const articlesToGenerate = Math.min(5, newsOrgs.length, articleTopics.length);
+  if (articlesToGenerate === 0) {
+    return 0;
+  }
 
   logger.info(
     `Generating ${articlesToGenerate} baseline articles with game context`,
     {
-      topicsFromActors: actorsList.length,
-      topicsFromCompanies: companiesList.length,
+      topicsFromSeeds: storySeeds.length,
+      topicsFromActors: actorTopicsToAdd,
+      topicsFromCompanies:
+        articleTopics.length > storySeeds.length + actorTopicsToAdd ? 1 : 0,
     },
     'GameTick'
   );
@@ -2132,11 +2094,6 @@ async function generateBaselineArticlesParallel(
     { length: articlesToGenerate },
     async (_, i) => {
       if (Date.now() > deadlineMs) {
-        logger.debug(
-          'Skipping baseline article due to deadline',
-          { index: i },
-          'GameTick'
-        );
         return 0;
       }
 
@@ -2158,14 +2115,13 @@ ${worldContext.realityGrounding || ''}
 CRITICAL RULES:
 - Use ONLY parody names (AIlon Musk, Sam AIltman, Mark Zuckerborg, etc.) - NEVER real names
 - Reference specific actors, companies, or questions from the game context above
-- Make the article relevant to the current game state and active questions
-- Include specific details about actors, companies, or prediction markets when relevant
+- Make the article relevant to the current game state
+- Include specific details about actors, companies when relevant
 
 Your article should include:
-- A compelling headline (max 100 chars) that references specific game elements
+- A compelling headline (max 100 chars)
 - A 2-3 sentence summary for the article listing (max 400 chars)
-- A full article body of at least 4 paragraphs with clear context, quotes or sourced details where appropriate, and a professional newsroom tone
-- Reference specific actors, companies, or questions from the context above
+- A full article body of at least 4 paragraphs
 - Be professional and informative
 - Match the tone of a ${org.description || 'news organization'}
 - Separate paragraphs with \\n\\n (two newlines)
@@ -2243,6 +2199,7 @@ Return your response as XML in this exact format:
         await characterMappingService.transformText(articleBody);
       const transformedTitle =
         await characterMappingService.transformText(articleTitle);
+
       if (
         transformedSummary.replacementCount > 0 ||
         transformedBody.replacementCount > 0 ||
@@ -2250,15 +2207,12 @@ Return your response as XML in this exact format:
       ) {
         logger.warn(
           `Fixed ${transformedSummary.replacementCount + transformedBody.replacementCount + transformedTitle.replacementCount} real name(s) in baseline article`,
-          {
-            org: org.name,
-            topic: topicData.topic,
-          },
+          { org: org.name, topic: topicData.topic },
           'GameTick'
         );
       }
 
-      // Generate article cover image (non-blocking, with retry)
+      // Generate article cover image
       let baselineImageUrl: string | null = null;
       if (process.env.FAL_KEY) {
         baselineImageUrl = await generateArticleImageWithRetry({
@@ -2284,18 +2238,13 @@ Return your response as XML in this exact format:
 
       logger.debug(
         'Created baseline article with game context',
-        {
-          org: org.name,
-          topic: topicData.topic,
-          category: topicData.category,
-        },
+        { org: org.name, topic: topicData.topic, category: topicData.category },
         'GameTick'
       );
       return 1;
     }
   );
 
-  // Wait for all baseline articles to complete
   const results = await Promise.allSettled(articlePromises);
 
   const articlesCreated = results.reduce((sum, result) => {
@@ -2311,7 +2260,7 @@ Return your response as XML in this exact format:
   }, 0);
 
   logger.info(
-    'Parallel baseline article generation complete',
+    'Baseline article generation complete',
     {
       articlesCreated,
       attempted: articlesToGenerate,

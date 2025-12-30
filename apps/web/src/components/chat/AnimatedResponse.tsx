@@ -34,6 +34,7 @@ export const AnimatedResponse: React.FC<AnimatedResponseProps> = ({
     shouldAnimate ? '' : children
   );
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: messageId is intentionally included to reset animation on new messages
   React.useEffect(() => {
     if (!shouldAnimate || !children.trim()) {
       setVisibleText(children);
