@@ -2,19 +2,23 @@
 
 import {
   BABYLON_POINTS_SYMBOL,
-  CHAIN,
   cn,
   logger,
   WALLET_ERROR_MESSAGES,
 } from '@babylon/shared';
-import { useFundWallet, usePrivy } from '@privy-io/react-auth';
-import { AlertCircle, CheckCircle2, Coins, Loader2, X } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react';
+import { usePrivy } from '@privy-io/react-auth';
+import {
+  AlertCircle,
+  CheckCircle2,
+  DollarSign,
+  Loader2,
+  X,
+} from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import type { Address } from 'viem';
-import { formatEther } from 'viem';
 import { useSmartWallet } from '@/hooks/useSmartWallet';
-import { useSmartWalletBalance } from '@/hooks/useSmartWalletBalance';
+import { useWalletFunding } from '@/hooks/useWalletFunding';
 
 /**
  * Admin send money modal component for sending ETH to users.
@@ -34,6 +38,7 @@ import { useSmartWalletBalance } from '@/hooks/useSmartWalletBalance';
  * - Loading states
  * - Error handling
  * - Body scroll lock and escape key handling
+ * - Cancellable async operations with AbortController
  *
  * @param props - AdminSendMoneyModal component props
  * @returns Admin send money modal element or null if not open
@@ -84,85 +89,56 @@ export function AdminSendMoneyModal({
   onSuccess,
 }: AdminSendMoneyModalProps) {
   const { getAccessToken } = usePrivy();
-  const { fundWallet } = useFundWallet();
   const { sendSmartWalletTransaction, smartWalletAddress, smartWalletReady } =
     useSmartWallet();
-  const { balance, refreshBalance } = useSmartWalletBalance();
+  const { ensureFunds } = useWalletFunding();
 
   const [amountUSD, setAmountUSD] = useState('10');
   const [reason, setReason] = useState('');
   const [step, setStep] = useState<PaymentStep>('input');
   const [loading, setLoading] = useState(false);
   const [escrowId, setEscrowId] = useState<string | null>(null);
-  // paymentRequest is passed directly to handleSendPayment, no state needed
   const [txHash, setTxHash] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const ensureFunds = useCallback(
-    async (requiredAmountWei: bigint) => {
-      if (!smartWalletAddress) {
-        throw new Error(WALLET_ERROR_MESSAGES.NO_EMBEDDED_WALLET);
-      }
+  // AbortController for canceling async operations
+  const abortControllerRef = useRef<AbortController | null>(null);
 
-      const currentBalance = balance ?? (await refreshBalance());
-      if (currentBalance !== null && currentBalance >= requiredAmountWei) {
-        return true;
-      }
+  // Ref to track if component is mounted
+  const isMountedRef = useRef(true);
 
-      const deficit =
-        requiredAmountWei - (currentBalance ?? 0n) > 0n
-          ? requiredAmountWei - (currentBalance ?? 0n)
-          : requiredAmountWei;
-
-      await fundWallet({
-        address: smartWalletAddress as Address,
-        options: {
-          chain: CHAIN,
-          amount: formatEther(deficit),
-          asset: 'native-currency',
-        },
-      });
-
-      // Poll for balance updates
-      const maxAttempts = 30;
-      const pollInterval = 1000;
-
-      toast.info('Waiting for deposit to settle...');
-
-      for (let attempt = 0; attempt < maxAttempts; attempt++) {
-        const updatedBalance = await refreshBalance();
-
-        if (updatedBalance && updatedBalance >= requiredAmountWei) {
-          toast.success('Funds received!');
-          return true;
-        }
-
-        if (attempt < maxAttempts - 1) {
-          await new Promise((resolve) => setTimeout(resolve, pollInterval));
-        }
-      }
-
-      toast.error('Deposit is taking longer than expected');
-      throw new Error(
-        'Funds are still settling. Please try again in a moment.'
-      );
-    },
-    [balance, fundWallet, refreshBalance, smartWalletAddress]
-  );
+  // Track mounted state
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   // Reset state when modal closes
   useEffect(() => {
     if (!isOpen) {
-      setTimeout(() => {
-        setAmountUSD('10');
-        setReason('');
-        setStep('input');
-        setLoading(false);
-        setEscrowId(null);
-        setTxHash(null);
-        setError(null);
+      // Cancel any in-flight operations
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+        abortControllerRef.current = null;
+      }
+
+      const timeoutId = setTimeout(() => {
+        if (isMountedRef.current) {
+          setAmountUSD('10');
+          setReason('');
+          setStep('input');
+          setLoading(false);
+          setEscrowId(null);
+          setTxHash(null);
+          setError(null);
+        }
       }, 300);
+
+      return () => clearTimeout(timeoutId);
     }
+    return undefined;
   }, [isOpen]);
 
   // Handle escape key
@@ -186,6 +162,17 @@ export function AdminSendMoneyModal({
       document.body.style.overflow = '';
     };
   }, [isOpen, onClose, loading, step]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      document.body.style.overflow = '';
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+        abortControllerRef.current = null;
+      }
+    };
+  }, []);
 
   if (!isOpen) return null;
 
@@ -240,73 +227,125 @@ export function AdminSendMoneyModal({
     }
 
     if (amountNum < 0.01) {
-      toast.error(`Minimum amount is ${BABYLON_POINTS_SYMBOL}0.01`);
+      toast.error('Minimum amount is $0.01');
       return;
     }
 
     if (amountNum > 10000) {
-      toast.error(`Maximum amount is ${BABYLON_POINTS_SYMBOL}10,000`);
+      toast.error('Maximum amount is $10,000');
       return;
     }
+
+    // Create abort controller first
+    abortControllerRef.current = new AbortController();
+    const signal = abortControllerRef.current.signal;
 
     setLoading(true);
     setError(null);
 
-    const token = await getAccessToken();
-    if (!token) {
-      logger.error('Authentication required', undefined, 'AdminSendMoneyModal');
-      setError('Authentication required');
-      setStep('error');
-      toast.error('Failed to create payment request');
-      setLoading(false);
-      return;
-    }
+    try {
+      const token = await getAccessToken();
 
-    // Create escrow payment request
-    const response = await fetch(
-      '/api/admin/moderation-escrow/create-payment',
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          recipientId,
-          amountUSD: amountNum,
-          reason: reason.trim() || undefined,
-          recipientWalletAddress,
-        }),
+      // Check if cancelled after getting token
+      if (signal.aborted || !isMountedRef.current) {
+        setLoading(false);
+        return;
       }
-    );
 
-    const data = await response.json();
+      if (!token) {
+        logger.error(
+          'Authentication required',
+          undefined,
+          'AdminSendMoneyModal'
+        );
+        setError('Authentication required');
+        setStep('error');
+        toast.error('Failed to create payment request');
+        setLoading(false);
+        abortControllerRef.current = null;
+        return;
+      }
 
-    if (!response.ok || !data.success) {
-      const errorMessage = data.error || 'Failed to create payment request';
-      logger.error(
-        'Failed to create escrow payment',
-        { error: errorMessage },
-        'AdminSendMoneyModal'
+      // Create escrow payment request with abort signal
+      const response = await fetch(
+        '/api/admin/moderation-escrow/create-payment',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            recipientId,
+            amountUSD: amountNum,
+            reason: reason.trim() || undefined,
+            recipientWalletAddress,
+          }),
+          signal,
+        }
       );
-      setError(errorMessage);
-      setStep('error');
-      toast.error('Failed to create payment request');
-      setLoading(false);
-      return;
+
+      // Check if cancelled after fetch
+      if (signal.aborted || !isMountedRef.current) {
+        setLoading(false);
+        return;
+      }
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        const errorMessage = data.error || 'Failed to create payment request';
+        logger.error(
+          'Failed to create escrow payment',
+          { error: errorMessage },
+          'AdminSendMoneyModal'
+        );
+        setError(errorMessage);
+        setStep('error');
+        toast.error('Failed to create payment request');
+        setLoading(false);
+        abortControllerRef.current = null;
+        return;
+      }
+
+      setEscrowId(data.escrow.id);
+      const paymentReq = data.paymentRequest as PaymentRequest;
+      setStep('payment');
+
+      // Initiate blockchain transaction
+      await handleSendPayment(paymentReq, signal);
+    } catch (err) {
+      // Handle abort errors silently
+      if (err instanceof Error && err.name === 'AbortError') {
+        setLoading(false);
+        return;
+      }
+
+      if (err instanceof Error && !err.message.includes('cancelled')) {
+        const errorMessage = err.message || 'Payment failed';
+        logger.error(
+          'Payment failed',
+          { error: errorMessage },
+          'AdminSendMoneyModal'
+        );
+        if (isMountedRef.current) {
+          setError(errorMessage);
+          setStep('error');
+          toast.error('Payment transaction failed');
+        }
+      }
+    } finally {
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
+      abortControllerRef.current = null;
     }
-
-    setEscrowId(data.escrow.id);
-    const paymentReq = data.paymentRequest as PaymentRequest;
-    setStep('payment');
-
-    // Initiate blockchain transaction
-    // Note: Admin sends payment from their wallet to treasury
-    await handleSendPayment(paymentReq);
-    setLoading(false);
   };
 
-  const handleSendPayment = async (paymentReq: PaymentRequest) => {
+  const handleSendPayment = async (
+    paymentReq: PaymentRequest,
+    signal: AbortSignal
+  ) => {
     setLoading(true);
     setStep('payment');
 
@@ -324,26 +363,54 @@ export function AdminSendMoneyModal({
       return;
     }
 
-    const requiredAmountWei = BigInt(paymentReq.amount);
-    await ensureFunds(requiredAmountWei);
+    try {
+      const requiredAmountWei = BigInt(paymentReq.amount);
 
-    const hash = await sendSmartWalletTransaction({
-      to: paymentReq.to as Address,
-      value: requiredAmountWei,
-      chain: CHAIN,
-    });
+      // Use shared hook with abort signal
+      await ensureFunds(smartWalletAddress, requiredAmountWei, { signal });
 
-    setTxHash(hash);
-    setStep('verifying');
+      // Check if cancelled after funding
+      if (signal.aborted || !isMountedRef.current) {
+        setLoading(false);
+        return;
+      }
 
-    // Verify payment
-    await handleVerifyPayment(hash, paymentReq);
+      const hash = await sendSmartWalletTransaction({
+        to: paymentReq.to as Address,
+        value: requiredAmountWei,
+      });
+
+      // Check if cancelled after payment
+      if (signal.aborted || !isMountedRef.current) {
+        setLoading(false);
+        return;
+      }
+
+      setTxHash(hash);
+      setStep('verifying');
+
+      // Verify payment
+      await handleVerifyPayment(hash, paymentReq, signal);
+    } catch (error) {
+      if (error instanceof Error && error.message === 'Operation cancelled') {
+        setLoading(false);
+        return;
+      }
+      throw error;
+    }
   };
 
   const handleVerifyPayment = async (
     transactionHash: string,
-    paymentReq: PaymentRequest
+    paymentReq: PaymentRequest,
+    signal: AbortSignal
   ) => {
+    // Check if cancelled before starting
+    if (signal.aborted || !isMountedRef.current) {
+      setLoading(false);
+      return;
+    }
+
     const token = await getAccessToken();
     if (!token) {
       logger.error('Authentication required', undefined, 'AdminSendMoneyModal');
@@ -354,52 +421,80 @@ export function AdminSendMoneyModal({
       return;
     }
 
-    // Wait for transaction confirmation
-    await new Promise((resolve) => setTimeout(resolve, 3000));
+    // Wait for transaction confirmation (with cancellation support)
+    await new Promise<void>((resolve) => {
+      const timeout = setTimeout(resolve, 3000);
+      const abortHandler = () => {
+        clearTimeout(timeout);
+        resolve();
+      };
+      signal.addEventListener('abort', abortHandler, { once: true });
+    });
 
-    const response = await fetch(
-      '/api/admin/moderation-escrow/verify-payment',
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          escrowId,
-          txHash: transactionHash,
-          fromAddress: smartWalletAddress || paymentReq.from,
-          toAddress: paymentReq.to,
-          amount: paymentReq.amount,
-        }),
-      }
-    );
-
-    const data = await response.json();
-
-    if (!response.ok || !data.success) {
-      const errorMessage = data.error || 'Failed to verify payment';
-      logger.error(
-        'Payment verification failed',
-        { error: errorMessage },
-        'AdminSendMoneyModal'
-      );
-      setError(errorMessage);
-      setStep('error');
-      toast.error('Failed to verify payment');
+    // Check if cancelled after wait
+    if (signal.aborted || !isMountedRef.current) {
       setLoading(false);
       return;
     }
 
-    setStep('success');
-    toast.success(
-      `Successfully sent ${BABYLON_POINTS_SYMBOL}${amountNum} to ${recipientName}!`
-    );
+    try {
+      const response = await fetch(
+        '/api/admin/moderation-escrow/verify-payment',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            escrowId,
+            txHash: transactionHash,
+            fromAddress: smartWalletAddress || paymentReq.from,
+            toAddress: paymentReq.to,
+            amount: paymentReq.amount,
+          }),
+          signal,
+        }
+      );
 
-    if (onSuccess) {
-      onSuccess();
+      // Check if cancelled after fetch
+      if (signal.aborted || !isMountedRef.current) {
+        setLoading(false);
+        return;
+      }
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        const errorMessage = data.error || 'Failed to verify payment';
+        logger.error(
+          'Payment verification failed',
+          { error: errorMessage },
+          'AdminSendMoneyModal'
+        );
+        setError(errorMessage);
+        setStep('error');
+        toast.error('Failed to verify payment');
+        setLoading(false);
+        return;
+      }
+
+      setStep('success');
+      toast.success(
+        `Successfully sent ${BABYLON_POINTS_SYMBOL}${amountNum} to ${recipientName}!`
+      );
+
+      if (onSuccess) {
+        onSuccess();
+      }
+      setLoading(false);
+    } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') {
+        setLoading(false);
+        return;
+      }
+      throw err;
     }
-    setLoading(false);
   };
 
   const handleClose = () => {
@@ -428,10 +523,10 @@ export function AdminSendMoneyModal({
 
               <div>
                 <label className="mb-2 block font-medium text-sm">
-                  Amount (PTS)
+                  Amount (USD)
                 </label>
                 <div className="relative">
-                  <Coins className="-translate-y-1/2 absolute top-1/2 left-3 h-5 w-5 text-muted-foreground" />
+                  <DollarSign className="-translate-y-1/2 absolute top-1/2 left-3 h-5 w-5 text-muted-foreground" />
                   <input
                     type="number"
                     min="0.01"
@@ -445,9 +540,7 @@ export function AdminSendMoneyModal({
                   />
                 </div>
                 <p className="mt-1 text-muted-foreground text-xs">
-                  Min: {BABYLON_POINTS_SYMBOL}0.01 • Max:{' '}
-                  {BABYLON_POINTS_SYMBOL}
-                  10,000
+                  Min: $0.01 • Max: $10,000
                 </p>
               </div>
 
@@ -502,7 +595,7 @@ export function AdminSendMoneyModal({
                   </>
                 ) : (
                   <>
-                    <Coins className="h-4 w-4" />
+                    <DollarSign className="h-4 w-4" />
                     Create Payment
                   </>
                 )}
@@ -546,8 +639,7 @@ export function AdminSendMoneyModal({
             </div>
             <p className="mb-2 font-semibold text-lg">Payment Sent!</p>
             <p className="text-muted-foreground text-sm">
-              {BABYLON_POINTS_SYMBOL}
-              {amountNum} sent to {recipientName}
+              {BABYLON_POINTS_SYMBOL}{amountNum} sent to {recipientName}
             </p>
             {txHash && (
               <p className="mt-2 font-mono text-muted-foreground text-xs">
