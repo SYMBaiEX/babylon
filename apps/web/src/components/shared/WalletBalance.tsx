@@ -2,15 +2,19 @@
 
 import { cn } from '@babylon/shared';
 import { TrendingDown, TrendingUp, Wallet } from 'lucide-react';
-import { useEffect } from 'react';
+import { memo, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
-import { useWalletBalance } from '@/hooks/useWalletBalance';
+import {
+  invalidateWalletBalance,
+  useWalletBalance,
+  useWalletBalancePolling,
+} from '@/stores/walletBalanceStore';
 
 /**
  * Wallet balance component displaying user balance and lifetime PnL.
  *
  * Shows current available balance and lifetime profit/loss in a compact
- * card format. Automatically refreshes when refreshTrigger changes.
+ * card format. Uses centralized store for consistent data across components.
  * Only displays when user is authenticated. Color-codes balance based on
  * starting balance ($1000) and shows profit/loss indicators.
  *
@@ -23,18 +27,26 @@ import { useWalletBalance } from '@/hooks/useWalletBalance';
  * ```
  */
 interface WalletBalanceProps {
-  refreshTrigger?: number; // Timestamp or counter to force refresh
+  /** Timestamp or counter to force refresh */
+  refreshTrigger?: number;
 }
 
-export function WalletBalance({ refreshTrigger }: WalletBalanceProps = {}) {
+export const WalletBalance = memo(function WalletBalance({
+  refreshTrigger,
+}: WalletBalanceProps) {
   const { user, authenticated } = useAuth();
   const { balance, lifetimePnL, loading, refresh } = useWalletBalance(
-    user?.id,
-    { enabled: authenticated }
+    user?.id
   );
 
+  // Enable polling for balance updates (every 15s)
+  useWalletBalancePolling(authenticated ? user?.id : null);
+
+  // Handle external refresh trigger
   useEffect(() => {
     if (refreshTrigger === undefined) return;
+    // Invalidate cache and refresh
+    invalidateWalletBalance();
     void refresh();
   }, [refreshTrigger, refresh]);
 
@@ -54,6 +66,9 @@ export function WalletBalance({ refreshTrigger }: WalletBalanceProps = {}) {
   const isProfit = lifetimePnL >= 0;
   const startingBalance = 1000;
 
+  // Show skeleton only on initial load (balance is 0 and loading)
+  const showSkeleton = loading && balance === 0;
+
   return (
     <div className="flex items-center gap-3 overflow-x-auto rounded bg-muted/30 px-3 py-2.5 sm:gap-4 sm:px-4 sm:py-3">
       <div className="flex flex-shrink-0 items-center gap-2">
@@ -62,15 +77,21 @@ export function WalletBalance({ refreshTrigger }: WalletBalanceProps = {}) {
           <div className="text-muted-foreground text-xs">Balance</div>
           <div
             className={cn(
-              'whitespace-nowrap font-bold text-base sm:text-lg',
+              'whitespace-nowrap font-bold text-base sm:text-lg transition-opacity',
               balance > startingBalance
                 ? 'text-green-600'
                 : balance < startingBalance
                   ? 'text-red-600'
-                  : 'text-foreground'
+                  : 'text-foreground',
+              // Subtle opacity during background refresh
+              loading && balance > 0 ? 'opacity-80' : 'opacity-100'
             )}
           >
-            {loading ? '...' : formatCurrency(balance)}
+            {showSkeleton ? (
+              <span className="inline-block h-5 w-16 animate-pulse rounded bg-muted" />
+            ) : (
+              formatCurrency(balance)
+            )}
           </div>
         </div>
       </div>
@@ -87,15 +108,23 @@ export function WalletBalance({ refreshTrigger }: WalletBalanceProps = {}) {
           <div className="text-muted-foreground text-xs">Lifetime PnL</div>
           <div
             className={cn(
-              'whitespace-nowrap font-bold text-sm',
-              isProfit ? 'text-green-600' : 'text-red-600'
+              'whitespace-nowrap font-bold text-sm transition-opacity',
+              isProfit ? 'text-green-600' : 'text-red-600',
+              // Subtle opacity during background refresh
+              loading && balance > 0 ? 'opacity-80' : 'opacity-100'
             )}
           >
-            {loading ? '...' : isProfit ? '+' : ''}
-            {formatCurrency(lifetimePnL)}
+            {showSkeleton ? (
+              <span className="inline-block h-4 w-12 animate-pulse rounded bg-muted" />
+            ) : (
+              <>
+                {isProfit ? '+' : ''}
+                {formatCurrency(lifetimePnL)}
+              </>
+            )}
           </div>
         </div>
       </div>
     </div>
   );
-}
+});
