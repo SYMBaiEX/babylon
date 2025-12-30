@@ -22,6 +22,14 @@ _CONFIG_DIR = _CURRENT_DIR.parent.parent.parent / "config"
 _RUBRICS_FILE = _CONFIG_DIR / "rubrics.json"
 
 
+def _normalize(archetype: str) -> str:
+    """
+    Internal normalization helper - lowercase, stripped, underscores to hyphens.
+    This is the single source of truth for normalization logic.
+    """
+    return archetype.lower().strip().replace("_", "-")
+
+
 class RubricConfig:
     """Singleton for rubric configuration loaded from JSON."""
     
@@ -65,13 +73,11 @@ class RubricConfig:
     
     def get_rubric(self, archetype: str) -> str:
         """Get rubric for an archetype."""
-        normalized = archetype.lower().strip().replace("_", "-")
-        return self._rubrics.get(normalized, self._default_rubric)
+        return self._rubrics.get(_normalize(archetype), self._default_rubric)
     
     def get_priority_metrics(self, archetype: str) -> List[str]:
         """Get priority metrics for an archetype."""
-        normalized = archetype.lower().strip().replace("_", "-")
-        return self._priority_metrics.get(normalized, self._default_metrics)
+        return self._priority_metrics.get(_normalize(archetype), self._default_metrics)
     
     def get_available_archetypes(self) -> List[str]:
         """Get list of all available archetypes."""
@@ -79,8 +85,7 @@ class RubricConfig:
     
     def has_custom_rubric(self, archetype: str) -> bool:
         """Check if archetype has a custom rubric."""
-        normalized = archetype.lower().strip().replace("_", "-")
-        return normalized in self._rubrics
+        return _normalize(archetype) in self._rubrics
     
     def get_rubric_hash(self, archetype: str) -> str:
         """
@@ -180,10 +185,12 @@ def normalize_archetype(archetype: Optional[str]) -> str:
     """
     Normalize archetype name to canonical form (lowercase, hyphenated).
     Returns 'default' for None or empty string.
+    
+    Uses _normalize() internally for the actual transformation.
     """
     if not archetype or not archetype.strip():
         return "default"
-    return archetype.lower().strip().replace("_", "-")
+    return _normalize(archetype)
 
 
 # For backwards compatibility, expose DEFAULT_RUBRIC
