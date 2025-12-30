@@ -409,7 +409,10 @@ app.post('/init', async (c) => {
     return c.json(result);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
-    return c.json({ status: 'error', npcIds: [], archetypes: {}, message }, 500);
+    return c.json(
+      { status: 'error', npcIds: [], archetypes: {}, message },
+      500
+    );
   }
 });
 
@@ -438,15 +441,18 @@ app.post('/execute', async (c) => {
     return c.json(result);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
-    return c.json({
-      success: false,
-      pnl: 0,
-      newBalance: 0,
-      newPositions: [],
-      socialImpact: { reputationDelta: 0, followersGained: 0 },
-      events: [],
-      error: message,
-    }, 500);
+    return c.json(
+      {
+        success: false,
+        pnl: 0,
+        newBalance: 0,
+        newPositions: [],
+        socialImpact: { reputationDelta: 0, followersGained: 0 },
+        events: [],
+        error: message,
+      },
+      500
+    );
   }
 });
 
