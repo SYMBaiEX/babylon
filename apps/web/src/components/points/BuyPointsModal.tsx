@@ -139,12 +139,12 @@ export function BuyPointsModal({
       const pollInterval = 1000; // 1 second
 
       // Show feedback to user
-      toast.info('Waiting for deposit to settle...');
+      const toastId = toast.info('Waiting for deposit to settle...');
 
       for (let attempt = 0; attempt < maxAttempts; attempt++) {
         // Check if operation was cancelled before each poll
         if (signal?.aborted) {
-          toast.dismiss();
+          toast.dismiss(toastId);
           throw new Error('Operation cancelled');
         }
 
@@ -326,8 +326,22 @@ export function BuyPointsModal({
     setStep('payment');
 
     // Initiate blockchain transaction
-    await handleSendPayment(data.paymentRequest);
-    setLoading(false);
+    try {
+      await handleSendPayment(data.paymentRequest);
+    } catch (err) {
+      // Only propagate non-cancellation errors
+      if (err instanceof Error && !err.message.includes('cancelled')) {
+        const errorMessage = err.message || 'Payment failed';
+        logger.error('Payment failed', { error: errorMessage }, 'BuyPointsModal');
+        setError(errorMessage);
+        setStep('error');
+        toast.error('Payment transaction failed');
+      }
+    } finally {
+      setLoading(false);
+      // Clean up abort controller after operation completes
+      abortControllerRef.current = null;
+    }
   };
 
   const handleSendPayment = async (paymentRequest: PaymentRequest) => {
