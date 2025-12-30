@@ -35,17 +35,20 @@ export function AgentSetupModal({
 }: AgentSetupModalProps) {
   const { getAccessToken } = useAuth();
   const [localData, setLocalData] = useState<ProfileFormData>(profileData);
+  const bioInitialized = useRef(false);
 
   // Sync bio from profileData when template loads (bio comes from template.description)
   // Truncate to MAX_BIO_LENGTH characters if needed
+  // Uses ref to track initialization so user can clear bio without it being re-synced
   useEffect(() => {
-    if (profileData.bio && !localData.bio) {
+    if (profileData.bio && !bioInitialized.current) {
       setLocalData((prev) => ({
         ...prev,
         bio: profileData.bio.slice(0, MAX_BIO_LENGTH),
       }));
+      bioInitialized.current = true;
     }
-  }, [profileData.bio, localData.bio]);
+  }, [profileData.bio]);
 
   // Username availability check
   const { usernameStatus, usernameSuggestion, isCheckingUsername, retryCheck } =
@@ -478,14 +481,7 @@ export function AgentSetupModal({
                 <label htmlFor="edit-bio" className="block font-medium text-sm">
                   Bio
                 </label>
-                <span
-                  className={cn(
-                    'text-xs',
-                    localData.bio.length > MAX_BIO_LENGTH
-                      ? 'text-red-500'
-                      : 'text-muted-foreground'
-                  )}
-                >
+                <span className="text-muted-foreground text-xs">
                   {localData.bio.length}/{MAX_BIO_LENGTH}
                 </span>
               </div>
