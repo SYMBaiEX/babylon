@@ -7,7 +7,7 @@
  * Compares "Baseline" (Random/Momentum) vs "Challenger" (Smart LLM Agent).
  *
  * Usage:
- *   bun run packages/training/scripts/run-baseline-comparison.ts
+ *   bun packages/training/scripts/run-baseline-comparison.ts
  */
 
 // Import initializeJsonMode to enable file-based DB for trajectory recording
