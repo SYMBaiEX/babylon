@@ -47,7 +47,7 @@ from .rewards import (
 from .rubric_loader import has_custom_rubric, normalize_archetype
 from .tokenization_utils import tokenize_for_trainer
 from .quality_scorer import score_response
-from .format_validator import validate_response_format
+from .format_validator import validate_response_format, FormatValidationResult
 from .evaluation import EvaluationSuite, RolloutDumper
 from ..models import Action
 
@@ -719,11 +719,16 @@ You receive market updates and must analyze, reason, and then act."""
             if not format_validation.is_valid:
                 # Reduce format score for invalid responses but don't zero it completely
                 fmt_score = max(0.1, fmt_score * 0.5)
+            
+            # 3. CRITICAL: Score the action itself for variance between completions
+            # When multiple completions are generated for the same prompt,
+            # the action quality is the PRIMARY differentiator
+            action_quality = self._score_action_quality(generated_response, format_validation)
 
-            # 3. Extract behavior metrics for archetype-specific bonuses
+            # 4. Extract behavior metrics for archetype-specific bonuses
             behavior_metrics = self._extract_behavior_metrics(traj)
 
-            # 4. Build reward inputs
+            # 5. Build reward inputs
             final_pnl = traj.get("final_pnl", 0.0)
             reward_inputs = TrajectoryRewardInputs(
                 final_pnl=final_pnl,
@@ -736,12 +741,18 @@ You receive market updates and must analyze, reason, and then act."""
                 total_actions=behavior_metrics.episode_length,
             )
 
-            # 5. Compute archetype-aware composite score
-            final_score = archetype_composite_reward(
+            # 6. Compute archetype-aware composite score
+            base_score = archetype_composite_reward(
                 inputs=reward_inputs,
                 archetype=archetype_norm,
                 behavior_metrics=behavior_metrics,
             )
+            
+            # 7. GRPO adjustment: Blend base score with action quality
+            # For multiple completions per prompt, action quality provides variance
+            # Base score comes 40% from trajectory data, so we need action quality to dominate
+            final_score = base_score * 0.4 + action_quality * 0.6
+            
             scores.append(final_score)
             
             # Track for metrics
@@ -966,6 +977,132 @@ You receive market updates and must analyze, reason, and then act."""
             metrics.pnl_variance = sum((p - mean_pnl) ** 2 for p in pnl_history) / len(pnl_history)
 
         return metrics
+
+    def _score_action_quality(
+        self, 
+        response: str, 
+        format_validation: FormatValidationResult
+    ) -> float:
+        """
+        Score the quality of the action proposed in the response.
+        
+        This is the PRIMARY source of score variance when comparing multiple
+        completions for the same prompt. Different actions = different scores.
+        
+        Scoring factors:
+        - Action type appropriateness (0.3)
+        - Parameter quality (0.25)
+        - Reasoning-action alignment (0.25)
+        - Completeness (0.2)
+        
+        Returns a score in range [0.0, 1.0]
+        """
+        score = 0.5  # Start neutral
+        
+        # 1. Action validation from format validator (0.3 weight)
+        action_result = format_validation.action_result
+        if action_result.is_valid_json and action_result.has_action:
+            score += 0.15  # Has valid action
+            
+            if action_result.is_known_action:
+                score += 0.10  # Known action type
+                
+            if action_result.has_required_fields:
+                score += 0.05  # Has required fields
+        else:
+            score -= 0.20  # Invalid or missing action
+        
+        # 2. Parameter quality (0.25 weight) - evaluate the action parameters
+        if action_result.parsed_action:
+            action = action_result.parsed_action
+            action_type = action.get("action", "").lower()
+            
+            # Check for sensible parameter values
+            if action_type in ("buy", "sell", "trade"):
+                amount = action.get("amount") or action.get("size") or 0
+                if isinstance(amount, (int, float)):
+                    # Reasonable position sizing: not too extreme
+                    if 10 <= amount <= 1000:
+                        score += 0.10
+                    elif 0 < amount < 10 or 1000 < amount <= 5000:
+                        score += 0.05
+                    # Extreme values reduce score
+                    elif amount > 10000:
+                        score -= 0.10
+                        
+                # Has market specified
+                if action.get("market") or action.get("marketId") or action.get("ticker"):
+                    score += 0.05
+                    
+            elif action_type in ("open_perp", "close_perp"):
+                # Perp trading: check leverage and direction
+                leverage = action.get("leverage") or 1
+                if isinstance(leverage, (int, float)):
+                    if 1 <= leverage <= 10:
+                        score += 0.10
+                    elif leverage > 20:
+                        score -= 0.10  # Excessive leverage
+                    else:
+                        score += 0.05
+                        
+            elif action_type == "wait":
+                # Wait is valid but less interesting - slight penalty
+                score += 0.05
+                
+            elif action_type in ("post", "create_post", "send_dm", "dm"):
+                # Social actions: check for content
+                content = action.get("content") or action.get("message") or ""
+                if len(str(content)) > 10:
+                    score += 0.10
+                else:
+                    score -= 0.05
+                    
+            # Check for reasoning field in action
+            if action.get("reasoning") or action.get("rationale"):
+                score += 0.05
+        
+        # 3. Reasoning-action alignment (0.25 weight)
+        think_result = format_validation.think_result
+        if think_result.thinking_content and action_result.parsed_action:
+            thinking = think_result.thinking_content.lower()
+            action_type = action_result.action_type or ""
+            
+            # Check if reasoning mentions the action type
+            action_mentioned = action_type in thinking or any(
+                term in thinking for term in [action_type, "buy", "sell", "wait", "trade"]
+            )
+            if action_mentioned:
+                score += 0.10
+                
+            # Check for market/analysis terms in reasoning
+            analysis_terms = ["market", "price", "risk", "profit", "position", "trend"]
+            analysis_count = sum(1 for term in analysis_terms if term in thinking)
+            if analysis_count >= 3:
+                score += 0.10
+            elif analysis_count >= 1:
+                score += 0.05
+                
+            # Longer, more detailed reasoning is better
+            if len(think_result.thinking_content) > 200:
+                score += 0.05
+        
+        # 4. Completeness (0.2 weight) - overall response structure
+        if think_result.is_properly_paired and action_result.is_valid_json:
+            score += 0.10  # Well-formed response
+            
+        # Check response isn't truncated/incomplete
+        response_lower = response.lower()
+        if response.strip().endswith("}") or "</think>" in response_lower:
+            score += 0.05
+        
+        # Avoid very short responses
+        if len(response) > 200:
+            score += 0.05
+        elif len(response) < 50:
+            score -= 0.10
+        
+        # Clamp to valid range
+        return max(0.0, min(1.0, score))
 
     async def evaluate(self, *args, **kwargs):
         """Evaluate current model performance using EvaluationSuite"""
