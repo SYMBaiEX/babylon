@@ -106,6 +106,8 @@ async function main() {
   );
 
   console.log(`\n✅ Benchmark complete. Results saved to: ${outputDir}`);
+
+  process.exit(0);
 }
 
 main().catch((error) => {
