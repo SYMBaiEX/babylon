@@ -411,7 +411,10 @@ export class NewsArticlePacingEngine {
     if (!orgId || orgId.trim().length === 0) {
       throw new Error(`Invalid orgId: ${orgId}`);
     }
-    if (!currentStatus || !['created', 'updated', 'resolved'].includes(currentStatus)) {
+    if (
+      !currentStatus ||
+      !['created', 'updated', 'resolved'].includes(currentStatus)
+    ) {
       throw new Error(`Invalid currentStatus: ${currentStatus}`);
     }
 
@@ -463,6 +466,26 @@ export class NewsArticlePacingEngine {
     status: ArcEventStatus,
     articleId: string
   ): void {
+    // Validate inputs (consistent with other methods)
+    if (!arcEventId || arcEventId.trim().length === 0) {
+      throw new Error(
+        `Invalid arcEventId for recordArcEventCoverage: ${arcEventId}`
+      );
+    }
+    if (!orgId || orgId.trim().length === 0) {
+      throw new Error(`Invalid orgId for recordArcEventCoverage: ${orgId}`);
+    }
+    if (!status || !['created', 'updated', 'resolved'].includes(status)) {
+      throw new Error(
+        `Invalid status for recordArcEventCoverage: ${status}`
+      );
+    }
+    if (!articleId || articleId.trim().length === 0) {
+      throw new Error(
+        `Invalid articleId for recordArcEventCoverage: ${articleId}`
+      );
+    }
+
     // Initialize map for this arc event if needed
     if (!this.arcEventCoverage.has(arcEventId)) {
       this.arcEventCoverage.set(arcEventId, new Map());
@@ -507,7 +530,10 @@ export class NewsArticlePacingEngine {
         `Invalid arcEventId for selectOrgsForArcEvent: ${arcEventId}`
       );
     }
-    if (!currentStatus || !['created', 'updated', 'resolved'].includes(currentStatus)) {
+    if (
+      !currentStatus ||
+      !['created', 'updated', 'resolved'].includes(currentStatus)
+    ) {
       throw new Error(
         `Invalid currentStatus for selectOrgsForArcEvent: ${currentStatus}`
       );
