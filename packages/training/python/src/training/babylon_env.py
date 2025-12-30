@@ -437,10 +437,11 @@ class BabylonRLAIFEnv(BaseEnv):
                         headers={"Content-Type": "application/json"},
                         timeout=aiohttp.ClientTimeout(total=120),
                     ) as resp:
-                        result = await resp.json()
                         if resp.status != 200:
-                            logger.error(f"vLLM returned status {resp.status}: {result}")
+                            error_text = await resp.text()
+                            logger.error(f"vLLM returned status {resp.status}: {error_text}")
                             continue
+                        result = await resp.json()
                 except Exception as e:
                     logger.error(f"Error calling vLLM: {e}")
                     continue

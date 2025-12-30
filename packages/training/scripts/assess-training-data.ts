@@ -23,6 +23,7 @@ import {
   users,
 } from '@babylon/db';
 import { mkdirSync, writeFileSync } from 'fs';
+import { CANONICAL_ARCHETYPES } from '../src/rubrics';
 
 interface AssessmentResult {
   timestamp: string;
@@ -186,25 +187,12 @@ async function main() {
   >();
 
   for (const agent of allAgents) {
-    // Detect archetype from name
+    // Detect archetype from name using canonical list
     let archetype = 'unknown';
     const name = (agent.displayName || agent.username || '').toLowerCase();
-    const archetypes = [
-      'trader',
-      'degen',
-      'scammer',
-      'social-butterfly',
-      'researcher',
-      'information-trader',
-      'goody-twoshoes',
-      'ass-kisser',
-      'perps-trader',
-      'super-predictor',
-      'infosec',
-      'liar',
-    ];
-    for (const a of archetypes) {
-      if (name.includes(a.replace('-', '')) || name.includes(a)) {
+    for (const a of CANONICAL_ARCHETYPES) {
+      // Check both hyphenated and non-hyphenated versions
+      if (name.includes(a.replaceAll('-', '')) || name.includes(a)) {
         archetype = a;
         break;
       }

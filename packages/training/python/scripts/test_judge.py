@@ -115,6 +115,14 @@ def main():
         # Fallback to engine output if training output doesn't exist
         source_dir = Path(__file__).parent.parent.parent.parent / "engine" / "training-data-output" / "trajectories"
     
+    # Validate that at least one path exists
+    if not source_dir.exists():
+        logger.error(f"No trajectory data found. Checked paths:")
+        logger.error(f"  - {Path(__file__).parent.parent.parent / 'training-data-output' / 'trajectories'}")
+        logger.error(f"  - {source_dir}")
+        logger.error("Run 'make tier4-generate' or 'bun run packages/engine/examples/generate-training-data.ts' first.")
+        return
+    
     source_dir = str(source_dir)
     try:
         reader = JsonTrajectoryReader(source_dir)
