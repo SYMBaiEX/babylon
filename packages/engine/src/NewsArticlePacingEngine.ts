@@ -404,6 +404,17 @@ export class NewsArticlePacingEngine {
     orgId: string,
     currentStatus: ArcEventStatus
   ): boolean {
+    // Validate inputs (consistent with shouldGenerateArticle)
+    if (!arcEventId || arcEventId.trim().length === 0) {
+      throw new Error(`Invalid arcEventId: ${arcEventId}`);
+    }
+    if (!orgId || orgId.trim().length === 0) {
+      throw new Error(`Invalid orgId: ${orgId}`);
+    }
+    if (!currentStatus || !['created', 'updated', 'resolved'].includes(currentStatus)) {
+      throw new Error(`Invalid currentStatus: ${currentStatus}`);
+    }
+
     // Get coverage for this arc event
     const eventCoverage = this.arcEventCoverage.get(arcEventId);
     if (!eventCoverage) {
@@ -490,6 +501,34 @@ export class NewsArticlePacingEngine {
     availableOrgs: T[],
     maxOrgs: number = 2
   ): T[] {
+    // Validate inputs (consistent with selectOrgsForStage)
+    if (!arcEventId || arcEventId.trim().length === 0) {
+      throw new Error(
+        `Invalid arcEventId for selectOrgsForArcEvent: ${arcEventId}`
+      );
+    }
+    if (!currentStatus || !['created', 'updated', 'resolved'].includes(currentStatus)) {
+      throw new Error(
+        `Invalid currentStatus for selectOrgsForArcEvent: ${currentStatus}`
+      );
+    }
+    if (!availableOrgs || availableOrgs.length === 0) {
+      throw new Error('availableOrgs cannot be empty');
+    }
+    if (maxOrgs <= 0) {
+      throw new Error(`Invalid maxOrgs: ${maxOrgs}`);
+    }
+
+    // Validate each org has required fields
+    for (const org of availableOrgs) {
+      if (!org.id || org.id.trim().length === 0) {
+        throw new Error(`Organization missing id: ${JSON.stringify(org)}`);
+      }
+      if (!org.name || org.name.trim().length === 0) {
+        throw new Error(`Organization missing name: ${JSON.stringify(org)}`);
+      }
+    }
+
     // Filter to orgs that haven't reported this status yet
     const eligibleOrgs = availableOrgs.filter((org) =>
       this.shouldGenerateArcEventArticle(arcEventId, org.id, currentStatus)

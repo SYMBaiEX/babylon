@@ -1762,7 +1762,7 @@ async function generateArticlesForActiveQuestions(
     if (Date.now() > deadlineMs) {
       logger.warn(
         'Article generation for questions aborted due to deadline',
-        { questionsProcessed: totalArticlesCreated },
+        { questionsProcessed: articlePromises.length },
         'GameTick'
       );
       break;

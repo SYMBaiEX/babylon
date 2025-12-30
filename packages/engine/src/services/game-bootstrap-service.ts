@@ -253,6 +253,9 @@ export class GameBootstrapService {
 
     result.poolsCreated = await this.ensureActorPools();
 
+    // Ensure NPC User records exist (for wallet/payout operations)
+    result.npcUsersCreated = await this.ensureNpcUsers(staticActors);
+
     result.gameStateInitialized = await this.ensureGameState();
     result.rssFeedsCreated = await this.ensureRSSFeeds();
     result.perpMarketsCreated = await this.ensurePerpMarketSnapshots();
