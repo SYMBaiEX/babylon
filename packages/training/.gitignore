@@ -5,6 +5,10 @@
 data/*.csv
 data/**/*.parquet
 data/**/scored_*.json
+!data/**/.gitkeep
+
+# E2E test output
+training-data/e2e-test-results.json
 
 # Python logs
 python/logs/
