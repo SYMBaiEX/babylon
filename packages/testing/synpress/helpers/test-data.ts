@@ -19,9 +19,9 @@ export const ROUTES = {
 
   // Markets routes
   MARKETS: '/markets',
-  MARKETS_PERPS: '/markets/perps',
+  MARKETS_PERPS: '/markets?tab=perps',
   MARKETS_PERPS_BY_TICKER: (ticker: string) => `/markets/perps/${ticker}`,
-  MARKETS_PREDICTIONS: '/markets/predictions',
+  MARKETS_PREDICTIONS: '/markets?tab=predictions',
   MARKETS_PREDICTIONS_BY_ID: (id: string) => `/markets/predictions/${id}`,
 
   // Other main pages
