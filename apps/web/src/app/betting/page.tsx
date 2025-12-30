@@ -9,7 +9,6 @@
 
 import { getContractAddresses } from '@babylon/contracts';
 import { cn } from '@babylon/shared';
-import { formatPrice } from '@/app/markets/_lib/formatters';
 import {
   Clock,
   ExternalLink,
@@ -20,6 +19,7 @@ import {
 import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
+import { formatPrice } from '@/app/markets/_lib/formatters';
 import { PageContainer } from '@/components/shared/PageContainer';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { useAuth } from '@/hooks/useAuth';

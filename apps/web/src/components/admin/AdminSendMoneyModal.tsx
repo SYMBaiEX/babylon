@@ -445,7 +445,8 @@ export function AdminSendMoneyModal({
                   />
                 </div>
                 <p className="mt-1 text-muted-foreground text-xs">
-                  Min: {BABYLON_POINTS_SYMBOL}0.01 • Max: {BABYLON_POINTS_SYMBOL}
+                  Min: {BABYLON_POINTS_SYMBOL}0.01 • Max:{' '}
+                  {BABYLON_POINTS_SYMBOL}
                   10,000
                 </p>
               </div>

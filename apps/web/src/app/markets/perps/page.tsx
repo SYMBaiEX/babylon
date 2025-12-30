@@ -2,7 +2,6 @@
 
 import { cn } from '@babylon/shared';
 import { Search, TrendingDown, TrendingUp } from 'lucide-react';
-import { formatPrice, formatVolume } from '@/app/markets/_lib/formatters';
 import { useRouter } from 'next/navigation';
 import {
   useCallback,
@@ -12,6 +11,7 @@ import {
   useRef,
   useState,
 } from 'react';
+import { formatPrice, formatVolume } from '@/app/markets/_lib/formatters';
 import { CategoryPnLCard } from '@/components/markets/CategoryPnLCard';
 import { CategoryPnLShareModal } from '@/components/markets/CategoryPnLShareModal';
 import { PerpPositionsList } from '@/components/markets/PerpPositionsList';
