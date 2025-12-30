@@ -35,7 +35,12 @@ import {
   PriceUpdateService,
   WalletService,
 } from '@babylon/engine';
-import { type JsonValue, logger } from '@babylon/shared';
+import {
+  type JsonValue,
+  logger,
+  calculatePriceFromHoldings,
+  PERP_MARKET_CONFIG,
+} from '@babylon/shared';
 
 /**
  * Creates a WalletPort adapter that wraps WalletService methods.
@@ -159,23 +164,19 @@ export function createPerpMarketService(
 }
 
 /**
- * Price impact constants for user trades.
+ * Price impact uses centralized config from @babylon/shared.
  *
- * The synthetic supply determines price sensitivity:
- * - Lower supply = more price impact per trade
- * - Higher supply = less price impact per trade
+ * With LIQUIDITY_FACTOR = 20 and SYNTHETIC_SUPPLY = 10000:
+ * - effectiveSupply = 500
+ * - $100 trade → ~0.02% impact
+ * - $1000 trade → ~0.2% impact
+ * - $5000 trade → ~1% impact
  *
- * With SYNTHETIC_SUPPLY = 10000:
- * - $100 trade → ~0.006% impact
- * - $1000 trade → ~0.06% impact
- * - $10000 trade → ~0.6% impact
+ * This makes our simulation markets 20x less liquid than real exchanges,
+ * providing visible price impact from user trades.
  *
- * This provides minimal price impact per trade, similar to real markets.
+ * @see PERP_MARKET_CONFIG in @babylon/shared
  */
-const SYNTHETIC_SUPPLY = 10000;
-const MAX_CHANGE_PER_TRADE = 0.1; // Max 10% move per single trade (safety limit)
-const ABSOLUTE_MIN_RATIO = 0.25; // Never below 25% of initial
-const ABSOLUTE_MAX_RATIO = 4.0; // Never above 400% of initial
 
 /**
  * Applies price impact from a user trade in real-time.
@@ -257,25 +258,29 @@ export async function applyUserTradePriceImpact(ticker: string): Promise<void> {
       netHoldings += pos.side === 'long' ? size : -size;
     }
 
-    // 5. Calculate new price using AMM formula
-    const baseMarketCap = initialPrice * SYNTHETIC_SUPPLY;
-    const newMarketCap = baseMarketCap + netHoldings;
-    const rawPrice = newMarketCap / SYNTHETIC_SUPPLY;
+    // 5. Calculate new price using centralized vAMM formula with liquidity factor
+    const newPrice = calculatePriceFromHoldings(
+      initialPrice,
+      currentPrice,
+      netHoldings,
+      PERP_MARKET_CONFIG
+    );
 
-    // 6. Apply price change limits
-    const maxChangePerTrade = currentPrice * MAX_CHANGE_PER_TRADE;
-    const absoluteMin = initialPrice * ABSOLUTE_MIN_RATIO;
-    const absoluteMax = initialPrice * ABSOLUTE_MAX_RATIO;
-
-    const minPrice = Math.max(absoluteMin, currentPrice - maxChangePerTrade);
-    const maxPrice = Math.min(absoluteMax, currentPrice + maxChangePerTrade);
-    const newPrice = Math.max(minPrice, Math.min(rawPrice, maxPrice));
-
-    // 7. Only update if price actually changed meaningfully (at least 0.001% or $0.01)
+    // 6. Only update if price actually changed meaningfully (at least 0.001% or $0.01)
     const change = newPrice - currentPrice;
+    const effectiveSupply =
+      PERP_MARKET_CONFIG.SYNTHETIC_SUPPLY / PERP_MARKET_CONFIG.LIQUIDITY_FACTOR;
     logger.info(
-      `Price impact calculation: netHoldings=${netHoldings}, rawPrice=${rawPrice.toFixed(4)}, change=${change.toFixed(4)}`,
-      { ticker, netHoldings, rawPrice, change, currentPrice, initialPrice },
+      `Price impact calculation: netHoldings=${netHoldings}, newPrice=${newPrice.toFixed(4)}, change=${change.toFixed(4)}, effectiveSupply=${effectiveSupply}`,
+      {
+        ticker,
+        netHoldings,
+        newPrice,
+        change,
+        currentPrice,
+        initialPrice,
+        liquidityFactor: PERP_MARKET_CONFIG.LIQUIDITY_FACTOR,
+      },
       'PerpPriceImpact'
     );
 

@@ -1,14 +1,28 @@
 /**
  * Holdings-Based Spot Pricing Tests
  *
- * Verifies that company prices are correctly derived from NPC holdings
+ * Verifies that company prices are correctly derived from NPC holdings.
+ *
+ * These tests verify the BASE vAMM formula without liquidity factor.
+ * For tests with liquidity factor (production config), see liquidity-factor.test.ts
  */
 
 import { describe, expect, test } from 'bun:test';
+import {
+  calculateRawPriceFromHoldings,
+  getEffectiveSupply,
+  PERP_MARKET_CONFIG,
+  type PerpMarketConfig,
+} from '@babylon/shared';
 
 describe('Holdings-Based Spot Pricing', () => {
+  // Base supply without liquidity factor (for reference/comparison tests)
   const syntheticSupply = 10000;
 
+  /**
+   * Local calculation function for testing base formula (no liquidity factor).
+   * Production code uses calculateRawPriceFromHoldings from @babylon/shared.
+   */
   function calculatePrice(initialPrice: number, netHoldings: number): number {
     const baseMarketCap = initialPrice * syntheticSupply;
     const newMarketCap = baseMarketCap + netHoldings;
@@ -211,6 +225,61 @@ describe('Holdings-Based Spot Pricing', () => {
 
       expect(newPrice).toBe(100); // $80 + $20/share
       expect(((newPrice - initialPrice) / initialPrice) * 100).toBe(25); // 25% pump
+    });
+  });
+
+  describe('integration with shared config', () => {
+    test('shared config uses correct supply and liquidity factor', () => {
+      expect(PERP_MARKET_CONFIG.SYNTHETIC_SUPPLY).toBe(10000);
+      expect(PERP_MARKET_CONFIG.LIQUIDITY_FACTOR).toBe(20);
+    });
+
+    test('effective supply is calculated correctly', () => {
+      const effectiveSupply = getEffectiveSupply();
+      expect(effectiveSupply).toBe(500); // 10000 / 20
+    });
+
+    test('liquidity factor amplifies price impact', () => {
+      const holdings = 1000;
+      const initialPrice = 100;
+
+      // Base formula (no liquidity factor)
+      const basePrice = calculatePrice(initialPrice, holdings);
+      expect(basePrice).toBe(100.1); // $0.10 increase
+
+      // With liquidity factor (production config)
+      const ampPrice = calculateRawPriceFromHoldings(initialPrice, holdings);
+      expect(ampPrice).toBe(102); // $2 increase (20x more impact)
+    });
+
+    test('custom config allows different liquidity factors', () => {
+      const holdings = 1000;
+      const initialPrice = 100;
+
+      const lowLiquidityConfig: PerpMarketConfig = {
+        ...PERP_MARKET_CONFIG,
+        LIQUIDITY_FACTOR: 50,
+      };
+
+      const highLiquidityConfig: PerpMarketConfig = {
+        ...PERP_MARKET_CONFIG,
+        LIQUIDITY_FACTOR: 5,
+      };
+
+      const lowLiqPrice = calculateRawPriceFromHoldings(
+        initialPrice,
+        holdings,
+        lowLiquidityConfig
+      );
+      const highLiqPrice = calculateRawPriceFromHoldings(
+        initialPrice,
+        holdings,
+        highLiquidityConfig
+      );
+
+      // Lower liquidity = more price impact
+      expect(lowLiqPrice).toBe(105); // 50x factor → effective supply 200 → $5 increase
+      expect(highLiqPrice).toBe(100.5); // 5x factor → effective supply 2000 → $0.50 increase
     });
   });
 });
