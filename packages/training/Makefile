@@ -12,8 +12,11 @@
 #   make db-down    - Stop and remove containers
 #   make db-migrate - Apply database schema
 
-.PHONY: help tier1 tier2 tier3 tier4 db-up db-down db-migrate \
+.PHONY: all help tier1 tier2 tier3 tier4 db-up db-down db-migrate \
         train-12gb train-16gb train-24gb venv lint test clean
+
+# Default target
+all: test
 
 # Colors for output
 CYAN := \033[36m

@@ -13,7 +13,7 @@
    - [Tier 1: Unit Tests](#tier-1-no-infrastructure)
    - [Tier 2: JSON Mode](#tier-2-json-mode)
    - [Tier 3: DB Integration](#tier-3-docker-infrastructure)
-   - [Tier 4: Full Stack](#tier-4-full-local-stack)
+   - [Tier 4: Full-Stack](#tier-4-full-local-stack)
 5. [Cloud Testing](#cloud-testing)
 6. [CI/CD Integration](#cicd-integration)
 7. [Troubleshooting](#troubleshooting)
@@ -288,7 +288,7 @@ python scripts/run_training.py \
 
 **Expected Output:**
 
-```
+```text
 BABYLON RL TRAINING PIPELINE
 ======================================================================
 Model: Qwen/Qwen2.5-0.5B-Instruct
@@ -467,4 +467,4 @@ make tier4 PROFILE=12gb       # Full GPU test
 
 ---
 
-*Last updated: 2025-12-30*
+Last updated: 2025-12-30

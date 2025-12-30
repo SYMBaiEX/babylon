@@ -324,6 +324,7 @@ The `scripts/` directory contains standalone utilities for training operations:
 | `verify-final.ts` | Post-training verification checks |
 
 Run any script with:
+
 ```bash
 bun packages/training/scripts/<script-name>.ts [options]
 ```
