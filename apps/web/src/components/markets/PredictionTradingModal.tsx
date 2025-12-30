@@ -4,7 +4,7 @@ import {
   calculateExpectedPayout,
   PredictionPricing,
 } from '@babylon/core/markets/prediction/client';
-import { cn, logger } from '@babylon/shared';
+import { BABYLON_POINTS_SYMBOL, cn, logger } from '@babylon/shared';
 import { usePrivy } from '@privy-io/react-auth';
 import { CheckCircle, Clock, Wallet, X, XCircle } from 'lucide-react';
 import { useEffect, useState } from 'react';
@@ -211,12 +211,7 @@ export function PredictionTradingModal({
   };
 
   const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }).format(price);
+    return `${BABYLON_POINTS_SYMBOL}${price.toFixed(2)}`;
   };
 
   return (

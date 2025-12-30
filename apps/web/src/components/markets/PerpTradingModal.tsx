@@ -1,7 +1,7 @@
 'use client';
 
 import { FEE_CONFIG } from '@babylon/engine/config/fees';
-import { cn, logger } from '@babylon/shared';
+import { BABYLON_POINTS_SYMBOL, cn, logger } from '@babylon/shared';
 import {
   AlertTriangle,
   TrendingDown,
@@ -131,7 +131,9 @@ export function PerpTradingModal({
     if (!user) return;
 
     if (sizeNum < market.minOrderSize) {
-      toast.error(`Minimum order size is $${market.minOrderSize}`);
+      toast.error(
+        `Minimum order size is ${BABYLON_POINTS_SYMBOL}${market.minOrderSize}`
+      );
       return;
     }
 
@@ -172,12 +174,7 @@ export function PerpTradingModal({
   };
 
   const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }).format(price);
+    return `${BABYLON_POINTS_SYMBOL}${price.toFixed(2)}`;
   };
 
   const isHighRisk = leverage > 50 || marginRequired > 1000;
@@ -276,7 +273,7 @@ export function PerpTradingModal({
                   'w-32 rounded bg-background/50 px-3 py-1.5 text-right font-medium text-foreground focus:bg-background focus:outline-none focus:ring-2 focus:ring-[#0066FF]/30',
                   loading && 'cursor-not-allowed opacity-50'
                 )}
-                placeholder={`Min: $${market.minOrderSize}`}
+                placeholder={`Min: ${BABYLON_POINTS_SYMBOL}${market.minOrderSize}`}
               />
             </div>
             <div>

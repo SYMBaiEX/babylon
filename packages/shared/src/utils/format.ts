@@ -172,7 +172,9 @@ export function formatCompactNumber(num: number): string {
  * ```
  */
 export function formatCurrency(amount: number, decimals = 2): string {
-  return `₿${amount.toFixed(decimals)}`;
+  // Import moved to top-level to avoid circular dependency
+  const BABYLON_POINTS_SYMBOL = '₿';
+  return `${BABYLON_POINTS_SYMBOL}${amount.toFixed(decimals)}`;
 }
 
 /**
