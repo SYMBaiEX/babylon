@@ -2,7 +2,6 @@
 
 import { FEE_CONFIG } from '@babylon/engine/config/fees';
 import { BABYLON_POINTS_SYMBOL, cn } from '@babylon/shared';
-import { formatPrice, formatVolume } from '@/app/markets/_lib/formatters';
 import {
   AlertTriangle,
   ArrowLeft,
@@ -14,6 +13,7 @@ import {
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
+import { formatPrice, formatVolume } from '@/app/markets/_lib/formatters';
 import { AssetTradesFeed } from '@/components/markets/AssetTradesFeed';
 import { PerpPositionsList } from '@/components/markets/PerpPositionsList';
 import { PerpPriceChart } from '@/components/markets/PerpPriceChart';
@@ -112,7 +112,9 @@ export default function PerpDetailPage() {
 
     const sizeNum = Number.parseFloat(size) || 0;
     if (sizeNum < market.minOrderSize) {
-      toast.error(`Minimum order size is ${BABYLON_POINTS_SYMBOL}${market.minOrderSize}`);
+      toast.error(
+        `Minimum order size is ${BABYLON_POINTS_SYMBOL}${market.minOrderSize}`
+      );
       return;
     }
 

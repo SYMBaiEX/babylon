@@ -6,7 +6,6 @@ import {
 } from '@babylon/core/markets/prediction/client';
 import type { PerpPositionFromAPI, PredictionPosition } from '@babylon/shared';
 import { BABYLON_POINTS_SYMBOL, cn, type JsonValue } from '@babylon/shared';
-import { formatPrice } from '@/app/markets/_lib/formatters';
 import { usePrivy } from '@privy-io/react-auth';
 import {
   AlertTriangle,
@@ -21,6 +20,7 @@ import {
 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
+import { formatPrice } from '@/app/markets/_lib/formatters';
 import { FollowButton } from '@/components/interactions';
 import { useAuth } from '@/hooks/useAuth';
 import { usePerpMarketsStore } from '@/stores/perpMarketsStore';
@@ -207,7 +207,9 @@ export function PositionDetailModal({
 
     const sizeNum = parseFloat(size) || 0;
     if (sizeNum < perpMarket.minOrderSize) {
-      toast.error(`Minimum order size is ${BABYLON_POINTS_SYMBOL}${perpMarket.minOrderSize}`);
+      toast.error(
+        `Minimum order size is ${BABYLON_POINTS_SYMBOL}${perpMarket.minOrderSize}`
+      );
       return;
     }
 
