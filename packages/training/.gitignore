@@ -16,3 +16,6 @@ python/logs/
 # Python test caches (pytest)
 python/.pytest_cache/
 python/**/.pytest_cache/
+
+#tmp
+TRAINING_ROADMAP.md

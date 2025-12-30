@@ -45,6 +45,10 @@ from .rewards import (
     archetype_composite_reward,
 )
 from .rubric_loader import has_custom_rubric, normalize_archetype
+from .tokenization_utils import tokenize_for_trainer
+from .quality_scorer import score_response
+from .format_validator import validate_response_format
+from .evaluation import EvaluationSuite, RolloutDumper
 from ..models import Action
 
 # Optional Tinker support
@@ -161,6 +165,10 @@ class BabylonRLAIFEnv(BaseEnv):
         self.judge_format_scores: List[float] = []
         self.judge_reasoning_scores: List[float] = []
 
+        # Evaluation suite for tracking progress
+        self.eval_suite: Optional[EvaluationSuite] = None
+        self.rollout_dumper: Optional[RolloutDumper] = None
+
         # Optional Tinker client (set externally for Tinker-based training)
         self._tinker_client: Optional["BabylonTinkerClient"] = None
 
@@ -185,7 +193,7 @@ class BabylonRLAIFEnv(BaseEnv):
         """Initialize configuration with defaults"""
         env_config = BabylonEnvConfig(
             tokenizer_name="Qwen/Qwen2.5-3B-Instruct",
-            group_size=2,  # Compare 2 trajectories at a time (minimum for GRPO)
+            group_size=4,  # Increased from 2 for better advantage estimation
             use_wandb=True,
             max_num_workers=64,
             rollout_server_url="http://localhost:8000",
@@ -234,6 +242,18 @@ class BabylonRLAIFEnv(BaseEnv):
         logger.info(f"Loaded {len(self.trajectory_cache)} trajectory groups")
         for group in self.trajectory_cache:
             logger.info(f"  Group '{group['group_key']}': {len(group['trajectories'])} trajectories")
+
+        # Initialize evaluation suite and rollout dumper
+        self.eval_suite = EvaluationSuite(
+            generate_test_count=50,
+            success_threshold=0.5,
+        )
+        self.rollout_dumper = RolloutDumper(
+            output_dir="./rollout_dumps",
+            success_threshold=0.7,
+            save_rate=0.1,  # Save 10% of rollouts for debugging
+        )
+        logger.info("Initialized EvaluationSuite and RolloutDumper")
 
     async def _load_trajectories(self):
         """Load trajectories from database and group by scenario/window"""
@@ -455,15 +475,19 @@ class BabylonRLAIFEnv(BaseEnv):
                     "content": response_content
                 })
 
-                # Tokenize for training data
-                tokens = self.tokenizer.apply_chat_template(full_messages, return_tensors="pt")[0].tolist()
+                # Tokenize with proper masking - only train on assistant completions
+                tokenization_result = tokenize_for_trainer(
+                    self.tokenizer,
+                    full_messages,
+                    add_generation_prompt=False,
+                )
                 
                 rollout_data.append({
                     "trajectory": traj,
                     "generated_response": response_content,
                     "messages": full_messages,
-                    "tokens": tokens,
-                    "masks": [1] * len(tokens),
+                    "tokens": tokenization_result.tokens,
+                    "masks": tokenization_result.masks,  # Proper masking: 0 for prompt, 1 for completion
                     "logprobs": [],
                     "finish_reason": finish_reason,
                 })
@@ -660,24 +684,22 @@ You receive market updates and must analyze, reason, and then act."""
             elif has_custom_rubric(archetype_norm):
                 logger.debug(f"Scoring with custom rubric for archetype: {archetype_norm}")
 
-            # 2. Quality Scores - simplified calculation
-            # Simple format score - check if response looks well-structured
-            fmt_score = 0.5  # Default middle score
-            if generated_response:
-                if len(generated_response) > 50:
-                    fmt_score += 0.2
-                if any(kw in generated_response.lower() for kw in ['action', 'trade', 'position', 'market']):
-                    fmt_score += 0.2
-                fmt_score = min(1.0, fmt_score)
+            # 2. Quality Scores using proper quality_scorer and format_validator
+            quality_result = score_response(
+                response=generated_response,
+                archetype=archetype_norm,
+                execute_action=False,  # Don't simulate action execution in offline mode
+            )
             
-            # Simple reasoning score - check for analytical content
-            rsn_score = 0.5  # Default middle score
-            if generated_response:
-                if any(kw in generated_response.lower() for kw in ['because', 'therefore', 'analysis', 'expect']):
-                    rsn_score += 0.2
-                if len(generated_response) > 100:
-                    rsn_score += 0.2
-                rsn_score = min(1.0, rsn_score)
+            # Extract format and reasoning scores from quality scorer
+            fmt_score = quality_result.combined_format_score
+            rsn_score = quality_result.reasoning_score
+            
+            # Apply penalty for invalid format (missing think tags or action JSON)
+            format_validation = validate_response_format(generated_response)
+            if not format_validation.is_valid:
+                # Reduce format score for invalid responses but don't zero it completely
+                fmt_score = max(0.1, fmt_score * 0.5)
 
             # 3. Extract behavior metrics for archetype-specific bonuses
             behavior_metrics = self._extract_behavior_metrics(traj)
@@ -715,6 +737,18 @@ You receive market updates and must analyze, reason, and then act."""
                     generated_response[:100],
                     f"Score: {final_score:.2f} (Fmt: {fmt_score:.2f}, Rsn: {rsn_score:.2f})"
                 ))
+
+            # Save rollout for debugging and dataset generation
+            if self.rollout_dumper is not None:
+                self.rollout_dumper.save_rollout(
+                    scenario_id=traj.get("trajectory_id", "unknown"),
+                    archetype=archetype_norm,
+                    response=generated_response,
+                    messages=item["messages"],
+                    score=final_score,
+                    quality_metrics=quality_result.to_dict(),
+                    step=self.windows_processed,
+                )
 
         # Normalize scores to mean 0 for GRPO stability
         mean_score = sum(scores) / len(scores) if scores else 0
@@ -915,12 +949,12 @@ You receive market updates and must analyze, reason, and then act."""
         return metrics
 
     async def evaluate(self, *args, **kwargs):
-        """Evaluate current model performance"""
+        """Evaluate current model performance using EvaluationSuite"""
         logger.info("Running evaluation...")
 
-        # Sample some trajectories for evaluation
+        # Collect evaluation results from trajectory data
         eval_results = []
-
+        
         for _ in range(min(10, len(self.trajectory_cache))):
             if not self.trajectory_cache:
                 break
@@ -946,6 +980,16 @@ You receive market updates and must analyze, reason, and then act."""
                               for r in eval_results) / len(eval_results)
             logger.info(
                 f"Evaluation complete: {len(eval_results)} groups, avg P&L: ${overall_pnl:.2f}")
+        
+        # Get evaluation suite summary if available
+        if self.eval_suite is not None:
+            summary = self.eval_suite.get_summary()
+            logger.info(f"EvaluationSuite summary: {summary}")
+        
+        # Log rollout dumper stats if available
+        if self.rollout_dumper is not None:
+            stats = self.rollout_dumper.get_stats()
+            logger.info(f"RolloutDumper stats: {stats}")
 
     def save_checkpoint(self, step, data=None):
         """Save environment checkpoint"""
@@ -961,6 +1005,19 @@ You receive market updates and must analyze, reason, and then act."""
             logger.info("Closing database connection pool...")
             await self.db_pool.close()
             self.db_pool = None
+        
+        # Flush rollout dumper buffers
+        if self.rollout_dumper is not None:
+            logger.info("Flushing rollout dumper buffers...")
+            self.rollout_dumper.flush_buffers()
+            stats = self.rollout_dumper.get_stats()
+            logger.info(f"Final RolloutDumper stats: {stats}")
+        
+        # Save evaluation results
+        if self.eval_suite is not None and len(self.eval_suite.history) > 0:
+            logger.info("Saving evaluation results...")
+            self.eval_suite.save_results("./eval_results/history.json")
+        
         await super().cleanup() if hasattr(super(), 'cleanup') else None
 
 
