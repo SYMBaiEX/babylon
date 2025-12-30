@@ -38,8 +38,13 @@ from atroposlib.envs.base import (
     ScoredDataGroup,
 )
 
-from .rewards import TrajectoryRewardInputs, composite_reward
+from .rewards import (
+    TrajectoryRewardInputs,
+    BehaviorMetrics,
+    archetype_composite_reward,
+)
 from .quality_utils import calculate_detailed_tick_quality
+from .rubric_loader import has_custom_rubric, normalize_archetype
 from ..models import Action
 
 # Optional Tinker support
@@ -230,6 +235,7 @@ class BabylonRLAIFEnv(BaseEnv):
 
         async with self.db_pool.acquire() as conn:
             # Get trajectories with valid steps from recent windows
+            # Includes archetype for archetype-aware scoring
             rows = await conn.fetch("""
                 SELECT 
                     t."trajectoryId",
@@ -240,6 +246,7 @@ class BabylonRLAIFEnv(BaseEnv):
                     t."finalPnL",
                     t."episodeLength",
                     t."totalReward",
+                    t."archetype",
                     u.username as agent_name
                 FROM trajectories t
                 LEFT JOIN "User" u ON t."agentId" = u.id
@@ -261,10 +268,25 @@ class BabylonRLAIFEnv(BaseEnv):
             if group_key not in groups:
                 groups[group_key] = []
 
-            # Parse steps JSON
-            steps = json.loads(row['stepsJson'] or '[]')
+            # Parse steps JSON with error handling
+            try:
+                steps = json.loads(row['stepsJson'] or '[]')
+            except json.JSONDecodeError as e:
+                logger.warning(
+                    f"Malformed stepsJson for trajectory {row['trajectoryId']}: {e}"
+                )
+                continue
+
             if len(steps) < self.config.min_actions_per_trajectory:
                 continue
+
+            # Get archetype with warning for NULL values
+            archetype = row['archetype']
+            if archetype is None:
+                logger.debug(
+                    f"Trajectory {row['trajectoryId']} has NULL archetype, using 'default'"
+                )
+                archetype = 'default'
 
             groups[group_key].append({
                 'trajectory_id': row['trajectoryId'],
@@ -272,6 +294,7 @@ class BabylonRLAIFEnv(BaseEnv):
                 'agent_name': row['agent_name'] or row['agentId'][:8],
                 'window_id': row['windowId'],
                 'scenario_id': row['scenarioId'],
+                'archetype': archetype,
                 'steps': steps,
                 'final_pnl': float(row['finalPnL'] or 0),
                 'episode_length': row['episodeLength'] or len(steps),
@@ -559,8 +582,10 @@ You receive market updates and must analyze, reason, and then act."""
 
     async def _score_with_judge(self, rollout_data: List[Dict]) -> Optional[ScoredDataGroup]:
         """
-        Score rollouts using Deterministic Judge logic (rewards.py).
-        Replaces OpenAI calls with robust Python logic for PnL, Format, and Reasoning verification.
+        Score rollouts using archetype-aware deterministic Judge logic.
+
+        Uses archetype-specific weights and behavior bonuses to score trajectories
+        based on their personality goals, not just PnL.
         """
         scores = []
 
@@ -568,45 +593,60 @@ You receive market updates and must analyze, reason, and then act."""
             traj = item["trajectory"]
             generated_response = item["generated_response"]
 
-            # 1. Quality Scores (Format & Reasoning)
-            # We treat the generated response as a single 'tick' of output to be judged.
-            # Create a mock structure for the detailed quality calculation.
-            mock_calls = [{"response": generated_response,
-                           "reasoning": generated_response}]
-            mock_action = Action(action_type="unknown", parameters={
-            }, success=True)  # Fallback action
+            # 1. Get archetype from trajectory with validation
+            archetype = traj.get("archetype", "default")
+            archetype_norm = normalize_archetype(archetype)
 
-            # Calculate granular scores
+            # Validate archetype and warn for unknown values
+            if not has_custom_rubric(archetype_norm) and archetype_norm != "default":
+                logger.warning(
+                    f"Unknown archetype '{archetype}' for trajectory, using default scoring"
+                )
+                archetype_norm = "default"
+            elif has_custom_rubric(archetype_norm):
+                logger.debug(f"Scoring with custom rubric for archetype: {archetype_norm}")
+
+            # 2. Quality Scores (Format & Reasoning) - archetype-aware weights
+            mock_calls = [{"response": generated_response, "reasoning": generated_response}]
+            mock_action = Action(action_type="unknown", parameters={}, success=True)
+
             fmt_score, rsn_score = calculate_detailed_tick_quality(
                 llm_calls=mock_calls,
                 action=mock_action,
                 feedback=None,
-                archetype="default"  # Could pull from traj if available
+                archetype=archetype_norm,
             )
 
-            # 2. Financial Context (from trajectory history)
-            # In RLAIF, we attribute the Trajectory's final PnL to this generation step as a proxy.
-            final_pnl = traj.get("final_pnl", 0.0)
+            # 3. Extract behavior metrics for archetype-specific bonuses
+            behavior_metrics = self._extract_behavior_metrics(traj)
 
+            # 4. Build reward inputs
+            final_pnl = traj.get("final_pnl", 0.0)
             reward_inputs = TrajectoryRewardInputs(
                 final_pnl=final_pnl,
-                starting_balance=10000.0,  # Baseline Assumption
+                starting_balance=10000.0,
+                end_balance=10000.0 + final_pnl,
                 format_score=fmt_score,
                 reasoning_score=rsn_score,
-                # Cannot determine instantaneous risk from text alone without sim state, so 0
-                risky_actions_count=0
+                risky_actions_count=0,
+                trades_executed=behavior_metrics.trades_executed,
+                total_actions=behavior_metrics.episode_length,
             )
 
-            # 3. Compute Composite Score
-            final_score = composite_reward(reward_inputs)
+            # 5. Compute archetype-aware composite score
+            final_score = archetype_composite_reward(
+                inputs=reward_inputs,
+                archetype=archetype_norm,
+                behavior_metrics=behavior_metrics,
+            )
             scores.append(final_score)
 
             # Logging sample for WandB
             if len(self.judgement_samples) < 10:
                 self.judgement_samples.append((
-                    str(final_pnl),
+                    f"[{archetype_norm}] PnL: {final_pnl:.2f}",
                     generated_response[:100],
-                    f"Score: {final_score:.2f} (Fmt: {fmt_score}, Rsn: {rsn_score})"
+                    f"Score: {final_score:.2f} (Fmt: {fmt_score:.2f}, Rsn: {rsn_score:.2f})"
                 ))
 
         # Normalize scores to mean 0 for GRPO stability
@@ -627,6 +667,170 @@ You receive market updates and must analyze, reason, and then act."""
             scored_group["inference_logprobs"].append(rollout["logprobs"])
 
         return scored_group
+
+    def _extract_behavior_metrics(self, traj: Dict) -> BehaviorMetrics:
+        """
+        Extract behavior metrics from trajectory for archetype-aware scoring.
+
+        Parses steps to count trades, social actions, predictions, etc.
+        """
+        steps = traj.get("steps", [])
+
+        metrics = BehaviorMetrics(
+            total_pnl=traj.get("final_pnl", 0.0),
+            episode_length=traj.get("episode_length", len(steps)),
+        )
+
+        unique_users: set[str] = set()
+        unique_markets: set[str] = set()
+        pnl_history: list[float] = []
+        social_actions = 0
+        trade_actions = 0
+
+        for step in steps:
+            action = step.get("action", {})
+            action_type = action.get("actionType", action.get("action_type", "")).lower()
+            params = action.get("parameters", {})
+            result = action.get("result", {})
+
+            # Trading actions
+            if action_type in (
+                "buy", "sell", "buy_prediction", "sell_prediction",
+                "open_perp", "close_perp", "trade"
+            ):
+                metrics.trades_executed += 1
+                trade_actions += 1
+
+                # Track P&L from result
+                if "pnl" in result and result["pnl"] is not None:
+                    pnl = float(result["pnl"])
+                    pnl_history.append(pnl)
+                    if pnl > 0:
+                        metrics.profitable_trades += 1
+                        if pnl > metrics.largest_win:
+                            metrics.largest_win = pnl
+                    elif pnl < metrics.largest_loss:
+                        metrics.largest_loss = pnl
+
+                # Track markets
+                market_id = params.get("marketId") or params.get("market") or params.get("ticker")
+                if market_id:
+                    unique_markets.add(str(market_id))
+
+                # Track position size
+                size = params.get("amount") or params.get("size") or params.get("quantity")
+                if size:
+                    metrics.avg_position_size += float(size)
+
+            # Prediction actions count as trades for archetype scoring (Degen rewards high trade volume)
+            # These are tracked separately from buy/sell actions but contribute to trades_executed
+            if action_type in ("predict", "bet", "forecast"):
+                metrics.predictions_made += 1
+                metrics.trades_executed += 1
+                trade_actions += 1
+                
+                # Track accuracy
+                if result.get("correct") or result.get("predictionCorrect"):
+                    metrics.correct_predictions += 1
+                
+                # Track P&L from predictions
+                if "pnl" in result and result["pnl"] is not None:
+                    pnl = float(result["pnl"])
+                    pnl_history.append(pnl)
+                    if pnl > 0:
+                        metrics.profitable_trades += 1
+                        if pnl > metrics.largest_win:
+                            metrics.largest_win = pnl
+                    elif pnl < metrics.largest_loss:
+                        metrics.largest_loss = pnl
+
+            # Social actions
+            elif action_type in ("send_dm", "direct_message", "dm"):
+                metrics.dms_initiated += 1
+                social_actions += 1
+                target = params.get("targetUserId") or params.get("recipientId") or params.get("toUserId")
+                if target:
+                    unique_users.add(str(target))
+
+            elif action_type in ("join_group", "join_group_chat", "create_group_chat"):
+                metrics.group_chats_joined += 1
+                social_actions += 1
+
+            elif action_type in ("create_post", "post"):
+                metrics.posts_created += 1
+                social_actions += 1
+
+            elif action_type in ("comment", "reply"):
+                metrics.comments_made += 1
+                social_actions += 1
+                author = params.get("authorId") or params.get("targetUserId")
+                if author:
+                    unique_users.add(str(author))
+
+            elif action_type == "mention":
+                metrics.mentions_given += 1
+                mentioned = params.get("mentionedUserId")
+                if mentioned:
+                    unique_users.add(str(mentioned))
+
+            # Research/info actions
+            elif action_type in ("research", "analyze", "query"):
+                metrics.research_actions += 1
+
+            elif action_type in ("request_info", "ask"):
+                metrics.info_requests_sent += 1
+
+            elif action_type in ("share_info", "share"):
+                metrics.info_shared += 1
+
+            # Track reputation/influence metrics from environment state
+            # NOTE: We assume these are CUMULATIVE values (final totals) similar to
+            # agentBalance/agentPnL, not per-step deltas. We take the last step's value
+            # as the episode total. If these turn out to be per-step deltas, change = to +=
+            env_state = step.get("environmentState", step.get("environment_state", {}))
+            if "reputationDelta" in env_state and env_state["reputationDelta"] is not None:
+                metrics.reputation_delta = int(env_state["reputationDelta"])
+            elif "reputation_delta" in env_state and env_state["reputation_delta"] is not None:
+                metrics.reputation_delta = int(env_state["reputation_delta"])
+            if "followersGained" in env_state and env_state["followersGained"] is not None:
+                metrics.followers_gained = int(env_state["followersGained"])
+            elif "followers_gained" in env_state and env_state["followers_gained"] is not None:
+                metrics.followers_gained = int(env_state["followers_gained"])
+            if "positiveReactions" in env_state and env_state["positiveReactions"] is not None:
+                metrics.positive_reactions = int(env_state["positiveReactions"])
+            elif "positive_reactions" in env_state and env_state["positive_reactions"] is not None:
+                metrics.positive_reactions = int(env_state["positive_reactions"])
+            if "informationSpread" in env_state and env_state["informationSpread"] is not None:
+                metrics.information_spread = int(env_state["informationSpread"])
+            elif "information_spread" in env_state and env_state["information_spread"] is not None:
+                metrics.information_spread = int(env_state["information_spread"])
+
+        # Calculate derived metrics
+        metrics.unique_users_interacted = len(unique_users)
+        metrics.markets_traded = len(unique_markets)
+
+        if metrics.trades_executed > 0:
+            metrics.win_rate = metrics.profitable_trades / metrics.trades_executed
+            if metrics.avg_position_size > 0:
+                metrics.avg_position_size /= metrics.trades_executed
+
+        if metrics.predictions_made > 0:
+            metrics.prediction_accuracy = metrics.correct_predictions / metrics.predictions_made
+
+        if trade_actions > 0:
+            metrics.social_to_trade_ratio = social_actions / trade_actions
+        elif social_actions > 0:
+            metrics.social_to_trade_ratio = float(social_actions)
+
+        if metrics.episode_length > 0:
+            metrics.actions_per_tick = (trade_actions + social_actions) / metrics.episode_length
+
+        # Calculate P&L variance
+        if len(pnl_history) > 1:
+            mean_pnl = sum(pnl_history) / len(pnl_history)
+            metrics.pnl_variance = sum((p - mean_pnl) ** 2 for p in pnl_history) / len(pnl_history)
+
+        return metrics
 
     async def evaluate(self, *args, **kwargs):
         """Evaluate current model performance"""

@@ -54,6 +54,7 @@ __pycache__/
 *.so
 .Python
 venv/
+.venv/
 ENV/
 *.egg-info/
 dist/
@@ -91,3 +92,24 @@ packages/training/training-data-output
 # Continuous Claude cache (local only)
 .claude/cache/
 /thoughts
+
+# START Ruler Generated Files
+/.agent/rules/ruler.md
+/.agent/rules/ruler.md.bak
+/.codex/config.json
+/.codex/config.json.bak
+/.codex/config.toml
+/.codex/config.toml.bak
+/.cursor/mcp.json
+/.cursor/mcp.json.bak
+/.gemini/settings.json
+/.gemini/settings.json.bak
+/.mcp.json
+/.mcp.json.bak
+/AGENTS.md
+/AGENTS.md.bak
+/CLAUDE.md
+/CLAUDE.md.bak
+/opencode.json
+/opencode.json.bak
+# END Ruler Generated Files
