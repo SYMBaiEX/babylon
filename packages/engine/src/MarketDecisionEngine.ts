@@ -74,6 +74,11 @@ import {
 import { and, db, desc, eq, gte, inArray, posts, questions } from '@babylon/db';
 import { logger } from '@babylon/shared';
 import { loadActorById } from './actors-loader';
+import {
+  formatSimulationEventMarketSignals,
+  formatSimulationPredictionMarkets,
+  formatSimulationRecentEvents,
+} from './config/simulation';
 import type { BabylonLLMClient } from './llm/openai-client';
 import { parseXML } from './llm/xml-parser';
 import {
@@ -2093,12 +2098,9 @@ ${prompt}`
    * Especially important for comparative questions like "Will X outperform Y?"
    */
   private async formatActiveQuestions(): Promise<string> {
-    // Simulation Mode Bypass
+    // Simulation Mode Bypass - uses centralized constants from config/simulation.ts
     if (isSimulationMode()) {
-      return `Active Questions:
-- "Will BitcAIn hit $150k by EOM?" (resolves in 14 days)
-- "Will TeslAI announce Model 2?" (resolves in 5 days)
-- "Will Fed cut rates in October?" (resolves in 2 days)`;
+      return `Active Questions:\n${formatSimulationPredictionMarkets()}`;
     }
 
     const questionsList = await db
@@ -2130,12 +2132,9 @@ ${prompt}`
    * This provides high-level supplementary context for the batch.
    */
   private async formatRecentEvents(): Promise<string> {
-    // Simulation Mode Bypass
+    // Simulation Mode Bypass - uses centralized constants from config/simulation.ts
     if (isSimulationMode()) {
-      return `Recent developments (last 24h):
-- AIlon Musk: "TeslAI is going to Mars next week"
-- Sam AIltman: "AGI achieved internally"
-- Vitalik ButerAIn: "Gas fees are too damn high"`;
+      return formatSimulationRecentEvents();
     }
 
     // Get recent posts from the last 24 hours
@@ -2201,13 +2200,11 @@ ${prompt}`
       return this.eventMarketSignalsCache.signals;
     }
 
-    // Simulation mode bypass
+    // Simulation mode bypass - uses centralized constants from config/simulation.ts
     if (isSimulationMode()) {
-      const mockSignals = `EVENT-MARKET SIGNALS:
-- "Will BitcAIn hit $150k?" ↑ +5.2% (Positive development announced...)
-- "Will TeslAI announce Model 2?" ↓ -3.1% (Leak suggests delays...)`;
-      this.eventMarketSignalsCache = { signals: mockSignals, timestamp: now };
-      return mockSignals;
+      const signals = formatSimulationEventMarketSignals();
+      this.eventMarketSignalsCache = { signals, timestamp: now };
+      return signals;
     }
 
     // Fetch fresh event-market summaries
