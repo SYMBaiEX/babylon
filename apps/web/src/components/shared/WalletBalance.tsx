@@ -35,9 +35,7 @@ export const WalletBalance = memo(function WalletBalance({
   refreshTrigger,
 }: WalletBalanceProps) {
   const { user, authenticated } = useAuth();
-  const { balance, lifetimePnL, loading, refresh } = useWalletBalance(
-    user?.id
-  );
+  const { balance, lifetimePnL, loading, refresh } = useWalletBalance(user?.id);
 
   // Enable polling for balance updates (every 15s)
   useWalletBalancePolling(authenticated ? user?.id : null);
@@ -77,7 +75,7 @@ export const WalletBalance = memo(function WalletBalance({
           <div className="text-muted-foreground text-xs">Balance</div>
           <div
             className={cn(
-              'whitespace-nowrap font-bold text-base sm:text-lg transition-opacity',
+              'whitespace-nowrap font-bold text-base transition-opacity sm:text-lg',
               balance > startingBalance
                 ? 'text-green-600'
                 : balance < startingBalance
