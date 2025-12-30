@@ -186,15 +186,16 @@ async function main() {
     { count: number; totalPnL: number; totalTrades: number }
   >();
 
+  // Sort archetypes by length (longest first) to prevent false positives from substring matching
+  // e.g., "information-trader" should match before "trader"
+  const sortedArchetypes = [...CANONICAL_ARCHETYPES].sort(
+    (a, b) => b.length - a.length
+  );
+
   for (const agent of allAgents) {
     // Detect archetype from name using canonical list
-    // Sort by length (longest first) to prevent false positives from substring matching
-    // e.g., "information-trader" should match before "trader"
     let archetype = 'unknown';
     const name = (agent.displayName || agent.username || '').toLowerCase();
-    const sortedArchetypes = [...CANONICAL_ARCHETYPES].sort(
-      (a, b) => b.length - a.length
-    );
     for (const a of sortedArchetypes) {
       // Check both hyphenated and non-hyphenated versions
       if (name.includes(a.replaceAll('-', '')) || name.includes(a)) {

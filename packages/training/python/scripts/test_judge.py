@@ -117,7 +117,7 @@ def main():
     
     # Validate that at least one path exists
     if not source_dir.exists():
-        logger.error(f"No trajectory data found. Checked paths:")
+        logger.error("No trajectory data found. Checked paths:")
         logger.error(f"  - {Path(__file__).parent.parent.parent / 'training-data-output' / 'trajectories'}")
         logger.error(f"  - {source_dir}")
         logger.error("Run 'make tier4-generate' or 'bun run packages/engine/examples/generate-training-data.ts' first.")
