@@ -210,7 +210,7 @@ export function getSimulationPrice(
   if (overrides?.has(ticker)) {
     return overrides.get(ticker)!;
   }
-  return SIMULATION_DEFAULT_PRICES[ticker] ?? 100;
+  return (SIMULATION_DEFAULT_PRICES as Record<string, number>)[ticker] ?? 100;
 }
 
 /**
