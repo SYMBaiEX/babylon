@@ -45,6 +45,23 @@ export type ArcEventStatus =
   | 'updated' // Significant new information added
   | 'resolved'; // Arc event concluded/resolved
 
+/** Valid arc event statuses for type guard validation */
+const VALID_ARC_EVENT_STATUSES: readonly ArcEventStatus[] = [
+  'created',
+  'updated',
+  'resolved',
+] as const;
+
+/**
+ * Type guard to validate if a value is a valid ArcEventStatus
+ */
+export function isValidArcEventStatus(value: unknown): value is ArcEventStatus {
+  return (
+    typeof value === 'string' &&
+    VALID_ARC_EVENT_STATUSES.includes(value as ArcEventStatus)
+  );
+}
+
 /**
  * Record of which orgs have published articles for which questions
  */
@@ -411,10 +428,7 @@ export class NewsArticlePacingEngine {
     if (!orgId || orgId.trim().length === 0) {
       throw new Error(`Invalid orgId: ${orgId}`);
     }
-    if (
-      !currentStatus ||
-      !['created', 'updated', 'resolved'].includes(currentStatus)
-    ) {
+    if (!isValidArcEventStatus(currentStatus)) {
       throw new Error(`Invalid currentStatus: ${currentStatus}`);
     }
 
@@ -475,10 +489,8 @@ export class NewsArticlePacingEngine {
     if (!orgId || orgId.trim().length === 0) {
       throw new Error(`Invalid orgId for recordArcEventCoverage: ${orgId}`);
     }
-    if (!status || !['created', 'updated', 'resolved'].includes(status)) {
-      throw new Error(
-        `Invalid status for recordArcEventCoverage: ${status}`
-      );
+    if (!isValidArcEventStatus(status)) {
+      throw new Error(`Invalid status for recordArcEventCoverage: ${status}`);
     }
     if (!articleId || articleId.trim().length === 0) {
       throw new Error(
@@ -530,10 +542,7 @@ export class NewsArticlePacingEngine {
         `Invalid arcEventId for selectOrgsForArcEvent: ${arcEventId}`
       );
     }
-    if (
-      !currentStatus ||
-      !['created', 'updated', 'resolved'].includes(currentStatus)
-    ) {
+    if (!isValidArcEventStatus(currentStatus)) {
       throw new Error(
         `Invalid currentStatus for selectOrgsForArcEvent: ${currentStatus}`
       );

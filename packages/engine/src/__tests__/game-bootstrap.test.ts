@@ -186,3 +186,49 @@ describe('Game Auto-Start Logic', () => {
     }
   });
 });
+
+describe('NPC User Provisioning', () => {
+  it('should ensure NPC actors have User records', async () => {
+    // Import dynamic to avoid circular dependencies
+    const { GameBootstrapService } = await import(
+      '../services/game-bootstrap-service'
+    );
+    const { users, inArray } = await import('@babylon/db');
+
+    // Get static actors (NPCs)
+    const staticActors = GameBootstrapService.getStaticActors();
+    expect(staticActors.length).toBeGreaterThan(0);
+
+    // Call ensureNpcUsers (this is tested via full bootstrap normally)
+    const createdCount =
+      await GameBootstrapService['ensureNpcUsers'](staticActors);
+
+    // Check that all NPCs have User records
+    const npcUserIds = staticActors.map((a) => a.id);
+    const existingUsers = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(inArray(users.id, npcUserIds));
+
+    // All NPCs should have user records now
+    expect(existingUsers.length).toBe(staticActors.length);
+
+    // If we run again, should create 0 (all exist)
+    const secondRunCount =
+      await GameBootstrapService['ensureNpcUsers'](staticActors);
+    expect(secondRunCount).toBe(0);
+
+    console.log(
+      `NPC User provisioning: ${createdCount} created first run, ${secondRunCount} second run`
+    );
+  });
+
+  it('should handle empty actors array gracefully', async () => {
+    const { GameBootstrapService } = await import(
+      '../services/game-bootstrap-service'
+    );
+
+    const result = await GameBootstrapService['ensureNpcUsers']([]);
+    expect(result).toBe(0);
+  });
+});

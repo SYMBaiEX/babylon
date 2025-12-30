@@ -1285,7 +1285,11 @@ async function generateOrganizationContent(
       const postDayNumber = dayNumberForTimestamp(timestampWithOffset);
 
       // 5% chance of article (reduced from 20%), 95% chance of post
-      // Articles are primarily event-driven, but orgs can still publish occasional articles
+      // Rationale: Articles are now primarily event-driven (arc events, question resolution)
+      // via NewsArticlePacingEngine. Random articles still occur but at lower frequency to:
+      // 1. Keep the feed fresh with occasional background coverage
+      // 2. Not overwhelm the event-driven article generation
+      // 3. Maintain realistic org behavior (not everything is breaking news)
       const shouldCreateArticle = Math.random() < 0.05;
 
       if (shouldCreateArticle) {

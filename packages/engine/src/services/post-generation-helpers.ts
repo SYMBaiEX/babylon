@@ -43,7 +43,7 @@ import { characterMappingService } from './character-mapping-service';
  * Safely extract content from LLM response that may be wrapped in XML structure.
  * Guards against LLM returning raw strings instead of objects.
  */
-function safeExtractFromResponse<T>(
+export function safeExtractFromResponse<T>(
   response: unknown,
   fieldName: string
 ): T | null {
