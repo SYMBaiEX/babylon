@@ -869,10 +869,11 @@ ${prompt}`
             'MarketDecisionEngine'
           );
           rawResponse = xmlResult.data as typeof rawResponse;
-          
+
           // Store thinking content for fallback reasoning
           if (xmlResult.thinkingContent) {
-            (rawResponse as Record<string, unknown>).__thinkingContent = xmlResult.thinkingContent;
+            (rawResponse as Record<string, unknown>).__thinkingContent =
+              xmlResult.thinkingContent;
           }
           // Continue to structure validation below
         }
@@ -1039,9 +1040,10 @@ ${prompt}`
     }
 
     // Populate empty reasoning fields with thinking content fallback
-    const thinkingFallback = (rawResponse as Record<string, unknown>)?.__thinkingContent as string | undefined;
+    const thinkingFallback = (rawResponse as Record<string, unknown>)
+      ?.__thinkingContent as string | undefined;
     let reasoningPopulatedCount = 0;
-    
+
     for (const decision of response) {
       if (!decision.reasoning || decision.reasoning.trim() === '') {
         if (thinkingFallback) {
@@ -1051,7 +1053,7 @@ ${prompt}`
         }
       }
     }
-    
+
     logger.info(
       `Processed ${response.length} decisions for ${contexts.length} NPCs`,
       {

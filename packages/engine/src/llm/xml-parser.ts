@@ -77,18 +77,21 @@ export function extractXMLFromText(content: string): string {
  */
 export function extractThinkingContent(content: string): string {
   const thinkMatches = content.match(/<think>([\s\S]*?)<\/think>/gi) || [];
-  const thinkingMatches = content.match(/<thinking>([\s\S]*?)<\/thinking>/gi) || [];
-  
+  const thinkingMatches =
+    content.match(/<thinking>([\s\S]*?)<\/thinking>/gi) || [];
+
   const allMatches = [...thinkMatches, ...thinkingMatches];
-  
+
   if (allMatches.length === 0) {
     return '';
   }
-  
+
   // Extract inner content from each match
   return allMatches
-    .map(match => {
-      const innerMatch = match.match(/<(?:think|thinking)>([\s\S]*?)<\/(?:think|thinking)>/i);
+    .map((match) => {
+      const innerMatch = match.match(
+        /<(?:think|thinking)>([\s\S]*?)<\/(?:think|thinking)>/i
+      );
       return innerMatch?.[1]?.trim() || '';
     })
     .filter(Boolean)
@@ -98,7 +101,7 @@ export function extractThinkingContent(content: string): string {
 /**
  * Remove LLM thinking blocks (e.g., <think>...</think> from DeepSeek, Qwen)
  * These blocks contain internal reasoning that shouldn't be parsed as content.
- * 
+ *
  * NOTE: We do NOT strip <reasoning> tags - those are valid fields inside <decision> elements
  * that we need to preserve for training data.
  */
@@ -276,7 +279,7 @@ export function parseXML(content: string): XMLParseResult {
   try {
     // Extract thinking content BEFORE stripping (for fallback reasoning)
     const thinkingContent = extractThinkingContent(content);
-    
+
     // Clean markdown (this will strip thinking blocks)
     let cleaned = cleanXMLMarkdown(content);
 
