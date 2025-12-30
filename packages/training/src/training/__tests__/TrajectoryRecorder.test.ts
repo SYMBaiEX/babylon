@@ -1,20 +1,15 @@
 /**
  * TrajectoryRecorder Tests
  *
- * Tests the TrajectoryRecorder functionality including:
- * - Trajectory lifecycle (start, step, end)
- * - Step recording with environment state
- * - LLM call logging
- * - Simulation mode file output
- * - Edge cases and error handling
- *
- * These tests verify the training data collection for GRPO training.
+ * REAL tests that exercise the actual TrajectoryRecorder class.
+ * Uses simulation mode to avoid database dependency.
  */
 
-import { describe, expect, mock, test } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
+import * as fs from 'fs';
+import * as path from 'path';
 
-// Mock database and simulation mode
-const mockIsSimulationMode = mock(() => true);
+// Mock ONLY external dependencies - not the code under test
 mock.module('@babylon/db', () => ({
   db: {
     insert: mock(() => ({
@@ -23,595 +18,466 @@ mock.module('@babylon/db', () => ({
   },
   trajectories: {},
   llmCallLogs: {},
-  isSimulationMode: mockIsSimulationMode,
+  isSimulationMode: () => true, // Always use simulation mode for tests
 }));
 
-// Note: We don't mock 'fs' globally as it can interfere with other tests
-// that import fs (like BenchmarkRunner). Instead we test the logic without file I/O.
-
-import type {
-  Action,
-  EnvironmentState,
-  LLMCall,
-  TrajectoryStep,
-} from '../types';
+// Import the REAL class after mocking db
+import { TrajectoryRecorder } from '../TrajectoryRecorder';
+import type { Action, EnvironmentState, LLMCall } from '../types';
 
 // =============================================================================
-// Trajectory Lifecycle Tests
+// Test Setup
 // =============================================================================
 
-describe('TrajectoryRecorder - Lifecycle', () => {
-  test('generates unique trajectory IDs', () => {
-    const generateId = () =>
-      `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+const TEST_OUTPUT_DIR = './training-data-output/trajectories';
 
-    const id1 = generateId();
-    const id2 = generateId();
+describe('TrajectoryRecorder - Real Class Tests', () => {
+  let recorder: TrajectoryRecorder;
 
-    expect(id1).not.toBe(id2);
-    expect(id1.length).toBeGreaterThan(10);
-  });
-
-  test('trajectory starts with empty steps', () => {
-    interface ActiveTrajectory {
-      trajectoryId: string;
-      agentId: string;
-      steps: TrajectoryStep[];
+  beforeEach(() => {
+    recorder = new TrajectoryRecorder();
+    // Clean up test output
+    if (fs.existsSync(TEST_OUTPUT_DIR)) {
+      const files = fs.readdirSync(TEST_OUTPUT_DIR);
+      for (const file of files) {
+        if (file.startsWith('test-')) {
+          fs.unlinkSync(path.join(TEST_OUTPUT_DIR, file));
+        }
+      }
     }
-
-    const trajectory: ActiveTrajectory = {
-      trajectoryId: 'test-123',
-      agentId: 'agent-456',
-      steps: [],
-    };
-
-    expect(trajectory.steps).toHaveLength(0);
   });
 
-  test('trajectory tracks start time', () => {
-    const startTime = Date.now();
-
-    // Simulate some delay
-    const elapsedCheck = Date.now() - startTime;
-
-    expect(elapsedCheck).toBeGreaterThanOrEqual(0);
+  afterEach(() => {
+    // Cleanup after each test
+    if (fs.existsSync(TEST_OUTPUT_DIR)) {
+      const files = fs.readdirSync(TEST_OUTPUT_DIR);
+      for (const file of files) {
+        if (file.includes('test-agent')) {
+          try {
+            fs.unlinkSync(path.join(TEST_OUTPUT_DIR, file));
+          } catch {
+            // Ignore cleanup errors
+          }
+        }
+      }
+    }
   });
 
-  test('trajectory calculates duration on end', () => {
-    const startTime = Date.now() - 5000; // Started 5 seconds ago
-    const endTime = Date.now();
+  // ===========================================================================
+  // Lifecycle Tests
+  // ===========================================================================
 
-    const durationMs = endTime - startTime;
+  test('startTrajectory creates a new active trajectory', async () => {
+    const trajectoryId = await recorder.startTrajectory({
+      agentId: 'test-agent-1',
+      archetype: 'trader',
+    });
 
-    expect(durationMs).toBeGreaterThanOrEqual(5000);
+    expect(trajectoryId).toBeDefined();
+    expect(typeof trajectoryId).toBe('string');
+    expect(trajectoryId.length).toBeGreaterThan(10);
+    expect(recorder.isActive(trajectoryId)).toBe(true);
+    expect(recorder.getActiveCount()).toBe(1);
   });
-});
 
-// =============================================================================
-// Environment State Tests
-// =============================================================================
+  test('multiple trajectories can be active simultaneously', async () => {
+    const id1 = await recorder.startTrajectory({ agentId: 'test-agent-1' });
+    const id2 = await recorder.startTrajectory({ agentId: 'test-agent-2' });
+    const id3 = await recorder.startTrajectory({ agentId: 'test-agent-3' });
 
-describe('TrajectoryRecorder - Environment State', () => {
-  test('validates complete environment state structure', () => {
-    const state: EnvironmentState = {
+    expect(recorder.getActiveCount()).toBe(3);
+    expect(recorder.isActive(id1)).toBe(true);
+    expect(recorder.isActive(id2)).toBe(true);
+    expect(recorder.isActive(id3)).toBe(true);
+    expect(id1).not.toBe(id2);
+    expect(id2).not.toBe(id3);
+  });
+
+  test('getActiveTrajectory returns correct trajectory', async () => {
+    const trajectoryId = await recorder.startTrajectory({
+      agentId: 'test-agent-x',
+      archetype: 'degen',
+      scenarioId: 'test-scenario',
+    });
+
+    const active = recorder.getActiveTrajectory(trajectoryId);
+
+    expect(active).toBeDefined();
+    expect(active?.agentId).toBe('test-agent-x');
+    expect(active?.archetype).toBe('degen');
+    expect(active?.scenarioId).toBe('test-scenario');
+    expect(active?.steps).toHaveLength(0);
+  });
+
+  test('getActiveTrajectory returns undefined for non-existent id', () => {
+    const result = recorder.getActiveTrajectory('non-existent-id');
+    expect(result).toBeUndefined();
+  });
+
+  // ===========================================================================
+  // Step Recording Tests
+  // ===========================================================================
+
+  test('startStep initializes current step with environment state', async () => {
+    const trajectoryId = await recorder.startTrajectory({
+      agentId: 'test-agent',
+    });
+
+    const envState: EnvironmentState = {
       agentBalance: 10000,
-      agentPoints: 500,
-      agentPnL: 250.5,
-      openPositions: 3,
-      timestamp: Date.now(),
-    };
-
-    expect(state.agentBalance).toBeDefined();
-    expect(state.agentPoints).toBeDefined();
-    expect(state.agentPnL).toBeDefined();
-    expect(state.openPositions).toBeDefined();
-    expect(state.timestamp).toBeDefined();
-  });
-
-  test('handles zero balance state', () => {
-    const state: EnvironmentState = {
-      agentBalance: 0,
-      agentPoints: 0,
       agentPnL: 0,
       openPositions: 0,
-      timestamp: Date.now(),
     };
 
-    expect(state.agentBalance).toBe(0);
-    expect(state.agentPnL).toBe(0);
+    recorder.startStep(trajectoryId, envState);
+
+    const active = recorder.getActiveTrajectory(trajectoryId);
+    expect(active?.currentStep).toBeDefined();
+    expect(active?.currentStep?.environmentState).toEqual(envState);
+    expect(active?.currentStep?.stepNumber).toBe(0);
   });
 
-  test('handles negative PnL', () => {
-    const state: EnvironmentState = {
-      agentBalance: 5000,
-      agentPoints: 100,
-      agentPnL: -2500,
-      openPositions: 2,
-      timestamp: Date.now(),
-    };
-
-    expect(state.agentPnL).toBeLessThan(0);
-  });
-
-  test('handles large balance values', () => {
-    const state: EnvironmentState = {
-      agentBalance: 1e12, // 1 trillion
-      agentPoints: 1e9,
-      agentPnL: 5e8,
-      openPositions: 100,
-      timestamp: Date.now(),
-    };
-
-    expect(state.agentBalance).toBe(1e12);
-  });
-});
-
-// =============================================================================
-// LLM Call Recording Tests
-// =============================================================================
-
-describe('TrajectoryRecorder - LLM Calls', () => {
-  test('records complete LLM call structure', () => {
-    const llmCall: LLMCall = {
-      model: 'qwen-32b',
-      purpose: 'action',
-      systemPrompt: 'You are a trading agent...',
-      userPrompt: 'Current market state: BTCAI at $120,000',
-      response: 'I recommend buying BTCAI',
-      reasoning: 'Price momentum is positive',
-      temperature: 0.7,
-      maxTokens: 2000,
-      latencyMs: 450,
-    };
-
-    expect(llmCall.model).toBeDefined();
-    expect(llmCall.purpose).toBeDefined();
-    expect(llmCall.systemPrompt).toBeDefined();
-    expect(llmCall.userPrompt).toBeDefined();
-    expect(llmCall.response).toBeDefined();
-    expect(llmCall.latencyMs).toBeGreaterThanOrEqual(0);
-  });
-
-  test('handles missing optional fields', () => {
-    const llmCall: Partial<LLMCall> = {
-      model: 'qwen-32b',
-      purpose: 'reasoning', // Valid purpose type
-      userPrompt: 'Analyze this market',
-      response: 'Market looks bullish',
-      latencyMs: 300,
-    };
-
-    expect(llmCall.reasoning).toBeUndefined();
-    expect(llmCall.systemPrompt).toBeUndefined();
-  });
-
-  test('records latency accurately', () => {
-    const latencies = [50, 100, 500, 1000, 5000];
-
-    for (const latency of latencies) {
-      const llmCall: LLMCall = {
-        model: 'test',
-        purpose: 'action', // Valid purpose type
-        systemPrompt: '',
-        userPrompt: '',
-        response: '',
-        reasoning: '',
-        temperature: 0.5,
-        maxTokens: 100,
-        latencyMs: latency,
-      };
-
-      expect(llmCall.latencyMs).toBe(latency);
-    }
-  });
-
-  test('handles very long prompts', () => {
-    const longPrompt = 'A'.repeat(10000); // 10k characters
-
-    const llmCall: LLMCall = {
-      model: 'test',
-      purpose: 'evaluation', // Valid purpose type
-      systemPrompt: longPrompt,
-      userPrompt: longPrompt,
-      response: longPrompt,
-      reasoning: '',
-      temperature: 0.5,
-      maxTokens: 100,
-      latencyMs: 0,
-    };
-
-    expect(llmCall.systemPrompt.length).toBe(10000);
-    expect(llmCall.userPrompt.length).toBe(10000);
-  });
-});
-
-// =============================================================================
-// Action Recording Tests
-// =============================================================================
-
-describe('TrajectoryRecorder - Actions', () => {
-  test('records complete action structure', () => {
-    const action: Action = {
-      actionType: 'buy',
-      parameters: {
-        ticker: 'BTCAI',
-        amount: 1000,
-        price: 120000,
-      },
-      success: true,
-      result: {
-        positionId: 'pos-123',
-        executedPrice: 120050,
-      },
-    };
-
-    expect(action.actionType).toBeDefined();
-    expect(action.parameters).toBeDefined();
-    expect(action.success).toBe(true);
-    expect(action.result).toBeDefined();
-  });
-
-  test('handles failed actions', () => {
-    const action: Action = {
-      actionType: 'buy',
-      parameters: {
-        ticker: 'BTCAI',
-        amount: 1000000, // Too large
-      },
-      success: false,
-      error: 'Insufficient balance',
-    };
-
-    expect(action.success).toBe(false);
-    expect(action.error).toBeDefined();
-  });
-
-  test('records hold actions', () => {
-    const action: Action = {
-      actionType: 'hold',
-      parameters: {},
-      success: true,
-    };
-
-    expect(action.actionType).toBe('hold');
-    expect(action.success).toBe(true);
-  });
-
-  test('records various action types', () => {
-    const actionTypes = [
-      'buy',
-      'sell',
-      'hold',
-      'open_long',
-      'open_short',
-      'close_position',
-      'buy_yes',
-      'buy_no',
-    ];
-
-    for (const actionType of actionTypes) {
-      const action: Action = {
-        actionType,
-        parameters: {},
-        success: true,
-      };
-
-      expect(action.actionType).toBe(actionType);
-    }
-  });
-});
-
-// =============================================================================
-// Step Recording Tests
-// =============================================================================
-
-describe('TrajectoryRecorder - Steps', () => {
-  test('records complete step structure', () => {
-    const step: TrajectoryStep = {
-      stepNumber: 0,
-      timestamp: Date.now(),
-      environmentState: {
-        agentBalance: 10000,
-        agentPoints: 0,
+  test('startStep throws for non-existent trajectory', () => {
+    expect(() => {
+      recorder.startStep('fake-id', {
+        agentBalance: 0,
         agentPnL: 0,
         openPositions: 0,
-        timestamp: Date.now(),
-      },
-      providerAccesses: [],
-      llmCalls: [],
-      action: {
-        actionType: 'hold',
-        parameters: {},
-        success: true,
-      },
-      reward: 0,
-    };
-
-    expect(step.stepNumber).toBe(0);
-    expect(step.environmentState).toBeDefined();
-    expect(step.action).toBeDefined();
-    expect(step.reward).toBeDefined();
-  });
-
-  test('step numbers increment correctly', () => {
-    const steps: TrajectoryStep[] = [];
-
-    for (let i = 0; i < 5; i++) {
-      steps.push({
-        stepNumber: i,
-        timestamp: Date.now(),
-        environmentState: {
-          agentBalance: 10000 - i * 100,
-          agentPoints: i * 10,
-          agentPnL: i * 50,
-          openPositions: i,
-          timestamp: Date.now(),
-        },
-        providerAccesses: [],
-        llmCalls: [],
-        action: {
-          actionType: 'hold',
-          parameters: {},
-          success: true,
-        },
-        reward: i * 0.1,
       });
-    }
-
-    expect(steps).toHaveLength(5);
-    expect(steps[0]!.stepNumber).toBe(0);
-    expect(steps[4]!.stepNumber).toBe(4);
+    }).toThrow('Trajectory not found: fake-id');
   });
 
-  test('handles steps with multiple LLM calls', () => {
-    const step: TrajectoryStep = {
-      stepNumber: 0,
-      timestamp: Date.now(),
-      environmentState: {
-        agentBalance: 10000,
-        agentPoints: 0,
-        agentPnL: 0,
-        openPositions: 0,
-        timestamp: Date.now(),
-      },
-      providerAccesses: [],
-      llmCalls: [
-        {
-          model: 'qwen-32b',
-          purpose: 'reasoning', // Valid purpose type (analysis phase)
-          systemPrompt: '',
-          userPrompt: 'Analyze market',
-          response: 'Bullish',
-          reasoning: '',
-          temperature: 0.5,
-          maxTokens: 100,
-          latencyMs: 100,
-        },
-        {
-          model: 'qwen-32b',
-          purpose: 'action',
-          systemPrompt: '',
-          userPrompt: 'What action?',
-          response: 'Buy BTCAI',
-          reasoning: 'Momentum',
-          temperature: 0.7,
-          maxTokens: 200,
-          latencyMs: 150,
-        },
-      ],
-      action: {
-        actionType: 'buy',
-        parameters: { ticker: 'BTCAI' },
-        success: true,
-      },
-      reward: 1.0,
-    };
+  test('logProviderAccess adds provider data to current step', async () => {
+    const trajectoryId = await recorder.startTrajectory({
+      agentId: 'test-agent',
+    });
+    recorder.startStep(trajectoryId, {
+      agentBalance: 1000,
+      agentPnL: 0,
+      openPositions: 0,
+    });
 
-    expect(step.llmCalls).toHaveLength(2);
-    expect(step.llmCalls[0]!.purpose).toBe('reasoning');
-    expect(step.llmCalls[1]!.purpose).toBe('action');
-  });
-});
+    recorder.logProviderAccess(trajectoryId, {
+      providerName: 'market-data',
+      data: { ticker: 'BTCAI', price: 50000 },
+      purpose: 'price lookup',
+    });
 
-// =============================================================================
-// Simulation Mode Output Tests
-// =============================================================================
-
-describe('TrajectoryRecorder - Simulation Mode', () => {
-  test('constructs correct file path in simulation mode', () => {
-    const outputDir = './training-data-output/trajectories';
-    const trajectoryId = '1234567890';
-
-    const filePath = `${outputDir}/${trajectoryId}.json`;
-
-    expect(filePath).toBe(
-      './training-data-output/trajectories/1234567890.json'
+    const active = recorder.getActiveTrajectory(trajectoryId);
+    expect(active?.currentStep?.providerAccesses).toHaveLength(1);
+    expect(active?.currentStep?.providerAccesses?.[0]?.providerName).toBe(
+      'market-data'
     );
   });
 
-  test('trajectory JSON structure is valid', () => {
-    const trajectoryData = {
-      trajectory: {
-        id: 'traj-123',
-        trajectoryId: '123456',
-        agentId: 'agent-456',
-        startTime: '2024-01-01T00:00:00.000Z',
-        endTime: '2024-01-01T01:00:00.000Z',
-        durationMs: 3600000,
-        episodeLength: 24,
-        finalStatus: 'completed',
-        totalReward: 5.5,
-      },
-      llmCalls: [],
+  test('logProviderAccess throws when no current step', async () => {
+    const trajectoryId = await recorder.startTrajectory({
+      agentId: 'test-agent',
+    });
+    // Don't call startStep
+
+    expect(() => {
+      recorder.logProviderAccess(trajectoryId, {
+        providerName: 'test',
+        data: {},
+        purpose: 'test',
+      });
+    }).toThrow('No current step');
+  });
+
+  test('logLLMCall adds LLM call to current step', async () => {
+    const trajectoryId = await recorder.startTrajectory({
+      agentId: 'test-agent',
+    });
+    recorder.startStep(trajectoryId, {
+      agentBalance: 1000,
+      agentPnL: 0,
+      openPositions: 0,
+    });
+
+    const llmCall: LLMCall = {
+      model: 'qwen-32b',
+      systemPrompt: 'You are a trading agent',
+      userPrompt: 'What should I do?',
+      response: 'Buy BTCAI',
+      reasoning: 'Bullish momentum',
+      temperature: 0.7,
+      maxTokens: 2000,
+      purpose: 'action',
+      latencyMs: 250,
     };
 
-    expect(trajectoryData.trajectory.id).toBeDefined();
-    expect(trajectoryData.trajectory.agentId).toBeDefined();
-    expect(trajectoryData.trajectory.durationMs).toBeGreaterThan(0);
+    recorder.logLLMCall(trajectoryId, llmCall);
+
+    const active = recorder.getActiveTrajectory(trajectoryId);
+    expect(active?.currentStep?.llmCalls).toHaveLength(1);
+    expect(active?.currentStep?.llmCalls?.[0]?.model).toBe('qwen-32b');
+    expect(active?.currentStep?.llmCalls?.[0]?.latencyMs).toBe(250);
   });
 
-  test('handles window ID generation', () => {
-    const generateWindowId = (): string => {
-      const now = new Date();
-      const dateStr = now.toISOString().split('T')[0];
-      const hour = now.getHours().toString().padStart(2, '0');
-      return `${dateStr}T${hour}:00`;
+  test('completeStep finalizes step and adds to trajectory', async () => {
+    const trajectoryId = await recorder.startTrajectory({
+      agentId: 'test-agent',
+    });
+    recorder.startStep(trajectoryId, {
+      agentBalance: 1000,
+      agentPnL: 0,
+      openPositions: 0,
+    });
+
+    const action: Action = {
+      actionType: 'buy',
+      parameters: { ticker: 'BTCAI', amount: 100 },
+      success: true,
     };
 
-    const windowId = generateWindowId();
+    recorder.completeStep(trajectoryId, action, 0.5);
 
-    expect(windowId).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:00$/);
-  });
-});
-
-// =============================================================================
-// Reward Calculation Tests
-// =============================================================================
-
-describe('TrajectoryRecorder - Rewards', () => {
-  test('step rewards can be positive', () => {
-    const step: Partial<TrajectoryStep> = {
-      reward: 1.5,
-    };
-
-    expect(step.reward).toBeGreaterThan(0);
+    const active = recorder.getActiveTrajectory(trajectoryId);
+    expect(active?.steps).toHaveLength(1);
+    expect(active?.steps[0]?.action.actionType).toBe('buy');
+    expect(active?.steps[0]?.reward).toBe(0.5);
+    expect(active?.currentStep).toBeUndefined();
   });
 
-  test('step rewards can be negative', () => {
-    const step: Partial<TrajectoryStep> = {
-      reward: -0.5,
-    };
+  test('multiple steps increment step number correctly', async () => {
+    const trajectoryId = await recorder.startTrajectory({
+      agentId: 'test-agent',
+    });
 
-    expect(step.reward).toBeLessThan(0);
-  });
-
-  test('step rewards can be zero', () => {
-    const step: Partial<TrajectoryStep> = {
-      reward: 0,
-    };
-
-    expect(step.reward).toBe(0);
-  });
-
-  test('calculates total reward across steps', () => {
-    const rewards = [1.0, -0.5, 2.0, 0, -1.0];
-    const totalReward = rewards.reduce((sum, r) => sum + r, 0);
-
-    expect(totalReward).toBe(1.5);
-  });
-
-  test('handles floating point precision in rewards', () => {
-    const rewards = [0.1, 0.2, 0.3];
-    const totalReward = rewards.reduce((sum, r) => sum + r, 0);
-
-    // Use toBeCloseTo for floating point comparison
-    expect(totalReward).toBeCloseTo(0.6, 10);
-  });
-});
-
-// =============================================================================
-// Error Handling Tests
-// =============================================================================
-
-describe('TrajectoryRecorder - Error Handling', () => {
-  test('handles missing trajectory gracefully', () => {
-    const activeTrajectories = new Map<string, { steps: TrajectoryStep[] }>();
-    const nonExistentId = 'does-not-exist';
-
-    const trajectory = activeTrajectories.get(nonExistentId);
-
-    expect(trajectory).toBeUndefined();
-  });
-
-  test('handles duplicate trajectory start', () => {
-    const activeTrajectories = new Map<string, { id: string }>();
-    const trajectoryId = 'traj-123';
-
-    // First start
-    activeTrajectories.set(trajectoryId, { id: trajectoryId });
-
-    // Check if already exists before creating
-    const alreadyExists = activeTrajectories.has(trajectoryId);
-
-    expect(alreadyExists).toBe(true);
-  });
-
-  test('validates step has action before completion', () => {
-    const step: Partial<TrajectoryStep> = {
-      stepNumber: 0,
-      timestamp: Date.now(),
-      environmentState: {
-        agentBalance: 10000,
-        agentPoints: 0,
-        agentPnL: 0,
-        openPositions: 0,
-        timestamp: Date.now(),
-      },
-      // No action set
-    };
-
-    const isComplete = step.action !== undefined;
-
-    expect(isComplete).toBe(false);
-  });
-});
-
-// =============================================================================
-// Metadata Tests
-// =============================================================================
-
-describe('TrajectoryRecorder - Metadata', () => {
-  test('records archetype information', () => {
-    interface StartOptions {
-      agentId: string;
-      archetype?: string;
+    for (let i = 0; i < 5; i++) {
+      recorder.startStep(trajectoryId, {
+        agentBalance: 1000 - i * 100,
+        agentPnL: i * 10,
+        openPositions: i,
+      });
+      recorder.completeStep(
+        trajectoryId,
+        { actionType: 'hold', parameters: {}, success: true },
+        0.1
+      );
     }
 
-    const options: StartOptions = {
-      agentId: 'agent-123',
-      archetype: 'conservative-trader',
-    };
-
-    expect(options.archetype).toBe('conservative-trader');
+    const active = recorder.getActiveTrajectory(trajectoryId);
+    expect(active?.steps).toHaveLength(5);
+    expect(active?.steps[0]?.stepNumber).toBe(0);
+    expect(active?.steps[4]?.stepNumber).toBe(4);
   });
 
-  test('handles game knowledge metadata', () => {
-    interface EndOptions {
-      gameKnowledge?: {
-        trueProbabilities?: Record<string, number>;
-        actualOutcomes?: Record<string, unknown>;
-      };
-    }
+  // ===========================================================================
+  // End Trajectory Tests (Simulation Mode - File Output)
+  // ===========================================================================
 
-    const options: EndOptions = {
-      gameKnowledge: {
-        trueProbabilities: {
-          'question-1': 0.75,
-          'question-2': 0.3,
-        },
-        actualOutcomes: {
-          'question-1': true,
-          'question-2': false,
-        },
+  test('endTrajectory saves JSON file in simulation mode', async () => {
+    const trajectoryId = await recorder.startTrajectory({
+      agentId: 'test-agent-file',
+      archetype: 'trader',
+    });
+
+    // Add a step
+    recorder.startStep(trajectoryId, {
+      agentBalance: 10000,
+      agentPnL: 0,
+      openPositions: 0,
+    });
+    recorder.logLLMCall(trajectoryId, {
+      model: 'test-model',
+      systemPrompt: 'system',
+      userPrompt: 'user',
+      response: 'response',
+      temperature: 0.5,
+      maxTokens: 100,
+      purpose: 'action',
+    });
+    recorder.completeStep(
+      trajectoryId,
+      { actionType: 'buy', parameters: { ticker: 'BTCAI' }, success: true },
+      1.0
+    );
+
+    await recorder.endTrajectory(trajectoryId, {
+      finalBalance: 10500,
+      finalPnL: 500,
+    });
+
+    // Verify file was created
+    const filePath = path.join(TEST_OUTPUT_DIR, `${trajectoryId}.json`);
+    expect(fs.existsSync(filePath)).toBe(true);
+
+    // Verify file contents
+    const content = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+    expect(content.trajectory.agentId).toBe('test-agent-file');
+    expect(content.trajectory.archetype).toBe('trader');
+    expect(content.trajectory.episodeLength).toBe(1);
+    expect(content.trajectory.finalBalance).toBe(10500);
+    expect(content.trajectory.finalPnL).toBe(500);
+    expect(content.llmCalls).toHaveLength(1);
+
+    // Cleanup
+    fs.unlinkSync(filePath);
+  });
+
+  test('endTrajectory removes trajectory from active map', async () => {
+    const trajectoryId = await recorder.startTrajectory({
+      agentId: 'test-agent',
+    });
+    expect(recorder.isActive(trajectoryId)).toBe(true);
+
+    await recorder.endTrajectory(trajectoryId);
+
+    expect(recorder.isActive(trajectoryId)).toBe(false);
+    expect(recorder.getActiveCount()).toBe(0);
+  });
+
+  test('endTrajectory throws for non-existent trajectory', async () => {
+    await expect(recorder.endTrajectory('fake-id')).rejects.toThrow(
+      'Trajectory not found: fake-id'
+    );
+  });
+
+  test('endTrajectory calculates metrics correctly', async () => {
+    const trajectoryId = await recorder.startTrajectory({
+      agentId: 'test-agent',
+    });
+
+    // Add buy action
+    recorder.startStep(trajectoryId, {
+      agentBalance: 10000,
+      agentPnL: 0,
+      openPositions: 0,
+    });
+    recorder.completeStep(
+      trajectoryId,
+      { actionType: 'BUY_YES', parameters: {}, success: true },
+      1.0
+    );
+
+    // Add sell action
+    recorder.startStep(trajectoryId, {
+      agentBalance: 9000,
+      agentPnL: 100,
+      openPositions: 1,
+    });
+    recorder.completeStep(
+      trajectoryId,
+      { actionType: 'SELL', parameters: {}, success: true },
+      0.5
+    );
+
+    // Add failed action
+    recorder.startStep(trajectoryId, {
+      agentBalance: 9500,
+      agentPnL: 150,
+      openPositions: 0,
+    });
+    recorder.completeStep(
+      trajectoryId,
+      {
+        actionType: 'BUY_NO',
+        parameters: {},
+        success: false,
+        error: 'Insufficient funds',
       },
-    };
+      -0.5
+    );
 
-    expect(options.gameKnowledge?.trueProbabilities?.['question-1']).toBe(0.75);
-    expect(options.gameKnowledge?.actualOutcomes?.['question-1']).toBe(true);
+    await recorder.endTrajectory(trajectoryId);
+
+    // Check that file was written with correct metrics
+    const filePath = path.join(TEST_OUTPUT_DIR, `${trajectoryId}.json`);
+    const content = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+
+    expect(content.trajectory.episodeLength).toBe(3);
+    expect(content.trajectory.tradesExecuted).toBe(3); // BUY_YES, SELL, BUY_NO
+    expect(content.trajectory.totalReward).toBe(1.0); // 1.0 + 0.5 + (-0.5)
+    expect(content.trajectory.finalStatus).toBe('completed_with_errors');
+
+    fs.unlinkSync(filePath);
   });
 
-  test('records final balance and PnL on end', () => {
-    interface EndOptions {
-      finalBalance?: number;
-      finalPnL?: number;
-    }
+  // ===========================================================================
+  // Edge Cases
+  // ===========================================================================
 
-    const options: EndOptions = {
-      finalBalance: 12500,
-      finalPnL: 2500,
-    };
+  test('handles trajectory with zero steps', async () => {
+    const trajectoryId = await recorder.startTrajectory({
+      agentId: 'test-agent',
+    });
 
-    expect(options.finalBalance).toBe(12500);
-    expect(options.finalPnL).toBe(2500);
+    await recorder.endTrajectory(trajectoryId);
+
+    const filePath = path.join(TEST_OUTPUT_DIR, `${trajectoryId}.json`);
+    const content = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+
+    expect(content.trajectory.episodeLength).toBe(0);
+    expect(content.trajectory.totalReward).toBe(0);
+    expect(content.llmCalls).toHaveLength(0);
+
+    fs.unlinkSync(filePath);
+  });
+
+  test('handles very long prompts in LLM calls', async () => {
+    const trajectoryId = await recorder.startTrajectory({
+      agentId: 'test-agent',
+    });
+    recorder.startStep(trajectoryId, {
+      agentBalance: 1000,
+      agentPnL: 0,
+      openPositions: 0,
+    });
+
+    const longPrompt = 'A'.repeat(50000); // 50k characters
+
+    recorder.logLLMCall(trajectoryId, {
+      model: 'test',
+      systemPrompt: longPrompt,
+      userPrompt: longPrompt,
+      response: longPrompt,
+      temperature: 0.5,
+      maxTokens: 100,
+      purpose: 'action',
+    });
+
+    recorder.completeStep(
+      trajectoryId,
+      { actionType: 'hold', parameters: {}, success: true },
+      0
+    );
+
+    await recorder.endTrajectory(trajectoryId);
+
+    const filePath = path.join(TEST_OUTPUT_DIR, `${trajectoryId}.json`);
+    expect(fs.existsSync(filePath)).toBe(true);
+
+    const content = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+    expect(content.llmCalls[0].systemPrompt.length).toBe(50000);
+
+    fs.unlinkSync(filePath);
+  });
+
+  test('handles negative rewards correctly', async () => {
+    const trajectoryId = await recorder.startTrajectory({
+      agentId: 'test-agent',
+    });
+
+    recorder.startStep(trajectoryId, {
+      agentBalance: 1000,
+      agentPnL: 0,
+      openPositions: 0,
+    });
+    recorder.completeStep(
+      trajectoryId,
+      { actionType: 'buy', parameters: {}, success: false, error: 'Bad trade' },
+      -5.0
+    );
+
+    await recorder.endTrajectory(trajectoryId);
+
+    const filePath = path.join(TEST_OUTPUT_DIR, `${trajectoryId}.json`);
+    const content = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+
+    expect(content.trajectory.totalReward).toBe(-5.0);
+
+    fs.unlinkSync(filePath);
   });
 });
