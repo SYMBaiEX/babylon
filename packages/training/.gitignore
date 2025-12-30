@@ -1,0 +1,33 @@
+# Training Package Ignores
+# (Supplements root .gitignore with training-specific patterns)
+
+# Research output (generated reports and artifacts)
+research-output/
+
+# Trained models and checkpoints
+trained_models/
+benchmark-results/
+benchmarks/
+training-data-output/
+
+# Data exports (keep .gitkeep files)
+data/*.csv
+data/**/*.parquet
+data/**/scored_*.json
+
+# Python virtual environment and caches
+python/venv/
+python/.venv/
+python/__pycache__/
+python/**/__pycache__/
+python/*.egg-info/
+python/**/*.egg-info/
+python/.pytest_cache/
+python/**/.pytest_cache/
+
+# Python logs
+python/logs/
+
+# Benchmark output
+benchmark-output/
+
