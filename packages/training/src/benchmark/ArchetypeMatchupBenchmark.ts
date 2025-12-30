@@ -9,7 +9,6 @@
  * Uses the multi-model orchestrator to efficiently run multiple archetype models.
  */
 
-import { logger } from '@babylon/shared';
 import {
   type ArchetypeConfig,
   ArchetypeConfigService,
@@ -18,6 +17,7 @@ import {
   createMultiModelOrchestrator,
   type MultiModelOrchestrator,
 } from '../training/MultiModelOrchestrator';
+import { logger } from '../utils/logger';
 import {
   type BenchmarkConfig,
   BenchmarkDataGenerator,

@@ -60,13 +60,25 @@ ENV/
 dist/
 build/
 
-# Training data
+# Training data and simulation output
 training-data-output/
-training_data/trajectories/
-training_data/datasets/
+training_data/
 training_recording/
 training-data/
-packages/training/data/**/*.jsonl
+simulation-output/
+trained_models/
+benchmark-results/
+benchmarks/
+
+# Generated output directories
+benchmark-output/
+research-output/
+
+# Data exports
+**/*.jsonl
+**/scored_trajectories.csv
+
+# Debug and storage
 /storage/
 apps/web/debug/
 packages/experimental/honest-demo-output/
@@ -76,14 +88,8 @@ debug/
 # Test output directory
 .output/
 
-# Training simulation output
-packages/engine/training-data-output
-packages/training/data/scored_trajectories.csv
-simulation-output/state.json
-packages/training/trained_models
-packages/training/benchmark-results
-packages/training/benchmarks
-packages/training/training-data-output
+# Dependency analysis artifacts
+circular-deps.*
 
 # Local metrics and audit files
 .metrics/

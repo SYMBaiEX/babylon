@@ -148,6 +148,7 @@ class BabylonRLAIFEnv(BaseEnv):
     ):
         super().__init__(config, server_configs, slurm, testing)
         self.config: BabylonEnvConfig = config
+        self._server_configs = server_configs  # Store for direct access
         self.db_pool: Optional[asyncpg.Pool] = None
         self.trajectory_cache: List[Dict] = []
         self.current_window_idx: int = 0
@@ -399,7 +400,7 @@ class BabylonRLAIFEnv(BaseEnv):
         rollout_data = []
 
         # Get vLLM URL from server config (first config is the inference server)
-        vllm_base_url = self.server_configs[0].base_url if self.server_configs else "http://localhost:9001/v1"
+        vllm_base_url = self._server_configs[0].base_url if self._server_configs else "http://localhost:9001/v1"
         model_name = self.config.tokenizer_name
         
         logger.debug(f"Using vLLM at {vllm_base_url}, model: {model_name}")
@@ -429,13 +430,21 @@ class BabylonRLAIFEnv(BaseEnv):
                     "n": 1,
                 }
                 
-                async with session.post(
-                    f"{vllm_base_url}/chat/completions",
-                    json=payload,
-                    headers={"Content-Type": "application/json"},
-                    timeout=aiohttp.ClientTimeout(total=120),
-                ) as resp:
-                    result = await resp.json()
+                try:
+                    async with session.post(
+                        f"{vllm_base_url}/chat/completions",
+                        json=payload,
+                        headers={"Content-Type": "application/json"},
+                        timeout=aiohttp.ClientTimeout(total=120),
+                    ) as resp:
+                        if resp.status != 200:
+                            error_text = await resp.text()
+                            logger.error(f"vLLM returned status {resp.status}: {error_text}")
+                            continue
+                        result = await resp.json()
+                except Exception as e:
+                    logger.error(f"Error calling vLLM: {e}")
+                    continue
 
                 response_content = result.get("choices", [{}])[0].get("message", {}).get("content", "")
                 finish_reason = result.get("choices", [{}])[0].get("finish_reason", "stop")

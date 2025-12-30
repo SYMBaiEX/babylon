@@ -9,17 +9,27 @@ This script orchestrates the complete RLAIF training pipeline:
 4. Runs the GRPO trainer with optional W&B logging
 
 Usage:
-    # Basic training run
-    python scripts/run_training.py --steps 100
+    # Use a GPU profile (recommended - auto-configures for your hardware)
+    python scripts/run_training.py --profile 12gb --steps 100
+    python scripts/run_training.py --profile 24gb --steps 100
     
-    # With specific model and W&B
-    python scripts/run_training.py --model Qwen/Qwen2.5-3B-Instruct --steps 100 --wandb-project my-project
+    # List available profiles
+    python scripts/run_training.py --list-profiles
+    
+    # Manual configuration (override profile or use without profile)
+    python scripts/run_training.py --model Qwen/Qwen2.5-0.5B-Instruct --vllm-gpu-memory 0.25 --steps 100
     
     # Resume from checkpoint
-    python scripts/run_training.py --resume ./trained_models/step_50
+    python scripts/run_training.py --profile 12gb --resume ./trained_models/step_50
     
     # Disable W&B
-    python scripts/run_training.py --steps 100 --no-wandb
+    python scripts/run_training.py --profile 12gb --steps 100 --no-wandb
+
+GPU Profiles (config/profiles/*.json):
+    12gb - RTX 3060/4070 (0.5B model, 25% vLLM memory)
+    16gb - RTX 4080/A4000 (1.5B model, 35% vLLM memory)
+    24gb - RTX 4090/A5000 (3B model, 40% vLLM memory)
+    48gb - A40/A6000 (7B model, 45% vLLM memory)
 
 Or run components separately:
     Terminal 1: run-api
@@ -28,6 +38,7 @@ Or run components separately:
 """
 
 import argparse
+import json
 import logging
 import os
 import signal
@@ -50,6 +61,57 @@ logging.basicConfig(
     format='%(asctime)s [%(levelname)s] %(name)s: %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+# Profile directory
+PROFILES_DIR = Path(__file__).parent.parent / "config" / "profiles"
+
+
+def get_available_profiles() -> list[str]:
+    """Get list of available GPU profiles."""
+    if not PROFILES_DIR.exists():
+        return []
+    return [p.stem for p in PROFILES_DIR.glob("*.json")]
+
+
+def load_profile(profile_name: str) -> dict:
+    """Load a GPU profile by name."""
+    profile_path = PROFILES_DIR / f"{profile_name}.json"
+    if not profile_path.exists():
+        available = get_available_profiles()
+        raise ValueError(
+            f"Profile '{profile_name}' not found. "
+            f"Available: {', '.join(available) or 'none'}"
+        )
+    
+    with open(profile_path) as f:
+        profile = json.load(f)
+    
+    logger.info(f"Loaded profile: {profile.get('name', profile_name)}")
+    if profile.get('notes'):
+        logger.info(f"  Note: {profile['notes']}")
+    
+    return profile
+
+
+def list_profiles() -> None:
+    """Print available profiles and exit."""
+    print("\nAvailable GPU Profiles:")
+    print("=" * 60)
+    
+    for profile_name in sorted(get_available_profiles()):
+        try:
+            profile = load_profile(profile_name)
+            print(f"\n  --profile {profile_name}")
+            print(f"    {profile.get('name', 'Unnamed')}")
+            print(f"    Model: {profile.get('model', 'default')}")
+            print(f"    vLLM Memory: {profile.get('vllm_gpu_memory', 0.45) * 100:.0f}%")
+            if profile.get('notes'):
+                print(f"    Note: {profile['notes']}")
+        except Exception as e:
+            print(f"\n  --profile {profile_name}")
+            print(f"    Error loading: {e}")
+    
+    print()
 
 
 def validate_environment() -> list[str]:
@@ -385,11 +447,23 @@ def main():
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     
+    # Profile settings (applied first, can be overridden by explicit args)
+    parser.add_argument(
+        "--profile",
+        choices=get_available_profiles() or None,
+        help="GPU profile to use (e.g., 12gb, 24gb). See --list-profiles"
+    )
+    parser.add_argument(
+        "--list-profiles",
+        action="store_true",
+        help="List available GPU profiles and exit"
+    )
+    
     # Model settings
     parser.add_argument(
         "--model",
-        default="Qwen/Qwen2.5-3B-Instruct",
-        help="Model to train"
+        default=None,  # Will use profile default or fallback
+        help="Model to train (default: from profile or Qwen2.5-3B-Instruct)"
     )
     parser.add_argument(
         "--steps",
@@ -513,6 +587,29 @@ def main():
     )
     
     args = parser.parse_args()
+    
+    # Handle --list-profiles
+    if args.list_profiles:
+        list_profiles()
+        sys.exit(0)
+    
+    # Apply profile defaults (can be overridden by explicit args)
+    profile = {}
+    if args.profile:
+        profile = load_profile(args.profile)
+    
+    # Apply profile values as defaults for unset args
+    if args.model is None:
+        args.model = profile.get("model", "Qwen/Qwen2.5-3B-Instruct")
+    if args.batch_size == 4 and "batch_size" in profile:  # 4 is the argparse default
+        args.batch_size = profile["batch_size"]
+    if args.vllm_gpu_memory == 0.45 and "vllm_gpu_memory" in profile:  # 0.45 is the default
+        args.vllm_gpu_memory = profile["vllm_gpu_memory"]
+    
+    # Log effective settings
+    if args.profile:
+        logger.info(f"Using profile '{args.profile}': model={args.model}, "
+                    f"vllm_mem={args.vllm_gpu_memory:.0%}, batch={args.batch_size}")
     
     # Validate environment
     if not args.skip_validation:

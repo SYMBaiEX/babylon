@@ -303,6 +303,32 @@ babylon train parallel --archetypes trader --num-agents 5 --ticks 20
 
 **W&B offline mode** - If you see "offline mode", set `WANDB_API_KEY` or use `--no-wandb`
 
+## Scripts Reference
+
+The `scripts/` directory contains standalone utilities for training operations:
+
+| Script | Description |
+|--------|-------------|
+| `train-and-test.ts` | Full pipeline: train model + game test |
+| `run-full-pipeline.ts` | Complete training workflow orchestration |
+| `run-baseline-comparison.ts` | Head-to-head benchmark: random vs trained |
+| `real-archetype-benchmark.ts` | Benchmark using real agent data |
+| `json-mode-benchmark.ts` | Benchmark without database dependency |
+| `test-model-in-game.ts` | Test trained model in simulation |
+| `test-trained-model.ts` | Validate trained model from DB or path |
+| `test-scoring.ts` | Debug LLM-as-judge scoring |
+| `e2e-training-test.ts` | End-to-end pipeline verification |
+| `assess-training-data.ts` | Analyze training data quality |
+| `export-rubrics.ts` | Export rubrics to JSON |
+| `generate-research-report.ts` | Generate research documentation |
+| `verify-final.ts` | Post-training verification checks |
+
+Run any script with:
+
+```bash
+bun packages/training/scripts/<script-name>.ts [options]
+```
+
 ## Development
 
 ```bash

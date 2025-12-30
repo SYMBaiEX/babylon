@@ -48,6 +48,11 @@ Current Focus: Value investing | Dividends
   console.log('\n================ PROMPT PREVIEW ================\n');
   console.log(prompt);
   console.log('\n================================================');
+
+  process.exit(0);
 }
 
-testDashboardRender().catch(console.error);
+testDashboardRender().catch((err) => {
+  console.error('Error:', err);
+  process.exit(1);
+});

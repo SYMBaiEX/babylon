@@ -71,8 +71,46 @@ function getArgValue(args: string[], flag: string): string | undefined {
   return index !== -1 ? args[index + 1] : undefined;
 }
 
+function showHelp(): void {
+  console.log(`
+Generate Training Data for RL
+
+Usage:
+  bun run packages/engine/examples/generate-training-data.ts [options]
+
+Options:
+  --causal          Enable causal simulation mode (hidden facts → events → prices)
+  --days <n>        Number of days to simulate (default: 1)
+  --hours <n>       Hours per day (default: 24, use lower for quick tests)
+  --seed <n>        Random seed for reproducibility (default: current timestamp)
+  --npcs <n>        Number of NPCs (default: 10)
+  --help, -h        Show this help message
+
+Examples:
+  # Quick test (1 hour)
+  bun run packages/engine/examples/generate-training-data.ts --hours 1
+
+  # Full day with causal simulation
+  bun run packages/engine/examples/generate-training-data.ts --causal
+
+  # Multi-day reproducible run
+  bun run packages/engine/examples/generate-training-data.ts --causal --days 3 --seed 12345
+
+Output:
+  ./training-data-output/state.json         - Game state snapshot
+  ./training-data-output/ground-truth.json  - Causal simulation truth (if --causal)
+  ./training-data-output/trajectories/      - Agent decision trajectories
+`);
+  process.exit(0);
+}
+
 function parseArgs(): TrainingDataConfig {
   const args = process.argv.slice(2);
+
+  if (args.includes('--help') || args.includes('-h')) {
+    showHelp();
+  }
+
   return {
     useCausalSimulation: args.includes('--causal'),
     simulationDays: parseInt(getArgValue(args, '--days') ?? '1', 10),
@@ -457,6 +495,11 @@ async function main() {
   console.log('✅ GENERATION COMPLETE');
   console.log('Data saved to: ./training-data-output/state.json');
   console.log("Review this JSON to ensure 'reasoning' fields are populated.");
+
+  process.exit(0);
 }
 
-main().catch(console.error);
+main().catch((err) => {
+  console.error('Generation failed:', err);
+  process.exit(1);
+});
