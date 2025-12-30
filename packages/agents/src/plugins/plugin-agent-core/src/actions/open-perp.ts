@@ -95,7 +95,7 @@ export const openPerpAction: Action = {
         }
       | undefined;
 
-    const ticker = actionParams?.ticker?.toLowerCase();
+    const ticker = actionParams?.ticker?.toUpperCase();
     const side = actionParams?.side?.toUpperCase() as
       | 'LONG'
       | 'SHORT'
