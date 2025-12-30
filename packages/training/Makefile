@@ -13,7 +13,8 @@
 #   make db-migrate - Apply database schema
 
 .PHONY: all help tier1 tier2 tier3 tier4 db-up db-down db-migrate \
-        train-12gb train-16gb train-24gb venv lint test clean
+        train-12gb train-16gb train-24gb train-l40 train-l40-2gpu train-l40-4gpu \
+        train-online bridge-server generate-data venv lint test clean
 
 # Default target
 all: test
@@ -64,7 +65,15 @@ help:
 	@echo "  make train-12gb     Train with 12GB GPU profile (RTX 3060)"
 	@echo "  make train-16gb     Train with 16GB GPU profile (RTX 4080)"
 	@echo "  make train-24gb     Train with 24GB GPU profile (RTX 4090)"
+	@echo "  make train-l40      Train with L40 (48GB) profile"
+	@echo "  make train-l40-2gpu Train with 2x L40 (96GB) profile"
+	@echo "  make train-l40-4gpu Train with 4x L40 (192GB) for Qwen3 30B"
 	@echo "  make train PROFILE=<name>  Train with custom profile"
+	@echo ""
+	@echo "$(GREEN)Online Training:$(RESET)"
+	@echo "  make bridge-server  Start TypeScript simulation bridge"
+	@echo "  make train-online   Run online training (requires bridge-server)"
+	@echo "  make generate-data  Generate trajectories for offline training"
 	@echo ""
 	@echo "$(GREEN)Development:$(RESET)"
 	@echo "  make venv           Create/update Python virtual environment"
@@ -73,7 +82,7 @@ help:
 	@echo "  make clean          Remove generated files"
 	@echo ""
 	@echo "$(YELLOW)Profiles available:$(RESET)"
-	@echo "  12gb, 16gb, 24gb, 48gb, cpu"
+	@echo "  12gb, 16gb, 24gb, 48gb, cpu, l40, l40-2gpu, l40-4gpu"
 	@echo ""
 
 #---------------------------------------------------------------------------
@@ -180,6 +189,15 @@ train-16gb:
 train-24gb:
 	$(MAKE) train PROFILE=24gb
 
+train-l40:
+	$(MAKE) train PROFILE=l40
+
+train-l40-2gpu:
+	$(MAKE) train PROFILE=l40-2gpu
+
+train-l40-4gpu:
+	$(MAKE) train PROFILE=l40-4gpu
+
 train: db-up db-migrate
 	@echo "$(CYAN)Starting training with profile: $(PROFILE)$(RESET)"
 	cd $(PYTHON_DIR) && DATABASE_URL=$(DB_URL) WANDB_MODE=offline \
@@ -188,6 +206,31 @@ train: db-up db-migrate
 		--profile $(PROFILE) \
 		--no-wandb \
 		--skip-validation
+
+#---------------------------------------------------------------------------
+# Online Training
+#---------------------------------------------------------------------------
+
+bridge-server:
+	@echo "$(CYAN)Starting TypeScript simulation bridge server...$(RESET)"
+	cd ../engine && bun run src/services/simulation-bridge-server.ts
+
+train-online: db-up db-migrate
+	@echo "$(CYAN)Starting online training (requires bridge-server running)$(RESET)"
+	@echo "Make sure you've started the bridge server with: make bridge-server"
+	cd $(PYTHON_DIR) && DATABASE_URL=$(DB_URL) WANDB_MODE=offline \
+		USE_SIMULATION_BRIDGE=1 \
+		SIMULATION_BRIDGE_URL=http://localhost:3001 \
+		PATH="$(shell pwd)/$(PYTHON_DIR)/$(VENV_BIN):$$PATH" \
+		$(PYTHON) scripts/run_training.py \
+		--profile $(PROFILE) \
+		--online \
+		--no-wandb
+
+generate-data:
+	@echo "$(CYAN)Generating training trajectories...$(RESET)"
+	./scripts/generate_dataset.sh $(HOURS) $(PARALLEL) $(NPCS) $(OUTPUT)
+	@echo "$(GREEN)✓ Data generation complete$(RESET)"
 
 #---------------------------------------------------------------------------
 # Development

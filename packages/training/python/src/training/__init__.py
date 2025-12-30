@@ -201,6 +201,22 @@ from .multi_turn import (
     normalize_episode_rewards,
 )
 
+# Phase 5: Simulation Bridge for online training
+from .simulation_bridge import (
+    SimulationBridge,
+    PerpMarket,
+    PredictionMarket,
+    Position,
+    NewsItem as BridgeNewsItem,
+    Relationship,
+    SocialContext,
+    MarketState as BridgeMarketState,
+    Scenario as BridgeScenario,
+    ActionOutcome,
+    TickResult,
+    create_bridge,
+)
+
 # Error recovery and graceful degradation
 from .error_recovery import (
     ErrorCategory,
@@ -506,6 +522,19 @@ __all__ = [
     "validate_trajectory_file",
     "compare_trajectory_formats",
     "SchemaValidationResult",
+    # Phase 5: Simulation Bridge
+    "SimulationBridge",
+    "PerpMarket",
+    "PredictionMarket",
+    "Position",
+    "BridgeNewsItem",
+    "Relationship",
+    "SocialContext",
+    "BridgeMarketState",
+    "BridgeScenario",
+    "ActionOutcome",
+    "TickResult",
+    "create_bridge",
     # Error recovery
     "ErrorCategory",
     "TrainingError",
