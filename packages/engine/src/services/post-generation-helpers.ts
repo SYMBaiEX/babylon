@@ -38,6 +38,74 @@ import type { EventContext, FeedPostContext } from '../types/market-context';
 import { stripHashtagsAndEmojis } from '../utils/shared-utils';
 import { generateArticleImageWithRetry } from './article-image-service';
 import { characterMappingService } from './character-mapping-service';
+
+/**
+ * Safely extract content from LLM response that may be wrapped in XML structure.
+ * Guards against LLM returning raw strings instead of objects.
+ *
+ * @typeParam T - The expected type of the extracted field. When the LLM returns
+ *   a raw string instead of an XML-parsed object, the string is returned directly
+ *   as T. This is safe when T is `string`, but callers expecting complex types
+ *   should handle the raw string case appropriately.
+ *
+ * @param response - The LLM response (could be raw string, object, or wrapped object)
+ * @param fieldName - The field to extract from the response object
+ * @returns The extracted value as T, or null if not found
+ *
+ * @remarks
+ * **Type Safety Warning:** When response is a raw string, it is returned as T without
+ * runtime validation. This is acceptable for string extraction but may cause type
+ * mismatches if T is a complex object type. Callers should validate the return type
+ * if T is not string.
+ *
+ * Priority order:
+ * 1. If response is a string, return it directly (LLM returned raw text)
+ * 2. If response has response.{fieldName}, extract from wrapped structure
+ * 3. If response has {fieldName} directly, extract it
+ * 4. Return null if field not found
+ */
+export function safeExtractFromResponse<T>(
+  response: unknown,
+  fieldName: string
+): T | null {
+  // Handle raw string responses (LLM returned text instead of XML)
+  // Note: This returns the string as T, which is safe when T is string
+  // but may cause type mismatches for complex T types
+  if (typeof response === 'string') {
+    return response as T;
+  }
+
+  // Not an object
+  if (typeof response !== 'object' || response === null) {
+    return null;
+  }
+
+  // Check for wrapped response structure
+  if (
+    'response' in response &&
+    typeof (response as Record<string, unknown>).response === 'object' &&
+    (response as Record<string, unknown>).response !== null
+  ) {
+    const innerResponse = (response as Record<string, unknown>).response;
+    if (
+      typeof innerResponse === 'object' &&
+      innerResponse !== null &&
+      fieldName in (innerResponse as Record<string, unknown>)
+    ) {
+      const value = (innerResponse as Record<string, unknown>)[fieldName];
+      return value !== undefined ? (value as T) : null;
+    }
+  }
+
+  // Check for direct field access
+  if (fieldName in response) {
+    const value = (response as Record<string, unknown>)[fieldName];
+    return value !== undefined ? (value as T) : null;
+  }
+
+  return null;
+}
+
 import {
   getArcPlan,
   getPhaseForDay,
@@ -564,13 +632,7 @@ ${worldFactsContext}
     }
   );
 
-  const postContent =
-    'response' in response &&
-    response.response &&
-    typeof response.response === 'object' &&
-    'post' in response.response
-      ? (response.response as { post: string }).post
-      : (response as { post: string }).post;
+  const postContent = safeExtractFromResponse<string>(response, 'post');
 
   if (!postContent || postContent.trim().length === 0) {
     logger.warn(
@@ -704,13 +766,7 @@ ${worldFactsContext}
     }
   );
 
-  const postContent =
-    'response' in response &&
-    response.response &&
-    typeof response.response === 'object' &&
-    'post' in response.response
-      ? (response.response as { post: string }).post
-      : (response as { post: string }).post;
+  const postContent = safeExtractFromResponse<string>(response, 'post');
 
   if (!postContent || postContent.trim().length === 0) {
     logger.warn(
@@ -850,13 +906,7 @@ ${worldFactsContext}
     }
   );
 
-  const postContent =
-    'response' in response &&
-    response.response &&
-    typeof response.response === 'object' &&
-    'post' in response.response
-      ? (response.response as { post: string }).post
-      : (response as { post: string }).post;
+  const postContent = safeExtractFromResponse<string>(response, 'post');
 
   if (!postContent || postContent.trim().length === 0) {
     return false;
@@ -978,13 +1028,7 @@ ${worldFactsContext}
     }
   );
 
-  const postContent =
-    'response' in response &&
-    response.response &&
-    typeof response.response === 'object' &&
-    'post' in response.response
-      ? (response.response as { post: string }).post
-      : (response as { post: string }).post;
+  const postContent = safeExtractFromResponse<string>(response, 'post');
 
   if (!postContent || postContent.trim().length === 0) {
     return false;
@@ -1064,13 +1108,7 @@ ${worldFactsContext}
     }
   );
 
-  const postContent =
-    'response' in response &&
-    response.response &&
-    typeof response.response === 'object' &&
-    'post' in response.response
-      ? (response.response as { post: string }).post
-      : (response as { post: string }).post;
+  const postContent = safeExtractFromResponse<string>(response, 'post');
 
   if (!postContent || postContent.trim().length === 0) {
     logger.warn(
@@ -1178,16 +1216,28 @@ Return your response as XML in this exact format:
     }
   );
 
-  const articleData =
-    'response' in response && response.response
-      ? (response.response as {
-          title: string;
-          summary: string;
-          article: string;
-        })
-      : (response as { title: string; summary: string; article: string });
+  // Safely extract article data, guarding against string responses
+  let articleData: { title: string; summary: string; article: string };
+  if (typeof response === 'string') {
+    logger.warn(
+      'LLM returned raw string instead of article object',
+      { orgName: org.name, questionId: question.id },
+      'PostGeneration'
+    );
+    return false;
+  }
+  if (
+    typeof response === 'object' &&
+    response !== null &&
+    'response' in response &&
+    response.response
+  ) {
+    articleData = response.response as typeof articleData;
+  } else {
+    articleData = response as typeof articleData;
+  }
 
-  if (!articleData.title || !articleData.summary || !articleData.article) {
+  if (!articleData?.title || !articleData?.summary || !articleData?.article) {
     logger.warn(
       'Empty article generated',
       { orgName: org.name, questionId: question.id },
@@ -1618,13 +1668,7 @@ Return your response as XML in this exact format:
     }
   );
 
-  const replyContent =
-    'response' in response &&
-    response.response &&
-    typeof response.response === 'object' &&
-    'reply' in response.response
-      ? (response.response as { reply: string }).reply
-      : (response as { reply: string }).reply;
+  const replyContent = safeExtractFromResponse<string>(response, 'reply');
 
   if (!replyContent || replyContent.trim().length === 0) {
     logger.warn(
@@ -1766,13 +1810,10 @@ Return your response as XML in this exact format:
     }
   );
 
-  const quoteComment =
-    'response' in response &&
-    response.response &&
-    typeof response.response === 'object' &&
-    'quote_comment' in response.response
-      ? (response.response as { quote_comment: string }).quote_comment
-      : (response as { quote_comment: string }).quote_comment;
+  const quoteComment = safeExtractFromResponse<string>(
+    response,
+    'quote_comment'
+  );
 
   if (!quoteComment || quoteComment.trim().length === 0) {
     logger.warn(

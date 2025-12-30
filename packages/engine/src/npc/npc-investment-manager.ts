@@ -10,9 +10,12 @@
 
 import {
   actorRelationships,
+  and,
   db,
+  isNull,
   npcTrades,
   organizationState,
+  perpPositions,
   poolPositions,
   pools,
 } from '@babylon/db';
@@ -338,6 +341,31 @@ export class NPCInvestmentManager {
       new Set(activePools.map((pool) => pool.npcActorId))
     );
 
+    // Get existing OPEN perp positions for these actors (userId = actorId for NPCs)
+    // This prevents duplicate position errors when NPCs already have positions
+    const existingPerpPositions = await db
+      .select({
+        userId: perpPositions.userId,
+        ticker: perpPositions.ticker,
+        organizationId: perpPositions.organizationId,
+      })
+      .from(perpPositions)
+      .where(
+        and(
+          inArray(perpPositions.userId, actorIds),
+          isNull(perpPositions.closedAt) // Only open positions
+        )
+      );
+
+    // Build set of "actorId:orgId" combinations that already have positions
+    // We use organizationId for matching since that's more reliable than ticker
+    const existingPerpPositionKeys = new Set(
+      existingPerpPositions.map(
+        (p: { userId: string; organizationId: string }) =>
+          `${p.userId}:${p.organizationId.toLowerCase()}`
+      )
+    );
+
     // Get organizations from static registry with dynamic prices
     const staticOrgs = StaticDataRegistry.getOrganizationsByType('company');
     const orgStateResults = await db
@@ -494,6 +522,12 @@ export class NPCInvestmentManager {
       let remainingBudget = investBudget;
 
       targetTickers.forEach((ticker, index) => {
+        // Skip if NPC already has an open position on this organization
+        const positionKey = `${actor.id}:${ticker.toLowerCase()}`;
+        if (existingPerpPositionKeys.has(positionKey)) {
+          return;
+        }
+
         const allocationsRemaining = targetTickers.length - index;
         let allocation = remainingBudget / allocationsRemaining;
         allocation = Number(allocation.toFixed(2));
