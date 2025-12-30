@@ -19,17 +19,17 @@
  *   await client.execute_action(npc_id, action)
  */
 
-import { Hono } from 'hono';
+import { logger } from '@babylon/shared';
 import { serve } from '@hono/node-server';
+import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger as honoLogger } from 'hono/logger';
-import { logger } from '@babylon/shared';
-import { GameWorld, type GameConfig } from '../GameWorld';
-import { MarketContextService } from './market-context-service';
-import { TradeExecutionService } from './trade-execution-service';
-import { StaticDataRegistry } from './static-data-registry';
-import type { TradingDecision, MarketAction } from '../types/market-decisions';
+import { type GameConfig, GameWorld } from '../GameWorld';
 import type { NPCMarketContext } from '../types/market-context';
+import type { MarketAction, TradingDecision } from '../types/market-decisions';
+import { MarketContextService } from './market-context-service';
+import { StaticDataRegistry } from './static-data-registry';
+import { TradeExecutionService } from './trade-execution-service';
 
 // =============================================================================
 // Types
@@ -165,7 +165,7 @@ class SimulationState {
     logger.info(
       'Initializing simulation bridge',
       { numNPCs, seed },
-      'SimulationBridge',
+      'SimulationBridge'
     );
 
     // Initialize static data registry
@@ -198,7 +198,9 @@ class SimulationState {
     }
 
     // Initialize services
-    this.contextService = new MarketContextService(this.gameWorld.getDatabase());
+    this.contextService = new MarketContextService(
+      this.gameWorld.getDatabase()
+    );
     this.tradeService = new TradeExecutionService(this.gameWorld.getDatabase());
 
     this.isInitialized = true;
@@ -207,7 +209,7 @@ class SimulationState {
     logger.info(
       'Simulation bridge initialized',
       { npcCount: npcIds.length },
-      'SimulationBridge',
+      'SimulationBridge'
     );
 
     return {
@@ -231,7 +233,7 @@ class SimulationState {
   private contextToScenario(
     npcId: string,
     archetype: string,
-    context: NPCMarketContext,
+    context: NPCMarketContext
   ): ScenarioResponse {
     return {
       npcId,
@@ -447,7 +449,7 @@ app.get('/npcs', (c) => {
     ([id, archetype]) => ({
       id,
       archetype,
-    }),
+    })
   );
 
   return c.json({ npcs, count: npcs.length });
@@ -475,7 +477,11 @@ app.get('/scenarios', async (c) => {
 const PORT = parseInt(process.env.SIMULATION_BRIDGE_PORT ?? '3001', 10);
 
 if (require.main === module) {
-  logger.info(`Starting simulation bridge server on port ${PORT}`, {}, 'SimulationBridge');
+  logger.info(
+    `Starting simulation bridge server on port ${PORT}`,
+    {},
+    'SimulationBridge'
+  );
 
   serve({
     fetch: app.fetch,
@@ -485,7 +491,7 @@ if (require.main === module) {
   logger.info(
     `Simulation bridge server running at http://localhost:${PORT}`,
     {},
-    'SimulationBridge',
+    'SimulationBridge'
   );
 }
 
@@ -498,4 +504,3 @@ export type {
   ExecuteResponse,
   TickResponse,
 };
-
