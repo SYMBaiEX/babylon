@@ -37,6 +37,13 @@ export function AgentSetupModal({
   const [localData, setLocalData] = useState<ProfileFormData>(profileData);
   const bioInitialized = useRef(false);
 
+  // Reset bio initialization flag when modal closes so new data can sync on reopen
+  useEffect(() => {
+    if (!isOpen) {
+      bioInitialized.current = false;
+    }
+  }, [isOpen]);
+
   // Sync bio from profileData when template loads (bio comes from template.description)
   // Truncate to MAX_BIO_LENGTH characters if needed
   // Uses ref to track initialization so user can clear bio without it being re-synced
@@ -482,21 +489,15 @@ export function AgentSetupModal({
                   Bio
                 </label>
                 <span className="text-muted-foreground text-xs">
-                  {localData.bio.length}/{MAX_BIO_LENGTH}
+                  {localData.bio?.length ?? 0}/{MAX_BIO_LENGTH}
                 </span>
               </div>
               <textarea
                 id="edit-bio"
-                value={localData.bio}
-                onChange={(e) => {
-                  const value = e.target.value;
-                  if (value.length <= MAX_BIO_LENGTH) {
-                    setLocalData((prev) => ({
-                      ...prev,
-                      bio: value,
-                    }));
-                  }
-                }}
+                value={localData.bio ?? ''}
+                onChange={(e) =>
+                  setLocalData((prev) => ({ ...prev, bio: e.target.value }))
+                }
                 maxLength={MAX_BIO_LENGTH}
                 rows={3}
                 className={cn(
