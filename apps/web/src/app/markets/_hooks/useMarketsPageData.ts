@@ -4,8 +4,14 @@ import { logger } from '@babylon/shared';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { usePortfolioPnL } from '@/hooks/usePortfolioPnL';
-import { useUserPositions } from '@/hooks/useUserPositions';
-import { usePerpMarkets } from '@/stores/perpMarketsStore';
+import {
+  usePerpMarkets,
+  usePerpMarketsRealtime,
+} from '@/stores/perpMarketsStore';
+import {
+  useUserPositions,
+  useUserPositionsPolling,
+} from '@/stores/userPositionsStore';
 import type {
   PerpMarket,
   PredictionMarketWithPosition,
@@ -161,12 +167,15 @@ export function useMarketsPageData(): MarketsPageData {
     return () => clearTimeout(timeout);
   }, [searchQuery]);
 
-  // Perp markets from store
+  // Perp markets from store with real-time SSE updates
   const {
     markets: perpMarkets,
     loading: perpLoading,
     refetch: refetchPerps,
   } = usePerpMarkets();
+
+  // Enable real-time SSE updates for perp markets
+  usePerpMarketsRealtime();
 
   // Predictions state
   const [predictions, setPredictions] = useState<
@@ -185,12 +194,15 @@ export function useMarketsPageData(): MarketsPageData {
     lastUpdated: portfolioUpdatedAt,
   } = usePortfolioPnL();
 
-  // User positions
+  // User positions (from centralized store with caching)
   const {
     perpPositions,
     predictionPositions,
     refresh: refreshUserPositions,
-  } = useUserPositions(user?.id, { enabled: authenticated });
+  } = useUserPositions(authenticated ? user?.id : null);
+
+  // Enable positions polling when authenticated
+  useUserPositionsPolling(authenticated ? user?.id : null);
 
   // Refs to break dependency chains and stabilize callbacks
   const fetchDataRef = useRef<((signal?: AbortSignal) => Promise<void>) | null>(
@@ -220,8 +232,11 @@ export function useMarketsPageData(): MarketsPageData {
     refetchPerpsRef.current = refetchPerps;
   }, [refetchPerps]);
 
-  // Combined loading state - true while either is loading
-  const loading = perpLoading || predictionsLoading;
+  // Combined loading state - only true for INITIAL load (no data yet)
+  // This prevents flickering when refetching data in the background
+  const loading =
+    (perpLoading && perpMarkets.length === 0) ||
+    (predictionsLoading && predictions.length === 0);
 
   /**
    * Fetches prediction markets data.
@@ -386,10 +401,35 @@ export function useMarketsPageData(): MarketsPageData {
   }, [predictions, deferredSearchQuery]);
 
   /**
+   * Check if a prediction market is truly active.
+   * A market is active if:
+   * 1. Its status is 'active' AND
+   * 2. Its end date has not passed yet
+   */
+  const isPredictionActive = (p: PredictionMarketWithPosition): boolean => {
+    if (p.status !== 'active') return false;
+    if (!p.resolutionDate) return true;
+    return new Date(p.resolutionDate).getTime() > Date.now();
+  };
+
+  /**
+   * Check if a prediction market is expired or resolved.
+   */
+  const isPredictionExpiredOrResolved = (
+    p: PredictionMarketWithPosition
+  ): boolean => {
+    if (p.status === 'resolved') return true;
+    // Expired: status is active but resolution date has passed
+    if (!p.resolutionDate) return false;
+    return new Date(p.resolutionDate).getTime() <= Date.now();
+  };
+
+  /**
    * Sorted active predictions based on selected sort option.
+   * Only includes markets that are truly active (not expired).
    */
   const sortedPredictions = useMemo(() => {
-    const active = filteredPredictions.filter((p) => p.status === 'active');
+    const active = filteredPredictions.filter(isPredictionActive);
 
     return [...active].sort((a, b) => {
       switch (predictionSort) {
@@ -437,10 +477,11 @@ export function useMarketsPageData(): MarketsPageData {
   }, [filteredPredictions, predictionSort]);
 
   /**
-   * Resolved predictions.
+   * Resolved/expired predictions.
+   * Includes both officially resolved markets and expired ones (end date passed).
    */
   const resolvedPredictions = useMemo(
-    () => filteredPredictions.filter((p) => p.status === 'resolved'),
+    () => filteredPredictions.filter(isPredictionExpiredOrResolved),
     [filteredPredictions]
   );
 
