@@ -121,7 +121,7 @@ def main():
         logger.error(f"  - {Path(__file__).parent.parent.parent / 'training-data-output' / 'trajectories'}")
         logger.error(f"  - {source_dir}")
         logger.error("Run 'make tier4-generate' or 'bun run packages/engine/examples/generate-training-data.ts' first.")
-        return
+        sys.exit(1)
     
     source_dir = str(source_dir)
     try:
