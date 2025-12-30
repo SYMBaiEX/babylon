@@ -1,6 +1,7 @@
 'use client';
 
 import type { UserPredictionPosition } from '@babylon/shared';
+import { memo, useState } from 'react';
 import { CategoryPnLCard } from '@/components/markets/CategoryPnLCard';
 import { PredictionPositionsList } from '@/components/markets/PredictionPositionsList';
 import type {
@@ -46,8 +47,11 @@ interface PredictionsTabContentProps {
 /**
  * Predictions tab content component.
  * Shows category P&L, user positions, sort controls, and prediction markets.
+ * Resolved markets are hidden by default with a toggle in the sort controls.
+ *
+ * Wrapped in React.memo to prevent unnecessary re-renders during tab switches.
  */
-export function PredictionsTabContent({
+export const PredictionsTabContent = memo(function PredictionsTabContent({
   authenticated,
   predictionPnLData,
   portfolioLoading,
@@ -65,6 +69,14 @@ export function PredictionsTabContent({
   predictionsError,
   compact = false,
 }: PredictionsTabContentProps) {
+  // Resolved markets hidden by default
+  const [showResolved, setShowResolved] = useState(false);
+
+  // Combine markets based on toggle
+  const displayedPredictions = showResolved
+    ? [...activePredictions, ...resolvedPredictions]
+    : activePredictions;
+
   return (
     <div
       id="predictions-panel"
@@ -118,40 +130,41 @@ export function PredictionsTabContent({
               : 'font-bold text-muted-foreground text-sm'
           }
         >
-          ACTIVE MARKETS ({activePredictions.length})
+          {showResolved
+            ? `ALL MARKETS (${displayedPredictions.length})`
+            : `ACTIVE MARKETS (${activePredictions.length})`}
         </h2>
         <PredictionSortControls
           activeSort={predictionSort}
           onSortChange={onSortChange}
+          showResolved={showResolved}
+          onShowResolvedChange={setShowResolved}
           compact={compact}
         />
       </div>
 
-      <div className="mb-6 space-y-2">
-        {activePredictions.map((prediction) => (
-          <PredictionMarketCard
-            key={`prediction-${prediction.id}`}
-            prediction={prediction}
-            onClick={onPredictionClick}
-          />
-        ))}
-      </div>
-
-      {resolvedPredictions.length > 0 && (
-        <>
-          <h2 className="mt-6 mb-3 font-bold text-muted-foreground text-sm">
-            RESOLVED ({resolvedPredictions.length})
-          </h2>
-          <div className="space-y-2">
-            {resolvedPredictions.map((prediction) => (
+      <div className="space-y-2">
+        {displayedPredictions.length > 0 ? (
+          displayedPredictions.map((prediction) =>
+            prediction.status === 'resolved' ? (
               <ResolvedPredictionCard
                 key={`resolved-${prediction.id}`}
                 prediction={prediction}
               />
-            ))}
-          </div>
-        </>
-      )}
+            ) : (
+              <PredictionMarketCard
+                key={`prediction-${prediction.id}`}
+                prediction={prediction}
+                onClick={onPredictionClick}
+              />
+            )
+          )
+        ) : (
+          <p className="py-8 text-center text-muted-foreground text-sm">
+            No markets found
+          </p>
+        )}
+      </div>
     </div>
   );
-}
+});

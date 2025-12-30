@@ -1,8 +1,8 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useCallback, useEffect, useState, useTransition } from 'react';
 import { MarketsToggle } from '@/components/shared/MarketsToggle';
 import { PageContainer } from '@/components/shared/PageContainer';
 import { Skeleton, WidgetPanelSkeleton } from '@/components/shared/Skeleton';
@@ -51,6 +51,22 @@ const MarketsWidgetSidebar = dynamic(
 );
 
 /**
+ * Valid tab values from URL params.
+ */
+const VALID_TABS: MarketTab[] = ['dashboard', 'perps', 'predictions'];
+
+/**
+ * Parse tab from URL search params.
+ */
+function parseTabFromParams(params: URLSearchParams): MarketTab {
+  const tab = params.get('tab');
+  if (tab && VALID_TABS.includes(tab as MarketTab)) {
+    return tab as MarketTab;
+  }
+  return 'dashboard';
+}
+
+/**
  * Markets page component.
  *
  * Main dashboard for trading perpetual futures and prediction markets.
@@ -58,22 +74,52 @@ const MarketsWidgetSidebar = dynamic(
  * and Predictions (prediction markets).
  *
  * Features:
- * - Real-time market data
+ * - Real-time market data via SSE
  * - User positions management
  * - Portfolio P&L tracking
  * - Search and filtering
  * - Responsive layout (desktop sidebar, mobile full-width)
+ * - URL-based tab navigation (?tab=perps, ?tab=predictions)
  */
 export default function MarketsPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const [isPending, startTransition] = useTransition();
 
-  // Tab and modal state (UI-only, not in data hook)
-  const [activeTab, setActiveTab] = useState<MarketTab>('dashboard');
+  // Initialize tab from URL params for deep linking support
+  const [activeTab, setActiveTab] = useState<MarketTab>(() =>
+    parseTabFromParams(searchParams)
+  );
   const [showBuyPointsModal, setShowBuyPointsModal] = useState(false);
   const [showPnLShareModal, setShowPnLShareModal] = useState(false);
   const [showCategoryPnLShareModal, setShowCategoryPnLShareModal] = useState<
     'perps' | 'predictions' | null
   >(null);
+
+  // Sync URL params with tab state (only when URL changes externally)
+  useEffect(() => {
+    const urlTab = parseTabFromParams(searchParams);
+    if (urlTab !== activeTab) {
+      startTransition(() => {
+        setActiveTab(urlTab);
+      });
+    }
+  }, [searchParams]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Handle tab change with URL update - uses startTransition for smooth UX
+  const handleTabChange = useCallback(
+    (tab: MarketTab) => {
+      // Use startTransition to mark this as a non-urgent update
+      // This prevents flickering by allowing React to keep showing old content
+      startTransition(() => {
+        setActiveTab(tab);
+      });
+      // Update URL without full navigation
+      const url = tab === 'dashboard' ? '/markets' : `/markets?tab=${tab}`;
+      router.replace(url, { scroll: false });
+    },
+    [router]
+  );
 
   // All data and computed values from centralized hook
   const data = useMarketsPageData();
@@ -182,7 +228,10 @@ export default function MarketsPage() {
           {/* Header */}
           <div className="sticky top-0 z-10 flex-shrink-0 bg-background shadow-sm">
             <div className="px-3 sm:px-4 lg:px-6">
-              <MarketsToggle activeTab={activeTab} onTabChange={setActiveTab} />
+              <MarketsToggle
+                activeTab={activeTab}
+                onTabChange={handleTabChange}
+              />
             </div>
             {activeTab !== 'dashboard' && (
               <div className="px-3 pb-3 sm:px-4 lg:px-6">
@@ -196,7 +245,11 @@ export default function MarketsPage() {
           </div>
 
           {/* Content */}
-          <div className="flex-1 overflow-y-auto">
+          <div
+            className={`flex-1 overflow-y-auto transition-opacity duration-150 ${
+              isPending ? 'opacity-80' : 'opacity-100'
+            }`}
+          >
             {renderTabContent(false)}
           </div>
 
@@ -222,7 +275,10 @@ export default function MarketsPage() {
         {/* Header */}
         <div className="sticky top-0 z-10 flex-shrink-0 bg-background shadow-sm">
           <div className="px-3 sm:px-4">
-            <MarketsToggle activeTab={activeTab} onTabChange={setActiveTab} />
+            <MarketsToggle
+              activeTab={activeTab}
+              onTabChange={handleTabChange}
+            />
           </div>
           {activeTab !== 'dashboard' && (
             <div className="px-3 pb-3 sm:px-4">
@@ -236,7 +292,13 @@ export default function MarketsPage() {
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto">{renderTabContent(true)}</div>
+        <div
+          className={`flex-1 overflow-y-auto transition-opacity duration-150 ${
+            isPending ? 'opacity-80' : 'opacity-100'
+          }`}
+        >
+          {renderTabContent(true)}
+        </div>
 
         {/* Login prompt for non-dashboard tabs */}
         {!data.authenticated && activeTab !== 'dashboard' && (
