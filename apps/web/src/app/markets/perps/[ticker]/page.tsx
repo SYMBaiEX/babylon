@@ -25,11 +25,23 @@ import { Skeleton } from '@/components/shared/Skeleton';
 import { useAuth } from '@/hooks/useAuth';
 import { useMarketPrices } from '@/hooks/useMarketPrices';
 import { usePerpHistory } from '@/hooks/usePerpHistory';
+import { usePerpMarketStream } from '@/hooks/usePerpMarketStream';
 import { usePerpTrade } from '@/hooks/usePerpTrade';
 import { useMarketTracking } from '@/hooks/usePostHog';
-import { useUserPositions } from '@/hooks/useUserPositions';
-import { useWalletBalance } from '@/hooks/useWalletBalance';
-import { usePerpMarket } from '@/stores/perpMarketsStore';
+import {
+  invalidatePerpMarketsCache,
+  usePerpMarket,
+  usePerpMarketsRealtime,
+} from '@/stores/perpMarketsStore';
+import {
+  invalidateUserPositions,
+  usePerpPositions,
+  useUserPositionsPolling,
+} from '@/stores/userPositionsStore';
+import {
+  invalidateWalletBalance,
+  useWalletBalance,
+} from '@/stores/walletBalanceStore';
 
 export default function PerpDetailPage() {
   const params = useParams();
@@ -41,7 +53,8 @@ export default function PerpDetailPage() {
   const from = searchParams.get('from');
 
   // Use shared perp markets store
-  const { market, loading, refetch } = usePerpMarket(ticker);
+  const { market, loading, refetch, initialLoadComplete } =
+    usePerpMarket(ticker);
 
   const [side, setSide] = useState<'long' | 'short'>('long');
   const [size, setSize] = useState('100');
@@ -49,12 +62,14 @@ export default function PerpDetailPage() {
   const [submitting, setSubmitting] = useState(false);
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
   const pageContainerRef = useRef<HTMLDivElement | null>(null);
-  const { perpPositions, refresh: refreshUserPositions } = useUserPositions(
-    user?.id,
-    {
-      enabled: authenticated,
-    }
-  );
+
+  // Use centralized positions store for better caching and performance
+  const { positions: perpPositions, refresh: refreshUserPositions } =
+    usePerpPositions(authenticated ? user?.id : null);
+
+  // Enable polling for positions when authenticated
+  useUserPositionsPolling(authenticated ? user?.id : null);
+
   const userPositions = useMemo(
     () => perpPositions.filter((position) => position.ticker === ticker),
     [perpPositions, ticker]
@@ -66,7 +81,7 @@ export default function PerpDetailPage() {
     balance,
     loading: balanceLoading,
     refresh: refreshWalletBalance,
-  } = useWalletBalance(user?.id, { enabled: authenticated });
+  } = useWalletBalance(authenticated ? user?.id : null);
 
   const trackedTicker = market?.ticker ?? ticker;
   const livePrices = useMarketPrices(trackedTicker ? [trackedTicker] : []);
@@ -78,6 +93,23 @@ export default function PerpDetailPage() {
     seed: market ? { currentPrice: market.currentPrice } : undefined,
   });
 
+  // Subscribe to real-time trade and price updates for all perp markets
+  usePerpMarketsRealtime();
+
+  // Subscribe to real-time trade events for this specific ticker
+  usePerpMarketStream(ticker, {
+    onTrade: useCallback(
+      (event) => {
+        // Refresh positions and market data when a trade occurs
+        if (event.action === 'open' || event.action === 'close') {
+          refreshUserPositions();
+          refetch();
+        }
+      },
+      [refreshUserPositions, refetch]
+    ),
+  });
+
   // Track market view
   useEffect(() => {
     if (ticker && market) {
@@ -85,15 +117,20 @@ export default function PerpDetailPage() {
     }
   }, [ticker, market, trackMarketView]);
 
-  // Redirect if market not found after loading
+  // Redirect if market not found after initial load is complete
   useEffect(() => {
-    if (!loading && !market) {
+    // Only redirect once the initial fetch has completed AND market still not found
+    if (initialLoadComplete && !loading && !market) {
       toast.error('Market not found');
-      router.push(from === 'dashboard' ? '/markets' : '/markets/perps');
+      router.push(from === 'dashboard' ? '/markets' : '/markets?tab=perps');
     }
-  }, [loading, market, router, from]);
+  }, [initialLoadComplete, loading, market, router, from]);
 
   const handlePositionClosed = useCallback(async () => {
+    // Invalidate caches to ensure fresh data on next fetch
+    invalidatePerpMarketsCache();
+    invalidateUserPositions();
+    invalidateWalletBalance();
     await Promise.all([
       refreshUserPositions(),
       refreshWalletBalance(),
@@ -142,6 +179,10 @@ export default function PerpDetailPage() {
           description: `Opened ${leverage}x ${side} on ${market.ticker} at $${displayPrice.toFixed(2)}`,
         });
 
+        // Invalidate caches to ensure fresh data
+        invalidatePerpMarketsCache();
+        invalidateUserPositions();
+        invalidateWalletBalance();
         await Promise.all([
           refetch(),
           refreshUserPositions(),
@@ -178,6 +219,10 @@ export default function PerpDetailPage() {
   const hasSufficientBalance = !authenticated || balance >= totalRequired;
   const showBalanceWarning =
     authenticated && sizeNum > 0 && !hasSufficientBalance;
+
+  // Check if user already has an open position on this ticker
+  const existingPosition = userPositions.find((p) => !p.closedAt);
+  const hasExistingPosition = !!existingPosition;
 
   const liquidationPrice =
     side === 'long'
@@ -221,7 +266,7 @@ export default function PerpDetailPage() {
             if (from === 'dashboard') {
               router.push('/markets');
             } else {
-              router.push('/markets/perps');
+              router.push('/markets?tab=perps');
             }
           }}
           className="mb-4 flex items-center gap-2 rounded-md bg-[#0066FF] px-3 py-1.5 font-medium text-primary-foreground text-sm transition-colors hover:bg-[#2952d9]"
@@ -528,11 +573,28 @@ export default function PerpDetailPage() {
               </div>
             )}
 
+            {/* Existing Position Warning */}
+            {hasExistingPosition && (
+              <div className="mb-4 flex items-start gap-2 rounded-lg bg-blue-500/15 p-3">
+                <Info className="mt-0.5 h-5 w-5 flex-shrink-0 text-blue-500" />
+                <div className="text-sm">
+                  <div className="mb-1 font-bold text-blue-600">
+                    Position Already Open
+                  </div>
+                  <p className="text-muted-foreground">
+                    You have an existing {existingPosition?.side?.toUpperCase()}{' '}
+                    position on {ticker}. Close it first to open a new position.
+                  </p>
+                </div>
+              </div>
+            )}
+
             {/* Submit Button */}
             <button
               onClick={handleSubmit}
               disabled={
                 submitting ||
+                hasExistingPosition ||
                 sizeNum < market.minOrderSize ||
                 (authenticated && showBalanceWarning) ||
                 balanceLoading
@@ -543,6 +605,7 @@ export default function PerpDetailPage() {
                   ? 'bg-green-600 hover:bg-green-700'
                   : 'bg-red-600 hover:bg-red-700',
                 (submitting ||
+                  hasExistingPosition ||
                   sizeNum < market.minOrderSize ||
                   (authenticated && showBalanceWarning) ||
                   balanceLoading) &&

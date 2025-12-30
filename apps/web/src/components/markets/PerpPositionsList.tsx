@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
 import { useMarketPrices } from '@/hooks/useMarketPrices';
 import { usePerpTrade } from '@/hooks/usePerpTrade';
+import { invalidatePerpMarketsCache } from '@/stores/perpMarketsStore';
 import type { DisplayPerpPosition } from '@/types/markets';
 import {
   type ClosePerpDetails,
@@ -131,6 +132,8 @@ export function PerpPositionsList({
       description: `${pendingClose.position.ticker}: ${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)} PnL`,
     });
 
+    // Invalidate cache to ensure fresh data on next fetch
+    invalidatePerpMarketsCache();
     await onPositionClosed?.();
     setClosingId(null);
     setPendingClose(null);
