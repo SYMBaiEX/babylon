@@ -863,10 +863,17 @@ ${prompt}`
         if (xmlResult.success && xmlResult.data) {
           logger.info(
             'Successfully extracted XML from string response',
-            {},
+            {
+              hasThinkingContent: !!xmlResult.thinkingContent,
+            },
             'MarketDecisionEngine'
           );
           rawResponse = xmlResult.data as typeof rawResponse;
+          
+          // Store thinking content for fallback reasoning
+          if (xmlResult.thinkingContent) {
+            (rawResponse as Record<string, unknown>).__thinkingContent = xmlResult.thinkingContent;
+          }
           // Continue to structure validation below
         }
       }
@@ -1031,12 +1038,28 @@ ${prompt}`
       return [];
     }
 
+    // Populate empty reasoning fields with thinking content fallback
+    const thinkingFallback = (rawResponse as Record<string, unknown>)?.__thinkingContent as string | undefined;
+    let reasoningPopulatedCount = 0;
+    
+    for (const decision of response) {
+      if (!decision.reasoning || decision.reasoning.trim() === '') {
+        if (thinkingFallback) {
+          // Use first 500 chars of thinking as reasoning (avoid bloat)
+          decision.reasoning = thinkingFallback.substring(0, 500).trim();
+          reasoningPopulatedCount++;
+        }
+      }
+    }
+    
     logger.info(
       `Processed ${response.length} decisions for ${contexts.length} NPCs`,
       {
         responseLength: response.length,
         npcCount: contexts.length,
         sampleDecision: response.length > 0 ? response[0] : null,
+        reasoningPopulatedFromThinking: reasoningPopulatedCount,
+        hasThinkingFallback: !!thinkingFallback,
       },
       'MarketDecisionEngine'
     );
