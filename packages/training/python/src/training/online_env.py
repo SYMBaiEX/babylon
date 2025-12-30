@@ -49,6 +49,11 @@ from .scenario_pool import (
     ScenarioPoolConfig,
     Scenario,
 )
+from .simulation_bridge import (
+    SimulationBridge,
+    Scenario as BridgeScenario,
+    ActionOutcome,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -344,6 +349,20 @@ class BabylonOnlineEnvConfig(BaseEnvConfig):
         description="PostgreSQL connection URL for production snapshots"
     )
     
+    # Simulation Bridge settings
+    use_simulation_bridge: bool = Field(
+        default=False,
+        description="Use TypeScript simulation bridge for scenarios"
+    )
+    simulation_bridge_url: str = Field(
+        default="http://localhost:3001",
+        description="URL of the TypeScript simulation bridge server"
+    )
+    bridge_num_npcs: int = Field(
+        default=20,
+        description="Number of NPCs to create in simulation bridge"
+    )
+    
     # Generation settings
     max_response_tokens: int = Field(
         default=512,
@@ -412,6 +431,10 @@ class BabylonOnlineEnv(BaseEnv):
         # Scenario pool (initialized in setup)
         self.scenario_pool: Optional[ScenarioPool] = None
         
+        # Simulation bridge (optional, for TypeScript integration)
+        self.simulation_bridge: Optional[SimulationBridge] = None
+        self._bridge_npc_index: int = 0
+        
         # Metrics tracking
         self.format_scores_buffer: List[float] = []
         self.reasoning_scores_buffer: List[float] = []
@@ -460,7 +483,24 @@ class BabylonOnlineEnv(BaseEnv):
         logger.info("BABYLON ONLINE ENVIRONMENT SETUP")
         logger.info("=" * 60)
         
-        # Initialize scenario pool
+        # Initialize simulation bridge if enabled
+        if self.config.use_simulation_bridge:
+            logger.info("Initializing TypeScript simulation bridge...")
+            self.simulation_bridge = SimulationBridge(
+                base_url=self.config.simulation_bridge_url,
+            )
+            await self.simulation_bridge.__aenter__()
+            
+            # Initialize with archetypes from distribution
+            archetypes = list(self.config.archetype_distribution.keys())
+            await self.simulation_bridge.initialize(
+                num_npcs=self.config.bridge_num_npcs,
+                archetypes=archetypes,
+            )
+            
+            logger.info(f"Simulation bridge connected with {len(self.simulation_bridge.npc_ids)} NPCs")
+        
+        # Initialize scenario pool (used as fallback or in parallel)
         pool_config = self.config.scenario_pool_config
         self.scenario_pool = ScenarioPool(
             config=pool_config,
@@ -776,6 +816,156 @@ class BabylonOnlineEnv(BaseEnv):
             logger.info(f"  Avg score: {sum(eval_scores) / len(eval_scores):.3f}")
             logger.info(f"  Avg format: {sum(eval_format_scores) / len(eval_format_scores):.3f}")
             logger.info(f"  Valid actions: {sum(eval_action_valid) / len(eval_action_valid):.1%}")
+
+
+    async def cleanup(self):
+        """Clean up resources including simulation bridge"""
+        if self.simulation_bridge is not None:
+            logger.info("Cleaning up simulation bridge...")
+            await self.simulation_bridge.reset()
+            await self.simulation_bridge.__aexit__(None, None, None)
+            self.simulation_bridge = None
+        
+        if hasattr(super(), 'cleanup'):
+            await super().cleanup()
+    
+    async def _get_bridge_scenario(self) -> Optional[Tuple[Scenario, str]]:
+        """
+        Get scenario from TypeScript simulation bridge.
+        
+        Converts bridge scenario format to ScenarioPool format.
+        """
+        if not self.simulation_bridge or not self.simulation_bridge.is_initialized:
+            return None
+        
+        # Cycle through NPCs
+        npc_ids = self.simulation_bridge.npc_ids
+        if not npc_ids:
+            return None
+        
+        npc_id = npc_ids[self._bridge_npc_index % len(npc_ids)]
+        self._bridge_npc_index += 1
+        
+        # Get scenario from bridge
+        bridge_scenario = await self.simulation_bridge.get_scenario(npc_id)
+        archetype = bridge_scenario.archetype
+        
+        # Convert to ScenarioPool Scenario format
+        # This allows reusing existing scoring infrastructure
+        scenario = Scenario(
+            id=f"bridge-{npc_id}",
+            source="bridge",
+            difficulty="medium",
+        )
+        
+        # Store bridge scenario data in metadata for later action execution
+        scenario.metadata["bridge_scenario"] = bridge_scenario
+        scenario.metadata["npc_id"] = npc_id
+        
+        # Populate scenario fields from bridge data
+        scenario.portfolio.balance = bridge_scenario.balance
+        scenario.portfolio.positions = [
+            {
+                "id": p.id,
+                "type": p.market_type,
+                "ticker": p.ticker,
+                "side": p.side,
+                "size": p.size,
+                "unrealizedPnL": p.unrealized_pnl,
+            }
+            for p in bridge_scenario.positions
+        ]
+        
+        # Convert bridge market data
+        for perp in bridge_scenario.market_state.perp_markets:
+            scenario.add_perpetual({
+                "ticker": perp.ticker,
+                "markPrice": perp.current_price,
+                "fundingRate": 0.0001,  # Default
+                "volume24h": perp.volume_24h,
+                "change24h": perp.change_percent_24h / 100,
+            })
+        
+        for pred in bridge_scenario.market_state.prediction_markets:
+            scenario.add_market({
+                "id": pred.id,
+                "question": pred.question,
+                "yesPrice": pred.yes_price,
+                "noPrice": pred.no_price,
+                "volume24h": 0,
+            })
+        
+        # Convert news
+        for news in bridge_scenario.recent_news:
+            scenario.add_news({
+                "headline": news.content[:100],
+                "content": news.content,
+                "source": news.source,
+                "sentiment": "neutral" if news.sentiment is None else (
+                    "bullish" if news.sentiment > 0 else "bearish"
+                ),
+                "tickers": [],
+            })
+        
+        return (scenario, archetype)
+    
+    async def execute_action_via_bridge(
+        self,
+        npc_id: str,
+        action: Dict,
+        reasoning: str = "",
+    ) -> Optional[ActionOutcome]:
+        """
+        Execute an action via the TypeScript simulation bridge.
+        
+        This enables true online training where actions affect the simulation state.
+        """
+        if not self.simulation_bridge or not self.simulation_bridge.is_initialized:
+            return None
+        
+        action_type = action.get("action", "wait")
+        
+        # Map action format to bridge format
+        if action_type == "open_perp":
+            direction = action.get("direction", "long")
+            bridge_action_type = "open_long" if direction == "long" else "open_short"
+            return await self.simulation_bridge.execute_action(
+                npc_id=npc_id,
+                action_type=bridge_action_type,
+                ticker=action.get("ticker"),
+                amount=action.get("size"),
+                reasoning=reasoning,
+            )
+        elif action_type == "close_perp":
+            return await self.simulation_bridge.execute_action(
+                npc_id=npc_id,
+                action_type="close_position",
+                ticker=action.get("ticker"),
+                amount=action.get("size"),
+                reasoning=reasoning,
+            )
+        elif action_type in ("buy", "sell"):
+            side = action.get("side", "yes")
+            bridge_action_type = f"buy_{side}" if action_type == "buy" else f"sell_{side}"
+            return await self.simulation_bridge.execute_action(
+                npc_id=npc_id,
+                action_type=bridge_action_type,
+                market_id=action.get("market"),
+                amount=action.get("amount"),
+                reasoning=reasoning,
+            )
+        elif action_type == "wait":
+            # No action needed
+            return ActionOutcome(
+                success=True,
+                pnl=0.0,
+                new_balance=0.0,
+                new_positions=[],
+                social_impact={},
+                events=[],
+            )
+        
+        return None
 
 
 # CLI entry point
