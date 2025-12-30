@@ -26,6 +26,7 @@ import { FollowButton } from '@/components/interactions/FollowButton';
 import { ModerationMenu } from '@/components/moderation/ModerationMenu';
 import { SendPointsModal } from '@/components/points/SendPointsModal';
 import { PostCard } from '@/components/posts/PostCard';
+import { FollowListModal } from '@/components/profile/FollowListModal';
 import { OnChainBadge } from '@/components/profile/OnChainBadge';
 import { ProfileWidget } from '@/components/profile/ProfileWidget';
 import { Avatar } from '@/components/shared/Avatar';
@@ -53,6 +54,10 @@ export default function ActorProfilePage() {
   const [optimisticFollowerCount, setOptimisticFollowerCount] = useState<
     number | null
   >(null);
+  const [followListModal, setFollowListModal] = useState<{
+    isOpen: boolean;
+    type: 'followers' | 'following';
+  }>({ isOpen: false, type: 'followers' });
 
   // Check if viewing own profile - compare with both actorId and identifier (for ID-based URLs)
   const isOwnProfile =
@@ -272,8 +277,13 @@ export default function ActorProfilePage() {
       organizations?: Organization[];
     };
 
-    // Find actor
+    // Find actor by id, username, or name
     let actor = actorsDb.actors?.find((a) => a.id === actorId);
+    if (!actor) {
+      actor = actorsDb.actors?.find(
+        (a) => 'username' in a && a.username === actorId
+      );
+    }
     if (!actor) {
       actor = actorsDb.actors?.find((a) => a.name === actorId);
     }
@@ -804,15 +814,25 @@ export default function ActorProfilePage() {
 
                 {/* Stats */}
                 <div className="flex gap-4 text-[15px]">
-                  <Link href="#" className="hover:underline">
+                  <button
+                    onClick={() =>
+                      setFollowListModal({ isOpen: true, type: 'following' })
+                    }
+                    className="hover:underline"
+                  >
                     <span className="font-bold text-foreground">
                       {actorInfo.stats?.following || 0}
                     </span>
                     <span className="ml-1 text-muted-foreground">
                       Following
                     </span>
-                  </Link>
-                  <Link href="#" className="hover:underline">
+                  </button>
+                  <button
+                    onClick={() =>
+                      setFollowListModal({ isOpen: true, type: 'followers' })
+                    }
+                    className="hover:underline"
+                  >
                     <span className="font-bold text-foreground">
                       {optimisticFollowerCount !== null
                         ? optimisticFollowerCount
@@ -821,7 +841,7 @@ export default function ActorProfilePage() {
                     <span className="ml-1 text-muted-foreground">
                       Followers
                     </span>
-                  </Link>
+                  </button>
                 </div>
               </div>
             </div>
@@ -1126,20 +1146,30 @@ export default function ActorProfilePage() {
 
               {/* Stats */}
               <div className="flex gap-4 text-[15px]">
-                <Link href="#" className="hover:underline">
+                <button
+                  onClick={() =>
+                    setFollowListModal({ isOpen: true, type: 'following' })
+                  }
+                  className="hover:underline"
+                >
                   <span className="font-bold text-foreground">
                     {actorInfo.stats?.following || 0}
                   </span>
                   <span className="ml-1 text-muted-foreground">Following</span>
-                </Link>
-                <Link href="#" className="hover:underline">
+                </button>
+                <button
+                  onClick={() =>
+                    setFollowListModal({ isOpen: true, type: 'followers' })
+                  }
+                  className="hover:underline"
+                >
                   <span className="font-bold text-foreground">
                     {optimisticFollowerCount !== null
                       ? optimisticFollowerCount
                       : actorInfo.stats?.followers || 0}
                   </span>
                   <span className="ml-1 text-muted-foreground">Followers</span>
-                </Link>
+                </button>
               </div>
             </div>
           </div>
@@ -1260,6 +1290,23 @@ export default function ActorProfilePage() {
             // Refresh profile data after successful transfer
             loadActorInfo();
           }}
+        />
+      )}
+
+      {/* Follow List Modal */}
+      {actorInfo && (
+        <FollowListModal
+          isOpen={followListModal.isOpen}
+          onClose={() =>
+            setFollowListModal({ ...followListModal, isOpen: false })
+          }
+          userId={actorInfo.id}
+          type={followListModal.type}
+          initialCount={
+            followListModal.type === 'followers'
+              ? (optimisticFollowerCount ?? actorInfo.stats?.followers ?? 0)
+              : (actorInfo.stats?.following ?? 0)
+          }
         />
       )}
     </PageContainer>

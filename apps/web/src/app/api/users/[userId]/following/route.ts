@@ -90,8 +90,9 @@
  */
 
 import {
+  findUserByIdentifier,
+  NotFoundError,
   optionalAuth,
-  requireUserByIdentifier,
   successResponse,
   withErrorHandling,
 } from '@babylon/api';
@@ -149,18 +150,20 @@ export const GET = withErrorHandling(
     };
     UserFollowersQuerySchema.parse(queryParams);
 
-    const targetUser = await requireUserByIdentifier(targetIdentifier, {
-      id: true,
-    });
-    const targetId = targetUser.id;
+    // Try to find as user first
+    const targetUser = await findUserByIdentifier(targetIdentifier);
 
-    logger.debug(
-      'Target not found as user, checking if actor',
-      { targetIdentifier },
-      'GET /api/users/[userId]/following'
-    );
+    // Check if it's an actor (NPC)
+    const targetActor = StaticDataRegistry.getActor(targetIdentifier);
 
-    const targetActor = StaticDataRegistry.getActor(targetId);
+    // If neither user nor actor found, throw not found
+    if (!targetUser && !targetActor) {
+      throw new NotFoundError('User', undefined, {
+        identifier: targetIdentifier,
+      });
+    }
+
+    const targetId = targetUser?.id || targetIdentifier;
 
     let followingList: FollowingResponse[] = [];
 
@@ -186,6 +189,7 @@ export const GET = withErrorHandling(
             followingId: rel.followingId,
             createdAt: rel.createdAt,
             followingName: followingActor.name,
+            followingUsername: followingActor.username,
             followingTier: followingActor.tier,
             followingProfileImageUrl: followingActor.profileImageUrl,
             followingDescription: followingActor.description,
@@ -196,7 +200,7 @@ export const GET = withErrorHandling(
       followingList = actorFollowsList.map((f) => ({
         id: f.followingId,
         displayName: f.followingName,
-        username: f.followingId,
+        username: f.followingUsername || null,
         profileImageUrl: f.followingProfileImageUrl || null,
         bio: f.followingDescription || '',
         followedAt: f.createdAt.toISOString(),
@@ -241,6 +245,7 @@ export const GET = withErrorHandling(
           actorId: rel.actorId,
           createdAt: rel.createdAt,
           actorName: actor?.name ?? null,
+          actorUsername: actor?.username ?? null,
           actorDescription: actor?.description ?? null,
           actorProfileImageUrl: actor?.profileImageUrl ?? null,
           actorTier: actor?.tier ?? null,
@@ -302,7 +307,7 @@ export const GET = withErrorHandling(
           return {
             id: f.actorId,
             displayName: f.actorName || f.actorId,
-            username: null,
+            username: f.actorUsername || null,
             profileImageUrl: f.actorProfileImageUrl || null,
             bio: f.actorDescription || null,
             isActor: true,

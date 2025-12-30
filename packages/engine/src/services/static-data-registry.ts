@@ -47,6 +47,7 @@ import { organizations as organizationsData } from '../data/organizations';
 export interface StaticActor {
   id: string;
   name: string;
+  username?: string;
   realName?: string;
   description?: string;
   domain: string[];
@@ -149,6 +150,7 @@ export class StaticDataRegistry {
       const actorAny = actor as {
         id: string;
         name: string;
+        username?: string;
         realName?: string;
         description?: string;
         domain?: string[];
@@ -165,6 +167,7 @@ export class StaticDataRegistry {
       const staticActor: StaticActor = {
         id: actorAny.id,
         name: actorAny.name,
+        username: actorAny.username,
         realName: actorAny.realName,
         description: actorAny.description,
         domain: actorAny.domain ?? [],

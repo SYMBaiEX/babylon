@@ -19,6 +19,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { ArticleCard } from '@/components/articles/ArticleCard';
 import { LoginButton } from '@/components/auth/LoginButton';
 import { PostCard } from '@/components/posts/PostCard';
+import { FollowListModal } from '@/components/profile/FollowListModal';
 import { LinkSocialAccountsModal } from '@/components/profile/LinkSocialAccountsModal';
 import { OnChainBadge } from '@/components/profile/OnChainBadge';
 import { ProfileWidget } from '@/components/profile/ProfileWidget';
@@ -91,6 +92,10 @@ export default function ProfilePage() {
   });
   const [tab, setTab] = useState<'posts' | 'replies' | 'trades'>('posts');
   const [showLinkAccountsModal, setShowLinkAccountsModal] = useState(false);
+  const [followListModal, setFollowListModal] = useState<{
+    isOpen: boolean;
+    type: 'followers' | 'following';
+  }>({ isOpen: false, type: 'followers' });
   const [posts, setPosts] = useState<
     Array<{
       id: string;
@@ -719,20 +724,30 @@ export default function ProfilePage() {
 
         {/* Stats */}
         <div className="flex gap-4 text-[15px]">
-          <Link href="#" className="hover:underline">
+          <button
+            onClick={() =>
+              setFollowListModal({ isOpen: true, type: 'following' })
+            }
+            className="hover:underline"
+          >
             <span className="font-bold text-foreground">
               {optimisticFollowingCount !== null
                 ? optimisticFollowingCount
                 : user?.stats?.following || 0}
             </span>
             <span className="ml-1 text-muted-foreground">Following</span>
-          </Link>
-          <Link href="#" className="hover:underline">
+          </button>
+          <button
+            onClick={() =>
+              setFollowListModal({ isOpen: true, type: 'followers' })
+            }
+            className="hover:underline"
+          >
             <span className="font-bold text-foreground">
               {user?.stats?.followers || 0}
             </span>
             <span className="ml-1 text-muted-foreground">Followers</span>
-          </Link>
+          </button>
         </div>
       </div>
     </div>
@@ -1304,6 +1319,23 @@ export default function ProfilePage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Follow List Modal */}
+      {user && (
+        <FollowListModal
+          isOpen={followListModal.isOpen}
+          onClose={() =>
+            setFollowListModal({ ...followListModal, isOpen: false })
+          }
+          userId={user.id}
+          type={followListModal.type}
+          initialCount={
+            followListModal.type === 'followers'
+              ? (user.stats?.followers ?? 0)
+              : (optimisticFollowingCount ?? user.stats?.following ?? 0)
+          }
+        />
       )}
     </PageContainer>
   );
