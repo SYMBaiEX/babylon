@@ -500,13 +500,14 @@ export function AgentSetupModal({
                 }
                 maxLength={MAX_BIO_LENGTH}
                 rows={3}
+                aria-describedby="bio-help"
                 className={cn(
                   'w-full resize-none rounded-lg border border-border bg-muted px-4 py-3',
                   'focus:outline-none focus:ring-2 focus:ring-[#0066FF]'
                 )}
                 placeholder="A short description of your agent..."
               />
-              <p className="mt-1.5 text-muted-foreground text-xs">
+              <p id="bio-help" className="mt-1.5 text-muted-foreground text-xs">
                 This will appear on your agent's profile.
               </p>
             </div>
