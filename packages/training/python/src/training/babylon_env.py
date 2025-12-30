@@ -442,12 +442,16 @@ class BabylonRLAIFEnv(BaseEnv):
                     messages = [messages[0]] + messages[-4:]
 
                 # Direct call to vLLM
+                # Generate multiple completions per prompt for GRPO score variance
+                # Temperature > 0 ensures different responses for same prompt
                 max_tokens = min(512, self.config.max_token_length // 3)
+                num_completions = self.config.group_size  # Generate group_size completions per prompt
                 payload = {
                     "model": model_name,
                     "messages": messages,
                     "max_tokens": max_tokens,
-                    "n": 1,
+                    "n": num_completions,  # Multiple completions for score variance
+                    "temperature": 0.7,  # Ensure response diversity
                 }
                 
                 try:
@@ -465,40 +469,55 @@ class BabylonRLAIFEnv(BaseEnv):
                     logger.error(f"Error calling vLLM: {e}")
                     continue
 
-                response_content = result.get("choices", [{}])[0].get("message", {}).get("content", "")
-                finish_reason = result.get("choices", [{}])[0].get("finish_reason", "stop")
+                # Process ALL completions from this prompt (not just the first one)
+                choices = result.get("choices", [])
+                if not choices:
+                    logger.warning(f"No choices returned from vLLM for trajectory {traj.get('trajectory_id')}")
+                    continue
+                    
+                for choice in choices:
+                    response_content = choice.get("message", {}).get("content", "")
+                    finish_reason = choice.get("finish_reason", "stop")
 
-                # Build full conversation with response
-                full_messages = copy.deepcopy(messages)
-                full_messages.append({
-                    "role": "assistant",
-                    "content": response_content
-                })
+                    # Build full conversation with this response
+                    full_messages = copy.deepcopy(messages)
+                    full_messages.append({
+                        "role": "assistant",
+                        "content": response_content
+                    })
 
-                # Tokenize with proper masking - only train on assistant completions
-                tokenization_result = tokenize_for_trainer(
-                    self.tokenizer,
-                    full_messages,
-                    add_generation_prompt=False,
-                )
+                    # Tokenize with proper masking - only train on assistant completions
+                    tokenization_result = tokenize_for_trainer(
+                        self.tokenizer,
+                        full_messages,
+                        add_generation_prompt=False,
+                    )
+                    
+                    rollout_data.append({
+                        "trajectory": traj,
+                        "generated_response": response_content,
+                        "messages": full_messages,
+                        "tokens": tokenization_result.tokens,
+                        "masks": tokenization_result.masks,  # Proper masking: 0 for prompt, 1 for completion
+                        "logprobs": [],
+                        "finish_reason": finish_reason,
+                    })
                 
-                rollout_data.append({
-                    "trajectory": traj,
-                    "generated_response": response_content,
-                    "messages": full_messages,
-                    "tokens": tokenization_result.tokens,
-                    "masks": tokenization_result.masks,  # Proper masking: 0 for prompt, 1 for completion
-                    "logprobs": [],
-                    "finish_reason": finish_reason,
-                })
+                # Only process one trajectory per group to get group_size completions
+                # This is proper GRPO: same prompt, multiple completions, score variance
+                if len(rollout_data) >= self.config.group_size:
+                    break
 
-        if len(rollout_data) < 2:
-            logger.warning(f"Insufficient rollouts for group {group_key}")
+        if len(rollout_data) < self.config.group_size:
+            logger.warning(f"Insufficient rollouts for group {group_key}: got {len(rollout_data)}, need {self.config.group_size}")
             return None, []
+        
+        # Trim to exact group_size for consistent batch shapes
+        rollout_data = rollout_data[:self.config.group_size]
 
         # Score using The Judge (Deterministic)
         scored_data = await self._score_with_judge(rollout_data)
-        logger.info(f"Scored {len(rollout_data)} rollouts for group {group_key}")
+        logger.info(f"Scored {len(rollout_data)} rollouts for group {group_key} (GRPO: multiple completions per prompt)")
 
         self.windows_processed += 1
         return scored_data, []
