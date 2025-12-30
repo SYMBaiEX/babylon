@@ -9,7 +9,7 @@ import {
   Sparkles,
   X,
 } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import type { Address } from 'viem';
 import { formatEther } from 'viem';
@@ -91,11 +91,20 @@ export function BuyPointsModal({
   const [txHash, setTxHash] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pointsAwarded, setPointsAwarded] = useState(0);
+  const [walletInitializing, setWalletInitializing] = useState(false);
+
+  // AbortController for canceling async operations
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const ensureFunds = useCallback(
-    async (requiredAmountWei: bigint) => {
+    async (requiredAmountWei: bigint, signal?: AbortSignal) => {
       if (!smartWalletAddress) {
         throw new Error(WALLET_ERROR_MESSAGES.NO_EMBEDDED_WALLET);
+      }
+
+      // Check if operation was cancelled
+      if (signal?.aborted) {
+        throw new Error('Operation cancelled');
       }
 
       const currentBalance = balance ?? (await refreshBalance());
@@ -125,6 +134,12 @@ export function BuyPointsModal({
       toast.info('Waiting for deposit to settle...');
 
       for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        // Check if operation was cancelled before each poll
+        if (signal?.aborted) {
+          toast.dismiss();
+          throw new Error('Operation cancelled');
+        }
+
         const updatedBalance = await refreshBalance();
 
         if (updatedBalance && updatedBalance >= requiredAmountWei) {
@@ -134,7 +149,11 @@ export function BuyPointsModal({
 
         // Wait before next check (except on last attempt)
         if (attempt < maxAttempts - 1) {
-          await new Promise((resolve) => setTimeout(resolve, pollInterval));
+          await new Promise((resolve) => {
+            const timeout = setTimeout(resolve, pollInterval);
+            // Cancel timeout if operation is aborted
+            signal?.addEventListener('abort', () => clearTimeout(timeout));
+          });
         }
       }
 
@@ -150,7 +169,14 @@ export function BuyPointsModal({
   // Reset state when modal closes
   useEffect(() => {
     if (!isOpen) {
-      setTimeout(() => {
+      // Cancel any in-flight operations
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+        abortControllerRef.current = null;
+      }
+
+      // Reset state after animation completes
+      const timeoutId = setTimeout(() => {
         setAmountUSD('10');
         setStep('input');
         setLoading(false);
@@ -158,8 +184,13 @@ export function BuyPointsModal({
         setTxHash(null);
         setError(null);
         setPointsAwarded(0);
+        setWalletInitializing(false);
       }, 300);
+
+      // Cleanup timeout if component unmounts or modal reopens
+      return () => clearTimeout(timeoutId);
     }
+    return undefined;
   }, [isOpen]);
 
   // Handle escape key and body scroll lock
@@ -197,9 +228,35 @@ export function BuyPointsModal({
   const pointsAmount = Math.floor(amountNum * 100);
 
   const handleCreatePayment = async () => {
-    if (!user || !smartWalletAddress || !smartWalletReady) {
+    if (!user || !smartWalletAddress) {
       toast.error(WALLET_ERROR_MESSAGES.NO_EMBEDDED_WALLET);
       return;
+    }
+
+    // Check if smart wallet is ready, if not wait for initialization
+    if (!smartWalletReady) {
+      setWalletInitializing(true);
+      toast.info('Initializing wallet...');
+
+      // Wait up to 5 seconds for smart wallet to be ready
+      const maxWaitTime = 5000;
+      const checkInterval = 100;
+      const startTime = Date.now();
+
+      while (!smartWalletReady && Date.now() - startTime < maxWaitTime) {
+        await new Promise((resolve) => setTimeout(resolve, checkInterval));
+      }
+
+      setWalletInitializing(false);
+
+      if (!smartWalletReady) {
+        toast.error(
+          'Wallet is still initializing. Please try again in a moment.'
+        );
+        return;
+      }
+
+      toast.success('Wallet ready!');
     }
 
     if (amountNum < 1) {
@@ -211,6 +268,9 @@ export function BuyPointsModal({
       toast.error('Maximum purchase is $1000');
       return;
     }
+
+    // Create new abort controller for this operation
+    abortControllerRef.current = new AbortController();
 
     setLoading(true);
     setError(null);
@@ -276,19 +336,34 @@ export function BuyPointsModal({
       return;
     }
 
-    const requiredAmountWei = BigInt(paymentRequest.amount);
-    await ensureFunds(requiredAmountWei);
+    try {
+      const requiredAmountWei = BigInt(paymentRequest.amount);
+      await ensureFunds(requiredAmountWei, abortControllerRef.current?.signal);
 
-    const hash = await sendPointsPayment({
-      to: paymentRequest.to as Address,
-      amountWei: requiredAmountWei,
-    });
+      // Check if operation was cancelled after funding
+      if (abortControllerRef.current?.signal.aborted) {
+        setLoading(false);
+        return;
+      }
 
-    setTxHash(hash);
-    setStep('verifying');
+      const hash = await sendPointsPayment({
+        to: paymentRequest.to as Address,
+        amountWei: requiredAmountWei,
+      });
 
-    // Verify payment and credit points
-    await handleVerifyPayment(paymentRequest.requestId, hash, paymentRequest);
+      setTxHash(hash);
+      setStep('verifying');
+
+      // Verify payment and credit points
+      await handleVerifyPayment(paymentRequest.requestId, hash, paymentRequest);
+    } catch (error) {
+      // Don't show error if operation was cancelled
+      if (error instanceof Error && error.message === 'Operation cancelled') {
+        setLoading(false);
+        return;
+      }
+      throw error;
+    }
   };
 
   const handleVerifyPayment = async (
@@ -461,14 +536,23 @@ export function BuyPointsModal({
               <button
                 data-testid="buy-points-submit-button"
                 onClick={handleCreatePayment}
-                disabled={loading || amountNum < 1 || amountNum > 1000}
+                disabled={
+                  loading ||
+                  walletInitializing ||
+                  amountNum < 1 ||
+                  amountNum > 1000
+                }
                 className={cn(
                   'flex-1 rounded-lg px-4 py-3 font-medium transition-colors',
                   'bg-primary text-primary-foreground hover:bg-primary/90',
                   'disabled:cursor-not-allowed disabled:opacity-50'
                 )}
               >
-                {loading ? 'Processing...' : `Buy ${pointsAmount} Points`}
+                {walletInitializing
+                  ? 'Initializing wallet...'
+                  : loading
+                    ? 'Processing...'
+                    : `Buy ${pointsAmount} Points`}
               </button>
             </div>
           </>
