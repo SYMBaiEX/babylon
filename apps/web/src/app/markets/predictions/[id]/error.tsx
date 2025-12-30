@@ -53,7 +53,7 @@ export default function PredictionDetailError({
             Try again
           </button>
           <button
-            onClick={() => router.push('/markets/predictions')}
+            onClick={() => router.push('/markets?tab=predictions')}
             className="rounded-md bg-secondary px-6 py-2 text-secondary-foreground transition-colors hover:bg-secondary/90"
           >
             Back to Predictions

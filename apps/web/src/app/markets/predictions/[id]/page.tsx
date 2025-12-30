@@ -236,7 +236,9 @@ export default function PredictionDetailPage() {
 
     if (!response.ok || !foundMarket) {
       toast.error('Market not found');
-      router.push(from === 'dashboard' ? '/markets' : '/markets/predictions');
+      router.push(
+        from === 'dashboard' ? '/markets' : '/markets?tab=predictions'
+      );
       return;
     }
 
@@ -406,7 +408,7 @@ export default function PredictionDetailPage() {
             if (from === 'dashboard') {
               router.push('/markets');
             } else {
-              router.push('/markets/predictions');
+              router.push('/markets?tab=predictions');
             }
           }}
           className="mb-4 flex items-center gap-2 rounded-md bg-[#0066FF] px-3 py-1.5 font-medium text-primary-foreground text-sm transition-colors hover:bg-[#2952d9]"
