@@ -9,6 +9,7 @@
 
 import { getContractAddresses } from '@babylon/contracts';
 import { cn } from '@babylon/shared';
+import { formatPrice } from '@/app/markets/_lib/formatters';
 import {
   Clock,
   ExternalLink,
@@ -110,8 +111,6 @@ export default function OnChainBettingPage() {
     setSelectedMarket(null);
     setBetAmount('');
   };
-
-  const formatPrice = (price: number) => `$${price.toFixed(2)}`;
 
   const getDaysLeft = (date?: string) => {
     if (!date) return null;

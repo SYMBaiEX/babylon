@@ -255,7 +255,7 @@ export function PositionDetailModal({
 
     const amountNum = parseFloat(amount) || 0;
     if (amountNum < 1) {
-      toast.error('Minimum bet is $1');
+      toast.error('Minimum bet is ₿1');
       return;
     }
 
@@ -718,7 +718,7 @@ export function PositionDetailModal({
 
                   <div>
                     <label className="mb-2 block text-muted-foreground text-sm">
-                      Amount (USD)
+                      Amount (PTS)
                     </label>
                     <input
                       type="number"
@@ -826,7 +826,7 @@ export function PositionDetailModal({
                   <div className="space-y-4 rounded bg-muted p-4">
                     <div className="flex items-center justify-between">
                       <label className="font-medium text-muted-foreground text-sm">
-                        Position Size (USD)
+                        Position Size (PTS)
                       </label>
                       <input
                         type="number"

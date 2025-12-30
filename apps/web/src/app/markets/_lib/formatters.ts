@@ -3,27 +3,27 @@
  */
 
 /**
- * Formats a price value as USD currency.
+ * Formats a price value as Babylon points currency.
  *
  * @param price - The price to format
- * @returns Formatted price string (e.g., "$123.45")
+ * @returns Formatted price string (e.g., "₿123.45")
  */
 export function formatPrice(price: number): string {
-  return `$${price.toFixed(2)}`;
+  return `₿${price.toFixed(2)}`;
 }
 
 /**
  * Formats a volume value with appropriate suffix (K, M, B).
- * Values under $1,000 are displayed without suffix.
+ * Values under ₿1,000 are displayed without suffix.
  *
  * @param volume - The volume to format
- * @returns Formatted volume string (e.g., "$1.23M", "$500.00")
+ * @returns Formatted volume string (e.g., "₿1.23M", "₿500.00")
  */
 export function formatVolume(volume: number): string {
-  if (volume >= 1e9) return `$${(volume / 1e9).toFixed(2)}B`;
-  if (volume >= 1e6) return `$${(volume / 1e6).toFixed(2)}M`;
-  if (volume >= 1e3) return `$${(volume / 1e3).toFixed(2)}K`;
-  return `$${volume.toFixed(2)}`;
+  if (volume >= 1e9) return `₿${(volume / 1e9).toFixed(2)}B`;
+  if (volume >= 1e6) return `₿${(volume / 1e6).toFixed(2)}M`;
+  if (volume >= 1e3) return `₿${(volume / 1e3).toFixed(2)}K`;
+  return `₿${volume.toFixed(2)}`;
 }
 
 /**

@@ -158,20 +158,21 @@ export function formatCompactNumber(num: number): string {
 /**
  * Format number as currency
  *
- * @description Formats a number as US dollar currency with specified decimal places.
+ * @description Formats a number as Babylon points currency with specified decimal places.
+ * Uses the ₿ symbol to represent Babylon points (not USD or Bitcoin).
  *
  * @param {number} amount - Amount to format
  * @param {number} decimals - Number of decimal places (default: 2)
- * @returns {string} Formatted currency string (e.g., "$123.45")
+ * @returns {string} Formatted currency string (e.g., "₿123.45")
  *
  * @example
  * ```typescript
- * formatCurrency(123.456) // Returns "$123.46"
- * formatCurrency(1000, 0) // Returns "$1000"
+ * formatCurrency(123.456) // Returns "₿123.46"
+ * formatCurrency(1000, 0) // Returns "₿1000"
  * ```
  */
 export function formatCurrency(amount: number, decimals = 2): string {
-  return `$${amount.toFixed(decimals)}`;
+  return `₿${amount.toFixed(decimals)}`;
 }
 
 /**

@@ -278,7 +278,7 @@ export default function PredictionDetailPage() {
 
     const amountNum = Number.parseFloat(amount) || 0;
     if (amountNum < 1) {
-      toast.error('Minimum bet is $1');
+      toast.error('Minimum bet is ₿1');
       return;
     }
 
@@ -619,7 +619,7 @@ export default function PredictionDetailPage() {
             {/* Amount Input */}
             <div className="mb-4">
               <label className="mb-2 block font-medium text-muted-foreground text-sm">
-                Amount (USD)
+                Amount (PTS)
               </label>
               <input
                 type="number"

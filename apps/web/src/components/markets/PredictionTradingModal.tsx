@@ -135,7 +135,7 @@ export function PredictionTradingModal({
     if (!user) return;
 
     if (amountNum < 1) {
-      toast.error('Minimum bet is $1');
+      toast.error('Minimum bet is ₿1');
       return;
     }
 
@@ -324,7 +324,7 @@ export function PredictionTradingModal({
           {/* Amount Input */}
           <div className="mb-6">
             <label className="mb-2 block text-muted-foreground text-sm">
-              Amount (USD)
+              Amount (PTS)
             </label>
             <input
               type="number"

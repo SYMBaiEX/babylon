@@ -426,7 +426,7 @@ export function AdminSendMoneyModal({
 
               <div>
                 <label className="mb-2 block font-medium text-sm">
-                  Amount (USD)
+                  Amount (PTS)
                 </label>
                 <div className="relative">
                   <DollarSign className="-translate-y-1/2 absolute top-1/2 left-3 h-5 w-5 text-muted-foreground" />
