@@ -4,7 +4,7 @@ import { Sparkles, Trophy, Wallet } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
-import { Button } from '@/components/shared/Button';
+import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { useAuth } from '@/hooks/useAuth';
 import type { EligibilityResponse } from '@/types/nft';

@@ -19,7 +19,7 @@ export function NftPromoBanner({
 
   if (variant === 'full') {
     return (
-      <div className="relative overflow-hidden border-b border-[#0066FF]/30 bg-gradient-to-r from-[#0066FF]/10 via-purple-500/10 to-[#0066FF]/10">
+      <div className="relative overflow-hidden border-[#0066FF]/30 border-b bg-gradient-to-r from-[#0066FF]/10 via-purple-500/10 to-[#0066FF]/10">
         {/* Background Pattern */}
         <div className="absolute inset-0 opacity-5">
           <div
@@ -42,14 +42,15 @@ export function NftPromoBanner({
                 Top 100 NFT Collection
               </h3>
               <p className="text-muted-foreground text-sm">
-                Exclusive NFTs for our top 100 leaderboard players. Explore the collection!
+                Exclusive NFTs for our top 100 leaderboard players. Explore the
+                collection!
               </p>
             </div>
           </div>
 
           <Link
             href="/nft"
-            className="flex shrink-0 items-center gap-2 rounded-lg bg-gradient-to-r from-[#0066FF] to-purple-500 px-6 py-3 font-semibold text-white transition-all hover:from-[#0055DD] hover:to-purple-600 hover:shadow-lg hover:shadow-[#0066FF]/20"
+            className="flex shrink-0 items-center gap-2 rounded-lg bg-gradient-to-r from-[#0066FF] to-purple-500 px-6 py-3 font-semibold text-white transition-all hover:from-[#0055DD] hover:to-purple-600 hover:shadow-[#0066FF]/20 hover:shadow-lg"
           >
             <Sparkles className="h-4 w-4" />
             View Collection
@@ -59,7 +60,7 @@ export function NftPromoBanner({
         {showClose && (
           <button
             onClick={() => setIsVisible(false)}
-            className="absolute right-2 top-2 rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            className="absolute top-2 right-2 rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             aria-label="Dismiss"
           >
             <X className="h-4 w-4" />
@@ -71,7 +72,7 @@ export function NftPromoBanner({
 
   // Compact variant
   return (
-    <div className="relative flex items-center justify-between gap-4 border-b border-[#0066FF]/30 bg-gradient-to-r from-[#0066FF]/5 to-purple-500/5 px-4 py-2">
+    <div className="relative flex items-center justify-between gap-4 border-[#0066FF]/30 border-b bg-gradient-to-r from-[#0066FF]/5 to-purple-500/5 px-4 py-2">
       <div className="flex items-center gap-3">
         <Sparkles className="h-4 w-4 shrink-0 text-[#0066FF]" />
         <p className="text-foreground text-sm">

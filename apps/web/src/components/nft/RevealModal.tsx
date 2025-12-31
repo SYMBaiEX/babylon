@@ -4,7 +4,7 @@ import { X } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { Button } from '@/components/shared/Button';
+import { Button } from '@/components/ui/button';
 import type { MintConfirmResponse } from '@/types/nft';
 
 interface RevealModalProps {
@@ -18,27 +18,29 @@ export function RevealModal({ isOpen, nft, onClose }: RevealModalProps) {
   const [showConfetti, setShowConfetti] = useState(false);
 
   useEffect(() => {
-    if (isOpen && nft) {
-      // Start reveal animation
-      setIsRevealing(true);
-      setShowConfetti(false);
-
-      // Flip card after delay
-      const revealTimer = setTimeout(() => {
-        setIsRevealing(false);
-        setShowConfetti(true);
-      }, 2000);
-
-      // Hide confetti after a while
-      const confettiTimer = setTimeout(() => {
-        setShowConfetti(false);
-      }, 5000);
-
-      return () => {
-        clearTimeout(revealTimer);
-        clearTimeout(confettiTimer);
-      };
+    if (!isOpen || !nft) {
+      return;
     }
+
+    // Start reveal animation
+    setIsRevealing(true);
+    setShowConfetti(false);
+
+    // Flip card after delay
+    const revealTimer = setTimeout(() => {
+      setIsRevealing(false);
+      setShowConfetti(true);
+    }, 2000);
+
+    // Hide confetti after a while
+    const confettiTimer = setTimeout(() => {
+      setShowConfetti(false);
+    }, 5000);
+
+    return () => {
+      clearTimeout(revealTimer);
+      clearTimeout(confettiTimer);
+    };
   }, [isOpen, nft]);
 
   if (!isOpen || !nft) return null;

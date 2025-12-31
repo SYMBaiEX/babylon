@@ -32,7 +32,7 @@ interface RouteParams {
 }
 
 export const GET = withErrorHandling(
-  async (request: NextRequest, context: RouteParams) => {
+  async (_request: NextRequest, context: RouteParams) => {
     const { tokenId: tokenIdParam } = await context.params;
     const tokenId = parseInt(tokenIdParam, 10);
 

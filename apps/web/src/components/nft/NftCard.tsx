@@ -71,7 +71,7 @@ export function NftCard({ nft, priority = false }: NftCardProps) {
                 'Unknown'
               }
               src={nft.owner.user?.profileImageUrl ?? undefined}
-              size="xs"
+              size="sm"
             />
             <span className="truncate text-muted-foreground text-xs">
               {nft.owner.user?.displayName ??

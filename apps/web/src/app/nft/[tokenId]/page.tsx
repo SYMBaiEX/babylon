@@ -7,7 +7,7 @@ import { useParams } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { Avatar } from '@/components/shared/Avatar';
-import { Button } from '@/components/shared/Button';
+import { Button } from '@/components/ui/button';
 import { PageContainer } from '@/components/shared/PageContainer';
 import { Skeleton } from '@/components/shared/Skeleton';
 import type { NftDetail, NftDetailResponse } from '@/types/nft';

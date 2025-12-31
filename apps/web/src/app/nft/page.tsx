@@ -11,7 +11,7 @@ import {
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { MintBanner, NftGrid, RevealModal } from '@/components/nft';
-import { Button } from '@/components/shared/Button';
+import { Button } from '@/components/ui/button';
 import { PageContainer } from '@/components/shared/PageContainer';
 import { useAuth } from '@/hooks/useAuth';
 import type {

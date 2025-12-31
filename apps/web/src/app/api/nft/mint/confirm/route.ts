@@ -32,7 +32,8 @@ import {
   nftSnapshot,
   users,
 } from '@babylon/db';
-import { generateId, logger } from '@babylon/shared';
+import { logger } from '@babylon/shared';
+import { nanoid } from 'nanoid';
 import type { NextRequest } from 'next/server';
 import type { MintConfirmRequest, MintConfirmResponse } from '@/types/nft';
 
@@ -118,9 +119,9 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     );
   }
 
-  // Random selection
+  // Random selection - we know unclaimedNfts.length > 0 from check above
   const randomIndex = Math.floor(Math.random() * unclaimedNfts.length);
-  const assignedNft = unclaimedNfts[randomIndex];
+  const assignedNft = unclaimedNfts[randomIndex]!;
 
   const now = new Date();
 
@@ -139,7 +140,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
 
     // 2. Create ownership record
     await tx.insert(nftOwnership).values({
-      id: generateId(),
+      id: nanoid(),
       tokenId: assignedNft.tokenId,
       ownerAddress: walletAddress.toLowerCase(),
       userId: userId,
@@ -150,7 +151,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
 
     // 3. Create claim record (provenance)
     await tx.insert(nftClaims).values({
-      id: generateId(),
+      id: nanoid(),
       tokenId: assignedNft.tokenId,
       claimerUserId: userId,
       claimerAddress: walletAddress.toLowerCase(),
