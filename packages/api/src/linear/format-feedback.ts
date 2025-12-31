@@ -2,6 +2,10 @@ import { FEEDBACK_TYPE_CONFIG, type FeedbackType } from '@babylon/shared';
 
 export type { FeedbackType };
 
+/** Base URL for user profile links */
+const APP_BASE_URL =
+  process.env.NEXT_PUBLIC_APP_URL || 'https://babylon.game';
+
 export interface FeedbackData {
   id: string;
   feedbackType: FeedbackType;
@@ -11,6 +15,9 @@ export interface FeedbackData {
   rating?: number | null;
   userId: string;
   userEmail?: string | null;
+  username?: string | null;
+  displayName?: string | null;
+  createdAt?: Date;
 }
 
 /**
@@ -80,12 +87,32 @@ export function formatFeedbackForLinear(feedback: FeedbackData): {
     );
   }
 
+  // Build "Submitted by" with profile link if username available
+  let submittedBy: string;
+  if (feedback.username) {
+    const safeUsername = escapeHtml(feedback.username);
+    const safeDisplayName = feedback.displayName
+      ? escapeHtml(feedback.displayName)
+      : safeUsername;
+    const profileUrl = `${APP_BASE_URL}/profile/${safeUsername}`;
+    submittedBy = `[${safeDisplayName}](${profileUrl}) (@${safeUsername})`;
+  } else {
+    submittedBy = safeEmail ?? 'Unknown';
+  }
+
+  // Format timestamp
+  const timestamp = feedback.createdAt
+    ? feedback.createdAt.toISOString().replace('T', ' ').substring(0, 19) +
+      ' UTC'
+    : 'Unknown';
+
   lines.push(
     '---',
     '',
     '### Submission Details',
     '',
-    `- **Submitted by:** ${safeEmail ?? 'Unknown'}`,
+    `- **Submitted by:** ${submittedBy}`,
+    `- **Submitted at:** ${timestamp}`,
     `- **User ID:** \`${escapeHtml(feedback.userId)}\``,
     `- **Feedback ID:** \`${escapeHtml(feedback.id)}\``,
     `- **Type:** ${config.heading}`

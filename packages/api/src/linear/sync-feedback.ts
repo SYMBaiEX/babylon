@@ -79,6 +79,8 @@ export interface LinearConfig {
 export interface FeedbackUser {
   id: string;
   email: string | null;
+  username: string | null;
+  displayName: string | null;
 }
 
 /**
@@ -87,7 +89,11 @@ export interface FeedbackUser {
  */
 const LinearSyncMetadataSchema = z.object({
   linearIssueId: z.string().optional().catch(undefined),
+  linearSyncStartedAt: z.string().optional().catch(undefined),
 });
+
+/** How long a sync lock is valid before it's considered stale (5 minutes) */
+const SYNC_LOCK_TTL_MS = 5 * 60 * 1000;
 
 /**
  * Syncs a feedback record to Linear by creating an issue.
@@ -103,7 +109,7 @@ export async function syncFeedbackToLinear(
   // Fetch feedback from DB to get current state (ensures consistency)
   const feedback = await db.feedback.findUnique({
     where: { id: feedbackId },
-    select: { comment: true, metadata: true },
+    select: { comment: true, metadata: true, createdAt: true },
   });
 
   if (!feedback) {
@@ -127,6 +133,36 @@ export async function syncFeedbackToLinear(
     return;
   }
 
+  // Check for concurrent sync (prevents duplicate issues from race conditions)
+  if (syncMetadata.linearSyncStartedAt) {
+    const syncStarted = new Date(syncMetadata.linearSyncStartedAt).getTime();
+    const now = Date.now();
+    if (now - syncStarted < SYNC_LOCK_TTL_MS) {
+      logger.info('Linear sync already in progress, skipping', {
+        feedbackId,
+        syncStartedAt: syncMetadata.linearSyncStartedAt,
+      });
+      return;
+    }
+    // Lock is stale, proceed with sync (previous sync likely failed)
+    logger.warn('Stale Linear sync lock detected, proceeding with sync', {
+      feedbackId,
+      syncStartedAt: syncMetadata.linearSyncStartedAt,
+    });
+  }
+
+  // Set sync lock BEFORE creating Linear issue to prevent race conditions
+  const syncStartedAt = new Date().toISOString();
+  await db.feedback.update({
+    where: { id: feedbackId },
+    data: {
+      metadata: {
+        ...(rawMetadata as Record<string, unknown>),
+        linearSyncStartedAt: syncStartedAt,
+      },
+    },
+  });
+
   const metadata: FeedbackMetadata = FeedbackMetadataSchema.parse(rawMetadata);
 
   const formatted = formatFeedbackForLinear({
@@ -138,6 +174,9 @@ export async function syncFeedbackToLinear(
     rating: metadata.rating,
     userId: user.id,
     userEmail: user.email,
+    username: user.username,
+    displayName: user.displayName,
+    createdAt: feedback.createdAt,
   });
 
   // Create Linear issue with retry logic for transient failures
@@ -155,9 +194,8 @@ export async function syncFeedbackToLinear(
   );
 
   // Merge update: fetch fresh metadata to preserve concurrent updates.
-  // Note: This is not truly atomic (TOCTOU gap exists), but the idempotency
-  // check above prevents duplicate Linear issues, and metadata merge is
-  // additive only. Risk is acceptable for fire-and-forget background sync.
+  // The linearSyncStartedAt lock set earlier prevents duplicate Linear issues
+  // from race conditions. This update clears the lock and stores the issue info.
   const freshFeedback = await db.feedback.findUnique({
     where: { id: feedbackId },
     select: { metadata: true },
@@ -168,11 +206,13 @@ export async function syncFeedbackToLinear(
       ? (freshFeedback.metadata as Record<string, unknown>)
       : {};
 
+  // Remove the sync lock and store the issue info
+  const { linearSyncStartedAt: _, ...metadataWithoutLock } = freshMetadata;
   await db.feedback.update({
     where: { id: feedbackId },
     data: {
       metadata: {
-        ...freshMetadata,
+        ...metadataWithoutLock,
         linearIssueId: issue.id,
         linearIssueIdentifier: issue.identifier,
         linearIssueUrl: issue.url,

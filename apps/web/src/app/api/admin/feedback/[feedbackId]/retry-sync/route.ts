@@ -104,7 +104,7 @@ export const POST = withErrorHandling(
 
     const user = await db.user.findUnique({
       where: { id: feedback.fromUserId },
-      select: { id: true, email: true },
+      select: { id: true, email: true, username: true, displayName: true },
     });
 
     if (!user) {
