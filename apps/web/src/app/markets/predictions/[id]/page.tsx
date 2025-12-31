@@ -616,7 +616,7 @@ export default function PredictionDetailPage() {
             {/* Amount Input */}
             <div className="mb-4">
               <label className="mb-2 block font-medium text-muted-foreground text-sm">
-                Amount (PTS)
+                Amount ({BABYLON_POINTS_SYMBOL})
               </label>
               <input
                 type="number"
