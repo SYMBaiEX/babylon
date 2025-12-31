@@ -209,7 +209,8 @@ export const useUserPositionsStore = create<UserPositionsState>((set, get) => ({
       currentState.userId === userId &&
       currentState.lastFetchedAt &&
       Date.now() - currentState.lastFetchedAt < CACHE_TTL &&
-      (currentState.perpPositions.length > 0 || currentState.predictionPositions.length > 0)
+      (currentState.perpPositions.length > 0 ||
+        currentState.predictionPositions.length > 0)
     ) {
       return;
     }
@@ -221,7 +222,8 @@ export const useUserPositionsStore = create<UserPositionsState>((set, get) => ({
     const fetchPromise = (async () => {
       // Only show loading on initial fetch (no cached data yet)
       const isInitialLoad =
-        currentState.lastFetchedAt === null || currentState.userId !== requestedUserId;
+        currentState.lastFetchedAt === null ||
+        currentState.userId !== requestedUserId;
       if (isInitialLoad) {
         set({ loading: true });
       }

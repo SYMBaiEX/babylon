@@ -734,7 +734,8 @@ export class PerpMarketService {
       // Recalculate with fresh position data to handle concurrent updates
       const actualNewSize = freshPosition.size + addedSize;
       const newEntryPrice =
-        (freshPosition.size * freshPosition.entryPrice + addedSize * currentPrice) /
+        (freshPosition.size * freshPosition.entryPrice +
+          addedSize * currentPrice) /
         actualNewSize;
 
       // Recalculate liquidation price with new entry

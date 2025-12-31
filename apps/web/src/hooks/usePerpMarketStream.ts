@@ -15,7 +15,12 @@ import type { TradeSide } from '@/types/markets';
  */
 export interface PerpTradeSSE {
   type: 'perp_trade';
-  action: 'open' | 'close' | 'partial_close' | 'add_to_position' | 'flip_position';
+  action:
+    | 'open'
+    | 'close'
+    | 'partial_close'
+    | 'add_to_position'
+    | 'flip_position';
   ticker: string;
   side: TradeSide;
   size: number;

@@ -39,6 +39,8 @@ export interface UserPredictionPosition extends PredictionPosition {
   costBasis: number;
   /** Unrealized profit/loss (currentValue - costBasis) */
   unrealizedPnL: number;
+  /** Current probability (derived from currentPrice) */
+  currentProbability: number;
 }
 
 /**

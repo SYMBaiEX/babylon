@@ -26,7 +26,10 @@ import { Skeleton } from '@/components/shared/Skeleton';
 import { useAuth } from '@/hooks/useAuth';
 import { useMarketPrices } from '@/hooks/useMarketPrices';
 import { usePerpHistory } from '@/hooks/usePerpHistory';
-import { usePerpMarketStream } from '@/hooks/usePerpMarketStream';
+import {
+  type PerpTradeSSE,
+  usePerpMarketStream,
+} from '@/hooks/usePerpMarketStream';
 import { usePerpTrade } from '@/hooks/usePerpTrade';
 import { useMarketTracking } from '@/hooks/usePostHog';
 import {
@@ -100,7 +103,7 @@ export default function PerpDetailPage() {
   // Subscribe to real-time trade events for this specific ticker
   usePerpMarketStream(ticker, {
     onTrade: useCallback(
-      (event) => {
+      (event: PerpTradeSSE) => {
         // Refresh positions and market data when a trade occurs
         if (event.action === 'open' || event.action === 'close') {
           refreshUserPositions();

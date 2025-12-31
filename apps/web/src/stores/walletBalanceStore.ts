@@ -87,7 +87,8 @@ export const useWalletBalanceStore = create<WalletBalanceState>((set, get) => ({
     const fetchPromise = (async () => {
       // Only show loading on initial fetch (no cached data yet)
       const isInitialLoad =
-        currentState.lastFetchedAt === null || currentState.userId !== requestedUserId;
+        currentState.lastFetchedAt === null ||
+        currentState.userId !== requestedUserId;
       if (isInitialLoad) {
         set({ loading: true });
       }

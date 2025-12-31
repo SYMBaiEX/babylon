@@ -39,6 +39,6 @@ export {
   type PredictionTradeSSE,
   usePredictionMarketStream,
 } from '../usePredictionMarketStream';
-export { useSSEChannel, useSSEConnection } from '../useSSE';
+export { useSSEChannel, useSSEStatus } from '../useSSE';
 // User data
 export { useUserPositions } from '../useUserPositions';
