@@ -6,6 +6,21 @@
 **Priority**: Medium  
 **Status**: Planning Phase  
 **Created**: 2025-12-31  
+**Last Updated**: 2025-12-31  
+
+---
+
+## ✅ Key Decisions (Resolved)
+
+| Decision | Resolution | Date |
+|----------|------------|------|
+| **Image Resolution** | 4096x4096 - requires thumbnail generation (256px, 512px, 1024px) | 2025-12-31 |
+| **Stories/Metadata** | Product owner (Puncar) will provide all stories and metadata | 2025-12-31 |
+| **Gallery Access** | **PUBLIC** - no authentication required to view gallery | 2025-12-31 |
+| **Rarity Scores** | **NO** - no rarity scoring system | 2025-12-31 |
+| **Real-time Ownership** | **YES** - real-time owner updates required (webhooks/indexer) | 2025-12-31 |
+| **Navigation** | **NOT in sidebar** - links from mainpage and leaderboard page only | 2025-12-31 |
+| **Contract Strategy** | Use placeholder contracts; 100 NFTs uploaded when frontend ready | 2025-12-31 |
 
 ---
 
@@ -25,14 +40,17 @@ Create a dedicated NFT Gallery page within Babylon.market (`/nft` or `/collectio
 
 ### 1.3 Success Criteria
 
-- [ ] Gallery page accessible at `/nft` or `/collection` within Babylon.market
-- [ ] All 100 NFTs displayed with high-quality images
+- [ ] Gallery page accessible at `/nft` within Babylon.market
+- [ ] **PUBLIC access** - no login required to view gallery
+- [ ] All 100 NFTs displayed with optimized thumbnails (from 4096x4096 originals)
 - [ ] Each NFT has readable story/lore content
-- [ ] Metadata displayed clearly (name, traits, rarity, token ID)
+- [ ] Metadata displayed clearly (name, description, traits, token ID)
+- [ ] **Real-time owner updates** - ownership reflects current on-chain state
 - [ ] Owner information shown for claimed NFTs
 - [ ] Mobile responsive design
 - [ ] Page loads in <3 seconds (LCP)
 - [ ] Consistent with Babylon.market design system
+- [ ] Links from **mainpage** and **leaderboard page** (NOT in sidebar)
 
 ---
 
@@ -42,11 +60,13 @@ Create a dedicated NFT Gallery page within Babylon.market (`/nft` or `/collectio
 
 | Dependency | Description | Status | Blocker |
 |------------|-------------|--------|---------|
-| BAB-66 NFT Contract | ERC721 contract must be deployed with metadata URIs | Backlog | Yes - need contract address |
-| NFT Artwork | 100 high-quality images (PNG/WEBP) | TBD | Yes - need assets |
-| NFT Metadata | JSON metadata for each NFT with name, description, traits | TBD | Yes - need IPFS CIDs |
-| NFT Stories | Written lore/backstory for each NFT | TBD | Yes - need content |
+| BAB-66 NFT Contract | ERC721 contract deployed (can use **placeholder** initially) | Backlog | **No - use placeholder** |
+| NFT Artwork | 100 images at 4096x4096 resolution | **Puncar providing** | No - upload when ready |
+| NFT Metadata | JSON metadata for each NFT with name, description, traits | **Puncar providing** | No - upload when ready |
+| NFT Stories | Written lore/backstory for each NFT | **Puncar providing** | No - upload when ready |
 | IPFS/Arweave Setup | Metadata storage system from BAB-66 | Backlog | Yes - for image URLs |
+
+> **Note**: Frontend can be built with placeholder data. Puncar will upload all 100 NFTs when the frontend is ready.
 
 ### 2.2 Soft Dependencies
 
@@ -63,8 +83,40 @@ Create a dedicated NFT Gallery page within Babylon.market (`/nft` or `/collectio
 - **State Management**: React hooks + optional Zustand stores
 - **API Pattern**: Route handlers in `apps/web/src/app/api/`
 - **Database**: Drizzle ORM with PostgreSQL
-- **Image Optimization**: Next.js `Image` component with IPFS gateway proxy
+- **Image Optimization**: See Section 2.4 below
 - **Authentication**: Privy (for owner verification features)
+- **Access Control**: **PUBLIC** - no authentication required
+
+### 2.4 Image Optimization Strategy (4096x4096 Source)
+
+Since source images are 4096x4096, we need aggressive optimization:
+
+**Pre-generated Thumbnails** (recommended):
+| Size | Purpose | Format |
+|------|---------|--------|
+| 256x256 | Grid thumbnail | WebP |
+| 512x512 | Hover preview | WebP |
+| 1024x1024 | Medium detail | WebP |
+| 4096x4096 | Full resolution (on-demand) | Original PNG |
+
+**Implementation Options**:
+
+1. **Pre-process during upload** (Recommended)
+   - Generate all thumbnails when NFTs are uploaded
+   - Store alongside originals on IPFS
+   - Fastest load times
+
+2. **CDN with on-the-fly resizing**
+   - Use Cloudflare Images or imgix
+   - Transform URLs: `?width=256&format=webp`
+   - More flexible, slightly slower
+
+3. **Next.js Image component**
+   - Built-in optimization
+   - Requires `remotePatterns` config for IPFS gateway
+   - Good for fallback
+
+**Recommended**: Option 1 (pre-process) with Option 3 as fallback
 
 ---
 
@@ -130,26 +182,38 @@ CREATE TABLE "NftCollection" (
   "tokenId" INTEGER UNIQUE NOT NULL,
   "name" TEXT NOT NULL,
   "description" TEXT,
-  "imageUrl" TEXT NOT NULL,           -- IPFS gateway URL
+  "imageUrl" TEXT NOT NULL,           -- IPFS gateway URL (full resolution)
+  "thumbnailUrl" TEXT,                -- Pre-generated thumbnail URL
   "imageCid" TEXT,                    -- Original IPFS CID
   "storyTitle" TEXT,
-  "storyContent" TEXT,                -- Full lore/backstory
+  "storyContent" TEXT,                -- Full lore/backstory (markdown supported)
   "metadataUri" TEXT,                 -- Full metadata IPFS URI
   "attributes" JSONB,                 -- Trait array: [{trait_type, value}]
-  "rarityScore" DECIMAL(10,2),
-  "rarityRank" INTEGER,
   "contractAddress" TEXT NOT NULL,
   "chainId" INTEGER NOT NULL DEFAULT 1,  -- Ethereum mainnet
   "createdAt" TIMESTAMP DEFAULT NOW(),
   "updatedAt" TIMESTAMP DEFAULT NOW()
 );
 
--- New table: nft_claims (tracks who claimed which NFT)
+-- New table: nft_ownership (real-time ownership tracking)
+CREATE TABLE "NftOwnership" (
+  "id" TEXT PRIMARY KEY DEFAULT nanoid(),
+  "tokenId" INTEGER NOT NULL REFERENCES "NftCollection"("tokenId"),
+  "ownerAddress" TEXT NOT NULL,       -- Current owner wallet address
+  "userId" TEXT REFERENCES "User"("id"), -- Linked Babylon user (if known)
+  "acquiredAt" TIMESTAMP NOT NULL,    -- When ownership was acquired
+  "txHash" TEXT,                      -- Transaction hash of transfer
+  "blockNumber" BIGINT,               -- Block number for ordering
+  "updatedAt" TIMESTAMP DEFAULT NOW(),
+  UNIQUE("tokenId")
+);
+
+-- New table: nft_claims (tracks original claim from top 100)
 CREATE TABLE "NftClaim" (
   "id" TEXT PRIMARY KEY DEFAULT nanoid(),
   "tokenId" INTEGER NOT NULL REFERENCES "NftCollection"("tokenId"),
-  "userId" TEXT REFERENCES "User"("id"),
-  "walletAddress" TEXT NOT NULL,
+  "claimerUserId" TEXT REFERENCES "User"("id"),
+  "claimerAddress" TEXT NOT NULL,
   "claimedAt" TIMESTAMP NOT NULL,
   "txHash" TEXT NOT NULL,
   "snapshotRank" INTEGER,             -- User's rank at snapshot time
@@ -157,11 +221,30 @@ CREATE TABLE "NftClaim" (
   UNIQUE("tokenId")
 );
 
--- Indexes
-CREATE INDEX "NftCollection_rarityRank_idx" ON "NftCollection"("rarityRank");
-CREATE INDEX "NftClaim_userId_idx" ON "NftClaim"("userId");
-CREATE INDEX "NftClaim_walletAddress_idx" ON "NftClaim"("walletAddress");
+-- Indexes for real-time queries
+CREATE INDEX "NftOwnership_ownerAddress_idx" ON "NftOwnership"("ownerAddress");
+CREATE INDEX "NftOwnership_userId_idx" ON "NftOwnership"("userId");
+CREATE INDEX "NftOwnership_updatedAt_idx" ON "NftOwnership"("updatedAt");
+CREATE INDEX "NftClaim_claimerUserId_idx" ON "NftClaim"("claimerUserId");
+CREATE INDEX "NftClaim_claimerAddress_idx" ON "NftClaim"("claimerAddress");
 ```
+
+### 3.4 Real-Time Ownership Sync
+
+Since real-time ownership updates are required, implement one of these approaches:
+
+**Option A: Blockchain Indexer (Recommended)**
+- Use Alchemy/QuickNode webhooks for Transfer events
+- API endpoint: `POST /api/nft/webhook/transfer`
+- Updates `NftOwnership` table on each transfer
+
+**Option B: Polling with Subgraph**
+- Query The Graph subgraph every 30-60 seconds
+- Background job updates ownership table
+
+**Option C: On-Demand Verification**
+- Check on-chain ownership when NFT detail page loads
+- Cache result with short TTL (1 minute)
 
 ---
 
@@ -269,7 +352,7 @@ interface NFTFiltersProps {
 |-------|------|---------|-------------|
 | page | number | 1 | Page number |
 | limit | number | 20 | Items per page (max 100) |
-| sort | string | "tokenId" | Sort field: tokenId, rarity, claimed |
+| sort | string | "tokenId" | Sort field: tokenId, name, claimed |
 | order | string | "asc" | Sort order: asc, desc |
 | claimed | boolean | - | Filter by claim status |
 | trait | string | - | Filter by trait (format: "traitType:value") |
@@ -284,9 +367,8 @@ interface NFTFiltersProps {
       {
         "tokenId": 1,
         "name": "Babylon Guardian #1",
-        "imageUrl": "https://ipfs.io/ipfs/...",
-        "rarityRank": 5,
-        "rarityScore": 87.5,
+        "thumbnailUrl": "https://ipfs.io/ipfs/.../thumb_256.webp",
+        "imageUrl": "https://ipfs.io/ipfs/.../full.png",
         "owner": {
           "id": "user_123",
           "username": "prophecy_trader",
@@ -301,10 +383,14 @@ interface NFTFiltersProps {
       "total": 100,
       "totalPages": 5
     },
+    "stats": {
+      "totalNfts": 100,
+      "claimedCount": 67,
+      "unclaimedCount": 33
+    },
     "filters": {
       "traits": [
-        { "traitType": "Background", "values": ["Gold", "Blue", "Red"] },
-        { "traitType": "Rarity", "values": ["Legendary", "Epic", "Rare"] }
+        { "traitType": "Background", "values": ["Gold", "Blue", "Red"] }
       ]
     }
   }
@@ -321,8 +407,10 @@ interface NFTFiltersProps {
     "tokenId": 1,
     "name": "Babylon Guardian #1",
     "description": "A mystical guardian of the prediction markets...",
-    "imageUrl": "https://ipfs.io/ipfs/Qm...",
+    "imageUrl": "https://ipfs.io/ipfs/Qm.../full.png",
+    "thumbnailUrl": "https://ipfs.io/ipfs/Qm.../thumb.webp",
     "imageCid": "Qm...",
+    "imageResolution": "4096x4096",
     "metadataUri": "ipfs://Qm.../1.json",
     "story": {
       "title": "The First Guardian",
@@ -330,21 +418,28 @@ interface NFTFiltersProps {
     },
     "attributes": [
       { "trait_type": "Background", "value": "Celestial Gold" },
-      { "trait_type": "Eyes", "value": "Oracle Vision" },
-      { "trait_type": "Rarity", "value": "Legendary" }
+      { "trait_type": "Eyes", "value": "Oracle Vision" }
     ],
-    "rarityRank": 5,
-    "rarityScore": 87.5,
     "contractAddress": "0x...",
     "chainId": 1,
-    "owner": {
-      "id": "user_123",
-      "username": "prophecy_trader",
-      "displayName": "Prophecy Trader",
-      "profileImageUrl": "...",
+    "currentOwner": {
       "walletAddress": "0x...",
+      "user": {
+        "id": "user_123",
+        "username": "prophecy_trader",
+        "displayName": "Prophecy Trader",
+        "profileImageUrl": "..."
+      },
+      "acquiredAt": "2025-01-15T00:00:00Z",
+      "txHash": "0x..."
+    },
+    "originalClaim": {
       "claimedAt": "2025-01-15T00:00:00Z",
-      "snapshotRank": 3
+      "claimerAddress": "0x...",
+      "claimerUserId": "user_123",
+      "snapshotRank": 3,
+      "snapshotPoints": 15000,
+      "txHash": "0x..."
     }
   }
 }
@@ -354,6 +449,18 @@ interface NFTFiltersProps {
 
 ## 6. UI/UX Design Specifications
 
+### 6.0 Navigation (NOT in Sidebar)
+
+**Important**: The NFT Gallery is NOT added to the sidebar navigation. Instead:
+
+1. **Mainpage Link**: Add a prominent link/banner on the landing page
+   - e.g., "Explore Our NFT Collection →"
+   - Positioned in hero section or featured area
+
+2. **Leaderboard Page Link**: Add link on leaderboard page
+   - e.g., "Top 100 players receive exclusive NFTs. View Collection →"
+   - Positioned near the top of the leaderboard or as a banner
+
 ### 6.1 Gallery Page Layout
 
 ```
@@ -361,15 +468,15 @@ interface NFTFiltersProps {
 │  [Sidebar]  │                   Main Content                    │
 │             ├───────────────────────────────────────────────────┤
 │  Home       │  ┌─────────────────────────────────────────────┐  │
-│  Markets    │  │  NFT Collection                    [Filters] │  │
+│  Markets    │  │  Babylon NFT Collection            [Filters] │  │
 │  Leaderboard│  │  100 Unique NFTs • 67 Claimed               │  │
 │  Chats      │  └─────────────────────────────────────────────┘  │
-│  NFTs ←     │  ┌─────┐ ┌─────┐ ┌─────┐ ┌─────┐ ┌─────┐        │
+│  Agents     │  ┌─────┐ ┌─────┐ ┌─────┐ ┌─────┐ ┌─────┐        │
 │  Rewards    │  │ #1  │ │ #2  │ │ #3  │ │ #4  │ │ #5  │        │
 │  Profile    │  │     │ │     │ │     │ │     │ │     │        │
 │             │  │ 👤  │ │ 👤  │ │     │ │ 👤  │ │     │        │
-│             │  └─────┘ └─────┘ └─────┘ └─────┘ └─────┘        │
-│             │  ┌─────┐ ┌─────┐ ┌─────┐ ┌─────┐ ┌─────┐        │
+│  (NO NFT    │  └─────┘ └─────┘ └─────┘ └─────┘ └─────┘        │
+│   LINK)     │  ┌─────┐ ┌─────┐ ┌─────┐ ┌─────┐ ┌─────┐        │
 │             │  │ #6  │ │ #7  │ │ #8  │ │ #9  │ │ #10 │        │
 │             │  │     │ │     │ │     │ │     │ │     │        │
 │             │  └─────┘ └─────┘ └─────┘ └─────┘ └─────┘        │
@@ -486,16 +593,16 @@ Use existing Babylon design system:
 
 ## 8. Unknowns & Risks
 
-### 8.1 Open Questions
+### 8.1 Open Questions - ✅ ALL RESOLVED
 
-| Question | Impact | Resolution Path |
-|----------|--------|-----------------|
-| What is the NFT artwork format/resolution? | Image optimization strategy | Check with BAB-66 team |
-| Who is writing the NFT stories? | Content dependency | Coordinate with content team |
-| IPFS gateway to use? | API implementation | Use existing from BAB-66 or configure new |
-| Real-time ownership updates needed? | Complexity of sync | Start with manual/scheduled sync |
-| Should gallery be public or auth-required? | Page access control | Product decision |
-| Will there be rarity scores? | Display and sorting | Check metadata structure |
+| Question | Resolution | Status |
+|----------|------------|--------|
+| What is the NFT artwork format/resolution? | **4096x4096** - requires thumbnail generation | ✅ Resolved |
+| Who is writing the NFT stories? | **Puncar** will provide all stories and metadata | ✅ Resolved |
+| IPFS gateway to use? | TBD - coordinate with BAB-66 team | ⏳ Pending BAB-66 |
+| Real-time ownership updates needed? | **YES** - implement webhook/indexer approach | ✅ Resolved |
+| Should gallery be public or auth-required? | **PUBLIC** - no authentication required | ✅ Resolved |
+| Will there be rarity scores? | **NO** - no rarity scoring | ✅ Resolved |
 
 ### 8.2 Technical Risks
 
