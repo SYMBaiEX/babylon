@@ -90,9 +90,8 @@
  */
 
 import {
-  findUserByIdentifier,
-  NotFoundError,
   optionalAuth,
+  requireTargetByIdentifier,
   successResponse,
   withErrorHandling,
 } from '@babylon/api';
@@ -151,20 +150,9 @@ export const GET = withErrorHandling(
     };
     UserFollowersQuerySchema.parse(queryParams);
 
-    // Try to find as user first
-    const targetUser = await findUserByIdentifier(targetIdentifier);
-
-    // Check if it's an actor (NPC)
-    const targetActor = StaticDataRegistry.getActor(targetIdentifier);
-
-    // If neither user nor actor found, throw not found
-    if (!targetUser && !targetActor) {
-      throw new NotFoundError('User', undefined, {
-        identifier: targetIdentifier,
-      });
-    }
-
-    const targetId = targetUser?.id || targetIdentifier;
+    // Find target (user or actor) - throws NotFoundError if neither exists
+    const { actor: targetActor, targetId } =
+      await requireTargetByIdentifier(targetIdentifier);
 
     let followingList: FollowingResponse[] = [];
 

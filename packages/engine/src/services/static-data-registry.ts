@@ -117,6 +117,7 @@ export interface OrganizationMapping {
 export class StaticDataRegistry {
   // In-memory caches
   private static actorMap: Map<string, StaticActor> | null = null;
+  private static actorByUsername: Map<string, StaticActor> | null = null;
   private static actorList: StaticActor[] | null = null;
   private static orgMap: Map<string, StaticOrganization> | null = null;
   private static orgList: StaticOrganization[] | null = null;
@@ -134,6 +135,7 @@ export class StaticDataRegistry {
     if (this.actorMap !== null) return;
 
     this.actorMap = new Map();
+    this.actorByUsername = new Map();
     this.actorList = [];
     this.actorsByTier = new Map([
       ['S_TIER', []],
@@ -185,6 +187,14 @@ export class StaticDataRegistry {
 
       this.actorMap.set(actor.id, staticActor);
       this.actorList.push(staticActor);
+
+      // Index by username for lookup by username
+      if (staticActor.username) {
+        this.actorByUsername.set(
+          staticActor.username.toLowerCase(),
+          staticActor
+        );
+      }
 
       // Index by tier
       const tierKey = (staticActor.tier ?? 'NONE') as ActorTier | 'NONE';
@@ -270,11 +280,16 @@ export class StaticDataRegistry {
   // ==========================================================================
 
   /**
-   * Get a static actor by ID - NO DATABASE CALL
+   * Get a static actor by ID or username - NO DATABASE CALL
+   * @param identifier - Actor ID or username (case-insensitive for username)
    */
-  static getActor(id: string): StaticActor | null {
+  static getActor(identifier: string): StaticActor | null {
     this.initialize();
-    return this.actorMap?.get(id) ?? null;
+    // First try exact ID match
+    const byId = this.actorMap?.get(identifier);
+    if (byId) return byId;
+    // Then try username match (case-insensitive)
+    return this.actorByUsername?.get(identifier.toLowerCase()) ?? null;
   }
 
   /**
@@ -478,6 +493,7 @@ export class StaticDataRegistry {
    */
   static clearCache(): void {
     this.actorMap = null;
+    this.actorByUsername = null;
     this.actorList = null;
     this.orgMap = null;
     this.orgList = null;

@@ -3,7 +3,7 @@
 import { cn, getProfileUrl } from '@babylon/shared';
 import { Loader2, Users, X } from 'lucide-react';
 import Link from 'next/link';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { Avatar } from '@/components/shared/Avatar';
 import { VerifiedBadge } from '@/components/shared/VerifiedBadge';
@@ -68,12 +68,24 @@ export function FollowListModal({
     {}
   );
 
+  // AbortController ref for cancelling pending requests
+  const abortControllerRef = useRef<AbortController | null>(null);
+
   const displayTitle =
     title || (type === 'followers' ? 'Followers' : 'Following');
 
   // Fetch the list when modal opens
   const fetchList = useCallback(async () => {
     if (!isOpen || !userId) return;
+
+    // Cancel any pending request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+
+    // Create new AbortController for this request
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
 
     setIsLoading(true);
     setError(null);
@@ -88,8 +100,8 @@ export function FollowListModal({
       }
 
       const response = await fetch(
-        `/api/users/${encodeURIComponent(userId)}/${type}?page=1&limit=100&includeMutual=true`,
-        { headers }
+        `/api/users/${encodeURIComponent(userId)}/${type}?page=1&limit=100`,
+        { headers, signal: abortController.signal }
       );
 
       if (!response.ok) {
@@ -103,17 +115,16 @@ export function FollowListModal({
       setUsers(list || []);
 
       // Initialize following status for each user
+      // isFollowedByCurrentUser indicates if the current user follows each person in the list
       if (authenticated && user) {
         const statusMap: Record<string, boolean> = {};
         for (const u of list || []) {
           if (type === 'following' && userId === user.id) {
             // Viewing own following list - current user follows everyone in this list
             statusMap[u.id] = true;
-          } else if (type === 'followers') {
-            // Viewing followers list - use isMutualFollow which indicates if current user follows them
-            statusMap[u.id] = u.isMutualFollow || false;
           } else {
-            // Viewing someone else's following list - use isMutualFollow
+            // Viewing followers or someone else's following list
+            // isMutualFollow indicates if the current user follows this person
             statusMap[u.id] = u.isMutualFollow || false;
           }
         }
@@ -121,11 +132,24 @@ export function FollowListModal({
       }
 
       setIsLoading(false);
-    } catch {
+    } catch (err) {
+      // Ignore abort errors - they're expected when cancelling requests
+      if (err instanceof Error && err.name === 'AbortError') {
+        return;
+      }
       setError('Network error. Please try again.');
       setIsLoading(false);
     }
   }, [isOpen, userId, type, authenticated, user, getAccessToken]);
+
+  // Cleanup abort controller on unmount
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
 
   useEffect(() => {
     fetchList();
