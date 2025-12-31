@@ -28,6 +28,7 @@ References:
 """
 
 import asyncio
+import atexit
 import copy
 import logging
 import os
@@ -477,6 +478,7 @@ class BabylonOnlineEnv(BaseEnv):
                 base_url="http://localhost:9001/v1",
                 api_key="x",
                 num_requests_for_eval=64,
+                server_type="vllm",  # vLLM required for tokens_and_logprobs
             ),
         ]
         
@@ -504,6 +506,21 @@ class BabylonOnlineEnv(BaseEnv):
             )
             
             logger.info(f"Simulation bridge connected with {len(self.simulation_bridge.npc_ids)} NPCs")
+            
+            # Register shutdown handler for clean exit
+            def _shutdown_bridge_sync():
+                """Synchronous wrapper for async shutdown"""
+                if self.simulation_bridge is not None:
+                    try:
+                        loop = asyncio.get_event_loop()
+                        if loop.is_running():
+                            loop.create_task(self.shutdown())
+                        else:
+                            loop.run_until_complete(self.shutdown())
+                    except Exception as e:
+                        logger.warning(f"Error in atexit shutdown: {e}")
+            
+            atexit.register(_shutdown_bridge_sync)
         
         # Initialize scenario pool (used as fallback or in parallel)
         pool_config = self.config.scenario_pool_config
@@ -617,6 +634,7 @@ class BabylonOnlineEnv(BaseEnv):
         4. Returns properly masked data for GRPO
         """
         scenario, archetype = item
+        logger.debug(f"collect_trajectories: {scenario.id}, archetype={archetype}")
         
         # Build messages
         system_prompt = build_trading_system_prompt(archetype)
@@ -633,34 +651,77 @@ class BabylonOnlineEnv(BaseEnv):
             logger.warning(f"Prompt too long ({prompt_tokens} tokens), skipping")
             return None, []
         
-        # Generate completions using managed_server
-        # This is the KEY difference from offline training - we use the CURRENT model
-        async with self.server.managed_server(tokenizer=self.tokenizer) as managed:
-            chat_completions = await managed.chat_completion(
-                messages=messages,
-                n=self.config.group_size,
-                max_tokens=self.config.max_response_tokens,
-                temperature=self.config.temperature,
+        # Generate completions using direct HTTP API (OpenAI-compatible)
+        # This mirrors babylon_env's approach for maximum vLLM compatibility
+        import aiohttp
+        from .tokenization_utils import tokenize_for_trainer
+        
+        vllm_base_url = "http://localhost:9001/v1"
+        
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    f"{vllm_base_url}/chat/completions",
+                    json={
+                        "model": self.config.tokenizer_name,
+                        "messages": messages,
+                        "n": self.config.group_size,
+                        "max_tokens": self.config.max_response_tokens,
+                        "temperature": self.config.temperature,
+                    },
+                    timeout=aiohttp.ClientTimeout(total=120),
+                ) as resp:
+                    if resp.status != 200:
+                        error_text = await resp.text()
+                        logger.warning(f"vLLM error {resp.status}: {error_text}")
+                        return None, []
+                    result = await resp.json()
+            
+            logger.debug(f"Got {len(result['choices'])} completions for {scenario.id}")
+        except asyncio.TimeoutError:
+            logger.warning(f"Timeout waiting for vLLM completion")
+            return None, []
+        except Exception as e:
+            logger.error(f"Error calling vLLM: {type(e).__name__}: {e}")
+            return None, []
+        
+        # Build nodes manually by tokenizing each completion
+        nodes = []
+        for choice in result["choices"]:
+            response_content = choice["message"]["content"] or ""
+            finish_reason = choice.get("finish_reason", "stop")
+            
+            # Build full messages for tokenization
+            full_messages = copy.deepcopy(messages)
+            full_messages.append({
+                "role": "assistant",
+                "content": response_content,
+            })
+            
+            # Tokenize with proper masking
+            tokenization_result = tokenize_for_trainer(
+                tokenizer=self.tokenizer,
+                messages=full_messages,
             )
             
-            # Get state with tokens, masks, and logprobs
-            state = managed.get_state()
-            nodes = state["nodes"]
+            nodes.append({
+                "response": response_content,
+                "tokens": tokenization_result.tokens,
+                "masks": tokenization_result.masks,
+                "finish_reason": finish_reason,
+            })
+        
+        logger.debug(f"Built {len(nodes)} nodes with tokenization")
         
         if not nodes:
-            logger.warning("No nodes returned from managed_server")
+            logger.warning("No nodes returned from completion")
             return None, []
         
         # Process each completion
         rollout_data = []
-        for i, choice in enumerate(chat_completions.choices):
-            if i >= len(nodes):
-                logger.warning(f"Node index {i} out of bounds, only {len(nodes)} nodes")
-                continue
-            
-            node = nodes[i]
-            response_content = choice.message.content or ""
-            finish_reason = choice.finish_reason
+        for i, node in enumerate(nodes):
+            response_content = node["response"]
+            finish_reason = node["finish_reason"]
             
             # Build full messages for logging
             full_messages = copy.deepcopy(messages)
@@ -674,9 +735,9 @@ class BabylonOnlineEnv(BaseEnv):
                 "archetype": archetype,
                 "response": response_content,
                 "messages": full_messages,
-                "tokens": node.tokens,
-                "masks": node.masked_tokens,  # Properly masked by managed_server
-                "logprobs": node.logprobs,
+                "tokens": node["tokens"],
+                "masks": node["masks"],  # Properly masked by tokenization
+                "logprobs": None,  # Not available from OpenAI-compatible API
                 "finish_reason": finish_reason,
             })
         
@@ -824,15 +885,31 @@ class BabylonOnlineEnv(BaseEnv):
 
 
     async def cleanup(self):
-        """Clean up resources including simulation bridge"""
-        if self.simulation_bridge is not None:
-            logger.info("Cleaning up simulation bridge...")
-            await self.simulation_bridge.reset()
-            await self.simulation_bridge.__aexit__(None, None, None)
-            self.simulation_bridge = None
+        """
+        Per-trajectory cleanup - called after EVERY handle_env() call.
         
-        if hasattr(super(), 'cleanup'):
-            await super().cleanup()
+        NOTE: In atropos, cleanup() is called after each trajectory collection,
+        NOT just at shutdown. Do NOT close persistent resources here.
+        The simulation bridge should remain open for the next trajectory.
+        """
+        # Only do lightweight per-trajectory cleanup here
+        # The bridge stays open for efficiency
+        pass
+    
+    async def shutdown(self):
+        """
+        Final shutdown - close all persistent resources.
+        Called only when the environment is being destroyed.
+        """
+        if self.simulation_bridge is not None:
+            logger.info("Shutting down simulation bridge...")
+            try:
+                await self.simulation_bridge.reset()
+                await self.simulation_bridge.__aexit__(None, None, None)
+            except Exception as e:
+                logger.warning(f"Error during bridge shutdown: {e}")
+            finally:
+                self.simulation_bridge = None
     
     async def _get_bridge_scenario(self) -> Optional[Tuple[Scenario, str]]:
         """

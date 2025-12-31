@@ -257,6 +257,17 @@ class SimulationBridge:
             except aiohttp.ClientError as e:
                 last_error = e
                 logger.warning(f"Client error (attempt {attempt + 1}/{self.max_retries}): {e}")
+                # Recreate session if connector is closed
+                if "Connector is closed" in str(e):
+                    if self._session:
+                        try:
+                            await self._session.close()
+                        except Exception:
+                            pass
+                        self._session = None
+                    self._session = aiohttp.ClientSession(
+                        timeout=aiohttp.ClientTimeout(total=self.timeout)
+                    )
                 await asyncio.sleep(0.5 * (attempt + 1))
         
         raise RuntimeError(f"Request failed after {self.max_retries} attempts: {last_error}")
@@ -328,7 +339,7 @@ class SimulationBridge:
             prediction_markets=[
                 PredictionMarket(
                     id=m["id"],
-                    question=m["question"],
+                    question=m.get("question") or m.get("title", "Unknown"),
                     yes_price=m["yesPrice"],
                     no_price=m["noPrice"],
                 )
@@ -520,4 +531,5 @@ async def create_bridge(
     await bridge.__aenter__()
     await bridge.initialize(num_npcs=num_npcs, seed=seed, archetypes=archetypes)
     return bridge
+
 
