@@ -14,3 +14,4 @@
   "notes": "L40 has 48GB VRAM. Uses 14B model for quality. Increase batch_size to 16 for faster training if stable."
 }
 
+
