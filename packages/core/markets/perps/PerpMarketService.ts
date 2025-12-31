@@ -641,6 +641,7 @@ export class PerpMarketService {
   /**
    * Emit a trade event via the broadcast port for real-time UI updates.
    * Silently skips if no broadcast port is configured.
+   * Logs errors for observability but never fails the trade.
    */
   private async emitTradeEvent(
     payload: Record<string, unknown>
@@ -648,8 +649,13 @@ export class PerpMarketService {
     if (!this.deps.broadcast) return;
     try {
       await this.deps.broadcast.emit('markets', payload);
-    } catch {
+    } catch (err) {
       // Broadcast is optional - don't fail the trade if SSE fails
+      // Log for observability to help diagnose real-time update issues
+      console.warn(
+        '[PerpMarketService] Broadcast failed:',
+        err instanceof Error ? err.message : String(err)
+      );
     }
   }
 
