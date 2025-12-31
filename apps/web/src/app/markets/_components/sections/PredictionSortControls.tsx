@@ -74,10 +74,11 @@ export const PredictionSortControls = memo(function PredictionSortControls({
         <>
           <div className="mx-1 h-4 w-px flex-shrink-0 bg-border" />
 
-          {/* Show Expired/Resolved toggle */}
+          {/* Show Ended (expired + resolved) toggle */}
           <button
             type="button"
             aria-pressed={showResolved}
+            aria-label="Show ended markets (expired and resolved)"
             onClick={() => onShowResolvedChange(!showResolved)}
             className={cn(
               'flex items-center gap-1.5 rounded-full px-3 py-1.5 font-medium text-xs transition-all',
@@ -88,7 +89,7 @@ export const PredictionSortControls = memo(function PredictionSortControls({
             )}
           >
             <CheckCircle className="h-3 w-3" />
-            Expired
+            Ended
           </button>
         </>
       )}
