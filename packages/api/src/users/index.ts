@@ -12,7 +12,10 @@ export {
 } from './ensure-user';
 
 export {
+  findTargetByIdentifier,
   findUserByIdentifier,
   findUserByIdentifierWithSelect,
+  requireTargetByIdentifier,
   requireUserByIdentifier,
+  type TargetLookupResult,
 } from './user-lookup';

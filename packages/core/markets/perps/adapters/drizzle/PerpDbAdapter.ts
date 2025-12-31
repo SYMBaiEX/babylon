@@ -158,6 +158,7 @@ export class PerpDbAdapter implements PerpDbPort {
         | 'liquidationPrice'
         | 'lastUpdated'
         | 'size'
+        | 'entryPrice'
       >
     >
   ): Promise<void> {
@@ -182,6 +183,9 @@ export class PerpDbAdapter implements PerpDbPort {
     }
     if (updates.size !== undefined) {
       setFields.size = updates.size;
+    }
+    if (updates.entryPrice !== undefined) {
+      setFields.entryPrice = updates.entryPrice;
     }
 
     await this.dbClient

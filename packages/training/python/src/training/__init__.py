@@ -31,6 +31,12 @@ from .rewards import (
     ranking_to_scores,
     pairwise_preferences_to_scores,
     RewardNormalizer,
+    # Archetype-aware scoring
+    BehaviorMetrics,
+    archetype_composite_reward,
+    calculate_archetype_behavior_bonus,
+    get_archetype_weights,
+    ARCHETYPE_REWARD_WEIGHTS,
 )
 
 # Quality utilities (no torch dependency)
@@ -79,7 +85,49 @@ from .rubric_loader import (
     get_priority_metrics,
     get_available_archetypes,
     reload_rubrics,
+    get_rubric_hash,
+    get_all_rubrics_hash,
+    get_rubrics_version,
+    normalize_archetype,
+    has_custom_rubric,
     DEFAULT_RUBRIC,
+    RUBRICS_VERSION,
+)
+
+# Schema validation for data integrity
+from .schemas import (
+    TrajectorySchema,
+    StepSchema,
+    ActionSchema,
+    LLMCallSchema,
+    EnvironmentStateSchema,
+    validate_trajectory,
+    validate_step,
+    validate_llm_call,
+    validate_trajectory_file,
+    compare_trajectory_formats,
+    ValidationResult as SchemaValidationResult,
+)
+
+# Error recovery and graceful degradation
+from .error_recovery import (
+    ErrorCategory,
+    TrainingError,
+    classify_error,
+    is_recoverable,
+    with_retry,
+    with_retry_async,
+    RecoveryResult,
+    recover_json_parse,
+    recover_trajectory_archetype,
+    filter_valid_trajectories,
+    DatabaseConnectionManager,
+    GracefulShutdown,
+    TrainingProgress,
+    safe_divide,
+    clamp,
+    require_env,
+    get_env_or_default,
 )
 
 # Lazy imports for torch-dependent modules
@@ -169,6 +217,21 @@ def __getattr__(name: str):
         )
         return locals()[name]
     
+    # Service manager (lazy - requires requests)
+    if name in (
+        "ServiceManager",
+        "ServiceConfig",
+        "ServiceStatus",
+        "check_prerequisites",
+    ):
+        from .service_manager import (  # noqa: F401
+            ServiceManager,
+            ServiceConfig,
+            ServiceStatus,
+            check_prerequisites,
+        )
+        return locals()[name]
+    
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
@@ -198,6 +261,12 @@ __all__ = [
     "ranking_to_scores",
     "pairwise_preferences_to_scores",
     "RewardNormalizer",
+    # Archetype-aware scoring
+    "BehaviorMetrics",
+    "archetype_composite_reward",
+    "calculate_archetype_behavior_bonus",
+    "get_archetype_weights",
+    "ARCHETYPE_REWARD_WEIGHTS",
     # Fast rollout generation (lazy - may require torch)
     "FastRolloutGenerator",
     "RolloutConfig",
@@ -236,9 +305,51 @@ __all__ = [
     "ArchetypeTrainer",
     "ArchetypeTrainingConfig",
     "ArchetypeTrainingResult",
+    # Rubric loading
     "get_rubric",
     "get_priority_metrics",
     "get_available_archetypes",
     "reload_rubrics",
+    "get_rubric_hash",
+    "get_all_rubrics_hash",
+    "get_rubrics_version",
+    "normalize_archetype",
+    "has_custom_rubric",
     "DEFAULT_RUBRIC",
+    "RUBRICS_VERSION",
+    # Service manager
+    "ServiceManager",
+    "ServiceConfig",
+    "ServiceStatus",
+    "check_prerequisites",
+    # Schema validation
+    "TrajectorySchema",
+    "StepSchema",
+    "ActionSchema",
+    "LLMCallSchema",
+    "EnvironmentStateSchema",
+    "validate_trajectory",
+    "validate_step",
+    "validate_llm_call",
+    "validate_trajectory_file",
+    "compare_trajectory_formats",
+    "SchemaValidationResult",
+    # Error recovery
+    "ErrorCategory",
+    "TrainingError",
+    "classify_error",
+    "is_recoverable",
+    "with_retry",
+    "with_retry_async",
+    "RecoveryResult",
+    "recover_json_parse",
+    "recover_trajectory_archetype",
+    "filter_valid_trajectories",
+    "DatabaseConnectionManager",
+    "GracefulShutdown",
+    "TrainingProgress",
+    "safe_divide",
+    "clamp",
+    "require_env",
+    "get_env_or_default",
 ]

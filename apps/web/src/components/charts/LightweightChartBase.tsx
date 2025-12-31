@@ -1,5 +1,6 @@
 'use client';
 
+import { logger } from '@babylon/shared';
 import type {
   AreaSeriesOptions,
   ChartOptions,
@@ -143,6 +144,9 @@ interface UseLightweightChartResult {
  * Hook to create and manage a Lightweight Charts instance.
  *
  * Handles chart creation, auto-resize, and cleanup.
+ * Uses requestAnimationFrame to ensure the container has dimensions
+ * before creating the chart, avoiding SSR/hydration timing issues.
+ *
  * Note: Initial options are captured on first render only.
  * Use chart.applyOptions() for runtime option changes.
  *
@@ -154,23 +158,76 @@ export function useLightweightChart(
 ): UseLightweightChartResult {
   const chartContainerRef = useRef<HTMLDivElement | null>(null);
   const [chart, setChart] = useState<IChartApi | null>(null);
+  const chartInstanceRef = useRef<IChartApi | null>(null);
   // Capture initial options to avoid re-creating chart on every render
   const initialOptionsRef = useRef(options);
 
   useEffect(() => {
-    if (!chartContainerRef.current) return;
+    // Skip during SSR
+    if (typeof window === 'undefined') return;
 
-    const chartInstance = createChart(chartContainerRef.current, {
-      ...DARK_CHART_THEME,
-      ...initialOptionsRef.current,
-      autoSize: true,
-    });
+    let rafId: number | null = null;
+    let mounted = true;
+    let retryCount = 0;
+    const MAX_RETRIES = 60; // ~1 second at 60fps
 
-    setChart(chartInstance);
+    const createChartInstance = () => {
+      const container = chartContainerRef.current;
+      if (!container || !mounted) return;
+
+      // Don't recreate if already initialized
+      if (chartInstanceRef.current) return;
+
+      // Check if container has dimensions
+      const { width, height } = container.getBoundingClientRect();
+      if (width === 0 || height === 0) {
+        retryCount++;
+        if (retryCount >= MAX_RETRIES) {
+          logger.warn(
+            'Chart container never acquired dimensions after max retries',
+            { retryCount },
+            'useLightweightChart'
+          );
+          return;
+        }
+        // Container not ready yet, retry on next frame
+        rafId = requestAnimationFrame(createChartInstance);
+        return;
+      }
+
+      try {
+        const chartInstance = createChart(container, {
+          ...DARK_CHART_THEME,
+          ...initialOptionsRef.current,
+          autoSize: true,
+        });
+
+        chartInstanceRef.current = chartInstance;
+        if (mounted) {
+          setChart(chartInstance);
+        }
+      } catch (error) {
+        logger.error(
+          'Failed to create chart',
+          { error },
+          'useLightweightChart'
+        );
+      }
+    };
+
+    // Use RAF to ensure DOM is ready after hydration
+    rafId = requestAnimationFrame(createChartInstance);
 
     return () => {
-      chartInstance.remove();
-      setChart(null);
+      mounted = false;
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId);
+      }
+      if (chartInstanceRef.current) {
+        chartInstanceRef.current.remove();
+        chartInstanceRef.current = null;
+        setChart(null);
+      }
     };
   }, []);
 

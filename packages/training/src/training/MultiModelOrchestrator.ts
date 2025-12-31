@@ -11,7 +11,7 @@
  * - Real vLLM/OpenAI-compatible API integration
  */
 
-import { logger } from '@babylon/shared';
+import { logger } from '../utils/logger';
 import {
   getModelForArchetype as getArchetypeModel,
   getMultiModelConfig,

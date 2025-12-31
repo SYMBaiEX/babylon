@@ -297,9 +297,9 @@ export class FeeService {
       return;
     }
 
-    const currentBalance = Number(referrer.virtualBalance);
+    const currentBalance = Number(referrer.virtualBalance ?? 0);
     const newBalance = currentBalance + feeAmount;
-    const currentFeesEarned = Number(referrer.totalFeesEarned);
+    const currentFeesEarned = Number(referrer.totalFeesEarned ?? 0);
 
     // Update referrer balance
     await tx

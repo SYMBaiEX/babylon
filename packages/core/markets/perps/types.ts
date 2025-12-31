@@ -84,6 +84,7 @@ export interface PerpDbPort {
         | 'liquidationPrice'
         | 'lastUpdated'
         | 'size'
+        | 'entryPrice'
       >
     >
   ): Promise<void>;
@@ -160,6 +161,14 @@ export interface PerpTradeResult {
   remainingSize?: number;
   /** True if position was fully closed */
   fullyClosed?: boolean;
+  /** True if this trade modified an existing position (rebalance) */
+  isRebalance?: boolean;
+  /** Type of rebalance operation performed */
+  rebalanceType?: 'add' | 'reduce' | 'close' | 'flip';
+  /** Previous position size before modification */
+  previousSize?: number;
+  /** Previous entry price before modification */
+  previousEntryPrice?: number;
 }
 
 // Service deps bundle (optional helper)

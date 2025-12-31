@@ -1,7 +1,7 @@
 'use client';
 
 import { FEE_CONFIG } from '@babylon/engine/config/fees';
-import { cn } from '@babylon/shared';
+import { BABYLON_POINTS_SYMBOL, cn } from '@babylon/shared';
 import {
   AlertTriangle,
   ArrowLeft,
@@ -13,6 +13,7 @@ import {
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
+import { formatPrice, formatVolume } from '@/app/markets/_lib/formatters';
 import { AssetTradesFeed } from '@/components/markets/AssetTradesFeed';
 import { PerpPositionsList } from '@/components/markets/PerpPositionsList';
 import { PerpPriceChart } from '@/components/markets/PerpPriceChart';
@@ -25,11 +26,26 @@ import { Skeleton } from '@/components/shared/Skeleton';
 import { useAuth } from '@/hooks/useAuth';
 import { useMarketPrices } from '@/hooks/useMarketPrices';
 import { usePerpHistory } from '@/hooks/usePerpHistory';
+import {
+  type PerpTradeSSE,
+  usePerpMarketStream,
+} from '@/hooks/usePerpMarketStream';
 import { usePerpTrade } from '@/hooks/usePerpTrade';
 import { useMarketTracking } from '@/hooks/usePostHog';
-import { useUserPositions } from '@/hooks/useUserPositions';
-import { useWalletBalance } from '@/hooks/useWalletBalance';
-import { usePerpMarket } from '@/stores/perpMarketsStore';
+import {
+  invalidatePerpMarketsCache,
+  usePerpMarket,
+  usePerpMarketsRealtime,
+} from '@/stores/perpMarketsStore';
+import {
+  invalidateUserPositions,
+  usePerpPositions,
+  useUserPositionsPolling,
+} from '@/stores/userPositionsStore';
+import {
+  invalidateWalletBalance,
+  useWalletBalance,
+} from '@/stores/walletBalanceStore';
 
 export default function PerpDetailPage() {
   const params = useParams();
@@ -41,7 +57,8 @@ export default function PerpDetailPage() {
   const from = searchParams.get('from');
 
   // Use shared perp markets store
-  const { market, loading, refetch } = usePerpMarket(ticker);
+  const { market, loading, refetch, initialLoadComplete } =
+    usePerpMarket(ticker);
 
   const [side, setSide] = useState<'long' | 'short'>('long');
   const [size, setSize] = useState('100');
@@ -49,12 +66,14 @@ export default function PerpDetailPage() {
   const [submitting, setSubmitting] = useState(false);
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
   const pageContainerRef = useRef<HTMLDivElement | null>(null);
-  const { perpPositions, refresh: refreshUserPositions } = useUserPositions(
-    user?.id,
-    {
-      enabled: authenticated,
-    }
-  );
+
+  // Use centralized positions store for better caching and performance
+  const { positions: perpPositions, refresh: refreshUserPositions } =
+    usePerpPositions(authenticated ? user?.id : null);
+
+  // Enable polling for positions when authenticated
+  useUserPositionsPolling(authenticated ? user?.id : null);
+
   const userPositions = useMemo(
     () => perpPositions.filter((position) => position.ticker === ticker),
     [perpPositions, ticker]
@@ -66,7 +85,7 @@ export default function PerpDetailPage() {
     balance,
     loading: balanceLoading,
     refresh: refreshWalletBalance,
-  } = useWalletBalance(user?.id, { enabled: authenticated });
+  } = useWalletBalance(authenticated ? user?.id : null);
 
   const trackedTicker = market?.ticker ?? ticker;
   const livePrices = useMarketPrices(trackedTicker ? [trackedTicker] : []);
@@ -78,6 +97,23 @@ export default function PerpDetailPage() {
     seed: market ? { currentPrice: market.currentPrice } : undefined,
   });
 
+  // Subscribe to real-time trade and price updates for all perp markets
+  usePerpMarketsRealtime();
+
+  // Subscribe to real-time trade events for this specific ticker
+  usePerpMarketStream(ticker, {
+    onTrade: useCallback(
+      (event: PerpTradeSSE) => {
+        // Refresh positions and market data when a trade occurs
+        if (event.action === 'open' || event.action === 'close') {
+          refreshUserPositions();
+          refetch();
+        }
+      },
+      [refreshUserPositions, refetch]
+    ),
+  });
+
   // Track market view
   useEffect(() => {
     if (ticker && market) {
@@ -85,15 +121,20 @@ export default function PerpDetailPage() {
     }
   }, [ticker, market, trackMarketView]);
 
-  // Redirect if market not found after loading
+  // Redirect if market not found after initial load is complete
   useEffect(() => {
-    if (!loading && !market) {
+    // Only redirect once the initial fetch has completed AND market still not found
+    if (initialLoadComplete && !loading && !market) {
       toast.error('Market not found');
-      router.push(from === 'dashboard' ? '/markets' : '/markets/perps');
+      router.push(from === 'dashboard' ? '/markets' : '/markets?tab=perps');
     }
-  }, [loading, market, router, from]);
+  }, [initialLoadComplete, loading, market, router, from]);
 
   const handlePositionClosed = useCallback(async () => {
+    // Invalidate caches to ensure fresh data on next fetch
+    invalidatePerpMarketsCache();
+    invalidateUserPositions();
+    invalidateWalletBalance();
     await Promise.all([
       refreshUserPositions(),
       refreshWalletBalance(),
@@ -111,7 +152,9 @@ export default function PerpDetailPage() {
 
     const sizeNum = Number.parseFloat(size) || 0;
     if (sizeNum < market.minOrderSize) {
-      toast.error(`Minimum order size is $${market.minOrderSize}`);
+      toast.error(
+        `Minimum order size is ${BABYLON_POINTS_SYMBOL}${market.minOrderSize}`
+      );
       return;
     }
 
@@ -138,10 +181,38 @@ export default function PerpDetailPage() {
       leverage,
     })
       .then(async () => {
-        toast.success('Position opened!', {
-          description: `Opened ${leverage}x ${side} on ${market.ticker} at $${displayPrice.toFixed(2)}`,
-        });
+        // Show appropriate success message based on action type
+        if (rebalanceInfo) {
+          const messages = {
+            add: {
+              title: 'Position increased!',
+              description: `Added ${formatPrice(sizeNum)} to your ${side.toUpperCase()} position`,
+            },
+            reduce: {
+              title: 'Position reduced!',
+              description: `Reduced your position by ${formatPrice(sizeNum)}`,
+            },
+            close: {
+              title: 'Position closed!',
+              description: `Closed your ${existingPosition?.side?.toUpperCase()} position`,
+            },
+            flip: {
+              title: 'Position flipped!',
+              description: `Flipped to ${leverage}x ${side.toUpperCase()} on ${market.ticker}`,
+            },
+          };
+          const msg = messages[rebalanceInfo.type];
+          toast.success(msg.title, { description: msg.description });
+        } else {
+          toast.success('Position opened!', {
+            description: `Opened ${leverage}x ${side} on ${market.ticker} at ${formatPrice(displayPrice)}`,
+          });
+        }
 
+        // Invalidate caches to ensure fresh data
+        invalidatePerpMarketsCache();
+        invalidateUserPositions();
+        invalidateWalletBalance();
         await Promise.all([
           refetch(),
           refreshUserPositions(),
@@ -156,21 +227,6 @@ export default function PerpDetailPage() {
       });
   };
 
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }).format(price);
-  };
-
-  const formatVolume = (v: number) => {
-    if (v >= 1e9) return `$${(v / 1e9).toFixed(2)}B`;
-    if (v >= 1e6) return `$${(v / 1e6).toFixed(2)}M`;
-    return `$${(v / 1e3).toFixed(2)}K`;
-  };
-
   const sizeNum = Number.parseFloat(size) || 0;
   const baseMargin = sizeNum > 0 ? sizeNum / leverage : 0;
   const estimatedFee = sizeNum > 0 ? sizeNum * FEE_CONFIG.TRADING_FEE_RATE : 0;
@@ -178,6 +234,57 @@ export default function PerpDetailPage() {
   const hasSufficientBalance = !authenticated || balance >= totalRequired;
   const showBalanceWarning =
     authenticated && sizeNum > 0 && !hasSufficientBalance;
+
+  // Check if user already has an open position on this ticker
+  const existingPosition = userPositions.find((p) => !p.closedAt);
+
+  // Determine the rebalance action type if position exists
+  const rebalanceInfo = useMemo(() => {
+    if (!existingPosition) return null;
+
+    const isSameSide = existingPosition.side === side;
+    const newTotalSize = existingPosition.size + sizeNum;
+
+    if (isSameSide) {
+      // Adding to position
+      const avgEntryPrice =
+        (existingPosition.size * existingPosition.entryPrice +
+          sizeNum * displayPrice) /
+        newTotalSize;
+      return {
+        type: 'add' as const,
+        label: 'Add to Position',
+        description: `Adding ${formatPrice(sizeNum)} to your ${existingPosition.side.toUpperCase()} position`,
+        newSize: newTotalSize,
+        avgEntryPrice,
+      };
+    } else {
+      // Opposite side - reduce, close, or flip
+      if (sizeNum < existingPosition.size) {
+        return {
+          type: 'reduce' as const,
+          label: 'Reduce Position',
+          description: `Reducing your ${existingPosition.side.toUpperCase()} by ${formatPrice(sizeNum)}`,
+          newSize: existingPosition.size - sizeNum,
+        };
+      } else if (Math.abs(sizeNum - existingPosition.size) < 0.01) {
+        return {
+          type: 'close' as const,
+          label: 'Close Position',
+          description: `Closing your ${existingPosition.side.toUpperCase()} position`,
+          newSize: 0,
+        };
+      } else {
+        const flipSize = sizeNum - existingPosition.size;
+        return {
+          type: 'flip' as const,
+          label: 'Flip Position',
+          description: `Closing ${existingPosition.side.toUpperCase()} and opening ${side.toUpperCase()} ${formatPrice(flipSize)}`,
+          newSize: flipSize,
+        };
+      }
+    }
+  }, [existingPosition, side, sizeNum, displayPrice]);
 
   const liquidationPrice =
     side === 'long'
@@ -221,7 +328,7 @@ export default function PerpDetailPage() {
             if (from === 'dashboard') {
               router.push('/markets');
             } else {
-              router.push('/markets/perps');
+              router.push('/markets?tab=perps');
             }
           }}
           className="mb-4 flex items-center gap-2 rounded-md bg-[#0066FF] px-3 py-1.5 font-medium text-primary-foreground text-sm transition-colors hover:bg-[#2952d9]"
@@ -390,7 +497,7 @@ export default function PerpDetailPage() {
             <div className="mb-4 space-y-4 rounded-lg bg-muted/30 p-4">
               <div>
                 <label className="mb-2 block font-medium text-muted-foreground text-sm">
-                  Position Size (USD)
+                  Position Size (PTS)
                 </label>
                 <input
                   type="number"
@@ -399,7 +506,7 @@ export default function PerpDetailPage() {
                   min={market.minOrderSize}
                   step="10"
                   className="w-full rounded bg-background px-4 py-3 font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-[#0066FF]/30"
-                  placeholder={`Min: $${market.minOrderSize}`}
+                  placeholder={`Min: ${BABYLON_POINTS_SYMBOL}${market.minOrderSize}`}
                 />
               </div>
               <div>
@@ -528,6 +635,67 @@ export default function PerpDetailPage() {
               </div>
             )}
 
+            {/* Rebalance Info Banner */}
+            {rebalanceInfo && (
+              <div
+                className={cn(
+                  'mb-4 flex items-start gap-2 rounded-lg p-3',
+                  rebalanceInfo.type === 'add'
+                    ? 'bg-blue-500/15'
+                    : rebalanceInfo.type === 'flip'
+                      ? 'bg-orange-500/15'
+                      : 'bg-yellow-500/15'
+                )}
+              >
+                <Info
+                  className={cn(
+                    'mt-0.5 h-5 w-5 flex-shrink-0',
+                    rebalanceInfo.type === 'add'
+                      ? 'text-blue-500'
+                      : rebalanceInfo.type === 'flip'
+                        ? 'text-orange-500'
+                        : 'text-yellow-500'
+                  )}
+                />
+                <div className="text-sm">
+                  <div
+                    className={cn(
+                      'mb-1 font-bold',
+                      rebalanceInfo.type === 'add'
+                        ? 'text-blue-600'
+                        : rebalanceInfo.type === 'flip'
+                          ? 'text-orange-600'
+                          : 'text-yellow-600'
+                    )}
+                  >
+                    {rebalanceInfo.label}
+                  </div>
+                  <p className="text-muted-foreground">
+                    {rebalanceInfo.description}
+                    {rebalanceInfo.type === 'add' &&
+                      rebalanceInfo.avgEntryPrice && (
+                        <>
+                          <br />
+                          <span className="text-foreground">
+                            New avg entry:{' '}
+                            {formatPrice(rebalanceInfo.avgEntryPrice)} | New
+                            size: {formatPrice(rebalanceInfo.newSize)}
+                          </span>
+                        </>
+                      )}
+                    {rebalanceInfo.type === 'reduce' && (
+                      <>
+                        <br />
+                        <span className="text-foreground">
+                          Remaining size: {formatPrice(rebalanceInfo.newSize)}
+                        </span>
+                      </>
+                    )}
+                  </p>
+                </div>
+              </div>
+            )}
+
             {/* Submit Button */}
             <button
               onClick={handleSubmit}
@@ -539,9 +707,14 @@ export default function PerpDetailPage() {
               }
               className={cn(
                 'w-full cursor-pointer rounded-lg py-4 font-bold text-lg text-primary-foreground transition-all',
-                side === 'long'
-                  ? 'bg-green-600 hover:bg-green-700'
-                  : 'bg-red-600 hover:bg-red-700',
+                rebalanceInfo?.type === 'flip'
+                  ? 'bg-orange-600 hover:bg-orange-700'
+                  : rebalanceInfo?.type === 'reduce' ||
+                      rebalanceInfo?.type === 'close'
+                    ? 'bg-yellow-600 hover:bg-yellow-700'
+                    : side === 'long'
+                      ? 'bg-green-600 hover:bg-green-700'
+                      : 'bg-red-600 hover:bg-red-700',
                 (submitting ||
                   sizeNum < market.minOrderSize ||
                   (authenticated && showBalanceWarning) ||
@@ -552,10 +725,16 @@ export default function PerpDetailPage() {
               {submitting ? (
                 <span className="flex items-center justify-center gap-2">
                   <div className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                  Opening Position...
+                  {rebalanceInfo
+                    ? rebalanceInfo.label + '...'
+                    : 'Opening Position...'}
                 </span>
               ) : authenticated ? (
-                `${side === 'long' ? 'LONG' : 'SHORT'} ${market.ticker} ${leverage}x`
+                rebalanceInfo ? (
+                  rebalanceInfo.label
+                ) : (
+                  `${side === 'long' ? 'LONG' : 'SHORT'} ${market.ticker} ${leverage}x`
+                )
               ) : (
                 'Connect Wallet to Trade'
               )}

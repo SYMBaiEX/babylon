@@ -271,18 +271,28 @@ The metrics provided are CONTEXT to inform your judgment. Use them to understand
   }
 
   /**
-   * Format metrics for prompt, highlighting priority metrics
+   * Format metrics for prompt, highlighting priority metrics first
    */
   private formatMetrics(
     metrics: BehavioralMetrics,
-    _priorityMetrics: string[]
+    priorityMetrics: string[]
   ): string {
     const lines: string[] = [];
 
-    // Always show summary metrics
-    const summary = getMetricsSummary(metrics);
+    // Show priority metrics first with emphasis
+    if (priorityMetrics.length > 0) {
+      lines.push('### ⭐ KEY METRICS FOR THIS ARCHETYPE');
+      for (const metricPath of priorityMetrics.slice(0, 6)) {
+        const value = this.getMetricValue(metrics, metricPath);
+        const label = this.formatMetricLabel(metricPath);
+        lines.push(`- **${label}**: ${value}`);
+      }
+      lines.push('');
+    }
 
-    lines.push('### Key Performance');
+    // Summary metrics
+    const summary = getMetricsSummary(metrics);
+    lines.push('### Performance Summary');
     lines.push(`- Total P&L: $${summary.totalPnL.toFixed(2)}`);
     lines.push(`- Win Rate: ${(summary.winRate * 100).toFixed(1)}%`);
     lines.push(`- Trades Executed: ${summary.tradesExecuted}`);
@@ -348,6 +358,84 @@ The metrics provided are CONTEXT to inform your judgment. Use them to understand
     );
 
     return lines.join('\n');
+  }
+
+  /**
+   * Get a metric value from the metrics object using a dot-path
+   */
+  private getMetricValue(metrics: BehavioralMetrics, path: string): string {
+    const [category, key] = path.split('.');
+    if (!category || !key) return 'N/A';
+
+    // Access nested metric value based on category
+    let value: number | string | string[] | undefined;
+    switch (category) {
+      case 'trading':
+        value = metrics.trading[key as keyof typeof metrics.trading];
+        break;
+      case 'social':
+        value = metrics.social[key as keyof typeof metrics.social];
+        break;
+      case 'influence':
+        value = metrics.influence[key as keyof typeof metrics.influence];
+        break;
+      case 'behavior':
+        value = metrics.behavior[key as keyof typeof metrics.behavior];
+        break;
+      case 'information':
+        value = metrics.information[key as keyof typeof metrics.information];
+        break;
+      default:
+        return 'N/A';
+    }
+
+    if (value === undefined || value === null) return 'N/A';
+
+    // Format based on value type
+    if (typeof value === 'number') {
+      // Check if it's a rate/percentage
+      if (
+        key.includes('Rate') ||
+        key.includes('Accuracy') ||
+        key.includes('Score')
+      ) {
+        return `${(value * 100).toFixed(1)}%`;
+      }
+      // Check if it's a currency
+      if (
+        key.includes('PnL') ||
+        key.includes('Win') ||
+        key.includes('Loss') ||
+        key.includes('Drawdown')
+      ) {
+        return `$${value.toFixed(2)}`;
+      }
+      // Check if it's a ratio
+      if (key.includes('Ratio')) {
+        return value.toFixed(2);
+      }
+      // Integer-like values
+      if (Number.isInteger(value)) {
+        return String(value);
+      }
+      return value.toFixed(2);
+    }
+
+    return String(value);
+  }
+
+  /**
+   * Format a metric path into a human-readable label
+   */
+  private formatMetricLabel(path: string): string {
+    const [, key] = path.split('.');
+    if (!key) return path;
+
+    // Convert camelCase to Title Case with spaces
+    return key
+      .replace(/([A-Z])/g, ' $1')
+      .replace(/^./, (str) => str.toUpperCase())
+      .trim();
   }
 
   /**

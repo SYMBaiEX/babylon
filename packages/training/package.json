@@ -17,7 +17,11 @@
     "typecheck": "tsc -b .",
     "train": "bun run scripts/train-and-test.ts",
     "test": "bun run scripts/train-and-test.ts --skip-training --ticks 100",
-    "benchmark": "bun run scripts/train-and-test.ts --skip-training --ticks 500"
+    "benchmark": "bun run scripts/train-and-test.ts --skip-training --ticks 500",
+    "assess": "bun run scripts/assess-training-data.ts",
+    "e2e": "bun run scripts/e2e-training-test.ts",
+    "export-rubrics": "bun run scripts/export-rubrics.ts",
+    "research-report": "bun run scripts/generate-research-report.ts"
   },
   "dependencies": {
     "@huggingface/hub": "^2.6.12",

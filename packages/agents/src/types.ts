@@ -24,7 +24,6 @@ export interface AgentConfig {
   isActive: boolean;
 
   // Wallet
-  pointsBalance: number;
   walletAddress?: string;
   privyWalletId?: string;
 

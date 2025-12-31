@@ -25,6 +25,11 @@ import {
   users,
 } from '@babylon/db';
 import { loadActorsData } from '../actors-loader';
+import {
+  formatSimulationActiveMarkets,
+  formatSimulationPredictionMarkets,
+  SIMULATION_RECENT_EVENTS,
+} from '../config/simulation';
 import { StaticDataRegistry } from '../services/static-data-registry';
 import { isSimulationMode } from '../storage-bridge';
 import type { ActorData } from '../types/shared';
@@ -130,9 +135,9 @@ export function generateWorldActors(maxActors?: number): string {
  * @returns Formatted string describing active markets and their prices/probabilities
  */
 export async function generateCurrentMarkets(): Promise<string> {
-  // Simulation Mode Bypass
+  // Simulation Mode Bypass - uses centralized constants from config/simulation.ts
   if (isSimulationMode()) {
-    return 'Active Markets: BitcAIn $120,000 (+5%), EtherAIum $4,000 (+2%), TeslAI $245 (-1%), OpenAGI (Prediction) 65% YES';
+    return formatSimulationActiveMarkets();
   }
 
   // Get active prediction markets
@@ -210,9 +215,9 @@ export async function generateCurrentMarkets(): Promise<string> {
  * @returns Formatted string listing active predictions and their resolution dates
  */
 export async function generateActivePredictions(): Promise<string> {
-  // Simulation Mode Bypass
+  // Simulation Mode Bypass - uses centralized constants from config/simulation.ts
   if (isSimulationMode()) {
-    return 'Active Questions: Will BitcAIn hit $150k? (resolves in 2d) | Will TeslAI release Model 2? (resolves in 5d) | Will Fed cut rates? (resolves in 1d)';
+    return `Active Questions: ${formatSimulationPredictionMarkets().replace(/\n/g, ' | ').replace(/- /g, '')}`;
   }
 
   // Get active questions from the Question table
@@ -253,8 +258,18 @@ export async function generateActivePredictions(): Promise<string> {
  * @returns Formatted string listing recent trading activity
  */
 export async function generateRecentTrades(): Promise<string> {
+  // Simulation Mode Bypass - uses centralized constants from config/simulation.ts
   if (isSimulationMode()) {
-    return 'Recent Trades: AIlon Musk bought YES on BitcAIn $150k | Sam AIltman sold NO on Fed rates | Nancy PelosAI bought LONG on NVIDAI';
+    // Create mock trades from our simulation event authors
+    const mockTrades = SIMULATION_RECENT_EVENTS.map((e, i) => {
+      const actions = [
+        'bought YES on BitcAIn $150k',
+        'sold NO on Fed rates',
+        'bought LONG on NVIDAI',
+      ];
+      return `${e.author} ${actions[i % actions.length]}`;
+    });
+    return `Recent Trades: ${mockTrades.join(' | ')}`;
   }
 
   // Get recent NPC trades with actor names from static registry

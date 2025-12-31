@@ -24,6 +24,7 @@ export interface PerpPosition {
   fundingPaid: number; // Cumulative funding paid/received
   openedAt: string; // ISO timestamp
   lastUpdated: string;
+  closedAt?: string | null; // ISO timestamp when position was closed, null if open
 }
 
 export interface FundingRate {

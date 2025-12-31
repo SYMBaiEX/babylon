@@ -34,7 +34,6 @@ const mockAgentConfig = {
   autonomousGroupChats: false,
   systemPrompt: 'You are a test agent',
   modelTier: 'lite',
-  pointsBalance: 1000,
 };
 
 // Mock database

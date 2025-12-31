@@ -6,5 +6,6 @@
 
 export * from './chains';
 export * from './constants';
+export * from './currency';
 export * from './identity';
 export * from './points';

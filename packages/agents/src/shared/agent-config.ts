@@ -227,13 +227,6 @@ export function isAutonomousGroupChatsEnabled(
 }
 
 /**
- * Helper to get points balance from config
- */
-export function getPointsBalance(config: UserAgentConfig | null): number {
-  return config?.pointsBalance ?? 0;
-}
-
-/**
  * Helper to get model tier from config
  */
 export function getModelTier(config: UserAgentConfig | null): string {

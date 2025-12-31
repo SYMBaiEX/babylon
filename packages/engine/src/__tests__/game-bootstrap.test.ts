@@ -186,3 +186,70 @@ describe('Game Auto-Start Logic', () => {
     }
   });
 });
+
+describe('NPC User Provisioning', () => {
+  // Track created user IDs for cleanup
+  const createdNpcUserIds: string[] = [];
+
+  afterEach(async () => {
+    // Clean up created NPC User records to avoid side effects
+    if (createdNpcUserIds.length > 0) {
+      const { users, inArray } = await import('@babylon/db');
+      await db.delete(users).where(inArray(users.id, createdNpcUserIds));
+      createdNpcUserIds.length = 0;
+    }
+  });
+
+  it('should ensure NPC actors have User records', async () => {
+    // Import dynamic to avoid circular dependencies
+    const { GameBootstrapService } = await import(
+      '../services/game-bootstrap-service'
+    );
+    const { users, inArray } = await import('@babylon/db');
+
+    // Get static actors (NPCs)
+    const staticActors = GameBootstrapService.getStaticActors();
+    expect(staticActors.length).toBeGreaterThan(0);
+
+    // Track NPC IDs for cleanup
+    const npcUserIds = staticActors.map((a) => a.id);
+
+    // First, clean up any existing NPC User records from previous test runs
+    await db.delete(users).where(inArray(users.id, npcUserIds));
+
+    // Call ensureNpcUsers (this is tested via full bootstrap normally)
+    const createdCount =
+      await GameBootstrapService['ensureNpcUsers'](staticActors);
+
+    // Track for cleanup
+    createdNpcUserIds.push(...npcUserIds);
+
+    // Check that all NPCs have User records
+    const existingUsers = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(inArray(users.id, npcUserIds));
+
+    // All NPCs should have user records now
+    expect(existingUsers.length).toBe(staticActors.length);
+    expect(createdCount).toBe(staticActors.length);
+
+    // If we run again, should create 0 (all exist)
+    const secondRunCount =
+      await GameBootstrapService['ensureNpcUsers'](staticActors);
+    expect(secondRunCount).toBe(0);
+
+    console.log(
+      `NPC User provisioning: ${createdCount} created first run, ${secondRunCount} second run`
+    );
+  });
+
+  it('should handle empty actors array gracefully', async () => {
+    const { GameBootstrapService } = await import(
+      '../services/game-bootstrap-service'
+    );
+
+    const result = await GameBootstrapService['ensureNpcUsers']([]);
+    expect(result).toBe(0);
+  });
+});

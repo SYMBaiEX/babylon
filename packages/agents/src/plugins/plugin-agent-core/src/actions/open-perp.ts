@@ -95,7 +95,7 @@ export const openPerpAction: Action = {
         }
       | undefined;
 
-    const ticker = actionParams?.ticker?.toLowerCase();
+    const ticker = actionParams?.ticker;
     const side = actionParams?.side?.toUpperCase() as
       | 'LONG'
       | 'SHORT'
@@ -210,9 +210,11 @@ export const openPerpAction: Action = {
         },
       });
 
-      // Check if market exists
+      // Check if market exists (case-insensitive lookup)
       const marketSnapshot = await service.getMarketsSnapshot();
-      const market = marketSnapshot.find((m) => m.ticker === ticker);
+      const market = marketSnapshot.find(
+        (m) => m.ticker.toLowerCase() === ticker?.toLowerCase()
+      );
 
       if (!market) {
         return {
@@ -222,10 +224,10 @@ export const openPerpAction: Action = {
         };
       }
 
-      // Open position
+      // Open position (use market.ticker for canonical casing)
       const tradeResult = await service.openPosition({
         userId: agentUserId,
-        ticker,
+        ticker: market.ticker,
         side: side.toLowerCase() as 'long' | 'short',
         size: amount,
         leverage,
@@ -236,7 +238,7 @@ export const openPerpAction: Action = {
         agentId: agentUserId,
         userId: agentUserId,
         marketType: 'perp',
-        ticker,
+        ticker: market.ticker,
         action: 'open',
         side: side.toLowerCase() as 'long' | 'short',
         amount,
@@ -247,7 +249,7 @@ export const openPerpAction: Action = {
 
       logger.info('[OPEN_PERP] Position opened', {
         agentUserId,
-        ticker,
+        ticker: market.ticker,
         side,
         amount,
         leverage,
@@ -257,10 +259,10 @@ export const openPerpAction: Action = {
 
       return {
         success: true,
-        text: `Opened ${leverage}x ${side} on ${ticker} at $${tradeResult.entryPrice.toFixed(2)}. Size: $${amount}.`,
+        text: `Opened ${leverage}x ${side} on ${market.ticker} at $${tradeResult.entryPrice.toFixed(2)}. Size: $${amount}.`,
         data: {
           positionId: tradeResult.positionId,
-          ticker,
+          ticker: market.ticker,
           side,
           amount,
           leverage,
@@ -268,7 +270,7 @@ export const openPerpAction: Action = {
         },
         values: {
           positionId: tradeResult.positionId,
-          ticker,
+          ticker: market.ticker,
           side,
           amount,
           leverage,

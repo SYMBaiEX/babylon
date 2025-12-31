@@ -86,8 +86,8 @@ Example: "Show me user_abc123's profile" or "What is @trader's reputation?"`,
       displayName: string | null;
       bio: string | null;
       profileImageUrl: string | null;
-      reputationPoints: number;
-      virtualBalance: number;
+      reputationPoints: number | null;
+      virtualBalance: number | null;
     };
 
     return {
@@ -96,8 +96,8 @@ Example: "Show me user_abc123's profile" or "What is @trader's reputation?"`,
 👤 Username: ${profile.username || 'Not set'}
 📝 Display Name: ${profile.displayName || 'Not set'}
 ${profile.bio ? `📄 Bio: ${profile.bio}` : ''}
-⭐ Reputation Points: ${profile.reputationPoints || 0} pts
-💰 Balance: $${profile.virtualBalance || 0}
+⭐ Reputation Points: ${profile.reputationPoints ?? 0} pts
+💰 Balance: $${profile.virtualBalance ?? 0}
 ${profile.profileImageUrl ? `🖼️  Profile Image: ${profile.profileImageUrl}` : ''}
 
 User ID: ${profile.id}`,

@@ -1,0 +1,211 @@
+# Babylon Training Pipeline - Developer Makefile
+#
+# Quick reference:
+#   make help       - Show all commands
+#   make tier1      - Run Python unit tests (no infra)
+#   make tier2      - Run JSON mode tests
+#   make tier3      - Run DB integration tests
+#   make tier4      - Run full GPU training
+#
+# Infrastructure:
+#   make db-up      - Start test PostgreSQL/Redis
+#   make db-down    - Stop and remove containers
+#   make db-migrate - Apply database schema
+
+.PHONY: all help tier1 tier2 tier3 tier4 db-up db-down db-migrate \
+        train-12gb train-16gb train-24gb venv lint test clean
+
+# Default target
+all: test
+
+# Colors for output
+CYAN := \033[36m
+GREEN := \033[32m
+YELLOW := \033[33m
+RESET := \033[0m
+
+# Paths
+PYTHON_DIR := python
+VENV := venv
+VENV_BIN := $(VENV)/bin
+PYTHON := $(VENV_BIN)/python
+PIP := $(VENV_BIN)/pip
+PYTEST := $(VENV_BIN)/pytest
+
+# Database
+DB_URL := postgresql://babylon_test:test_password@localhost:5434/babylon_test
+DB_COMPOSE := docker-compose.test.yml
+
+# Default profile (can be overridden: make train PROFILE=24gb)
+PROFILE ?= 12gb
+
+#---------------------------------------------------------------------------
+# Help
+#---------------------------------------------------------------------------
+
+help:
+	@echo ""
+	@echo "$(CYAN)Babylon Training Pipeline$(RESET)"
+	@echo "=========================="
+	@echo ""
+	@echo "$(GREEN)Testing Tiers:$(RESET)"
+	@echo "  make tier1          Python unit tests (no infrastructure)"
+	@echo "  make tier2          JSON mode integration tests"
+	@echo "  make tier3          Database integration tests (requires Docker)"
+	@echo "  make tier4          Full GPU training test"
+	@echo ""
+	@echo "$(GREEN)Infrastructure:$(RESET)"
+	@echo "  make db-up          Start test PostgreSQL and Redis"
+	@echo "  make db-down        Stop and remove test containers"
+	@echo "  make db-migrate     Apply database schema"
+	@echo "  make db-reset       Stop, clean, start, and migrate"
+	@echo ""
+	@echo "$(GREEN)Training (with GPU profiles):$(RESET)"
+	@echo "  make train-12gb     Train with 12GB GPU profile (RTX 3060)"
+	@echo "  make train-16gb     Train with 16GB GPU profile (RTX 4080)"
+	@echo "  make train-24gb     Train with 24GB GPU profile (RTX 4090)"
+	@echo "  make train PROFILE=<name>  Train with custom profile"
+	@echo ""
+	@echo "$(GREEN)Development:$(RESET)"
+	@echo "  make venv           Create/update Python virtual environment"
+	@echo "  make lint           Run linting"
+	@echo "  make test           Run all tests (tier1 + tier2)"
+	@echo "  make clean          Remove generated files"
+	@echo ""
+	@echo "$(YELLOW)Profiles available:$(RESET)"
+	@echo "  12gb, 16gb, 24gb, 48gb, cpu"
+	@echo ""
+
+#---------------------------------------------------------------------------
+# Virtual Environment
+#---------------------------------------------------------------------------
+
+venv:
+	@echo "$(CYAN)Setting up Python virtual environment...$(RESET)"
+	cd $(PYTHON_DIR) && python3 -m venv venv
+	cd $(PYTHON_DIR) && $(PIP) install --upgrade pip
+	cd $(PYTHON_DIR) && $(PIP) install -r requirements.txt
+	cd $(PYTHON_DIR) && $(PIP) install -e .
+	@echo "$(GREEN)✓ Virtual environment ready$(RESET)"
+	@echo "  Activate with: source $(PYTHON_DIR)/$(VENV_BIN)/activate"
+
+#---------------------------------------------------------------------------
+# Testing Tiers
+#---------------------------------------------------------------------------
+
+tier1:
+	@echo "$(CYAN)Running Tier 1: Python Unit Tests$(RESET)"
+	cd $(PYTHON_DIR) && PYTHONPATH=. $(PYTEST) tests/ -v \
+		--ignore=tests/integration/ \
+		--ignore=tests/e2e/ \
+		-x
+	@echo "$(GREEN)✓ Tier 1 passed$(RESET)"
+
+tier2:
+	@echo "$(CYAN)Running Tier 2: JSON Mode Tests$(RESET)"
+	cd $(PYTHON_DIR) && PYTHONPATH=. $(PYTEST) tests/integration/test_json_mode_integration.py -v -x
+	@echo "$(GREEN)✓ Tier 2 passed$(RESET)"
+
+tier3: db-up db-migrate
+	@echo "$(CYAN)Running Tier 3: Database Integration Tests$(RESET)"
+	cd $(PYTHON_DIR) && DATABASE_URL=$(DB_URL) PYTHONPATH=. \
+		$(PYTEST) tests/integration/test_db_integration.py -v -x
+	@echo "$(GREEN)✓ Tier 3 passed$(RESET)"
+
+tier4: db-up db-migrate tier4-import
+	@echo "$(CYAN)Running Tier 4: Full GPU Training$(RESET)"
+	@echo "Using profile: $(PROFILE)"
+	cd $(PYTHON_DIR) && DATABASE_URL=$(DB_URL) WANDB_MODE=offline \
+		PATH="$(shell pwd)/$(PYTHON_DIR)/$(VENV_BIN):$$PATH" \
+		$(PYTHON) scripts/run_training.py \
+		--profile $(PROFILE) \
+		--steps 1 \
+		--no-wandb \
+		--skip-validation
+	@echo "$(GREEN)✓ Tier 4 passed$(RESET)"
+
+# Training data output directory (absolute path from repo root)
+TRAINING_DATA_DIR := $(shell cd ../.. && pwd)/training-data-output
+
+tier4-generate:
+	@echo "$(CYAN)Generating training data...$(RESET)"
+	cd ../.. && bun run packages/engine/examples/generate-training-data.ts \
+		--causal --hours 2 --npcs 5 --seed 42
+	@echo "$(GREEN)✓ Training data generated$(RESET)"
+
+tier4-import:
+	@echo "$(CYAN)Importing trajectories to database...$(RESET)"
+	@if [ -d "$(TRAINING_DATA_DIR)/trajectories" ]; then \
+		cd $(PYTHON_DIR) && DATABASE_URL=$(DB_URL) \
+		$(PYTHON) scripts/import_json_trajectories.py \
+		--source $(TRAINING_DATA_DIR); \
+	else \
+		echo "$(YELLOW)Note: No trajectories found. Run 'make tier4-generate' first.$(RESET)"; \
+	fi
+
+#---------------------------------------------------------------------------
+# Infrastructure
+#---------------------------------------------------------------------------
+
+db-up:
+	@echo "$(CYAN)Starting test database...$(RESET)"
+	docker compose -f $(DB_COMPOSE) up -d
+	@sleep 3
+	@docker compose -f $(DB_COMPOSE) ps
+	@echo "$(GREEN)✓ Database ready$(RESET)"
+
+db-down:
+	@echo "$(CYAN)Stopping test database...$(RESET)"
+	docker compose -f $(DB_COMPOSE) down -v
+	@echo "$(GREEN)✓ Database stopped$(RESET)"
+
+db-migrate:
+	@echo "$(CYAN)Applying database schema...$(RESET)"
+	cd ../db && DATABASE_URL=$(DB_URL) bunx drizzle-kit push --force
+	@echo "$(GREEN)✓ Schema applied$(RESET)"
+
+db-reset: db-down db-up db-migrate
+	@echo "$(GREEN)✓ Database reset complete$(RESET)"
+
+#---------------------------------------------------------------------------
+# Training Shortcuts
+#---------------------------------------------------------------------------
+
+train-12gb:
+	$(MAKE) train PROFILE=12gb
+
+train-16gb:
+	$(MAKE) train PROFILE=16gb
+
+train-24gb:
+	$(MAKE) train PROFILE=24gb
+
+train: db-up db-migrate
+	@echo "$(CYAN)Starting training with profile: $(PROFILE)$(RESET)"
+	cd $(PYTHON_DIR) && DATABASE_URL=$(DB_URL) WANDB_MODE=offline \
+		PATH="$(shell pwd)/$(PYTHON_DIR)/$(VENV_BIN):$$PATH" \
+		$(PYTHON) scripts/run_training.py \
+		--profile $(PROFILE) \
+		--no-wandb \
+		--skip-validation
+
+#---------------------------------------------------------------------------
+# Development
+#---------------------------------------------------------------------------
+
+lint:
+	@echo "$(CYAN)Running linting...$(RESET)"
+	cd ../.. && bun run lint
+
+test: tier1 tier2
+	@echo "$(GREEN)✓ All quick tests passed$(RESET)"
+
+clean:
+	@echo "$(CYAN)Cleaning generated files...$(RESET)"
+	rm -rf $(PYTHON_DIR)/logs
+	rm -rf $(PYTHON_DIR)/trained_models
+	rm -rf $(PYTHON_DIR)/.pytest_cache
+	rm -rf $(PYTHON_DIR)/__pycache__
+	find $(PYTHON_DIR) -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+	@echo "$(GREEN)✓ Clean complete$(RESET)"
+

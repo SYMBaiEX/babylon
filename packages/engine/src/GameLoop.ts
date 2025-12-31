@@ -2,6 +2,7 @@ import { PerpDbAdapter, PerpMarketService } from '@babylon/core/markets/perps';
 import type { WalletPort } from '@babylon/core/markets/shared';
 import { logger } from '@babylon/shared';
 import { FEE_CONFIG } from './config/fees';
+import { getSimulationPrice, getSimulationTickers } from './config/simulation';
 import type { FeedGenerator } from './FeedGenerator';
 import type { GameWorld, WorldEvent } from './GameWorld';
 // NewsArticlePacingEngine removed - was reserved but never integrated
@@ -185,33 +186,13 @@ export class GameLoop {
     });
 
     let marketState;
-    // Simulation Mode Bypass
+    // Simulation Mode Bypass - uses centralized constants from config/simulation.ts
     if (isSimulationMode()) {
-      // Default prices - can be overridden by causal simulation
-      const defaultPrices: Record<string, number> = {
-        BTCAI: 120000,
-        ETHAI: 4000,
-        SOLAI: 200,
-        TSLAI: 450,
-        METAI: 520,
-      };
-
-      // Use priceOverrides if provided (from causal simulation)
       const priceOverrides = options?.priceOverrides;
-      const getPrice = (ticker: string): number => {
-        if (priceOverrides && priceOverrides.has(ticker)) {
-          return priceOverrides.get(ticker)!;
-        }
-        return defaultPrices[ticker] ?? 100;
-      };
-
-      // Build market state for all known tickers
-      const tickers: string[] = priceOverrides
-        ? Array.from(priceOverrides.keys())
-        : Object.keys(defaultPrices);
+      const tickers = getSimulationTickers(priceOverrides);
 
       marketState = tickers.map((ticker: string) => {
-        const price = getPrice(ticker);
+        const price = getSimulationPrice(ticker, priceOverrides);
         return {
           ticker,
           organizationId: ticker.toLowerCase(),

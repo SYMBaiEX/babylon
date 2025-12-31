@@ -227,10 +227,13 @@ export type { ErrorLike, JsonValue, StringRecord } from './types';
 export {
   type CanonicalUser,
   type EnsureUserOptions,
+  type TargetLookupResult,
   ensureUserForAuth,
+  findTargetByIdentifier,
   findUserByIdentifier,
   findUserByIdentifierWithSelect,
   getCanonicalUserId,
+  requireTargetByIdentifier,
   requireUserByIdentifier,
 } from './users';
 // Server-side utilities (require Node.js crypto)

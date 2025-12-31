@@ -136,13 +136,15 @@ test.describe('Markets Pages', () => {
   test('perps list page loads', async ({ page }) => {
     await navigateTo(page, ROUTES.MARKETS_PERPS);
     await waitForPageLoad(page);
-    expect(page.url()).toContain('/markets/perps');
+    expect(page.url()).toContain('/markets');
+    expect(page.url()).toContain('tab=perps');
   });
 
   test('predictions list page loads', async ({ page }) => {
     await navigateTo(page, ROUTES.MARKETS_PREDICTIONS);
     await waitForPageLoad(page);
-    expect(page.url()).toContain('/markets/predictions');
+    expect(page.url()).toContain('/markets');
+    expect(page.url()).toContain('tab=predictions');
   });
 
   test('individual perp page loads', async ({ page }) => {

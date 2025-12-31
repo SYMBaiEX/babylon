@@ -209,7 +209,7 @@ export async function POST(req: NextRequest) {
       name: agentUser.displayName,
       description: agentUser.bio,
       profileImageUrl: agentUser.profileImageUrl,
-      pointsBalance: config?.pointsBalance ?? 0,
+      virtualBalance: Number(agentUser.virtualBalance ?? 0),
       autonomousTrading: config?.autonomousTrading ?? false,
       autonomousPosting: config?.autonomousPosting ?? false,
       autonomousCommenting: config?.autonomousCommenting ?? false,
@@ -249,13 +249,7 @@ export async function GET(req: NextRequest) {
         name: agent.displayName,
         description: agent.bio,
         profileImageUrl: agent.profileImageUrl,
-        // Points balance (for operations)
-        pointsBalance: config?.pointsBalance ?? 0,
-        totalDeposited: config?.totalDeposited ?? 0,
-        totalWithdrawn: config?.totalWithdrawn ?? 0,
-        totalPointsSpent: config?.totalPointsSpent ?? 0,
-        // Trading balance (for trades)
-        virtualBalance: Number(agent.virtualBalance),
+        virtualBalance: Number(agent.virtualBalance ?? 0),
         autonomousEnabled: config?.autonomousTrading ?? false,
         autonomousTrading: config?.autonomousTrading ?? false,
         autonomousPosting: config?.autonomousPosting ?? false,

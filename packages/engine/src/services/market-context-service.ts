@@ -31,6 +31,11 @@ import {
   worldEvents,
 } from '@babylon/db';
 import { logger } from '@babylon/shared';
+import {
+  getSimulationPrice,
+  getSimulationTickers,
+  SIMULATION_PREDICTION_MARKETS,
+} from '../config/simulation';
 import { isSimulationMode } from '../storage-bridge';
 import type {
   EventContext,
@@ -98,33 +103,15 @@ export class MarketContextService {
         }));
 
       // In simulation mode, we skip DB queries for messages/relationships/positions
-      // and provide empty/mock data instead
+      // and provide empty/mock data using centralized constants from config/simulation.ts
       const contexts = new Map<string, NPCMarketContext>();
 
-      // Default prices - can be overridden by causal simulation
-      const defaultPrices: Record<string, number> = {
-        BTCAI: 120000,
-        ETHAI: 4000,
-        SOLAI: 200,
-        TSLAI: 450,
-        METAI: 520,
-      };
-
-      // Helper to get price (override or default)
-      const getPrice = (ticker: string): number => {
-        if (options?.priceOverrides?.has(ticker)) {
-          return options.priceOverrides.get(ticker)!;
-        }
-        return defaultPrices[ticker] ?? 100;
-      };
-
-      // Build perp markets list based on available tickers
-      const tickers = options?.priceOverrides
-        ? Array.from(options.priceOverrides.keys())
-        : Object.keys(defaultPrices);
+      // Build perp markets using shared price helpers
+      const priceOverrides = options?.priceOverrides;
+      const tickers = getSimulationTickers(priceOverrides);
 
       const perpMarkets: PerpMarketSnapshot[] = tickers.map((ticker) => {
-        const price = getPrice(ticker);
+        const price = getSimulationPrice(ticker, priceOverrides);
         return {
           ticker,
           currentPrice: price,
@@ -139,17 +126,19 @@ export class MarketContextService {
         };
       });
 
-      const predictionMarkets: PredictionMarketSnapshot[] = [
-        {
-          id: 'q1',
-          text: 'Will BitcAIn hit $150k?',
-          yesPrice: 65,
-          noPrice: 35,
-          totalVolume: 50000,
-          resolutionDate: new Date(Date.now() + 86400000).toISOString(),
-          daysUntilResolution: 2,
-        },
-      ];
+      // Use centralized prediction market constants
+      const predictionMarkets: PredictionMarketSnapshot[] =
+        SIMULATION_PREDICTION_MARKETS.map((m) => ({
+          id: m.id,
+          text: m.text,
+          yesPrice: m.yesPrice,
+          noPrice: m.noPrice,
+          totalVolume: m.totalVolume,
+          resolutionDate: new Date(
+            Date.now() + m.resolveDays * 86400000
+          ).toISOString(),
+          daysUntilResolution: m.resolveDays,
+        }));
 
       // Use provided events or empty array
       const recentEvents = options?.recentEvents ?? [];

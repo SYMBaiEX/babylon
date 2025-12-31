@@ -30,6 +30,7 @@ export interface User {
   bannedAt?: string | null;
   bannedReason?: string | null;
   reputationPoints?: number;
+  virtualBalance?: number;
   referralCount?: number;
   referralCode?: string;
   onChainRegistered?: boolean;

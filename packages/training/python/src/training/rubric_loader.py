@@ -3,17 +3,31 @@ Rubric Loader - Single Source of Truth
 
 Loads archetype rubrics from the canonical JSON config file.
 This eliminates duplication between TypeScript and Python.
+
+Includes versioning for cache invalidation and reproducibility.
 """
 
+import hashlib
 import json
-import os
 from pathlib import Path
 from typing import Dict, List, Optional
+
+# Rubric version - increment when rubrics change significantly
+# This should match RUBRICS_VERSION in packages/training/src/rubrics/index.ts
+RUBRICS_VERSION = "1.0.0"
 
 # Find the config directory relative to this file
 _CURRENT_DIR = Path(__file__).parent
 _CONFIG_DIR = _CURRENT_DIR.parent.parent.parent / "config"
 _RUBRICS_FILE = _CONFIG_DIR / "rubrics.json"
+
+
+def _normalize(archetype: str) -> str:
+    """
+    Internal normalization helper - lowercase, stripped, underscores to hyphens.
+    This is the single source of truth for normalization logic.
+    """
+    return archetype.lower().strip().replace("_", "-")
 
 
 class RubricConfig:
@@ -59,13 +73,11 @@ class RubricConfig:
     
     def get_rubric(self, archetype: str) -> str:
         """Get rubric for an archetype."""
-        normalized = archetype.lower().strip().replace("_", "-")
-        return self._rubrics.get(normalized, self._default_rubric)
+        return self._rubrics.get(_normalize(archetype), self._default_rubric)
     
     def get_priority_metrics(self, archetype: str) -> List[str]:
         """Get priority metrics for an archetype."""
-        normalized = archetype.lower().strip().replace("_", "-")
-        return self._priority_metrics.get(normalized, self._default_metrics)
+        return self._priority_metrics.get(_normalize(archetype), self._default_metrics)
     
     def get_available_archetypes(self) -> List[str]:
         """Get list of all available archetypes."""
@@ -73,8 +85,27 @@ class RubricConfig:
     
     def has_custom_rubric(self, archetype: str) -> bool:
         """Check if archetype has a custom rubric."""
-        normalized = archetype.lower().strip().replace("_", "-")
-        return normalized in self._rubrics
+        return _normalize(archetype) in self._rubrics
+    
+    def get_rubric_hash(self, archetype: str) -> str:
+        """
+        Get content hash for a specific archetype's rubric.
+        Used for cache invalidation when rubric content changes.
+        """
+        rubric = self.get_rubric(archetype)
+        return hashlib.sha256(rubric.encode()).hexdigest()[:16]
+    
+    def get_all_rubrics_hash(self) -> str:
+        """
+        Get combined hash of all rubrics.
+        Used for detecting any rubric changes.
+        """
+        all_rubrics = "::".join(sorted(self._rubrics.values())) + self._default_rubric
+        return hashlib.sha256(all_rubrics.encode()).hexdigest()[:16]
+    
+    def get_version(self) -> str:
+        """Get the current rubrics version."""
+        return RUBRICS_VERSION
     
     def reload(self) -> None:
         """Reload configuration from file."""
@@ -133,6 +164,33 @@ def has_custom_rubric(archetype: str) -> bool:
 def reload_rubrics() -> None:
     """Reload rubrics from file."""
     _config.reload()
+
+
+def get_rubric_hash(archetype: str) -> str:
+    """Get content hash for a specific archetype's rubric."""
+    return _config.get_rubric_hash(archetype)
+
+
+def get_all_rubrics_hash() -> str:
+    """Get combined hash of all rubrics."""
+    return _config.get_all_rubrics_hash()
+
+
+def get_rubrics_version() -> str:
+    """Get the current rubrics version."""
+    return RUBRICS_VERSION
+
+
+def normalize_archetype(archetype: Optional[str]) -> str:
+    """
+    Normalize archetype name to canonical form (lowercase, hyphenated).
+    Returns 'default' for None or empty string.
+    
+    Uses _normalize() internally for the actual transformation.
+    """
+    if not archetype or not archetype.strip():
+        return "default"
+    return _normalize(archetype)
 
 
 # For backwards compatibility, expose DEFAULT_RUBRIC

@@ -32,7 +32,7 @@ interface RunningAgent {
   creatorId: string;
   creatorName: string | null;
   modelTier: 'free' | 'pro' | 'external';
-  pointsBalance: number;
+  balance: number;
 
   // External agent specific
   type?: 'EXTERNAL';
@@ -665,7 +665,7 @@ export function AgentsTab() {
                         Points
                       </div>
                       <div className="font-mono text-xs">
-                        {agent.pointsBalance}
+                        {agent.balance.toFixed(2)}
                       </div>
                     </div>
                     <div>

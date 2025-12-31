@@ -17,7 +17,6 @@ import {
   userAgentConfigs,
   users,
 } from '@babylon/db';
-import { logger } from '@babylon/shared';
 import type { IAgentRuntime } from '@elizaos/core';
 import { ArchetypeConfigService } from '../archetypes/ArchetypeConfigService';
 import {
@@ -26,6 +25,7 @@ import {
   getAgentService,
   getAutonomousCoordinator,
 } from '../dependencies';
+import { logger } from '../utils/logger';
 
 export interface ParallelGenerationConfig {
   // Agent configuration

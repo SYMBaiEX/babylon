@@ -41,63 +41,36 @@ mock.module('@babylon/core/markets/perps', () => ({
   },
 }));
 
+import {
+  getSimulationPrice,
+  getSimulationTickers,
+  SIMULATION_DEFAULT_PRICES,
+} from '../config/simulation';
 import type { CausalEventContext, ScheduledCausalEvent } from '../GameWorld';
 
 // =============================================================================
-// Price Override Tests
+// Price Override Tests - Using shared helpers from config/simulation.ts
 // =============================================================================
 
 describe('GameLoop - Simulation Mode Price Overrides', () => {
   test('constructs market state with default prices when no overrides', () => {
-    // Test the price calculation logic
-    const defaultPrices: Record<string, number> = {
-      BTCAI: 120000,
-      ETHAI: 4000,
-      SOLAI: 200,
-      TSLAI: 450,
-      METAI: 520,
-    };
-
-    const getPrice = (
-      ticker: string,
-      priceOverrides?: Map<string, number>
-    ): number => {
-      if (priceOverrides && priceOverrides.has(ticker)) {
-        return priceOverrides.get(ticker)!;
-      }
-      return defaultPrices[ticker] ?? 100;
-    };
-
-    // Without overrides
-    expect(getPrice('BTCAI')).toBe(120000);
-    expect(getPrice('ETHAI')).toBe(4000);
-    expect(getPrice('UNKNOWN')).toBe(100); // fallback
+    // Test the centralized price calculation logic
+    expect(getSimulationPrice('BTCAI')).toBe(120000);
+    expect(getSimulationPrice('ETHAI')).toBe(4000);
+    expect(getSimulationPrice('UNKNOWN')).toBe(100); // fallback
   });
 
   test('price overrides take precedence over defaults', () => {
-    const defaultPrices: Record<string, number> = {
-      BTCAI: 120000,
-      ETHAI: 4000,
-      SOLAI: 200,
-    };
-
     const priceOverrides = new Map([
       ['BTCAI', 150000], // Override
       ['ETHAI', 3500], // Override
       ['NEWTOKEN', 999], // New token not in defaults
     ]);
 
-    const getPrice = (ticker: string): number => {
-      if (priceOverrides.has(ticker)) {
-        return priceOverrides.get(ticker)!;
-      }
-      return defaultPrices[ticker] ?? 100;
-    };
-
-    expect(getPrice('BTCAI')).toBe(150000); // Override
-    expect(getPrice('ETHAI')).toBe(3500); // Override
-    expect(getPrice('SOLAI')).toBe(200); // Default (no override)
-    expect(getPrice('NEWTOKEN')).toBe(999); // From override
+    expect(getSimulationPrice('BTCAI', priceOverrides)).toBe(150000); // Override
+    expect(getSimulationPrice('ETHAI', priceOverrides)).toBe(3500); // Override
+    expect(getSimulationPrice('SOLAI', priceOverrides)).toBe(200); // Default (no override)
+    expect(getSimulationPrice('NEWTOKEN', priceOverrides)).toBe(999); // From override
   });
 
   test('builds correct market state structure from price overrides', () => {
@@ -106,9 +79,10 @@ describe('GameLoop - Simulation Mode Price Overrides', () => {
       ['METAI', 480],
     ]);
 
-    const tickers = Array.from(priceOverrides.keys());
+    // Use the centralized helper to get tickers
+    const tickers = getSimulationTickers(priceOverrides);
     const marketState = tickers.map((ticker) => {
-      const price = priceOverrides.get(ticker)!;
+      const price = getSimulationPrice(ticker, priceOverrides);
       return {
         ticker,
         organizationId: ticker.toLowerCase(),
@@ -142,18 +116,32 @@ describe('GameLoop - Simulation Mode Price Overrides', () => {
 
   test('handles empty price overrides gracefully', () => {
     const priceOverrides = new Map<string, number>();
-    const defaultPrices: Record<string, number> = {
-      BTCAI: 120000,
-      ETHAI: 4000,
-    };
 
-    // When overrides are empty, should use defaults
-    const tickers =
-      priceOverrides.size > 0
-        ? Array.from(priceOverrides.keys())
-        : Object.keys(defaultPrices);
+    // Use the centralized helper - should return default keys
+    const tickers = getSimulationTickers(priceOverrides);
 
-    expect(tickers).toEqual(['BTCAI', 'ETHAI']);
+    // Should return all keys from SIMULATION_DEFAULT_PRICES
+    expect(tickers).toEqual(Object.keys(SIMULATION_DEFAULT_PRICES));
+    expect(tickers).toContain('BTCAI');
+    expect(tickers).toContain('ETHAI');
+  });
+
+  test('returns only override keys when overrides is non-empty', () => {
+    const priceOverrides = new Map([
+      ['CUSTOMTOKEN', 500],
+      ['BTCAI', 125000],
+    ]);
+
+    // Should return ONLY the keys from the override map
+    const tickers = getSimulationTickers(priceOverrides);
+
+    expect(tickers).toHaveLength(2);
+    expect(tickers).toContain('CUSTOMTOKEN');
+    expect(tickers).toContain('BTCAI');
+    // Should NOT include defaults that aren't in overrides
+    expect(tickers).not.toContain('ETHAI');
+    expect(tickers).not.toContain('SOLAI');
+    expect(tickers).not.toContain('METAI');
   });
 
   test('price overrides maintain precision', () => {
@@ -163,9 +151,10 @@ describe('GameLoop - Simulation Mode Price Overrides', () => {
       ['SOLAI', 999999999.99], // Very large
     ]);
 
-    expect(priceOverrides.get('BTCAI')).toBe(125432.789123);
-    expect(priceOverrides.get('METAI')).toBe(0.00001234);
-    expect(priceOverrides.get('SOLAI')).toBe(999999999.99);
+    // Test via helper function
+    expect(getSimulationPrice('BTCAI', priceOverrides)).toBe(125432.789123);
+    expect(getSimulationPrice('METAI', priceOverrides)).toBe(0.00001234);
+    expect(getSimulationPrice('SOLAI', priceOverrides)).toBe(999999999.99);
   });
 });
 

@@ -435,7 +435,7 @@ async function collectTrajectories(
     .select({
       id: users.id,
       username: users.username,
-      pointsBalance: userAgentConfigs.pointsBalance,
+      virtualBalance: users.virtualBalance,
       autonomousTrading: userAgentConfigs.autonomousTrading,
       autonomousPosting: userAgentConfigs.autonomousPosting,
       autonomousCommenting: userAgentConfigs.autonomousCommenting,
@@ -447,10 +447,10 @@ async function collectTrajectories(
     .where(eq(users.isAgent, true))
     .limit(10);
 
-  // Filter agents with sufficient points and at least one feature enabled
+  // Filter agents with sufficient balance and at least one feature enabled
   const agents = agentResults.filter(
     (a) =>
-      (a.pointsBalance ?? 0) >= 1 &&
+      Number(a.virtualBalance ?? 0) >= 1 &&
       (a.autonomousTrading ||
         a.autonomousPosting ||
         a.autonomousCommenting ||
@@ -463,7 +463,7 @@ async function collectTrajectories(
     console.log(`
    Agents need:
    - isAgent: true
-   - pointsBalance >= 1
+   - virtualBalance >= 1
    - At least one autonomous feature enabled
 
    Create agents with: babylon agent spawn

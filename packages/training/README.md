@@ -2,7 +2,7 @@
 
 > **⚠️ Experimental** - Under active development. APIs may change.
 
-RL training for Babylon agents using trajectory-based learning.
+RL training for Babylon agents using trajectory-based learning with GRPO (Group Relative Policy Optimization).
 
 ## Quick Start
 
@@ -18,22 +18,128 @@ babylon train parallel --archetypes trader --num-agents 5 --ticks 20
 
 ```bash
 cd packages/training/python
-python3 -m venv venv && source venv/bin/activate
+python3.11 -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
 
-# Auto-detects MLX/CUDA/CPU
-python scripts/train_local.py
+# Run full training pipeline (starts services, trains, logs to W&B)
+python scripts/run_training.py --steps 100
 ```
 
-## Hardware
+## Local GRPO Training
 
-| Platform | Backend | Model |
-|----------|---------|-------|
-| Mac M1/M2 (16GB) | MLX | `mlx-community/Qwen2.5-1.5B-Instruct-4bit` |
-| Mac M1/M2 (32GB+) | MLX | `mlx-community/Qwen2.5-3B-Instruct-4bit` |
-| GTX 3060+ (12GB) | CUDA | `Qwen/Qwen2.5-1.5B-Instruct` |
-| GTX 4090 (24GB) | CUDA | `Qwen/Qwen2.5-3B-Instruct` |
-| Any | Tinker | Cloud-based |
+The local training pipeline uses the Atropos framework for GRPO-based RL training.
+
+### Prerequisites
+
+1. **Python 3.11+** with CUDA support
+2. **PostgreSQL** with trajectory data
+3. **GPU** with at least 12GB VRAM (for 3B model)
+
+### Quick Run
+
+```bash
+cd packages/training/python
+source venv/bin/activate
+
+# Full pipeline (recommended)
+python scripts/run_training.py --steps 100
+
+# Or run components separately:
+# Terminal 1: Atropos API
+run-api --port 8000
+
+# Terminal 2: Babylon Environment
+python -m src.training.babylon_env serve --slurm false
+
+# Terminal 3: GRPO Trainer
+python -m src.training.atropos_trainer --steps 100
+```
+
+### Training Configuration
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `--steps` | Training steps | `100` |
+| `--batch-size` | Batch size | `4` |
+| `--lr` | Initial learning rate | `1e-5` |
+| `--min-lr` | Minimum learning rate | `1e-7` |
+| `--lr-scheduler` | LR scheduler: constant, linear, cosine | `cosine` |
+| `--warmup-steps` | Warmup steps | `10` |
+| `--model` | Base model | `Qwen/Qwen2.5-3B-Instruct` |
+| `--save-path` | Checkpoint directory | `./trained_models` |
+| `--save-every` | Save checkpoint every N steps | `5` |
+| `--resume` | Resume from checkpoint path | - |
+
+### Weights & Biases Integration
+
+W&B logging is **optional** and works in offline mode if no API key is set.
+
+```bash
+# With W&B (online)
+export WANDB_API_KEY=your_key
+python scripts/run_training.py --steps 100 --wandb-project babylon-training
+
+# Offline mode (automatic if no API key)
+python scripts/run_training.py --steps 100
+
+# Disable W&B entirely
+python scripts/run_training.py --steps 100 --no-wandb
+```
+
+#### Tracked Metrics
+
+| Metric | Description |
+|--------|-------------|
+| `train/loss` | GRPO training loss |
+| `train/learning_rate` | Current learning rate |
+| `train/grad_norm` | Gradient norm |
+| `train/pos_logp` | Log prob for positive advantages |
+| `train/neg_logp` | Log prob for negative advantages |
+| `train/aiJudgeReward` | Average AI Judge composite score |
+| `train/format_score` | Average format quality score |
+| `train/reasoning_score` | Average reasoning quality score |
+
+### Resume from Checkpoint
+
+```bash
+# Resume training from a checkpoint
+python scripts/run_training.py --resume ./trained_models/step_50
+
+# Or with full control
+python -m src.training.atropos_trainer \
+  --resume ./trained_models/step_50 \
+  --steps 100
+```
+
+### Learning Rate Schedules
+
+Three schedules are available:
+
+| Schedule | Description |
+|----------|-------------|
+| `constant` | Fixed learning rate |
+| `linear` | Linear decay from initial to min LR |
+| `cosine` | Cosine annealing from initial to min LR (default) |
+
+All schedules support warmup:
+
+```bash
+python scripts/run_training.py \
+  --lr 1e-5 \
+  --min-lr 1e-7 \
+  --lr-scheduler cosine \
+  --warmup-steps 10
+```
+
+## Hardware Requirements
+
+| Platform | Backend | Model | VRAM |
+|----------|---------|-------|------|
+| Mac M1/M2 (16GB) | MLX | `mlx-community/Qwen2.5-1.5B-Instruct-4bit` | 8GB |
+| Mac M1/M2 (32GB+) | MLX | `mlx-community/Qwen2.5-3B-Instruct-4bit` | 16GB |
+| GTX 3060+ (12GB) | CUDA | `Qwen/Qwen2.5-1.5B-Instruct` | 12GB |
+| GTX 4090 (24GB) | CUDA | `Qwen/Qwen2.5-3B-Instruct` | 20GB |
+| Any | Tinker | Cloud-based | N/A |
 
 ## CLI Commands
 
@@ -127,15 +233,24 @@ python scripts/run_tinker_training.py --steps 100
 
 ```
 Agent Trajectories → TrajectoryRecorder → Database
-                                            ↓
-                                   LLM-as-Judge Scoring
-                                            ↓
-                                      Export JSONL
-                                            ↓
-                              Python Training (MLX/CUDA/Tinker)
-                                            ↓
+                                           ↓
+                                  LLM-as-Judge Scoring (AI Judge)
+                                           ↓
+                                      GRPO Training
+                                           ↓
+                              W&B Logging (optional)
+                                           ↓
                                     Trained Model
 ```
+
+### Training Pipeline Components
+
+| Component | Description |
+|-----------|-------------|
+| `ServiceManager` | Manages Atropos API and vLLM servers |
+| `BabylonRLAIFEnv` | RLAIF environment for trajectory scoring |
+| `BabylonAtroposTrainer` | GRPO trainer with LR scheduling |
+| `run_training.py` | Orchestrates full pipeline |
 
 ### TypeScript (`src/`)
 
@@ -159,8 +274,12 @@ Agent Trajectories → TrajectoryRecorder → Database
 ## Environment Variables
 
 ```bash
-DATABASE_URL=postgresql://...       # Required
+# Required
+DATABASE_URL=postgresql://...       # PostgreSQL connection
 OPENAI_API_KEY=sk-...               # For RLAIF judge
+
+# Optional
+WANDB_API_KEY=your_key              # For W&B logging (offline if not set)
 TINKER_API_KEY=your_key             # For cloud training
 ```
 
@@ -180,10 +299,48 @@ babylon train parallel --archetypes trader --num-agents 5 --ticks 20
 
 **Database issues** - Check `DATABASE_URL` in `.env`, ensure PostgreSQL running
 
+**vLLM startup timeout** - Increase timeout or check GPU memory with `nvidia-smi`
+
+**W&B offline mode** - If you see "offline mode", set `WANDB_API_KEY` or use `--no-wandb`
+
+## Scripts Reference
+
+The `scripts/` directory contains standalone utilities for training operations:
+
+| Script | Description |
+|--------|-------------|
+| `train-and-test.ts` | Full pipeline: train model + game test |
+| `run-full-pipeline.ts` | Complete training workflow orchestration |
+| `run-baseline-comparison.ts` | Head-to-head benchmark: random vs trained |
+| `real-archetype-benchmark.ts` | Benchmark using real agent data |
+| `json-mode-benchmark.ts` | Benchmark without database dependency |
+| `test-model-in-game.ts` | Test trained model in simulation |
+| `test-trained-model.ts` | Validate trained model from DB or path |
+| `test-scoring.ts` | Debug LLM-as-judge scoring |
+| `e2e-training-test.ts` | End-to-end pipeline verification |
+| `assess-training-data.ts` | Analyze training data quality |
+| `export-rubrics.ts` | Export rubrics to JSON |
+| `generate-research-report.ts` | Generate research documentation |
+| `verify-final.ts` | Post-training verification checks |
+
+Run any script with:
+
+```bash
+bun packages/training/scripts/<script-name>.ts [options]
+```
+
 ## Development
 
 ```bash
 bun test packages/training
 bun run typecheck
 bun run packages/training/scripts/e2e-training-test.ts  # E2E validation
+```
+
+### Python Tests
+
+```bash
+cd packages/training/python
+source venv/bin/activate
+pytest tests/ -v
 ```

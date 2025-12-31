@@ -163,11 +163,6 @@ async function runBenchmark() {
         userId: userId,
         personality: result.archetype,
         tradingStrategy: `${result.archetype} strategy`,
-        pointsBalance: 5000,
-        totalDeposited: 5000,
-        totalWithdrawn: 0,
-        totalPointsSpent: 0,
-        totalPointsEarned: 0,
         autonomousTrading: true,
         autonomousPosting: false,
         autonomousCommenting: false,
@@ -274,6 +269,8 @@ async function runBenchmark() {
   for (const ranking of report.rankings) {
     console.log(`    ${ranking}`);
   }
+
+  process.exit(0);
 }
 
 /**

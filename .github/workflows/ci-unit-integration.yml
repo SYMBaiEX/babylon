@@ -15,6 +15,69 @@ env:
   CI: true
 
 jobs:
+  # Python training pipeline tests
+  python-training-tests:
+    name: Python Training Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: babylon_test
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: babylon_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5434:5432
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: 'packages/training/python/requirements.txt'
+
+      - name: Install Python dependencies
+        working-directory: packages/training/python
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -e .
+
+      - name: Run Python unit tests
+        working-directory: packages/training/python
+        run: |
+          echo "🧪 Running Python unit tests..."
+          pytest tests/ -v --ignore=tests/integration/ --ignore=tests/e2e/ -x
+        env:
+          PYTHONPATH: src
+
+      - name: Run Python integration tests (JSON mode)
+        working-directory: packages/training/python
+        run: |
+          echo "🧪 Running Python JSON mode integration tests..."
+          pytest tests/integration/test_json_mode_integration.py -v -x
+        env:
+          PYTHONPATH: src
+
+      - name: Run Python integration tests (DB mode)
+        working-directory: packages/training/python
+        run: |
+          echo "🧪 Running Python DB integration tests..."
+          pytest tests/integration/test_db_integration.py -v -x
+        env:
+          PYTHONPATH: src
+          DATABASE_URL: postgresql://babylon_test:test_password@localhost:5434/babylon_test
+
   test-unit-integration:
     name: Unit & Integration Tests
     runs-on: ubuntu-latest
@@ -58,6 +121,13 @@ jobs:
 
       - name: Install dependencies
         run: bun install
+
+      - name: Clear build caches
+        run: |
+          echo "🧹 Clearing Turborepo and Bun caches..."
+          bunx turbo clean
+          rm -rf node_modules/.cache
+          echo "✅ Cache cleanup complete"
 
       - name: Setup test environment
         env:

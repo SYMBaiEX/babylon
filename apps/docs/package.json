@@ -12,6 +12,7 @@
     "lint:fix": "biome check --write .",
     "format": "biome format --write .",
     "typecheck": "tsc --noEmit",
+    "clean": "rm -rf .next .turbo node_modules/.cache",
     "generate:api-docs": "tsx scripts/generate-api-docs.ts",
     "generate:tsdoc": "typedoc",
     "generate:deployment-docs": "tsx scripts/generate-deployment-docs.ts",

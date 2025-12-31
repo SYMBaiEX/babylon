@@ -572,7 +572,6 @@ export class ModelBenchmarkService {
         systemPrompt:
           'You are a test agent for benchmarking model performance.',
         modelTier: 'pro',
-        pointsBalance: 10000,
         updatedAt: new Date(),
       });
     }

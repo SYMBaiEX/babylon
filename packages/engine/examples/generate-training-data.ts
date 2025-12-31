@@ -16,9 +16,12 @@
 import { logger } from '@babylon/shared';
 // Import types from training package for causal simulation
 import {
+  type ArchetypeResolver,
   type BenchmarkConfig,
   BenchmarkDataGenerator,
+  deriveArchetype,
   type GroundTruth,
+  type NPCCharacteristics,
 } from '@babylon/training';
 import {
   BabylonLLMClient,
@@ -53,6 +56,8 @@ interface TrainingDataConfig {
   useCausalSimulation: boolean;
   /** Number of days to simulate (default: 1) */
   simulationDays: number;
+  /** Number of hours per day to simulate (default: 24, use lower for quick tests) */
+  hoursPerDay: number;
   /** Random seed for reproducibility */
   seed: number;
   /** Number of NPCs in the simulation */
@@ -66,11 +71,50 @@ function getArgValue(args: string[], flag: string): string | undefined {
   return index !== -1 ? args[index + 1] : undefined;
 }
 
+function showHelp(): void {
+  console.log(`
+Generate Training Data for RL
+
+Usage:
+  bun run packages/engine/examples/generate-training-data.ts [options]
+
+Options:
+  --causal          Enable causal simulation mode (hidden facts → events → prices)
+  --days <n>        Number of days to simulate (default: 1)
+  --hours <n>       Hours per day (default: 24, use lower for quick tests)
+  --seed <n>        Random seed for reproducibility (default: current timestamp)
+  --npcs <n>        Number of NPCs (default: 10)
+  --help, -h        Show this help message
+
+Examples:
+  # Quick test (1 hour)
+  bun run packages/engine/examples/generate-training-data.ts --hours 1
+
+  # Full day with causal simulation
+  bun run packages/engine/examples/generate-training-data.ts --causal
+
+  # Multi-day reproducible run
+  bun run packages/engine/examples/generate-training-data.ts --causal --days 3 --seed 12345
+
+Output:
+  ./training-data-output/state.json         - Game state snapshot
+  ./training-data-output/ground-truth.json  - Causal simulation truth (if --causal)
+  ./training-data-output/trajectories/      - Agent decision trajectories
+`);
+  process.exit(0);
+}
+
 function parseArgs(): TrainingDataConfig {
   const args = process.argv.slice(2);
+
+  if (args.includes('--help') || args.includes('-h')) {
+    showHelp();
+  }
+
   return {
     useCausalSimulation: args.includes('--causal'),
     simulationDays: parseInt(getArgValue(args, '--days') ?? '1', 10),
+    hoursPerDay: parseInt(getArgValue(args, '--hours') ?? '24', 10),
     seed: parseInt(getArgValue(args, '--seed') ?? String(Date.now()), 10),
     numNPCs: parseInt(getArgValue(args, '--npcs') ?? '10', 10),
     outcome: true,
@@ -156,6 +200,7 @@ async function main() {
     `   Mode: ${config.useCausalSimulation ? 'CAUSAL SIMULATION' : 'RANDOM WALK'}`
   );
   console.log(`   Days: ${config.simulationDays}`);
+  console.log(`   Hours/Day: ${config.hoursPerDay}`);
   console.log(`   Seed: ${config.seed}`);
   console.log(`   NPCs: ${config.numNPCs}`);
   console.log('===========================================');
@@ -189,18 +234,50 @@ async function main() {
     maxOutputTokens: modelConfig.maxOutputTokens,
   });
 
-  // The 'Trajectory' engine wraps it to record the (Observation -> Thought -> Action) loop
-  const trajectoryEngine = new TrajectoryMarketEngine(rawMarketEngine, {
-    enableRecording: true,
-    samplingRate: 1.0, // Record 100% of decisions for the dataset
-  });
-  console.log('✅ Trajectory Recorder: ATTACHED');
-
-  // 5. Setup Game World & Loop
+  // 5. Setup Game World first (we need NPCs for archetype resolver)
   const world = new GameWorld(
     { outcome: config.outcome, numNPCs: config.numNPCs },
     llmClient
   );
+
+  // Initialize world to create NPCs
+  await world.generate();
+
+  // Create archetype resolver from world NPCs
+  const worldNPCs = world.getNPCs();
+  const archetypeResolver: ArchetypeResolver = (npcId: string): string => {
+    const npc = worldNPCs.find((n) => n.id === npcId);
+    if (!npc) {
+      console.warn(`NPC not found for archetype resolution: ${npcId}`);
+      return 'trader';
+    }
+    // Convert NPC to NPCCharacteristics for archetype derivation
+    const characteristics: NPCCharacteristics = {
+      id: npc.id,
+      name: npc.name,
+      role: npc.role,
+      personality: npc.personality,
+      reliability: npc.reliability,
+      willingToLie: npc.role === 'deceiver' || npc.reliability < 0.3,
+    };
+    return deriveArchetype(characteristics);
+  };
+
+  // Log archetype assignments
+  console.log('📊 NPC Archetype Assignments:');
+  for (const npc of worldNPCs) {
+    const archetype = archetypeResolver(npc.id);
+    console.log(`   - ${npc.name} (${npc.role}): ${archetype}`);
+  }
+
+  // The 'Trajectory' engine wraps it to record the (Observation -> Thought -> Action) loop
+  const trajectoryEngine = new TrajectoryMarketEngine(rawMarketEngine, {
+    enableRecording: true,
+    samplingRate: 1.0, // Record 100% of decisions for the dataset
+    archetypeResolver, // Archetype resolver for RL scoring
+  });
+  console.log('✅ Trajectory Recorder: ATTACHED with archetype resolver');
+
   const loop = new GameLoop(world, feed, trajectoryEngine, relationships);
 
   // 6. Setup Causal Simulation if enabled
@@ -273,8 +350,7 @@ async function main() {
   console.log('\n🧠 STARTING SIMULATION LOOP...');
   const gameId = `training-batch-${Date.now()}`;
 
-  // Initialize world state (create initial events/posts)
-  await world.generate();
+  // Note: world.generate() already called above when setting up archetype resolver
 
   let currentTick = 0;
 
@@ -282,7 +358,7 @@ async function main() {
   for (let day = 1; day <= config.simulationDays; day++) {
     console.log(`\n📅 === DAY ${day} ===`);
 
-    for (let hour = 0; hour < 24; hour++) {
+    for (let hour = 0; hour < config.hoursPerDay; hour++) {
       currentTick++;
       console.log(`\n--- Tick ${currentTick}: Day ${day}, Hour ${hour}:00 ---`);
 
@@ -419,6 +495,11 @@ async function main() {
   console.log('✅ GENERATION COMPLETE');
   console.log('Data saved to: ./training-data-output/state.json');
   console.log("Review this JSON to ensure 'reasoning' fields are populated.");
+
+  process.exit(0);
 }
 
-main().catch(console.error);
+main().catch((err) => {
+  console.error('Generation failed:', err);
+  process.exit(1);
+});

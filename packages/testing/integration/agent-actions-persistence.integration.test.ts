@@ -226,7 +226,6 @@ describe('Agent Actions Persistence Integration', () => {
         autonomousTrading: true,
         autonomousPosting: true,
         autonomousCommenting: true,
-        pointsBalance: 1000,
         virtualBalance: 10000,
       }
     );

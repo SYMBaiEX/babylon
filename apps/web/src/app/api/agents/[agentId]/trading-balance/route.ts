@@ -70,10 +70,10 @@ export async function GET(
   return NextResponse.json({
     success: true,
     agentBalance: {
-      tradingBalance: Number(agent.virtualBalance),
-      lifetimePnL: Number(agent.lifetimePnL),
-      totalDeposited: Number(agent.totalDeposited),
-      totalWithdrawn: Number(agent.totalWithdrawn),
+      tradingBalance: Number(agent.virtualBalance ?? 0),
+      lifetimePnL: Number(agent.lifetimePnL ?? 0),
+      totalDeposited: Number(agent.totalDeposited ?? 0),
+      totalWithdrawn: Number(agent.totalWithdrawn ?? 0),
     },
     userBalance: userBalance,
     transactions: transactions.map((tx) => ({

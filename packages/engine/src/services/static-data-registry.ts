@@ -47,6 +47,7 @@ import { organizations as organizationsData } from '../data/organizations';
 export interface StaticActor {
   id: string;
   name: string;
+  username?: string;
   realName?: string;
   description?: string;
   domain: string[];
@@ -116,6 +117,7 @@ export interface OrganizationMapping {
 export class StaticDataRegistry {
   // In-memory caches
   private static actorMap: Map<string, StaticActor> | null = null;
+  private static actorByUsername: Map<string, StaticActor> | null = null;
   private static actorList: StaticActor[] | null = null;
   private static orgMap: Map<string, StaticOrganization> | null = null;
   private static orgList: StaticOrganization[] | null = null;
@@ -133,6 +135,7 @@ export class StaticDataRegistry {
     if (this.actorMap !== null) return;
 
     this.actorMap = new Map();
+    this.actorByUsername = new Map();
     this.actorList = [];
     this.actorsByTier = new Map([
       ['S_TIER', []],
@@ -149,6 +152,7 @@ export class StaticDataRegistry {
       const actorAny = actor as {
         id: string;
         name: string;
+        username?: string;
         realName?: string;
         description?: string;
         domain?: string[];
@@ -165,6 +169,7 @@ export class StaticDataRegistry {
       const staticActor: StaticActor = {
         id: actorAny.id,
         name: actorAny.name,
+        username: actorAny.username,
         realName: actorAny.realName,
         description: actorAny.description,
         domain: actorAny.domain ?? [],
@@ -182,6 +187,14 @@ export class StaticDataRegistry {
 
       this.actorMap.set(actor.id, staticActor);
       this.actorList.push(staticActor);
+
+      // Index by username for lookup by username
+      if (staticActor.username) {
+        this.actorByUsername.set(
+          staticActor.username.toLowerCase(),
+          staticActor
+        );
+      }
 
       // Index by tier
       const tierKey = (staticActor.tier ?? 'NONE') as ActorTier | 'NONE';
@@ -260,6 +273,73 @@ export class StaticDataRegistry {
         this.orgMappings.set(org.originalName.toLowerCase(), mapping);
       }
     }
+
+    // Add fallback mappings for common social platforms not in static data
+    const fallbackMappings: OrganizationMapping[] = [
+      {
+        realName: 'Discord',
+        parodyName: 'DIscord',
+        category: 'platform',
+        aliases: [],
+        priority: 80,
+      },
+      {
+        realName: 'Reddit',
+        parodyName: 'AIeddit',
+        category: 'platform',
+        aliases: [],
+        priority: 80,
+      },
+      {
+        realName: 'LinkedIn',
+        parodyName: 'LinkAIdIn',
+        category: 'platform',
+        aliases: [],
+        priority: 80,
+      },
+      {
+        realName: 'TikTok',
+        parodyName: 'TikTAIk',
+        category: 'platform',
+        aliases: [],
+        priority: 80,
+      },
+      {
+        realName: 'Instagram',
+        parodyName: 'InstAIgram',
+        category: 'platform',
+        aliases: [],
+        priority: 80,
+      },
+      {
+        realName: 'YouTube',
+        parodyName: 'YoutAIbe',
+        category: 'platform',
+        aliases: [],
+        priority: 80,
+      },
+      {
+        realName: 'Facebook',
+        parodyName: 'FAIcebook',
+        category: 'platform',
+        aliases: [],
+        priority: 80,
+      },
+      {
+        realName: 'Twitter',
+        parodyName: 'XAI',
+        category: 'platform',
+        aliases: ['X'],
+        priority: 80,
+      },
+    ];
+
+    for (const mapping of fallbackMappings) {
+      const key = mapping.realName.toLowerCase();
+      if (!this.orgMappings.has(key)) {
+        this.orgMappings.set(key, mapping);
+      }
+    }
   }
 
   // ==========================================================================
@@ -267,11 +347,16 @@ export class StaticDataRegistry {
   // ==========================================================================
 
   /**
-   * Get a static actor by ID - NO DATABASE CALL
+   * Get a static actor by ID or username - NO DATABASE CALL
+   * @param identifier - Actor ID or username (case-insensitive for username)
    */
-  static getActor(id: string): StaticActor | null {
+  static getActor(identifier: string): StaticActor | null {
     this.initialize();
-    return this.actorMap?.get(id) ?? null;
+    // First try exact ID match
+    const byId = this.actorMap?.get(identifier);
+    if (byId) return byId;
+    // Then try username match (case-insensitive)
+    return this.actorByUsername?.get(identifier.toLowerCase()) ?? null;
   }
 
   /**
@@ -475,6 +560,7 @@ export class StaticDataRegistry {
    */
   static clearCache(): void {
     this.actorMap = null;
+    this.actorByUsername = null;
     this.actorList = null;
     this.orgMap = null;
     this.orgList = null;
