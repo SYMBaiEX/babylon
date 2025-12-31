@@ -43,7 +43,9 @@ export async function createLinearIssue(
 
   const client = new GraphQLClient(LINEAR_API_URL, {
     headers: {
-      Authorization: `Bearer ${apiKey}`,
+      // Personal API keys (lin_api_*) don't use Bearer prefix
+      // OAuth tokens would use: `Bearer ${token}`
+      Authorization: apiKey,
       'Content-Type': 'application/json',
     },
     signal: controller.signal,
