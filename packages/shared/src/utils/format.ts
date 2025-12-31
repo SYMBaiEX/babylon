@@ -158,23 +158,57 @@ export function formatCompactNumber(num: number): string {
 }
 
 /**
+ * Options for formatCurrency function.
+ */
+interface FormatCurrencyOptions {
+  /** Number of decimal places (default: 2) */
+  decimals?: number;
+  /** Whether to use thousands separators (default: false for backwards compat) */
+  useThousandsSeparator?: boolean;
+}
+
+/**
  * Format number as currency
  *
  * @description Formats a number as Babylon points currency with specified decimal places.
  * Uses the Ƀ symbol to represent Babylon points (not USD or Bitcoin).
+ * Optionally includes thousands separators for better readability of large values.
  *
  * @param {number} amount - Amount to format
- * @param {number} decimals - Number of decimal places (default: 2)
- * @returns {string} Formatted currency string (e.g., "Ƀ123.45")
+ * @param {number | FormatCurrencyOptions} options - Decimal places or options object
+ * @returns {string} Formatted currency string (e.g., "Ƀ123.45" or "Ƀ1,234.56")
  *
  * @example
  * ```typescript
  * formatCurrency(123.456) // Returns "Ƀ123.46"
  * formatCurrency(1000, 0) // Returns "Ƀ1000"
+ * formatCurrency(1234.56, { useThousandsSeparator: true }) // Returns "Ƀ1,234.56"
+ * formatCurrency(1234567.89, { decimals: 2, useThousandsSeparator: true }) // Returns "Ƀ1,234,567.89"
  * ```
  */
-export function formatCurrency(amount: number, decimals = 2): string {
-  return `${BABYLON_POINTS_SYMBOL}${amount.toFixed(decimals)}`;
+export function formatCurrency(
+  amount: number,
+  options: number | FormatCurrencyOptions = 2
+): string {
+  const decimals =
+    typeof options === 'number' ? options : (options.decimals ?? 2);
+  const useThousandsSeparator =
+    typeof options === 'object' && options.useThousandsSeparator;
+
+  // Handle negative numbers: sign should come before the symbol
+  const isNegative = amount < 0;
+  const absoluteAmount = Math.abs(amount);
+  const sign = isNegative ? '-' : '';
+
+  if (useThousandsSeparator) {
+    const formatted = absoluteAmount.toLocaleString('en-US', {
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals,
+    });
+    return `${sign}${BABYLON_POINTS_SYMBOL}${formatted}`;
+  }
+
+  return `${sign}${BABYLON_POINTS_SYMBOL}${absoluteAmount.toFixed(decimals)}`;
 }
 
 /**
