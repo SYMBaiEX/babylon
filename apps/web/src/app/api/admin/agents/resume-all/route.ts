@@ -16,7 +16,7 @@ import {
   requireAdmin,
   withErrorHandling,
 } from '@babylon/api';
-import { db, eq, gte, sql, userAgentConfigs, users } from '@babylon/db';
+import { db, eq, gte, inArray, sql, userAgentConfigs, users } from '@babylon/db';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
@@ -59,7 +59,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
       status: 'running',
       updatedAt: new Date(),
     })
-    .where(sql`${userAgentConfigs.userId} = ANY(${eligibleUserIds})`);
+    .where(inArray(userAgentConfigs.userId, eligibleUserIds));
 
   logger.info(
     `Resumed ${eligibleUserIds.length} autonomous agents with balance >= 1`,

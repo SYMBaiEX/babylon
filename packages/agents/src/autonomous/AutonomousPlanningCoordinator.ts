@@ -376,7 +376,7 @@ export class AutonomousPlanningCoordinator {
     // Detect trading opportunities
     const tradingOpportunities = await detectTradingOpportunities(
       agentUserId,
-      Number(user?.virtualBalance || 0)
+      Number(user?.virtualBalance ?? 0)
     );
 
     // Detect social opportunities
@@ -398,8 +398,8 @@ export class AutonomousPlanningCoordinator {
       },
       constraints,
       portfolio: {
-        balance: Number(user?.virtualBalance || 0),
-        pnl: Number(user?.lifetimePnL || 0),
+        balance: Number(user?.virtualBalance ?? 0),
+        pnl: Number(user?.lifetimePnL ?? 0),
         positions: positionsCount + perpPositionsCount,
       },
       pending: pendingInteractions.slice(0, 10).map((p) => ({

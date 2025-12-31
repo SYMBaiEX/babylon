@@ -164,7 +164,7 @@ async function listAgents(args: ReturnType<typeof parseArgs>): Promise<void> {
     console.log(`${'─'.repeat(60)}`);
     console.log(`Username:   ${agent.username || 'N/A'}`);
     console.log(`ID:         ${agent.id}`);
-    console.log(`Balance:    ${Number(agent.virtualBalance || 0).toFixed(2)}`);
+    console.log(`Balance:    ${Number(agent.virtualBalance ?? 0).toFixed(2)}`);
     console.log(
       `Features:   ${features.length > 0 ? features.join(', ') : 'none'}`
     );

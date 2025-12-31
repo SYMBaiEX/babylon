@@ -137,15 +137,6 @@ async function seedAutonomousAgents(): Promise<number> {
             updatedAt: new Date(),
           })
           .where(eq(userAgentConfigs.userId, existing.id));
-
-        // Ensure agent has sufficient balance
-        const currentBalance = Number(existing.virtualBalance);
-        if (currentBalance < 10000) {
-          await db
-            .update(users)
-            .set({ virtualBalance: '10000', updatedAt: new Date() })
-            .where(eq(users.id, existing.id));
-        }
       } else {
         await db.insert(userAgentConfigs).values({
           id: await generateSnowflakeId(),

@@ -253,7 +253,7 @@ export default function AgentsPage() {
                         Balance
                       </div>
                       <div className="font-semibold">
-                        {(agent.virtualBalance ?? 0).toFixed(2)} pts
+                        {Number(agent.virtualBalance ?? 0).toFixed(2)} pts
                       </div>
                     </div>
                     <div>

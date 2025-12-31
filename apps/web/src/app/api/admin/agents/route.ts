@@ -193,7 +193,7 @@ export const GET = withErrorHandling(async (req: NextRequest) => {
         ? creatorMap.get(agent.managedBy) || null
         : 'System',
       modelTier: config?.modelTier || 'lite',
-      balance: Number(agent.virtualBalance || 0),
+      balance: Number(agent.virtualBalance ?? 0),
 
       // Autonomous status
       autonomousEnabled,
