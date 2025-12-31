@@ -472,7 +472,7 @@ describe('Agent Autonomous Tick Integration', () => {
       where: { id: testAgentId },
       select: { virtualBalance: true },
     });
-    const beforeBalance = Number(beforeUser?.virtualBalance || 0);
+    const beforeBalance = Number(beforeUser?.virtualBalance ?? 0);
 
     const cronSecret = process.env.CRON_SECRET || 'development';
     const response = await fetch(`${BASE_URL}/api/cron/agent-tick`, {
@@ -528,7 +528,7 @@ describe('Agent Autonomous Tick Integration', () => {
       where: { id: testAgentId },
       select: { virtualBalance: true },
     });
-    const afterBalance = Number(afterUser?.virtualBalance || 0);
+    const afterBalance = Number(afterUser?.virtualBalance ?? 0);
 
     // Balance should be deducted (1 point per tick) - even if processing had errors
     // Balance is deducted before executeAutonomousTick, so it should always be deducted
