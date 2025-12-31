@@ -6,6 +6,7 @@
 import { describe, expect, it } from 'bun:test';
 import {
   clamp,
+  formatCompactCurrency,
   formatCompactNumber,
   formatCurrency,
   formatDate,
@@ -162,6 +163,49 @@ describe('Format Utilities', () => {
       expect(formatCurrency(-1234.56, { useThousandsSeparator: true })).toBe(
         '-Ƀ1,234.56'
       );
+    });
+  });
+
+  describe('formatCompactCurrency', () => {
+    it('should format small values without suffix', () => {
+      expect(formatCompactCurrency(500)).toBe('Ƀ500.00');
+      expect(formatCompactCurrency(0)).toBe('Ƀ0.00');
+      expect(formatCompactCurrency(999.99)).toBe('Ƀ999.99');
+    });
+
+    it('should format thousands with K suffix', () => {
+      expect(formatCompactCurrency(1000)).toBe('Ƀ1.00K');
+      expect(formatCompactCurrency(1500)).toBe('Ƀ1.50K');
+      expect(formatCompactCurrency(999999)).toBe('Ƀ1000.00K');
+    });
+
+    it('should format millions with M suffix', () => {
+      expect(formatCompactCurrency(1000000)).toBe('Ƀ1.00M');
+      expect(formatCompactCurrency(2300000)).toBe('Ƀ2.30M');
+      expect(formatCompactCurrency(999999999)).toBe('Ƀ1000.00M');
+    });
+
+    it('should format billions with B suffix', () => {
+      expect(formatCompactCurrency(1000000000)).toBe('Ƀ1.00B');
+      expect(formatCompactCurrency(1500000000)).toBe('Ƀ1.50B');
+    });
+
+    it('should handle negative values correctly', () => {
+      expect(formatCompactCurrency(-1500)).toBe('-Ƀ1.50K');
+      expect(formatCompactCurrency(-2300000)).toBe('-Ƀ2.30M');
+      expect(formatCompactCurrency(-500)).toBe('-Ƀ500.00');
+    });
+
+    it('should handle non-finite values', () => {
+      expect(formatCompactCurrency(NaN)).toBe('Ƀ0.00');
+      expect(formatCompactCurrency(Infinity)).toBe('Ƀ0.00');
+      expect(formatCompactCurrency(-Infinity)).toBe('Ƀ0.00');
+    });
+
+    it('should respect custom decimals', () => {
+      expect(formatCompactCurrency(1500, 1)).toBe('Ƀ1.5K');
+      expect(formatCompactCurrency(1500, 0)).toBe('Ƀ2K');
+      expect(formatCompactCurrency(500, 3)).toBe('Ƀ500.000');
     });
   });
 

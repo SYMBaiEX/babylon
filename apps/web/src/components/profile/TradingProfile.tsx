@@ -1,6 +1,6 @@
 'use client';
 
-import { BABYLON_POINTS_SYMBOL, cn } from '@babylon/shared';
+import { cn, formatCompactCurrency } from '@babylon/shared';
 import {
   Activity,
   AlertCircle,
@@ -311,15 +311,8 @@ export function TradingProfile({
     };
   }, [fetchTradingData]);
 
-  const formatCurrency = (value: number) => {
-    if (!Number.isFinite(value)) return `${BABYLON_POINTS_SYMBOL}0.00`;
-    const abs = Math.abs(value);
-    if (abs >= 1000000)
-      return `${BABYLON_POINTS_SYMBOL}${(value / 1000000).toFixed(2)}M`;
-    if (abs >= 1000)
-      return `${BABYLON_POINTS_SYMBOL}${(value / 1000).toFixed(2)}K`;
-    return `${BABYLON_POINTS_SYMBOL}${value.toFixed(2)}`;
-  };
+  /** Use shared formatCompactCurrency for K/M/B suffix formatting */
+  const formatCurrency = formatCompactCurrency;
 
   const calculateCurrentPrice = (market: PredictionPosition['Market']) => {
     const yesShares = toNumber(market.yesShares);
