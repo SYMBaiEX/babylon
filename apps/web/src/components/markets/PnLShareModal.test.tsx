@@ -1,5 +1,5 @@
-import { BABYLON_POINTS_SYMBOL } from '@babylon/shared';
 import { describe, expect, it } from 'bun:test';
+import { BABYLON_POINTS_SYMBOL } from '@babylon/shared';
 
 /**
  * Tests for PnL formatting logic used in PnLShareModal.

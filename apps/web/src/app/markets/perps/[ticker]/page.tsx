@@ -99,17 +99,19 @@ export default function PerpDetailPage() {
   usePerpMarketsRealtime();
 
   // Subscribe to real-time trade events for this specific ticker
+  // Note: Price history updates are handled internally by usePerpHistory hook
+  // via its own SSE subscription to perp_trade events (calls appendPricePoint)
   usePerpMarketStream(ticker, {
     onTrade: useCallback(
       (event) => {
-        // Refresh positions, market data, and price history when a trade occurs
+        // Refresh positions and market data when a trade occurs
+        // Price history is updated automatically by usePerpHistory hook
         if (event.action === 'open' || event.action === 'close') {
           refreshUserPositions();
           refetch();
-          refreshPriceHistory();
         }
       },
-      [refreshUserPositions, refetch, refreshPriceHistory]
+      [refreshUserPositions, refetch]
     ),
   });
 
