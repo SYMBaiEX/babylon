@@ -59,9 +59,14 @@ export const useWalletBalanceStore = create<WalletBalanceState>((set, get) => ({
   fetchBalance: async (userId: string, force = false) => {
     const state = get();
 
-    // Return existing promise if already fetching (deduplication)
-    if (state.fetchPromise) {
+    // Return existing promise if already fetching for the SAME user (deduplication)
+    if (state.fetchPromise && state.userId === userId) {
       return state.fetchPromise;
+    }
+
+    // If fetching for a different user, wait for current fetch to complete first
+    if (state.fetchPromise && state.userId !== userId) {
+      await state.fetchPromise;
     }
 
     // Return cached data if fresh and not forced
