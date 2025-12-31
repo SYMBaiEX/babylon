@@ -100,7 +100,11 @@ describe('NFTVerificationService', () => {
     test('should validate token ID format', async () => {
       // Negative token ID
       try {
-        await NFTVerificationService.verifyOwnership(validWallet, validContract, -1);
+        await NFTVerificationService.verifyOwnership(
+          validWallet,
+          validContract,
+          -1
+        );
         expect(true).toBe(false); // Should not reach here
       } catch (error) {
         expect(error).toBeInstanceOf(Error);
@@ -109,7 +113,11 @@ describe('NFTVerificationService', () => {
 
       // Non-integer token ID
       try {
-        await NFTVerificationService.verifyOwnership(validWallet, validContract, 1.5);
+        await NFTVerificationService.verifyOwnership(
+          validWallet,
+          validContract,
+          1.5
+        );
         expect(true).toBe(false); // Should not reach here
       } catch (error) {
         expect(error).toBeInstanceOf(Error);
