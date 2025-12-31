@@ -369,9 +369,7 @@ describe('Agent Autonomous Tick Integration', () => {
     expect(agentBefore).toBeTruthy();
     expect(agentBefore?.isAgent).toBe(true);
     // Balance check uses virtualBalance from user record
-    expect(
-      Number(agentBefore?.virtualBalance ?? 0)
-    ).toBeGreaterThanOrEqual(1);
+    expect(Number(agentBefore?.virtualBalance ?? 0)).toBeGreaterThanOrEqual(1);
 
     const cronSecret = process.env.CRON_SECRET || 'development';
     const response = await fetch(`${BASE_URL}/api/cron/agent-tick`, {
