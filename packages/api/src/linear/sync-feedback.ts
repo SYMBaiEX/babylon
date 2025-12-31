@@ -4,7 +4,7 @@
  * Includes retry logic with exponential backoff for transient failures.
  */
 
-import { db } from '@babylon/db';
+import { db, type JsonObject } from '@babylon/db';
 import { FeedbackTypeSchema, logger } from '@babylon/shared';
 import { z } from 'zod';
 import { createLinearIssue } from './client';
@@ -163,6 +163,23 @@ export async function syncFeedbackToLinear(
     },
   });
 
+  // Helper to clear the sync lock (used on success and failure)
+  const clearSyncLock = async () => {
+    const current = await db.feedback.findUnique({
+      where: { id: feedbackId },
+      select: { metadata: true },
+    });
+    const currentMetadata =
+      current?.metadata && typeof current.metadata === 'object'
+        ? (current.metadata as JsonObject)
+        : {};
+    const { linearSyncStartedAt: _, ...withoutLock } = currentMetadata;
+    await db.feedback.update({
+      where: { id: feedbackId },
+      data: { metadata: withoutLock },
+    });
+  };
+
   const metadata: FeedbackMetadata = FeedbackMetadataSchema.parse(rawMetadata);
 
   const formatted = formatFeedbackForLinear({
@@ -179,19 +196,26 @@ export async function syncFeedbackToLinear(
     createdAt: feedback.createdAt,
   });
 
-  // Create Linear issue with retry logic for transient failures
-  const issue = await withRetry(
-    () =>
-      createLinearIssue(config.apiKey, {
-        teamId: config.teamId,
-        title: formatted.title,
-        description: formatted.description,
-        labelIds: config.gameFeedbackLabelId
-          ? [config.gameFeedbackLabelId]
-          : undefined,
-      }),
-    { feedbackId }
-  );
+  let issue;
+  try {
+    // Create Linear issue with retry logic for transient failures
+    issue = await withRetry(
+      () =>
+        createLinearIssue(config.apiKey, {
+          teamId: config.teamId,
+          title: formatted.title,
+          description: formatted.description,
+          labelIds: config.gameFeedbackLabelId
+            ? [config.gameFeedbackLabelId]
+            : undefined,
+        }),
+      { feedbackId }
+    );
+  } catch (error) {
+    // Clear the sync lock on failure so retry can work
+    await clearSyncLock();
+    throw error;
+  }
 
   // Merge update: fetch fresh metadata to preserve concurrent updates.
   // The linearSyncStartedAt lock set earlier prevents duplicate Linear issues
@@ -207,7 +231,7 @@ export async function syncFeedbackToLinear(
       : {};
 
   // Remove the sync lock and store the issue info
-  const { linearSyncStartedAt: _, ...metadataWithoutLock } = freshMetadata;
+  const { linearSyncStartedAt: __, ...metadataWithoutLock } = freshMetadata;
   await db.feedback.update({
     where: { id: feedbackId },
     data: {
