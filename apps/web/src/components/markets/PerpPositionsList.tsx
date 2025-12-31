@@ -4,6 +4,7 @@ import {
   BABYLON_POINTS_SYMBOL,
   calculateUnrealizedPnL,
   cn,
+  formatCurrency,
 } from '@babylon/shared';
 import { AlertTriangle, TrendingDown, TrendingUp } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
@@ -143,9 +144,8 @@ export function PerpPositionsList({
     setPendingClose(null);
   }, [closePerpPosition, onPositionClosed, pendingClose]);
 
-  const formatPrice = (price: number) => {
-    return `${BABYLON_POINTS_SYMBOL}${price.toFixed(2)}`;
-  };
+  /** Use shared formatCurrency for price formatting */
+  const formatPrice = formatCurrency;
 
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);
