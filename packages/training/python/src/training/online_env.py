@@ -816,14 +816,14 @@ class BabylonOnlineEnv(BaseEnv):
         scored_group["tokens"] = []
         scored_group["masks"] = []
         scored_group["scores"] = []
-        scored_group["inference_logprobs"] = []
+        # Don't include inference_logprobs if not available (causes 422 errors)
+        # scored_group["inference_logprobs"] is Optional, so we just don't set it
         scored_group["messages"] = []
         
         for i, rollout in enumerate(rollout_data):
             scored_group["tokens"].append(rollout["tokens"])
             scored_group["masks"].append(rollout["masks"])
             scored_group["scores"].append(centered_scores[i])
-            scored_group["inference_logprobs"].append(rollout["logprobs"])
             
             if self.config.include_messages:
                 scored_group["messages"].append(rollout["messages"])
