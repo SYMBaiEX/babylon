@@ -341,9 +341,7 @@ export const GET = withErrorHandling(
 
       // Add isMutualFollow to each follower (true if auth user follows them)
       for (const follower of followersList) {
-        (
-          follower as FollowerResponse & { isMutualFollow?: boolean }
-        ).isMutualFollow = follower.isActor
+        follower.isMutualFollow = follower.isActor
           ? followedActorIds.has(follower.id)
           : followedUserIds.has(follower.id);
       }

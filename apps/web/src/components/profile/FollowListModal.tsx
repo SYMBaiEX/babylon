@@ -38,7 +38,6 @@ interface FollowUser {
   bio: string | null;
   isActor: boolean;
   followedAt: string;
-  type: 'user' | 'actor';
   tier?: string | null;
   isMutualFollow?: boolean;
 }
@@ -179,7 +178,7 @@ export function FollowListModal({
       return;
     }
 
-    const isCurrentlyFollowing = followingStatus[targetUserId];
+    const isCurrentlyFollowing = followingStatus[targetUserId] ?? false;
     const method = isCurrentlyFollowing ? 'DELETE' : 'POST';
 
     // Optimistic update
@@ -229,11 +228,17 @@ export function FollowListModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="follow-list-modal-title"
+    >
       {/* Backdrop */}
       <div
         className="absolute inset-0 bg-black/50 backdrop-blur-sm"
         onClick={onClose}
+        aria-hidden="true"
       />
 
       {/* Modal */}
@@ -242,7 +247,10 @@ export function FollowListModal({
         <div className="flex items-center justify-between border-border border-b px-6 py-4">
           <div className="flex items-center gap-2">
             <Users className="h-5 w-5 text-muted-foreground" />
-            <h2 className="font-bold text-foreground text-xl">
+            <h2
+              id="follow-list-modal-title"
+              className="font-bold text-foreground text-xl"
+            >
               {displayTitle}
             </h2>
             {!isLoading && (

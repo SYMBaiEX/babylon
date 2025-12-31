@@ -103,6 +103,7 @@ import {
   desc,
   eq,
   follows,
+  inArray,
   userActorFollows,
   users,
 } from '@babylon/db';
@@ -252,29 +253,44 @@ export const GET = withErrorHandling(
         };
       });
 
-      // Check mutual follows if authenticated user is viewing their own following list
-      const mutualFollowChecks =
-        authUser && authUser.userId === targetId
-          ? await Promise.all(
-              userFollowsList.map(async (f) => {
-                const [mutualFollow] = await db
-                  .select({ id: follows.id })
-                  .from(follows)
-                  .where(
-                    and(
-                      eq(follows.followerId, f.followingId),
-                      eq(follows.followingId, authUser.userId)
-                    )
-                  )
-                  .limit(1);
-                return { userId: f.followingId, isMutual: !!mutualFollow };
-              })
-            )
-          : [];
+      // Check mutual follows for authenticated users (using batched query for efficiency)
+      const mutualFollowMap = new Map<string, boolean>();
+      if (authUser?.userId) {
+        const followingUserIds = userFollowsList.map((f) => f.followingId);
+        const followingActorIds = actorFollowsList.map((f) => f.actorId);
 
-      const mutualFollowMap = new Map(
-        mutualFollowChecks.map((check) => [check.userId, check.isMutual])
-      );
+        // Batch query for user mutual follows
+        if (followingUserIds.length > 0) {
+          const userMutualFollows = await db
+            .select({ followingId: follows.followingId })
+            .from(follows)
+            .where(
+              and(
+                eq(follows.followerId, authUser.userId),
+                inArray(follows.followingId, followingUserIds)
+              )
+            );
+          for (const f of userMutualFollows) {
+            mutualFollowMap.set(f.followingId, true);
+          }
+        }
+
+        // Batch query for actor mutual follows
+        if (followingActorIds.length > 0) {
+          const actorMutualFollows = await db
+            .select({ actorId: userActorFollows.actorId })
+            .from(userActorFollows)
+            .where(
+              and(
+                eq(userActorFollows.userId, authUser.userId),
+                inArray(userActorFollows.actorId, followingActorIds)
+              )
+            );
+          for (const f of actorMutualFollows) {
+            mutualFollowMap.set(f.actorId, true);
+          }
+        }
+      }
 
       followingList = [
         ...userFollowsList.map((f) => ({
@@ -301,6 +317,7 @@ export const GET = withErrorHandling(
               followedAt: f.createdAt.toISOString(),
               type: 'actor' as const,
               tier: null,
+              isMutualFollow: mutualFollowMap.get(f.actorId) || false,
             };
           }
 
@@ -314,6 +331,7 @@ export const GET = withErrorHandling(
             followedAt: f.createdAt.toISOString(),
             type: 'actor' as const,
             tier: f.actorTier || null,
+            isMutualFollow: mutualFollowMap.get(f.actorId) || false,
           };
         }),
       ].sort(
