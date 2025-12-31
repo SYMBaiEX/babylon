@@ -22,12 +22,15 @@ import {
   eq,
   games,
   gte,
+  inArray,
   isNotNull,
   isNull,
   type JsonValue,
   lte,
   markets as marketsSchema,
+  organizations,
   organizationState,
+  perpMarketSnapshots,
   poolPositions,
   pools,
   positions,
@@ -2374,6 +2377,11 @@ async function updateMarketPricesFromTrades(
       PERP_MARKET_CONFIG
     );
 
+    // Calculate market cap for logging (same formula as calculatePriceFromHoldings)
+    const effectiveSupply =
+      PERP_MARKET_CONFIG.SYNTHETIC_SUPPLY / PERP_MARKET_CONFIG.LIQUIDITY_FACTOR;
+    const newMarketCap = initialPrice * effectiveSupply + netHoldings;
+
     const change = newPrice - currentPrice;
     const changePercent = currentPrice > 0 ? (change / currentPrice) * 100 : 0;
 
@@ -3227,7 +3235,6 @@ export async function simulateMarketVolatility(): Promise<number> {
     // Get all active perp market snapshots
     const markets = await db
       .select({
-        id: perpMarketSnapshots.id,
         ticker: perpMarketSnapshots.ticker,
         organizationId: perpMarketSnapshots.organizationId,
         currentPrice: perpMarketSnapshots.currentPrice,
@@ -3308,25 +3315,13 @@ export async function simulateMarketVolatility(): Promise<number> {
     // Apply all price updates
     if (priceUpdates.length > 0) {
       // Update perpMarketSnapshots
+      // Note: Don't update change24h/changePercent24h here - those should reflect
+      // true 24h deltas calculated elsewhere using price24hAgo reference
       for (const update of priceUpdates) {
-        const change =
-          update.newPrice -
-          Number(
-            markets.find((m) => m.ticker === update.ticker)?.currentPrice ?? 0
-          );
-        const referencePrice = Number(
-          markets.find((m) => m.ticker === update.ticker)?.currentPrice ??
-            update.newPrice
-        );
-        const changePercent =
-          referencePrice > 0 ? (change / referencePrice) * 100 : 0;
-
         await db
           .update(perpMarketSnapshots)
           .set({
             currentPrice: update.newPrice,
-            change24h: change,
-            changePercent24h: changePercent,
             updatedAt: new Date(),
           })
           .where(eq(perpMarketSnapshots.ticker, update.ticker));
