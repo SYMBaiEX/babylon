@@ -2,6 +2,10 @@ import { FEEDBACK_TYPE_CONFIG, type FeedbackType } from '@babylon/shared';
 
 export type { FeedbackType };
 
+/** Base URL for user profile links */
+const APP_BASE_URL =
+  process.env.NEXT_PUBLIC_APP_URL || 'https://babylon.game';
+
 export interface FeedbackData {
   id: string;
   feedbackType: FeedbackType;
@@ -11,6 +15,30 @@ export interface FeedbackData {
   rating?: number | null;
   userId: string;
   userEmail?: string | null;
+  username?: string | null;
+  displayName?: string | null;
+  createdAt?: Date;
+}
+
+/**
+ * Format a timestamp using Intl.DateTimeFormat for clarity and robustness.
+ * Returns a UTC timestamp string like "31/12/2025 15:30:00 UTC".
+ */
+function formatTimestamp(date: Date): string {
+  return (
+    new Intl.DateTimeFormat('en-GB', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+      timeZone: 'UTC',
+    })
+      .format(date)
+      .replace(',', '') + ' UTC'
+  );
 }
 
 /**
@@ -80,12 +108,32 @@ export function formatFeedbackForLinear(feedback: FeedbackData): {
     );
   }
 
+  // Build "Submitted by" with profile link if username available
+  let submittedBy: string;
+  if (feedback.username) {
+    const safeUsername = escapeHtml(feedback.username);
+    const safeDisplayName = feedback.displayName
+      ? escapeHtml(feedback.displayName)
+      : safeUsername;
+    // URL-encode the raw username for safe profile links (handles spaces, @, etc.)
+    const profileUrl = `${APP_BASE_URL}/profile/${encodeURIComponent(feedback.username)}`;
+    submittedBy = `[${safeDisplayName}](${profileUrl}) (@${safeUsername})`;
+  } else {
+    submittedBy = safeEmail ?? 'Unknown';
+  }
+
+  // Format timestamp using Intl.DateTimeFormat for clarity and robustness
+  const timestamp = feedback.createdAt
+    ? formatTimestamp(feedback.createdAt)
+    : 'Unknown';
+
   lines.push(
     '---',
     '',
     '### Submission Details',
     '',
-    `- **Submitted by:** ${safeEmail ?? 'Unknown'}`,
+    `- **Submitted by:** ${submittedBy}`,
+    `- **Submitted at:** ${timestamp}`,
     `- **User ID:** \`${escapeHtml(feedback.userId)}\``,
     `- **Feedback ID:** \`${escapeHtml(feedback.id)}\``,
     `- **Type:** ${config.heading}`

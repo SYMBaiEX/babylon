@@ -4,6 +4,7 @@ import {
   type FeedbackType,
   formatFeedbackForLinear,
 } from '../../api/src/linear/format-feedback';
+import { SYNC_LOCK_TTL_MS } from '../../api/src/linear/sync-feedback';
 
 describe('formatFeedbackForLinear', () => {
   test('bug report with all fields', () => {
@@ -147,6 +148,125 @@ describe('formatFeedbackForLinear', () => {
       ).not.toThrow();
     }
   });
+
+  // New tests for username/profile link functionality
+  test('formats username with profile link', () => {
+    const result = formatFeedbackForLinear({
+      id: 'test',
+      feedbackType: 'bug',
+      description: 'test description',
+      userId: 'user-1',
+      username: 'gold_roach',
+      displayName: 'Golden Roach',
+    });
+    // Check for markdown link format with display name and profile path
+    expect(result.description).toContain('[Golden Roach]');
+    expect(result.description).toContain('/profile/gold_roach)');
+    expect(result.description).toContain('(@gold_roach)');
+  });
+
+  test('uses username as display name when displayName is null', () => {
+    const result = formatFeedbackForLinear({
+      id: 'test',
+      feedbackType: 'bug',
+      description: 'test description',
+      userId: 'user-1',
+      username: 'gold_roach',
+      displayName: null,
+    });
+    // When displayName is null, username should be used as display name
+    expect(result.description).toContain('[gold_roach]');
+    expect(result.description).toContain('/profile/gold_roach)');
+    expect(result.description).toContain('(@gold_roach)');
+  });
+
+  test('falls back to email when username is null', () => {
+    const result = formatFeedbackForLinear({
+      id: 'test',
+      feedbackType: 'bug',
+      description: 'test description',
+      userId: 'user-1',
+      username: null,
+      displayName: null,
+      userEmail: 'test@example.com',
+    });
+    expect(result.description).toContain('**Submitted by:** test@example.com');
+    expect(result.description).not.toContain('https://babylon.game/profile/');
+  });
+
+  test('URL-encodes special characters in username', () => {
+    const result = formatFeedbackForLinear({
+      id: 'test',
+      feedbackType: 'bug',
+      description: 'test description',
+      userId: 'user-1',
+      username: 'user with spaces',
+      displayName: 'User With Spaces',
+    });
+    expect(result.description).toContain('/profile/user%20with%20spaces');
+  });
+
+  test('URL-encodes @ symbol in username', () => {
+    const result = formatFeedbackForLinear({
+      id: 'test',
+      feedbackType: 'bug',
+      description: 'test description',
+      userId: 'user-1',
+      username: '@special_user',
+      displayName: 'Special User',
+    });
+    expect(result.description).toContain('/profile/%40special_user');
+  });
+
+  test('formats timestamp correctly with Intl.DateTimeFormat', () => {
+    const result = formatFeedbackForLinear({
+      id: 'test',
+      feedbackType: 'bug',
+      description: 'test description',
+      userId: 'user-1',
+      createdAt: new Date('2025-12-31T15:30:00Z'),
+    });
+    // en-GB format: DD/MM/YYYY HH:MM:SS UTC
+    expect(result.description).toContain('31/12/2025');
+    expect(result.description).toContain('15:30:00');
+    expect(result.description).toContain('UTC');
+  });
+
+  test('shows Unknown timestamp when createdAt is undefined', () => {
+    const result = formatFeedbackForLinear({
+      id: 'test',
+      feedbackType: 'bug',
+      description: 'test description',
+      userId: 'user-1',
+    });
+    expect(result.description).toContain('**Submitted at:** Unknown');
+  });
+
+  test('escapes HTML in username and displayName', () => {
+    const result = formatFeedbackForLinear({
+      id: 'test',
+      feedbackType: 'bug',
+      description: 'test',
+      userId: 'user-1',
+      username: '<script>xss</script>',
+      displayName: '<b>Bold Name</b>',
+    });
+    expect(result.description).toContain('&lt;script&gt;xss&lt;/script&gt;');
+    expect(result.description).toContain('&lt;b&gt;Bold Name&lt;/b&gt;');
+    expect(result.description).not.toContain('<script>');
+    expect(result.description).not.toContain('<b>');
+  });
+
+  test('includes Submitted at field in output', () => {
+    const result = formatFeedbackForLinear({
+      id: 'test',
+      feedbackType: 'bug',
+      description: 'test',
+      userId: 'user-1',
+      createdAt: new Date('2025-01-15T10:00:00Z'),
+    });
+    expect(result.description).toContain('**Submitted at:**');
+  });
 });
 
 describe('getLinearConfig', () => {
@@ -174,5 +294,19 @@ describe('getLinearConfig', () => {
     expect(config?.teamId).toBe('team-123');
     process.env.LINEAR_API_KEY = orig.api;
     process.env.LINEAR_TEAM_ID = orig.team;
+  });
+});
+
+describe('SYNC_LOCK_TTL_MS', () => {
+  test('is 5 minutes in milliseconds', () => {
+    expect(SYNC_LOCK_TTL_MS).toBe(5 * 60 * 1000);
+    expect(SYNC_LOCK_TTL_MS).toBe(300000);
+  });
+
+  test('is a reasonable TTL for sync operations', () => {
+    // Should be at least 1 minute (enough for retries)
+    expect(SYNC_LOCK_TTL_MS).toBeGreaterThanOrEqual(60 * 1000);
+    // Should be at most 10 minutes (don't block too long)
+    expect(SYNC_LOCK_TTL_MS).toBeLessThanOrEqual(10 * 60 * 1000);
   });
 });

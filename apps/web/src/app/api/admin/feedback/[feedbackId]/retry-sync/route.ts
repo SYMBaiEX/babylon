@@ -2,6 +2,7 @@
  * Admin Feedback Retry Sync API
  *
  * Allows admins to manually retry Linear sync for failed feedback items.
+ * Uses pure Drizzle ORM for all database operations.
  */
 
 import {
@@ -9,10 +10,12 @@ import {
   getLinearConfig,
   requireAdmin,
   successResponse,
+  SYNC_LOCK_TTL_MS,
   syncFeedbackToLinear,
   withErrorHandling,
 } from '@babylon/api';
-import { db } from '@babylon/db';
+import { eq, feedbacks, users } from '@babylon/db';
+import { getRawDrizzle, type JsonValue } from '@babylon/db';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { z } from 'zod';
@@ -25,6 +28,7 @@ const LinearSyncedMetadataSchema = z.object({
   linearIssueId: z.string().optional().catch(undefined),
   linearIssueIdentifier: z.string().optional().catch(undefined),
   linearIssueUrl: z.string().optional().catch(undefined),
+  linearSyncStartedAt: z.string().optional().catch(undefined),
 });
 
 type LinearSyncedMetadata = z.infer<typeof LinearSyncedMetadataSchema>;
@@ -33,9 +37,13 @@ type LinearSyncedMetadata = z.infer<typeof LinearSyncedMetadataSchema>;
  * Safely parse feedback metadata from DB, returning validated Linear sync fields.
  * Returns a safe default object if parsing fails.
  */
-function parseLinearSyncedMetadata(rawMetadata: unknown): LinearSyncedMetadata {
+function parseLinearSyncedMetadata(
+  rawMetadata: JsonValue | null | undefined
+): LinearSyncedMetadata {
   const normalizedMetadata =
-    rawMetadata && typeof rawMetadata === 'object' ? rawMetadata : {};
+    rawMetadata && typeof rawMetadata === 'object' && !Array.isArray(rawMetadata)
+      ? rawMetadata
+      : {};
   return LinearSyncedMetadataSchema.parse(normalizedMetadata);
 }
 
@@ -53,6 +61,7 @@ export const POST = withErrorHandling(
     await requireAdmin(request);
 
     const { feedbackId } = await context.params;
+    const db = getRawDrizzle();
 
     // Check Linear configuration
     const linearConfig = getLinearConfig();
@@ -64,15 +73,16 @@ export const POST = withErrorHandling(
       );
     }
 
-    // Fetch feedback to verify it exists and get user info
-    const feedback = await db.feedback.findUnique({
-      where: { id: feedbackId },
-      select: {
-        id: true,
-        fromUserId: true,
-        metadata: true,
-      },
-    });
+    // Fetch feedback to verify it exists and get user info using Drizzle
+    const [feedback] = await db
+      .select({
+        id: feedbacks.id,
+        fromUserId: feedbacks.fromUserId,
+        metadata: feedbacks.metadata,
+      })
+      .from(feedbacks)
+      .where(eq(feedbacks.id, feedbackId))
+      .limit(1);
 
     if (!feedback) {
       return errorResponse('Feedback not found', 'FEEDBACK_NOT_FOUND', 404);
@@ -93,6 +103,40 @@ export const POST = withErrorHandling(
       });
     }
 
+    // Check if sync is already in progress (prevents duplicate issues)
+    // This provides immediate 409 feedback to admin instead of silent skip
+    if (metadata.linearSyncStartedAt) {
+      const syncStarted = new Date(metadata.linearSyncStartedAt).getTime();
+
+      // Handle invalid date strings (NaN) by treating as stale lock
+      if (!Number.isNaN(syncStarted)) {
+        const now = Date.now();
+        const lockAgeMs = now - syncStarted;
+
+        if (lockAgeMs < SYNC_LOCK_TTL_MS) {
+          const remainingSeconds = Math.ceil(
+            (SYNC_LOCK_TTL_MS - lockAgeMs) / 1000
+          );
+          // Return 409 Conflict to distinguish from success states
+          return errorResponse(
+            `Sync already in progress. Try again in ${remainingSeconds} seconds or wait for completion.`,
+            'SYNC_IN_PROGRESS',
+            409
+          );
+        }
+        // Lock is stale, proceed with sync
+        logger.warn('Stale sync lock detected during manual retry', {
+          feedbackId,
+          syncStartedAt: metadata.linearSyncStartedAt,
+        });
+      } else {
+        logger.warn('Invalid linearSyncStartedAt timestamp during manual retry', {
+          feedbackId,
+          syncStartedAt: metadata.linearSyncStartedAt,
+        });
+      }
+    }
+
     // Get user info for the sync - distinguish between orphaned feedback and deleted user
     if (!feedback.fromUserId) {
       return errorResponse(
@@ -102,10 +146,17 @@ export const POST = withErrorHandling(
       );
     }
 
-    const user = await db.user.findUnique({
-      where: { id: feedback.fromUserId },
-      select: { id: true, email: true },
-    });
+    // Fetch user using Drizzle
+    const [user] = await db
+      .select({
+        id: users.id,
+        email: users.email,
+        username: users.username,
+        displayName: users.displayName,
+      })
+      .from(users)
+      .where(eq(users.id, feedback.fromUserId))
+      .limit(1);
 
     if (!user) {
       return errorResponse(
@@ -120,16 +171,15 @@ export const POST = withErrorHandling(
     // syncFeedbackToLinear updates metadata as a side effect, so we refetch.
     await syncFeedbackToLinear(linearConfig, feedbackId, user);
 
-    // Refetch to get canonical metadata after sync (avoids returning stale data)
-    const updatedFeedback = await db.feedback.findUnique({
-      where: { id: feedbackId },
-      select: { metadata: true },
-    });
+    // Refetch to get canonical metadata after sync using Drizzle
+    const [updatedFeedback] = await db
+      .select({ metadata: feedbacks.metadata })
+      .from(feedbacks)
+      .where(eq(feedbacks.id, feedbackId))
+      .limit(1);
 
     // Validate updated metadata at runtime
-    const updatedMetadata = parseLinearSyncedMetadata(
-      updatedFeedback?.metadata
-    );
+    const updatedMetadata = parseLinearSyncedMetadata(updatedFeedback?.metadata);
 
     logger.info('Manual Linear sync completed', {
       feedbackId,
