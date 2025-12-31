@@ -1,5 +1,5 @@
 import { authenticate, successResponse, withErrorHandling } from '@babylon/api';
-import { PerpOpenPositionSchema } from '@babylon/shared';
+import { logger, PerpOpenPositionSchema } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { trackServerEvent } from '@/lib/posthog/server';
 import {
@@ -42,7 +42,11 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     await applyUserTradePriceImpact(ticker);
   } catch (error) {
     // Log but don't fail the trade - price impact is enhancement
-    console.error('[PerpOpen] Price impact failed:', error);
+    logger.error(
+      'Price impact failed',
+      { ticker, error: error instanceof Error ? error.message : String(error) },
+      'PerpOpen'
+    );
   }
 
   // Track analytics event (fire and forget)
@@ -57,7 +61,11 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     feeCharged: result.feePaid,
     positionId: result.positionId,
   }).catch((error) => {
-    console.warn('Failed to track trade_opened event', { error });
+    logger.warn(
+      'Failed to track trade_opened event',
+      { error: error instanceof Error ? error.message : String(error) },
+      'PerpOpen'
+    );
   });
 
   return successResponse(

@@ -1,5 +1,5 @@
 import { authenticate, successResponse, withErrorHandling } from '@babylon/api';
-import { ClosePerpPositionSchema } from '@babylon/shared';
+import { ClosePerpPositionSchema, logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { z } from 'zod';
 import { trackServerEvent } from '@/lib/posthog/server';
@@ -54,7 +54,14 @@ export const POST = withErrorHandling(
       await applyUserTradePriceImpact(result.ticker);
     } catch (error) {
       // Log but don't fail the trade - price impact is enhancement
-      console.error('[PerpClose] Price impact failed:', error);
+      logger.error(
+        'Price impact failed',
+        {
+          ticker: result.ticker,
+          error: error instanceof Error ? error.message : String(error),
+        },
+        'PerpClose'
+      );
     }
 
     // Track analytics event (fire and forget)
@@ -75,7 +82,11 @@ export const POST = withErrorHandling(
       wasLiquidated: false,
       positionId,
     }).catch((error) => {
-      console.warn('Failed to track trade_closed event', { error });
+      logger.warn(
+        'Failed to track trade_closed event',
+        { error: error instanceof Error ? error.message : String(error) },
+        'PerpClose'
+      );
     });
 
     return successResponse({
