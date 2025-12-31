@@ -293,7 +293,8 @@ class SimulationState {
       balance: 10000 + Math.random() * 5000,
       recentNews: [
         {
-          content: 'Bitcoin shows strong momentum as institutional interest grows',
+          content:
+            'Bitcoin shows strong momentum as institutional interest grows',
           source: 'CryptoNews',
           timestamp: new Date().toISOString(),
         },
@@ -372,15 +373,18 @@ class SimulationState {
 
   // Synthetic state for bridge NPCs (not in StaticDataRegistry)
   private syntheticBalances: Map<string, number> = new Map();
-  private syntheticPositions: Map<string, Array<{
-    id: string;
-    marketType: 'perp' | 'prediction';
-    ticker?: string;
-    marketId?: string;
-    side: string;
-    size: number;
-    entryPrice: number;
-  }>> = new Map();
+  private syntheticPositions: Map<
+    string,
+    Array<{
+      id: string;
+      marketType: 'perp' | 'prediction';
+      ticker?: string;
+      marketId?: string;
+      side: string;
+      size: number;
+      entryPrice: number;
+    }>
+  > = new Map();
 
   async executeAction(request: ExecuteRequest): Promise<ExecuteResponse> {
     if (!this.isInitialized) {
@@ -522,13 +526,18 @@ class SimulationState {
         const posIndex = positions.findIndex(
           (p) =>
             p.marketType === 'perp' &&
-            (action.positionId ? p.id === action.positionId : p.ticker === action.ticker)
+            (action.positionId
+              ? p.id === action.positionId
+              : p.ticker === action.ticker)
         );
         if (posIndex >= 0) {
           const pos = positions[posIndex]!;
           const exitPrice = pos.entryPrice * (1 + (Math.random() - 0.5) * 0.1); // ±5% move
           const priceChange = exitPrice - pos.entryPrice;
-          pnl = pos.side === 'long' ? priceChange * (pos.size / pos.entryPrice) : -priceChange * (pos.size / pos.entryPrice);
+          pnl =
+            pos.side === 'long'
+              ? priceChange * (pos.size / pos.entryPrice)
+              : -priceChange * (pos.size / pos.entryPrice);
           balance += pos.size + pnl;
           positions.splice(posIndex, 1);
         } else {
@@ -778,7 +787,8 @@ app.get('/scenarios', async (c) => {
 import { initializeSimulationMode } from '../storage-bridge';
 
 const PORT = parseInt(process.env.SIMULATION_BRIDGE_PORT ?? '3001', 10);
-const SIMULATION_DATA_PATH = process.env.SIMULATION_DATA_PATH ?? './simulation-data';
+const SIMULATION_DATA_PATH =
+  process.env.SIMULATION_DATA_PATH ?? './simulation-data';
 
 // Only start server if run directly (not imported)
 if (import.meta.main) {
