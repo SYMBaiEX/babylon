@@ -818,9 +818,9 @@ export class AgentServiceV2 {
     reason: string,
     relatedId?: string
   ): Promise<number> {
-    // Fetch and validate balance inside transaction to prevent race conditions
+    // Fetch and validate balance inside transaction with row-level locking to prevent race conditions
     const newBalance = await withTransaction(async (tx) => {
-      // Get agent's current virtualBalance from users table (inside transaction)
+      // Get agent's current virtualBalance with FOR UPDATE lock to prevent concurrent deductions
       const userResult = await tx
         .select({
           virtualBalance: users.virtualBalance,
@@ -828,7 +828,8 @@ export class AgentServiceV2 {
         })
         .from(users)
         .where(eq(users.id, agentUserId))
-        .limit(1);
+        .limit(1)
+        .for('update');
 
       const agent = userResult[0];
       if (!agent) throw new Error('Agent not found');
