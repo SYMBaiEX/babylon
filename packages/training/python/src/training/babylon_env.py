@@ -999,8 +999,11 @@ You receive market updates and must analyze, reason, and then act."""
         """
         score = 0.5  # Start neutral
         
+        # Access correct attributes: action (not action_result), think_tags (not think_result)
+        action_result = format_validation.action
+        think_result = format_validation.think_tags
+        
         # 1. Action validation from format validator (0.3 weight)
-        action_result = format_validation.action_result
         if action_result.is_valid_json and action_result.has_action:
             score += 0.15  # Has valid action
             
@@ -1062,7 +1065,6 @@ You receive market updates and must analyze, reason, and then act."""
                 score += 0.05
         
         # 3. Reasoning-action alignment (0.25 weight)
-        think_result = format_validation.think_result
         if think_result.thinking_content and action_result.parsed_action:
             thinking = think_result.thinking_content.lower()
             action_type = action_result.action_type or ""
