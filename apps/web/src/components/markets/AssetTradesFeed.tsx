@@ -1,6 +1,6 @@
 'use client';
 
-import { cn, logger } from '@babylon/shared';
+import { BABYLON_POINTS_SYMBOL, cn, logger } from '@babylon/shared';
 import {
   AlertCircle,
   ArrowUpDown,
@@ -347,12 +347,7 @@ export function AssetTradesFeed({
 
   const formatCurrency = (value: string | number) => {
     const num = typeof value === 'string' ? Number.parseFloat(value) : value;
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }).format(num);
+    return `${BABYLON_POINTS_SYMBOL}${num.toFixed(2)}`;
   };
 
   const formatTime = (timestamp: string) => {

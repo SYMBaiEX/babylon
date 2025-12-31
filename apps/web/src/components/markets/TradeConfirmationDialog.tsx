@@ -1,6 +1,6 @@
 'use client';
 
-import { cn } from '@babylon/shared';
+import { BABYLON_POINTS_SYMBOL, cn } from '@babylon/shared';
 import {
   AlertTriangle,
   CheckCircle,
@@ -155,12 +155,7 @@ export function TradeConfirmationDialog({
   if (!tradeDetails) return null;
 
   const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }).format(price);
+    return `${BABYLON_POINTS_SYMBOL}${price.toFixed(2)}`;
   };
 
   const getTitle = () => {

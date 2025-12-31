@@ -1,3 +1,4 @@
+import { BABYLON_POINTS_SYMBOL } from '@babylon/shared';
 import type { User } from '@/stores/authStore';
 import type { MarketCategory } from '@/types/markets';
 
@@ -49,24 +50,16 @@ interface CategoryPnLShareCardProps {
 }
 
 /**
- * Currency formatter for displaying monetary values.
- */
-const formatter = new Intl.NumberFormat('en-US', {
-  style: 'currency',
-  currency: 'USD',
-  maximumFractionDigits: 2,
-});
-
-/**
  * Format currency value safely.
  *
- * Formats a number as currency, defaulting to 0 if invalid.
+ * Formats a number as Babylon points, defaulting to 0 if invalid.
  *
  * @param value - Value to format
  * @returns Formatted currency string
  */
 function formatCurrency(value: number) {
-  return formatter.format(Number.isFinite(value) ? value : 0);
+  const safeValue = Number.isFinite(value) ? value : 0;
+  return `${BABYLON_POINTS_SYMBOL}${safeValue.toFixed(2)}`;
 }
 
 /**

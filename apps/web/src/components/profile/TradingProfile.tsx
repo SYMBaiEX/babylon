@@ -1,12 +1,12 @@
 'use client';
 
-import { cn } from '@babylon/shared';
+import { BABYLON_POINTS_SYMBOL, cn } from '@babylon/shared';
 import {
   Activity,
   AlertCircle,
   BarChart3,
   Clock,
-  DollarSign,
+  Coins,
   Target,
   TrendingDown,
   TrendingUp,
@@ -312,11 +312,13 @@ export function TradingProfile({
   }, [fetchTradingData]);
 
   const formatCurrency = (value: number) => {
-    if (!Number.isFinite(value)) return '$0.00';
+    if (!Number.isFinite(value)) return `${BABYLON_POINTS_SYMBOL}0.00`;
     const abs = Math.abs(value);
-    if (abs >= 1000000) return `$${(value / 1000000).toFixed(2)}M`;
-    if (abs >= 1000) return `$${(value / 1000).toFixed(2)}K`;
-    return `$${value.toFixed(2)}`;
+    if (abs >= 1000000)
+      return `${BABYLON_POINTS_SYMBOL}${(value / 1000000).toFixed(2)}M`;
+    if (abs >= 1000)
+      return `${BABYLON_POINTS_SYMBOL}${(value / 1000).toFixed(2)}K`;
+    return `${BABYLON_POINTS_SYMBOL}${value.toFixed(2)}`;
   };
 
   const calculateCurrentPrice = (market: PredictionPosition['Market']) => {
@@ -363,7 +365,7 @@ export function TradingProfile({
       <div className="grid grid-cols-2 gap-4 p-4 lg:grid-cols-4">
         <div className="rounded-lg border border-border bg-card p-4">
           <div className="mb-2 flex items-center gap-2">
-            <DollarSign className="h-4 w-4 text-green-500" />
+            <Coins className="h-4 w-4 text-green-500" />
             <span className="font-medium text-muted-foreground text-xs">
               Balance
             </span>
