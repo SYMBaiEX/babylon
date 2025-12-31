@@ -1,18 +1,3 @@
-/**
- * NFT Mint Confirm API
- *
- * @route POST /api/nft/mint/confirm
- * @access Authenticated
- *
- * @description
- * Confirms a successful mint transaction after the user has submitted
- * the transaction on-chain. Updates the database to record the mint
- * and returns the minted NFT details for the reveal animation.
- *
- * This endpoint should be called after the transaction is confirmed
- * on-chain, passing the transaction hash for verification.
- */
-
 import {
   authenticate,
   BadRequestError,
@@ -32,10 +17,12 @@ import {
   nftSnapshot,
   users,
 } from '@babylon/db';
-import { logger } from '@babylon/shared';
 import { nanoid } from 'nanoid';
 import type { NextRequest } from 'next/server';
 import type { MintConfirmRequest, MintConfirmResponse } from '@/types/nft';
+
+const TX_HASH_REGEX = /^0x[a-fA-F0-9]{64}$/;
+const ADDRESS_REGEX = /^0x[a-fA-F0-9]{40}$/;
 
 export const POST = withErrorHandling(async (request: NextRequest) => {
   const authUser = await authenticate(request);
@@ -44,35 +31,14 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   const body = (await request.json()) as MintConfirmRequest;
   const { txHash, walletAddress } = body;
 
-  // Validate txHash format (0x + 64 hex characters)
-  if (!txHash || typeof txHash !== 'string') {
-    throw new BadRequestError('Transaction hash is required');
+  if (!txHash || !TX_HASH_REGEX.test(txHash)) {
+    throw new BadRequestError('Invalid transaction hash');
   }
 
-  if (!/^0x[a-fA-F0-9]{64}$/.test(txHash)) {
-    throw new BadRequestError(
-      'Invalid transaction hash format. Must be 0x followed by 64 hex characters.'
-    );
+  if (!walletAddress || !ADDRESS_REGEX.test(walletAddress)) {
+    throw new BadRequestError('Invalid wallet address');
   }
 
-  // Validate wallet address format
-  if (!walletAddress || typeof walletAddress !== 'string') {
-    throw new BadRequestError('Wallet address is required');
-  }
-
-  if (!/^0x[a-fA-F0-9]{40}$/.test(walletAddress)) {
-    throw new BadRequestError(
-      'Invalid wallet address format. Must be 0x followed by 40 hex characters.'
-    );
-  }
-
-  logger.info(
-    'Confirming NFT mint',
-    { userId, txHash, walletAddress },
-    'POST /api/nft/mint/confirm'
-  );
-
-  // Get user's wallet address from DB to verify
   const [user] = await db
     .select({
       id: users.id,
@@ -83,21 +49,16 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     .limit(1);
 
   if (!user?.walletAddress) {
-    throw new BadRequestError('No wallet connected to your account');
+    throw new BadRequestError('No wallet connected');
   }
 
-  // Verify the wallet address matches
   if (user.walletAddress.toLowerCase() !== walletAddress.toLowerCase()) {
-    throw new ForbiddenError('Wallet address does not match your account');
+    throw new ForbiddenError('Wallet mismatch');
   }
 
-  // Perform all operations in a single transaction to prevent race conditions
-  // This ensures that checking eligibility, selecting NFT, and recording the mint
-  // all happen atomically - no two users can claim the same NFT
   const now = new Date();
 
   const result = await db.transaction(async (tx) => {
-    // 1. Check eligibility from snapshot (within transaction for consistency)
     const [snapshotEntry] = await tx
       .select({
         id: nftSnapshot.id,
@@ -112,15 +73,13 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       .limit(1);
 
     if (!snapshotEntry) {
-      throw new ForbiddenError('You are not eligible to mint');
+      throw new ForbiddenError('Not eligible');
     }
 
     if (snapshotEntry.hasMinted) {
-      throw new ConflictError('You have already minted your NFT');
+      throw new ConflictError('Already minted');
     }
 
-    // 2. Find an available NFT to assign (random assignment)
-    // This query is within the transaction, ensuring atomicity
     const unclaimedNfts = await tx
       .select({
         tokenId: nftCollection.tokenId,
@@ -134,16 +93,12 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       .where(isNull(nftOwnership.tokenId));
 
     if (unclaimedNfts.length === 0) {
-      throw new InternalServerError(
-        'No NFTs available for minting. Please contact support.'
-      );
+      throw new InternalServerError('No NFTs available');
     }
 
-    // Random selection - we know unclaimedNfts.length > 0 from check above
-    const randomIndex = Math.floor(Math.random() * unclaimedNfts.length);
-    const assignedNft = unclaimedNfts[randomIndex]!;
+    const assignedNft =
+      unclaimedNfts[Math.floor(Math.random() * unclaimedNfts.length)]!;
 
-    // 3. Update snapshot to mark as minted
     await tx
       .update(nftSnapshot)
       .set({
@@ -154,7 +109,6 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       })
       .where(eq(nftSnapshot.userId, userId));
 
-    // 4. Create ownership record
     await tx.insert(nftOwnership).values({
       id: nanoid(),
       tokenId: assignedNft.tokenId,
@@ -165,7 +119,6 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       updatedAt: now,
     });
 
-    // 5. Create claim record (provenance)
     await tx.insert(nftClaims).values({
       id: nanoid(),
       tokenId: assignedNft.tokenId,
@@ -180,9 +133,9 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     return { assignedNft, snapshotEntry };
   });
 
-  const { assignedNft, snapshotEntry } = result;
+  const { assignedNft } = result;
 
-  const response: MintConfirmResponse = {
+  return successResponse({
     success: true,
     tokenId: assignedNft.tokenId,
     nft: {
@@ -192,19 +145,5 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       thumbnailUrl: assignedNft.thumbnailUrl,
       storyTitle: assignedNft.storyTitle,
     },
-  };
-
-  logger.info(
-    'NFT mint confirmed successfully',
-    {
-      userId,
-      tokenId: assignedNft.tokenId,
-      name: assignedNft.name,
-      rank: snapshotEntry.rank,
-      txHash,
-    },
-    'POST /api/nft/mint/confirm'
-  );
-
-  return successResponse(response);
+  } satisfies MintConfirmResponse);
 });

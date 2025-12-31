@@ -18,24 +18,17 @@ export function RevealModal({ isOpen, nft, onClose }: RevealModalProps) {
   const [showConfetti, setShowConfetti] = useState(false);
 
   useEffect(() => {
-    if (!isOpen || !nft) {
-      return;
-    }
+    if (!isOpen || !nft) return;
 
-    // Start reveal animation
     setIsRevealing(true);
     setShowConfetti(false);
 
-    // Flip card after delay
     const revealTimer = setTimeout(() => {
       setIsRevealing(false);
       setShowConfetti(true);
     }, 2000);
 
-    // Hide confetti after a while
-    const confettiTimer = setTimeout(() => {
-      setShowConfetti(false);
-    }, 5000);
+    const confettiTimer = setTimeout(() => setShowConfetti(false), 5000);
 
     return () => {
       clearTimeout(revealTimer);
@@ -47,13 +40,11 @@ export function RevealModal({ isOpen, nft, onClose }: RevealModalProps) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      {/* Backdrop */}
       <div
         className="absolute inset-0 bg-black/80 backdrop-blur-sm"
         onClick={onClose}
       />
 
-      {/* Confetti Effect */}
       {showConfetti && (
         <div className="pointer-events-none absolute inset-0 overflow-hidden">
           {Array.from({ length: 50 }).map((_, i) => (
@@ -79,9 +70,7 @@ export function RevealModal({ isOpen, nft, onClose }: RevealModalProps) {
         </div>
       )}
 
-      {/* Modal Content */}
       <div className="relative z-10 mx-4 w-full max-w-md">
-        {/* Close Button */}
         <button
           onClick={onClose}
           className="-right-2 -top-2 absolute z-20 rounded-full bg-muted p-2 text-muted-foreground transition-colors hover:bg-muted/80 hover:text-foreground"
@@ -89,7 +78,6 @@ export function RevealModal({ isOpen, nft, onClose }: RevealModalProps) {
           <X className="h-5 w-5" />
         </button>
 
-        {/* Card Container with Flip Animation */}
         <div
           className="perspective-1000 relative mx-auto aspect-square w-full max-w-sm"
           style={{ perspective: '1000px' }}
@@ -103,7 +91,6 @@ export function RevealModal({ isOpen, nft, onClose }: RevealModalProps) {
               transform: isRevealing ? 'rotateY(0deg)' : 'rotateY(180deg)',
             }}
           >
-            {/* Card Back (Mystery) */}
             <div
               className="absolute inset-0 flex items-center justify-center rounded-2xl border-2 border-[#0066FF]/50 bg-gradient-to-br from-[#0066FF]/20 via-purple-500/20 to-[#0066FF]/20 shadow-2xl shadow-[#0066FF]/20"
               style={{ backfaceVisibility: 'hidden' }}
@@ -116,7 +103,6 @@ export function RevealModal({ isOpen, nft, onClose }: RevealModalProps) {
               </div>
             </div>
 
-            {/* Card Front (NFT) */}
             <div
               className="absolute inset-0 overflow-hidden rounded-2xl border-2 border-green-500/50 bg-card shadow-2xl shadow-green-500/20"
               style={{
@@ -137,7 +123,6 @@ export function RevealModal({ isOpen, nft, onClose }: RevealModalProps) {
           </div>
         </div>
 
-        {/* NFT Info (shown after reveal) */}
         {!isRevealing && (
           <div className="mt-6 animate-fade-in text-center">
             <p className="mb-2 text-muted-foreground text-sm">You received</p>
@@ -168,7 +153,6 @@ export function RevealModal({ isOpen, nft, onClose }: RevealModalProps) {
         )}
       </div>
 
-      {/* Keyframe Styles */}
       <style jsx global>{`
         @keyframes confetti {
           0% {

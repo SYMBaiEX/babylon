@@ -1,11 +1,3 @@
-/**
- * NFT Minting Hook
- *
- * Provides functionality for minting NFTs from the Babylon Top 100 collection.
- * Handles eligibility checking, transaction preparation, wallet signing,
- * and confirmation flow with reveal animation state.
- */
-
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
@@ -17,7 +9,6 @@ import type {
   MintPrepareResponse,
 } from '@/types/nft';
 
-/** States that indicate minting is in progress */
 const MINTING_STATES: MintFlowState[] = [
   'preparing',
   'awaiting_signature',
@@ -52,16 +43,9 @@ export function useNftMint(): UseNftMintResult {
   );
   const [error, setError] = useState<string | null>(null);
 
-  // Check eligibility on mount and when auth changes
   const checkEligibility = useCallback(async () => {
-    const notAuthenticatedResponse: EligibilityResponse = {
-      eligible: false,
-      status: 'not_authenticated',
-      hasMinted: false,
-    };
-
     if (!authenticated) {
-      setEligibility(notAuthenticatedResponse);
+      setEligibility({ eligible: false, status: 'not_authenticated', hasMinted: false });
       return;
     }
 
@@ -71,7 +55,7 @@ export function useNftMint(): UseNftMintResult {
 
     const token = await getAccessToken();
     if (!token) {
-      setEligibility(notAuthenticatedResponse);
+      setEligibility({ eligible: false, status: 'not_authenticated', hasMinted: false });
       setFlowState('idle');
       setIsCheckingEligibility(false);
       return;
@@ -92,7 +76,6 @@ export function useNftMint(): UseNftMintResult {
     const data: EligibilityResponse = await response.json();
     setEligibility(data);
 
-    // Pre-populate mintedNft if user already minted
     if (data.status === 'already_minted' && data.mintedNft) {
       setMintedNft({
         tokenId: data.mintedNft.tokenId,
@@ -107,7 +90,6 @@ export function useNftMint(): UseNftMintResult {
     setIsCheckingEligibility(false);
   }, [authenticated, getAccessToken]);
 
-  // Start the minting process
   const startMint = useCallback(async () => {
     if (!authenticated) {
       toast.error('Please connect your wallet first');
@@ -120,9 +102,7 @@ export function useNftMint(): UseNftMintResult {
     }
 
     if (!smartWalletReady || !smartWalletAddress) {
-      toast.error(
-        'Smart wallet not ready. Please wait a moment and try again.'
-      );
+      toast.error('Smart wallet not ready');
       return;
     }
 
@@ -136,7 +116,6 @@ export function useNftMint(): UseNftMintResult {
       return;
     }
 
-    // Step 1: Prepare mint transaction
     const prepareResponse = await fetch('/api/nft/mint/prepare', {
       method: 'POST',
       headers: {
@@ -158,32 +137,23 @@ export function useNftMint(): UseNftMintResult {
 
     setFlowState('awaiting_signature');
 
-    // Step 2: Validate contract is deployed (not placeholder)
-    const PLACEHOLDER_CONTRACT = '0x0000000000000000000000000000000000000000';
-    if (prepareData.contractAddress === PLACEHOLDER_CONTRACT) {
-      const errorMessage =
-        'NFT contract not deployed yet. Minting is not available.';
-      setError(errorMessage);
-      toast.error(errorMessage);
+    if (prepareData.contractAddress === '0x0000000000000000000000000000000000000000') {
+      setError('NFT contract not deployed');
+      toast.error('NFT contract not deployed');
       setFlowState('error');
       return;
     }
 
-    // Step 3: Execute transaction via smart wallet
     setFlowState('minting');
 
     const txHash = await sendSmartWalletTransaction({
       to: prepareData.contractAddress as `0x${string}`,
-      data: encodeMintFunctionCall(
-        prepareData.functionName,
-        prepareData.args
-      ),
+      data: encodeMintFunctionCall(prepareData.functionName, prepareData.args),
       value: BigInt(prepareData.value),
     });
 
     setFlowState('confirming');
 
-    // Step 3: Confirm mint with backend
     const confirmResponse = await fetch('/api/nft/mint/confirm', {
       method: 'POST',
       headers: {
@@ -207,11 +177,8 @@ export function useNftMint(): UseNftMintResult {
 
     const confirmData: MintConfirmResponse = await confirmResponse.json();
 
-    // Step 4: Trigger reveal animation
     setMintedNft(confirmData.nft);
     setFlowState('revealing');
-
-    // Update eligibility to reflect minted status
     setEligibility((prev) =>
       prev
         ? {
@@ -238,13 +205,11 @@ export function useNftMint(): UseNftMintResult {
     sendSmartWalletTransaction,
   ]);
 
-  // Reset the flow (after reveal animation)
   const resetFlow = useCallback(() => {
     setFlowState(eligibility?.hasMinted ? 'complete' : 'eligible');
     setError(null);
   }, [eligibility?.hasMinted]);
 
-  // Auto-check eligibility on auth change
   useEffect(() => {
     if (authenticated) {
       checkEligibility();
@@ -269,35 +234,16 @@ export function useNftMint(): UseNftMintResult {
   };
 }
 
-/**
- * Encode a mint function call for the NFT contract using viem's encodeFunctionData
- */
-function encodeMintFunctionCall(
-  functionName: string,
-  args: string[]
-): `0x${string}` {
-  // Import viem encoding dynamically to avoid bundling issues
-  // This uses the proper ABI encoding for the mint(address) function
+function encodeMintFunctionCall(functionName: string, args: string[]): `0x${string}` {
   if (functionName !== 'mint' || args.length !== 1) {
-    throw new Error(
-      `Unsupported function: ${functionName} with ${args.length} args. Only mint(address) is supported.`
-    );
+    throw new Error(`Unsupported: ${functionName}(${args.length} args)`);
   }
 
-  const recipientAddress = args[0]!;
-
-  // Validate address format
-  if (!/^0x[a-fA-F0-9]{40}$/.test(recipientAddress)) {
-    throw new Error(`Invalid address format: ${recipientAddress}`);
+  const address = args[0]!;
+  if (!/^0x[a-fA-F0-9]{40}$/.test(address)) {
+    throw new Error(`Invalid address: ${address}`);
   }
 
-  // Function selector for mint(address) = keccak256("mint(address)")[:4] = 0x6a627842
-  // ABI-encoded address is padded to 32 bytes
-  const functionSelector = '6a627842';
-  const paddedAddress = recipientAddress
-    .toLowerCase()
-    .slice(2)
-    .padStart(64, '0');
-
-  return `0x${functionSelector}${paddedAddress}` as `0x${string}`;
+  // mint(address) selector + padded address
+  return `0x6a627842${address.slice(2).toLowerCase().padStart(64, '0')}` as `0x${string}`;
 }

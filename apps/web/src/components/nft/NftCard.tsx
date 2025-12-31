@@ -23,7 +23,6 @@ export function NftCard({ nft, priority = false }: NftCardProps) {
       href={`/nft/${nft.tokenId}`}
       className="group relative block overflow-hidden rounded-xl border border-border bg-card transition-all hover:border-[#0066FF]/50 hover:shadow-[#0066FF]/10 hover:shadow-lg"
     >
-      {/* NFT Image */}
       <div className="relative aspect-square overflow-hidden bg-muted">
         {!imageError ? (
           <Image
@@ -41,26 +40,22 @@ export function NftCard({ nft, priority = false }: NftCardProps) {
           </div>
         )}
 
-        {/* Claimed Badge */}
         {nft.owner && (
           <div className="absolute top-2 right-2 rounded-full bg-green-500/90 px-2 py-1 font-medium text-white text-xs backdrop-blur-sm">
             Claimed
           </div>
         )}
 
-        {/* Token ID Badge */}
         <div className="absolute top-2 left-2 rounded-full bg-black/60 px-2 py-1 font-medium text-white text-xs backdrop-blur-sm">
           #{nft.tokenId}
         </div>
       </div>
 
-      {/* Card Content */}
       <div className="p-3">
         <h3 className="mb-1 truncate font-semibold text-foreground text-sm">
           {nft.name}
         </h3>
 
-        {/* Owner Info */}
         {nft.owner ? (
           <div className="flex items-center gap-2">
             <Avatar

@@ -203,7 +203,8 @@ describe('NFT Gallery API - Input Validation', () => {
 
     test('should default invalid sort order to "asc"', () => {
       const order: string = 'invalid';
-      const effectiveOrder = order === 'asc' || order === 'desc' ? order : 'asc';
+      const effectiveOrder =
+        order === 'asc' || order === 'desc' ? order : 'asc';
       expect(effectiveOrder).toBe('asc');
     });
 

@@ -301,7 +301,11 @@ describe('NFT Mint Flow - Error Handling', () => {
         not_eligible: "You're not eligible to mint.",
         unknown: 'An unexpected error occurred.',
       };
-      return errorMessages[errorCode] ?? errorMessages['unknown'] ?? 'An unexpected error occurred.';
+      return (
+        errorMessages[errorCode] ??
+        errorMessages['unknown'] ??
+        'An unexpected error occurred.'
+      );
     }
 
     test('should return appropriate message for user_rejected', () => {
