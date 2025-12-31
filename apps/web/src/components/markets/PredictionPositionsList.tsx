@@ -1,7 +1,12 @@
 'use client';
 
 import type { UserPredictionPosition } from '@babylon/shared';
-import { BABYLON_POINTS_SYMBOL, cn, logger } from '@babylon/shared';
+import {
+  BABYLON_POINTS_SYMBOL,
+  cn,
+  formatCurrency,
+  logger,
+} from '@babylon/shared';
 import { usePrivy } from '@privy-io/react-auth';
 import { CheckCircle, XCircle } from 'lucide-react';
 import { useState } from 'react';
@@ -143,7 +148,8 @@ export function PredictionPositionsList({
     }
   };
 
-  const formatPrice = (price: number) => `${BABYLON_POINTS_SYMBOL}${price.toFixed(3)}`;
+  /** Use shared formatCurrency with 3 decimals for prediction prices */
+  const formatPrice = (price: number) => formatCurrency(price, 3);
 
   if (positions.length === 0) {
     return (
