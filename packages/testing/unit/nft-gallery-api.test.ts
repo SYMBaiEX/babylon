@@ -78,12 +78,14 @@ describe('NFT Gallery API - Input Validation', () => {
     const MAX_LIMIT = 100;
 
     test('should use default page 1 when not specified', () => {
-      const page = undefined ?? DEFAULT_PAGE;
+      const pageParam: number | undefined = undefined;
+      const page = pageParam ?? DEFAULT_PAGE;
       expect(page).toBe(1);
     });
 
     test('should use default limit 20 when not specified', () => {
-      const limit = undefined ?? DEFAULT_LIMIT;
+      const limitParam: number | undefined = undefined;
+      const limit = limitParam ?? DEFAULT_LIMIT;
       expect(limit).toBe(20);
     });
 
@@ -152,25 +154,24 @@ describe('NFT Gallery API - Input Validation', () => {
   });
 
   describe('Filter Validation', () => {
+    function isValidClaimedFilter(filter: string | null): boolean {
+      return filter === 'true' || filter === 'false' || filter === null;
+    }
+
+    function isValidSortOrder(order: string): boolean {
+      return order === 'asc' || order === 'desc';
+    }
+
     test('should accept claimed filter "true"', () => {
-      const filter = 'true';
-      expect(filter === 'true' || filter === 'false' || filter === null).toBe(
-        true
-      );
+      expect(isValidClaimedFilter('true')).toBe(true);
     });
 
     test('should accept claimed filter "false"', () => {
-      const filter = 'false';
-      expect(filter === 'true' || filter === 'false' || filter === null).toBe(
-        true
-      );
+      expect(isValidClaimedFilter('false')).toBe(true);
     });
 
     test('should accept null claimed filter (show all)', () => {
-      const filter = null;
-      expect(filter === 'true' || filter === 'false' || filter === null).toBe(
-        true
-      );
+      expect(isValidClaimedFilter(null)).toBe(true);
     });
 
     test('should accept valid sort field "tokenId"', () => {
@@ -193,18 +194,16 @@ describe('NFT Gallery API - Input Validation', () => {
     });
 
     test('should accept valid sort order "asc"', () => {
-      const order = 'asc';
-      expect(order === 'asc' || order === 'desc').toBe(true);
+      expect(isValidSortOrder('asc')).toBe(true);
     });
 
     test('should accept valid sort order "desc"', () => {
-      const order = 'desc';
-      expect(order === 'asc' || order === 'desc').toBe(true);
+      expect(isValidSortOrder('desc')).toBe(true);
     });
 
     test('should default invalid sort order to "asc"', () => {
-      const order = 'invalid';
-      const effectiveOrder = order === 'desc' ? 'desc' : 'asc';
+      const order: string = 'invalid';
+      const effectiveOrder = order === 'asc' || order === 'desc' ? order : 'asc';
       expect(effectiveOrder).toBe('asc');
     });
 
@@ -645,7 +644,7 @@ describe('NFT Gallery API - Edge Cases', () => {
       const maliciousQuery = "'; DROP TABLE nfts; --";
       // Should be safely parameterized in SQL query
       const safeQuery = `%${maliciousQuery}%`;
-      expect(safeQuery).toContain("DROP TABLE");
+      expect(safeQuery).toContain('DROP TABLE');
       // Parameterized queries prevent injection
     });
   });

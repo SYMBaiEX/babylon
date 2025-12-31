@@ -34,12 +34,12 @@ interface SnapshotEntry {
 
 // Snapshot logic functions
 function selectTop100(users: LeaderboardUser[]): LeaderboardUser[] {
-  return [...users]
-    .sort((a, b) => b.totalPoints - a.totalPoints)
-    .slice(0, 100);
+  return [...users].sort((a, b) => b.totalPoints - a.totalPoints).slice(0, 100);
 }
 
-function assignRanks(users: LeaderboardUser[]): Array<{ user: LeaderboardUser; rank: number }> {
+function assignRanks(
+  users: LeaderboardUser[]
+): Array<{ user: LeaderboardUser; rank: number }> {
   const sorted = [...users].sort((a, b) => b.totalPoints - a.totalPoints);
   return sorted.map((user, index) => ({
     user,
@@ -62,9 +62,7 @@ function findDroppedUsers(
   oldSnapshot: SnapshotEntry[],
   newUserIds: Set<string>
 ): SnapshotEntry[] {
-  return oldSnapshot.filter(
-    (s) => s.hasMinted && !newUserIds.has(s.userId)
-  );
+  return oldSnapshot.filter((s) => s.hasMinted && !newUserIds.has(s.userId));
 }
 
 describe('NFT Snapshot - Top 100 Selection', () => {
@@ -78,8 +76,8 @@ describe('NFT Snapshot - Top 100 Selection', () => {
 
       const top100 = selectTop100(users);
       expect(top100).toHaveLength(100);
-      expect(top100[0].totalPoints).toBe(1000);
-      expect(top100[99].totalPoints).toBe(901);
+      expect(top100[0]!.totalPoints).toBe(1000);
+      expect(top100[99]!.totalPoints).toBe(901);
     });
 
     test('should return all users when fewer than 100', () => {
@@ -106,9 +104,9 @@ describe('NFT Snapshot - Top 100 Selection', () => {
       ];
 
       const result = selectTop100(users);
-      expect(result[0].id).toBe('high');
-      expect(result[1].id).toBe('mid');
-      expect(result[2].id).toBe('low');
+      expect(result[0]!.id).toBe('high');
+      expect(result[1]!.id).toBe('mid');
+      expect(result[2]!.id).toBe('low');
     });
 
     test('should handle exactly 100 users', () => {
@@ -156,7 +154,11 @@ describe('NFT Snapshot - Top 100 Selection', () => {
   describe('Wallet Address Handling', () => {
     test('should include users without wallet addresses', () => {
       const users: LeaderboardUser[] = [
-        { id: 'with-wallet', walletAddress: '0x' + '1'.repeat(40), totalPoints: 1000 },
+        {
+          id: 'with-wallet',
+          walletAddress: '0x' + '1'.repeat(40),
+          totalPoints: 1000,
+        },
         { id: 'without-wallet', walletAddress: null, totalPoints: 900 },
       ];
 
@@ -210,7 +212,7 @@ describe('NFT Snapshot - Rank Assignment', () => {
 
       const ranked = assignRanks(users);
       expect(ranked).toHaveLength(1);
-      expect(ranked[0].rank).toBe(1);
+      expect(ranked[0]!.rank).toBe(1);
     });
 
     test('should assign rank 100 to the 100th user', () => {
@@ -221,7 +223,7 @@ describe('NFT Snapshot - Rank Assignment', () => {
       }));
 
       const ranked = assignRanks(users);
-      expect(ranked[99].rank).toBe(100);
+      expect(ranked[99]!.rank).toBe(100);
     });
   });
 
@@ -236,9 +238,9 @@ describe('NFT Snapshot - Rank Assignment', () => {
       const ranked = assignRanks(users);
       // Note: current implementation gives sequential ranks even for ties
       // This test documents current behavior
-      expect(ranked[0].rank).toBe(1);
-      expect(ranked[1].rank).toBe(2);
-      expect(ranked[2].rank).toBe(3);
+      expect(ranked[0]!.rank).toBe(1);
+      expect(ranked[1]!.rank).toBe(2);
+      expect(ranked[2]!.rank).toBe(3);
     });
   });
 });
@@ -350,7 +352,7 @@ describe('NFT Snapshot - User Churn', () => {
       const dropped = findDroppedUsers(oldSnapshot, newUserIds);
 
       expect(dropped).toHaveLength(1);
-      expect(dropped[0].userId).toBe('dropped-minted');
+      expect(dropped[0]!.userId).toBe('dropped-minted');
     });
 
     test('should return empty when no minted users dropped', () => {
@@ -390,17 +392,26 @@ describe('NFT Snapshot - User Churn', () => {
     });
 
     test('should find multiple dropped minted users', () => {
-      const oldSnapshot: SnapshotEntry[] = Array.from({ length: 10 }, (_, i) => ({
-        userId: `user-${i}`,
-        walletAddress: null,
-        rank: i + 1,
-        points: 10000 - i * 1000,
-        hasMinted: true,
-        mintedTokenId: i + 1,
-      }));
+      const oldSnapshot: SnapshotEntry[] = Array.from(
+        { length: 10 },
+        (_, i) => ({
+          userId: `user-${i}`,
+          walletAddress: null,
+          rank: i + 1,
+          points: 10000 - i * 1000,
+          hasMinted: true,
+          mintedTokenId: i + 1,
+        })
+      );
 
       // Only keep first 5 users
-      const newUserIds = new Set(['user-0', 'user-1', 'user-2', 'user-3', 'user-4']);
+      const newUserIds = new Set([
+        'user-0',
+        'user-1',
+        'user-2',
+        'user-3',
+        'user-4',
+      ]);
       const dropped = findDroppedUsers(oldSnapshot, newUserIds);
 
       expect(dropped).toHaveLength(5);
@@ -522,7 +533,10 @@ describe('NFT Snapshot - Points Calculations', () => {
 
 describe('NFT Snapshot - Cron Authorization', () => {
   describe('Authorization Header Validation', () => {
-    function isValidCronAuth(authHeader: string | null, secret: string): boolean {
+    function isValidCronAuth(
+      authHeader: string | null,
+      secret: string
+    ): boolean {
       if (!authHeader) return false;
       return authHeader === `Bearer ${secret}`;
     }
@@ -561,12 +575,17 @@ describe('NFT Snapshot - Timing', () => {
 
     function getNextMidnightUTC(): Date {
       const now = new Date();
-      const tomorrow = new Date(Date.UTC(
-        now.getUTCFullYear(),
-        now.getUTCMonth(),
-        now.getUTCDate() + 1,
-        0, 0, 0, 0
-      ));
+      const tomorrow = new Date(
+        Date.UTC(
+          now.getUTCFullYear(),
+          now.getUTCMonth(),
+          now.getUTCDate() + 1,
+          0,
+          0,
+          0,
+          0
+        )
+      );
       return tomorrow;
     }
 

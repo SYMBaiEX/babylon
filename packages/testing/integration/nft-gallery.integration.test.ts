@@ -11,7 +11,14 @@
  * Run with: bun test integration/nft-gallery.integration.test.ts
  */
 
-import { afterAll, afterEach, beforeAll, describe, expect, test } from 'bun:test';
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  describe,
+  expect,
+  test,
+} from 'bun:test';
 import {
   db,
   eq,
@@ -115,7 +122,9 @@ async function createTestSnapshot(
 async function cleanupTestData(): Promise<void> {
   // Clean up in reverse order of dependencies
   if (testNftTokenIds.length > 0) {
-    await db.delete(nftClaims).where(inArray(nftClaims.tokenId, testNftTokenIds));
+    await db
+      .delete(nftClaims)
+      .where(inArray(nftClaims.tokenId, testNftTokenIds));
     await db
       .delete(nftOwnership)
       .where(inArray(nftOwnership.tokenId, testNftTokenIds));
@@ -126,7 +135,9 @@ async function cleanupTestData(): Promise<void> {
   }
 
   if (testUserIds.length > 0) {
-    await db.delete(nftSnapshot).where(inArray(nftSnapshot.userId, testUserIds));
+    await db
+      .delete(nftSnapshot)
+      .where(inArray(nftSnapshot.userId, testUserIds));
     await db.delete(users).where(inArray(users.id, testUserIds));
     testUserIds.length = 0;
   }
@@ -192,7 +203,9 @@ describe('NFT Gallery Integration Tests', () => {
 
     test('should return NFTs with pagination', async () => {
       if (!serverAvailable || !databaseAvailable || !nftTablesExist) {
-        console.log('Skipping test: server, database, or NFT tables not available');
+        console.log(
+          'Skipping test: server, database, or NFT tables not available'
+        );
         return;
       }
 
@@ -214,7 +227,9 @@ describe('NFT Gallery Integration Tests', () => {
 
     test('should filter by claimed status', async () => {
       if (!serverAvailable || !databaseAvailable || !nftTablesExist) {
-        console.log('Skipping test: server, database, or NFT tables not available');
+        console.log(
+          'Skipping test: server, database, or NFT tables not available'
+        );
         return;
       }
 
@@ -248,7 +263,9 @@ describe('NFT Gallery Integration Tests', () => {
 
     test('should search by NFT name', async () => {
       if (!serverAvailable || !databaseAvailable || !nftTablesExist) {
-        console.log('Skipping test: server, database, or NFT tables not available');
+        console.log(
+          'Skipping test: server, database, or NFT tables not available'
+        );
         return;
       }
 
@@ -265,7 +282,9 @@ describe('NFT Gallery Integration Tests', () => {
 
     test('should sort by tokenId ascending', async () => {
       if (!serverAvailable || !databaseAvailable || !nftTablesExist) {
-        console.log('Skipping test: server, database, or NFT tables not available');
+        console.log(
+          'Skipping test: server, database, or NFT tables not available'
+        );
         return;
       }
 
@@ -284,9 +303,11 @@ describe('NFT Gallery Integration Tests', () => {
       // Verify sort order if NFTs returned
       if (data.data.nfts.length >= 2) {
         const tokenIds = data.data.nfts
-          .filter((n: { tokenId: number }) => n.tokenId >= 4001 && n.tokenId <= 4003)
+          .filter(
+            (n: { tokenId: number }) => n.tokenId >= 4001 && n.tokenId <= 4003
+          )
           .map((n: { tokenId: number }) => n.tokenId);
-        
+
         for (let i = 1; i < tokenIds.length; i++) {
           expect(tokenIds[i]).toBeGreaterThanOrEqual(tokenIds[i - 1]);
         }
@@ -295,7 +316,9 @@ describe('NFT Gallery Integration Tests', () => {
 
     test('should sort by tokenId descending', async () => {
       if (!serverAvailable || !databaseAvailable || !nftTablesExist) {
-        console.log('Skipping test: server, database, or NFT tables not available');
+        console.log(
+          'Skipping test: server, database, or NFT tables not available'
+        );
         return;
       }
 
@@ -314,9 +337,11 @@ describe('NFT Gallery Integration Tests', () => {
       // Verify sort order if NFTs returned
       if (data.data.nfts.length >= 2) {
         const tokenIds = data.data.nfts
-          .filter((n: { tokenId: number }) => n.tokenId >= 5001 && n.tokenId <= 5003)
+          .filter(
+            (n: { tokenId: number }) => n.tokenId >= 5001 && n.tokenId <= 5003
+          )
           .map((n: { tokenId: number }) => n.tokenId);
-        
+
         for (let i = 1; i < tokenIds.length; i++) {
           expect(tokenIds[i]).toBeLessThanOrEqual(tokenIds[i - 1]);
         }
@@ -325,7 +350,9 @@ describe('NFT Gallery Integration Tests', () => {
 
     test('should include owner info for claimed NFTs', async () => {
       if (!serverAvailable || !databaseAvailable || !nftTablesExist) {
-        console.log('Skipping test: server, database, or NFT tables not available');
+        console.log(
+          'Skipping test: server, database, or NFT tables not available'
+        );
         return;
       }
 
@@ -377,9 +404,7 @@ describe('NFT Gallery Integration Tests', () => {
         return;
       }
 
-      const response = await fetch(
-        `${BASE_URL}/api/nft/collection?limit=9999`
-      );
+      const response = await fetch(`${BASE_URL}/api/nft/collection?limit=9999`);
       expect(response.status).toBe(200);
 
       const data = await response.json();
@@ -421,7 +446,9 @@ describe('NFT Gallery Integration Tests', () => {
 
     test('should return NFT details', async () => {
       if (!serverAvailable || !databaseAvailable || !nftTablesExist) {
-        console.log('Skipping test: server, database, or NFT tables not available');
+        console.log(
+          'Skipping test: server, database, or NFT tables not available'
+        );
         return;
       }
 
@@ -441,7 +468,9 @@ describe('NFT Gallery Integration Tests', () => {
 
     test('should include owner info for claimed NFT', async () => {
       if (!serverAvailable || !databaseAvailable || !nftTablesExist) {
-        console.log('Skipping test: server, database, or NFT tables not available');
+        console.log(
+          'Skipping test: server, database, or NFT tables not available'
+        );
         return;
       }
 
@@ -470,7 +499,9 @@ describe('NFT Gallery Integration Tests', () => {
 
     test('should include original claim info', async () => {
       if (!serverAvailable || !databaseAvailable || !nftTablesExist) {
-        console.log('Skipping test: server, database, or NFT tables not available');
+        console.log(
+          'Skipping test: server, database, or NFT tables not available'
+        );
         return;
       }
 
@@ -499,7 +530,9 @@ describe('NFT Gallery Integration Tests', () => {
 
     test('should return null owner for unclaimed NFT', async () => {
       if (!serverAvailable || !databaseAvailable || !nftTablesExist) {
-        console.log('Skipping test: server, database, or NFT tables not available');
+        console.log(
+          'Skipping test: server, database, or NFT tables not available'
+        );
         return;
       }
 
@@ -576,8 +609,8 @@ describe('NFT Gallery Integration Tests', () => {
         .limit(1);
 
       expect(nft).toBeDefined();
-      expect(nft.tokenId).toBe(8001);
-      expect(nft.name).toBe('Test NFT #8001');
+      expect(nft!.tokenId).toBe(8001);
+      expect(nft!.name).toBe('Test NFT #8001');
     });
 
     test('should create and retrieve snapshot entry', async () => {
@@ -596,9 +629,9 @@ describe('NFT Gallery Integration Tests', () => {
         .limit(1);
 
       expect(snapshot).toBeDefined();
-      expect(snapshot.rank).toBe(42);
-      expect(snapshot.points).toBe(5000);
-      expect(snapshot.hasMinted).toBe(false);
+      expect(snapshot!.rank).toBe(42);
+      expect(snapshot!.points).toBe(5000);
+      expect(snapshot!.hasMinted).toBe(false);
     });
 
     test('should update hasMinted flag correctly', async () => {
@@ -616,7 +649,7 @@ describe('NFT Gallery Integration Tests', () => {
         .from(nftSnapshot)
         .where(eq(nftSnapshot.userId, user.id))
         .limit(1);
-      expect(before.hasMinted).toBe(false);
+      expect(before!.hasMinted).toBe(false);
 
       // Update to minted
       await db
@@ -630,8 +663,8 @@ describe('NFT Gallery Integration Tests', () => {
         .from(nftSnapshot)
         .where(eq(nftSnapshot.userId, user.id))
         .limit(1);
-      expect(after.hasMinted).toBe(true);
-      expect(after.mintedTokenId).toBe(99);
+      expect(after!.hasMinted).toBe(true);
+      expect(after!.mintedTokenId).toBe(99);
     });
 
     test('should enforce unique userId in snapshot', async () => {
@@ -687,8 +720,8 @@ describe('NFT Gallery Integration Tests', () => {
         .limit(1);
 
       expect(ownership).toBeDefined();
-      expect(ownership.ownerAddress).toBe(owner.walletAddress);
-      expect(ownership.userId).toBe(owner.id);
+      expect(ownership!.ownerAddress).toBe(owner.walletAddress);
+      expect(ownership!.userId).toBe(owner.id);
     });
 
     test('should enforce unique tokenId in ownership', async () => {
@@ -754,9 +787,9 @@ describe('NFT Gallery Integration Tests', () => {
         .limit(1);
 
       expect(claim).toBeDefined();
-      expect(claim.snapshotRank).toBe(25);
-      expect(claim.snapshotPoints).toBe(7500);
-      expect(claim.txHash).toBe(txHash);
+      expect(claim!.snapshotRank).toBe(25);
+      expect(claim!.snapshotPoints).toBe(7500);
+      expect(claim!.txHash).toBe(txHash);
     });
   });
 
@@ -782,14 +815,16 @@ describe('NFT Gallery Integration Tests', () => {
       const results = await Promise.all(reads);
       results.forEach((result) => {
         expect(result).toHaveLength(1);
-        expect(result[0].userId).toBe(user.id);
-        expect(result[0].rank).toBe(1);
+        expect(result[0]!.userId).toBe(user.id);
+        expect(result[0]!.rank).toBe(1);
       });
     });
 
     test('should handle concurrent NFT detail requests', async () => {
       if (!serverAvailable || !databaseAvailable || !nftTablesExist) {
-        console.log('Skipping test: server, database, or NFT tables not available');
+        console.log(
+          'Skipping test: server, database, or NFT tables not available'
+        );
         return;
       }
 

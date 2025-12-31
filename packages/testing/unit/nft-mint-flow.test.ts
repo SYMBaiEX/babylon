@@ -231,8 +231,7 @@ describe('NFT Mint Flow - Eligibility Logic', () => {
           "You've already claimed your NFT. View it in the gallery!",
         [EligibilityStatus.NOT_IN_SNAPSHOT]:
           "You're not in the top 100 leaderboard snapshot.",
-        [EligibilityStatus.NO_WALLET]:
-          'Connect a wallet to claim your NFT.',
+        [EligibilityStatus.NO_WALLET]: 'Connect a wallet to claim your NFT.',
         [EligibilityStatus.NOT_AUTHENTICATED]:
           'Sign in to check your eligibility.',
         [EligibilityStatus.SNAPSHOT_PENDING]:
@@ -302,7 +301,7 @@ describe('NFT Mint Flow - Error Handling', () => {
         not_eligible: "You're not eligible to mint.",
         unknown: 'An unexpected error occurred.',
       };
-      return errorMessages[errorCode] ?? errorMessages.unknown;
+      return errorMessages[errorCode] ?? errorMessages['unknown'] ?? 'An unexpected error occurred.';
     }
 
     test('should return appropriate message for user_rejected', () => {
@@ -491,7 +490,8 @@ describe('NFT Mint Flow - Random Assignment', () => {
     function selectRandomNft(availableTokenIds: number[]): number | null {
       if (availableTokenIds.length === 0) return null;
       const randomIndex = Math.floor(Math.random() * availableTokenIds.length);
-      return availableTokenIds[randomIndex];
+      const selected = availableTokenIds[randomIndex];
+      return selected !== undefined ? selected : null;
     }
 
     test('should return null when no NFTs available', () => {
@@ -507,7 +507,10 @@ describe('NFT Mint Flow - Random Assignment', () => {
     test('should return a valid token ID from available list', () => {
       const available = [1, 2, 3, 4, 5];
       const result = selectRandomNft(available);
-      expect(available).toContain(result);
+      expect(result).not.toBeNull();
+      if (result !== null) {
+        expect(available).toContain(result);
+      }
     });
 
     test('should eventually select all NFTs with enough iterations', () => {
@@ -527,11 +530,7 @@ describe('NFT Mint Flow - Random Assignment', () => {
 
   describe('Token ID Range', () => {
     function isValidTokenId(tokenId: number): boolean {
-      return (
-        Number.isInteger(tokenId) &&
-        tokenId >= 1 &&
-        tokenId <= 100
-      );
+      return Number.isInteger(tokenId) && tokenId >= 1 && tokenId <= 100;
     }
 
     test('should accept token ID 1', () => {
