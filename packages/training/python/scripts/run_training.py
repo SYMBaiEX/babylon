@@ -193,6 +193,10 @@ class TrainingOrchestrator:
         wandb_run_name: Optional[str] = None,
         skip_services: bool = False,
         log_dir: str = "./logs",
+        # Phase 3: Online training parameters
+        mode: str = "offline",
+        bridge_url: str = "http://localhost:3001",
+        hybrid_online_ratio: float = 0.2,
     ):
         self.model_name = model_name
         self.training_steps = training_steps
@@ -214,6 +218,10 @@ class TrainingOrchestrator:
         self.wandb_run_name = wandb_run_name
         self.skip_services = skip_services
         self.log_dir = Path(log_dir)
+        # Phase 3: Online training
+        self.mode = mode
+        self.bridge_url = bridge_url
+        self.hybrid_online_ratio = hybrid_online_ratio
         
         self.env_process: Optional[subprocess.Popen] = None
         self.trainer_process: Optional[subprocess.Popen] = None
@@ -292,9 +300,38 @@ class TrainingOrchestrator:
         
         return True
         
+    def check_bridge_health(self) -> bool:
+        """Check if simulation bridge is running and healthy"""
+        import urllib.request
+        import urllib.error
+        
+        logger.info(f"Checking simulation bridge at {self.bridge_url}...")
+        
+        health_url = f"{self.bridge_url}/health"
+        for attempt in range(3):
+            try:
+                req = urllib.request.Request(health_url, method='GET')
+                with urllib.request.urlopen(req, timeout=5) as resp:
+                    if resp.status == 200:
+                        logger.info("Simulation bridge is healthy ✓")
+                        return True
+            except urllib.error.URLError as e:
+                if attempt < 2:
+                    logger.warning(f"Bridge not ready (attempt {attempt + 1}/3): {e}")
+                    time.sleep(2)
+                else:
+                    logger.error(f"Simulation bridge not available at {self.bridge_url}")
+                    logger.error("Start it with: make bridge-server")
+                    return False
+            except Exception as e:
+                logger.error(f"Bridge health check failed: {e}")
+                return False
+        
+        return False
+    
     def start_environment(self) -> bool:
-        """Start Babylon RLAIF environment"""
-        logger.info("Starting Babylon RLAIF environment...")
+        """Start Babylon RLAIF environment (offline mode)"""
+        logger.info("Starting Babylon RLAIF environment (offline mode)...")
         
         env_cmd = [
             sys.executable, "-m", "src.training.babylon_env", "serve",
@@ -328,6 +365,100 @@ class TrainingOrchestrator:
             return False
         
         logger.info(f"Environment started (PID: {self.env_process.pid}), logs: {log_file}")
+        return True
+    
+    def start_online_environment(self) -> bool:
+        """Start Babylon Online environment (online mode with simulation bridge)"""
+        logger.info("Starting Babylon Online environment (online mode)...")
+        
+        env_cmd = [
+            sys.executable, "-m", "src.training.online_env", "serve",
+            "--slurm", "false",
+            "--env.tokenizer_name", self.model_name,
+            "--env.rollout_server_url", f"http://localhost:{self.api_port}",
+            "--openai.model_name", self.model_name,
+            "--openai.base_url", f"http://localhost:{self.vllm_port}/v1",
+            # Online-specific settings
+            "--env.use_simulation_bridge", "true",
+            "--env.simulation_bridge_url", self.bridge_url,
+        ]
+        
+        if not self.use_wandb:
+            env_cmd.extend(["--env.use_wandb", "false"])
+        
+        log_file = self.log_dir / "online_environment.log"
+        log_handle = open(log_file, "w")
+        self._log_handles.append(log_handle)
+        
+        # Set environment variables for bridge
+        env_vars = os.environ.copy()
+        env_vars["USE_SIMULATION_BRIDGE"] = "1"
+        env_vars["SIMULATION_BRIDGE_URL"] = self.bridge_url
+        
+        self.env_process = subprocess.Popen(
+            env_cmd,
+            cwd=str(Path(__file__).parent.parent),
+            stdout=log_handle,
+            stderr=subprocess.STDOUT,
+            env=env_vars,
+        )
+        
+        time.sleep(5)  # Wait for environment to initialize
+        
+        if self.env_process.poll() is not None:
+            logger.error(f"Online environment failed to start (exit code: {self.env_process.returncode})")
+            logger.error(f"Check logs at: {log_file}")
+            return False
+        
+        logger.info(f"Online environment started (PID: {self.env_process.pid}), logs: {log_file}")
+        return True
+    
+    def start_hybrid_environment(self) -> bool:
+        """Start Babylon Hybrid environment (mix of offline and online)"""
+        logger.info(f"Starting Babylon Hybrid environment (online ratio: {self.hybrid_online_ratio:.0%})...")
+        
+        env_cmd = [
+            sys.executable, "-m", "src.training.hybrid_env", "serve",
+            "--slurm", "false",
+            "--env.tokenizer_name", self.model_name,
+            "--env.rollout_server_url", f"http://localhost:{self.api_port}",
+            "--openai.model_name", self.model_name,
+            "--openai.base_url", f"http://localhost:{self.vllm_port}/v1",
+            # Hybrid-specific settings
+            "--env.use_simulation_bridge", "true",
+            "--env.simulation_bridge_url", self.bridge_url,
+            "--env.online_ratio", str(self.hybrid_online_ratio),
+        ]
+        
+        if not self.use_wandb:
+            env_cmd.extend(["--env.use_wandb", "false"])
+        
+        log_file = self.log_dir / "hybrid_environment.log"
+        log_handle = open(log_file, "w")
+        self._log_handles.append(log_handle)
+        
+        # Set environment variables
+        env_vars = os.environ.copy()
+        env_vars["USE_SIMULATION_BRIDGE"] = "1"
+        env_vars["SIMULATION_BRIDGE_URL"] = self.bridge_url
+        env_vars["HYBRID_ONLINE_RATIO"] = str(self.hybrid_online_ratio)
+        
+        self.env_process = subprocess.Popen(
+            env_cmd,
+            cwd=str(Path(__file__).parent.parent),
+            stdout=log_handle,
+            stderr=subprocess.STDOUT,
+            env=env_vars,
+        )
+        
+        time.sleep(5)  # Wait for environment to initialize
+        
+        if self.env_process.poll() is not None:
+            logger.error(f"Hybrid environment failed to start (exit code: {self.env_process.returncode})")
+            logger.error(f"Check logs at: {log_file}")
+            return False
+        
+        logger.info(f"Hybrid environment started (PID: {self.env_process.pid}), logs: {log_file}")
         return True
             
     def start_trainer(self) -> bool:
@@ -379,14 +510,33 @@ class TrainingOrchestrator:
         start_time = time.time()
         
         try:
-            for name, starter in [
-                ("services", self.start_services),
-                ("environment", self.start_environment),
-                ("trainer", self.start_trainer),
-            ]:
-                if not starter():
-                    logger.error(f"Failed to start {name}")
+            # Step 1: Start services
+            if not self.start_services():
+                logger.error("Failed to start services")
+                return 1
+            
+            # Step 2: For online/hybrid modes, check bridge health
+            if self.mode in ("online", "hybrid"):
+                if not self.check_bridge_health():
+                    logger.error("Simulation bridge not available")
+                    logger.error("Start it with: make bridge-server")
                     return 1
+            
+            # Step 3: Start appropriate environment based on mode
+            env_starter = {
+                "offline": self.start_environment,
+                "online": self.start_online_environment,
+                "hybrid": self.start_hybrid_environment,
+            }.get(self.mode, self.start_environment)
+            
+            if not env_starter():
+                logger.error(f"Failed to start {self.mode} environment")
+                return 1
+            
+            # Step 4: Start trainer
+            if not self.start_trainer():
+                logger.error("Failed to start trainer")
+                return 1
             
             return_code = self._stream_trainer_output()
             elapsed = time.time() - start_time
@@ -394,6 +544,7 @@ class TrainingOrchestrator:
             if return_code == 0:
                 logger.info("\n" + "=" * 70)
                 logger.info("TRAINING COMPLETED SUCCESSFULLY")
+                logger.info(f"Mode: {self.mode.upper()}")
                 logger.info(f"Total time: {elapsed:.1f}s ({elapsed/60:.1f} minutes)")
                 logger.info(f"Model saved to: {self.save_path}")
                 logger.info("=" * 70)
@@ -410,6 +561,11 @@ class TrainingOrchestrator:
         logger.info("=" * 70)
         logger.info("BABYLON RL TRAINING PIPELINE")
         logger.info("=" * 70)
+        logger.info(f"Mode: {self.mode.upper()}")
+        if self.mode in ("online", "hybrid"):
+            logger.info(f"Bridge URL: {self.bridge_url}")
+            if self.mode == "hybrid":
+                logger.info(f"Online ratio: {self.hybrid_online_ratio:.0%}")
         logger.info(f"Model: {self.model_name}")
         logger.info(f"Steps: {self.training_steps}")
         logger.info(f"Batch size: {self.batch_size}")
@@ -586,7 +742,35 @@ def main():
         help="Skip environment validation"
     )
     
+    # Training Mode (Phase 3)
+    parser.add_argument(
+        "--mode",
+        choices=["offline", "online", "hybrid"],
+        default="offline",
+        help="Training mode: offline (DB trajectories), online (simulation bridge), hybrid (mix)"
+    )
+    parser.add_argument(
+        "--bridge-url",
+        default="http://localhost:3001",
+        help="Simulation bridge URL (for online/hybrid modes)"
+    )
+    parser.add_argument(
+        "--hybrid-online-ratio",
+        type=float,
+        default=0.2,
+        help="Ratio of online rollouts in hybrid mode (0.0-1.0)"
+    )
+    parser.add_argument(
+        "--online",
+        action="store_true",
+        help="Shorthand for --mode online"
+    )
+    
     args = parser.parse_args()
+    
+    # Handle --online shorthand
+    if args.online:
+        args.mode = "online"
     
     # Handle --list-profiles
     if args.list_profiles:
@@ -642,6 +826,10 @@ def main():
         wandb_run_name=args.wandb_run_name,
         skip_services=args.skip_services,
         log_dir=args.log_dir,
+        # Phase 3: Online training
+        mode=args.mode,
+        bridge_url=args.bridge_url,
+        hybrid_online_ratio=args.hybrid_online_ratio,
     )
     
     sys.exit(orchestrator.run())

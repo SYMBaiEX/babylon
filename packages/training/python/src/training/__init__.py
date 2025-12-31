@@ -276,6 +276,16 @@ def __getattr__(name: str):
         return locals()[name]
     
     if name in (
+        "BabylonHybridEnv",
+        "BabylonHybridEnvConfig",
+    ):
+        from .hybrid_env import (  # noqa: F401
+            BabylonHybridEnv,
+            BabylonHybridEnvConfig,
+        )
+        return locals()[name]
+    
+    if name in (
         "FastRolloutGenerator",
         "RolloutConfig",
         "RolloutResult",
@@ -364,6 +374,8 @@ __all__ = [
     "BabylonEnvConfig",
     "BabylonOnlineEnv",
     "BabylonOnlineEnvConfig",
+    "BabylonHybridEnv",
+    "BabylonHybridEnvConfig",
     # Phase 1 & 2: Online GRPO Training Infrastructure
     "Scenario",
     "ScenarioPool",

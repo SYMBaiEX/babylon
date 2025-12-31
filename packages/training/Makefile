@@ -70,9 +70,11 @@ help:
 	@echo "  make train-l40-4gpu Train with 4x L40 (192GB) for Qwen3 30B"
 	@echo "  make train PROFILE=<name>  Train with custom profile"
 	@echo ""
-	@echo "$(GREEN)Online Training:$(RESET)"
+	@echo "$(GREEN)Online Training (Phase 3):$(RESET)"
 	@echo "  make bridge-server  Start TypeScript simulation bridge"
+	@echo "  make bridge-check   Check if bridge server is running"
 	@echo "  make train-online   Run online training (requires bridge-server)"
+	@echo "  make train-hybrid   Run hybrid training (mix offline + online)"
 	@echo "  make generate-data  Generate trajectories for offline training"
 	@echo ""
 	@echo "$(GREEN)Development:$(RESET)"
@@ -224,8 +226,34 @@ train-online: db-up db-migrate
 		PATH="$(shell pwd)/$(PYTHON_DIR)/$(VENV_BIN):$$PATH" \
 		$(PYTHON) scripts/run_training.py \
 		--profile $(PROFILE) \
-		--online \
+		--mode online \
+		--bridge-url http://localhost:3001 \
 		--no-wandb
+
+train-hybrid: db-up db-migrate
+	@echo "$(CYAN)Starting hybrid training (requires bridge-server running)$(RESET)"
+	@echo "Make sure you've started the bridge server with: make bridge-server"
+	@echo "Using online ratio: $(ONLINE_RATIO)"
+	cd $(PYTHON_DIR) && DATABASE_URL=$(DB_URL) WANDB_MODE=offline \
+		USE_SIMULATION_BRIDGE=1 \
+		SIMULATION_BRIDGE_URL=http://localhost:3001 \
+		HYBRID_ONLINE_RATIO=$(ONLINE_RATIO) \
+		PATH="$(shell pwd)/$(PYTHON_DIR)/$(VENV_BIN):$$PATH" \
+		$(PYTHON) scripts/run_training.py \
+		--profile $(PROFILE) \
+		--mode hybrid \
+		--bridge-url http://localhost:3001 \
+		--hybrid-online-ratio $(ONLINE_RATIO) \
+		--no-wandb
+
+# Default online ratio for hybrid mode
+ONLINE_RATIO ?= 0.2
+
+# Check if bridge server is running
+bridge-check:
+	@curl -s http://localhost:3001/health > /dev/null 2>&1 && \
+		echo "$(GREEN)✓ Simulation bridge is running$(RESET)" || \
+		(echo "$(YELLOW)✗ Simulation bridge not running. Start with: make bridge-server$(RESET)" && exit 1)
 
 generate-data:
 	@echo "$(CYAN)Generating training trajectories...$(RESET)"
