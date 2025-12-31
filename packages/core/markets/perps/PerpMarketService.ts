@@ -852,21 +852,55 @@ export class PerpMarketService {
       };
     } else {
       // FLIP: Close existing and open inverse position
-      // Use transaction for atomicity
-      return this.db.transaction(async (_tx) => {
-        // First, fully close the existing position
-        const closeResult = await this.closePosition({
+      // Use transaction for atomicity - all DB operations use tx
+      return this.db.transaction(async (tx) => {
+        const exitPrice = market.currentPrice;
+
+        // === STEP 1: Close existing position (inline logic for atomicity) ===
+
+        // Calculate PnL for the closed position
+        const { pnl: closePnl } = calculateUnrealizedPnL(
+          existing.entryPrice,
+          exitPrice,
+          existing.side,
+          existing.size
+        );
+        const realizedPnL = closePnl - existing.fundingPaid;
+        const closeMarginPaid = existing.size / existing.leverage;
+        const closeFee = this.calculateFee(existing.size);
+        const grossSettlement = closeMarginPaid + realizedPnL;
+        const netSettlement = Math.max(0, grossSettlement - closeFee);
+
+        // Credit wallet for closed position (wallet ops outside DB tx)
+        if (netSettlement > 0) {
+          await this.deps.wallet.credit({
+            userId: input.userId,
+            amount: netSettlement,
+            reason: 'perp_close',
+            description: `Close ${existing.leverage}x ${existing.side} ${existing.ticker}`,
+            relatedId: existing.id,
+          });
+        }
+
+        await this.deps.wallet.recordPnL({
           userId: input.userId,
-          positionId: existing.id,
-          percentage: 1,
+          pnl: realizedPnL,
+          reason: 'perp_close',
+          relatedId: existing.id,
         });
 
-        // Calculate the inverse position size
-        const inverseSize = tradeSize - existing.size;
+        // Close position in DB using transaction
+        await tx.closePosition(existing.id, {
+          currentPrice: exitPrice,
+          closedAt: now,
+          realizedPnL: (existing.realizedPnL ?? 0) + realizedPnL,
+          unrealizedPnL: 0,
+          unrealizedPnLPercent: 0,
+        });
 
-        // Open new position in the opposite direction
-        // We need to call openPosition but skip the existing position check
-        // since we just closed it. We'll create the position directly.
+        // === STEP 2: Open inverse position ===
+
+        const inverseSize = tradeSize - existing.size;
         const maxLeverage = market.maxLeverage ?? DEFAULT_MAX_LEVERAGE;
         const effectiveLeverage = Math.min(leverage, maxLeverage);
 
@@ -877,10 +911,10 @@ export class PerpMarketService {
           effectiveLeverage
         );
         const marginRequired = inverseSize / effectiveLeverage;
-        const fee = this.calculateFee(inverseSize);
-        const totalCost = marginRequired + fee;
+        const openFee = this.calculateFee(inverseSize);
+        const totalCost = marginRequired + openFee;
 
-        // Debit wallet for new position
+        // Debit wallet for new position (wallet ops outside DB tx)
         await this.deps.wallet.debit({
           userId: input.userId,
           amount: totalCost,
@@ -888,8 +922,8 @@ export class PerpMarketService {
           description: `Flip to ${effectiveLeverage}x ${tradeSide} ${existing.ticker}`,
         });
 
-        // Create new position
-        const newPosition = await this.db.upsertPosition({
+        // Create new position using transaction
+        const newPosition = await tx.upsertPosition({
           id: undefined,
           userId: input.userId,
           ticker: existing.ticker,
@@ -907,17 +941,26 @@ export class PerpMarketService {
           lastUpdated: now,
         });
 
-        // Update market stats (OI changes: -existing.size + inverseSize)
+        // === STEP 3: Update market stats atomically ===
+        // OI change: -existing.size (closed) + inverseSize (opened)
         const netOiChange = inverseSize - existing.size;
         const newOpenInterest = Math.max(0, market.openInterest + netOiChange);
-        const volumeTraded = existing.size + inverseSize; // Total volume of both legs
-        await this.db.updateMarketStats(existing.ticker, {
+        const volumeTraded = existing.size + inverseSize;
+
+        await tx.updateMarketStats(existing.ticker, {
           openInterest: newOpenInterest,
           volume24h: market.volume24h + volumeTraded,
         });
 
-        // Process fees for the new position
+        // Process fees for both legs (outside DB tx)
         if (this.deps.feeProcessor) {
+          await this.deps.feeProcessor.processTradingFee({
+            userId: input.userId,
+            amount: existing.size,
+            type: 'perp_close',
+            relatedId: existing.ticker,
+            positionId: existing.id,
+          });
           await this.deps.feeProcessor.processTradingFee({
             userId: input.userId,
             amount: inverseSize,
@@ -927,6 +970,7 @@ export class PerpMarketService {
           });
         }
 
+        const totalFees = closeFee + openFee;
         const result: PerpTradeResult = {
           positionId: newPosition.id,
           ticker: existing.ticker,
@@ -936,8 +980,8 @@ export class PerpMarketService {
           entryPrice,
           liquidationPrice,
           marginPaid: marginRequired,
-          feePaid: fee + (closeResult.feePaid ?? 0), // Combined fees
-          realizedPnL: closeResult.realizedPnL, // PnL from closing old position
+          feePaid: totalFees,
+          realizedPnL,
           balance: (await this.deps.wallet.getBalance(input.userId)).balance,
           isRebalance: true,
           rebalanceType: 'flip',
@@ -956,7 +1000,7 @@ export class PerpMarketService {
           newSize: inverseSize,
           leverage: effectiveLeverage,
           entryPrice,
-          realizedPnL: closeResult.realizedPnL,
+          realizedPnL,
           positionId: newPosition.id,
           previousPositionId: existing.id,
           openInterest: newOpenInterest,
