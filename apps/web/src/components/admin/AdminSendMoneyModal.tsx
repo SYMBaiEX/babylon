@@ -639,7 +639,8 @@ export function AdminSendMoneyModal({
             </div>
             <p className="mb-2 font-semibold text-lg">Payment Sent!</p>
             <p className="text-muted-foreground text-sm">
-              {BABYLON_POINTS_SYMBOL}{amountNum} sent to {recipientName}
+              {BABYLON_POINTS_SYMBOL}
+              {amountNum} sent to {recipientName}
             </p>
             {txHash && (
               <p className="mt-2 font-mono text-muted-foreground text-xs">
