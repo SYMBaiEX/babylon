@@ -79,7 +79,13 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
 
   // Fire-and-forget Linear sync (documented in sync-feedback.ts)
   const linearConfig = getLinearConfig();
+  logger.debug('Linear sync check', {
+    feedbackId: feedback.id,
+    hasLinearConfig: !!linearConfig,
+  });
+
   if (linearConfig) {
+    logger.info('Starting Linear sync', { feedbackId: feedback.id });
     syncFeedbackToLinear(linearConfig, feedback.id, fromUser).catch(
       (error: unknown) => {
         // Distinguish timeout errors from other API errors for better observability
@@ -95,6 +101,8 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
         }
       }
     );
+  } else {
+    logger.warn('Linear sync skipped: no config', { feedbackId: feedback.id });
   }
 
   return successResponse(

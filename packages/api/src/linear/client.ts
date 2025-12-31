@@ -79,7 +79,22 @@ export function getLinearConfig(): {
 } | null {
   const apiKey = process.env.LINEAR_API_KEY;
   const teamId = process.env.LINEAR_TEAM_ID;
-  if (!apiKey || !teamId) return null;
+
+  // Debug logging to diagnose env var issues
+  logger.debug('Linear config check', {
+    hasApiKey: !!apiKey,
+    apiKeyPrefix: apiKey?.substring(0, 10),
+    hasTeamId: !!teamId,
+    teamIdLength: teamId?.length,
+  });
+
+  if (!apiKey || !teamId) {
+    logger.warn('Linear integration disabled: missing env vars', {
+      hasApiKey: !!apiKey,
+      hasTeamId: !!teamId,
+    });
+    return null;
+  }
 
   // Validate API key format (Linear API keys start with "lin_api_")
   if (!apiKey.startsWith('lin_api_')) {
@@ -88,6 +103,11 @@ export function getLinearConfig(): {
     );
     return null;
   }
+
+  logger.debug('Linear integration enabled', {
+    teamId,
+    hasLabelId: !!process.env.LINEAR_GAME_FEEDBACK_LABEL_ID,
+  });
 
   return {
     apiKey,
