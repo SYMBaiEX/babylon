@@ -90,9 +90,12 @@ export default function PerpDetailPage() {
   const displayPrice = livePrice?.price ?? market?.currentPrice ?? 0;
 
   // Fetch real price history from API
-  const { history: priceHistory } = usePerpHistory(ticker, {
-    seed: market ? { currentPrice: market.currentPrice } : undefined,
-  });
+  const { history: priceHistory, refresh: refreshPriceHistory } = usePerpHistory(
+    ticker,
+    {
+      seed: market ? { currentPrice: market.currentPrice } : undefined,
+    }
+  );
 
   // Subscribe to real-time trade and price updates for all perp markets
   usePerpMarketsRealtime();
@@ -101,13 +104,14 @@ export default function PerpDetailPage() {
   usePerpMarketStream(ticker, {
     onTrade: useCallback(
       (event) => {
-        // Refresh positions and market data when a trade occurs
+        // Refresh positions, market data, and price history when a trade occurs
         if (event.action === 'open' || event.action === 'close') {
           refreshUserPositions();
           refetch();
+          refreshPriceHistory();
         }
       },
-      [refreshUserPositions, refetch]
+      [refreshUserPositions, refetch, refreshPriceHistory]
     ),
   });
 
@@ -136,8 +140,9 @@ export default function PerpDetailPage() {
       refreshUserPositions(),
       refreshWalletBalance(),
       refetch(),
+      refreshPriceHistory(),
     ]);
-  }, [refreshUserPositions, refreshWalletBalance, refetch]);
+  }, [refreshUserPositions, refreshWalletBalance, refetch, refreshPriceHistory]);
 
   const handleSubmit = () => {
     if (!authenticated) {
@@ -190,6 +195,7 @@ export default function PerpDetailPage() {
           refetch(),
           refreshUserPositions(),
           refreshWalletBalance(),
+          refreshPriceHistory(),
         ]);
       })
       .catch((error: Error) => {
