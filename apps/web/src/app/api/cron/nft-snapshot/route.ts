@@ -14,7 +14,12 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   requireCronAuth(request, { jobName: 'NftSnapshotCron' });
 
   const snapshotTime = new Date();
-  const { users: topUsers } = await PointsService.getLeaderboard(1, 100, 0, 'all');
+  const { users: topUsers } = await PointsService.getLeaderboard(
+    1,
+    100,
+    0,
+    'all'
+  );
 
   const existingSnapshots = await db
     .select({
@@ -54,7 +59,12 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     if (existing) {
       await db
         .update(nftSnapshot)
-        .set({ rank, points: user.allPoints, walletAddress, snapshotTakenAt: snapshotTime })
+        .set({
+          rank,
+          points: user.allPoints,
+          walletAddress,
+          snapshotTakenAt: snapshotTime,
+        })
         .where(eq(nftSnapshot.userId, user.id));
       updated++;
     } else {

@@ -45,7 +45,11 @@ export function useNftMint(): UseNftMintResult {
 
   const checkEligibility = useCallback(async () => {
     if (!authenticated) {
-      setEligibility({ eligible: false, status: 'not_authenticated', hasMinted: false });
+      setEligibility({
+        eligible: false,
+        status: 'not_authenticated',
+        hasMinted: false,
+      });
       return;
     }
 
@@ -55,7 +59,11 @@ export function useNftMint(): UseNftMintResult {
 
     const token = await getAccessToken();
     if (!token) {
-      setEligibility({ eligible: false, status: 'not_authenticated', hasMinted: false });
+      setEligibility({
+        eligible: false,
+        status: 'not_authenticated',
+        hasMinted: false,
+      });
       setFlowState('idle');
       setIsCheckingEligibility(false);
       return;
@@ -137,7 +145,10 @@ export function useNftMint(): UseNftMintResult {
 
     setFlowState('awaiting_signature');
 
-    if (prepareData.contractAddress === '0x0000000000000000000000000000000000000000') {
+    if (
+      prepareData.contractAddress ===
+      '0x0000000000000000000000000000000000000000'
+    ) {
       setError('NFT contract not deployed');
       toast.error('NFT contract not deployed');
       setFlowState('error');
@@ -234,7 +245,10 @@ export function useNftMint(): UseNftMintResult {
   };
 }
 
-function encodeMintFunctionCall(functionName: string, args: string[]): `0x${string}` {
+function encodeMintFunctionCall(
+  functionName: string,
+  args: string[]
+): `0x${string}` {
   if (functionName !== 'mint' || args.length !== 1) {
     throw new Error(`Unsupported: ${functionName}(${args.length} args)`);
   }

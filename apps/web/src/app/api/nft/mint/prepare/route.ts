@@ -16,7 +16,10 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   const authUser = await authenticate(request);
   const userId = authUser.dbUserId ?? authUser.userId;
 
-  if (!NFT_CONTRACT_ADDRESS || !/^0x[a-fA-F0-9]{40}$/.test(NFT_CONTRACT_ADDRESS)) {
+  if (
+    !NFT_CONTRACT_ADDRESS ||
+    !/^0x[a-fA-F0-9]{40}$/.test(NFT_CONTRACT_ADDRESS)
+  ) {
     throw new BadRequestError('NFT minting is not available yet');
   }
 

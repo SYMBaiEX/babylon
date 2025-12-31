@@ -55,42 +55,66 @@ describe('NFTVerificationService', () => {
     });
 
     test('should include token ID in reason when token-specific', async () => {
-      // This will fail validation, but we can check the error structure
-      await expect(
-        NFTVerificationService.verifyOwnership(
+      // Check that invalid contract address throws with correct message
+      try {
+        await NFTVerificationService.verifyOwnership(
           validWallet,
           'invalid-address',
           null
-        )
-      ).rejects.toThrow(ValidationError);
+        );
+        expect(true).toBe(false); // Should not reach here
+      } catch (error) {
+        expect(error).toBeInstanceOf(Error);
+        expect((error as Error).message).toContain('Invalid contract address');
+      }
     });
 
     test('should validate address format before RPC calls', async () => {
-      await expect(
-        NFTVerificationService.verifyOwnership(
+      // Invalid wallet address
+      try {
+        await NFTVerificationService.verifyOwnership(
           'not-an-address',
           validContract,
           null
-        )
-      ).rejects.toThrow(ValidationError);
+        );
+        expect(true).toBe(false); // Should not reach here
+      } catch (error) {
+        expect(error).toBeInstanceOf(Error);
+        expect((error as Error).message).toContain('Invalid wallet address');
+      }
 
-      await expect(
-        NFTVerificationService.verifyOwnership(
+      // Invalid contract address
+      try {
+        await NFTVerificationService.verifyOwnership(
           validWallet,
           'not-an-address',
           null
-        )
-      ).rejects.toThrow(ValidationError);
+        );
+        expect(true).toBe(false); // Should not reach here
+      } catch (error) {
+        expect(error).toBeInstanceOf(Error);
+        expect((error as Error).message).toContain('Invalid contract address');
+      }
     });
 
     test('should validate token ID format', async () => {
-      await expect(
-        NFTVerificationService.verifyOwnership(validWallet, validContract, -1)
-      ).rejects.toThrow(ValidationError);
+      // Negative token ID
+      try {
+        await NFTVerificationService.verifyOwnership(validWallet, validContract, -1);
+        expect(true).toBe(false); // Should not reach here
+      } catch (error) {
+        expect(error).toBeInstanceOf(Error);
+        expect((error as Error).message).toContain('Invalid token ID');
+      }
 
-      await expect(
-        NFTVerificationService.verifyOwnership(validWallet, validContract, 1.5)
-      ).rejects.toThrow(ValidationError);
+      // Non-integer token ID
+      try {
+        await NFTVerificationService.verifyOwnership(validWallet, validContract, 1.5);
+        expect(true).toBe(false); // Should not reach here
+      } catch (error) {
+        expect(error).toBeInstanceOf(Error);
+        expect((error as Error).message).toContain('Invalid token ID');
+      }
     });
 
     test('should allow token ID 0', async () => {
