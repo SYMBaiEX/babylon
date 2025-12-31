@@ -2,9 +2,11 @@
  * Sync feedback to Linear by creating an issue.
  * This function is designed to be fire-and-forget from the API route.
  * Includes retry logic with exponential backoff for transient failures.
+ *
+ * Uses pure Drizzle ORM throughout for consistency.
  */
 
-import { db, feedbacks, type JsonObject } from '@babylon/db';
+import { db, feedbacks, type JsonObject, type JsonValue } from '@babylon/db';
 import { and, eq, or, sql } from 'drizzle-orm';
 import { FeedbackTypeSchema, logger } from '@babylon/shared';
 import { z } from 'zod';
@@ -97,6 +99,15 @@ const LinearSyncMetadataSchema = z.object({
 export const SYNC_LOCK_TTL_MS = 5 * 60 * 1000;
 
 /**
+ * Helper to safely parse JSON metadata from database result.
+ */
+function parseJsonMetadata(raw: JsonValue | null | undefined): JsonObject {
+  return raw && typeof raw === 'object' && !Array.isArray(raw)
+    ? (raw as JsonObject)
+    : {};
+}
+
+/**
  * Atomically acquire a sync lock for Linear issue creation.
  * Uses Drizzle's update().set().where().returning() for atomic conditional updates.
  * This eliminates TOCTOU race conditions by checking and setting in one operation.
@@ -109,8 +120,9 @@ async function acquireSyncLock(
   ttlMs: number
 ): Promise<{
   lockAcquired: boolean;
-  metadata: JsonObject | null;
-  createdAt: Date | null;
+  comment: string | null;
+  metadata: JsonObject;
+  createdAt: Date;
   reason?: 'not_found' | 'already_synced' | 'lock_held';
 }> {
   // Calculate the stale threshold timestamp
@@ -144,6 +156,7 @@ async function acquireSyncLock(
     )
     .returning({
       id: feedbacks.id,
+      comment: feedbacks.comment,
       metadata: feedbacks.metadata,
       createdAt: feedbacks.createdAt,
     });
@@ -152,32 +165,69 @@ async function acquireSyncLock(
   if (firstRow) {
     return {
       lockAcquired: true,
-      metadata: firstRow.metadata as JsonObject | null,
+      comment: firstRow.comment,
+      metadata: parseJsonMetadata(firstRow.metadata),
       createdAt: firstRow.createdAt,
     };
   }
 
-  // Lock not acquired - determine why for logging
-  const feedback = await db.feedback.findUnique({
-    where: { id: feedbackId },
-    select: { metadata: true },
-  });
+  // Lock not acquired - determine why for logging using Drizzle select
+  const [feedback] = await db
+    .select({ metadata: feedbacks.metadata })
+    .from(feedbacks)
+    .where(eq(feedbacks.id, feedbackId))
+    .limit(1);
 
   if (!feedback) {
-    return { lockAcquired: false, metadata: null, createdAt: null, reason: 'not_found' };
+    return {
+      lockAcquired: false,
+      comment: null,
+      metadata: {},
+      createdAt: new Date(),
+      reason: 'not_found',
+    };
   }
 
   const syncMetadata = LinearSyncMetadataSchema.parse(
-    feedback.metadata && typeof feedback.metadata === 'object'
-      ? feedback.metadata
-      : {}
+    parseJsonMetadata(feedback.metadata)
   );
 
   if (syncMetadata.linearIssueId) {
-    return { lockAcquired: false, metadata: null, createdAt: null, reason: 'already_synced' };
+    return {
+      lockAcquired: false,
+      comment: null,
+      metadata: {},
+      createdAt: new Date(),
+      reason: 'already_synced',
+    };
   }
 
-  return { lockAcquired: false, metadata: null, createdAt: null, reason: 'lock_held' };
+  return {
+    lockAcquired: false,
+    comment: null,
+    metadata: {},
+    createdAt: new Date(),
+    reason: 'lock_held',
+  };
+}
+
+/**
+ * Atomically clear the sync lock using Drizzle's jsonb_set with path removal.
+ * Called on failure to allow immediate retry.
+ */
+async function clearSyncLock(feedbackId: string): Promise<void> {
+  try {
+    // Use Drizzle's update with sql template to atomically remove the lock key
+    await db
+      .update(feedbacks)
+      .set({
+        metadata: sql`${feedbacks.metadata} - 'linearSyncStartedAt'`,
+      })
+      .where(eq(feedbacks.id, feedbackId));
+  } catch (cleanupError) {
+    // Log but don't throw - lock will expire naturally after TTL
+    logger.warn('Failed to clear sync lock', { feedbackId, cleanupError });
+  }
 }
 
 /**
@@ -186,6 +236,8 @@ async function acquireSyncLock(
  *
  * Uses atomic lock acquisition to prevent duplicate issues from concurrent requests.
  * Idempotent: If feedback already has a linearIssueId, skips creation.
+ *
+ * All database operations use Drizzle ORM for consistency.
  */
 export async function syncFeedbackToLinear(
   config: LinearConfig,
@@ -193,8 +245,13 @@ export async function syncFeedbackToLinear(
   user: FeedbackUser
 ): Promise<void> {
   // Atomically acquire sync lock - this eliminates TOCTOU race conditions
+  // Also returns the feedback data in the same round-trip
   const syncStartedAt = new Date().toISOString();
-  const lockResult = await acquireSyncLock(feedbackId, syncStartedAt, SYNC_LOCK_TTL_MS);
+  const lockResult = await acquireSyncLock(
+    feedbackId,
+    syncStartedAt,
+    SYNC_LOCK_TTL_MS
+  );
 
   if (!lockResult.lockAcquired) {
     switch (lockResult.reason) {
@@ -202,7 +259,9 @@ export async function syncFeedbackToLinear(
         logger.warn('Feedback not found for Linear sync', { feedbackId });
         break;
       case 'already_synced':
-        logger.info('Feedback already synced to Linear, skipping', { feedbackId });
+        logger.info('Feedback already synced to Linear, skipping', {
+          feedbackId,
+        });
         break;
       case 'lock_held':
         logger.info('Linear sync already in progress, skipping', { feedbackId });
@@ -211,50 +270,15 @@ export async function syncFeedbackToLinear(
     return;
   }
 
-  // Fetch full feedback data now that we have the lock
-  const feedback = await db.feedback.findUnique({
-    where: { id: feedbackId },
-    select: { comment: true, metadata: true, createdAt: true },
-  });
-
-  if (!feedback) {
-    logger.warn('Feedback not found after lock acquisition', { feedbackId });
-    return;
-  }
-
-  // Parse metadata from the locked record
-  const rawMetadata =
-    feedback.metadata && typeof feedback.metadata === 'object'
-      ? (feedback.metadata as JsonObject)
-      : {};
-
-  // Helper to clear the sync lock (called on failure to allow immediate retry)
-  const clearSyncLock = async () => {
-    try {
-      const current = await db.feedback.findUnique({
-        where: { id: feedbackId },
-        select: { metadata: true },
-      });
-      if (!current?.metadata || typeof current.metadata !== 'object') return;
-
-      const currentMetadata = current.metadata as JsonObject;
-      const { linearSyncStartedAt: _, ...withoutLock } = currentMetadata;
-      await db.feedback.update({
-        where: { id: feedbackId },
-        data: { metadata: withoutLock },
-      });
-    } catch (cleanupError) {
-      // Log but don't throw - lock will expire naturally after TTL
-      logger.warn('Failed to clear sync lock', { feedbackId, cleanupError });
-    }
-  };
-
-  const metadata: FeedbackMetadata = FeedbackMetadataSchema.parse(rawMetadata);
+  // Use metadata from lock acquisition result (no extra DB call needed)
+  const metadata: FeedbackMetadata = FeedbackMetadataSchema.parse(
+    lockResult.metadata
+  );
 
   const formatted = formatFeedbackForLinear({
     id: feedbackId,
     feedbackType: metadata.feedbackType,
-    description: feedback.comment ?? '',
+    description: lockResult.comment ?? '',
     stepsToReproduce: metadata.stepsToReproduce,
     screenshotUrl: metadata.screenshotUrl,
     rating: metadata.rating,
@@ -262,7 +286,7 @@ export async function syncFeedbackToLinear(
     userEmail: user.email,
     username: user.username,
     displayName: user.displayName,
-    createdAt: feedback.createdAt,
+    createdAt: lockResult.createdAt,
   });
 
   // Create Linear issue with retry logic for transient failures
@@ -282,36 +306,22 @@ export async function syncFeedbackToLinear(
     );
   } catch (error) {
     // Clear the sync lock on failure so immediate retry is possible
-    await clearSyncLock();
+    await clearSyncLock(feedbackId);
     throw error;
   }
 
-  // Merge update: fetch fresh metadata to preserve concurrent updates.
-  // The linearSyncStartedAt lock set earlier prevents duplicate Linear issues
-  // from race conditions. This update clears the lock and stores the issue info.
-  const freshFeedback = await db.feedback.findUnique({
-    where: { id: feedbackId },
-    select: { metadata: true },
-  });
-
-  const freshMetadata =
-    freshFeedback?.metadata && typeof freshFeedback.metadata === 'object'
-      ? (freshFeedback.metadata as JsonObject)
-      : {};
-
-  // Remove the sync lock and store the issue info
-  const { linearSyncStartedAt: _, ...metadataWithoutLock } = freshMetadata;
-  await db.feedback.update({
-    where: { id: feedbackId },
-    data: {
-      metadata: {
-        ...metadataWithoutLock,
-        linearIssueId: issue.id,
-        linearIssueIdentifier: issue.identifier,
-        linearIssueUrl: issue.url,
-      },
-    },
-  });
+  // Atomically update metadata: remove lock and add issue info in one operation
+  // Uses Drizzle's sql template with jsonb operators for atomic update
+  await db
+    .update(feedbacks)
+    .set({
+      metadata: sql`(${feedbacks.metadata} - 'linearSyncStartedAt') || jsonb_build_object(
+        'linearIssueId', ${issue.id}::text,
+        'linearIssueIdentifier', ${issue.identifier}::text,
+        'linearIssueUrl', ${issue.url}::text
+      )`,
+    })
+    .where(eq(feedbacks.id, feedbackId));
 
   logger.info('Linear issue created for feedback', {
     feedbackId,
