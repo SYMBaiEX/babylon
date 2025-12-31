@@ -150,7 +150,11 @@ import {
   withErrorHandling,
 } from '@babylon/api';
 import { db, eq, users } from '@babylon/db';
-import { logger, shouldAutoPromoteToAdmin } from '@babylon/shared';
+import {
+  checkForAdminEmail,
+  logger,
+  type PrivyUserWithEmails,
+} from '@babylon/shared';
 import type { User as PrivyUser } from '@privy-io/server-auth';
 import type { NextRequest } from 'next/server';
 
@@ -161,62 +165,11 @@ type PrivyWalletLite = {
   walletClientType?: string | null;
 };
 
-type PrivyUserWithSmartWallet = PrivyUser & {
-  smartWallet?: { address?: string | null };
-  wallet?: PrivyWalletLite;
-  linkedAccounts?: Array<
-    PrivyWalletLite & {
-      type?: string;
-      address?: string; // For email accounts, this is the email address
-    }
-  >;
-};
-
-/**
- * Get all verified email addresses from a Privy user.
- * Checks both the primary email and linkedAccounts for email-type accounts.
- * This ensures we catch emails that were linked after initial signup.
- */
-function getAllVerifiedEmails(user: PrivyUserWithSmartWallet): string[] {
-  const emails: string[] = [];
-
-  // Check primary email field
-  if (user.email?.address) {
-    emails.push(user.email.address);
-  }
-
-  // Check linkedAccounts for email-type accounts
-  if (Array.isArray(user.linkedAccounts)) {
-    for (const account of user.linkedAccounts) {
-      if (account?.type === 'email' && account.address) {
-        // Avoid duplicates
-        if (!emails.includes(account.address)) {
-          emails.push(account.address);
-        }
-      }
-    }
-  }
-
-  return emails;
-}
-
-/**
- * Check if any of the user's verified emails should grant admin access.
- * Returns the first matching admin email, or null if none match.
- */
-function findAdminEmail(
-  emails: string[],
-  emailVerified: boolean
-): string | null {
-  if (!emailVerified || emails.length === 0) return null;
-
-  for (const email of emails) {
-    if (shouldAutoPromoteToAdmin(email, true)) {
-      return email;
-    }
-  }
-  return null;
-}
+type PrivyUserWithSmartWallet = PrivyUser &
+  PrivyUserWithEmails & {
+    smartWallet?: { address?: string | null };
+    wallet?: PrivyWalletLite;
+  };
 
 function pickEmbeddedEvmWallet(
   user: PrivyUserWithSmartWallet
@@ -467,9 +420,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     // Check if user should be auto-promoted to admin based on email domain
     // SECURITY: Requires email verification (Privy emails are verified by design)
     // Check ALL linked emails, not just the primary one (handles users who linked admin email later)
-    const allVerifiedEmails = getAllVerifiedEmails(privyUser);
-    const emailVerified = allVerifiedEmails.length > 0;
-    const adminEmail = findAdminEmail(allVerifiedEmails, emailVerified);
+    const { adminEmail, allVerifiedEmails } = checkForAdminEmail(privyUser);
     const shouldBeAdmin = adminEmail !== null;
 
     if (shouldBeAdmin) {
@@ -608,9 +559,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   if (dbUser && !dbUser.isAdmin) {
     const privyClient = getPrivyClient();
     const privyUser = await privyClient.getUser(privyId);
-    const allVerifiedEmails = getAllVerifiedEmails(privyUser);
-    const emailVerified = allVerifiedEmails.length > 0;
-    const adminEmail = findAdminEmail(allVerifiedEmails, emailVerified);
+    const { adminEmail, allVerifiedEmails } = checkForAdminEmail(privyUser);
     const shouldBeAdmin = adminEmail !== null;
 
     if (shouldBeAdmin) {
