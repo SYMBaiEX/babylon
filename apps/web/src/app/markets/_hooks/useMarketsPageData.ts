@@ -142,6 +142,32 @@ export interface MarketsPageData {
 }
 
 /**
+ * Check if a prediction market is truly active.
+ * A market is active if:
+ * 1. Its status is 'active' AND
+ * 2. Its end date has not passed yet
+ *
+ * Defined outside the hook for referential stability.
+ */
+function isPredictionActive(p: PredictionMarketWithPosition): boolean {
+  if (p.status !== 'active') return false;
+  if (!p.resolutionDate) return true;
+  return new Date(p.resolutionDate).getTime() > Date.now();
+}
+
+/**
+ * Check if a prediction market is expired or resolved.
+ *
+ * Defined outside the hook for referential stability.
+ */
+function isPredictionExpiredOrResolved(p: PredictionMarketWithPosition): boolean {
+  if (p.status === 'resolved') return true;
+  // Expired: status is active but resolution date has passed
+  if (!p.resolutionDate) return false;
+  return new Date(p.resolutionDate).getTime() <= Date.now();
+}
+
+/**
  * Centralized data hook for the Markets page.
  *
  * Handles all data fetching, caching, computed values, and filtering
@@ -399,30 +425,6 @@ export function useMarketsPageData(): MarketsPageData {
     const query = deferredSearchQuery.toLowerCase();
     return predictions.filter((p) => p.text.toLowerCase().includes(query));
   }, [predictions, deferredSearchQuery]);
-
-  /**
-   * Check if a prediction market is truly active.
-   * A market is active if:
-   * 1. Its status is 'active' AND
-   * 2. Its end date has not passed yet
-   */
-  const isPredictionActive = (p: PredictionMarketWithPosition): boolean => {
-    if (p.status !== 'active') return false;
-    if (!p.resolutionDate) return true;
-    return new Date(p.resolutionDate).getTime() > Date.now();
-  };
-
-  /**
-   * Check if a prediction market is expired or resolved.
-   */
-  const isPredictionExpiredOrResolved = (
-    p: PredictionMarketWithPosition
-  ): boolean => {
-    if (p.status === 'resolved') return true;
-    // Expired: status is active but resolution date has passed
-    if (!p.resolutionDate) return false;
-    return new Date(p.resolutionDate).getTime() <= Date.now();
-  };
 
   /**
    * Sorted active predictions based on selected sort option.
