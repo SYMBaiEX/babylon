@@ -119,12 +119,13 @@ export const useWalletBalanceStore = create<WalletBalanceState>((set, get) => ({
   setUserId: (userId: string | null) => {
     const state = get();
     if (state.userId !== userId) {
-      // Clear cache when user changes
+      // Clear cache and error when user changes
       set({
         userId,
         lastFetchedAt: null,
         balance: 0,
         lifetimePnL: 0,
+        error: null,
       });
     }
   },

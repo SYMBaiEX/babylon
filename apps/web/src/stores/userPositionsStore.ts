@@ -190,9 +190,14 @@ export const useUserPositionsStore = create<UserPositionsState>((set, get) => ({
   fetchPositions: async (userId: string, force = false) => {
     const state = get();
 
-    // Return existing promise if already fetching (deduplication)
-    if (state.fetchPromise) {
+    // Return existing promise only if fetching for the SAME user (deduplication)
+    if (state.fetchPromise && state.userId === userId) {
       return state.fetchPromise;
+    }
+
+    // If fetching for a different user, wait for current fetch to complete first
+    if (state.fetchPromise && state.userId !== userId) {
+      await state.fetchPromise;
     }
 
     // Return cached data if fresh and not forced
@@ -358,7 +363,21 @@ export const useUserPositionsStore = create<UserPositionsState>((set, get) => ({
     const updatedPositions = state.perpPositions.map((p) =>
       p.id === positionId ? { ...p, ...updates } : p
     );
-    set({ perpPositions: updatedPositions });
+    // Recalculate stats to keep them consistent with updated positions
+    set({
+      perpPositions: updatedPositions,
+      perpStats: {
+        totalPositions: updatedPositions.length,
+        totalPnL: updatedPositions.reduce(
+          (sum, p) => sum + (p.unrealizedPnL ?? 0),
+          0
+        ),
+        totalFunding: updatedPositions.reduce(
+          (sum, p) => sum + (p.fundingPaid ?? 0),
+          0
+        ),
+      },
+    });
   },
 
   // Remove a perp position (when closed)

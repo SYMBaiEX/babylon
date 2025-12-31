@@ -160,7 +160,9 @@ function isPredictionActive(p: PredictionMarketWithPosition): boolean {
  *
  * Defined outside the hook for referential stability.
  */
-function isPredictionExpiredOrResolved(p: PredictionMarketWithPosition): boolean {
+function isPredictionExpiredOrResolved(
+  p: PredictionMarketWithPosition
+): boolean {
   if (p.status === 'resolved') return true;
   // Expired: status is active but resolution date has passed
   if (!p.resolutionDate) return false;
