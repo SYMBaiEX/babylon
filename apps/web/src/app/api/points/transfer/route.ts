@@ -109,6 +109,17 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     );
   }
 
+  // Check if trying to send to Agent0 network agent or app (not local User records)
+  if (recipientId.startsWith('agent0-') || recipientId.startsWith('app-')) {
+    return NextResponse.json(
+      {
+        error:
+          'Cannot send points to external agents or apps. Points can only be sent to Babylon users and agents.',
+      },
+      { status: 400 }
+    );
+  }
+
   // Verify sender and recipient exist
   const [sender, recipient] = await Promise.all([
     db.user.findUnique({
