@@ -859,7 +859,7 @@ class BabylonOnlineEnv(BaseEnv):
         # This allows reusing existing scoring infrastructure
         scenario = Scenario(
             id=f"bridge-{npc_id}",
-            source="bridge",
+            source="production",  # Bridge scenarios count as production data
             difficulty="medium",
         )
         
