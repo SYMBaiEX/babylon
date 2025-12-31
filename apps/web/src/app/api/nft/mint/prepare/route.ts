@@ -27,11 +27,10 @@ import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import type { MintPrepareResponse } from '@/types/nft';
 
-// Contract configuration - will be set via environment variables
-const NFT_CONTRACT_ADDRESS =
-  process.env.NFT_CONTRACT_ADDRESS ??
-  '0x0000000000000000000000000000000000000000';
+// Contract configuration - MUST be set via environment variables for production
+const NFT_CONTRACT_ADDRESS = process.env.NFT_CONTRACT_ADDRESS;
 const NFT_CHAIN_ID = parseInt(process.env.NFT_CHAIN_ID ?? '1', 10);
+const PLACEHOLDER_CONTRACT = '0x0000000000000000000000000000000000000000';
 
 export const POST = withErrorHandling(async (request: NextRequest) => {
   const authUser = await authenticate(request);
@@ -42,6 +41,22 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     { userId },
     'POST /api/nft/mint/prepare'
   );
+
+  // Validate contract configuration
+  if (
+    !NFT_CONTRACT_ADDRESS ||
+    NFT_CONTRACT_ADDRESS === PLACEHOLDER_CONTRACT ||
+    !/^0x[a-fA-F0-9]{40}$/.test(NFT_CONTRACT_ADDRESS)
+  ) {
+    logger.error(
+      'NFT contract not configured',
+      { NFT_CONTRACT_ADDRESS },
+      'POST /api/nft/mint/prepare'
+    );
+    throw new BadRequestError(
+      'NFT minting is not available yet. The contract has not been deployed.'
+    );
+  }
 
   // Get user's wallet address
   const [user] = await db
@@ -86,8 +101,9 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   // Prepare the mint transaction
   // The actual contract ABI will determine the exact function signature
   // For now, we assume a simple mint(address to) function
+  // NFT_CONTRACT_ADDRESS is guaranteed to be valid after the validation above
   const response: MintPrepareResponse = {
-    contractAddress: NFT_CONTRACT_ADDRESS,
+    contractAddress: NFT_CONTRACT_ADDRESS!,
     chainId: NFT_CHAIN_ID,
     functionName: 'mint',
     args: [user.walletAddress],

@@ -158,38 +158,28 @@ export function useNftMint(): UseNftMintResult {
 
     setFlowState('awaiting_signature');
 
-    // Step 2: Execute transaction via smart wallet
-    let txHash: string;
-
-    // For now, since the actual NFT contract isn't deployed, we'll simulate
-    // In production, this would call the actual contract
-    const isContractDeployed =
-      prepareData.contractAddress !==
-      '0x0000000000000000000000000000000000000000';
-
-    if (isContractDeployed) {
-      // Real contract - send transaction
-      setFlowState('minting');
-
-      const tx = await sendSmartWalletTransaction({
-        to: prepareData.contractAddress as `0x${string}`,
-        data: encodeMintFunctionCall(
-          prepareData.functionName,
-          prepareData.args
-        ),
-        value: BigInt(prepareData.value),
-      });
-
-      txHash = tx;
-    } else {
-      // Placeholder contract - simulate transaction
-      // This allows testing the flow before contract deployment
-      setFlowState('minting');
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-      txHash = `0x${Array.from({ length: 64 }, () =>
-        Math.floor(Math.random() * 16).toString(16)
-      ).join('')}`;
+    // Step 2: Validate contract is deployed (not placeholder)
+    const PLACEHOLDER_CONTRACT = '0x0000000000000000000000000000000000000000';
+    if (prepareData.contractAddress === PLACEHOLDER_CONTRACT) {
+      const errorMessage =
+        'NFT contract not deployed yet. Minting is not available.';
+      setError(errorMessage);
+      toast.error(errorMessage);
+      setFlowState('error');
+      return;
     }
+
+    // Step 3: Execute transaction via smart wallet
+    setFlowState('minting');
+
+    const txHash = await sendSmartWalletTransaction({
+      to: prepareData.contractAddress as `0x${string}`,
+      data: encodeMintFunctionCall(
+        prepareData.functionName,
+        prepareData.args
+      ),
+      value: BigInt(prepareData.value),
+    });
 
     setFlowState('confirming');
 
@@ -280,28 +270,34 @@ export function useNftMint(): UseNftMintResult {
 }
 
 /**
- * Encode a mint function call for the NFT contract
- *
- * This is a simplified encoder for the mint(address) function.
- * In production, you'd use viem's encodeFunctionData.
+ * Encode a mint function call for the NFT contract using viem's encodeFunctionData
  */
 function encodeMintFunctionCall(
   functionName: string,
   args: string[]
 ): `0x${string}` {
-  // Function selector for mint(address) = keccak256("mint(address)")[:4]
-  // = 0x6a627842
-  const mintSelector = '0x6a627842';
-
-  if (functionName === 'mint' && args.length === 1) {
-    // Encode the address argument (padded to 32 bytes)
-    const addressArg = args[0]!
-      .toLowerCase()
-      .replace('0x', '')
-      .padStart(64, '0');
-    return `${mintSelector}${addressArg}` as `0x${string}`;
+  // Import viem encoding dynamically to avoid bundling issues
+  // This uses the proper ABI encoding for the mint(address) function
+  if (functionName !== 'mint' || args.length !== 1) {
+    throw new Error(
+      `Unsupported function: ${functionName} with ${args.length} args. Only mint(address) is supported.`
+    );
   }
 
-  // Default: just return empty data
-  return '0x' as `0x${string}`;
+  const recipientAddress = args[0]!;
+
+  // Validate address format
+  if (!/^0x[a-fA-F0-9]{40}$/.test(recipientAddress)) {
+    throw new Error(`Invalid address format: ${recipientAddress}`);
+  }
+
+  // Function selector for mint(address) = keccak256("mint(address)")[:4] = 0x6a627842
+  // ABI-encoded address is padded to 32 bytes
+  const functionSelector = '6a627842';
+  const paddedAddress = recipientAddress
+    .toLowerCase()
+    .slice(2)
+    .padStart(64, '0');
+
+  return `0x${functionSelector}${paddedAddress}` as `0x${string}`;
 }

@@ -44,12 +44,26 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   const body = (await request.json()) as MintConfirmRequest;
   const { txHash, walletAddress } = body;
 
+  // Validate txHash format (0x + 64 hex characters)
   if (!txHash || typeof txHash !== 'string') {
     throw new BadRequestError('Transaction hash is required');
   }
 
+  if (!/^0x[a-fA-F0-9]{64}$/.test(txHash)) {
+    throw new BadRequestError(
+      'Invalid transaction hash format. Must be 0x followed by 64 hex characters.'
+    );
+  }
+
+  // Validate wallet address format
   if (!walletAddress || typeof walletAddress !== 'string') {
     throw new BadRequestError('Wallet address is required');
+  }
+
+  if (!/^0x[a-fA-F0-9]{40}$/.test(walletAddress)) {
+    throw new BadRequestError(
+      'Invalid wallet address format. Must be 0x followed by 40 hex characters.'
+    );
   }
 
   logger.info(
@@ -77,57 +91,59 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     throw new ForbiddenError('Wallet address does not match your account');
   }
 
-  // Check eligibility from snapshot
-  const [snapshotEntry] = await db
-    .select({
-      id: nftSnapshot.id,
-      userId: nftSnapshot.userId,
-      rank: nftSnapshot.rank,
-      points: nftSnapshot.points,
-      hasMinted: nftSnapshot.hasMinted,
-      mintedTokenId: nftSnapshot.mintedTokenId,
-    })
-    .from(nftSnapshot)
-    .where(eq(nftSnapshot.userId, userId))
-    .limit(1);
-
-  if (!snapshotEntry) {
-    throw new ForbiddenError('You are not eligible to mint');
-  }
-
-  if (snapshotEntry.hasMinted) {
-    throw new ConflictError('You have already minted your NFT');
-  }
-
-  // Find an available NFT to assign (random assignment)
-  // Get all unclaimed NFTs and pick one randomly
-  const unclaimedNfts = await db
-    .select({
-      tokenId: nftCollection.tokenId,
-      name: nftCollection.name,
-      imageUrl: nftCollection.imageUrl,
-      thumbnailUrl: nftCollection.thumbnailUrl,
-      storyTitle: nftCollection.storyTitle,
-    })
-    .from(nftCollection)
-    .leftJoin(nftOwnership, eq(nftCollection.tokenId, nftOwnership.tokenId))
-    .where(isNull(nftOwnership.tokenId));
-
-  if (unclaimedNfts.length === 0) {
-    throw new InternalServerError(
-      'No NFTs available for minting. Please contact support.'
-    );
-  }
-
-  // Random selection - we know unclaimedNfts.length > 0 from check above
-  const randomIndex = Math.floor(Math.random() * unclaimedNfts.length);
-  const assignedNft = unclaimedNfts[randomIndex]!;
-
+  // Perform all operations in a single transaction to prevent race conditions
+  // This ensures that checking eligibility, selecting NFT, and recording the mint
+  // all happen atomically - no two users can claim the same NFT
   const now = new Date();
 
-  // Start a transaction to update all tables atomically
-  await db.transaction(async (tx) => {
-    // 1. Update snapshot to mark as minted
+  const result = await db.transaction(async (tx) => {
+    // 1. Check eligibility from snapshot (within transaction for consistency)
+    const [snapshotEntry] = await tx
+      .select({
+        id: nftSnapshot.id,
+        userId: nftSnapshot.userId,
+        rank: nftSnapshot.rank,
+        points: nftSnapshot.points,
+        hasMinted: nftSnapshot.hasMinted,
+        mintedTokenId: nftSnapshot.mintedTokenId,
+      })
+      .from(nftSnapshot)
+      .where(eq(nftSnapshot.userId, userId))
+      .limit(1);
+
+    if (!snapshotEntry) {
+      throw new ForbiddenError('You are not eligible to mint');
+    }
+
+    if (snapshotEntry.hasMinted) {
+      throw new ConflictError('You have already minted your NFT');
+    }
+
+    // 2. Find an available NFT to assign (random assignment)
+    // This query is within the transaction, ensuring atomicity
+    const unclaimedNfts = await tx
+      .select({
+        tokenId: nftCollection.tokenId,
+        name: nftCollection.name,
+        imageUrl: nftCollection.imageUrl,
+        thumbnailUrl: nftCollection.thumbnailUrl,
+        storyTitle: nftCollection.storyTitle,
+      })
+      .from(nftCollection)
+      .leftJoin(nftOwnership, eq(nftCollection.tokenId, nftOwnership.tokenId))
+      .where(isNull(nftOwnership.tokenId));
+
+    if (unclaimedNfts.length === 0) {
+      throw new InternalServerError(
+        'No NFTs available for minting. Please contact support.'
+      );
+    }
+
+    // Random selection - we know unclaimedNfts.length > 0 from check above
+    const randomIndex = Math.floor(Math.random() * unclaimedNfts.length);
+    const assignedNft = unclaimedNfts[randomIndex]!;
+
+    // 3. Update snapshot to mark as minted
     await tx
       .update(nftSnapshot)
       .set({
@@ -138,7 +154,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       })
       .where(eq(nftSnapshot.userId, userId));
 
-    // 2. Create ownership record
+    // 4. Create ownership record
     await tx.insert(nftOwnership).values({
       id: nanoid(),
       tokenId: assignedNft.tokenId,
@@ -149,7 +165,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       updatedAt: now,
     });
 
-    // 3. Create claim record (provenance)
+    // 5. Create claim record (provenance)
     await tx.insert(nftClaims).values({
       id: nanoid(),
       tokenId: assignedNft.tokenId,
@@ -160,7 +176,11 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       snapshotRank: snapshotEntry.rank,
       snapshotPoints: snapshotEntry.points,
     });
+
+    return { assignedNft, snapshotEntry };
   });
+
+  const { assignedNft, snapshotEntry } = result;
 
   const response: MintConfirmResponse = {
     success: true,

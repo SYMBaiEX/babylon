@@ -52,7 +52,7 @@ import {
   successResponse,
   withErrorHandling,
 } from '@babylon/api';
-import { db, eq, nftSnapshot, users } from '@babylon/db';
+import { db, eq, inArray, nftSnapshot, users } from '@babylon/db';
 import { logger } from '@babylon/shared';
 import { nanoid } from 'nanoid';
 import type { NextRequest } from 'next/server';
@@ -103,20 +103,20 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
 
   const existingMap = new Map(existingSnapshots.map((s) => [s.userId, s]));
 
-  // Build wallet lookup map for the top 100 users
-  // We use a Set for O(1) lookups when filtering
-  const userIdSet = new Set(topUsers.map((u) => u.id));
+  // Build wallet lookup map for the top 100 users using IN clause for efficiency
+  const userIds = topUsers.map((u) => u.id);
   const walletMap = new Map<string, string | null>();
 
-  if (userIdSet.size > 0) {
+  if (userIds.length > 0) {
+    // Use a direct SQL query with IN clause for efficient lookup
+    // This is much faster than fetching all users and filtering in memory
     const walletResults = await db
       .select({ id: users.id, walletAddress: users.walletAddress })
-      .from(users);
+      .from(users)
+      .where(inArray(users.id, userIds));
 
     for (const w of walletResults) {
-      if (userIdSet.has(w.id)) {
-        walletMap.set(w.id, w.walletAddress);
-      }
+      walletMap.set(w.id, w.walletAddress);
     }
   }
 
