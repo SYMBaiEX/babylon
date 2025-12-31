@@ -9,24 +9,18 @@ import {
   X,
 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
-import { toast } from 'sonner';
 import { MintBanner, NftGrid, RevealModal } from '@/components/nft';
 import { PageContainer } from '@/components/shared/PageContainer';
 import { Button } from '@/components/ui/button';
-import { useAuth } from '@/hooks/useAuth';
-import type {
-  MintConfirmResponse,
-  MintPrepareResponse,
-  NftGalleryResponse,
-  NftSummary,
-} from '@/types/nft';
+import { useNftMint } from '@/hooks/useNftMint';
+import type { NftGalleryResponse, NftSummary } from '@/types/nft';
 
 type ClaimedFilter = 'all' | 'claimed' | 'unclaimed';
 type SortField = 'tokenId' | 'name';
 type SortOrder = 'asc' | 'desc';
 
 export default function NftGalleryPage() {
-  const { authenticated, getAccessToken } = useAuth();
+  const { flowState, mintedNft, startMint, resetFlow } = useNftMint();
 
   // Gallery state
   const [nfts, setNfts] = useState<NftSummary[]>([]);
@@ -47,12 +41,13 @@ export default function NftGalleryPage() {
   const [sortOrder, setSortOrder] = useState<SortOrder>('asc');
   const [showFilters, setShowFilters] = useState(false);
 
-  // Mint state
-  const [isMinting, setIsMinting] = useState(false);
-  const [showRevealModal, setShowRevealModal] = useState(false);
-  const [mintedNft, setMintedNft] = useState<MintConfirmResponse['nft'] | null>(
-    null
-  );
+  // Mint state derived from hook
+  const isMinting =
+    flowState === 'preparing' ||
+    flowState === 'awaiting_signature' ||
+    flowState === 'minting' ||
+    flowState === 'confirming';
+  const showRevealModal = flowState === 'revealing';
 
   const pageSize = 20;
 
@@ -106,82 +101,15 @@ export default function NftGalleryPage() {
     fetchNfts();
   }, [fetchNfts]);
 
-  // Handle mint
+  // Handle mint using the hook
   const handleMint = async () => {
-    if (!authenticated) {
-      toast.error('Please connect your wallet first');
-      return;
-    }
-
-    setIsMinting(true);
-
-    const token = await getAccessToken();
-    if (!token) {
-      toast.error('Failed to authenticate');
-      setIsMinting(false);
-      return;
-    }
-
-    // Step 1: Prepare mint
-    const prepareResponse = await fetch('/api/nft/mint/prepare', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-    });
-
-    if (!prepareResponse.ok) {
-      const errorData = await prepareResponse.json();
-      toast.error(errorData.error ?? 'Failed to prepare mint');
-      setIsMinting(false);
-      return;
-    }
-
-    const prepareData: MintPrepareResponse = await prepareResponse.json();
-
-    // TODO: Execute on-chain transaction via Privy/wagmi
-    // For now, simulate with a mock transaction hash
-    // This will be replaced with actual wallet transaction
-    const mockTxHash = `0x${Array.from({ length: 64 }, () =>
-      Math.floor(Math.random() * 16).toString(16)
-    ).join('')}`;
-
-    // Step 2: Confirm mint (after tx confirmed)
-    // In production, this would be called after the actual tx is mined
-    const confirmResponse = await fetch('/api/nft/mint/confirm', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        txHash: mockTxHash,
-        walletAddress: prepareData.args[0],
-      }),
-    });
-
-    if (!confirmResponse.ok) {
-      const errorData = await confirmResponse.json();
-      toast.error(errorData.error ?? 'Failed to confirm mint');
-      setIsMinting(false);
-      return;
-    }
-
-    const confirmData: MintConfirmResponse = await confirmResponse.json();
-
-    // Show reveal modal
-    setMintedNft(confirmData.nft);
-    setShowRevealModal(true);
-    setIsMinting(false);
-
-    // Refresh NFT list
+    await startMint();
+    // Refresh NFT list after mint
     fetchNfts();
   };
 
   const handleCloseReveal = () => {
-    setShowRevealModal(false);
-    setMintedNft(null);
+    resetFlow();
   };
 
   return (

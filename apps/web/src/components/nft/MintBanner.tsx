@@ -3,60 +3,39 @@
 import { Sparkles, Trophy, Wallet } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { useCallback, useEffect, useState } from 'react';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
-import type { EligibilityResponse } from '@/types/nft';
+import { useNftMint } from '@/hooks/useNftMint';
 
 interface MintBannerProps {
-  onMintClick: () => void;
+  onMintClick?: () => void;
   isMinting?: boolean;
 }
 
 export function MintBanner({
   onMintClick,
-  isMinting = false,
+  isMinting: externalIsMinting,
 }: MintBannerProps) {
-  const { authenticated, ready, getAccessToken } = useAuth();
-  const [eligibility, setEligibility] = useState<EligibilityResponse | null>(
-    null
-  );
-  const [loading, setLoading] = useState(true);
+  const { authenticated, ready } = useAuth();
+  const { eligibility, isCheckingEligibility, flowState, startMint } =
+    useNftMint();
 
-  const fetchEligibility = useCallback(async () => {
-    if (!authenticated) {
-      setLoading(false);
-      return;
+  const loading = !ready || isCheckingEligibility;
+  const isMinting =
+    externalIsMinting ??
+    (flowState === 'preparing' ||
+      flowState === 'awaiting_signature' ||
+      flowState === 'minting' ||
+      flowState === 'confirming');
+
+  const handleMintClick = () => {
+    if (onMintClick) {
+      onMintClick();
+    } else {
+      startMint();
     }
-
-    setLoading(true);
-    const token = await getAccessToken();
-
-    if (!token) {
-      setLoading(false);
-      return;
-    }
-
-    const response = await fetch('/api/nft/eligibility', {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
-
-    if (response.ok) {
-      const data = await response.json();
-      setEligibility(data);
-    }
-
-    setLoading(false);
-  }, [authenticated, getAccessToken]);
-
-  useEffect(() => {
-    if (ready) {
-      fetchEligibility();
-    }
-  }, [ready, fetchEligibility]);
+  };
 
   // Not authenticated
   if (!authenticated) {
@@ -193,7 +172,7 @@ export function MintBanner({
         <Button
           variant="default"
           size="lg"
-          onClick={onMintClick}
+          onClick={handleMintClick}
           disabled={isMinting}
           className="min-w-[200px] bg-gradient-to-r from-[#0066FF] to-purple-500 hover:from-[#0055DD] hover:to-purple-600"
         >
