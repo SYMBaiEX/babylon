@@ -34,7 +34,6 @@ interface WalletBalanceState {
 
   // Internal state
   fetchPromise: Promise<void> | null;
-  pollingInterval: ReturnType<typeof setInterval> | null;
 
   // Actions
   fetchBalance: (userId: string, force?: boolean) => Promise<void>;
@@ -54,7 +53,6 @@ export const useWalletBalanceStore = create<WalletBalanceState>((set, get) => ({
   lastFetchedAt: null,
   userId: null,
   fetchPromise: null,
-  pollingInterval: null,
 
   fetchBalance: async (userId: string, force = false) => {
     const state = get();
@@ -136,10 +134,6 @@ export const useWalletBalanceStore = create<WalletBalanceState>((set, get) => ({
   },
 
   reset: () => {
-    const state = get();
-    if (state.pollingInterval) {
-      clearInterval(state.pollingInterval);
-    }
     set({
       balance: 0,
       lifetimePnL: 0,
@@ -148,7 +142,6 @@ export const useWalletBalanceStore = create<WalletBalanceState>((set, get) => ({
       lastFetchedAt: null,
       userId: null,
       fetchPromise: null,
-      pollingInterval: null,
     });
   },
 }));
