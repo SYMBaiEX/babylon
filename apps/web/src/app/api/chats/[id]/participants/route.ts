@@ -125,6 +125,7 @@
 import {
   authenticate,
   BusinessLogicError,
+  NFTVerificationService,
   NotFoundError,
   notifyGroupChatInvite,
   successResponse,
@@ -212,6 +213,52 @@ export const POST = withErrorHandling(
 
       return chat;
     });
+
+    // Verify NFT ownership for NFT-gated chats
+    if (chat.nftGated && chat.requiredNftContractAddress) {
+      const usersToVerify = await asSystem(async (db) =>
+        db.user.findMany({
+          where: {
+            id: { in: userIds },
+            isActor: false,
+            isBanned: false,
+          },
+          select: {
+            id: true,
+            walletAddress: true,
+            displayName: true,
+            username: true,
+            profileImageUrl: true,
+          },
+        })
+      );
+
+      const verificationResults = await Promise.all(
+        usersToVerify.map(async (user) => ({
+          user,
+          verification: await NFTVerificationService.verifyChatAccess(
+            user.walletAddress ?? null,
+            chat.requiredNftContractAddress!,
+            chat.requiredNftTokenId ?? null,
+            chat.requiredNftChainId ?? undefined
+          ),
+        }))
+      );
+
+      const usersWithoutNft = verificationResults.filter(
+        (r) => !r.verification.canAccess
+      );
+
+      if (usersWithoutNft.length > 0) {
+        const userNames = usersWithoutNft
+          .map((r) => r.user.displayName || r.user.username || r.user.id)
+          .join(', ');
+        throw new BusinessLogicError(
+          `The following users do not own the required NFT: ${userNames}. ${usersWithoutNft[0]?.verification.reason || ''}`,
+          'NFT_REQUIRED'
+        );
+      }
+    }
 
     // Verify all users exist and add them to the chat
     const addedUsers = await asSystem(async (db) => {

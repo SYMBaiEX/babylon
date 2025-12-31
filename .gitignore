@@ -18,6 +18,8 @@ dist/
 .DS_Store
 *.pem
 .serena/
+.cursor/
+.vscode/
 
 # local env files
 .env*.local

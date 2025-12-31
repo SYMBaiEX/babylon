@@ -164,6 +164,12 @@ const CreateGroupSchema = z.object({
   // User-created groups always get type: 'user'.
   // NPC groups (type: 'npc') are created by backend services.
   // Agent groups (type: 'agent') are created via MCP tools.
+  requiredNftContractAddress: z
+    .string()
+    .regex(/^0x[a-fA-F0-9]{40}$/, 'Invalid contract address format')
+    .optional(),
+  requiredNftTokenId: z.number().int().min(0).nullable().optional(),
+  requiredNftChainId: z.number().int().positive().optional(),
 });
 
 /**
@@ -272,6 +278,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
 
     // Create associated chat with groupId link (Chat.groupId → Group.id)
     const chatId = nanoid();
+    const nftGated = !!data.requiredNftContractAddress;
     await db.chat.create({
       data: {
         id: chatId,
@@ -280,6 +287,10 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
         groupId, // Link Chat → Group
         createdAt: new Date(),
         updatedAt: new Date(),
+        requiredNftContractAddress: data.requiredNftContractAddress || null,
+        requiredNftTokenId: data.requiredNftTokenId ?? null,
+        requiredNftChainId: data.requiredNftChainId ?? null,
+        nftGated,
       },
     });
 

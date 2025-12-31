@@ -50,5 +50,13 @@
       "when": 1766952269293,
       "tag": "0006_abandoned_maginty",
       "breakpoints": true
-    }  ]
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1767100000000,
+      "tag": "0015_add_nft_gating_to_chats",
+      "breakpoints": true
+    }
+  ]
 }

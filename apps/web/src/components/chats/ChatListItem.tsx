@@ -1,7 +1,7 @@
 'use client';
 
 import { cn } from '@babylon/shared';
-import { Users } from 'lucide-react';
+import { Shield, Users } from 'lucide-react';
 import React from 'react';
 import { Avatar } from '@/components/shared/Avatar';
 import type { Chat } from './types';
@@ -54,8 +54,18 @@ export function ChatListItem({
           />
         )}
         <div className="min-w-0 flex-1">
-          <div className="truncate font-semibold text-foreground text-sm">
-            {chat.name}
+          <div className="flex items-center gap-2">
+            <div className="truncate font-semibold text-foreground text-sm">
+              {chat.name}
+            </div>
+            {chat.nftRequirement && (
+              <div
+                className="shrink-0"
+                title={`NFT Required: ${chat.nftRequirement.tokenId !== null && chat.nftRequirement.tokenId !== undefined ? `Token #${chat.nftRequirement.tokenId}` : 'Any token'} from ${chat.nftRequirement.contractAddress.slice(0, 6)}...${chat.nftRequirement.contractAddress.slice(-4)} on ${chat.nftRequirement.chainName}`}
+              >
+                <Shield className="h-3.5 w-3.5 text-primary" />
+              </div>
+            )}
           </div>
           <div className="truncate text-muted-foreground text-xs">
             {chat.lastMessage?.content || 'No messages yet'}

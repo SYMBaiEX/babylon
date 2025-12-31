@@ -191,6 +191,8 @@ import {
   ChatCreateSchema,
   ChatQuerySchema,
   generateSnowflakeId,
+  getChainName,
+  getCurrentChainId,
   logger,
 } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
@@ -426,7 +428,22 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         const chat = chatDetailsMap.get(chatId);
         if (!chat) return null;
         const lastMessage = groupMessagesMap.get(chatId)?.[0] || null;
-        return {
+        const result: {
+          id: string;
+          name: string;
+          isGroup: boolean;
+          lastMessage: typeof lastMessage;
+          messageCount: number;
+          qualityScore: number | null;
+          lastMessageAt: Date | null;
+          updatedAt: Date;
+          nftRequirement?: {
+            contractAddress: string;
+            tokenId: number | null;
+            chainId: number;
+            chainName: string;
+          };
+        } = {
           id: chatId,
           name: chat.name || 'Unnamed Group',
           isGroup: true,
@@ -436,6 +453,18 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
           lastMessageAt: membership.lastMessageAt,
           updatedAt: chat.updatedAt,
         };
+
+        if (chat.nftGated && chat.requiredNftContractAddress) {
+          const chainId = chat.requiredNftChainId ?? getCurrentChainId();
+          result.nftRequirement = {
+            contractAddress: chat.requiredNftContractAddress,
+            tokenId: chat.requiredNftTokenId,
+            chainId,
+            chainName: getChainName(chainId),
+          };
+        }
+
+        return result;
       })
       .filter((c) => c !== null);
 
@@ -524,12 +553,20 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
 
   // Validate request body
   const body = await request.json();
-  const { name, isGroup, participantIds } = ChatCreateSchema.parse(body);
+  const {
+    name,
+    isGroup,
+    participantIds,
+    requiredNftContractAddress,
+    requiredNftTokenId,
+    requiredNftChainId,
+  } = ChatCreateSchema.parse(body);
 
   // Create the chat with RLS
   const chat = await asUser(user, async (dbClient) => {
     // Create the chat
     const now = new Date();
+    const nftGated = !!requiredNftContractAddress;
     const [newChat] = await dbClient
       .insert(chats)
       .values({
@@ -538,6 +575,10 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
         isGroup: isGroup || false,
         createdAt: now,
         updatedAt: now,
+        requiredNftContractAddress: requiredNftContractAddress || null,
+        requiredNftTokenId: requiredNftTokenId ?? null,
+        requiredNftChainId: requiredNftChainId ?? null,
+        nftGated,
       })
       .returning();
 
