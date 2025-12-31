@@ -12,11 +12,7 @@
  * @returns {EligibilityResponse} User's mint eligibility status
  */
 
-import {
-  authenticate,
-  successResponse,
-  withErrorHandling,
-} from '@babylon/api';
+import { authenticate, successResponse, withErrorHandling } from '@babylon/api';
 import { db, eq, nftCollection, nftSnapshot } from '@babylon/db';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';

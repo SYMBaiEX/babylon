@@ -6,6 +6,7 @@ import { Plus } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { NftPromoBanner } from '@/components/nft';
 import { FeedToggle } from '@/components/shared/FeedToggle';
 import { PageContainer } from '@/components/shared/PageContainer';
 import { PullToRefreshIndicator } from '@/components/shared/PullToRefreshIndicator';
@@ -286,6 +287,9 @@ export function FeedClient() {
 
   return (
     <PageContainer noPadding className="!overflow-visible flex w-full flex-col">
+      {/* NFT Collection Promo Banner */}
+      <NftPromoBanner variant="full" />
+
       <div ref={scrollContainerRef} className="relative flex flex-1">
         {/* Feed area */}
         <div className="flex min-w-0 flex-1 flex-col border-[rgba(120,120,120,0.5)] lg:border-r lg:border-l">
