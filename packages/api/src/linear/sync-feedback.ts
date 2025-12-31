@@ -96,9 +96,82 @@ const LinearSyncMetadataSchema = z.object({
 export const SYNC_LOCK_TTL_MS = 5 * 60 * 1000;
 
 /**
+ * Atomically acquire a sync lock for Linear issue creation.
+ * Uses a single SQL UPDATE with conditional WHERE clause to prevent TOCTOU race conditions.
+ *
+ * @returns Object with lockAcquired flag and metadata/createdAt if successful
+ */
+async function acquireSyncLock(
+  feedbackId: string,
+  syncStartedAt: string,
+  ttlMs: number
+): Promise<{
+  lockAcquired: boolean;
+  metadata: JsonObject | null;
+  createdAt: Date | null;
+  reason?: 'not_found' | 'already_synced' | 'lock_held';
+}> {
+  // Calculate the stale threshold timestamp
+  const staleThreshold = new Date(Date.now() - ttlMs).toISOString();
+
+  // Atomic lock acquisition using raw SQL:
+  // - Only acquires lock if linearIssueId is NULL (not already synced)
+  // - Only acquires lock if linearSyncStartedAt is NULL OR older than TTL
+  // This eliminates the TOCTOU gap between check and set
+  type LockResult = { id: string; metadata: JsonObject | null; createdAt: Date };
+  const result: LockResult[] = await db.$queryRaw<LockResult>`
+    UPDATE "Feedback"
+    SET metadata = jsonb_set(
+      COALESCE(metadata, '{}'::jsonb),
+      '{linearSyncStartedAt}',
+      to_jsonb(${syncStartedAt}::text)
+    )
+    WHERE id = ${feedbackId}
+      AND (metadata->>'linearIssueId' IS NULL)
+      AND (
+        metadata->>'linearSyncStartedAt' IS NULL
+        OR metadata->>'linearSyncStartedAt' < ${staleThreshold}
+      )
+    RETURNING id, metadata, "createdAt"
+  `;
+
+  const firstRow = result[0];
+  if (firstRow) {
+    return {
+      lockAcquired: true,
+      metadata: firstRow.metadata,
+      createdAt: firstRow.createdAt,
+    };
+  }
+
+  // Lock not acquired - determine why for logging
+  const feedback = await db.feedback.findUnique({
+    where: { id: feedbackId },
+    select: { metadata: true },
+  });
+
+  if (!feedback) {
+    return { lockAcquired: false, metadata: null, createdAt: null, reason: 'not_found' };
+  }
+
+  const syncMetadata = LinearSyncMetadataSchema.parse(
+    feedback.metadata && typeof feedback.metadata === 'object'
+      ? feedback.metadata
+      : {}
+  );
+
+  if (syncMetadata.linearIssueId) {
+    return { lockAcquired: false, metadata: null, createdAt: null, reason: 'already_synced' };
+  }
+
+  return { lockAcquired: false, metadata: null, createdAt: null, reason: 'lock_held' };
+}
+
+/**
  * Syncs a feedback record to Linear by creating an issue.
  * Updates the feedback metadata with the Linear issue reference.
  *
+ * Uses atomic lock acquisition to prevent duplicate issues from concurrent requests.
  * Idempotent: If feedback already has a linearIssueId, skips creation.
  */
 export async function syncFeedbackToLinear(
@@ -106,70 +179,41 @@ export async function syncFeedbackToLinear(
   feedbackId: string,
   user: FeedbackUser
 ): Promise<void> {
-  // Fetch feedback from DB to get current state (ensures consistency)
+  // Atomically acquire sync lock - this eliminates TOCTOU race conditions
+  const syncStartedAt = new Date().toISOString();
+  const lockResult = await acquireSyncLock(feedbackId, syncStartedAt, SYNC_LOCK_TTL_MS);
+
+  if (!lockResult.lockAcquired) {
+    switch (lockResult.reason) {
+      case 'not_found':
+        logger.warn('Feedback not found for Linear sync', { feedbackId });
+        break;
+      case 'already_synced':
+        logger.info('Feedback already synced to Linear, skipping', { feedbackId });
+        break;
+      case 'lock_held':
+        logger.info('Linear sync already in progress, skipping', { feedbackId });
+        break;
+    }
+    return;
+  }
+
+  // Fetch full feedback data now that we have the lock
   const feedback = await db.feedback.findUnique({
     where: { id: feedbackId },
     select: { comment: true, metadata: true, createdAt: true },
   });
 
   if (!feedback) {
-    logger.warn('Feedback not found for Linear sync', { feedbackId });
+    logger.warn('Feedback not found after lock acquisition', { feedbackId });
     return;
   }
 
-  // Safely parse metadata using Zod schema
+  // Parse metadata from the locked record
   const rawMetadata =
     feedback.metadata && typeof feedback.metadata === 'object'
       ? (feedback.metadata as JsonObject)
       : {};
-
-  // Idempotency check: skip if already synced to Linear
-  const syncMetadata = LinearSyncMetadataSchema.parse(rawMetadata);
-  if (syncMetadata.linearIssueId) {
-    logger.info('Feedback already synced to Linear, skipping', {
-      feedbackId,
-      linearIssueId: syncMetadata.linearIssueId,
-    });
-    return;
-  }
-
-  // Check for concurrent sync (prevents duplicate issues from race conditions)
-  if (syncMetadata.linearSyncStartedAt) {
-    const syncStarted = new Date(syncMetadata.linearSyncStartedAt).getTime();
-    // Handle invalid date strings (NaN) by treating as stale lock
-    if (Number.isNaN(syncStarted)) {
-      logger.warn('Invalid linearSyncStartedAt timestamp, proceeding with sync', {
-        feedbackId,
-        syncStartedAt: syncMetadata.linearSyncStartedAt,
-      });
-    } else {
-      const now = Date.now();
-      if (now - syncStarted < SYNC_LOCK_TTL_MS) {
-        logger.info('Linear sync already in progress, skipping', {
-          feedbackId,
-          syncStartedAt: syncMetadata.linearSyncStartedAt,
-        });
-        return;
-      }
-      // Lock is stale, proceed with sync (previous sync likely failed)
-      logger.warn('Stale Linear sync lock detected, proceeding with sync', {
-        feedbackId,
-        syncStartedAt: syncMetadata.linearSyncStartedAt,
-      });
-    }
-  }
-
-  // Set sync lock BEFORE creating Linear issue to prevent race conditions
-  const syncStartedAt = new Date().toISOString();
-  await db.feedback.update({
-    where: { id: feedbackId },
-    data: {
-      metadata: {
-        ...rawMetadata,
-        linearSyncStartedAt: syncStartedAt,
-      },
-    },
-  });
 
   // Helper to clear the sync lock (called on failure to allow immediate retry)
   const clearSyncLock = async () => {
