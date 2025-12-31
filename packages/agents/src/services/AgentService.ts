@@ -234,7 +234,7 @@ export class AgentServiceV2 {
           })
           .where(eq(users.id, agentUserId));
 
-        // Record balance transaction for manager
+        // Record balance transaction for manager (debit)
         await tx.insert(balanceTransactions).values({
           id: await generateSnowflakeId(),
           userId: managerUserId,
@@ -244,6 +244,18 @@ export class AgentServiceV2 {
           balanceAfter: String(initialManagerBalance - initialDeposit),
           relatedId: agentUserId,
           description: `Initial deposit to agent: ${name}`,
+        });
+
+        // Record balance transaction for agent (credit)
+        await tx.insert(balanceTransactions).values({
+          id: await generateSnowflakeId(),
+          userId: agentUserId,
+          type: 'owner_deposit',
+          amount: String(initialDeposit),
+          balanceBefore: '0',
+          balanceAfter: String(initialDeposit),
+          relatedId: managerUserId,
+          description: 'Initial deposit from owner',
         });
       }
 
@@ -536,6 +548,7 @@ export class AgentServiceV2 {
 
   /**
    * Deposit to agent's virtualBalance from manager's virtualBalance
+   * @deprecated Use depositTradingBalance instead - now unified
    *
    * @param agentUserId - Agent user ID
    * @param managerUserId - Manager (owner) user ID
