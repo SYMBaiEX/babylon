@@ -1,6 +1,10 @@
 'use client';
 
-import { BABYLON_POINTS_SYMBOL, cn, logger } from '@babylon/shared';
+import {
+  cn,
+  formatCurrency as formatCurrencyShared,
+  logger,
+} from '@babylon/shared';
 import {
   AlertCircle,
   ArrowUpDown,
@@ -345,9 +349,10 @@ export function AssetTradesFeed({
     },
   });
 
+  /** Wrapper around shared formatCurrency to handle string input */
   const formatCurrency = (value: string | number) => {
     const num = typeof value === 'string' ? Number.parseFloat(value) : value;
-    return `${BABYLON_POINTS_SYMBOL}${num.toFixed(2)}`;
+    return formatCurrencyShared(num);
   };
 
   const formatTime = (timestamp: string) => {
