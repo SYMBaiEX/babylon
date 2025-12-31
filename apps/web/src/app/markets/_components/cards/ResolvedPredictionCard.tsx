@@ -53,16 +53,22 @@ export const ResolvedPredictionCard = memo(function ResolvedPredictionCard({
         <div className="flex items-center gap-2 text-xs">
           <CheckCircle className="h-3.5 w-3.5 text-muted-foreground" />
           <span className="text-muted-foreground">Resolved:</span>
-          <span
-            className={cn(
-              'font-bold',
-              prediction.resolvedOutcome
-                ? 'text-green-600 dark:text-green-400'
-                : 'text-red-600 dark:text-red-400'
-            )}
-          >
-            {prediction.resolvedOutcome ? 'YES' : 'NO'}
-          </span>
+          {prediction.resolvedOutcome === undefined ? (
+            <span className="font-bold text-amber-600 dark:text-amber-400">
+              Pending
+            </span>
+          ) : (
+            <span
+              className={cn(
+                'font-bold',
+                prediction.resolvedOutcome
+                  ? 'text-green-600 dark:text-green-400'
+                  : 'text-red-600 dark:text-red-400'
+              )}
+            >
+              {prediction.resolvedOutcome ? 'YES' : 'NO'}
+            </span>
+          )}
         </div>
       ) : isExpired ? (
         // Expired but not resolved - awaiting resolution
