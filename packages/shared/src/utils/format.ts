@@ -232,9 +232,9 @@ export function formatCurrency(
  * ```
  */
 export function formatCompactCurrency(value: number, decimals = 2): string {
-  // Handle non-finite values
+  // Handle non-finite values (uses toFixed to avoid trailing dot when decimals=0)
   if (!Number.isFinite(value)) {
-    return `${BABYLON_POINTS_SYMBOL}0.${'0'.repeat(decimals)}`;
+    return `${BABYLON_POINTS_SYMBOL}${(0).toFixed(decimals)}`;
   }
 
   // Handle negative numbers: sign should come before the symbol

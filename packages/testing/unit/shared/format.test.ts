@@ -202,6 +202,11 @@ describe('Format Utilities', () => {
       expect(formatCompactCurrency(-Infinity)).toBe('Ƀ0.00');
     });
 
+    it('should handle non-finite values with decimals=0 (no trailing dot)', () => {
+      expect(formatCompactCurrency(NaN, 0)).toBe('Ƀ0');
+      expect(formatCompactCurrency(Infinity, 0)).toBe('Ƀ0');
+    });
+
     it('should respect custom decimals', () => {
       expect(formatCompactCurrency(1500, 1)).toBe('Ƀ1.5K');
       expect(formatCompactCurrency(1500, 0)).toBe('Ƀ2K');

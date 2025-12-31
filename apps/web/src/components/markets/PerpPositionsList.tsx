@@ -133,8 +133,9 @@ export function PerpPositionsList({
           ? data.realizedPnL
           : 0;
 
+    const pnlSign = pnl >= 0 ? '+' : '-';
     toast.success('Position closed!', {
-      description: `${pendingClose.position.ticker}: ${pnl >= 0 ? '+' : ''}${BABYLON_POINTS_SYMBOL}${pnl.toFixed(2)} PnL`,
+      description: `${pendingClose.position.ticker}: ${pnlSign}${BABYLON_POINTS_SYMBOL}${Math.abs(pnl).toFixed(2)} PnL`,
     });
 
     // Invalidate cache to ensure fresh data on next fetch

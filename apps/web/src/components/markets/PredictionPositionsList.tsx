@@ -128,8 +128,9 @@ export function PredictionPositionsList({
 
       const data: SellSharesSuccessResponse = await response.json();
       const pnl = data.pnl;
+      const pnlSign = pnl >= 0 ? '+' : '-';
       toast.success('Shares sold!', {
-        description: `Sold ${position.shares.toFixed(2)} ${position.side} shares for ${pnl >= 0 ? '+' : ''}${BABYLON_POINTS_SYMBOL}${pnl.toFixed(2)} PnL`,
+        description: `Sold ${position.shares.toFixed(2)} ${position.side} shares for ${pnlSign}${BABYLON_POINTS_SYMBOL}${Math.abs(pnl).toFixed(2)} PnL`,
       });
 
       onPositionSold?.();
