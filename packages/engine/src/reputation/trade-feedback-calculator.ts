@@ -229,7 +229,8 @@ export async function calculateTradeMetrics(
 
   // User's total balance at trade time (approximate with current balance + PnL)
   const totalUserBalance =
-    Number(userBalance.virtualBalance ?? 0) + Number(userBalance.totalDeposited ?? 0);
+    Number(userBalance.virtualBalance ?? 0) +
+    Number(userBalance.totalDeposited ?? 0);
   const riskScore = calculateRiskScore(tradePosition, totalUserBalance);
 
   // Combined timing score (weighted average of entry and exit)
