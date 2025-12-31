@@ -9,6 +9,7 @@ import {
   getLinearConfig,
   requireAdmin,
   successResponse,
+  SYNC_LOCK_TTL_MS,
   syncFeedbackToLinear,
   withErrorHandling,
 } from '@babylon/api';
@@ -27,9 +28,6 @@ const LinearSyncedMetadataSchema = z.object({
   linearIssueUrl: z.string().optional().catch(undefined),
   linearSyncStartedAt: z.string().optional().catch(undefined),
 });
-
-/** How long a sync lock is valid before it's considered stale (5 minutes) */
-const SYNC_LOCK_TTL_MS = 5 * 60 * 1000;
 
 type LinearSyncedMetadata = z.infer<typeof LinearSyncedMetadataSchema>;
 
@@ -100,25 +98,34 @@ export const POST = withErrorHandling(
     // Check if sync is already in progress (prevents duplicate issues)
     if (metadata.linearSyncStartedAt) {
       const syncStarted = new Date(metadata.linearSyncStartedAt).getTime();
-      const now = Date.now();
-      const lockAgeMs = now - syncStarted;
 
-      if (lockAgeMs < SYNC_LOCK_TTL_MS) {
-        const remainingSeconds = Math.ceil(
-          (SYNC_LOCK_TTL_MS - lockAgeMs) / 1000
-        );
-        return successResponse({
-          success: false,
-          syncInProgress: true,
+      // Handle invalid date strings (NaN) by treating as stale lock
+      if (!Number.isNaN(syncStarted)) {
+        const now = Date.now();
+        const lockAgeMs = now - syncStarted;
+
+        if (lockAgeMs < SYNC_LOCK_TTL_MS) {
+          const remainingSeconds = Math.ceil(
+            (SYNC_LOCK_TTL_MS - lockAgeMs) / 1000
+          );
+          return successResponse({
+            success: false,
+            syncInProgress: true,
+            syncStartedAt: metadata.linearSyncStartedAt,
+            message: `Sync already in progress. Try again in ${remainingSeconds} seconds or wait for completion.`,
+          });
+        }
+        // Lock is stale, proceed with sync
+        logger.warn('Stale sync lock detected during manual retry', {
+          feedbackId,
           syncStartedAt: metadata.linearSyncStartedAt,
-          message: `Sync already in progress. Try again in ${remainingSeconds} seconds or wait for completion.`,
+        });
+      } else {
+        logger.warn('Invalid linearSyncStartedAt timestamp during manual retry', {
+          feedbackId,
+          syncStartedAt: metadata.linearSyncStartedAt,
         });
       }
-      // Lock is stale, proceed with sync
-      logger.warn('Stale sync lock detected during manual retry', {
-        feedbackId,
-        syncStartedAt: metadata.linearSyncStartedAt,
-      });
     }
 
     // Get user info for the sync - distinguish between orphaned feedback and deleted user

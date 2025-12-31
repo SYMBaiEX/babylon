@@ -93,7 +93,7 @@ const LinearSyncMetadataSchema = z.object({
 });
 
 /** How long a sync lock is valid before it's considered stale (5 minutes) */
-const SYNC_LOCK_TTL_MS = 5 * 60 * 1000;
+export const SYNC_LOCK_TTL_MS = 5 * 60 * 1000;
 
 /**
  * Syncs a feedback record to Linear by creating an issue.
@@ -136,19 +136,27 @@ export async function syncFeedbackToLinear(
   // Check for concurrent sync (prevents duplicate issues from race conditions)
   if (syncMetadata.linearSyncStartedAt) {
     const syncStarted = new Date(syncMetadata.linearSyncStartedAt).getTime();
-    const now = Date.now();
-    if (now - syncStarted < SYNC_LOCK_TTL_MS) {
-      logger.info('Linear sync already in progress, skipping', {
+    // Handle invalid date strings (NaN) by treating as stale lock
+    if (Number.isNaN(syncStarted)) {
+      logger.warn('Invalid linearSyncStartedAt timestamp, proceeding with sync', {
         feedbackId,
         syncStartedAt: syncMetadata.linearSyncStartedAt,
       });
-      return;
+    } else {
+      const now = Date.now();
+      if (now - syncStarted < SYNC_LOCK_TTL_MS) {
+        logger.info('Linear sync already in progress, skipping', {
+          feedbackId,
+          syncStartedAt: syncMetadata.linearSyncStartedAt,
+        });
+        return;
+      }
+      // Lock is stale, proceed with sync (previous sync likely failed)
+      logger.warn('Stale Linear sync lock detected, proceeding with sync', {
+        feedbackId,
+        syncStartedAt: syncMetadata.linearSyncStartedAt,
+      });
     }
-    // Lock is stale, proceed with sync (previous sync likely failed)
-    logger.warn('Stale Linear sync lock detected, proceeding with sync', {
-      feedbackId,
-      syncStartedAt: syncMetadata.linearSyncStartedAt,
-    });
   }
 
   // Set sync lock BEFORE creating Linear issue to prevent race conditions
