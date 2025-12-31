@@ -21,6 +21,27 @@ export interface FeedbackData {
 }
 
 /**
+ * Format a timestamp using Intl.DateTimeFormat for clarity and robustness.
+ * Returns a UTC timestamp string like "31/12/2025 15:30:00 UTC".
+ */
+function formatTimestamp(date: Date): string {
+  return (
+    new Intl.DateTimeFormat('en-GB', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+      timeZone: 'UTC',
+    })
+      .format(date)
+      .replace(',', '') + ' UTC'
+  );
+}
+
+/**
  * Get formatted label with emoji for Linear issue titles.
  * Uses shared FEEDBACK_TYPE_CONFIG for DRY compliance.
  */
@@ -101,10 +122,9 @@ export function formatFeedbackForLinear(feedback: FeedbackData): {
     submittedBy = safeEmail ?? 'Unknown';
   }
 
-  // Format timestamp
+  // Format timestamp using Intl.DateTimeFormat for clarity and robustness
   const timestamp = feedback.createdAt
-    ? feedback.createdAt.toISOString().replace('T', ' ').substring(0, 19) +
-      ' UTC'
+    ? formatTimestamp(feedback.createdAt)
     : 'Unknown';
 
   lines.push(

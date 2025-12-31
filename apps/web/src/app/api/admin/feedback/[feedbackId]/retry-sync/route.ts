@@ -108,12 +108,12 @@ export const POST = withErrorHandling(
           const remainingSeconds = Math.ceil(
             (SYNC_LOCK_TTL_MS - lockAgeMs) / 1000
           );
-          return successResponse({
-            success: false,
-            syncInProgress: true,
-            syncStartedAt: metadata.linearSyncStartedAt,
-            message: `Sync already in progress. Try again in ${remainingSeconds} seconds or wait for completion.`,
-          });
+          // Return 409 Conflict to distinguish from success states
+          return errorResponse(
+            `Sync already in progress. Try again in ${remainingSeconds} seconds or wait for completion.`,
+            'SYNC_IN_PROGRESS',
+            409
+          );
         }
         // Lock is stale, proceed with sync
         logger.warn('Stale sync lock detected during manual retry', {

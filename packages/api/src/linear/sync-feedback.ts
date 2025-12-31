@@ -120,7 +120,7 @@ export async function syncFeedbackToLinear(
   // Safely parse metadata using Zod schema
   const rawMetadata =
     feedback.metadata && typeof feedback.metadata === 'object'
-      ? feedback.metadata
+      ? (feedback.metadata as JsonObject)
       : {};
 
   // Idempotency check: skip if already synced to Linear
@@ -165,7 +165,7 @@ export async function syncFeedbackToLinear(
     where: { id: feedbackId },
     data: {
       metadata: {
-        ...(rawMetadata as Record<string, unknown>),
+        ...rawMetadata,
         linearSyncStartedAt: syncStartedAt,
       },
     },
@@ -239,7 +239,7 @@ export async function syncFeedbackToLinear(
 
   const freshMetadata =
     freshFeedback?.metadata && typeof freshFeedback.metadata === 'object'
-      ? (freshFeedback.metadata as Record<string, unknown>)
+      ? (freshFeedback.metadata as JsonObject)
       : {};
 
   // Remove the sync lock and store the issue info
