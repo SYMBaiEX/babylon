@@ -184,6 +184,12 @@ export function BuyPointsModal({
    */
   const waitForWalletReady = (signal: AbortSignal): Promise<boolean> => {
     return new Promise((resolve) => {
+      // If already aborted, resolve immediately
+      if (signal.aborted) {
+        resolve(false);
+        return;
+      }
+
       // If already ready, resolve immediately
       if (smartWalletReadyRef.current) {
         resolve(true);

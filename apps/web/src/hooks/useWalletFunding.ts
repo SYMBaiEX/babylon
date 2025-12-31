@@ -111,11 +111,8 @@ export function useWalletFunding(): UseWalletFundingResult {
         return true;
       }
 
-      // Calculate deficit
-      const deficit =
-        requiredAmountWei - (currentBalance ?? 0n) > 0n
-          ? requiredAmountWei - (currentBalance ?? 0n)
-          : requiredAmountWei;
+      // Calculate deficit (we know balance is insufficient since we returned early above)
+      const deficit = requiredAmountWei - (currentBalance ?? 0n);
 
       // Prompt user to fund wallet
       await fundWallet({
