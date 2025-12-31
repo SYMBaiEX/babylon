@@ -86,8 +86,8 @@ Example: "Show me user_abc123's profile" or "What is @trader's reputation?"`,
       displayName: string | null;
       bio: string | null;
       profileImageUrl: string | null;
-      reputationPoints: number;
-      virtualBalance: number;
+      reputationPoints: number | null;
+      virtualBalance: number | null;
     };
 
     return {

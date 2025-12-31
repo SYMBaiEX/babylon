@@ -579,7 +579,10 @@ export class AgentServiceV2 {
   }
 
   /**
-   * Deposit to agent's virtualBalance from manager's virtualBalance
+   * Deposit to agent's virtualBalance from manager's virtualBalance.
+   *
+   * This is the canonical method for all agent deposit operations.
+   * The deprecated `depositPoints` method delegates to this.
    *
    * @param agentUserId - Agent user ID
    * @param managerUserId - Manager (owner) user ID
@@ -692,8 +695,10 @@ export class AgentServiceV2 {
   }
 
   /**
-   * Withdraw trading balance (virtualBalance) from agent to manager
+   * Withdraw trading balance (virtualBalance) from agent to manager.
    *
+   * This is the canonical method for all agent withdrawal operations.
+   * The deprecated `withdrawPoints` method delegates to this.
    * Transfers USD from agent's trading balance back to user's trading balance.
    *
    * @param agentUserId - Agent user ID
