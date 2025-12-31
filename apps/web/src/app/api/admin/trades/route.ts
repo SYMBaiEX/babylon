@@ -360,7 +360,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       throw new NotFoundError('User', tradeData.userId);
     }
 
-    const currentBalance = Number(user.virtualBalance);
+    const currentBalance = Number(user.virtualBalance ?? 0);
     const amountDecimal = new Decimal(tradeData.amount);
     const newBalance = tradeData.updateBalance
       ? currentBalance + tradeData.amount

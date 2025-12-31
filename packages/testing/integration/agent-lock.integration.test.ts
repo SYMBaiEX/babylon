@@ -85,14 +85,12 @@ describe('Agent Lock Service Integration', () => {
     try {
       const agent1 = await createTestAgent('lock-test-agent-1', {
         autonomousTrading: true,
-        pointsBalance: 100,
         virtualBalance: 10000,
       });
       testAgentId1 = agent1.agentId;
 
       const agent2 = await createTestAgent('lock-test-agent-2', {
         autonomousTrading: true,
-        pointsBalance: 100,
         virtualBalance: 10000,
       });
       testAgentId2 = agent2.agentId;
@@ -453,7 +451,6 @@ describe('Agent Tick Endpoint Lock Integration', () => {
 
     const agent = await createTestAgent('endpoint-lock-test', {
       autonomousTrading: true,
-      pointsBalance: 100,
       virtualBalance: 10000,
     });
     testAgentId = agent.agentId;

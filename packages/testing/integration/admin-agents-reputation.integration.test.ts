@@ -59,7 +59,6 @@ describe('Admin Agents Reputation Integration', () => {
       userId: testAgentUserId,
       autonomousTrading: true,
       modelTier: 'pro',
-      pointsBalance: 1000,
       updatedAt: new Date(),
     });
 
@@ -159,7 +158,6 @@ describe('Admin Agents Reputation Integration', () => {
         userId: testAgentUserId,
         autonomousTrading: true,
         modelTier: 'pro',
-        pointsBalance: 1000,
         updatedAt: new Date(),
       });
 

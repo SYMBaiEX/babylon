@@ -117,12 +117,6 @@ interface Agent {
   bio?: string[];
   personality?: string;
   tradingStrategy?: string;
-  // Points balance (for operations)
-  pointsBalance: number;
-  totalDeposited: number;
-  totalWithdrawn: number;
-  totalPointsSpent: number;
-  // Trading balance (for trades)
   virtualBalance?: number;
   isActive: boolean;
   autonomousEnabled: boolean;
@@ -162,7 +156,7 @@ export default function AgentDetailPage() {
   const [loading, setLoading] = useState(true);
 
   const handleBalanceUpdate = useCallback((newBalance: number) => {
-    setAgent((prev) => (prev ? { ...prev, pointsBalance: newBalance } : prev));
+    setAgent((prev) => (prev ? { ...prev, virtualBalance: newBalance } : prev));
   }, []);
 
   const fetchAgent = useCallback(async () => {
@@ -336,20 +330,10 @@ export default function AgentDetailPage() {
           </div>
 
           {/* Stats Row */}
-          <div className="mt-6 grid grid-cols-3 place-items-center gap-4 border-border border-t pt-6 text-center">
+          <div className="mt-6 grid grid-cols-2 place-items-center gap-4 border-border border-t pt-6 text-center">
             <div>
-              <div className="mb-1 text-muted-foreground text-xs">
-                Ops Budget
-              </div>
+              <div className="mb-1 text-muted-foreground text-xs">Balance</div>
               <div className="font-semibold text-[#0066FF] text-xl">
-                {agent.pointsBalance.toFixed(2)} pts
-              </div>
-            </div>
-            <div>
-              <div className="mb-1 text-muted-foreground text-xs">
-                Trading Balance
-              </div>
-              <div className="font-semibold text-emerald-600 text-xl">
                 {(agent.virtualBalance ?? 0).toFixed(2)} pts
               </div>
             </div>

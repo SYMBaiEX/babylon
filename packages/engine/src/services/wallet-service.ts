@@ -144,7 +144,7 @@ export class WalletService {
       );
     }
 
-    const currentBalance = Number(user.virtualBalance);
+    const currentBalance = Number(user.virtualBalance ?? 0);
     const newBalance = currentBalance + delta;
 
     // Prevent negative balance on debits
@@ -202,10 +202,10 @@ export class WalletService {
     }
 
     return {
-      balance: Number(user.virtualBalance),
-      totalDeposited: Number(user.totalDeposited),
-      totalWithdrawn: Number(user.totalWithdrawn),
-      lifetimePnL: Number(user.lifetimePnL),
+      balance: Number(user.virtualBalance ?? 0),
+      totalDeposited: Number(user.totalDeposited ?? 0),
+      totalWithdrawn: Number(user.totalWithdrawn ?? 0),
+      lifetimePnL: Number(user.lifetimePnL ?? 0),
     };
   }
 
@@ -242,7 +242,7 @@ export class WalletService {
       return false;
     }
 
-    return Number(user.virtualBalance) >= requiredAmount;
+    return Number(user.virtualBalance ?? 0) >= requiredAmount;
   }
 
   /**
@@ -437,7 +437,7 @@ export class WalletService {
       throw new Error(`User not found: ${userId}`);
     }
 
-    if (Number(user.virtualBalance) === 0) {
+    if (Number(user.virtualBalance ?? 0) === 0) {
       await withTransaction(async (tx) => {
         await tx
           .update(users)

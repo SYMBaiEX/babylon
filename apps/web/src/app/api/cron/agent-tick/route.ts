@@ -292,7 +292,7 @@ export async function POST(_req: NextRequest) {
 
       if (
         user.isAgent &&
-        (config?.pointsBalance ?? 0) >= 1 &&
+        Number(user.virtualBalance ?? 0) >= 1 &&
         (config?.autonomousTrading ||
           config?.autonomousPosting ||
           config?.autonomousCommenting ||

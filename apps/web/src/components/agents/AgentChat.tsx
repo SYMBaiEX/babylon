@@ -46,7 +46,7 @@ interface Message {
  * ```tsx
  * <AgentChat
  *   agent={agentData}
- *   onBalanceUpdate={(newBalance) => setAgent(prev => ({ ...prev, pointsBalance: newBalance }))}
+ *   onBalanceUpdate={(newBalance) => setAgent(prev => ({ ...prev, virtualBalance: newBalance }))}
  * />
  * ```
  */
@@ -55,7 +55,7 @@ interface AgentChatProps {
     id: string;
     name: string;
     profileImageUrl?: string;
-    pointsBalance: number;
+    virtualBalance?: number;
     modelTier: 'free' | 'pro';
   };
   onBalanceUpdate?: (newBalance: number) => void;
@@ -224,7 +224,7 @@ export function AgentChat({ agent, onBalanceUpdate }: AgentChatProps) {
         <div>
           <h3 className="font-semibold">Chat with {agent.name}</h3>
           <p className="text-muted-foreground text-sm">
-            {agent.pointsBalance} points available
+            {(agent.virtualBalance ?? 0).toFixed(2)} points available
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -369,7 +369,7 @@ export function AgentChat({ agent, onBalanceUpdate }: AgentChatProps) {
 
       {/* Input */}
       <div className="border-border border-t p-4">
-        {usePro && agent.pointsBalance < 1 ? (
+        {usePro && (agent.virtualBalance ?? 0) < 1 ? (
           <div className="py-2 text-center text-red-600 text-sm">
             Insufficient points for Pro mode. Switch to Free mode or deposit
             points.
@@ -392,7 +392,9 @@ export function AgentChat({ agent, onBalanceUpdate }: AgentChatProps) {
           <button
             onClick={sendMessage}
             disabled={
-              !input.trim() || sending || (usePro && agent.pointsBalance < 1)
+              !input.trim() ||
+              sending ||
+              (usePro && (agent.virtualBalance ?? 0) < 1)
             }
             className="flex h-10 items-center gap-2 rounded-lg bg-[#0066FF] px-4 py-2 font-medium text-primary-foreground transition-all hover:bg-[#2952d9] disabled:cursor-not-allowed disabled:opacity-50"
           >

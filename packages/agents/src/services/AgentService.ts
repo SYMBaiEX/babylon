@@ -121,7 +121,7 @@ export class AgentServiceV2 {
     if (!manager) throw new Error('Manager user not found');
 
     if (initialDeposit && initialDeposit > 0) {
-      const managerBalance = Number(manager.virtualBalance);
+      const managerBalance = Number(manager.virtualBalance ?? 0);
       if (managerBalance < initialDeposit) {
         throw new Error(
           `Insufficient balance. Have: $${managerBalance.toFixed(2)}, Need: $${initialDeposit.toFixed(2)}`
@@ -207,14 +207,13 @@ export class AgentServiceV2 {
         personality: personality ?? null,
         tradingStrategy: tradingStrategy ?? null,
         messageExamples: bio ? JSON.parse(JSON.stringify(bio)) : null,
-        pointsBalance: initialDeposit || 0,
-        totalDeposited: initialDeposit || 0,
         a2aEnabled: true, // Enable A2A by default for all agents
         updatedAt: new Date(),
       });
 
+      // Transfer initial deposit from manager to agent's virtualBalance
       if (initialDeposit && initialDeposit > 0) {
-        const initialManagerBalance = Number(manager.virtualBalance);
+        const initialManagerBalance = Number(manager.virtualBalance ?? 0);
 
         // Debit from manager's trading balance
         await tx
@@ -225,28 +224,38 @@ export class AgentServiceV2 {
           })
           .where(eq(users.id, managerUserId));
 
-        // Record agent ops deposit
-        await tx.insert(agentPointsTransactions).values({
-          id: await generateSnowflakeId(),
-          agentUserId,
-          managerUserId,
-          type: 'deposit',
-          amount: initialDeposit,
-          balanceBefore: 0,
-          balanceAfter: initialDeposit,
-          description: 'Initial ops budget deposit',
-        });
+        // Credit to agent's virtualBalance
+        await tx
+          .update(users)
+          .set({
+            virtualBalance: String(initialDeposit),
+            totalDeposited: String(initialDeposit),
+            updatedAt: new Date(),
+          })
+          .where(eq(users.id, agentUserId));
 
-        // Record balance transaction for manager
+        // Record balance transaction for manager (debit)
         await tx.insert(balanceTransactions).values({
           id: await generateSnowflakeId(),
           userId: managerUserId,
-          type: 'agent_ops_deposit',
+          type: 'agent_deposit',
           amount: String(-initialDeposit),
           balanceBefore: String(initialManagerBalance),
           balanceAfter: String(initialManagerBalance - initialDeposit),
           relatedId: agentUserId,
-          description: `Initial ops budget deposit to agent: ${name}`,
+          description: `Initial deposit to agent: ${name}`,
+        });
+
+        // Record balance transaction for agent (credit)
+        await tx.insert(balanceTransactions).values({
+          id: await generateSnowflakeId(),
+          userId: agentUserId,
+          type: 'owner_deposit',
+          amount: String(initialDeposit),
+          balanceBefore: '0',
+          balanceAfter: String(initialDeposit),
+          relatedId: managerUserId,
+          description: 'Initial deposit from owner',
         });
       }
 
@@ -488,11 +497,12 @@ export class AgentServiceV2 {
     );
     if (!agentWithConfig) throw new Error('Agent not found');
 
-    const pointsBalance = agentWithConfig.agentConfig?.pointsBalance ?? 0;
+    // Get agent's remaining balance from users table
+    const agentBalance = Number(agentWithConfig.virtualBalance ?? 0);
 
     await withTransaction(async (tx) => {
-      // Return remaining ops budget to manager's trading balance
-      if (pointsBalance > 0) {
+      // Return remaining balance to manager
+      if (agentBalance > 0) {
         const managerResult = await tx
           .select({ virtualBalance: users.virtualBalance })
           .from(users)
@@ -504,7 +514,7 @@ export class AgentServiceV2 {
         await tx
           .update(users)
           .set({
-            virtualBalance: String(currentBalance + pointsBalance),
+            virtualBalance: String(currentBalance + agentBalance),
             updatedAt: new Date(),
           })
           .where(eq(users.id, managerUserId));
@@ -512,12 +522,12 @@ export class AgentServiceV2 {
         await tx.insert(balanceTransactions).values({
           id: await generateSnowflakeId(),
           userId: managerUserId,
-          type: 'agent_ops_return',
-          amount: String(pointsBalance),
+          type: 'agent_balance_return',
+          amount: String(agentBalance),
           balanceBefore: String(currentBalance),
-          balanceAfter: String(currentBalance + pointsBalance),
+          balanceAfter: String(currentBalance + agentBalance),
           relatedId: agentUserId,
-          description: `Ops budget returned from deleted agent: ${agentWithConfig.displayName}`,
+          description: `Balance returned from deleted agent: ${agentWithConfig.displayName}`,
         });
       }
 
@@ -537,10 +547,8 @@ export class AgentServiceV2 {
   }
 
   /**
-   * Deposit ops budget points from manager's virtualBalance to agent's pointsBalance
-   *
-   * Transfers USD from user's trading balance to fund agent operations.
-   * This is used for AI operations like chat, tick, posting.
+   * Deposit to agent's virtualBalance from manager's virtualBalance
+   * @deprecated Use depositTradingBalance instead - now unified
    *
    * @param agentUserId - Agent user ID
    * @param managerUserId - Manager (owner) user ID
@@ -553,199 +561,28 @@ export class AgentServiceV2 {
     managerUserId: string,
     amount: number
   ): Promise<User> {
-    if (amount <= 0) throw new Error('Amount must be positive');
-    const agentWithConfig = await this.getAgentWithConfig(
-      agentUserId,
-      managerUserId
-    );
-    if (!agentWithConfig) throw new Error('Agent not found');
-
-    const config = agentWithConfig.agentConfig;
-    if (!config) throw new Error('Agent config not found');
-
-    // Get manager's trading balance (virtualBalance)
-    const managerResult = await db
-      .select({
-        virtualBalance: users.virtualBalance,
-      })
-      .from(users)
-      .where(eq(users.id, managerUserId))
-      .limit(1);
-
-    const manager = managerResult[0];
-    if (!manager) throw new Error('Manager not found');
-
-    const managerBalance = Number(manager.virtualBalance);
-    if (managerBalance < amount) {
-      throw new Error(
-        `Insufficient balance. Have: $${managerBalance.toFixed(2)}, Need: $${amount.toFixed(2)}`
-      );
-    }
-
-    await withTransaction(async (tx) => {
-      // Add to agent's ops budget (pointsBalance)
-      await tx
-        .update(userAgentConfigs)
-        .set({
-          pointsBalance: config.pointsBalance + amount,
-          totalDeposited: config.totalDeposited + amount,
-          updatedAt: new Date(),
-        })
-        .where(eq(userAgentConfigs.userId, agentUserId));
-
-      // Debit from manager's trading balance
-      await tx
-        .update(users)
-        .set({
-          virtualBalance: String(managerBalance - amount),
-          updatedAt: new Date(),
-        })
-        .where(eq(users.id, managerUserId));
-
-      // Record agent points transaction
-      await tx.insert(agentPointsTransactions).values({
-        id: await generateSnowflakeId(),
-        agentUserId,
-        managerUserId,
-        type: 'deposit',
-        amount,
-        balanceBefore: config.pointsBalance,
-        balanceAfter: config.pointsBalance + amount,
-        description: 'Ops budget deposit from trading balance',
-      });
-
-      // Record balance transaction for manager
-      await tx.insert(balanceTransactions).values({
-        id: await generateSnowflakeId(),
-        userId: managerUserId,
-        type: 'agent_ops_deposit',
-        amount: String(-amount),
-        balanceBefore: String(managerBalance),
-        balanceAfter: String(managerBalance - amount),
-        relatedId: agentUserId,
-        description: `Ops budget deposit to agent: ${agentWithConfig.displayName}`,
-      });
-    });
-
-    logger.info(
-      `Deposited $${amount} ops budget to agent ${agentUserId}`,
-      undefined,
-      'AgentService'
-    );
-
-    const result = await db
-      .select()
-      .from(users)
-      .where(eq(users.id, agentUserId))
-      .limit(1);
-    return result[0]!;
+    // Delegate to depositTradingBalance - now unified
+    return this.depositTradingBalance(agentUserId, managerUserId, amount);
   }
 
   /**
-   * Withdraw ops budget points from agent's pointsBalance to manager's virtualBalance
-   *
-   * Transfers USD from agent's ops budget back to user's trading balance.
-   *
-   * @param agentUserId - Agent user ID
-   * @param managerUserId - Manager (owner) user ID
-   * @param amount - Amount to withdraw
-   * @returns Updated agent User
-   * @throws Error if insufficient balance or agent not found
+   * Withdraw from agent's virtualBalance to manager's virtualBalance
+   * @deprecated Use withdrawTradingBalance instead - now unified
    */
   async withdrawPoints(
     agentUserId: string,
     managerUserId: string,
     amount: number
   ): Promise<User> {
-    if (amount <= 0) throw new Error('Amount must be positive');
-    const agentWithConfig = await this.getAgentWithConfig(
-      agentUserId,
-      managerUserId
-    );
-    if (!agentWithConfig) throw new Error('Agent not found');
-
-    const config = agentWithConfig.agentConfig;
-    if (!config) throw new Error('Agent config not found');
-
-    if (config.pointsBalance < amount) {
-      throw new Error(
-        `Insufficient ops budget. Have: $${config.pointsBalance.toFixed(2)}, Need: $${amount.toFixed(2)}`
-      );
-    }
-
-    await withTransaction(async (tx) => {
-      // Debit from agent's ops budget
-      await tx
-        .update(userAgentConfigs)
-        .set({
-          pointsBalance: config.pointsBalance - amount,
-          totalWithdrawn: config.totalWithdrawn + amount,
-          updatedAt: new Date(),
-        })
-        .where(eq(userAgentConfigs.userId, agentUserId));
-
-      // Get manager's current trading balance
-      const managerResult = await tx
-        .select({ virtualBalance: users.virtualBalance })
-        .from(users)
-        .where(eq(users.id, managerUserId))
-        .limit(1);
-
-      const managerBalance = Number(managerResult[0]?.virtualBalance ?? 0);
-
-      // Credit to manager's trading balance
-      await tx
-        .update(users)
-        .set({
-          virtualBalance: String(managerBalance + amount),
-          updatedAt: new Date(),
-        })
-        .where(eq(users.id, managerUserId));
-
-      // Record agent points transaction
-      await tx.insert(agentPointsTransactions).values({
-        id: await generateSnowflakeId(),
-        agentUserId,
-        managerUserId,
-        type: 'withdraw',
-        amount: -amount,
-        balanceBefore: config.pointsBalance,
-        balanceAfter: config.pointsBalance - amount,
-        description: 'Ops budget withdrawal to trading balance',
-      });
-
-      // Record balance transaction for manager
-      await tx.insert(balanceTransactions).values({
-        id: await generateSnowflakeId(),
-        userId: managerUserId,
-        type: 'agent_ops_withdraw',
-        amount: String(amount),
-        balanceBefore: String(managerBalance),
-        balanceAfter: String(managerBalance + amount),
-        relatedId: agentUserId,
-        description: `Ops budget withdrawal from agent: ${agentWithConfig.displayName}`,
-      });
-    });
-
-    logger.info(
-      `Withdrew ${amount} points from agent ${agentUserId}`,
-      undefined,
-      'AgentService'
-    );
-
-    const result = await db
-      .select()
-      .from(users)
-      .where(eq(users.id, agentUserId))
-      .limit(1);
-    return result[0]!;
+    // Delegate to withdrawTradingBalance - now unified
+    return this.withdrawTradingBalance(agentUserId, managerUserId, amount);
   }
 
   /**
-   * Deposit trading balance (virtualBalance) from manager to agent
+   * Deposit to agent's virtualBalance from manager's virtualBalance.
    *
-   * Transfers USD from user's trading balance to agent's trading balance.
-   * This is the capital agents use for actual trades on markets.
+   * This is the canonical method for all agent deposit operations.
+   * The deprecated `depositPoints` method delegates to this.
    *
    * @param agentUserId - Agent user ID
    * @param managerUserId - Manager (owner) user ID
@@ -778,7 +615,7 @@ export class AgentServiceV2 {
     const manager = managerResult[0];
     if (!manager) throw new Error('Manager not found');
 
-    const managerBalance = Number(manager.virtualBalance);
+    const managerBalance = Number(manager.virtualBalance ?? 0);
     if (managerBalance < amount) {
       throw new Error(
         `Insufficient trading balance. Have: $${managerBalance.toFixed(2)}, Need: $${amount.toFixed(2)}`
@@ -858,8 +695,10 @@ export class AgentServiceV2 {
   }
 
   /**
-   * Withdraw trading balance (virtualBalance) from agent to manager
+   * Withdraw trading balance (virtualBalance) from agent to manager.
    *
+   * This is the canonical method for all agent withdrawal operations.
+   * The deprecated `withdrawPoints` method delegates to this.
    * Transfers USD from agent's trading balance back to user's trading balance.
    *
    * @param agentUserId - Agent user ID
@@ -969,41 +808,57 @@ export class AgentServiceV2 {
     return finalResult[0]!;
   }
 
+  /**
+   * Deduct from agent's virtualBalance for AI operations (chat, tick, post).
+   *
+   * @param agentUserId - Agent user ID
+   * @param amount - Amount to deduct
+   * @param reason - Reason for deduction (used to determine transaction type)
+   * @param relatedId - Optional related entity ID
+   * @returns New balance after deduction
+   */
   async deductPoints(
     agentUserId: string,
     amount: number,
     reason: string,
     relatedId?: string
   ): Promise<number> {
-    const config = await getAgentConfig(agentUserId);
-    if (!config) throw new Error('Agent config not found');
-
-    if (config.pointsBalance < amount) {
-      throw new Error(
-        `Insufficient balance. Have: ${config.pointsBalance}, Need: ${amount}`
-      );
-    }
-
+    // Fetch and validate balance inside transaction with row-level locking to prevent race conditions
     const newBalance = await withTransaction(async (tx) => {
-      const result = await tx
-        .update(userAgentConfigs)
-        .set({
-          pointsBalance: config.pointsBalance - amount,
-          totalPointsSpent: config.totalPointsSpent + amount,
-          updatedAt: new Date(),
-        })
-        .where(eq(userAgentConfigs.userId, agentUserId))
-        .returning();
-
-      // Get the user to find manager
+      // Get agent's current virtualBalance with FOR UPDATE lock to prevent concurrent deductions
       const userResult = await tx
-        .select({ managedBy: users.managedBy })
+        .select({
+          virtualBalance: users.virtualBalance,
+          managedBy: users.managedBy,
+        })
         .from(users)
         .where(eq(users.id, agentUserId))
-        .limit(1);
+        .limit(1)
+        .for('update');
 
-      const managedBy = userResult[0]?.managedBy || agentUserId;
+      const agent = userResult[0];
+      if (!agent) throw new Error('Agent not found');
 
+      const currentBalance = Number(agent.virtualBalance ?? 0);
+      if (currentBalance < amount) {
+        throw new Error(
+          `Insufficient balance. Have: ${currentBalance.toFixed(2)}, Need: ${amount.toFixed(2)}`
+        );
+      }
+
+      // Deduct from agent's virtualBalance
+      const result = await tx
+        .update(users)
+        .set({
+          virtualBalance: String(currentBalance - amount),
+          updatedAt: new Date(),
+        })
+        .where(eq(users.id, agentUserId))
+        .returning({ virtualBalance: users.virtualBalance });
+
+      const managedBy = agent.managedBy || agentUserId;
+
+      // Record the transaction for tracking
       await tx.insert(agentPointsTransactions).values({
         id: await generateSnowflakeId(),
         type: reason.includes('chat')
@@ -1012,15 +867,31 @@ export class AgentServiceV2 {
             ? 'spend_post'
             : 'spend_tick',
         amount: -amount,
-        balanceBefore: config.pointsBalance,
-        balanceAfter: config.pointsBalance - amount,
+        balanceBefore: currentBalance,
+        balanceAfter: currentBalance - amount,
         description: reason,
         relatedId: relatedId ?? null,
         agentUserId: agentUserId,
         managerUserId: managedBy,
       });
 
-      return result[0]!.pointsBalance;
+      // Also record in balance transactions for unified history
+      await tx.insert(balanceTransactions).values({
+        id: await generateSnowflakeId(),
+        userId: agentUserId,
+        type: reason.includes('chat')
+          ? 'agent_chat'
+          : reason.includes('post')
+            ? 'agent_post'
+            : 'agent_tick',
+        amount: String(-amount),
+        balanceBefore: String(currentBalance),
+        balanceAfter: String(currentBalance - amount),
+        relatedId: relatedId ?? null,
+        description: reason,
+      });
+
+      return Number(result[0]!.virtualBalance ?? 0);
     });
 
     return newBalance;

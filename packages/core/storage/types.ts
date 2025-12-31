@@ -97,11 +97,6 @@ export interface AgentConfigRecord {
   personality?: string;
   tradingStrategy?: string;
   messageExamples?: JsonValue;
-  pointsBalance: number;
-  totalDeposited: number;
-  totalWithdrawn: number;
-  totalPointsSpent: number;
-  totalPointsEarned: number;
   autonomousTrading: boolean;
   autonomousPosting: boolean;
   autonomousCommenting: boolean;

@@ -59,12 +59,6 @@ export const userAgentConfigs = pgTable(
     lastTickAt: timestamp('lastTickAt', { mode: 'date' }),
     lastChatAt: timestamp('lastChatAt', { mode: 'date' }),
 
-    // Points for agent operations (separate from user points)
-    pointsBalance: integer('pointsBalance').notNull().default(0),
-    totalDeposited: integer('totalDeposited').notNull().default(0),
-    totalWithdrawn: integer('totalWithdrawn').notNull().default(0),
-    totalPointsSpent: integer('totalPointsSpent').notNull().default(0),
-
     // Timestamps
     createdAt: timestamp('createdAt', { mode: 'date' }).notNull().defaultNow(),
     updatedAt: timestamp('updatedAt', { mode: 'date' }).notNull(),
