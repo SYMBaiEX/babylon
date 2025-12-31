@@ -1,7 +1,7 @@
 'use client';
 
-import { CHAIN, cn, logger, WALLET_ERROR_MESSAGES } from '@babylon/shared';
-import { useFundWallet, usePrivy } from '@privy-io/react-auth';
+import { cn, logger, WALLET_ERROR_MESSAGES } from '@babylon/shared';
+import { usePrivy } from '@privy-io/react-auth';
 import {
   AlertCircle,
   CheckCircle2,
@@ -9,14 +9,13 @@ import {
   Sparkles,
   X,
 } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import type { Address } from 'viem';
-import { formatEther } from 'viem';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { useAuth } from '@/hooks/useAuth';
 import { useBuyPointsTx } from '@/hooks/useBuyPointsTx';
-import { useSmartWalletBalance } from '@/hooks/useSmartWalletBalance';
+import { useWalletFunding } from '@/hooks/useWalletFunding';
 import { getAuthToken } from '@/lib/auth';
 
 /**
@@ -37,6 +36,7 @@ import { getAuthToken } from '@/lib/auth';
  * - Loading states
  * - Error handling
  * - Body scroll lock and escape key handling
+ * - Cancellable async operations with AbortController
  *
  * @param props - BuyPointsModal component props
  * @returns Buy points modal element or null if not open
@@ -78,88 +78,65 @@ export function BuyPointsModal({
 }: BuyPointsModalProps) {
   const { user, smartWalletAddress, smartWalletReady } = useAuth();
   const { getAccessToken } = usePrivy();
-  const { fundWallet } = useFundWallet();
   const { sendPointsPayment } = useBuyPointsTx();
-  const { balance, refreshBalance } = useSmartWalletBalance();
+  const { ensureFunds } = useWalletFunding();
 
   const [amountUSD, setAmountUSD] = useState('10');
   const [step, setStep] = useState<PaymentStep>('input');
   const [loading, setLoading] = useState(false);
-  const [_paymentRequestId, setPaymentRequestId] = useState<string | null>(
-    null
-  );
   const [txHash, setTxHash] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pointsAwarded, setPointsAwarded] = useState(0);
+  const [walletInitializing, setWalletInitializing] = useState(false);
 
-  const ensureFunds = useCallback(
-    async (requiredAmountWei: bigint) => {
-      if (!smartWalletAddress) {
-        throw new Error(WALLET_ERROR_MESSAGES.NO_EMBEDDED_WALLET);
-      }
+  // AbortController for canceling async operations
+  const abortControllerRef = useRef<AbortController | null>(null);
 
-      const currentBalance = balance ?? (await refreshBalance());
-      if (currentBalance !== null && currentBalance >= requiredAmountWei) {
-        return true;
-      }
+  // Ref to track smartWalletReady state for use in async callbacks (avoids stale closure)
+  const smartWalletReadyRef = useRef(smartWalletReady);
 
-      const deficit =
-        requiredAmountWei - (currentBalance ?? 0n) > 0n
-          ? requiredAmountWei - (currentBalance ?? 0n)
-          : requiredAmountWei;
+  // Ref to track if component is mounted
+  const isMountedRef = useRef(true);
 
-      await fundWallet({
-        address: smartWalletAddress,
-        options: {
-          chain: CHAIN,
-          amount: formatEther(deficit),
-          asset: 'native-currency',
-        },
-      });
+  // Keep ref updated when smartWalletReady changes
+  useEffect(() => {
+    smartWalletReadyRef.current = smartWalletReady;
+  }, [smartWalletReady]);
 
-      // Poll for balance updates with timeout (30 seconds)
-      const maxAttempts = 30;
-      const pollInterval = 1000; // 1 second
-
-      // Show feedback to user
-      toast.info('Waiting for deposit to settle...');
-
-      for (let attempt = 0; attempt < maxAttempts; attempt++) {
-        const updatedBalance = await refreshBalance();
-
-        if (updatedBalance && updatedBalance >= requiredAmountWei) {
-          toast.success('Funds received!');
-          return true;
-        }
-
-        // Wait before next check (except on last attempt)
-        if (attempt < maxAttempts - 1) {
-          await new Promise((resolve) => setTimeout(resolve, pollInterval));
-        }
-      }
-
-      // If we get here, funds didn't arrive in time
-      toast.error('Deposit is taking longer than expected');
-      throw new Error(
-        'Funds are still settling. Please try again in a moment once the deposit arrives.'
-      );
-    },
-    [balance, fundWallet, refreshBalance, smartWalletAddress]
-  );
+  // Track mounted state
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   // Reset state when modal closes
   useEffect(() => {
     if (!isOpen) {
-      setTimeout(() => {
-        setAmountUSD('10');
-        setStep('input');
-        setLoading(false);
-        setPaymentRequestId(null);
-        setTxHash(null);
-        setError(null);
-        setPointsAwarded(0);
+      // Cancel any in-flight operations
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+        abortControllerRef.current = null;
+      }
+
+      // Reset state after animation completes
+      const timeoutId = setTimeout(() => {
+        if (isMountedRef.current) {
+          setAmountUSD('10');
+          setStep('input');
+          setLoading(false);
+          setTxHash(null);
+          setError(null);
+          setPointsAwarded(0);
+          setWalletInitializing(false);
+        }
       }, 300);
+
+      // Cleanup timeout if component unmounts or modal reopens
+      return () => clearTimeout(timeoutId);
     }
+    return undefined;
   }, [isOpen]);
 
   // Handle escape key and body scroll lock
@@ -188,6 +165,11 @@ export function BuyPointsModal({
   useEffect(() => {
     return () => {
       document.body.style.overflow = '';
+      // Cancel any in-flight operations on unmount
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+        abortControllerRef.current = null;
+      }
     };
   }, []);
 
@@ -196,8 +178,65 @@ export function BuyPointsModal({
   const amountNum = Number.parseFloat(amountUSD) || 0;
   const pointsAmount = Math.floor(amountNum * 100);
 
+  /**
+   * Waits for the smart wallet to be ready with proper interval-based polling.
+   * Uses refs to avoid stale closure issues and supports cancellation.
+   */
+  const waitForWalletReady = (signal: AbortSignal): Promise<boolean> => {
+    return new Promise((resolve) => {
+      // If already aborted, resolve immediately
+      if (signal.aborted) {
+        resolve(false);
+        return;
+      }
+
+      // If already ready, resolve immediately
+      if (smartWalletReadyRef.current) {
+        resolve(true);
+        return;
+      }
+
+      const maxWaitTime = 5000;
+      const checkInterval = 100;
+      const startTime = Date.now();
+
+      const intervalId = setInterval(() => {
+        // Check if cancelled
+        if (signal.aborted) {
+          clearInterval(intervalId);
+          resolve(false);
+          return;
+        }
+
+        // Check if wallet is ready
+        if (smartWalletReadyRef.current) {
+          clearInterval(intervalId);
+          resolve(true);
+          return;
+        }
+
+        // Check if timeout exceeded
+        if (Date.now() - startTime >= maxWaitTime) {
+          clearInterval(intervalId);
+          resolve(false);
+          return;
+        }
+      }, checkInterval);
+
+      // Handle abort during wait
+      signal.addEventListener(
+        'abort',
+        () => {
+          clearInterval(intervalId);
+          resolve(false);
+        },
+        { once: true }
+      );
+    });
+  };
+
   const handleCreatePayment = async () => {
-    if (!user || !smartWalletAddress || !smartWalletReady) {
+    if (!user || !smartWalletAddress) {
       toast.error(WALLET_ERROR_MESSAGES.NO_EMBEDDED_WALLET);
       return;
     }
@@ -212,61 +251,138 @@ export function BuyPointsModal({
       return;
     }
 
+    // Create abort controller FIRST - before any async operations
+    abortControllerRef.current = new AbortController();
+    const signal = abortControllerRef.current.signal;
+
+    // Check if smart wallet is ready, if not wait for initialization
+    if (!smartWalletReady) {
+      setWalletInitializing(true);
+      toast.info('Initializing wallet...');
+
+      const isReady = await waitForWalletReady(signal);
+
+      // Check if cancelled during wait
+      if (signal.aborted || !isMountedRef.current) {
+        setWalletInitializing(false);
+        return;
+      }
+
+      setWalletInitializing(false);
+
+      if (!isReady) {
+        toast.error(
+          'Wallet is still initializing. Please try again in a moment.'
+        );
+        abortControllerRef.current = null;
+        return;
+      }
+
+      toast.success('Wallet ready!');
+    }
+
     setLoading(true);
     setError(null);
 
-    const token = await getAccessToken();
-    if (!token) {
-      logger.error('Authentication required', undefined, 'BuyPointsModal');
-      setError('Authentication required');
-      setStep('error');
-      toast.error('Failed to create payment request');
-      setLoading(false);
-      return;
+    try {
+      const token = await getAccessToken();
+
+      // Check if cancelled after getting token
+      if (signal.aborted || !isMountedRef.current) {
+        setLoading(false);
+        return;
+      }
+
+      if (!token) {
+        logger.error('Authentication required', undefined, 'BuyPointsModal');
+        setError('Authentication required');
+        setStep('error');
+        toast.error('Failed to create payment request');
+        setLoading(false);
+        abortControllerRef.current = null;
+        return;
+      }
+
+      // Create payment request with abort signal
+      const response = await fetch('/api/points/purchase/create-payment', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          amountUSD: amountNum,
+          fromAddress: smartWalletAddress,
+        }),
+        signal,
+      });
+
+      // Check if cancelled after fetch
+      if (signal.aborted || !isMountedRef.current) {
+        setLoading(false);
+        return;
+      }
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        const errorMessage = data.error || 'Failed to create payment request';
+        logger.error(
+          'Failed to create payment',
+          { error: errorMessage },
+          'BuyPointsModal'
+        );
+        setError(errorMessage);
+        setStep('error');
+        toast.error('Failed to create payment request');
+        setLoading(false);
+        abortControllerRef.current = null;
+        return;
+      }
+
+      setStep('payment');
+
+      // Initiate blockchain transaction
+      await handleSendPayment(data.paymentRequest, signal);
+    } catch (err) {
+      // Handle abort errors silently
+      if (err instanceof Error && err.name === 'AbortError') {
+        setLoading(false);
+        return;
+      }
+
+      // Only propagate non-cancellation errors
+      if (err instanceof Error && !err.message.includes('cancelled')) {
+        const errorMessage = err.message || 'Payment failed';
+        logger.error(
+          'Payment failed',
+          { error: errorMessage },
+          'BuyPointsModal'
+        );
+        if (isMountedRef.current) {
+          setError(errorMessage);
+          setStep('error');
+          toast.error('Payment transaction failed');
+        }
+      }
+    } finally {
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
+      // Clean up abort controller after operation completes
+      abortControllerRef.current = null;
     }
-
-    // Create payment request
-    const response = await fetch('/api/points/purchase/create-payment', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        amountUSD: amountNum,
-        fromAddress: smartWalletAddress,
-      }),
-    });
-
-    const data = await response.json();
-
-    if (!response.ok || !data.success) {
-      const errorMessage = data.error || 'Failed to create payment request';
-      logger.error(
-        'Failed to create payment',
-        { error: errorMessage },
-        'BuyPointsModal'
-      );
-      setError(errorMessage);
-      setStep('error');
-      toast.error('Failed to create payment request');
-      setLoading(false);
-      return;
-    }
-
-    setPaymentRequestId(data.paymentRequest.requestId);
-    setStep('payment');
-
-    // Initiate blockchain transaction
-    await handleSendPayment(data.paymentRequest);
-    setLoading(false);
   };
 
-  const handleSendPayment = async (paymentRequest: PaymentRequest) => {
+  const handleSendPayment = async (
+    paymentRequest: PaymentRequest,
+    signal: AbortSignal
+  ) => {
     setLoading(true);
     setStep('payment');
 
-    if (!smartWalletReady || !smartWalletAddress) {
+    // Use ref for consistent check (avoids stale closure)
+    if (!smartWalletReadyRef.current || !smartWalletAddress) {
       const errorMessage = WALLET_ERROR_MESSAGES.NO_EMBEDDED_WALLET;
       logger.error('Payment failed', { error: errorMessage }, 'BuyPointsModal');
       setError(errorMessage);
@@ -276,26 +392,61 @@ export function BuyPointsModal({
       return;
     }
 
-    const requiredAmountWei = BigInt(paymentRequest.amount);
-    await ensureFunds(requiredAmountWei);
+    try {
+      const requiredAmountWei = BigInt(paymentRequest.amount);
 
-    const hash = await sendPointsPayment({
-      to: paymentRequest.to as Address,
-      amountWei: requiredAmountWei,
-    });
+      // Use shared hook with abort signal
+      await ensureFunds(smartWalletAddress, requiredAmountWei, { signal });
 
-    setTxHash(hash);
-    setStep('verifying');
+      // Check if operation was cancelled after funding
+      if (signal.aborted || !isMountedRef.current) {
+        setLoading(false);
+        return;
+      }
 
-    // Verify payment and credit points
-    await handleVerifyPayment(paymentRequest.requestId, hash, paymentRequest);
+      const hash = await sendPointsPayment({
+        to: paymentRequest.to as Address,
+        amountWei: requiredAmountWei,
+      });
+
+      // Check if cancelled after payment
+      if (signal.aborted || !isMountedRef.current) {
+        setLoading(false);
+        return;
+      }
+
+      setTxHash(hash);
+      setStep('verifying');
+
+      // Verify payment and credit points
+      await handleVerifyPayment(
+        paymentRequest.requestId,
+        hash,
+        paymentRequest,
+        signal
+      );
+    } catch (error) {
+      // Don't show error if operation was cancelled
+      if (error instanceof Error && error.message === 'Operation cancelled') {
+        setLoading(false);
+        return;
+      }
+      throw error;
+    }
   };
 
   const handleVerifyPayment = async (
     requestId: string,
     transactionHash: string,
-    paymentRequest: PaymentRequest
+    paymentRequest: PaymentRequest,
+    signal: AbortSignal
   ) => {
+    // Check if cancelled before starting
+    if (signal.aborted || !isMountedRef.current) {
+      setLoading(false);
+      return;
+    }
+
     const token = getAuthToken();
     if (!token) {
       logger.error('Authentication required', undefined, 'BuyPointsModal');
@@ -306,49 +457,78 @@ export function BuyPointsModal({
       return;
     }
 
-    // Wait a bit for transaction to be confirmed
-    await new Promise((resolve) => setTimeout(resolve, 3000));
-
-    const response = await fetch('/api/points/purchase/verify-payment', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        requestId,
-        txHash: transactionHash,
-        fromAddress: paymentRequest.from,
-        toAddress: paymentRequest.to,
-        amount: paymentRequest.amount,
-      }),
+    // Wait a bit for transaction to be confirmed (with cancellation support)
+    await new Promise<void>((resolve) => {
+      const timeout = setTimeout(resolve, 3000);
+      const abortHandler = () => {
+        clearTimeout(timeout);
+        resolve();
+      };
+      signal.addEventListener('abort', abortHandler, { once: true });
     });
 
-    const data = await response.json();
-
-    if (!response.ok || !data.success) {
-      const errorMessage = data.error || 'Failed to verify payment';
-      logger.error(
-        'Payment verification failed',
-        { error: errorMessage },
-        'BuyPointsModal'
-      );
-      setError(errorMessage);
-      setStep('error');
-      toast.error('Failed to verify payment');
+    // Check if cancelled after wait
+    if (signal.aborted || !isMountedRef.current) {
       setLoading(false);
       return;
     }
 
-    setPointsAwarded(data.pointsAwarded);
-    setStep('success');
-    toast.success(`Successfully purchased ${data.pointsAwarded} points!`);
+    try {
+      const response = await fetch('/api/points/purchase/verify-payment', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          requestId,
+          txHash: transactionHash,
+          fromAddress: paymentRequest.from,
+          toAddress: paymentRequest.to,
+          amount: paymentRequest.amount,
+        }),
+        signal,
+      });
 
-    // Call onSuccess callback
-    if (onSuccess) {
-      onSuccess();
+      // Check if cancelled after fetch
+      if (signal.aborted || !isMountedRef.current) {
+        setLoading(false);
+        return;
+      }
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        const errorMessage = data.error || 'Failed to verify payment';
+        logger.error(
+          'Payment verification failed',
+          { error: errorMessage },
+          'BuyPointsModal'
+        );
+        setError(errorMessage);
+        setStep('error');
+        toast.error('Failed to verify payment');
+        setLoading(false);
+        return;
+      }
+
+      setPointsAwarded(data.pointsAwarded);
+      setStep('success');
+      toast.success(`Successfully purchased ${data.pointsAwarded} points!`);
+
+      // Call onSuccess callback
+      if (onSuccess) {
+        onSuccess();
+      }
+      setLoading(false);
+    } catch (err) {
+      // Handle abort errors silently
+      if (err instanceof Error && err.name === 'AbortError') {
+        setLoading(false);
+        return;
+      }
+      throw err;
     }
-    setLoading(false);
   };
 
   const handleClose = () => {
@@ -461,14 +641,23 @@ export function BuyPointsModal({
               <button
                 data-testid="buy-points-submit-button"
                 onClick={handleCreatePayment}
-                disabled={loading || amountNum < 1 || amountNum > 1000}
+                disabled={
+                  loading ||
+                  walletInitializing ||
+                  amountNum < 1 ||
+                  amountNum > 1000
+                }
                 className={cn(
                   'flex-1 rounded-lg px-4 py-3 font-medium transition-colors',
                   'bg-primary text-primary-foreground hover:bg-primary/90',
                   'disabled:cursor-not-allowed disabled:opacity-50'
                 )}
               >
-                {loading ? 'Processing...' : `Buy ${pointsAmount} Points`}
+                {walletInitializing
+                  ? 'Initializing wallet...'
+                  : loading
+                    ? 'Processing...'
+                    : `Buy ${pointsAmount} Points`}
               </button>
             </div>
           </>

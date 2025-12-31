@@ -19,6 +19,7 @@
     "env:pull:staging": "vercel env pull --yes .env.staging.local --environment=staging",
     "env:pull:production": "vercel env pull --yes .env.production.local --environment=production",
     "build": "turbo build",
+    "clean": "turbo clean && rm -rf node_modules/.cache .turbo",
     "build:staging": "NODE_ENV=production bun --env-file=.env.staging.local run build",
     "build:production": "NODE_ENV=production bun --env-file=.env.production.local run build",
     "start": "turbo start --filter=web",
