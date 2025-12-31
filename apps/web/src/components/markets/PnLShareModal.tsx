@@ -1,6 +1,11 @@
 'use client';
 
-import { getReferralUrl, logger, trackExternalShare } from '@babylon/shared';
+import {
+  BABYLON_POINTS_SYMBOL,
+  getReferralUrl,
+  logger,
+  trackExternalShare,
+} from '@babylon/shared';
 import { usePrivy } from '@privy-io/react-auth';
 import { Download, LogOut, Twitter, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -152,10 +157,12 @@ export function PnLShareModal({
       'Join me in Babylon, a real-time simulation where humans and AI agents battle across prediction markets, form alliances, and shape outcomes—together.';
 
     if (type === 'portfolio' && portfolioData) {
-      return `My Babylon P&L is ${portfolioData.totalPnL >= 0 ? '+' : ''}$${Math.abs(portfolioData.totalPnL).toFixed(2)}. Trading narratives, sharing the upside.\n\n${standardMessage}\n\n${link}`;
+      const sign = portfolioData.totalPnL >= 0 ? '+' : '-';
+      return `My Babylon P&L is ${sign}${BABYLON_POINTS_SYMBOL}${Math.abs(portfolioData.totalPnL).toFixed(2)}. Trading narratives, sharing the upside.\n\n${standardMessage}\n\n${link}`;
     }
     if (type === 'category' && categoryData) {
-      return `My ${categoryLabel} P&L on Babylon is ${categoryData.unrealizedPnL >= 0 ? '+' : ''}$${Math.abs(categoryData.unrealizedPnL).toFixed(2)}. Trading narratives, sharing the upside.\n\n${standardMessage}\n\n${link}`;
+      const sign = categoryData.unrealizedPnL >= 0 ? '+' : '-';
+      return `My ${categoryLabel} P&L on Babylon is ${sign}${BABYLON_POINTS_SYMBOL}${Math.abs(categoryData.unrealizedPnL).toFixed(2)}. Trading narratives, sharing the upside.\n\n${standardMessage}\n\n${link}`;
     }
     return `${standardMessage}\n\n${link}`;
   }, [

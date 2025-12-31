@@ -1,3 +1,4 @@
+import { BABYLON_POINTS_SYMBOL } from '@babylon/shared';
 import { Share2, Sparkles } from 'lucide-react';
 import type { PortfolioPnLSnapshot } from '@/hooks/usePortfolioPnL';
 
@@ -38,18 +39,9 @@ interface PortfolioPnLCardProps {
 }
 
 /**
- * Currency formatter for displaying monetary values.
- */
-const formatter = new Intl.NumberFormat('en-US', {
-  style: 'currency',
-  currency: 'USD',
-  maximumFractionDigits: 2,
-});
-
-/**
  * Format currency value safely.
  *
- * Formats a number as currency, defaulting to 0 if invalid.
+ * Formats a number as Babylon points, defaulting to 0 if invalid.
  *
  * @param value - Value to format
  * @returns Formatted currency string
@@ -57,7 +49,7 @@ const formatter = new Intl.NumberFormat('en-US', {
 function formatCurrency(value: number | null | undefined) {
   const safeValue =
     typeof value === 'number' && Number.isFinite(value) ? value : 0;
-  return formatter.format(safeValue);
+  return `${BABYLON_POINTS_SYMBOL}${safeValue.toFixed(2)}`;
 }
 
 export function PortfolioPnLCard({

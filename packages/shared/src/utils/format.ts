@@ -158,23 +158,101 @@ export function formatCompactNumber(num: number): string {
 }
 
 /**
+ * Options for formatCurrency function.
+ */
+interface FormatCurrencyOptions {
+  /** Number of decimal places (default: 2) */
+  decimals?: number;
+  /** Whether to use thousands separators (default: false for backwards compat) */
+  useThousandsSeparator?: boolean;
+}
+
+/**
  * Format number as currency
  *
  * @description Formats a number as Babylon points currency with specified decimal places.
  * Uses the Ƀ symbol to represent Babylon points (not USD or Bitcoin).
+ * Optionally includes thousands separators for better readability of large values.
  *
  * @param {number} amount - Amount to format
- * @param {number} decimals - Number of decimal places (default: 2)
- * @returns {string} Formatted currency string (e.g., "Ƀ123.45")
+ * @param {number | FormatCurrencyOptions} options - Decimal places or options object
+ * @returns {string} Formatted currency string (e.g., "Ƀ123.45" or "Ƀ1,234.56")
  *
  * @example
  * ```typescript
  * formatCurrency(123.456) // Returns "Ƀ123.46"
  * formatCurrency(1000, 0) // Returns "Ƀ1000"
+ * formatCurrency(1234.56, { useThousandsSeparator: true }) // Returns "Ƀ1,234.56"
+ * formatCurrency(1234567.89, { decimals: 2, useThousandsSeparator: true }) // Returns "Ƀ1,234,567.89"
  * ```
  */
-export function formatCurrency(amount: number, decimals = 2): string {
-  return `${BABYLON_POINTS_SYMBOL}${amount.toFixed(decimals)}`;
+export function formatCurrency(
+  amount: number,
+  options: number | FormatCurrencyOptions = 2
+): string {
+  const decimals =
+    typeof options === 'number' ? options : (options.decimals ?? 2);
+  const useThousandsSeparator =
+    typeof options === 'object' && options.useThousandsSeparator;
+
+  // Handle negative numbers: sign should come before the symbol
+  const isNegative = amount < 0;
+  const absoluteAmount = Math.abs(amount);
+  const sign = isNegative ? '-' : '';
+
+  if (useThousandsSeparator) {
+    const formatted = absoluteAmount.toLocaleString('en-US', {
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals,
+    });
+    return `${sign}${BABYLON_POINTS_SYMBOL}${formatted}`;
+  }
+
+  return `${sign}${BABYLON_POINTS_SYMBOL}${absoluteAmount.toFixed(decimals)}`;
+}
+
+/**
+ * Format number as compact currency with K/M/B suffixes
+ *
+ * @description Formats a number as Babylon points currency with K/M/B suffixes
+ * for large values. Uses the Ƀ symbol. Handles non-finite values gracefully.
+ *
+ * @param {number} value - Amount to format
+ * @param {number} decimals - Number of decimal places (default: 2)
+ * @returns {string} Formatted currency string with suffix (e.g., "Ƀ1.50K", "Ƀ2.30M")
+ *
+ * @example
+ * ```typescript
+ * formatCompactCurrency(1500) // Returns "Ƀ1.50K"
+ * formatCompactCurrency(2300000) // Returns "Ƀ2.30M"
+ * formatCompactCurrency(1500000000) // Returns "Ƀ1.50B"
+ * formatCompactCurrency(500) // Returns "Ƀ500.00"
+ * formatCompactCurrency(-1500) // Returns "-Ƀ1.50K"
+ * formatCompactCurrency(NaN) // Returns "Ƀ0.00"
+ * ```
+ */
+export function formatCompactCurrency(value: number, decimals = 2): string {
+  // Handle non-finite values (uses toFixed to avoid trailing dot when decimals=0)
+  if (!Number.isFinite(value)) {
+    return `${BABYLON_POINTS_SYMBOL}${(0).toFixed(decimals)}`;
+  }
+
+  // Handle negative numbers: sign should come before the symbol
+  const isNegative = value < 0;
+  const abs = Math.abs(value);
+  const sign = isNegative ? '-' : '';
+
+  if (abs >= 1_000_000_000) {
+    return `${sign}${BABYLON_POINTS_SYMBOL}${(abs / 1_000_000_000).toFixed(decimals)}B`;
+  }
+  if (abs >= 1_000_000) {
+    return `${sign}${BABYLON_POINTS_SYMBOL}${(abs / 1_000_000).toFixed(decimals)}M`;
+  }
+  if (abs >= 1_000) {
+    return `${sign}${BABYLON_POINTS_SYMBOL}${(abs / 1_000).toFixed(decimals)}K`;
+  }
+
+  return `${sign}${BABYLON_POINTS_SYMBOL}${abs.toFixed(decimals)}`;
 }
 
 /**
