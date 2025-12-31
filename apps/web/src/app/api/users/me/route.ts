@@ -167,9 +167,56 @@ type PrivyUserWithSmartWallet = PrivyUser & {
   linkedAccounts?: Array<
     PrivyWalletLite & {
       type?: string;
+      address?: string; // For email accounts, this is the email address
     }
   >;
 };
+
+/**
+ * Get all verified email addresses from a Privy user.
+ * Checks both the primary email and linkedAccounts for email-type accounts.
+ * This ensures we catch emails that were linked after initial signup.
+ */
+function getAllVerifiedEmails(user: PrivyUserWithSmartWallet): string[] {
+  const emails: string[] = [];
+
+  // Check primary email field
+  if (user.email?.address) {
+    emails.push(user.email.address);
+  }
+
+  // Check linkedAccounts for email-type accounts
+  if (Array.isArray(user.linkedAccounts)) {
+    for (const account of user.linkedAccounts) {
+      if (account?.type === 'email' && account.address) {
+        // Avoid duplicates
+        if (!emails.includes(account.address)) {
+          emails.push(account.address);
+        }
+      }
+    }
+  }
+
+  return emails;
+}
+
+/**
+ * Check if any of the user's verified emails should grant admin access.
+ * Returns the first matching admin email, or null if none match.
+ */
+function findAdminEmail(
+  emails: string[],
+  emailVerified: boolean
+): string | null {
+  if (!emailVerified || emails.length === 0) return null;
+
+  for (const email of emails) {
+    if (shouldAutoPromoteToAdmin(email, true)) {
+      return email;
+    }
+  }
+  return null;
+}
 
 function pickEmbeddedEvmWallet(
   user: PrivyUserWithSmartWallet
@@ -419,14 +466,21 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
     // Check if user should be auto-promoted to admin based on email domain
     // SECURITY: Requires email verification (Privy emails are verified by design)
-    // If email exists in Privy, it has been verified through their email verification flow
-    const emailVerified = !!privyUser.email?.address;
-    const shouldBeAdmin = shouldAutoPromoteToAdmin(email, emailVerified);
+    // Check ALL linked emails, not just the primary one (handles users who linked admin email later)
+    const allEmails = getAllVerifiedEmails(privyUser);
+    const emailVerified = allEmails.length > 0;
+    const adminEmail = findAdminEmail(allEmails, emailVerified);
+    const shouldBeAdmin = adminEmail !== null;
 
     if (shouldBeAdmin) {
       logger.info(
         'Auto-promoting user to admin based on verified email domain',
-        { privyId, emailDomain: email?.split('@')[1] ?? null, emailVerified },
+        {
+          privyId,
+          adminEmail,
+          emailDomain: adminEmail?.split('@')[1] ?? null,
+          allEmails,
+        },
         'GET /api/users/me'
       );
     }
@@ -551,23 +605,23 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
   // Auto-promote existing users to admin if they have a verified admin domain email
   // This ensures users who later link/verify a company email get admin access
+  // Check ALL linked emails, not just the primary one
   if (dbUser && !dbUser.isAdmin) {
     const privyClient = getPrivyClient();
     const privyUser = await privyClient.getUser(privyId);
-    const verifiedEmail = privyUser.email?.address ?? null;
-    const emailVerified = !!verifiedEmail;
-    const shouldBeAdmin = shouldAutoPromoteToAdmin(
-      verifiedEmail,
-      emailVerified
-    );
+    const allEmails = getAllVerifiedEmails(privyUser);
+    const emailVerified = allEmails.length > 0;
+    const adminEmail = findAdminEmail(allEmails, emailVerified);
+    const shouldBeAdmin = adminEmail !== null;
 
     if (shouldBeAdmin) {
       logger.info(
         'Auto-promoting existing user to admin based on verified email domain',
         {
           userId: dbUser.id,
-          emailDomain: verifiedEmail?.split('@')[1] ?? null,
-          emailVerified,
+          adminEmail,
+          emailDomain: adminEmail?.split('@')[1] ?? null,
+          allEmails,
         },
         'GET /api/users/me'
       );
