@@ -67,12 +67,15 @@ export const useWalletBalanceStore = create<WalletBalanceState>((set, get) => ({
       await state.fetchPromise;
     }
 
+    // Re-fetch fresh state after await to avoid stale cache checks
+    const currentState = get();
+
     // Return cached data if fresh and not forced
     if (
       !force &&
-      state.userId === userId &&
-      state.lastFetchedAt &&
-      Date.now() - state.lastFetchedAt < CACHE_TTL
+      currentState.userId === userId &&
+      currentState.lastFetchedAt &&
+      Date.now() - currentState.lastFetchedAt < CACHE_TTL
     ) {
       return;
     }
@@ -81,7 +84,7 @@ export const useWalletBalanceStore = create<WalletBalanceState>((set, get) => ({
     const fetchPromise = (async () => {
       // Only show loading on initial fetch (no cached data yet)
       const isInitialLoad =
-        state.lastFetchedAt === null || state.userId !== userId;
+        currentState.lastFetchedAt === null || currentState.userId !== userId;
       if (isInitialLoad) {
         set({ loading: true });
       }
