@@ -21,6 +21,7 @@
 | **Real-time Ownership** | **YES** - real-time owner updates required (webhooks/indexer) | 2025-12-31 |
 | **Navigation** | **NOT in sidebar** - links from mainpage and leaderboard page only | 2025-12-31 |
 | **Contract Strategy** | Use placeholder contracts; 100 NFTs uploaded when frontend ready | 2025-12-31 |
+| **Mint Button** | YES - add mint CTA at top of gallery for eligible users with reveal animation | 2025-12-31 |
 
 ---
 
@@ -28,10 +29,14 @@
 
 ### 1.1 Goal
 
-Create a dedicated NFT Gallery page within Babylon.market (`/nft` or `/collection`) to showcase the NFT collection distributed to the Top 100 leaderboard users. The gallery will display high-quality artwork, unique stories/lore, and complete metadata for each NFT in the collection.
+Create a dedicated NFT Gallery page within Babylon.market (`/nft`) that serves two purposes:
+
+1. **Mint Experience**: Top 100 leaderboard users can mint their NFT with a reveal animation
+2. **Gallery Showcase**: Display the full NFT collection with artwork, stories, and ownership
 
 ### 1.2 Why This Matters
 
+- **Mint & Reveal**: Eligible users can claim their NFT and see which one they received
 - **Community Engagement**: Provides a visual showcase for NFT holders and aspirational content for non-holders
 - **Transparency**: Publicly displays the full collection with provenance information
 - **Storytelling**: Each NFT has unique lore that enriches the Babylon universe
@@ -51,6 +56,190 @@ Create a dedicated NFT Gallery page within Babylon.market (`/nft` or `/collectio
 - [ ] Page loads in <3 seconds (LCP)
 - [ ] Consistent with Babylon.market design system
 - [ ] Links from **mainpage** and **leaderboard page** (NOT in sidebar)
+- [ ] **Mint button** at top of page for eligible users
+- [ ] **NFT reveal animation** after successful mint
+
+---
+
+## 1.5 Mint Button & Reveal Flow
+
+### Overview
+
+At the top of the NFT Gallery page, eligible users (Top 100 leaderboard snapshot) see a prominent **Mint Your NFT** button. When clicked, it triggers the mint transaction and reveals which NFT they received.
+
+> **Note**: The actual minting smart contract logic is handled by BAB-66. This section covers the **frontend UI and flow only**.
+
+### User States
+
+| State | What User Sees | Actions Available |
+|-------|----------------|-------------------|
+| **Not logged in** | "Connect to see if you're eligible" | Login button |
+| **Logged in, not eligible** | "You're not in the Top 100. Keep trading!" | Browse gallery only |
+| **Eligible, not minted** | "🎉 Congratulations! You're #X on the leaderboard. Mint your NFT!" | **[Mint My NFT]** button |
+| **Eligible, minting in progress** | "Minting your NFT..." | Loading spinner, tx link |
+| **Minted, revealing** | Card flip/reveal animation | Watch animation |
+| **Already minted** | "You own [NFT Name]" with thumbnail | View your NFT button |
+
+### UI Layout (Top of Gallery)
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                                                                 │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │  🎉 Congratulations! You ranked #7 in the Babylon       │   │
+│  │     Leaderboard Snapshot!                                │   │
+│  │                                                          │   │
+│  │     You're eligible to mint an exclusive NFT.            │   │
+│  │                                                          │   │
+│  │     ┌──────────────────────────────────────────┐        │   │
+│  │     │         🔮 MINT YOUR NFT                 │        │   │
+│  │     └──────────────────────────────────────────┘        │   │
+│  │                                                          │   │
+│  │     ⚡ Random assignment • One per wallet                │   │
+│  └─────────────────────────────────────────────────────────┘   │
+│                                                                 │
+│  ─────────────────────────────────────────────────────────────  │
+│                                                                 │
+│  NFT Collection                                      [Filters]  │
+│  100 Unique NFTs • 67 Minted                                    │
+│  ┌─────┐ ┌─────┐ ┌─────┐ ┌─────┐ ┌─────┐                       │
+│  │ #1  │ │ #2  │ │ #3  │ │ #4  │ │ #5  │  ...                  │
+└──┴─────┴─┴─────┴─┴─────┴─┴─────┴─┴─────┴────────────────────────┘
+```
+
+### Reveal Animation Flow
+
+```
+┌────────────────────────────────────────────────────────────────┐
+│                     REVEAL SEQUENCE                             │
+├────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  1. User clicks [Mint My NFT]                                   │
+│     └─► Button shows loading spinner                            │
+│     └─► "Confirm transaction in your wallet..."                 │
+│                                                                 │
+│  2. Transaction submitted                                       │
+│     └─► "Minting in progress..."                                │
+│     └─► Show tx hash link to explorer                           │
+│                                                                 │
+│  3. Transaction confirmed                                       │
+│     └─► Full-screen reveal modal appears                        │
+│     └─► Mystery card (back facing) centered                     │
+│                                                                 │
+│  4. Reveal animation (2-3 seconds)                              │
+│     └─► Card flips with particle effects                        │
+│     └─► NFT artwork revealed                                    │
+│     └─► "You received: [NFT Name]!"                             │
+│     └─► Confetti animation                                      │
+│                                                                 │
+│  5. Post-reveal                                                 │
+│     └─► [View Your NFT] button                                  │
+│     └─► [Share on Twitter] button                               │
+│     └─► Close modal → banner now shows "You own [NFT Name]"     │
+│                                                                 │
+└────────────────────────────────────────────────────────────────┘
+```
+
+### Component Structure
+
+```
+apps/web/src/components/nft/
+├── MintBanner.tsx           # Top banner with eligibility check
+├── MintButton.tsx           # The actual mint CTA button
+├── MintProgressModal.tsx    # Transaction progress overlay
+├── RevealModal.tsx          # Full-screen reveal animation
+├── RevealCard.tsx           # Flip card animation component
+└── MintSuccessBanner.tsx    # Post-mint "You own X" banner
+```
+
+### API Endpoints for Mint Flow
+
+#### GET /api/nft/eligibility
+
+Check if current user is eligible to mint.
+
+**Response (Eligible)**:
+```json
+{
+  "eligible": true,
+  "snapshotRank": 7,
+  "snapshotPoints": 15420,
+  "snapshotTakenAt": "2025-01-15T00:00:00Z",
+  "hasMinted": false
+}
+```
+
+**Response (Already Minted)**:
+```json
+{
+  "eligible": true,
+  "snapshotRank": 7,
+  "hasMinted": true,
+  "mintedNft": {
+    "tokenId": 42,
+    "name": "Babylon Guardian #42",
+    "thumbnailUrl": "https://...",
+    "txHash": "0x..."
+  }
+}
+```
+
+**Response (Not Eligible)**:
+```json
+{
+  "eligible": false,
+  "reason": "not_in_top_100",
+  "currentRank": 342
+}
+```
+
+#### POST /api/nft/mint/prepare
+
+Prepare mint transaction (get contract call data).
+
+**Request**:
+```json
+{
+  "walletAddress": "0x..."
+}
+```
+
+**Response**:
+```json
+{
+  "contractAddress": "0x...",
+  "chainId": 1,
+  "functionName": "mint",
+  "args": ["0x...userAddress"],
+  "value": "0"
+}
+```
+
+#### POST /api/nft/mint/confirm
+
+Confirm mint after transaction success (to update database).
+
+**Request**:
+```json
+{
+  "txHash": "0x...",
+  "walletAddress": "0x..."
+}
+```
+
+**Response**:
+```json
+{
+  "success": true,
+  "tokenId": 42,
+  "nft": {
+    "tokenId": 42,
+    "name": "Babylon Guardian #42",
+    "imageUrl": "https://...",
+    "storyTitle": "The Wandering Oracle"
+  }
+}
+```
 
 ---
 
@@ -543,12 +732,13 @@ Use existing Babylon design system:
 ### Phase 1: Foundation (2-3 days)
 
 **Deliverables**:
-- [ ] Database schema migration (`NftCollection`, `NftClaim` tables)
+- [ ] Database schema migration (`NftCollection`, `NftOwnership`, `NftClaim` tables)
 - [ ] Type definitions in `types/nft.ts`
 - [ ] Basic API routes (skeleton)
 - [ ] Gallery page route with loading state
+- [ ] Eligibility check API (`/api/nft/eligibility`)
 
-**Blockers**: Need NFT artwork and metadata from BAB-66 team
+**Blockers**: None - can use placeholder data
 
 ### Phase 2: Core Gallery (3-4 days)
 
@@ -558,36 +748,56 @@ Use existing Babylon design system:
 - [ ] `/api/nft/collection` endpoint with pagination
 - [ ] Gallery page with grid rendering
 - [ ] Basic skeleton loading states
+- [ ] Thumbnail optimization for 4096x4096 images
 
 **Requires**: Test data (can use placeholder images)
 
-### Phase 3: Detail Page (2-3 days)
+### Phase 3: Mint Button & Reveal (3-4 days) ⭐ NEW
+
+**Deliverables**:
+- [ ] `MintBanner.tsx` - eligibility check + CTA banner at top
+- [ ] `MintButton.tsx` - mint action button with wallet integration
+- [ ] `MintProgressModal.tsx` - transaction progress overlay
+- [ ] `RevealModal.tsx` - full-screen reveal animation
+- [ ] `RevealCard.tsx` - flip card animation component
+- [ ] `MintSuccessBanner.tsx` - post-mint "You own X" state
+- [ ] `/api/nft/mint/prepare` endpoint
+- [ ] `/api/nft/mint/confirm` endpoint
+- [ ] Wallet transaction flow (via Privy)
+
+**Note**: Actual contract interaction logic handled by BAB-66
+
+### Phase 4: Detail Page (2-3 days)
 
 **Deliverables**:
 - [ ] NFT detail page (`/nft/[tokenId]`)
 - [ ] `NFTDetailView` component
-- [ ] `NFTStorySection` component
+- [ ] `NFTStorySection` component (markdown support)
 - [ ] `NFTAttributeList` component
 - [ ] `/api/nft/[tokenId]` endpoint
-- [ ] Owner display integration
+- [ ] Owner display with real-time updates
 
-### Phase 4: Filtering & Polish (2 days)
+### Phase 5: Filtering & Polish (2 days)
 
 **Deliverables**:
 - [ ] `NFTFilters` component
-- [ ] Sort functionality
+- [ ] Sort functionality (by token ID, name, claimed status)
 - [ ] Search functionality
 - [ ] Mobile responsiveness polish
 - [ ] Loading/error states
 
-### Phase 5: Integration (1-2 days)
+### Phase 6: Integration (1-2 days)
 
 **Deliverables**:
-- [ ] Sidebar navigation link
+- [ ] **Mainpage link** (banner/CTA to gallery)
+- [ ] **Leaderboard page link** ("Top 100 get NFTs")
+- [ ] ~~Sidebar navigation link~~ (NOT in sidebar)
 - [ ] SEO metadata
-- [ ] Analytics tracking
+- [ ] Analytics tracking (mint events, gallery views)
 - [ ] Performance optimization (lazy loading, caching)
 - [ ] Documentation
+
+**Total Estimated Time: 13-18 days**
 
 ---
 
