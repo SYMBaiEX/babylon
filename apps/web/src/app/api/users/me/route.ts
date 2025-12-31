@@ -467,9 +467,9 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     // Check if user should be auto-promoted to admin based on email domain
     // SECURITY: Requires email verification (Privy emails are verified by design)
     // Check ALL linked emails, not just the primary one (handles users who linked admin email later)
-    const allEmails = getAllVerifiedEmails(privyUser);
-    const emailVerified = allEmails.length > 0;
-    const adminEmail = findAdminEmail(allEmails, emailVerified);
+    const allVerifiedEmails = getAllVerifiedEmails(privyUser);
+    const emailVerified = allVerifiedEmails.length > 0;
+    const adminEmail = findAdminEmail(allVerifiedEmails, emailVerified);
     const shouldBeAdmin = adminEmail !== null;
 
     if (shouldBeAdmin) {
@@ -477,9 +477,8 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         'Auto-promoting user to admin based on verified email domain',
         {
           privyId,
-          adminEmail,
           emailDomain: adminEmail?.split('@')[1] ?? null,
-          allEmails,
+          emailCount: allVerifiedEmails.length,
         },
         'GET /api/users/me'
       );
@@ -609,9 +608,9 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   if (dbUser && !dbUser.isAdmin) {
     const privyClient = getPrivyClient();
     const privyUser = await privyClient.getUser(privyId);
-    const allEmails = getAllVerifiedEmails(privyUser);
-    const emailVerified = allEmails.length > 0;
-    const adminEmail = findAdminEmail(allEmails, emailVerified);
+    const allVerifiedEmails = getAllVerifiedEmails(privyUser);
+    const emailVerified = allVerifiedEmails.length > 0;
+    const adminEmail = findAdminEmail(allVerifiedEmails, emailVerified);
     const shouldBeAdmin = adminEmail !== null;
 
     if (shouldBeAdmin) {
@@ -619,9 +618,8 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         'Auto-promoting existing user to admin based on verified email domain',
         {
           userId: dbUser.id,
-          adminEmail,
           emailDomain: adminEmail?.split('@')[1] ?? null,
-          allEmails,
+          emailCount: allVerifiedEmails.length,
         },
         'GET /api/users/me'
       );

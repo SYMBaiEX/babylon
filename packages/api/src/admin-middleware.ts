@@ -168,13 +168,18 @@ export async function getAdminRole(
     const privyUser = await privyClient.getUser(effectivePrivyId);
 
     // Check all verified emails including linkedAccounts
-    const allEmails = getAllVerifiedEmails(privyUser);
-    const adminEmail = findAdminEmailFromList(allEmails);
+    const allVerifiedEmails = getAllVerifiedEmails(privyUser);
+    const adminEmail = findAdminEmailFromList(allVerifiedEmails);
 
     if (adminEmail) {
       logger.info(
         'Auto-promoting user to SUPER_ADMIN via verified Privy email domain',
-        { userId, adminEmail, allEmails, privyId: effectivePrivyId },
+        {
+          userId,
+          emailDomain: adminEmail.split('@')[1] ?? null,
+          emailCount: allVerifiedEmails.length,
+          privyId: effectivePrivyId,
+        },
         'getAdminRole'
       );
       return { role: 'SUPER_ADMIN', permissions: ROLE_PERMISSIONS.SUPER_ADMIN };

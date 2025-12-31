@@ -290,8 +290,9 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
 
   if (identityToken) {
     const privyClient = getPrivyClient();
-    const identityUser =
-      (await privyClient.getUserFromIdToken(identityToken)) as PrivyUserWithSmartWallet;
+    const identityUser = (await privyClient.getUserFromIdToken(
+      identityToken
+    )) as PrivyUserWithSmartWallet;
 
     identityFarcasterUsername = identityUser.farcaster?.username ?? undefined;
     identityTwitterUsername = identityUser.twitter?.username ?? undefined;
@@ -479,9 +480,8 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
               'Auto-promoting existing user to admin during signup based on verified email domain',
               {
                 userId: canonicalUserId,
-                adminEmail,
                 emailDomain: adminEmail?.split('@')[1] ?? null,
-                allEmails: allVerifiedEmails,
+                emailCount: allVerifiedEmails.length,
               },
               'POST /api/users/signup'
             );
@@ -508,7 +508,10 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
           // This prevents attackers from submitting fake admin emails in the request body
           // Check ALL linked emails, not just the primary one
           const emailVerified = allVerifiedEmails.length > 0;
-          const newUserAdminEmail = findAdminEmail(allVerifiedEmails, emailVerified);
+          const newUserAdminEmail = findAdminEmail(
+            allVerifiedEmails,
+            emailVerified
+          );
           const shouldBeAdmin = newUserAdminEmail !== null;
 
           if (shouldBeAdmin) {
@@ -516,9 +519,8 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
               'Auto-promoting new signup user to admin based on verified email domain',
               {
                 userId: canonicalUserId,
-                adminEmail: newUserAdminEmail,
                 emailDomain: newUserAdminEmail?.split('@')[1] ?? null,
-                allEmails: allVerifiedEmails,
+                emailCount: allVerifiedEmails.length,
               },
               'POST /api/users/signup'
             );
