@@ -94,8 +94,7 @@ export function formatFeedbackForLinear(feedback: FeedbackData): {
     const safeDisplayName = feedback.displayName
       ? escapeHtml(feedback.displayName)
       : safeUsername;
-    // URL-encode username for safe profile links (handles %, #, ? etc.)
-    const profileUrl = `${APP_BASE_URL}/profile/${encodeURIComponent(feedback.username)}`;
+    const profileUrl = `${APP_BASE_URL}/profile/${safeUsername}`;
     submittedBy = `[${safeDisplayName}](${profileUrl}) (@${safeUsername})`;
   } else {
     submittedBy = safeEmail ?? 'Unknown';

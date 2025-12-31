@@ -163,21 +163,25 @@ export async function syncFeedbackToLinear(
     },
   });
 
-  // Helper to clear the sync lock (used on success and failure)
+  // Helper to clear the sync lock (called on failure to allow immediate retry)
   const clearSyncLock = async () => {
-    const current = await db.feedback.findUnique({
-      where: { id: feedbackId },
-      select: { metadata: true },
-    });
-    const currentMetadata =
-      current?.metadata && typeof current.metadata === 'object'
-        ? (current.metadata as JsonObject)
-        : {};
-    const { linearSyncStartedAt: _, ...withoutLock } = currentMetadata;
-    await db.feedback.update({
-      where: { id: feedbackId },
-      data: { metadata: withoutLock },
-    });
+    try {
+      const current = await db.feedback.findUnique({
+        where: { id: feedbackId },
+        select: { metadata: true },
+      });
+      if (!current?.metadata || typeof current.metadata !== 'object') return;
+
+      const currentMetadata = current.metadata as JsonObject;
+      const { linearSyncStartedAt: _, ...withoutLock } = currentMetadata;
+      await db.feedback.update({
+        where: { id: feedbackId },
+        data: { metadata: withoutLock },
+      });
+    } catch (cleanupError) {
+      // Log but don't throw - lock will expire naturally after TTL
+      logger.warn('Failed to clear sync lock', { feedbackId, cleanupError });
+    }
   };
 
   const metadata: FeedbackMetadata = FeedbackMetadataSchema.parse(rawMetadata);
@@ -196,9 +200,9 @@ export async function syncFeedbackToLinear(
     createdAt: feedback.createdAt,
   });
 
+  // Create Linear issue with retry logic for transient failures
   let issue;
   try {
-    // Create Linear issue with retry logic for transient failures
     issue = await withRetry(
       () =>
         createLinearIssue(config.apiKey, {
@@ -212,7 +216,7 @@ export async function syncFeedbackToLinear(
       { feedbackId }
     );
   } catch (error) {
-    // Clear the sync lock on failure so retry can work
+    // Clear the sync lock on failure so immediate retry is possible
     await clearSyncLock();
     throw error;
   }
@@ -231,7 +235,7 @@ export async function syncFeedbackToLinear(
       : {};
 
   // Remove the sync lock and store the issue info
-  const { linearSyncStartedAt: __, ...metadataWithoutLock } = freshMetadata;
+  const { linearSyncStartedAt: _, ...metadataWithoutLock } = freshMetadata;
   await db.feedback.update({
     where: { id: feedbackId },
     data: {
