@@ -104,7 +104,7 @@ export default function MarketsPage() {
         setActiveTab(urlTab);
       });
     }
-  }, [searchParams]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [searchParams, activeTab]);
 
   // Handle tab change with URL update - uses startTransition for smooth UX
   const handleTabChange = useCallback(
