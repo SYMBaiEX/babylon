@@ -5,7 +5,7 @@
  */
 
 import { db, eq, or, users } from '@babylon/db';
-import { type StaticActor, StaticDataRegistry } from '@babylon/engine';
+import { StaticDataRegistry, type StaticActor } from '@babylon/engine';
 import type { InferSelectModel } from 'drizzle-orm';
 import type { SelectedFields } from 'drizzle-orm/pg-core';
 import { NotFoundError } from '../errors';

@@ -11,7 +11,14 @@
  */
 
 import { afterEach, beforeAll, describe, expect, test } from 'bun:test';
-import { chatParticipants, chats, db, eq, inArray, users } from '@babylon/db';
+import {
+  chatParticipants,
+  chats,
+  db,
+  eq,
+  inArray,
+  users,
+} from '@babylon/db';
 import { generateSnowflakeId, getCurrentChainId } from '@babylon/shared';
 
 const BASE_URL =

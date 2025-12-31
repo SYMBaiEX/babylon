@@ -150,56 +150,9 @@ type PrivyUserWithSmartWallet = PrivyUser & {
   linkedAccounts?: Array<
     PrivyWalletLite & {
       type?: string;
-      address?: string; // For email accounts, this is the email address
     }
   >;
 };
-
-/**
- * Get all verified email addresses from a Privy user.
- * Checks both the primary email and linkedAccounts for email-type accounts.
- * This ensures we catch emails that were linked after initial signup.
- */
-function getAllVerifiedEmails(user: PrivyUserWithSmartWallet): string[] {
-  const emails: string[] = [];
-
-  // Check primary email field
-  if (user.email?.address) {
-    emails.push(user.email.address);
-  }
-
-  // Check linkedAccounts for email-type accounts
-  if (Array.isArray(user.linkedAccounts)) {
-    for (const account of user.linkedAccounts) {
-      if (account?.type === 'email' && account.address) {
-        // Avoid duplicates
-        if (!emails.includes(account.address)) {
-          emails.push(account.address);
-        }
-      }
-    }
-  }
-
-  return emails;
-}
-
-/**
- * Check if any of the user's verified emails should grant admin access.
- * Returns the first matching admin email, or null if none match.
- */
-function findAdminEmail(
-  emails: string[],
-  emailVerified: boolean
-): string | null {
-  if (!emailVerified || emails.length === 0) return null;
-
-  for (const email of emails) {
-    if (shouldAutoPromoteToAdmin(email, true)) {
-      return email;
-    }
-  }
-  return null;
-}
 
 function pickEmbeddedEvmWallet(
   user: PrivyUserWithSmartWallet
@@ -286,18 +239,17 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   // Fetch identity data from Privy if token provided
   let identityFarcasterUsername: string | undefined;
   let identityTwitterUsername: string | undefined;
-  let allVerifiedEmails: string[] = [];
+  let verifiedEmail: string | null = null;
 
   if (identityToken) {
     const privyClient = getPrivyClient();
-    const identityUser =
-      (await privyClient.getUserFromIdToken(identityToken)) as PrivyUserWithSmartWallet;
+    const identityUser: PrivyUser =
+      await privyClient.getUserFromIdToken(identityToken);
 
     identityFarcasterUsername = identityUser.farcaster?.username ?? undefined;
     identityTwitterUsername = identityUser.twitter?.username ?? undefined;
-    // SECURITY: Get verified emails from Privy, not from user input
-    // Check ALL linked emails to support users who linked admin email after initial signup
-    allVerifiedEmails = getAllVerifiedEmails(identityUser);
+    // SECURITY: Get verified email from Privy, not from user input
+    verifiedEmail = identityUser.email?.address ?? null;
   } else {
     logger.info(
       'Signup received no identity token; proceeding with provided payload only',
@@ -468,20 +420,18 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
         if (existingUserRecord) {
           // Update existing user
           // Also check if user should be auto-promoted to admin (for existing users with new verified email)
-          // Check ALL linked emails, not just the primary one
-          const emailVerified = allVerifiedEmails.length > 0;
-          const adminEmail = findAdminEmail(allVerifiedEmails, emailVerified);
+          const emailVerified = !!verifiedEmail;
           const shouldPromoteToAdmin =
-            !existingUserRecord.isAdmin && adminEmail !== null;
+            !existingUserRecord.isAdmin &&
+            shouldAutoPromoteToAdmin(verifiedEmail, emailVerified);
 
           if (shouldPromoteToAdmin) {
             logger.info(
               'Auto-promoting existing user to admin during signup based on verified email domain',
               {
                 userId: canonicalUserId,
-                adminEmail,
-                emailDomain: adminEmail?.split('@')[1] ?? null,
-                allEmails: allVerifiedEmails,
+                emailDomain: verifiedEmail?.split('@')[1] ?? null,
+                emailVerified,
               },
               'POST /api/users/signup'
             );
@@ -506,19 +456,19 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
           // Check if user should be auto-promoted to admin based on email domain
           // SECURITY: Use Privy-verified email, not user-supplied email from parsedProfile
           // This prevents attackers from submitting fake admin emails in the request body
-          // Check ALL linked emails, not just the primary one
-          const emailVerified = allVerifiedEmails.length > 0;
-          const newUserAdminEmail = findAdminEmail(allVerifiedEmails, emailVerified);
-          const shouldBeAdmin = newUserAdminEmail !== null;
+          const emailVerified = !!verifiedEmail;
+          const shouldBeAdmin = shouldAutoPromoteToAdmin(
+            verifiedEmail,
+            emailVerified
+          );
 
           if (shouldBeAdmin) {
             logger.info(
               'Auto-promoting new signup user to admin based on verified email domain',
               {
                 userId: canonicalUserId,
-                adminEmail: newUserAdminEmail,
-                emailDomain: newUserAdminEmail?.split('@')[1] ?? null,
-                allEmails: allVerifiedEmails,
+                emailDomain: verifiedEmail?.split('@')[1] ?? null,
+                emailVerified,
               },
               'POST /api/users/signup'
             );
