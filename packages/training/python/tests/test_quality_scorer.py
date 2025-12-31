@@ -471,3 +471,4 @@ Because the momentum is strong and risk is managed, I'll trade.
         assert total_scores[0] > total_scores[1]
         assert total_scores[1] > total_scores[2]
 
+

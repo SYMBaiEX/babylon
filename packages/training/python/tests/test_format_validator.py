@@ -483,3 +483,4 @@ Market looks bullish. BTC price is up. Taking a position.
         long_result = validate_response_format(long_response)
         assert long_result.length.thinking_is_too_long is True
 
+

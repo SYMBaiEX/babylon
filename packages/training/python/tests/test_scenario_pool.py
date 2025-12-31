@@ -732,3 +732,4 @@ class TestScenarioPoolIntegration:
         
         assert "balance" in obs["portfolio"]
 
+

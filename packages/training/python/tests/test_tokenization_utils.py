@@ -432,3 +432,4 @@ class TestIntegration:
         # Should have some masked tokens now
         assert any(m == 0 for m in fixed_masks)
 
+

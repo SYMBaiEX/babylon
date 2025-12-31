@@ -591,3 +591,4 @@ class TestIntegration:
         # Should get base bonus for valid action
         assert bonus >= 0.1
 
+
