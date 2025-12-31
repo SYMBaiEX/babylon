@@ -19,7 +19,8 @@ describe('Liquidity Factor', () => {
     test('calculates effective supply correctly', () => {
       const effective = getEffectiveSupply();
       expect(effective).toBe(
-        PERP_MARKET_CONFIG.SYNTHETIC_SUPPLY / PERP_MARKET_CONFIG.LIQUIDITY_FACTOR
+        PERP_MARKET_CONFIG.SYNTHETIC_SUPPLY /
+          PERP_MARKET_CONFIG.LIQUIDITY_FACTOR
       );
     });
 
@@ -104,7 +105,11 @@ describe('Liquidity Factor', () => {
       const initialPrice = 100;
       const currentPrice = 30; // Already low
       // Even with more shorts, can't go below 25
-      const price = calculatePriceFromHoldings(initialPrice, currentPrice, -50000);
+      const price = calculatePriceFromHoldings(
+        initialPrice,
+        currentPrice,
+        -50000
+      );
       expect(price).toBe(27); // currentPrice - 10% = 27, but floor is 25
       // Actually: max(25, 27) = 27
     });
@@ -116,7 +121,11 @@ describe('Liquidity Factor', () => {
       // effectiveSupply = 500, holdings = 200000
       // rawPrice = (100*500 + 200000) / 500 = 500
       // But ceiling is 400 (initialPrice * 4)
-      const price = calculatePriceFromHoldings(initialPrice, currentPrice, 200000);
+      const price = calculatePriceFromHoldings(
+        initialPrice,
+        currentPrice,
+        200000
+      );
       expect(price).toBe(400); // Ceiling is 400
     });
 
@@ -124,7 +133,11 @@ describe('Liquidity Factor', () => {
       const initialPrice = 100;
       const currentPrice = 100;
       const holdings = 1000; // $2 increase
-      const price = calculatePriceFromHoldings(initialPrice, currentPrice, holdings);
+      const price = calculatePriceFromHoldings(
+        initialPrice,
+        currentPrice,
+        holdings
+      );
       expect(price).toBe(102);
     });
   });
@@ -306,4 +319,3 @@ describe('Liquidity Factor', () => {
     });
   });
 });
-

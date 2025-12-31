@@ -132,4 +132,3 @@ export function calculateRawPriceFromHoldings(
   const newMarketCap = baseMarketCap + netHoldings;
   return newMarketCap / effectiveSupply;
 }
-

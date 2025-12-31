@@ -90,18 +90,22 @@ export default function PerpDetailPage() {
   const displayPrice = livePrice?.price ?? market?.currentPrice ?? 0;
 
   // Fetch real price history from API
-  const { history: priceHistory } = usePerpHistory(ticker, {
-    seed: market ? { currentPrice: market.currentPrice } : undefined,
-  });
+  const { history: priceHistory, refresh: refreshPriceHistory } =
+    usePerpHistory(ticker, {
+      seed: market ? { currentPrice: market.currentPrice } : undefined,
+    });
 
   // Subscribe to real-time trade and price updates for all perp markets
   usePerpMarketsRealtime();
 
   // Subscribe to real-time trade events for this specific ticker
+  // Note: Price history updates are handled internally by usePerpHistory hook
+  // via its own SSE subscription to perp_trade events (calls appendPricePoint)
   usePerpMarketStream(ticker, {
     onTrade: useCallback(
       (event) => {
         // Refresh positions and market data when a trade occurs
+        // Price history is updated automatically by usePerpHistory hook
         if (event.action === 'open' || event.action === 'close') {
           refreshUserPositions();
           refetch();
@@ -136,8 +140,14 @@ export default function PerpDetailPage() {
       refreshUserPositions(),
       refreshWalletBalance(),
       refetch(),
+      refreshPriceHistory(),
     ]);
-  }, [refreshUserPositions, refreshWalletBalance, refetch]);
+  }, [
+    refreshUserPositions,
+    refreshWalletBalance,
+    refetch,
+    refreshPriceHistory,
+  ]);
 
   const handleSubmit = () => {
     if (!authenticated) {
@@ -190,6 +200,7 @@ export default function PerpDetailPage() {
           refetch(),
           refreshUserPositions(),
           refreshWalletBalance(),
+          refreshPriceHistory(),
         ]);
       })
       .catch((error: Error) => {

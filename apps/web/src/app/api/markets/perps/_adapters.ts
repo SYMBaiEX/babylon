@@ -36,9 +36,9 @@ import {
   WalletService,
 } from '@babylon/engine';
 import {
+  calculatePriceFromHoldings,
   type JsonValue,
   logger,
-  calculatePriceFromHoldings,
   PERP_MARKET_CONFIG,
 } from '@babylon/shared';
 

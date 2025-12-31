@@ -147,9 +147,10 @@ export default function PredictionDetailPage() {
         : undefined,
     [market, effectiveShares]
   );
-  const { history: priceHistory } = usePredictionHistory(marketId ?? null, {
-    seed: historySeed,
-  });
+  const { history: priceHistory, refresh: refreshPriceHistory } =
+    usePredictionHistory(marketId ?? null, {
+      seed: historySeed,
+    });
   const amountNum = Number.parseFloat(amount) || 0;
   const calculation =
     amountNum > 0 && effectiveShares
@@ -331,8 +332,8 @@ export default function PredictionDetailPage() {
       description: `${calculation?.sharesBought?.toFixed(2) || ''} shares at ${(calculation?.avgPrice || 0).toFixed(3)} each`,
     });
 
-    // Refresh data
-    await fetchMarketData();
+    // Refresh data (market data and price history for chart)
+    await Promise.all([fetchMarketData(), refreshPriceHistory()]);
     setSubmitting(false);
   };
 
