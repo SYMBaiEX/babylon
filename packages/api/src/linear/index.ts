@@ -6,4 +6,4 @@ export type {
 } from './format-feedback';
 export { formatFeedbackForLinear } from './format-feedback';
 export type { FeedbackUser, LinearConfig } from './sync-feedback';
-export { SYNC_LOCK_TTL_MS, syncFeedbackToLinear } from './sync-feedback';
+export { syncFeedbackToLinear } from './sync-feedback';

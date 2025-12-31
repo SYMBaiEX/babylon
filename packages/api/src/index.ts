@@ -129,7 +129,6 @@ export {
   type LinearConfig,
   type LinearFeedbackData,
   type LinearIssue,
-  SYNC_LOCK_TTL_MS,
   syncFeedbackToLinear,
 } from './linear';
 // Monitoring
@@ -228,6 +227,7 @@ export type { ErrorLike, JsonValue, StringRecord } from './types';
 export {
   type CanonicalUser,
   type EnsureUserOptions,
+  type TargetLookupResult,
   ensureUserForAuth,
   findTargetByIdentifier,
   findUserByIdentifier,
@@ -235,7 +235,6 @@ export {
   getCanonicalUserId,
   requireTargetByIdentifier,
   requireUserByIdentifier,
-  type TargetLookupResult,
 } from './users';
 // Server-side utilities (require Node.js crypto)
 export {
