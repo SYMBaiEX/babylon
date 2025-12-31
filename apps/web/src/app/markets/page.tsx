@@ -124,14 +124,47 @@ export default function MarketsPage() {
   // All data and computed values from centralized hook
   const data = useMarketsPageData();
 
-  // Navigation handlers
-  const handleMarketClick = (market: PerpMarket) => {
-    router.push(`/markets/perps/${market.ticker}?from=dashboard`);
-  };
+  // Navigation handlers - memoized to prevent child re-renders
+  const handleMarketClick = useCallback(
+    (market: PerpMarket) => {
+      router.push(`/markets/perps/${market.ticker}?from=dashboard`);
+    },
+    [router]
+  );
 
-  const handlePredictionClick = (prediction: PredictionMarket) => {
-    router.push(`/markets/predictions/${prediction.id}?from=dashboard`);
-  };
+  const handlePredictionClick = useCallback(
+    (prediction: PredictionMarket) => {
+      router.push(`/markets/predictions/${prediction.id}?from=dashboard`);
+    },
+    [router]
+  );
+
+  // Modal handlers - memoized to prevent child re-renders
+  const handleShowPnLShare = useCallback(() => setShowPnLShareModal(true), []);
+  const handleClosePnLShare = useCallback(
+    () => setShowPnLShareModal(false),
+    []
+  );
+  const handleShowBuyPoints = useCallback(
+    () => setShowBuyPointsModal(true),
+    []
+  );
+  const handleCloseBuyPoints = useCallback(
+    () => setShowBuyPointsModal(false),
+    []
+  );
+  const handleShowPerpsPnLShare = useCallback(
+    () => setShowCategoryPnLShareModal('perps'),
+    []
+  );
+  const handleShowPredictionsPnLShare = useCallback(
+    () => setShowCategoryPnLShareModal('predictions'),
+    []
+  );
+  const handleCloseCategoryPnLShare = useCallback(
+    () => setShowCategoryPnLShareModal(null),
+    []
+  );
 
   // Loading state
   if (data.loading) {
@@ -166,8 +199,8 @@ export default function MarketsPage() {
             portfolioPnL={data.portfolioPnL}
             portfolioLoading={data.portfolioLoading}
             portfolioError={data.portfolioError}
-            onShowPnLShare={() => setShowPnLShareModal(true)}
-            onShowBuyPoints={() => setShowBuyPointsModal(true)}
+            onShowPnLShare={handleShowPnLShare}
+            onShowBuyPoints={handleShowBuyPoints}
             perpPositions={data.perpPositions}
             predictionPositions={data.predictionPositions}
             onPositionClosed={data.handlePositionsRefresh}
@@ -186,7 +219,7 @@ export default function MarketsPage() {
             portfolioLoading={data.portfolioLoading}
             portfolioError={data.portfolioError}
             portfolioUpdatedAt={data.portfolioUpdatedAt}
-            onShowCategoryPnLShare={() => setShowCategoryPnLShareModal('perps')}
+            onShowCategoryPnLShare={handleShowPerpsPnLShare}
             onRefreshPortfolio={data.refreshPortfolio}
             perpPositions={data.perpPositions}
             onPositionClosed={data.handlePositionsRefresh}
@@ -202,9 +235,7 @@ export default function MarketsPage() {
             portfolioLoading={data.portfolioLoading}
             portfolioError={data.portfolioError}
             portfolioUpdatedAt={data.portfolioUpdatedAt}
-            onShowCategoryPnLShare={() =>
-              setShowCategoryPnLShareModal('predictions')
-            }
+            onShowCategoryPnLShare={handleShowPredictionsPnLShare}
             onRefreshPortfolio={data.refreshPortfolio}
             predictionPositions={data.predictionPositions}
             onPositionSold={data.handlePositionsRefresh}
@@ -310,7 +341,7 @@ export default function MarketsPage() {
       {showPnLShareModal && (
         <PortfolioPnLShareModal
           isOpen={showPnLShareModal}
-          onClose={() => setShowPnLShareModal(false)}
+          onClose={handleClosePnLShare}
           data={data.portfolioPnL}
           user={data.user ?? null}
           lastUpdated={data.portfolioUpdatedAt}
@@ -320,7 +351,7 @@ export default function MarketsPage() {
       {showCategoryPnLShareModal === 'perps' && (
         <CategoryPnLShareModal
           isOpen={true}
-          onClose={() => setShowCategoryPnLShareModal(null)}
+          onClose={handleCloseCategoryPnLShare}
           category="perps"
           data={data.perpPnLData}
           user={data.user ?? null}
@@ -331,7 +362,7 @@ export default function MarketsPage() {
       {showCategoryPnLShareModal === 'predictions' && (
         <CategoryPnLShareModal
           isOpen={true}
-          onClose={() => setShowCategoryPnLShareModal(null)}
+          onClose={handleCloseCategoryPnLShare}
           category="predictions"
           data={data.predictionPnLData}
           user={data.user ?? null}
@@ -342,7 +373,7 @@ export default function MarketsPage() {
       {showBuyPointsModal && (
         <BuyPointsModal
           isOpen={showBuyPointsModal}
-          onClose={() => setShowBuyPointsModal(false)}
+          onClose={handleCloseBuyPoints}
           onSuccess={() => {
             data.triggerBalanceRefresh();
             data.refetchData();
