@@ -80,19 +80,22 @@ export const useWalletBalanceStore = create<WalletBalanceState>((set, get) => ({
       return;
     }
 
+    // Capture the requested userId to prevent cross-user data leakage
+    const requestedUserId = userId;
+
     // Create and store the fetch promise
     const fetchPromise = (async () => {
       // Only show loading on initial fetch (no cached data yet)
       const isInitialLoad =
-        currentState.lastFetchedAt === null || currentState.userId !== userId;
+        currentState.lastFetchedAt === null || currentState.userId !== requestedUserId;
       if (isInitialLoad) {
         set({ loading: true });
       }
-      set({ error: null, userId });
+      set({ error: null, userId: requestedUserId });
 
       try {
         const response = await fetch(
-          `/api/users/${encodeURIComponent(userId)}/balance`
+          `/api/users/${encodeURIComponent(requestedUserId)}/balance`
         );
 
         if (!response.ok) {
@@ -100,6 +103,13 @@ export const useWalletBalanceStore = create<WalletBalanceState>((set, get) => ({
         }
 
         const data = await response.json();
+
+        // Verify user hasn't changed during fetch to prevent data leakage
+        if (get().userId !== requestedUserId) {
+          // User changed during fetch - discard stale response
+          return;
+        }
+
         set({
           balance: Number(data.balance) || 0,
           lifetimePnL: Number(data.lifetimePnL) || 0,
@@ -107,11 +117,17 @@ export const useWalletBalanceStore = create<WalletBalanceState>((set, get) => ({
           error: null,
         });
       } catch (err) {
-        const errorMessage =
-          err instanceof Error ? err.message : 'Failed to fetch balance';
-        set({ error: errorMessage });
+        // Only set error if user hasn't changed
+        if (get().userId === requestedUserId) {
+          const errorMessage =
+            err instanceof Error ? err.message : 'Failed to fetch balance';
+          set({ error: errorMessage });
+        }
       } finally {
-        set({ loading: false, fetchPromise: null });
+        // Only clear loading/promise if this fetch is still relevant
+        if (get().userId === requestedUserId) {
+          set({ loading: false, fetchPromise: null });
+        }
       }
     })();
 
@@ -122,13 +138,15 @@ export const useWalletBalanceStore = create<WalletBalanceState>((set, get) => ({
   setUserId: (userId: string | null) => {
     const state = get();
     if (state.userId !== userId) {
-      // Clear cache and error when user changes
+      // Clear cache, error, and any in-flight fetch when user changes
+      // This prevents cross-user data leakage from stale fetch responses
       set({
         userId,
         lastFetchedAt: null,
         balance: 0,
         lifetimePnL: 0,
         error: null,
+        fetchPromise: null,
       });
     }
   },

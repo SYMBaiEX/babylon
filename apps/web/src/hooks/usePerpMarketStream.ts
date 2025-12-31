@@ -5,10 +5,17 @@ import type { TradeSide } from '@/types/markets';
 
 /**
  * SSE event for perpetual market trades.
+ *
+ * Actions include:
+ * - 'open': New position opened
+ * - 'close': Position fully closed
+ * - 'partial_close': Position partially closed
+ * - 'add_to_position': Added to existing position (same side)
+ * - 'flip_position': Closed existing and opened inverse position
  */
 export interface PerpTradeSSE {
   type: 'perp_trade';
-  action: 'open' | 'close' | 'partial_close';
+  action: 'open' | 'close' | 'partial_close' | 'add_to_position' | 'flip_position';
   ticker: string;
   side: TradeSide;
   size: number;

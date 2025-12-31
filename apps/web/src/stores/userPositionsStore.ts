@@ -200,30 +200,36 @@ export const useUserPositionsStore = create<UserPositionsState>((set, get) => ({
       await state.fetchPromise;
     }
 
+    // Re-fetch fresh state after await to avoid stale cache checks
+    const currentState = get();
+
     // Return cached data if fresh and not forced
     if (
       !force &&
-      state.userId === userId &&
-      state.lastFetchedAt &&
-      Date.now() - state.lastFetchedAt < CACHE_TTL &&
-      (state.perpPositions.length > 0 || state.predictionPositions.length > 0)
+      currentState.userId === userId &&
+      currentState.lastFetchedAt &&
+      Date.now() - currentState.lastFetchedAt < CACHE_TTL &&
+      (currentState.perpPositions.length > 0 || currentState.predictionPositions.length > 0)
     ) {
       return;
     }
+
+    // Capture the requested userId to prevent cross-user data leakage
+    const requestedUserId = userId;
 
     // Create and store the fetch promise
     const fetchPromise = (async () => {
       // Only show loading on initial fetch (no cached data yet)
       const isInitialLoad =
-        state.lastFetchedAt === null || state.userId !== userId;
+        currentState.lastFetchedAt === null || currentState.userId !== requestedUserId;
       if (isInitialLoad) {
         set({ loading: true });
       }
-      set({ error: null, userId });
+      set({ error: null, userId: requestedUserId });
 
       try {
         const response = await fetch(
-          `/api/markets/positions/${encodeURIComponent(userId)}`
+          `/api/markets/positions/${encodeURIComponent(requestedUserId)}`
         );
 
         if (!response.ok) {
@@ -231,6 +237,12 @@ export const useUserPositionsStore = create<UserPositionsState>((set, get) => ({
         }
 
         const data = await response.json();
+
+        // Verify user hasn't changed during fetch to prevent data leakage
+        if (get().userId !== requestedUserId) {
+          // User changed during fetch - discard stale response
+          return;
+        }
 
         const perpetuals = data?.perpetuals ?? {};
         const predictions = data?.predictions ?? {};
@@ -264,11 +276,17 @@ export const useUserPositionsStore = create<UserPositionsState>((set, get) => ({
           error: null,
         });
       } catch (err) {
-        const errorMessage =
-          err instanceof Error ? err.message : 'Failed to fetch positions';
-        set({ error: errorMessage });
+        // Only set error if user hasn't changed
+        if (get().userId === requestedUserId) {
+          const errorMessage =
+            err instanceof Error ? err.message : 'Failed to fetch positions';
+          set({ error: errorMessage });
+        }
       } finally {
-        set({ loading: false, fetchPromise: null });
+        // Only clear loading/promise if this fetch is still relevant
+        if (get().userId === requestedUserId) {
+          set({ loading: false, fetchPromise: null });
+        }
       }
     })();
 
@@ -279,13 +297,16 @@ export const useUserPositionsStore = create<UserPositionsState>((set, get) => ({
   setUserId: (userId: string | null) => {
     const state = get();
     if (state.userId !== userId) {
-      // Clear cache when user changes
+      // Clear cache and any in-flight fetch when user changes
+      // This prevents cross-user data leakage from stale fetch responses
       set({
         userId,
         lastFetchedAt: null,
         perpPositions: [],
         predictionPositions: [],
         perpStats: { ...DEFAULT_STATS },
+        fetchPromise: null,
+        error: null,
       });
     }
   },

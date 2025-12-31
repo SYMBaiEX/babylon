@@ -1,3 +1,4 @@
+import { logger } from '@babylon/shared';
 import type {
   PerpCloseInput,
   PerpDbPort,
@@ -652,9 +653,10 @@ export class PerpMarketService {
     } catch (err) {
       // Broadcast is optional - don't fail the trade if SSE fails
       // Log for observability to help diagnose real-time update issues
-      console.warn(
-        '[PerpMarketService] Broadcast failed:',
-        err instanceof Error ? err.message : String(err)
+      logger.warn(
+        'Broadcast failed',
+        { error: err instanceof Error ? err.message : String(err) },
+        'PerpMarketService'
       );
     }
   }
@@ -662,6 +664,9 @@ export class PerpMarketService {
   /**
    * Add to an existing position (same side).
    * Calculates weighted average entry price and increases position size.
+   *
+   * Uses transaction for atomicity to prevent race conditions when
+   * multiple add-to-position requests arrive concurrently.
    */
   private async addToPosition(
     existing: PerpPositionRecord,
@@ -702,24 +707,12 @@ export class PerpMarketService {
       );
     }
 
-    // Calculate weighted average entry price
-    const newEntryPrice =
-      (existing.size * existing.entryPrice + addedSize * currentPrice) /
-      newTotalSize;
-
-    // Recalculate liquidation price with new entry
-    const newLiquidationPrice = calculateLiquidationPrice(
-      newEntryPrice,
-      existing.side,
-      effectiveLeverage
-    );
-
     // Calculate margin and fees for added portion only
     const marginRequired = addedSize / effectiveLeverage;
     const fee = this.calculateFee(addedSize);
     const totalCost = marginRequired + fee;
 
-    // Debit wallet for additional margin
+    // Debit wallet for additional margin (outside transaction - wallet is separate service)
     await this.deps.wallet.debit({
       userId: input.userId,
       amount: totalCost,
@@ -729,78 +722,101 @@ export class PerpMarketService {
 
     const now = this.deps.clock?.now() ?? new Date();
 
-    // Calculate unrealized PnL with new entry price
-    const { pnl, pnlPercent } = calculateUnrealizedPnL(
-      newEntryPrice,
-      currentPrice,
-      existing.side,
-      newTotalSize
-    );
+    // Use transaction for atomic position + market stats update
+    // This prevents race conditions when concurrent requests modify the same position
+    return this.db.transaction(async (tx) => {
+      // Re-fetch position inside transaction to get latest state
+      const freshPosition = await tx.getPositionById(existing.id);
+      if (!freshPosition || freshPosition.closedAt) {
+        throw new Error('Position no longer exists or was closed');
+      }
 
-    // Update the existing position
-    await this.db.updateOpenPosition(existing.id, {
-      size: newTotalSize,
-      entryPrice: newEntryPrice,
-      currentPrice,
-      liquidationPrice: newLiquidationPrice,
-      unrealizedPnL: pnl,
-      unrealizedPnLPercent: pnlPercent,
-      lastUpdated: now,
-    });
+      // Recalculate with fresh position data to handle concurrent updates
+      const actualNewSize = freshPosition.size + addedSize;
+      const newEntryPrice =
+        (freshPosition.size * freshPosition.entryPrice + addedSize * currentPrice) /
+        actualNewSize;
 
-    // Update market stats
-    const newOpenInterest = market.openInterest + addedSize;
-    await this.db.updateMarketStats(existing.ticker, {
-      openInterest: newOpenInterest,
-      volume24h: market.volume24h + addedSize,
-    });
+      // Recalculate liquidation price with new entry
+      const newLiquidationPrice = calculateLiquidationPrice(
+        newEntryPrice,
+        freshPosition.side,
+        effectiveLeverage
+      );
 
-    // Process fees
-    if (this.deps.feeProcessor) {
-      await this.deps.feeProcessor.processTradingFee({
-        userId: input.userId,
-        amount: addedSize,
-        type: 'perp_add_to_position',
-        relatedId: existing.ticker,
-        positionId: existing.id,
+      // Calculate unrealized PnL with new entry price
+      const { pnl, pnlPercent } = calculateUnrealizedPnL(
+        newEntryPrice,
+        currentPrice,
+        freshPosition.side,
+        actualNewSize
+      );
+
+      // Update the existing position
+      await tx.updateOpenPosition(freshPosition.id, {
+        size: actualNewSize,
+        entryPrice: newEntryPrice,
+        currentPrice,
+        liquidationPrice: newLiquidationPrice,
+        unrealizedPnL: pnl,
+        unrealizedPnLPercent: pnlPercent,
+        lastUpdated: now,
       });
-    }
 
-    const result: PerpTradeResult = {
-      positionId: existing.id,
-      ticker: existing.ticker,
-      side: existing.side,
-      size: newTotalSize,
-      leverage: effectiveLeverage,
-      entryPrice: newEntryPrice,
-      liquidationPrice: newLiquidationPrice,
-      marginPaid: marginRequired,
-      feePaid: fee,
-      balance: (await this.deps.wallet.getBalance(input.userId)).balance,
-      isRebalance: true,
-      rebalanceType: 'add',
-      previousSize: existing.size,
-      previousEntryPrice: existing.entryPrice,
-    };
+      // Update market stats
+      const newOpenInterest = market.openInterest + addedSize;
+      await tx.updateMarketStats(freshPosition.ticker, {
+        openInterest: newOpenInterest,
+        volume24h: market.volume24h + addedSize,
+      });
 
-    // Broadcast trade event
-    await this.emitTradeEvent({
-      type: 'perp_trade',
-      action: 'add_to_position',
-      ticker: existing.ticker,
-      side: existing.side,
-      size: newTotalSize,
-      addedSize,
-      leverage: effectiveLeverage,
-      entryPrice: newEntryPrice,
-      previousEntryPrice: existing.entryPrice,
-      positionId: existing.id,
-      openInterest: newOpenInterest,
-      volume24h: market.volume24h + addedSize,
-      timestamp: now.toISOString(),
+      // Process fees (outside transaction - fee service is separate)
+      if (this.deps.feeProcessor) {
+        await this.deps.feeProcessor.processTradingFee({
+          userId: input.userId,
+          amount: addedSize,
+          type: 'perp_add_to_position',
+          relatedId: freshPosition.ticker,
+          positionId: freshPosition.id,
+        });
+      }
+
+      const result: PerpTradeResult = {
+        positionId: freshPosition.id,
+        ticker: freshPosition.ticker,
+        side: freshPosition.side,
+        size: actualNewSize,
+        leverage: effectiveLeverage,
+        entryPrice: newEntryPrice,
+        liquidationPrice: newLiquidationPrice,
+        marginPaid: marginRequired,
+        feePaid: fee,
+        balance: (await this.deps.wallet.getBalance(input.userId)).balance,
+        isRebalance: true,
+        rebalanceType: 'add',
+        previousSize: freshPosition.size,
+        previousEntryPrice: freshPosition.entryPrice,
+      };
+
+      // Broadcast trade event
+      await this.emitTradeEvent({
+        type: 'perp_trade',
+        action: 'add_to_position',
+        ticker: freshPosition.ticker,
+        side: freshPosition.side,
+        size: actualNewSize,
+        addedSize,
+        leverage: effectiveLeverage,
+        entryPrice: newEntryPrice,
+        previousEntryPrice: freshPosition.entryPrice,
+        positionId: freshPosition.id,
+        openInterest: newOpenInterest,
+        volume24h: market.volume24h + addedSize,
+        timestamp: now.toISOString(),
+      });
+
+      return result;
     });
-
-    return result;
   }
 
   /**
