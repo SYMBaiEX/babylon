@@ -1,6 +1,7 @@
 import { relations } from 'drizzle-orm';
 import {
   boolean,
+  decimal,
   doublePrecision,
   index,
   integer,
@@ -173,8 +174,14 @@ export const agentPointsTransactions = pgTable(
     id: text('id').primaryKey(),
     type: text('type').notNull(),
     amount: integer('amount').notNull(),
-    balanceBefore: integer('balanceBefore').notNull(),
-    balanceAfter: integer('balanceAfter').notNull(),
+    balanceBefore: decimal('balanceBefore', {
+      precision: 18,
+      scale: 2,
+    }).notNull(),
+    balanceAfter: decimal('balanceAfter', {
+      precision: 18,
+      scale: 2,
+    }).notNull(),
     description: text('description').notNull(),
     relatedId: text('relatedId'),
     createdAt: timestamp('createdAt', { mode: 'date' }).notNull().defaultNow(),

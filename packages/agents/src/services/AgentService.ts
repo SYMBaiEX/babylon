@@ -867,8 +867,8 @@ export class AgentServiceV2 {
             ? 'spend_post'
             : 'spend_tick',
         amount: -amount,
-        balanceBefore: currentBalance,
-        balanceAfter: currentBalance - amount,
+        balanceBefore: String(currentBalance),
+        balanceAfter: String(currentBalance - amount),
         description: reason,
         relatedId: relatedId ?? null,
         agentUserId: agentUserId,
