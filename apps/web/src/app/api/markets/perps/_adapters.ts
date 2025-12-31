@@ -188,17 +188,19 @@ const ABSOLUTE_MAX_RATIO = 4.0; // Never above 400% of initial
  * - netHoldings = sum(long positions) - sum(short positions)
  * - newMarketCap = baseMarketCap + netHoldings
  * - newPrice = newMarketCap / syntheticSupply
- * - Clamped to ±20% per trade and 25%-400% of initial price
+ * - Clamped to ±10% per trade and 25%-400% of initial price
  *
  * @param ticker - The market ticker (e.g., "AIPHB")
  */
 export async function applyUserTradePriceImpact(ticker: string): Promise<void> {
   try {
-    // 1. Get organizationId from perpMarketSnapshots (ticker -> orgId mapping)
+    // 1. Get organizationId and 24h stats from perpMarketSnapshots
     const [snapshot] = await db
       .select({
         organizationId: perpMarketSnapshots.organizationId,
         currentPrice: perpMarketSnapshots.currentPrice,
+        high24h: perpMarketSnapshots.high24h,
+        low24h: perpMarketSnapshots.low24h,
       })
       .from(perpMarketSnapshots)
       .where(eq(perpMarketSnapshots.ticker, ticker))
@@ -327,17 +329,29 @@ export async function applyUserTradePriceImpact(ticker: string): Promise<void> {
     }
 
     // 10. Also update perpMarketSnapshots for consistency
-    const referencePrice = currentPrice;
+    // Only update high24h/low24h if newPrice exceeds existing bounds
+    // Don't recalculate change24h here - it's properly computed by game-tick
+    // using the actual price24hAgo reference
+    const existingHigh = Number(snapshot.high24h ?? newPrice);
+    const existingLow = Number(snapshot.low24h ?? newPrice);
+
+    const updateData: Record<string, unknown> = {
+      currentPrice: newPrice,
+      updatedAt: new Date(),
+    };
+
+    // Only update high24h if new price is higher
+    if (newPrice > existingHigh) {
+      updateData.high24h = newPrice;
+    }
+    // Only update low24h if new price is lower
+    if (newPrice < existingLow) {
+      updateData.low24h = newPrice;
+    }
+
     await db
       .update(perpMarketSnapshots)
-      .set({
-        currentPrice: newPrice,
-        change24h: newPrice - referencePrice,
-        changePercent24h: changePercent,
-        high24h: Math.max(currentPrice, newPrice),
-        low24h: Math.min(currentPrice, newPrice),
-        updatedAt: new Date(),
-      })
+      .set(updateData)
       .where(eq(perpMarketSnapshots.ticker, ticker));
   } catch (error) {
     // Don't throw - price impact is enhancement, not critical path
