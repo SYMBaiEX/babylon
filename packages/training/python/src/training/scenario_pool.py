@@ -180,6 +180,53 @@ class Scenario:
     
     # Ground truth for evaluation (optional)
     ground_truth: Optional[Dict] = None
+    
+    # Extensible metadata for runtime data (e.g., bridge scenario reference)
+    metadata: Dict = field(default_factory=dict)
+
+    def add_market(self, market_dict: Dict) -> None:
+        """Add a prediction market from dict data"""
+        self.markets.append(MarketState(
+            market_id=market_dict.get("id", f"market-{len(self.markets)}"),
+            question=market_dict.get("question", "Unknown"),
+            yes_price=market_dict.get("yesPrice", 0.5),
+            no_price=market_dict.get("noPrice", 0.5),
+            volume_24h=market_dict.get("volume24h", 0),
+            liquidity=market_dict.get("liquidity", 0),
+            expires_at=market_dict.get("expiresAt", 0),
+            category=market_dict.get("category", "general"),
+        ))
+
+    def add_perpetual(self, perp_dict: Dict) -> None:
+        """Add a perpetual market from dict data"""
+        self.perpetuals.append(PerpetualState(
+            ticker=perp_dict.get("ticker", "UNKNOWN"),
+            mark_price=perp_dict.get("markPrice", 0),
+            index_price=perp_dict.get("indexPrice", perp_dict.get("markPrice", 0)),
+            funding_rate=perp_dict.get("fundingRate", 0),
+            open_interest=perp_dict.get("openInterest", 0),
+            volume_24h=perp_dict.get("volume24h", 0),
+            change_24h=perp_dict.get("change24h", 0),
+            high_24h=perp_dict.get("high24h", 0),
+            low_24h=perp_dict.get("low24h", 0),
+        ))
+
+    def add_news(self, news_dict: Dict) -> None:
+        """Add a news item from dict data"""
+        # Map sentiment value to allowed literals
+        sentiment_raw = news_dict.get("sentiment", "neutral")
+        if isinstance(sentiment_raw, (int, float)):
+            sentiment = "bullish" if sentiment_raw > 0 else "bearish" if sentiment_raw < 0 else "neutral"
+        else:
+            sentiment = sentiment_raw if sentiment_raw in ("bullish", "bearish", "neutral") else "neutral"
+        
+        self.news.append(NewsItem(
+            headline=news_dict.get("headline", news_dict.get("content", "")[:100]),
+            sentiment=sentiment,
+            impact=news_dict.get("impact", "medium"),
+            source=news_dict.get("source", "Unknown"),
+            timestamp=news_dict.get("timestamp", int(datetime.now(timezone.utc).timestamp() * 1000)),
+        ))
 
     def to_dict(self) -> Dict:
         return {

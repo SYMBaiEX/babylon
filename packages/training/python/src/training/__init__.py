@@ -138,6 +138,8 @@ from .action_executor import (
     validate_action,
     execute_action_for_training,
     calculate_action_quality_bonus,
+    set_simulation_seed,
+    reset_simulation_rng,
 )
 
 from .format_validator import (

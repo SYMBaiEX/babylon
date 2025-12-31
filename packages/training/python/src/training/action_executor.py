@@ -23,6 +23,36 @@ from .scenario_pool import Scenario, MarketState, PerpetualState
 
 logger = logging.getLogger(__name__)
 
+# Module-level RNG for reproducibility in testing
+_rng: Optional[random.Random] = None
+
+
+def set_simulation_seed(seed: int) -> None:
+    """Set seed for deterministic P&L simulation. Useful for testing."""
+    global _rng
+    _rng = random.Random(seed)
+    logger.debug(f"Action executor RNG seeded with {seed}")
+
+
+def reset_simulation_rng() -> None:
+    """Reset to non-deterministic mode (uses global random)."""
+    global _rng
+    _rng = None
+
+
+def _gauss(mu: float, sigma: float) -> float:
+    """Get gaussian random value, using seeded RNG if set."""
+    if _rng is not None:
+        return _rng.gauss(mu, sigma)
+    return random.gauss(mu, sigma)
+
+
+def _uniform(a: float, b: float) -> float:
+    """Get uniform random value, using seeded RNG if set."""
+    if _rng is not None:
+        return _rng.uniform(a, b)
+    return random.uniform(a, b)
+
 
 # =============================================================================
 # Execution Result
@@ -153,7 +183,7 @@ def simulate_market_outcome(
     
     # Random price movement with slight mean reversion
     mean_reversion = (0.5 - entry_price) * 0.1  # Pull towards 50%
-    drift = random.gauss(mean_reversion, volatility * duration_multiplier)
+    drift = _gauss(mean_reversion, volatility * duration_multiplier)
     
     # Calculate new price (bounded 0-1)
     new_price = max(0.01, min(0.99, entry_price + drift))
@@ -208,7 +238,7 @@ def simulate_perp_outcome(
     funding_impact = -perp.funding_rate * size * entry_price * duration_multiplier
     
     # Random price movement
-    price_change_pct = random.gauss(0, volatility * duration_multiplier)
+    price_change_pct = _gauss(0, volatility * duration_multiplier)
     new_price = entry_price * (1 + price_change_pct)
     
     # Calculate P&L based on direction
