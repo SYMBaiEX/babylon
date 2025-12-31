@@ -10,31 +10,17 @@ import { useNftMint } from '@/hooks/useNftMint';
 
 interface MintBannerProps {
   onMintClick?: () => void;
-  isMinting?: boolean;
 }
 
-export function MintBanner({
-  onMintClick,
-  isMinting: externalIsMinting,
-}: MintBannerProps) {
+export function MintBanner({ onMintClick }: MintBannerProps) {
   const { authenticated, ready } = useAuth();
-  const { eligibility, isCheckingEligibility, flowState, startMint } =
+  const { eligibility, isCheckingEligibility, isMinting, startMint } =
     useNftMint();
 
   const loading = !ready || isCheckingEligibility;
-  const isMinting =
-    externalIsMinting ??
-    (flowState === 'preparing' ||
-      flowState === 'awaiting_signature' ||
-      flowState === 'minting' ||
-      flowState === 'confirming');
 
   const handleMintClick = () => {
-    if (onMintClick) {
-      onMintClick();
-    } else {
-      startMint();
-    }
+    onMintClick?.() ?? startMint();
   };
 
   // Not authenticated

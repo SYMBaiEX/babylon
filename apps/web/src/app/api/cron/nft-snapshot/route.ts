@@ -103,18 +103,22 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
 
   const existingMap = new Map(existingSnapshots.map((s) => [s.userId, s]));
 
-  // Batch fetch all wallet addresses for top users
-  const allUserWallets =
-    topUsers.length > 0
-      ? await db
-          .select({
-            id: users.id,
-            walletAddress: users.walletAddress,
-          })
-          .from(users)
-      : [];
+  // Build wallet lookup map for the top 100 users
+  // We use a Set for O(1) lookups when filtering
+  const userIdSet = new Set(topUsers.map((u) => u.id));
+  const walletMap = new Map<string, string | null>();
 
-  const walletMap = new Map(allUserWallets.map((u) => [u.id, u.walletAddress]));
+  if (userIdSet.size > 0) {
+    const walletResults = await db
+      .select({ id: users.id, walletAddress: users.walletAddress })
+      .from(users);
+
+    for (const w of walletResults) {
+      if (userIdSet.has(w.id)) {
+        walletMap.set(w.id, w.walletAddress);
+      }
+    }
+  }
 
   let newlyEligible = 0;
   let updated = 0;

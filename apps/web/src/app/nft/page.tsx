@@ -41,12 +41,6 @@ export default function NftGalleryPage() {
   const [sortOrder, setSortOrder] = useState<SortOrder>('asc');
   const [showFilters, setShowFilters] = useState(false);
 
-  // Mint state derived from hook
-  const isMinting =
-    flowState === 'preparing' ||
-    flowState === 'awaiting_signature' ||
-    flowState === 'minting' ||
-    flowState === 'confirming';
   const showRevealModal = flowState === 'revealing';
 
   const pageSize = 20;
@@ -115,7 +109,7 @@ export default function NftGalleryPage() {
   return (
     <PageContainer noPadding className="flex h-full flex-col">
       {/* Mint Banner */}
-      <MintBanner onMintClick={handleMint} isMinting={isMinting} />
+      <MintBanner onMintClick={handleMint} />
 
       {/* Header */}
       <div className="flex flex-col gap-4 border-border border-b p-4 sm:flex-row sm:items-center sm:justify-between">

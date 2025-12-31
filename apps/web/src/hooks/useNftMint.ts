@@ -17,9 +17,18 @@ import type {
   MintPrepareResponse,
 } from '@/types/nft';
 
+/** States that indicate minting is in progress */
+const MINTING_STATES: MintFlowState[] = [
+  'preparing',
+  'awaiting_signature',
+  'minting',
+  'confirming',
+];
+
 interface UseNftMintResult {
   eligibility: EligibilityResponse | null;
   isCheckingEligibility: boolean;
+  isMinting: boolean;
   flowState: MintFlowState;
   mintedNft: MintConfirmResponse['nft'] | null;
   error: string | null;
@@ -45,12 +54,14 @@ export function useNftMint(): UseNftMintResult {
 
   // Check eligibility on mount and when auth changes
   const checkEligibility = useCallback(async () => {
+    const notAuthenticatedResponse: EligibilityResponse = {
+      eligible: false,
+      status: 'not_authenticated',
+      hasMinted: false,
+    };
+
     if (!authenticated) {
-      setEligibility({
-        eligible: false,
-        status: 'not_authenticated',
-        hasMinted: false,
-      });
+      setEligibility(notAuthenticatedResponse);
       return;
     }
 
@@ -60,20 +71,14 @@ export function useNftMint(): UseNftMintResult {
 
     const token = await getAccessToken();
     if (!token) {
-      setEligibility({
-        eligible: false,
-        status: 'not_authenticated',
-        hasMinted: false,
-      });
+      setEligibility(notAuthenticatedResponse);
       setFlowState('idle');
       setIsCheckingEligibility(false);
       return;
     }
 
     const response = await fetch('/api/nft/eligibility', {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
+      headers: { Authorization: `Bearer ${token}` },
     });
 
     if (!response.ok) {
@@ -87,6 +92,7 @@ export function useNftMint(): UseNftMintResult {
     const data: EligibilityResponse = await response.json();
     setEligibility(data);
 
+    // Pre-populate mintedNft if user already minted
     if (data.status === 'already_minted' && data.mintedNft) {
       setMintedNft({
         tokenId: data.mintedNft.tokenId,
@@ -258,9 +264,12 @@ export function useNftMint(): UseNftMintResult {
     }
   }, [authenticated, checkEligibility]);
 
+  const isMinting = MINTING_STATES.includes(flowState);
+
   return {
     eligibility,
     isCheckingEligibility,
+    isMinting,
     flowState,
     mintedNft,
     error,

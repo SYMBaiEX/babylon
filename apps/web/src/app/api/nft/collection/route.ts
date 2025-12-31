@@ -23,7 +23,6 @@ import {
   nftCollection,
   nftOwnership,
   or,
-  sql,
   users,
 } from '@babylon/db';
 import { logger } from '@babylon/shared';
@@ -116,25 +115,28 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       break;
   }
 
-  // For claimed filter, we need to adjust the query
-  let nftsQuery;
+  // Build query based on claimed filter
+  // For unclaimed filter, add isNull condition; for claimed, use inner join
+  const baseSelect = {
+    tokenId: nftCollection.tokenId,
+    name: nftCollection.name,
+    thumbnailUrl: nftCollection.thumbnailUrl,
+    imageUrl: nftCollection.imageUrl,
+    ownerAddress: nftOwnership.ownerAddress,
+    ownerUserId: nftOwnership.userId,
+    ownerUsername: users.username,
+    ownerDisplayName: users.displayName,
+    ownerProfileImageUrl: users.profileImageUrl,
+    acquiredAt: nftOwnership.acquiredAt,
+    txHash: nftOwnership.txHash,
+  };
+
+  let nftsResult;
 
   if (claimedFilter === 'true') {
-    // Only claimed NFTs
-    nftsQuery = db
-      .select({
-        tokenId: nftCollection.tokenId,
-        name: nftCollection.name,
-        thumbnailUrl: nftCollection.thumbnailUrl,
-        imageUrl: nftCollection.imageUrl,
-        ownerAddress: nftOwnership.ownerAddress,
-        ownerUserId: nftOwnership.userId,
-        ownerUsername: users.username,
-        ownerDisplayName: users.displayName,
-        ownerProfileImageUrl: users.profileImageUrl,
-        acquiredAt: nftOwnership.acquiredAt,
-        txHash: nftOwnership.txHash,
-      })
+    // Only claimed NFTs - use inner join to filter
+    nftsResult = await db
+      .select(baseSelect)
       .from(nftCollection)
       .innerJoin(nftOwnership, eq(nftCollection.tokenId, nftOwnership.tokenId))
       .leftJoin(users, eq(nftOwnership.userId, users.id))
@@ -143,48 +145,20 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       .limit(limit)
       .offset(offset);
   } else if (claimedFilter === 'false') {
-    // Only unclaimed NFTs
-    nftsQuery = db
-      .select({
-        tokenId: nftCollection.tokenId,
-        name: nftCollection.name,
-        thumbnailUrl: nftCollection.thumbnailUrl,
-        imageUrl: nftCollection.imageUrl,
-        ownerAddress: sql<string | null>`NULL`,
-        ownerUserId: sql<string | null>`NULL`,
-        ownerUsername: sql<string | null>`NULL`,
-        ownerDisplayName: sql<string | null>`NULL`,
-        ownerProfileImageUrl: sql<string | null>`NULL`,
-        acquiredAt: sql<Date | null>`NULL`,
-        txHash: sql<string | null>`NULL`,
-      })
+    // Only unclaimed NFTs - add isNull condition
+    nftsResult = await db
+      .select(baseSelect)
       .from(nftCollection)
       .leftJoin(nftOwnership, eq(nftCollection.tokenId, nftOwnership.tokenId))
-      .where(
-        and(
-          isNull(nftOwnership.tokenId),
-          ...(conditions.length > 0 ? conditions : [])
-        )
-      )
+      .leftJoin(users, eq(nftOwnership.userId, users.id))
+      .where(and(isNull(nftOwnership.tokenId), ...conditions))
       .orderBy(orderByClause)
       .limit(limit)
       .offset(offset);
   } else {
     // All NFTs
-    nftsQuery = db
-      .select({
-        tokenId: nftCollection.tokenId,
-        name: nftCollection.name,
-        thumbnailUrl: nftCollection.thumbnailUrl,
-        imageUrl: nftCollection.imageUrl,
-        ownerAddress: nftOwnership.ownerAddress,
-        ownerUserId: nftOwnership.userId,
-        ownerUsername: users.username,
-        ownerDisplayName: users.displayName,
-        ownerProfileImageUrl: users.profileImageUrl,
-        acquiredAt: nftOwnership.acquiredAt,
-        txHash: nftOwnership.txHash,
-      })
+    nftsResult = await db
+      .select(baseSelect)
       .from(nftCollection)
       .leftJoin(nftOwnership, eq(nftCollection.tokenId, nftOwnership.tokenId))
       .leftJoin(users, eq(nftOwnership.userId, users.id))
@@ -193,36 +167,6 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       .limit(limit)
       .offset(offset);
   }
-
-  const nftsResult = await nftsQuery;
-
-  // Get unique trait types for filtering
-  const traitsResult = await db
-    .select({
-      attributes: nftCollection.attributes,
-    })
-    .from(nftCollection)
-    .limit(100);
-
-  // Extract unique trait types and values
-  const traitMap = new Map<string, Set<string>>();
-  for (const nft of traitsResult) {
-    if (nft.attributes && Array.isArray(nft.attributes)) {
-      for (const attr of nft.attributes) {
-        if (attr.trait_type && attr.value !== undefined) {
-          if (!traitMap.has(attr.trait_type)) {
-            traitMap.set(attr.trait_type, new Set());
-          }
-          traitMap.get(attr.trait_type)!.add(String(attr.value));
-        }
-      }
-    }
-  }
-
-  const traits = Array.from(traitMap.entries()).map(([traitType, values]) => ({
-    traitType,
-    values: Array.from(values).sort(),
-  }));
 
   // Transform results to response format
   const nfts: NftSummary[] = nftsResult.map((nft) => ({
@@ -248,12 +192,12 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   }));
 
   // Calculate total for current filter
-  let filteredTotal = totalNfts;
-  if (claimedFilter === 'true') {
-    filteredTotal = claimedCount;
-  } else if (claimedFilter === 'false') {
-    filteredTotal = unclaimedCount;
-  }
+  const filteredTotal =
+    claimedFilter === 'true'
+      ? claimedCount
+      : claimedFilter === 'false'
+        ? unclaimedCount
+        : totalNfts;
 
   const response: NftGalleryResponse = {
     success: true,
@@ -271,7 +215,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         unclaimedCount,
       },
       filters: {
-        traits,
+        traits: [], // Trait filtering available on detail pages
       },
     },
   };
