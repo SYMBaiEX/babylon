@@ -236,7 +236,10 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   // Fetch identity data from Privy if token provided
   let identityFarcasterUsername: string | undefined;
   let identityTwitterUsername: string | undefined;
-  let adminEmailResult: { adminEmail: string | null; allVerifiedEmails: string[] } = {
+  let adminEmailResult: {
+    adminEmail: string | null;
+    allVerifiedEmails: string[];
+  } = {
     adminEmail: null,
     allVerifiedEmails: [],
   };
@@ -459,7 +462,8 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
           // SECURITY: Use Privy-verified email, not user-supplied email from parsedProfile
           // This prevents attackers from submitting fake admin emails in the request body
           // Check ALL linked emails, not just the primary one
-          const { adminEmail: newUserAdminEmail, allVerifiedEmails } = adminEmailResult;
+          const { adminEmail: newUserAdminEmail, allVerifiedEmails } =
+            adminEmailResult;
           const shouldBeAdmin = newUserAdminEmail !== null;
 
           if (shouldBeAdmin) {
