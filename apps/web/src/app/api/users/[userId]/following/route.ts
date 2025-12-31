@@ -91,7 +91,7 @@
 
 import {
   optionalAuth,
-  requireUserByIdentifier,
+  requireTargetByIdentifier,
   successResponse,
   withErrorHandling,
 } from '@babylon/api';
@@ -102,6 +102,7 @@ import {
   desc,
   eq,
   follows,
+  inArray,
   userActorFollows,
   users,
 } from '@babylon/db';
@@ -149,18 +150,9 @@ export const GET = withErrorHandling(
     };
     UserFollowersQuerySchema.parse(queryParams);
 
-    const targetUser = await requireUserByIdentifier(targetIdentifier, {
-      id: true,
-    });
-    const targetId = targetUser.id;
-
-    logger.debug(
-      'Target not found as user, checking if actor',
-      { targetIdentifier },
-      'GET /api/users/[userId]/following'
-    );
-
-    const targetActor = StaticDataRegistry.getActor(targetId);
+    // Find target (user or actor) - throws NotFoundError if neither exists
+    const { actor: targetActor, targetId } =
+      await requireTargetByIdentifier(targetIdentifier);
 
     let followingList: FollowingResponse[] = [];
 
@@ -186,6 +178,7 @@ export const GET = withErrorHandling(
             followingId: rel.followingId,
             createdAt: rel.createdAt,
             followingName: followingActor.name,
+            followingUsername: followingActor.username,
             followingTier: followingActor.tier,
             followingProfileImageUrl: followingActor.profileImageUrl,
             followingDescription: followingActor.description,
@@ -196,7 +189,7 @@ export const GET = withErrorHandling(
       followingList = actorFollowsList.map((f) => ({
         id: f.followingId,
         displayName: f.followingName,
-        username: f.followingId,
+        username: f.followingUsername || null,
         profileImageUrl: f.followingProfileImageUrl || null,
         bio: f.followingDescription || '',
         followedAt: f.createdAt.toISOString(),
@@ -241,35 +234,51 @@ export const GET = withErrorHandling(
           actorId: rel.actorId,
           createdAt: rel.createdAt,
           actorName: actor?.name ?? null,
+          actorUsername: actor?.username ?? null,
           actorDescription: actor?.description ?? null,
           actorProfileImageUrl: actor?.profileImageUrl ?? null,
           actorTier: actor?.tier ?? null,
         };
       });
 
-      // Check mutual follows if authenticated user is viewing their own following list
-      const mutualFollowChecks =
-        authUser && authUser.userId === targetId
-          ? await Promise.all(
-              userFollowsList.map(async (f) => {
-                const [mutualFollow] = await db
-                  .select({ id: follows.id })
-                  .from(follows)
-                  .where(
-                    and(
-                      eq(follows.followerId, f.followingId),
-                      eq(follows.followingId, authUser.userId)
-                    )
-                  )
-                  .limit(1);
-                return { userId: f.followingId, isMutual: !!mutualFollow };
-              })
-            )
-          : [];
+      // Check mutual follows for authenticated users (using batched query for efficiency)
+      const mutualFollowMap = new Map<string, boolean>();
+      if (authUser?.userId) {
+        const followingUserIds = userFollowsList.map((f) => f.followingId);
+        const followingActorIds = actorFollowsList.map((f) => f.actorId);
 
-      const mutualFollowMap = new Map(
-        mutualFollowChecks.map((check) => [check.userId, check.isMutual])
-      );
+        // Batch query for user mutual follows
+        if (followingUserIds.length > 0) {
+          const userMutualFollows = await db
+            .select({ followingId: follows.followingId })
+            .from(follows)
+            .where(
+              and(
+                eq(follows.followerId, authUser.userId),
+                inArray(follows.followingId, followingUserIds)
+              )
+            );
+          for (const f of userMutualFollows) {
+            mutualFollowMap.set(f.followingId, true);
+          }
+        }
+
+        // Batch query for actor mutual follows
+        if (followingActorIds.length > 0) {
+          const actorMutualFollows = await db
+            .select({ actorId: userActorFollows.actorId })
+            .from(userActorFollows)
+            .where(
+              and(
+                eq(userActorFollows.userId, authUser.userId),
+                inArray(userActorFollows.actorId, followingActorIds)
+              )
+            );
+          for (const f of actorMutualFollows) {
+            mutualFollowMap.set(f.actorId, true);
+          }
+        }
+      }
 
       followingList = [
         ...userFollowsList.map((f) => ({
@@ -296,19 +305,21 @@ export const GET = withErrorHandling(
               followedAt: f.createdAt.toISOString(),
               type: 'actor' as const,
               tier: null,
+              isMutualFollow: mutualFollowMap.get(f.actorId) || false,
             };
           }
 
           return {
             id: f.actorId,
             displayName: f.actorName || f.actorId,
-            username: null,
+            username: f.actorUsername || null,
             profileImageUrl: f.actorProfileImageUrl || null,
             bio: f.actorDescription || null,
             isActor: true,
             followedAt: f.createdAt.toISOString(),
             type: 'actor' as const,
             tier: f.actorTier || null,
+            isMutualFollow: mutualFollowMap.get(f.actorId) || false,
           };
         }),
       ].sort(
