@@ -11,8 +11,8 @@ import {
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { MintBanner, NftGrid, RevealModal } from '@/components/nft';
-import { Button } from '@/components/ui/button';
 import { PageContainer } from '@/components/shared/PageContainer';
+import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
 import type {
   MintConfirmResponse,
@@ -228,7 +228,7 @@ export default function NftGalleryPage() {
 
           {/* Filter Toggle */}
           <Button
-            variant={showFilters ? 'primary' : 'outline'}
+            variant={showFilters ? 'default' : 'outline'}
             size="sm"
             onClick={() => setShowFilters(!showFilters)}
           >

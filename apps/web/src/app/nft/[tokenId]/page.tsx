@@ -7,9 +7,9 @@ import { useParams } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { Avatar } from '@/components/shared/Avatar';
-import { Button } from '@/components/ui/button';
 import { PageContainer } from '@/components/shared/PageContainer';
 import { Skeleton } from '@/components/shared/Skeleton';
+import { Button } from '@/components/ui/button';
 import type { NftDetail, NftDetailResponse } from '@/types/nft';
 
 export default function NftDetailPage() {
@@ -99,7 +99,7 @@ export default function NftDetailPage() {
             removed.
           </p>
           <Link href="/nft">
-            <Button variant="primary">
+            <Button variant="default">
               <ArrowLeft className="mr-2 h-4 w-4" />
               Back to Gallery
             </Button>

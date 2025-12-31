@@ -153,7 +153,7 @@ export function RevealModal({ isOpen, nft, onClose }: RevealModalProps) {
             <div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
               <Link href={`/nft/${nft.tokenId}`}>
                 <Button
-                  variant="primary"
+                  variant="default"
                   size="lg"
                   className="w-full sm:w-auto"
                 >
