@@ -311,17 +311,28 @@ export const useUserPositionsStore = create<UserPositionsState>((set, get) => ({
   // Combined subscribe/unsubscribe that handles polling lifecycle
   subscribe: (userId: string, intervalMs: number) => {
     const state = get();
+
+    // If userId changed while polling is active, reset the polling
+    if (state.pollingInterval && state.userId !== userId) {
+      clearInterval(state.pollingInterval);
+      set({ pollingInterval: null, subscriberCount: 0, userId });
+    }
+
     const newCount = state.subscriberCount + 1;
-    set({ subscriberCount: newCount });
+    set({ subscriberCount: newCount, userId });
 
     // Start polling on first subscriber
     if (newCount === 1) {
       // Initial fetch
       get().fetchPositions(userId);
 
-      // Set up interval
+      // Set up interval with userId validation
       const interval = setInterval(() => {
-        get().fetchPositions(userId, true);
+        const currentState = get();
+        // Only fetch if userId hasn't changed (prevents stale closure)
+        if (currentState.userId === userId) {
+          currentState.fetchPositions(userId, true);
+        }
       }, intervalMs);
 
       set({ pollingInterval: interval });
