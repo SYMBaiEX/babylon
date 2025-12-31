@@ -204,7 +204,7 @@ export const GET = withErrorHandling(async (req: NextRequest) => {
       autonomousGroupChats: config?.autonomousGroupChats || false,
 
       // Performance
-      lifetimePnL: Number(agent.lifetimePnL || 0),
+      lifetimePnL: Number(agent.lifetimePnL ?? 0),
       totalTrades,
       winRate,
       reputationScore: metrics?.reputationScore ?? 50,

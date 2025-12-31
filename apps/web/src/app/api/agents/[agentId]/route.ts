@@ -251,7 +251,7 @@ export async function GET(
           );
           return tradingStrategyMatch ? tradingStrategyMatch[1]!.trim() : '';
         })(),
-      virtualBalance: Number(agent!.virtualBalance),
+      virtualBalance: Number(agent!.virtualBalance ?? 0),
       isActive: config?.status === 'active',
       autonomousEnabled: config?.autonomousTrading ?? false,
       autonomousTrading: config?.autonomousTrading ?? false,
@@ -346,7 +346,7 @@ export async function PUT(
       name: agent.displayName,
       description: agent.bio,
       profileImageUrl: agent.profileImageUrl,
-      virtualBalance: Number(agent.virtualBalance),
+      virtualBalance: Number(agent.virtualBalance ?? 0),
       autonomousTrading: updatedConfig?.autonomousTrading ?? false,
       autonomousPosting: updatedConfig?.autonomousPosting ?? false,
       modelTier: updatedConfig?.modelTier ?? 'lite',

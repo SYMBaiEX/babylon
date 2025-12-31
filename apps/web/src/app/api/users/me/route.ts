@@ -605,7 +605,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     referralCode: dbUser.referralCode,
     referredBy: dbUser.referredBy,
     reputationPoints: dbUser.reputationPoints,
-    virtualBalance: Number(dbUser.virtualBalance),
+    virtualBalance: Number(dbUser.virtualBalance ?? 0),
     pointsAwardedForProfile: dbUser.pointsAwardedForProfile,
     pointsAwardedForFarcasterFollow: dbUser.pointsAwardedForFarcasterFollow,
     pointsAwardedForTwitterFollow: dbUser.pointsAwardedForTwitterFollow,
