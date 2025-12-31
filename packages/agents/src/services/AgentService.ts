@@ -121,7 +121,7 @@ export class AgentServiceV2 {
     if (!manager) throw new Error('Manager user not found');
 
     if (initialDeposit && initialDeposit > 0) {
-      const managerBalance = Number(manager.virtualBalance);
+      const managerBalance = Number(manager.virtualBalance ?? 0);
       if (managerBalance < initialDeposit) {
         throw new Error(
           `Insufficient balance. Have: $${managerBalance.toFixed(2)}, Need: $${initialDeposit.toFixed(2)}`
@@ -213,7 +213,7 @@ export class AgentServiceV2 {
 
       // Transfer initial deposit from manager to agent's virtualBalance
       if (initialDeposit && initialDeposit > 0) {
-        const initialManagerBalance = Number(manager.virtualBalance);
+        const initialManagerBalance = Number(manager.virtualBalance ?? 0);
 
         // Debit from manager's trading balance
         await tx
@@ -498,7 +498,7 @@ export class AgentServiceV2 {
     if (!agentWithConfig) throw new Error('Agent not found');
 
     // Get agent's remaining balance from users table
-    const agentBalance = Number(agentWithConfig.virtualBalance);
+    const agentBalance = Number(agentWithConfig.virtualBalance ?? 0);
 
     await withTransaction(async (tx) => {
       // Return remaining balance to manager
@@ -612,7 +612,7 @@ export class AgentServiceV2 {
     const manager = managerResult[0];
     if (!manager) throw new Error('Manager not found');
 
-    const managerBalance = Number(manager.virtualBalance);
+    const managerBalance = Number(manager.virtualBalance ?? 0);
     if (managerBalance < amount) {
       throw new Error(
         `Insufficient trading balance. Have: $${managerBalance.toFixed(2)}, Need: $${amount.toFixed(2)}`
@@ -818,27 +818,28 @@ export class AgentServiceV2 {
     reason: string,
     relatedId?: string
   ): Promise<number> {
-    // Get agent's current virtualBalance from users table
-    const userResult = await db
-      .select({
-        virtualBalance: users.virtualBalance,
-        managedBy: users.managedBy,
-      })
-      .from(users)
-      .where(eq(users.id, agentUserId))
-      .limit(1);
-
-    const agent = userResult[0];
-    if (!agent) throw new Error('Agent not found');
-
-    const currentBalance = Number(agent.virtualBalance);
-    if (currentBalance < amount) {
-      throw new Error(
-        `Insufficient balance. Have: ${currentBalance.toFixed(2)}, Need: ${amount.toFixed(2)}`
-      );
-    }
-
+    // Fetch and validate balance inside transaction to prevent race conditions
     const newBalance = await withTransaction(async (tx) => {
+      // Get agent's current virtualBalance from users table (inside transaction)
+      const userResult = await tx
+        .select({
+          virtualBalance: users.virtualBalance,
+          managedBy: users.managedBy,
+        })
+        .from(users)
+        .where(eq(users.id, agentUserId))
+        .limit(1);
+
+      const agent = userResult[0];
+      if (!agent) throw new Error('Agent not found');
+
+      const currentBalance = Number(agent.virtualBalance ?? 0);
+      if (currentBalance < amount) {
+        throw new Error(
+          `Insufficient balance. Have: ${currentBalance.toFixed(2)}, Need: ${amount.toFixed(2)}`
+        );
+      }
+
       // Deduct from agent's virtualBalance
       const result = await tx
         .update(users)
@@ -884,7 +885,7 @@ export class AgentServiceV2 {
         description: reason,
       });
 
-      return Number(result[0]!.virtualBalance);
+      return Number(result[0]!.virtualBalance ?? 0);
     });
 
     return newBalance;

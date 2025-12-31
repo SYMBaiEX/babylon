@@ -431,8 +431,8 @@ export class AutonomousCoordinator {
     });
 
     return {
-      agentBalance: agent ? Number(agent.virtualBalance) : 0,
-      agentPnL: agent ? Number(agent.lifetimePnL) : 0,
+      agentBalance: agent ? Number(agent.virtualBalance ?? 0) : 0,
+      agentPnL: agent ? Number(agent.lifetimePnL ?? 0) : 0,
       openPositions: positionsCount,
       activeMarkets: marketsCount,
       timestamp: Date.now(),
