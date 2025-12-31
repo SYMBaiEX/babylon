@@ -8,8 +8,8 @@
  * - Edge cases
  */
 
-import { BABYLON_POINTS_SYMBOL } from '@babylon/shared';
 import { describe, expect, it } from 'bun:test';
+import { BABYLON_POINTS_SYMBOL } from '@babylon/shared';
 
 // Mock data generator
 const generateMockPriceData = (count: number, startPrice = 100) => {

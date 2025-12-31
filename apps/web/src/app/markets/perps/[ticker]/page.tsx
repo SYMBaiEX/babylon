@@ -90,12 +90,10 @@ export default function PerpDetailPage() {
   const displayPrice = livePrice?.price ?? market?.currentPrice ?? 0;
 
   // Fetch real price history from API
-  const { history: priceHistory, refresh: refreshPriceHistory } = usePerpHistory(
-    ticker,
-    {
+  const { history: priceHistory, refresh: refreshPriceHistory } =
+    usePerpHistory(ticker, {
       seed: market ? { currentPrice: market.currentPrice } : undefined,
-    }
-  );
+    });
 
   // Subscribe to real-time trade and price updates for all perp markets
   usePerpMarketsRealtime();
@@ -142,7 +140,12 @@ export default function PerpDetailPage() {
       refetch(),
       refreshPriceHistory(),
     ]);
-  }, [refreshUserPositions, refreshWalletBalance, refetch, refreshPriceHistory]);
+  }, [
+    refreshUserPositions,
+    refreshWalletBalance,
+    refetch,
+    refreshPriceHistory,
+  ]);
 
   const handleSubmit = () => {
     if (!authenticated) {
