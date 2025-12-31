@@ -236,10 +236,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   // Fetch identity data from Privy if token provided
   let identityFarcasterUsername: string | undefined;
   let identityTwitterUsername: string | undefined;
-  let adminEmailResult: {
-    adminEmail: string | null;
-    allVerifiedEmails: string[];
-  } = {
+  let adminEmailResult: ReturnType<typeof checkForAdminEmail> = {
     adminEmail: null,
     allVerifiedEmails: [],
   };
