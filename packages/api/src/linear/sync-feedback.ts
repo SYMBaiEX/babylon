@@ -4,7 +4,8 @@
  * Includes retry logic with exponential backoff for transient failures.
  */
 
-import { db, type JsonObject } from '@babylon/db';
+import { db, feedbacks, type JsonObject } from '@babylon/db';
+import { and, eq, or, sql } from 'drizzle-orm';
 import { FeedbackTypeSchema, logger } from '@babylon/shared';
 import { z } from 'zod';
 import { createLinearIssue } from './client';
@@ -97,9 +98,10 @@ export const SYNC_LOCK_TTL_MS = 5 * 60 * 1000;
 
 /**
  * Atomically acquire a sync lock for Linear issue creation.
- * Uses a single SQL UPDATE with conditional WHERE clause to prevent TOCTOU race conditions.
+ * Uses Drizzle's update().set().where().returning() for atomic conditional updates.
+ * This eliminates TOCTOU race conditions by checking and setting in one operation.
  *
- * @returns Object with lockAcquired flag and metadata/createdAt if successful
+ * @returns Object with lockAcquired flag and feedback data if successful
  */
 async function acquireSyncLock(
   feedbackId: string,
@@ -114,32 +116,43 @@ async function acquireSyncLock(
   // Calculate the stale threshold timestamp
   const staleThreshold = new Date(Date.now() - ttlMs).toISOString();
 
-  // Atomic lock acquisition using raw SQL:
+  // Atomic lock acquisition using Drizzle's query builder with sql templates:
   // - Only acquires lock if linearIssueId is NULL (not already synced)
   // - Only acquires lock if linearSyncStartedAt is NULL OR older than TTL
-  // This eliminates the TOCTOU gap between check and set
-  type LockResult = { id: string; metadata: JsonObject | null; createdAt: Date };
-  const result: LockResult[] = await db.$queryRaw<LockResult>`
-    UPDATE "Feedback"
-    SET metadata = jsonb_set(
-      COALESCE(metadata, '{}'::jsonb),
-      '{linearSyncStartedAt}',
-      to_jsonb(${syncStartedAt}::text)
-    )
-    WHERE id = ${feedbackId}
-      AND (metadata->>'linearIssueId' IS NULL)
-      AND (
-        metadata->>'linearSyncStartedAt' IS NULL
-        OR metadata->>'linearSyncStartedAt' < ${staleThreshold}
+  // - Uses RETURNING to get updated row in single round-trip
+  const result = await db
+    .update(feedbacks)
+    .set({
+      // Use jsonb_set to atomically update the lock timestamp in metadata
+      metadata: sql`jsonb_set(
+        COALESCE(${feedbacks.metadata}, '{}'::jsonb),
+        '{linearSyncStartedAt}',
+        to_jsonb(${syncStartedAt}::text)
+      )`,
+    })
+    .where(
+      and(
+        eq(feedbacks.id, feedbackId),
+        // Not already synced to Linear
+        sql`${feedbacks.metadata}->>'linearIssueId' IS NULL`,
+        // No active lock OR lock is stale
+        or(
+          sql`${feedbacks.metadata}->>'linearSyncStartedAt' IS NULL`,
+          sql`${feedbacks.metadata}->>'linearSyncStartedAt' < ${staleThreshold}`
+        )
       )
-    RETURNING id, metadata, "createdAt"
-  `;
+    )
+    .returning({
+      id: feedbacks.id,
+      metadata: feedbacks.metadata,
+      createdAt: feedbacks.createdAt,
+    });
 
   const firstRow = result[0];
   if (firstRow) {
     return {
       lockAcquired: true,
-      metadata: firstRow.metadata,
+      metadata: firstRow.metadata as JsonObject | null,
       createdAt: firstRow.createdAt,
     };
   }
