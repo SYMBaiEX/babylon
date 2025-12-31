@@ -183,7 +183,8 @@ from .evaluation import (
     EVAL_METRICS,
 )
 
-# Phase 4: Advanced Features
+# Phase 4: Advanced Features (NOT YET INTEGRATED - ready for future use)
+# These modules are tested but not called by babylon_env.py or online_env.py
 from .kl_controller import (
     KLConfig,
     KLStats,

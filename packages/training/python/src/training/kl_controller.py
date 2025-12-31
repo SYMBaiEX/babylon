@@ -1,6 +1,10 @@
 """
 KL Divergence Controller for GRPO Training
 
+⚠️ STATUS: NOT YET INTEGRATED
+This module is ready to use but not currently called by babylon_env.py or online_env.py.
+To integrate, see TRAINING_ROADMAP.md Phase 4.
+
 Prevents reward hacking by penalizing divergence from a reference model.
 This helps maintain response quality while optimizing for rewards.
 

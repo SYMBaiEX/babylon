@@ -1,6 +1,11 @@
 """
 Babylon Online Environment for GRPO Training
 
+⚠️ STATUS: PHASE 3 - NOT YET IN PRODUCTION
+This module is ready to use but the current pipeline uses BabylonRLAIFEnv (offline).
+To use online training, run: make train-online (requires: make bridge-server)
+See TRAINING_ROADMAP.md Phase 3.
+
 This environment generates ON-POLICY rollouts for GRPO training.
 Unlike the offline BabylonRLAIFEnv which uses historical trajectories,
 this environment:

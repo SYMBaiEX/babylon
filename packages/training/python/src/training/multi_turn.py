@@ -1,6 +1,10 @@
 """
 Multi-Turn Episode Manager for GRPO Training
 
+⚠️ STATUS: NOT YET INTEGRATED
+This module is ready to use but not currently called by babylon_env.py or online_env.py.
+To integrate, see TRAINING_ROADMAP.md Phase 4.
+
 Handles multi-turn trading episodes with proper credit assignment
 using Generalized Advantage Estimation (GAE).
 
