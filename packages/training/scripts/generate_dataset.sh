@@ -170,3 +170,4 @@ echo "  2. Validate data:        python scripts/import_json_trajectories.py --dr
 echo "  3. Import to database:   python scripts/import_json_trajectories.py"
 echo ""
 
+
