@@ -333,6 +333,10 @@ export function usePerpHistory(
         if (priceDiff < 0.0001) return; // Skip tiny changes
       }
 
+      // Update ref BEFORE state setter to avoid mutation inside callback
+      // This is safe because we already passed the threshold check above
+      lastAppendedPriceRef.current = price;
+
       setHistory((prev) => {
         const lastPoint = prev.length > 0 ? prev[prev.length - 1] : null;
         const change = lastPoint ? price - lastPoint.price : 0;
@@ -353,7 +357,6 @@ export function usePerpHistory(
           next.shift();
         }
 
-        lastAppendedPriceRef.current = price;
         return next;
       });
     },
