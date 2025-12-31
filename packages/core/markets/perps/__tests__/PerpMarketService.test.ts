@@ -150,6 +150,7 @@ class InMemoryPerpDb implements PerpDbPort {
         | 'liquidationPrice'
         | 'lastUpdated'
         | 'size'
+        | 'entryPrice'
       >
     >
   ): Promise<void> {
@@ -470,25 +471,192 @@ describe('PerpMarketService', () => {
     expect(close.realizedPnL).toBeCloseTo(5, 4);
   });
 
-  it('prevents duplicate positions on same ticker', async () => {
-    await service.openPosition({
-      userId: 'u3',
-      ticker: 'ABC',
-      side: 'long',
-      size: 100,
-      leverage: 10,
+  describe('position rebalancing', () => {
+    it('adds to position when opening same side (increases size, averages entry)', async () => {
+      // Open initial LONG position at $100
+      const initial = await service.openPosition({
+        userId: 'u3',
+        ticker: 'ABC',
+        side: 'long',
+        size: 100,
+        leverage: 10,
+      });
+
+      // Move price to $120
+      await db.updateMarketStats('ABC', { currentPrice: 120 });
+
+      // Add to position (same side) at new price
+      const result = await service.openPosition({
+        userId: 'u3',
+        ticker: 'ABC',
+        side: 'long',
+        size: 100,
+        leverage: 10,
+      });
+
+      // Should rebalance existing position, not create new
+      expect(result.positionId).toBe(initial.positionId);
+      expect(result.isRebalance).toBe(true);
+      expect(result.rebalanceType).toBe('add');
+      expect(result.previousSize).toBe(100);
+      expect(result.previousEntryPrice).toBe(100);
+
+      // New size should be 200
+      expect(result.size).toBe(200);
+
+      // Entry price should be weighted average: (100*100 + 100*120) / 200 = 110
+      expect(result.entryPrice).toBeCloseTo(110, 4);
+
+      // Verify position in DB
+      const pos = await db.getPositionById(initial.positionId);
+      expect(pos?.size).toBe(200);
+      expect(pos?.entryPrice).toBeCloseTo(110, 4);
     });
 
-    // Try to open another position on same ticker - should fail
-    await expect(
-      service.openPosition({
+    it('reduces position when opening opposite side with smaller size', async () => {
+      // Open LONG position
+      const initial = await service.openPosition({
+        userId: 'u3',
+        ticker: 'ABC',
+        side: 'long',
+        size: 100,
+        leverage: 10,
+      });
+
+      // Open opposite side (SHORT) with smaller size - should reduce
+      const result = await service.openPosition({
         userId: 'u3',
         ticker: 'ABC',
         side: 'short',
-        size: 50,
-        leverage: 5,
-      })
-    ).rejects.toThrow(/Already have an open/);
+        size: 30,
+        leverage: 10,
+      });
+
+      expect(result.isRebalance).toBe(true);
+      expect(result.rebalanceType).toBe('reduce');
+      expect(result.previousSize).toBe(100);
+      expect(result.remainingSize).toBeCloseTo(70, 4);
+
+      // Position should still exist with reduced size
+      const pos = await db.getPositionById(initial.positionId);
+      expect(pos?.size).toBeCloseTo(70, 4);
+      expect(pos?.closedAt).toBeNull();
+    });
+
+    it('closes position when opening opposite side with equal size', async () => {
+      // Open LONG position
+      const initial = await service.openPosition({
+        userId: 'u3',
+        ticker: 'ABC',
+        side: 'long',
+        size: 100,
+        leverage: 10,
+      });
+
+      // Open opposite side with exact same size - should close
+      const result = await service.openPosition({
+        userId: 'u3',
+        ticker: 'ABC',
+        side: 'short',
+        size: 100,
+        leverage: 10,
+      });
+
+      expect(result.isRebalance).toBe(true);
+      expect(result.rebalanceType).toBe('close');
+      expect(result.fullyClosed).toBe(true);
+
+      // Position should be closed
+      const pos = await db.getPositionById(initial.positionId);
+      expect(pos?.closedAt).toBeDefined();
+    });
+
+    it('flips position when opening opposite side with larger size', async () => {
+      // Open LONG position of 100
+      const initial = await service.openPosition({
+        userId: 'u3',
+        ticker: 'ABC',
+        side: 'long',
+        size: 100,
+        leverage: 10,
+      });
+
+      // Open SHORT with larger size - should flip
+      const result = await service.openPosition({
+        userId: 'u3',
+        ticker: 'ABC',
+        side: 'short',
+        size: 150,
+        leverage: 10,
+      });
+
+      expect(result.isRebalance).toBe(true);
+      expect(result.rebalanceType).toBe('flip');
+      expect(result.side).toBe('short');
+      // New position size should be 150 - 100 = 50
+      expect(result.size).toBe(50);
+
+      // Original position should be closed
+      const oldPos = await db.getPositionById(initial.positionId);
+      expect(oldPos?.closedAt).toBeDefined();
+
+      // New position should exist
+      const positions = await db.getOpenPositionsByUser('u3');
+      expect(positions.length).toBe(1);
+      expect(positions[0]?.side).toBe('short');
+      expect(positions[0]?.size).toBe(50);
+    });
+
+    it('uses existing leverage when adding to position', async () => {
+      // Open with 10x leverage
+      await service.openPosition({
+        userId: 'u3',
+        ticker: 'ABC',
+        side: 'long',
+        size: 100,
+        leverage: 10,
+      });
+
+      // Try to add with 5x leverage - should use existing 10x
+      const result = await service.openPosition({
+        userId: 'u3',
+        ticker: 'ABC',
+        side: 'long',
+        size: 100,
+        leverage: 5, // This should be ignored
+      });
+
+      expect(result.leverage).toBe(10); // Uses existing leverage
+    });
+
+    it('charges fees only on added size, not total position', async () => {
+      await service.openPosition({
+        userId: 'u3',
+        ticker: 'ABC',
+        side: 'long',
+        size: 100,
+        leverage: 10,
+      });
+
+      const balanceAfterFirst = (await wallet.getBalance('u3')).balance;
+
+      // Add more to position
+      const result = await service.openPosition({
+        userId: 'u3',
+        ticker: 'ABC',
+        side: 'long',
+        size: 100,
+        leverage: 10,
+      });
+
+      const balanceAfterSecond = (await wallet.getBalance('u3')).balance;
+
+      // Fee should be 0.1% of 100 (added size) = 0.1
+      // Margin should be 100/10 = 10
+      // Total deducted = 10.1
+      expect(balanceAfterFirst - balanceAfterSecond).toBeCloseTo(10.1, 4);
+      expect(result.feePaid).toBeCloseTo(0.1, 4);
+    });
   });
 
   it('allows different users to open positions on same ticker', async () => {

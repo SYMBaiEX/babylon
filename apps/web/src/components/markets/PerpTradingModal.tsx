@@ -14,7 +14,11 @@ import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { usePerpTrade } from '@/hooks/usePerpTrade';
-import { useWalletBalance } from '@/hooks/useWalletBalance';
+import { invalidatePerpMarketsCache } from '@/stores/perpMarketsStore';
+import {
+  invalidateWalletBalance,
+  useWalletBalance,
+} from '@/stores/walletBalanceStore';
 import type { PerpMarket, TradeSide } from '@/types/markets';
 
 /**
@@ -72,7 +76,7 @@ export function PerpTradingModal({
     balance,
     loading: balanceLoading,
     refresh: refreshBalance,
-  } = useWalletBalance(user?.id, { enabled: Boolean(user?.id) && isOpen });
+  } = useWalletBalance(isOpen ? user?.id : null);
 
   // Body scroll lock using counter-based approach for multi-modal safety
   useBodyScrollLock(isOpen);
@@ -156,6 +160,9 @@ export function PerpTradingModal({
         description: `Opened ${leverage}x ${side} on ${market.ticker} at $${result.position.entryPrice.toFixed(2)}`,
       });
 
+      // Invalidate caches to ensure fresh data on next fetch
+      invalidatePerpMarketsCache();
+      invalidateWalletBalance();
       await refreshBalance();
       onSuccess?.();
       onClose();

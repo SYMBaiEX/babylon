@@ -11,7 +11,10 @@ import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
-import { useWalletBalance } from '@/hooks/useWalletBalance';
+import {
+  invalidateWalletBalance,
+  useWalletBalance,
+} from '@/stores/walletBalanceStore';
 import type { PredictionMarket } from '@/types/markets';
 
 /**
@@ -64,7 +67,7 @@ export function PredictionTradingModal({
     balance,
     loading: balanceLoading,
     refresh: refreshBalance,
-  } = useWalletBalance(user?.id, { enabled: Boolean(user?.id) && isOpen });
+  } = useWalletBalance(isOpen ? user?.id : null);
 
   // Body scroll lock using counter-based approach for multi-modal safety
   useBodyScrollLock(isOpen);
@@ -186,7 +189,8 @@ export function PredictionTradingModal({
         description: `${calculation?.sharesBought.toFixed(2)} shares at ${(calculation?.avgPrice ?? 0).toFixed(3)} each`,
       });
 
-      // Fire-and-forget balance refresh - don't block modal close
+      // Invalidate cache and refresh balance
+      invalidateWalletBalance();
       refreshBalance().catch((err) => {
         logger.warn(
           'Failed to refresh balance after trade',

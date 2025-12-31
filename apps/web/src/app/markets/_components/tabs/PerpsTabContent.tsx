@@ -1,6 +1,7 @@
 'use client';
 
 import type { PerpPosition } from '@babylon/shared';
+import { memo } from 'react';
 import { CategoryPnLCard } from '@/components/markets/CategoryPnLCard';
 import { PerpPositionsList } from '@/components/markets/PerpPositionsList';
 import type { PerpMarket } from '@/types/markets';
@@ -31,8 +32,10 @@ interface PerpsTabContentProps {
 /**
  * Perps tab content component.
  * Shows category P&L, user positions, and all available perp markets.
+ *
+ * Wrapped in React.memo to prevent unnecessary re-renders during tab switches.
  */
-export function PerpsTabContent({
+export const PerpsTabContent = memo(function PerpsTabContent({
   authenticated,
   perpPnLData,
   portfolioLoading,
@@ -94,4 +97,4 @@ export function PerpsTabContent({
       </div>
     </div>
   );
-}
+});
