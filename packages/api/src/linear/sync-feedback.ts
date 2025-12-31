@@ -6,12 +6,7 @@
  * Uses pure Drizzle ORM throughout for consistency.
  */
 
-import {
-  feedbacks,
-  getRawDrizzle,
-  type JsonObject,
-  type JsonValue,
-} from '@babylon/db';
+import { db, feedbacks, type JsonObject, type JsonValue } from '@babylon/db';
 import { and, eq, or, sql } from 'drizzle-orm';
 import { FeedbackTypeSchema, logger } from '@babylon/shared';
 import { z } from 'zod';
@@ -137,7 +132,6 @@ async function acquireSyncLock(
   // - Only acquires lock if linearIssueId is NULL (not already synced)
   // - Only acquires lock if linearSyncStartedAt is NULL OR older than TTL
   // - Uses RETURNING to get updated row in single round-trip
-  const db = getRawDrizzle();
   const result = await db
     .update(feedbacks)
     .set({
@@ -224,7 +218,6 @@ async function acquireSyncLock(
 async function clearSyncLock(feedbackId: string): Promise<void> {
   try {
     // Use Drizzle's update with sql template to atomically remove the lock key
-    const db = getRawDrizzle();
     await db
       .update(feedbacks)
       .set({
@@ -319,7 +312,6 @@ export async function syncFeedbackToLinear(
 
   // Atomically update metadata: remove lock and add issue info in one operation
   // Uses Drizzle's sql template with jsonb operators for atomic update
-  const db = getRawDrizzle();
   await db
     .update(feedbacks)
     .set({
