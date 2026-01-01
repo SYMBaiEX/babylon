@@ -109,7 +109,7 @@ import {
   chatParticipants,
   db,
   eq,
-  groupChatMemberships,
+  groupMembers,
   hasBlocked,
   users,
 } from '@babylon/db';
@@ -352,17 +352,17 @@ export const POST = withErrorHandling(
             // Wrap in transaction for consistency
             await db.transaction(async (tx) => {
               await tx
-                .update(groupChatMemberships)
+                .update(groupMembers)
                 .set({
                   isActive: false,
-                  removedAt: new Date(),
-                  sweepReason: 'Lost NFT access',
+                  kickedAt: new Date(),
+                  kickReason: 'Lost NFT access',
                 })
                 .where(
                   and(
-                    eq(groupChatMemberships.chatId, chatId),
-                    eq(groupChatMemberships.userId, user.userId),
-                    eq(groupChatMemberships.isActive, true)
+                    eq(groupMembers.groupId, chatId),
+                    eq(groupMembers.userId, user.userId),
+                    eq(groupMembers.isActive, true)
                   )
                 );
 
