@@ -77,6 +77,18 @@ help:
 	@echo "  make train-hybrid   Run hybrid training (mix offline + online)"
 	@echo "  make generate-data  Generate trajectories for offline training"
 	@echo ""
+	@echo "$(GREEN)Cloud & Production (Phase 4):$(RESET)"
+	@echo "  make docker-build   Build Docker image for cloud deployment"
+	@echo "  make train-cloud    Train with W&B logging enabled"
+	@echo "  make train-cloud-l40      Cloud training with 1x L40"
+	@echo "  make train-cloud-l40-2gpu Cloud training with 2x L40"
+	@echo "  make train-cloud-l40-4gpu Cloud training with 4x L40 (Qwen3 30B)"
+	@echo "  make train-cloud-online   Cloud online training with W&B"
+	@echo ""
+	@echo "$(GREEN)A/B Testing & Evaluation:$(RESET)"
+	@echo "  make ab-test        Run A/B test (MODEL_A vs MODEL_B)"
+	@echo "  make ab-test-quick  Quick A/B test with trained model"
+	@echo ""
 	@echo "$(GREEN)Development:$(RESET)"
 	@echo "  make venv           Create/update Python virtual environment"
 	@echo "  make lint           Run linting"
@@ -200,6 +212,59 @@ train-l40-2gpu:
 train-l40-4gpu:
 	$(MAKE) train PROFILE=l40-4gpu
 
+#---------------------------------------------------------------------------
+# Phase 4: Cloud & Production
+#---------------------------------------------------------------------------
+
+# Build Docker image for cloud deployment
+docker-build:
+	@echo "$(CYAN)Building Docker image for cloud deployment...$(RESET)"
+	docker build -t babylon-training:latest .
+	@echo "$(GREEN)✓ Docker image built: babylon-training:latest$(RESET)"
+
+# Production training with W&B logging (requires WANDB_API_KEY)
+train-cloud: db-up db-migrate
+	@echo "$(CYAN)Starting production cloud training with W&B logging...$(RESET)"
+	@if [ -z "$$WANDB_API_KEY" ]; then \
+		echo "$(YELLOW)Warning: WANDB_API_KEY not set. W&B logging will be disabled.$(RESET)"; \
+	fi
+	cd $(PYTHON_DIR) && DATABASE_URL=$(DB_URL) \
+		PATH="$(shell pwd)/$(PYTHON_DIR)/$(VENV_BIN):$$PATH" \
+		$(PYTHON) scripts/run_training.py \
+		--profile $(PROFILE) \
+		--wandb-project $(WANDB_PROJECT) \
+		$(if $(WANDB_ENTITY),--wandb-entity $(WANDB_ENTITY),) \
+		$(if $(WANDB_RUN_NAME),--wandb-run-name $(WANDB_RUN_NAME),)
+
+# Cloud training with specific L40 profiles
+train-cloud-l40:
+	$(MAKE) train-cloud PROFILE=l40
+
+train-cloud-l40-2gpu:
+	$(MAKE) train-cloud PROFILE=l40-2gpu
+
+train-cloud-l40-4gpu:
+	$(MAKE) train-cloud PROFILE=l40-4gpu
+
+# Online cloud training (with bridge)
+train-cloud-online: db-up db-migrate bridge-check
+	@echo "$(CYAN)Starting production online training with W&B logging...$(RESET)"
+	cd $(PYTHON_DIR) && DATABASE_URL=$(DB_URL) \
+		USE_SIMULATION_BRIDGE=1 \
+		SIMULATION_BRIDGE_URL=http://localhost:3001 \
+		PATH="$(shell pwd)/$(PYTHON_DIR)/$(VENV_BIN):$$PATH" \
+		$(PYTHON) scripts/run_training.py \
+		--profile $(PROFILE) \
+		--mode online \
+		--bridge-url http://localhost:3001 \
+		--wandb-project $(WANDB_PROJECT) \
+		$(if $(WANDB_ENTITY),--wandb-entity $(WANDB_ENTITY),)
+
+# Default W&B settings
+WANDB_PROJECT ?= babylon-training
+WANDB_ENTITY ?= 
+WANDB_RUN_NAME ?= 
+
 train: db-up db-migrate
 	@echo "$(CYAN)Starting training with profile: $(PROFILE)$(RESET)"
 	cd $(PYTHON_DIR) && DATABASE_URL=$(DB_URL) WANDB_MODE=offline \
@@ -259,6 +324,33 @@ generate-data:
 	@echo "$(CYAN)Generating training trajectories...$(RESET)"
 	./scripts/generate_dataset.sh $(HOURS) $(PARALLEL) $(NPCS) $(OUTPUT)
 	@echo "$(GREEN)✓ Data generation complete$(RESET)"
+
+#---------------------------------------------------------------------------
+# A/B Testing & Evaluation
+#---------------------------------------------------------------------------
+
+# Run A/B test comparing trained model against baseline
+ab-test:
+	@echo "$(CYAN)Running A/B test: $(MODEL_A) vs $(MODEL_B)$(RESET)"
+	cd $(PYTHON_DIR) && \
+		PATH="$(shell pwd)/$(PYTHON_DIR)/$(VENV_BIN):$$PATH" \
+		$(PYTHON) scripts/run_ab_test.py \
+		--model-a $(MODEL_A) \
+		--model-b $(MODEL_B) \
+		--num-runs $(AB_RUNS) \
+		--output-dir $(AB_OUTPUT) \
+		$(if $(AB_ARCHETYPES),--archetypes $(AB_ARCHETYPES),)
+
+# Quick A/B test with trained model vs base
+ab-test-quick:
+	$(MAKE) ab-test MODEL_B=./trained_models/final_model AB_RUNS=1
+
+# Default A/B test settings
+MODEL_A ?= Qwen/Qwen2.5-0.5B-Instruct
+MODEL_B ?= ./trained_models/final_model
+AB_RUNS ?= 3
+AB_OUTPUT ?= ./ab_test_results
+AB_ARCHETYPES ?=
 
 #---------------------------------------------------------------------------
 # Development

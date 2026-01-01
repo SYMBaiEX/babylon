@@ -197,6 +197,9 @@ class TrainingOrchestrator:
         mode: str = "offline",
         bridge_url: str = "http://localhost:3001",
         hybrid_online_ratio: float = 0.2,
+        # Phase 4: Cloud/Multi-GPU parameters
+        tensor_parallel_size: int = 1,
+        use_flash_attention: bool = False,
     ):
         self.model_name = model_name
         self.training_steps = training_steps
@@ -222,6 +225,9 @@ class TrainingOrchestrator:
         self.mode = mode
         self.bridge_url = bridge_url
         self.hybrid_online_ratio = hybrid_online_ratio
+        # Phase 4: Cloud/Multi-GPU
+        self.tensor_parallel_size = tensor_parallel_size
+        self.use_flash_attention = use_flash_attention
         
         self.env_process: Optional[subprocess.Popen] = None
         self.trainer_process: Optional[subprocess.Popen] = None
@@ -287,6 +293,9 @@ class TrainingOrchestrator:
             model_name=self.model_name,
             vllm_gpu_memory_utilization=self.vllm_gpu_memory,
             log_dir=str(self.log_dir / "services"),
+            # Phase 4: Multi-GPU support
+            tensor_parallel_size=self.tensor_parallel_size,
+            use_flash_attention=self.use_flash_attention,
         )
         
         self._service_manager = ServiceManager(config)
@@ -790,10 +799,15 @@ def main():
     if args.vllm_gpu_memory == 0.45 and "vllm_gpu_memory" in profile:  # 0.45 is the default
         args.vllm_gpu_memory = profile["vllm_gpu_memory"]
     
+    # Phase 4: Read multi-GPU settings from profile
+    args.tensor_parallel_size = profile.get("tensor_parallel_size", 1)
+    args.use_flash_attention = profile.get("use_flash_attention", False)
+    
     # Log effective settings
     if args.profile:
+        tp_info = f", tp={args.tensor_parallel_size}" if args.tensor_parallel_size > 1 else ""
         logger.info(f"Using profile '{args.profile}': model={args.model}, "
-                    f"vllm_mem={args.vllm_gpu_memory:.0%}, batch={args.batch_size}")
+                    f"vllm_mem={args.vllm_gpu_memory:.0%}, batch={args.batch_size}{tp_info}")
     
     # Validate environment
     if not args.skip_validation:
@@ -830,6 +844,9 @@ def main():
         mode=args.mode,
         bridge_url=args.bridge_url,
         hybrid_online_ratio=args.hybrid_online_ratio,
+        # Phase 4: Cloud/Multi-GPU
+        tensor_parallel_size=args.tensor_parallel_size,
+        use_flash_attention=args.use_flash_attention,
     )
     
     sys.exit(orchestrator.run())
