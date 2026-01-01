@@ -68,6 +68,10 @@ class ServiceConfig:
     vllm_dtype: str = "auto"
     vllm_max_model_len: int = 4096
     
+    # Multi-GPU settings (Phase 4)
+    tensor_parallel_size: int = 1  # Number of GPUs for tensor parallelism
+    use_flash_attention: bool = False  # Enable flash attention for performance
+    
     # Timeouts
     startup_timeout: int = 180  # 3 minutes for vLLM to load model
     health_check_interval: float = 2.0
@@ -316,6 +320,10 @@ class ServiceManager:
         logger.info(f"Starting vLLM server on port {port}...")
         logger.info(f"  Model: {cfg.model_name}")
         logger.info(f"  GPU Memory: {cfg.vllm_gpu_memory_utilization * 100:.0f}%")
+        if cfg.tensor_parallel_size > 1:
+            logger.info(f"  Tensor Parallel: {cfg.tensor_parallel_size} GPUs")
+        if cfg.use_flash_attention:
+            logger.info(f"  Flash Attention: enabled")
         
         if self._port_in_use(host, port):
             logger.warning(f"Port {port} already in use, assuming vLLM is running")
@@ -338,8 +346,20 @@ class ServiceManager:
             "--served-model-name", cfg.model_name,
         ]
         
+        # Multi-GPU tensor parallelism (Phase 4)
+        if cfg.tensor_parallel_size > 1:
+            cmd.extend(["--tensor-parallel-size", str(cfg.tensor_parallel_size)])
+        
         env = os.environ.copy()
-        env.setdefault("CUDA_VISIBLE_DEVICES", "0")
+        
+        # Set CUDA devices based on tensor parallel size
+        if cfg.tensor_parallel_size > 1:
+            # Use all GPUs for tensor parallelism
+            gpu_ids = ",".join(str(i) for i in range(cfg.tensor_parallel_size))
+            env["CUDA_VISIBLE_DEVICES"] = gpu_ids
+            logger.info(f"  Using GPUs: {gpu_ids}")
+        else:
+            env.setdefault("CUDA_VISIBLE_DEVICES", "0")
         
         try:
             process = subprocess.Popen(cmd, stdout=log_handle, stderr=subprocess.STDOUT, env=env)
