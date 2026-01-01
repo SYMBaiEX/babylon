@@ -183,6 +183,15 @@ from .evaluation import (
     EVAL_METRICS,
 )
 
+# Phase 4: A/B Testing & Production Evaluation
+from .ab_testing import (
+    ABTestRunner,
+    ABTestResult,
+    ModelResult,
+    EVAL_SCENARIOS,
+    run_ab_test,
+)
+
 # Phase 4: Advanced Features (NOT YET INTEGRATED - ready for future use)
 # These modules are tested but not called by babylon_env.py or online_env.py
 from .kl_controller import (
@@ -430,6 +439,12 @@ __all__ = [
     "get_wandb_config",
     "STEP_METRICS",
     "EVAL_METRICS",
+    # Phase 4: A/B Testing
+    "ABTestRunner",
+    "ABTestResult",
+    "ModelResult",
+    "EVAL_SCENARIOS",
+    "run_ab_test",
     # Phase 4: Advanced Features
     "KLConfig",
     "KLStats",
