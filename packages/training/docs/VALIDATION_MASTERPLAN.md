@@ -444,7 +444,50 @@ python scripts/run_training.py \
 
 ## Phase 8: Evaluation & Export
 
-### 8.1 Run Evaluation Suite
+### 8.1 Run A/B Test
+
+Compare your trained model against the baseline:
+
+```bash
+# Quick A/B test
+make ab-test-quick
+
+# Full A/B test with specific models
+make ab-test \
+  MODEL_A=Qwen/Qwen2.5-0.5B-Instruct \
+  MODEL_B=./trained_models/final_model \
+  AB_RUNS=5
+
+# Test specific archetypes
+make ab-test \
+  MODEL_B=./trained_models/final_model \
+  AB_ARCHETYPES="trader degen"
+```
+
+**Expected Output:**
+```
+======================================================================
+A/B TEST RESULTS
+======================================================================
+Model A: Qwen/Qwen2.5-0.5B-Instruct
+Model B: ./trained_models/final_model
+Scenarios: 30
+
+AGGREGATE METRICS:
+  Average Score: A=0.450, B=0.620
+  Format Rate:   A=85.0%, B=95.0%
+  Avg Latency:   A=150ms, B=155ms
+
+WIN RATES:
+  Model A Wins: 8 (26.7%)
+  Model B Wins: 20 (66.7%)
+  Ties: 2
+
+WINNER: Model B (+37.8% improvement)
+======================================================================
+```
+
+### 8.2 Run Evaluation Suite
 
 ```bash
 cd python && python -c "
