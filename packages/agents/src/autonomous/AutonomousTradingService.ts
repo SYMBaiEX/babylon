@@ -319,24 +319,6 @@ If holding:
         };
       }
 
-      const org = perpCompanies.find(
-        (o) => o.id === resolvedPerp.organizationId
-      );
-      if (!org) {
-        logger.info(
-          `[AutonomousTrading] Perp market not in prompt list: ${resolvedPerp.ticker}`,
-          { agentUserId },
-          'AutonomousTrading'
-        );
-        return {
-          tradesExecuted: 0,
-          marketId: undefined,
-          ticker: undefined,
-          side: undefined,
-          marketType: undefined,
-        };
-      }
-
       marketId = resolvedPerp.ticker;
       marketType = 'perp';
       side = trade.action as 'open_long' | 'open_short';
@@ -360,6 +342,7 @@ If holding:
       side,
       amount: trade.amount,
       reasoning: trade.reasoning,
+      skipPerpResolution: marketType === 'perp',
     });
 
     if (!result.success) {

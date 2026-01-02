@@ -60,15 +60,21 @@ export function resolvePerpTicker(
 
   // Partial match fallback for longer identifiers (e.g., "tesla stock")
   if (normalized.length >= 3) {
-    const partial = allOrgs.find((org) => {
-      const normalizedTicker = normalize(org.ticker ?? '');
-      const normalizedName = normalize(org.name);
-      const normalizedOriginal = normalize(org.originalName ?? '');
-
+    const matchesPrefix = (candidate: string | null | undefined) => {
+      if (!candidate) return false;
+      const normalizedCandidate = normalize(candidate);
+      if (!normalizedCandidate) return false;
       return (
-        normalizedTicker.includes(normalized) ||
-        normalizedName.includes(normalized) ||
-        normalizedOriginal.includes(normalized)
+        normalizedCandidate.startsWith(normalized) ||
+        normalized.startsWith(normalizedCandidate)
+      );
+    };
+
+    const partial = allOrgs.find((org) => {
+      return (
+        matchesPrefix(org.ticker) ||
+        matchesPrefix(org.name) ||
+        matchesPrefix(org.originalName)
       );
     });
 

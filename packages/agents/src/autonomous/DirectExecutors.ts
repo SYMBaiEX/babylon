@@ -45,10 +45,15 @@ import { resolvePerpTicker } from './utils/resolvePerpTicker';
 export interface DirectTradeParams {
   agentUserId: string;
   marketType: 'prediction' | 'perp';
-  marketId: string; // Market ID for prediction, ticker for perp
+  marketId: string; // Market ID for prediction, ticker/name/id for perp
   side: 'buy_yes' | 'buy_no' | 'open_long' | 'open_short';
   amount: number;
   reasoning?: string;
+  /**
+   * Skip resolving the perp ticker when the caller already passed the canonical ticker.
+   * Useful for services that call resolvePerpTicker upstream.
+   */
+  skipPerpResolution?: boolean;
 }
 
 export interface DirectTradeResult {
@@ -167,14 +172,17 @@ export async function executeDirectTrade(
     });
   }
 
-  const resolvedPerp = resolvePerpTicker(marketId);
-  if (!resolvedPerp) {
+  const perpTicker = params.skipPerpResolution
+    ? marketId
+    : resolvePerpTicker(marketId)?.ticker;
+
+  if (!perpTicker) {
     return { success: false, error: `Perp market not found: ${marketId}` };
   }
 
   return executePerpTrade({
     agentUserId,
-    ticker: resolvedPerp.ticker,
+    ticker: perpTicker,
     side: side as 'open_long' | 'open_short',
     amount,
     reasoning,
