@@ -1,0 +1,1 @@
+packages/db:tsc:cd /Users/studio/Documents/GitHub/babylon/packages/db && npx tsc --noEmit
