@@ -36,6 +36,7 @@ import { agentPnLService } from '../services/AgentPnLService';
 import { logger } from '../shared/logger';
 import { generateSnowflakeId } from '../shared/snowflake';
 import { topicDiversityService } from './TopicDiversityService';
+import { resolvePerpTicker } from './utils/resolvePerpTicker';
 
 // =============================================================================
 // Types
@@ -165,9 +166,15 @@ export async function executeDirectTrade(
       agentManagedBy,
     });
   }
+
+  const resolvedPerp = resolvePerpTicker(marketId);
+  if (!resolvedPerp) {
+    return { success: false, error: `Perp market not found: ${marketId}` };
+  }
+
   return executePerpTrade({
     agentUserId,
-    ticker: marketId,
+    ticker: resolvedPerp.ticker,
     side: side as 'open_long' | 'open_short',
     amount,
     reasoning,

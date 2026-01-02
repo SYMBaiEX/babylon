@@ -28,6 +28,7 @@ import { callGroqDirect } from '../llm/direct-groq';
 import { getAgentConfig } from '../shared/agent-config';
 import { logger } from '../shared/logger';
 import { executeDirectTrade } from './DirectExecutors';
+import { resolvePerpTicker } from './utils/resolvePerpTicker';
 
 export class AutonomousTradingService {
   /**
@@ -300,19 +301,13 @@ If holding:
       marketType = 'prediction';
       side = trade.action as 'buy_yes' | 'buy_no';
     } else if (trade.type === 'perp') {
-      // Find matching perp market
-      const org = perpCompanies.find((o) => {
-        const staticOrg = StaticDataRegistry.getOrganization(o.id);
-        return (
-          staticOrg?.name === trade.market ||
-          o.id === trade.market ||
-          staticOrg?.ticker === trade.market
-        );
-      });
-      if (!org) {
+      const perpIdentifier = trade.market;
+      const resolvedPerp = resolvePerpTicker(perpIdentifier);
+
+      if (!resolvedPerp) {
         logger.info(
-          `[AutonomousTrading] Perp market not found: ${trade.market}`,
-          undefined,
+          `[AutonomousTrading] Perp market not recognized: ${perpIdentifier}`,
+          { agentUserId },
           'AutonomousTrading'
         );
         return {
@@ -323,8 +318,26 @@ If holding:
           marketType: undefined,
         };
       }
-      const staticOrg = StaticDataRegistry.getOrganization(org.id);
-      marketId = staticOrg?.ticker || org.id;
+
+      const org = perpCompanies.find(
+        (o) => o.id === resolvedPerp.organizationId
+      );
+      if (!org) {
+        logger.info(
+          `[AutonomousTrading] Perp market not in prompt list: ${resolvedPerp.ticker}`,
+          { agentUserId },
+          'AutonomousTrading'
+        );
+        return {
+          tradesExecuted: 0,
+          marketId: undefined,
+          ticker: undefined,
+          side: undefined,
+          marketType: undefined,
+        };
+      }
+
+      marketId = resolvedPerp.ticker;
       marketType = 'perp';
       side = trade.action as 'open_long' | 'open_short';
     }
