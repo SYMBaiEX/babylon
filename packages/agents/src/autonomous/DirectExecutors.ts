@@ -109,6 +109,16 @@ export async function executeDirectTrade(
   const { agentUserId, marketType, marketId, side, reasoning } = params;
   let { amount } = params;
 
+  const looksLikeShareCount =
+    Number.isInteger(amount) && amount >= 1 && amount <= 10;
+  if (looksLikeShareCount) {
+    logger.warn(
+      `[DirectExecutor] Trade amount ${amount} looks like a share count. Expected Babylon Points.`,
+      { agentUserId, marketType, side },
+      'DirectExecutors'
+    );
+  }
+
   // Check if this is an NPC
   const npcActor = StaticDataRegistry.getActor(agentUserId);
   const isNpc = !!npcActor;
