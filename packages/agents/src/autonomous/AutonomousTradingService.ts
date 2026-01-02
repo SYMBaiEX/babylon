@@ -29,6 +29,10 @@ import { getAgentConfig } from '../shared/agent-config';
 import { logger } from '../shared/logger';
 import { executeDirectTrade } from './DirectExecutors';
 
+const SUGGESTED_TRADE_PERCENT = 0.1;
+const MIN_SUGGESTED_TRADE_SIZE = 10;
+const MIN_SUGGESTED_TRADE_SIZE_LABEL = MIN_SUGGESTED_TRADE_SIZE.toFixed(0);
+
 export class AutonomousTradingService {
   /**
    * Evaluate and execute trades for an agent
@@ -149,7 +153,10 @@ export class AutonomousTradingService {
 
     const suggestedTradeSize =
       balance.balance > 0
-        ? Math.min(Math.max(balance.balance * 0.1, 5), balance.balance)
+        ? Math.min(
+            Math.max(balance.balance * SUGGESTED_TRADE_PERCENT, MIN_SUGGESTED_TRADE_SIZE),
+            balance.balance
+          )
         : 0;
     const suggestedTradeSizeText = suggestedTradeSize.toFixed(2);
 
@@ -173,7 +180,7 @@ ${contextString}
 
 Strategy: ${config?.tradingStrategy || 'Balanced risk/reward seeking alpha'}
 
-Suggested Trade Size (10% of balance): $${suggestedTradeSizeText}
+Suggested Trade Size (10% of balance, min $${MIN_SUGGESTED_TRADE_SIZE_LABEL}): $${suggestedTradeSizeText}
 Recommended range: invest roughly 5-20% of your balance per trade.
 
 Task: Decide on ONE trade to make, or hold if nothing looks good.

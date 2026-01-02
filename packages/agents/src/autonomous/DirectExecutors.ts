@@ -37,6 +37,9 @@ import { logger } from '../shared/logger';
 import { generateSnowflakeId } from '../shared/snowflake';
 import { topicDiversityService } from './TopicDiversityService';
 
+const SHARE_LIKE_MAX_INTEGER = 10;
+const SHARE_LIKE_RATIO_THRESHOLD = 0.01;
+
 // =============================================================================
 // Types
 // =============================================================================
@@ -109,16 +112,6 @@ export async function executeDirectTrade(
   const { agentUserId, marketType, marketId, side, reasoning } = params;
   let { amount } = params;
 
-  const looksLikeShareCount =
-    Number.isInteger(amount) && amount >= 1 && amount <= 10;
-  if (looksLikeShareCount) {
-    logger.warn(
-      `[DirectExecutor] Trade amount ${amount} looks like a share count. Expected Babylon Points.`,
-      { agentUserId, marketType, side },
-      'DirectExecutors'
-    );
-  }
-
   // Check if this is an NPC
   const npcActor = StaticDataRegistry.getActor(agentUserId);
   const isNpc = !!npcActor;
@@ -135,6 +128,24 @@ export async function executeDirectTrade(
   } else {
     const walletBalance = await WalletService.getBalance(agentUserId);
     balance = walletBalance.balance;
+  }
+
+  const looksLikeShareCount =
+    Number.isInteger(amount) &&
+    amount >= 1 &&
+    amount <= SHARE_LIKE_MAX_INTEGER &&
+    balance > 0 &&
+    amount / balance < SHARE_LIKE_RATIO_THRESHOLD;
+  if (looksLikeShareCount) {
+    logger.warn(
+      `[DirectExecutor] Trade amount $${amount.toFixed(
+        2
+      )} looks like a share count relative to $${balance.toFixed(
+        2
+      )} balance. Expected Babylon Points.`,
+      { agentUserId, marketType, side, balance },
+      'DirectExecutors'
+    );
   }
 
   // Cannot trade more than balance
