@@ -68,7 +68,10 @@ import {
 } from './services/article-image-service';
 import { characterMappingService } from './services/character-mapping-service';
 // Content generation helpers
-import { generateEvents } from './services/event-generation-helpers';
+import {
+  generateArcPulseEventsIfNeeded,
+  generateEvents,
+} from './services/event-generation-helpers';
 import { bootstrapGameIfNeeded } from './services/game-bootstrap-service';
 import { MarketContextService } from './services/market-context-service';
 import { NPCGroupDynamicsService } from './services/npc-group-dynamics-service';
@@ -541,7 +544,12 @@ export async function executeGameTick(
       timestamp,
       dayNumberForTimestamp(timestamp)
     );
-    result.eventsCreated = eventsGenerated;
+    const pulseEventsGenerated = await generateArcPulseEventsIfNeeded(
+      currentActiveQuestions.slice(0, 3),
+      timestamp,
+      dayNumberForTimestamp(timestamp)
+    );
+    result.eventsCreated = eventsGenerated + pulseEventsGenerated;
 
     // NPC posts and replies are now handled by /api/cron/npc-tick
     // This removes the old generateMixedPosts and generateNPCRepliesFromPreviousTicks calls
