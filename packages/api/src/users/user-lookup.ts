@@ -5,8 +5,9 @@
  */
 
 import { db, eq, or, users } from '@babylon/db';
-import { StaticDataRegistry, type StaticActor } from '@babylon/engine';
+import { type StaticActor, StaticDataRegistry } from '@babylon/engine';
 import type { InferSelectModel } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 import type { SelectedFields } from 'drizzle-orm/pg-core';
 import { NotFoundError } from '../errors';
 
@@ -16,7 +17,7 @@ type User = InferSelectModel<typeof users>;
  * Find user by identifier (ID, privyId, or username)
  *
  * @description Searches for a user by their ID, privyId, or username.
- * Returns null if no user is found.
+ * Returns null if no user is found. Username matching is case-insensitive.
  *
  * @param {string} identifier - The user ID, privyId, or username
  * @param {Record<string, boolean>} [_select] - Optional select fields (for compatibility, currently ignored)
@@ -34,7 +35,7 @@ export async function findUserByIdentifier(
   identifier: string,
   _select?: Record<string, boolean>
 ): Promise<User | null> {
-  // Try to find by ID, privyId, or username
+  // Try to find by ID, privyId, or username (case-insensitive for username)
   const [user] = await db
     .select()
     .from(users)
@@ -42,7 +43,7 @@ export async function findUserByIdentifier(
       or(
         eq(users.id, identifier),
         eq(users.privyId, identifier),
-        eq(users.username, identifier)
+        sql`lower(${users.username}) = lower(${identifier})`
       )
     )
     .limit(1);
@@ -54,6 +55,7 @@ export async function findUserByIdentifier(
  * Find user by identifier with custom select fields
  *
  * @description Searches for a user with a custom selection of fields.
+ * Username matching is case-insensitive.
  *
  * @param {string} identifier - The user ID, privyId, or username
  * @param {T} select - Fields to select
@@ -78,7 +80,7 @@ export async function findUserByIdentifierWithSelect<
       or(
         eq(users.id, identifier),
         eq(users.privyId, identifier),
-        eq(users.username, identifier)
+        sql`lower(${users.username}) = lower(${identifier})`
       )
     )
     .limit(1);

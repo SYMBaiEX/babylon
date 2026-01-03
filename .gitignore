@@ -99,6 +99,7 @@ circular-deps.*
 
 # Continuous Claude cache (local only)
 .claude/cache/
+.claude/tsc-cache/
 /thoughts
 
 # START Ruler Generated Files

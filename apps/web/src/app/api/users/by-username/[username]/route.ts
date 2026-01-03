@@ -86,6 +86,7 @@ import {
   users,
 } from '@babylon/db';
 import { logger, UsernameParamSchema } from '@babylon/shared';
+import { sql } from 'drizzle-orm';
 import type { NextRequest } from 'next/server';
 
 /**
@@ -103,7 +104,7 @@ export const GET = withErrorHandling(
     // Optional authentication
     await optionalAuth(request);
 
-    // Get user profile by username
+    // Get user profile by username (case-insensitive)
     const [dbUser] = await db
       .select({
         id: users.id,
@@ -133,7 +134,7 @@ export const GET = withErrorHandling(
         createdAt: users.createdAt,
       })
       .from(users)
-      .where(eq(users.username, username))
+      .where(sql`lower(${users.username}) = lower(${username})`)
       .limit(1);
 
     if (!dbUser) {
