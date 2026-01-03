@@ -811,7 +811,9 @@ export async function executeDirectMessage(
       .select({ chatId: chatParticipants.chatId })
       .from(chatParticipants)
       .innerJoin(chats, eq(chatParticipants.chatId, chats.id))
-      .where(and(eq(chatParticipants.userId, agentUserId), eq(chats.isGroup, false)));
+      .where(
+        and(eq(chatParticipants.userId, agentUserId), eq(chats.isGroup, false))
+      );
 
     const agentChatIds = agentParticipations.map((p) => p.chatId);
 
@@ -874,7 +876,10 @@ export async function executeDirectMessage(
   }
 
   if (!chatId) {
-    return { success: false, error: 'Chat ID required or could not be resolved' };
+    return {
+      success: false,
+      error: 'Chat ID required or could not be resolved',
+    };
   }
 
   // Verify chat exists (if provided directly)

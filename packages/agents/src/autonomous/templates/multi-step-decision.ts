@@ -440,7 +440,9 @@ function formatAvailableActions(enabledFeatures: string[]): string {
 
   if (enabledFeatures.includes('DMs')) {
     actions.push('- RESPOND: Batch respond to pending DMs/mentions');
-    actions.push('- DM: Start a new direct message conversation (provide recipientId)');
+    actions.push(
+      '- DM: Start a new direct message conversation (provide recipientId)'
+    );
   }
 
   actions.push('- (empty action with isFinish=true): Finish this tick');
