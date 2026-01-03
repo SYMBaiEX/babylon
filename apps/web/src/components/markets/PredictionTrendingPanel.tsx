@@ -1,6 +1,6 @@
 'use client';
 
-import { cn } from '@babylon/shared';
+import { cn, formatNumberWithSeparators } from '@babylon/shared';
 import { Flame } from 'lucide-react';
 import { useMemo } from 'react';
 import { Skeleton } from '@/components/shared/Skeleton';
@@ -100,7 +100,10 @@ export function PredictionTrendingPanel({
               </div>
               <div className="flex items-center justify-between pt-1 text-muted-foreground text-xs">
                 <span>
-                  Volume: {(market.yesShares + market.noShares).toFixed(0)}{' '}
+                  Volume:{' '}
+                  {formatNumberWithSeparators(
+                    market.yesShares + market.noShares
+                  )}{' '}
                   shares
                 </span>
                 <span className="font-semibold text-green-600">

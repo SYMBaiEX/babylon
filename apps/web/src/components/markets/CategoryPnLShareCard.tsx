@@ -59,7 +59,10 @@ interface CategoryPnLShareCardProps {
  */
 function formatCurrency(value: number) {
   const safeValue = Number.isFinite(value) ? value : 0;
-  return `${BABYLON_POINTS_SYMBOL}${safeValue.toFixed(2)}`;
+  return `${BABYLON_POINTS_SYMBOL}${safeValue.toLocaleString('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
 }
 
 /**
