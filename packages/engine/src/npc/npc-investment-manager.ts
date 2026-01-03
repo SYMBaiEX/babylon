@@ -10,6 +10,7 @@
 
 import {
   actorRelationships,
+  actorState,
   and,
   db,
   isNull,
@@ -301,44 +302,36 @@ export class NPCInvestmentManager {
    * Build baseline allocation decisions for NPC pools lacking exposure
    */
   private static async buildBaselineDecisions(): Promise<TradingDecision[]> {
-    // Get active pools
-    const activePoolsResult = await db
-      .select()
-      .from(pools)
-      .where(eq(pools.isActive, true));
-
-    if (activePoolsResult.length === 0) {
-      return [];
-    }
-
-    // Get open positions for these pools
-    const poolIds = activePoolsResult.map((p) => p.id);
-    const allPositions = await db
+    // The trading system has moved away from pool balances and uses actorState.tradingBalance
+    // directly. We keep poolPositions as "back-compat" storage keyed by poolId=actorId.
+    //
+    // Baseline allocations should therefore be computed from actorState + open positions,
+    // rather than the (often stale) pools.availableBalance field.
+    const npcStates = await db
       .select({
-        id: poolPositions.id,
-        poolId: poolPositions.poolId,
-        closedAt: poolPositions.closedAt,
+        id: actorState.id,
+        tradingBalance: actorState.tradingBalance,
       })
+      .from(actorState);
+
+    if (npcStates.length === 0) return [];
+
+    const actorIds = npcStates.map((npc) => npc.id);
+
+    // Open prediction positions are stored in poolPositions with poolId = actorId.
+    const openPredictionPositions = await db
+      .select({ poolId: poolPositions.poolId })
       .from(poolPositions)
-      .where(inArray(poolPositions.poolId, poolIds));
-
-    const openPositionsByPool = new Map<string, { id: string }[]>();
-    allPositions.forEach((pos) => {
-      if (pos.closedAt === null) {
-        const existing = openPositionsByPool.get(pos.poolId) ?? [];
-        existing.push({ id: pos.id });
-        openPositionsByPool.set(pos.poolId, existing);
-      }
-    });
-
-    // Add position info to pools
-    const activePools = activePoolsResult.map((pool) => ({
-      ...pool,
-      PoolPosition: openPositionsByPool.get(pool.id) ?? [],
-    }));
-
-    const actorIds = Array.from(
-      new Set(activePools.map((pool) => pool.npcActorId))
+      .where(
+        and(
+          inArray(poolPositions.poolId, actorIds),
+          isNull(poolPositions.closedAt)
+        )
+      );
+    const actorIdsWithOpenPredictionPositions = new Set(
+      openPredictionPositions
+        .map((p) => p.poolId)
+        .filter((id): id is string => Boolean(id))
     );
 
     // Get existing OPEN perp positions for these actors (userId = actorId for NPCs)
@@ -346,7 +339,6 @@ export class NPCInvestmentManager {
     const existingPerpPositions = await db
       .select({
         userId: perpPositions.userId,
-        ticker: perpPositions.ticker,
         organizationId: perpPositions.organizationId,
       })
       .from(perpPositions)
@@ -357,13 +349,16 @@ export class NPCInvestmentManager {
         )
       );
 
-    // Build set of "actorId:orgId" combinations that already have positions
-    // We use organizationId for matching since that's more reliable than ticker
+    // Build set of "actorId:orgId" combinations that already have positions.
+    // We use organizationId for matching since decision tickers are frequently org IDs.
     const existingPerpPositionKeys = new Set(
       existingPerpPositions.map(
         (p: { userId: string; organizationId: string }) =>
           `${p.userId}:${p.organizationId.toLowerCase()}`
       )
+    );
+    const actorIdsWithOpenPerpPositions = new Set(
+      existingPerpPositions.map((p) => p.userId)
     );
 
     // Get organizations from static registry with dynamic prices
@@ -461,20 +456,29 @@ export class NPCInvestmentManager {
 
     const baselineDecisions: TradingDecision[] = [];
 
-    for (const pool of activePools) {
-      // Skip pools that already hold positions
-      if (pool.PoolPosition.length > 0) {
+    const balanceByActorId = new Map(
+      npcStates.map((npc) => [
+        npc.id,
+        Number.parseFloat(npc.tradingBalance?.toString() ?? '0'),
+      ])
+    );
+
+    for (const actorId of actorIds) {
+      // Only run baseline allocation for NPCs with *no* open positions at all.
+      // Once an NPC has started trading, MarketDecisionEngine should take over.
+      if (
+        actorIdsWithOpenPredictionPositions.has(actorId) ||
+        actorIdsWithOpenPerpPositions.has(actorId)
+      ) {
         continue;
       }
 
-      const actor = actorMap.get(pool.npcActorId);
+      const actor = actorMap.get(actorId);
       if (!actor) {
         continue;
       }
 
-      const availableBalance = Number.parseFloat(
-        pool.availableBalance.toString()
-      );
+      const availableBalance = balanceByActorId.get(actor.id) ?? 0;
       if (availableBalance <= 0) {
         continue;
       }
