@@ -157,11 +157,10 @@ export function FollowButton({
     });
 
     if (response.ok) {
-      const newFollowingState = !isFollowing;
-      setIsFollowing(newFollowingState);
-      onFollowChange?.(newFollowingState);
+      // Success! State was already updated optimistically above
+      // Just track the action, don't update state again (causes race condition)
       trackFollow(userId, newFollowingState);
-      // Success! The follower count is already updated via onFollowerCountChange callback
+      // Follower count is already updated via onFollowerCountChange callback
     } else {
       // Revert optimistic update on error
       setIsFollowing(!newFollowingState);
