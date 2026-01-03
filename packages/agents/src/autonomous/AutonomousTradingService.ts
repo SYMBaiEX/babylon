@@ -29,6 +29,10 @@ import { getAgentConfig } from '../shared/agent-config';
 import { logger } from '../shared/logger';
 import { executeDirectTrade } from './DirectExecutors';
 
+const SUGGESTED_TRADE_PERCENT = 0.1;
+const MIN_SUGGESTED_TRADE_SIZE = 10;
+const MIN_SUGGESTED_TRADE_SIZE_LABEL = MIN_SUGGESTED_TRADE_SIZE.toFixed(0);
+
 export class AutonomousTradingService {
   /**
    * Evaluate and execute trades for an agent
@@ -147,6 +151,15 @@ export class AutonomousTradingService {
       })
       .join('\n');
 
+    const suggestedTradeSize =
+      balance.balance > 0
+        ? Math.min(
+            Math.max(balance.balance * SUGGESTED_TRADE_PERCENT, MIN_SUGGESTED_TRADE_SIZE),
+            balance.balance
+          )
+        : 0;
+    const suggestedTradeSizeText = suggestedTradeSize.toFixed(2);
+
     // Build trading prompt
     const prompt = `${config?.systemPrompt ?? 'You are an AI trading agent on Babylon.'}
 
@@ -167,6 +180,9 @@ ${contextString}
 
 Strategy: ${config?.tradingStrategy || 'Balanced risk/reward seeking alpha'}
 
+Suggested Trade Size (10% of balance, min $${MIN_SUGGESTED_TRADE_SIZE_LABEL}): $${suggestedTradeSizeText}
+Recommended range: invest roughly 5-20% of your balance per trade.
+
 Task: Decide on ONE trade to make, or hold if nothing looks good.
 
 Output JSON only:
@@ -176,10 +192,12 @@ Output JSON only:
     "type": "prediction" | "perp",
     "market": "market_id or ticker",
     "action": "buy_yes" | "buy_no" | "open_long" | "open_short",
-    "amount": 50,
+    "amount_in_points": 50,
     "reasoning": "Brief reason"
   }
 }
+
+IMPORTANT: "amount_in_points" is the number of Babylon Points (1 pt = $1 USD) you want to invest, NOT a share count.
 
 If holding:
 {
@@ -231,7 +249,8 @@ If holding:
         type: 'prediction' | 'perp';
         market: string;
         action: string;
-        amount: number;
+        amount?: number | string;
+        amount_in_points?: number | string;
         reasoning?: string;
       };
       reasoning?: string;
@@ -271,6 +290,29 @@ If holding:
     }
 
     const trade = tradeDecision.trade;
+    const rawAmount =
+      trade.amount_in_points ?? trade.amount;
+    const normalizedAmount =
+      typeof rawAmount === 'string' ? Number(rawAmount) : rawAmount;
+
+    if (
+      typeof normalizedAmount !== 'number' ||
+      Number.isNaN(normalizedAmount) ||
+      normalizedAmount <= 0
+    ) {
+      logger.warn(
+        `[AutonomousTrading] Invalid trade amount provided`,
+        { agentUserId, rawAmount },
+        'AutonomousTrading'
+      );
+      return {
+        tradesExecuted: 0,
+        marketId: undefined,
+        ticker: undefined,
+        side: undefined,
+        marketType: undefined,
+      };
+    }
 
     // Map LLM decision to DirectExecutor parameters
     let marketId: string | undefined;
@@ -345,7 +387,7 @@ If holding:
       marketType,
       marketId,
       side,
-      amount: trade.amount,
+      amount: normalizedAmount,
       reasoning: trade.reasoning,
     });
 
