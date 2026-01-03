@@ -221,7 +221,8 @@ ${context.assignedMarketId && canTrade ? `# YOUR FOCUS MARKET: ${context.assigne
 2. **One Action**: Choose ONE action per iteration
 3. **No Duplicates**: Don't repeat the same action on the same target
 4. **Know When to Stop**: Set isFinish=true after 2-3 meaningful actions or when done
-${canComment ? '5. **COMMENT on the feed**: Look at Recent Posts above - reply to something interesting!' : ''}
+5. **PRIVACY**: NEVER use POST to reply to a private message (DM). Use RESPOND for all DMs.
+${canComment ? '6. **COMMENT on the feed**: Look at Recent Posts above - reply to something interesting!' : ''}
 
 # Action Ideas
 ${canTrade ? '- **TRADE**: Take a position on a market' : ''}
@@ -291,7 +292,7 @@ ${
     ? `
 POST:
 {
-  "content": "Short post (1-2 sentences). NO full market questions! Use summaries like 'the TeslAI bet' or 'BitcAIn drop prediction'"
+  "content": "Short post (1-2 sentences). NO full market questions! NO replies to DMs! Use summaries like 'the TeslAI bet' or 'BitcAIn drop prediction'"
 }`
     : ''
 }
