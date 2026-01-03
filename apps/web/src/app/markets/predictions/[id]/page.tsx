@@ -147,9 +147,10 @@ export default function PredictionDetailPage() {
         : undefined,
     [market, effectiveShares]
   );
-  const { history: priceHistory } = usePredictionHistory(marketId ?? null, {
-    seed: historySeed,
-  });
+  const { history: priceHistory, refresh: refreshPriceHistory } =
+    usePredictionHistory(marketId ?? null, {
+      seed: historySeed,
+    });
   const amountNum = Number.parseFloat(amount) || 0;
   const calculation =
     amountNum > 0 && effectiveShares
@@ -331,8 +332,8 @@ export default function PredictionDetailPage() {
       description: `${calculation?.sharesBought?.toFixed(2) || ''} shares at ${(calculation?.avgPrice || 0).toFixed(3)} each`,
     });
 
-    // Refresh data
-    await fetchMarketData();
+    // Refresh data (market data and price history for chart)
+    await Promise.all([fetchMarketData(), refreshPriceHistory()]);
     setSubmitting(false);
   };
 
@@ -498,7 +499,8 @@ export default function PredictionDetailPage() {
                   think it won&apos;t.
                 </p>
                 <p className="text-muted-foreground text-sm">
-                  If you&apos;re right, you&apos;ll receive $1 per share. The
+                  If you&apos;re right, you&apos;ll receive {BABYLON_POINTS_SYMBOL}1 per share. The
+                  current price reflects the market&apos;s probability.
                   current price reflects the market&apos;s probability.
                 </p>
               </div>
@@ -616,7 +618,7 @@ export default function PredictionDetailPage() {
             {/* Amount Input */}
             <div className="mb-4">
               <label className="mb-2 block font-medium text-muted-foreground text-sm">
-                Amount (PTS)
+                Amount ({BABYLON_POINTS_SYMBOL})
               </label>
               <input
                 type="number"

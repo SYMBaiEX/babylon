@@ -9,6 +9,7 @@
  */
 
 import { describe, expect, it } from 'bun:test';
+import { BABYLON_POINTS_SYMBOL } from '@babylon/shared';
 
 // Mock data generator
 const generateMockPriceData = (count: number, startPrice = 100) => {
@@ -102,49 +103,49 @@ describe('PerpPriceChart - Data Processing', () => {
   describe('Price Formatting Logic', () => {
     it('should format billions correctly', () => {
       const price = 1500000000;
-      const formatted = `$${(price / 1000000000).toFixed(2)}B`;
+      const formatted = `${BABYLON_POINTS_SYMBOL}${(price / 1000000000).toFixed(2)}B`;
 
-      expect(formatted).toBe('$1.50B');
+      expect(formatted).toBe(`${BABYLON_POINTS_SYMBOL}1.50B`);
     });
 
     it('should format millions correctly', () => {
       const price = 1500000;
-      const formatted = `$${(price / 1000000).toFixed(2)}M`;
+      const formatted = `${BABYLON_POINTS_SYMBOL}${(price / 1000000).toFixed(2)}M`;
 
-      expect(formatted).toBe('$1.50M');
+      expect(formatted).toBe(`${BABYLON_POINTS_SYMBOL}1.50M`);
     });
 
     it('should format thousands correctly', () => {
       const price = 1500;
-      const formatted = `$${(price / 1000).toFixed(2)}K`;
+      const formatted = `${BABYLON_POINTS_SYMBOL}${(price / 1000).toFixed(2)}K`;
 
-      expect(formatted).toBe('$1.50K');
+      expect(formatted).toBe(`${BABYLON_POINTS_SYMBOL}1.50K`);
     });
 
     it('should format regular prices correctly', () => {
       const price = 123.456;
-      const formatted = `$${price.toFixed(2)}`;
+      const formatted = `${BABYLON_POINTS_SYMBOL}${price.toFixed(2)}`;
 
-      expect(formatted).toBe('$123.46');
+      expect(formatted).toBe(`${BABYLON_POINTS_SYMBOL}123.46`);
     });
 
     it('should format small decimals correctly', () => {
       const price = 0.001234;
-      const formatted = `$${price.toFixed(6)}`;
+      const formatted = `${BABYLON_POINTS_SYMBOL}${price.toFixed(6)}`;
 
-      expect(formatted).toBe('$0.001234');
+      expect(formatted).toBe(`${BABYLON_POINTS_SYMBOL}0.001234`);
     });
 
     it('should format very small decimals correctly', () => {
       const price = 0.00000123;
-      const formatted = `$${price.toFixed(8)}`;
+      const formatted = `${BABYLON_POINTS_SYMBOL}${price.toFixed(8)}`;
 
-      expect(formatted).toBe('$0.00000123');
+      expect(formatted).toBe(`${BABYLON_POINTS_SYMBOL}0.00000123`);
     });
 
     it('should handle zero price', () => {
       const price = 0;
-      const formatted = price === 0 ? '' : `$${price}`;
+      const formatted = price === 0 ? '' : `${BABYLON_POINTS_SYMBOL}${price}`;
 
       expect(formatted).toBe('');
     });

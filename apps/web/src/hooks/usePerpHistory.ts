@@ -2,6 +2,7 @@ import { logger } from '@babylon/shared';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { useMarketPrices } from '@/hooks/useMarketPrices';
+import { usePerpMarketStream } from '@/hooks/usePerpMarketStream';
 
 /**
  * Represents a single point in perpetual market price history.
@@ -319,41 +320,70 @@ export function usePerpHistory(
     void fetchHistory();
   }, [fetchHistory]);
 
-  // Append live price updates
-  useEffect(() => {
-    if (!livePrice?.price || !ticker) return;
-
-    // Only append if price has changed significantly (0.01% threshold)
-    const lastPrice = lastAppendedPriceRef.current;
-    if (lastPrice) {
-      const priceDiff = Math.abs(livePrice.price - lastPrice) / lastPrice;
-      if (priceDiff < 0.0001) return; // Skip tiny changes
-    }
-
-    setHistory((prev) => {
-      const lastPoint = prev.length > 0 ? prev[prev.length - 1] : null;
-      const change = lastPoint ? livePrice.price - lastPoint.price : 0;
-      const changePercent = lastPoint?.price
-        ? (change / lastPoint.price) * 100
-        : 0;
-
-      const point: PerpHistoryPoint = {
-        time: Date.now(),
-        price: livePrice.price,
-        change,
-        changePercent,
-        volume: 0,
-      };
-
-      const next = [...prev, point];
-      if (next.length > limit) {
-        next.shift();
+  /**
+   * Append a new price point to history.
+   * Used by both live price updates and trade events.
+   */
+  const appendPricePoint = useCallback(
+    (price: number, volume?: number) => {
+      // Only append if price has changed significantly (0.01% threshold)
+      const lastPrice = lastAppendedPriceRef.current;
+      if (lastPrice) {
+        const priceDiff = Math.abs(price - lastPrice) / lastPrice;
+        if (priceDiff < 0.0001) return; // Skip tiny changes
       }
 
-      lastAppendedPriceRef.current = livePrice.price;
-      return next;
-    });
-  }, [livePrice?.price, ticker, limit]);
+      // Update ref BEFORE state setter to avoid mutation inside callback
+      // This is safe because we already passed the threshold check above
+      lastAppendedPriceRef.current = price;
+
+      setHistory((prev) => {
+        const lastPoint = prev.length > 0 ? prev[prev.length - 1] : null;
+        const change = lastPoint ? price - lastPoint.price : 0;
+        const changePercent = lastPoint?.price
+          ? (change / lastPoint.price) * 100
+          : 0;
+
+        const point: PerpHistoryPoint = {
+          time: Date.now(),
+          price,
+          change,
+          changePercent,
+          volume: volume ?? 0,
+        };
+
+        const next = [...prev, point];
+        if (next.length > limit) {
+          next.shift();
+        }
+
+        return next;
+      });
+    },
+    [limit]
+  );
+
+  // Append live price updates from SSE price_update events
+  useEffect(() => {
+    if (!livePrice?.price || !ticker) return;
+    appendPricePoint(livePrice.price);
+  }, [livePrice?.price, ticker, appendPricePoint]);
+
+  // Subscribe to perp trade events for real-time chart updates
+  // This ensures the chart updates even when price_update events are not sent
+  // (e.g., when price change is too small to trigger a broadcast)
+  usePerpMarketStream(ticker, {
+    onTrade: useCallback(
+      (event) => {
+        // Use exitPrice for close events, entryPrice for open events
+        const tradePrice = event.exitPrice ?? event.entryPrice;
+        if (tradePrice && Number.isFinite(tradePrice) && tradePrice > 0) {
+          appendPricePoint(tradePrice, event.size);
+        }
+      },
+      [appendPricePoint]
+    ),
+  });
 
   return {
     history,

@@ -4,7 +4,12 @@ import { FEE_CONFIG, WalletService } from '@babylon/engine';
 import type { JsonValue } from '@babylon/shared';
 import { logger } from '@babylon/shared';
 
-export type PriceUpdateSource = 'user_trade' | 'npc_trade' | 'event' | 'system';
+export type PriceUpdateSource =
+  | 'user_trade'
+  | 'npc_trade'
+  | 'event'
+  | 'system'
+  | 'volatility_simulation';
 
 export interface PriceUpdateInput {
   organizationId: string;

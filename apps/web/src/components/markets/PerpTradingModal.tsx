@@ -157,7 +157,7 @@ export function PerpTradingModal({
       });
 
       toast.success('Position opened!', {
-        description: `Opened ${leverage}x ${side} on ${market.ticker} at $${result.position.entryPrice.toFixed(2)}`,
+        description: `Opened ${leverage}x ${side} on ${market.ticker} at ${BABYLON_POINTS_SYMBOL}${result.position.entryPrice.toFixed(2)}`,
       });
 
       // Invalidate caches to ensure fresh data on next fetch

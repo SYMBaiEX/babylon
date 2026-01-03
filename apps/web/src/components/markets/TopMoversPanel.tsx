@@ -1,6 +1,6 @@
 'use client';
 
-import { cn } from '@babylon/shared';
+import { cn, formatCurrency } from '@babylon/shared';
 import { TrendingDown, TrendingUp } from 'lucide-react';
 import { Skeleton } from '@/components/shared/Skeleton';
 import {
@@ -35,7 +35,8 @@ export function TopMoversPanel({ onMarketClick }: TopMoversPanelProps) {
   const { topGainers, topLosers, loading } = usePerpTopMovers(4);
   usePerpMarketsPolling(30000); // Enable 30s polling
 
-  const formatPrice = (p: number) => `$${p.toFixed(2)}`;
+  /** Use shared formatCurrency for price formatting */
+  const formatPrice = formatCurrency;
 
   return (
     <div className="flex flex-1 flex-col rounded-2xl bg-sidebar px-4 py-3">
