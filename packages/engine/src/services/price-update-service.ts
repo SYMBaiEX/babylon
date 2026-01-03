@@ -1,5 +1,11 @@
 import { PerpDbAdapter, PerpMarketService } from '@babylon/core/markets/perps';
-import { db, eq, getDbInstance, organizations } from '@babylon/db';
+import {
+  db,
+  eq,
+  getDbInstance,
+  organizationState,
+  organizations,
+} from '@babylon/db';
 import { FEE_CONFIG, WalletService } from '@babylon/engine';
 import type { JsonValue } from '@babylon/shared';
 import { logger } from '@babylon/shared';
@@ -73,6 +79,7 @@ export class PriceUpdateService {
     });
     const appliedUpdates: AppliedPriceUpdate[] = [];
     const priceMap = new Map<string, number>();
+    const now = new Date();
 
     for (const update of updates) {
       if (!Number.isFinite(update.newPrice) || update.newPrice <= 0) {
@@ -108,8 +115,21 @@ export class PriceUpdateService {
 
       await db
         .update(organizations)
-        .set({ currentPrice: update.newPrice, updatedAt: new Date() })
+        .set({ currentPrice: update.newPrice, updatedAt: now })
         .where(eq(organizations.id, organization.id));
+
+      // Keep runtime price state in sync (used across engine + widgets)
+      await db
+        .insert(organizationState)
+        .values({
+          id: organization.id,
+          currentPrice: update.newPrice,
+          updatedAt: now,
+        })
+        .onConflictDoUpdate({
+          target: organizationState.id,
+          set: { currentPrice: update.newPrice, updatedAt: now },
+        });
 
       await getDbInstance().recordPriceUpdate(
         organization.id,
@@ -143,6 +163,37 @@ export class PriceUpdateService {
           type: 'price_update',
           updates: JSON.parse(JSON.stringify(appliedUpdates)) as JsonValue,
         });
+
+        // If any updates include a canonical perp ticker, also broadcast a
+        // `perp_price_update` for real-time UI hooks/stores.
+        const perpUpdates = appliedUpdates
+          .map((u) => {
+            const tickerRaw =
+              u.metadata && typeof u.metadata === 'object'
+                ? (u.metadata as Record<string, unknown>).ticker
+                : undefined;
+            const ticker =
+              typeof tickerRaw === 'string' && tickerRaw.length > 0
+                ? tickerRaw.toUpperCase()
+                : null;
+            if (!ticker) return null;
+            return {
+              ticker,
+              organizationId: u.organizationId,
+              newPrice: u.newPrice,
+              price: u.newPrice,
+              change: u.change,
+              changePercent: u.changePercent,
+            };
+          })
+          .filter((u): u is NonNullable<typeof u> => u !== null);
+
+        if (perpUpdates.length > 0) {
+          await broadcastToChannel('markets', {
+            type: 'perp_price_update',
+            updates: perpUpdates as unknown as JsonValue,
+          });
+        }
       } catch {
         // Broadcast is optional - engine can work without it
       }

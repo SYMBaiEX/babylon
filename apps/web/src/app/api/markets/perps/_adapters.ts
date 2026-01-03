@@ -195,6 +195,8 @@ export function createPerpMarketService(
  */
 export async function applyUserTradePriceImpact(ticker: string): Promise<void> {
   try {
+    const normalizedTicker = ticker.toUpperCase();
+
     // 1. Get organizationId and 24h stats from perpMarketSnapshots
     const [snapshot] = await db
       .select({
@@ -204,13 +206,13 @@ export async function applyUserTradePriceImpact(ticker: string): Promise<void> {
         low24h: perpMarketSnapshots.low24h,
       })
       .from(perpMarketSnapshots)
-      .where(eq(perpMarketSnapshots.ticker, ticker))
+      .where(eq(perpMarketSnapshots.ticker, normalizedTicker))
       .limit(1);
 
     if (!snapshot) {
       logger.warn(
         'PerpMarketSnapshot not found for price impact',
-        { ticker },
+        { ticker: normalizedTicker },
         'PerpPriceImpact'
       );
       return;
@@ -232,7 +234,7 @@ export async function applyUserTradePriceImpact(ticker: string): Promise<void> {
     if (!org) {
       logger.warn(
         'Organization not found for price impact',
-        { ticker, organizationId },
+        { ticker: normalizedTicker, organizationId },
         'PerpPriceImpact'
       );
       return;
@@ -250,7 +252,10 @@ export async function applyUserTradePriceImpact(ticker: string): Promise<void> {
       })
       .from(perpPositions)
       .where(
-        and(eq(perpPositions.ticker, ticker), isNull(perpPositions.closedAt))
+        and(
+          eq(perpPositions.ticker, normalizedTicker),
+          isNull(perpPositions.closedAt)
+        )
       );
 
     // 4. Calculate net holdings (longs - shorts)
@@ -275,7 +280,7 @@ export async function applyUserTradePriceImpact(ticker: string): Promise<void> {
     logger.info(
       `Price impact calculation: netHoldings=${netHoldings}, newPrice=${newPrice.toFixed(4)}, change=${change.toFixed(4)}, effectiveSupply=${effectiveSupply}`,
       {
-        ticker,
+        ticker: normalizedTicker,
         netHoldings,
         newPrice,
         change,
@@ -298,8 +303,15 @@ export async function applyUserTradePriceImpact(ticker: string): Promise<void> {
     const changePercent = currentPrice > 0 ? (change / currentPrice) * 100 : 0;
 
     logger.info(
-      `User trade price impact: ${ticker} (${organizationId}) ${currentPrice.toFixed(2)} -> ${newPrice.toFixed(2)} (${changePercent > 0 ? '+' : ''}${changePercent.toFixed(2)}%)`,
-      { ticker, organizationId, currentPrice, newPrice, netHoldings, change },
+      `User trade price impact: ${normalizedTicker} (${organizationId}) ${currentPrice.toFixed(2)} -> ${newPrice.toFixed(2)} (${changePercent > 0 ? '+' : ''}${changePercent.toFixed(2)}%)`,
+      {
+        ticker: normalizedTicker,
+        organizationId,
+        currentPrice,
+        newPrice,
+        netHoldings,
+        change,
+      },
       'PerpPriceImpact'
     );
 
@@ -310,59 +322,17 @@ export async function applyUserTradePriceImpact(ticker: string): Promise<void> {
         newPrice,
         source: 'user_trade',
         reason: 'User trade price impact',
+        metadata: { ticker: normalizedTicker },
       },
     ]);
-
-    // 9. Broadcast with ticker explicitly for UI hooks (useMarketPrices)
-    // PriceUpdateService broadcasts with organizationId, but UI uses ticker
-    try {
-      await broadcastToChannel('markets', {
-        type: 'perp_price_update',
-        updates: [
-          {
-            ticker, // The ticker that UI hooks listen for (e.g., "AIPHB")
-            organizationId,
-            newPrice,
-            price: newPrice,
-            change,
-            changePercent,
-          },
-        ],
-      });
-    } catch {
-      // Non-critical, ignore broadcast errors
-    }
-
-    // 10. Also update perpMarketSnapshots for consistency
-    // Only update high24h/low24h if newPrice exceeds existing bounds
-    // Don't recalculate change24h here - it's properly computed by game-tick
-    // using the actual price24hAgo reference
-    const existingHigh = Number(snapshot.high24h ?? newPrice);
-    const existingLow = Number(snapshot.low24h ?? newPrice);
-
-    const updateData: Record<string, unknown> = {
-      currentPrice: newPrice,
-      updatedAt: new Date(),
-    };
-
-    // Only update high24h if new price is higher
-    if (newPrice > existingHigh) {
-      updateData.high24h = newPrice;
-    }
-    // Only update low24h if new price is lower
-    if (newPrice < existingLow) {
-      updateData.low24h = newPrice;
-    }
-
-    await db
-      .update(perpMarketSnapshots)
-      .set(updateData)
-      .where(eq(perpMarketSnapshots.ticker, ticker));
   } catch (error) {
     // Don't throw - price impact is enhancement, not critical path
     logger.error(
       'Failed to apply user trade price impact',
-      { ticker, error: error instanceof Error ? error.message : String(error) },
+      {
+        ticker: ticker.toUpperCase(),
+        error: error instanceof Error ? error.message : String(error),
+      },
       'PerpPriceImpact'
     );
   }
