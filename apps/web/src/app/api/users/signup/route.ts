@@ -106,6 +106,7 @@ import {
   follows,
   isRetryableError,
   referrals,
+  sql,
   toDatabaseErrorType,
   users,
   withRetry,
@@ -278,11 +279,13 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   const result = await withRetry(
     async () => {
       return await withTransaction(async (tx) => {
-        // Check if username is already taken by another user
+        // Check if username is already taken by another user (case-insensitive)
         const [existingUsername] = await tx
           .select({ id: users.id })
           .from(users)
-          .where(eq(users.username, parsedProfile.username))
+          .where(
+            sql`lower(${users.username}) = lower(${parsedProfile.username})`
+          )
           .limit(1);
 
         if (existingUsername && existingUsername.id !== canonicalUserId) {
@@ -319,11 +322,11 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
 
         // Only resolve referral if not already set
         if (!existingUser?.referredBy && normalizedCode) {
-          // First, try to find referrer by username (legacy system)
+          // First, try to find referrer by username (legacy system, case-insensitive)
           const [referrerByUsername] = await tx
             .select({ id: users.id })
             .from(users)
-            .where(eq(users.username, normalizedCode))
+            .where(sql`lower(${users.username}) = lower(${normalizedCode})`)
             .limit(1);
 
           if (referrerByUsername && referrerByUsername.id !== canonicalUserId) {

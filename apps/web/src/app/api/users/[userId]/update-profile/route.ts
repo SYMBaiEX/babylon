@@ -105,7 +105,7 @@ import {
   updateProfileBackendSigned,
   withErrorHandling,
 } from '@babylon/api';
-import { and, db, eq, ne, users } from '@babylon/db';
+import { and, db, eq, ne, sql, users } from '@babylon/db';
 import type { StringRecord } from '@babylon/shared';
 import { logger, UpdateUserSchema, UserIdParamSchema } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
@@ -167,7 +167,7 @@ export const POST = withErrorHandling(
       onchainTxHash,
     } = parsedBody;
 
-    // Check username uniqueness only if username is being updated
+    // Check username uniqueness only if username is being updated (case-insensitive)
     if (username !== undefined) {
       const normalizedUsername = username.trim();
       const [existingUser] = await db
@@ -175,7 +175,7 @@ export const POST = withErrorHandling(
         .from(users)
         .where(
           and(
-            eq(users.username, normalizedUsername),
+            sql`lower(${users.username}) = lower(${normalizedUsername})`,
             ne(users.id, canonicalUserId)
           )
         )

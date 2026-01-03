@@ -149,7 +149,7 @@ import {
   successResponse,
   withErrorHandling,
 } from '@babylon/api';
-import { db, eq, users } from '@babylon/db';
+import { db, eq, sql, users } from '@babylon/db';
 import {
   checkForAdminEmail,
   logger,
@@ -332,11 +332,11 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     if (referralCode) {
       const normalizedCode = referralCode.trim();
 
-      // First, try to find referrer by username (legacy system)
+      // First, try to find referrer by username (legacy system, case-insensitive)
       const [referrerByUsername] = await db
         .select({ id: users.id, username: users.username })
         .from(users)
-        .where(eq(users.username, normalizedCode))
+        .where(sql`lower(${users.username}) = lower(${normalizedCode})`)
         .limit(1);
 
       if (referrerByUsername && referrerByUsername.id !== canonicalUserId) {
@@ -478,11 +478,11 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     // ⚠️ IMPORTANT: Only allow referral changes BEFORE profile completion to prevent gaming
     const normalizedCode = referralCode.trim();
 
-    // First, try to find referrer by username (legacy system)
+    // First, try to find referrer by username (legacy system, case-insensitive)
     let [referrer] = await db
       .select({ id: users.id, username: users.username })
       .from(users)
-      .where(eq(users.username, normalizedCode))
+      .where(sql`lower(${users.username}) = lower(${normalizedCode})`)
       .limit(1);
 
     // If not found by username, try by referralCode

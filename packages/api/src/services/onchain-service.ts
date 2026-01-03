@@ -7,6 +7,7 @@ import {
   eq,
   follows,
   referrals,
+  sql,
   users,
 } from '@babylon/db';
 import type {
@@ -200,10 +201,11 @@ export async function processOnchainRegistration({
 
   let referrerId: string | null = null;
   if (referralCode) {
+    // Case-insensitive username lookup for referral
     const [referrer] = await db
       .select({ id: users.id })
       .from(users)
-      .where(eq(users.username, referralCode))
+      .where(sql`lower(${users.username}) = lower(${referralCode})`)
       .limit(1);
 
     // Prevent self-referral by username
@@ -253,6 +255,7 @@ export async function processOnchainRegistration({
   } | null = null;
 
   if (user.isAgent) {
+    // Case-insensitive username lookup for agent
     const [existingUser] = await db
       .select({
         id: users.id,
@@ -263,7 +266,7 @@ export async function processOnchainRegistration({
         referredBy: users.referredBy,
       })
       .from(users)
-      .where(eq(users.username, user.userId))
+      .where(sql`lower(${users.username}) = lower(${user.userId})`)
       .limit(1);
     dbUser = existingUser ?? null;
 
@@ -1148,6 +1151,7 @@ export async function confirmOnchainProfileUpdate({
 export async function getOnchainRegistrationStatus(
   user: AuthenticatedUser
 ): Promise<OnchainRegistrationStatus> {
+  // Case-insensitive username lookup for agents
   const [userRecord] = user.isAgent
     ? await db
         .select({
@@ -1157,7 +1161,7 @@ export async function getOnchainRegistrationStatus(
           registrationTxHash: users.registrationTxHash,
         })
         .from(users)
-        .where(eq(users.username, user.userId))
+        .where(sql`lower(${users.username}) = lower(${user.userId})`)
         .limit(1)
     : await db
         .select({

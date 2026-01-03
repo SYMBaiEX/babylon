@@ -59,7 +59,12 @@ async function checkAdmin(identifier: string): Promise<void> {
       isAdmin: users.isAdmin,
     })
     .from(users)
-    .where(or(eq(users.username, identifier), eq(users.id, identifier)))
+    .where(
+      or(
+        sql`lower(${users.username}) = lower(${identifier})`,
+        eq(users.id, identifier)
+      )
+    )
     .limit(1);
 
   if (result.length === 0) {
@@ -121,7 +126,12 @@ async function grantAdmin(identifier: string): Promise<void> {
       isActor: users.isActor,
     })
     .from(users)
-    .where(or(eq(users.username, identifier), eq(users.id, identifier)))
+    .where(
+      or(
+        sql`lower(${users.username}) = lower(${identifier})`,
+        eq(users.id, identifier)
+      )
+    )
     .limit(1);
 
   if (result.length === 0) {
@@ -180,7 +190,7 @@ async function revokeAdmin(identifier: string): Promise<void> {
     .where(
       or(
         eq(users.walletAddress, identifier),
-        eq(users.username, identifier),
+        sql`lower(${users.username}) = lower(${identifier})`,
         eq(users.id, identifier)
       )
     )
