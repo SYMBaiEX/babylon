@@ -562,6 +562,9 @@ ${s.involvedOrganizations?.length ? `Organizations: ${s.involvedOrganizations.jo
   ): Promise<{
     description: string;
     proof?: { type: 'article'; article: Article; url: string };
+    confidence: number;
+    requiresManualReview: boolean;
+    confidenceSignals: string[];
   }> {
     const description = await this.generateResolutionEvent(
       question,
@@ -578,7 +581,59 @@ ${s.involvedOrganizations?.length ? `Organizations: ${s.involvedOrganizations.jo
       organizations
     );
 
-    return { description, proof: proof || undefined };
+    const evidenceText = [
+      description,
+      proof?.type === 'article' ? proof.article.title : null,
+      proof?.type === 'article' ? proof.article.summary : null,
+    ]
+      .filter((s): s is string => typeof s === 'string' && s.trim().length > 0)
+      .join('\n');
+
+    const assessment = this.assessResolutionConfidence(evidenceText);
+
+    return {
+      description,
+      proof: proof || undefined,
+      confidence: assessment.confidence,
+      requiresManualReview: assessment.requiresManualReview,
+      confidenceSignals: assessment.signals,
+    };
+  }
+
+  private assessResolutionConfidence(text: string): {
+    confidence: number;
+    requiresManualReview: boolean;
+    signals: string[];
+  } {
+    const signals: string[] = [];
+    const lower = text.toLowerCase();
+
+    const speculativeSignals: Array<[RegExp, string]> = [
+      [/\brumou?r(s|ed)?\b/i, 'rumor'],
+      [/\balleged(ly)?\b/i, 'alleged'],
+      [/\breported(ly)?\b/i, 'reported'],
+      [/\bsources?\s+say\b/i, 'sources_say'],
+      [/\bmay\b/i, 'may'],
+      [/\bmight\b/i, 'might'],
+      [/\bcould\b/i, 'could'],
+      [/\bexpected\s+to\b/i, 'expected_to'],
+      [/\blikely\b/i, 'likely'],
+      [/\bunconfirmed\b/i, 'unconfirmed'],
+    ];
+
+    for (const [regex, label] of speculativeSignals) {
+      if (regex.test(lower)) {
+        signals.push(label);
+      }
+    }
+
+    // Default to high confidence; downgrade when evidence looks speculative.
+    const confidence = signals.length > 0 ? 0.35 : 0.9;
+    return {
+      confidence,
+      requiresManualReview: confidence < 0.7,
+      signals,
+    };
   }
 
   /**
