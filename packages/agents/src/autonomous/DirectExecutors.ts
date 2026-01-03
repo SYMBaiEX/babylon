@@ -12,17 +12,20 @@ import {
   and,
   asSystem,
   asUser,
+  chatParticipants,
   chats,
   comments,
   db,
   eq,
   gte,
+  inArray,
   isNull,
   markets,
   messages,
   positions,
   posts,
   sql,
+  users,
 } from '@babylon/db';
 import {
   type GeneratedTag,
@@ -85,7 +88,8 @@ export interface DirectCommentResult {
 
 export interface DirectMessageParams {
   agentUserId: string;
-  chatId: string;
+  chatId?: string;
+  recipientId?: string;
   content: string;
 }
 
@@ -770,23 +774,120 @@ export async function executeDirectComment(
 export async function executeDirectMessage(
   params: DirectMessageParams
 ): Promise<DirectMessageResult> {
-  const { agentUserId, chatId, content } = params;
+  const { agentUserId, chatId: providedChatId, recipientId, content } = params;
 
   if (!content || content.trim().length < 3) {
     return { success: false, error: 'Content too short' };
   }
 
   const cleanContent = content.trim();
+  let chatId = providedChatId;
 
-  // Verify chat exists
-  const [chat] = await db
-    .select({ id: chats.id })
-    .from(chats)
-    .where(eq(chats.id, chatId))
-    .limit(1);
+  // If chatId not provided, resolve it from recipientId
+  if (!chatId && recipientId) {
+    // Check if recipient exists
+    const [recipient] = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.id, recipientId))
+      .limit(1);
 
-  if (!chat) {
-    return { success: false, error: `Chat not found: ${chatId}` };
+    if (!recipient) {
+      // Try searching actorState for NPCs
+      const [npc] = await db
+        .select({ id: actorState.id })
+        .from(actorState)
+        .where(eq(actorState.id, recipientId))
+        .limit(1);
+
+      if (!npc) {
+        return { success: false, error: `Recipient not found: ${recipientId}` };
+      }
+    }
+
+    // Find existing DM chat
+    // 1. Get agent's DM chats
+    const agentParticipations = await db
+      .select({ chatId: chatParticipants.chatId })
+      .from(chatParticipants)
+      .innerJoin(chats, eq(chatParticipants.chatId, chats.id))
+      .where(and(eq(chatParticipants.userId, agentUserId), eq(chats.isGroup, false)));
+
+    const agentChatIds = agentParticipations.map((p) => p.chatId);
+
+    if (agentChatIds.length > 0) {
+      // 2. Check if recipient is in any of these
+      const match = await db
+        .select({ chatId: chatParticipants.chatId })
+        .from(chatParticipants)
+        .where(
+          and(
+            inArray(chatParticipants.chatId, agentChatIds),
+            eq(chatParticipants.userId, recipientId)
+          )
+        )
+        .limit(1);
+
+      if (match.length > 0 && match[0]) {
+        chatId = match[0].chatId;
+      }
+    }
+
+    // If still no chatId, create new DM
+    if (!chatId) {
+      chatId = await generateSnowflakeId();
+      const now = new Date();
+
+      await db.transaction(async (tx) => {
+        await tx.insert(chats).values({
+          id: chatId!,
+          isGroup: false,
+          createdAt: now,
+          updatedAt: now,
+        });
+
+        // Add both participants
+        await tx.insert(chatParticipants).values([
+          {
+            id: await generateSnowflakeId(),
+            chatId: chatId!,
+            userId: agentUserId,
+            joinedAt: now,
+            isActive: true,
+          },
+          {
+            id: await generateSnowflakeId(),
+            chatId: chatId!,
+            userId: recipientId,
+            joinedAt: now,
+            isActive: true,
+          },
+        ]);
+      });
+
+      logger.info(
+        `[DirectExecutor] Created new DM chat ${chatId} between ${agentUserId} and ${recipientId}`,
+        undefined,
+        'DirectExecutors'
+      );
+    }
+  }
+
+  if (!chatId) {
+    return { success: false, error: 'Chat ID required or could not be resolved' };
+  }
+
+  // Verify chat exists (if provided directly)
+  if (providedChatId) {
+    const [chat] = await db
+      .select({ id: chats.id })
+      .from(chats)
+      .where(eq(chats.id, chatId))
+      .limit(1);
+
+    if (!chat) {
+      return { success: false, error: `Chat not found: ${chatId}` };
+    }
   }
 
   logger.info(

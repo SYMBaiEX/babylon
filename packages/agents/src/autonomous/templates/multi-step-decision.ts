@@ -43,6 +43,7 @@ export interface PerpMarketContext {
 
 export interface PostContext {
   id: string;
+  authorId: string;
   authorName: string;
   content: string;
   commentCount: number;
@@ -228,6 +229,7 @@ ${canTrade ? '- **TRADE**: Take a position on a market' : ''}
 ${context.enabledFeatures.includes('posting') ? '- **POST**: Share your take on events, markets, or anything' : ''}
 ${canComment ? "- **COMMENT**: Reply to someone's post from the feed above (use postId)" : ''}
 ${canRespondDMs ? '- **RESPOND**: Reply to pending DMs/mentions if you have any' : ''}
+${canRespondDMs ? '- **DM**: Message someone from the feed (use their userId)' : ''}
 
 ${
   context.enabledFeatures.includes('posting') || canComment
@@ -258,7 +260,7 @@ Examples:
 # Output Format (JSON only, no markdown)
 {
   "thought": "Brief reasoning for this decision",
-  "action": "${[canTrade ? 'TRADE' : '', context.enabledFeatures.includes('posting') ? 'POST' : '', canComment ? 'COMMENT' : '', canRespondDMs ? 'RESPOND' : '', '""'].filter(Boolean).join(' | ')}",
+  "action": "${[canTrade ? 'TRADE' : '', context.enabledFeatures.includes('posting') ? 'POST' : '', canComment ? 'COMMENT' : '', canRespondDMs ? 'RESPOND | DM' : '', '""'].filter(Boolean).join(' | ')}",
   "parameters": { /* action-specific, see below */ },
   "isFinish": false
 }
@@ -310,7 +312,13 @@ ${
   canRespondDMs
     ? `
 RESPOND:
-{} (batch responds to pending interactions)`
+{} (batch responds to pending interactions)
+
+DM:
+{
+  "recipientId": "exact_user_id_from_list",
+  "content": "Message content"
+}`
     : ''
 }
 
@@ -385,7 +393,7 @@ function formatRecentPosts(posts: PostContext[]): string {
   return posts
     .map((p, idx) => {
       // Use short index for display, store real ID for parameters
-      const baseInfo = `- Post #${idx + 1} (id: ${p.id}) @${p.authorName} (${p.timeAgo}): "${p.content.substring(0, 80)}${p.content.length > 80 ? '...' : ''}" (${p.commentCount} comments)`;
+      const baseInfo = `- Post #${idx + 1} (id: ${p.id}) @${p.authorName} (userId: ${p.authorId}) (${p.timeAgo}): "${p.content.substring(0, 80)}${p.content.length > 80 ? '...' : ''}" (${p.commentCount} comments)`;
 
       // Show agent's existing comment if any
       if (p.agentComment) {
@@ -432,6 +440,7 @@ function formatAvailableActions(enabledFeatures: string[]): string {
 
   if (enabledFeatures.includes('DMs')) {
     actions.push('- RESPOND: Batch respond to pending DMs/mentions');
+    actions.push('- DM: Start a new direct message conversation (provide recipientId)');
   }
 
   actions.push('- (empty action with isFinish=true): Finish this tick');
