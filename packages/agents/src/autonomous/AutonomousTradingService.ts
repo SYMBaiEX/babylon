@@ -28,6 +28,7 @@ import { callGroqDirect } from '../llm/direct-groq';
 import { getAgentConfig } from '../shared/agent-config';
 import { logger } from '../shared/logger';
 import { executeDirectTrade } from './DirectExecutors';
+import { resolvePerpTicker } from './utils/resolvePerpTicker';
 
 const SUGGESTED_TRADE_PERCENT = 0.1;
 const MIN_SUGGESTED_TRADE_SIZE = 10;
@@ -342,19 +343,13 @@ If holding:
       marketType = 'prediction';
       side = trade.action as 'buy_yes' | 'buy_no';
     } else if (trade.type === 'perp') {
-      // Find matching perp market
-      const org = perpCompanies.find((o) => {
-        const staticOrg = StaticDataRegistry.getOrganization(o.id);
-        return (
-          staticOrg?.name === trade.market ||
-          o.id === trade.market ||
-          staticOrg?.ticker === trade.market
-        );
-      });
-      if (!org) {
+      const perpIdentifier = trade.market;
+      const resolvedPerp = resolvePerpTicker(perpIdentifier);
+
+      if (!resolvedPerp) {
         logger.info(
-          `[AutonomousTrading] Perp market not found: ${trade.market}`,
-          undefined,
+          `[AutonomousTrading] Perp market not recognized: ${perpIdentifier}`,
+          { agentUserId },
           'AutonomousTrading'
         );
         return {
@@ -365,8 +360,8 @@ If holding:
           marketType: undefined,
         };
       }
-      const staticOrg = StaticDataRegistry.getOrganization(org.id);
-      marketId = staticOrg?.ticker || org.id;
+
+      marketId = resolvedPerp.ticker;
       marketType = 'perp';
       side = trade.action as 'open_long' | 'open_short';
     }
@@ -389,6 +384,7 @@ If holding:
       side,
       amount: normalizedAmount,
       reasoning: trade.reasoning,
+      skipPerpResolution: marketType === 'perp',
     });
 
     if (!result.success) {

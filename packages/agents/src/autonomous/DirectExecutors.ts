@@ -36,6 +36,7 @@ import { agentPnLService } from '../services/AgentPnLService';
 import { logger } from '../shared/logger';
 import { generateSnowflakeId } from '../shared/snowflake';
 import { topicDiversityService } from './TopicDiversityService';
+import { resolvePerpTicker } from './utils/resolvePerpTicker';
 
 const SHARE_LIKE_MAX_INTEGER = 10;
 const SHARE_LIKE_RATIO_THRESHOLD = 0.01;
@@ -47,10 +48,15 @@ const SHARE_LIKE_RATIO_THRESHOLD = 0.01;
 export interface DirectTradeParams {
   agentUserId: string;
   marketType: 'prediction' | 'perp';
-  marketId: string; // Market ID for prediction, ticker for perp
+  marketId: string; // Market ID for prediction, ticker/name/id for perp
   side: 'buy_yes' | 'buy_no' | 'open_long' | 'open_short';
   amount: number;
   reasoning?: string;
+  /**
+   * Skip resolving the perp ticker when the caller already passed the canonical ticker.
+   * Useful for services that call resolvePerpTicker upstream.
+   */
+  skipPerpResolution?: boolean;
 }
 
 export interface DirectTradeResult {
@@ -186,9 +192,18 @@ export async function executeDirectTrade(
       agentManagedBy,
     });
   }
+
+  const perpTicker = params.skipPerpResolution
+    ? marketId
+    : resolvePerpTicker(marketId)?.ticker;
+
+  if (!perpTicker) {
+    return { success: false, error: `Perp market not found: ${marketId}` };
+  }
+
   return executePerpTrade({
     agentUserId,
-    ticker: marketId,
+    ticker: perpTicker,
     side: side as 'open_long' | 'open_short',
     amount,
     reasoning,
