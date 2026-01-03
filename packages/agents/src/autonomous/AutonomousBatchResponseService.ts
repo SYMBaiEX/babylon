@@ -31,9 +31,9 @@ import {
 import type { IAgentRuntime } from '@elizaos/core';
 import { parseKeyValueXml } from '@elizaos/core';
 import { callGroqDirect } from '../llm/direct-groq';
+import { agentService } from '../services/AgentService';
 import { getAgentConfig } from '../shared/agent-config';
 import { logger } from '../shared/logger';
-import { agentService } from '../services/AgentService';
 import { type AgentContext, getAgentContext } from './agent-context';
 import { executeDirectComment, executeDirectMessage } from './DirectExecutors';
 
@@ -982,6 +982,26 @@ LEAVE EMPTY IF:
               { thought },
               'AutonomousBatchResponse'
             );
+
+            // Log skipped interaction if there was reasoning
+            if (thought) {
+               agentService
+              .createLog(agentUserId, {
+                type: 'system',
+                level: 'debug',
+                message: `Skipped automated response to ${interaction.type}`,
+                prompt: currentPrompt,
+                completion: responseContent,
+                thinking: thought,
+                metadata: {
+                  interactionId: interaction.id,
+                  interactionType: interaction.type,
+                  skipped: true
+                },
+              })
+              .catch(() => {});
+            }
+
             cleanContent = null; // Mark as skipped
           }
 
@@ -991,8 +1011,7 @@ LEAVE EMPTY IF:
             // No await needed if we don't care about the result
             agentService
               .createLog(agentUserId, {
-                type:
-                  interaction.type === 'comment_reply' ? 'comment' : 'chat',
+                type: interaction.type === 'comment_reply' ? 'comment' : 'chat',
                 level: 'info',
                 message: `Generated automated response to ${interaction.type}`,
                 prompt: currentPrompt,

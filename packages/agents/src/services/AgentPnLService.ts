@@ -117,7 +117,6 @@ export class AgentPnLService {
           marketId,
           ticker,
           pnl,
-          reasoning,
         } as JsonValue,
       });
     });
