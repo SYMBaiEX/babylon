@@ -115,7 +115,9 @@ export function RevealModal({ isOpen, nft, onClose }: RevealModalProps) {
         {!isRevealing && (
           <div className="mt-6 animate-fade-in text-center">
             <p className="mb-1 text-muted-foreground text-sm">You received</p>
-            <h2 className="mb-1 font-bold text-foreground text-xl">{nft.name}</h2>
+            <h2 className="mb-1 font-bold text-foreground text-xl">
+              {nft.name}
+            </h2>
             {nft.storyTitle && (
               <p className="mb-4 text-muted-foreground text-sm italic">
                 &quot;{nft.storyTitle}&quot;

@@ -299,7 +299,10 @@ export default function NftGalleryPage() {
                     Close
                   </Button>
                   {eligibility.mintedNft && (
-                    <a href={`/nft/${eligibility.mintedNft.tokenId}`} className="flex-1">
+                    <a
+                      href={`/nft/${eligibility.mintedNft.tokenId}`}
+                      className="flex-1"
+                    >
                       <Button className="w-full bg-[#0066FF] hover:bg-[#0055DD]">
                         View My NFT
                       </Button>

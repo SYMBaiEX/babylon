@@ -63,8 +63,7 @@ export function NftCard({ nft, priority = false }: NftCardProps) {
         </h3>
         {ownerName ? (
           <p className="truncate text-muted-foreground text-xs">
-            Owned by{' '}
-            <span className="text-foreground">@{ownerName}</span>
+            Owned by <span className="text-foreground">@{ownerName}</span>
           </p>
         ) : (
           <p className="text-muted-foreground text-xs">Available</p>

@@ -168,7 +168,9 @@ export default function NftDetailPage() {
             {nft.currentOwner ? (
               <div className="flex items-center gap-3">
                 <Avatar
-                  id={nft.currentOwner.user?.id ?? nft.currentOwner.walletAddress}
+                  id={
+                    nft.currentOwner.user?.id ?? nft.currentOwner.walletAddress
+                  }
                   name={ownerName ?? 'Unknown'}
                   src={nft.currentOwner.user?.profileImageUrl ?? undefined}
                   size="md"
@@ -179,11 +181,15 @@ export default function NftDetailPage() {
                       href={`/profile/${nft.currentOwner.user.username ?? nft.currentOwner.user.id}`}
                       className="font-medium text-foreground hover:text-[#0066FF]"
                     >
-                      @{nft.currentOwner.user.username ?? nft.currentOwner.user.displayName}
+                      @
+                      {nft.currentOwner.user.username ??
+                        nft.currentOwner.user.displayName}
                     </Link>
                   ) : (
                     <button
-                      onClick={() => handleCopy(nft.currentOwner!.walletAddress, 'Address')}
+                      onClick={() =>
+                        handleCopy(nft.currentOwner!.walletAddress, 'Address')
+                      }
                       className="font-mono text-foreground text-sm hover:text-[#0066FF]"
                     >
                       {ownerName}
@@ -270,10 +276,13 @@ export default function NftDetailPage() {
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Address</span>
                 <button
-                  onClick={() => handleCopy(nft.contractAddress, 'Contract address')}
+                  onClick={() =>
+                    handleCopy(nft.contractAddress, 'Contract address')
+                  }
                   className="font-mono text-foreground hover:text-[#0066FF]"
                 >
-                  {nft.contractAddress.slice(0, 6)}...{nft.contractAddress.slice(-4)}
+                  {nft.contractAddress.slice(0, 6)}...
+                  {nft.contractAddress.slice(-4)}
                 </button>
               </div>
               <div className="flex justify-between">
