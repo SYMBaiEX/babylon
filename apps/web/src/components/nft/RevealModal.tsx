@@ -1,6 +1,5 @@
 'use client';
 
-import { X } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
@@ -45,6 +44,7 @@ export function RevealModal({ isOpen, nft, onClose }: RevealModalProps) {
         onClick={onClose}
       />
 
+      {/* Confetti */}
       {showConfetti && (
         <div className="pointer-events-none absolute inset-0 overflow-hidden">
           {Array.from({ length: 50 }).map((_, i) => (
@@ -54,15 +54,11 @@ export function RevealModal({ isOpen, nft, onClose }: RevealModalProps) {
               style={{
                 left: `${Math.random() * 100}%`,
                 animationDelay: `${Math.random() * 0.5}s`,
-                backgroundColor: [
-                  '#0066FF',
-                  '#a855f7',
-                  '#22c55e',
-                  '#eab308',
-                  '#ef4444',
-                ][Math.floor(Math.random() * 5)],
-                width: `${8 + Math.random() * 8}px`,
-                height: `${8 + Math.random() * 8}px`,
+                backgroundColor: ['#0066FF', '#22c55e', '#eab308', '#ef4444'][
+                  Math.floor(Math.random() * 4)
+                ],
+                width: `${6 + Math.random() * 6}px`,
+                height: `${6 + Math.random() * 6}px`,
                 borderRadius: Math.random() > 0.5 ? '50%' : '0',
               }}
             />
@@ -70,84 +66,71 @@ export function RevealModal({ isOpen, nft, onClose }: RevealModalProps) {
         </div>
       )}
 
-      <div className="relative z-10 mx-4 w-full max-w-md">
-        <button
-          onClick={onClose}
-          className="-right-2 -top-2 absolute z-20 rounded-full bg-muted p-2 text-muted-foreground transition-colors hover:bg-muted/80 hover:text-foreground"
-        >
-          <X className="h-5 w-5" />
-        </button>
-
+      <div className="relative z-10 mx-4 w-full max-w-sm">
+        {/* Card with flip animation */}
         <div
-          className="perspective-1000 relative mx-auto aspect-square w-full max-w-sm"
+          className="relative mx-auto aspect-square w-full"
           style={{ perspective: '1000px' }}
         >
           <div
-            className={`relative h-full w-full transition-transform duration-1000 ${
-              isRevealing ? '' : 'rotate-y-180'
-            }`}
+            className="relative h-full w-full transition-transform duration-1000"
             style={{
               transformStyle: 'preserve-3d',
               transform: isRevealing ? 'rotateY(0deg)' : 'rotateY(180deg)',
             }}
           >
+            {/* Back of card (mystery) */}
             <div
-              className="absolute inset-0 flex items-center justify-center rounded-2xl border-2 border-[#0066FF]/50 bg-gradient-to-br from-[#0066FF]/20 via-purple-500/20 to-[#0066FF]/20 shadow-2xl shadow-[#0066FF]/20"
+              className="absolute inset-0 flex items-center justify-center rounded-xl border border-[#0066FF]/50 bg-gradient-to-br from-[#0066FF]/10 to-[#0066FF]/5"
               style={{ backfaceVisibility: 'hidden' }}
             >
               <div className="text-center">
-                <div className="mb-4 text-8xl">❓</div>
-                <p className="animate-pulse font-bold text-foreground text-lg">
-                  Revealing...
+                <div className="mb-4 text-7xl">❓</div>
+                <p className="animate-pulse font-medium text-foreground">
+                  Revealing your NFT...
                 </p>
               </div>
             </div>
 
+            {/* Front of card (NFT) */}
             <div
-              className="absolute inset-0 overflow-hidden rounded-2xl border-2 border-green-500/50 bg-card shadow-2xl shadow-green-500/20"
+              className="absolute inset-0 overflow-hidden rounded-xl border border-green-500/50 bg-card"
               style={{
                 backfaceVisibility: 'hidden',
                 transform: 'rotateY(180deg)',
               }}
             >
-              <div className="relative aspect-square w-full">
-                <Image
-                  src={nft.imageUrl || nft.thumbnailUrl || ''}
-                  alt={nft.name}
-                  fill
-                  className="object-cover"
-                  priority
-                />
-              </div>
+              <Image
+                src={nft.imageUrl || nft.thumbnailUrl || ''}
+                alt={nft.name}
+                fill
+                className="object-cover"
+                priority
+              />
             </div>
           </div>
         </div>
 
+        {/* Info (appears after reveal) */}
         {!isRevealing && (
           <div className="mt-6 animate-fade-in text-center">
-            <p className="mb-2 text-muted-foreground text-sm">You received</p>
-            <h2 className="mb-4 font-bold text-2xl text-foreground">
-              {nft.name}
-            </h2>
+            <p className="mb-1 text-muted-foreground text-sm">You received</p>
+            <h2 className="mb-1 font-bold text-foreground text-xl">{nft.name}</h2>
             {nft.storyTitle && (
-              <p className="mb-4 text-muted-foreground italic">
+              <p className="mb-4 text-muted-foreground text-sm italic">
                 &quot;{nft.storyTitle}&quot;
               </p>
             )}
 
-            <div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
-              <Link href={`/nft/${nft.tokenId}`}>
-                <Button
-                  variant="default"
-                  size="lg"
-                  className="w-full sm:w-auto"
-                >
-                  View Your NFT
-                </Button>
-              </Link>
-              <Button variant="outline" size="lg" onClick={onClose}>
+            <div className="flex gap-3">
+              <Button variant="outline" onClick={onClose} className="flex-1">
                 Close
               </Button>
+              <Link href={`/nft/${nft.tokenId}`} className="flex-1">
+                <Button className="w-full bg-[#0066FF] hover:bg-[#0055DD]">
+                  View NFT
+                </Button>
+              </Link>
             </div>
           </div>
         )}

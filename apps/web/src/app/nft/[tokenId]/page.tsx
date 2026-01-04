@@ -1,6 +1,5 @@
 'use client';
 
-import { ArrowLeft, Copy, ExternalLink, Share2, User } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
@@ -46,89 +45,88 @@ export default function NftDetailPage() {
     fetchNft();
   }, [fetchNft]);
 
-  const handleCopyAddress = async (address: string) => {
-    await navigator.clipboard.writeText(address);
-    toast.success('Address copied to clipboard');
+  const handleCopy = async (text: string, label: string) => {
+    await navigator.clipboard.writeText(text);
+    toast.success(`${label} copied`);
   };
 
   const handleShare = async () => {
     if (!nft) return;
 
     const url = `${window.location.origin}/nft/${nft.tokenId}`;
-    const text = `Check out ${nft.name} from the Babylon Top 100 NFT Collection!`;
 
     if (navigator.share) {
-      await navigator.share({ title: nft.name, text, url });
+      await navigator.share({ title: nft.name, url });
     } else {
       await navigator.clipboard.writeText(url);
-      toast.success('Link copied to clipboard');
+      toast.success('Link copied');
     }
   };
 
-  // Loading State
   if (loading) {
     return (
       <PageContainer className="pb-8">
-        <div className="mb-6 flex items-center gap-4">
-          <Skeleton className="h-10 w-10 rounded-full" />
-          <Skeleton className="h-8 w-48" />
+        <div className="mb-6">
+          <Skeleton className="h-6 w-32" />
         </div>
         <div className="grid gap-8 lg:grid-cols-2">
-          <Skeleton className="aspect-square w-full rounded-2xl" />
-          <div className="space-y-6">
-            <Skeleton className="h-10 w-3/4" />
-            <Skeleton className="h-20 w-full" />
-            <Skeleton className="h-32 w-full" />
+          <Skeleton className="aspect-square w-full rounded-xl" />
+          <div className="space-y-4">
+            <Skeleton className="h-8 w-3/4" />
+            <Skeleton className="h-16 w-full" />
+            <Skeleton className="h-24 w-full" />
           </div>
         </div>
       </PageContainer>
     );
   }
 
-  // Error State
   if (error || !nft) {
     return (
       <PageContainer className="flex items-center justify-center py-16">
         <div className="text-center">
-          <span className="mb-4 block text-6xl">🖼️</span>
-          <h2 className="mb-2 font-bold text-foreground text-xl">
+          <p className="mb-2 font-medium text-foreground text-xl">
             {error ?? 'NFT not found'}
-          </h2>
+          </p>
           <p className="mb-6 text-muted-foreground">
-            The NFT you&apos;re looking for doesn&apos;t exist or has been
-            removed.
+            The NFT you&apos;re looking for doesn&apos;t exist.
           </p>
           <Link href="/nft">
-            <Button variant="default">
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Back to Gallery
-            </Button>
+            <Button>← Back to Gallery</Button>
           </Link>
         </div>
       </PageContainer>
     );
   }
 
+  const ownerName =
+    nft.currentOwner?.user?.displayName ??
+    nft.currentOwner?.user?.username ??
+    (nft.currentOwner
+      ? `${nft.currentOwner.walletAddress.slice(0, 6)}...${nft.currentOwner.walletAddress.slice(-4)}`
+      : null);
+
   return (
     <PageContainer className="pb-8">
-      {/* Back Button */}
+      {/* Header */}
       <div className="mb-6 flex items-center justify-between">
         <Link
           href="/nft"
-          className="flex items-center gap-2 text-muted-foreground transition-colors hover:text-foreground"
+          className="text-muted-foreground text-sm hover:text-foreground"
         >
-          <ArrowLeft className="h-5 w-5" />
-          <span>Back to Gallery</span>
+          ← Back to Gallery
         </Link>
-        <Button variant="outline" size="sm" onClick={handleShare}>
-          <Share2 className="mr-2 h-4 w-4" />
+        <button
+          onClick={handleShare}
+          className="text-muted-foreground text-sm hover:text-foreground"
+        >
           Share
-        </Button>
+        </button>
       </div>
 
       <div className="grid gap-8 lg:grid-cols-2">
         {/* Image */}
-        <div className="relative aspect-square overflow-hidden rounded-2xl border border-border bg-muted shadow-xl">
+        <div className="relative aspect-square overflow-hidden rounded-xl border border-border bg-muted">
           {!imageError ? (
             <Image
               src={nft.imageUrl}
@@ -140,22 +138,21 @@ export default function NftDetailPage() {
               onError={() => setImageError(true)}
             />
           ) : (
-            <div className="flex h-full w-full items-center justify-center">
-              <span className="text-8xl">🖼️</span>
+            <div className="flex h-full w-full items-center justify-center text-6xl">
+              🖼️
             </div>
           )}
 
-          {/* Token ID Badge */}
-          <div className="absolute top-4 left-4 rounded-full bg-black/60 px-3 py-1.5 font-medium text-sm text-white backdrop-blur-sm">
+          <div className="absolute top-3 left-3 rounded bg-black/70 px-2 py-1 font-medium text-sm text-white">
             #{nft.tokenId}
           </div>
         </div>
 
         {/* Details */}
-        <div className="space-y-6">
-          {/* Title */}
+        <div className="space-y-5">
+          {/* Title & Description */}
           <div>
-            <h1 className="mb-2 font-bold text-3xl text-foreground">
+            <h1 className="mb-2 font-bold text-2xl text-foreground">
               {nft.name}
             </h1>
             {nft.description && (
@@ -164,91 +161,63 @@ export default function NftDetailPage() {
           </div>
 
           {/* Owner */}
-          <div className="rounded-xl border border-border bg-card p-4">
-            <h3 className="mb-3 flex items-center gap-2 font-semibold text-foreground text-sm">
-              <User className="h-4 w-4" />
-              Current Owner
-            </h3>
+          <div className="rounded-lg border border-border bg-card p-4">
+            <p className="mb-2 text-muted-foreground text-xs uppercase">
+              Owner
+            </p>
             {nft.currentOwner ? (
               <div className="flex items-center gap-3">
                 <Avatar
-                  id={
-                    nft.currentOwner.user?.id ?? nft.currentOwner.walletAddress
-                  }
-                  name={
-                    nft.currentOwner.user?.displayName ??
-                    nft.currentOwner.user?.username ??
-                    'Unknown'
-                  }
+                  id={nft.currentOwner.user?.id ?? nft.currentOwner.walletAddress}
+                  name={ownerName ?? 'Unknown'}
                   src={nft.currentOwner.user?.profileImageUrl ?? undefined}
                   size="md"
                 />
                 <div className="min-w-0 flex-1">
                   {nft.currentOwner.user ? (
-                    <>
-                      <Link
-                        href={`/profile/${nft.currentOwner.user.username ?? nft.currentOwner.user.id}`}
-                        className="block truncate font-semibold text-foreground hover:text-[#0066FF]"
-                      >
-                        {nft.currentOwner.user.displayName ??
-                          nft.currentOwner.user.username}
-                      </Link>
-                      {nft.currentOwner.user.username && (
-                        <p className="truncate text-muted-foreground text-sm">
-                          @{nft.currentOwner.user.username}
-                        </p>
-                      )}
-                    </>
+                    <Link
+                      href={`/profile/${nft.currentOwner.user.username ?? nft.currentOwner.user.id}`}
+                      className="font-medium text-foreground hover:text-[#0066FF]"
+                    >
+                      @{nft.currentOwner.user.username ?? nft.currentOwner.user.displayName}
+                    </Link>
                   ) : (
-                    <div className="flex items-center gap-2">
-                      <span className="truncate font-mono text-foreground text-sm">
-                        {nft.currentOwner.walletAddress.slice(0, 8)}...
-                        {nft.currentOwner.walletAddress.slice(-6)}
-                      </span>
-                      <button
-                        onClick={() =>
-                          handleCopyAddress(nft.currentOwner!.walletAddress)
-                        }
-                        className="text-muted-foreground hover:text-foreground"
-                      >
-                        <Copy className="h-4 w-4" />
-                      </button>
-                    </div>
+                    <button
+                      onClick={() => handleCopy(nft.currentOwner!.walletAddress, 'Address')}
+                      className="font-mono text-foreground text-sm hover:text-[#0066FF]"
+                    >
+                      {ownerName}
+                    </button>
                   )}
                 </div>
               </div>
             ) : (
-              <p className="text-muted-foreground">
-                This NFT has not been claimed yet
-              </p>
+              <p className="text-muted-foreground">Not yet claimed</p>
             )}
           </div>
 
           {/* Story */}
           {nft.story.content && (
-            <div className="rounded-xl border border-border bg-card p-4">
-              <h3 className="mb-3 font-semibold text-foreground">
-                {nft.story.title ?? 'The Story'}
-              </h3>
-              <div className="prose prose-sm prose-invert max-w-none">
-                <p className="whitespace-pre-wrap text-muted-foreground">
-                  {nft.story.content}
-                </p>
-              </div>
+            <div className="rounded-lg border border-border bg-card p-4">
+              <p className="mb-2 font-medium text-foreground">
+                {nft.story.title ?? 'Story'}
+              </p>
+              <p className="whitespace-pre-wrap text-muted-foreground text-sm">
+                {nft.story.content}
+              </p>
             </div>
           )}
 
           {/* Attributes */}
           {nft.attributes.length > 0 && (
-            <div className="rounded-xl border border-border bg-card p-4">
-              <h3 className="mb-3 font-semibold text-foreground">Attributes</h3>
+            <div className="rounded-lg border border-border bg-card p-4">
+              <p className="mb-3 text-muted-foreground text-xs uppercase">
+                Attributes
+              </p>
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                {nft.attributes.map((attr, index) => (
-                  <div
-                    key={index}
-                    className="rounded-lg bg-muted/50 p-3 text-center"
-                  >
-                    <p className="mb-1 text-muted-foreground text-xs uppercase">
+                {nft.attributes.map((attr, i) => (
+                  <div key={i} className="rounded bg-muted/50 p-2 text-center">
+                    <p className="text-muted-foreground text-xs">
                       {attr.trait_type}
                     </p>
                     <p className="truncate font-medium text-foreground text-sm">
@@ -262,63 +231,50 @@ export default function NftDetailPage() {
 
           {/* Original Claim */}
           {nft.originalClaim && (
-            <div className="rounded-xl border border-border bg-card p-4">
-              <h3 className="mb-3 font-semibold text-foreground">
+            <div className="rounded-lg border border-border bg-card p-4">
+              <p className="mb-3 text-muted-foreground text-xs uppercase">
                 Original Claim
-              </h3>
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">
-                    Leaderboard Rank
-                  </span>
-                  <span className="font-semibold text-[#0066FF]">
+              </p>
+              <div className="grid grid-cols-3 gap-4 text-center">
+                <div>
+                  <p className="font-bold text-[#0066FF] text-lg">
                     #{nft.originalClaim.snapshotRank}
-                  </span>
+                  </p>
+                  <p className="text-muted-foreground text-xs">Rank</p>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Snapshot Points</span>
-                  <span className="font-semibold text-foreground">
-                    {nft.originalClaim.snapshotPoints?.toLocaleString()}
-                  </span>
+                <div>
+                  <p className="font-bold text-foreground text-lg">
+                    {nft.originalClaim.snapshotPoints?.toLocaleString() ?? '-'}
+                  </p>
+                  <p className="text-muted-foreground text-xs">Points</p>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Claimed</span>
-                  <span className="text-foreground">
-                    {new Date(nft.originalClaim.claimedAt).toLocaleDateString()}
-                  </span>
+                <div>
+                  <p className="font-bold text-foreground text-lg">
+                    {new Date(nft.originalClaim.claimedAt).toLocaleDateString(
+                      'en-US',
+                      { month: 'short', day: 'numeric' }
+                    )}
+                  </p>
+                  <p className="text-muted-foreground text-xs">Date</p>
                 </div>
               </div>
             </div>
           )}
 
           {/* Contract Info */}
-          <div className="rounded-xl border border-border bg-card p-4">
-            <h3 className="mb-3 font-semibold text-foreground">
-              Contract Details
-            </h3>
+          <div className="rounded-lg border border-border bg-card p-4">
+            <p className="mb-3 text-muted-foreground text-xs uppercase">
+              Contract
+            </p>
             <div className="space-y-2 text-sm">
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Contract</span>
-                <div className="flex items-center gap-2">
-                  <span className="font-mono text-foreground">
-                    {nft.contractAddress.slice(0, 6)}...
-                    {nft.contractAddress.slice(-4)}
-                  </span>
-                  <button
-                    onClick={() => handleCopyAddress(nft.contractAddress)}
-                    className="text-muted-foreground hover:text-foreground"
-                  >
-                    <Copy className="h-4 w-4" />
-                  </button>
-                  <a
-                    href={`https://etherscan.io/address/${nft.contractAddress}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-muted-foreground hover:text-foreground"
-                  >
-                    <ExternalLink className="h-4 w-4" />
-                  </a>
-                </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Address</span>
+                <button
+                  onClick={() => handleCopy(nft.contractAddress, 'Contract address')}
+                  className="font-mono text-foreground hover:text-[#0066FF]"
+                >
+                  {nft.contractAddress.slice(0, 6)}...{nft.contractAddress.slice(-4)}
+                </button>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Token ID</span>
@@ -327,14 +283,8 @@ export default function NftDetailPage() {
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Chain</span>
                 <span className="text-foreground">
-                  {nft.chainId === 1
-                    ? 'Ethereum Mainnet'
-                    : `Chain ${nft.chainId}`}
+                  {nft.chainId === 1 ? 'Ethereum' : `Chain ${nft.chainId}`}
                 </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Resolution</span>
-                <span className="text-foreground">{nft.imageResolution}</span>
               </div>
             </div>
           </div>

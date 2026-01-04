@@ -1,74 +1,64 @@
 'use client';
 
-import {
-  ChevronLeft,
-  ChevronRight,
-  Filter,
-  Grid3X3,
-  Search,
-  X,
-} from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
-import { MintBanner, NftGrid, RevealModal } from '@/components/nft';
+import { NftGrid, RevealModal } from '@/components/nft';
 import { PageContainer } from '@/components/shared/PageContainer';
 import { Button } from '@/components/ui/button';
+import { useAuth } from '@/hooks/useAuth';
 import { useNftMint } from '@/hooks/useNftMint';
 import type { NftGalleryResponse, NftSummary } from '@/types/nft';
 
-type ClaimedFilter = 'all' | 'claimed' | 'unclaimed';
-type SortField = 'tokenId' | 'name';
-type SortOrder = 'asc' | 'desc';
+type ViewTab = 'all' | 'mine';
 
 export default function NftGalleryPage() {
-  const { flowState, mintedNft, startMint, resetFlow } = useNftMint();
+  const { authenticated, user } = useAuth();
+  const {
+    eligibility,
+    isCheckingEligibility,
+    flowState,
+    mintedNft,
+    isMinting,
+    startMint,
+    resetFlow,
+    checkEligibility,
+  } = useNftMint();
 
   // Gallery state
   const [nfts, setNfts] = useState<NftSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Pagination
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
+  // Tabs & filters
+  const [viewTab, setViewTab] = useState<ViewTab>('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+
+  // Stats
   const [totalNfts, setTotalNfts] = useState(0);
   const [claimedCount, setClaimedCount] = useState(0);
 
-  // Filters
-  const [claimedFilter, setClaimedFilter] = useState<ClaimedFilter>('all');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [sortField, setSortField] = useState<SortField>('tokenId');
-  const [sortOrder, setSortOrder] = useState<SortOrder>('asc');
-  const [showFilters, setShowFilters] = useState(false);
-
+  // Modals
+  const [showEligibilityModal, setShowEligibilityModal] = useState(false);
   const showRevealModal = flowState === 'revealing';
-
-  const pageSize = 20;
 
   // Debounce search
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearch(searchQuery);
-      setPage(1);
     }, 300);
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  // Fetch NFTs
+  // Fetch all NFTs (no pagination - show all 100)
   const fetchNfts = useCallback(async () => {
     setLoading(true);
     setError(null);
 
     const params = new URLSearchParams({
-      page: String(page),
-      limit: String(pageSize),
-      sort: sortField,
-      order: sortOrder,
+      limit: '100',
+      sort: 'tokenId',
+      order: 'asc',
     });
-
-    if (claimedFilter !== 'all') {
-      params.set('claimed', claimedFilter === 'claimed' ? 'true' : 'false');
-    }
 
     if (debouncedSearch.trim()) {
       params.set('search', debouncedSearch.trim());
@@ -85,136 +75,149 @@ export default function NftGalleryPage() {
     const data: NftGalleryResponse = await response.json();
 
     setNfts(data.data.nfts);
-    setTotalPages(data.data.pagination.totalPages);
     setTotalNfts(data.data.stats.totalNfts);
     setClaimedCount(data.data.stats.claimedCount);
     setLoading(false);
-  }, [page, sortField, sortOrder, claimedFilter, debouncedSearch]);
+  }, [debouncedSearch]);
 
   useEffect(() => {
     fetchNfts();
   }, [fetchNfts]);
 
-  // Handle mint using the hook
-  const handleMint = async () => {
-    await startMint();
-    // Refresh NFT list after mint
-    fetchNfts();
+  // Filter NFTs based on tab
+  const displayedNfts =
+    viewTab === 'mine' && user
+      ? nfts.filter((nft) => nft.owner?.user?.id === user.id)
+      : nfts;
+
+  const myNftCount = user
+    ? nfts.filter((nft) => nft.owner?.user?.id === user.id).length
+    : 0;
+
+  // Handle claim button click
+  const handleClaimClick = async () => {
+    if (!authenticated) return;
+    await checkEligibility();
+    setShowEligibilityModal(true);
   };
 
-  const handleCloseReveal = () => {
-    resetFlow();
+  // Handle mint from eligibility modal
+  const handleMintFromModal = async () => {
+    setShowEligibilityModal(false);
+    await startMint();
+    fetchNfts();
   };
 
   return (
     <PageContainer noPadding className="flex h-full flex-col">
-      {/* Mint Banner */}
-      <MintBanner onMintClick={handleMint} />
-
       {/* Header */}
-      <div className="flex flex-col gap-4 border-border border-b p-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2">
-            <Grid3X3 className="h-5 w-5 text-[#0066FF]" />
-            <h1 className="font-bold text-foreground text-xl">
-              NFT Collection
-            </h1>
+      <div className="border-border border-b bg-card px-4 py-5">
+        <div className="mx-auto max-w-5xl">
+          <div className="mb-4 flex items-start justify-between">
+            <div>
+              <h1 className="mb-1 font-bold text-foreground text-xl">
+                Babylon Top 100
+              </h1>
+              <p className="text-muted-foreground text-sm">
+                Exclusive NFTs for top leaderboard players
+              </p>
+            </div>
+
+            {authenticated && !eligibility?.hasMinted && (
+              <Button
+                onClick={handleClaimClick}
+                disabled={isMinting || isCheckingEligibility}
+                className="bg-[#0066FF] hover:bg-[#0055DD]"
+              >
+                {isCheckingEligibility ? 'Checking...' : 'Claim My NFT'}
+              </Button>
+            )}
+
+            {eligibility?.hasMinted && eligibility.mintedNft && (
+              <a
+                href={`/nft/${eligibility.mintedNft.tokenId}`}
+                className="rounded-lg border border-green-500/30 bg-green-500/10 px-4 py-2 text-green-600 text-sm transition-colors hover:bg-green-500/20"
+              >
+                View My NFT →
+              </a>
+            )}
           </div>
-          <div className="flex items-center gap-2 text-muted-foreground text-sm">
-            <span>{totalNfts} Total</span>
-            <span>•</span>
-            <span className="text-green-500">{claimedCount} Claimed</span>
+
+          {/* Stats row */}
+          <div className="flex items-center gap-6 text-sm">
+            <span className="text-muted-foreground">
+              <span className="font-medium text-foreground">{totalNfts}</span>{' '}
+              Total
+            </span>
+            <span className="text-muted-foreground">
+              <span className="font-medium text-green-600">{claimedCount}</span>{' '}
+              Claimed
+            </span>
+            <span className="text-muted-foreground">
+              <span className="font-medium text-foreground">
+                {totalNfts - claimedCount}
+              </span>{' '}
+              Available
+            </span>
           </div>
         </div>
+      </div>
 
-        <div className="flex items-center gap-2">
+      {/* Tabs & Search */}
+      <div className="border-border border-b px-4 py-3">
+        <div className="mx-auto flex max-w-5xl items-center justify-between gap-4">
+          {/* Tabs */}
+          <div className="flex gap-1">
+            <button
+              onClick={() => setViewTab('all')}
+              className={`rounded-md px-4 py-2 font-medium text-sm transition-colors ${
+                viewTab === 'all'
+                  ? 'bg-[#0066FF] text-white'
+                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+              }`}
+            >
+              All NFTs
+            </button>
+            {authenticated && (
+              <button
+                onClick={() => setViewTab('mine')}
+                className={`rounded-md px-4 py-2 font-medium text-sm transition-colors ${
+                  viewTab === 'mine'
+                    ? 'bg-[#0066FF] text-white'
+                    : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                }`}
+              >
+                My NFT{myNftCount > 0 && ` (${myNftCount})`}
+              </button>
+            )}
+          </div>
+
           {/* Search */}
-          <div className="relative flex-1 sm:w-64">
-            <Search className="-translate-y-1/2 absolute top-1/2 left-3 h-4 w-4 text-muted-foreground" />
+          <div className="relative w-64">
             <input
               type="text"
               placeholder="Search by name or #..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full rounded-lg border border-border bg-background py-2 pr-4 pl-10 text-foreground text-sm placeholder:text-muted-foreground focus:border-[#0066FF] focus:outline-none focus:ring-1 focus:ring-[#0066FF]"
+              className="w-full rounded-md border border-border bg-background px-3 py-2 text-foreground text-sm placeholder:text-muted-foreground focus:border-[#0066FF] focus:outline-none"
             />
             {searchQuery && (
               <button
                 onClick={() => setSearchQuery('')}
                 className="-translate-y-1/2 absolute top-1/2 right-3 text-muted-foreground hover:text-foreground"
               >
-                <X className="h-4 w-4" />
+                ×
               </button>
             )}
           </div>
-
-          {/* Filter Toggle */}
-          <Button
-            variant={showFilters ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setShowFilters(!showFilters)}
-          >
-            <Filter className="h-4 w-4" />
-          </Button>
         </div>
       </div>
-
-      {/* Filters */}
-      {showFilters && (
-        <div className="flex flex-wrap items-center gap-4 border-border border-b bg-muted/30 px-4 py-3">
-          {/* Claimed Filter */}
-          <div className="flex items-center gap-2">
-            <span className="text-muted-foreground text-sm">Status:</span>
-            <div className="flex rounded-lg border border-border bg-background p-1">
-              {(['all', 'claimed', 'unclaimed'] as const).map((filter) => (
-                <button
-                  key={filter}
-                  onClick={() => {
-                    setClaimedFilter(filter);
-                    setPage(1);
-                  }}
-                  className={`rounded-md px-3 py-1 font-medium text-sm transition-colors ${
-                    claimedFilter === filter
-                      ? 'bg-[#0066FF] text-white'
-                      : 'text-muted-foreground hover:text-foreground'
-                  }`}
-                >
-                  {filter.charAt(0).toUpperCase() + filter.slice(1)}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Sort */}
-          <div className="flex items-center gap-2">
-            <span className="text-muted-foreground text-sm">Sort:</span>
-            <select
-              value={`${sortField}-${sortOrder}`}
-              onChange={(e) => {
-                const [field, order] = e.target.value.split('-') as [
-                  SortField,
-                  SortOrder,
-                ];
-                setSortField(field);
-                setSortOrder(order);
-                setPage(1);
-              }}
-              className="rounded-lg border border-border bg-background px-3 py-1.5 text-foreground text-sm focus:border-[#0066FF] focus:outline-none"
-            >
-              <option value="tokenId-asc">Token ID ↑</option>
-              <option value="tokenId-desc">Token ID ↓</option>
-              <option value="name-asc">Name A-Z</option>
-              <option value="name-desc">Name Z-A</option>
-            </select>
-          </div>
-        </div>
-      )}
 
       {/* Error State */}
       {error && (
         <div className="flex flex-1 items-center justify-center p-8">
           <div className="text-center">
-            <p className="mb-2 font-semibold text-foreground text-lg">
+            <p className="mb-2 font-medium text-foreground">
               Failed to load collection
             </p>
             <p className="mb-4 text-muted-foreground text-sm">{error}</p>
@@ -225,37 +228,110 @@ export default function NftGalleryPage() {
         </div>
       )}
 
-      {/* NFT Grid */}
+      {/* NFT Grid - Scrollable */}
       {!error && (
-        <div className="flex-1 overflow-y-auto p-4">
-          <NftGrid nfts={nfts} isLoading={loading} />
+        <div className="flex-1 overflow-y-auto px-4 py-6">
+          <div className="mx-auto max-w-5xl">
+            <NftGrid nfts={displayedNfts} isLoading={loading} />
+          </div>
+        </div>
+      )}
 
-          {/* Pagination */}
-          {!loading && totalPages > 1 && (
-            <div className="mt-6 flex items-center justify-center gap-4">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={page === 1}
-              >
-                <ChevronLeft className="mr-1 h-4 w-4" />
-                Previous
-              </Button>
-              <span className="text-muted-foreground text-sm">
-                Page {page} of {totalPages}
-              </span>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                disabled={page === totalPages}
-              >
-                Next
-                <ChevronRight className="ml-1 h-4 w-4" />
-              </Button>
-            </div>
-          )}
+      {/* Eligibility Modal */}
+      {showEligibilityModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="mx-4 w-full max-w-md rounded-xl border border-border bg-card p-6 shadow-xl">
+            {isCheckingEligibility ? (
+              <div className="py-8 text-center">
+                <div className="mx-auto mb-4 h-8 w-8 animate-spin rounded-full border-2 border-[#0066FF] border-t-transparent" />
+                <p className="text-muted-foreground">
+                  Checking your eligibility...
+                </p>
+              </div>
+            ) : eligibility?.eligible && !eligibility.hasMinted ? (
+              <div className="text-center">
+                <div className="mb-4 text-5xl">🎉</div>
+                <h3 className="mb-2 font-bold text-foreground text-xl">
+                  You&apos;re Eligible!
+                </h3>
+                <p className="mb-2 text-muted-foreground">
+                  You ranked{' '}
+                  <span className="font-bold text-[#0066FF]">
+                    #{eligibility.snapshotRank}
+                  </span>{' '}
+                  on the leaderboard
+                </p>
+                <p className="mb-6 text-muted-foreground text-sm">
+                  Claim your exclusive NFT from the Babylon Top 100 collection
+                </p>
+                <div className="flex gap-3">
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowEligibilityModal(false)}
+                    className="flex-1"
+                  >
+                    Maybe Later
+                  </Button>
+                  <Button
+                    onClick={handleMintFromModal}
+                    disabled={isMinting}
+                    className="flex-1 bg-[#0066FF] hover:bg-[#0055DD]"
+                  >
+                    {isMinting ? 'Claiming...' : 'Claim My NFT'}
+                  </Button>
+                </div>
+              </div>
+            ) : eligibility?.hasMinted ? (
+              <div className="text-center">
+                <div className="mb-4 text-5xl">✅</div>
+                <h3 className="mb-2 font-bold text-foreground text-xl">
+                  Already Claimed
+                </h3>
+                <p className="mb-6 text-muted-foreground">
+                  You&apos;ve already claimed your NFT!
+                </p>
+                <div className="flex gap-3">
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowEligibilityModal(false)}
+                    className="flex-1"
+                  >
+                    Close
+                  </Button>
+                  {eligibility.mintedNft && (
+                    <a href={`/nft/${eligibility.mintedNft.tokenId}`} className="flex-1">
+                      <Button className="w-full bg-[#0066FF] hover:bg-[#0055DD]">
+                        View My NFT
+                      </Button>
+                    </a>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="text-center">
+                <div className="mb-4 text-5xl">😔</div>
+                <h3 className="mb-2 font-bold text-foreground text-xl">
+                  Not Eligible
+                </h3>
+                <p className="mb-6 text-muted-foreground">
+                  Only the top 100 leaderboard players can claim an NFT. Keep
+                  trading to climb the ranks!
+                </p>
+                <div className="flex gap-3">
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowEligibilityModal(false)}
+                    className="flex-1"
+                  >
+                    Close
+                  </Button>
+                  <a href="/leaderboard" className="flex-1">
+                    <Button className="w-full">View Leaderboard</Button>
+                  </a>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -263,7 +339,7 @@ export default function NftGalleryPage() {
       <RevealModal
         isOpen={showRevealModal}
         nft={mintedNft}
-        onClose={handleCloseReveal}
+        onClose={resetFlow}
       />
     </PageContainer>
   );
