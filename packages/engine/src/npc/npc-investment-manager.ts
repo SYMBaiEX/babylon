@@ -80,7 +80,7 @@ export class NPCInvestmentManager {
 
     const actorBalance = actorStateResult[0];
     if (!actorBalance) {
-      throw new Error(`Actor state not found for pool: ${poolId}`);
+      throw new Error(`Actor state not found: ${poolId} (poolId = actorId)`);
     }
 
     // Get open positions (closedAt is null)
@@ -309,6 +309,11 @@ export class NPCInvestmentManager {
     //
     // Baseline allocations should therefore be computed from actorState + open positions,
     // rather than the (often stale) pools.availableBalance field.
+    //
+    // Note: We fetch all actor states here intentionally. Filtering happens downstream:
+    // - Actors not in StaticDataRegistry are skipped (actorMap lookup)
+    // - Actors with zero/negative balance are skipped
+    // - Actors with open positions (prediction or perp) are skipped
     const npcStates = await db
       .select({
         id: actorState.id,
