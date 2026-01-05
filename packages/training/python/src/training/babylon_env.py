@@ -781,8 +781,8 @@ You receive market updates and must analyze, reason, and then act."""
             epsilon += (len(generated_response) % 100) * 0.0001  # Response length variance
             epsilon += (hash(generated_response[:50]) % 1000) * 0.00001  # Content-based variance
             # Add more variance based on action type
-            if action_result.action_type:
-                action_type_hash = hash(action_result.action_type) % 100
+            if format_validation.action.action_type:
+                action_type_hash = hash(format_validation.action.action_type) % 100
                 epsilon += action_type_hash * 0.0001
             final_score += epsilon
             
