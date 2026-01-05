@@ -79,11 +79,15 @@ export const POST = withErrorHandling(
         })
         .where(eq(questions.id, id));
 
-      logger.info('Resolution approved', {
-        questionId: id,
-        questionNumber: existing.questionNumber,
-        reviewedBy: admin.userId,
-      }, 'AdminResolutions');
+      logger.info(
+        'Resolution approved',
+        {
+          questionId: id,
+          questionNumber: existing.questionNumber,
+          reviewedBy: admin.userId,
+        },
+        'AdminResolutions'
+      );
 
       return successResponse({ success: true });
     }
@@ -106,12 +110,16 @@ export const POST = withErrorHandling(
       })
       .where(eq(questions.id, id));
 
-    logger.info('Resolution rejected', {
-      questionId: id,
-      questionNumber: existing.questionNumber,
-      reviewedBy: admin.userId,
-      postponedUntil: postponed.toISOString(),
-    }, 'AdminResolutions');
+    logger.info(
+      'Resolution rejected',
+      {
+        questionId: id,
+        questionNumber: existing.questionNumber,
+        reviewedBy: admin.userId,
+        postponedUntil: postponed.toISOString(),
+      },
+      'AdminResolutions'
+    );
 
     return successResponse({
       success: true,
