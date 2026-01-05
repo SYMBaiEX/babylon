@@ -1,4 +1,4 @@
-import { BABYLON_POINTS_SYMBOL } from '@babylon/shared';
+import { formatCurrency as formatCurrencyShared } from '@babylon/shared';
 import type { User } from '@/stores/authStore';
 import type { MarketCategory } from '@/types/markets';
 
@@ -53,16 +53,14 @@ interface CategoryPnLShareCardProps {
  * Format currency value safely.
  *
  * Formats a number as Babylon points, defaulting to 0 if invalid.
+ * Uses shared formatCurrency utility for consistency across the codebase.
  *
  * @param value - Value to format
  * @returns Formatted currency string
  */
 function formatCurrency(value: number) {
   const safeValue = Number.isFinite(value) ? value : 0;
-  return `${BABYLON_POINTS_SYMBOL}${safeValue.toLocaleString('en-US', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`;
+  return formatCurrencyShared(safeValue, { useThousandsSeparator: true });
 }
 
 /**
