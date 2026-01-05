@@ -727,13 +727,26 @@ export async function executeGameTick(
   const currentActiveCount =
     currentActiveQuestions.length - result.questionsResolved;
   if (currentActiveCount < 10) {
-    if (Date.now() < deadline) {
+    const shouldForceGeneration = currentActiveCount <= 0;
+    if (Date.now() < deadline || shouldForceGeneration) {
+      if (shouldForceGeneration && Date.now() >= deadline) {
+        logger.warn(
+          'No active prediction questions – forcing generation past tick budget',
+          { budgetMs, currentActiveCount },
+          'GameTick'
+        );
+      }
+
+      // If we've exceeded the tick budget, still allow a small window to avoid
+      // periods with zero active prediction markets.
+      const generationDeadline =
+        Date.now() < deadline ? deadline : Date.now() + 30_000;
       const questionsGenerated = await generateNewQuestions(
         Math.min(3, 15 - currentActiveCount),
         llmClient,
-        deadline
+        generationDeadline
       );
-      result.questionsCreated = questionsGenerated;
+      result.questionsCreated += questionsGenerated;
     } else {
       logger.warn(
         'Skipping question generation – tick budget exceeded',
