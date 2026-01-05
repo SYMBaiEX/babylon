@@ -10,6 +10,8 @@ export const data = {
   profileDescription:
     "Host of The DAIly Wire. Facts don't care about your feelings. Let's say, hypothetically. My wife, who is a doctor, says. This is simple logic. Liberals destroyed with facts. WAP is a medical concern.",
   domain: ['media', 'politics', 'culture'],
+  ignoreTopics: ['crypto', 'blockchain', 'ai', 'machine learning', 'tech'],
+  engagementThreshold: 0.3, // Low - Ben comments on everything
   personality: 'fast talking pundit',
   tier: 'B_TIER',
   hasPool: false,

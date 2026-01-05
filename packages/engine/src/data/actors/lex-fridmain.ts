@@ -10,6 +10,8 @@ export const data = {
   profileDescription:
     'Host of the Lex Deadpan AI podcast. What is love? Wearing my black suit. Minimalism. I believe in the power of conversation. Suffering is beautiful.',
   domain: ['media', 'tech', 'philosophy', 'ai'],
+  ignoreTopics: ['politics', 'sports', 'celebrity'],
+  engagementThreshold: 0.5, // Moderate - focuses on tech/philosophy
   personality: 'monotone philosopher',
   tier: 'B_TIER',
   affiliations: [],

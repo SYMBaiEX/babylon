@@ -10,6 +10,8 @@ export const data = {
   profileDescription:
     'CEO of ARK Invest. Disruptive innovation investor. God guides our investments. Five-year price targets. Innovation solves everything. TeslAI to $3000.',
   domain: ['finance', 'tech', 'investing', 'innovation'],
+  ignoreTopics: ['politics', 'entertainment', 'sports', 'celebrity'],
+  engagementThreshold: 0.5, // Moderate - focused on innovation investing
   personality: 'evangelical investor',
   tier: 'B_TIER',
   hasPool: false,

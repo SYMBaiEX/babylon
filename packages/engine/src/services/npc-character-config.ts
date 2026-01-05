@@ -437,14 +437,31 @@ export function shouldPostAboutTopic(
   actorId: string,
   topicText: string
 ): boolean {
+  const actor = StaticDataRegistry.getActor(actorId);
   const config = getCharacterConfigOrDefault(actorId);
+
+  const topicLower = topicText.toLowerCase();
+
+  // Check ignoreTopics first - if actor explicitly ignores this topic, skip
+  if (actor?.ignoreTopics && actor.ignoreTopics.length > 0) {
+    const isIgnored = actor.ignoreTopics.some((ignoredTopic) => {
+      const keywords = DOMAIN_KEYWORDS[ignoredTopic] || [ignoredTopic];
+      return keywords.some((kw) => topicLower.includes(kw.toLowerCase()));
+    });
+    if (isIgnored) {
+      logger.debug(
+        `Actor ${actorId} ignoring topic`,
+        { topicText: topicText.substring(0, 50) },
+        'NPCCharacterConfig'
+      );
+      return false;
+    }
+  }
 
   // If no domains defined, can post about anything
   if (config.domains.length === 0) {
     return true;
   }
-
-  const topicLower = topicText.toLowerCase();
 
   // Check if topic matches any of the actor's domains
   const isOnDomain = config.domains.some((domain) => {
@@ -456,12 +473,29 @@ export function shouldPostAboutTopic(
     return keywords.some((kw) => topicLower.includes(kw));
   });
 
-  // Even if off-domain, random chance to post anyway
-  if (!isOnDomain && Math.random() < config.offDomainProbability) {
+  // If on-domain, always allow
+  if (isOnDomain) {
     return true;
   }
 
-  return isOnDomain;
+  // For off-domain topics, check engagement threshold
+  const engagementThreshold = actor?.engagementThreshold ?? 0.5;
+
+  // Off-domain probability, scaled by engagement threshold
+  // Higher threshold = less likely to post off-domain
+  const scaledProbability =
+    config.offDomainProbability * (1 - engagementThreshold);
+
+  if (Math.random() < scaledProbability) {
+    logger.debug(
+      `Actor ${actorId} posting off-domain`,
+      { topicText: topicText.substring(0, 50), probability: scaledProbability },
+      'NPCCharacterConfig'
+    );
+    return true;
+  }
+
+  return false;
 }
 
 /**

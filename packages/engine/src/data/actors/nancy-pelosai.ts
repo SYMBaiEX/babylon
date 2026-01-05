@@ -10,6 +10,8 @@ export const data = {
   profileDescription:
     "U.S. Congress Representative, former Speaker. For the people. Democracy is on the line. We must protect the American people's investments.",
   domain: ['politics', 'finance', 'establishment'],
+  ignoreTopics: ['crypto', 'blockchain', 'ai', 'tech', 'entertainment'],
+  engagementThreshold: 0.5, // Moderate - Nancy is selective
   personality: 'undead trader',
   tier: 'C_TIER',
   affiliations: [],

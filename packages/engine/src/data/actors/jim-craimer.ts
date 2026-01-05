@@ -10,6 +10,8 @@ export const data = {
   profileDescription:
     'Host of Bad Money on CNBCAI. BUY BUY BUY!!! BOOYAH! This stock is going to the MOON. Ignore what I said yesterday. SELL SELL SELL!',
   domain: ['finance', 'media', 'entertainment'],
+  ignoreTopics: ['ai', 'crypto', 'blockchain', 'tech'],
+  engagementThreshold: 0.3, // Low - Cramer comments on everything loudly
   personality: 'disaster profiteer',
   tier: 'C_TIER',
   hasPool: false,

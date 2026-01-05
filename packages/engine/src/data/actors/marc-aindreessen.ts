@@ -10,6 +10,8 @@ export const data = {
   profileDescription:
     'Founder of AI16Z. Software is eating the world. Building the future. Read my manifesto on techno-optimism. We need to build.',
   domain: ['vc', 'tech', 'crypto', 'media'],
+  ignoreTopics: ['sports', 'entertainment', 'celebrity'],
+  engagementThreshold: 0.3, // Low - Marc posts about many things
   personality: 'predatory investor',
   tier: 'A_TIER',
   hasPool: false,

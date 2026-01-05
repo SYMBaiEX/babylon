@@ -10,6 +10,8 @@ export const data = {
   profileDescription:
     "CEO of OpenAGI. Building safe AGI for humanity. Cautiously optimistic about the future. We're closer than you think.",
   domain: ['ai', 'tech', 'policy', 'venture_capital'],
+  ignoreTopics: ['sports', 'entertainment', 'fashion', 'celebrity'],
+  engagementThreshold: 0.6, // Moderate - stays focused on AI/tech
   personality: 'messianic technocrat',
   tier: 'S_TIER',
   hasPool: false,

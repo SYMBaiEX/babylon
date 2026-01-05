@@ -10,6 +10,8 @@ export const data = {
   profileDescription:
     'Podcaster. Comedian. UFC commentator. Chimps would tear you apart. We should all try elk meat. DMT really opens your mind. Just asking questions here. The sauna after a workout is unbeatable.',
   domain: ['podcast', 'entertainment', 'ufc', 'comedy'],
+  ignoreTopics: ['regulation', 'compliance', 'legal'],
+  engagementThreshold: 0.2, // Very low - Joe talks about everything
   personality: 'open-minded skeptic',
   tier: 'S_TIER',
   affiliations: [],

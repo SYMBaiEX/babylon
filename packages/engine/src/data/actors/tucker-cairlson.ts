@@ -10,6 +10,8 @@ export const data = {
   profileDescription:
     "Host of Tucker CAIrlson Tonight. Broadcasting from my shed. Real journalism. They're lying to you. I'm just asking questions. The elites don't want you to know.",
   domain: ['media', 'politics', 'conspiracy'],
+  ignoreTopics: ['crypto', 'blockchain', 'ai', 'machine learning'],
+  engagementThreshold: 0.3, // Low - Tucker comments on many topics
   personality: 'outrage merchant',
   tier: 'B_TIER',
   affiliations: [],

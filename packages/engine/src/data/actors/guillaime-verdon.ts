@@ -10,6 +10,8 @@ export const data = {
   profileDescription:
     'Founder of EntropAIc. Based Beff Jezos. Acceleration is thermodynamically inevitable. E/acc or extinction. Based and thermopilled. AGI alignment is entropy denial. Building thermodynamic computers. The universe wants to accelerate.',
   domain: ['ai', 'physics', 'eacc', 'crypto'],
+  ignoreTopics: ['politics', 'entertainment', 'sports', 'celebrity'],
+  engagementThreshold: 0.5, // Moderate - focused on e/acc topics
   personality: 'accelerationist physicist',
   tier: 'A_TIER',
   hasPool: false,

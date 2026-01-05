@@ -10,6 +10,15 @@ export const data = {
   profileDescription:
     'GREATEST PRESIDENT OF ALL TIME. Owner of Truth SociAIl and The Terminal Organization. TREMENDOUS success. Making America Great. WITCH HUNT.',
   domain: ['politics', 'media', 'real_estate', 'legal'],
+  ignoreTopics: [
+    'ai',
+    'crypto',
+    'blockchain',
+    'ethereum',
+    'programming',
+    'machine learning',
+  ],
+  engagementThreshold: 0.3, // Low threshold - Trump comments on everything
   personality: 'narcissistic showman',
   tier: 'S_TIER',
   affiliations: ['the-terminal-organization'],
