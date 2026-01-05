@@ -83,15 +83,20 @@ export default function NftGalleryPage() {
     fetchNfts();
   }, [fetchNfts]);
 
-  // Filter NFTs based on tab
-  const displayedNfts =
-    viewTab === 'mine' && user
-      ? nfts.filter((nft) => nft.owner?.user?.id === user.id)
-      : nfts;
+  // Filter NFTs based on tab (match by user ID or wallet address)
+  const isMyNft = (nft: NftSummary) => {
+    if (!user) return false;
+    if (nft.owner?.user?.id === user.id) return true;
+    if (
+      user.walletAddress &&
+      nft.owner?.walletAddress?.toLowerCase() === user.walletAddress.toLowerCase()
+    )
+      return true;
+    return false;
+  };
 
-  const myNftCount = user
-    ? nfts.filter((nft) => nft.owner?.user?.id === user.id).length
-    : 0;
+  const displayedNfts = viewTab === 'mine' ? nfts.filter(isMyNft) : nfts;
+  const myNftCount = nfts.filter(isMyNft).length;
 
   // Handle claim button click
   const handleClaimClick = async () => {
