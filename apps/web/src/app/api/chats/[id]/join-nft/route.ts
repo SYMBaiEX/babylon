@@ -19,11 +19,11 @@ import {
 } from '@babylon/api';
 import {
   and,
-  asUser,
   chatParticipants,
   chats,
   db,
   eq,
+  groupMembers,
   users,
 } from '@babylon/db';
 import { generateSnowflakeId, logger } from '@babylon/shared';
@@ -113,36 +113,71 @@ export const POST = withErrorHandling(
       );
     }
 
-    // Add user to chat
-    await asUser(user, async (database) => {
-      const now = new Date();
-      const participantId = await generateSnowflakeId();
+    // Add user to chat using transaction for atomicity
+    const now = new Date();
+    const participantId = await generateSnowflakeId();
 
-      // Add to chat participants
-      await database.chatParticipant.create({
-        data: {
+    try {
+      await db.transaction(async (tx) => {
+        // Add to chat participants
+        await tx.insert(chatParticipants).values({
           id: participantId,
           chatId,
           userId: user.userId,
           joinedAt: now,
-        },
-      });
+          isActive: true,
+        });
 
-      // If there's a linked group, add to group members
-      if (chat.groupId) {
-        const memberId = await generateSnowflakeId();
-        await database.groupMember.create({
-          data: {
-            id: memberId,
-            groupId: chat.groupId,
-            userId: user.userId,
-            role: 'member',
-            joinedAt: now,
-            isActive: true,
-          },
+        // If there's a linked group, add to group members
+        if (chat.groupId) {
+          const memberId = await generateSnowflakeId();
+          // Check for existing inactive membership and reactivate
+          const existingMember = await tx.query.groupMembers.findFirst({
+            where: and(
+              eq(groupMembers.groupId, chat.groupId),
+              eq(groupMembers.userId, user.userId)
+            ),
+          });
+
+          if (existingMember) {
+            // Reactivate existing membership
+            await tx
+              .update(groupMembers)
+              .set({
+                isActive: true,
+                joinedAt: now,
+                kickedAt: null,
+                kickReason: null,
+              })
+              .where(eq(groupMembers.id, existingMember.id));
+          } else {
+            // Create new membership
+            await tx.insert(groupMembers).values({
+              id: memberId,
+              groupId: chat.groupId,
+              userId: user.userId,
+              role: 'member',
+              addedBy: user.userId,
+              joinedAt: now,
+              isActive: true,
+            });
+          }
+        }
+      });
+    } catch (error) {
+      // Handle race condition - if user was already added by concurrent request
+      if (
+        error instanceof Error &&
+        error.message.includes('unique constraint')
+      ) {
+        return successResponse({
+          success: true,
+          message: 'Already a member of this chat',
+          alreadyMember: true,
         });
       }
-    });
+      throw error;
+    }
 
     logger.info(
       'User joined NFT-gated chat',

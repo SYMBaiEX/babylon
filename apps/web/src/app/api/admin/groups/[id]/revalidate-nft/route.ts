@@ -10,21 +10,22 @@
  */
 
 import {
+  BusinessLogicError,
   getClientIp,
   logAdminView,
   NFTVerificationService,
+  NotFoundError,
+  removeUserFromNftChat,
   requireAdmin,
   successResponse,
   withErrorHandling,
 } from '@babylon/api';
 import {
-  and,
   asSystem,
   chatParticipants,
   chats,
   db,
   eq,
-  groupMembers,
   inArray,
   users,
 } from '@babylon/db';
@@ -58,11 +59,11 @@ export const POST = withErrorHandling(
     });
 
     if (!chat) {
-      return successResponse({ error: 'Chat not found' }, 404);
+      throw new NotFoundError('Chat', chatId);
     }
 
     if (!chat.nftGated || !chat.requiredNftContractAddress) {
-      return successResponse({ error: 'Chat is not NFT-gated' }, 400);
+      throw new BusinessLogicError('Chat is not NFT-gated', 'NOT_NFT_GATED');
     }
 
     // Get all participants with their wallet addresses
@@ -106,7 +107,7 @@ export const POST = withErrorHandling(
     };
 
     for (const participant of participants) {
-      // Skip admin user (don't remove the owner)
+      // Skip the requesting admin (admins don't need NFT to stay in chats they manage)
       if (participant.userId === admin.userId) {
         results.validated++;
         continue;
@@ -114,7 +115,7 @@ export const POST = withErrorHandling(
 
       if (!participant.walletAddress) {
         // No wallet - remove from chat
-        await removeUserFromChat(
+        await removeUserFromNftChat(
           chatId,
           chat.groupId,
           participant.userId,
@@ -143,7 +144,7 @@ export const POST = withErrorHandling(
 
         if (!verification.canAccess) {
           // Remove user from chat
-          await removeUserFromChat(
+          await removeUserFromNftChat(
             chatId,
             chat.groupId,
             participant.userId,
@@ -192,43 +193,3 @@ export const POST = withErrorHandling(
     });
   }
 );
-
-/**
- * Helper to remove a user from an NFT-gated chat
- */
-async function removeUserFromChat(
-  chatId: string,
-  groupId: string | null,
-  userId: string,
-  reason: string
-): Promise<void> {
-  await db.transaction(async (tx) => {
-    // Remove from chat participants
-    await tx
-      .delete(chatParticipants)
-      .where(
-        and(
-          eq(chatParticipants.chatId, chatId),
-          eq(chatParticipants.userId, userId)
-        )
-      );
-
-    // If there's a linked group, update group membership
-    if (groupId) {
-      await tx
-        .update(groupMembers)
-        .set({
-          isActive: false,
-          kickedAt: new Date(),
-          kickReason: reason,
-        })
-        .where(
-          and(
-            eq(groupMembers.groupId, groupId),
-            eq(groupMembers.userId, userId),
-            eq(groupMembers.isActive, true)
-          )
-        );
-    }
-  });
-}

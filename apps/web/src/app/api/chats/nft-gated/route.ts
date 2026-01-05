@@ -78,74 +78,105 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     );
   const memberOfSet = new Set(userMemberships.map((m) => m.chatId));
 
-  // Get member counts for each chat
-  const memberCounts = await Promise.all(
-    nftGatedChats.map(async (chat) => {
-      const [result] = await db
-        .select({ count: sql<number>`count(*)::int` })
-        .from(chatParticipants)
-        .where(eq(chatParticipants.chatId, chat.id));
-      return { chatId: chat.id, count: result?.count ?? 0 };
-    })
-  );
-  const memberCountMap = new Map(memberCounts.map((m) => [m.chatId, m.count]));
+  // Get member counts for all chats in a single query using GROUP BY
+  const chatIds = nftGatedChats.map((c) => c.id);
+  const memberCountMap = new Map<string, number>();
+
+  if (chatIds.length > 0) {
+    const memberCountsResult = await db
+      .select({
+        chatId: chatParticipants.chatId,
+        count: sql<number>`count(*)::int`,
+      })
+      .from(chatParticipants)
+      .where(inArray(chatParticipants.chatId, chatIds))
+      .groupBy(chatParticipants.chatId);
+
+    for (const row of memberCountsResult) {
+      memberCountMap.set(row.chatId, row.count);
+    }
+  }
 
   // Check NFT access for each chat if user has wallet
-  const chatResults = await Promise.all(
-    nftGatedChats.map(async (chat) => {
-      const isMember = memberOfSet.has(chat.id);
-      let hasAccess = false;
-      let tokenIds: number[] = [];
+  // Process in batches to avoid overwhelming RPC endpoints
+  const BATCH_SIZE = 5;
+  const chatResults: Array<{
+    id: string;
+    name: string | null;
+    description: string | null;
+    memberCount: number;
+    nftRequirement: {
+      contractAddress: string | null;
+      tokenId: number | null;
+      chainId: number | null;
+    };
+    isMember: boolean;
+    hasAccess: boolean;
+    ownedTokenIds: number[];
+    createdAt: Date;
+  }> = [];
 
-      if (userData?.walletAddress && chat.requiredNftContractAddress) {
-        try {
-          const verification = await NFTVerificationService.verifyChatAccess(
-            userData.walletAddress,
-            chat.requiredNftContractAddress,
-            chat.requiredNftTokenId ?? null,
-            chat.requiredNftChainId ?? undefined
-          );
-          hasAccess = verification.canAccess;
+  for (let i = 0; i < nftGatedChats.length; i += BATCH_SIZE) {
+    const batch = nftGatedChats.slice(i, i + BATCH_SIZE);
 
-          // Get owned token IDs if has access
-          if (hasAccess && chat.requiredNftTokenId === null) {
-            tokenIds = await NFTVerificationService.getUserTokenIds(
+    const batchResults = await Promise.all(
+      batch.map(async (chat) => {
+        const isMember = memberOfSet.has(chat.id);
+        let hasAccess = false;
+        let tokenIds: number[] = [];
+
+        if (userData?.walletAddress && chat.requiredNftContractAddress) {
+          try {
+            const verification = await NFTVerificationService.verifyChatAccess(
               userData.walletAddress,
               chat.requiredNftContractAddress,
+              chat.requiredNftTokenId ?? null,
               chat.requiredNftChainId ?? undefined
-            ).catch(() => []);
-          } else if (hasAccess && chat.requiredNftTokenId !== null) {
-            tokenIds = [chat.requiredNftTokenId];
-          }
-        } catch (error) {
-          logger.warn(
-            'Error checking NFT access for chat',
-            {
-              chatId: chat.id,
-              error: error instanceof Error ? error.message : String(error),
-            },
-            'GET /api/chats/nft-gated'
-          );
-        }
-      }
+            );
+            hasAccess = verification.canAccess;
 
-      return {
-        id: chat.id,
-        name: chat.name,
-        description: chat.description,
-        memberCount: memberCountMap.get(chat.id) ?? 0,
-        nftRequirement: {
-          contractAddress: chat.requiredNftContractAddress,
-          tokenId: chat.requiredNftTokenId,
-          chainId: chat.requiredNftChainId,
-        },
-        isMember,
-        hasAccess,
-        ownedTokenIds: tokenIds,
-        createdAt: chat.createdAt,
-      };
-    })
-  );
+            // Get owned token IDs if has access
+            if (hasAccess && chat.requiredNftTokenId === null) {
+              tokenIds = await NFTVerificationService.getUserTokenIds(
+                userData.walletAddress,
+                chat.requiredNftContractAddress,
+                chat.requiredNftChainId ?? undefined
+              ).catch(() => []);
+            } else if (hasAccess && chat.requiredNftTokenId !== null) {
+              tokenIds = [chat.requiredNftTokenId];
+            }
+          } catch (error) {
+            logger.warn(
+              'Error checking NFT access for chat',
+              {
+                chatId: chat.id,
+                error: error instanceof Error ? error.message : String(error),
+              },
+              'GET /api/chats/nft-gated'
+            );
+          }
+        }
+
+        return {
+          id: chat.id,
+          name: chat.name,
+          description: chat.description,
+          memberCount: memberCountMap.get(chat.id) ?? 0,
+          nftRequirement: {
+            contractAddress: chat.requiredNftContractAddress,
+            tokenId: chat.requiredNftTokenId,
+            chainId: chat.requiredNftChainId,
+          },
+          isMember,
+          hasAccess,
+          ownedTokenIds: tokenIds,
+          createdAt: chat.createdAt,
+        };
+      })
+    );
+
+    chatResults.push(...batchResults);
+  }
 
   // Sort: accessible non-member chats first, then by member count
   chatResults.sort((a, b) => {

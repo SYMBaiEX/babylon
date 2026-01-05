@@ -13,15 +13,18 @@
  * Vercel cron: "* /5 * * * *" or similar
  */
 
-import { NFTVerificationService } from '@babylon/api';
 import {
-  and,
+  NFTVerificationService,
+  removeUserFromNftChat,
+  verifyCronAuth,
+} from '@babylon/api';
+import {
+  asc,
   asSystem,
   chatParticipants,
   chats,
   db,
   eq,
-  groupMembers,
   inArray,
   users,
 } from '@babylon/db';
@@ -43,18 +46,20 @@ const MAX_CHATS_PER_RUN = 5;
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const startTime = Date.now();
 
-  // Verify cron secret (Vercel cron protection)
-  const authHeader = request.headers.get('authorization');
-  const cronSecret = process.env.CRON_SECRET;
-
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+  // Verify cron authorization using centralized auth (fail-closed in production)
+  if (!verifyCronAuth(request, { jobName: 'NftRevalidate' })) {
+    logger.warn(
+      'Unauthorized nft-revalidate request attempt',
+      undefined,
+      'nft-revalidate'
+    );
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   logger.info('Starting NFT revalidation cron job', {}, 'nft-revalidate');
 
   try {
-    // Get all NFT-gated chats
+    // Get all NFT-gated chats (ordered by createdAt for deterministic round-robin processing)
     const nftGatedChats = await db
       .select({
         id: chats.id,
@@ -65,6 +70,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       })
       .from(chats)
       .where(eq(chats.nftGated, true))
+      .orderBy(asc(chats.createdAt))
       .limit(MAX_CHATS_PER_RUN);
 
     if (nftGatedChats.length === 0) {
@@ -201,7 +207,7 @@ async function revalidateChatAccess(
     if (!participant.walletAddress) {
       // Remove user without wallet from NFT-gated chat
       try {
-        await removeUserFromChat(
+        await removeUserFromNftChat(
           chatId,
           groupId,
           participant.userId,
@@ -239,7 +245,7 @@ async function revalidateChatAccess(
         );
 
         if (!freshCheck.canAccess) {
-          await removeUserFromChat(
+          await removeUserFromNftChat(
             chatId,
             groupId,
             participant.userId,
@@ -274,42 +280,4 @@ async function revalidateChatAccess(
   }
 
   return results;
-}
-
-/**
- * Helper to remove a user from an NFT-gated chat
- */
-async function removeUserFromChat(
-  chatId: string,
-  groupId: string | null,
-  userId: string,
-  reason: string
-): Promise<void> {
-  await db.transaction(async (tx) => {
-    await tx
-      .delete(chatParticipants)
-      .where(
-        and(
-          eq(chatParticipants.chatId, chatId),
-          eq(chatParticipants.userId, userId)
-        )
-      );
-
-    if (groupId) {
-      await tx
-        .update(groupMembers)
-        .set({
-          isActive: false,
-          kickedAt: new Date(),
-          kickReason: reason,
-        })
-        .where(
-          and(
-            eq(groupMembers.groupId, groupId),
-            eq(groupMembers.userId, userId),
-            eq(groupMembers.isActive, true)
-          )
-        );
-    }
-  });
 }

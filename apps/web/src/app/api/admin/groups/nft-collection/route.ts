@@ -25,6 +25,8 @@ import {
   eq,
   groupMembers,
   groups,
+  inArray,
+  sql,
 } from '@babylon/db';
 import { generateSnowflakeId, logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
@@ -70,20 +72,24 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       .from(chats)
       .where(eq(chats.nftGated, true));
 
-    // Get member counts for each chat
+    // Get member counts for all chats in a single query using GROUP BY
     const chatIds = chatsList.map((c) => c.id);
-    const memberCountsResult = await Promise.all(
-      chatIds.map(async (chatId) => {
-        const count = await database
-          .select({ chatId: chatParticipants.chatId })
-          .from(chatParticipants)
-          .where(eq(chatParticipants.chatId, chatId));
-        return { chatId, count: count.length };
-      })
-    );
-    const memberCountMap = new Map(
-      memberCountsResult.map((r) => [r.chatId, r.count])
-    );
+    const memberCountMap = new Map<string, number>();
+
+    if (chatIds.length > 0) {
+      const memberCountsResult = await database
+        .select({
+          chatId: chatParticipants.chatId,
+          count: sql<number>`count(*)::int`,
+        })
+        .from(chatParticipants)
+        .where(inArray(chatParticipants.chatId, chatIds))
+        .groupBy(chatParticipants.chatId);
+
+      for (const row of memberCountsResult) {
+        memberCountMap.set(row.chatId, row.count);
+      }
+    }
 
     return chatsList.map((chat) => ({
       ...chat,

@@ -27,7 +27,8 @@ export type NotificationType =
   | 'report_evaluated'
   | 'appeal_status'
   | 'points_received'
-  | 'group_invite';
+  | 'group_invite'
+  | 'nft_access_revoked';
 
 interface CreateNotificationParams {
   userId: string; // Who receives the notification
@@ -643,4 +644,28 @@ export async function notifyGroupChatMessage(
     );
 
   await Promise.all(notificationPromises);
+}
+
+/**
+ * Create notification when user is removed from an NFT-gated chat
+ * This happens when the user no longer owns the required NFT
+ */
+export async function notifyNftAccessRevoked(
+  userId: string,
+  chatId: string,
+  chatName: string,
+  reason: string
+): Promise<void> {
+  const message =
+    reason === 'No wallet connected'
+      ? `You were removed from "${chatName}" because your wallet was disconnected`
+      : `You were removed from "${chatName}" because you no longer own the required NFT`;
+
+  await createNotification({
+    userId,
+    type: 'nft_access_revoked',
+    chatId,
+    title: 'NFT Access Revoked',
+    message,
+  });
 }
