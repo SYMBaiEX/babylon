@@ -304,6 +304,16 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
           ? new Date() // Fallback to now for invalid dates
           : timestampDate;
 
+        // Convert and validate createdAt similarly
+        const createdAtDate =
+          post.createdAt instanceof Date
+            ? post.createdAt
+            : new Date(post.createdAt);
+
+        const validCreatedAt = isNaN(createdAtDate.getTime())
+          ? new Date() // Fallback to now for invalid dates
+          : createdAtDate;
+
         const hotScore = calculateHotScore(
           likeCount,
           commentCount,
@@ -338,8 +348,8 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
           category: post.category,
           imageUrl: post.imageUrl,
           type: post.type,
-          timestamp: toISOStringSafe(post.timestamp),
-          createdAt: toISOStringSafe(post.createdAt),
+          timestamp: toISOStringSafe(validTimestamp),
+          createdAt: toISOStringSafe(validCreatedAt),
           author: post.authorId,
           authorId: post.authorId,
           authorName,

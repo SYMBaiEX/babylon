@@ -281,6 +281,7 @@ export default function LeaderboardPage() {
                 <div
                   role="button"
                   tabIndex={0}
+                  aria-label={`View profile for ${player.displayName || player.username || 'Anonymous'}`}
                   onClick={(e) => {
                     e.preventDefault();
                     handleUserClick(player);
@@ -541,7 +542,7 @@ export default function LeaderboardPage() {
 
                 {/* Mobile Follow Button */}
                 {authenticated && !isCurrentUser && (
-                  <div className="flex shrink-0 items-center pr-3 xl:hidden">
+                  <div className="flex shrink-0 items-center self-center pr-3 xl:hidden">
                     <FollowButton userId={player.id} size="sm" variant="icon" />
                   </div>
                 )}

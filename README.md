@@ -23,6 +23,10 @@ A real-time prediction market game with autonomous NPCs, perpetual futures, and 
 
 ## 📦 Installation
 
+**Requirements:**
+- Node.js >= 18.0.0 (for Error cause support)
+- Bun >= 1.3.0
+
 ```bash
 git clone https://github.com/BabylonSocial/babylon.git
 cd babylon

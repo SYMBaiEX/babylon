@@ -112,6 +112,9 @@
     ]
   },
   "packageManager": "bun@1.3.0",
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "trustedDependencies": [
     "@reown/appkit",
     "@sentry/cli",

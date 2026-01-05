@@ -222,29 +222,30 @@ function extractEventKeywords(text: string): string[] {
   }
 
   // Action patterns - identify event types
+  // NOTE: Use (?:...) non-capturing groups to ensure \b applies to all alternatives
   const actionPatterns: Array<{ pattern: RegExp; action: string }> = [
     {
-      pattern: /\bbreaks?|broke\b.*\babove|below|through\b/,
+      pattern: /\b(?:breaks?|broke)\b.*\b(?:above|below|through)\b/,
       action: 'breakout',
     },
-    { pattern: /\bcrash|crashed|crashing\b/, action: 'crash' },
-    { pattern: /\bsurge|surged|surging\b/, action: 'surge' },
-    { pattern: /\bannounce|announced|announces\b/, action: 'announcement' },
-    { pattern: /\blaunch|launched|launches\b/, action: 'launch' },
-    { pattern: /\bban|banned|bans\b/, action: 'ban' },
-    { pattern: /\bapprove|approved|approves\b/, action: 'approval' },
-    { pattern: /\breject|rejected|rejects\b/, action: 'rejection' },
-    { pattern: /\bhack|hacked|breach\b/, action: 'security-breach' },
-    { pattern: /\blayoff|layoffs|laid off\b/, action: 'layoffs' },
-    { pattern: /\bacquisition|acquire|acquired\b/, action: 'acquisition' },
-    { pattern: /\bipo|public offering\b/, action: 'ipo' },
+    { pattern: /\b(?:crash|crashed|crashing)\b/, action: 'crash' },
+    { pattern: /\b(?:surge|surged|surging)\b/, action: 'surge' },
+    { pattern: /\b(?:announce|announced|announces)\b/, action: 'announcement' },
+    { pattern: /\b(?:launch|launched|launches)\b/, action: 'launch' },
+    { pattern: /\b(?:ban|banned|bans)\b/, action: 'ban' },
+    { pattern: /\b(?:approve|approved|approves)\b/, action: 'approval' },
+    { pattern: /\b(?:reject|rejected|rejects)\b/, action: 'rejection' },
+    { pattern: /\b(?:hack|hacked|breach)\b/, action: 'security-breach' },
+    { pattern: /\b(?:layoff|layoffs|laid off)\b/, action: 'layoffs' },
+    { pattern: /\b(?:acquisition|acquire|acquired)\b/, action: 'acquisition' },
+    { pattern: /\b(?:ipo|public offering)\b/, action: 'ipo' },
     // Additional action patterns for common news events
-    { pattern: /\bunveil|unveiled|unveils\b/, action: 'unveil' },
-    { pattern: /\breveal|revealed|reveals\b/, action: 'reveal' },
-    { pattern: /\bhints?|hinted|hinting\b/, action: 'hint' },
-    { pattern: /\bclaim|claimed|claims\b/, action: 'claim' },
-    { pattern: /\bpartner|partnered|partnership\b/, action: 'partnership' },
-    { pattern: /\brelease|released|releases\b/, action: 'release' },
+    { pattern: /\b(?:unveil|unveiled|unveils)\b/, action: 'unveil' },
+    { pattern: /\b(?:reveal|revealed|reveals)\b/, action: 'reveal' },
+    { pattern: /\b(?:hints?|hinted|hinting)\b/, action: 'hint' },
+    { pattern: /\b(?:claim|claimed|claims)\b/, action: 'claim' },
+    { pattern: /\b(?:partner|partnered|partnership)\b/, action: 'partnership' },
+    { pattern: /\b(?:release|released|releases)\b/, action: 'release' },
   ];
 
   for (const { pattern, action } of actionPatterns) {
