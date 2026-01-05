@@ -74,6 +74,22 @@ export interface DiverseTopicSuggestion {
 }
 
 /**
+ * Event coverage record for event-level deduplication
+ */
+interface EventCoverage {
+  /** Unique identifier for the event (e.g., "bitcoin-$94000-breakout") */
+  eventId: string;
+  /** Number of posts/articles about this specific event */
+  postCount: number;
+  /** When the first post about this event was made */
+  firstCoveredAt: Date;
+  /** When the most recent post was made */
+  lastCoveredAt: Date;
+  /** Keywords associated with this event */
+  keywords: string[];
+}
+
+/**
  * Configuration for diversity quotas
  */
 interface DiversityConfig {
@@ -85,6 +101,10 @@ interface DiversityConfig {
   diversityQuota: number;
   /** Hours to look back for saturation calculation */
   windowHours: number;
+  /** Maximum posts allowed per specific event to prevent duplicates */
+  maxPostsPerEvent: number;
+  /** Hours until an event is considered "old" and removed from tracking */
+  eventExpiryHours: number;
 }
 
 const DEFAULT_CONFIG: DiversityConfig = {
@@ -92,6 +112,8 @@ const DEFAULT_CONFIG: DiversityConfig = {
   cooldownHours: 4, // 4 hours between heavy coverage of same topic
   diversityQuota: 0.25, // 25% of articles must be diverse/off-trend
   windowHours: 6, // Look at last 6 hours
+  maxPostsPerEvent: 2, // Max 2 posts per specific event (1 breaking + 1 follow-up)
+  eventExpiryHours: 12, // Events expire after 12 hours
 };
 
 /**
@@ -268,8 +290,183 @@ export class TopicDiversityService {
   private lastCacheRefresh: Date = new Date(0);
   private readonly CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
+  // Event-level deduplication tracking
+  private eventCache: Map<string, EventCoverage> = new Map();
+  private lastEventCleanup: Date = new Date(0);
+  private readonly EVENT_CLEANUP_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
+
   constructor(config: Partial<DiversityConfig> = {}) {
     this.config = { ...DEFAULT_CONFIG, ...config };
+  }
+
+  /**
+   * Generate a normalized event ID from content keywords
+   * Used for deduplication across similar stories
+   */
+  private generateEventId(keywords: string[]): string {
+    const normalized = keywords
+      .map((k) => k.toLowerCase().trim())
+      .filter((k) => k.length > 2)
+      .sort()
+      .join('-');
+    return normalized || 'generic-event';
+  }
+
+  /**
+   * Clean up expired events from the cache
+   */
+  private cleanupExpiredEvents(): void {
+    const now = new Date();
+    if (
+      now.getTime() - this.lastEventCleanup.getTime() <
+      this.EVENT_CLEANUP_INTERVAL_MS
+    ) {
+      return;
+    }
+
+    const expiryTime = new Date(
+      now.getTime() - this.config.eventExpiryHours * 60 * 60 * 1000
+    );
+
+    let removed = 0;
+    for (const [eventId, coverage] of this.eventCache.entries()) {
+      if (coverage.lastCoveredAt < expiryTime) {
+        this.eventCache.delete(eventId);
+        removed++;
+      }
+    }
+
+    if (removed > 0) {
+      logger.debug(
+        `Cleaned up ${removed} expired events`,
+        { remaining: this.eventCache.size },
+        'TopicDiversityService'
+      );
+    }
+
+    this.lastEventCleanup = now;
+  }
+
+  /**
+   * Track that an event has been covered
+   *
+   * @param eventKeywords - Keywords that identify this specific event
+   * @returns The event ID that was tracked
+   */
+  trackEventCoverage(eventKeywords: string[]): string {
+    this.cleanupExpiredEvents();
+
+    const eventId = this.generateEventId(eventKeywords);
+    const now = new Date();
+
+    const existing = this.eventCache.get(eventId);
+    if (existing) {
+      existing.postCount++;
+      existing.lastCoveredAt = now;
+      // Merge keywords
+      eventKeywords.forEach((k) => {
+        const normalized = k.toLowerCase().trim();
+        if (!existing.keywords.includes(normalized)) {
+          existing.keywords.push(normalized);
+        }
+      });
+    } else {
+      this.eventCache.set(eventId, {
+        eventId,
+        postCount: 1,
+        firstCoveredAt: now,
+        lastCoveredAt: now,
+        keywords: eventKeywords.map((k) => k.toLowerCase().trim()),
+      });
+    }
+
+    logger.debug(
+      `Event tracked: ${eventId}`,
+      {
+        postCount: this.eventCache.get(eventId)?.postCount,
+        keywords: eventKeywords.slice(0, 5),
+      },
+      'TopicDiversityService'
+    );
+
+    return eventId;
+  }
+
+  /**
+   * Check if an event has reached its coverage limit
+   *
+   * @param eventKeywords - Keywords that identify this specific event
+   * @returns True if the event should be skipped (too many posts already)
+   */
+  shouldSkipEvent(eventKeywords: string[]): boolean {
+    this.cleanupExpiredEvents();
+
+    const eventId = this.generateEventId(eventKeywords);
+    const coverage = this.eventCache.get(eventId);
+
+    if (!coverage) {
+      return false; // New event, allow coverage
+    }
+
+    if (coverage.postCount >= this.config.maxPostsPerEvent) {
+      logger.debug(
+        `Event saturated, skipping: ${eventId}`,
+        { postCount: coverage.postCount, max: this.config.maxPostsPerEvent },
+        'TopicDiversityService'
+      );
+      return true;
+    }
+
+    // Also check if there's been very recent coverage (within 30 minutes)
+    const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
+    if (coverage.lastCoveredAt > thirtyMinutesAgo && coverage.postCount >= 2) {
+      // Allow max 2 posts within 30 minutes
+      logger.debug(
+        `Event recently covered, skipping: ${eventId}`,
+        { lastCovered: coverage.lastCoveredAt.toISOString() },
+        'TopicDiversityService'
+      );
+      return true;
+    }
+
+    return false;
+  }
+
+  /**
+   * Get the current coverage count for an event
+   *
+   * @param eventKeywords - Keywords that identify this specific event
+   * @returns Coverage info or null if not tracked
+   */
+  getEventCoverage(eventKeywords: string[]): EventCoverage | null {
+    const eventId = this.generateEventId(eventKeywords);
+    return this.eventCache.get(eventId) ?? null;
+  }
+
+  /**
+   * Get event coverage stats for monitoring
+   */
+  getEventStats(): {
+    totalEvents: number;
+    saturatedEvents: number;
+    recentEvents: number;
+  } {
+    this.cleanupExpiredEvents();
+
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+    let saturated = 0;
+    let recent = 0;
+
+    for (const coverage of this.eventCache.values()) {
+      if (coverage.postCount >= this.config.maxPostsPerEvent) saturated++;
+      if (coverage.lastCoveredAt > oneHourAgo) recent++;
+    }
+
+    return {
+      totalEvents: this.eventCache.size,
+      saturatedEvents: saturated,
+      recentEvents: recent,
+    };
   }
 
   /**
