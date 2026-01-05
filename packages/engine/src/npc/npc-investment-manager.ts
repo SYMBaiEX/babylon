@@ -70,15 +70,17 @@ export class NPCInvestmentManager {
    * Get portfolio metrics for an NPC pool
    */
   static async getPortfolioMetrics(poolId: string): Promise<PortfolioMetrics> {
-    const poolResult = await db
-      .select()
-      .from(pools)
-      .where(eq(pools.id, poolId))
+    // The trading system now uses actorState.tradingBalance as the source of truth.
+    // poolId = actorId for NPC pools, so we query actorState directly.
+    const actorStateResult = await db
+      .select({ tradingBalance: actorState.tradingBalance })
+      .from(actorState)
+      .where(eq(actorState.id, poolId))
       .limit(1);
 
-    const pool = poolResult[0];
-    if (!pool) {
-      throw new Error(`Pool not found: ${poolId}`);
+    const actorBalance = actorStateResult[0];
+    if (!actorBalance) {
+      throw new Error(`Actor state not found for pool: ${poolId}`);
     }
 
     // Get open positions (closedAt is null)
@@ -106,7 +108,7 @@ export class NPCInvestmentManager {
       leverage: p.leverage ?? undefined,
     }));
     const availableBalance = Number.parseFloat(
-      pool.availableBalance?.toString() ?? '0'
+      actorBalance.tradingBalance?.toString() ?? '0'
     );
 
     // Calculate total invested capital (sum of all open position entry values)
