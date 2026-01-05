@@ -593,6 +593,17 @@ ${s.involvedOrganizations?.length ? `Organizations: ${s.involvedOrganizations.jo
       .filter((s): s is string => typeof s === 'string' && s.trim().length > 0)
       .join('\n');
 
+    // Guard: empty evidence should always trigger manual review
+    if (!evidenceText.trim()) {
+      return {
+        description,
+        proof: proof || undefined,
+        confidence: RESOLUTION_CONFIDENCE_CONFIG.MIN_CONFIDENCE,
+        requiresManualReview: true,
+        confidenceSignals: ['no_evidence'],
+      };
+    }
+
     const assessment = this.assessResolutionConfidence(evidenceText);
 
     return {
