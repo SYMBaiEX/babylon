@@ -115,10 +115,10 @@ export default function NftGalleryPage() {
           <div className="mb-4 flex items-start justify-between">
             <div>
               <h1 className="mb-1 font-bold text-foreground text-xl">
-                Babylon Top 100
+                ProtoMonkeys
               </h1>
               <p className="text-muted-foreground text-sm">
-                Exclusive NFTs for top leaderboard players
+                Exclusive NFTs for top 100 players on leaderboard
               </p>
             </div>
 
@@ -264,7 +264,7 @@ export default function NftGalleryPage() {
                   on the leaderboard
                 </p>
                 <p className="mb-6 text-muted-foreground text-sm">
-                  Claim your exclusive NFT from the Babylon Top 100 collection
+                  Claim your exclusive NFT from the ProtoMonkeys collection
                 </p>
                 <div className="flex gap-3">
                   <button

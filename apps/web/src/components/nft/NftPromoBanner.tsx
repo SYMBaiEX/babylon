@@ -23,10 +23,10 @@ export function NftPromoBanner() {
   return (
     <div className="relative z-[60] flex items-center justify-between gap-4 border-[#0066FF]/30 border-b bg-[#0066FF]/10 px-4 py-2">
       <p className="min-w-0 text-foreground text-sm">
-        <span className="font-semibold">Top 100 NFT Collection</span>
+        <span className="font-semibold">ProtoMonkeys</span>
         <span className="hidden text-muted-foreground sm:inline">
           {' '}
-          — Exclusive NFTs for top leaderboard players
+          — Exclusive NFTs for top 100 players on leaderboard
         </span>
       </p>
       <div className="flex shrink-0 items-center gap-2">
