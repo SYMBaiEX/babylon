@@ -25,6 +25,11 @@ const POSTGRES_CONTAINER = 'babylon-postgres';
 const REDIS_CONTAINER = 'babylon-redis';
 const MINIO_CONTAINER = 'babylon-minio';
 
+/**
+ * Valid Docker service names for the development environment
+ */
+type DockerService = 'postgres' | 'redis' | 'minio';
+
 // Detect docker compose command (docker compose vs docker-compose)
 let useDockerComposePlugin = false;
 const dockerComposeCheck = await $`docker compose version`.quiet().nothrow();
@@ -42,7 +47,7 @@ if (dockerComposeCheck.exitCode === 0) {
   }
 }
 
-async function dockerComposeUp(service: string) {
+async function dockerComposeUp(service: DockerService) {
   if (useDockerComposePlugin) {
     return $`docker compose up -d ${service}`;
   } else {

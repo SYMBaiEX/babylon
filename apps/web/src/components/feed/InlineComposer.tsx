@@ -2,11 +2,27 @@
 
 import { cn, logger } from '@babylon/shared';
 import { Send } from 'lucide-react';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { Avatar } from '@/components/shared/Avatar';
 import { useAuth } from '@/hooks/useAuth';
 import { getAuthToken } from '@/lib/auth';
+
+/**
+ * Detect if the user is on macOS for keyboard shortcut display
+ */
+function useIsMac(): boolean {
+  const [isMac, setIsMac] = useState(false);
+
+  useEffect(() => {
+    setIsMac(
+      typeof navigator !== 'undefined' &&
+        /Mac|iPhone|iPad|iPod/.test(navigator.userAgent)
+    );
+  }, []);
+
+  return isMac;
+}
 
 /**
  * Inline composer component for creating posts directly in the feed.
@@ -59,6 +75,7 @@ export function InlineComposer({
   const [isFocused, setIsFocused] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { authenticated, user } = useAuth();
+  const isMac = useIsMac();
 
   const charactersRemaining = MAX_LENGTH - content.length;
   const isOverLimit = charactersRemaining < 0;
@@ -82,42 +99,47 @@ export function InlineComposer({
       return;
     }
 
-    const headers: HeadersInit = {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
-    };
+    try {
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      };
 
-    const response = await fetch('/api/posts', {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        content: content.trim(),
-      }),
-    });
+      const response = await fetch('/api/posts', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          content: content.trim(),
+        }),
+      });
 
-    if (response.ok) {
-      const data = await response.json();
-      setContent('');
-      setIsFocused(false);
-      toast.success('Post created!');
+      if (response.ok) {
+        const data = await response.json();
+        setContent('');
+        setIsFocused(false);
+        toast.success('Post created!');
 
-      // Reset textarea height
-      if (textareaRef.current) {
-        textareaRef.current.style.height = 'auto';
+        // Reset textarea height
+        if (textareaRef.current) {
+          textareaRef.current.style.height = 'auto';
+        }
+
+        if (data.post) {
+          onPostCreated?.(data.post);
+        }
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        const errorMessage =
+          errorData?.error || 'Failed to create post. Please try again.';
+        logger.error('Failed to create post:', errorData, 'InlineComposer');
+        toast.error(errorMessage);
       }
-
-      if (data.post) {
-        onPostCreated?.(data.post);
-      }
-    } else {
-      const errorData = await response.json();
-      const errorMessage =
-        errorData?.error || 'Failed to create post. Please try again.';
-      logger.error('Failed to create post:', errorData, 'InlineComposer');
-      toast.error(errorMessage);
+    } catch (err) {
+      logger.error('Error creating post:', err, 'InlineComposer');
+      toast.error('Network error. Please check your connection and try again.');
+    } finally {
+      setIsSubmitting(false);
     }
-
-    setIsSubmitting(false);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -234,7 +256,7 @@ export function InlineComposer({
             <p className="mt-2 text-muted-foreground text-xs">
               Press{' '}
               <kbd className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">
-                ⌘
+                {isMac ? '⌘' : 'Ctrl'}
               </kbd>{' '}
               +{' '}
               <kbd className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">

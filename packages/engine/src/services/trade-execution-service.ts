@@ -180,8 +180,7 @@ export class TradeExecutionService {
           errorMessage.includes('Market not found') ||
           errorMessage.includes('Market already resolved') ||
           errorMessage.includes('Market expired') ||
-          errorMessage.includes('Order size exceeds market limit') ||
-          errorMessage.includes('exceed market limit') ||
+          /exceed(?:s)? market limit/i.test(errorMessage) || // Handles all variants
           errorMessage.includes('Position already closed') ||
           errorMessage.includes('Position not found') ||
           errorMessage.includes('Already have an open');

@@ -129,11 +129,7 @@ export default function LeaderboardPage() {
     }
   };
 
-  const handleUserClick = (
-    player: LeaderboardUser,
-    e: React.MouseEvent<HTMLButtonElement>
-  ) => {
-    e.preventDefault();
+  const handleUserClick = (player: LeaderboardUser) => {
     setSelectedUser({
       id: player.id,
       username: player.username,
@@ -285,11 +281,14 @@ export default function LeaderboardPage() {
                 <div
                   role="button"
                   tabIndex={0}
-                  onClick={(e) => handleUserClick(player, e)}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    handleUserClick(player);
+                  }}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' || e.key === ' ') {
                       e.preventDefault();
-                      handleUserClick(player, e as unknown as React.MouseEvent);
+                      handleUserClick(player);
                     }
                   }}
                   data-testid={

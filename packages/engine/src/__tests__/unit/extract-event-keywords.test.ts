@@ -233,9 +233,7 @@ describe('extractEventKeywords', () => {
     });
 
     it('should not extract partial matches', () => {
-      const keywords = extractEventKeywords('ETHANOL production');
       // Should not contain ETH since ETHANOL doesn't have word boundary
-      // Actually this might match - let's see
       const result = extractEventKeywords('ETHANOL');
       expect(result).not.toContain('ETH');
     });

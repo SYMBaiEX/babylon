@@ -176,7 +176,7 @@ function extractEventKeywords(text: string): string[] {
   const entityPatterns: Array<{ pattern: RegExp; entity: string }> = [
     // Crypto - include AI-stylized versions
     { pattern: /\bbitcoin|btc\b/, entity: 'bitcoin' },
-    { pattern: /\bethereum|etherAIum|eth\b/i, entity: 'ethereum' },
+    { pattern: /\b(?:ethereum|etherAIum|eth)\b/i, entity: 'ethereum' },
     { pattern: /\bsolana|solanai\b/i, entity: 'solana' },
     // AI Companies - include AI-stylized versions
     { pattern: /\bopenai|openagi\b/i, entity: 'openai' },
@@ -209,7 +209,7 @@ function extractEventKeywords(text: string): string[] {
     { pattern: /\bukraine\b/i, entity: 'ukraine' },
     // Products/Models - catch specific product names
     { pattern: /\bfsd\b/i, entity: 'tesla-fsd' },
-    { pattern: /\bsmh[- ]?\d+(?:\.\d+)?/i, entity: 'openai-model' },
+    { pattern: /\bo[- ]?\d+(?:\.\d+)?/i, entity: 'openai-model' }, // e.g., o1, o-1, o1.5
     { pattern: /\bgpt[- ]?\d+/i, entity: 'openai-model' },
     { pattern: /\bclaude[- ]?\d*/i, entity: 'anthropic-model' },
     { pattern: /\bgemini\b/i, entity: 'google-model' },

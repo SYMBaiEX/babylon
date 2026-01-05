@@ -440,13 +440,17 @@ export function shouldPostAboutTopic(
   const actor = StaticDataRegistry.getActor(actorId);
   const config = getCharacterConfigOrDefault(actorId);
 
-  const topicLower = topicText.toLowerCase();
+  // Normalize text: lowercase, remove punctuation (hyphens, etc.), collapse whitespace
+  const normalizeText = (text: string): string =>
+    text.toLowerCase().replace(/[-_]/g, ' ').replace(/\s+/g, ' ').trim();
+
+  const topicNormalized = normalizeText(topicText);
 
   // Check ignoreTopics first - if actor explicitly ignores this topic, skip
   if (actor?.ignoreTopics && actor.ignoreTopics.length > 0) {
     const isIgnored = actor.ignoreTopics.some((ignoredTopic) => {
       const keywords = DOMAIN_KEYWORDS[ignoredTopic] || [ignoredTopic];
-      return keywords.some((kw) => topicLower.includes(kw.toLowerCase()));
+      return keywords.some((kw) => topicNormalized.includes(normalizeText(kw)));
     });
     if (isIgnored) {
       logger.debug(
@@ -466,11 +470,11 @@ export function shouldPostAboutTopic(
   // Check if topic matches any of the actor's domains
   const isOnDomain = config.domains.some((domain) => {
     // Direct domain match
-    if (topicLower.includes(domain)) return true;
+    if (topicNormalized.includes(normalizeText(domain))) return true;
 
     // Domain keyword expansions
     const keywords = DOMAIN_KEYWORDS[domain] || [];
-    return keywords.some((kw) => topicLower.includes(kw));
+    return keywords.some((kw) => topicNormalized.includes(normalizeText(kw)));
   });
 
   // If on-domain, always allow

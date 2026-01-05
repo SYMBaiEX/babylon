@@ -1,4 +1,4 @@
-import type { FeedPost } from '@babylon/shared';
+import { type FeedPost, logger } from '@babylon/shared';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 interface UseHotPostsOptions {
@@ -8,6 +8,7 @@ interface UseHotPostsOptions {
 interface UseHotPostsResult {
   posts: FeedPost[];
   loading: boolean;
+  error: string | null;
   refresh: () => Promise<void>;
 }
 
@@ -23,39 +24,96 @@ export function useHotPosts(
   const { enabled = true } = options;
   const [posts, setPosts] = useState<FeedPost[]>([]);
   const [loading, setLoading] = useState(enabled);
+  const [error, setError] = useState<string | null>(null);
   const hasFetched = useRef(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
-  const fetchPosts = useCallback(async (showLoading = true) => {
-    if (showLoading) setLoading(true);
+  const fetchPosts = useCallback(
+    async (showLoading = true, signal?: AbortSignal) => {
+      if (showLoading) setLoading(true);
 
-    const response = await fetch('/api/feed/hot?limit=50');
-    if (response.ok) {
-      const data = await response.json();
-      setPosts((data.posts ?? []) as FeedPost[]);
-    }
-    setLoading(false);
-  }, []);
+      try {
+        const response = await fetch('/api/feed/hot?limit=50', { signal });
 
-  const refresh = useCallback(() => fetchPosts(false), [fetchPosts]);
+        // Check if aborted after fetch
+        if (signal?.aborted) return;
+
+        if (response.ok) {
+          const data = await response.json();
+          setPosts((data.posts ?? []) as FeedPost[]);
+          setError(null);
+        } else {
+          const errorText = await response.text().catch(() => 'Unknown error');
+          logger.error(
+            'Failed to fetch hot posts',
+            { status: response.status, errorText },
+            'useHotPosts'
+          );
+          setError(`Failed to fetch posts: ${response.status}`);
+        }
+      } catch (err) {
+        // Ignore abort errors
+        if (err instanceof Error && err.name === 'AbortError') {
+          return;
+        }
+        logger.error('Error fetching hot posts', { error: err }, 'useHotPosts');
+        setError('Network error while fetching posts');
+      } finally {
+        if (!signal?.aborted) {
+          setLoading(false);
+        }
+      }
+    },
+    []
+  );
+
+  const refresh = useCallback(() => {
+    // Create new abort controller for manual refresh
+    const controller = new AbortController();
+    return fetchPosts(false, controller.signal);
+  }, [fetchPosts]);
 
   // Initial fetch when enabled
   useEffect(() => {
     if (!enabled) {
       hasFetched.current = false;
       setLoading(false);
+      // Abort any ongoing request when disabled
+      abortControllerRef.current?.abort();
+      abortControllerRef.current = null;
       return;
     }
     if (hasFetched.current) return;
     hasFetched.current = true;
-    void fetchPosts();
+
+    // Create abort controller for this fetch
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+    void fetchPosts(true, controller.signal);
+
+    return () => {
+      controller.abort();
+    };
   }, [enabled, fetchPosts]);
 
   // Auto-refresh interval
   useEffect(() => {
     if (!enabled) return;
-    const id = setInterval(() => void fetchPosts(false), REFRESH_INTERVAL_MS);
-    return () => clearInterval(id);
+
+    let intervalController: AbortController | null = null;
+
+    const id = setInterval(() => {
+      // Abort previous interval fetch if still running
+      intervalController?.abort();
+      intervalController = new AbortController();
+      void fetchPosts(false, intervalController.signal);
+    }, REFRESH_INTERVAL_MS);
+
+    return () => {
+      clearInterval(id);
+      intervalController?.abort();
+    };
   }, [enabled, fetchPosts]);
 
-  return { posts, loading, refresh };
+  return { posts, loading, error, refresh };
 }

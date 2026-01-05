@@ -135,15 +135,24 @@ function calculateHotScore(
 
 /**
  * Converts a date value to ISO string format, handling various input types.
+ * Throws an error for invalid or unparseable dates instead of masking with current time.
  */
 function toISOStringSafe(date: Date | string | null | undefined): string {
-  if (!date) {
-    return new Date().toISOString();
+  if (date === null || date === undefined) {
+    throw new Error(
+      'Invalid date input in toISOStringSafe: date is null or undefined'
+    );
   }
   if (date instanceof Date) {
+    if (isNaN(date.getTime())) {
+      throw new Error(
+        'Invalid date input in toISOStringSafe: Date object is invalid'
+      );
+    }
     return date.toISOString();
   }
   if (typeof date === 'string') {
+    // Already valid ISO format
     if (date.includes('T') && date.includes('Z')) {
       return date;
     }
@@ -151,8 +160,13 @@ function toISOStringSafe(date: Date | string | null | undefined): string {
     if (!isNaN(parsed.getTime())) {
       return parsed.toISOString();
     }
+    throw new Error(
+      `Invalid date input in toISOStringSafe: unparseable string "${date}"`
+    );
   }
-  return new Date().toISOString();
+  throw new Error(
+    `Invalid date input in toISOStringSafe: unexpected type ${typeof date}`
+  );
 }
 
 /**
@@ -234,7 +248,9 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
             count: count(),
           })
           .from(comments)
-          .where(inArray(comments.postId, postIds))
+          .where(
+            and(inArray(comments.postId, postIds), isNull(comments.deletedAt))
+          )
           .groupBy(comments.postId),
         db
           .select({
@@ -276,11 +292,23 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         const likeCount = reactionMap.get(post.id) ?? 0;
         const commentCount = commentMap.get(post.id) ?? 0;
         const shareCount = shareMap.get(post.id) ?? 0;
+
+        // Convert timestamp to Date for calculateHotScore
+        const timestampDate =
+          post.timestamp instanceof Date
+            ? post.timestamp
+            : new Date(post.timestamp);
+
+        // Validate the date is valid before scoring
+        const validTimestamp = isNaN(timestampDate.getTime())
+          ? new Date() // Fallback to now for invalid dates
+          : timestampDate;
+
         const hotScore = calculateHotScore(
           likeCount,
           commentCount,
           shareCount,
-          post.timestamp
+          validTimestamp
         );
 
         // Get author details
