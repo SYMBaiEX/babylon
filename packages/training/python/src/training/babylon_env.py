@@ -193,7 +193,7 @@ class BabylonRLAIFEnv(BaseEnv):
         """Initialize configuration with defaults"""
         env_config = BabylonEnvConfig(
             tokenizer_name="Qwen/Qwen2.5-3B-Instruct",
-            group_size=2,  # Keep at 2 for offline RLAIF with limited data
+            group_size=4,  # Match Atropos default for stable GRPO training
             use_wandb=True,
             max_num_workers=64,
             rollout_server_url="http://localhost:8000",
