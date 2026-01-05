@@ -23,15 +23,13 @@ import {
   games,
   gte,
   inArray,
-  isNotNull,
   isNull,
   type JsonValue,
   lte,
   markets as marketsSchema,
-  organizationState,
   organizations,
   perpMarketSnapshots,
-  poolPositions,
+  perpPositions,
   pools,
   positions,
   posts,
@@ -2301,158 +2299,111 @@ async function updateMarketPricesFromTrades(
   _timestamp: Date,
   executionResult: TradingExecutionResult
 ): Promise<number> {
-  if (!executionResult.executedTrades.length) {
-    return 0;
-  }
+  if (!executionResult.executedTrades.length) return 0;
 
-  // Get all companies with current holdings (static + dynamic data)
-  const orgStates = await dbService().getAllOrganizationStates();
-  const priceMap = new Map(orgStates.map((s) => [s.id, s.currentPrice]));
+  const hasPerpTrades = executionResult.executedTrades.some(
+    (t) => t.marketType === 'perp'
+  );
+  if (!hasPerpTrades) return 0;
 
-  const companiesList = StaticDataRegistry.getAllOrganizations()
-    .filter((org) => org.type === 'company')
-    .map((org) => ({
-      id: org.id,
-      name: org.name,
-      currentPrice: priceMap.get(org.id) ?? org.initialPrice,
-      initialPrice: org.initialPrice,
-    }));
+  // Recompute perp prices from open PerpPosition rows.
+  // NPC perps now trade via PerpMarketService (perpPositions table), so using
+  // legacy poolPositions would keep prices effectively static.
+  const snapshots = await db
+    .select({
+      ticker: perpMarketSnapshots.ticker,
+      organizationId: perpMarketSnapshots.organizationId,
+      currentPrice: perpMarketSnapshots.currentPrice,
+    })
+    .from(perpMarketSnapshots);
 
-  type CompanyData = (typeof companiesList)[0];
-  // Use raw org IDs as keys since positions now store raw IDs
-  const companyMap = new Map<string, CompanyData>(
-    companiesList.map((c: CompanyData) => [c.id, c])
+  if (snapshots.length === 0) return 0;
+
+  // Scope recomputation to tickers actually traded this tick (when available).
+  const tradedTickers = new Set(
+    executionResult.executedTrades
+      .filter(
+        (t): t is (typeof executionResult.executedTrades)[number] & {
+          ticker: string;
+        } => t.marketType === 'perp' && typeof t.ticker === 'string'
+      )
+      .map((t) => t.ticker.toUpperCase())
   );
 
-  // Calculate total holdings for each company from ALL positions
-  const holdingsByTicker = new Map<string, number>();
+  const selected =
+    tradedTickers.size > 0
+      ? snapshots.filter((s) => tradedTickers.has(s.ticker.toUpperCase()))
+      : snapshots;
 
-  const allPositions = await db
+  if (selected.length === 0) return 0;
+
+  const orgIds = [...new Set(selected.map((s) => s.organizationId))];
+  const orgs = await db
     .select({
-      ticker: poolPositions.ticker,
-      side: poolPositions.side,
-      size: poolPositions.size,
+      id: organizations.id,
+      initialPrice: organizations.initialPrice,
     })
-    .from(poolPositions)
+    .from(organizations)
+    .where(inArray(organizations.id, orgIds));
+  const initialByOrgId = new Map(
+    orgs.map((o) => [o.id, Number(o.initialPrice ?? 100)])
+  );
+
+  const tickers = selected.map((s) => s.ticker);
+  const positionsOpen = await db
+    .select({
+      ticker: perpPositions.ticker,
+      side: perpPositions.side,
+      size: perpPositions.size,
+    })
+    .from(perpPositions)
     .where(
-      and(
-        eq(poolPositions.marketType, 'perp'),
-        isNull(poolPositions.closedAt),
-        isNotNull(poolPositions.ticker)
-      )
+      and(inArray(perpPositions.ticker, tickers), isNull(perpPositions.closedAt))
     );
 
-  for (const pos of allPositions) {
-    if (!pos.ticker) continue;
-
-    const current = holdingsByTicker.get(pos.ticker) || 0;
-    // Long positions add to holdings, short positions subtract
-    const delta = pos.side === 'long' ? pos.size : -pos.size;
+  const holdingsByTicker = new Map<string, number>();
+  for (const pos of positionsOpen) {
+    const current = holdingsByTicker.get(pos.ticker) ?? 0;
+    const delta = pos.side === 'long' ? Number(pos.size) : -Number(pos.size);
     holdingsByTicker.set(pos.ticker, current + delta);
   }
 
-  let updates = 0;
-  const priceUpdatesForChain: Array<{
-    organizationId: string;
-    newPrice: number;
-  }> = [];
+  const updates = selected
+    .map((snap) => {
+      const initialPrice = initialByOrgId.get(snap.organizationId) ?? 100;
+      const currentPrice = Number(snap.currentPrice ?? initialPrice);
+      const netHoldings = holdingsByTicker.get(snap.ticker) ?? 0;
 
-  // Update prices based on total capital deployed
-  // Market cap = initialPrice × syntheticSupply + totalDeployed
-  // ticker is now a raw org ID, not a transformed ticker
-  for (const [ticker, netHoldings] of holdingsByTicker) {
-    const company = companyMap.get(ticker);
-    if (!company) continue;
-
-    const initialPrice = company.initialPrice ?? 100;
-    const currentPrice = company.currentPrice ?? initialPrice;
-
-    // Use centralized vAMM formula with liquidity factor
-    // This applies the same pricing logic as real-time user trade impacts
-    // @see PERP_MARKET_CONFIG in @babylon/shared
-    const newPrice = calculatePriceFromHoldings(
-      initialPrice,
-      currentPrice,
-      netHoldings,
-      PERP_MARKET_CONFIG
-    );
-
-    // Calculate market cap for logging (same formula as calculatePriceFromHoldings)
-    const effectiveSupply =
-      PERP_MARKET_CONFIG.SYNTHETIC_SUPPLY / PERP_MARKET_CONFIG.LIQUIDITY_FACTOR;
-    const newMarketCap = initialPrice * effectiveSupply + netHoldings;
-
-    const change = newPrice - currentPrice;
-    const changePercent = currentPrice > 0 ? (change / currentPrice) * 100 : 0;
-
-    // Only update if price actually changed
-    if (Math.abs(change) < 0.01) continue;
-
-    await db
-      .update(organizationState)
-      .set({ currentPrice: newPrice, updatedAt: new Date() })
-      .where(eq(organizationState.id, company.id));
-
-    await dbService().recordPriceUpdate(
-      company.id,
-      newPrice,
-      change,
-      changePercent
-    );
-
-    logger.info(
-      `Price update for ${ticker}: ${currentPrice.toFixed(2)} -> ${newPrice.toFixed(2)} (${changePercent.toFixed(2)}%) [holdings: $${netHoldings.toFixed(0)}]`,
-      { ticker, currentPrice, newPrice, netHoldings, marketCap: newMarketCap },
-      'GameTick'
-    );
-
-    // Add to on-chain publish queue
-    priceUpdatesForChain.push({
-      organizationId: company.id,
-      newPrice,
-    });
-
-    updates++;
-  }
-
-  // Publish all price updates to blockchain in batch
-  if (priceUpdatesForChain.length > 0) {
-    try {
-      await PriceUpdateService.applyUpdates(
-        priceUpdatesForChain.map((u) => ({
-          ...u,
-          source: 'npc_trade',
-          reason: 'NPC trading price impact',
-        }))
-      );
-    } catch (error) {
-      // Log with special marker for monitoring/retry systems
-      logger.error(
-        'PRICE_SYNC_FAILED: Failed to publish prices to blockchain - queueing for retry',
-        {
-          error: error instanceof Error ? error.message : String(error),
-          count: priceUpdatesForChain.length,
-          retryable: true,
-        },
-        'GameTick'
+      const newPrice = calculatePriceFromHoldings(
+        initialPrice,
+        currentPrice,
+        netHoldings,
+        PERP_MARKET_CONFIG
       );
 
-      // Log each failed update for potential manual recovery
-      for (const update of priceUpdatesForChain) {
-        logger.warn(
-          'PRICE_SYNC_FAILED',
-          {
-            organizationId: update.organizationId,
-            newPrice: update.newPrice,
-            retryable: true,
-          },
-          'GameTick'
-        );
-      }
-    }
-  }
+      if (Math.abs(newPrice - currentPrice) < 0.001) return null;
 
-  return updates;
+      return {
+        organizationId: snap.organizationId,
+        newPrice,
+        source: 'npc_trade' as const,
+        reason: 'NPC trading price impact',
+        metadata: { ticker: snap.ticker },
+      };
+    })
+    .filter((u): u is NonNullable<typeof u> => u !== null);
+
+  if (updates.length === 0) return 0;
+
+  const applied = await PriceUpdateService.applyUpdates(updates);
+
+  logger.info(
+    `Perp price recomputation applied ${applied.length} updates`,
+    { count: applied.length },
+    'GameTick'
+  );
+
+  return applied.length;
 }
 
 /**
@@ -3334,6 +3285,7 @@ export async function simulateMarketVolatility(): Promise<number> {
           newPrice: u.newPrice,
           source: 'volatility_simulation',
           reason: 'Simulated market volatility',
+          metadata: { ticker: u.ticker },
         }))
       );
 
