@@ -6,25 +6,21 @@
 
 'use client';
 
-import { cn } from '@babylon/shared';
-import { ExternalLink, Loader2, RefreshCw, ShieldAlert } from 'lucide-react';
+import { cn, formatDateTime } from '@babylon/shared';
+import {
+  ExternalLink,
+  Loader2,
+  RefreshCw,
+  Shield,
+  ShieldAlert,
+} from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
+import { PageContainer } from '@/components/shared/PageContainer';
+import { Skeleton } from '@/components/shared/Skeleton';
 import { Button } from '@/components/ui/button';
-
-/** Format date with time for resolution display */
-function formatDateTime(dateStr: string): string {
-  try {
-    return new Intl.DateTimeFormat('en-US', {
-      month: 'short',
-      day: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-    }).format(new Date(dateStr));
-  } catch {
-    return dateStr;
-  }
-}
+import { useAuth } from '@/hooks/useAuth';
 
 type PendingResolution = {
   id: string;
@@ -35,17 +31,70 @@ type PendingResolution = {
   resolutionProofUrl: string | null;
   resolutionDescription: string | null;
   resolutionConfidence: number | null;
-  resolutionReviewStatus: 'pending' | 'approved' | 'rejected' | string;
+  resolutionReviewStatus: 'pending' | 'approved' | 'rejected' | null;
   requiresManualReview: boolean;
   updatedAt: string | null;
 };
 
+/** Runtime type guard for PendingResolution */
+function isPendingResolution(value: unknown): value is PendingResolution {
+  if (typeof value !== 'object' || value === null) return false;
+  const obj = value as Record<string, unknown>;
+  return (
+    typeof obj.id === 'string' &&
+    typeof obj.questionNumber === 'number' &&
+    typeof obj.text === 'string' &&
+    typeof obj.outcome === 'boolean' &&
+    typeof obj.requiresManualReview === 'boolean'
+  );
+}
+
+/** Extract error message from API response with runtime validation */
+function extractErrorMessage(data: unknown, fallback: string): string {
+  if (typeof data !== 'object' || data === null) return fallback;
+  const obj = data as Record<string, unknown>;
+  if (typeof obj.error !== 'object' || obj.error === null) return fallback;
+  const err = obj.error as Record<string, unknown>;
+  return typeof err.message === 'string' ? err.message : fallback;
+}
+
 export default function AdminResolutionsPage() {
+  const router = useRouter();
+  const { authenticated, ready } = useAuth();
   const [items, setItems] = useState<PendingResolution[]>([]);
   const [loading, setLoading] = useState(true);
   const [submittingId, setSubmittingId] = useState<string | null>(null);
+  const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
+
+  const checkAdminAccess = useCallback(async () => {
+    if (!ready) return;
+
+    if (!authenticated) {
+      router.push('/');
+      return;
+    }
+
+    // Check admin access by attempting to fetch the resolution queue
+    try {
+      const res = await fetch('/api/admin/resolutions');
+      if (!res.ok) {
+        setIsAuthorized(false);
+        setLoading(false);
+        return;
+      }
+      setIsAuthorized(true);
+    } catch {
+      setIsAuthorized(false);
+      setLoading(false);
+    }
+  }, [authenticated, ready, router]);
+
+  useEffect(() => {
+    checkAdminAccess();
+  }, [checkAdminAccess]);
 
   const fetchQueue = useCallback(async () => {
+    if (!isAuthorized) return;
     setLoading(true);
     try {
       const res = await fetch('/api/admin/resolutions');
@@ -56,28 +105,28 @@ export default function AdminResolutionsPage() {
         throw new Error('Invalid response from server');
       }
       if (!res.ok) {
-        const err = data as { error?: { message?: string } };
         throw new Error(
-          err?.error?.message ?? 'Failed to load resolution queue'
+          extractErrorMessage(data, 'Failed to load resolution queue')
         );
       }
       const payload = data as { items?: unknown[] };
-      setItems(
-        Array.isArray(payload?.items)
-          ? (payload.items as PendingResolution[])
-          : []
-      );
+      const validItems = Array.isArray(payload?.items)
+        ? payload.items.filter(isPendingResolution)
+        : [];
+      setItems(validItems);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to load queue');
       setItems([]);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [isAuthorized]);
 
   useEffect(() => {
-    fetchQueue();
-  }, [fetchQueue]);
+    if (isAuthorized) {
+      fetchQueue();
+    }
+  }, [isAuthorized, fetchQueue]);
 
   const pendingCount = useMemo(
     () => items.filter((i) => i.resolutionReviewStatus === 'pending').length,
@@ -100,8 +149,7 @@ export default function AdminResolutionsPage() {
           throw new Error(`Invalid response for ${action} on question ${id}`);
         }
         if (!res.ok) {
-          const err = data as { error?: { message?: string } };
-          throw new Error(err?.error?.message ?? 'Action failed');
+          throw new Error(extractErrorMessage(data, 'Action failed'));
         }
         toast.success(action === 'approve' ? 'Approved' : 'Rejected');
         await fetchQueue();
@@ -113,6 +161,34 @@ export default function AdminResolutionsPage() {
     },
     [fetchQueue]
   );
+
+  // Show loading skeleton while checking auth
+  if (!ready || isAuthorized === null) {
+    return (
+      <PageContainer>
+        <div className="mx-auto w-full max-w-5xl p-6">
+          <Skeleton className="mb-4 h-8 w-64" />
+          <Skeleton className="h-4 w-96" />
+        </div>
+      </PageContainer>
+    );
+  }
+
+  // Show access denied for non-admins
+  if (!isAuthorized) {
+    return (
+      <PageContainer>
+        <div className="flex h-full flex-col items-center justify-center">
+          <Shield className="mb-4 h-16 w-16 text-muted-foreground" />
+          <h1 className="mb-2 font-bold text-2xl">Access Denied</h1>
+          <p className="text-muted-foreground">
+            You don&apos;t have permission to access the resolution review
+            queue.
+          </p>
+        </div>
+      </PageContainer>
+    );
+  }
 
   return (
     <div className="mx-auto w-full max-w-5xl p-6">

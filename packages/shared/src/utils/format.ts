@@ -74,6 +74,36 @@ export function formatTime(date: Date | string): string {
 }
 
 /**
+ * Format date/timestamp to readable date and time string
+ *
+ * Supports both Date objects and ISO timestamp strings.
+ * Returns the original string on parse failure for graceful degradation.
+ *
+ * @param date - Date object or ISO timestamp string
+ * @returns Formatted date-time string (e.g., "Jan 16, 3:45 PM")
+ *
+ * @example
+ * ```typescript
+ * formatDateTime(new Date()); // "Jan 16, 3:45 PM"
+ * formatDateTime("2025-01-16T15:45:00Z"); // "Jan 16, 3:45 PM"
+ * formatDateTime("invalid"); // "invalid"
+ * ```
+ */
+export function formatDateTime(date: Date | string): string {
+  try {
+    const d = typeof date === 'string' ? new Date(date) : date;
+    return new Intl.DateTimeFormat('en-US', {
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    }).format(d);
+  } catch {
+    return typeof date === 'string' ? date : String(date);
+  }
+}
+
+/**
  * Calculate sentiment score from text (simple heuristic)
  *
  * Uses keyword matching to determine sentiment. Returns value between
