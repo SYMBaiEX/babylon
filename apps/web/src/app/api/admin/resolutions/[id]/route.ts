@@ -6,7 +6,9 @@
  */
 
 import {
+  checkRateLimitAndDuplicates,
   errorResponse,
+  RATE_LIMIT_CONFIGS,
   requireAdmin,
   successResponse,
   withErrorHandling,
@@ -36,6 +38,15 @@ export const POST = withErrorHandling(
     context: { params: Promise<{ id: string }> }
   ) => {
     const admin = await requireAdmin(request);
+
+    // Rate limit admin actions to prevent accidental rapid-fire approvals/rejections
+    const rateLimitResponse = checkRateLimitAndDuplicates(
+      admin.userId,
+      null,
+      RATE_LIMIT_CONFIGS.ADMIN_ACTION
+    );
+    if (rateLimitResponse) return rateLimitResponse;
+
     const { id } = ParamsSchema.parse(await context.params);
     const { action } = BodySchema.parse(await request.json());
 
@@ -73,7 +84,11 @@ export const POST = withErrorHandling(
     }
 
     if (existing.resolutionReviewStatus === 'approved') {
-      return errorResponse('Question already approved', 'ALREADY_APPROVED', 400);
+      return errorResponse(
+        'Question already approved',
+        'ALREADY_APPROVED',
+        400
+      );
     }
 
     const now = new Date();

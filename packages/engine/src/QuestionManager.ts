@@ -636,6 +636,7 @@ ${s.involvedOrganizations?.length ? `Organizations: ${s.involvedOrganizations.jo
     const signals: string[] = [];
 
     // Speculative signals with weights (higher = more speculative)
+    // Patterns are designed to minimize false positives from common phrases
     const speculativeSignals: Array<[RegExp, string, number]> = [
       // High-weight: strong speculation indicators
       [/\brumou?r(s|ed)?\b/i, 'rumor', 0.25],
@@ -645,11 +646,13 @@ ${s.involvedOrganizations?.length ? `Organizations: ${s.involvedOrganizations.jo
       // Medium-weight: conditional language (stricter patterns to avoid false positives)
       [/\b(might|could)\s+(be|have|become|lead|cause)\b/i, 'conditional', 0.15],
       [/\bexpected\s+to\b/i, 'expected_to', 0.15],
-      [/\blikely\s+(to|that)\b/i, 'likely', 0.12],
+      // More specific: "likely to be/happen" vs "the likely winner" (definitive)
+      [/\blikely\s+to\s+(be|happen|occur|result)\b/i, 'likely', 0.12],
       // Low-weight: common but still speculative
       [/\breportedly\b/i, 'reportedly', 0.1],
       [/\bpossibly\b/i, 'possibly', 0.1],
-      [/\bapparently\b/i, 'apparently', 0.08],
+      // More specific: "apparently uncertain" vs "apparently successful" (confirming)
+      [/\bapparently\s+(not|uncertain|unclear|unconfirmed)\b/i, 'apparently', 0.08],
     ];
 
     let totalWeight = 0;

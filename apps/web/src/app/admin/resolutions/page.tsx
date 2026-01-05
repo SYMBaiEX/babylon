@@ -19,6 +19,16 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { PageContainer } from '@/components/shared/PageContainer';
 import { Skeleton } from '@/components/shared/Skeleton';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -65,6 +75,9 @@ export default function AdminResolutionsPage() {
   const [loading, setLoading] = useState(true);
   const [submittingId, setSubmittingId] = useState<string | null>(null);
   const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
+  const [rejectConfirm, setRejectConfirm] = useState<PendingResolution | null>(
+    null
+  );
 
   const checkAdminAccess = useCallback(async () => {
     if (!ready) return;
@@ -310,11 +323,8 @@ export default function AdminResolutionsPage() {
                     variant="outline"
                     className="border-red-500/30 text-red-600 hover:bg-red-500/10"
                     disabled={submittingId === q.id}
-                    onClick={() => act(q.id, 'reject')}
+                    onClick={() => setRejectConfirm(q)}
                   >
-                    {submittingId === q.id ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : null}
                     Reject
                   </Button>
                 </div>
@@ -323,6 +333,44 @@ export default function AdminResolutionsPage() {
           ))}
         </div>
       )}
+
+      {/* Reject Confirmation Dialog */}
+      <AlertDialog
+        open={rejectConfirm !== null}
+        onOpenChange={(open) => !open && setRejectConfirm(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reject Resolution?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will clear the stored proof and postpone the resolution by 24
+              hours. The question will need to be re-evaluated.
+              {rejectConfirm && (
+                <div className="mt-2 rounded-md bg-muted/50 p-2 text-foreground">
+                  Q{rejectConfirm.questionNumber}: {rejectConfirm.text}
+                </div>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700"
+              onClick={() => {
+                if (rejectConfirm) {
+                  act(rejectConfirm.id, 'reject');
+                  setRejectConfirm(null);
+                }
+              }}
+            >
+              {submittingId === rejectConfirm?.id ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : null}
+              Reject
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

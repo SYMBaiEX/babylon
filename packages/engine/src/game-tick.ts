@@ -461,10 +461,9 @@ export async function executeGameTick(
           status: 'active',
         };
 
-        const shouldGenerateProof =
-          !hasStoredProof ||
-          question.resolutionConfidence === null ||
-          question.resolutionConfidence === undefined;
+        // Only generate proof if we don't have one stored
+        // Avoids regenerating existing proofs when only confidence is missing
+        const shouldGenerateProof = !hasStoredProof;
 
         let generatedProof: Awaited<
           ReturnType<QuestionManager['generateResolutionWithProof']>
