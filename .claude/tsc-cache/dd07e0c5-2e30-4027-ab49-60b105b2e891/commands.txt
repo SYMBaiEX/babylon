@@ -1,1 +1,0 @@
-packages/agents:tsc:cd /Users/studio/Documents/GitHub/babylon/packages/agents && npx tsc --noEmit
