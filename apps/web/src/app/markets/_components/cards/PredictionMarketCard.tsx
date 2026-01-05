@@ -1,6 +1,6 @@
 'use client';
 
-import { cn } from '@babylon/shared';
+import { cn, formatCurrency, formatNumberWithSeparators } from '@babylon/shared';
 import { ArrowUpDown, Clock } from 'lucide-react';
 import { memo } from 'react';
 import type { PredictionMarketWithPosition } from '@/types/markets';
@@ -66,7 +66,7 @@ export const PredictionMarketCard = memo(function PredictionMarketCard({
             </div>
             <div className="flex items-center gap-1">
               <ArrowUpDown className="h-3 w-3" />
-              {totalShares > 0 ? totalShares.toFixed(0) : '0'}
+              {totalShares > 0 ? formatNumberWithSeparators(totalShares) : '0'}
             </div>
           </div>
           <div className="flex gap-2">
@@ -99,8 +99,10 @@ export const PredictionMarketCard = memo(function PredictionMarketCard({
                   : 'text-red-600'
               )}
             >
-              {prediction.userPosition.unrealizedPnL >= 0 ? '+' : ''}$
-              {prediction.userPosition.unrealizedPnL.toFixed(2)}
+              {prediction.userPosition.unrealizedPnL >= 0 ? '+' : ''}
+              {formatCurrency(prediction.userPosition.unrealizedPnL, {
+                useThousandsSeparator: true,
+              })}
             </span>
           </div>
         )}

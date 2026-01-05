@@ -350,3 +350,35 @@ export function sanitizeId(id: string | undefined | null): string {
 export function formatNumber(num: number): string {
   return formatCompactNumber(num);
 }
+
+/**
+ * Format number with thousands separators (e.g., 10,000)
+ *
+ * @description Formats a number using locale thousands separators and a fixed
+ * number of decimals. Useful for readability when you want commas instead of
+ * compact K/M suffixes.
+ *
+ * @example
+ * ```typescript
+ * formatNumberWithSeparators(10000) // "10,000"
+ * formatNumberWithSeparators(1234.56, { decimals: 2 }) // "1,234.56"
+ * ```
+ */
+export function formatNumberWithSeparators(
+  value: number,
+  options: { decimals?: number; locale?: string } = {}
+): string {
+  const { decimals = 0, locale = 'en-US' } = options;
+
+  if (!Number.isFinite(value)) {
+    return (0).toLocaleString(locale, {
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals,
+    });
+  }
+
+  return value.toLocaleString(locale, {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  });
+}

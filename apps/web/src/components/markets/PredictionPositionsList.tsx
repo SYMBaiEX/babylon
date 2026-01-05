@@ -1,12 +1,7 @@
 'use client';
 
 import type { UserPredictionPosition } from '@babylon/shared';
-import {
-  BABYLON_POINTS_SYMBOL,
-  cn,
-  formatCurrency,
-  logger,
-} from '@babylon/shared';
+import { cn, formatCurrency, logger } from '@babylon/shared';
 import { usePrivy } from '@privy-io/react-auth';
 import { CheckCircle, XCircle } from 'lucide-react';
 import { useState } from 'react';
@@ -130,7 +125,10 @@ export function PredictionPositionsList({
       const pnl = data.pnl;
       const pnlSign = pnl >= 0 ? '+' : '-';
       toast.success('Shares sold!', {
-        description: `Sold ${position.shares.toFixed(2)} ${position.side} shares for ${pnlSign}${BABYLON_POINTS_SYMBOL}${Math.abs(pnl).toFixed(2)} PnL`,
+        description: `Sold ${position.shares.toFixed(2)} ${position.side} shares for ${pnlSign}${formatCurrency(
+          Math.abs(pnl),
+          { useThousandsSeparator: true }
+        )} PnL`,
       });
 
       onPositionSold?.();
@@ -150,7 +148,8 @@ export function PredictionPositionsList({
   };
 
   /** Use shared formatCurrency with 3 decimals for prediction prices */
-  const formatPrice = (price: number) => formatCurrency(price, 3);
+  const formatPrice = (price: number) =>
+    formatCurrency(price, { decimals: 3, useThousandsSeparator: true });
 
   if (positions.length === 0) {
     return (

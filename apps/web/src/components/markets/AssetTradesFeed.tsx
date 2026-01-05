@@ -352,7 +352,7 @@ export function AssetTradesFeed({
   /** Wrapper around shared formatCurrency to handle string input */
   const formatCurrency = (value: string | number) => {
     const num = typeof value === 'string' ? Number.parseFloat(value) : value;
-    return formatCurrencyShared(num);
+    return formatCurrencyShared(num, { useThousandsSeparator: true });
   };
 
   const formatTime = (timestamp: string) => {
