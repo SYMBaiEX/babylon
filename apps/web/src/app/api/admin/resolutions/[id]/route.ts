@@ -7,8 +7,12 @@
 
 import { requireAdmin, successResponse, withErrorHandling } from '@babylon/api';
 import { db, eq, questions } from '@babylon/db';
+import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { z } from 'zod';
+
+/** Hours to postpone resolution after rejection (default: 24h) */
+const POSTPONE_HOURS = Number(process.env.RESOLUTION_POSTPONE_HOURS) || 24;
 
 const ParamsSchema = z.object({
   id: z.string().min(1),
@@ -31,6 +35,7 @@ export const POST = withErrorHandling(
       .select({
         id: questions.id,
         questionNumber: questions.questionNumber,
+        status: questions.status,
         requiresManualReview: questions.requiresManualReview,
         resolutionReviewStatus: questions.resolutionReviewStatus,
       })
@@ -40,6 +45,25 @@ export const POST = withErrorHandling(
 
     if (!existing) {
       return successResponse({ error: 'Question not found' }, 404);
+    }
+
+    // Validate the question is in a valid state for review
+    if (existing.status !== 'active') {
+      return successResponse(
+        { error: 'Question is not active and cannot be reviewed' },
+        400
+      );
+    }
+
+    if (!existing.requiresManualReview) {
+      return successResponse(
+        { error: 'Question does not require manual review' },
+        400
+      );
+    }
+
+    if (existing.resolutionReviewStatus === 'approved') {
+      return successResponse({ error: 'Question already approved' }, 400);
     }
 
     const now = new Date();
@@ -55,17 +79,23 @@ export const POST = withErrorHandling(
         })
         .where(eq(questions.id, id));
 
+      logger.info('Resolution approved', {
+        questionId: id,
+        questionNumber: existing.questionNumber,
+        reviewedBy: admin.userId,
+      }, 'AdminResolutions');
+
       return successResponse({ success: true });
     }
 
     // Reject: clear the review flag and postpone resolution to avoid immediate retry loops.
-    const postponed = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+    const postponed = new Date(now.getTime() + POSTPONE_HOURS * 60 * 60 * 1000);
 
     await db
       .update(questions)
       .set({
         requiresManualReview: false,
-        resolutionReviewStatus: null,
+        resolutionReviewStatus: 'rejected',
         resolutionReviewedAt: now,
         resolutionReviewedBy: admin.userId,
         resolutionConfidence: null,
@@ -75,6 +105,13 @@ export const POST = withErrorHandling(
         updatedAt: now,
       })
       .where(eq(questions.id, id));
+
+    logger.info('Resolution rejected', {
+      questionId: id,
+      questionNumber: existing.questionNumber,
+      reviewedBy: admin.userId,
+      postponedUntil: postponed.toISOString(),
+    }, 'AdminResolutions');
 
     return successResponse({
       success: true,

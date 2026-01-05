@@ -606,32 +606,39 @@ ${s.involvedOrganizations?.length ? `Organizations: ${s.involvedOrganizations.jo
     signals: string[];
   } {
     const signals: string[] = [];
-    const lower = text.toLowerCase();
 
-    const speculativeSignals: Array<[RegExp, string]> = [
-      [/\brumou?r(s|ed)?\b/i, 'rumor'],
-      [/\balleged(ly)?\b/i, 'alleged'],
-      [/\breported(ly)?\b/i, 'reported'],
-      [/\bsources?\s+say\b/i, 'sources_say'],
-      [/\bmay\b/i, 'may'],
-      [/\bmight\b/i, 'might'],
-      [/\bcould\b/i, 'could'],
-      [/\bexpected\s+to\b/i, 'expected_to'],
-      [/\blikely\b/i, 'likely'],
-      [/\bunconfirmed\b/i, 'unconfirmed'],
+    // Speculative signals with weights (higher = more speculative)
+    const speculativeSignals: Array<[RegExp, string, number]> = [
+      // High-weight: strong speculation indicators
+      [/\brumou?r(s|ed)?\b/i, 'rumor', 0.25],
+      [/\bunconfirmed\b/i, 'unconfirmed', 0.25],
+      [/\balleged(ly)?\b/i, 'alleged', 0.2],
+      [/\bsources?\s+(say|claim|suggest)\b/i, 'sources_say', 0.2],
+      // Medium-weight: conditional language (stricter patterns to avoid false positives)
+      [/\b(might|could)\s+(be|have|become|lead|cause)\b/i, 'conditional', 0.15],
+      [/\bexpected\s+to\b/i, 'expected_to', 0.15],
+      [/\blikely\s+(to|that)\b/i, 'likely', 0.12],
+      // Low-weight: common but still speculative
+      [/\breportedly\b/i, 'reportedly', 0.1],
+      [/\bpossibly\b/i, 'possibly', 0.1],
+      [/\bapparently\b/i, 'apparently', 0.08],
     ];
 
-    for (const [regex, label] of speculativeSignals) {
-      if (regex.test(lower)) {
+    let totalWeight = 0;
+    for (const [regex, label, weight] of speculativeSignals) {
+      if (regex.test(text)) {
         signals.push(label);
+        totalWeight += weight;
       }
     }
 
-    // Default to high confidence; downgrade when evidence looks speculative.
-    const confidence = signals.length > 0 ? 0.35 : 0.9;
+    // Graduated confidence: start at 0.95, subtract accumulated weight, floor at 0.2
+    const confidence = Math.max(0.2, 0.95 - totalWeight);
+    const MANUAL_REVIEW_THRESHOLD = 0.7;
+
     return {
       confidence,
-      requiresManualReview: confidence < 0.7,
+      requiresManualReview: confidence < MANUAL_REVIEW_THRESHOLD,
       signals,
     };
   }

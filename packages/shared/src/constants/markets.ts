@@ -60,8 +60,13 @@ export const PERP_MARKET_CONFIG = {
 
 /**
  * Type for the perp market configuration.
+ * Uses widened number types to allow overrides in tests.
  */
-export type PerpMarketConfig = typeof PERP_MARKET_CONFIG;
+export type PerpMarketConfig = {
+  [K in keyof typeof PERP_MARKET_CONFIG]: (typeof PERP_MARKET_CONFIG)[K] extends number
+    ? number
+    : (typeof PERP_MARKET_CONFIG)[K];
+};
 
 /**
  * Calculates the effective supply based on liquidity factor.

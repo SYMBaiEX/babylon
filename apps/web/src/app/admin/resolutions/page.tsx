@@ -7,10 +7,24 @@
 'use client';
 
 import { cn } from '@babylon/shared';
-import { ExternalLink, ShieldAlert } from 'lucide-react';
+import { ExternalLink, Loader2, ShieldAlert } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
+
+function formatDate(dateStr: string | null): string {
+  if (!dateStr) return 'n/a';
+  try {
+    return new Intl.DateTimeFormat('en-US', {
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    }).format(new Date(dateStr));
+  } catch {
+    return dateStr;
+  }
+}
 
 type PendingResolution = {
   id: string;
@@ -119,7 +133,7 @@ export default function AdminResolutionsPage() {
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0">
                     <div className="text-muted-foreground text-xs">
-                      Q{q.questionNumber} • {q.resolutionDate ?? 'n/a'} •{' '}
+                      Q{q.questionNumber} • {formatDate(q.resolutionDate)} •{' '}
                       {q.resolutionReviewStatus}
                       {q.resolutionConfidence !== null
                         ? ` • confidence ${(q.resolutionConfidence * 100).toFixed(0)}%`
@@ -159,13 +173,19 @@ export default function AdminResolutionsPage() {
                     disabled={submittingId === q.id}
                     onClick={() => act(q.id, 'approve')}
                   >
+                    {submittingId === q.id ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : null}
                     Approve
                   </Button>
                   <Button
-                    variant="secondary"
+                    variant="outline"
                     disabled={submittingId === q.id}
                     onClick={() => act(q.id, 'reject')}
                   >
+                    {submittingId === q.id ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : null}
                     Reject
                   </Button>
                 </div>
