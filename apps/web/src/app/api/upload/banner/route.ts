@@ -100,7 +100,9 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   // Validate targetType against allowed values
   if (!VALID_TARGET_TYPES.includes(rawTargetType as TargetType)) {
     return NextResponse.json(
-      { error: `Invalid targetType. Allowed: ${VALID_TARGET_TYPES.join(', ')}` },
+      {
+        error: `Invalid targetType. Allowed: ${VALID_TARGET_TYPES.join(', ')}`,
+      },
       { status: 400 }
     );
   }
