@@ -1,6 +1,6 @@
 'use client';
 
-import { cn, formatNumberWithSeparators } from '@babylon/shared';
+import { cn, formatCurrency, formatNumberWithSeparators } from '@babylon/shared';
 import { ArrowUpDown, Clock } from 'lucide-react';
 import { memo } from 'react';
 import type { PredictionMarketWithPosition } from '@/types/markets';
@@ -99,13 +99,10 @@ export const PredictionMarketCard = memo(function PredictionMarketCard({
                   : 'text-red-600'
               )}
             >
-              {prediction.userPosition.unrealizedPnL >= 0 ? '+' : ''}$
-              {formatNumberWithSeparators(
-                prediction.userPosition.unrealizedPnL,
-                {
-                  decimals: 2,
-                }
-              )}
+              {prediction.userPosition.unrealizedPnL >= 0 ? '+' : ''}
+              {formatCurrency(prediction.userPosition.unrealizedPnL, {
+                useThousandsSeparator: true,
+              })}
             </span>
           </div>
         )}
