@@ -131,6 +131,25 @@ export interface QuestionCreationParams {
 }
 
 /**
+ * Resolution with proof and confidence assessment
+ *
+ * Returned by generateResolutionWithProof containing the resolution description,
+ * optional proof article, and confidence metrics for manual review flagging.
+ */
+export interface ResolutionWithProof {
+  /** Natural language description of why/how the question resolved */
+  description: string;
+  /** Optional proof article with URL */
+  proof?: { type: 'article'; article: Article; url: string };
+  /** Confidence score (0-1) based on speculative signal detection */
+  confidence: number;
+  /** Whether this resolution requires manual admin review */
+  requiresManualReview: boolean;
+  /** Detected speculative signals that reduced confidence */
+  confidenceSignals: string[];
+}
+
+/**
  * Question Manager - Handles question lifecycle
  *
  * @class QuestionManager
@@ -563,13 +582,7 @@ ${s.involvedOrganizations?.length ? `Organizations: ${s.involvedOrganizations.jo
     actors: SelectedActor[],
     organizations: Organization[],
     recentEvents: DayTimeline[]
-  ): Promise<{
-    description: string;
-    proof?: { type: 'article'; article: Article; url: string };
-    confidence: number;
-    requiresManualReview: boolean;
-    confidenceSignals: string[];
-  }> {
+  ): Promise<ResolutionWithProof> {
     const description = await this.generateResolutionEvent(
       question,
       actors,
