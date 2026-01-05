@@ -172,7 +172,7 @@ export class TradeExecutionService {
           error: errorMessage,
         });
 
-        // Use warn level for expected failures (non-existent organizations, insufficient balance)
+        // Use warn level for expected failures (non-existent organizations, insufficient balance, limits)
         // Use error level for unexpected system failures
         const isExpectedFailure =
           errorMessage.includes('Organization not found') ||
@@ -181,6 +181,7 @@ export class TradeExecutionService {
           errorMessage.includes('Market already resolved') ||
           errorMessage.includes('Market expired') ||
           errorMessage.includes('Order size exceeds market limit') ||
+          errorMessage.includes('exceed market limit') ||
           errorMessage.includes('Position already closed') ||
           errorMessage.includes('Position not found') ||
           errorMessage.includes('Already have an open');
@@ -195,11 +196,23 @@ export class TradeExecutionService {
           'TradeExecutionService'
         );
 
-        // FAIL FAST in development: throw on any trade execution error
+        // Log loudly in development, throw in strict mode
+        // Set STRICT_LLM_VALIDATION=true to enable fail-fast mode
+        const isStrictMode =
+          process.env.STRICT_LLM_VALIDATION === 'true' ||
+          process.env.STRICT_LLM_VALIDATION === '1';
+
         if (process.env.NODE_ENV !== 'production' && !isExpectedFailure) {
-          throw new Error(
-            `[DEV] NPC trade execution failed for ${decision.npcName}: ${errorMessage}`,
-            { cause: error }
+          if (isStrictMode) {
+            throw new Error(
+              `[DEV] NPC trade execution failed for ${decision.npcName}: ${errorMessage}`,
+              { cause: error }
+            );
+          }
+          logger.error(
+            `[DEV] NPC trade execution failed for ${decision.npcName}: ${errorMessage} - continuing with remaining trades`,
+            { decision: JSON.stringify(decision) },
+            'TradeExecutionService'
           );
         }
       }

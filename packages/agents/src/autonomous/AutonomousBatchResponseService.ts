@@ -985,21 +985,21 @@ LEAVE EMPTY IF:
 
             // Log skipped interaction if there was reasoning
             if (thought) {
-               agentService
-              .createLog(agentUserId, {
-                type: 'system',
-                level: 'debug',
-                message: `Skipped automated response to ${interaction.type}`,
-                prompt: currentPrompt,
-                completion: responseContent,
-                thinking: thought,
-                metadata: {
-                  interactionId: interaction.id,
-                  interactionType: interaction.type,
-                  skipped: true
-                },
-              })
-              .catch(() => {});
+              agentService
+                .createLog(agentUserId, {
+                  type: 'system',
+                  level: 'debug',
+                  message: `Skipped automated response to ${interaction.type}`,
+                  prompt: currentPrompt,
+                  completion: responseContent,
+                  thinking: thought,
+                  metadata: {
+                    interactionId: interaction.id,
+                    interactionType: interaction.type,
+                    skipped: true,
+                  },
+                })
+                .catch(() => {});
             }
 
             cleanContent = null; // Mark as skipped
