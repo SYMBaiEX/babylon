@@ -178,9 +178,14 @@ ${formatPredictionMarkets(context.predictionMarkets)}
 ${formatPerpMarkets(context.perpMarkets)}`
     : '';
 
-  const commentingSection = canComment
+  // Show recent posts if commenting OR DMs enabled (need posts to discover users for DMs)
+  const showRecentPosts = canComment || canRespondDMs;
+  const recentPostsHeader = canComment
+    ? '# Recent Posts (can comment on or DM authors)'
+    : '# Recent Posts (can DM authors)';
+  const commentingSection = showRecentPosts
     ? `
-# Recent Posts (can comment on)
+${recentPostsHeader}
 ${formatRecentPosts(context.recentPosts)}`
     : '';
 

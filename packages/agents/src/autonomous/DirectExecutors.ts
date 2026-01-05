@@ -16,6 +16,7 @@ import {
   chats,
   comments,
   db,
+  dmAcceptances,
   eq,
   gte,
   inArray,
@@ -840,38 +841,82 @@ export async function executeDirectMessage(
       chatId = await generateSnowflakeId();
       const now = new Date();
 
-      await db.transaction(async (tx) => {
-        await tx.insert(chats).values({
-          id: chatId!,
-          isGroup: false,
-          createdAt: now,
-          updatedAt: now,
+      try {
+        await db.transaction(async (tx) => {
+          await tx.insert(chats).values({
+            id: chatId!,
+            isGroup: false,
+            createdAt: now,
+            updatedAt: now,
+          });
+
+          // Add both participants
+          await tx.insert(chatParticipants).values([
+            {
+              id: await generateSnowflakeId(),
+              chatId: chatId!,
+              userId: agentUserId,
+              joinedAt: now,
+              isActive: true,
+            },
+            {
+              id: await generateSnowflakeId(),
+              chatId: chatId!,
+              userId: recipientId,
+              joinedAt: now,
+              isActive: true,
+            },
+          ]);
+
+          // Create DMAcceptance record with 'accepted' status
+          // Agent-initiated DMs bypass the acceptance flow since agents are automated
+          await tx.insert(dmAcceptances).values({
+            id: await generateSnowflakeId(),
+            chatId: chatId!,
+            userId: recipientId, // The recipient
+            otherUserId: agentUserId, // The agent initiating
+            status: 'accepted', // Auto-accepted for agent-initiated DMs
+            createdAt: now,
+            acceptedAt: now, // Mark as accepted immediately
+          });
         });
 
-        // Add both participants
-        await tx.insert(chatParticipants).values([
-          {
-            id: await generateSnowflakeId(),
-            chatId: chatId!,
-            userId: agentUserId,
-            joinedAt: now,
-            isActive: true,
-          },
-          {
-            id: await generateSnowflakeId(),
-            chatId: chatId!,
-            userId: recipientId,
-            joinedAt: now,
-            isActive: true,
-          },
-        ]);
-      });
+        logger.info(
+          `[DirectExecutor] Created new DM chat ${chatId} between ${agentUserId} and ${recipientId}`,
+          undefined,
+          'DirectExecutors'
+        );
+      } catch (error) {
+        // Handle race condition - if chat was created by another process, try to find it
+        if (error instanceof Error && error.message.includes('duplicate key')) {
+          logger.warn(
+            `[DirectExecutor] Race condition detected, retrying chat lookup`,
+            { agentUserId, recipientId },
+            'DirectExecutors'
+          );
+          // Re-attempt to find the existing chat
+          const retryMatch = await db
+            .select({ chatId: chatParticipants.chatId })
+            .from(chatParticipants)
+            .innerJoin(chats, eq(chatParticipants.chatId, chats.id))
+            .where(
+              and(
+                eq(chatParticipants.userId, recipientId),
+                eq(chats.isGroup, false),
+                inArray(chatParticipants.chatId, agentChatIds)
+              )
+            )
+            .limit(1);
 
-      logger.info(
-        `[DirectExecutor] Created new DM chat ${chatId} between ${agentUserId} and ${recipientId}`,
-        undefined,
-        'DirectExecutors'
-      );
+          if (retryMatch.length > 0 && retryMatch[0]) {
+            chatId = retryMatch[0].chatId;
+          } else {
+            throw error; // Re-throw if we still can't find the chat
+          }
+        } else {
+          throw error;
+        }
+      }
     }
   }
 

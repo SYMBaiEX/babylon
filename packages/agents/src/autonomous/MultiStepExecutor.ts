@@ -310,8 +310,10 @@ export class MultiStepExecutor {
       canTrade ? this.getPerpMarkets() : Promise.resolve([]),
       // Get agent's positions (always needed for context, even if not trading)
       this.getAgentPositions(agentUserId),
-      // Get recent posts to engage with (only if commenting enabled)
-      canComment ? this.getRecentPosts(agentUserId) : Promise.resolve([]),
+      // Get recent posts to engage with (if commenting OR DMs enabled - need posts to discover users for DMs)
+      canComment || canRespondDMs
+        ? this.getRecentPosts(agentUserId)
+        : Promise.resolve([]),
       // Get pending interactions (only if DMs enabled)
       canRespondDMs
         ? autonomousBatchResponseService.gatherPendingInteractions(agentUserId)
@@ -890,11 +892,40 @@ export class MultiStepExecutor {
           };
         }
 
+        // Prevent agents from DMing themselves
+        if (recipientId === agentUserId) {
+          return {
+            actionType: 'DM',
+            success: false,
+            summary: 'Cannot DM yourself',
+            error: 'Cannot DM yourself',
+            parameters,
+            timestamp: Date.now(),
+          };
+        }
+
         const messageResult = await executeDirectMessage({
           agentUserId,
           recipientId,
           content,
         });
+
+        // Log the DM with prompt and completion for debugging/review
+        if (messageResult.success && logContext) {
+          await agentService.createLog(agentUserId, {
+            type: 'dm',
+            level: 'info',
+            message: `Sent DM to ${recipientId}: ${content.substring(0, 100)}${content.length > 100 ? '...' : ''}`,
+            prompt: logContext.prompt,
+            completion: logContext.completion,
+            thinking: logContext.thought,
+            metadata: {
+              messageId: messageResult.messageId ?? null,
+              recipientId,
+              contentLength: content.length,
+            },
+          });
+        }
 
         return {
           actionType: 'DM',
