@@ -53,7 +53,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     }
   }
 
-  // Get total count
+  // Get total count (with search conditions)
   const [totalResult] = await db
     .select({ count: count() })
     .from(nftCollection)
@@ -61,11 +61,12 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
   const totalNfts = totalResult?.count ?? 0;
 
-  // Get claimed/unclaimed counts
+  // Get claimed count (with same search conditions)
   const [claimedCountResult] = await db
     .select({ count: count() })
     .from(nftCollection)
-    .innerJoin(nftOwnership, eq(nftCollection.tokenId, nftOwnership.tokenId));
+    .innerJoin(nftOwnership, eq(nftCollection.tokenId, nftOwnership.tokenId))
+    .where(conditions.length > 0 ? and(...conditions) : undefined);
 
   const claimedCount = claimedCountResult?.count ?? 0;
   const unclaimedCount = totalNfts - claimedCount;

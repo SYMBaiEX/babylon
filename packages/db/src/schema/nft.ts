@@ -119,7 +119,7 @@ export const nftSnapshot = pgTable(
   },
   (table) => [
     unique('NftSnapshot_userId_key').on(table.userId),
-    unique('NftSnapshot_rank_key').on(table.rank),
+    // Note: rank is NOT unique - it changes frequently during updates
     index('NftSnapshot_walletAddress_idx').on(table.walletAddress),
     index('NftSnapshot_hasMinted_idx').on(table.hasMinted),
     index('NftSnapshot_rank_idx').on(table.rank),
