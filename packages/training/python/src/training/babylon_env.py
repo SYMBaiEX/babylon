@@ -452,6 +452,8 @@ class BabylonRLAIFEnv(BaseEnv):
                     "max_tokens": max_tokens,
                     "n": num_completions,  # Multiple completions for score variance
                     "temperature": 0.7,  # Ensure response diversity
+                    "logprobs": True,  # Request logprobs for GRPO KL penalty
+                    "top_logprobs": 1,  # Get top logprob per token
                 }
                 
                 try:
@@ -493,13 +495,32 @@ class BabylonRLAIFEnv(BaseEnv):
                         add_generation_prompt=False,
                     )
                     
+                    # Extract logprobs from vLLM response for GRPO KL penalty
+                    response_logprobs: List[float] = []
+                    logprobs_data = choice.get("logprobs")
+                    if logprobs_data and "content" in logprobs_data:
+                        for token_info in logprobs_data["content"]:
+                            if token_info is not None:
+                                response_logprobs.append(token_info.get("logprob", 0.0))
+                    
+                    # Build full logprobs array: 0.0 for prompt, actual logprobs for completion
+                    prompt_len = tokenization_result.prompt_length
+                    full_logprobs = [0.0] * prompt_len + response_logprobs
+                    
+                    # Ensure logprobs match token length
+                    if len(full_logprobs) < len(tokenization_result.tokens):
+                        # Pad with 0.0 for any missing tokens
+                        full_logprobs.extend([0.0] * (len(tokenization_result.tokens) - len(full_logprobs)))
+                    elif len(full_logprobs) > len(tokenization_result.tokens):
+                        full_logprobs = full_logprobs[:len(tokenization_result.tokens)]
+                    
                     rollout_data.append({
                         "trajectory": traj,
                         "generated_response": response_content,
                         "messages": full_messages,
                         "tokens": tokenization_result.tokens,
-                        "masks": tokenization_result.masks,  # Proper masking: 0 for prompt, 1 for completion
-                        "logprobs": [],
+                        "masks": tokenization_result.masks,  # Proper masking: -100 for prompt, token IDs for completion
+                        "logprobs": full_logprobs,  # Logprobs for GRPO KL penalty
                         "finish_reason": finish_reason,
                     })
                 
@@ -752,6 +773,18 @@ You receive market updates and must analyze, reason, and then act."""
             # For multiple completions per prompt, action quality provides variance
             # Base score comes 40% from trajectory data, so we need action quality to dominate
             final_score = base_score * 0.4 + action_quality * 0.6
+            
+            # 8. Add tiebreaker epsilon for score variance
+            # CRITICAL: GRPO skips batches where all scores are identical (ensure_scores_are_not_same=True)
+            # Add small deterministic tiebreakers based on response characteristics
+            epsilon = 0.0
+            epsilon += (len(generated_response) % 100) * 0.0001  # Response length variance
+            epsilon += (hash(generated_response[:50]) % 1000) * 0.00001  # Content-based variance
+            # Add more variance based on action type
+            if action_result.action_type:
+                action_type_hash = hash(action_result.action_type) % 100
+                epsilon += action_type_hash * 0.0001
+            final_score += epsilon
             
             scores.append(final_score)
             

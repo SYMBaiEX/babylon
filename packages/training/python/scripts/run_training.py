@@ -200,6 +200,8 @@ class TrainingOrchestrator:
         # Phase 4: Cloud/Multi-GPU parameters
         tensor_parallel_size: int = 1,
         use_flash_attention: bool = False,
+        vllm_gpu: Optional[str] = None,  # Explicit GPU assignment for vLLM
+        training_gpu: Optional[str] = None,  # Explicit GPU assignment for training
     ):
         self.model_name = model_name
         self.training_steps = training_steps
@@ -228,6 +230,8 @@ class TrainingOrchestrator:
         # Phase 4: Cloud/Multi-GPU
         self.tensor_parallel_size = tensor_parallel_size
         self.use_flash_attention = use_flash_attention
+        self.vllm_gpu = vllm_gpu
+        self.training_gpu = training_gpu
         
         self.env_process: Optional[subprocess.Popen] = None
         self.trainer_process: Optional[subprocess.Popen] = None
@@ -296,6 +300,8 @@ class TrainingOrchestrator:
             # Phase 4: Multi-GPU support
             tensor_parallel_size=self.tensor_parallel_size,
             use_flash_attention=self.use_flash_attention,
+            vllm_gpu=self.vllm_gpu,
+            training_gpu=self.training_gpu,
         )
         
         self._service_manager = ServiceManager(config)
@@ -502,12 +508,19 @@ class TrainingOrchestrator:
         if self.wandb_run_name:
             trainer_cmd.extend(["--wandb-run-name", self.wandb_run_name])
         
+        # Set up environment with GPU assignment for training
+        env = os.environ.copy()
+        if self.training_gpu:
+            env["CUDA_VISIBLE_DEVICES"] = self.training_gpu
+            logger.info(f"Training GPU (explicit): {self.training_gpu}")
+        
         # Pipe stdout for streaming to console
         self.trainer_process = subprocess.Popen(
             trainer_cmd,
             cwd=str(Path(__file__).parent.parent),
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
+            env=env,
         )
         
         logger.info(f"Trainer started (PID: {self.trainer_process.pid})")
@@ -802,6 +815,8 @@ def main():
     # Phase 4: Read multi-GPU settings from profile
     args.tensor_parallel_size = profile.get("tensor_parallel_size", 1)
     args.use_flash_attention = profile.get("use_flash_attention", False)
+    args.vllm_gpu = profile.get("vllm_gpu")  # Explicit GPU assignment for vLLM
+    args.training_gpu = profile.get("training_gpu")  # Explicit GPU assignment for training
     
     # Log effective settings
     if args.profile:
@@ -847,6 +862,8 @@ def main():
         # Phase 4: Cloud/Multi-GPU
         tensor_parallel_size=args.tensor_parallel_size,
         use_flash_attention=args.use_flash_attention,
+        vllm_gpu=args.vllm_gpu,
+        training_gpu=args.training_gpu,
     )
     
     sys.exit(orchestrator.run())

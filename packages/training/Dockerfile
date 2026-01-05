@@ -71,3 +71,5 @@ ENTRYPOINT ["python3.11", "python/scripts/run_training.py"]
 # Default command (can be overridden)
 CMD ["--profile", "l40", "--steps", "5000"]
 
+
+

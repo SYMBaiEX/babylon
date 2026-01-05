@@ -133,3 +133,5 @@ echo -e "  # Terminal 1: make bridge-server"
 echo -e "  # Terminal 2: make train-online PROFILE=l40-2gpu"
 echo ""
 
+
+

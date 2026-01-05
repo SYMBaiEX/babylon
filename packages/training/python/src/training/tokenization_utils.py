@@ -40,11 +40,14 @@ def tokenize_for_trainer(
     add_generation_prompt: bool = False,
 ) -> TokenizationResult:
     """
-    Tokenize chat messages with proper masking for training.
+    Tokenize chat messages with proper masking for GRPO training.
     
     Creates masks where:
-    - mask=0 for prompt tokens (not trained on)
-    - mask=1 for completion tokens (trained on)
+    - mask=-100 for prompt tokens (ignored in loss calculation)
+    - mask=token_id for completion tokens (trained on)
+    
+    This format is required by the GRPO trainer which uses:
+        mask = (labels != -100).float()
     
     The last assistant message is treated as the completion.
     All prior messages are treated as prompt.
@@ -83,7 +86,7 @@ def tokenize_for_trainer(
         
         return TokenizationResult(
             tokens=full_tokens,
-            masks=[0] * len(full_tokens),  # All masked (prompt only)
+            masks=[-100] * len(full_tokens),  # All masked (prompt only)
             prompt_length=len(full_tokens),
             completion_length=0,
             total_length=len(full_tokens),
@@ -120,8 +123,9 @@ def tokenize_for_trainer(
         completion_length = len(completion_tokens_only)
         prompt_length = len(full_tokens) - completion_length
     
-    # Create masks: 0 for prompt, 1 for completion
-    masks = [0] * prompt_length + [1] * completion_length
+    # Create masks: -100 for prompt (ignore), actual token IDs for completion (train)
+    # CRITICAL: GRPO trainer checks (labels != -100) to determine trainable tokens
+    masks = [-100] * prompt_length + full_tokens[prompt_length:]
     
     # Ensure masks match tokens length
     if len(masks) != len(full_tokens):
@@ -130,8 +134,8 @@ def tokenize_for_trainer(
             "Adjusting masks."
         )
         if len(masks) < len(full_tokens):
-            # Pad with 1s (assume extra tokens are completion)
-            masks.extend([1] * (len(full_tokens) - len(masks)))
+            # Pad with actual token IDs (assume extra tokens are completion)
+            masks.extend(full_tokens[len(masks):])
         else:
             # Truncate
             masks = masks[:len(full_tokens)]
@@ -152,9 +156,9 @@ def tokenize_conversation_for_trainer(
     """
     Tokenize a multi-turn conversation for training.
     
-    Masks all user/system messages and unmasks all assistant messages.
-    This is useful for training on conversations where we want to
-    learn from all assistant responses.
+    Masks all user/system messages (-100) and unmasks all assistant messages
+    (actual token IDs). This is useful for training on conversations where
+    we want to learn from all assistant responses.
     
     Args:
         tokenizer: HuggingFace tokenizer with chat template support
@@ -179,7 +183,7 @@ def tokenize_conversation_for_trainer(
     )
     
     # Build masks by tracking message boundaries
-    masks = []
+    masks: List[int] = []
     current_position = 0
     
     for i, message in enumerate(messages):
@@ -196,11 +200,13 @@ def tokenize_conversation_for_trainer(
         message_end = len(partial_tokens)
         message_length = message_end - current_position
         
-        # Mask based on role
+        # Mask based on role: -100 for ignore, token ID for train
         if message["role"] == "assistant":
-            masks.extend([1] * message_length)  # Train on assistant
+            # Train on assistant - use actual token IDs
+            masks.extend(full_tokens[current_position:message_end])
         else:
-            masks.extend([0] * message_length)  # Don't train on user/system
+            # Don't train on user/system - use -100
+            masks.extend([-100] * message_length)
         
         current_position = message_end
     
@@ -214,8 +220,8 @@ def tokenize_conversation_for_trainer(
         return tokenize_for_trainer(tokenizer, messages)
     
     # Calculate prompt/completion lengths
-    prompt_length = sum(1 for m in masks if m == 0)
-    completion_length = sum(1 for m in masks if m == 1)
+    prompt_length = sum(1 for m in masks if m == -100)
+    completion_length = sum(1 for m in masks if m != -100)
     
     return TokenizationResult(
         tokens=full_tokens,
@@ -232,14 +238,14 @@ def validate_masks(
     tokenizer: PreTrainedTokenizer,
 ) -> Tuple[bool, List[str]]:
     """
-    Validate that masks are correctly applied.
+    Validate that masks are correctly applied for GRPO training.
     
     Checks:
     1. Masks and tokens have same length
-    2. Masks contain only 0s and 1s
-    3. There are some masked (prompt) tokens
-    4. There are some unmasked (completion) tokens
-    5. Transition from masked to unmasked makes sense
+    2. Masked tokens (prompt) use -100
+    3. Unmasked tokens (completion) use actual token IDs
+    4. There are some masked (prompt) tokens
+    5. There are some unmasked (completion) tokens
     
     Returns:
         (is_valid, list_of_issues)
@@ -249,40 +255,32 @@ def validate_masks(
     if len(tokens) != len(masks):
         issues.append(f"Length mismatch: {len(tokens)} tokens vs {len(masks)} masks")
     
-    invalid_masks = [m for m in masks if m not in (0, 1)]
-    if invalid_masks:
-        issues.append(f"Invalid mask values: {set(invalid_masks)}")
+    # Check for proper mask format
+    has_prompt = any(m == -100 for m in masks)
+    has_completion = any(m != -100 for m in masks)
     
-    if not any(m == 0 for m in masks):
-        issues.append("No masked tokens (no prompt)")
+    if not has_prompt:
+        issues.append("No masked tokens (no prompt) - should have -100 values")
     
-    if not any(m == 1 for m in masks):
-        issues.append("No unmasked tokens (no completion)")
+    if not has_completion:
+        issues.append("No unmasked tokens (no completion) - should have token ID values")
     
-    # Check for sensible transition
-    if masks:
-        # Find first unmasked token
-        first_unmasked = None
-        for i, m in enumerate(masks):
-            if m == 1:
-                first_unmasked = i
-                break
-        
-        if first_unmasked is not None:
-            # Check if there are masked tokens after first unmasked
-            # (This might be valid for multi-turn, but warn anyway)
-            for i in range(first_unmasked + 1, len(masks)):
-                if masks[i] == 0:
-                    # Decode context for debugging
-                    context_start = max(0, i - 5)
-                    context_end = min(len(tokens), i + 5)
-                    context_tokens = tokens[context_start:context_end]
-                    context = tokenizer.decode(context_tokens)
-                    issues.append(
-                        f"Masked token at position {i} after unmasked tokens. "
-                        f"Context: {context[:100]}"
-                    )
-                    break  # Only report first occurrence
+    # Check that non-(-100) masks match corresponding tokens
+    for i, (token, mask) in enumerate(zip(tokens, masks)):
+        if mask != -100 and mask != token:
+            issues.append(
+                f"Mask mismatch at position {i}: mask={mask} but token={token}. "
+                "Trainable tokens should have mask=token_id."
+            )
+            break  # Only report first occurrence
+    
+    # Detect legacy 0/1 mask format (WRONG)
+    unique_masks = set(masks)
+    if unique_masks == {0, 1} or unique_masks == {0} or unique_masks == {1}:
+        issues.append(
+            "LEGACY MASK FORMAT DETECTED: Using 0/1 instead of -100/token_id. "
+            "This will train on ALL tokens incorrectly!"
+        )
     
     is_valid = len(issues) == 0
     return is_valid, issues
@@ -302,14 +300,15 @@ def create_masks_from_response_start(
         response_start_position: Index where response (completion) starts
     
     Returns:
-        List of masks (0 before response, 1 from response onwards)
+        List of masks (-100 before response, token IDs from response onwards)
     """
     if response_start_position < 0:
         response_start_position = 0
     if response_start_position > len(tokens):
         response_start_position = len(tokens)
     
-    return [0] * response_start_position + [1] * (len(tokens) - response_start_position)
+    # -100 for prompt, actual token IDs for completion
+    return [-100] * response_start_position + tokens[response_start_position:]
 
 
 def fix_historical_masks(
@@ -321,9 +320,9 @@ def fix_historical_masks(
     """
     Fix incorrectly applied masks from historical data.
     
-    Historical data from BabylonRLAIFEnv used [1]*len(tokens) which
-    incorrectly trains on prompt tokens. This function recalculates
-    proper masks.
+    Historical data from BabylonRLAIFEnv used [1]*len(tokens) or [0,1] binary
+    masks which incorrectly trains on prompt tokens. This function recalculates
+    proper masks using -100 for prompt and token IDs for completion.
     
     Args:
         tokens: Token sequence
@@ -332,11 +331,19 @@ def fix_historical_masks(
         messages: Original messages to determine prompt boundary
     
     Returns:
-        Corrected mask sequence
+        Corrected mask sequence with -100 for prompt, token IDs for completion
     """
-    # Check if masks look incorrect (all 1s is a red flag)
-    if all(m == 1 for m in masks):
-        logger.info("Detected all-1s masks, recalculating from messages")
+    # Check if masks look incorrect
+    # Red flags: all 1s, all 0s, or only 0/1 values (legacy format)
+    unique_masks = set(masks)
+    is_legacy_format = unique_masks.issubset({0, 1})
+    is_all_same = len(unique_masks) <= 1
+    
+    if is_legacy_format or is_all_same:
+        logger.info(
+            f"Detected legacy mask format (unique values: {unique_masks}), "
+            "recalculating with proper -100/token_id format"
+        )
         result = tokenize_for_trainer(tokenizer, messages)
         return result.masks
     
