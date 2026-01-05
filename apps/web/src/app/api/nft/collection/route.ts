@@ -1,15 +1,3 @@
-/**
- * NFT Collection Gallery API
- *
- * @route GET /api/nft/collection
- * @access Public
- *
- * @description
- * Returns paginated list of NFTs in the Babylon Top 100 collection.
- * Supports filtering by claimed status, traits, and search.
- * This endpoint is public - no authentication required.
- */
-
 import { successResponse, withErrorHandling } from '@babylon/api';
 import {
   and,
@@ -25,22 +13,16 @@ import {
   or,
   users,
 } from '@babylon/db';
-import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import type { NftGalleryResponse, NftSummary } from '@/types/nft';
 
-const DEFAULT_PAGE = 1;
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 100;
 
 export const GET = withErrorHandling(async (request: NextRequest) => {
   const { searchParams } = new URL(request.url);
 
-  // Parse query parameters
-  const page = Math.max(
-    1,
-    parseInt(searchParams.get('page') ?? String(DEFAULT_PAGE), 10)
-  );
+  const page = Math.max(1, parseInt(searchParams.get('page') ?? '1', 10));
   const limit = Math.min(
     MAX_LIMIT,
     Math.max(
@@ -48,39 +30,26 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       parseInt(searchParams.get('limit') ?? String(DEFAULT_LIMIT), 10)
     )
   );
-  const sort = (searchParams.get('sort') ?? 'tokenId') as
-    | 'tokenId'
-    | 'name'
-    | 'claimedAt';
+  const sort = (searchParams.get('sort') ?? 'tokenId') as 'tokenId' | 'name';
   const order = (searchParams.get('order') ?? 'asc') as 'asc' | 'desc';
   const claimedFilter = searchParams.get('claimed');
-  const searchQuery = searchParams.get('search');
-
+  const searchQuery = searchParams.get('search')?.trim();
   const offset = (page - 1) * limit;
-
-  logger.info(
-    'Fetching NFT collection',
-    { page, limit, sort, order, claimedFilter, searchQuery },
-    'GET /api/nft/collection'
-  );
 
   // Build WHERE conditions
   const conditions: ReturnType<typeof eq>[] = [];
 
-  // Search filter (by name or token ID)
-  if (searchQuery && searchQuery.trim()) {
-    const searchTerm = `%${searchQuery.trim()}%`;
-    const tokenIdSearch = parseInt(searchQuery.trim(), 10);
-
+  if (searchQuery) {
+    const tokenIdSearch = parseInt(searchQuery, 10);
     if (!isNaN(tokenIdSearch)) {
       conditions.push(
         or(
-          ilike(nftCollection.name, searchTerm),
+          ilike(nftCollection.name, `%${searchQuery}%`),
           eq(nftCollection.tokenId, tokenIdSearch)
         )!
       );
     } else {
-      conditions.push(ilike(nftCollection.name, searchTerm));
+      conditions.push(ilike(nftCollection.name, `%${searchQuery}%`));
     }
   }
 
@@ -199,7 +168,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         ? unclaimedCount
         : totalNfts;
 
-  const response: NftGalleryResponse = {
+  return successResponse({
     success: true,
     data: {
       nfts,
@@ -209,28 +178,8 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         total: filteredTotal,
         totalPages: Math.ceil(filteredTotal / limit),
       },
-      stats: {
-        totalNfts,
-        claimedCount,
-        unclaimedCount,
-      },
-      filters: {
-        traits: [], // Trait filtering available on detail pages
-      },
+      stats: { totalNfts, claimedCount, unclaimedCount },
+      filters: { traits: [] },
     },
-  };
-
-  logger.info(
-    'NFT collection fetched',
-    {
-      page,
-      limit,
-      totalNfts,
-      claimedCount,
-      returnedCount: nfts.length,
-    },
-    'GET /api/nft/collection'
-  );
-
-  return successResponse(response);
+  } satisfies NftGalleryResponse);
 });

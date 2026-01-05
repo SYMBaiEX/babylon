@@ -3,8 +3,11 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { Button } from '@/components/ui/button';
 import type { MintConfirmResponse } from '@/types/nft';
+
+const REVEAL_DELAY_MS = 2000;
+const CONFETTI_DURATION_MS = 3000;
+const CONFETTI_COLORS = ['#0066FF', '#22c55e', '#eab308', '#ef4444'];
 
 interface RevealModalProps {
   isOpen: boolean;
@@ -25,9 +28,12 @@ export function RevealModal({ isOpen, nft, onClose }: RevealModalProps) {
     const revealTimer = setTimeout(() => {
       setIsRevealing(false);
       setShowConfetti(true);
-    }, 2000);
+    }, REVEAL_DELAY_MS);
 
-    const confettiTimer = setTimeout(() => setShowConfetti(false), 5000);
+    const confettiTimer = setTimeout(
+      () => setShowConfetti(false),
+      REVEAL_DELAY_MS + CONFETTI_DURATION_MS
+    );
 
     return () => {
       clearTimeout(revealTimer);
@@ -47,22 +53,23 @@ export function RevealModal({ isOpen, nft, onClose }: RevealModalProps) {
       {/* Confetti */}
       {showConfetti && (
         <div className="pointer-events-none absolute inset-0 overflow-hidden">
-          {Array.from({ length: 50 }).map((_, i) => (
-            <div
-              key={i}
-              className="absolute animate-confetti"
-              style={{
-                left: `${Math.random() * 100}%`,
-                animationDelay: `${Math.random() * 0.5}s`,
-                backgroundColor: ['#0066FF', '#22c55e', '#eab308', '#ef4444'][
-                  Math.floor(Math.random() * 4)
-                ],
-                width: `${6 + Math.random() * 6}px`,
-                height: `${6 + Math.random() * 6}px`,
-                borderRadius: Math.random() > 0.5 ? '50%' : '0',
-              }}
-            />
-          ))}
+          {Array.from({ length: 40 }, (_, i) => {
+            const size = 6 + Math.random() * 6;
+            return (
+              <div
+                key={i}
+                className="absolute animate-confetti"
+                style={{
+                  left: `${Math.random() * 100}%`,
+                  animationDelay: `${Math.random() * 0.5}s`,
+                  backgroundColor: CONFETTI_COLORS[i % CONFETTI_COLORS.length],
+                  width: size,
+                  height: size,
+                  borderRadius: i % 2 === 0 ? '50%' : 0,
+                }}
+              />
+            );
+          })}
         </div>
       )}
 
@@ -125,13 +132,17 @@ export function RevealModal({ isOpen, nft, onClose }: RevealModalProps) {
             )}
 
             <div className="flex gap-3">
-              <Button variant="outline" onClick={onClose} className="flex-1">
+              <button
+                onClick={onClose}
+                className="flex-1 rounded-full border border-border bg-transparent py-2.5 font-medium text-foreground text-sm transition-colors hover:bg-muted"
+              >
                 Close
-              </Button>
-              <Link href={`/nft/${nft.tokenId}`} className="flex-1">
-                <Button className="w-full bg-[#0066FF] hover:bg-[#0055DD]">
-                  View NFT
-                </Button>
+              </button>
+              <Link
+                href={`/nft/${nft.tokenId}`}
+                className="flex-1 rounded-full bg-[#0066FF] py-2.5 text-center font-semibold text-sm text-white shadow-md transition-all hover:scale-105 hover:bg-[#2952d9] hover:shadow-lg"
+              >
+                View NFT
               </Link>
             </div>
           </div>
