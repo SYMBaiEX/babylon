@@ -9,6 +9,7 @@
 import { PerpDbAdapter, PerpMarketService } from '@babylon/core/markets/perps';
 import {
   actorState,
+  aliasedTable,
   and,
   asSystem,
   asUser,
@@ -19,7 +20,6 @@ import {
   dmAcceptances,
   eq,
   gte,
-  inArray,
   isNull,
   markets,
   messages,
@@ -805,34 +805,29 @@ export async function executeDirectMessage(
       }
     }
 
-    // Find existing DM chat
-    // 1. Get agent's DM chats
-    const agentParticipations = await db
+    // Find existing DM chat using a single query with self-join
+    // Join chatParticipants (for agent) -> chats -> chatParticipants alias (for recipient)
+    const recipientParticipants = aliasedTable(chatParticipants, 'cp2');
+
+    const existingChat = await db
       .select({ chatId: chatParticipants.chatId })
       .from(chatParticipants)
       .innerJoin(chats, eq(chatParticipants.chatId, chats.id))
+      .innerJoin(
+        recipientParticipants,
+        eq(chatParticipants.chatId, recipientParticipants.chatId)
+      )
       .where(
-        and(eq(chatParticipants.userId, agentUserId), eq(chats.isGroup, false))
-      );
-
-    const agentChatIds = agentParticipations.map((p) => p.chatId);
-
-    if (agentChatIds.length > 0) {
-      // 2. Check if recipient is in any of these
-      const match = await db
-        .select({ chatId: chatParticipants.chatId })
-        .from(chatParticipants)
-        .where(
-          and(
-            inArray(chatParticipants.chatId, agentChatIds),
-            eq(chatParticipants.userId, recipientId)
-          )
+        and(
+          eq(chatParticipants.userId, agentUserId),
+          eq(chats.isGroup, false),
+          eq(recipientParticipants.userId, recipientId)
         )
-        .limit(1);
+      )
+      .limit(1);
 
-      if (match.length > 0 && match[0]) {
-        chatId = match[0].chatId;
-      }
+    if (existingChat.length > 0 && existingChat[0]) {
+      chatId = existingChat[0].chatId;
     }
 
     // If still no chatId, create new DM
@@ -893,42 +888,33 @@ export async function executeDirectMessage(
             { agentUserId, recipientId },
             'DirectExecutors'
           );
-          // Re-fetch agent's DM chats since another process may have created one
-          const updatedAgentParticipations = await db
+          // Retry with the same optimized single query
+          const retryRecipientParticipants = aliasedTable(
+            chatParticipants,
+            'cp2_retry'
+          );
+
+          const retryMatch = await db
             .select({ chatId: chatParticipants.chatId })
             .from(chatParticipants)
             .innerJoin(chats, eq(chatParticipants.chatId, chats.id))
+            .innerJoin(
+              retryRecipientParticipants,
+              eq(chatParticipants.chatId, retryRecipientParticipants.chatId)
+            )
             .where(
               and(
                 eq(chatParticipants.userId, agentUserId),
-                eq(chats.isGroup, false)
+                eq(chats.isGroup, false),
+                eq(retryRecipientParticipants.userId, recipientId)
               )
-            );
+            )
+            .limit(1);
 
-          const updatedAgentChatIds = updatedAgentParticipations.map(
-            (p) => p.chatId
-          );
-
-          if (updatedAgentChatIds.length > 0) {
-            // Check if recipient is in any of these chats
-            const retryMatch = await db
-              .select({ chatId: chatParticipants.chatId })
-              .from(chatParticipants)
-              .where(
-                and(
-                  inArray(chatParticipants.chatId, updatedAgentChatIds),
-                  eq(chatParticipants.userId, recipientId)
-                )
-              )
-              .limit(1);
-
-            if (retryMatch.length > 0 && retryMatch[0]) {
-              chatId = retryMatch[0].chatId;
-            } else {
-              throw error; // Re-throw if we still can't find the chat
-            }
+          if (retryMatch.length > 0 && retryMatch[0]) {
+            chatId = retryMatch[0].chatId;
           } else {
-            throw error; // Re-throw if agent still has no chats
+            throw error; // Re-throw if we still can't find the chat
           }
         } else {
           throw error;
