@@ -5,5 +5,5 @@ ALTER TABLE "Question" ADD COLUMN "resolutionReviewedAt" timestamp;
 ALTER TABLE "Question" ADD COLUMN "resolutionReviewedBy" text;
 
 CREATE INDEX IF NOT EXISTS "Question_requiresManualReview_status_idx"
-ON "Question" ("requiresManualReview", "resolutionReviewStatus", "status");
+ON "Question" ("status", "requiresManualReview", "resolutionReviewStatus");
 

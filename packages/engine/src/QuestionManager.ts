@@ -73,7 +73,11 @@ import {
   trendingTags,
   worldEvents,
 } from '@babylon/db';
-import { generateSnowflakeId, logger } from '@babylon/shared';
+import {
+  generateSnowflakeId,
+  logger,
+  RESOLUTION_CONFIDENCE_CONFIG,
+} from '@babylon/shared';
 import { type Article, ArticleGenerator } from './ArticleGenerator';
 import type { BabylonLLMClient } from './llm/openai-client';
 import { BabylonLLMClient as BabylonLLMClientValue } from './llm/openai-client';
@@ -632,9 +636,10 @@ ${s.involvedOrganizations?.length ? `Organizations: ${s.involvedOrganizations.jo
       }
     }
 
-    // Graduated confidence: start at 0.95, subtract accumulated weight, floor at 0.2
-    const confidence = Math.max(0.2, 0.95 - totalWeight);
-    const MANUAL_REVIEW_THRESHOLD = 0.7;
+    // Graduated confidence: start at base, subtract accumulated weight, floor at min
+    const { BASE_CONFIDENCE, MIN_CONFIDENCE, MANUAL_REVIEW_THRESHOLD } =
+      RESOLUTION_CONFIDENCE_CONFIG;
+    const confidence = Math.max(MIN_CONFIDENCE, BASE_CONFIDENCE - totalWeight);
 
     return {
       confidence,

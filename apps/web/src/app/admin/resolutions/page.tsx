@@ -7,13 +7,13 @@
 'use client';
 
 import { cn } from '@babylon/shared';
-import { ExternalLink, Loader2, ShieldAlert } from 'lucide-react';
+import { ExternalLink, Loader2, RefreshCw, ShieldAlert } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 
-function formatDate(dateStr: string | null): string {
-  if (!dateStr) return 'n/a';
+/** Format date with time for resolution display */
+function formatDateTime(dateStr: string): string {
   try {
     return new Intl.DateTimeFormat('en-US', {
       month: 'short',
@@ -49,11 +49,20 @@ export default function AdminResolutionsPage() {
     setLoading(true);
     try {
       const res = await fetch('/api/admin/resolutions');
-      const data = await res.json().catch(() => null);
-      if (!res.ok) {
-        throw new Error(data?.error ?? 'Failed to load resolution queue');
+      let data: unknown;
+      try {
+        data = await res.json();
+      } catch {
+        throw new Error('Invalid response from server');
       }
-      setItems(Array.isArray(data?.items) ? data.items : []);
+      if (!res.ok) {
+        const err = data as { error?: { message?: string } };
+        throw new Error(
+          err?.error?.message ?? 'Failed to load resolution queue'
+        );
+      }
+      const payload = data as { items?: unknown[] };
+      setItems(Array.isArray(payload?.items) ? (payload.items as PendingResolution[]) : []);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to load queue');
       setItems([]);
@@ -105,14 +114,25 @@ export default function AdminResolutionsPage() {
             resolve.
           </p>
         </div>
-        <div
-          className={cn(
-            'inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm',
-            pendingCount > 0 ? 'border-yellow-500/30 bg-yellow-500/10' : ''
-          )}
-        >
-          <ShieldAlert className="h-4 w-4" />
-          <span>{pendingCount} pending</span>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => fetchQueue()}
+            disabled={loading}
+            title="Refresh queue"
+          >
+            <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} />
+          </Button>
+          <div
+            className={cn(
+              'inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm',
+              pendingCount > 0 ? 'border-yellow-500/30 bg-yellow-500/10' : ''
+            )}
+          >
+            <ShieldAlert className="h-4 w-4" />
+            <span>{pendingCount} pending</span>
+          </div>
         </div>
       </div>
 
@@ -132,12 +152,27 @@ export default function AdminResolutionsPage() {
               <div className="flex flex-col gap-3">
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0">
-                    <div className="text-muted-foreground text-xs">
-                      Q{q.questionNumber} • {formatDate(q.resolutionDate)} •{' '}
-                      {q.resolutionReviewStatus}
-                      {q.resolutionConfidence !== null
-                        ? ` • confidence ${(q.resolutionConfidence * 100).toFixed(0)}%`
-                        : ''}
+                    <div className="flex items-center gap-2 text-muted-foreground text-xs">
+                      <span>Q{q.questionNumber}</span>
+                      <span>•</span>
+                      <span
+                        className={cn(
+                          'rounded px-1.5 py-0.5 font-medium',
+                          q.outcome
+                            ? 'bg-green-500/10 text-green-600'
+                            : 'bg-red-500/10 text-red-600'
+                        )}
+                      >
+                        {q.outcome ? 'YES' : 'NO'}
+                      </span>
+                      <span>•</span>
+                      <span>{q.resolutionDate ? formatDateTime(q.resolutionDate) : 'n/a'}</span>
+                      {q.resolutionConfidence !== null ? (
+                        <>
+                          <span>•</span>
+                          <span>{(q.resolutionConfidence * 100).toFixed(0)}% confidence</span>
+                        </>
+                      ) : null}
                     </div>
                     <div className="mt-1 line-clamp-2 font-medium">
                       {q.text}
@@ -180,6 +215,7 @@ export default function AdminResolutionsPage() {
                   </Button>
                   <Button
                     variant="outline"
+                    className="border-red-500/30 text-red-600 hover:bg-red-500/10"
                     disabled={submittingId === q.id}
                     onClick={() => act(q.id, 'reject')}
                   >

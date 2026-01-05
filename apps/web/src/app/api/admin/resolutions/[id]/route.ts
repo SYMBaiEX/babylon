@@ -5,14 +5,22 @@
  * @access Admin
  */
 
-import { requireAdmin, successResponse, withErrorHandling } from '@babylon/api';
+import {
+  errorResponse,
+  requireAdmin,
+  successResponse,
+  withErrorHandling,
+} from '@babylon/api';
 import { db, eq, questions } from '@babylon/db';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { z } from 'zod';
 
 /** Hours to postpone resolution after rejection (default: 24h) */
-const POSTPONE_HOURS = Number(process.env.RESOLUTION_POSTPONE_HOURS) || 24;
+const POSTPONE_HOURS = (() => {
+  const val = Number(process.env.RESOLUTION_POSTPONE_HOURS);
+  return Number.isFinite(val) && val > 0 ? val : 24;
+})();
 
 const ParamsSchema = z.object({
   id: z.string().min(1),
@@ -44,26 +52,28 @@ export const POST = withErrorHandling(
       .limit(1);
 
     if (!existing) {
-      return successResponse({ error: 'Question not found' }, 404);
+      return errorResponse('Question not found', 'NOT_FOUND', 404);
     }
 
     // Validate the question is in a valid state for review
     if (existing.status !== 'active') {
-      return successResponse(
-        { error: 'Question is not active and cannot be reviewed' },
+      return errorResponse(
+        'Question is not active and cannot be reviewed',
+        'INVALID_STATE',
         400
       );
     }
 
     if (!existing.requiresManualReview) {
-      return successResponse(
-        { error: 'Question does not require manual review' },
+      return errorResponse(
+        'Question does not require manual review',
+        'NOT_REVIEWABLE',
         400
       );
     }
 
     if (existing.resolutionReviewStatus === 'approved') {
-      return successResponse({ error: 'Question already approved' }, 400);
+      return errorResponse('Question already approved', 'ALREADY_APPROVED', 400);
     }
 
     const now = new Date();

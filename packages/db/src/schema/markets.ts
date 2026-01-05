@@ -94,9 +94,9 @@ export const questions = pgTable(
       table.resolutionDate
     ),
     index('Question_requiresManualReview_status_idx').on(
+      table.status,
       table.requiresManualReview,
-      table.resolutionReviewStatus,
-      table.status
+      table.resolutionReviewStatus
     ),
   ]
 );
