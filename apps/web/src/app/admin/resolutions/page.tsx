@@ -62,7 +62,11 @@ export default function AdminResolutionsPage() {
         );
       }
       const payload = data as { items?: unknown[] };
-      setItems(Array.isArray(payload?.items) ? (payload.items as PendingResolution[]) : []);
+      setItems(
+        Array.isArray(payload?.items)
+          ? (payload.items as PendingResolution[])
+          : []
+      );
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to load queue');
       setItems([]);
@@ -89,9 +93,15 @@ export default function AdminResolutionsPage() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ action }),
         });
-        const data = await res.json().catch(() => null);
+        let data: unknown;
+        try {
+          data = await res.json();
+        } catch {
+          throw new Error(`Invalid response for ${action} on question ${id}`);
+        }
         if (!res.ok) {
-          throw new Error(data?.error ?? 'Action failed');
+          const err = data as { error?: { message?: string } };
+          throw new Error(err?.error?.message ?? 'Action failed');
         }
         toast.success(action === 'approve' ? 'Approved' : 'Rejected');
         await fetchQueue();
@@ -166,11 +176,18 @@ export default function AdminResolutionsPage() {
                         {q.outcome ? 'YES' : 'NO'}
                       </span>
                       <span>•</span>
-                      <span>{q.resolutionDate ? formatDateTime(q.resolutionDate) : 'n/a'}</span>
+                      <span>
+                        {q.resolutionDate
+                          ? formatDateTime(q.resolutionDate)
+                          : 'n/a'}
+                      </span>
                       {q.resolutionConfidence !== null ? (
                         <>
                           <span>•</span>
-                          <span>{(q.resolutionConfidence * 100).toFixed(0)}% confidence</span>
+                          <span>
+                            {(q.resolutionConfidence * 100).toFixed(0)}%
+                            confidence
+                          </span>
                         </>
                       ) : null}
                     </div>
