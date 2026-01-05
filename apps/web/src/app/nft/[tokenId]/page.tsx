@@ -154,7 +154,7 @@ export default function NftDetailPage() {
         <div className="space-y-4 sm:space-y-5">
           {/* Title & Description */}
           <div>
-            <h1 className="mb-1 font-bold text-xl text-foreground sm:mb-2 sm:text-2xl">
+            <h1 className="mb-1 font-bold text-foreground text-xl sm:mb-2 sm:text-2xl">
               {nft.name}
             </h1>
             {nft.description && (
@@ -230,7 +230,7 @@ export default function NftDetailPage() {
                     key={i}
                     className="rounded bg-muted/50 p-1.5 text-center sm:p-2"
                   >
-                    <p className="text-muted-foreground text-[10px] sm:text-xs">
+                    <p className="text-[10px] text-muted-foreground sm:text-xs">
                       {attr.trait_type}
                     </p>
                     <p className="truncate font-medium text-foreground text-xs sm:text-sm">
@@ -253,26 +253,26 @@ export default function NftDetailPage() {
                   <p className="font-bold text-[#0066FF] text-base sm:text-lg">
                     #{nft.originalClaim.snapshotRank}
                   </p>
-                  <p className="text-muted-foreground text-[10px] sm:text-xs">
+                  <p className="text-[10px] text-muted-foreground sm:text-xs">
                     Rank
                   </p>
                 </div>
                 <div>
-                  <p className="font-bold text-foreground text-base sm:text-lg">
+                  <p className="font-bold text-base text-foreground sm:text-lg">
                     {nft.originalClaim.snapshotPoints?.toLocaleString() ?? '-'}
                   </p>
-                  <p className="text-muted-foreground text-[10px] sm:text-xs">
+                  <p className="text-[10px] text-muted-foreground sm:text-xs">
                     Points
                   </p>
                 </div>
                 <div>
-                  <p className="font-bold text-foreground text-base sm:text-lg">
+                  <p className="font-bold text-base text-foreground sm:text-lg">
                     {new Date(nft.originalClaim.claimedAt).toLocaleDateString(
                       'en-US',
                       { month: 'short', day: 'numeric' }
                     )}
                   </p>
-                  <p className="text-muted-foreground text-[10px] sm:text-xs">
+                  <p className="text-[10px] text-muted-foreground sm:text-xs">
                     Date
                   </p>
                 </div>

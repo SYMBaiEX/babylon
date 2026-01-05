@@ -57,31 +57,36 @@ export function WidgetSidebar() {
       // Check if sidebar fits in viewport
       const fitsInViewport = sidebarHeight <= viewportHeight;
 
+      // Account for NFT promo banner at top (~40px)
+      const bannerOffset = 40;
+
       if (fitsInViewport) {
-        // Sidebar fits - simple sticky to top
+        // Sidebar fits - simple sticky to top (below banner)
         inner.style.position = 'fixed';
-        inner.style.top = '0px';
+        inner.style.top = `${bannerOffset}px`;
         inner.style.transform = '';
       } else {
         // Sidebar is taller than viewport
+        const effectiveViewportHeight = viewportHeight - bannerOffset;
+
         if (direction === 'down') {
           // Scrolling down - sidebar bottom should stick to viewport bottom
-          const maxTranslate = sidebarHeight - viewportHeight;
+          const maxTranslate = sidebarHeight - effectiveViewportHeight;
 
           // Calculate how much we should translate
           // As we scroll down, increase translateY until maxTranslate
           translateY = Math.min(scrollTop, maxTranslate);
 
           inner.style.position = 'fixed';
-          inner.style.top = '0px';
+          inner.style.top = `${bannerOffset}px`;
           inner.style.transform = `translateY(-${translateY}px)`;
         } else {
           // Scrolling up - keep current translation until we scroll back up enough
-          const maxTranslate = sidebarHeight - viewportHeight;
+          const maxTranslate = sidebarHeight - effectiveViewportHeight;
           translateY = Math.min(scrollTop, maxTranslate);
 
           inner.style.position = 'fixed';
-          inner.style.top = '0px';
+          inner.style.top = `${bannerOffset}px`;
           inner.style.transform = `translateY(-${translateY}px)`;
         }
       }
