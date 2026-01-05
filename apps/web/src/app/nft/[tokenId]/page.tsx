@@ -8,7 +8,6 @@ import { toast } from 'sonner';
 import { Avatar } from '@/components/shared/Avatar';
 import { PageContainer } from '@/components/shared/PageContainer';
 import { Skeleton } from '@/components/shared/Skeleton';
-import { Button } from '@/components/ui/button';
 import type { NftDetail, NftDetailResponse } from '@/types/nft';
 
 export default function NftDetailPage() {
@@ -65,16 +64,16 @@ export default function NftDetailPage() {
 
   if (loading) {
     return (
-      <PageContainer className="pb-8">
-        <div className="mb-6">
-          <Skeleton className="h-6 w-32" />
+      <PageContainer className="px-4 pb-8 sm:px-6">
+        <div className="mb-4 sm:mb-6">
+          <Skeleton className="h-6 w-20 sm:w-32" />
         </div>
-        <div className="grid gap-8 lg:grid-cols-2">
-          <Skeleton className="aspect-square w-full rounded-xl" />
-          <div className="space-y-4">
-            <Skeleton className="h-8 w-3/4" />
-            <Skeleton className="h-16 w-full" />
-            <Skeleton className="h-24 w-full" />
+        <div className="grid gap-6 lg:grid-cols-2 lg:gap-8">
+          <Skeleton className="mx-auto aspect-square w-full max-w-md rounded-xl lg:max-w-none" />
+          <div className="space-y-3 sm:space-y-4">
+            <Skeleton className="h-7 w-3/4 sm:h-8" />
+            <Skeleton className="h-14 w-full sm:h-16" />
+            <Skeleton className="h-20 w-full sm:h-24" />
           </div>
         </div>
       </PageContainer>
@@ -83,16 +82,19 @@ export default function NftDetailPage() {
 
   if (error || !nft) {
     return (
-      <PageContainer className="flex items-center justify-center py-16">
+      <PageContainer className="flex items-center justify-center px-4 py-16 sm:px-6">
         <div className="text-center">
-          <p className="mb-2 font-medium text-foreground text-xl">
+          <p className="mb-2 font-medium text-foreground text-lg sm:text-xl">
             {error ?? 'NFT not found'}
           </p>
-          <p className="mb-6 text-muted-foreground">
+          <p className="mb-6 text-muted-foreground text-sm sm:text-base">
             The NFT you&apos;re looking for doesn&apos;t exist.
           </p>
-          <Link href="/nft">
-            <Button>← Back to Gallery</Button>
+          <Link
+            href="/nft"
+            className="inline-block rounded-full bg-[#0066FF] px-5 py-2.5 font-semibold text-sm text-white shadow-md transition-all hover:scale-105 hover:bg-[#2952d9] hover:shadow-lg"
+          >
+            ← Back to Gallery
           </Link>
         </div>
       </PageContainer>
@@ -107,33 +109,33 @@ export default function NftDetailPage() {
       : null);
 
   return (
-    <PageContainer className="pb-8">
+    <PageContainer className="px-4 pb-8 sm:px-6">
       {/* Header */}
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-4 flex items-center justify-between sm:mb-6">
         <Link
           href="/nft"
           className="text-muted-foreground text-sm hover:text-foreground"
         >
-          ← Back to Gallery
+          ← Back
         </Link>
         <button
           onClick={handleShare}
-          className="text-muted-foreground text-sm hover:text-foreground"
+          className="rounded-full border border-border px-3 py-1.5 text-muted-foreground text-sm transition-colors hover:bg-muted hover:text-foreground"
         >
           Share
         </button>
       </div>
 
-      <div className="grid gap-8 lg:grid-cols-2">
+      <div className="grid gap-6 lg:grid-cols-2 lg:gap-8">
         {/* Image */}
-        <div className="relative aspect-square overflow-hidden rounded-xl border border-border bg-muted">
+        <div className="relative mx-auto aspect-square w-full max-w-md overflow-hidden rounded-xl border border-border bg-muted lg:max-w-none">
           {!imageError ? (
             <Image
               src={nft.imageUrl}
               alt={nft.name}
               fill
               className="object-cover"
-              sizes="(max-width: 1024px) 100vw, 50vw"
+              sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 40vw"
               priority
               onError={() => setImageError(true)}
             />
@@ -149,19 +151,21 @@ export default function NftDetailPage() {
         </div>
 
         {/* Details */}
-        <div className="space-y-5">
+        <div className="space-y-4 sm:space-y-5">
           {/* Title & Description */}
           <div>
-            <h1 className="mb-2 font-bold text-2xl text-foreground">
+            <h1 className="mb-1 font-bold text-xl text-foreground sm:mb-2 sm:text-2xl">
               {nft.name}
             </h1>
             {nft.description && (
-              <p className="text-muted-foreground">{nft.description}</p>
+              <p className="text-muted-foreground text-sm sm:text-base">
+                {nft.description}
+              </p>
             )}
           </div>
 
           {/* Owner */}
-          <div className="rounded-lg border border-border bg-card p-4">
+          <div className="rounded-lg border border-border bg-card p-3 sm:p-4">
             <p className="mb-2 text-muted-foreground text-xs uppercase">
               Owner
             </p>
@@ -204,11 +208,11 @@ export default function NftDetailPage() {
 
           {/* Story */}
           {nft.story.content && (
-            <div className="rounded-lg border border-border bg-card p-4">
-              <p className="mb-2 font-medium text-foreground">
+            <div className="rounded-lg border border-border bg-card p-3 sm:p-4">
+              <p className="mb-2 font-medium text-foreground text-sm sm:text-base">
                 {nft.story.title ?? 'Story'}
               </p>
-              <p className="whitespace-pre-wrap text-muted-foreground text-sm">
+              <p className="whitespace-pre-wrap text-muted-foreground text-xs sm:text-sm">
                 {nft.story.content}
               </p>
             </div>
@@ -216,17 +220,20 @@ export default function NftDetailPage() {
 
           {/* Attributes */}
           {nft.attributes.length > 0 && (
-            <div className="rounded-lg border border-border bg-card p-4">
-              <p className="mb-3 text-muted-foreground text-xs uppercase">
+            <div className="rounded-lg border border-border bg-card p-3 sm:p-4">
+              <p className="mb-2 text-muted-foreground text-xs uppercase sm:mb-3">
                 Attributes
               </p>
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+              <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3 sm:gap-2">
                 {nft.attributes.map((attr, i) => (
-                  <div key={i} className="rounded bg-muted/50 p-2 text-center">
-                    <p className="text-muted-foreground text-xs">
+                  <div
+                    key={i}
+                    className="rounded bg-muted/50 p-1.5 text-center sm:p-2"
+                  >
+                    <p className="text-muted-foreground text-[10px] sm:text-xs">
                       {attr.trait_type}
                     </p>
-                    <p className="truncate font-medium text-foreground text-sm">
+                    <p className="truncate font-medium text-foreground text-xs sm:text-sm">
                       {String(attr.value)}
                     </p>
                   </div>
@@ -237,42 +244,48 @@ export default function NftDetailPage() {
 
           {/* Original Claim */}
           {nft.originalClaim && (
-            <div className="rounded-lg border border-border bg-card p-4">
-              <p className="mb-3 text-muted-foreground text-xs uppercase">
+            <div className="rounded-lg border border-border bg-card p-3 sm:p-4">
+              <p className="mb-2 text-muted-foreground text-xs uppercase sm:mb-3">
                 Original Claim
               </p>
-              <div className="grid grid-cols-3 gap-4 text-center">
+              <div className="grid grid-cols-3 gap-2 text-center sm:gap-4">
                 <div>
-                  <p className="font-bold text-[#0066FF] text-lg">
+                  <p className="font-bold text-[#0066FF] text-base sm:text-lg">
                     #{nft.originalClaim.snapshotRank}
                   </p>
-                  <p className="text-muted-foreground text-xs">Rank</p>
+                  <p className="text-muted-foreground text-[10px] sm:text-xs">
+                    Rank
+                  </p>
                 </div>
                 <div>
-                  <p className="font-bold text-foreground text-lg">
+                  <p className="font-bold text-foreground text-base sm:text-lg">
                     {nft.originalClaim.snapshotPoints?.toLocaleString() ?? '-'}
                   </p>
-                  <p className="text-muted-foreground text-xs">Points</p>
+                  <p className="text-muted-foreground text-[10px] sm:text-xs">
+                    Points
+                  </p>
                 </div>
                 <div>
-                  <p className="font-bold text-foreground text-lg">
+                  <p className="font-bold text-foreground text-base sm:text-lg">
                     {new Date(nft.originalClaim.claimedAt).toLocaleDateString(
                       'en-US',
                       { month: 'short', day: 'numeric' }
                     )}
                   </p>
-                  <p className="text-muted-foreground text-xs">Date</p>
+                  <p className="text-muted-foreground text-[10px] sm:text-xs">
+                    Date
+                  </p>
                 </div>
               </div>
             </div>
           )}
 
           {/* Contract Info */}
-          <div className="rounded-lg border border-border bg-card p-4">
-            <p className="mb-3 text-muted-foreground text-xs uppercase">
+          <div className="rounded-lg border border-border bg-card p-3 sm:p-4">
+            <p className="mb-2 text-muted-foreground text-xs uppercase sm:mb-3">
               Contract
             </p>
-            <div className="space-y-2 text-sm">
+            <div className="space-y-1.5 text-xs sm:space-y-2 sm:text-sm">
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Address</span>
                 <button

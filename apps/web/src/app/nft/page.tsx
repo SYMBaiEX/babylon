@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { NftGrid, RevealModal } from '@/components/nft';
 import { PageContainer } from '@/components/shared/PageContainer';
-import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
 import { useNftMint } from '@/hooks/useNftMint';
 import type { NftGalleryResponse, NftSummary } from '@/types/nft';
@@ -124,13 +123,13 @@ export default function NftGalleryPage() {
             </div>
 
             {authenticated && !eligibility?.hasMinted && (
-              <Button
+              <button
                 onClick={handleClaimClick}
                 disabled={isMinting || isCheckingEligibility}
-                className="bg-[#0066FF] hover:bg-[#0055DD]"
+                className="rounded-full bg-[#0066FF] px-5 py-2.5 font-semibold text-sm text-white shadow-md transition-all hover:scale-105 hover:bg-[#2952d9] hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100"
               >
                 {isCheckingEligibility ? 'Checking...' : 'Claim My NFT'}
-              </Button>
+              </button>
             )}
 
             {eligibility?.hasMinted && eligibility.mintedNft && (
@@ -221,9 +220,12 @@ export default function NftGalleryPage() {
               Failed to load collection
             </p>
             <p className="mb-4 text-muted-foreground text-sm">{error}</p>
-            <Button variant="outline" onClick={fetchNfts}>
+            <button
+              onClick={fetchNfts}
+              className="rounded-full border border-border bg-transparent px-5 py-2.5 font-medium text-foreground text-sm transition-colors hover:bg-muted"
+            >
               Try Again
-            </Button>
+            </button>
           </div>
         </div>
       )}
@@ -265,20 +267,19 @@ export default function NftGalleryPage() {
                   Claim your exclusive NFT from the Babylon Top 100 collection
                 </p>
                 <div className="flex gap-3">
-                  <Button
-                    variant="outline"
+                  <button
                     onClick={() => setShowEligibilityModal(false)}
-                    className="flex-1"
+                    className="flex-1 rounded-full border border-border bg-transparent py-2.5 font-medium text-foreground text-sm transition-colors hover:bg-muted"
                   >
                     Maybe Later
-                  </Button>
-                  <Button
+                  </button>
+                  <button
                     onClick={handleMintFromModal}
                     disabled={isMinting}
-                    className="flex-1 bg-[#0066FF] hover:bg-[#0055DD]"
+                    className="flex-1 rounded-full bg-[#0066FF] py-2.5 font-semibold text-sm text-white shadow-md transition-all hover:scale-105 hover:bg-[#2952d9] hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100"
                   >
                     {isMinting ? 'Claiming...' : 'Claim My NFT'}
-                  </Button>
+                  </button>
                 </div>
               </div>
             ) : eligibility?.hasMinted ? (
@@ -291,21 +292,18 @@ export default function NftGalleryPage() {
                   You&apos;ve already claimed your NFT!
                 </p>
                 <div className="flex gap-3">
-                  <Button
-                    variant="outline"
+                  <button
                     onClick={() => setShowEligibilityModal(false)}
-                    className="flex-1"
+                    className="flex-1 rounded-full border border-border bg-transparent py-2.5 font-medium text-foreground text-sm transition-colors hover:bg-muted"
                   >
                     Close
-                  </Button>
+                  </button>
                   {eligibility.mintedNft && (
                     <a
                       href={`/nft/${eligibility.mintedNft.tokenId}`}
-                      className="flex-1"
+                      className="flex-1 rounded-full bg-[#0066FF] py-2.5 text-center font-semibold text-sm text-white shadow-md transition-all hover:scale-105 hover:bg-[#2952d9] hover:shadow-lg"
                     >
-                      <Button className="w-full bg-[#0066FF] hover:bg-[#0055DD]">
-                        View My NFT
-                      </Button>
+                      View My NFT
                     </a>
                   )}
                 </div>
@@ -321,15 +319,17 @@ export default function NftGalleryPage() {
                   trading to climb the ranks!
                 </p>
                 <div className="flex gap-3">
-                  <Button
-                    variant="outline"
+                  <button
                     onClick={() => setShowEligibilityModal(false)}
-                    className="flex-1"
+                    className="flex-1 rounded-full border border-border bg-transparent py-2.5 font-medium text-foreground text-sm transition-colors hover:bg-muted"
                   >
                     Close
-                  </Button>
-                  <a href="/leaderboard" className="flex-1">
-                    <Button className="w-full">View Leaderboard</Button>
+                  </button>
+                  <a
+                    href="/leaderboard"
+                    className="flex-1 rounded-full bg-[#0066FF] py-2.5 text-center font-semibold text-sm text-white shadow-md transition-all hover:scale-105 hover:bg-[#2952d9] hover:shadow-lg"
+                  >
+                    View Leaderboard
                   </a>
                 </div>
               </div>
