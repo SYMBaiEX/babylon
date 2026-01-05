@@ -22,6 +22,58 @@ import { NextResponse } from 'next/server';
 
 const MAX_BANNER_SIZE = 5 * 1024 * 1024; // 5MB
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+const VALID_TARGET_TYPES = ['user', 'agent'] as const;
+type TargetType = (typeof VALID_TARGET_TYPES)[number];
+
+// Map MIME types to file extensions (safer than splitting MIME type)
+const MIME_TO_EXT: Record<string, string> = {
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/gif': 'gif',
+  'image/webp': 'webp',
+};
+
+/**
+ * Magic byte signatures for image validation.
+ * Prevents uploading executables disguised as images.
+ */
+const IMAGE_MAGIC_BYTES: Record<string, number[][]> = {
+  'image/jpeg': [[0xff, 0xd8, 0xff]],
+  'image/png': [[0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]],
+  'image/gif': [
+    [0x47, 0x49, 0x46, 0x38, 0x37, 0x61], // GIF87a
+    [0x47, 0x49, 0x46, 0x38, 0x39, 0x61], // GIF89a
+  ],
+};
+
+/** WebP magic bytes: RIFF at bytes 0-3, WEBP at bytes 8-11 */
+const WEBP_RIFF_HEADER = [0x52, 0x49, 0x46, 0x46]; // "RIFF"
+const WEBP_FORMAT_MARKER = [0x57, 0x45, 0x42, 0x50]; // "WEBP"
+
+/**
+ * Validates that file bytes match the declared MIME type.
+ * Prevents uploading executables disguised as images.
+ */
+function validateImageMagicBytes(buffer: Buffer, mimeType: string): boolean {
+  if (mimeType === 'image/webp') {
+    if (buffer.length < 12) return false;
+    const hasRiffHeader = WEBP_RIFF_HEADER.every(
+      (byte, i) => buffer[i] === byte
+    );
+    const hasWebpMarker = WEBP_FORMAT_MARKER.every(
+      (byte, i) => buffer[8 + i] === byte
+    );
+    return hasRiffHeader && hasWebpMarker;
+  }
+
+  const signatures = IMAGE_MAGIC_BYTES[mimeType];
+  if (!signatures) return false;
+
+  return signatures.some((signature) => {
+    if (buffer.length < signature.length) return false;
+    return signature.every((byte, i) => buffer[i] === byte);
+  });
+}
 
 /**
  * POST /api/upload/banner
@@ -42,11 +94,28 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
 
   const formData = await request.formData();
   const file = formData.get('file') as File;
-  const targetId = formData.get('targetId') as string; // user or agent ID
-  const targetType = (formData.get('targetType') as string) || 'user'; // 'user' or 'agent'
+  const targetId = formData.get('targetId') as string | null;
+  const rawTargetType = (formData.get('targetType') as string) || 'user';
+
+  // Validate targetType against allowed values
+  if (!VALID_TARGET_TYPES.includes(rawTargetType as TargetType)) {
+    return NextResponse.json(
+      { error: `Invalid targetType. Allowed: ${VALID_TARGET_TYPES.join(', ')}` },
+      { status: 400 }
+    );
+  }
+  const targetType = rawTargetType as TargetType;
 
   if (!file) {
     return NextResponse.json({ error: 'No file provided' }, { status: 400 });
+  }
+
+  // Require targetId when uploading for an agent
+  if (targetType === 'agent' && !targetId) {
+    return NextResponse.json(
+      { error: 'targetId is required when uploading a banner for an agent' },
+      { status: 400 }
+    );
   }
 
   if (!ALLOWED_TYPES.includes(file.type)) {
@@ -65,8 +134,8 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     );
   }
 
-  // Verify ownership
-  const effectiveTargetId = targetId || user.userId;
+  // Verify ownership - targetId is required for agents (validated above), optional for users
+  const effectiveTargetId = targetId ?? user.userId;
   if (targetType === 'agent') {
     // Verify user owns/manages the agent
     const [agent] = await db
@@ -88,14 +157,26 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     );
   }
 
+  // Convert file to buffer for validation
+  const arrayBuffer = await file.arrayBuffer();
+  const buffer = Buffer.from(arrayBuffer);
+
+  // Validate magic bytes match declared MIME type (prevents fake file uploads)
+  if (!validateImageMagicBytes(buffer, file.type)) {
+    return NextResponse.json(
+      {
+        error:
+          'File content does not match declared type. Ensure you are uploading a valid image.',
+      },
+      { status: 400 }
+    );
+  }
+
   // Upload to storage
   const storage = getStorageClient();
   const timestamp = Date.now();
-  const extension = file.type.split('/')[1];
+  const extension = MIME_TO_EXT[file.type] || 'jpg';
   const filename = `${effectiveTargetId}_${timestamp}.${extension}`;
-
-  const arrayBuffer = await file.arrayBuffer();
-  const buffer = Buffer.from(arrayBuffer);
 
   const folder = targetType === 'agent' ? 'actor-banners' : 'user-banners';
   const result = await storage.uploadImage({
