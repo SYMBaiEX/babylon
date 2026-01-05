@@ -911,11 +911,13 @@ export class MultiStepExecutor {
         });
 
         // Log the DM with prompt and completion for debugging/review
-        if (messageResult.success && logContext) {
+        if (logContext) {
           await agentService.createLog(agentUserId, {
             type: 'dm',
-            level: 'info',
-            message: `Sent DM to ${recipientId}: ${content.substring(0, 100)}${content.length > 100 ? '...' : ''}`,
+            level: messageResult.success ? 'info' : 'warn',
+            message: messageResult.success
+              ? `Sent DM to ${recipientId}: ${content.substring(0, 100)}${content.length > 100 ? '...' : ''}`
+              : `Failed to send DM to ${recipientId}: ${messageResult.error}`,
             prompt: logContext.prompt,
             completion: logContext.completion,
             thinking: logContext.thought,
@@ -923,6 +925,7 @@ export class MultiStepExecutor {
               messageId: messageResult.messageId ?? null,
               recipientId,
               contentLength: content.length,
+              error: messageResult.error ?? null,
             },
           });
         }

@@ -777,11 +777,10 @@ export async function executeDirectMessage(
 ): Promise<DirectMessageResult> {
   const { agentUserId, chatId: providedChatId, recipientId, content } = params;
 
-  if (!content || content.trim().length < 3) {
+  const cleanContent = content?.trim() ?? '';
+  if (cleanContent.length < 3) {
     return { success: false, error: 'Content too short' };
   }
-
-  const cleanContent = content.trim();
   let chatId = providedChatId;
 
   // If chatId not provided, resolve it from recipientId
@@ -894,24 +893,42 @@ export async function executeDirectMessage(
             { agentUserId, recipientId },
             'DirectExecutors'
           );
-          // Re-attempt to find the existing chat
-          const retryMatch = await db
+          // Re-fetch agent's DM chats since another process may have created one
+          const updatedAgentParticipations = await db
             .select({ chatId: chatParticipants.chatId })
             .from(chatParticipants)
             .innerJoin(chats, eq(chatParticipants.chatId, chats.id))
             .where(
               and(
-                eq(chatParticipants.userId, recipientId),
-                eq(chats.isGroup, false),
-                inArray(chatParticipants.chatId, agentChatIds)
+                eq(chatParticipants.userId, agentUserId),
+                eq(chats.isGroup, false)
               )
-            )
-            .limit(1);
+            );
 
-          if (retryMatch.length > 0 && retryMatch[0]) {
-            chatId = retryMatch[0].chatId;
+          const updatedAgentChatIds = updatedAgentParticipations.map(
+            (p) => p.chatId
+          );
+
+          if (updatedAgentChatIds.length > 0) {
+            // Check if recipient is in any of these chats
+            const retryMatch = await db
+              .select({ chatId: chatParticipants.chatId })
+              .from(chatParticipants)
+              .where(
+                and(
+                  inArray(chatParticipants.chatId, updatedAgentChatIds),
+                  eq(chatParticipants.userId, recipientId)
+                )
+              )
+              .limit(1);
+
+            if (retryMatch.length > 0 && retryMatch[0]) {
+              chatId = retryMatch[0].chatId;
+            } else {
+              throw error; // Re-throw if we still can't find the chat
+            }
           } else {
-            throw error; // Re-throw if we still can't find the chat
+            throw error; // Re-throw if agent still has no chats
           }
         } else {
           throw error;
