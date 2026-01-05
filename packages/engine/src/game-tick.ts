@@ -420,12 +420,34 @@ export async function executeGameTick(
     ];
 
     const questionManager = new QuestionManager(llmClient);
+    const questionsToReveal: Array<{ id: string; outcome: boolean }> = [];
 
     // Resolve payouts
     // Each question resolution is wrapped in try/catch to prevent partial failures
     // from breaking the entire tick. Failed resolutions will be retried next tick.
     for (const question of questionsToResolve) {
       try {
+        const isApproved = question.resolutionReviewStatus === 'approved';
+        const isPendingManualReview =
+          question.requiresManualReview && !isApproved;
+        const hasStoredProof =
+          Boolean(question.resolutionProofUrl) &&
+          Boolean(question.resolutionDescription);
+
+        if (isPendingManualReview && hasStoredProof) {
+          logger.info(
+            'Skipping question resolution (pending manual review)',
+            {
+              questionId: question.id,
+              questionNumber: question.questionNumber,
+              confidence: question.resolutionConfidence ?? null,
+              reviewStatus: question.resolutionReviewStatus ?? 'pending',
+            },
+            'GameTick'
+          );
+          continue;
+        }
+
         // Generate resolution proof content
         // We cast question to Question type - database question fields are compatible
         const questionForManager: Question = {
@@ -437,58 +459,103 @@ export async function executeGameTick(
           status: 'active',
         };
 
-        const { description, proof } =
-          await questionManager.generateResolutionWithProof(
+        // Only generate proof if we don't have one stored
+        // Avoids regenerating existing proofs when only confidence is missing
+        const shouldGenerateProof = !hasStoredProof;
+
+        let generatedProof: Awaited<
+          ReturnType<QuestionManager['generateResolutionWithProof']>
+        > | null = null;
+
+        if (shouldGenerateProof) {
+          const proofResult = await questionManager.generateResolutionWithProof(
             questionForManager,
             allActors,
             organizations,
             recentTimelines
           );
 
-        // Save proof article and update question atomically if proof exists
-        if (proof && proof.type === 'article') {
-          await db.transaction(async (tx) => {
-            // Create article in database
-            await tx.insert(posts).values({
-              id: proof.article.id,
-              type: 'article',
-              content: proof.article.summary, // Use summary for content preview
-              fullContent: proof.article.content,
-              articleTitle: proof.article.title,
-              authorId: proof.article.authorOrgId,
-              gameId: 'continuous',
-              timestamp: new Date(),
-              category: proof.article.category,
-              sentiment: proof.article.sentiment,
-              slant: proof.article.slant,
-              biasScore: proof.article.biasScore,
-            });
+          generatedProof = proofResult;
 
-            // Update question with proof URL
+          const reviewStatus = proofResult.requiresManualReview
+            ? 'pending'
+            : null;
+
+          // Save proof article (if any) and update question atomically.
+          await db.transaction(async (tx) => {
+            if (proofResult.proof?.type === 'article') {
+              await tx.insert(posts).values({
+                id: proofResult.proof.article.id,
+                type: 'article',
+                content: proofResult.proof.article.summary,
+                fullContent: proofResult.proof.article.content,
+                articleTitle: proofResult.proof.article.title,
+                authorId: proofResult.proof.article.authorOrgId,
+                gameId: 'continuous',
+                timestamp: new Date(),
+                category: proofResult.proof.article.category,
+                sentiment: proofResult.proof.article.sentiment,
+                slant: proofResult.proof.article.slant,
+                biasScore: proofResult.proof.article.biasScore,
+              });
+            }
+
             await tx
               .update(questionsSchema)
               .set({
-                resolutionDescription: description,
-                resolutionProofUrl: proof.url,
+                resolutionDescription: proofResult.description,
+                resolutionProofUrl: proofResult.proof?.url ?? null,
+                resolutionConfidence: proofResult.confidence,
+                requiresManualReview: proofResult.requiresManualReview,
+                resolutionReviewStatus: reviewStatus,
                 updatedAt: new Date(),
               })
               .where(eq(questionsSchema.id, question.id));
           });
 
-          logger.info(
-            `Generated resolution proof for Q${question.questionNumber}`,
+          if (proofResult.proof?.type === 'article') {
+            logger.info(
+              `Generated resolution proof for Q${question.questionNumber}`,
+              {
+                proofUrl: proofResult.proof.url,
+                articleId: proofResult.proof.article.id,
+                confidence: proofResult.confidence,
+                requiresManualReview: proofResult.requiresManualReview,
+                confidenceSignals: proofResult.confidenceSignals,
+              },
+              'GameTick'
+            );
+          }
+        }
+
+        const requiresManualReview =
+          generatedProof?.requiresManualReview ?? question.requiresManualReview;
+        const reviewStatus =
+          generatedProof?.requiresManualReview === true
+            ? 'pending'
+            : question.resolutionReviewStatus;
+
+        // If low-confidence, queue for manual review instead of resolving now.
+        if (requiresManualReview && reviewStatus !== 'approved') {
+          logger.warn(
+            'Queued question for manual resolution review',
             {
-              proofUrl: proof.url,
-              articleId: proof.article.id,
+              questionId: question.id,
+              questionNumber: question.questionNumber,
+              confidence:
+                generatedProof?.confidence ?? question.resolutionConfidence,
+              reviewStatus: reviewStatus ?? 'pending',
             },
             'GameTick'
           );
+          continue;
         }
 
         // resolveQuestionPayouts has its own internal transaction for payout operations
         // and updates question status to 'resolved' atomically
         await resolveQuestionPayouts(question.questionNumber);
         result.questionsResolved++;
+        questionsToReveal.push({ id: question.id, outcome: question.outcome });
       } catch (error) {
         // Log error but continue with other questions
         // Failed question will remain in 'active' status and be retried next tick
@@ -505,7 +572,7 @@ export async function executeGameTick(
     }
 
     // Publish reveals to blockchain oracle
-    const oracleResult = await publishOracleReveals(questionsToResolve);
+    const oracleResult = await publishOracleReveals(questionsToReveal);
     result.oracleReveals += oracleResult.revealed;
     result.oracleErrors += oracleResult.errors;
   }

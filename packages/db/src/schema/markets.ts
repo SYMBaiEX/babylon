@@ -77,6 +77,13 @@ export const questions = pgTable(
     oracleSessionId: text('oracleSessionId').unique(),
     resolutionProofUrl: text('resolutionProofUrl'),
     resolutionDescription: text('resolutionDescription'),
+    resolutionConfidence: doublePrecision('resolutionConfidence'),
+    requiresManualReview: boolean('requiresManualReview')
+      .notNull()
+      .default(false),
+    resolutionReviewStatus: text('resolutionReviewStatus'),
+    resolutionReviewedAt: timestamp('resolutionReviewedAt', { mode: 'date' }),
+    resolutionReviewedBy: text('resolutionReviewedBy'),
   },
   (table) => [
     index('Question_createdDate_idx').on(table.createdDate),
@@ -85,6 +92,11 @@ export const questions = pgTable(
     index('Question_status_resolutionDate_idx').on(
       table.status,
       table.resolutionDate
+    ),
+    index('Question_requiresManualReview_status_idx').on(
+      table.status,
+      table.requiresManualReview,
+      table.resolutionReviewStatus
     ),
   ]
 );
