@@ -1,4 +1,13 @@
-import { db, posts, type Question, worldEvents } from '@babylon/db';
+import {
+  and,
+  db,
+  desc,
+  gte,
+  inArray,
+  posts,
+  type Question,
+  worldEvents,
+} from '@babylon/db';
 import type { BabylonLLMClient } from '@babylon/engine';
 import { generateSnowflakeId, logger } from '@babylon/shared';
 import { ArticleGenerator } from '../ArticleGenerator';
@@ -337,6 +346,115 @@ export async function generateEvents(
   }
 
   return eventsCreated;
+}
+
+const ARC_PULSE_LOOKBACK_MS = 24 * 60 * 60 * 1000; // 24h
+const ARC_PULSE_MAX_EVENTS_PER_TICK = 2;
+const ARC_PULSE_INTERVAL_MS_BY_PHASE: Record<
+  'early' | 'middle' | 'late' | 'climax',
+  number
+> = {
+  early: 6 * 60 * 60 * 1000, // 6h
+  middle: 4 * 60 * 60 * 1000, // 4h
+  late: 2 * 60 * 60 * 1000, // 2h
+  climax: 60 * 60 * 1000, // 1h
+};
+
+/**
+ * Generate additional "arc pulse" events to keep narratives (and markets) active.
+ *
+ * @description
+ * This is a lightweight approximation of "sub-arc events": for each active question,
+ * if we haven't emitted a `WorldEvent` recently, emit a new one using the same
+ * generation logic as `generateEvents()` (signal direction is still derived from the arc plan).
+ *
+ * This helps keep the feed and market context refreshed without relying on purely
+ * synthetic volatility.
+ */
+export async function generateArcPulseEventsIfNeeded(
+  questions: QuestionForEvent[],
+  timestamp: Date,
+  currentDay?: number
+): Promise<number> {
+  if (questions.length === 0) return 0;
+
+  const questionNumbers = questions
+    .map((q) =>
+      typeof q.questionNumber === 'number' &&
+      Number.isFinite(q.questionNumber) &&
+      q.questionNumber >= 0 &&
+      q.questionNumber <= 2147483647
+        ? q.questionNumber
+        : null
+    )
+    .filter((n): n is number => n !== null);
+
+  if (questionNumbers.length === 0) return 0;
+
+  const lookbackDate = new Date(timestamp.getTime() - ARC_PULSE_LOOKBACK_MS);
+  const recent = await db
+    .select({
+      relatedQuestion: worldEvents.relatedQuestion,
+      timestamp: worldEvents.timestamp,
+    })
+    .from(worldEvents)
+    .where(
+      and(
+        inArray(worldEvents.relatedQuestion, questionNumbers),
+        gte(worldEvents.timestamp, lookbackDate)
+      )
+    )
+    .orderBy(desc(worldEvents.timestamp));
+
+  const lastEventByQuestion = new Map<number, Date>();
+  for (const row of recent) {
+    const q = row.relatedQuestion;
+    if (typeof q !== 'number') continue;
+    if (!lastEventByQuestion.has(q)) {
+      lastEventByQuestion.set(q, row.timestamp);
+    }
+  }
+
+  let created = 0;
+
+  for (const question of questions) {
+    if (created >= ARC_PULSE_MAX_EVENTS_PER_TICK) break;
+
+    const questionNum =
+      typeof question.questionNumber === 'number' &&
+      Number.isFinite(question.questionNumber) &&
+      question.questionNumber >= 0 &&
+      question.questionNumber <= 2147483647
+        ? question.questionNumber
+        : null;
+
+    if (questionNum === null) continue;
+
+    let intervalMs = ARC_PULSE_INTERVAL_MS_BY_PHASE.early;
+    if (currentDay !== undefined) {
+      const arcPlan = await getArcPlan(question.id);
+      if (arcPlan) {
+        const phase = getPhaseForDay(currentDay, arcPlan);
+        intervalMs = ARC_PULSE_INTERVAL_MS_BY_PHASE[phase];
+      }
+    }
+
+    const lastEventAt = lastEventByQuestion.get(questionNum) ?? null;
+    if (
+      lastEventAt &&
+      timestamp.getTime() - lastEventAt.getTime() < intervalMs
+    ) {
+      continue;
+    }
+
+    const generated = await generateEvents([question], timestamp, currentDay);
+    if (generated > 0) {
+      created += generated;
+      lastEventByQuestion.set(questionNum, timestamp);
+    }
+  }
+
+  return created;
 }
 
 /**
