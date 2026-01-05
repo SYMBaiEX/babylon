@@ -11,6 +11,7 @@ import {
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
+import { FollowButton } from '@/components/interactions/FollowButton';
 import type { SelectedUser } from '@/components/leaderboard/LeaderboardWidgetSidebar';
 import { OnChainBadge } from '@/components/profile/OnChainBadge';
 import { Avatar } from '@/components/shared/Avatar';
@@ -280,13 +281,21 @@ export default function LeaderboardPage() {
 
             return (
               <div key={player.id} className="flex items-stretch">
-                {/* Clickable area for widget (desktop) */}
-                <button
+                {/* Clickable area for widget (desktop) - using div to allow nested FollowButton */}
+                <div
+                  role="button"
+                  tabIndex={0}
                   onClick={(e) => handleUserClick(player, e)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      handleUserClick(player, e as unknown as React.MouseEvent);
+                    }
+                  }}
                   data-testid={
                     player.isActor ? 'npc-entry' : 'leaderboard-entry'
                   }
-                  className={`hidden flex-1 px-4 py-3 text-left transition-colors xl:block ${
+                  className={`hidden flex-1 cursor-pointer px-4 py-3 text-left transition-colors xl:block ${
                     isSelected
                       ? 'border-[#0066FF] border-l-4 bg-[#0066FF]/20'
                       : isCurrentUser
@@ -350,6 +359,18 @@ export default function LeaderboardPage() {
                             showLabel={false}
                           />
                         </div>
+                        {authenticated && !isCurrentUser && (
+                          <div
+                            className="shrink-0"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <FollowButton
+                              userId={player.id}
+                              size="sm"
+                              variant="icon"
+                            />
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -411,7 +432,7 @@ export default function LeaderboardPage() {
                         )}
                       </div>
                     )}
-                </button>
+                </div>
 
                 {/* Mobile/Tablet: Direct link to profile */}
                 <Link
@@ -518,6 +539,13 @@ export default function LeaderboardPage() {
                     </div>
                   </div>
                 </Link>
+
+                {/* Mobile Follow Button */}
+                {authenticated && !isCurrentUser && (
+                  <div className="flex shrink-0 items-center pr-3 xl:hidden">
+                    <FollowButton userId={player.id} size="sm" variant="icon" />
+                  </div>
+                )}
               </div>
             );
           })}
