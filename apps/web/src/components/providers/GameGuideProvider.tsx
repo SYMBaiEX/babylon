@@ -78,9 +78,12 @@ export function GameGuideProvider({ children }: { children: React.ReactNode }) {
   const openGuide = useCallback(() => setIsOpen(true), []);
 
   const handleComplete = useCallback(async () => {
+    // Always close the modal first - don't block the user
+    setIsOpen(false);
+
+    // Guard against double-submit or missing user
     if (!user || isSubmitting) return;
     setIsSubmitting(true);
-    setIsOpen(false);
 
     const res = await apiFetch('/api/users/me/game-guide', { method: 'POST' });
 
