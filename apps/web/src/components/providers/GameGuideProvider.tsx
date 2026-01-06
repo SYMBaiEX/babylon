@@ -44,6 +44,7 @@ export function GameGuideProvider({ children }: { children: React.ReactNode }) {
   const { setUser } = useAuthStore();
 
   const [isOpen, setIsOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const hasAutoShown = useRef(false);
 
   const hasCompleted = Boolean(user?.gameGuideCompletedAt);
@@ -77,7 +78,8 @@ export function GameGuideProvider({ children }: { children: React.ReactNode }) {
   const openGuide = useCallback(() => setIsOpen(true), []);
 
   const handleComplete = useCallback(async () => {
-    if (!user) return;
+    if (!user || isSubmitting) return;
+    setIsSubmitting(true);
     setIsOpen(false);
 
     const res = await apiFetch('/api/users/me/game-guide', { method: 'POST' });
@@ -91,7 +93,8 @@ export function GameGuideProvider({ children }: { children: React.ReactNode }) {
       logger.error('Failed to save game guide', { status: res.status }, 'GameGuideProvider');
       toast.error('Failed to save progress. The guide may appear again later.');
     }
-  }, [user, setUser]);
+    setIsSubmitting(false);
+  }, [user, setUser, isSubmitting]);
 
   const value = useMemo(
     () => ({ isOpen, openGuide, hasCompleted }),
