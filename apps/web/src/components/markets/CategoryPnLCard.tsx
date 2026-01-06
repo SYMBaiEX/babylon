@@ -75,7 +75,7 @@ interface CategoryPnLCardProps {
 function formatCurrency(value: number | null | undefined) {
   const safeValue =
     typeof value === 'number' && Number.isFinite(value) ? value : 0;
-  return formatCurrencyShared(safeValue);
+  return formatCurrencyShared(safeValue, { useThousandsSeparator: true });
 }
 
 /**

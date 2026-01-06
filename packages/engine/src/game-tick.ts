@@ -23,15 +23,13 @@ import {
   games,
   gte,
   inArray,
-  isNotNull,
   isNull,
   type JsonValue,
   lte,
   markets as marketsSchema,
-  organizationState,
   organizations,
   perpMarketSnapshots,
-  poolPositions,
+  perpPositions,
   pools,
   positions,
   posts,
@@ -68,7 +66,10 @@ import {
 } from './services/article-image-service';
 import { characterMappingService } from './services/character-mapping-service';
 // Content generation helpers
-import { generateEvents } from './services/event-generation-helpers';
+import {
+  generateArcPulseEventsIfNeeded,
+  generateEvents,
+} from './services/event-generation-helpers';
 import { bootstrapGameIfNeeded } from './services/game-bootstrap-service';
 import { MarketContextService } from './services/market-context-service';
 import { NPCGroupDynamicsService } from './services/npc-group-dynamics-service';
@@ -422,12 +423,34 @@ export async function executeGameTick(
     ];
 
     const questionManager = new QuestionManager(llmClient);
+    const questionsToReveal: Array<{ id: string; outcome: boolean }> = [];
 
     // Resolve payouts
     // Each question resolution is wrapped in try/catch to prevent partial failures
     // from breaking the entire tick. Failed resolutions will be retried next tick.
     for (const question of questionsToResolve) {
       try {
+        const isApproved = question.resolutionReviewStatus === 'approved';
+        const isPendingManualReview =
+          question.requiresManualReview && !isApproved;
+        const hasStoredProof =
+          Boolean(question.resolutionProofUrl) &&
+          Boolean(question.resolutionDescription);
+
+        if (isPendingManualReview && hasStoredProof) {
+          logger.info(
+            'Skipping question resolution (pending manual review)',
+            {
+              questionId: question.id,
+              questionNumber: question.questionNumber,
+              confidence: question.resolutionConfidence ?? null,
+              reviewStatus: question.resolutionReviewStatus ?? 'pending',
+            },
+            'GameTick'
+          );
+          continue;
+        }
+
         // Generate resolution proof content
         // We cast question to Question type - database question fields are compatible
         const questionForManager: Question = {
@@ -439,58 +462,103 @@ export async function executeGameTick(
           status: 'active',
         };
 
-        const { description, proof } =
-          await questionManager.generateResolutionWithProof(
+        // Only generate proof if we don't have one stored
+        // Avoids regenerating existing proofs when only confidence is missing
+        const shouldGenerateProof = !hasStoredProof;
+
+        let generatedProof: Awaited<
+          ReturnType<QuestionManager['generateResolutionWithProof']>
+        > | null = null;
+
+        if (shouldGenerateProof) {
+          const proofResult = await questionManager.generateResolutionWithProof(
             questionForManager,
             allActors,
             organizations,
             recentTimelines
           );
 
-        // Save proof article and update question atomically if proof exists
-        if (proof && proof.type === 'article') {
-          await db.transaction(async (tx) => {
-            // Create article in database
-            await tx.insert(posts).values({
-              id: proof.article.id,
-              type: 'article',
-              content: proof.article.summary, // Use summary for content preview
-              fullContent: proof.article.content,
-              articleTitle: proof.article.title,
-              authorId: proof.article.authorOrgId,
-              gameId: 'continuous',
-              timestamp: new Date(),
-              category: proof.article.category,
-              sentiment: proof.article.sentiment,
-              slant: proof.article.slant,
-              biasScore: proof.article.biasScore,
-            });
+          generatedProof = proofResult;
 
-            // Update question with proof URL
+          const reviewStatus = proofResult.requiresManualReview
+            ? 'pending'
+            : null;
+
+          // Save proof article (if any) and update question atomically.
+          await db.transaction(async (tx) => {
+            if (proofResult.proof?.type === 'article') {
+              await tx.insert(posts).values({
+                id: proofResult.proof.article.id,
+                type: 'article',
+                content: proofResult.proof.article.summary,
+                fullContent: proofResult.proof.article.content,
+                articleTitle: proofResult.proof.article.title,
+                authorId: proofResult.proof.article.authorOrgId,
+                gameId: 'continuous',
+                timestamp: new Date(),
+                category: proofResult.proof.article.category,
+                sentiment: proofResult.proof.article.sentiment,
+                slant: proofResult.proof.article.slant,
+                biasScore: proofResult.proof.article.biasScore,
+              });
+            }
+
             await tx
               .update(questionsSchema)
               .set({
-                resolutionDescription: description,
-                resolutionProofUrl: proof.url,
+                resolutionDescription: proofResult.description,
+                resolutionProofUrl: proofResult.proof?.url ?? null,
+                resolutionConfidence: proofResult.confidence,
+                requiresManualReview: proofResult.requiresManualReview,
+                resolutionReviewStatus: reviewStatus,
                 updatedAt: new Date(),
               })
               .where(eq(questionsSchema.id, question.id));
           });
 
-          logger.info(
-            `Generated resolution proof for Q${question.questionNumber}`,
+          if (proofResult.proof?.type === 'article') {
+            logger.info(
+              `Generated resolution proof for Q${question.questionNumber}`,
+              {
+                proofUrl: proofResult.proof.url,
+                articleId: proofResult.proof.article.id,
+                confidence: proofResult.confidence,
+                requiresManualReview: proofResult.requiresManualReview,
+                confidenceSignals: proofResult.confidenceSignals,
+              },
+              'GameTick'
+            );
+          }
+        }
+
+        const requiresManualReview =
+          generatedProof?.requiresManualReview ?? question.requiresManualReview;
+        const reviewStatus =
+          generatedProof?.requiresManualReview === true
+            ? 'pending'
+            : question.resolutionReviewStatus;
+
+        // If low-confidence, queue for manual review instead of resolving now.
+        if (requiresManualReview && reviewStatus !== 'approved') {
+          logger.warn(
+            'Queued question for manual resolution review',
             {
-              proofUrl: proof.url,
-              articleId: proof.article.id,
+              questionId: question.id,
+              questionNumber: question.questionNumber,
+              confidence:
+                generatedProof?.confidence ?? question.resolutionConfidence,
+              reviewStatus: reviewStatus ?? 'pending',
             },
             'GameTick'
           );
+          continue;
         }
 
         // resolveQuestionPayouts has its own internal transaction for payout operations
         // and updates question status to 'resolved' atomically
         await resolveQuestionPayouts(question.questionNumber);
         result.questionsResolved++;
+        questionsToReveal.push({ id: question.id, outcome: question.outcome });
       } catch (error) {
         // Log error but continue with other questions
         // Failed question will remain in 'active' status and be retried next tick
@@ -507,7 +575,7 @@ export async function executeGameTick(
     }
 
     // Publish reveals to blockchain oracle
-    const oracleResult = await publishOracleReveals(questionsToResolve);
+    const oracleResult = await publishOracleReveals(questionsToReveal);
     result.oracleReveals += oracleResult.revealed;
     result.oracleErrors += oracleResult.errors;
   }
@@ -541,7 +609,12 @@ export async function executeGameTick(
       timestamp,
       dayNumberForTimestamp(timestamp)
     );
-    result.eventsCreated = eventsGenerated;
+    const pulseEventsGenerated = await generateArcPulseEventsIfNeeded(
+      currentActiveQuestions.slice(0, 3),
+      timestamp,
+      dayNumberForTimestamp(timestamp)
+    );
+    result.eventsCreated = eventsGenerated + pulseEventsGenerated;
 
     // NPC posts and replies are now handled by /api/cron/npc-tick
     // This removes the old generateMixedPosts and generateNPCRepliesFromPreviousTicks calls
@@ -662,13 +735,26 @@ export async function executeGameTick(
   const currentActiveCount =
     currentActiveQuestions.length - result.questionsResolved;
   if (currentActiveCount < 10) {
-    if (Date.now() < deadline) {
+    const shouldForceGeneration = currentActiveCount <= 0;
+    if (Date.now() < deadline || shouldForceGeneration) {
+      if (shouldForceGeneration && Date.now() >= deadline) {
+        logger.warn(
+          'No active prediction questions – forcing generation past tick budget',
+          { budgetMs, currentActiveCount },
+          'GameTick'
+        );
+      }
+
+      // If we've exceeded the tick budget, still allow a small window to avoid
+      // periods with zero active prediction markets.
+      const generationDeadline =
+        Date.now() < deadline ? deadline : Date.now() + 30_000;
       const questionsGenerated = await generateNewQuestions(
         Math.min(3, 15 - currentActiveCount),
         llmClient,
-        deadline
+        generationDeadline
       );
-      result.questionsCreated = questionsGenerated;
+      result.questionsCreated += questionsGenerated;
     } else {
       logger.warn(
         'Skipping question generation – tick budget exceeded',
@@ -2301,158 +2387,111 @@ async function updateMarketPricesFromTrades(
   _timestamp: Date,
   executionResult: TradingExecutionResult
 ): Promise<number> {
-  if (!executionResult.executedTrades.length) {
-    return 0;
-  }
+  if (!executionResult.executedTrades.length) return 0;
 
-  // Get all companies with current holdings (static + dynamic data)
-  const orgStates = await dbService().getAllOrganizationStates();
-  const priceMap = new Map(orgStates.map((s) => [s.id, s.currentPrice]));
+  const hasPerpTrades = executionResult.executedTrades.some(
+    (t) => t.marketType === 'perp'
+  );
+  if (!hasPerpTrades) return 0;
 
-  const companiesList = StaticDataRegistry.getAllOrganizations()
-    .filter((org) => org.type === 'company')
-    .map((org) => ({
-      id: org.id,
-      name: org.name,
-      currentPrice: priceMap.get(org.id) ?? org.initialPrice,
-      initialPrice: org.initialPrice,
-    }));
+  // Recompute perp prices from open PerpPosition rows.
+  // NPC perps now trade via PerpMarketService (perpPositions table), so using
+  // legacy poolPositions would keep prices effectively static.
+  const snapshots = await db
+    .select({
+      ticker: perpMarketSnapshots.ticker,
+      organizationId: perpMarketSnapshots.organizationId,
+      currentPrice: perpMarketSnapshots.currentPrice,
+    })
+    .from(perpMarketSnapshots);
 
-  type CompanyData = (typeof companiesList)[0];
-  // Use raw org IDs as keys since positions now store raw IDs
-  const companyMap = new Map<string, CompanyData>(
-    companiesList.map((c: CompanyData) => [c.id, c])
+  if (snapshots.length === 0) return 0;
+
+  // Scope recomputation to tickers actually traded this tick (when available).
+  const tradedTickers = new Set(
+    executionResult.executedTrades
+      .filter(
+        (t): t is (typeof executionResult.executedTrades)[number] & {
+          ticker: string;
+        } => t.marketType === 'perp' && typeof t.ticker === 'string'
+      )
+      .map((t) => t.ticker.toUpperCase())
   );
 
-  // Calculate total holdings for each company from ALL positions
-  const holdingsByTicker = new Map<string, number>();
+  const selected =
+    tradedTickers.size > 0
+      ? snapshots.filter((s) => tradedTickers.has(s.ticker.toUpperCase()))
+      : snapshots;
 
-  const allPositions = await db
+  if (selected.length === 0) return 0;
+
+  const orgIds = [...new Set(selected.map((s) => s.organizationId))];
+  const orgs = await db
     .select({
-      ticker: poolPositions.ticker,
-      side: poolPositions.side,
-      size: poolPositions.size,
+      id: organizations.id,
+      initialPrice: organizations.initialPrice,
     })
-    .from(poolPositions)
+    .from(organizations)
+    .where(inArray(organizations.id, orgIds));
+  const initialByOrgId = new Map(
+    orgs.map((o) => [o.id, Number(o.initialPrice ?? 100)])
+  );
+
+  const tickers = selected.map((s) => s.ticker);
+  const positionsOpen = await db
+    .select({
+      ticker: perpPositions.ticker,
+      side: perpPositions.side,
+      size: perpPositions.size,
+    })
+    .from(perpPositions)
     .where(
-      and(
-        eq(poolPositions.marketType, 'perp'),
-        isNull(poolPositions.closedAt),
-        isNotNull(poolPositions.ticker)
-      )
+      and(inArray(perpPositions.ticker, tickers), isNull(perpPositions.closedAt))
     );
 
-  for (const pos of allPositions) {
-    if (!pos.ticker) continue;
-
-    const current = holdingsByTicker.get(pos.ticker) || 0;
-    // Long positions add to holdings, short positions subtract
-    const delta = pos.side === 'long' ? pos.size : -pos.size;
+  const holdingsByTicker = new Map<string, number>();
+  for (const pos of positionsOpen) {
+    const current = holdingsByTicker.get(pos.ticker) ?? 0;
+    const delta = pos.side === 'long' ? Number(pos.size) : -Number(pos.size);
     holdingsByTicker.set(pos.ticker, current + delta);
   }
 
-  let updates = 0;
-  const priceUpdatesForChain: Array<{
-    organizationId: string;
-    newPrice: number;
-  }> = [];
+  const updates = selected
+    .map((snap) => {
+      const initialPrice = initialByOrgId.get(snap.organizationId) ?? 100;
+      const currentPrice = Number(snap.currentPrice ?? initialPrice);
+      const netHoldings = holdingsByTicker.get(snap.ticker) ?? 0;
 
-  // Update prices based on total capital deployed
-  // Market cap = initialPrice × syntheticSupply + totalDeployed
-  // ticker is now a raw org ID, not a transformed ticker
-  for (const [ticker, netHoldings] of holdingsByTicker) {
-    const company = companyMap.get(ticker);
-    if (!company) continue;
-
-    const initialPrice = company.initialPrice ?? 100;
-    const currentPrice = company.currentPrice ?? initialPrice;
-
-    // Use centralized vAMM formula with liquidity factor
-    // This applies the same pricing logic as real-time user trade impacts
-    // @see PERP_MARKET_CONFIG in @babylon/shared
-    const newPrice = calculatePriceFromHoldings(
-      initialPrice,
-      currentPrice,
-      netHoldings,
-      PERP_MARKET_CONFIG
-    );
-
-    // Calculate market cap for logging (same formula as calculatePriceFromHoldings)
-    const effectiveSupply =
-      PERP_MARKET_CONFIG.SYNTHETIC_SUPPLY / PERP_MARKET_CONFIG.LIQUIDITY_FACTOR;
-    const newMarketCap = initialPrice * effectiveSupply + netHoldings;
-
-    const change = newPrice - currentPrice;
-    const changePercent = currentPrice > 0 ? (change / currentPrice) * 100 : 0;
-
-    // Only update if price actually changed
-    if (Math.abs(change) < 0.01) continue;
-
-    await db
-      .update(organizationState)
-      .set({ currentPrice: newPrice, updatedAt: new Date() })
-      .where(eq(organizationState.id, company.id));
-
-    await dbService().recordPriceUpdate(
-      company.id,
-      newPrice,
-      change,
-      changePercent
-    );
-
-    logger.info(
-      `Price update for ${ticker}: ${currentPrice.toFixed(2)} -> ${newPrice.toFixed(2)} (${changePercent.toFixed(2)}%) [holdings: $${netHoldings.toFixed(0)}]`,
-      { ticker, currentPrice, newPrice, netHoldings, marketCap: newMarketCap },
-      'GameTick'
-    );
-
-    // Add to on-chain publish queue
-    priceUpdatesForChain.push({
-      organizationId: company.id,
-      newPrice,
-    });
-
-    updates++;
-  }
-
-  // Publish all price updates to blockchain in batch
-  if (priceUpdatesForChain.length > 0) {
-    try {
-      await PriceUpdateService.applyUpdates(
-        priceUpdatesForChain.map((u) => ({
-          ...u,
-          source: 'npc_trade',
-          reason: 'NPC trading price impact',
-        }))
-      );
-    } catch (error) {
-      // Log with special marker for monitoring/retry systems
-      logger.error(
-        'PRICE_SYNC_FAILED: Failed to publish prices to blockchain - queueing for retry',
-        {
-          error: error instanceof Error ? error.message : String(error),
-          count: priceUpdatesForChain.length,
-          retryable: true,
-        },
-        'GameTick'
+      const newPrice = calculatePriceFromHoldings(
+        initialPrice,
+        currentPrice,
+        netHoldings,
+        PERP_MARKET_CONFIG
       );
 
-      // Log each failed update for potential manual recovery
-      for (const update of priceUpdatesForChain) {
-        logger.warn(
-          'PRICE_SYNC_FAILED',
-          {
-            organizationId: update.organizationId,
-            newPrice: update.newPrice,
-            retryable: true,
-          },
-          'GameTick'
-        );
-      }
-    }
-  }
+      if (Math.abs(newPrice - currentPrice) < 0.001) return null;
 
-  return updates;
+      return {
+        organizationId: snap.organizationId,
+        newPrice,
+        source: 'npc_trade' as const,
+        reason: 'NPC trading price impact',
+        metadata: { ticker: snap.ticker },
+      };
+    })
+    .filter((u): u is NonNullable<typeof u> => u !== null);
+
+  if (updates.length === 0) return 0;
+
+  const applied = await PriceUpdateService.applyUpdates(updates);
+
+  logger.info(
+    `Perp price recomputation applied ${applied.length} updates`,
+    { count: applied.length },
+    'GameTick'
+  );
+
+  return applied.length;
 }
 
 /**
@@ -3334,6 +3373,7 @@ export async function simulateMarketVolatility(): Promise<number> {
           newPrice: u.newPrice,
           source: 'volatility_simulation',
           reason: 'Simulated market volatility',
+          metadata: { ticker: u.ticker },
         }))
       );
 

@@ -464,7 +464,7 @@ export class TradeExecutionService {
       npcName: decision.npcName,
       poolId: actorId, // Using actorId for backward compatibility
       marketType: 'perp',
-      ticker: decision.ticker,
+      ticker: tradeTicker,
       action: decision.action,
       side,
       amount: cappedAmount,

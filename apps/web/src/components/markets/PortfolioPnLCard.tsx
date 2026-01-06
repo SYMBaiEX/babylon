@@ -1,4 +1,4 @@
-import { BABYLON_POINTS_SYMBOL } from '@babylon/shared';
+import { formatCurrency as formatCurrencyShared } from '@babylon/shared';
 import { Share2, Sparkles } from 'lucide-react';
 import type { PortfolioPnLSnapshot } from '@/hooks/usePortfolioPnL';
 
@@ -42,6 +42,7 @@ interface PortfolioPnLCardProps {
  * Format currency value safely.
  *
  * Formats a number as Babylon points, defaulting to 0 if invalid.
+ * Uses shared formatCurrency utility for consistency across the codebase.
  *
  * @param value - Value to format
  * @returns Formatted currency string
@@ -49,7 +50,7 @@ interface PortfolioPnLCardProps {
 function formatCurrency(value: number | null | undefined) {
   const safeValue =
     typeof value === 'number' && Number.isFinite(value) ? value : 0;
-  return `${BABYLON_POINTS_SYMBOL}${safeValue.toFixed(2)}`;
+  return formatCurrencyShared(safeValue, { useThousandsSeparator: true });
 }
 
 export function PortfolioPnLCard({

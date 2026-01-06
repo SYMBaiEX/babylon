@@ -150,8 +150,6 @@ export function PredictionProbabilityChart({
     return latest ? latest.yesPrice * 100 : 50;
   }, [data]);
 
-  const isYesFavored = currentProbability >= 50;
-
   // Initialize series when chart is ready
   useEffect(() => {
     if (!chart || seriesInitialized.current) return;
@@ -258,13 +256,6 @@ export function PredictionProbabilityChart({
       setChartInitError(message);
     }
   }, [chart, chartData]);
-
-  // Update series colors based on YES/NO favorability
-  useEffect(() => {
-    if (!yesSeries.current) return;
-    const style = isYesFavored ? AREA_STYLES.green : AREA_STYLES.red;
-    yesSeries.current.applyOptions(style);
-  }, [isYesFavored]);
 
   // Loading state when no data
   if (!data.length) {

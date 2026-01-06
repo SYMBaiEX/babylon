@@ -37,6 +37,7 @@ import { logger } from '../shared/logger';
 import { autonomousBatchResponseService } from './AutonomousBatchResponseService';
 import {
   executeDirectComment,
+  executeDirectMessage,
   executeDirectPost,
   executeDirectTrade,
 } from './DirectExecutors';
@@ -309,8 +310,10 @@ export class MultiStepExecutor {
       canTrade ? this.getPerpMarkets() : Promise.resolve([]),
       // Get agent's positions (always needed for context, even if not trading)
       this.getAgentPositions(agentUserId),
-      // Get recent posts to engage with (only if commenting enabled)
-      canComment ? this.getRecentPosts(agentUserId) : Promise.resolve([]),
+      // Get recent posts to engage with (if commenting OR DMs enabled - need posts to discover users for DMs)
+      canComment || canRespondDMs
+        ? this.getRecentPosts(agentUserId)
+        : Promise.resolve([]),
       // Get pending interactions (only if DMs enabled)
       canRespondDMs
         ? autonomousBatchResponseService.gatherPendingInteractions(agentUserId)
@@ -570,6 +573,7 @@ export class MultiStepExecutor {
 
     return recentPostsRaw.map((p) => ({
       id: p.id,
+      authorId: p.authorId,
       authorName: authorNames.get(p.authorId) || 'User',
       content: p.content,
       commentCount: 0, // Simplified - could add actual count if needed
@@ -868,6 +872,75 @@ export class MultiStepExecutor {
           success: responses > 0,
           summary: `Responded to ${responses} interaction(s)`,
           result: { responsesCreated: responses },
+          parameters,
+          timestamp: Date.now(),
+        };
+      }
+
+      case 'DM': {
+        const recipientId = parameters.recipientId as string;
+        const content = parameters.content as string;
+
+        if (!recipientId || !content) {
+          return {
+            actionType: 'DM',
+            success: false,
+            summary: 'Missing required parameters (recipientId, content)',
+            error: 'Invalid parameters',
+            parameters,
+            timestamp: Date.now(),
+          };
+        }
+
+        // Prevent agents from DMing themselves
+        if (recipientId === agentUserId) {
+          return {
+            actionType: 'DM',
+            success: false,
+            summary: 'Cannot DM yourself',
+            error: 'Cannot DM yourself',
+            parameters,
+            timestamp: Date.now(),
+          };
+        }
+
+        const messageResult = await executeDirectMessage({
+          agentUserId,
+          recipientId,
+          content,
+        });
+
+        // Log the DM with prompt and completion for debugging/review
+        if (logContext) {
+          await agentService.createLog(agentUserId, {
+            type: 'dm',
+            level: messageResult.success ? 'info' : 'warn',
+            message: messageResult.success
+              ? `Sent DM to ${recipientId}: ${content.substring(0, 100)}${content.length > 100 ? '...' : ''}`
+              : `Failed to send DM to ${recipientId}: ${messageResult.error}`,
+            prompt: logContext.prompt,
+            completion: logContext.completion,
+            thinking: logContext.thought,
+            metadata: {
+              messageId: messageResult.messageId ?? null,
+              recipientId,
+              contentLength: content.length,
+              error: messageResult.error ?? null,
+            },
+          });
+        }
+
+        return {
+          actionType: 'DM',
+          success: messageResult.success,
+          summary: messageResult.success
+            ? `Sent message ${messageResult.messageId} to ${recipientId}`
+            : `Message failed: ${messageResult.error}`,
+          result: {
+            success: messageResult.success,
+            messageId: messageResult.messageId,
+            error: messageResult.error,
+          },
           parameters,
           timestamp: Date.now(),
         };

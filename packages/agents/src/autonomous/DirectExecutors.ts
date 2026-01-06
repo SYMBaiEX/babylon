@@ -9,12 +9,15 @@
 import { PerpDbAdapter, PerpMarketService } from '@babylon/core/markets/perps';
 import {
   actorState,
+  aliasedTable,
   and,
   asSystem,
   asUser,
+  chatParticipants,
   chats,
   comments,
   db,
+  dmAcceptances,
   eq,
   gte,
   isNull,
@@ -23,6 +26,7 @@ import {
   positions,
   posts,
   sql,
+  users,
 } from '@babylon/db';
 import {
   type GeneratedTag,
@@ -94,7 +98,8 @@ export interface DirectCommentResult {
 
 export interface DirectMessageParams {
   agentUserId: string;
-  chatId: string;
+  chatId?: string;
+  recipientId?: string;
   content: string;
 }
 
@@ -806,23 +811,172 @@ export async function executeDirectComment(
 export async function executeDirectMessage(
   params: DirectMessageParams
 ): Promise<DirectMessageResult> {
-  const { agentUserId, chatId, content } = params;
+  const { agentUserId, chatId: providedChatId, recipientId, content } = params;
 
-  if (!content || content.trim().length < 3) {
+  const cleanContent = content?.trim() ?? '';
+  if (cleanContent.length < 3) {
     return { success: false, error: 'Content too short' };
   }
+  let chatId = providedChatId;
 
-  const cleanContent = content.trim();
+  // If chatId not provided, resolve it from recipientId
+  if (!chatId && recipientId) {
+    // Check if recipient exists
+    const [recipient] = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.id, recipientId))
+      .limit(1);
 
-  // Verify chat exists
-  const [chat] = await db
-    .select({ id: chats.id })
-    .from(chats)
-    .where(eq(chats.id, chatId))
-    .limit(1);
+    if (!recipient) {
+      // Try searching actorState for NPCs
+      const [npc] = await db
+        .select({ id: actorState.id })
+        .from(actorState)
+        .where(eq(actorState.id, recipientId))
+        .limit(1);
 
-  if (!chat) {
-    return { success: false, error: `Chat not found: ${chatId}` };
+      if (!npc) {
+        return { success: false, error: `Recipient not found: ${recipientId}` };
+      }
+    }
+
+    // Find existing DM chat using a single query with self-join
+    // Join chatParticipants (for agent) -> chats -> chatParticipants alias (for recipient)
+    const recipientParticipants = aliasedTable(chatParticipants, 'cp2');
+
+    const existingChat = await db
+      .select({ chatId: chatParticipants.chatId })
+      .from(chatParticipants)
+      .innerJoin(chats, eq(chatParticipants.chatId, chats.id))
+      .innerJoin(
+        recipientParticipants,
+        eq(chatParticipants.chatId, recipientParticipants.chatId)
+      )
+      .where(
+        and(
+          eq(chatParticipants.userId, agentUserId),
+          eq(chats.isGroup, false),
+          eq(recipientParticipants.userId, recipientId)
+        )
+      )
+      .limit(1);
+
+    if (existingChat.length > 0 && existingChat[0]) {
+      chatId = existingChat[0].chatId;
+    }
+
+    // If still no chatId, create new DM
+    if (!chatId) {
+      chatId = await generateSnowflakeId();
+      const now = new Date();
+
+      try {
+        await db.transaction(async (tx) => {
+          await tx.insert(chats).values({
+            id: chatId!,
+            isGroup: false,
+            createdAt: now,
+            updatedAt: now,
+          });
+
+          // Add both participants
+          await tx.insert(chatParticipants).values([
+            {
+              id: await generateSnowflakeId(),
+              chatId: chatId!,
+              userId: agentUserId,
+              joinedAt: now,
+              isActive: true,
+            },
+            {
+              id: await generateSnowflakeId(),
+              chatId: chatId!,
+              userId: recipientId,
+              joinedAt: now,
+              isActive: true,
+            },
+          ]);
+
+          // Create DMAcceptance record with 'accepted' status
+          // Agent-initiated DMs bypass the acceptance flow since agents are automated
+          await tx.insert(dmAcceptances).values({
+            id: await generateSnowflakeId(),
+            chatId: chatId!,
+            userId: recipientId, // The recipient
+            otherUserId: agentUserId, // The agent initiating
+            status: 'accepted', // Auto-accepted for agent-initiated DMs
+            createdAt: now,
+            acceptedAt: now, // Mark as accepted immediately
+          });
+        });
+
+        logger.info(
+          `[DirectExecutor] Created new DM chat ${chatId} between ${agentUserId} and ${recipientId}`,
+          undefined,
+          'DirectExecutors'
+        );
+      } catch (error) {
+        // Handle race condition - if chat was created by another process, try to find it
+        if (error instanceof Error && error.message.includes('duplicate key')) {
+          logger.warn(
+            `[DirectExecutor] Race condition detected, retrying chat lookup`,
+            { agentUserId, recipientId },
+            'DirectExecutors'
+          );
+          // Retry with the same optimized single query
+          const retryRecipientParticipants = aliasedTable(
+            chatParticipants,
+            'cp2_retry'
+          );
+
+          const retryMatch = await db
+            .select({ chatId: chatParticipants.chatId })
+            .from(chatParticipants)
+            .innerJoin(chats, eq(chatParticipants.chatId, chats.id))
+            .innerJoin(
+              retryRecipientParticipants,
+              eq(chatParticipants.chatId, retryRecipientParticipants.chatId)
+            )
+            .where(
+              and(
+                eq(chatParticipants.userId, agentUserId),
+                eq(chats.isGroup, false),
+                eq(retryRecipientParticipants.userId, recipientId)
+              )
+            )
+            .limit(1);
+
+          if (retryMatch.length > 0 && retryMatch[0]) {
+            chatId = retryMatch[0].chatId;
+          } else {
+            throw error; // Re-throw if we still can't find the chat
+          }
+        } else {
+          throw error;
+        }
+      }
+    }
+  }
+
+  if (!chatId) {
+    return {
+      success: false,
+      error: 'Chat ID required or could not be resolved',
+    };
+  }
+
+  // Verify chat exists (if provided directly)
+  if (providedChatId) {
+    const [chat] = await db
+      .select({ id: chats.id })
+      .from(chats)
+      .where(eq(chats.id, chatId))
+      .limit(1);
+
+    if (!chat) {
+      return { success: false, error: `Chat not found: ${chatId}` };
+    }
   }
 
   logger.info(

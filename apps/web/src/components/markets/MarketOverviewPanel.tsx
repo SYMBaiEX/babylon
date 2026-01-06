@@ -1,6 +1,10 @@
 'use client';
 
-import { BABYLON_POINTS_SYMBOL, cn } from '@babylon/shared';
+import {
+  BABYLON_POINTS_SYMBOL,
+  cn,
+  formatNumberWithSeparators,
+} from '@babylon/shared';
 import {
   Activity,
   BarChart3,
@@ -217,7 +221,8 @@ export function MarketOverviewPanel() {
                 Total Volume
               </span>
               <span className="font-semibold text-foreground text-sm">
-                {predictionOverview.totalVolume.toFixed(0)} shares
+                {formatNumberWithSeparators(predictionOverview.totalVolume)}{' '}
+                shares
               </span>
             </div>
           </div>

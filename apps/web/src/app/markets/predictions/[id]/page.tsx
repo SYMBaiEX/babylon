@@ -501,7 +501,8 @@ export default function PredictionDetailPage() {
                 <p className="text-muted-foreground text-sm">
                   If you&apos;re right, you&apos;ll receive{' '}
                   {BABYLON_POINTS_SYMBOL}1 per share. The current price reflects
-                  the market&apos;s probability.
+                  the market&apos;s probability. current price reflects the
+                  market&apos;s probability.
                 </p>
               </div>
             </div>

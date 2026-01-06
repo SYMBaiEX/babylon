@@ -155,7 +155,8 @@ export function TradeConfirmationDialog({
   if (!tradeDetails) return null;
 
   /** Use shared formatCurrency for price formatting */
-  const formatPrice = formatCurrency;
+  const formatPrice = (amount: number) =>
+    formatCurrency(amount, { useThousandsSeparator: true });
 
   const getTitle = () => {
     switch (tradeDetails.type) {
