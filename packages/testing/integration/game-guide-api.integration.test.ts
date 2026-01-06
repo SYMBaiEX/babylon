@@ -1,18 +1,7 @@
-/**
- * Game Guide API Integration Tests
- *
- * Tests the POST /api/users/me/game-guide endpoint including:
- * - Authentication requirements
- * - Successful completion marking
- * - Response format validation
- * - Database state verification
- *
- * Run with: bun test integration/game-guide-api.integration.test.ts --preload ./integration/preload.ts
- */
+// Game Guide API - Integration Tests
 
 import { beforeAll, describe, expect, setDefaultTimeout, test } from 'bun:test';
 
-// Set longer timeout for integration tests that hit the server
 setDefaultTimeout(20000);
 
 const BASE_URL =
@@ -38,7 +27,6 @@ describe('Game Guide API - POST /api/users/me/game-guide', () => {
   });
 
   // ============================================
-  // AUTHENTICATION TESTS
   // ============================================
 
   describe('Authentication', () => {
@@ -103,7 +91,6 @@ describe('Game Guide API - POST /api/users/me/game-guide', () => {
   });
 
   // ============================================
-  // METHOD VALIDATION TESTS
   // ============================================
 
   describe('HTTP Methods', () => {
@@ -159,7 +146,6 @@ describe('Game Guide API - POST /api/users/me/game-guide', () => {
 });
 
 // ============================================
-// RESPONSE FORMAT TESTS (Unit-style, no server needed)
 // ============================================
 
 describe('Game Guide API - Response Format', () => {
@@ -202,7 +188,6 @@ describe('Game Guide API - Response Format', () => {
 });
 
 // ============================================
-// USER STATE TESTS (validates API integration with user model)
 // ============================================
 
 describe('Game Guide API - User State Integration', () => {
@@ -242,7 +227,6 @@ describe('Game Guide API - User State Integration', () => {
 });
 
 // ============================================
-// IDEMPOTENCY TESTS
 // ============================================
 
 describe('Game Guide API - Idempotency', () => {
@@ -270,7 +254,6 @@ describe('Game Guide API - Idempotency', () => {
 });
 
 // ============================================
-// ERROR HANDLING TESTS
 // ============================================
 
 describe('Game Guide API - Error Handling', () => {
@@ -352,7 +335,6 @@ describe('Game Guide API - Content-Type Handling', () => {
 });
 
 // ============================================
-// RATE LIMITING TESTS (conceptual)
 // ============================================
 
 describe('Game Guide API - Rate Limiting Behavior', () => {

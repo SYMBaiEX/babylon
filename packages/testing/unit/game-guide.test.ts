@@ -1,29 +1,8 @@
-/**
- * Game Guide Unit Tests
- *
- * Tests for the game onboarding guide feature including:
- * - Slide content specification (must match apps/web/.../GameGuideModal.tsx)
- * - Navigation logic specification
- * - Boundary conditions
- * - Display logic specification
- *
- * NOTE: These are SPECIFICATION tests that document expected behavior.
- * The integration tests in game-guide-api.integration.test.ts test the
- * actual API endpoints with real server requests.
- *
- * If the slide content in GameGuideModal.tsx changes, update this spec.
- *
- * Run with: bun test unit/game-guide.test.ts
- */
+// Game Guide - Unit/Specification Tests
 
 import { describe, expect, test } from 'bun:test';
 
-/**
- * Expected slide content - must match GAME_GUIDE_SLIDES in:
- * apps/web/src/components/onboarding/GameGuideModal.tsx
- *
- * This is a specification that documents the required content.
- */
+// Must match GAME_GUIDE_SLIDES in apps/web/src/components/onboarding/GameGuideModal.tsx
 const GAME_GUIDE_SLIDES = [
   {
     title: 'Welcome to Babylon',
@@ -122,17 +101,7 @@ describe('Game Guide - Slide Content', () => {
   });
 });
 
-// ============================================
-// NAVIGATION LOGIC TESTS
-// ============================================
-// NOTE: These tests verify the SPECIFICATION of navigation behavior.
-// The actual React component uses useState/useCallback which can't be
-// unit tested without React Testing Library. These tests document the
-// expected state machine behavior that the component must implement.
-// ============================================
-
-describe('Game Guide - Navigation Logic (Specification)', () => {
-  // State machine that documents expected navigation behavior
+describe('Game Guide - Navigation Logic', () => {
   class SlideNavigator {
     currentSlide = 0;
     completed = false;
@@ -262,15 +231,7 @@ describe('Game Guide - Navigation Logic (Specification)', () => {
   });
 });
 
-// ============================================
-// SHOW/HIDE LOGIC TESTS
-// ============================================
-// NOTE: These tests verify the SPECIFICATION of when the guide should show.
-// The actual logic lives in GameGuideProvider.tsx and uses React hooks.
-// These tests document the expected behavior that the provider must implement.
-// ============================================
-
-describe('Game Guide - Display Logic (Specification)', () => {
+describe('Game Guide - Display Logic', () => {
   interface UserState {
     authenticated: boolean;
     profileComplete: boolean;
@@ -359,10 +320,6 @@ describe('Game Guide - Display Logic (Specification)', () => {
   });
 });
 
-// ============================================
-// COMPLETION TIMESTAMP TESTS
-// ============================================
-
 describe('Game Guide - Completion Tracking', () => {
   test('completion timestamp should be valid ISO-8601', () => {
     const timestamp = new Date().toISOString();
@@ -391,10 +348,6 @@ describe('Game Guide - Completion Tracking', () => {
     expect(Boolean(timestamp)).toBe(false);
   });
 });
-
-// ============================================
-// KEYBOARD NAVIGATION TESTS
-// ============================================
 
 describe('Game Guide - Keyboard Navigation', () => {
   type KeyHandler = (key: string) => void;
@@ -465,10 +418,6 @@ describe('Game Guide - Keyboard Navigation', () => {
     expect(anyCalled).toBe(false);
   });
 });
-
-// ============================================
-// PROGRESS INDICATOR TESTS
-// ============================================
 
 describe('Game Guide - Progress Indicator', () => {
   function getProgressState(

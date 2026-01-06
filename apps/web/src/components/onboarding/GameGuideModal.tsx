@@ -5,7 +5,6 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 
-/** Exported for testing. The 5 slides of the game onboarding guide. */
 export const GAME_GUIDE_SLIDES = [
   {
     title: 'Welcome to Babylon',
@@ -74,7 +73,6 @@ export function GameGuideModal({ isOpen, onComplete }: GameGuideModalProps) {
 
   const isFirstSlide = currentSlide === 0;
   const isLastSlide = currentSlide === GAME_GUIDE_SLIDES.length - 1;
-  // Safe: currentSlide is always within bounds (0 to GAME_GUIDE_SLIDES.length-1)
   const slide = GAME_GUIDE_SLIDES[currentSlide]!;
 
   const goToNextSlide = useCallback(() => {

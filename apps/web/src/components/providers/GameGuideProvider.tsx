@@ -78,12 +78,6 @@ export function GameGuideProvider({ children }: { children: React.ReactNode }) {
 
   const handleComplete = useCallback(async () => {
     if (!user) return;
-
-    logger.info(
-      'Completing game guide',
-      { userId: user.id },
-      'GameGuideProvider'
-    );
     setIsOpen(false);
 
     const res = await apiFetch('/api/users/me/game-guide', { method: 'POST' });
@@ -93,18 +87,8 @@ export function GameGuideProvider({ children }: { children: React.ReactNode }) {
         gameGuideCompletedAt: string;
       };
       setUser({ ...user, gameGuideCompletedAt });
-      logger.info(
-        'Game guide completed',
-        { userId: user.id },
-        'GameGuideProvider'
-      );
     } else {
-      // Log error and notify user - they can continue but guide may show again next session
-      logger.error(
-        'Failed to save game guide completion',
-        { userId: user.id, status: res.status },
-        'GameGuideProvider'
-      );
+      logger.error('Failed to save game guide', { status: res.status }, 'GameGuideProvider');
       toast.error('Failed to save progress. The guide may appear again later.');
     }
   }, [user, setUser]);
