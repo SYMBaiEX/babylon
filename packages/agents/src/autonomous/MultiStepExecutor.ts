@@ -139,7 +139,8 @@ export class MultiStepExecutor {
         'posting',
         'commenting',
         'engaging',
-        'DMs'
+        'DMs',
+        'groupChats'
       );
     } else {
       if (config?.autonomousTrading) enabledFeatures.push('trading');
@@ -148,6 +149,7 @@ export class MultiStepExecutor {
       // User-controlled agents can also engage if they can comment
       if (config?.autonomousCommenting) enabledFeatures.push('engaging');
       if (config?.autonomousDMs) enabledFeatures.push('DMs');
+      if (config?.autonomousGroupChats) enabledFeatures.push('groupChats');
     }
 
     // Get NPC game context ONCE before loop (arc awareness, world events)
@@ -309,6 +311,7 @@ export class MultiStepExecutor {
     const canTrade = enabledFeatures.includes('trading');
     const canComment = enabledFeatures.includes('commenting');
     const canRespondDMs = enabledFeatures.includes('DMs');
+    const canGroupChat = enabledFeatures.includes('groupChats');
 
     // Gather context in parallel - all these queries are independent
     const [
@@ -317,6 +320,7 @@ export class MultiStepExecutor {
       agentPositions,
       recentPosts,
       pendingInteractions,
+      agentGroupChats,
     ] = await Promise.all([
       // Get prediction markets (only if trading enabled)
       canTrade ? this.getPredictionMarkets() : Promise.resolve([]),
@@ -331,6 +335,10 @@ export class MultiStepExecutor {
       // Get pending interactions (only if DMs enabled)
       canRespondDMs
         ? autonomousBatchResponseService.gatherPendingInteractions(agentUserId)
+        : Promise.resolve([]),
+      // Get agent's group chats (only if group chats enabled)
+      canGroupChat
+        ? this.getAgentGroupChats(agentUserId)
         : Promise.resolve([]),
     ]);
 
@@ -356,6 +364,8 @@ export class MultiStepExecutor {
       perpMarkets,
       recentPosts,
       agentPositions,
+      // Group chats for sharing
+      groupChats: agentGroupChats,
       // Topic diversity
       diversityInstructions,
       assignedMarketId: assignment?.marketId,
@@ -419,6 +429,35 @@ export class MultiStepExecutor {
         };
       })
       .filter((m): m is PerpMarketContext => m !== null);
+  }
+
+  /**
+   * Get agent's group chats for potential sharing
+   */
+  private async getAgentGroupChats(
+    agentUserId: string
+  ): Promise<{ id: string; name: string; memberCount: number }[]> {
+    try {
+      const chatParticipants = await db.query.chatParticipants.findMany({
+        where: (cp, { eq }) => eq(cp.userId, agentUserId),
+        with: {
+          chat: true,
+        },
+        limit: 10,
+      });
+
+      return chatParticipants
+        .filter((cp) => cp.chat?.isGroup)
+        .map((cp) => ({
+          id: cp.chat!.id,
+          name: cp.chat!.name || 'Group Chat',
+          memberCount: 0, // Could query member count if needed
+        }))
+        .slice(0, 5); // Limit to 5 groups
+    } catch {
+      // Graceful fallback if chat tables don't exist
+      return [];
+    }
   }
 
   /**
@@ -1114,6 +1153,63 @@ export class MultiStepExecutor {
         };
       }
 
+      case 'GROUP_MESSAGE': {
+        const chatId = parameters.chatId as string;
+        const content = parameters.content as string;
+
+        if (!chatId || !content) {
+          return {
+            actionType: 'GROUP_MESSAGE',
+            success: false,
+            summary: 'Missing required parameters (chatId, content)',
+            error: 'Invalid parameters',
+            parameters,
+            timestamp: Date.now(),
+          };
+        }
+
+        const groupMessageResult = await executeDirectMessage({
+          agentUserId,
+          chatId,
+          content,
+        });
+
+        // Log the group message (use 'chat' type which is valid for messages)
+        if (logContext) {
+          await agentService.createLog(agentUserId, {
+            type: 'chat',
+            level: groupMessageResult.success ? 'info' : 'warn',
+            message: groupMessageResult.success
+              ? `Sent group message to chat ${chatId}: ${content.substring(0, 100)}${content.length > 100 ? '...' : ''}`
+              : `Failed to send group message: ${groupMessageResult.error}`,
+            prompt: logContext.prompt,
+            completion: logContext.completion,
+            thinking: logContext.thought,
+            metadata: {
+              messageId: groupMessageResult.messageId ?? null,
+              chatId,
+              contentLength: content.length,
+              error: groupMessageResult.error ?? null,
+            },
+          });
+        }
+
+        return {
+          actionType: 'GROUP_MESSAGE',
+          success: groupMessageResult.success,
+          summary: groupMessageResult.success
+            ? `Sent message to group chat ${chatId}`
+            : `Group message failed: ${groupMessageResult.error}`,
+          result: {
+            success: groupMessageResult.success,
+            messageId: groupMessageResult.messageId,
+            error: groupMessageResult.error,
+          },
+          parameters,
+          timestamp: Date.now(),
+        };
+      }
+
       case 'WAIT':
       case '': {
         return {
@@ -1175,6 +1271,7 @@ export class MultiStepExecutor {
           counts.comments += (result.result?.responsesCreated as number) || 1;
           break;
         case 'DM':
+        case 'GROUP_MESSAGE':
           counts.messages++;
           break;
         case 'LIKE':

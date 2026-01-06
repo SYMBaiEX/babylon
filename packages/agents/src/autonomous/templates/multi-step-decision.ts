@@ -65,6 +65,12 @@ export interface PendingInteraction {
   postId?: string;
 }
 
+export interface GroupChatContext {
+  id: string;
+  name: string;
+  memberCount: number;
+}
+
 export interface AgentTickContext {
   balance: number;
   pnl: number;
@@ -85,6 +91,8 @@ export interface AgentTickContext {
     }[];
     perps: { ticker: string; side: string; size: number; pnl: number }[];
   };
+  // Group chats for sharing
+  groupChats?: GroupChatContext[];
   // Topic diversity guidance
   diversityInstructions?: string;
   assignedMarketId?: string;
@@ -146,6 +154,14 @@ export function buildMultiStepDecisionPrompt(params: {
     (r) => r.actionType === 'POST' && r.success
   );
 
+  // Check if just traded this tick - encourage posting about trades
+  const justTraded = traceActionResults.some(
+    (r) => r.actionType === 'TRADE' && r.success
+  );
+  const tradeDetails = justTraded
+    ? traceActionResults.find((r) => r.actionType === 'TRADE' && r.success)
+    : null;
+
   // Hard-enforce one-post-per-tick by filtering POST from enabled features
   // This ensures POST is not even offered as an option after posting
   const effectiveFeatures = hasPostedThisTick
@@ -187,16 +203,54 @@ ${NPC_POST_QUALITY_RULES}
   const canRespondDMs = effectiveFeatures.includes('DMs');
   const canEngage = effectiveFeatures.includes('engaging');
   const canPost = effectiveFeatures.includes('posting');
+  const canGroupChat = effectiveFeatures.includes('groupChats');
+
+  // Encourage sharing after trades - users love seeing NPCs share their trades
+  // Add randomness to feel human - not every trade gets shared
+  const shareTradeRoll = Math.random(); // 0-1 randomness for human-like behavior
+  
+  // Determine sharing behavior based on randomness:
+  // - 40% chance: Share publicly (POST)
+  // - 25% chance: Share in group chat only
+  // - 15% chance: Share both publicly AND in group chat
+  // - 20% chance: Stay quiet (just made the trade, no need to brag)
+  const shouldSharePublicly = shareTradeRoll < 0.55; // 40% + 15% = 55%
+  const shouldShareInGroup = shareTradeRoll >= 0.40 && shareTradeRoll < 0.80; // 25% + 15% = 40%
+  const shouldStayQuiet = shareTradeRoll >= 0.80; // 20%
+  
+  const tradePostEncouragement =
+    justTraded && tradeDetails && !hasPostedThisTick
+      ? `
+# 🔥 YOU JUST MADE A TRADE!
+You just traded: ${tradeDetails.summary || 'a position'}
+
+${shouldStayQuiet ? `**Your vibe right now**: You're feeling chill about this one. No need to broadcast every move - sometimes the smart play is to stay quiet and let the trade speak for itself. Consider FINISH or doing something else.
+
+` : ''}${shouldSharePublicly && canPost ? `**Consider posting about it**: Your followers want to know what you're doing!
+- Your trade and why you made it
+- Your market thesis
+- A hot take related to this trade
+
+` : ''}${shouldShareInGroup && canGroupChat ? `**Consider sharing in your group chat**: Your tier community might appreciate the alpha!
+- Discuss your reasoning with the group
+- Get reactions from your community
+- Build relationships with other traders
+
+` : ''}${shouldSharePublicly && shouldShareInGroup ? `**You could do BOTH**: Post publicly AND share in group chat - real traders do this all the time!
+
+` : ''}`
+      : '';
 
   // Action priority guidance for NPCs - only mention available actions
   const npcActionPrioritySection = isNpc
     ? `
 # Action Priority (prefer engagement over broadcasting)
 1. RESPOND to pending interactions first (if any)
-${canComment ? '2. COMMENT on interesting posts in the feed' : ''}
-${canEngage ? '3. LIKE posts you agree with' : ''}
-${canTrade ? '4. TRADE if you have market conviction' : ''}
-${canPost ? '5. POST only if you have something unique to say' : ''}
+${justTraded && canPost && !hasPostedThisTick ? '2. POST about your trade (users love seeing your moves!)' : ''}
+${canComment ? `${justTraded ? '3' : '2'}. COMMENT on interesting posts in the feed` : ''}
+${canEngage ? `${justTraded ? '4' : '3'}. LIKE posts you agree with` : ''}
+${canTrade && !justTraded ? '4. TRADE if you have market conviction' : ''}
+${canPost && !justTraded ? '5. POST only if you have something unique to say' : ''}
 6. FINISH if nothing compelling
 
 `
@@ -229,9 +283,16 @@ ${formatRecentPosts(context.recentPosts)}`
 ${formatPendingInteractions(context.pendingInteractionDetails)}`
     : '';
 
+  // Group chats section - show available groups for sharing
+  const groupChatsSection =
+    canGroupChat && context.groupChats && context.groupChats.length > 0
+      ? `
+# Your Group Chats (can share trades/thoughts here)
+${context.groupChats.map((g) => `- id: ${g.id} | ${g.name}`).join('\n')}`
+      : '';
+
   return `You are ${agentName}, an autonomous agent on Babylon prediction markets.
-${npcContextSection}
-# Current Execution Context
+${npcContextSection}${tradePostEncouragement}# Current Execution Context
 **Step**: ${iterationCount}/${maxIterations}
 **Actions Completed This Tick**: ${traceActionResults.length}
 
@@ -246,6 +307,7 @@ ${formatAgentPositions(context.agentPositions)}
 ${tradingSection}
 ${commentingSection}
 ${dmsSection}
+${groupChatsSection}
 
 # Actions Completed This Tick
 ${actionsCompletedText}
@@ -273,6 +335,7 @@ ${canEngage ? '- **LIKE**: Show appreciation for a post you agree with or find i
 ${canEngage ? "- **REPOST**: Share someone else's post (optionally with your own take)" : ''}
 ${canRespondDMs ? '- **RESPOND**: Reply to pending DMs/mentions if you have any' : ''}
 ${canRespondDMs ? '- **DM**: Message someone from the feed (use their userId)' : ''}
+${canGroupChat ? '- **GROUP_MESSAGE**: Share something with your group chat (use chatId from your groups above)' : ''}
 
 ${
   canPost || canComment
@@ -376,6 +439,16 @@ DM:
 {
   "recipientId": "exact_user_id_from_list",
   "content": "Message content"
+}`
+    : ''
+}
+${
+  canGroupChat
+    ? `
+GROUP_MESSAGE:
+{
+  "chatId": "exact_chat_id_from_your_groups",
+  "content": "Message to share with the group"
 }`
     : ''
 }
@@ -515,6 +588,12 @@ function formatAvailableActions(enabledFeatures: string[]): string {
     actions.push('- RESPOND: Batch respond to pending DMs/mentions');
     actions.push(
       '- DM: Start a new direct message conversation (provide recipientId)'
+    );
+  }
+
+  if (enabledFeatures.includes('groupChats')) {
+    actions.push(
+      '- GROUP_MESSAGE: Send a message to one of your group chats (provide chatId and content)'
     );
   }
 
