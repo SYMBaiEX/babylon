@@ -242,47 +242,53 @@ export function GroupManagementModal({
 
     setActionLoading(userId);
     setError(null);
-    const token = await getAccessToken();
-    const response = await fetch(`/api/groups/${groupId}/members`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ userId }),
-    });
 
-    if (!response.ok) {
-      const data = await response.json();
-      setError(data.error || 'Failed to add member');
+    try {
+      const token = await getAccessToken();
+      const response = await fetch(`/api/groups/${groupId}/members`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ userId }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        setError(data.error || 'Failed to add member');
+        return;
+      }
+
+      const result = await response.json();
+
+      // Show appropriate feedback based on whether user was added or invited
+      if (result.added) {
+        toast.success('Member added to group');
+      } else if (result.invited) {
+        toast.success('Invite sent - waiting for acceptance');
+      }
+
+      // Reload group details
+      const detailsResponse = await fetch(`/api/groups/${groupId}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      if (detailsResponse.ok) {
+        const data = await detailsResponse.json();
+        setGroupDetails(data.group);
+      }
+
+      setSearchQuery('');
+      setSearchResults([]);
+      onGroupUpdated?.();
+    } catch (err) {
+      console.error('Failed to add member:', err);
+      setError('Network error. Please try again.');
+    } finally {
       setActionLoading(null);
-      return;
     }
-
-    const result = await response.json();
-
-    // Show appropriate feedback based on whether user was added or invited
-    if (result.added) {
-      toast.success('Member added to group');
-    } else if (result.invited) {
-      toast.success('Invite sent - waiting for acceptance');
-    }
-
-    // Reload group details
-    const detailsResponse = await fetch(`/api/groups/${groupId}`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
-    if (detailsResponse.ok) {
-      const data = await detailsResponse.json();
-      setGroupDetails(data.group);
-    }
-
-    setSearchQuery('');
-    setSearchResults([]);
-    onGroupUpdated?.();
-    setActionLoading(null);
   };
 
   const handleRemoveMember = async (userId: string) => {

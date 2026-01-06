@@ -1,6 +1,6 @@
 'use client';
 
-import { cn, getCurrentChainId } from '@babylon/shared';
+import { cn, getCurrentChainId, GROUP_CONFIG } from '@babylon/shared';
 import { usePrivy } from '@privy-io/react-auth';
 import {
   Bot,
@@ -30,9 +30,6 @@ interface Member {
 }
 
 type SearchTab = 'users' | 'agents';
-
-// Soft cap for member warning (no hard enforcement for MVP)
-const MEMBER_WARNING_THRESHOLD = 100;
 
 /**
  * Create group modal component for creating new user groups.
@@ -231,25 +228,31 @@ export function CreateGroupModal({
         }),
     };
 
-    const response = await fetch('/api/groups', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify(requestBody),
-    });
+    try {
+      const response = await fetch('/api/groups', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(requestBody),
+      });
 
-    if (!response.ok) {
+      if (!response.ok) {
+        const data = await response.json();
+        setError(data.error || 'Failed to create group');
+        return;
+      }
+
       const data = await response.json();
-      setError(data.error || 'Failed to create group');
+      onGroupCreated(data.group.id, data.group.chatId);
+      onClose();
+    } catch (err) {
+      console.error('Failed to create group:', err);
+      setError('Network error. Please try again.');
+    } finally {
       setCreating(false);
-      return;
     }
-
-    const data = await response.json();
-    onGroupCreated(data.group.id, data.group.chatId);
-    onClose();
   };
 
   if (!isOpen) return null;
@@ -330,7 +333,7 @@ export function CreateGroupModal({
                   <label className="block font-medium text-sm">
                     Members ({totalMemberCount})
                   </label>
-                  {totalMemberCount > MEMBER_WARNING_THRESHOLD && (
+                  {totalMemberCount > GROUP_CONFIG.MEMBER_WARNING_THRESHOLD && (
                     <span className="text-xs text-yellow-600 dark:text-yellow-500">
                       Large group - performance may vary
                     </span>

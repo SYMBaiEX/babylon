@@ -439,6 +439,13 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
 
               // Use actual ID from DB (may be existing ID on conflict, or new ID on insert)
               const actualInviteId = result[0]?.id ?? newInviteId;
+              if (!result[0]?.id) {
+                logger.warn('Invite returning() returned empty result, using generated ID', {
+                  groupId,
+                  invitedUserId: humanId,
+                  generatedId: newInviteId,
+                }, 'POST /api/groups');
+              }
               humanInviteNotifications.push({ humanId, inviteId: actualInviteId });
               invitedMemberIds.push(humanId);
             }
