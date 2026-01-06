@@ -118,10 +118,17 @@ export const checkFeedPostsAction: Action = {
     const limit = Math.min(Math.max(actionParams?.limit ?? 10, 1), 50);
 
     try {
-      // Fetch posts from the API
+      // Fetch posts from the API with timeout to prevent hanging
       const baseUrl =
         process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-      const response = await fetch(`${baseUrl}/api/posts?limit=${limit}`);
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+
+      const response = await fetch(`${baseUrl}/api/posts?limit=${limit}`, {
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
 
       if (!response.ok) {
         throw new Error(`Failed to fetch feed: ${response.status}`);

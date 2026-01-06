@@ -191,16 +191,16 @@ export class AgentRuntimeManager {
     };
 
     logger.info(
-      'Agent using Groq model',
+      'Agent using Groq models',
       {
         agentId: agentUserId,
-        model: 'groq-qwen-32b',
+        modelSmall: GROQ_MODELS.FREE.modelId,
+        modelLarge: GROQ_MODELS.PRO.modelId,
       },
       'AgentRuntimeManager'
     );
 
     // Build character from agent user config
-    // Always use qwen 32b (TEXT_LARGE) - free chat, 1pt per tick
     const character: Character = {
       name: agentUser.displayName || agentUser.username || 'Agent',
       system: agentConfig?.systemPrompt || 'You are a helpful AI agent',
