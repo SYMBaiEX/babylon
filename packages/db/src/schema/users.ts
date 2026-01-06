@@ -1,3 +1,4 @@
+import type { GameOnboardingStep } from '@babylon/shared';
 import { relations, sql } from 'drizzle-orm';
 import {
   bigint,
@@ -13,7 +14,6 @@ import {
   timestamp,
   unique,
 } from 'drizzle-orm/pg-core';
-import type { GameOnboardingStep } from '@babylon/shared';
 import type { JsonValue } from '../types';
 import { agentPerformanceMetrics } from './agents';
 import { onboardingStatusEnum } from './enums';

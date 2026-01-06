@@ -337,9 +337,7 @@ export class MultiStepExecutor {
         ? autonomousBatchResponseService.gatherPendingInteractions(agentUserId)
         : Promise.resolve([]),
       // Get agent's group chats (only if group chats enabled)
-      canGroupChat
-        ? this.getAgentGroupChats(agentUserId)
-        : Promise.resolve([]),
+      canGroupChat ? this.getAgentGroupChats(agentUserId) : Promise.resolve([]),
     ]);
 
     // Get topic diversity guidance for this agent

@@ -208,37 +208,53 @@ ${NPC_POST_QUALITY_RULES}
   // Encourage sharing after trades - users love seeing NPCs share their trades
   // Add randomness to feel human - not every trade gets shared
   const shareTradeRoll = Math.random(); // 0-1 randomness for human-like behavior
-  
+
   // Determine sharing behavior based on randomness:
   // - 40% chance: Share publicly (POST)
   // - 25% chance: Share in group chat only
   // - 15% chance: Share both publicly AND in group chat
   // - 20% chance: Stay quiet (just made the trade, no need to brag)
   const shouldSharePublicly = shareTradeRoll < 0.55; // 40% + 15% = 55%
-  const shouldShareInGroup = shareTradeRoll >= 0.40 && shareTradeRoll < 0.80; // 25% + 15% = 40%
-  const shouldStayQuiet = shareTradeRoll >= 0.80; // 20%
-  
+  const shouldShareInGroup = shareTradeRoll >= 0.4 && shareTradeRoll < 0.8; // 25% + 15% = 40%
+  const shouldStayQuiet = shareTradeRoll >= 0.8; // 20%
+
   const tradePostEncouragement =
     justTraded && tradeDetails && !hasPostedThisTick
       ? `
 # 🔥 YOU JUST MADE A TRADE!
 You just traded: ${tradeDetails.summary || 'a position'}
 
-${shouldStayQuiet ? `**Your vibe right now**: You're feeling chill about this one. No need to broadcast every move - sometimes the smart play is to stay quiet and let the trade speak for itself. Consider FINISH or doing something else.
+${
+  shouldStayQuiet
+    ? `**Your vibe right now**: You're feeling chill about this one. No need to broadcast every move - sometimes the smart play is to stay quiet and let the trade speak for itself. Consider FINISH or doing something else.
 
-` : ''}${shouldSharePublicly && canPost ? `**Consider posting about it**: Your followers want to know what you're doing!
+`
+    : ''
+}${
+  shouldSharePublicly && canPost
+    ? `**Consider posting about it**: Your followers want to know what you're doing!
 - Your trade and why you made it
 - Your market thesis
 - A hot take related to this trade
 
-` : ''}${shouldShareInGroup && canGroupChat ? `**Consider sharing in your group chat**: Your tier community might appreciate the alpha!
+`
+    : ''
+}${
+  shouldShareInGroup && canGroupChat
+    ? `**Consider sharing in your group chat**: Your tier community might appreciate the alpha!
 - Discuss your reasoning with the group
 - Get reactions from your community
 - Build relationships with other traders
 
-` : ''}${shouldSharePublicly && shouldShareInGroup ? `**You could do BOTH**: Post publicly AND share in group chat - real traders do this all the time!
+`
+    : ''
+}${
+  shouldSharePublicly && shouldShareInGroup
+    ? `**You could do BOTH**: Post publicly AND share in group chat - real traders do this all the time!
 
-` : ''}`
+`
+    : ''
+}`
       : '';
 
   // Action priority guidance for NPCs - only mention available actions

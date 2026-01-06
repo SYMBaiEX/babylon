@@ -60,6 +60,7 @@ CREATE TABLE IF NOT EXISTS "ArcState" (
 
 CREATE INDEX IF NOT EXISTS "ArcState_questionId_idx" ON "ArcState" ("questionId");
 CREATE INDEX IF NOT EXISTS "ArcState_currentState_idx" ON "ArcState" ("currentState");
+CREATE UNIQUE INDEX IF NOT EXISTS "ArcState_questionId_unique" ON "ArcState" ("questionId");
 
 -- ============================================================================
 -- 4. ActorState columns for activity tracking
