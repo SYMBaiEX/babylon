@@ -2,7 +2,10 @@ import { logger } from '@babylon/shared';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { useMarketPrices } from '@/hooks/useMarketPrices';
-import { usePerpMarketStream } from '@/hooks/usePerpMarketStream';
+import {
+  type PerpTradeSSE,
+  usePerpMarketStream,
+} from '@/hooks/usePerpMarketStream';
 
 /**
  * Represents a single point in perpetual market price history.
@@ -374,7 +377,7 @@ export function usePerpHistory(
   // (e.g., when price change is too small to trigger a broadcast)
   usePerpMarketStream(ticker, {
     onTrade: useCallback(
-      (event) => {
+      (event: PerpTradeSSE) => {
         // Use exitPrice for close events, entryPrice for open events
         const tradePrice = event.exitPrice ?? event.entryPrice;
         if (tradePrice && Number.isFinite(tradePrice) && tradePrice > 0) {

@@ -199,7 +199,7 @@ export class AgentServiceV2 {
 
       const newAgent = newAgentResult[0]!;
 
-      // Create the agent config record
+      // Create the agent config record with all autonomous capabilities enabled by default
       await tx.insert(userAgentConfigs).values({
         id: await generateSnowflakeId(),
         userId: agentUserId,
@@ -207,7 +207,12 @@ export class AgentServiceV2 {
         personality: personality ?? null,
         tradingStrategy: tradingStrategy ?? null,
         messageExamples: bio ? JSON.parse(JSON.stringify(bio)) : null,
-        a2aEnabled: true, // Enable A2A by default for all agents
+        a2aEnabled: true,
+        autonomousPosting: true,
+        autonomousCommenting: true,
+        autonomousTrading: true,
+        autonomousDMs: true,
+        autonomousGroupChats: true,
         updatedAt: new Date(),
       });
 

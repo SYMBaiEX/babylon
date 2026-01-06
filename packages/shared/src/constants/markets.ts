@@ -6,6 +6,29 @@
  */
 
 /**
+ * Resolution Confidence Configuration
+ *
+ * Thresholds for the manual resolution review system.
+ */
+export const RESOLUTION_CONFIDENCE_CONFIG = {
+  /**
+   * Confidence threshold below which resolutions require manual review.
+   * Resolutions with confidence < this value are flagged for admin approval.
+   */
+  MANUAL_REVIEW_THRESHOLD: 0.7,
+
+  /**
+   * Base confidence score when no speculative signals are detected.
+   */
+  BASE_CONFIDENCE: 0.95,
+
+  /**
+   * Minimum confidence score (floor).
+   */
+  MIN_CONFIDENCE: 0.2,
+} as const;
+
+/**
  * vAMM (Virtual Automated Market Maker) configuration for perp markets.
  *
  * The effective supply determines price sensitivity:
@@ -60,8 +83,13 @@ export const PERP_MARKET_CONFIG = {
 
 /**
  * Type for the perp market configuration.
+ * Uses widened number types to allow overrides in tests.
  */
-export type PerpMarketConfig = typeof PERP_MARKET_CONFIG;
+export type PerpMarketConfig = {
+  [K in keyof typeof PERP_MARKET_CONFIG]: (typeof PERP_MARKET_CONFIG)[K] extends number
+    ? number
+    : (typeof PERP_MARKET_CONFIG)[K];
+};
 
 /**
  * Calculates the effective supply based on liquidity factor.

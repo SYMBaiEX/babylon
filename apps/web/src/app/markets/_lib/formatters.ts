@@ -2,6 +2,7 @@
  * Utility functions for formatting values in the Markets page.
  */
 
+import { PredictionPricing } from '@babylon/core/markets/prediction/client';
 import { BABYLON_POINTS_SYMBOL } from '@babylon/shared';
 
 /**
@@ -48,6 +49,10 @@ export function getDaysLeft(date?: string): number | null {
 /**
  * Calculates YES/NO percentages from share counts.
  *
+ * Note: In our CPMM-style YES/NO markets, the displayed "probability" should
+ * match the AMM price (not the raw share ratio). We therefore use
+ * `PredictionPricing.getCurrentPrice()` as the source of truth.
+ *
  * @param yesShares - Number of YES shares
  * @param noShares - Number of NO shares
  * @returns Object with yesPercent and noPercent
@@ -64,9 +69,12 @@ export function calculateSharePercentages(
     return { yesPercent: 50, noPercent: 50, totalShares: 0 };
   }
 
+  const yesPrice = PredictionPricing.getCurrentPrice(yes, no, 'yes');
+  const noPrice = PredictionPricing.getCurrentPrice(yes, no, 'no');
+
   return {
-    yesPercent: (yes / total) * 100,
-    noPercent: (no / total) * 100,
+    yesPercent: yesPrice * 100,
+    noPercent: noPrice * 100,
     totalShares: total,
   };
 }

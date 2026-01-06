@@ -73,7 +73,11 @@ import {
   trendingTags,
   worldEvents,
 } from '@babylon/db';
-import { generateSnowflakeId, logger } from '@babylon/shared';
+import {
+  generateSnowflakeId,
+  logger,
+  RESOLUTION_CONFIDENCE_CONFIG,
+} from '@babylon/shared';
 import { type Article, ArticleGenerator } from './ArticleGenerator';
 import type { BabylonLLMClient } from './llm/openai-client';
 import { BabylonLLMClient as BabylonLLMClientValue } from './llm/openai-client';
@@ -124,6 +128,25 @@ export interface QuestionCreationParams {
   activeQuestions: Question[];
   recentEvents: DayTimeline[];
   nextQuestionId: number;
+}
+
+/**
+ * Resolution with proof and confidence assessment
+ *
+ * Returned by generateResolutionWithProof containing the resolution description,
+ * optional proof article, and confidence metrics for manual review flagging.
+ */
+export interface ResolutionWithProof {
+  /** Natural language description of why/how the question resolved */
+  description: string;
+  /** Optional proof article with URL */
+  proof?: { type: 'article'; article: Article; url: string };
+  /** Confidence score (0-1) based on speculative signal detection */
+  confidence: number;
+  /** Whether this resolution requires manual admin review */
+  requiresManualReview: boolean;
+  /** Detected speculative signals that reduced confidence */
+  confidenceSignals: string[];
 }
 
 /**
@@ -559,10 +582,7 @@ ${s.involvedOrganizations?.length ? `Organizations: ${s.involvedOrganizations.jo
     actors: SelectedActor[],
     organizations: Organization[],
     recentEvents: DayTimeline[]
-  ): Promise<{
-    description: string;
-    proof?: { type: 'article'; article: Article; url: string };
-  }> {
+  ): Promise<ResolutionWithProof> {
     const description = await this.generateResolutionEvent(
       question,
       actors,
@@ -578,7 +598,81 @@ ${s.involvedOrganizations?.length ? `Organizations: ${s.involvedOrganizations.jo
       organizations
     );
 
-    return { description, proof: proof || undefined };
+    const evidenceText = [
+      description,
+      proof?.type === 'article' ? proof.article.title : null,
+      proof?.type === 'article' ? proof.article.summary : null,
+    ]
+      .filter((s): s is string => typeof s === 'string' && s.trim().length > 0)
+      .join('\n');
+
+    // Guard: empty evidence should always trigger manual review
+    if (!evidenceText.trim()) {
+      return {
+        description,
+        proof: proof || undefined,
+        confidence: RESOLUTION_CONFIDENCE_CONFIG.MIN_CONFIDENCE,
+        requiresManualReview: true,
+        confidenceSignals: ['no_evidence'],
+      };
+    }
+
+    const assessment = this.assessResolutionConfidence(evidenceText);
+
+    return {
+      description,
+      proof: proof || undefined,
+      confidence: assessment.confidence,
+      requiresManualReview: assessment.requiresManualReview,
+      confidenceSignals: assessment.signals,
+    };
+  }
+
+  private assessResolutionConfidence(text: string): {
+    confidence: number;
+    requiresManualReview: boolean;
+    signals: string[];
+  } {
+    const signals: string[] = [];
+
+    // Speculative signals with weights (higher = more speculative)
+    // Patterns are designed to minimize false positives from common phrases
+    const speculativeSignals: Array<[RegExp, string, number]> = [
+      // High-weight: strong speculation indicators
+      [/\brumou?r(s|ed)?\b/i, 'rumor', 0.25],
+      [/\bunconfirmed\b/i, 'unconfirmed', 0.25],
+      [/\balleged(ly)?\b/i, 'alleged', 0.2],
+      [/\bsources?\s+(say|claim|suggest)\b/i, 'sources_say', 0.2],
+      // Medium-weight: conditional language (stricter patterns to avoid false positives)
+      [/\b(might|could)\s+(be|have|become|lead|cause)\b/i, 'conditional', 0.15],
+      [/\bexpected\s+to\b/i, 'expected_to', 0.15],
+      // More specific: "likely to be/happen" vs "the likely winner" (definitive)
+      [/\blikely\s+to\s+(be|happen|occur|result)\b/i, 'likely', 0.12],
+      // Low-weight: common but still speculative
+      [/\breportedly\b/i, 'reportedly', 0.1],
+      [/\bpossibly\b/i, 'possibly', 0.1],
+      // More specific: "apparently uncertain" vs "apparently successful" (confirming)
+      [/\bapparently\s+(not|uncertain|unclear|unconfirmed)\b/i, 'apparently', 0.08],
+    ];
+
+    let totalWeight = 0;
+    for (const [regex, label, weight] of speculativeSignals) {
+      if (regex.test(text)) {
+        signals.push(label);
+        totalWeight += weight;
+      }
+    }
+
+    // Graduated confidence: start at base, subtract accumulated weight, floor at min
+    const { BASE_CONFIDENCE, MIN_CONFIDENCE, MANUAL_REVIEW_THRESHOLD } =
+      RESOLUTION_CONFIDENCE_CONFIG;
+    const confidence = Math.max(MIN_CONFIDENCE, BASE_CONFIDENCE - totalWeight);
+
+    return {
+      confidence,
+      requiresManualReview: confidence < MANUAL_REVIEW_THRESHOLD,
+      signals,
+    };
   }
 
   /**

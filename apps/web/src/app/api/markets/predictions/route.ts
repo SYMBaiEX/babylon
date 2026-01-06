@@ -150,9 +150,13 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   const questionsData = markets.map((m) => {
     const yesShares = m.yesShares;
     const noShares = m.noShares;
-    const total = yesShares + noShares;
-    const yesProb = total > 0 ? yesShares / total : 0.5;
-    const noProb = total > 0 ? noShares / total : 0.5;
+    // Probability should reflect the CPMM price, not the raw share ratio.
+    const yesProb = PredictionPricing.getCurrentPrice(
+      yesShares,
+      noShares,
+      'yes'
+    );
+    const noProb = PredictionPricing.getCurrentPrice(yesShares, noShares, 'no');
     const userPositions = userPositionsMap.get(m.id) ?? [];
     const primaryPosition = userPositions[0] ?? null;
 
