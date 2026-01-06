@@ -5,18 +5,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 
-/**
- * Slide content structure for the game guide.
- */
-interface SlideContent {
-  title: string;
-  points: string[];
-}
-
-/**
- * The 5 slides of the Babylon game guide.
- */
-const SLIDES: SlideContent[] = [
+const SLIDES = [
   {
     title: 'Welcome to Babylon',
     points: [
@@ -60,29 +49,22 @@ const SLIDES: SlideContent[] = [
       'Get started: Go to Agents → Create Agent, define its purpose, fund it, activate it, then iterate.',
     ],
   },
-];
+] as const;
 
-/**
- * Props for the GameGuideModal component.
- */
+const SLIDE_VARIANTS = {
+  enter: (dir: number) => ({ x: dir > 0 ? 300 : -300, opacity: 0 }),
+  center: { x: 0, opacity: 1 },
+  exit: (dir: number) => ({ x: dir < 0 ? 300 : -300, opacity: 0 }),
+};
+
 interface GameGuideModalProps {
   isOpen: boolean;
   onComplete: () => void;
 }
 
 /**
- * Game Guide Modal Component
- *
- * A 5-slide onboarding tutorial that explains how Babylon works.
- * Shown to users after they complete their profile setup for the first time.
- * Users must view all slides (no skip option).
- *
- * Features:
- * - 5 slides with game mechanics explanation
- * - Keyboard navigation (arrow keys)
- * - Animated slide transitions
- * - Progress indicator dots
- * - Minimalist design without icons/emojis
+ * 5-slide onboarding tutorial explaining how Babylon works.
+ * Shown after profile setup; users must complete all slides.
  */
 export function GameGuideModal({ isOpen, onComplete }: GameGuideModalProps) {
   const [currentSlide, setCurrentSlide] = useState(0);
@@ -91,39 +73,37 @@ export function GameGuideModal({ isOpen, onComplete }: GameGuideModalProps) {
 
   const isFirstSlide = currentSlide === 0;
   const isLastSlide = currentSlide === SLIDES.length - 1;
+  // Safe: currentSlide is always within bounds (0 to SLIDES.length-1)
+  const slide = SLIDES[currentSlide]!;
 
   const goToNextSlide = useCallback(() => {
     if (isLastSlide) {
       onComplete();
-      return;
+    } else {
+      setDirection(1);
+      setCurrentSlide((s) => s + 1);
     }
-    setDirection(1);
-    setCurrentSlide((prev) => prev + 1);
   }, [isLastSlide, onComplete]);
 
   const goToPreviousSlide = useCallback(() => {
-    if (isFirstSlide) return;
-    setDirection(-1);
-    setCurrentSlide((prev) => prev - 1);
+    if (!isFirstSlide) {
+      setDirection(-1);
+      setCurrentSlide((s) => s - 1);
+    }
   }, [isFirstSlide]);
 
-  // Handle keyboard navigation
+  // Keyboard navigation
   useEffect(() => {
     if (!isOpen) return;
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'ArrowRight' || event.key === 'Enter') {
-        goToNextSlide();
-      } else if (event.key === 'ArrowLeft') {
-        goToPreviousSlide();
-      }
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowRight' || e.key === 'Enter') goToNextSlide();
+      else if (e.key === 'ArrowLeft') goToPreviousSlide();
     };
-
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, goToNextSlide, goToPreviousSlide]);
 
-  // Trigger fade-in animation after mount
+  // Fade-in animation & reset state on close
   useEffect(() => {
     if (isOpen) {
       const timer = setTimeout(() => setIsVisible(true), 50);
@@ -135,74 +115,52 @@ export function GameGuideModal({ isOpen, onComplete }: GameGuideModalProps) {
     return undefined;
   }, [isOpen]);
 
-  // Lock body scroll when modal is open
+  // Lock body scroll
   useEffect(() => {
-    if (isOpen) {
-      document.body.style.overflow = 'hidden';
-      return () => {
-        document.body.style.overflow = '';
-      };
-    }
-    return undefined;
+    if (!isOpen) return;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = '';
+    };
   }, [isOpen]);
 
   if (!isOpen) return null;
 
-  const slide = SLIDES[currentSlide];
-  if (!slide) return null;
-
-  const slideVariants = {
-    enter: (dir: number) => ({
-      x: dir > 0 ? 300 : -300,
-      opacity: 0,
-    }),
-    center: {
-      x: 0,
-      opacity: 1,
-    },
-    exit: (dir: number) => ({
-      x: dir < 0 ? 300 : -300,
-      opacity: 0,
-    }),
-  };
-
   return (
-    <>
+    <div className="fixed inset-0 z-[100]">
       {/* Backdrop */}
       <div
         className={cn(
-          'fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm transition-opacity duration-300',
+          'absolute inset-0 bg-black/80 backdrop-blur-sm transition-opacity duration-300',
           isVisible ? 'opacity-100' : 'opacity-0'
         )}
       />
 
-      {/* Modal Container */}
-      <div className="fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto p-4">
+      {/* Modal */}
+      <div className="relative flex h-full items-center justify-center overflow-y-auto p-4">
         <div
           className={cn(
-            'relative my-8 w-full max-w-2xl rounded-lg border border-border bg-background shadow-2xl transition-all duration-300',
+            'my-8 w-full max-w-2xl rounded-lg border border-border bg-background shadow-2xl transition-all duration-300',
             isVisible ? 'scale-100 opacity-100' : 'scale-95 opacity-0'
           )}
         >
           {/* Header */}
-          <div className="border-border border-b p-6">
-            <div className="text-center">
-              <p className="text-muted-foreground text-xs uppercase tracking-widest">
-                Getting Started
-              </p>
-              <h2 className="mt-2 font-bold text-2xl tracking-tight">
-                {slide.title}
-              </h2>
-            </div>
+          <div className="border-border border-b p-6 text-center">
+            <p className="text-muted-foreground text-xs uppercase tracking-widest">
+              Getting Started
+            </p>
+            <h2 className="mt-2 font-bold text-2xl tracking-tight">
+              {slide.title}
+            </h2>
           </div>
 
-          {/* Slide Content */}
+          {/* Content */}
           <div className="relative min-h-[280px] overflow-hidden p-6">
             <AnimatePresence mode="wait" custom={direction}>
               <motion.div
                 key={currentSlide}
                 custom={direction}
-                variants={slideVariants}
+                variants={SLIDE_VARIANTS}
                 initial="enter"
                 animate="center"
                 exit="exit"
@@ -212,9 +170,9 @@ export function GameGuideModal({ isOpen, onComplete }: GameGuideModalProps) {
                 }}
                 className="space-y-4"
               >
-                {slide.points.map((point, index) => (
+                {slide.points.map((point, i) => (
                   <div
-                    key={index}
+                    key={i}
                     className="flex items-start gap-3 text-foreground/90"
                   >
                     <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[#0066FF]" />
@@ -227,24 +185,24 @@ export function GameGuideModal({ isOpen, onComplete }: GameGuideModalProps) {
 
           {/* Footer */}
           <div className="border-border border-t p-6">
-            {/* Progress Dots */}
+            {/* Progress */}
             <div className="mb-6 flex justify-center gap-2">
-              {SLIDES.map((_, index) => (
+              {SLIDES.map((_, i) => (
                 <div
-                  key={index}
+                  key={i}
                   className={cn(
-                    'h-2 w-2 rounded-full transition-all duration-200',
-                    index === currentSlide
+                    'h-2 rounded-full transition-all duration-200',
+                    i === currentSlide
                       ? 'w-6 bg-[#0066FF]'
-                      : index < currentSlide
-                        ? 'bg-[#0066FF]/50'
-                        : 'bg-muted-foreground/30'
+                      : i < currentSlide
+                        ? 'w-2 bg-[#0066FF]/50'
+                        : 'w-2 bg-muted-foreground/30'
                   )}
                 />
               ))}
             </div>
 
-            {/* Navigation Buttons */}
+            {/* Navigation */}
             <div className="flex items-center justify-between">
               <button
                 type="button"
@@ -262,7 +220,7 @@ export function GameGuideModal({ isOpen, onComplete }: GameGuideModalProps) {
               </button>
 
               <p className="text-muted-foreground text-sm">
-                {currentSlide + 1} of {SLIDES.length}
+                {currentSlide + 1} / {SLIDES.length}
               </p>
 
               <button
@@ -277,6 +235,6 @@ export function GameGuideModal({ isOpen, onComplete }: GameGuideModalProps) {
           </div>
         </div>
       </div>
-    </>
+    </div>
   );
 }
