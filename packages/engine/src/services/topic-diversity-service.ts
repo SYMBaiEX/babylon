@@ -317,8 +317,9 @@ export class TopicDiversityService {
    * Used for deduplication across similar stories
    */
   private generateEventId(keywords: string[]): string {
-    const normalized = keywords
-      .map((k) => k.toLowerCase().trim())
+    const normalized = [
+      ...new Set(keywords.map((k) => k.toLowerCase().trim())),
+    ]
       .filter((k) => k.length > 2)
       .sort()
       .join('-');
@@ -329,21 +330,20 @@ export class TopicDiversityService {
    * Clean up expired events from the cache
    */
   private cleanupExpiredEvents(): void {
-    const now = new Date();
+    const nowMs = Date.now();
     if (
-      now.getTime() - this.lastEventCleanup.getTime() <
+      nowMs - this.lastEventCleanup.getTime() <
       this.EVENT_CLEANUP_INTERVAL_MS
     ) {
       return;
     }
 
-    const expiryTime = new Date(
-      now.getTime() - this.config.eventExpiryHours * 60 * 60 * 1000
-    );
+    const expiryTimeMs =
+      nowMs - this.config.eventExpiryHours * 60 * 60 * 1000;
 
     let removed = 0;
     for (const [eventId, coverage] of this.eventCache.entries()) {
-      if (coverage.lastCoveredAt < expiryTime) {
+      if (coverage.lastCoveredAt.getTime() < expiryTimeMs) {
         this.eventCache.delete(eventId);
         removed++;
       }
@@ -357,7 +357,7 @@ export class TopicDiversityService {
       );
     }
 
-    this.lastEventCleanup = now;
+    this.lastEventCleanup = new Date(nowMs);
   }
 
   /**
@@ -370,7 +370,8 @@ export class TopicDiversityService {
     this.cleanupExpiredEvents();
 
     const eventId = this.generateEventId(eventKeywords);
-    const now = new Date();
+    const nowMs = Date.now();
+    const now = new Date(nowMs);
 
     const existing = this.eventCache.get(eventId);
     if (existing) {
@@ -457,11 +458,10 @@ export class TopicDiversityService {
 
     // Also check if there's been very recent coverage (within the recency window)
     // This is burst protection: even if under maxPostsPerEvent, prevent rapid-fire posts
-    const recentCoverageThreshold = new Date(
-      Date.now() - RECENT_COVERAGE_WINDOW_MINUTES * 60 * 1000
-    );
+    const recentCoverageThresholdMs =
+      Date.now() - RECENT_COVERAGE_WINDOW_MINUTES * 60 * 1000;
     if (
-      coverage.lastCoveredAt > recentCoverageThreshold &&
+      coverage.lastCoveredAt.getTime() > recentCoverageThresholdMs &&
       coverage.postCount >= BURST_LIMIT_POST_COUNT
     ) {
       // Burst protection: too many posts in short time window

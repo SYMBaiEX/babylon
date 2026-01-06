@@ -105,6 +105,37 @@ const QuerySchema = z.object({
   limit: z.coerce.number().min(1).max(100).default(50),
 });
 
+/**
+ * Hot post with engagement scores and author info
+ */
+interface HotPost {
+  id: string;
+  content: string;
+  fullContent: string | null;
+  articleTitle: string | null;
+  category: string | null;
+  imageUrl: string | null;
+  type: string | null;
+  timestamp: string;
+  createdAt: string;
+  authorId: string;
+  authorName: string;
+  authorUsername: string | null;
+  authorProfileImageUrl: string | null;
+  likeCount: number;
+  commentCount: number;
+  shareCount: number;
+  hotScore: number;
+}
+
+/**
+ * Hot post with user-specific interaction status
+ */
+interface HotPostWithUserStatus extends HotPost {
+  isLiked: boolean;
+  isShared: boolean;
+}
+
 // Age penalty: 0.5 points deducted per hour old
 const AGE_PENALTY_PER_HOUR = 0.5;
 // Engagement weights
@@ -113,6 +144,8 @@ const COMMENT_WEIGHT = 2;
 const SHARE_WEIGHT = 3;
 // Maximum candidates to fetch before scoring and filtering
 const MAX_CANDIDATE_POSTS = 500;
+// Time window for hot posts (24 hours in milliseconds)
+const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
 
 /**
  * Calculate hot score for a post
@@ -219,7 +252,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     cacheKey,
     async () => {
       const now = new Date();
-      const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+      const twentyFourHoursAgo = new Date(now.getTime() - TWENTY_FOUR_HOURS_MS);
 
       // Get posts from the last 24 hours that are visible (not deleted, not in future)
       const recentPosts = await db
@@ -369,7 +402,6 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
           type: post.type,
           timestamp: toISOStringSafe(validTimestamp),
           createdAt: toISOStringSafe(validCreatedAt),
-          author: post.authorId,
           authorId: post.authorId,
           authorName,
           authorUsername,
@@ -402,7 +434,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   // NOTE: User-specific data (isLiked/isShared) bypasses cache on every authenticated request.
   // For high-traffic scenarios, consider: per-user cache with shorter TTL, client-side
   // optimistic updates, or bloom filter pre-filtering. Current approach is fine for moderate traffic.
-  let postsWithUserStatus = result.posts;
+  let postsWithUserStatus: HotPost[] | HotPostWithUserStatus[] = result.posts;
 
   if (user?.userId && result.postIds.length > 0) {
     const [userLikes, userShares] = await Promise.all([
@@ -430,8 +462,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     const likedPostIds = new Set(userLikes.map((l) => l.postId));
     const sharedPostIds = new Set(userShares.map((s) => s.postId));
 
-    postsWithUserStatus = result.posts.map(
-      (post: (typeof result.posts)[number]) => ({
+    postsWithUserStatus = result.posts.map((post: HotPost) => ({
         ...post,
         isLiked: likedPostIds.has(post.id),
         isShared: sharedPostIds.has(post.id),

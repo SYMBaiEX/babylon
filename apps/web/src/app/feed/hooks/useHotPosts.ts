@@ -27,6 +27,7 @@ export function useHotPosts(
   const [error, setError] = useState<string | null>(null);
   const hasFetched = useRef(false);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const refreshControllerRef = useRef<AbortController | null>(null);
 
   const fetchPosts = useCallback(
     async (showLoading = true, signal?: AbortSignal) => {
@@ -68,8 +69,10 @@ export function useHotPosts(
   );
 
   const refresh = useCallback(() => {
-    // Create new abort controller for manual refresh
+    // Abort any previous refresh request before starting a new one
+    refreshControllerRef.current?.abort();
     const controller = new AbortController();
+    refreshControllerRef.current = controller;
     return fetchPosts(false, controller.signal);
   }, [fetchPosts]);
 
@@ -78,9 +81,11 @@ export function useHotPosts(
     if (!enabled) {
       hasFetched.current = false;
       setLoading(false);
-      // Abort any ongoing request when disabled
+      // Abort any ongoing requests when disabled
       abortControllerRef.current?.abort();
       abortControllerRef.current = null;
+      refreshControllerRef.current?.abort();
+      refreshControllerRef.current = null;
       return;
     }
     if (hasFetched.current) return;
@@ -93,6 +98,7 @@ export function useHotPosts(
 
     return () => {
       controller.abort();
+      refreshControllerRef.current?.abort();
     };
   }, [enabled, fetchPosts]);
 

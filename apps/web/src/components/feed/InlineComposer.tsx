@@ -223,7 +223,12 @@ export function InlineComposer({
             onBlur={() => !content && setIsFocused(false)}
             placeholder="What's happening?"
             aria-label="What's happening?"
-            aria-describedby="inline-composer-char-count"
+            aria-describedby={
+              isOverLimit
+                ? 'inline-composer-error inline-composer-char-count'
+                : 'inline-composer-char-count'
+            }
+            aria-invalid={isOverLimit}
             disabled={isSubmitting}
             rows={isFocused || content ? 3 : 1}
             className={cn(
@@ -234,6 +239,13 @@ export function InlineComposer({
               isSubmitting && 'opacity-50'
             )}
           />
+          {/* Hidden error message for screen readers */}
+          {isOverLimit && (
+            <span id="inline-composer-error" className="sr-only" role="alert">
+              Post exceeds the {MAX_LENGTH} character limit by{' '}
+              {Math.abs(charactersRemaining)} characters.
+            </span>
+          )}
 
           {/* Action Bar - shown when focused or has content */}
           {(isFocused || content) && (

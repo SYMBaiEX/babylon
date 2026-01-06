@@ -128,49 +128,61 @@ export async function checkLookaheadStatus(): Promise<{
 }
 
 /**
- * Extract event-specific keywords from a question or content
- *
- * Used for event-level deduplication to prevent multiple stories about
- * the exact same event (e.g., "Bitcoin breaks $94k").
- *
- * @param text - Question text or content to extract keywords from
- * @returns Array of normalized keywords that identify this specific event
+ * Extract price levels from text (e.g., "$94,000", "94k", "$100k")
+ * @param text - Text to extract prices from
+ * @returns Array of normalized price strings (lowercase, no commas)
  */
-function extractEventKeywords(text: string): string[] {
-  const keywords: string[] = [];
-
-  // Extract price levels (e.g., "$94,000", "94k", "$100k")
+export function extractPrices(text: string): string[] {
   const priceMatches = text.match(/\$?[\d,]+(?:k|K|,\d{3})?/g);
-  if (priceMatches) {
-    keywords.push(
-      ...priceMatches.map((p) => p.toLowerCase().replace(/,/g, ''))
-    );
-  }
+  if (!priceMatches) return [];
+  return priceMatches.map((p) => p.toLowerCase().replace(/,/g, ''));
+}
 
-  // Extract percentage changes (e.g., "+15%", "-20%")
+/**
+ * Extract percentage changes from text (e.g., "+15%", "-20%", "3.5%")
+ * @param text - Text to extract percentages from
+ * @returns Array of percentage strings
+ */
+export function extractPercentages(text: string): string[] {
   const percentMatches = text.match(/[+-]?\d+(?:\.\d+)?%/g);
-  if (percentMatches) {
-    keywords.push(...percentMatches);
-  }
+  return percentMatches ?? [];
+}
 
-  // Extract dates (e.g., "January 15", "Q1 2025", "2025")
+/**
+ * Extract dates from text (e.g., "January 15", "Q1 2025", "2025")
+ * @param text - Text to extract dates from
+ * @returns Array of normalized date strings (lowercase)
+ */
+export function extractDates(text: string): string[] {
   const dateMatches = text.match(
     /(?:january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{1,2}|Q[1-4]\s+\d{4}|\b20\d{2}\b/gi
   );
-  if (dateMatches) {
-    keywords.push(...dateMatches.map((d) => d.toLowerCase()));
-  }
+  if (!dateMatches) return [];
+  return dateMatches.map((d) => d.toLowerCase());
+}
 
-  // Extract key crypto/stock symbols
+/**
+ * Extract crypto/stock symbols from text (e.g., "BTC", "ETH", "SOL")
+ * @param text - Text to extract symbols from
+ * @returns Array of uppercase symbol strings
+ */
+export function extractSymbols(text: string): string[] {
   const symbolMatches = text.match(
     /\b(?:BTC|ETH|SOL|DOGE|XRP|ADA|DOT|LINK|AVAX|MATIC)\b/gi
   );
-  if (symbolMatches) {
-    keywords.push(...symbolMatches.map((s) => s.toUpperCase()));
-  }
+  if (!symbolMatches) return [];
+  return symbolMatches.map((s) => s.toUpperCase());
+}
 
-  // Entity and action extraction uses lowercase for matching
+/**
+ * Extract entity names from text (companies, people, regulatory bodies, etc.)
+ * Includes AI-stylized game names (TeslAI, NVAIDAI, etc.)
+ * @param text - Text to extract entities from
+ * @returns Array of normalized entity identifiers
+ */
+export function extractEntities(text: string): string[] {
   const lowerText = text.toLowerCase();
+  const entities: string[] = [];
 
   // Entity patterns - map matches to normalized entity names
   // IMPORTANT: Include AI-stylized game names (TeslAI, NVAIDAI, etc.)
@@ -218,9 +230,21 @@ function extractEventKeywords(text: string): string[] {
 
   for (const { pattern, entity } of entityPatterns) {
     if (pattern.test(lowerText)) {
-      keywords.push(entity);
+      entities.push(entity);
     }
   }
+
+  return entities;
+}
+
+/**
+ * Extract action/event types from text (e.g., "crash", "surge", "launch")
+ * @param text - Text to extract actions from
+ * @returns Array of action identifiers
+ */
+export function extractActions(text: string): string[] {
+  const lowerText = text.toLowerCase();
+  const actions: string[] = [];
 
   // Action patterns - identify event types
   // NOTE: Use (?:...) non-capturing groups to ensure \b applies to all alternatives
@@ -251,9 +275,31 @@ function extractEventKeywords(text: string): string[] {
 
   for (const { pattern, action } of actionPatterns) {
     if (pattern.test(lowerText)) {
-      keywords.push(action);
+      actions.push(action);
     }
   }
+
+  return actions;
+}
+
+/**
+ * Extract event-specific keywords from a question or content
+ *
+ * Used for event-level deduplication to prevent multiple stories about
+ * the exact same event (e.g., "Bitcoin breaks $94k").
+ *
+ * @param text - Question text or content to extract keywords from
+ * @returns Array of normalized keywords that identify this specific event
+ */
+export function extractEventKeywords(text: string): string[] {
+  const keywords = [
+    ...extractPrices(text),
+    ...extractPercentages(text),
+    ...extractDates(text),
+    ...extractSymbols(text),
+    ...extractEntities(text),
+    ...extractActions(text),
+  ];
 
   // Return unique, non-empty keywords (max 10)
   return [...new Set(keywords.filter((k) => k.length > 0))].slice(0, 10);
