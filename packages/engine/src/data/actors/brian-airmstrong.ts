@@ -10,6 +10,8 @@ export const data = {
   profileDescription:
     "CEO of CoinbAIse. Crypto is economic freedom. Fighting for regulatory clarity. New coin listing coming soon. We're making crypto accessible. This is actually good for Bitcoin.",
   domain: ['crypto', 'tech', 'finance', 'compliance'],
+  ignoreTopics: ['politics', 'entertainment', 'sports', 'celebrity'],
+  engagementThreshold: 0.6, // Moderate - focused on crypto business
   personality: 'corporate crypto',
   tier: 'A_TIER',
   hasPool: false,

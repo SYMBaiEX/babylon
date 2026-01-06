@@ -314,7 +314,10 @@ export function TradingProfile({
   /** Use shared formatCompactCurrency for K/M/B suffix formatting */
   const formatCurrency = formatCompactCurrency;
 
-  const calculateCurrentPrice = (market: PredictionPosition['Market']) => {
+  const calculateCurrentPrice = (
+    market: PredictionPosition['Market'] | null | undefined
+  ) => {
+    if (!market) return 0.5; // Default to 50/50 if market data unavailable
     const yesShares = toNumber(market.yesShares);
     const noShares = toNumber(market.noShares);
     const totalShares = yesShares + noShares;

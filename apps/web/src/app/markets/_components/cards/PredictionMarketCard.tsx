@@ -1,6 +1,10 @@
 'use client';
 
-import { cn, formatCurrency, formatNumberWithSeparators } from '@babylon/shared';
+import {
+  cn,
+  formatCurrency,
+  formatNumberWithSeparators,
+} from '@babylon/shared';
 import { ArrowUpDown, Clock } from 'lucide-react';
 import { memo } from 'react';
 import type { PredictionMarketWithPosition } from '@/types/markets';

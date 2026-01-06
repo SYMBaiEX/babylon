@@ -30,14 +30,19 @@ import {
   gte,
   isNull,
   lt,
+  max,
   posts,
   questions,
 } from '@babylon/db';
 import type { BabylonLLMClient } from '@babylon/engine';
 import { logger } from '@babylon/shared';
+import {
+  CONTENT_PACING,
+  getTimeOfDayMultiplier,
+  shouldActorPost,
+} from '../config/content-pacing';
 import { getGameDayNumber, toSafeDayNumber } from '../utils/date-utils';
 import {
-  biasedRandomCount,
   secureRandom,
   secureShuffle,
   urgencyWeight,
@@ -70,6 +75,7 @@ const DIVERSITY_QUOTA = 0.2; // 20% of posts should cover diverse topics
 const ORGANIC_POST_RATIO = 0.15; // 15% of posts should be organic (no topic)
 const RIVALRY_POST_RATIO = 0.1; // 10% of posts should be rivalry-driven
 const ACTOR_POST_RATIO = 0.95; // 95% of posts should be from actors (NPCs)
+const EVENT_GENERATION_PROBABILITY = 0.3; // 30% chance to generate events per tick
 
 /**
  * Check how far ahead content is generated
@@ -119,6 +125,194 @@ export async function checkLookaheadStatus(): Promise<{
     latestTimestamp: latest,
     needsGeneration,
   };
+}
+
+/**
+ * Extract price levels from text (e.g., "$94,000", "94k", "$100k")
+ * @param text - Text to extract prices from
+ * @returns Array of normalized price strings (lowercase, no commas)
+ */
+export function extractPrices(text: string): string[] {
+  const priceMatches = text.match(/\$?[\d,]+(?:k|K|,\d{3})?/g);
+  if (!priceMatches) return [];
+  return priceMatches.map((p) => p.toLowerCase().replace(/,/g, ''));
+}
+
+/**
+ * Extract percentage changes from text (e.g., "+15%", "-20%", "3.5%")
+ * @param text - Text to extract percentages from
+ * @returns Array of percentage strings
+ */
+export function extractPercentages(text: string): string[] {
+  const percentMatches = text.match(/[+-]?\d+(?:\.\d+)?%/g);
+  return percentMatches ?? [];
+}
+
+/**
+ * Extract dates from text (e.g., "January 15", "Q1 2025", "2025")
+ * @param text - Text to extract dates from
+ * @returns Array of normalized date strings (lowercase)
+ */
+export function extractDates(text: string): string[] {
+  const dateMatches = text.match(
+    /(?:january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{1,2}|Q[1-4]\s+\d{4}|\b20\d{2}\b/gi
+  );
+  if (!dateMatches) return [];
+  return dateMatches.map((d) => d.toLowerCase());
+}
+
+/**
+ * Extract crypto/stock symbols from text (e.g., "BTC", "ETH", "SOL")
+ * @param text - Text to extract symbols from
+ * @returns Array of uppercase symbol strings
+ */
+export function extractSymbols(text: string): string[] {
+  const symbolMatches = text.match(
+    /\b(?:BTC|ETH|SOL|DOGE|XRP|ADA|DOT|LINK|AVAX|MATIC)\b/gi
+  );
+  if (!symbolMatches) return [];
+  return symbolMatches.map((s) => s.toUpperCase());
+}
+
+/**
+ * Extract entity names from text (companies, people, regulatory bodies, etc.)
+ * Uses game-stylized names (TeslAI, NVIDAI, etc.) to avoid copyright issues.
+ * Entity IDs match the canonical IDs in packages/engine/src/data/
+ * @param text - Text to extract entities from
+ * @returns Array of game entity IDs
+ */
+export function extractEntities(text: string): string[] {
+  const lowerText = text.toLowerCase();
+  const entities: string[] = [];
+
+  // Entity patterns - map matches to game entity IDs
+  // IDs must match canonical IDs in packages/engine/src/data/organizations and actors
+  const entityPatterns: Array<{ pattern: RegExp; entity: string }> = [
+    // AI Companies (organization IDs)
+    { pattern: /\bopenagi\b/i, entity: 'openagi' },
+    { pattern: /\baitropic\b/i, entity: 'aitropic' },
+    { pattern: /\bdeepmaind\b/i, entity: 'deepmaind' },
+    // Tech Companies (organization IDs)
+    { pattern: /\baipple\b/i, entity: 'aipple' },
+    { pattern: /\baiphabet\b/i, entity: 'aiphabet' },
+    { pattern: /\bmaicrosoft\b/i, entity: 'maicrosoft' },
+    { pattern: /\bnvidai\b/i, entity: 'nvidai' },
+    { pattern: /\bteslai\b/i, entity: 'teslai' },
+    { pattern: /\baimazon\b/i, entity: 'aimazon' },
+    { pattern: /\bmetai\b/i, entity: 'metai' },
+    { pattern: /\baix\b/i, entity: 'aix' },
+    { pattern: /\bspaicex\b/i, entity: 'spaicex' },
+    { pattern: /\bneurailink\b/i, entity: 'neurailink' },
+    // Media Organizations (organization IDs)
+    { pattern: /\bthe[- ]?vairge\b/i, entity: 'the-vairge' },
+    { pattern: /\btechcrainch\b/i, entity: 'techcrainch' },
+    { pattern: /\bwaired\b/i, entity: 'waired' },
+    { pattern: /\bbloombairg\b/i, entity: 'bloombairg' },
+    // Crypto (organization IDs)
+    { pattern: /\bcoinbaise\b/i, entity: 'coinbaise' },
+    {
+      pattern: /\bethereum[- ]?foundaition\b/i,
+      entity: 'ethereum-foundaition',
+    },
+    // Key People (actor IDs)
+    { pattern: /\bailon\s*musk\b/i, entity: 'ailon-musk' },
+    { pattern: /\bailon\b/i, entity: 'ailon-musk' },
+    { pattern: /\bjensen\s*huaing\b/i, entity: 'jensen-huaing' },
+    { pattern: /\bsam\s*ailtman\b/i, entity: 'sam-ailtman' },
+    { pattern: /\bsim\s*cook\b/i, entity: 'sim-cook' },
+    { pattern: /\bmark\s*zuckerborg\b/i, entity: 'mark-zuckerborg' },
+    { pattern: /\bsaitya\s*nadella\b/i, entity: 'saitya-nadella' },
+    { pattern: /\bjeff\s*baizos\b/i, entity: 'jeff-baizos' },
+    { pattern: /\bbaill\s*gaites\b/i, entity: 'baill-gaites' },
+    { pattern: /\bdairiio\s*amodei\b/i, entity: 'dairiio-amodei' },
+    { pattern: /\bcathai\s*wood\b/i, entity: 'cathai-wood' },
+    { pattern: /\bvitailik\b/i, entity: 'vitailik-buterin' },
+    { pattern: /\bmichael\s*sailor\b/i, entity: 'michael-sailor' },
+    // Government/Regulatory (no stylization needed for these)
+    { pattern: /\bfed\b|federal reserve/i, entity: 'federal-reserve' },
+    { pattern: /\bsec\b/, entity: 'sec' },
+    { pattern: /\bcongress\b/i, entity: 'congress' },
+    // Products/Models - game-stylized versions
+    { pattern: /\bfsd\b/i, entity: 'teslai-fsd' },
+    { pattern: /\bsmh[- ]?\d+(?:\.\d+)?/i, entity: 'openagi-model' }, // OpenAGI's SMH models
+    { pattern: /\bclaude[- ]?\d*/i, entity: 'aitropic-model' },
+  ];
+
+  for (const { pattern, entity } of entityPatterns) {
+    if (pattern.test(lowerText)) {
+      entities.push(entity);
+    }
+  }
+
+  return entities;
+}
+
+/**
+ * Extract action/event types from text (e.g., "crash", "surge", "launch")
+ * @param text - Text to extract actions from
+ * @returns Array of action identifiers
+ */
+export function extractActions(text: string): string[] {
+  const lowerText = text.toLowerCase();
+  const actions: string[] = [];
+
+  // Action patterns - identify event types
+  // NOTE: Use (?:...) non-capturing groups to ensure \b applies to all alternatives
+  const actionPatterns: Array<{ pattern: RegExp; action: string }> = [
+    {
+      pattern: /\b(?:breaks?|broke)\b.*\b(?:above|below|through)\b/,
+      action: 'breakout',
+    },
+    { pattern: /\b(?:crash|crashed|crashing)\b/, action: 'crash' },
+    { pattern: /\b(?:surge|surged|surging)\b/, action: 'surge' },
+    { pattern: /\b(?:announce|announced|announces)\b/, action: 'announcement' },
+    { pattern: /\b(?:launch|launched|launches)\b/, action: 'launch' },
+    { pattern: /\b(?:ban|banned|bans)\b/, action: 'ban' },
+    { pattern: /\b(?:approve|approved|approves)\b/, action: 'approval' },
+    { pattern: /\b(?:reject|rejected|rejects)\b/, action: 'rejection' },
+    { pattern: /\b(?:hack|hacked|breach)\b/, action: 'security-breach' },
+    { pattern: /\b(?:layoff|layoffs|laid off)\b/, action: 'layoffs' },
+    { pattern: /\b(?:acquisition|acquire|acquired)\b/, action: 'acquisition' },
+    { pattern: /\b(?:ipo|public offering)\b/, action: 'ipo' },
+    // Additional action patterns for common news events
+    { pattern: /\b(?:unveil|unveiled|unveils)\b/, action: 'unveil' },
+    { pattern: /\b(?:reveal|revealed|reveals)\b/, action: 'reveal' },
+    { pattern: /\b(?:hints?|hinted|hinting)\b/, action: 'hint' },
+    { pattern: /\b(?:claim|claimed|claims)\b/, action: 'claim' },
+    { pattern: /\b(?:partner|partnered|partnership)\b/, action: 'partnership' },
+    { pattern: /\b(?:release|released|releases)\b/, action: 'release' },
+  ];
+
+  for (const { pattern, action } of actionPatterns) {
+    if (pattern.test(lowerText)) {
+      actions.push(action);
+    }
+  }
+
+  return actions;
+}
+
+/**
+ * Extract event-specific keywords from a question or content
+ *
+ * Used for event-level deduplication to prevent multiple stories about
+ * the exact same event (e.g., "Bitcoin breaks $94k").
+ *
+ * @param text - Question text or content to extract keywords from
+ * @returns Array of normalized keywords that identify this specific event
+ */
+export function extractEventKeywords(text: string): string[] {
+  const keywords = [
+    ...extractPrices(text),
+    ...extractPercentages(text),
+    ...extractDates(text),
+    ...extractSymbols(text),
+    ...extractEntities(text),
+    ...extractActions(text),
+  ];
+
+  // Return unique, non-empty keywords (max 10)
+  return [...new Set(keywords.filter((k) => k.length > 0))].slice(0, 10);
 }
 
 /**
@@ -334,13 +528,39 @@ async function generateContentWindow(
     return;
   }
 
-  // Target 5-10 NPC posts per minute = 25-50 per 5-minute window
-  // Using biased random for natural distribution
-  const numPosts = biasedRandomCount(25, 50);
+  // Apply content pacing to determine posts per window
+  // Base: targetPostsPerHour from config (default 12) / 60 minutes * 5 minutes = posts per window
+  // Adjusted by time-of-day multiplier for realistic posting patterns
+  const windowHour = windowStart.getHours();
+  const timeMultiplier = getTimeOfDayMultiplier(windowHour);
+
+  // Calculate base posts for this 5-minute window based on target hourly rate
+  const basePostsPerWindow = Math.ceil(
+    (CONTENT_PACING.targetPostsPerHour / 60) * GENERATION_BATCH_MINUTES
+  );
+
+  // Apply time-of-day multiplier and add some variance (±30%)
+  const variance = 0.7 + secureRandom() * 0.6; // 0.7 to 1.3
+  const numPosts = Math.max(
+    1,
+    Math.round(basePostsPerWindow * timeMultiplier * variance)
+  );
+
   const windowDuration = windowEnd.getTime() - windowStart.getTime();
 
+  logger.debug(
+    `Content pacing: ${numPosts} posts for window`,
+    {
+      hour: windowHour,
+      timeMultiplier,
+      basePostsPerWindow,
+      variance: variance.toFixed(2),
+    },
+    'LookaheadGeneration'
+  );
+
   // Generate events probabilistically using secure random
-  const shouldGenerateEvents = secureRandom() < 0.3;
+  const shouldGenerateEvents = secureRandom() < EVENT_GENERATION_PROBABILITY;
   if (shouldGenerateEvents && activeQuestions.length > 0) {
     // Generate events at random times within the window
     const randomOffset = secureRandom() * windowDuration;
@@ -367,31 +587,96 @@ async function generateContentWindow(
   // Get actors, organizations, world facts, shared post context, AND diverse topic suggestions in parallel
   // Loading shared context ONCE eliminates N+1 queries during parallel post generation
   const diversityService = getTopicDiversityService();
-  const [actorStates, worldFactsContext, sharedContext, diverseTopics] =
-    await Promise.all([
-      db
-        .select()
-        .from(actorState)
-        .orderBy(desc(actorState.reputationPoints))
-        .limit(15),
-      worldFactsService.generatePromptContext(),
-      loadSharedPostContext(windowStart), // Load ONCE for all NPC posts
-      diversityService.suggestDiverseTopics(3), // Get diverse topic suggestions
-    ]);
 
-  // Combine static actor data with dynamic state
-  const actorsList = actorStates
+  // Calculate the start of today for daily post count
+  const todayStart = new Date(windowStart);
+  todayStart.setHours(0, 0, 0, 0);
+
+  const [
+    actorStates,
+    worldFactsContext,
+    sharedContext,
+    diverseTopics,
+    actorPostStats,
+  ] = await Promise.all([
+    db
+      .select()
+      .from(actorState)
+      .orderBy(desc(actorState.reputationPoints))
+      .limit(15),
+    worldFactsService.generatePromptContext(),
+    loadSharedPostContext(windowStart), // Load ONCE for all NPC posts
+    diversityService.suggestDiverseTopics(3), // Get diverse topic suggestions
+    // Query actor post stats: last post time and daily count for pacing
+    db
+      .select({
+        authorId: posts.authorId,
+        lastPostTime: max(posts.timestamp),
+        dailyCount: count(),
+      })
+      .from(posts)
+      .where(
+        and(
+          gte(posts.timestamp, todayStart),
+          lt(posts.timestamp, windowStart),
+          isNull(posts.deletedAt)
+        )
+      )
+      .groupBy(posts.authorId),
+  ]);
+
+  // Build a map of actor post stats for quick lookup
+  const actorPostStatsMap = new Map(
+    actorPostStats.map((stat) => [
+      stat.authorId,
+      {
+        lastPostTime: stat.lastPostTime,
+        dailyCount: Number(stat.dailyCount),
+      },
+    ])
+  );
+
+  // Combine static actor data with dynamic state and pacing info
+  // windowHour is already defined above for time multiplier calculation
+  const allActors = actorStates
     .map((state) => {
       const staticActor = StaticDataRegistry.getActor(state.id);
       if (!staticActor) return null;
+
+      const postStats = actorPostStatsMap.get(state.id);
+      const lastPostTime = postStats?.lastPostTime ?? null;
+      const dailyPostCount = postStats?.dailyCount ?? 0;
+
       return {
         ...staticActor,
         tradingBalance: state.tradingBalance,
         reputationPoints: state.reputationPoints,
         hasPool: state.hasPool,
+        lastPostTime,
+        dailyPostCount,
       };
     })
     .filter((a): a is NonNullable<typeof a> => a !== null);
+
+  // Filter actors based on pacing rules (daily limits and cooldowns)
+  const actorsList = allActors.filter((actor) =>
+    shouldActorPost(actor.lastPostTime, actor.dailyPostCount, windowHour)
+  );
+
+  // Log pacing statistics
+  const skippedActors = allActors.length - actorsList.length;
+  if (skippedActors > 0) {
+    logger.debug(
+      `Pacing: ${skippedActors}/${allActors.length} actors skipped due to limits`,
+      {
+        eligible: actorsList.length,
+        skipped: skippedActors,
+        hour: windowHour,
+        maxDaily: CONTENT_PACING.maxPostsPerActorPerDay,
+      },
+      'LookaheadGeneration'
+    );
+  }
 
   // Get media organizations from static registry
   const orgsList = StaticDataRegistry.getAllOrganizations()
@@ -651,6 +936,29 @@ async function generateContentWindow(
       }
     }
 
+    // Extract event keywords from the question for deduplication
+    // This prevents multiple posts about the exact same event (e.g., "Bitcoin breaks $94k")
+    const eventKeywords = extractEventKeywords(question.text);
+
+    // Check if this specific event has been covered too many times
+    // IMPORTANT: Track BEFORE generating (optimistic reservation) to prevent race conditions
+    // when multiple posts are generated in parallel via Promise.allSettled
+    if (eventKeywords.length > 0) {
+      if (diversityService.shouldSkipEvent(eventKeywords)) {
+        logger.debug(
+          'Skipping duplicate event coverage',
+          {
+            questionId: question.id,
+            eventKeywords: eventKeywords.slice(0, 5),
+          },
+          'LookaheadGeneration'
+        );
+        return 0;
+      }
+      // Reserve a slot for this event BEFORE generating to prevent parallel duplicates
+      diversityService.trackEventCoverage(eventKeywords);
+    }
+
     // Check if the question topic is oversaturated (apply diversity penalty)
     const topicPenalty = await diversityService.getTopicPenalty(question.text);
     if (topicPenalty > 0.7 && !shouldBeDiverse) {
@@ -664,6 +972,10 @@ async function generateContentWindow(
           },
           'LookaheadGeneration'
         );
+        // Rollback event tracking since we're not generating
+        if (eventKeywords.length > 0) {
+          diversityService.rollbackEventCoverage(eventKeywords);
+        }
         return 0;
       }
     }
@@ -694,9 +1006,13 @@ async function generateContentWindow(
             questionId: question.id,
             currentDay,
             diverseTopic: diverseTopic?.topic,
+            eventKeywords: eventKeywords.slice(0, 3),
           },
           'LookaheadGeneration'
         );
+      } else if (eventKeywords.length > 0) {
+        // Rollback event tracking on generation failure
+        diversityService.rollbackEventCoverage(eventKeywords);
       }
       return success ? 1 : 0;
     }
@@ -710,6 +1026,10 @@ async function generateContentWindow(
       );
       if (!isOnBeat && secureRandom() < 0.5) {
         // 50% chance to skip if org is off-beat for this diverse topic
+        // Rollback event tracking since we're not generating
+        if (eventKeywords.length > 0) {
+          diversityService.rollbackEventCoverage(eventKeywords);
+        }
         return 0;
       }
     }
@@ -736,6 +1056,7 @@ async function generateContentWindow(
             timestamp: postTimestamp.toISOString(),
             questionId: question.id,
             diverseTopic: diverseTopic?.topic,
+            eventKeywords: eventKeywords.slice(0, 3),
           },
           'LookaheadGeneration'
         );
@@ -761,6 +1082,11 @@ async function generateContentWindow(
           'LookaheadGeneration'
         );
       }
+    }
+
+    // Rollback event tracking on generation failure
+    if (!success && eventKeywords.length > 0) {
+      diversityService.rollbackEventCoverage(eventKeywords);
     }
 
     return success ? 1 : 0;

@@ -10,6 +10,8 @@ export const data = {
   profileDescription:
     'Co-founder of PalAIntir and Founders Fraud. Competition is for losers. Going from zero to one. Death is a problem we can solve.',
   domain: ['vc', 'tech', 'politics', 'surveillance'],
+  ignoreTopics: ['entertainment', 'sports', 'celebrity', 'fashion'],
+  engagementThreshold: 0.5, // Moderate - selective about engagement
   personality: 'vampire capitalist',
   tier: 'S_TIER',
   hasPool: false,

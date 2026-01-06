@@ -6,6 +6,7 @@ import { Plus } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { InlineComposer } from '@/components/feed/InlineComposer';
 import { FeedToggle } from '@/components/shared/FeedToggle';
 import { PageContainer } from '@/components/shared/PageContainer';
 import { PullToRefreshIndicator } from '@/components/shared/PullToRefreshIndicator';
@@ -17,7 +18,7 @@ import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { useFeedStore } from '@/stores/feedStore';
 import { useGameStore } from '@/stores/gameStore';
 import { EmptyFeed, PostList } from './components';
-import { useFeedPosts, useFollowingPosts } from './hooks';
+import { useFeedPosts, useFollowingPosts, useHotPosts } from './hooks';
 
 // Performance: Lazy load heavy components
 const WidgetSidebar = dynamic(
@@ -44,7 +45,7 @@ const TradesFeed = dynamic(
   { ssr: false }
 );
 
-type FeedTab = 'latest' | 'following' | 'trades';
+type FeedTab = 'latest' | 'hot' | 'following' | 'trades';
 
 /**
  * FeedClient - Main feed page orchestrator
@@ -95,6 +96,10 @@ export function FeedClient() {
   const { posts: followingPosts, loading: followingLoading } =
     useFollowingPosts({ enabled: tab === 'following' });
 
+  const { posts: hotPosts, loading: hotLoading } = useHotPosts({
+    enabled: tab === 'hot',
+  });
+
   // Game timeline posts (viewer mode fallback)
   const { allGames, startTime, currentTimeMs } = useGameStore();
   const currentDate = startTime ? new Date(startTime + currentTimeMs) : null;
@@ -139,13 +144,23 @@ export function FeedClient() {
   // Select posts based on current tab
   const currentPosts = useMemo(() => {
     if (tab === 'following') return followingPosts;
+    if (tab === 'hot') return hotPosts;
     if (latestPosts.length > 0) return latestPosts;
     if (startTime && allGames.length > 0) return timelinePosts;
     return latestPosts;
-  }, [tab, latestPosts, followingPosts, timelinePosts, startTime, allGames]);
+  }, [
+    tab,
+    latestPosts,
+    followingPosts,
+    hotPosts,
+    timelinePosts,
+    startTime,
+    allGames,
+  ]);
 
   const isLoading =
     (tab === 'latest' && latestLoading) ||
+    (tab === 'hot' && hotLoading) ||
     (tab === 'following' && followingLoading);
 
   // Load actor names
@@ -268,6 +283,7 @@ export function FeedClient() {
 
     if (currentPosts.length === 0) {
       if (tab === 'latest') return <EmptyFeed variant="latest" />;
+      if (tab === 'hot') return <EmptyFeed variant="hot" />;
       if (tab === 'following')
         return <EmptyFeed variant="following" isLoading={followingLoading} />;
       return <EmptyFeed variant="default" />;
@@ -300,12 +316,18 @@ export function FeedClient() {
 
           {/* Feed content */}
           <div className="flex-1 bg-background">
-            <div className="w-full px-4 lg:mx-auto lg:max-w-[700px] lg:px-6">
+            <div className="w-full lg:mx-auto lg:max-w-[700px]">
               <PullToRefreshIndicator
                 pullDistance={pullDistance}
                 isRefreshing={isRefreshing}
               />
-              {renderContent()}
+
+              {/* Inline Composer - shown on latest tab for authenticated users */}
+              {authenticated && tab === 'latest' && (
+                <InlineComposer onPostCreated={handlePostCreated} />
+              )}
+
+              <div className="px-4 lg:px-6">{renderContent()}</div>
             </div>
           </div>
         </div>
