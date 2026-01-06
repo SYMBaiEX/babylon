@@ -231,8 +231,9 @@ export const groupMembers = pgTable(
     previousTier: integer('previousTier'),
   },
   (table) => [
-    // Note: Partial unique index is managed via migration, not here
-    // See migration 0011_fix_group_member_partial_unique.sql
+    // Full unique constraint on (groupId, userId) required for onConflictDoUpdate upserts
+    // Note: This replaced the partial index approach - we now use isActive flag for soft deletes
+    unique('GroupMember_groupId_userId_key').on(table.groupId, table.userId),
     index('GroupMember_groupId_idx').on(table.groupId),
     index('GroupMember_userId_idx').on(table.userId),
     index('GroupMember_groupId_isActive_idx').on(table.groupId, table.isActive),
