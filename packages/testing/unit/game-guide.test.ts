@@ -2,21 +2,29 @@
  * Game Guide Unit Tests
  *
  * Tests for the game onboarding guide feature including:
- * - Slide content validation
- * - Navigation logic
+ * - Slide content specification (must match apps/web/.../GameGuideModal.tsx)
+ * - Navigation logic specification
  * - Boundary conditions
- * - Provider state management
+ * - Display logic specification
+ *
+ * NOTE: These are SPECIFICATION tests that document expected behavior.
+ * The integration tests in game-guide-api.integration.test.ts test the
+ * actual API endpoints with real server requests.
+ *
+ * If the slide content in GameGuideModal.tsx changes, update this spec.
  *
  * Run with: bun test unit/game-guide.test.ts
  */
 
 import { describe, expect, test } from 'bun:test';
 
-// ============================================
-// SLIDE CONTENT TESTS
-// ============================================
-
-const SLIDES = [
+/**
+ * Expected slide content - must match GAME_GUIDE_SLIDES in:
+ * apps/web/src/components/onboarding/GameGuideModal.tsx
+ *
+ * This is a specification that documents the required content.
+ */
+const GAME_GUIDE_SLIDES = [
   {
     title: 'Welcome to Babylon',
     points: [
@@ -64,30 +72,30 @@ const SLIDES = [
 
 describe('Game Guide - Slide Content', () => {
   test('should have exactly 5 slides', () => {
-    expect(SLIDES.length).toBe(5);
+    expect(GAME_GUIDE_SLIDES.length).toBe(5);
   });
 
   test('each slide should have a non-empty title', () => {
-    for (const slide of SLIDES) {
+    for (const slide of GAME_GUIDE_SLIDES) {
       expect(slide.title).toBeDefined();
       expect(slide.title.length).toBeGreaterThan(0);
     }
   });
 
   test('each slide should have at least 3 points', () => {
-    for (const slide of SLIDES) {
+    for (const slide of GAME_GUIDE_SLIDES) {
       expect(slide.points.length).toBeGreaterThanOrEqual(3);
     }
   });
 
   test('no slide should have more than 5 points', () => {
-    for (const slide of SLIDES) {
+    for (const slide of GAME_GUIDE_SLIDES) {
       expect(slide.points.length).toBeLessThanOrEqual(5);
     }
   });
 
   test('all points should be non-empty strings', () => {
-    for (const slide of SLIDES) {
+    for (const slide of GAME_GUIDE_SLIDES) {
       for (const point of slide.points) {
         expect(typeof point).toBe('string');
         expect(point.length).toBeGreaterThan(10); // Meaningful content
@@ -96,17 +104,17 @@ describe('Game Guide - Slide Content', () => {
   });
 
   test('slide titles should be unique', () => {
-    const titles = SLIDES.map((s) => s.title);
+    const titles = GAME_GUIDE_SLIDES.map((s) => s.title);
     const uniqueTitles = new Set(titles);
     expect(uniqueTitles.size).toBe(titles.length);
   });
 
   test('first slide should be Welcome', () => {
-    expect(SLIDES[0]!.title).toContain('Welcome');
+    expect(GAME_GUIDE_SLIDES[0]!.title).toContain('Welcome');
   });
 
   test('last slide should be the CTA slide', () => {
-    const lastSlide = SLIDES[SLIDES.length - 1]!;
+    const lastSlide = GAME_GUIDE_SLIDES[GAME_GUIDE_SLIDES.length - 1]!;
     expect(lastSlide.title).toContain('Trade');
     // Should contain call to action
     const allText = lastSlide.points.join(' ');
@@ -117,9 +125,14 @@ describe('Game Guide - Slide Content', () => {
 // ============================================
 // NAVIGATION LOGIC TESTS
 // ============================================
+// NOTE: These tests verify the SPECIFICATION of navigation behavior.
+// The actual React component uses useState/useCallback which can't be
+// unit tested without React Testing Library. These tests document the
+// expected state machine behavior that the component must implement.
+// ============================================
 
-describe('Game Guide - Navigation Logic', () => {
-  // Simulates the navigation state machine
+describe('Game Guide - Navigation Logic (Specification)', () => {
+  // State machine that documents expected navigation behavior
   class SlideNavigator {
     currentSlide = 0;
     completed = false;
@@ -252,8 +265,12 @@ describe('Game Guide - Navigation Logic', () => {
 // ============================================
 // SHOW/HIDE LOGIC TESTS
 // ============================================
+// NOTE: These tests verify the SPECIFICATION of when the guide should show.
+// The actual logic lives in GameGuideProvider.tsx and uses React hooks.
+// These tests document the expected behavior that the provider must implement.
+// ============================================
 
-describe('Game Guide - Display Logic', () => {
+describe('Game Guide - Display Logic (Specification)', () => {
   interface UserState {
     authenticated: boolean;
     profileComplete: boolean;
@@ -349,9 +366,7 @@ describe('Game Guide - Display Logic', () => {
 describe('Game Guide - Completion Tracking', () => {
   test('completion timestamp should be valid ISO-8601', () => {
     const timestamp = new Date().toISOString();
-    expect(timestamp).toMatch(
-      /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d{3}Z$/
-    );
+    expect(timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d{3}Z$/);
   });
 
   test('should parse completion timestamp correctly', () => {

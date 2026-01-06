@@ -24,27 +24,43 @@ import type { NextRequest } from 'next/server';
 
 export const POST = withErrorHandling(async (request: NextRequest) => {
   const authUser = await authenticate(request);
-  const canonicalUserId = authUser.dbUserId ?? authUser.userId;
+
+  // privyId is always set after authenticate() - it's the Privy claims userId
+  // or the agent session ID for agents
+  const privyId = authUser.privyId;
+  if (!privyId) {
+    // This should never happen after successful auth, but guard against it
+    throw new Error('Missing privyId after authentication');
+  }
 
   logger.info(
     'Marking game guide as completed',
-    { userId: canonicalUserId },
+    { privyId, dbUserId: authUser.dbUserId },
     'POST /api/users/me/game-guide'
   );
 
   const now = new Date();
 
-  await db
+  const result = await db
     .update(users)
     .set({
       gameGuideCompletedAt: now,
       updatedAt: now,
     })
-    .where(eq(users.privyId, authUser.privyId ?? authUser.userId));
+    .where(eq(users.privyId, privyId))
+    .returning({ id: users.id });
+
+  if (result.length === 0) {
+    logger.warn(
+      'No user found with privyId - user may not exist in database yet',
+      { privyId },
+      'POST /api/users/me/game-guide'
+    );
+  }
 
   logger.info(
     'Game guide marked as completed',
-    { userId: canonicalUserId, completedAt: now.toISOString() },
+    { privyId, completedAt: now.toISOString() },
     'POST /api/users/me/game-guide'
   );
 

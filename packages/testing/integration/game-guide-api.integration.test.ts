@@ -10,7 +10,10 @@
  * Run with: bun test integration/game-guide-api.integration.test.ts --preload ./integration/preload.ts
  */
 
-import { beforeAll, describe, expect, test } from 'bun:test';
+import { beforeAll, describe, expect, setDefaultTimeout, test } from 'bun:test';
+
+// Set longer timeout for integration tests that hit the server
+setDefaultTimeout(20000);
 
 const BASE_URL =
   process.env.TEST_API_URL ||

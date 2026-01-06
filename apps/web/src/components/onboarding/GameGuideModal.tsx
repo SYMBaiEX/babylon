@@ -5,7 +5,8 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 
-const SLIDES = [
+/** Exported for testing. The 5 slides of the game onboarding guide. */
+export const GAME_GUIDE_SLIDES = [
   {
     title: 'Welcome to Babylon',
     points: [
@@ -72,9 +73,9 @@ export function GameGuideModal({ isOpen, onComplete }: GameGuideModalProps) {
   const [direction, setDirection] = useState(0);
 
   const isFirstSlide = currentSlide === 0;
-  const isLastSlide = currentSlide === SLIDES.length - 1;
-  // Safe: currentSlide is always within bounds (0 to SLIDES.length-1)
-  const slide = SLIDES[currentSlide]!;
+  const isLastSlide = currentSlide === GAME_GUIDE_SLIDES.length - 1;
+  // Safe: currentSlide is always within bounds (0 to GAME_GUIDE_SLIDES.length-1)
+  const slide = GAME_GUIDE_SLIDES[currentSlide]!;
 
   const goToNextSlide = useCallback(() => {
     if (isLastSlide) {
@@ -187,7 +188,7 @@ export function GameGuideModal({ isOpen, onComplete }: GameGuideModalProps) {
           <div className="border-border border-t p-6">
             {/* Progress */}
             <div className="mb-6 flex justify-center gap-2">
-              {SLIDES.map((_, i) => (
+              {GAME_GUIDE_SLIDES.map((_, i) => (
                 <div
                   key={i}
                   className={cn(
@@ -220,7 +221,7 @@ export function GameGuideModal({ isOpen, onComplete }: GameGuideModalProps) {
               </button>
 
               <p className="text-muted-foreground text-sm">
-                {currentSlide + 1} / {SLIDES.length}
+                {currentSlide + 1} / {GAME_GUIDE_SLIDES.length}
               </p>
 
               <button

@@ -10,6 +10,7 @@ import {
   useRef,
   useState,
 } from 'react';
+import { toast } from 'sonner';
 import { GameGuideModal } from '@/components/onboarding/GameGuideModal';
 import { useAuth } from '@/hooks/useAuth';
 import { useAuthStore } from '@/stores/authStore';
@@ -98,11 +99,13 @@ export function GameGuideProvider({ children }: { children: React.ReactNode }) {
         'GameGuideProvider'
       );
     } else {
+      // Log error and notify user - they can continue but guide may show again next session
       logger.error(
         'Failed to save game guide completion',
         { userId: user.id, status: res.status },
         'GameGuideProvider'
       );
+      toast.error('Failed to save progress. The guide may appear again later.');
     }
   }, [user, setUser]);
 
