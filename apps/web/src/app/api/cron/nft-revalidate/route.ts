@@ -27,6 +27,7 @@ import {
   db,
   eq,
   inArray,
+  sql,
   users,
 } from '@babylon/db';
 import { logger } from '@babylon/shared';
@@ -64,7 +65,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   logger.info('Starting NFT revalidation cron job', {}, 'nft-revalidate');
 
   try {
-    // Get all NFT-gated chats (ordered by createdAt for deterministic round-robin processing)
+    // Get NFT-gated chats ordered by lastNftRevalidatedAt for true round-robin processing.
+    // NULLS FIRST ensures newly created chats (never revalidated) are processed first.
+    // Falls back to createdAt for deterministic ordering when timestamps are equal.
     const nftGatedChats = await db
       .select({
         id: chats.id,
@@ -75,7 +78,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       })
       .from(chats)
       .where(eq(chats.nftGated, true))
-      .orderBy(asc(chats.createdAt))
+      .orderBy(
+        sql`${chats.lastNftRevalidatedAt} ASC NULLS FIRST`,
+        asc(chats.createdAt)
+      )
       .limit(MAX_CHATS_PER_RUN);
 
     if (nftGatedChats.length === 0) {
@@ -116,6 +122,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           chat.requiredNftTokenId,
           chat.requiredNftChainId
         );
+
+        // Update lastNftRevalidatedAt to mark this chat as recently processed
+        // This ensures round-robin processing across all NFT-gated chats
+        await db
+          .update(chats)
+          .set({ lastNftRevalidatedAt: new Date() })
+          .where(eq(chats.id, chat.id));
 
         results.chatsProcessed++;
         results.usersChecked += chatResult.checked;

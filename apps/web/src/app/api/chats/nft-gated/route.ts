@@ -108,13 +108,14 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     });
   }
 
-  // Get user's current memberships
+  // Get user's current active memberships
   const userMemberships = await db
     .select({ chatId: chatParticipants.chatId })
     .from(chatParticipants)
     .where(
       and(
         eq(chatParticipants.userId, user.userId),
+        eq(chatParticipants.isActive, true),
         inArray(
           chatParticipants.chatId,
           nftGatedChats.map((c) => c.id)

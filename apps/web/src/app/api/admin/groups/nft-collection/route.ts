@@ -132,8 +132,10 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   });
 
   const result = await asSystem(async (database) => {
-    const groupId = await generateSnowflakeId();
-    const chatId = await generateSnowflakeId();
+    const [groupId, chatId] = await Promise.all([
+      generateSnowflakeId(),
+      generateSnowflakeId(),
+    ]);
     const now = new Date();
 
     // Create the group
@@ -164,25 +166,31 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       updatedAt: now,
     });
 
-    // Add admin as owner of the group
-    await database.insert(groupMembers).values({
-      id: await generateSnowflakeId(),
-      groupId,
-      userId: admin.userId,
-      role: 'owner',
-      addedBy: admin.userId,
-      joinedAt: now,
-      isActive: true,
-    });
+    // Generate IDs upfront for parallel inserts
+    const [memberId, participantId] = await Promise.all([
+      generateSnowflakeId(),
+      generateSnowflakeId(),
+    ]);
 
-    // Add admin to chat participants
-    await database.insert(chatParticipants).values({
-      id: await generateSnowflakeId(),
-      chatId,
-      userId: admin.userId,
-      joinedAt: now,
-      isActive: true,
-    });
+    // Add admin as owner of the group and chat participant in parallel
+    await Promise.all([
+      database.insert(groupMembers).values({
+        id: memberId,
+        groupId,
+        userId: admin.userId,
+        role: 'owner',
+        addedBy: admin.userId,
+        joinedAt: now,
+        isActive: true,
+      }),
+      database.insert(chatParticipants).values({
+        id: participantId,
+        chatId,
+        userId: admin.userId,
+        joinedAt: now,
+        isActive: true,
+      }),
+    ]);
 
     return { groupId, chatId };
   }, 'admin-create-nft-group');

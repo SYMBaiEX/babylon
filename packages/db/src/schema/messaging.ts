@@ -33,6 +33,7 @@ export const chats = pgTable(
     requiredNftTokenId: integer('requiredNftTokenId'),
     requiredNftChainId: integer('requiredNftChainId'),
     nftGated: boolean('nftGated').notNull().default(false),
+    lastNftRevalidatedAt: timestamp('lastNftRevalidatedAt', { mode: 'date' }),
   },
   (table) => [
     index('Chat_gameId_dayNumber_idx').on(table.gameId, table.dayNumber),
