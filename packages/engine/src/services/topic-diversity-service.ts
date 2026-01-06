@@ -107,6 +107,19 @@ interface DiversityConfig {
   eventExpiryHours: number;
 }
 
+/**
+ * Time window (in minutes) to limit burst posts about the same event.
+ * If an event received more than BURST_LIMIT_POST_COUNT posts within this window,
+ * skip further posts to prevent content flooding.
+ */
+const RECENT_COVERAGE_WINDOW_MINUTES = 30;
+
+/**
+ * Maximum posts allowed within the recent coverage window (burst protection).
+ * This is separate from maxPostsPerEvent - it prevents rapid-fire posts.
+ */
+const BURST_LIMIT_POST_COUNT = 2;
+
 const DEFAULT_CONFIG: DiversityConfig = {
   maxTopicSaturation: 0.3, // No topic should be >30% of recent coverage
   cooldownHours: 4, // 4 hours between heavy coverage of same topic
@@ -417,10 +430,16 @@ export class TopicDiversityService {
       return true;
     }
 
-    // Also check if there's been very recent coverage (within 30 minutes)
-    const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
-    if (coverage.lastCoveredAt > thirtyMinutesAgo && coverage.postCount >= 2) {
-      // Allow max 2 posts within 30 minutes
+    // Also check if there's been very recent coverage (within the recency window)
+    // This is burst protection: even if under maxPostsPerEvent, prevent rapid-fire posts
+    const recentCoverageThreshold = new Date(
+      Date.now() - RECENT_COVERAGE_WINDOW_MINUTES * 60 * 1000
+    );
+    if (
+      coverage.lastCoveredAt > recentCoverageThreshold &&
+      coverage.postCount >= BURST_LIMIT_POST_COUNT
+    ) {
+      // Burst protection: too many posts in short time window
       logger.debug(
         `Event recently covered, skipping: ${eventId}`,
         { lastCovered: coverage.lastCoveredAt.toISOString() },

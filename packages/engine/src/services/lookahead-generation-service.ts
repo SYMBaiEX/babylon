@@ -75,6 +75,7 @@ const DIVERSITY_QUOTA = 0.2; // 20% of posts should cover diverse topics
 const ORGANIC_POST_RATIO = 0.15; // 15% of posts should be organic (no topic)
 const RIVALRY_POST_RATIO = 0.1; // 10% of posts should be rivalry-driven
 const ACTOR_POST_RATIO = 0.95; // 95% of posts should be from actors (NPCs)
+const EVENT_GENERATION_PROBABILITY = 0.3; // 30% chance to generate events per tick
 
 /**
  * Check how far ahead content is generated
@@ -503,7 +504,7 @@ async function generateContentWindow(
   );
 
   // Generate events probabilistically using secure random
-  const shouldGenerateEvents = secureRandom() < 0.3;
+  const shouldGenerateEvents = secureRandom() < EVENT_GENERATION_PROBABILITY;
   if (shouldGenerateEvents && activeQuestions.length > 0) {
     // Generate events at random times within the window
     const randomOffset = secureRandom() * windowDuration;

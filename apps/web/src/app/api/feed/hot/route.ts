@@ -97,6 +97,7 @@ import {
   users,
 } from '@babylon/db';
 import { StaticDataRegistry } from '@babylon/engine';
+import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { z } from 'zod';
 
@@ -300,9 +301,15 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
             : new Date(post.timestamp);
 
         // Validate the date is valid before scoring
-        const validTimestamp = isNaN(timestampDate.getTime())
-          ? new Date() // Fallback to now for invalid dates
-          : timestampDate;
+        let validTimestamp = timestampDate;
+        if (isNaN(timestampDate.getTime())) {
+          logger.warn(
+            `Invalid timestamp for post ${post.id}, falling back to current time`,
+            { postId: post.id, originalTimestamp: post.timestamp },
+            'HotPostsAPI'
+          );
+          validTimestamp = new Date();
+        }
 
         // Convert and validate createdAt similarly
         const createdAtDate =
@@ -310,9 +317,15 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
             ? post.createdAt
             : new Date(post.createdAt);
 
-        const validCreatedAt = isNaN(createdAtDate.getTime())
-          ? new Date() // Fallback to now for invalid dates
-          : createdAtDate;
+        let validCreatedAt = createdAtDate;
+        if (isNaN(createdAtDate.getTime())) {
+          logger.warn(
+            `Invalid createdAt for post ${post.id}, falling back to current time`,
+            { postId: post.id, originalCreatedAt: post.createdAt },
+            'HotPostsAPI'
+          );
+          validCreatedAt = new Date();
+        }
 
         const hotScore = calculateHotScore(
           likeCount,
