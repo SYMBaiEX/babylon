@@ -277,17 +277,25 @@ export const POST = withErrorHandling(
       }
     });
 
-    // Send appropriate notification
+    // Send appropriate notification (don't fail request if notification fails)
     if (result.added) {
       // Agent/NPC was directly added
-      await notifyGroupMemberAdded(
-        data.userId,
-        user.userId,
-        groupId,
-        groupName,
-        chatId || undefined,
-        result.adderName
-      );
+      try {
+        await notifyGroupMemberAdded(
+          data.userId,
+          user.userId,
+          groupId,
+          groupName,
+          chatId || undefined,
+          result.adderName
+        );
+      } catch (notifyError) {
+        logger.error(
+          'Failed to send group member added notification',
+          { userId: data.userId, groupId, error: notifyError },
+          'POST /api/groups/:groupId/members'
+        );
+      }
 
       logger.info(
         'Agent/NPC added to group',
@@ -298,14 +306,22 @@ export const POST = withErrorHandling(
       return successResponse({ success: true, added: true, invited: false });
     } else {
       // Human was invited
-      await notifyUserGroupInvite(
-        data.userId,
-        user.userId,
-        groupId,
-        groupName,
-        result.inviteId || undefined,
-        result.adderName // Pass pre-fetched name to avoid N+1
-      );
+      try {
+        await notifyUserGroupInvite(
+          data.userId,
+          user.userId,
+          groupId,
+          groupName,
+          result.inviteId || undefined,
+          result.adderName // Pass pre-fetched name to avoid N+1
+        );
+      } catch (notifyError) {
+        logger.error(
+          'Failed to send group invite notification',
+          { userId: data.userId, groupId, error: notifyError },
+          'POST /api/groups/:groupId/members'
+        );
+      }
 
       logger.info(
         'User invited to group',

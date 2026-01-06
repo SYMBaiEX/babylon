@@ -98,6 +98,12 @@ import {
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 
+/** Maximum number of search results to return */
+const AGENT_SEARCH_LIMIT = 20;
+
+/** Maximum length for search query input */
+const MAX_QUERY_LENGTH = 100;
+
 /**
  * GET /api/agents/search
  * Search for agents and NPCs by username or display name
@@ -113,7 +119,8 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     return successResponse({ agents: [] });
   }
 
-  const searchTerm = query.trim().toLowerCase();
+  // Cap query length to prevent abuse
+  const searchTerm = query.trim().toLowerCase().slice(0, MAX_QUERY_LENGTH);
 
   // Get blocked/muted users to exclude from search
   const [blockedIds, mutedIds, blockedByIds] = await Promise.all([
@@ -172,7 +179,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         isAgent: true,
         isActor: true,
       },
-      take: 20, // Limit results
+      take: AGENT_SEARCH_LIMIT,
       orderBy: [
         {
           username: 'asc',

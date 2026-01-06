@@ -1,6 +1,6 @@
 'use client';
 
-import { cn, getCurrentChainId, GROUP_CONFIG } from '@babylon/shared';
+import { cn, GROUP_CONFIG, getCurrentChainId } from '@babylon/shared';
 import { usePrivy } from '@privy-io/react-auth';
 import {
   Bot,
