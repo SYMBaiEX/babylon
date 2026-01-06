@@ -135,7 +135,7 @@ export function InlineComposer({
         toast.error(errorMessage);
       }
     } catch (err) {
-      logger.error('Error creating post:', err, 'InlineComposer');
+      logger.error('Error creating post:', { error: err }, 'InlineComposer');
       toast.error('Network error. Please check your connection and try again.');
     } finally {
       setIsSubmitting(false);

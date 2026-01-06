@@ -60,8 +60,15 @@ export const PERP_MARKET_CONFIG = {
 
 /**
  * Type for the perp market configuration.
+ * Uses non-literal types to allow custom configurations in tests.
  */
-export type PerpMarketConfig = typeof PERP_MARKET_CONFIG;
+export type PerpMarketConfig = {
+  SYNTHETIC_SUPPLY: number;
+  LIQUIDITY_FACTOR: number;
+  MAX_CHANGE_PER_TRADE: number;
+  PRICE_FLOOR_RATIO: number;
+  PRICE_CEILING_RATIO: number;
+};
 
 /**
  * Calculates the effective supply based on liquidity factor.
