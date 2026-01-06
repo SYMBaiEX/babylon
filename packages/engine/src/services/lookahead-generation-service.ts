@@ -916,6 +916,10 @@ async function generateContentWindow(
           },
           'LookaheadGeneration'
         );
+        // Rollback event tracking since we're not generating
+        if (eventKeywords.length > 0) {
+          diversityService.rollbackEventCoverage(eventKeywords);
+        }
         return 0;
       }
     }
@@ -950,6 +954,9 @@ async function generateContentWindow(
           },
           'LookaheadGeneration'
         );
+      } else if (eventKeywords.length > 0) {
+        // Rollback event tracking on generation failure
+        diversityService.rollbackEventCoverage(eventKeywords);
       }
       return success ? 1 : 0;
     }
@@ -963,6 +970,10 @@ async function generateContentWindow(
       );
       if (!isOnBeat && secureRandom() < 0.5) {
         // 50% chance to skip if org is off-beat for this diverse topic
+        // Rollback event tracking since we're not generating
+        if (eventKeywords.length > 0) {
+          diversityService.rollbackEventCoverage(eventKeywords);
+        }
         return 0;
       }
     }
@@ -1015,6 +1026,11 @@ async function generateContentWindow(
           'LookaheadGeneration'
         );
       }
+    }
+
+    // Rollback event tracking on generation failure
+    if (!success && eventKeywords.length > 0) {
+      diversityService.rollbackEventCoverage(eventKeywords);
     }
 
     return success ? 1 : 0;

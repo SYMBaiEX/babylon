@@ -111,6 +111,8 @@ const AGE_PENALTY_PER_HOUR = 0.5;
 const LIKE_WEIGHT = 1;
 const COMMENT_WEIGHT = 2;
 const SHARE_WEIGHT = 3;
+// Maximum candidates to fetch before scoring and filtering
+const MAX_CANDIDATE_POSTS = 500;
 
 /**
  * Calculate hot score for a post
@@ -153,10 +155,7 @@ function toISOStringSafe(date: Date | string | null | undefined): string {
     return date.toISOString();
   }
   if (typeof date === 'string') {
-    // Already valid ISO format
-    if (date.includes('T') && date.includes('Z')) {
-      return date;
-    }
+    // Always parse and validate string dates - don't trust format heuristics
     const parsed = new Date(date);
     if (!isNaN(parsed.getTime())) {
       return parsed.toISOString();
@@ -171,6 +170,27 @@ function toISOStringSafe(date: Date | string | null | undefined): string {
 }
 
 /**
+ * Validates a date value and returns a valid Date, falling back to current time if invalid.
+ * Logs a warning when fallback is used.
+ */
+function validateDateWithFallback(
+  rawValue: Date | string | null | undefined,
+  fieldName: string,
+  postId: string
+): Date {
+  const date = rawValue instanceof Date ? rawValue : new Date(rawValue ?? '');
+  if (isNaN(date.getTime())) {
+    logger.warn(
+      `Invalid ${fieldName} for post ${postId}, falling back to current time`,
+      { postId, [`original${fieldName.charAt(0).toUpperCase() + fieldName.slice(1)}`]: rawValue },
+      'HotPostsAPI'
+    );
+    return new Date();
+  }
+  return date;
+}
+
+/**
  * GET /api/feed/hot
  *
  * Returns the hottest posts from the last 24 hours, ranked by engagement score.
@@ -178,7 +198,10 @@ function toISOStringSafe(date: Date | string | null | undefined): string {
  */
 export const GET = withErrorHandling(async (request: NextRequest) => {
   // Optional auth for user-specific data (isLiked, isShared)
-  const user = await optionalAuth(request).catch(() => null);
+  const user = await optionalAuth(request).catch((err) => {
+    logger.debug('optionalAuth failed', { error: err }, 'HotPostsAPI');
+    return null;
+  });
 
   const { searchParams } = new URL(request.url);
   const params = QuerySchema.parse({
@@ -220,7 +243,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
           )
         )
         .orderBy(desc(posts.timestamp))
-        .limit(500); // Get more than needed to allow for scoring
+        .limit(MAX_CANDIDATE_POSTS); // Get more than needed to allow for scoring
 
       if (recentPosts.length === 0) {
         return {
@@ -294,38 +317,9 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         const commentCount = commentMap.get(post.id) ?? 0;
         const shareCount = shareMap.get(post.id) ?? 0;
 
-        // Convert timestamp to Date for calculateHotScore
-        const timestampDate =
-          post.timestamp instanceof Date
-            ? post.timestamp
-            : new Date(post.timestamp);
-
-        // Validate the date is valid before scoring
-        let validTimestamp = timestampDate;
-        if (isNaN(timestampDate.getTime())) {
-          logger.warn(
-            `Invalid timestamp for post ${post.id}, falling back to current time`,
-            { postId: post.id, originalTimestamp: post.timestamp },
-            'HotPostsAPI'
-          );
-          validTimestamp = new Date();
-        }
-
-        // Convert and validate createdAt similarly
-        const createdAtDate =
-          post.createdAt instanceof Date
-            ? post.createdAt
-            : new Date(post.createdAt);
-
-        let validCreatedAt = createdAtDate;
-        if (isNaN(createdAtDate.getTime())) {
-          logger.warn(
-            `Invalid createdAt for post ${post.id}, falling back to current time`,
-            { postId: post.id, originalCreatedAt: post.createdAt },
-            'HotPostsAPI'
-          );
-          validCreatedAt = new Date();
-        }
+        // Validate and convert dates for scoring
+        const validTimestamp = validateDateWithFallback(post.timestamp, 'timestamp', post.id);
+        const validCreatedAt = validateDateWithFallback(post.createdAt, 'createdAt', post.id);
 
         const hotScore = calculateHotScore(
           likeCount,
@@ -393,6 +387,9 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   );
 
   // If user is authenticated, add their like/share status
+  // NOTE: User-specific data (isLiked/isShared) bypasses cache on every authenticated request.
+  // For high-traffic scenarios, consider: per-user cache with shorter TTL, client-side
+  // optimistic updates, or bloom filter pre-filtering. Current approach is fine for moderate traffic.
   let postsWithUserStatus = result.posts;
 
   if (user?.userId && result.postIds.length > 0) {

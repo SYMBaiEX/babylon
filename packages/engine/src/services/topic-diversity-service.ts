@@ -406,6 +406,31 @@ export class TopicDiversityService {
   }
 
   /**
+   * Rollback event coverage tracking when post generation fails.
+   * Decrements the post count for the event to prevent artificial saturation.
+   *
+   * @param eventKeywords - Keywords that identify this specific event
+   */
+  rollbackEventCoverage(eventKeywords: string[]): void {
+    const eventId = this.generateEventId(eventKeywords);
+    const existing = this.eventCache.get(eventId);
+
+    if (existing && existing.postCount > 0) {
+      existing.postCount--;
+      logger.debug(
+        `Event coverage rolled back: ${eventId}`,
+        { newPostCount: existing.postCount },
+        'TopicDiversityService'
+      );
+
+      // Remove entry entirely if no posts remain
+      if (existing.postCount === 0) {
+        this.eventCache.delete(eventId);
+      }
+    }
+  }
+
+  /**
    * Check if an event has reached its coverage limit
    *
    * @param eventKeywords - Keywords that identify this specific event

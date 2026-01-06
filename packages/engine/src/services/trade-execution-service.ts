@@ -146,6 +146,11 @@ export class TradeExecutionService {
       executedTrades: [],
     };
 
+    // Compute strict mode once before the loop to avoid repeated env lookups
+    const isStrictMode =
+      process.env.STRICT_LLM_VALIDATION === 'true' ||
+      process.env.STRICT_LLM_VALIDATION === '1';
+
     for (const decision of decisions) {
       if (decision.action === 'hold') {
         result.holdDecisions++;
@@ -196,11 +201,6 @@ export class TradeExecutionService {
         );
 
         // Log loudly in development, throw in strict mode
-        // Set STRICT_LLM_VALIDATION=true to enable fail-fast mode
-        const isStrictMode =
-          process.env.STRICT_LLM_VALIDATION === 'true' ||
-          process.env.STRICT_LLM_VALIDATION === '1';
-
         if (process.env.NODE_ENV !== 'production' && !isExpectedFailure) {
           if (isStrictMode) {
             throw new Error(

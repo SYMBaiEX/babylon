@@ -66,6 +66,29 @@ interface InlineComposerProps {
 
 const MAX_LENGTH = 280;
 
+/**
+ * Type guard to validate post response has required fields.
+ */
+function isValidPostResponse(post: unknown): post is {
+  id: string;
+  content: string;
+  authorId: string;
+  authorName: string;
+  authorUsername?: string | null;
+  authorProfileImageUrl?: string | null;
+  timestamp: string;
+} {
+  if (!post || typeof post !== 'object') return false;
+  const p = post as Record<string, unknown>;
+  return (
+    typeof p.id === 'string' &&
+    typeof p.content === 'string' &&
+    typeof p.authorId === 'string' &&
+    typeof p.authorName === 'string' &&
+    typeof p.timestamp === 'string'
+  );
+}
+
 export function InlineComposer({
   onPostCreated,
   className,
@@ -124,8 +147,10 @@ export function InlineComposer({
           textareaRef.current.style.height = 'auto';
         }
 
-        if (data.post) {
+        if (isValidPostResponse(data.post)) {
           onPostCreated?.(data.post);
+        } else if (data.post) {
+          logger.error('Malformed post response from API', { post: data.post }, 'InlineComposer');
         }
       } else {
         const errorData = await response.json().catch(() => ({}));
@@ -193,6 +218,8 @@ export function InlineComposer({
             onFocus={() => setIsFocused(true)}
             onBlur={() => !content && setIsFocused(false)}
             placeholder="What's happening?"
+            aria-label="What's happening?"
+            aria-describedby="inline-composer-char-count"
             disabled={isSubmitting}
             rows={isFocused || content ? 3 : 1}
             className={cn(
@@ -210,6 +237,10 @@ export function InlineComposer({
               <div className="flex items-center gap-3">
                 {/* Character Counter */}
                 <span
+                  id="inline-composer-char-count"
+                  role="status"
+                  aria-live="polite"
+                  aria-label={`${charactersRemaining} characters remaining`}
                   className={cn(
                     'text-sm transition-colors',
                     isOverLimit
