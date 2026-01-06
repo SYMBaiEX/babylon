@@ -125,9 +125,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
         // Update lastNftRevalidatedAt to mark this chat as recently processed
         // This ensures round-robin processing across all NFT-gated chats
+        // Also update updatedAt for consistent audit/cache semantics
+        const now = new Date();
         await db
           .update(chats)
-          .set({ lastNftRevalidatedAt: new Date() })
+          .set({ lastNftRevalidatedAt: now, updatedAt: now })
           .where(eq(chats.id, chat.id));
 
         results.chatsProcessed++;

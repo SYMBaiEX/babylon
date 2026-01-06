@@ -21,6 +21,7 @@ import {
   withErrorHandling,
 } from '@babylon/api';
 import {
+  and,
   asSystem,
   chatParticipants,
   chats,
@@ -66,7 +67,7 @@ export const POST = withErrorHandling(
       throw new BusinessLogicError('Chat is not NFT-gated', 'NOT_NFT_GATED');
     }
 
-    // Get all participants with their wallet addresses
+    // Get all active participants with their wallet addresses
     const participants = await asSystem(async (database) => {
       const participantList = await database
         .select({
@@ -74,7 +75,12 @@ export const POST = withErrorHandling(
           userId: chatParticipants.userId,
         })
         .from(chatParticipants)
-        .where(eq(chatParticipants.chatId, chatId));
+        .where(
+          and(
+            eq(chatParticipants.chatId, chatId),
+            eq(chatParticipants.isActive, true)
+          )
+        );
 
       if (participantList.length === 0) return [];
 

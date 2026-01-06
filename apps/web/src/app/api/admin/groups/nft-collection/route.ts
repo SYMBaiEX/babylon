@@ -20,9 +20,9 @@ import {
 } from '@babylon/api';
 import {
   and,
-  asSystem,
   chatParticipants,
   chats,
+  db,
   eq,
   groupMembers,
   groups,
@@ -58,51 +58,49 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     metadata: { action: 'list_nft_gated_groups' },
   });
 
-  const nftGatedChats = await asSystem(async (database) => {
-    const chatsList = await database
+  const chatsList = await db
+    .select({
+      id: chats.id,
+      name: chats.name,
+      groupId: chats.groupId,
+      nftGated: chats.nftGated,
+      requiredNftContractAddress: chats.requiredNftContractAddress,
+      requiredNftTokenId: chats.requiredNftTokenId,
+      requiredNftChainId: chats.requiredNftChainId,
+      createdAt: chats.createdAt,
+      updatedAt: chats.updatedAt,
+    })
+    .from(chats)
+    .where(eq(chats.nftGated, true));
+
+  // Get member counts for all chats in a single query using GROUP BY
+  const chatIds = chatsList.map((c) => c.id);
+  const memberCountMap = new Map<string, number>();
+
+  if (chatIds.length > 0) {
+    const memberCountsResult = await db
       .select({
-        id: chats.id,
-        name: chats.name,
-        groupId: chats.groupId,
-        nftGated: chats.nftGated,
-        requiredNftContractAddress: chats.requiredNftContractAddress,
-        requiredNftTokenId: chats.requiredNftTokenId,
-        requiredNftChainId: chats.requiredNftChainId,
-        createdAt: chats.createdAt,
-        updatedAt: chats.updatedAt,
+        chatId: chatParticipants.chatId,
+        count: sql<number>`count(*)::int`,
       })
-      .from(chats)
-      .where(eq(chats.nftGated, true));
-
-    // Get member counts for all chats in a single query using GROUP BY
-    const chatIds = chatsList.map((c) => c.id);
-    const memberCountMap = new Map<string, number>();
-
-    if (chatIds.length > 0) {
-      const memberCountsResult = await database
-        .select({
-          chatId: chatParticipants.chatId,
-          count: sql<number>`count(*)::int`,
-        })
-        .from(chatParticipants)
-        .where(
-          and(
-            inArray(chatParticipants.chatId, chatIds),
-            eq(chatParticipants.isActive, true)
-          )
+      .from(chatParticipants)
+      .where(
+        and(
+          inArray(chatParticipants.chatId, chatIds),
+          eq(chatParticipants.isActive, true)
         )
-        .groupBy(chatParticipants.chatId);
+      )
+      .groupBy(chatParticipants.chatId);
 
-      for (const row of memberCountsResult) {
-        memberCountMap.set(row.chatId, row.count);
-      }
+    for (const row of memberCountsResult) {
+      memberCountMap.set(row.chatId, row.count);
     }
+  }
 
-    return chatsList.map((chat) => ({
-      ...chat,
-      memberCount: memberCountMap.get(chat.id) ?? 0,
-    }));
-  }, 'admin-nft-groups');
+  const nftGatedChats = chatsList.map((chat) => ({
+    ...chat,
+    memberCount: memberCountMap.get(chat.id) ?? 0,
+  }));
 
   return successResponse({
     groups: nftGatedChats,
@@ -131,15 +129,19 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     },
   });
 
-  const result = await asSystem(async (database) => {
-    const [groupId, chatId] = await Promise.all([
-      generateSnowflakeId(),
-      generateSnowflakeId(),
-    ]);
-    const now = new Date();
+  // Generate all IDs upfront before transaction
+  const [groupId, chatId, memberId, participantId] = await Promise.all([
+    generateSnowflakeId(),
+    generateSnowflakeId(),
+    generateSnowflakeId(),
+    generateSnowflakeId(),
+  ]);
+  const now = new Date();
 
+  // Use transaction to ensure atomicity - if any insert fails, all are rolled back
+  const result = await db.transaction(async (tx) => {
     // Create the group
-    await database.insert(groups).values({
+    await tx.insert(groups).values({
       id: groupId,
       name: data.name,
       description: data.description ?? null,
@@ -151,7 +153,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     });
 
     // Create the NFT-gated chat linked to the group
-    await database.insert(chats).values({
+    await tx.insert(chats).values({
       id: chatId,
       name: data.name,
       description: data.description ?? null,
@@ -166,15 +168,9 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       updatedAt: now,
     });
 
-    // Generate IDs upfront for parallel inserts
-    const [memberId, participantId] = await Promise.all([
-      generateSnowflakeId(),
-      generateSnowflakeId(),
-    ]);
-
     // Add admin as owner of the group and chat participant in parallel
     await Promise.all([
-      database.insert(groupMembers).values({
+      tx.insert(groupMembers).values({
         id: memberId,
         groupId,
         userId: admin.userId,
@@ -183,7 +179,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
         joinedAt: now,
         isActive: true,
       }),
-      database.insert(chatParticipants).values({
+      tx.insert(chatParticipants).values({
         id: participantId,
         chatId,
         userId: admin.userId,
@@ -193,7 +189,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     ]);
 
     return { groupId, chatId };
-  }, 'admin-create-nft-group');
+  });
 
   logger.info(
     'NFT-gated group created by admin',

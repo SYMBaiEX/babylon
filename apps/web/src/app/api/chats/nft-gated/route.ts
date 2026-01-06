@@ -29,10 +29,24 @@ import {
 } from '@babylon/db';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
+import { z } from 'zod';
 
 // Pagination constants
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 50;
+
+// Pagination schema with type coercion and validation
+// Uses preprocess to handle empty strings gracefully (treat as undefined)
+const PaginationSchema = z.object({
+  limit: z.preprocess(
+    (val) => (val === '' || val === null ? undefined : val),
+    z.coerce.number().int().positive().max(MAX_LIMIT).default(DEFAULT_LIMIT)
+  ),
+  offset: z.preprocess(
+    (val) => (val === '' || val === null ? undefined : val),
+    z.coerce.number().int().nonnegative().default(0)
+  ),
+});
 
 /**
  * GET /api/chats/nft-gated
@@ -41,28 +55,12 @@ const MAX_LIMIT = 50;
 export const GET = withErrorHandling(async (request: NextRequest) => {
   const user = await authenticate(request);
 
-  // Parse pagination parameters from query string
+  // Parse and validate pagination parameters using Zod
   const { searchParams } = new URL(request.url);
-  const limitParam = searchParams.get('limit');
-  const offsetParam = searchParams.get('offset');
-
-  // Validate and apply pagination with sensible defaults and hard max
-  let limit = DEFAULT_LIMIT;
-  let offset = 0;
-
-  if (limitParam) {
-    const parsedLimit = parseInt(limitParam, 10);
-    if (!isNaN(parsedLimit) && parsedLimit > 0) {
-      limit = Math.min(parsedLimit, MAX_LIMIT);
-    }
-  }
-
-  if (offsetParam) {
-    const parsedOffset = parseInt(offsetParam, 10);
-    if (!isNaN(parsedOffset) && parsedOffset >= 0) {
-      offset = parsedOffset;
-    }
-  }
+  const { limit, offset } = PaginationSchema.parse({
+    limit: searchParams.get('limit') ?? undefined,
+    offset: searchParams.get('offset') ?? undefined,
+  });
 
   // Get user's wallet address
   const [userData] = await db

@@ -52,13 +52,16 @@ export async function removeUserFromNftChat(
   }
 
   await db.transaction(async (tx) => {
-    // Remove from chat participants
+    // Soft delete from chat participants (set isActive: false)
+    // This allows reactivation if user re-acquires the NFT and rejoins
     await tx
-      .delete(chatParticipants)
+      .update(chatParticipants)
+      .set({ isActive: false })
       .where(
         and(
           eq(chatParticipants.chatId, chatId),
-          eq(chatParticipants.userId, userId)
+          eq(chatParticipants.userId, userId),
+          eq(chatParticipants.isActive, true)
         )
       );
 
