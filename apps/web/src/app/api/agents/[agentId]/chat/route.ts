@@ -13,7 +13,7 @@
 import { agentRuntimeManager, agentService } from '@babylon/agents';
 import { authenticateUser, withErrorHandling } from '@babylon/api';
 import { db, eq, userAgentConfigs } from '@babylon/db';
-import { checkUserInput, logger } from '@babylon/shared';
+import { checkUserInput, GROQ_MODELS, logger } from '@babylon/shared';
 import {
   type ActionResult,
   composePromptFromState,
@@ -237,7 +237,9 @@ export const POST = withErrorHandling(
 
     const pointsCost = usePro ? 1 : 0;
     const modelType = usePro ? ModelType.TEXT_LARGE : ModelType.TEXT_SMALL;
-    const modelUsed = usePro ? 'groq-70b' : 'groq-8b';
+    const modelUsed = usePro
+      ? GROQ_MODELS.PRO.displayName
+      : GROQ_MODELS.FREE.displayName;
 
     // Only deduct points for pro mode (from virtualBalance)
     let newBalance = Number(agentWithConfig.virtualBalance ?? 0);

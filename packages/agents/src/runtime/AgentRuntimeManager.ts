@@ -18,6 +18,7 @@ import {
   loadActorById,
   StaticDataRegistry,
 } from '@babylon/engine';
+import { GROQ_MODELS } from '@babylon/shared';
 import {
   AgentRuntime,
   type Character,
@@ -210,10 +211,8 @@ export class AgentRuntimeManager {
       settings: {
         // GROQ configuration (always available)
         GROQ_API_KEY: process.env.GROQ_API_KEY || '',
-        GROQ_LARGE_MODEL:
-          process.env.GROQ_LARGE_MODEL || 'llama-3.3-70b-versatile',
-        GROQ_SMALL_MODEL:
-          process.env.GROQ_SMALL_MODEL || 'llama-3.1-8b-instant',
+        GROQ_LARGE_MODEL: GROQ_MODELS.PRO.modelId,
+        GROQ_SMALL_MODEL: GROQ_MODELS.FREE.modelId,
         ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY || '',
       },
     };
@@ -629,8 +628,8 @@ export class AgentRuntimeManager {
       // GROQ configuration (always available)
       // Keys must match what groq.ts plugin looks up via runtime.getSetting()
       GROQ_API_KEY: process.env.GROQ_API_KEY || '',
-      GROQ_LARGE_MODEL: process.env.GROQ_LARGE_MODEL || 'qwen/qwen3-32b',
-      GROQ_SMALL_MODEL: process.env.GROQ_SMALL_MODEL || 'llama-3.1-8b-instant',
+      GROQ_LARGE_MODEL: GROQ_MODELS.PRO.modelId,
+      GROQ_SMALL_MODEL: GROQ_MODELS.FREE.modelId,
       ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY || '',
     };
   }
