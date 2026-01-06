@@ -295,7 +295,8 @@ export async function POST(_req: NextRequest) {
 
       // Check balance only if tick costs points
       const hasEnoughBalance =
-        tickPointsCost <= 0 || Number(user.virtualBalance ?? 0) >= tickPointsCost;
+        tickPointsCost <= 0 ||
+        Number(user.virtualBalance ?? 0) >= tickPointsCost;
 
       if (
         user.isAgent &&
