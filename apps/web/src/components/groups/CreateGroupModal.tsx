@@ -2,50 +2,56 @@
 
 import { cn, getCurrentChainId } from '@babylon/shared';
 import { usePrivy } from '@privy-io/react-auth';
-import { Check, Loader2, Search, Shield, Users, X } from 'lucide-react';
+import {
+  Bot,
+  Check,
+  Loader2,
+  Search,
+  Shield,
+  User,
+  Users,
+  X,
+} from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Avatar } from '@/components/shared/Avatar';
 import { useAuthStore } from '@/stores/authStore';
 
 /**
- * User structure for group creation modal.
+ * Member structure for group creation modal.
+ * Includes type to distinguish between humans, agents, and NPCs.
  */
-interface User {
+interface Member {
   id: string;
   displayName: string | null;
   username: string | null;
   profileImageUrl: string | null;
+  type: 'user' | 'agent' | 'npc';
 }
+
+type SearchTab = 'users' | 'agents';
+
+// Soft cap for member warning (no hard enforcement for MVP)
+const MEMBER_WARNING_THRESHOLD = 100;
 
 /**
  * Create group modal component for creating new user groups.
  *
  * Provides a form interface for creating groups with name input and
- * member selection. Includes user search functionality and automatic
- * group name generation from members. Creates both group and associated
- * chat on creation.
+ * member selection. Includes tabbed search for users and agents/NPCs.
+ * Creates both group and associated chat on creation.
  *
  * Features:
  * - Group name input
- * - User search
- * - Member selection
+ * - Tabbed search (Users / Agents & NPCs)
+ * - Member selection with type badges
  * - Auto-generated group names
  * - Form validation
  * - Loading states
  * - Error handling
- * - Body scroll lock and escape key handling
+ * - Member limit warning
  *
  * @param props - CreateGroupModal component props
  * @returns Create group modal element or null if not open
- *
- * @example
- * ```tsx
- * <CreateGroupModal
- *   isOpen={showModal}
- *   onClose={() => setShowModal(false)}
- *   onGroupCreated={(groupId, chatId) => router.push(`/groups/${groupId}`)}
- * />
- * ```
  */
 interface CreateGroupModalProps {
   isOpen: boolean;
@@ -62,11 +68,12 @@ export function CreateGroupModal({
   const { user } = useAuthStore();
   const [groupName, setGroupName] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<User[]>([]);
-  const [selectedUsers, setSelectedUsers] = useState<User[]>([]);
+  const [searchResults, setSearchResults] = useState<Member[]>([]);
+  const [selectedMembers, setSelectedMembers] = useState<Member[]>([]);
   const [searching, setSearching] = useState(false);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<SearchTab>('users');
   const [nftGated, setNftGated] = useState(false);
   const [nftContractAddress, setNftContractAddress] = useState('');
   const [nftTokenId, setNftTokenId] = useState<string>('');
@@ -78,8 +85,9 @@ export function CreateGroupModal({
       setGroupName('');
       setSearchQuery('');
       setSearchResults([]);
-      setSelectedUsers([]);
+      setSelectedMembers([]);
       setError(null);
+      setActiveTab('users');
       setNftGated(false);
       setNftContractAddress('');
       setNftTokenId('');
@@ -87,46 +95,106 @@ export function CreateGroupModal({
     }
   }, [isOpen]);
 
-  // Search for users
+  // Search for users or agents based on active tab
   useEffect(() => {
     if (!searchQuery.trim() || searchQuery.length < 2) {
       setSearchResults([]);
       return;
     }
 
-    const searchUsers = async () => {
+    const searchMembers = async () => {
       setSearching(true);
       const token = await getAccessToken();
-      const response = await fetch(
-        `/api/users/search?q=${encodeURIComponent(searchQuery)}`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
+
+      // Use different endpoint based on active tab
+      const endpoint =
+        activeTab === 'users'
+          ? `/api/users/search?q=${encodeURIComponent(searchQuery)}`
+          : `/api/agents/search?q=${encodeURIComponent(searchQuery)}`;
+
+      const response = await fetch(endpoint, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
 
       if (response.ok) {
         const data = await response.json();
-        setSearchResults(data.users || []);
+        const results: Member[] =
+          activeTab === 'users'
+            ? (data.users || []).map(
+                (u: {
+                  id: string;
+                  displayName: string | null;
+                  username: string | null;
+                  profileImageUrl: string | null;
+                }) => ({
+                  ...u,
+                  type: 'user' as const,
+                })
+              )
+            : (data.agents || []).map(
+                (a: {
+                  id: string;
+                  displayName: string | null;
+                  username: string | null;
+                  profileImageUrl: string | null;
+                  type: 'agent' | 'npc';
+                }) => ({
+                  id: a.id,
+                  displayName: a.displayName,
+                  username: a.username,
+                  profileImageUrl: a.profileImageUrl,
+                  type: a.type,
+                })
+              );
+        setSearchResults(results);
       }
       setSearching(false);
     };
 
-    const debounce = setTimeout(searchUsers, 300);
+    const debounce = setTimeout(searchMembers, 300);
     return () => clearTimeout(debounce);
-  }, [searchQuery, getAccessToken]);
+  }, [searchQuery, activeTab, getAccessToken]);
 
-  const handleAddUser = (user: User) => {
-    if (!selectedUsers.find((u) => u.id === user.id)) {
-      setSelectedUsers([...selectedUsers, user]);
+  // Clear search when switching tabs
+  const handleTabChange = (tab: SearchTab) => {
+    setActiveTab(tab);
+    setSearchQuery('');
+    setSearchResults([]);
+  };
+
+  const handleAddMember = (member: Member) => {
+    if (!selectedMembers.find((m) => m.id === member.id)) {
+      setSelectedMembers([...selectedMembers, member]);
     }
     setSearchQuery('');
     setSearchResults([]);
   };
 
-  const handleRemoveUser = (userId: string) => {
-    setSelectedUsers(selectedUsers.filter((u) => u.id !== userId));
+  const handleRemoveMember = (memberId: string) => {
+    setSelectedMembers(selectedMembers.filter((m) => m.id !== memberId));
+  };
+
+  const getMemberTypeBadge = (type: 'user' | 'agent' | 'npc') => {
+    switch (type) {
+      case 'agent':
+        return (
+          <span className="ml-1 inline-flex items-center rounded bg-blue-500/10 px-1.5 py-0.5 text-blue-600 text-xs dark:text-blue-400">
+            <Bot className="mr-0.5 h-3 w-3" />
+            Agent
+          </span>
+        );
+      case 'npc':
+        return (
+          <span className="ml-1 inline-flex items-center rounded bg-purple-500/10 px-1.5 py-0.5 text-purple-600 text-xs dark:text-purple-400">
+            <User className="mr-0.5 h-3 w-3" />
+            NPC
+          </span>
+        );
+      default:
+        return null;
+    }
   };
 
   const handleCreateGroup = async () => {
@@ -135,20 +203,20 @@ export function CreateGroupModal({
 
     if (!finalGroupName) {
       // Auto-generate from members
-      const memberNames = selectedUsers
+      const memberNames = selectedMembers
         .slice(0, 2)
-        .map((u) => u.displayName || u.username || 'User');
+        .map((m) => m.displayName || m.username || 'User');
       const currentUserName = user?.displayName || user?.username || 'You';
 
-      if (selectedUsers.length === 0) {
+      if (selectedMembers.length === 0) {
         setError('Please add at least one member or enter a group name');
         return;
-      } else if (selectedUsers.length === 1) {
+      } else if (selectedMembers.length === 1) {
         finalGroupName = `${currentUserName}, ${memberNames[0]}`;
-      } else if (selectedUsers.length === 2) {
+      } else if (selectedMembers.length === 2) {
         finalGroupName = `${currentUserName}, ${memberNames[0]}, ${memberNames[1]}`;
       } else {
-        finalGroupName = `${currentUserName}, ${memberNames[0]}, ${memberNames[1]} +${selectedUsers.length - 2}`;
+        finalGroupName = `${currentUserName}, ${memberNames[0]}, ${memberNames[1]} +${selectedMembers.length - 2}`;
       }
     }
 
@@ -164,7 +232,7 @@ export function CreateGroupModal({
     const token = await getAccessToken();
     const requestBody = {
       name: finalGroupName,
-      memberIds: selectedUsers.map((u) => u.id),
+      memberIds: selectedMembers.map((m) => m.id),
       ...(nftGated &&
         nftContractAddress.trim() && {
           requiredNftContractAddress: nftContractAddress.trim(),
@@ -186,8 +254,9 @@ export function CreateGroupModal({
 
     if (!response.ok) {
       const data = await response.json();
+      setError(data.error || 'Failed to create group');
       setCreating(false);
-      throw new Error(data.error || 'Failed to create group');
+      return;
     }
 
     const data = await response.json();
@@ -202,6 +271,8 @@ export function CreateGroupModal({
     onClose();
   };
 
+  const totalMemberCount = selectedMembers.length + 1; // +1 for creator
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
@@ -212,11 +283,11 @@ export function CreateGroupModal({
       }}
     >
       <div
-        className="w-full max-w-md rounded-xl border border-border bg-background shadow-2xl"
+        className="flex max-h-[90vh] w-full max-w-md flex-col rounded-xl border border-border bg-background shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between border-border border-b p-6">
+        <div className="flex shrink-0 items-center justify-between border-border border-b p-6">
           <div className="flex items-center gap-2">
             <Users className="h-5 w-5 text-primary" />
             <h2 className="font-bold text-xl">Create New Group</h2>
@@ -231,7 +302,7 @@ export function CreateGroupModal({
         </div>
 
         {/* Content */}
-        <div className="p-6">
+        <div className="flex-1 overflow-y-auto p-6">
           {error && (
             <div className="mb-4 rounded-lg border border-red-500/20 bg-red-500/10 p-3">
               <p className="text-red-500 text-sm">{error}</p>
@@ -264,28 +335,36 @@ export function CreateGroupModal({
               )}
             </div>
 
-            {/* Selected Users */}
-            {selectedUsers.length > 0 && (
+            {/* Selected Members */}
+            {selectedMembers.length > 0 && (
               <div className="space-y-2">
-                <label className="block font-medium text-sm">
-                  Members ({selectedUsers.length})
-                </label>
-                <div className="flex flex-wrap gap-2 rounded-lg border border-border bg-sidebar p-3">
-                  {selectedUsers.map((user) => (
+                <div className="flex items-center justify-between">
+                  <label className="block font-medium text-sm">
+                    Members ({totalMemberCount})
+                  </label>
+                  {totalMemberCount > MEMBER_WARNING_THRESHOLD && (
+                    <span className="text-xs text-yellow-600 dark:text-yellow-500">
+                      Large group - performance may vary
+                    </span>
+                  )}
+                </div>
+                <div className="flex max-h-[120px] flex-wrap gap-2 overflow-y-auto rounded-lg border border-border bg-sidebar p-3">
+                  {selectedMembers.map((member) => (
                     <div
-                      key={user.id}
+                      key={member.id}
                       className="flex items-center gap-2 rounded-full border border-border bg-background px-3 py-1.5"
                     >
                       <Avatar
-                        imageUrl={user.profileImageUrl || undefined}
-                        name={user.username || user.displayName || '?'}
+                        imageUrl={member.profileImageUrl || undefined}
+                        name={member.username || member.displayName || '?'}
                         size="sm"
                       />
                       <span className="text-sm">
-                        {user.displayName || user.username || 'Unknown'}
+                        {member.displayName || member.username || 'Unknown'}
                       </span>
+                      {getMemberTypeBadge(member.type)}
                       <button
-                        onClick={() => handleRemoveUser(user.id)}
+                        onClick={() => handleRemoveMember(member.id)}
                         className="ml-1 text-muted-foreground hover:text-foreground"
                       >
                         <X className="h-3 w-3" />
@@ -296,16 +375,48 @@ export function CreateGroupModal({
               </div>
             )}
 
-            {/* User Search */}
+            {/* Search Tabs */}
             <div>
               <label className="mb-2 block font-medium text-sm">
                 Add Members
               </label>
+              <div className="mb-3 flex rounded-lg border border-border bg-sidebar p-1">
+                <button
+                  onClick={() => handleTabChange('users')}
+                  className={cn(
+                    'flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-2 text-sm transition-colors',
+                    activeTab === 'users'
+                      ? 'bg-background font-medium text-foreground shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground'
+                  )}
+                >
+                  <User className="h-4 w-4" />
+                  Users
+                </button>
+                <button
+                  onClick={() => handleTabChange('agents')}
+                  className={cn(
+                    'flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-2 text-sm transition-colors',
+                    activeTab === 'agents'
+                      ? 'bg-background font-medium text-foreground shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground'
+                  )}
+                >
+                  <Bot className="h-4 w-4" />
+                  Agents & NPCs
+                </button>
+              </div>
+
+              {/* Search Input */}
               <div className="relative">
                 <Search className="-translate-y-1/2 absolute top-1/2 left-3 h-4 w-4 text-muted-foreground" />
                 <input
                   type="text"
-                  placeholder="Search by username or name..."
+                  placeholder={
+                    activeTab === 'users'
+                      ? 'Search users by name...'
+                      : 'Search agents and NPCs...'
+                  }
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="w-full rounded-lg border border-border bg-sidebar py-3 pr-10 pl-9 transition-colors focus:border-primary focus:outline-none"
@@ -319,14 +430,14 @@ export function CreateGroupModal({
             {/* Search Results */}
             {searchResults.length > 0 && (
               <div className="max-h-[200px] overflow-hidden overflow-y-auto rounded-lg border border-border">
-                {searchResults.map((user) => {
-                  const isSelected = selectedUsers.find(
-                    (u) => u.id === user.id
+                {searchResults.map((member) => {
+                  const isSelected = selectedMembers.find(
+                    (m) => m.id === member.id
                   );
                   return (
                     <button
-                      key={user.id}
-                      onClick={() => !isSelected && handleAddUser(user)}
+                      key={member.id}
+                      onClick={() => !isSelected && handleAddMember(member)}
                       className={cn(
                         'flex w-full items-center gap-3 p-3 text-left transition-colors',
                         isSelected
@@ -336,17 +447,18 @@ export function CreateGroupModal({
                       disabled={!!isSelected}
                     >
                       <Avatar
-                        imageUrl={user.profileImageUrl || undefined}
-                        name={user.username || user.displayName || '?'}
+                        imageUrl={member.profileImageUrl || undefined}
+                        name={member.username || member.displayName || '?'}
                         size="sm"
                       />
                       <div className="min-w-0 flex-1">
-                        <div className="truncate font-medium text-sm">
-                          {user.displayName || user.username || 'Unknown'}
+                        <div className="flex items-center truncate font-medium text-sm">
+                          {member.displayName || member.username || 'Unknown'}
+                          {getMemberTypeBadge(member.type)}
                         </div>
-                        {user.username && (
+                        {member.username && (
                           <div className="truncate text-muted-foreground text-xs">
-                            @{user.username}
+                            @{member.username}
                           </div>
                         )}
                       </div>
@@ -363,13 +475,17 @@ export function CreateGroupModal({
               searchResults.length === 0 &&
               !searching && (
                 <div className="py-4 text-center text-muted-foreground text-sm">
-                  No users found
+                  No {activeTab === 'users' ? 'users' : 'agents or NPCs'} found
                 </div>
               )}
 
-            {!searchQuery && selectedUsers.length === 0 && (
+            {!searchQuery && selectedMembers.length === 0 && (
               <div className="rounded-lg border border-border border-dashed bg-sidebar py-4 text-center text-muted-foreground text-sm">
-                <p>Search for users to add to your group</p>
+                <p>
+                  Search for{' '}
+                  {activeTab === 'users' ? 'users' : 'agents and NPCs'} to add
+                  to your group
+                </p>
                 <p className="mt-1 text-xs">
                   Group name will auto-generate if not specified
                 </p>
@@ -502,22 +618,22 @@ export function CreateGroupModal({
           </div>
 
           {/* Preview of auto-generated name */}
-          {!groupName && selectedUsers.length > 0 && (
+          {!groupName && selectedMembers.length > 0 && (
             <div className="mt-4 rounded-lg border border-blue-500/20 bg-blue-500/10 p-3">
               <p className="text-blue-700 text-xs dark:text-blue-300">
                 <strong>Auto-name preview:</strong> {(() => {
-                  const memberNames = selectedUsers
+                  const memberNames = selectedMembers
                     .slice(0, 2)
-                    .map((u) => u.displayName || u.username || 'User');
+                    .map((m) => m.displayName || m.username || 'User');
                   const currentUserName =
                     user?.displayName || user?.username || 'You';
 
-                  if (selectedUsers.length === 1) {
+                  if (selectedMembers.length === 1) {
                     return `${currentUserName}, ${memberNames[0]}`;
-                  } else if (selectedUsers.length === 2) {
+                  } else if (selectedMembers.length === 2) {
                     return `${currentUserName}, ${memberNames[0]}, ${memberNames[1]}`;
                   } else {
-                    return `${currentUserName}, ${memberNames[0]}, ${memberNames[1]} +${selectedUsers.length - 2}`;
+                    return `${currentUserName}, ${memberNames[0]}, ${memberNames[1]} +${selectedMembers.length - 2}`;
                   }
                 })()}
               </p>
@@ -535,7 +651,7 @@ export function CreateGroupModal({
             </button>
             <button
               onClick={handleCreateGroup}
-              disabled={creating || selectedUsers.length === 0}
+              disabled={creating || selectedMembers.length === 0}
               className={cn(
                 'flex-1 rounded-lg px-4 py-3 font-medium transition-colors',
                 'bg-primary text-primary-foreground hover:bg-primary/90',
@@ -548,7 +664,7 @@ export function CreateGroupModal({
                   Creating...
                 </>
               ) : (
-                `Create Group${selectedUsers.length > 0 ? ` (${selectedUsers.length + 1} members)` : ''}`
+                `Create Group (${totalMemberCount} members)`
               )}
             </button>
           </div>
