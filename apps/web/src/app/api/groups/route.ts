@@ -263,6 +263,8 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   const body = await request.json();
   const data = CreateGroupSchema.parse(body);
 
+  // Note: asUser wraps all operations in a database transaction,
+  // ensuring atomicity for group creation + member additions
   const result = await asUser(user, async (db) => {
     // Create the group
     const groupId = nanoid();

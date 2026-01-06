@@ -2,7 +2,16 @@
 
 import { cn, getCurrentChainId } from '@babylon/shared';
 import { usePrivy } from '@privy-io/react-auth';
-import { Bot, Check, Loader2, Search, Shield, User, Users, X } from 'lucide-react';
+import {
+  Bot,
+  Check,
+  Loader2,
+  Search,
+  Shield,
+  User,
+  Users,
+  X,
+} from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Avatar } from '@/components/shared/Avatar';
 import { useAuthStore } from '@/stores/authStore';
@@ -96,53 +105,56 @@ export function CreateGroupModal({
 
     const searchMembers = async () => {
       setSearching(true);
-      const token = await getAccessToken();
+      try {
+        const token = await getAccessToken();
 
-      // Use different endpoint based on active tab
-      const endpoint =
-        activeTab === 'users'
-          ? `/api/users/search?q=${encodeURIComponent(searchQuery)}`
-          : `/api/agents/search?q=${encodeURIComponent(searchQuery)}`;
-
-      const response = await fetch(endpoint, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        const results: Member[] =
+        // Use different endpoint based on active tab
+        const endpoint =
           activeTab === 'users'
-            ? (data.users || []).map(
-                (u: {
-                  id: string;
-                  displayName: string | null;
-                  username: string | null;
-                  profileImageUrl: string | null;
-                }) => ({
-                  ...u,
-                  type: 'user' as const,
-                })
-              )
-            : (data.agents || []).map(
-                (a: {
-                  id: string;
-                  displayName: string | null;
-                  username: string | null;
-                  profileImageUrl: string | null;
-                  type: 'agent' | 'npc';
-                }) => ({
-                  id: a.id,
-                  displayName: a.displayName,
-                  username: a.username,
-                  profileImageUrl: a.profileImageUrl,
-                  type: a.type,
-                })
-              );
-        setSearchResults(results);
+            ? `/api/users/search?q=${encodeURIComponent(searchQuery)}`
+            : `/api/agents/search?q=${encodeURIComponent(searchQuery)}`;
+
+        const response = await fetch(endpoint, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          const results: Member[] =
+            activeTab === 'users'
+              ? (data.users || []).map(
+                  (u: {
+                    id: string;
+                    displayName: string | null;
+                    username: string | null;
+                    profileImageUrl: string | null;
+                  }) => ({
+                    ...u,
+                    type: 'user' as const,
+                  })
+                )
+              : (data.agents || []).map(
+                  (a: {
+                    id: string;
+                    displayName: string | null;
+                    username: string | null;
+                    profileImageUrl: string | null;
+                    type: 'agent' | 'npc';
+                  }) => ({
+                    id: a.id,
+                    displayName: a.displayName,
+                    username: a.username,
+                    profileImageUrl: a.profileImageUrl,
+                    type: a.type,
+                  })
+                );
+          setSearchResults(results);
+        }
+      } finally {
+        setSearching(false);
       }
-      setSearching(false);
     };
 
     const debounce = setTimeout(searchMembers, 300);
@@ -167,7 +179,6 @@ export function CreateGroupModal({
   const handleRemoveMember = (memberId: string) => {
     setSelectedMembers(selectedMembers.filter((m) => m.id !== memberId));
   };
-
 
   const handleCreateGroup = async () => {
     // Generate group name if not provided

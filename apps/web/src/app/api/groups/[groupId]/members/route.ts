@@ -57,6 +57,8 @@ export const POST = withErrorHandling(
     let groupName = 'Unknown';
     let chatId: string | null = null;
 
+    // Note: asUser wraps all operations in a database transaction,
+    // ensuring atomicity for member addition + chat participant + notifications
     const result = await asUser(user, async (db) => {
       // Get group details first to check type
       const group = await db.group.findUnique({
@@ -135,7 +137,10 @@ export const POST = withErrorHandling(
       });
 
       if (existingInvite) {
-        throw new ApiError('User already has a pending invite to this group', 400);
+        throw new ApiError(
+          'User already has a pending invite to this group',
+          400
+        );
       }
 
       // Find the chat for this group

@@ -158,63 +158,66 @@ export function GroupManagementModal({
 
     const searchMembers = async () => {
       setSearching(true);
-      const token = await getAccessToken();
+      try {
+        const token = await getAccessToken();
 
-      // Use different endpoint based on active tab
-      const endpoint =
-        activeTab === 'users'
-          ? `/api/users/search?q=${encodeURIComponent(searchQuery)}`
-          : `/api/agents/search?q=${encodeURIComponent(searchQuery)}`;
-
-      const response = await fetch(endpoint, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        const existingMemberIds = groupDetails?.members.map((m) => m.id) || [];
-
-        const results: SearchResult[] =
+        // Use different endpoint based on active tab
+        const endpoint =
           activeTab === 'users'
-            ? (data.users || [])
-                .filter(
-                  (u: { id: string }) => !existingMemberIds.includes(u.id)
-                )
-                .map(
-                  (u: {
-                    id: string;
-                    displayName: string | null;
-                    username: string | null;
-                    profileImageUrl: string | null;
-                  }) => ({
-                    ...u,
-                    type: 'user' as const,
-                  })
-                )
-            : (data.agents || [])
-                .filter(
-                  (a: { id: string }) => !existingMemberIds.includes(a.id)
-                )
-                .map(
-                  (a: {
-                    id: string;
-                    displayName: string | null;
-                    username: string | null;
-                    profileImageUrl: string | null;
-                    type: 'agent' | 'npc';
-                  }) => ({
-                    id: a.id,
-                    displayName: a.displayName,
-                    username: a.username,
-                    profileImageUrl: a.profileImageUrl,
-                    type: a.type,
-                  })
-                );
-        setSearchResults(results);
+            ? `/api/users/search?q=${encodeURIComponent(searchQuery)}`
+            : `/api/agents/search?q=${encodeURIComponent(searchQuery)}`;
+
+        const response = await fetch(endpoint, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          const existingMemberIds = groupDetails?.members.map((m) => m.id) || [];
+
+          const results: SearchResult[] =
+            activeTab === 'users'
+              ? (data.users || [])
+                  .filter(
+                    (u: { id: string }) => !existingMemberIds.includes(u.id)
+                  )
+                  .map(
+                    (u: {
+                      id: string;
+                      displayName: string | null;
+                      username: string | null;
+                      profileImageUrl: string | null;
+                    }) => ({
+                      ...u,
+                      type: 'user' as const,
+                    })
+                  )
+              : (data.agents || [])
+                  .filter(
+                    (a: { id: string }) => !existingMemberIds.includes(a.id)
+                  )
+                  .map(
+                    (a: {
+                      id: string;
+                      displayName: string | null;
+                      username: string | null;
+                      profileImageUrl: string | null;
+                      type: 'agent' | 'npc';
+                    }) => ({
+                      id: a.id,
+                      displayName: a.displayName,
+                      username: a.username,
+                      profileImageUrl: a.profileImageUrl,
+                      type: a.type,
+                    })
+                  );
+          setSearchResults(results);
+        }
+      } finally {
+        setSearching(false);
       }
-      setSearching(false);
     };
 
     const debounce = setTimeout(searchMembers, 300);
@@ -227,7 +230,6 @@ export function GroupManagementModal({
     setSearchQuery('');
     setSearchResults([]);
   };
-
 
   const handleAddMember = async (userId: string) => {
     if (!groupId) return;
