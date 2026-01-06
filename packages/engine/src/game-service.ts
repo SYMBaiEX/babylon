@@ -10,6 +10,7 @@
  */
 
 import { db, eq, games, getDbInstance, markets } from '@babylon/db';
+import { logger } from '@babylon/shared';
 import { StaticDataRegistry } from './services/static-data-registry';
 import { getGameDayNumber } from './utils/date-utils';
 
@@ -123,7 +124,8 @@ class GameService {
 
   /**
    * Get the current game day from the active continuous game.
-   * Returns 0 if no game is running.
+   * Returns 1 if no game is running (Day 1 is the default).
+   * Uses startedAt as single source of truth for day calculation.
    */
   async getCurrentGameDay(): Promise<number> {
     const [game] = await db
@@ -135,12 +137,21 @@ class GameService {
       .where(eq(games.isContinuous, true))
       .limit(1);
 
-    // Fall back to calculating from startedAt if no game or no currentDay
-    if (!game?.startedAt) {
-      return game?.currentDay ?? 0;
+    if (!game) {
+      logger.warn('No continuous game found', {}, 'GameService');
+      return 1;
     }
 
-    // Always calculate fresh from startedAt for accuracy
+    if (!game.startedAt) {
+      logger.warn(
+        'Game startedAt is null - using stored currentDay',
+        { currentDay: game.currentDay },
+        'GameService'
+      );
+      return game.currentDay ?? 1;
+    }
+
+    // Calculate fresh from epoch (single source of truth)
     return getGameDayNumber(game.startedAt, new Date());
   }
 

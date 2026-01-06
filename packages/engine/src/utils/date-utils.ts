@@ -62,14 +62,19 @@ export function extractDayFromPost(post: {
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 /**
- * Compute a game-relative day number (0-indexed) from a game start time.
+ * Compute a game-relative day number (1-indexed) from a game start time.
+ * Day 1 = first 24 hours from startedAt
+ * Day 2 = hours 24-48, etc.
  *
  * @param startedAt - The continuous game's start timestamp
  * @param timestamp - The content/event timestamp
- * @returns 0-indexed day number since startedAt (can be negative if timestamp < startedAt)
+ * @returns 1-indexed day number since startedAt (Day 1 is first day)
  */
 export function getGameDayNumber(startedAt: Date, timestamp: Date): number {
-  return Math.floor((timestamp.getTime() - startedAt.getTime()) / MS_PER_DAY);
+  const daysElapsed = Math.floor(
+    (timestamp.getTime() - startedAt.getTime()) / MS_PER_DAY
+  );
+  return daysElapsed + 1; // 1-indexed: Day 1 is first day
 }
 
 /**

@@ -253,11 +253,21 @@ export async function executeGameTick(
 
   // Compute game-relative day numbers for new writes (forward-only)
   const [continuousGame] = await db
-    .select({ startedAt: games.startedAt })
+    .select({ startedAt: games.startedAt, id: games.id })
     .from(games)
     .where(eq(games.isContinuous, true))
     .limit(1);
   const gameStartedAt = continuousGame?.startedAt ?? null;
+
+  // Validate startedAt is set - critical for day calculation
+  if (!gameStartedAt) {
+    logger.error(
+      'Game startedAt is NULL - day calculation will fail. Game day will default to 1.',
+      { gameId: continuousGame?.id },
+      'GameTick'
+    );
+  }
+
   const dayNumberForTimestamp = (t: Date): number | undefined => {
     if (!gameStartedAt) return undefined;
     return toSafeDayNumber(getGameDayNumber(gameStartedAt, t));
@@ -955,6 +965,24 @@ export async function executeGameTick(
 
   // Calculate and update currentDay based on game start time
   const currentDay = dayNumberForTimestamp(timestamp);
+
+  // Log day calculation for diagnostics
+  logger.info(
+    'Game day calculation',
+    {
+      startedAt: gameStartedAt?.toISOString(),
+      currentTimestamp: timestamp.toISOString(),
+      calculatedDay: currentDay,
+      willSetTo: currentDay ?? 1,
+      hoursElapsed: gameStartedAt
+        ? Math.floor(
+            (timestamp.getTime() - gameStartedAt.getTime()) / (1000 * 60 * 60)
+          )
+        : null,
+    },
+    'GameTick'
+  );
+
   await db
     .update(games)
     .set({
