@@ -24,14 +24,14 @@ import {
   relayCronToStaging,
   verifyCronAuth,
 } from '@babylon/api';
-import { db, eq, games, posts } from '@babylon/db';
+import { db, eq, games, generateSnowflakeId, posts } from '@babylon/db';
 import {
+  BabylonLLMClient,
   getActiveEventsForPosting,
   StaticDataRegistry,
   worldFactsService,
 } from '@babylon/engine';
-import { BabylonLLMClient } from '@babylon/ai';
-import { logger, generateSnowflakeId } from '@babylon/shared';
+import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 
@@ -179,7 +179,11 @@ export async function POST(_req: NextRequest) {
   );
 
   if (allOrgs.length === 0) {
-    logger.warn('No media organizations found in registry', {}, 'OrganizationTick');
+    logger.warn(
+      'No media organizations found in registry',
+      {},
+      'OrganizationTick'
+    );
     return NextResponse.json({
       success: true,
       processed: 0,
@@ -239,25 +243,46 @@ export async function POST(_req: NextRequest) {
           : '';
 
       // Build prompt for organization post
-      const prompt = buildOrgPrompt(org, worldFactsContext, eventContext, isArticle);
+      const prompt = buildOrgPrompt(
+        org,
+        worldFactsContext,
+        eventContext,
+        isArticle
+      );
 
       // Generate content using LLM
-      const response = await llmClient.generateText({
+      const response = await llmClient.generateJSON<
+        { post: string } | { response: { post: string } }
+      >(
         prompt,
-        maxTokens: isArticle ? 800 : 280,
-        temperature: 0.8,
-      });
+        {
+          properties: { post: { type: 'string' } },
+          required: ['post'],
+        },
+        {
+          maxTokens: isArticle ? 800 : 280,
+          temperature: 0.8,
+        }
+      );
 
-      if (!response.text || response.text.trim().length === 0) {
+      // Extract post content from response (handle both formats)
+      const rawPost =
+        'response' in response && response.response?.post
+          ? response.response.post
+          : 'post' in response
+            ? response.post
+            : null;
+
+      if (!rawPost || rawPost.trim().length === 0) {
         throw new Error('Empty response from LLM');
       }
 
       // Parse response and create post
-      const content = response.text.trim();
+      const content = rawPost.trim();
       const now = new Date();
 
       // Create the post in database
-      const postId = generateSnowflakeId();
+      const postId = await generateSnowflakeId();
       await db.insert(posts).values({
         id: postId,
         content: isArticle ? content.substring(0, 500) : content,
