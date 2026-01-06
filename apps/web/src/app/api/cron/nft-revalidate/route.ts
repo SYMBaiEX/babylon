@@ -19,6 +19,7 @@ import {
   verifyCronAuth,
 } from '@babylon/api';
 import {
+  and,
   asc,
   asSystem,
   chatParticipants,
@@ -182,7 +183,12 @@ async function revalidateChatAccess(
         userId: chatParticipants.userId,
       })
       .from(chatParticipants)
-      .where(eq(chatParticipants.chatId, chatId))
+      .where(
+        and(
+          eq(chatParticipants.chatId, chatId),
+          eq(chatParticipants.isActive, true)
+        )
+      )
       .limit(MAX_USERS_PER_CHAT);
 
     if (participantList.length === 0) return [];

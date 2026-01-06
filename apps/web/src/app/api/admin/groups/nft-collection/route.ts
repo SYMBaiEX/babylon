@@ -19,6 +19,7 @@ import {
   withErrorHandling,
 } from '@babylon/api';
 import {
+  and,
   asSystem,
   chatParticipants,
   chats,
@@ -84,7 +85,12 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
           count: sql<number>`count(*)::int`,
         })
         .from(chatParticipants)
-        .where(inArray(chatParticipants.chatId, chatIds))
+        .where(
+          and(
+            inArray(chatParticipants.chatId, chatIds),
+            eq(chatParticipants.isActive, true)
+          )
+        )
         .groupBy(chatParticipants.chatId);
 
       for (const row of memberCountsResult) {
