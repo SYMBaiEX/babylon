@@ -2411,7 +2411,9 @@ async function updateMarketPricesFromTrades(
   const tradedTickers = new Set(
     executionResult.executedTrades
       .filter(
-        (t): t is (typeof executionResult.executedTrades)[number] & {
+        (
+          t
+        ): t is (typeof executionResult.executedTrades)[number] & {
           ticker: string;
         } => t.marketType === 'perp' && typeof t.ticker === 'string'
       )
@@ -2446,7 +2448,10 @@ async function updateMarketPricesFromTrades(
     })
     .from(perpPositions)
     .where(
-      and(inArray(perpPositions.ticker, tickers), isNull(perpPositions.closedAt))
+      and(
+        inArray(perpPositions.ticker, tickers),
+        isNull(perpPositions.closedAt)
+      )
     );
 
   const holdingsByTicker = new Map<string, number>();

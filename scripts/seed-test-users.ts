@@ -39,7 +39,9 @@ async function main(): Promise<void> {
     });
 
     if (existing) {
-      console.log(`  ⏭️  ${config.username} already exists (id: ${existing.id})`);
+      console.log(
+        `  ⏭️  ${config.username} already exists (id: ${existing.id})`
+      );
       continue;
     }
 
@@ -90,4 +92,3 @@ main()
     console.error('Error:', error);
     process.exit(1);
   });
-
