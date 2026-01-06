@@ -555,6 +555,48 @@ export async function notifyUserGroupInvite(
 }
 
 /**
+ * Create notification when a user is directly added to a group
+ * (without requiring invite acceptance)
+ */
+export async function notifyGroupMemberAdded(
+  userId: string,
+  addedById: string,
+  groupId: string,
+  groupName: string,
+  chatId?: string
+): Promise<void> {
+  // Don't notify if user added themselves
+  if (userId === addedById) {
+    return;
+  }
+
+  const result = await db
+    .select({
+      displayName: users.displayName,
+      username: users.username,
+    })
+    .from(users)
+    .where(eq(users.id, addedById))
+    .limit(1);
+
+  const adder = result[0];
+  const adderName = adder?.displayName || adder?.username || 'Someone';
+  const message = `${adderName} added you to ${groupName}`;
+
+  // Create notification with groupId and chatId for proper linking
+  await db.insert(notifications).values({
+    id: await generateSnowflakeId(),
+    userId,
+    type: 'group_invite', // Reuse type for notification grouping in UI
+    actorId: addedById,
+    title: 'Added to Group',
+    message,
+    groupId,
+    chatId,
+  });
+}
+
+/**
  * Create notification for new DM message
  */
 export async function notifyDMMessage(
