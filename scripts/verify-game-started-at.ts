@@ -28,7 +28,9 @@ async function verifyGameStartedAt() {
 
   if (!game) {
     console.error('❌ No continuous game found in database!');
-    console.log('   Run: POST /api/game/control with action: "start" to create one.');
+    console.log(
+      '   Run: POST /api/game/control with action: "start" to create one.'
+    );
     process.exit(1);
   }
 
@@ -43,10 +45,14 @@ async function verifyGameStartedAt() {
 
   if (!game.startedAt) {
     console.error('❌ CRITICAL: startedAt is NULL!');
-    console.log('   Game day calculation will always return undefined and default to 1.');
+    console.log(
+      '   Game day calculation will always return undefined and default to 1.'
+    );
     console.log('');
     console.log('   To fix, you can update the game with:');
-    console.log('   UPDATE "Game" SET "startedAt" = "createdAt" WHERE "isContinuous" = true;');
+    console.log(
+      '   UPDATE "Game" SET "startedAt" = "createdAt" WHERE "isContinuous" = true;'
+    );
     process.exit(1);
   }
 
@@ -60,14 +66,18 @@ async function verifyGameStartedAt() {
 
   console.log('Day Calculation:');
   console.log(`  Now: ${now.toISOString()}`);
-  console.log(`  Hours since start: ${((now.getTime() - game.startedAt.getTime()) / (1000 * 60 * 60)).toFixed(2)}`);
+  console.log(
+    `  Hours since start: ${((now.getTime() - game.startedAt.getTime()) / (1000 * 60 * 60)).toFixed(2)}`
+  );
   console.log(`  Days elapsed: ${daysElapsed}`);
   console.log(`  Expected Day (1-indexed): ${expectedDay}`);
   console.log(`  Stored Day: ${game.currentDay}`);
   console.log('');
 
   if (game.currentDay !== expectedDay) {
-    console.warn(`⚠️  Stored day (${game.currentDay}) differs from calculated day (${expectedDay})`);
+    console.warn(
+      `⚠️  Stored day (${game.currentDay}) differs from calculated day (${expectedDay})`
+    );
     console.log('   This will be corrected on the next game tick.');
   } else {
     console.log('✅ Game day tracking is correct!');
