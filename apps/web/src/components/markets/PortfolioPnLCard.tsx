@@ -1,3 +1,4 @@
+import { formatCurrency as formatCurrencyShared } from '@babylon/shared';
 import { Share2, Sparkles } from 'lucide-react';
 import type { PortfolioPnLSnapshot } from '@/hooks/usePortfolioPnL';
 
@@ -38,15 +39,6 @@ interface PortfolioPnLCardProps {
 }
 
 /**
- * Currency formatter for displaying monetary values.
- */
-const formatter = new Intl.NumberFormat('en-US', {
-  style: 'currency',
-  currency: 'USD',
-  maximumFractionDigits: 2,
-});
-
-/**
  * Format currency value safely.
  *
  * Formats a number as currency, defaulting to 0 if invalid.
@@ -57,7 +49,7 @@ const formatter = new Intl.NumberFormat('en-US', {
 function formatCurrency(value: number | null | undefined) {
   const safeValue =
     typeof value === 'number' && Number.isFinite(value) ? value : 0;
-  return formatter.format(safeValue);
+  return formatCurrencyShared(safeValue);
 }
 
 export function PortfolioPnLCard({

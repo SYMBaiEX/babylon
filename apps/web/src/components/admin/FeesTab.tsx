@@ -127,9 +127,9 @@ export function FeesTab() {
   }, [fetchStats]);
 
   const formatCurrency = (value: number) => {
-    if (value >= 1_000_000) return `$${(value / 1_000_000).toFixed(2)}M`;
-    if (value >= 1_000) return `$${(value / 1_000).toFixed(2)}K`;
-    return `$${value.toFixed(2)}`;
+    if (value >= 1_000_000) return `ƀ${(value / 1_000_000).toFixed(2)}M`;
+    if (value >= 1_000) return `ƀ${(value / 1_000).toFixed(2)}K`;
+    return `ƀ${value.toFixed(2)}`;
   };
 
   const formatNumber = (value: number) => {
@@ -284,7 +284,7 @@ export function FeesTab() {
             <YAxis
               stroke="#888"
               fontSize={12}
-              tickFormatter={(value) => `$${value}`}
+              tickFormatter={(value) => `ƀ${value}`}
             />
             <Tooltip
               contentStyle={{
@@ -293,7 +293,7 @@ export function FeesTab() {
               }}
               labelFormatter={(date) => new Date(date).toLocaleDateString()}
               formatter={(value: number | string) => [
-                `$${Number(value).toFixed(2)}`,
+                `ƀ${Number(value).toFixed(2)}`,
                 'Fees',
               ]}
             />

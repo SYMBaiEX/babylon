@@ -35,7 +35,7 @@ export function TopMoversPanel({ onMarketClick }: TopMoversPanelProps) {
   const { topGainers, topLosers, loading } = usePerpTopMovers(4);
   usePerpMarketsPolling(30000); // Enable 30s polling
 
-  const formatPrice = (p: number) => `$${p.toFixed(2)}`;
+  const formatPrice = (p: number) => `ƀ${p.toFixed(2)}`;
 
   return (
     <div className="flex flex-1 flex-col rounded-2xl bg-sidebar px-4 py-3">

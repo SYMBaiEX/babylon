@@ -117,13 +117,13 @@ describe('Format Utilities', () => {
 
   describe('formatCurrency', () => {
     it('should format with default 2 decimal places', () => {
-      expect(formatCurrency(123.456)).toBe('Ƀ123.46');
-      expect(formatCurrency(100)).toBe('Ƀ100.00');
+      expect(formatCurrency(123.456)).toBe('ƀ123.46');
+      expect(formatCurrency(100)).toBe('ƀ100.00');
     });
 
     it('should format with custom decimal places', () => {
-      expect(formatCurrency(123.456, 0)).toBe('Ƀ123');
-      expect(formatCurrency(123.456, 3)).toBe('Ƀ123.456');
+      expect(formatCurrency(123.456, 0)).toBe('ƀ123');
+      expect(formatCurrency(123.456, 3)).toBe('ƀ123.456');
     });
   });
 

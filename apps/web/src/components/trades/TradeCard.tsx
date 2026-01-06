@@ -184,10 +184,10 @@ export function TradeCard({ trade }: TradeCardProps) {
 
   const formatCurrency = (value: string | number) => {
     const num = typeof value === 'string' ? Number.parseFloat(value) : value;
-    if (isNaN(num)) return '$0.00';
-    if (num >= 1000000) return `$${(num / 1000000).toFixed(2)}M`;
-    if (num >= 1000) return `$${(num / 1000).toFixed(2)}K`;
-    return `$${num.toFixed(2)}`;
+    if (isNaN(num)) return 'ƀ0.00';
+    if (num >= 1000000) return `ƀ${(num / 1000000).toFixed(2)}M`;
+    if (num >= 1000) return `ƀ${(num / 1000).toFixed(2)}K`;
+    return `ƀ${num.toFixed(2)}`;
   };
 
   const handleProfileClick = (e: React.MouseEvent) => {

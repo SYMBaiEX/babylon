@@ -312,11 +312,11 @@ export function TradingProfile({
   }, [fetchTradingData]);
 
   const formatCurrency = (value: number) => {
-    if (!Number.isFinite(value)) return '$0.00';
+    if (!Number.isFinite(value)) return 'ƀ0.00';
     const abs = Math.abs(value);
-    if (abs >= 1000000) return `$${(value / 1000000).toFixed(2)}M`;
-    if (abs >= 1000) return `$${(value / 1000).toFixed(2)}K`;
-    return `$${value.toFixed(2)}`;
+    if (abs >= 1000000) return `ƀ${(value / 1000000).toFixed(2)}M`;
+    if (abs >= 1000) return `ƀ${(value / 1000).toFixed(2)}K`;
+    return `ƀ${value.toFixed(2)}`;
   };
 
   const calculateCurrentPrice = (market: PredictionPosition['Market']) => {

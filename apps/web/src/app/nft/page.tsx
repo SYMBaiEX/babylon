@@ -89,7 +89,8 @@ export default function NftGalleryPage() {
     if (nft.owner?.user?.id === user.id) return true;
     if (
       user.walletAddress &&
-      nft.owner?.walletAddress?.toLowerCase() === user.walletAddress.toLowerCase()
+      nft.owner?.walletAddress?.toLowerCase() ===
+        user.walletAddress.toLowerCase()
     )
       return true;
     return false;

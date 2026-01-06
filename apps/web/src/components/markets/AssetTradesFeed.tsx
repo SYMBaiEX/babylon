@@ -1,6 +1,6 @@
 'use client';
 
-import { cn, logger } from '@babylon/shared';
+import { cn, formatCurrency as formatCurrencyShared, logger } from '@babylon/shared';
 import {
   AlertCircle,
   ArrowUpDown,
@@ -347,12 +347,8 @@ export function AssetTradesFeed({
 
   const formatCurrency = (value: string | number) => {
     const num = typeof value === 'string' ? Number.parseFloat(value) : value;
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }).format(num);
+    if (isNaN(num)) return formatCurrencyShared(0);
+    return formatCurrencyShared(num);
   };
 
   const formatTime = (timestamp: string) => {

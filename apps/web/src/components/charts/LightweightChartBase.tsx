@@ -245,7 +245,7 @@ export function formatChartTime(timestamp: number): Time {
  * Format price for display.
  */
 export function formatChartPrice(value: number, includeSymbol = false): string {
-  const prefix = includeSymbol ? '$' : '';
+  const prefix = includeSymbol ? 'ƀ' : '';
 
   if (value === 0) return `${prefix}0`;
   if (value >= 1_000_000_000)

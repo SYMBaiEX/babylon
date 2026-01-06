@@ -48,14 +48,7 @@ interface CategoryPnLShareCardProps {
   className?: string;
 }
 
-/**
- * Currency formatter for displaying monetary values.
- */
-const formatter = new Intl.NumberFormat('en-US', {
-  style: 'currency',
-  currency: 'USD',
-  maximumFractionDigits: 2,
-});
+import { formatCurrency as formatCurrencyShared } from '@babylon/shared';
 
 /**
  * Format currency value safely.
@@ -66,7 +59,7 @@ const formatter = new Intl.NumberFormat('en-US', {
  * @returns Formatted currency string
  */
 function formatCurrency(value: number) {
-  return formatter.format(Number.isFinite(value) ? value : 0);
+  return formatCurrencyShared(Number.isFinite(value) ? value : 0);
 }
 
 /**

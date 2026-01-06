@@ -1,6 +1,6 @@
 'use client';
 
-import { calculateUnrealizedPnL, cn } from '@babylon/shared';
+import { BABYLON_POINTS_SYMBOL, calculateUnrealizedPnL, cn } from '@babylon/shared';
 import { AlertTriangle, TrendingDown, TrendingUp } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 import { toast } from 'sonner';
@@ -129,7 +129,7 @@ export function PerpPositionsList({
           : 0;
 
     toast.success('Position closed!', {
-      description: `${pendingClose.position.ticker}: ${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)} PnL`,
+      description: `${pendingClose.position.ticker}: ${pnl >= 0 ? '+' : ''}${BABYLON_POINTS_SYMBOL}${pnl.toFixed(2)} PnL`,
     });
 
     // Invalidate cache to ensure fresh data on next fetch

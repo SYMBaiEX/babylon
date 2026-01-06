@@ -143,7 +143,7 @@ export function PredictionPositionsList({
     }
   };
 
-  const formatPrice = (price: number) => `$${price.toFixed(3)}`;
+  const formatPrice = (price: number) => `ƀ${price.toFixed(3)}`;
 
   if (positions.length === 0) {
     return (

@@ -190,9 +190,9 @@ export function MarketOversightTab() {
   };
 
   const formatCurrency = (value: number) => {
-    if (value >= 1000000) return `$${(value / 1000000).toFixed(1)}M`;
-    if (value >= 1000) return `$${(value / 1000).toFixed(1)}K`;
-    return `$${value.toFixed(2)}`;
+    if (value >= 1000000) return `ƀ${(value / 1000000).toFixed(1)}M`;
+    if (value >= 1000) return `ƀ${(value / 1000).toFixed(1)}K`;
+    return `ƀ${value.toFixed(2)}`;
   };
 
   const getStatusBadge = (status: Market['status']) => {

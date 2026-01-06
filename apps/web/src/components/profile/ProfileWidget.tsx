@@ -176,7 +176,7 @@ export function ProfileWidget({ userId }: ProfileWidgetProps) {
   };
 
   const formatPrice = (price: number) => {
-    return `$${price.toFixed(2)}`;
+    return `ƀ${price.toFixed(2)}`;
   };
 
   // Calculate points in positions (total deposited minus available balance)

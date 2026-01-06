@@ -352,12 +352,12 @@ export const POST = withErrorHandling(
             await db
               .update(chatParticipants)
               .set({ isActive: false })
-                .where(
-                  and(
-                    eq(chatParticipants.chatId, chatId),
-                    eq(chatParticipants.userId, user.userId)
-                  )
-                );
+              .where(
+                and(
+                  eq(chatParticipants.chatId, chatId),
+                  eq(chatParticipants.userId, user.userId)
+                )
+              );
 
             // Invalidate NFT cache for this user/contract combination
             if (userData?.walletAddress && chat.requiredNftContractAddress) {

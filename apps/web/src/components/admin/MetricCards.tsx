@@ -49,9 +49,9 @@ function formatValue(
 
   switch (format) {
     case 'currency':
-      if (num >= 1_000_000) return `$${(num / 1_000_000).toFixed(2)}M`;
-      if (num >= 1_000) return `$${(num / 1_000).toFixed(2)}K`;
-      return `$${num.toFixed(2)}`;
+      if (num >= 1_000_000) return `ƀ${(num / 1_000_000).toFixed(2)}M`;
+      if (num >= 1_000) return `ƀ${(num / 1_000).toFixed(2)}K`;
+      return `ƀ${num.toFixed(2)}`;
     case 'percentage':
       return `${num.toFixed(1)}%`;
     case 'number':

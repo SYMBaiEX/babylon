@@ -258,9 +258,9 @@ export function TradingFeedTab() {
 
   const formatCurrency = (value: string | number) => {
     const num = typeof value === 'string' ? parseFloat(value) : value;
-    if (num >= 1000000) return `$${(num / 1000000).toFixed(2)}M`;
-    if (num >= 1000) return `$${(num / 1000).toFixed(2)}K`;
-    return `$${num.toFixed(2)}`;
+    if (num >= 1000000) return `ƀ${(num / 1000000).toFixed(2)}M`;
+    if (num >= 1000) return `ƀ${(num / 1000).toFixed(2)}K`;
+    return `ƀ${num.toFixed(2)}`;
   };
 
   const formatTime = (timestamp: Date | string) => {

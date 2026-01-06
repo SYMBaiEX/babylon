@@ -189,7 +189,7 @@ export function EscrowManagementTab() {
 
   const formatCurrency = (value: string | number) => {
     const num = typeof value === 'string' ? parseFloat(value) : value;
-    return `$${num.toFixed(2)}`;
+    return `ƀ${num.toFixed(2)}`;
   };
 
   const formatDate = (dateString: string) => {

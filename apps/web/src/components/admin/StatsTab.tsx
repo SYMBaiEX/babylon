@@ -245,9 +245,9 @@ export function StatsTab() {
 
   const formatCurrency = (value: string) => {
     const num = parseFloat(value);
-    if (num >= 1000000) return `$${(num / 1000000).toFixed(2)}M`;
-    if (num >= 1000) return `$${(num / 1000).toFixed(2)}K`;
-    return `$${num.toFixed(2)}`;
+    if (num >= 1000000) return `ƀ${(num / 1000000).toFixed(2)}M`;
+    if (num >= 1000) return `ƀ${(num / 1000).toFixed(2)}K`;
+    return `ƀ${num.toFixed(2)}`;
   };
 
   const formatNumber = (value: number) => {
