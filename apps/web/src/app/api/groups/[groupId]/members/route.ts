@@ -1,15 +1,18 @@
 /**
  * Group Members API
  *
- * @route POST /api/groups/[groupId]/members - Add member to group (sends invite)
+ * @route POST /api/groups/[groupId]/members - Add member to group directly
  * @route DELETE /api/groups/[groupId]/members - Remove member from group
  * @access Authenticated (admins can add/remove, members can self-remove)
+ *
+ * NOTE: For MVP, members are added directly without invite flow.
+ * NPC groups (type: 'npc') use the tiered system and cannot have members added via this API.
  */
 
 import {
   ApiError,
   authenticate,
-  notifyUserGroupInvite,
+  notifyGroupMemberAdded,
   successResponse,
   withErrorHandling,
 } from '@babylon/api';
@@ -30,7 +33,10 @@ const AddMemberSchema = z.object({
 
 /**
  * POST /api/groups/[groupId]/members
- * Add a member to the group via invite (admin only)
+ * Add a member to the group directly (admin only)
+ *
+ * For MVP: All members (human and agent) are added directly without invite flow.
+ * NPC groups use the tiered system and cannot be modified via this API.
  */
 export const POST = withErrorHandling(
   async (
@@ -43,10 +49,29 @@ export const POST = withErrorHandling(
     const data = AddMemberSchema.parse(body);
 
     let groupName = 'Unknown';
-    let inviteId = '';
-    let isAgent = false;
+    let chatId: string | null = null;
 
     await asUser(user, async (db) => {
+      // Get group details first to check type
+      const group = await db.group.findUnique({
+        where: { id: groupId },
+        select: { name: true, type: true },
+      });
+
+      if (!group) {
+        throw new ApiError('Group not found', 404);
+      }
+
+      groupName = group.name || 'Unknown';
+
+      // NPC groups use the tiered system, cannot add members directly
+      if (group.type === 'npc') {
+        throw new ApiError(
+          'Cannot directly add members to NPC groups. NPC groups use the tiered invitation system.',
+          403
+        );
+      }
+
       // Check if user is admin or owner
       const membership = await db.groupMember.findFirst({
         where: {
@@ -60,12 +85,19 @@ export const POST = withErrorHandling(
         throw new ApiError('Only group admins can add members', 403);
       }
 
-      // Check if invitee is an agent (auto-accept, agents can't manually accept invites)
-      const invitee = await db.user.findUnique({
+      // Verify the user to add exists and is not banned
+      const userToAdd = await db.user.findUnique({
         where: { id: data.userId },
-        select: { isAgent: true },
+        select: { id: true, isBanned: true, displayName: true, username: true },
       });
-      isAgent = invitee?.isAgent === true;
+
+      if (!userToAdd) {
+        throw new ApiError('User not found', 404);
+      }
+
+      if (userToAdd.isBanned) {
+        throw new ApiError('Cannot add banned users to groups', 400);
+      }
 
       // Check if user is already a member
       const existingMember = await db.groupMember.findFirst({
@@ -80,136 +112,103 @@ export const POST = withErrorHandling(
         throw new ApiError('User is already a member of this group', 400);
       }
 
-      // Get group details for notification
-      const group = await db.group.findUnique({
-        where: { id: groupId },
-        select: { name: true },
-      });
-      groupName = group?.name || 'Unknown';
-
       // Find the chat for this group
       const groupChat = await db.chat.findFirst({
         where: { groupId },
         select: { id: true },
       });
 
-      if (isAgent) {
-        // Agents are auto-accepted - add them directly using atomic upserts
-        const now = new Date();
+      chatId = groupChat?.id || null;
 
-        await db.transaction(async (tx) => {
-          // Upsert GroupMember - use raw SQL for partial index compatibility
-          const memberId = await generateSnowflakeId();
-          await tx.execute(sql`
-            INSERT INTO "GroupMember" (
-              "id", "groupId", "userId", "role", "addedBy", "joinedAt", "isActive",
-              "messageCount", "qualityScore"
-            ) VALUES (
-              ${memberId}, ${groupId}, ${data.userId}, 'member', ${user.userId}, ${now}, true,
-              0, 1.0
-            )
-            ON CONFLICT ("groupId", "userId") WHERE "isActive" = true
-            DO NOTHING
-          `);
+      // Add member directly using Drizzle upsert
+      const now = new Date();
+      const memberId = await generateSnowflakeId();
 
-          // Update any inactive records to active
-          await tx
-            .update(groupMembers)
-            .set({
-              isActive: true,
-              role: 'member',
-              addedBy: user.userId,
-              joinedAt: now,
-              kickedAt: null,
-              kickReason: null,
-            })
-            .where(
-              sql`${groupMembers.groupId} = ${groupId} AND ${groupMembers.userId} = ${data.userId} AND ${groupMembers.isActive} = false`
-            );
-
-          // Upsert ChatParticipant if chat exists
-          if (groupChat) {
-            const participantId = await generateSnowflakeId();
-            await tx
-              .insert(chatParticipants)
-              .values({
-                id: participantId,
-                chatId: groupChat.id,
-                userId: data.userId,
-                joinedAt: now,
-                isActive: true,
-              })
-              .onConflictDoUpdate({
-                target: [chatParticipants.chatId, chatParticipants.userId],
-                set: {
-                  isActive: true,
-                  joinedAt: now,
-                },
-              });
-          }
-        });
-      } else {
-        // Regular users get an invite
-
-        // Check if there's already an existing invite (unique constraint on groupId + invitedUserId)
-        const existingInvite = await db.groupInvite.findFirst({
-          where: {
-            groupId,
-            invitedUserId: data.userId,
+      await db
+        .insert(groupMembers)
+        .values({
+          id: memberId,
+          groupId,
+          userId: data.userId,
+          role: 'member',
+          addedBy: user.userId,
+          joinedAt: now,
+          isActive: true,
+          messageCount: 0,
+          qualityScore: 1.0,
+        })
+        .onConflictDoUpdate({
+          target: [groupMembers.groupId, groupMembers.userId],
+          set: {
+            isActive: true,
+            role: 'member',
+            addedBy: user.userId,
+            joinedAt: now,
+            kickedAt: sql`NULL`,
+            kickReason: sql`NULL`,
           },
         });
 
-        if (existingInvite) {
-          if (existingInvite.status === 'pending') {
-            throw new ApiError('User already has a pending invite', 400);
-          }
-          // For declined or accepted (user left) invites, reset to pending (re-invite flow)
-          await db.groupInvite.update({
-            where: { id: existingInvite.id },
-            data: {
-              status: 'pending',
-              invitedBy: user.userId,
-              invitedAt: new Date(),
-              respondedAt: null,
+      // Upsert ChatParticipant if chat exists
+      if (groupChat) {
+        const participantId = await generateSnowflakeId();
+        await db
+          .insert(chatParticipants)
+          .values({
+            id: participantId,
+            chatId: groupChat.id,
+            userId: data.userId,
+            joinedAt: now,
+            isActive: true,
+          })
+          .onConflictDoUpdate({
+            target: [chatParticipants.chatId, chatParticipants.userId],
+            set: {
+              isActive: true,
+              joinedAt: now,
             },
           });
-          inviteId = existingInvite.id;
-        }
+      }
 
-        // Create new invite only if no existing invite was found
-        if (!inviteId) {
-          inviteId = await generateSnowflakeId();
-          await db.groupInvite.create({
-            data: {
-              id: inviteId,
-              groupId,
-              invitedUserId: data.userId,
-              invitedBy: user.userId,
-              status: 'pending',
-            },
-          });
-        }
+      // Get adder's name for system message
+      const adder = await db.user.findUnique({
+        where: { id: user.userId },
+        select: { displayName: true, username: true },
+      });
+      const adderName = adder?.displayName || adder?.username || 'Someone';
+      const addedUserName =
+        userToAdd.displayName || userToAdd.username || 'Someone';
+
+      // Create system message announcing the new member
+      if (groupChat) {
+        await db.message.create({
+          data: {
+            id: await generateSnowflakeId(),
+            chatId: groupChat.id,
+            senderId: 'system',
+            content: `${adderName} added ${addedUserName} to the group`,
+            createdAt: now,
+          },
+        });
       }
     });
 
-    // Send notification to the invited user (only for non-agents)
-    if (!isAgent && inviteId) {
-      await notifyUserGroupInvite(
-        data.userId,
-        user.userId,
-        groupId,
-        groupName,
-        inviteId
-      );
-    }
+    // Send notification to the added user
+    await notifyGroupMemberAdded(
+      data.userId,
+      user.userId,
+      groupId,
+      groupName,
+      chatId || undefined
+    );
 
     logger.info(
-      'Member invited to group',
-      { userId: user.userId, groupId, invitedUserId: data.userId },
+      'Member added to group',
+      { userId: user.userId, groupId, addedUserId: data.userId },
       'POST /api/groups/:groupId/members'
     );
 
-    return successResponse({ success: true, inviteId });
+    return successResponse({ success: true, added: true });
   }
 );
 
@@ -283,7 +282,7 @@ export const DELETE = withErrorHandling(
         select: { id: true },
       });
 
-      // Remove from associated chat
+      // Remove from associated chat and add system message
       if (groupChat) {
         await db.chatParticipant.deleteMany({
           where: {
@@ -291,6 +290,44 @@ export const DELETE = withErrorHandling(
             userId: userIdToRemove,
           },
         });
+
+        // Get names for system message
+        const removedUser = await db.user.findUnique({
+          where: { id: userIdToRemove },
+          select: { displayName: true, username: true },
+        });
+        const removedName =
+          removedUser?.displayName || removedUser?.username || 'Someone';
+
+        if (isSelf) {
+          // User left on their own
+          await db.message.create({
+            data: {
+              id: await generateSnowflakeId(),
+              chatId: groupChat.id,
+              senderId: 'system',
+              content: `${removedName} left the group`,
+              createdAt: new Date(),
+            },
+          });
+        } else {
+          // User was removed by admin
+          const admin = await db.user.findUnique({
+            where: { id: user.userId },
+            select: { displayName: true, username: true },
+          });
+          const adminName = admin?.displayName || admin?.username || 'Someone';
+
+          await db.message.create({
+            data: {
+              id: await generateSnowflakeId(),
+              chatId: groupChat.id,
+              senderId: 'system',
+              content: `${adminName} removed ${removedName} from the group`,
+              createdAt: new Date(),
+            },
+          });
+        }
       }
     });
 

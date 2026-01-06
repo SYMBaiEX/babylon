@@ -316,8 +316,8 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
           role: 'member',
           addedBy: npcId,
           joinedAt: now,
-          kickedAt: null,
-          kickReason: null,
+          kickedAt: sql`NULL`,
+          kickReason: sql`NULL`,
         })
         .where(
           sql`${groupMembers.groupId} = ${deterministicGrpId} AND ${groupMembers.userId} = ${userId} AND ${groupMembers.isActive} = false`
