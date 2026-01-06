@@ -296,8 +296,7 @@ describe('extractEventKeywords', () => {
     });
 
     it('should extract from game tech news', () => {
-      const text =
-        'OpenAGI announces SMH-5 launch, MAIcrosoft stock up 10%';
+      const text = 'OpenAGI announces SMH-5 launch, MAIcrosoft stock up 10%';
       const keywords = extractEventKeywords(text);
 
       expect(keywords).toContain('openagi');

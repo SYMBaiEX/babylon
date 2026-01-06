@@ -233,7 +233,9 @@ export function FollowButton({
           )}
           aria-label="Loading follow status"
         >
-          <Skeleton className={cn(iconSizes[size], 'rounded-full opacity-40')} />
+          <Skeleton
+            className={cn(iconSizes[size], 'rounded-full opacity-40')}
+          />
         </div>
       );
     }

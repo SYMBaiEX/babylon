@@ -210,7 +210,10 @@ export function extractEntities(text: string): string[] {
     { pattern: /\bbloombairg\b/i, entity: 'bloombairg' },
     // Crypto (organization IDs)
     { pattern: /\bcoinbaise\b/i, entity: 'coinbaise' },
-    { pattern: /\bethereum[- ]?foundaition\b/i, entity: 'ethereum-foundaition' },
+    {
+      pattern: /\bethereum[- ]?foundaition\b/i,
+      entity: 'ethereum-foundaition',
+    },
     // Key People (actor IDs)
     { pattern: /\bailon\s*musk\b/i, entity: 'ailon-musk' },
     { pattern: /\bailon\b/i, entity: 'ailon-musk' },
