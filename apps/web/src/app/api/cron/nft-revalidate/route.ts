@@ -33,7 +33,11 @@ import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 
 // Maximum time for a single run (Vercel function timeout - 10s buffer)
-const MAX_RUN_TIME_MS = 50_000;
+// Configurable via environment variable for different deployment environments
+const MAX_RUN_TIME_MS = parseInt(
+  process.env.NFT_REVALIDATE_TIMEOUT_MS ?? '50000',
+  10
+);
 // Max users to check per chat per run (avoid overloading RPC)
 const MAX_USERS_PER_CHAT = 20;
 // Max chats to process per run
@@ -221,7 +225,16 @@ async function revalidateChatAccess(
     }
 
     try {
-      // Check NFT ownership (uses cache, so generally fast)
+      // Invalidate cache first to ensure fresh ownership check
+      // This prevents race conditions where stale cache data could be re-cached
+      // between checks by concurrent requests
+      await NFTVerificationService.invalidateOwnershipCache(
+        participant.walletAddress,
+        contractAddress,
+        chainId ?? undefined
+      );
+
+      // Check NFT ownership with fresh data
       const verification = await NFTVerificationService.verifyChatAccess(
         participant.walletAddress,
         contractAddress,
@@ -230,39 +243,23 @@ async function revalidateChatAccess(
       );
 
       if (!verification.canAccess) {
-        // Invalidate cache and recheck to be sure
-        await NFTVerificationService.invalidateOwnershipCache(
-          participant.walletAddress,
-          contractAddress,
-          chainId ?? undefined
+        await removeUserFromNftChat(
+          chatId,
+          groupId,
+          participant.userId,
+          verification.reason ?? 'No longer owns required NFT'
         );
+        results.removed++;
 
-        const freshCheck = await NFTVerificationService.verifyChatAccess(
-          participant.walletAddress,
-          contractAddress,
-          tokenId,
-          chainId ?? undefined
-        );
-
-        if (!freshCheck.canAccess) {
-          await removeUserFromNftChat(
+        logger.info(
+          'User removed from NFT-gated chat',
+          {
             chatId,
-            groupId,
-            participant.userId,
-            freshCheck.reason ?? 'No longer owns required NFT'
-          );
-          results.removed++;
-
-          logger.info(
-            'User removed from NFT-gated chat',
-            {
-              chatId,
-              userId: participant.userId,
-              reason: freshCheck.reason,
-            },
-            'nft-revalidate'
-          );
-        }
+            userId: participant.userId,
+            reason: verification.reason,
+          },
+          'nft-revalidate'
+        );
       }
     } catch (error) {
       // Log but don't fail the whole job for one user

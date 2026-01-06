@@ -24,6 +24,8 @@ import {
   db,
   eq,
   groupMembers,
+  isUniqueConstraintError,
+  toDatabaseErrorType,
   users,
 } from '@babylon/db';
 import { generateSnowflakeId, logger } from '@babylon/shared';
@@ -61,11 +63,12 @@ export const POST = withErrorHandling(
       );
     }
 
-    // Check if user is already a participant
+    // Check if user is already an active participant
     const existingParticipant = await db.query.chatParticipants.findFirst({
       where: and(
         eq(chatParticipants.chatId, chatId),
-        eq(chatParticipants.userId, user.userId)
+        eq(chatParticipants.userId, user.userId),
+        eq(chatParticipants.isActive, true)
       ),
     });
 
@@ -115,23 +118,42 @@ export const POST = withErrorHandling(
 
     // Add user to chat using transaction for atomicity
     const now = new Date();
-    const participantId = await generateSnowflakeId();
 
     try {
       await db.transaction(async (tx) => {
-        // Add to chat participants
-        await tx.insert(chatParticipants).values({
-          id: participantId,
-          chatId,
-          userId: user.userId,
-          joinedAt: now,
-          isActive: true,
+        // Check for existing inactive participant and reactivate
+        const inactiveParticipant = await tx.query.chatParticipants.findFirst({
+          where: and(
+            eq(chatParticipants.chatId, chatId),
+            eq(chatParticipants.userId, user.userId),
+            eq(chatParticipants.isActive, false)
+          ),
         });
+
+        if (inactiveParticipant) {
+          // Reactivate existing participant
+          await tx
+            .update(chatParticipants)
+            .set({
+              isActive: true,
+              joinedAt: now,
+            })
+            .where(eq(chatParticipants.id, inactiveParticipant.id));
+        } else {
+          // Create new participant
+          const participantId = await generateSnowflakeId();
+          await tx.insert(chatParticipants).values({
+            id: participantId,
+            chatId,
+            userId: user.userId,
+            joinedAt: now,
+            isActive: true,
+          });
+        }
 
         // If there's a linked group, add to group members
         if (chat.groupId) {
-          const memberId = await generateSnowflakeId();
-          // Check for existing inactive membership and reactivate
+          // Check for existing membership (active or inactive) and reactivate
           const existingMember = await tx.query.groupMembers.findFirst({
             where: and(
               eq(groupMembers.groupId, chat.groupId),
@@ -152,6 +174,7 @@ export const POST = withErrorHandling(
               .where(eq(groupMembers.id, existingMember.id));
           } else {
             // Create new membership
+            const memberId = await generateSnowflakeId();
             await tx.insert(groupMembers).values({
               id: memberId,
               groupId: chat.groupId,
@@ -166,10 +189,8 @@ export const POST = withErrorHandling(
       });
     } catch (error) {
       // Handle race condition - if user was already added by concurrent request
-      if (
-        error instanceof Error &&
-        error.message.includes('unique constraint')
-      ) {
+      // Check for PostgreSQL unique constraint violation (code 23505)
+      if (isUniqueConstraintError(toDatabaseErrorType(error))) {
         return successResponse({
           success: true,
           message: 'Already a member of this chat',

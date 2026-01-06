@@ -17,9 +17,11 @@ import {
 } from '@babylon/api';
 import {
   and,
+  asc,
   chatParticipants,
   chats,
   db,
+  desc,
   eq,
   inArray,
   sql,
@@ -28,12 +30,39 @@ import {
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 
+// Pagination constants
+const DEFAULT_LIMIT = 20;
+const MAX_LIMIT = 50;
+
 /**
  * GET /api/chats/nft-gated
  * List NFT-gated chats the user can potentially join
  */
 export const GET = withErrorHandling(async (request: NextRequest) => {
   const user = await authenticate(request);
+
+  // Parse pagination parameters from query string
+  const { searchParams } = new URL(request.url);
+  const limitParam = searchParams.get('limit');
+  const offsetParam = searchParams.get('offset');
+
+  // Validate and apply pagination with sensible defaults and hard max
+  let limit = DEFAULT_LIMIT;
+  let offset = 0;
+
+  if (limitParam) {
+    const parsedLimit = parseInt(limitParam, 10);
+    if (!isNaN(parsedLimit) && parsedLimit > 0) {
+      limit = Math.min(parsedLimit, MAX_LIMIT);
+    }
+  }
+
+  if (offsetParam) {
+    const parsedOffset = parseInt(offsetParam, 10);
+    if (!isNaN(parsedOffset) && parsedOffset >= 0) {
+      offset = parsedOffset;
+    }
+  }
 
   // Get user's wallet address
   const [userData] = await db
@@ -42,7 +71,14 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     .where(eq(users.id, user.userId))
     .limit(1);
 
-  // Get all NFT-gated chats
+  // Get total count of NFT-gated chats for pagination metadata
+  const [totalCountResult] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(chats)
+    .where(eq(chats.nftGated, true));
+  const totalCount = totalCountResult?.count ?? 0;
+
+  // Get paginated NFT-gated chats ordered by createdAt (newest first)
   const nftGatedChats = await db
     .select({
       id: chats.id,
@@ -54,12 +90,21 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       createdAt: chats.createdAt,
     })
     .from(chats)
-    .where(eq(chats.nftGated, true));
+    .where(eq(chats.nftGated, true))
+    .orderBy(desc(chats.createdAt), asc(chats.id))
+    .limit(limit)
+    .offset(offset);
 
   if (nftGatedChats.length === 0) {
     return successResponse({
       chats: [],
       hasWallet: !!userData?.walletAddress,
+      pagination: {
+        total: totalCount,
+        limit,
+        offset,
+        hasMore: false,
+      },
     });
   }
 
@@ -198,5 +243,11 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     chats: chatResults,
     hasWallet: !!userData?.walletAddress,
     walletAddress: userData?.walletAddress ?? null,
+    pagination: {
+      total: totalCount,
+      limit,
+      offset,
+      hasMore: offset + nftGatedChats.length < totalCount,
+    },
   });
 });

@@ -37,7 +37,8 @@ const CreateNftCollectionGroupSchema = z.object({
   description: z.string().max(500).optional(),
   contractAddress: z
     .string()
-    .regex(/^0x[a-fA-F0-9]{40}$/, 'Invalid contract address format'),
+    .regex(/^0x[a-fA-F0-9]{40}$/, 'Invalid contract address format')
+    .transform((addr) => addr.toLowerCase()),
   chainId: z.number().int().positive(),
   tokenId: z.number().int().min(0).nullable().optional(),
 });
@@ -150,7 +151,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       groupId,
       createdBy: admin.userId,
       nftGated: true,
-      requiredNftContractAddress: data.contractAddress.toLowerCase(),
+      requiredNftContractAddress: data.contractAddress,
       requiredNftTokenId: data.tokenId ?? null,
       requiredNftChainId: data.chainId,
       createdAt: now,
@@ -199,7 +200,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
         name: data.name,
         chatId: result.chatId,
         nftGated: true,
-        contractAddress: data.contractAddress.toLowerCase(),
+        contractAddress: data.contractAddress,
         tokenId: data.tokenId ?? null,
         chainId: data.chainId,
       },
