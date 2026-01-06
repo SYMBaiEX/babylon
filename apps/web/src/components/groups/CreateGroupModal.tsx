@@ -151,7 +151,12 @@ export function CreateGroupModal({
                   })
                 );
           setSearchResults(results);
+        } else {
+          setSearchResults([]);
         }
+      } catch (error) {
+        console.error('Member search failed:', error);
+        setSearchResults([]);
       } finally {
         setSearching(false);
       }

@@ -36,6 +36,8 @@ interface CreateNotificationParams {
   postId?: string;
   commentId?: string;
   chatId?: string; // For DM/chat message notifications
+  groupId?: string; // For group-related notifications
+  inviteId?: string; // For invite-related notifications
   title: string;
   message: string;
 }
@@ -155,6 +157,8 @@ export async function createNotification(
     postId: params.postId,
     commentId: params.commentId,
     chatId: params.chatId,
+    groupId: params.groupId,
+    inviteId: params.inviteId,
     title: params.title,
     message: params.message,
   });
@@ -516,6 +520,8 @@ export async function notifyGroupChatInvite(
 /**
  * Create notification for user group invite
  *
+ * Uses createNotification for proper safety checks (user existence, blocked users, deduplication).
+ *
  * @param inviterName - Optional pre-fetched inviter name to avoid N+1 queries when called in bulk
  */
 export async function notifyUserGroupInvite(
@@ -548,9 +554,8 @@ export async function notifyUserGroupInvite(
 
   const message = `${finalInviterName} invited you to join ${groupName}`;
 
-  // Create notification with groupId and inviteId for proper linking
-  await db.insert(notifications).values({
-    id: await generateSnowflakeId(),
+  // Use createNotification for proper safety checks (user existence, blocked users)
+  await createNotification({
     userId,
     type: 'group_invite',
     actorId: inviterId,
@@ -564,6 +569,8 @@ export async function notifyUserGroupInvite(
 /**
  * Create notification when a user is directly added to a group
  * (without requiring invite acceptance)
+ *
+ * Uses createNotification for proper safety checks (user existence, blocked users, deduplication).
  *
  * @param adderName - Optional pre-fetched adder name to avoid N+1 queries when called in bulk
  */
@@ -598,9 +605,8 @@ export async function notifyGroupMemberAdded(
 
   const message = `${resolvedAdderName} added you to ${groupName}`;
 
-  // Create notification with groupId and chatId for proper linking
-  await db.insert(notifications).values({
-    id: await generateSnowflakeId(),
+  // Use createNotification for proper safety checks (user existence, blocked users)
+  await createNotification({
     userId,
     type: 'group_invite', // Reuse type for notification grouping in UI
     actorId: addedById,

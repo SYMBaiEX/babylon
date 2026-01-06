@@ -3,6 +3,9 @@
 import { Bot, User } from 'lucide-react';
 
 export type MemberType = 'user' | 'agent' | 'npc';
+
+// Note: Canonical GroupType is defined in packages/db/src/schema/messaging.ts (groupTypeEnum)
+// This local definition mirrors it for client-side usage without bundling DB schema
 export type GroupType = 'user' | 'agent' | 'npc';
 
 /**

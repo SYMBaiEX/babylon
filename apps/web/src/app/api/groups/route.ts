@@ -416,11 +416,11 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
             // Create group invites for humans
             // Use onConflictDoUpdate to allow re-inviting users who previously declined
             for (const humanId of humanIds) {
-              const inviteId = await generateSnowflakeId();
-              await db
+              const newInviteId = await generateSnowflakeId();
+              const result = await db
                 .insert(groupInvites)
                 .values({
-                  id: inviteId,
+                  id: newInviteId,
                   groupId,
                   invitedUserId: humanId,
                   invitedBy: user.userId,
@@ -434,8 +434,12 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
                     status: 'pending',
                     invitedAt,
                   },
-                });
-              humanInviteNotifications.push({ humanId, inviteId });
+                })
+                .returning({ id: groupInvites.id });
+
+              // Use actual ID from DB (may be existing ID on conflict, or new ID on insert)
+              const actualInviteId = result[0]?.id ?? newInviteId;
+              humanInviteNotifications.push({ humanId, inviteId: actualInviteId });
               invitedMemberIds.push(humanId);
             }
             // Note: Human invite notifications are sent AFTER the transaction commits (see below)
