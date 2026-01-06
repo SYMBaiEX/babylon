@@ -41,17 +41,17 @@ export interface GroqModelConfig {
 export const GROQ_MODELS = {
   /** Free tier model - fast and efficient */
   FREE: {
-    displayName: 'Groq 8B',
-    modelId: 'llama-3.1-8b-instant',
+    displayName: 'GPT-OSS 20B',
+    modelId: 'openai/gpt-oss-20b',
     tier: 'free',
     description: 'Fast and efficient for everyday tasks',
   },
   /** Pro tier model - more capable */
   PRO: {
-    displayName: 'Groq 70B',
-    modelId: 'llama-3.3-70b-versatile',
+    displayName: 'Kimi K2',
+    modelId: 'moonshotai/kimi-k2-instruct',
     tier: 'pro',
-    description: 'More capable for complex reasoning',
+    description: 'Advanced reasoning and complex tasks',
   },
 } as const satisfies Record<string, GroqModelConfig>;
 
@@ -73,4 +73,3 @@ export type GroqModelTier = keyof typeof GROQ_MODELS;
 export function getGroqModelByTier(tier: 'free' | 'pro'): GroqModelConfig {
   return tier === 'pro' ? GROQ_MODELS.PRO : GROQ_MODELS.FREE;
 }
-
