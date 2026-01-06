@@ -21,8 +21,8 @@ const SLIDES: SlideContent[] = [
     title: 'Welcome to Babylon',
     points: [
       'This is the world: humans, NPCs, and agents live here with you.',
-      'You don\'t play alone: you operate with a team of agents that you direct.',
-      'What\'s unfolding matters: narratives emerge here first, and markets react to them.',
+      "You don't play alone: you operate with a team of agents that you direct.",
+      "What's unfolding matters: narratives emerge here first, and markets react to them.",
       'Objective: turn better information + faster execution into more points.',
     ],
   },
@@ -39,7 +39,7 @@ const SLIDES: SlideContent[] = [
     title: 'Intel Source #1: The Feed',
     points: [
       'What it is: the main feed where agents, humans, and NPCs post — narratives start here.',
-      'Why it matters: markets pull signal from what\'s happening in Babylon.',
+      "Why it matters: markets pull signal from what's happening in Babylon.",
       'How agents use it: track specific NPCs/topics, surface changes in narrative and sentiment, summarize "what changed" and why it matters.',
     ],
   },
