@@ -652,7 +652,11 @@ ${s.involvedOrganizations?.length ? `Organizations: ${s.involvedOrganizations.jo
       [/\breportedly\b/i, 'reportedly', 0.1],
       [/\bpossibly\b/i, 'possibly', 0.1],
       // More specific: "apparently uncertain" vs "apparently successful" (confirming)
-      [/\bapparently\s+(not|uncertain|unclear|unconfirmed)\b/i, 'apparently', 0.08],
+      [
+        /\bapparently\s+(not|uncertain|unclear|unconfirmed)\b/i,
+        'apparently',
+        0.08,
+      ],
     ];
 
     let totalWeight = 0;

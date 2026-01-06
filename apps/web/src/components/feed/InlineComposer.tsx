@@ -150,7 +150,11 @@ export function InlineComposer({
         if (isValidPostResponse(data.post)) {
           onPostCreated?.(data.post);
         } else if (data.post) {
-          logger.error('Malformed post response from API', { post: data.post }, 'InlineComposer');
+          logger.error(
+            'Malformed post response from API',
+            { post: data.post },
+            'InlineComposer'
+          );
         }
       } else {
         const errorData = await response.json().catch(() => ({}));

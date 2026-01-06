@@ -182,7 +182,11 @@ function validateDateWithFallback(
   if (isNaN(date.getTime())) {
     logger.warn(
       `Invalid ${fieldName} for post ${postId}, falling back to current time`,
-      { postId, [`original${fieldName.charAt(0).toUpperCase() + fieldName.slice(1)}`]: rawValue },
+      {
+        postId,
+        [`original${fieldName.charAt(0).toUpperCase() + fieldName.slice(1)}`]:
+          rawValue,
+      },
       'HotPostsAPI'
     );
     return new Date();
@@ -318,8 +322,16 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         const shareCount = shareMap.get(post.id) ?? 0;
 
         // Validate and convert dates for scoring
-        const validTimestamp = validateDateWithFallback(post.timestamp, 'timestamp', post.id);
-        const validCreatedAt = validateDateWithFallback(post.createdAt, 'createdAt', post.id);
+        const validTimestamp = validateDateWithFallback(
+          post.timestamp,
+          'timestamp',
+          post.id
+        );
+        const validCreatedAt = validateDateWithFallback(
+          post.createdAt,
+          'createdAt',
+          post.id
+        );
 
         const hotScore = calculateHotScore(
           likeCount,
