@@ -126,13 +126,14 @@ describe('Posting Probability Service - Daily Cap', () => {
 
   test('allows posting when under daily cap', () => {
     const actor = createMockActor();
+    const contextTime = new Date('2026-01-05T14:00:00Z');
     const state = createMockState({
       id: actor.id,
       postsToday: 2,
-      // Set lastPostAt to 3 hours ago to pass the recency check
-      lastPostAt: new Date(Date.now() - 3 * 60 * 60 * 1000),
+      // Set lastPostAt to 3 hours before context time to pass the recency check
+      lastPostAt: new Date(contextTime.getTime() - 3 * 60 * 60 * 1000),
     });
-    const context = createMockContext();
+    const context = createMockContext({ currentTime: contextTime });
 
     const prob = calculatePostingProbability(actor, state, context);
     expect(prob).toBeGreaterThan(0);
