@@ -20,8 +20,10 @@ import {
   withErrorHandling,
 } from '@babylon/api';
 import {
+  and,
   asUser,
   chatParticipants,
+  eq,
   generateSnowflakeId,
   groupInvites,
   groupMembers,
@@ -126,13 +128,13 @@ export const POST = withErrorHandling(
         throw new ApiError('User is already a member of this group', 400);
       }
 
-      // Check if there's already a pending invite for this user
+      // Check if there's already an invite for this user
       const existingInvite = await db.groupInvite.findFirst({
         where: {
           groupId,
           invitedUserId: data.userId,
         },
-        select: { status: true },
+        select: { id: true, status: true },
       });
 
       if (existingInvite && existingInvite.status === 'pending') {
@@ -141,7 +143,7 @@ export const POST = withErrorHandling(
           400
         );
       }
-      // Note: If status is 'declined', we allow re-inviting via onConflictDoUpdate below
+      // Note: If status is 'declined' or 'accepted', we allow re-inviting by updating the existing invite
 
       // Find the chat for this group
       const groupChat = await db.chat.findFirst({
@@ -227,28 +229,36 @@ export const POST = withErrorHandling(
         return { added: true, invited: false, adderName, inviteId: null };
       } else {
         // HUMAN: Send invite (they need to accept)
-        // Use generateSnowflakeId for consistency with other IDs
-        const inviteId = await generateSnowflakeId();
+        // Reuse existing invite ID if re-inviting, otherwise generate new one
+        const inviteId = existingInvite?.id ?? (await generateSnowflakeId());
 
-        // Use onConflictDoUpdate to allow re-inviting users who previously declined
-        await db
-          .insert(groupInvites)
-          .values({
+        if (existingInvite) {
+          // Re-invite: update existing invite back to pending
+          await db
+            .update(groupInvites)
+            .set({
+              invitedBy: user.userId,
+              status: 'pending',
+              invitedAt: now,
+              respondedAt: sql`NULL`,
+            })
+            .where(
+              and(
+                eq(groupInvites.groupId, groupId),
+                eq(groupInvites.invitedUserId, data.userId)
+              )
+            );
+        } else {
+          // New invite
+          await db.insert(groupInvites).values({
             id: inviteId,
             groupId,
             invitedUserId: data.userId,
             invitedBy: user.userId,
             status: 'pending',
             invitedAt: now,
-          })
-          .onConflictDoUpdate({
-            target: [groupInvites.groupId, groupInvites.invitedUserId],
-            set: {
-              invitedBy: user.userId,
-              status: 'pending',
-              invitedAt: now,
-            },
           });
+        }
 
         // System message for invite
         if (groupChat) {
@@ -293,7 +303,8 @@ export const POST = withErrorHandling(
         user.userId,
         groupId,
         groupName,
-        result.inviteId || undefined
+        result.inviteId || undefined,
+        result.adderName // Pass pre-fetched name to avoid N+1
       );
 
       logger.info(

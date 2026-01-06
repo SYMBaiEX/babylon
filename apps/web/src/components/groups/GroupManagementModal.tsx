@@ -175,7 +175,8 @@ export function GroupManagementModal({
 
         if (response.ok) {
           const data = await response.json();
-          const existingMemberIds = groupDetails?.members.map((m) => m.id) || [];
+          const existingMemberIds =
+            groupDetails?.members.map((m) => m.id) || [];
 
           const results: SearchResult[] =
             activeTab === 'users'

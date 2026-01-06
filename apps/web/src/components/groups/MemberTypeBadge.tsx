@@ -52,4 +52,3 @@ export function GroupTypeBadge({ type }: { type: GroupType }) {
       return null;
   }
 }
-

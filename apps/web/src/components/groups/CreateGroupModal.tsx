@@ -634,7 +634,9 @@ export function CreateGroupModal({
             </button>
             <button
               onClick={handleCreateGroup}
-              disabled={creating || selectedMembers.length === 0}
+              disabled={
+                creating || (selectedMembers.length === 0 && !groupName.trim())
+              }
               className={cn(
                 'flex-1 rounded-lg px-4 py-3 font-medium transition-colors',
                 'bg-primary text-primary-foreground hover:bg-primary/90',

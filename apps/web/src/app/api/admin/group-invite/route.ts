@@ -286,42 +286,32 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
           },
         });
 
-      // Step 4: Upsert GroupMember - use raw SQL for partial index compatibility
-      // The partial unique index only applies to active members, so we use
-      // INSERT ... ON CONFLICT DO UPDATE for the active case
+      // Step 4: Upsert GroupMember using full unique constraint
       const memberId = await generateSnowflakeId();
-      await tx.execute(sql`
-        INSERT INTO "GroupMember" (
-          "id", "groupId", "userId", "role", "addedBy", "joinedAt", "isActive",
-          "messageCount", "qualityScore"
-        ) VALUES (
-          ${memberId}, ${deterministicGrpId}, ${userId}, 'member', ${npcId}, ${now}, true,
-          0, 1.0
-        )
-        ON CONFLICT ("groupId", "userId") WHERE "isActive" = true
-        DO UPDATE SET
-          "role" = 'member',
-          "addedBy" = ${npcId},
-          "joinedAt" = ${now},
-          "kickedAt" = NULL,
-          "kickReason" = NULL
-      `);
-
-      // Also handle the case where there's an inactive record (not covered by partial index)
-      // Update any inactive records to active
       await tx
-        .update(groupMembers)
-        .set({
-          isActive: true,
+        .insert(groupMembers)
+        .values({
+          id: memberId,
+          groupId: deterministicGrpId,
+          userId,
           role: 'member',
           addedBy: npcId,
           joinedAt: now,
-          kickedAt: sql`NULL`,
-          kickReason: sql`NULL`,
+          isActive: true,
+          messageCount: 0,
+          qualityScore: 1.0,
         })
-        .where(
-          sql`${groupMembers.groupId} = ${deterministicGrpId} AND ${groupMembers.userId} = ${userId} AND ${groupMembers.isActive} = false`
-        );
+        .onConflictDoUpdate({
+          target: [groupMembers.groupId, groupMembers.userId],
+          set: {
+            isActive: true,
+            role: 'member',
+            addedBy: npcId,
+            joinedAt: now,
+            kickedAt: sql`NULL`,
+            kickReason: sql`NULL`,
+          },
+        });
 
       return deterministicGrpId;
     });

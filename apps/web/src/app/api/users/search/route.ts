@@ -169,12 +169,10 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
               not: user.userId, // Exclude current user
             },
           },
-          {
-            id: {
-              notIn:
-                excludedUserIds.length > 0 ? excludedUserIds : ['__none__'], // Exclude blocked/muted users
-            },
-          },
+          // Conditionally exclude blocked/muted users only if the array is not empty
+          ...(excludedUserIds.length > 0
+            ? [{ id: { notIn: excludedUserIds } }]
+            : []),
           {
             isActor: false, // Always exclude NPCs (use /api/agents/search for those)
           },

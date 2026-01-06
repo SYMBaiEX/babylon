@@ -515,31 +515,38 @@ export async function notifyGroupChatInvite(
 
 /**
  * Create notification for user group invite
+ *
+ * @param inviterName - Optional pre-fetched inviter name to avoid N+1 queries when called in bulk
  */
 export async function notifyUserGroupInvite(
   userId: string,
   inviterId: string,
   groupId: string,
   groupName: string,
-  inviteId?: string
+  inviteId?: string,
+  inviterName?: string
 ): Promise<void> {
   // Don't notify if user invited themselves
   if (userId === inviterId) {
     return;
   }
 
-  const result = await db
-    .select({
-      displayName: users.displayName,
-      username: users.username,
-    })
-    .from(users)
-    .where(eq(users.id, inviterId))
-    .limit(1);
+  let finalInviterName = inviterName;
+  if (!finalInviterName) {
+    const result = await db
+      .select({
+        displayName: users.displayName,
+        username: users.username,
+      })
+      .from(users)
+      .where(eq(users.id, inviterId))
+      .limit(1);
 
-  const inviter = result[0];
-  const inviterName = inviter?.displayName || inviter?.username || 'Someone';
-  const message = `${inviterName} invited you to join ${groupName}`;
+    const inviter = result[0];
+    finalInviterName = inviter?.displayName || inviter?.username || 'Someone';
+  }
+
+  const message = `${finalInviterName} invited you to join ${groupName}`;
 
   // Create notification with groupId and inviteId for proper linking
   await db.insert(notifications).values({

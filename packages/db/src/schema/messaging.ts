@@ -197,12 +197,9 @@ export const groups = pgTable(
 /**
  * GroupMember - membership table with roles and quality tracking
  *
- * Note: Unique constraint is a PARTIAL INDEX created via migration:
- * CREATE UNIQUE INDEX "GroupMember_groupId_userId_active_key"
- *   ON "GroupMember" ("groupId", "userId") WHERE "isActive" = true;
- *
- * This allows multiple inactive records (history) but ensures only one
- * active member per (groupId, userId) pair.
+ * Unique constraint: Full unique constraint on (groupId, userId).
+ * This enables idempotent upserts via onConflictDoUpdate.
+ * Soft deletes use the isActive flag (no multiple inactive history rows).
  */
 export const groupMembers = pgTable(
   'GroupMember',

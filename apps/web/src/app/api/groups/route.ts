@@ -321,6 +321,13 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     // Process initial members: humans get invites, agents get direct add
     const addedMemberIds: string[] = [];
     const invitedMemberIds: string[] = [];
+    // Notification work list - sent AFTER transaction commits
+    const agentNotifications: string[] = [];
+    const humanInviteNotifications: Array<{
+      humanId: string;
+      inviteId: string;
+    }> = [];
+    let creatorName = 'Someone';
 
     if (data.memberIds.length > 0) {
       const otherMembers = data.memberIds.filter((id) => id !== user.userId);
@@ -347,8 +354,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
             where: { id: user.userId },
             select: { displayName: true, username: true },
           });
-          const creatorName =
-            creator?.displayName || creator?.username || 'Someone';
+          creatorName = creator?.displayName || creator?.username || 'Someone';
 
           // Separate humans from agents/NPCs
           const agents = validMembers.filter((m) => m.isAgent || m.isActor);
@@ -378,6 +384,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
             });
 
             addedMemberIds.push(...agentIds);
+            agentNotifications.push(...agentIds);
 
             // Create system message for agents added
             const agentNames = agents.map(
@@ -398,19 +405,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
               },
             });
 
-            // Notify agents directly added (use allSettled so notification failures don't break group creation)
-            await Promise.allSettled(
-              agentIds.map((memberId) =>
-                notifyGroupMemberAdded(
-                  memberId,
-                  user.userId,
-                  groupId,
-                  data.name,
-                  chatId,
-                  creatorName
-                )
-              )
-            );
+            // Note: Agent notifications are sent AFTER the transaction commits (see below)
           }
 
           // HUMANS: Send invites (they need to accept/decline)
@@ -418,51 +413,32 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
             const humanIds = humans.map((u) => u.id);
             const invitedAt = new Date();
 
-            // Create group invites for humans in parallel
+            // Create group invites for humans
             // Use onConflictDoUpdate to allow re-inviting users who previously declined
-            const inviteResults = await Promise.allSettled(
-              humanIds.map(async (humanId) => {
-                const inviteId = await generateSnowflakeId();
-                await db
-                  .insert(groupInvites)
-                  .values({
-                    id: inviteId,
-                    groupId,
-                    invitedUserId: humanId,
+            for (const humanId of humanIds) {
+              const inviteId = await generateSnowflakeId();
+              await db
+                .insert(groupInvites)
+                .values({
+                  id: inviteId,
+                  groupId,
+                  invitedUserId: humanId,
+                  invitedBy: user.userId,
+                  status: 'pending',
+                  invitedAt,
+                })
+                .onConflictDoUpdate({
+                  target: [groupInvites.groupId, groupInvites.invitedUserId],
+                  set: {
                     invitedBy: user.userId,
                     status: 'pending',
                     invitedAt,
-                  })
-                  .onConflictDoUpdate({
-                    target: [groupInvites.groupId, groupInvites.invitedUserId],
-                    set: {
-                      invitedBy: user.userId,
-                      status: 'pending',
-                      invitedAt,
-                    },
-                  });
-
-                // Send invite notification (use allSettled so failures don't break group creation)
-                await notifyUserGroupInvite(
-                  humanId,
-                  user.userId,
-                  groupId,
-                  data.name,
-                  inviteId
-                );
-                return humanId;
-              })
-            );
-
-            // Collect successfully invited members
-            invitedMemberIds.push(
-              ...inviteResults
-                .filter(
-                  (r): r is PromiseFulfilledResult<string> =>
-                    r.status === 'fulfilled'
-                )
-                .map((r) => r.value)
-            );
+                  },
+                });
+              humanInviteNotifications.push({ humanId, inviteId });
+              invitedMemberIds.push(humanId);
+            }
+            // Note: Human invite notifications are sent AFTER the transaction commits (see below)
 
             // Create system message for invites sent
             const humanNames = humans.map(
@@ -492,8 +468,45 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       chatId,
       memberCount: 1 + addedMemberIds.length, // creator + direct-added members (not invites)
       invitedCount: invitedMemberIds.length,
+      // Notification work list for post-transaction dispatch
+      notifications: {
+        agents: agentNotifications,
+        humanInvites: humanInviteNotifications,
+        creatorName,
+      },
     };
   });
+
+  // Send notifications AFTER transaction commits (prevents orphan notifications on rollback)
+  if (result.notifications.agents.length > 0) {
+    await Promise.allSettled(
+      result.notifications.agents.map((memberId) =>
+        notifyGroupMemberAdded(
+          memberId,
+          user.userId,
+          result.group.id,
+          data.name,
+          result.chatId,
+          result.notifications.creatorName
+        )
+      )
+    );
+  }
+
+  if (result.notifications.humanInvites.length > 0) {
+    await Promise.allSettled(
+      result.notifications.humanInvites.map(({ humanId, inviteId }) =>
+        notifyUserGroupInvite(
+          humanId,
+          user.userId,
+          result.group.id,
+          data.name,
+          inviteId,
+          result.notifications.creatorName // Pass pre-fetched name to avoid N+1
+        )
+      )
+    );
+  }
 
   logger.info(
     'Group created',
