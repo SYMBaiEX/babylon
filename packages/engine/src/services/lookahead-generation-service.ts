@@ -75,51 +75,9 @@ const DIVERSITY_QUOTA = 0.2; // 20% of posts should cover diverse topics
 const ORGANIC_POST_RATIO = 0.15; // 15% of posts should be organic (no topic)
 const RIVALRY_POST_RATIO = 0.1; // 10% of posts should be rivalry-driven
 const ACTOR_POST_RATIO = 0.95; // 95% of posts should be from actors (NPCs)
-const EVENT_GENERATION_PROBABILITY = 0.3; // 30% chance to generate events per tick
-
-// Posts per 5-min window by hour (0-23): [min, max]. Biased toward lower end.
-// Target: ~2-3 posts per minute = 10-15 posts per 5-min window at peak
-// Values use secureRandom()^2 bias toward min, so effective average is closer to min
-const POSTS_BY_HOUR: [number, number][] = [
-  [2, 4],
-  [1, 3],
-  [1, 3],
-  [1, 3],
-  [2, 4],
-  [2, 5], // 0-5 overnight (very quiet)
-  [3, 6],
-  [4, 7],
-  [5, 8], // 6-8 morning ramp up
-  [6, 10],
-  [6, 10],
-  [5, 9],
-  [5, 8], // 9-12 peak hours (~1-2 posts/min)
-  [5, 9],
-  [6, 10],
-  [6, 10],
-  [5, 9],
-  [5, 8], // 13-17 afternoon
-  [4, 7],
-  [4, 6],
-  [3, 5],
-  [3, 5], // 18-21 evening wind down
-  [2, 4],
-  [2, 4], // 22-23 night
-];
 
 // Article probability scales with active market count
 const ARTICLE_PROB = [0.05, 0.12, 0.18, 0.25, 0.3, 0.35];
-
-/**
- * Get natural post count for hour (biased toward lower end)
- * @param hour - Hour of day (0-23). Invalid values are clamped to valid range.
- */
-function getPostCount(hour: number): number {
-  // Validate and clamp hour to 0-23 range
-  const validHour = Math.max(0, Math.min(23, Math.floor(hour)));
-  const [min, max] = POSTS_BY_HOUR[validHour] ?? [5, 10];
-  return Math.floor(min + secureRandom() * secureRandom() * (max - min));
-}
 
 /** Get article probability based on active markets */
 function getArticleProb(marketCount: number): number {

@@ -69,6 +69,7 @@ import {
   characterMappingService,
   createArcState,
   createParodyHeadlineGenerator,
+  generateArcPulseEventsIfNeeded,
   generateArticleImageWithRetry,
   generateEvents,
   generateOrgArticle,
