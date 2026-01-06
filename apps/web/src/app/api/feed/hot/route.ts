@@ -463,11 +463,10 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     const sharedPostIds = new Set(userShares.map((s) => s.postId));
 
     postsWithUserStatus = result.posts.map((post: HotPost) => ({
-        ...post,
-        isLiked: likedPostIds.has(post.id),
-        isShared: sharedPostIds.has(post.id),
-      })
-    );
+      ...post,
+      isLiked: likedPostIds.has(post.id),
+      isShared: sharedPostIds.has(post.id),
+    }));
   }
 
   return successResponse({

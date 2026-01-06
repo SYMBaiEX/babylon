@@ -317,9 +317,7 @@ export class TopicDiversityService {
    * Used for deduplication across similar stories
    */
   private generateEventId(keywords: string[]): string {
-    const normalized = [
-      ...new Set(keywords.map((k) => k.toLowerCase().trim())),
-    ]
+    const normalized = [...new Set(keywords.map((k) => k.toLowerCase().trim()))]
       .filter((k) => k.length > 2)
       .sort()
       .join('-');
@@ -338,8 +336,7 @@ export class TopicDiversityService {
       return;
     }
 
-    const expiryTimeMs =
-      nowMs - this.config.eventExpiryHours * 60 * 60 * 1000;
+    const expiryTimeMs = nowMs - this.config.eventExpiryHours * 60 * 60 * 1000;
 
     let removed = 0;
     for (const [eventId, coverage] of this.eventCache.entries()) {
