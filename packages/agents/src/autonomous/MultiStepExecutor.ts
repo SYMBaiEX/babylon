@@ -813,6 +813,9 @@ export class MultiStepExecutor {
       COMMENT: 'commenting',
       RESPOND: 'DMs',
       DM: 'DMs',
+      LIKE: 'engaging',
+      REPOST: 'engaging',
+      GROUP_MESSAGE: 'groupChats',
     };
 
     const requiredFeature = actionToFeature[normalizedAction];

@@ -1179,8 +1179,8 @@ export async function executeDirectRepost(
       createdAt: now,
     });
 
-    // If there's a quote comment, create a quote post
-    if (comment && comment.trim().length > 0) {
+    // If there's a quote comment, create a quote post (min 3 chars like comments)
+    if (comment && comment.trim().length >= 3) {
       const quotePostId = await generateSnowflakeId();
       await db.insert(posts).values({
         id: quotePostId,

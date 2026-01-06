@@ -13,22 +13,14 @@ import {
   timestamp,
   unique,
 } from 'drizzle-orm/pg-core';
+import type { GameOnboardingStep } from '@babylon/shared';
 import type { JsonValue } from '../types';
 import { agentPerformanceMetrics } from './agents';
 import { onboardingStatusEnum } from './enums';
 import { userAgentConfigs } from './user-agent-configs';
 
-/**
- * Game onboarding step types
- */
-export type GameOnboardingStep =
-  | 'welcome'
-  | 'explore_feed'
-  | 'follow_npc'
-  | 'view_markets'
-  | 'first_prediction'
-  | 'first_trade'
-  | 'complete';
+// Re-export for consumers
+export type { GameOnboardingStep } from '@babylon/shared';
 
 /**
  * Game onboarding state stored in JSONB
@@ -68,7 +60,7 @@ export const gameOnboarding = pgTable(
     skippedAt: timestamp('skippedAt', { mode: 'date' }),
 
     createdAt: timestamp('createdAt', { mode: 'date' }).notNull().defaultNow(),
-    updatedAt: timestamp('updatedAt', { mode: 'date' }).notNull(),
+    updatedAt: timestamp('updatedAt', { mode: 'date' }).notNull().defaultNow(),
   },
   (table) => [
     index('GameOnboarding_userId_idx').on(table.userId),

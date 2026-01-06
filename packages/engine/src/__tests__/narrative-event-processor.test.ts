@@ -129,9 +129,9 @@ describe('Narrative Event Processor - State Transitions', () => {
       ],
     });
     const result = evaluateStateTransition(arc, 6); // Day 6, should trigger pending
-    // Note: This could return either the pending transition or expected state
-    // depending on order of evaluation
-    expect(['crisis', 'tension']).toContain(result ?? 'tension');
+    // Day 6 is still tension phase, so expectedState === currentState
+    // Pending transition with probability 1.0 should fire
+    expect(result).toBe('crisis');
   });
 
   test('respects pending transition probability', () => {
@@ -227,9 +227,8 @@ describe('Narrative Event Processor - Event Generation Decision', () => {
 
 describe('Narrative Event Processor - Edge Cases', () => {
   test('handles day number 0', () => {
-    // Day 0 is before the defined ranges, should default to setup or first state
+    // Day 0 is before defined ranges, falls through to 'resolution' default
     const result = getExpectedState(0);
-    // Based on the ranges, day 0 is not in any range, so falls through to resolution
     expect(result).toBe('resolution');
   });
 

@@ -7,6 +7,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useMemo,
   useState,
 } from 'react';
 import { apiFetch } from '@/utils/api-fetch';
@@ -131,11 +132,14 @@ export function GameOnboardingProvider({
   // Skip onboarding
   const skipOnboarding = useCallback(async () => {
     try {
-      await apiFetch('/api/onboarding/game-skip', { method: 'POST' });
-      setStatus((prev) => (prev ? { ...prev, isComplete: true } : null));
-      setShowTooltip(false);
+      const response = await apiFetch('/api/onboarding/game-skip', {
+        method: 'POST',
+      });
+      if (response.ok) {
+        setStatus((prev) => (prev ? { ...prev, isComplete: true } : null));
+        setShowTooltip(false);
+      }
     } catch (error) {
-      // Onboarding is optional, but log errors for debugging
       console.error('Failed to skip onboarding:', error);
     }
   }, []);
@@ -146,19 +150,31 @@ export function GameOnboardingProvider({
     ? (status?.currentStep ?? null)
     : null;
 
+  // Memoize context value to prevent unnecessary re-renders
+  const contextValue = useMemo(
+    () => ({
+      status,
+      isLoading,
+      completeStep,
+      skipOnboarding,
+      needsOnboarding,
+      showTooltip,
+      setShowTooltip,
+      currentTooltipStep,
+    }),
+    [
+      status,
+      isLoading,
+      completeStep,
+      skipOnboarding,
+      needsOnboarding,
+      showTooltip,
+      currentTooltipStep,
+    ]
+  );
+
   return (
-    <GameOnboardingContext.Provider
-      value={{
-        status,
-        isLoading,
-        completeStep,
-        skipOnboarding,
-        needsOnboarding,
-        showTooltip,
-        setShowTooltip,
-        currentTooltipStep,
-      }}
-    >
+    <GameOnboardingContext.Provider value={contextValue}>
       {children}
     </GameOnboardingContext.Provider>
   );

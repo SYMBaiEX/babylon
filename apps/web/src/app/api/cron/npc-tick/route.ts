@@ -195,9 +195,24 @@ export async function POST(_req: NextRequest) {
 
   // Get recently mentioned actor IDs from player influence tracking
   // This boosts posting probability for NPCs that were mentioned by players
+  // Use .catch() to prevent failures from aborting the entire tick
   const [recentlyMentionedActorIds, activeEventsData] = await Promise.all([
-    getRecentlyMentionedActorIds(),
-    getActiveEventsForPosting(),
+    getRecentlyMentionedActorIds().catch((error) => {
+      logger.warn(
+        'Failed to get recently mentioned actors',
+        { error: error instanceof Error ? error.message : String(error) },
+        'NPCTick'
+      );
+      return [];
+    }),
+    getActiveEventsForPosting().catch((error) => {
+      logger.warn(
+        'Failed to get active events for posting',
+        { error: error instanceof Error ? error.message : String(error) },
+        'NPCTick'
+      );
+      return { activeEventQuestionIds: [], activeEvents: [] };
+    }),
   ]);
 
   const postingContext: PostingContext = {
