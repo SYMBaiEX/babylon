@@ -290,9 +290,16 @@ export async function POST(_req: NextRequest) {
         continue;
       }
 
+      // Points cost per tick (set to 0 for free ticks, or positive number to charge)
+      const tickPointsCost = 0;
+
+      // Check balance only if tick costs points
+      const hasEnoughBalance =
+        tickPointsCost <= 0 || Number(user.virtualBalance ?? 0) >= tickPointsCost;
+
       if (
         user.isAgent &&
-        Number(user.virtualBalance ?? 0) >= 1 &&
+        hasEnoughBalance &&
         (config?.autonomousTrading ||
           config?.autonomousPosting ||
           config?.autonomousCommenting ||
@@ -387,18 +394,21 @@ export async function POST(_req: NextRequest) {
         continue;
       }
 
-      // Always 1pt per tick for USER agents
-      const pointsCost = 1;
+      // Points cost per tick (0 = free, positive = charged)
+      const pointsCost = 0;
 
-      // CRITICAL: Deduct points immediately after lock acquisition, BEFORE tick execution.
-      // This ensures points are always charged once we commit to running the tick.
-      // If we deducted after tick execution, errors in executeAutonomousTick() would
-      // skip the deduction (catch block), allowing agents to get free actions on errors.
-      await agentService.deductPoints(
-        eligibleAgent.user.id,
-        pointsCost,
-        'Autonomous tick'
-      );
+      // Only deduct points if cost is greater than 0
+      if (pointsCost > 0) {
+        // CRITICAL: Deduct points immediately after lock acquisition, BEFORE tick execution.
+        // This ensures points are always charged once we commit to running the tick.
+        // If we deducted after tick execution, errors in executeAutonomousTick() would
+        // skip the deduction (catch block), allowing agents to get free actions on errors.
+        await agentService.deductPoints(
+          eligibleAgent.user.id,
+          pointsCost,
+          'Autonomous tick'
+        );
+      }
 
       // Process agent with error handling to ensure lock is always released
       try {
