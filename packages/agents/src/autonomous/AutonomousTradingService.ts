@@ -155,7 +155,10 @@ export class AutonomousTradingService {
     const suggestedTradeSize =
       balance.balance > 0
         ? Math.min(
-            Math.max(balance.balance * SUGGESTED_TRADE_PERCENT, MIN_SUGGESTED_TRADE_SIZE),
+            Math.max(
+              balance.balance * SUGGESTED_TRADE_PERCENT,
+              MIN_SUGGESTED_TRADE_SIZE
+            ),
             balance.balance
           )
         : 0;
@@ -291,8 +294,7 @@ If holding:
     }
 
     const trade = tradeDecision.trade;
-    const rawAmount =
-      trade.amount_in_points ?? trade.amount;
+    const rawAmount = trade.amount_in_points ?? trade.amount;
     const normalizedAmount =
       typeof rawAmount === 'string' ? Number(rawAmount) : rawAmount;
 
