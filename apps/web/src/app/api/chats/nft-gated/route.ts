@@ -228,21 +228,9 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     chatResults.push(...batchResults);
   }
 
-  // Sort: accessible non-member chats first, then by member count
-  chatResults.sort((a, b) => {
-    // Chats user can join but hasn't joined yet come first
-    const aCanJoin = a.hasAccess && !a.isMember;
-    const bCanJoin = b.hasAccess && !b.isMember;
-    if (aCanJoin && !bCanJoin) return -1;
-    if (!aCanJoin && bCanJoin) return 1;
-
-    // Then member chats
-    if (a.isMember && !b.isMember) return -1;
-    if (!a.isMember && b.isMember) return 1;
-
-    // Then by member count
-    return b.memberCount - a.memberCount;
-  });
+  // Note: Results are ordered by createdAt DESC from the database query.
+  // Client-side sorting by access/membership is left to the frontend since
+  // in-memory sorting after pagination would break pagination consistency.
 
   return successResponse({
     chats: chatResults,
