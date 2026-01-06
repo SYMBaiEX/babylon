@@ -148,10 +148,11 @@
 import {
   authenticate,
   notifyGroupMemberAdded,
+  notifyUserGroupInvite,
   successResponse,
   withErrorHandling,
 } from '@babylon/api';
-import { asUser } from '@babylon/db';
+import { asUser, groupInvites } from '@babylon/db';
 import { logger } from '@babylon/shared';
 import { nanoid } from 'nanoid';
 import type { NextRequest } from 'next/server';
@@ -315,49 +316,31 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       },
     });
 
-    // Add initial members directly (no invite flow for MVP)
-    // All selected users are added immediately as members
+    // Process initial members: humans get invites, agents get direct add
     const addedMemberIds: string[] = [];
+    const invitedMemberIds: string[] = [];
+
     if (data.memberIds.length > 0) {
       const otherMembers = data.memberIds.filter((id) => id !== user.userId);
 
       if (otherMembers.length > 0) {
-        // Verify users exist and are not banned, get their names for system message
+        // Verify users exist and are not banned, get their details including type
         const validMembers = await db.user.findMany({
           where: {
             id: { in: otherMembers },
             isBanned: false,
           },
-          select: { id: true, displayName: true, username: true },
+          select: {
+            id: true,
+            displayName: true,
+            username: true,
+            isAgent: true,
+            isActor: true,
+          },
         });
 
         if (validMembers.length > 0) {
-          const validMemberIds = validMembers.map((u) => u.id);
-
-          // Add all members directly as GroupMembers
-          await db.groupMember.createMany({
-            data: validMemberIds.map((userId) => ({
-              id: nanoid(),
-              groupId,
-              userId,
-              role: 'member',
-              addedBy: user.userId,
-            })),
-          });
-
-          // Add all members to ChatParticipants
-          await db.chatParticipant.createMany({
-            data: validMemberIds.map((userId) => ({
-              id: nanoid(),
-              chatId,
-              userId,
-              joinedAt: new Date(),
-            })),
-          });
-
-          addedMemberIds.push(...validMemberIds);
-
-          // Get creator's name for the system message
+          // Get creator's name for messages
           const creator = await db.user.findUnique({
             where: { id: user.userId },
             select: { displayName: true, username: true },
@@ -365,39 +348,119 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
           const creatorName =
             creator?.displayName || creator?.username || 'Someone';
 
-          // Build member names list for system message
-          const memberNames = validMembers.map(
-            (m) => m.displayName || m.username || 'Unknown'
-          );
-          const memberNamesText =
-            memberNames.length <= 3
-              ? memberNames.join(', ')
-              : `${memberNames.slice(0, 2).join(', ')} and ${memberNames.length - 2} others`;
+          // Separate humans from agents/NPCs
+          const agents = validMembers.filter((m) => m.isAgent || m.isActor);
+          const humans = validMembers.filter((m) => !m.isAgent && !m.isActor);
 
-          // Create system message announcing members were added
-          await db.message.create({
-            data: {
-              id: nanoid(),
-              chatId,
-              senderId: 'system',
-              content: `${creatorName} added ${memberNamesText} to the group`,
-              createdAt: new Date(),
-            },
-          });
+          // AGENTS/NPCs: Direct add (they don't need to accept)
+          if (agents.length > 0) {
+            const agentIds = agents.map((u) => u.id);
 
-          // Send notifications to all added members (pass creatorName to avoid N+1 queries)
-          await Promise.all(
-            validMemberIds.map((memberId) =>
-              notifyGroupMemberAdded(
-                memberId,
+            await db.groupMember.createMany({
+              data: agentIds.map((uId) => ({
+                id: nanoid(),
+                groupId,
+                userId: uId,
+                role: 'member',
+                addedBy: user.userId,
+              })),
+            });
+
+            await db.chatParticipant.createMany({
+              data: agentIds.map((uId) => ({
+                id: nanoid(),
+                chatId,
+                userId: uId,
+                joinedAt: new Date(),
+              })),
+            });
+
+            addedMemberIds.push(...agentIds);
+
+            // Create system message for agents added
+            const agentNames = agents.map(
+              (m) => m.displayName || m.username || 'Unknown'
+            );
+            const agentNamesText =
+              agentNames.length <= 3
+                ? agentNames.join(', ')
+                : `${agentNames.slice(0, 2).join(', ')} and ${agentNames.length - 2} others`;
+
+            await db.message.create({
+              data: {
+                id: nanoid(),
+                chatId,
+                senderId: 'system',
+                content: `${creatorName} added ${agentNamesText} to the group`,
+                createdAt: new Date(),
+              },
+            });
+
+            // Notify agents directly added
+            await Promise.all(
+              agentIds.map((memberId) =>
+                notifyGroupMemberAdded(
+                  memberId,
+                  user.userId,
+                  groupId,
+                  data.name,
+                  chatId,
+                  creatorName
+                )
+              )
+            );
+          }
+
+          // HUMANS: Send invites (they need to accept/decline)
+          if (humans.length > 0) {
+            const humanIds = humans.map((u) => u.id);
+
+            // Create group invites for humans
+            for (const humanId of humanIds) {
+              const inviteId = nanoid();
+              await db
+                .insert(groupInvites)
+                .values({
+                  id: inviteId,
+                  groupId,
+                  invitedUserId: humanId,
+                  invitedBy: user.userId,
+                  status: 'pending',
+                  invitedAt: new Date(),
+                })
+                .onConflictDoNothing(); // Skip if already invited
+
+              invitedMemberIds.push(humanId);
+
+              // Send invite notification
+              await notifyUserGroupInvite(
+                humanId,
                 user.userId,
                 groupId,
                 data.name,
+                inviteId
+              );
+            }
+
+            // Create system message for invites sent
+            const humanNames = humans.map(
+              (m) => m.displayName || m.username || 'Unknown'
+            );
+            const humanNamesText =
+              humanNames.length <= 3
+                ? humanNames.join(', ')
+                : `${humanNames.slice(0, 2).join(', ')} and ${humanNames.length - 2} others`;
+
+            await db.message.create({
+              data: {
+                id: nanoid(),
                 chatId,
-                creatorName
-              )
-            )
-          );
+                senderId: 'system',
+                content: `${creatorName} invited ${humanNamesText} to the group`,
+                createdAt: new Date(),
+              },
+            });
+          }
         }
       }
     }
@@ -405,7 +468,8 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     return {
       group: newGroup,
       chatId,
-      memberCount: 1 + addedMemberIds.length, // creator + added members
+      memberCount: 1 + addedMemberIds.length, // creator + direct-added members (not invites)
+      invitedCount: invitedMemberIds.length,
     };
   });
 
@@ -416,6 +480,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       groupId: result.group.id,
       chatId: result.chatId,
       memberCount: result.memberCount,
+      invitedCount: result.invitedCount,
     },
     'POST /api/groups'
   );
@@ -428,6 +493,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       createdAt: result.group.createdAt,
       chatId: result.chatId,
       memberCount: result.memberCount,
+      invitedCount: result.invitedCount,
     },
   });
 });
