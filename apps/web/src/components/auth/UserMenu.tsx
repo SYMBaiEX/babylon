@@ -1,9 +1,10 @@
 'use client';
 
 import { getDisplayReferralUrl, getReferralUrl } from '@babylon/shared';
-import { Check, Copy, Key, LogOut, Settings } from 'lucide-react';
+import { BookOpen, Check, Copy, Key, LogOut, Settings } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
+import { useGameGuide } from '@/components/providers/GameGuideProvider';
 import { Avatar } from '@/components/shared/Avatar';
 import { Dropdown, DropdownItem } from '@/components/shared/Dropdown';
 import { useAuth } from '@/hooks/useAuth';
@@ -34,6 +35,7 @@ let userMenuIntervalId: ReturnType<typeof setInterval> | null = null;
 export function UserMenu() {
   const { logout, refresh } = useAuth();
   const { user, setUser } = useAuthStore();
+  const { openGuide } = useGameGuide();
   const router = useRouter();
   const [tradingBalance, setTradingBalance] = useState<number | null>(null);
   const [copiedCode, setCopiedCode] = useState(false);
@@ -292,6 +294,15 @@ export function UserMenu() {
           <Settings className="h-5 w-5" style={{ color: '#0066FF' }} />
           <span className="font-semibold text-foreground text-sm">
             Settings
+          </span>
+        </div>
+      </DropdownItem>
+
+      <DropdownItem onClick={openGuide}>
+        <div className="flex items-center gap-3 py-2">
+          <BookOpen className="h-5 w-5" style={{ color: '#0066FF' }} />
+          <span className="font-semibold text-foreground text-sm">
+            Game Guide
           </span>
         </div>
       </DropdownItem>

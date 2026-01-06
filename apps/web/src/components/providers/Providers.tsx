@@ -11,6 +11,7 @@ import { ThemeProvider } from '@/components/shared/ThemeProvider';
 import { FontSizeProvider } from '@/contexts/FontSizeContext';
 import { WidgetRefreshProvider } from '@/contexts/WidgetRefreshContext';
 import { FarcasterMiniAppProvider } from './FarcasterMiniAppProvider';
+import { GameGuideProvider } from './GameGuideProvider';
 import { GamePlaybackManager } from './GamePlaybackManager';
 import { OnboardingProvider } from './OnboardingProvider';
 
@@ -281,13 +282,16 @@ export function Providers({ children }: { children: React.ReactNode }) {
                         </Suspense>
                         {/* Onboarding provider for username setup */}
                         <OnboardingProvider>
-                          <WidgetRefreshProvider>
-                            {mounted ? (
-                              <Fragment>{children}</Fragment>
-                            ) : (
-                              <div className="min-h-screen bg-sidebar" />
-                            )}
-                          </WidgetRefreshProvider>
+                          {/* Game guide provider for first-time tutorial */}
+                          <GameGuideProvider>
+                            <WidgetRefreshProvider>
+                              {mounted ? (
+                                <Fragment>{children}</Fragment>
+                              ) : (
+                                <div className="min-h-screen bg-sidebar" />
+                              )}
+                            </WidgetRefreshProvider>
+                          </GameGuideProvider>
                         </OnboardingProvider>
                       </FarcasterMiniAppProvider>
                     </SmartWalletsProvider>

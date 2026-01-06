@@ -194,6 +194,8 @@ export const users = pgTable(
     // Agent flags (config stored in UserAgentConfig table)
     isAgent: boolean('isAgent').notNull().default(false),
     managedBy: text('managedBy'),
+    // Game guide completion tracking
+    gameGuideCompletedAt: timestamp('gameGuideCompletedAt', { mode: 'date' }),
   },
   (table) => [
     index('User_displayName_idx').on(table.displayName),

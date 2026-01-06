@@ -254,6 +254,7 @@ const userSelectFields = {
   isActor: users.isActor,
   createdAt: users.createdAt,
   updatedAt: users.updatedAt,
+  gameGuideCompletedAt: users.gameGuideCompletedAt,
 } as const;
 
 export const GET = withErrorHandling(async (request: NextRequest) => {
@@ -624,6 +625,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     isActor: dbUser.isActor,
     createdAt: dbUser.createdAt.toISOString(),
     updatedAt: dbUser.updatedAt.toISOString(),
+    gameGuideCompletedAt: dbUser.gameGuideCompletedAt?.toISOString() ?? null,
     stats: stats || undefined,
   };
 
