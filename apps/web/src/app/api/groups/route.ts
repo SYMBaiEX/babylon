@@ -152,7 +152,7 @@ import {
   successResponse,
   withErrorHandling,
 } from '@babylon/api';
-import { asUser, groupInvites } from '@babylon/db';
+import { asUser, generateSnowflakeId, groupInvites } from '@babylon/db';
 import { logger } from '@babylon/shared';
 import { nanoid } from 'nanoid';
 import type { NextRequest } from 'next/server';
@@ -390,7 +390,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
 
             await db.message.create({
               data: {
-                id: nanoid(),
+                id: await generateSnowflakeId(),
                 chatId,
                 senderId: 'system',
                 content: `${creatorName} added ${agentNamesText} to the group`,
@@ -398,8 +398,8 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
               },
             });
 
-            // Notify agents directly added
-            await Promise.all(
+            // Notify agents directly added (use allSettled so notification failures don't break group creation)
+            await Promise.allSettled(
               agentIds.map((memberId) =>
                 notifyGroupMemberAdded(
                   memberId,
@@ -416,33 +416,53 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
           // HUMANS: Send invites (they need to accept/decline)
           if (humans.length > 0) {
             const humanIds = humans.map((u) => u.id);
+            const invitedAt = new Date();
 
-            // Create group invites for humans
-            for (const humanId of humanIds) {
-              const inviteId = nanoid();
-              await db
-                .insert(groupInvites)
-                .values({
-                  id: inviteId,
+            // Create group invites for humans in parallel
+            // Use onConflictDoUpdate to allow re-inviting users who previously declined
+            const inviteResults = await Promise.allSettled(
+              humanIds.map(async (humanId) => {
+                const inviteId = await generateSnowflakeId();
+                await db
+                  .insert(groupInvites)
+                  .values({
+                    id: inviteId,
+                    groupId,
+                    invitedUserId: humanId,
+                    invitedBy: user.userId,
+                    status: 'pending',
+                    invitedAt,
+                  })
+                  .onConflictDoUpdate({
+                    target: [groupInvites.groupId, groupInvites.invitedUserId],
+                    set: {
+                      invitedBy: user.userId,
+                      status: 'pending',
+                      invitedAt,
+                    },
+                  });
+
+                // Send invite notification (use allSettled so failures don't break group creation)
+                await notifyUserGroupInvite(
+                  humanId,
+                  user.userId,
                   groupId,
-                  invitedUserId: humanId,
-                  invitedBy: user.userId,
-                  status: 'pending',
-                  invitedAt: new Date(),
-                })
-                .onConflictDoNothing(); // Skip if already invited
+                  data.name,
+                  inviteId
+                );
+                return humanId;
+              })
+            );
 
-              invitedMemberIds.push(humanId);
-
-              // Send invite notification
-              await notifyUserGroupInvite(
-                humanId,
-                user.userId,
-                groupId,
-                data.name,
-                inviteId
-              );
-            }
+            // Collect successfully invited members
+            invitedMemberIds.push(
+              ...inviteResults
+                .filter(
+                  (r): r is PromiseFulfilledResult<string> =>
+                    r.status === 'fulfilled'
+                )
+                .map((r) => r.value)
+            );
 
             // Create system message for invites sent
             const humanNames = humans.map(
@@ -455,7 +475,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
 
             await db.message.create({
               data: {
-                id: nanoid(),
+                id: await generateSnowflakeId(),
                 chatId,
                 senderId: 'system',
                 content: `${creatorName} invited ${humanNamesText} to the group`,

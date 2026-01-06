@@ -28,7 +28,6 @@ import {
   sql,
 } from '@babylon/db';
 import { logger } from '@babylon/shared';
-import { nanoid } from 'nanoid';
 import type { NextRequest } from 'next/server';
 import { z } from 'zod';
 
@@ -132,16 +131,17 @@ export const POST = withErrorHandling(
         where: {
           groupId,
           invitedUserId: data.userId,
-          status: 'pending',
         },
+        select: { status: true },
       });
 
-      if (existingInvite) {
+      if (existingInvite && existingInvite.status === 'pending') {
         throw new ApiError(
           'User already has a pending invite to this group',
           400
         );
       }
+      // Note: If status is 'declined', we allow re-inviting via onConflictDoUpdate below
 
       // Find the chat for this group
       const groupChat = await db.chat.findFirst({
@@ -227,8 +227,10 @@ export const POST = withErrorHandling(
         return { added: true, invited: false, adderName, inviteId: null };
       } else {
         // HUMAN: Send invite (they need to accept)
-        const inviteId = nanoid();
+        // Use generateSnowflakeId for consistency with other IDs
+        const inviteId = await generateSnowflakeId();
 
+        // Use onConflictDoUpdate to allow re-inviting users who previously declined
         await db
           .insert(groupInvites)
           .values({
@@ -239,7 +241,14 @@ export const POST = withErrorHandling(
             status: 'pending',
             invitedAt: now,
           })
-          .onConflictDoNothing();
+          .onConflictDoUpdate({
+            target: [groupInvites.groupId, groupInvites.invitedUserId],
+            set: {
+              invitedBy: user.userId,
+              status: 'pending',
+              invitedAt: now,
+            },
+          });
 
         // System message for invite
         if (groupChat) {
