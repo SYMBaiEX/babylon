@@ -118,31 +118,22 @@ describe('extractEventKeywords', () => {
   });
 
   describe('Entity extraction', () => {
-    it('should extract crypto entities', () => {
-      const keywords = extractEventKeywords('Bitcoin and Ethereum are leading');
-      expect(keywords).toContain('bitcoin');
-      expect(keywords).toContain('ethereum');
+    // Game uses AI-stylized names to avoid copyright issues
+    // Entity IDs must match canonical IDs in packages/engine/src/data/
+
+    it('should extract crypto symbols', () => {
+      const keywords = extractEventKeywords('BTC and ETH are leading');
+      expect(keywords).toContain('BTC');
+      expect(keywords).toContain('ETH');
     });
 
-    it('should extract tech companies', () => {
+    it('should extract game-stylized tech companies', () => {
       const keywords = extractEventKeywords(
-        'Apple, Google, and Microsoft earnings'
+        'AIpple, AIphabet, and MAIcrosoft earnings'
       );
-      expect(keywords).toContain('apple');
-      expect(keywords).toContain('google');
-      expect(keywords).toContain('microsoft');
-    });
-
-    it('should extract by stock ticker', () => {
-      const keywords = extractEventKeywords('AAPL and MSFT beat estimates');
-      expect(keywords).toContain('apple');
-      expect(keywords).toContain('microsoft');
-    });
-
-    it('should extract political figures', () => {
-      const keywords = extractEventKeywords('Trump and Biden debate');
-      expect(keywords).toContain('trump');
-      expect(keywords).toContain('biden');
+      expect(keywords).toContain('aipple');
+      expect(keywords).toContain('aiphabet');
+      expect(keywords).toContain('maicrosoft');
     });
 
     it('should extract regulatory bodies', () => {
@@ -151,62 +142,60 @@ describe('extractEventKeywords', () => {
       expect(keywords).toContain('federal-reserve');
     });
 
-    it('should extract countries', () => {
+    it('should extract game-stylized company names', () => {
       const keywords = extractEventKeywords(
-        'China, Russia, and Ukraine tensions'
+        'TeslAI and NVIDAI lead the market'
       );
-      expect(keywords).toContain('china');
-      expect(keywords).toContain('russia');
-      expect(keywords).toContain('ukraine');
+      expect(keywords).toContain('teslai');
+      expect(keywords).toContain('nvidai');
     });
 
-    it('should handle alternative names', () => {
-      const keywords = extractEventKeywords(
-        'Meta (formerly Facebook) announces'
-      );
-      expect(keywords).toContain('meta');
-    });
-
-    // AI-stylized entity name tests (game-specific)
-    it('should extract AI-stylized company names', () => {
-      const keywords = extractEventKeywords(
-        'TeslAI and NVAIDAI lead the market'
-      );
-      expect(keywords).toContain('tesla');
-      expect(keywords).toContain('nvidia');
-    });
-
-    it('should extract OpenAGI as openai', () => {
+    it('should extract OpenAGI and game model names', () => {
       const keywords = extractEventKeywords(
         'OpenAGI announces SMH-5.2 Reflection'
       );
-      expect(keywords).toContain('openai');
-      expect(keywords).toContain('openai-model');
+      expect(keywords).toContain('openagi');
+      expect(keywords).toContain('openagi-model');
     });
 
-    it('should extract EtherAIum as ethereum', () => {
-      const keywords = extractEventKeywords('EtherAIum contracts run faster');
-      expect(keywords).toContain('ethereum');
-    });
-
-    it('should extract AI-stylized people names', () => {
+    it('should extract game-stylized people names', () => {
       const keywords = extractEventKeywords(
         'AIlon Musk and Jensen HuAIng discuss'
       );
-      expect(keywords).toContain('elon-musk');
-      expect(keywords).toContain('jensen-huang');
+      expect(keywords).toContain('ailon-musk');
+      expect(keywords).toContain('jensen-huaing');
     });
 
-    it('should extract FSD as tesla-fsd', () => {
+    it('should extract FSD as teslai-fsd', () => {
       const keywords = extractEventKeywords('TeslAI FSD is 99.9% complete');
-      expect(keywords).toContain('tesla');
-      expect(keywords).toContain('tesla-fsd');
+      expect(keywords).toContain('teslai');
+      expect(keywords).toContain('teslai-fsd');
     });
 
-    it('should extract model names', () => {
-      const keywords = extractEventKeywords('GPT-5 and Claude-4 compete');
-      expect(keywords).toContain('openai-model');
-      expect(keywords).toContain('anthropic-model');
+    it('should extract game model names', () => {
+      const keywords = extractEventKeywords('SMH-5 and Claude-4 compete');
+      expect(keywords).toContain('openagi-model');
+      expect(keywords).toContain('aitropic-model');
+    });
+
+    it('should extract MetAI', () => {
+      const keywords = extractEventKeywords('MetAI announces new features');
+      expect(keywords).toContain('metai');
+    });
+
+    it('should extract AImazon', () => {
+      const keywords = extractEventKeywords('AImazon expands cloud services');
+      expect(keywords).toContain('aimazon');
+    });
+
+    it('should extract AItropic', () => {
+      const keywords = extractEventKeywords('AItropic releases safety update');
+      expect(keywords).toContain('aitropic');
+    });
+
+    it('should extract SpAIceX', () => {
+      const keywords = extractEventKeywords('SpAIceX launches rocket');
+      expect(keywords).toContain('spaicex');
     });
   });
 
@@ -227,12 +216,12 @@ describe('extractEventKeywords', () => {
     });
 
     it('should extract launches', () => {
-      const keywords = extractEventKeywords('Tesla launches new model');
+      const keywords = extractEventKeywords('TeslAI launches new model');
       expect(keywords).toContain('launch');
     });
 
     it('should extract regulatory actions', () => {
-      const keywords = extractEventKeywords('SEC approves Bitcoin ETF');
+      const keywords = extractEventKeywords('SEC approves BTC ETF');
       expect(keywords).toContain('approval');
     });
 
@@ -248,7 +237,7 @@ describe('extractEventKeywords', () => {
 
     it('should extract M&A events', () => {
       const keywords = extractEventKeywords(
-        'Microsoft acquisition of Activision'
+        'MAIcrosoft acquisition of gaming company'
       );
       expect(keywords).toContain('acquisition');
     });
@@ -270,13 +259,15 @@ describe('extractEventKeywords', () => {
     });
 
     it('should extract hint events', () => {
-      const keywords = extractEventKeywords('NVAIDAI hints at new chip');
+      const keywords = extractEventKeywords('NVIDAI hints at new chip');
       expect(keywords).toContain('hint');
+      expect(keywords).toContain('nvidai');
     });
 
     it('should extract claim events', () => {
       const keywords = extractEventKeywords('TeslAI claims FSD is complete');
       expect(keywords).toContain('claim');
+      expect(keywords).toContain('teslai');
     });
 
     it('should extract partnership events', () => {
@@ -285,32 +276,33 @@ describe('extractEventKeywords', () => {
     });
 
     it('should extract release events', () => {
-      const keywords = extractEventKeywords('Apple releases new iPhone');
+      const keywords = extractEventKeywords('AIpple releases new phone');
       expect(keywords).toContain('release');
+      expect(keywords).toContain('aipple');
     });
   });
 
   describe('Complex scenarios', () => {
-    it('should extract from realistic market news', () => {
-      const text =
-        'Bitcoin breaks $94,000 as SEC approves ETF, surging +15% in Q1 2025';
+    it('should extract from realistic game market news', () => {
+      const text = 'BTC breaks $94,000 as SEC approves ETF, surging +15%';
       const keywords = extractEventKeywords(text);
 
       expect(keywords).toContain('$94000');
       expect(keywords).toContain('+15%');
-      expect(keywords).toContain('q1 2025');
-      expect(keywords).toContain('bitcoin');
+      expect(keywords).toContain('BTC');
       expect(keywords).toContain('sec');
       expect(keywords).toContain('approval');
       expect(keywords).toContain('surge');
     });
 
-    it('should extract from tech news', () => {
-      const text = 'OpenAI announces GPT-5 launch, Microsoft stock up 10%';
+    it('should extract from game tech news', () => {
+      const text =
+        'OpenAGI announces SMH-5 launch, MAIcrosoft stock up 10%';
       const keywords = extractEventKeywords(text);
 
-      expect(keywords).toContain('openai');
-      expect(keywords).toContain('microsoft');
+      expect(keywords).toContain('openagi');
+      expect(keywords).toContain('maicrosoft');
+      expect(keywords).toContain('openagi-model');
       expect(keywords).toContain('announcement');
       expect(keywords).toContain('launch');
       expect(keywords).toContain('10%');
@@ -318,8 +310,8 @@ describe('extractEventKeywords', () => {
 
     it('should limit keywords to 10', () => {
       const text = `
-        Bitcoin BTC Ethereum ETH Solana SOL OpenAI Apple Google Microsoft 
-        Tesla Amazon Meta Nvidia Trump Biden crashes surges +50% $100k 
+        BTC ETH SOL OpenAGI AIpple AIphabet MAIcrosoft 
+        TeslAI AImazon MetAI NVIDAI crashes surges +50% $100k 
         January 15 Q1 2025 2026 announcement launch hack layoffs
       `;
       const keywords = extractEventKeywords(text);
@@ -328,14 +320,14 @@ describe('extractEventKeywords', () => {
     });
 
     it('should deduplicate keywords', () => {
-      const text = 'Bitcoin Bitcoin BTC bitcoin BITCOIN';
+      const text = 'TeslAI TeslAI teslai TESLAI';
       const keywords = extractEventKeywords(text);
 
-      // Should not have duplicate bitcoin entries
-      const bitcoinCount = keywords.filter(
-        (k) => k.toLowerCase() === 'bitcoin'
+      // Should not have duplicate teslai entries
+      const teslaiCount = keywords.filter(
+        (k) => k.toLowerCase() === 'teslai'
       ).length;
-      expect(bitcoinCount).toBeLessThanOrEqual(2); // 'bitcoin' entity + 'BTC' symbol
+      expect(teslaiCount).toBe(1);
     });
   });
 
@@ -360,12 +352,12 @@ describe('extractEventKeywords', () => {
     it('should handle multiline text', () => {
       const text = `
         Breaking news:
-        Bitcoin surging to $100k
+        BTC surging to $100k
         Market celebrates
       `;
       const keywords = extractEventKeywords(text);
       expect(keywords).toContain('$100k');
-      expect(keywords).toContain('bitcoin');
+      expect(keywords).toContain('BTC');
       expect(keywords).toContain('surge');
     });
   });

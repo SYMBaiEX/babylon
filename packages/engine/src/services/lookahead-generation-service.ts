@@ -176,58 +176,63 @@ export function extractSymbols(text: string): string[] {
 
 /**
  * Extract entity names from text (companies, people, regulatory bodies, etc.)
- * Includes AI-stylized game names (TeslAI, NVAIDAI, etc.)
+ * Uses game-stylized names (TeslAI, NVIDAI, etc.) to avoid copyright issues.
+ * Entity IDs match the canonical IDs in packages/engine/src/data/
  * @param text - Text to extract entities from
- * @returns Array of normalized entity identifiers
+ * @returns Array of game entity IDs
  */
 export function extractEntities(text: string): string[] {
   const lowerText = text.toLowerCase();
   const entities: string[] = [];
 
-  // Entity patterns - map matches to normalized entity names
-  // IMPORTANT: Include AI-stylized game names (TeslAI, NVAIDAI, etc.)
+  // Entity patterns - map matches to game entity IDs
+  // IDs must match canonical IDs in packages/engine/src/data/organizations and actors
   const entityPatterns: Array<{ pattern: RegExp; entity: string }> = [
-    // Crypto - include AI-stylized versions
-    { pattern: /\bbitcoin|btc\b/, entity: 'bitcoin' },
-    { pattern: /\b(?:ethereum|etherAIum|eth)\b/i, entity: 'ethereum' },
-    { pattern: /\bsolana|solanai\b/i, entity: 'solana' },
-    // AI Companies - include AI-stylized versions
-    { pattern: /\bopenai|openagi\b/i, entity: 'openai' },
-    { pattern: /\banthropic|anthropaic\b/i, entity: 'anthropic' },
-    { pattern: /\bxai\b/i, entity: 'xai' },
-    // Tech Companies - include AI-stylized versions
-    { pattern: /\bgoogle|googai|alphabet\b/i, entity: 'google' },
-    { pattern: /\bapple|aipple|aapl\b/i, entity: 'apple' },
-    { pattern: /\bmicrosoft|microsofai|msft\b/i, entity: 'microsoft' },
-    { pattern: /\bnvidia|nvaidai|nvda\b/i, entity: 'nvidia' },
-    { pattern: /\btesla|teslai|tsla\b/i, entity: 'tesla' },
-    { pattern: /\bamazon|amazain|amzn\b/i, entity: 'amazon' },
-    { pattern: /\bmeta|metai|facebook\b/i, entity: 'meta' },
-    // Key People - include AI-stylized versions
-    { pattern: /\bailon|elon\s*musk\b/i, entity: 'elon-musk' },
-    { pattern: /\bjensen\s*hu?ai?ng\b/i, entity: 'jensen-huang' },
-    { pattern: /\bsam\s*a?i?ltman\b/i, entity: 'sam-altman' },
-    { pattern: /\bsatya\s*nad[ae]lla\b/i, entity: 'satya-nadella' },
-    { pattern: /\bsundar\s*pichai\b/i, entity: 'sundar-pichai' },
-    { pattern: /\btim\s*cook|sim\s*cook\b/i, entity: 'tim-cook' },
-    { pattern: /\bmark\s*zuckerb[oe]rg\b/i, entity: 'mark-zuckerberg' },
-    // Government/Regulatory
+    // AI Companies (organization IDs)
+    { pattern: /\bopenagi\b/i, entity: 'openagi' },
+    { pattern: /\baitropic\b/i, entity: 'aitropic' },
+    { pattern: /\bdeepmaind\b/i, entity: 'deepmaind' },
+    // Tech Companies (organization IDs)
+    { pattern: /\baipple\b/i, entity: 'aipple' },
+    { pattern: /\baiphabet\b/i, entity: 'aiphabet' },
+    { pattern: /\bmaicrosoft\b/i, entity: 'maicrosoft' },
+    { pattern: /\bnvidai\b/i, entity: 'nvidai' },
+    { pattern: /\bteslai\b/i, entity: 'teslai' },
+    { pattern: /\baimazon\b/i, entity: 'aimazon' },
+    { pattern: /\bmetai\b/i, entity: 'metai' },
+    { pattern: /\baix\b/i, entity: 'aix' },
+    { pattern: /\bspaicex\b/i, entity: 'spaicex' },
+    { pattern: /\bneurailink\b/i, entity: 'neurailink' },
+    // Media Organizations (organization IDs)
+    { pattern: /\bthe[- ]?vairge\b/i, entity: 'the-vairge' },
+    { pattern: /\btechcrainch\b/i, entity: 'techcrainch' },
+    { pattern: /\bwaired\b/i, entity: 'waired' },
+    { pattern: /\bbloombairg\b/i, entity: 'bloombairg' },
+    // Crypto (organization IDs)
+    { pattern: /\bcoinbaise\b/i, entity: 'coinbaise' },
+    { pattern: /\bethereum[- ]?foundaition\b/i, entity: 'ethereum-foundaition' },
+    // Key People (actor IDs)
+    { pattern: /\bailon\s*musk\b/i, entity: 'ailon-musk' },
+    { pattern: /\bailon\b/i, entity: 'ailon-musk' },
+    { pattern: /\bjensen\s*huaing\b/i, entity: 'jensen-huaing' },
+    { pattern: /\bsam\s*ailtman\b/i, entity: 'sam-ailtman' },
+    { pattern: /\bsim\s*cook\b/i, entity: 'sim-cook' },
+    { pattern: /\bmark\s*zuckerborg\b/i, entity: 'mark-zuckerborg' },
+    { pattern: /\bsaitya\s*nadella\b/i, entity: 'saitya-nadella' },
+    { pattern: /\bjeff\s*baizos\b/i, entity: 'jeff-baizos' },
+    { pattern: /\bbaill\s*gaites\b/i, entity: 'baill-gaites' },
+    { pattern: /\bdairiio\s*amodei\b/i, entity: 'dairiio-amodei' },
+    { pattern: /\bcathai\s*wood\b/i, entity: 'cathai-wood' },
+    { pattern: /\bvitailik\b/i, entity: 'vitailik-buterin' },
+    { pattern: /\bmichael\s*sailor\b/i, entity: 'michael-sailor' },
+    // Government/Regulatory (no stylization needed for these)
     { pattern: /\bfed\b|federal reserve/i, entity: 'federal-reserve' },
     { pattern: /\bsec\b/, entity: 'sec' },
-    { pattern: /\btrump\b/i, entity: 'trump' },
-    { pattern: /\bbiden\b/i, entity: 'biden' },
     { pattern: /\bcongress\b/i, entity: 'congress' },
-    { pattern: /\bchina\b/i, entity: 'china' },
-    { pattern: /\brussia\b/i, entity: 'russia' },
-    { pattern: /\bukraine\b/i, entity: 'ukraine' },
-    // Products/Models - catch specific product names
-    { pattern: /\bfsd\b/i, entity: 'tesla-fsd' },
-    // OpenAI "o" series models: o1, o1-mini, o1-pro, o3, o3-mini
-    // Tighter pattern to avoid matching "o2" (oxygen levels), "O-ring", etc.
-    { pattern: /\bo[- ]?[13](?:-(?:mini|pro|preview))?(?:\.\d+)?/i, entity: 'openai-model' },
-    { pattern: /\bgpt[- ]?\d+/i, entity: 'openai-model' },
-    { pattern: /\bclaude[- ]?\d*/i, entity: 'anthropic-model' },
-    { pattern: /\bgemini\b/i, entity: 'google-model' },
+    // Products/Models - game-stylized versions
+    { pattern: /\bfsd\b/i, entity: 'teslai-fsd' },
+    { pattern: /\bsmh[- ]?\d+(?:\.\d+)?/i, entity: 'openagi-model' }, // OpenAGI's SMH models
+    { pattern: /\bclaude[- ]?\d*/i, entity: 'aitropic-model' },
   ];
 
   for (const { pattern, entity } of entityPatterns) {
