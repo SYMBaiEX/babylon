@@ -2,19 +2,11 @@
 
 import { cn, getCurrentChainId } from '@babylon/shared';
 import { usePrivy } from '@privy-io/react-auth';
-import {
-  Bot,
-  Check,
-  Loader2,
-  Search,
-  Shield,
-  User,
-  Users,
-  X,
-} from 'lucide-react';
+import { Bot, Check, Loader2, Search, Shield, User, Users, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Avatar } from '@/components/shared/Avatar';
 import { useAuthStore } from '@/stores/authStore';
+import { MemberTypeBadge } from './MemberTypeBadge';
 
 /**
  * Member structure for group creation modal.
@@ -176,26 +168,6 @@ export function CreateGroupModal({
     setSelectedMembers(selectedMembers.filter((m) => m.id !== memberId));
   };
 
-  const getMemberTypeBadge = (type: 'user' | 'agent' | 'npc') => {
-    switch (type) {
-      case 'agent':
-        return (
-          <span className="ml-1 inline-flex items-center rounded bg-blue-500/10 px-1.5 py-0.5 text-blue-600 text-xs dark:text-blue-400">
-            <Bot className="mr-0.5 h-3 w-3" />
-            Agent
-          </span>
-        );
-      case 'npc':
-        return (
-          <span className="ml-1 inline-flex items-center rounded bg-purple-500/10 px-1.5 py-0.5 text-purple-600 text-xs dark:text-purple-400">
-            <User className="mr-0.5 h-3 w-3" />
-            NPC
-          </span>
-        );
-      default:
-        return null;
-    }
-  };
 
   const handleCreateGroup = async () => {
     // Generate group name if not provided
@@ -362,7 +334,7 @@ export function CreateGroupModal({
                       <span className="text-sm">
                         {member.displayName || member.username || 'Unknown'}
                       </span>
-                      {getMemberTypeBadge(member.type)}
+                      <MemberTypeBadge type={member.type} />
                       <button
                         onClick={() => handleRemoveMember(member.id)}
                         className="ml-1 text-muted-foreground hover:text-foreground"
@@ -454,7 +426,7 @@ export function CreateGroupModal({
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center truncate font-medium text-sm">
                           {member.displayName || member.username || 'Unknown'}
-                          {getMemberTypeBadge(member.type)}
+                          <MemberTypeBadge type={member.type} />
                         </div>
                         {member.username && (
                           <div className="truncate text-muted-foreground text-xs">

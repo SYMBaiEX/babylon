@@ -150,12 +150,10 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
               not: user.userId, // Exclude current user
             },
           },
-          {
-            id: {
-              notIn:
-                excludedUserIds.length > 0 ? excludedUserIds : ['__none__'],
-            },
-          },
+          // Only add notIn clause if there are users to exclude
+          ...(excludedUserIds.length > 0
+            ? [{ id: { notIn: excludedUserIds } }]
+            : []),
           {
             // Include agents OR NPCs (non-human participants)
             OR: [{ isAgent: true }, { isActor: true }],

@@ -23,6 +23,7 @@
     "build:staging": "NODE_ENV=production bun --env-file=.env.staging.local run build",
     "build:production": "NODE_ENV=production bun --env-file=.env.production.local run build",
     "start": "turbo start --filter=web",
+    "start:local": "NODE_ENV=production bun --env-file=.env run start",
     "start:staging": "NODE_ENV=production bun --env-file=.env.staging.local run start",
     "start:production": "NODE_ENV=production bun --env-file=.env.production.local run start",
     "check": "biome check --write .",

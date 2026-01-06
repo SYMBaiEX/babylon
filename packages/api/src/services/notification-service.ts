@@ -557,31 +557,39 @@ export async function notifyUserGroupInvite(
 /**
  * Create notification when a user is directly added to a group
  * (without requiring invite acceptance)
+ *
+ * @param adderName - Optional pre-fetched adder name to avoid N+1 queries when called in bulk
  */
 export async function notifyGroupMemberAdded(
   userId: string,
   addedById: string,
   groupId: string,
   groupName: string,
-  chatId?: string
+  chatId?: string,
+  adderName?: string
 ): Promise<void> {
   // Don't notify if user added themselves
   if (userId === addedById) {
     return;
   }
 
-  const result = await db
-    .select({
-      displayName: users.displayName,
-      username: users.username,
-    })
-    .from(users)
-    .where(eq(users.id, addedById))
-    .limit(1);
+  // Use provided adderName or fetch it (for backwards compatibility)
+  let resolvedAdderName = adderName;
+  if (!resolvedAdderName) {
+    const result = await db
+      .select({
+        displayName: users.displayName,
+        username: users.username,
+      })
+      .from(users)
+      .where(eq(users.id, addedById))
+      .limit(1);
 
-  const adder = result[0];
-  const adderName = adder?.displayName || adder?.username || 'Someone';
-  const message = `${adderName} added you to ${groupName}`;
+    const adder = result[0];
+    resolvedAdderName = adder?.displayName || adder?.username || 'Someone';
+  }
+
+  const message = `${resolvedAdderName} added you to ${groupName}`;
 
   // Create notification with groupId and chatId for proper linking
   await db.insert(notifications).values({

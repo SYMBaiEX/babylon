@@ -51,7 +51,7 @@ export const POST = withErrorHandling(
     let groupName = 'Unknown';
     let chatId: string | null = null;
 
-    await asUser(user, async (db) => {
+    const { adderName } = await asUser(user, async (db) => {
       // Get group details first to check type
       const group = await db.group.findUnique({
         where: { id: groupId },
@@ -191,15 +191,18 @@ export const POST = withErrorHandling(
           },
         });
       }
+
+      return { adderName };
     });
 
-    // Send notification to the added user
+    // Send notification to the added user (pass adderName to avoid extra query)
     await notifyGroupMemberAdded(
       data.userId,
       user.userId,
       groupId,
       groupName,
-      chatId || undefined
+      chatId || undefined,
+      adderName
     );
 
     logger.info(

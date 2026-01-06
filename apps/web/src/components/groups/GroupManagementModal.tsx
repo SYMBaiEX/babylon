@@ -19,6 +19,7 @@ import {
 import { useEffect, useState } from 'react';
 import { Avatar } from '@/components/shared/Avatar';
 import { useAuthStore } from '@/stores/authStore';
+import { GroupTypeBadge, MemberTypeBadge } from './MemberTypeBadge';
 
 /**
  * Member structure for group management modal.
@@ -226,45 +227,6 @@ export function GroupManagementModal({
     setSearchResults([]);
   };
 
-  const getTypeBadge = (type: 'user' | 'agent' | 'npc') => {
-    switch (type) {
-      case 'agent':
-        return (
-          <span className="ml-1 inline-flex items-center rounded bg-blue-500/10 px-1.5 py-0.5 text-blue-600 text-xs dark:text-blue-400">
-            <Bot className="mr-0.5 h-3 w-3" />
-            Agent
-          </span>
-        );
-      case 'npc':
-        return (
-          <span className="ml-1 inline-flex items-center rounded bg-purple-500/10 px-1.5 py-0.5 text-purple-600 text-xs dark:text-purple-400">
-            <User className="mr-0.5 h-3 w-3" />
-            NPC
-          </span>
-        );
-      default:
-        return null;
-    }
-  };
-
-  const getGroupTypeBadge = (type: 'user' | 'npc' | 'agent') => {
-    switch (type) {
-      case 'npc':
-        return (
-          <span className="rounded bg-purple-500/10 px-2 py-1 text-purple-600 text-xs dark:text-purple-400">
-            NPC Group
-          </span>
-        );
-      case 'agent':
-        return (
-          <span className="rounded bg-blue-500/10 px-2 py-1 text-blue-600 text-xs dark:text-blue-400">
-            Agent Group
-          </span>
-        );
-      default:
-        return null;
-    }
-  };
 
   const handleAddMember = async (userId: string) => {
     if (!groupId) return;
@@ -530,7 +492,7 @@ export function GroupManagementModal({
               <h2 className="font-bold text-xl">
                 {groupDetails?.name || 'Group Settings'}
               </h2>
-              {groupDetails && getGroupTypeBadge(groupDetails.type)}
+              {groupDetails && <GroupTypeBadge type={groupDetails.type} />}
             </div>
             <button
               onClick={handleClose}
@@ -690,7 +652,7 @@ export function GroupManagementModal({
                                   {result.displayName ||
                                     result.username ||
                                     'Unknown'}
-                                  {getTypeBadge(result.type)}
+                                  <MemberTypeBadge type={result.type} />
                                 </div>
                                 {result.username && (
                                   <div className="truncate text-muted-foreground text-xs">

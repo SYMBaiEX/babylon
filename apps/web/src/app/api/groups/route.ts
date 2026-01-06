@@ -385,7 +385,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
             },
           });
 
-          // Send notifications to all added members
+          // Send notifications to all added members (pass creatorName to avoid N+1 queries)
           await Promise.all(
             validMemberIds.map((memberId) =>
               notifyGroupMemberAdded(
@@ -393,7 +393,8 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
                 user.userId,
                 groupId,
                 data.name,
-                chatId
+                chatId,
+                creatorName
               )
             )
           );
