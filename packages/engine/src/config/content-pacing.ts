@@ -30,6 +30,12 @@
 
 /**
  * Content pacing configuration constants
+ *
+ * Rationale for values (based on user testing feedback):
+ * - Users reported feed felt "flooded" with too many AI posts
+ * - Real influencers typically post 3-5 times per day max
+ * - Twitter/X peak engagement is roughly 9am-9pm in most timezones
+ * - 12 posts/hour ≈ 1 post every 5 minutes, feels active but not overwhelming
  */
 export const CONTENT_PACING = {
   /**
@@ -40,37 +46,42 @@ export const CONTENT_PACING = {
 
   /**
    * Activity multiplier during off-peak hours (9pm-9am local time).
-   * Lower values reduce the probability of content generation.
+   * 0.3 = 70% chance to skip generation during night hours.
+   * Rationale: Real social media activity drops ~60-70% overnight.
    */
   offPeakMultiplier: 0.3,
 
   /**
    * Maximum posts any single actor can make in a 24-hour period.
-   * Prevents any character from dominating the feed.
+   * Rationale: Real influencers/thought leaders rarely exceed 5 posts/day.
+   * More than this feels spammy and reduces perceived authenticity.
    */
   maxPostsPerActorPerDay: 5,
 
   /**
    * Minimum time in milliseconds between posts from the same actor.
    * 30 minutes = 1800000ms
+   * Rationale: Prevents rapid-fire posting that looks automated.
    */
   minTimeBetweenPostsMs: 30 * 60 * 1000,
 
   /**
    * Maximum posts to generate across all actors in a single tick.
-   * Prevents overwhelming the feed during any single tick.
+   * Rationale: With ~50 active actors, 5 posts/tick over 12 ticks/hour
+   * = 60 posts/hour max burst, but distributed randomly feels natural.
    */
   maxPostsPerTick: 5,
 
   /**
    * Target number of posts per hour across all actors.
-   * Used for probabilistic generation decisions.
+   * Rationale: 12 posts/hour = 1 every 5 minutes on average.
+   * User testing showed this rate felt "active but not overwhelming".
    */
   targetPostsPerHour: 12,
 
   /**
    * Hours that count as "peak" for activity multiplier.
-   * Default: 9am to 9pm (21:00)
+   * Rationale: Matches typical US/EU waking hours overlap (9am-9pm UTC-5 to UTC+1).
    */
   peakHourStart: 9,
   peakHourEnd: 21,

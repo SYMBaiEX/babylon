@@ -444,13 +444,25 @@ export function shouldPostAboutTopic(
   const normalizeText = (text: string): string =>
     text.toLowerCase().replace(/[-_]/g, ' ').replace(/\s+/g, ' ').trim();
 
+  /**
+   * Check if keyword matches as a whole word in text.
+   * Uses word boundaries to prevent "gpu" matching "GPUpdate" or "tech" matching "biotech".
+   */
+  const matchesWholeWord = (text: string, keyword: string): boolean => {
+    const escapedKeyword = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const wordBoundaryPattern = new RegExp(`\\b${escapedKeyword}\\b`, 'i');
+    return wordBoundaryPattern.test(text);
+  };
+
   const topicNormalized = normalizeText(topicText);
 
   // Check ignoreTopics first - if actor explicitly ignores this topic, skip
   if (actor?.ignoreTopics && actor.ignoreTopics.length > 0) {
     const isIgnored = actor.ignoreTopics.some((ignoredTopic) => {
       const keywords = DOMAIN_KEYWORDS[ignoredTopic] || [ignoredTopic];
-      return keywords.some((kw) => topicNormalized.includes(normalizeText(kw)));
+      return keywords.some((kw) =>
+        matchesWholeWord(topicNormalized, normalizeText(kw))
+      );
     });
     if (isIgnored) {
       logger.debug(
@@ -469,12 +481,14 @@ export function shouldPostAboutTopic(
 
   // Check if topic matches any of the actor's domains
   const isOnDomain = config.domains.some((domain) => {
-    // Direct domain match
-    if (topicNormalized.includes(normalizeText(domain))) return true;
+    // Direct domain match (whole word)
+    if (matchesWholeWord(topicNormalized, normalizeText(domain))) return true;
 
     // Domain keyword expansions
     const keywords = DOMAIN_KEYWORDS[domain] || [];
-    return keywords.some((kw) => topicNormalized.includes(normalizeText(kw)));
+    return keywords.some((kw) =>
+      matchesWholeWord(topicNormalized, normalizeText(kw))
+    );
   });
 
   // If on-domain, always allow

@@ -97,50 +97,60 @@ describe('Hot Posts API - Scoring Algorithm', () => {
     });
   });
 
-  describe('toISOStringSafe', () => {
+  describe('toISOStringStrict', () => {
     /**
-     * Replicates the toISOStringSafe function from the route
+     * Replicates the toISOStringStrict function from the route.
+     * STRICT: Throws on invalid input instead of masking with current time.
      */
-    const toISOStringSafe = (
+    const toISOStringStrict = (
       date: Date | string | null | undefined
     ): string => {
-      if (!date) return new Date().toISOString();
-      if (date instanceof Date) return date.toISOString();
-      if (typeof date === 'string') {
-        if (date.includes('T') && date.includes('Z')) return date;
-        const parsed = new Date(date);
-        if (!isNaN(parsed.getTime())) return parsed.toISOString();
+      if (date === null || date === undefined) {
+        throw new Error('Invalid date input: null or undefined');
       }
-      return new Date().toISOString();
+      if (date instanceof Date) {
+        if (isNaN(date.getTime())) {
+          throw new Error('Invalid date input: Date object is invalid');
+        }
+        return date.toISOString();
+      }
+      if (typeof date === 'string') {
+        const parsed = new Date(date);
+        if (!isNaN(parsed.getTime())) {
+          return parsed.toISOString();
+        }
+        throw new Error(`Invalid date input: unparseable string "${date}"`);
+      }
+      throw new Error(`Invalid date input: unexpected type ${typeof date}`);
     };
 
     it('should handle Date objects', () => {
       const date = new Date('2025-01-04T12:00:00.000Z');
-      expect(toISOStringSafe(date)).toBe('2025-01-04T12:00:00.000Z');
+      expect(toISOStringStrict(date)).toBe('2025-01-04T12:00:00.000Z');
     });
 
     it('should handle ISO string format', () => {
       const isoString = '2025-01-04T12:00:00.000Z';
-      expect(toISOStringSafe(isoString)).toBe(isoString);
+      expect(toISOStringStrict(isoString)).toBe(isoString);
     });
 
     it('should handle parseable date strings', () => {
       const dateString = '2025-01-04';
-      const result = toISOStringSafe(dateString);
+      const result = toISOStringStrict(dateString);
       expect(result).toContain('2025-01-04');
       expect(result).toContain('T');
     });
 
-    it('should return current date for null', () => {
-      const result = toISOStringSafe(null);
-      expect(result).toContain('T');
-      expect(result).toContain('Z');
+    it('should throw for null', () => {
+      expect(() => toISOStringStrict(null)).toThrow('Invalid date input');
     });
 
-    it('should return current date for undefined', () => {
-      const result = toISOStringSafe(undefined);
-      expect(result).toContain('T');
-      expect(result).toContain('Z');
+    it('should throw for undefined', () => {
+      expect(() => toISOStringStrict(undefined)).toThrow('Invalid date input');
+    });
+
+    it('should throw for invalid date string', () => {
+      expect(() => toISOStringStrict('not-a-date')).toThrow('unparseable');
     });
   });
 });

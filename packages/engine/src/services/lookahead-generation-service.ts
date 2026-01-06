@@ -222,7 +222,9 @@ export function extractEntities(text: string): string[] {
     { pattern: /\bukraine\b/i, entity: 'ukraine' },
     // Products/Models - catch specific product names
     { pattern: /\bfsd\b/i, entity: 'tesla-fsd' },
-    { pattern: /\bo[- ]?\d+(?:\.\d+)?/i, entity: 'openai-model' }, // e.g., o1, o-1, o1.5
+    // OpenAI "o" series models: o1, o1-mini, o1-pro, o3, o3-mini
+    // Tighter pattern to avoid matching "o2" (oxygen levels), "O-ring", etc.
+    { pattern: /\bo[- ]?[13](?:-(?:mini|pro|preview))?(?:\.\d+)?/i, entity: 'openai-model' },
     { pattern: /\bgpt[- ]?\d+/i, entity: 'openai-model' },
     { pattern: /\bclaude[- ]?\d*/i, entity: 'anthropic-model' },
     { pattern: /\bgemini\b/i, entity: 'google-model' },

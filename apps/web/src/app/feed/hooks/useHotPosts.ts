@@ -28,6 +28,7 @@ export function useHotPosts(
   const hasFetched = useRef(false);
   const abortControllerRef = useRef<AbortController | null>(null);
   const refreshControllerRef = useRef<AbortController | null>(null);
+  const intervalControllerRef = useRef<AbortController | null>(null);
 
   const fetchPosts = useCallback(
     async (showLoading = true, signal?: AbortSignal) => {
@@ -86,6 +87,8 @@ export function useHotPosts(
       abortControllerRef.current = null;
       refreshControllerRef.current?.abort();
       refreshControllerRef.current = null;
+      intervalControllerRef.current?.abort();
+      intervalControllerRef.current = null;
       return;
     }
     if (hasFetched.current) return;
@@ -106,18 +109,18 @@ export function useHotPosts(
   useEffect(() => {
     if (!enabled) return;
 
-    let intervalController: AbortController | null = null;
-
     const id = setInterval(() => {
       // Abort previous interval fetch if still running
-      intervalController?.abort();
-      intervalController = new AbortController();
-      void fetchPosts(false, intervalController.signal);
+      intervalControllerRef.current?.abort();
+      const controller = new AbortController();
+      intervalControllerRef.current = controller;
+      void fetchPosts(false, controller.signal);
     }, REFRESH_INTERVAL_MS);
 
     return () => {
       clearInterval(id);
-      intervalController?.abort();
+      intervalControllerRef.current?.abort();
+      intervalControllerRef.current = null;
     };
   }, [enabled, fetchPosts]);
 

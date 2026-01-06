@@ -171,18 +171,20 @@ function calculateHotScore(
 
 /**
  * Converts a date value to ISO string format, handling various input types.
- * Throws an error for invalid or unparseable dates instead of masking with current time.
+ * STRICT: Throws an error for invalid or unparseable dates instead of masking with current time.
+ *
+ * Use `validateDateWithFallback` when a graceful fallback is needed instead.
  */
-function toISOStringSafe(date: Date | string | null | undefined): string {
+function toISOStringStrict(date: Date | string | null | undefined): string {
   if (date === null || date === undefined) {
     throw new Error(
-      'Invalid date input in toISOStringSafe: date is null or undefined'
+      'Invalid date input in toISOStringStrict: date is null or undefined'
     );
   }
   if (date instanceof Date) {
     if (isNaN(date.getTime())) {
       throw new Error(
-        'Invalid date input in toISOStringSafe: Date object is invalid'
+        'Invalid date input in toISOStringStrict: Date object is invalid'
       );
     }
     return date.toISOString();
@@ -194,11 +196,11 @@ function toISOStringSafe(date: Date | string | null | undefined): string {
       return parsed.toISOString();
     }
     throw new Error(
-      `Invalid date input in toISOStringSafe: unparseable string "${date}"`
+      `Invalid date input in toISOStringStrict: unparseable string "${date}"`
     );
   }
   throw new Error(
-    `Invalid date input in toISOStringSafe: unexpected type ${typeof date}`
+    `Invalid date input in toISOStringStrict: unexpected type ${typeof date}`
   );
 }
 
@@ -400,8 +402,8 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
           category: post.category,
           imageUrl: post.imageUrl,
           type: post.type,
-          timestamp: toISOStringSafe(validTimestamp),
-          createdAt: toISOStringSafe(validCreatedAt),
+          timestamp: toISOStringStrict(validTimestamp),
+          createdAt: toISOStringStrict(validCreatedAt),
           authorId: post.authorId,
           authorName,
           authorUsername,

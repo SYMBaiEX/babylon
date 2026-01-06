@@ -222,20 +222,18 @@ export function FollowButton({
   };
 
   if (variant === 'icon') {
-    // Show placeholder during loading to prevent layout shift
+    // Show subtle skeleton during loading to prevent layout shift
     if (isChecking) {
       return (
         <div
           className={cn(
-            'rounded transition-colors',
+            'flex items-center justify-center rounded transition-colors',
             iconButtonSizes[size],
             className
           )}
-          aria-hidden="true"
+          aria-label="Loading follow status"
         >
-          <div className={cn(iconSizes[size], 'opacity-0')}>
-            <UserPlus />
-          </div>
+          <Skeleton className={cn(iconSizes[size], 'rounded-full opacity-40')} />
         </div>
       );
     }
@@ -266,19 +264,18 @@ export function FollowButton({
     );
   }
 
-  // For button variant, also handle checking state
+  // For button variant, show subtle skeleton during checking
   if (isChecking) {
     return (
       <div
         className={cn(
-          'rounded-full border border-transparent',
+          'flex items-center justify-center rounded-full border border-muted',
           sizeClasses[size],
-          'opacity-0',
           className
         )}
-        aria-hidden="true"
+        aria-label="Loading follow status"
       >
-        Follow
+        <Skeleton className="h-4 w-12 rounded opacity-40" />
       </div>
     );
   }

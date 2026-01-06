@@ -179,13 +179,22 @@ export function InlineComposer({
     }
   };
 
+  // Track pending resize frame to avoid duplicate rAF calls
+  const resizeFrameRef = useRef<number | null>(null);
+
   const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setContent(e.target.value);
 
-    // Auto-expand textarea
+    // Auto-expand textarea using requestAnimationFrame to prevent layout thrashing
     const textarea = e.target;
-    textarea.style.height = 'auto';
-    textarea.style.height = `${Math.min(textarea.scrollHeight, 200)}px`;
+    if (resizeFrameRef.current !== null) {
+      cancelAnimationFrame(resizeFrameRef.current);
+    }
+    resizeFrameRef.current = requestAnimationFrame(() => {
+      textarea.style.height = 'auto';
+      textarea.style.height = `${Math.min(textarea.scrollHeight, 200)}px`;
+      resizeFrameRef.current = null;
+    });
   };
 
   // Don't render if user is not authenticated
