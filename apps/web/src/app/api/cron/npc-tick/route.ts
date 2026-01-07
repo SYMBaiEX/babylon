@@ -361,11 +361,27 @@ export async function POST(_req: NextRequest) {
       totalActionsExecuted += actionCount;
 
       // Update activity state for organic behavior tracking
+      // Wrapped in try/catch so memory update failures don't fail the whole tick
       const didPost = tickResult.actionsExecuted.posts > 0;
-      await npcMemoryService.updateActivityState(npc.id, {
-        active: true,
-        posted: didPost,
-      });
+      try {
+        await npcMemoryService.updateActivityState(npc.id, {
+          active: true,
+          posted: didPost,
+        });
+      } catch (activityError) {
+        logger.error(
+          'Failed to update NPC activity state',
+          {
+            npcId: npc.id,
+            didPost,
+            error:
+              activityError instanceof Error
+                ? activityError.message
+                : String(activityError),
+          },
+          'NPCTick'
+        );
+      }
 
       results.push({
         npcId: npc.id,

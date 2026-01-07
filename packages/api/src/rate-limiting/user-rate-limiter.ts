@@ -6,6 +6,7 @@
  * Falls back to in-memory storage when Redis is unavailable.
  */
 
+import { randomUUID } from 'crypto';
 import { logger } from '@babylon/shared';
 import { getRedisClient, isRedisAvailable } from '../redis/client';
 
@@ -215,45 +216,67 @@ async function checkRateLimitRedis(
   const windowStart = now - config.windowMs;
 
   try {
-    // Use a pipeline for atomic operations
-    const pipeline = redis.pipeline();
+    // Atomic Lua script for sliding window rate limiting
+    // Performs cleanup, check, and add in a single atomic operation
+    const luaScript = `
+      local key = KEYS[1]
+      local now = tonumber(ARGV[1])
+      local windowStart = tonumber(ARGV[2])
+      local maxRequests = tonumber(ARGV[3])
+      local windowMs = tonumber(ARGV[4])
+      local member = ARGV[5]
+      
+      -- Remove expired entries (outside current window)
+      redis.call('ZREMRANGEBYSCORE', key, 0, windowStart)
+      
+      -- Count remaining entries in the window
+      local count = redis.call('ZCARD', key)
+      
+      -- Check if limit exceeded
+      if count >= maxRequests then
+        -- Get oldest entry for retry-after calculation
+        local oldest = redis.call('ZRANGE', key, 0, 0, 'WITHSCORES')
+        local oldestTimestamp = now
+        if oldest and #oldest >= 2 then
+          oldestTimestamp = tonumber(oldest[2])
+        end
+        return {0, oldestTimestamp, count}
+      end
+      
+      -- Add new entry and set expiration atomically
+      redis.call('ZADD', key, now, member)
+      redis.call('EXPIRE', key, math.ceil(windowMs / 1000) + 10)
+      
+      return {1, 0, count + 1}
+    `;
 
-    // Remove expired entries (outside current window)
-    pipeline.zremrangebyscore(key, 0, windowStart);
+    const uniqueId = randomUUID().slice(0, 8);
+    const member = `${now}-${userId}-${uniqueId}`;
 
-    // Count remaining entries in the window
-    pipeline.zcard(key);
+    const result = (await redis.eval(
+      luaScript,
+      1,
+      key,
+      now.toString(),
+      windowStart.toString(),
+      config.maxRequests.toString(),
+      config.windowMs.toString(),
+      member
+    )) as [number, number, number];
 
-    // Get the oldest entry (for retry-after calculation)
-    pipeline.zrange(key, 0, 0, 'WITHSCORES');
-
-    const results = await pipeline.exec();
-
-    if (!results) {
+    if (!result || !Array.isArray(result) || result.length < 3) {
       logger.warn(
-        'Redis pipeline returned null',
-        { userId, actionType: config.actionType },
+        'Redis Lua script returned unexpected result',
+        { userId, actionType: config.actionType, result },
         'RateLimiter'
       );
       return checkRateLimitMemory(userId, config);
     }
 
-    // results[1] is the zcard result: [error, count]
-    const countResult = results[1];
-    const count =
-      countResult && countResult[1] !== null ? (countResult[1] as number) : 0;
+    const [allowed, oldestTimestamp, count] = result;
 
-    // Check if limit exceeded
-    if (count >= config.maxRequests) {
-      // results[2] is the zrange result: [error, [[timestamp, score]]]
-      const oldestResult = results[2];
-      const oldestEntries =
-        oldestResult && oldestResult[1] ? (oldestResult[1] as string[]) : [];
-      const oldestTimestampStr = oldestEntries[1];
-      const oldestTimestamp =
-        oldestTimestampStr !== undefined
-          ? Number.parseInt(oldestTimestampStr, 10)
-          : now;
+    if (allowed === 0) {
+      // Rate limit exceeded
       const retryAfter = Math.ceil(
         (oldestTimestamp + config.windowMs - now) / 1000
       );
@@ -277,20 +300,14 @@ async function checkRateLimitRedis(
       };
     }
 
-    // Record this action with a unique identifier to prevent collisions
-    const uniqueId = crypto.randomUUID().slice(0, 8);
-    await redis.zadd(key, now, `${now}-${userId}-${uniqueId}`);
-    // Set key expiration to window duration + buffer
-    await redis.expire(key, Math.ceil(config.windowMs / 1000) + 10);
-
-    const remaining = config.maxRequests - count - 1;
+    const remaining = config.maxRequests - count;
 
     logger.debug(
       'Rate limit check passed (Redis)',
       {
         userId,
         actionType: config.actionType,
-        count: count + 1,
+        count,
         maxRequests: config.maxRequests,
         remaining,
       },

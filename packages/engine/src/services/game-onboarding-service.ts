@@ -23,23 +23,12 @@ import {
 import { EarnedPointsService } from './earned-points-service';
 
 /**
- * Create or get onboarding record for a user
+ * Create or get onboarding record for a user.
+ * Uses INSERT ... ON CONFLICT DO NOTHING then SELECT for atomic, race-free creation.
  */
 export async function getOrCreateOnboarding(
   userId: string
 ): Promise<GameOnboardingRow> {
-  // Check if exists
-  const [existing] = await db
-    .select()
-    .from(gameOnboarding)
-    .where(eq(gameOnboarding.userId, userId))
-    .limit(1);
-
-  if (existing) {
-    return existing;
-  }
-
-  // Create new onboarding record
   const id = await generateSnowflakeId();
   const now = new Date();
   const initialState: GameOnboardingState = {
@@ -50,7 +39,8 @@ export async function getOrCreateOnboarding(
     rewards: [],
   };
 
-  const [created] = await db
+  // Attempt insert, do nothing on conflict (userId is unique)
+  await db
     .insert(gameOnboarding)
     .values({
       id,
@@ -61,15 +51,30 @@ export async function getOrCreateOnboarding(
       createdAt: now,
       updatedAt: now,
     })
-    .returning();
+    .onConflictDoNothing({ target: gameOnboarding.userId });
 
-  logger.info(
-    `Created game onboarding for user ${userId}`,
-    { userId, onboardingId: id },
-    'GameOnboarding'
-  );
+  // Select the row (either just created or already existed)
+  const [row] = await db
+    .select()
+    .from(gameOnboarding)
+    .where(eq(gameOnboarding.userId, userId))
+    .limit(1);
 
-  return created!;
+  if (!row) {
+    // This should never happen, but handle gracefully
+    throw new Error(`Failed to get or create onboarding for user ${userId}`);
+  }
+
+  // Log only if this was a new creation (check if createdAt matches)
+  if (row.createdAt.getTime() === now.getTime()) {
+    logger.info(
+      `Created game onboarding for user ${userId}`,
+      { userId, onboardingId: row.id },
+      'GameOnboarding'
+    );
+  }
+
+  return row;
 }
 
 /**

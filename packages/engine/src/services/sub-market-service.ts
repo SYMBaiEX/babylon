@@ -277,8 +277,12 @@ export class SubMarketService {
       .values(newMarket)
       .returning();
 
+    if (!created) {
+      throw new Error(`Failed to create timeframed market ${id}`);
+    }
+
     // Update parent's child count if applicable
-    if (params.parentMarketId && created) {
+    if (params.parentMarketId) {
       await db
         .update(timeframedMarkets)
         .set({
@@ -288,7 +292,7 @@ export class SubMarketService {
         .where(eq(timeframedMarkets.id, params.parentMarketId));
     }
 
-    return created!;
+    return created;
   }
 
   /**
@@ -396,6 +400,10 @@ export class SubMarketService {
       .values(newMarket)
       .returning();
 
+    if (!created) {
+      throw new Error(`Failed to create child market for parent ${parent.id}`);
+    }
+
     // Update parent's child count
     await db
       .update(timeframedMarkets)
@@ -405,7 +413,7 @@ export class SubMarketService {
       })
       .where(eq(timeframedMarkets.id, parent.id));
 
-    return created!;
+    return created;
   }
 
   private async generateQuestion(
@@ -414,9 +422,10 @@ export class SubMarketService {
   ): Promise<GeneratedQuestion> {
     let text = template;
 
-    // Substitute template variables
+    // Substitute template variables using split/join for literal replacement
+    // Avoids ReDoS risk from regex metacharacters in keys
     for (const [key, value] of Object.entries(vars)) {
-      text = text.replace(new RegExp(`\\{${key}\\}`, 'g'), value);
+      text = text.split(`{${key}}`).join(value);
     }
 
     // Extract affiliations from variables

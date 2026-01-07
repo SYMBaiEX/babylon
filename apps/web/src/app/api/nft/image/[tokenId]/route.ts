@@ -94,7 +94,23 @@ const rateLimitWindow = new Map<string, { count: number; resetAt: number }>();
 const RATE_LIMIT_WINDOW_MS = 60 * 1000; // 1 minute window
 const RATE_LIMIT_MAX_REQUESTS = 60; // 60 requests per minute per IP
 
+/**
+ * Cleanup expired rate limit entries on-demand
+ * Called at the start of isRateLimited() to evict stale entries during requests
+ */
+function cleanupExpiredRateLimits(): void {
+  const now = Date.now();
+  for (const [ip, entry] of rateLimitWindow.entries()) {
+    if (now > entry.resetAt) {
+      rateLimitWindow.delete(ip);
+    }
+  }
+}
+
 function isRateLimited(ip: string): boolean {
+  // Cleanup expired entries on-demand
+  cleanupExpiredRateLimits();
+
   const now = Date.now();
   const entry = rateLimitWindow.get(ip);
 
@@ -111,19 +127,6 @@ function isRateLimited(ip: string): boolean {
   entry.count++;
   return false;
 }
-
-// Cleanup old rate limit entries periodically (every 5 minutes)
-setInterval(
-  () => {
-    const now = Date.now();
-    for (const [ip, entry] of rateLimitWindow.entries()) {
-      if (now > entry.resetAt) {
-        rateLimitWindow.delete(ip);
-      }
-    }
-  },
-  5 * 60 * 1000
-);
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -227,10 +230,34 @@ export async function GET(
     const metadata = await metadataResponse.json();
     const downloadUrl = metadata.download_url;
 
+    // Validate download URL exists and is from a trusted GitHub domain
+    const isValidGitHubUrl = (url: unknown): url is string => {
+      if (typeof url !== 'string') return false;
+      try {
+        const parsed = new URL(url);
+        const hostname = parsed.hostname.toLowerCase();
+        return (
+          hostname.endsWith('githubusercontent.com') ||
+          hostname.endsWith('github.com')
+        );
+      } catch {
+        return false;
+      }
+    };
+
     if (!downloadUrl) {
       logger.warn(
         `No download URL for NFT image #${tokenId}`,
         undefined,
+        'GET /api/nft/image/[tokenId]'
+      );
+      return NextResponse.json({ error: 'Image not found' }, { status: 404 });
+    }
+
+    if (!isValidGitHubUrl(downloadUrl)) {
+      logger.warn(
+        `Invalid or untrusted download URL for NFT image #${tokenId}`,
+        { tokenId, url: String(downloadUrl).slice(0, 200) },
         'GET /api/nft/image/[tokenId]'
       );
       return NextResponse.json({ error: 'Image not found' }, { status: 404 });

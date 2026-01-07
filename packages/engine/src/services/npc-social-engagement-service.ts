@@ -164,8 +164,14 @@ export async function processNPCSocialEngagements(): Promise<SocialEngagementRes
       // Random skip for organic feel
       if (secureRandom() < 0.3) continue;
 
-      // Check if we've hit max likes before processing this actor
-      if (result.likesCreated >= MAX_LIKES_PER_TICK) break actorLoop;
+      // Early exit when all quotas are reached to avoid unnecessary work
+      if (
+        result.likesCreated >= MAX_LIKES_PER_TICK &&
+        result.sharesCreated >= MAX_SHARES_PER_TICK &&
+        result.commentsCreated >= MAX_COMMENTS_PER_TICK
+      ) {
+        break actorLoop;
+      }
 
       for (const post of recentPosts) {
         if (post.authorId === actor.id) continue;
@@ -369,7 +375,17 @@ Post: "${post.content.slice(0, 250)}"
     return comment && comment.length > 3 && comment.length < 300
       ? comment
       : null;
-  } catch {
+  } catch (err) {
+    logger.error(
+      'Failed to generate NPC comment',
+      {
+        actorId: actor.id,
+        actorName: actor.name,
+        postId: post.id,
+        error: err instanceof Error ? err.message : String(err),
+      },
+      'NPCSocialEngagement'
+    );
     return null;
   }
 }

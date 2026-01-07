@@ -198,11 +198,13 @@ export const arcStates = pgTable(
     eventsGenerated: integer('eventsGenerated').notNull().default(0),
     lastEventAt: timestamp('lastEventAt', { mode: 'date' }),
 
-    // Pending transitions - cast to PendingTransition[] when reading/writing
-    pendingTransitions: jsonb('pendingTransitions').default(sql`'[]'::jsonb`),
+    // Pending transitions
+    pendingTransitions: jsonb('pendingTransitions')
+      .$type<PendingTransition[]>()
+      .default(sql`'[]'::jsonb`),
 
     createdAt: timestamp('createdAt', { mode: 'date' }).notNull().defaultNow(),
-    updatedAt: timestamp('updatedAt', { mode: 'date' }).notNull(),
+    updatedAt: timestamp('updatedAt', { mode: 'date' }).notNull().defaultNow(),
   },
   (t) => [
     index('ArcState_questionId_idx').on(t.questionId),
@@ -288,7 +290,7 @@ export const timeframedMarkets = pgTable(
     lastEventAt: timestamp('lastEventAt', { mode: 'date' }),
 
     createdAt: timestamp('createdAt', { mode: 'date' }).notNull().defaultNow(),
-    updatedAt: timestamp('updatedAt', { mode: 'date' }).notNull(),
+    updatedAt: timestamp('updatedAt', { mode: 'date' }).notNull().defaultNow(),
   },
   (t) => [
     index('TimeframedMarket_questionId_idx').on(t.questionId),
@@ -363,6 +365,11 @@ export const subMarketSpawnLogs = pgTable(
     index('SubMarketSpawnLog_spawnedMarketId_idx').on(t.spawnedMarketId),
     index('SubMarketSpawnLog_eventType_idx').on(t.eventType),
     index('SubMarketSpawnLog_createdAt_idx').on(t.createdAt),
+    // Partial unique index: prevent duplicate spawns for same parent/event pair
+    // Allows multiple rows when sourceEventId IS NULL
+    unique('SubMarketSpawnLog_parentSource_unique')
+      .on(t.parentMarketId, t.sourceEventId)
+      .where(sql`"sourceEventId" IS NOT NULL`),
   ]
 );
 

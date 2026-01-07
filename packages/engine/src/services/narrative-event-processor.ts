@@ -730,7 +730,12 @@ export async function createArcState(questionId: string): Promise<string> {
     return id;
   } catch (error) {
     // Handle unique constraint violation (race condition)
-    if (error instanceof Error && error.message.includes('unique constraint')) {
+    // Check for Postgres error code 23505 (unique_violation) or fallback to message check
+    const isUniqueViolation =
+      (error as { code?: string }).code === '23505' ||
+      (error instanceof Error && error.message.includes('unique constraint'));
+
+    if (isUniqueViolation) {
       const [racedExisting] = await db
         .select({ id: arcStates.id })
         .from(arcStates)

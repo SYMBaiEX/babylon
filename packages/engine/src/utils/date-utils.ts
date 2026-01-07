@@ -74,7 +74,8 @@ export function getGameDayNumber(startedAt: Date, timestamp: Date): number {
   const daysElapsed = Math.floor(
     (timestamp.getTime() - startedAt.getTime()) / MS_PER_DAY
   );
-  return daysElapsed + 1; // 1-indexed: Day 1 is first day
+  // Clamp to minimum of 1 to handle timestamps before startedAt
+  return Math.max(daysElapsed + 1, 1); // 1-indexed: Day 1 is first day
 }
 
 /**

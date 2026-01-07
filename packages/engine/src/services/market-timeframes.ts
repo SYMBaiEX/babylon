@@ -51,37 +51,15 @@
  *    - Crypto: "Will BTC reach $100k this year?"
  */
 
-import type { ArcStateType } from '@babylon/db';
+import type {
+  ArcStateType,
+  MarketCategory,
+  MarketTimeframe,
+} from '@babylon/db';
 import { logger } from '@babylon/shared';
 
-// =============================================================================
-// TYPES
-// =============================================================================
-
-/**
- * Market timeframe category
- */
-export type MarketTimeframe =
-  | 'flash' // 15-30 minutes
-  | 'intraday' // 1-6 hours
-  | 'daily' // 12-48 hours
-  | 'weekly' // 3-7 days
-  | 'monthly' // 2-4 weeks
-  | 'quarterly' // 1-3 months
-  | 'longterm'; // 3+ months
-
-/**
- * Market category (inspired by Polymarket)
- */
-export type MarketCategory =
-  | 'tech' // Tech company events, product launches
-  | 'crypto' // Cryptocurrency price movements
-  | 'politics' // Elections, legislation, policy
-  | 'sports' // Game outcomes, player performance
-  | 'business' // M&A, earnings, deals
-  | 'entertainment' // Awards, releases, ratings
-  | 'science' // Discoveries, approvals, launches
-  | 'general'; // Other events
+// Re-export types from DB schema for consumers of this module
+export type { MarketCategory, MarketTimeframe } from '@babylon/db';
 
 /**
  * Arc state types for different timeframes
@@ -468,12 +446,13 @@ export const SUB_MARKET_TRIGGERS: Record<MarketCategory, SubMarketTrigger[]> = {
 export function getTimeframeFromDuration(
   durationMinutes: number
 ): MarketTimeframe {
-  if (durationMinutes <= 30) return 'flash';
-  if (durationMinutes <= 360) return 'intraday';
-  if (durationMinutes <= 2880) return 'daily';
-  if (durationMinutes <= 10080) return 'weekly';
-  if (durationMinutes <= 40320) return 'monthly';
-  if (durationMinutes <= 129600) return 'quarterly';
+  // Use maxDurationMinutes from config to avoid gaps between timeframes
+  if (durationMinutes <= TIMEFRAME_CONFIGS.flash.maxDurationMinutes) return 'flash';
+  if (durationMinutes <= TIMEFRAME_CONFIGS.intraday.maxDurationMinutes) return 'intraday';
+  if (durationMinutes <= TIMEFRAME_CONFIGS.daily.maxDurationMinutes) return 'daily';
+  if (durationMinutes <= TIMEFRAME_CONFIGS.weekly.maxDurationMinutes) return 'weekly';
+  if (durationMinutes <= TIMEFRAME_CONFIGS.monthly.maxDurationMinutes) return 'monthly';
+  if (durationMinutes <= TIMEFRAME_CONFIGS.quarterly.maxDurationMinutes) return 'quarterly';
   return 'longterm';
 }
 
@@ -549,11 +528,17 @@ export function getStateBoundaries(
 
 /**
  * Check if an event should spawn a sub-market
+ *
+ * @param eventType - The type of event that occurred
+ * @param category - The market category
+ * @param parentTimeframe - The parent market's timeframe
+ * @param randomValue - Optional random value (0-1) for deterministic testing. Defaults to Math.random().
  */
 export function shouldSpawnSubMarket(
   eventType: string,
   category: MarketCategory,
-  parentTimeframe: MarketTimeframe
+  parentTimeframe: MarketTimeframe,
+  randomValue?: number
 ): SubMarketTrigger | null {
   const config = TIMEFRAME_CONFIGS[parentTimeframe];
 
@@ -574,7 +559,8 @@ export function shouldSpawnSubMarket(
   }
 
   // Check probability
-  if (Math.random() > matchingTrigger.spawnProbability) {
+  const rand = randomValue ?? Math.random();
+  if (rand > matchingTrigger.spawnProbability) {
     logger.debug(
       `Sub-market spawn skipped (probability check failed)`,
       {

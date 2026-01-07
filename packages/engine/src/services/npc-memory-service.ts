@@ -49,7 +49,7 @@ export class NpcMemoryService {
   async addMemory(
     actorId: string,
     memory: Omit<NpcMemory, 'id'>
-  ): Promise<void> {
+  ): Promise<boolean> {
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
       try {
         // Get current state with updatedAt for optimistic locking
@@ -68,7 +68,7 @@ export class NpcMemoryService {
             { actorId },
             'NpcMemoryService'
           );
-          return;
+          return false;
         }
 
         // Parse memories with Zod validation - handles corrupted data gracefully
@@ -122,7 +122,7 @@ export class NpcMemoryService {
             { actorId },
             'NpcMemoryService'
           );
-          return;
+          return false;
         }
 
         logger.debug(
@@ -130,16 +130,17 @@ export class NpcMemoryService {
           { memoryType: memory.type, totalMemories: memories.length },
           'NpcMemoryService'
         );
-        return; // Success
+        return true; // Success
       } catch (error) {
         logger.error(
           `Failed to add memory for ${actorId}`,
           { error: error instanceof Error ? error.message : String(error) },
           'NpcMemoryService'
         );
-        return;
+        return false;
       }
     }
+    return false; // Should not reach here, but ensures return type
   }
 
   /**
@@ -479,32 +480,17 @@ export class NpcMemoryService {
 
     // For single actor, delegate to single method
     if (actorIds.length === 1) {
-      await this.addMemory(actorIds[0]!, memory);
-      return 1;
+      const success = await this.addMemory(actorIds[0]!, memory);
+      return success ? 1 : 0;
     }
 
     // Delegate to addMemory which has retry logic built in
     // Use Promise.allSettled for isolation between actors
     const updateResults = await Promise.allSettled(
-      actorIds.map(async (actorId) => {
-        try {
-          await this.addMemory(actorId, memory);
-          return true;
-        } catch (error) {
-          logger.warn(
-            `Failed to add batch memory for actor ${actorId}`,
-            {
-              actorId,
-              error: error instanceof Error ? error.message : String(error),
-            },
-            'NpcMemoryService'
-          );
-          return false;
-        }
-      })
+      actorIds.map((actorId) => this.addMemory(actorId, memory))
     );
 
-    // Count successes
+    // Count successes - addMemory returns boolean, so check fulfilled results with true value
     const successCount = updateResults.filter(
       (r) => r.status === 'fulfilled' && r.value === true
     ).length;

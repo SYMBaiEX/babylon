@@ -52,9 +52,9 @@ function hashActorId(id: string): number {
   for (let i = 0; i < id.length; i++) {
     const char = id.charCodeAt(i);
     hash = (hash << 5) - hash + char;
-    hash = hash & hash; // Convert to 32-bit integer
+    hash = hash | 0; // Force 32-bit signed truncation
   }
-  return Math.abs(hash);
+  return hash >>> 0; // Convert to unsigned 32-bit integer
 }
 
 /**
@@ -62,9 +62,9 @@ function hashActorId(id: string): number {
  * Spreads actors evenly across the 24-hour day.
  *
  * @param actorId - The actor's unique identifier
- * @param gameDay - The current game day (from games.currentDay). Defaults to 0 for backwards compatibility.
+ * @param gameDay - The current game day (1-indexed from games.currentDay). Defaults to 1.
  */
-function getActorActiveHours(actorId: string, gameDay = 0): number[] {
+function getActorActiveHours(actorId: string, gameDay = 1): number[] {
   // Combine actor ID hash with game day for daily rotation
   // Different actors will be active on different game days
   const startHour = (hashActorId(actorId) + gameDay) % 24;
@@ -94,11 +94,11 @@ export function convertToLocalHour(
  * Uses actor ID to determine their active hours.
  *
  * @param actor - The actor to derive pattern for
- * @param gameDay - The current game day for rotation. Defaults to 0.
+ * @param gameDay - The current game day (1-indexed) for rotation. Defaults to 1.
  */
 export function deriveActivityPattern(
   actor: ActivityActor,
-  gameDay = 0
+  gameDay = 1
 ): ActivityPattern {
   return {
     timezone: 'UTC',
@@ -115,12 +115,12 @@ export function deriveActivityPattern(
  *
  * @param actor - The actor to check
  * @param utcHour - Current UTC hour (0-23)
- * @param gameDay - The current game day for rotation. Defaults to 0.
+ * @param gameDay - The current game day (1-indexed) for rotation. Defaults to 1.
  */
 export function isActiveHour(
   actor: ActivityActor,
   utcHour: number,
-  gameDay = 0
+  gameDay = 1
 ): boolean {
   const activeHours = getActorActiveHours(actor.id, gameDay);
   return activeHours.includes(utcHour);

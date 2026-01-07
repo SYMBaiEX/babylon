@@ -282,6 +282,8 @@ export async function getRecentlyMentionedActorIds(): Promise<string[]> {
   }
 
   // Fallback to in-memory cache
+  // Collect IDs to delete separately to avoid modifying Map during iteration
+  const idsToDelete: string[] = [];
   for (const [actorId, lastMention] of memoryFallbackCache.entries()) {
     if (
       now.getTime() - lastMention.getTime() <
@@ -289,9 +291,13 @@ export async function getRecentlyMentionedActorIds(): Promise<string[]> {
     ) {
       recentIds.push(actorId);
     } else {
-      // Clean up old entries
-      memoryFallbackCache.delete(actorId);
+      idsToDelete.push(actorId);
     }
+  }
+
+  // Clean up old entries after iteration
+  for (const id of idsToDelete) {
+    memoryFallbackCache.delete(id);
   }
 
   return recentIds;
