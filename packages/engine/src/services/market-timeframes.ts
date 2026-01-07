@@ -447,12 +447,18 @@ export function getTimeframeFromDuration(
   durationMinutes: number
 ): MarketTimeframe {
   // Use maxDurationMinutes from config to avoid gaps between timeframes
-  if (durationMinutes <= TIMEFRAME_CONFIGS.flash.maxDurationMinutes) return 'flash';
-  if (durationMinutes <= TIMEFRAME_CONFIGS.intraday.maxDurationMinutes) return 'intraday';
-  if (durationMinutes <= TIMEFRAME_CONFIGS.daily.maxDurationMinutes) return 'daily';
-  if (durationMinutes <= TIMEFRAME_CONFIGS.weekly.maxDurationMinutes) return 'weekly';
-  if (durationMinutes <= TIMEFRAME_CONFIGS.monthly.maxDurationMinutes) return 'monthly';
-  if (durationMinutes <= TIMEFRAME_CONFIGS.quarterly.maxDurationMinutes) return 'quarterly';
+  if (durationMinutes <= TIMEFRAME_CONFIGS.flash.maxDurationMinutes)
+    return 'flash';
+  if (durationMinutes <= TIMEFRAME_CONFIGS.intraday.maxDurationMinutes)
+    return 'intraday';
+  if (durationMinutes <= TIMEFRAME_CONFIGS.daily.maxDurationMinutes)
+    return 'daily';
+  if (durationMinutes <= TIMEFRAME_CONFIGS.weekly.maxDurationMinutes)
+    return 'weekly';
+  if (durationMinutes <= TIMEFRAME_CONFIGS.monthly.maxDurationMinutes)
+    return 'monthly';
+  if (durationMinutes <= TIMEFRAME_CONFIGS.quarterly.maxDurationMinutes)
+    return 'quarterly';
   return 'longterm';
 }
 

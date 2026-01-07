@@ -6,8 +6,8 @@
  * Falls back to in-memory storage when Redis is unavailable.
  */
 
-import { randomUUID } from 'crypto';
 import { logger } from '@babylon/shared';
+import { randomUUID } from 'crypto';
 import { getRedisClient, isRedisAvailable } from '../redis/client';
 
 interface RateLimitRecord {

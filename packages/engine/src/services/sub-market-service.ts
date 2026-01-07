@@ -16,8 +16,8 @@
  */
 
 import {
-  and,
   type ArcStateType,
+  and,
   db,
   eq,
   gte,

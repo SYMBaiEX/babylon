@@ -68,7 +68,9 @@ describe('Player Influence Service - Synchronous Mention Check', () => {
 describe('Player Influence Service - Service Singleton', () => {
   test('singleton returns same instance on multiple imports', () => {
     // Verify singleton identity - multiple references should be the same object
-    const { playerInfluenceService: secondRef } = require('../services/player-influence-service');
+    const {
+      playerInfluenceService: secondRef,
+    } = require('../services/player-influence-service');
     expect(playerInfluenceService).toBe(secondRef);
   });
 
@@ -78,7 +80,8 @@ describe('Player Influence Service - Service Singleton', () => {
     expect(mentions).toEqual(['testuser']);
 
     // wasMentionedRecentlySync should return false for unknown actor
-    const wasmentioned = playerInfluenceService.wasMentionedRecentlySync('unknown-actor-xyz');
+    const wasmentioned =
+      playerInfluenceService.wasMentionedRecentlySync('unknown-actor-xyz');
     expect(wasmentioned).toBe(false);
   });
 });
