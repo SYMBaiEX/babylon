@@ -388,7 +388,7 @@ export function AgentChat({
     if (data.pointsCost > 0) {
       toast.success(`Message sent (-${data.pointsCost} points)`);
     }
-    
+
     // Notify parent to refresh chat list (updates sidebar with latest message)
     onMessageSent?.();
     setSending(false);
