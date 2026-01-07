@@ -280,10 +280,7 @@ export async function GET(
         { tokenId },
         'GET /api/nft/image/[tokenId]'
       );
-      return NextResponse.json(
-        { error: 'Gateway timeout' },
-        { status: 504 }
-      );
+      return NextResponse.json({ error: 'Gateway timeout' }, { status: 504 });
     }
 
     logger.error(
