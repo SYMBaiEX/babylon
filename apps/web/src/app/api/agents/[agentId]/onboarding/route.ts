@@ -12,7 +12,7 @@
 import { agentRuntimeManager, agentService } from '@babylon/agents';
 import { authenticateUser, withErrorHandling } from '@babylon/api';
 import { db } from '@babylon/db';
-import { logger } from '@babylon/shared';
+import { GROQ_MODELS, logger } from '@babylon/shared';
 import {
   composePromptFromState,
   type Memory,
@@ -184,7 +184,10 @@ export const POST = withErrorHandling(
         agentUserId: agentId,
         role: 'assistant',
         content: welcomeMessage,
-        modelUsed: agentConfig?.modelTier === 'pro' ? 'groq-70b' : 'groq-8b',
+        modelUsed:
+          agentConfig?.modelTier === 'pro'
+            ? GROQ_MODELS.PRO.displayName
+            : GROQ_MODELS.FREE.displayName,
         pointsCost: 0, // Onboarding message is free
         metadata: {
           type: 'onboarding',
