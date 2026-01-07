@@ -270,7 +270,7 @@ export default function CreateAgentPage() {
 
     clearDraft();
     toast.success('Agent created successfully!');
-    
+
     // Redirect to chats page with the agent's chat selected
     if (chatId) {
       router.push(`/chats?chat=${chatId}`);

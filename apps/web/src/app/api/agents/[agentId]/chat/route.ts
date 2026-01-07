@@ -14,6 +14,7 @@ import { agentRuntimeManager, agentService } from '@babylon/agents';
 import { authenticateUser, withErrorHandling } from '@babylon/api';
 import { db, eq, userAgentConfigs } from '@babylon/db';
 import { checkUserInput, logger } from '@babylon/shared';
+import { MODEL_TIER_POINTS_COST } from '@/lib/constants';
 import {
   type ActionResult,
   composePromptFromState,
@@ -235,7 +236,9 @@ export const POST = withErrorHandling(
     }
     const agentConfig = agentWithConfig.agentConfig;
 
-    const pointsCost = usePro ? 1 : 0;
+    const pointsCost = usePro
+      ? MODEL_TIER_POINTS_COST.pro
+      : MODEL_TIER_POINTS_COST.free;
     const modelType = usePro ? ModelType.TEXT_LARGE : ModelType.TEXT_SMALL;
     const modelUsed = usePro ? 'groq-70b' : 'groq-8b';
 
