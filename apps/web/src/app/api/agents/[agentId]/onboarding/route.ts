@@ -72,7 +72,11 @@ export const POST = withErrorHandling(
     { params }: { params: Promise<{ agentId: string }> }
   ) => {
     const { agentId } = await params;
-    logger.info('Agent onboarding endpoint hit', { agentId }, 'AgentOnboarding');
+    logger.info(
+      'Agent onboarding endpoint hit',
+      { agentId },
+      'AgentOnboarding'
+    );
 
     const user = await authenticateUser(req);
 

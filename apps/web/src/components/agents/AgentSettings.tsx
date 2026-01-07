@@ -8,8 +8,8 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { useAuth } from '@/hooks/useAuth';
 import {
-  AgentConfigurationForm,
   type AgentConfigurationData,
+  AgentConfigurationForm,
 } from './AgentConfigurationForm';
 
 /**

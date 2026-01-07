@@ -12,10 +12,10 @@ import { useAuth } from '@/hooks/useAuth';
 import { useWalletBalance } from '@/hooks/useWalletBalance';
 import {
   AgentConfigForm,
-  AgentSetupModal,
-  AgentSettingsStep,
-  ProfilePreviewCard,
   type AgentSettingsData,
+  AgentSettingsStep,
+  AgentSetupModal,
+  ProfilePreviewCard,
 } from './components';
 import { useAgentForm } from './hooks';
 
@@ -296,7 +296,9 @@ export default function CreateAgentPage() {
             className="mb-4 flex items-center gap-3 text-muted-foreground transition-colors hover:text-foreground"
           >
             <ArrowLeft className="h-5 w-5" />
-            <span>{currentStep === Step.Profile ? 'Back' : 'Previous Step'}</span>
+            <span>
+              {currentStep === Step.Profile ? 'Back' : 'Previous Step'}
+            </span>
           </button>
           <div className="flex items-center gap-3">
             <Bot className="h-6 w-6 text-[#0066FF]" />
@@ -304,9 +306,9 @@ export default function CreateAgentPage() {
               <h1 className="font-bold text-3xl">Create AI Agent</h1>
               <p className="text-muted-foreground">
                 {currentStep === Step.Prompts
-                  ? 'Configure your agent\'s personality and prompts'
+                  ? "Configure your agent's personality and prompts"
                   : currentStep === Step.Settings
-                    ? 'Set up your agent\'s capabilities'
+                    ? "Set up your agent's capabilities"
                     : 'Configure your autonomous trading agent'}
               </p>
             </div>
@@ -374,7 +376,9 @@ export default function CreateAgentPage() {
                 </div>
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Initial Deposit</span>
+                    <span className="text-muted-foreground">
+                      Initial Deposit
+                    </span>
                     <span className="font-medium font-mono">
                       {agentData.initialDeposit.toLocaleString()} pts
                     </span>
@@ -393,63 +397,63 @@ export default function CreateAgentPage() {
             <div className="space-y-6 lg:col-span-2">
               {/* Step 2: Prompts Configuration */}
               {currentStep === Step.Prompts && (
-              <>
-                {isInitialized ? (
-                  <>
-                    <AgentConfigForm
-                      agentData={agentData}
-                      generatingField={generatingField}
-                      maxDeposit={maxDeposit}
-                      onFieldChange={updateAgentField}
-                      onRegenerate={regenerateField}
-                    />
+                <>
+                  {isInitialized ? (
+                    <>
+                      <AgentConfigForm
+                        agentData={agentData}
+                        generatingField={generatingField}
+                        maxDeposit={maxDeposit}
+                        onFieldChange={updateAgentField}
+                        onRegenerate={regenerateField}
+                      />
 
-                    {/* Actions */}
-                    <div className="flex justify-end gap-3 border-border border-t pt-6">
-                      <button
-                        onClick={() => router.push('/agents')}
-                        className={cn(
-                          'rounded-lg border border-border px-6 py-3 font-medium transition-colors',
-                          'text-muted-foreground hover:bg-muted hover:text-foreground'
-                        )}
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        onClick={handleContinueToSettings}
-                        disabled={!isInitialized}
-                        className={cn(
-                          'flex items-center gap-2 rounded-lg px-6 py-3 font-medium transition-all',
-                          'bg-[#0066FF] text-primary-foreground hover:bg-[#2952d9]',
-                          'disabled:cursor-not-allowed disabled:opacity-50'
-                        )}
-                      >
-                        Continue
-                      </button>
+                      {/* Actions */}
+                      <div className="flex justify-end gap-3 border-border border-t pt-6">
+                        <button
+                          onClick={() => router.push('/agents')}
+                          className={cn(
+                            'rounded-lg border border-border px-6 py-3 font-medium transition-colors',
+                            'text-muted-foreground hover:bg-muted hover:text-foreground'
+                          )}
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={handleContinueToSettings}
+                          disabled={!isInitialized}
+                          className={cn(
+                            'flex items-center gap-2 rounded-lg px-6 py-3 font-medium transition-all',
+                            'bg-[#0066FF] text-primary-foreground hover:bg-[#2952d9]',
+                            'disabled:cursor-not-allowed disabled:opacity-50'
+                          )}
+                        >
+                          Continue
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="space-y-6">
+                      <div className="space-y-4">
+                        <Skeleton className="h-6 w-32" />
+                        <Skeleton className="h-32 w-full" />
+                      </div>
+                      <div className="space-y-4">
+                        <Skeleton className="h-6 w-24" />
+                        <Skeleton className="h-24 w-full" />
+                      </div>
+                      <div className="space-y-4">
+                        <Skeleton className="h-6 w-36" />
+                        <Skeleton className="h-28 w-full" />
+                      </div>
+                      <div className="space-y-4">
+                        <Skeleton className="h-6 w-28" />
+                        <Skeleton className="h-10 w-full" />
+                      </div>
                     </div>
-                  </>
-                ) : (
-                  <div className="space-y-6">
-                    <div className="space-y-4">
-                      <Skeleton className="h-6 w-32" />
-                      <Skeleton className="h-32 w-full" />
-                    </div>
-                    <div className="space-y-4">
-                      <Skeleton className="h-6 w-24" />
-                      <Skeleton className="h-24 w-full" />
-                    </div>
-                    <div className="space-y-4">
-                      <Skeleton className="h-6 w-36" />
-                      <Skeleton className="h-28 w-full" />
-                    </div>
-                    <div className="space-y-4">
-                      <Skeleton className="h-6 w-28" />
-                      <Skeleton className="h-10 w-full" />
-                    </div>
-                  </div>
-                )}
-              </>
-            )}
+                  )}
+                </>
+              )}
             </div>
           </div>
         )}

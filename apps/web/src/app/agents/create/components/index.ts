@@ -1,4 +1,4 @@
 export { AgentConfigForm } from './AgentConfigForm';
+export { type AgentSettingsData, AgentSettingsStep } from './AgentSettingsStep';
 export { AgentSetupModal } from './AgentSetupModal';
-export { AgentSettingsStep, type AgentSettingsData } from './AgentSettingsStep';
 export { ProfilePreviewCard } from './ProfilePreviewCard';

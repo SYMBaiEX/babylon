@@ -58,7 +58,9 @@ export const AgentConfigurationForm = memo(function AgentConfigurationForm({
                 : 'border-border hover:border-[#0066FF]/50'
             )}
           >
-            <div className="font-medium text-sm sm:text-base">Free (Groq 8B)</div>
+            <div className="font-medium text-sm sm:text-base">
+              Free (Groq 8B)
+            </div>
             <div className="text-muted-foreground text-xs sm:text-sm">
               Fast responses, good for simple tasks
             </div>
@@ -73,7 +75,9 @@ export const AgentConfigurationForm = memo(function AgentConfigurationForm({
                 : 'border-border hover:border-[#0066FF]/50'
             )}
           >
-            <div className="font-medium text-sm sm:text-base">Pro (Groq 70B)</div>
+            <div className="font-medium text-sm sm:text-base">
+              Pro (Groq 70B)
+            </div>
             <div className="text-muted-foreground text-xs sm:text-sm">
               Smarter reasoning, better for complex tasks
             </div>
@@ -156,7 +160,9 @@ export const AgentConfigurationForm = memo(function AgentConfigurationForm({
             </div>
             <Switch
               checked={data.autonomousDMs}
-              onCheckedChange={(checked) => updateField('autonomousDMs', checked)}
+              onCheckedChange={(checked) =>
+                updateField('autonomousDMs', checked)
+              }
               className="shrink-0"
             />
           </div>
@@ -253,4 +259,3 @@ export const AgentConfigurationForm = memo(function AgentConfigurationForm({
     </>
   );
 });
-
