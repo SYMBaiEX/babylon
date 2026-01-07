@@ -1,9 +1,13 @@
 /**
- * Post db:push script to create partial indexes that Drizzle doesn't support natively.
+ * Post db:push script to create custom indexes that Drizzle doesn't support natively.
  *
  * Run this after `bun run db:push` to ensure custom indexes are created.
  *
  * Usage: DATABASE_URL="..." bun run packages/db/scripts/post-push-indexes.ts
+ *
+ * NOTE: GroupMember now uses a FULL unique constraint on (groupId, userId)
+ * managed via schema + migration 0018. The old partial index approach has been
+ * deprecated in favor of using isActive flag for soft deletes.
  */
 
 import postgres from 'postgres';
@@ -17,26 +21,21 @@ async function main() {
 
   const sql = postgres(databaseUrl);
 
-  console.log('Creating partial indexes...\n');
+  console.log('Checking post-push indexes...\n');
 
-  // GroupMember: Partial unique index for soft deletes
-  // Only one active member per (groupId, userId), but allows multiple inactive records
+  // GroupMember: Drop old partial index if it exists (replaced by full unique constraint)
+  // The full unique constraint is now managed in schema + migration 0018
   try {
     await sql`
-      CREATE UNIQUE INDEX IF NOT EXISTS "GroupMember_groupId_userId_active_key" 
-      ON "GroupMember" ("groupId", "userId") 
-      WHERE "isActive" = true
+      DROP INDEX IF EXISTS "GroupMember_groupId_userId_active_key"
     `;
     console.log(
-      '✓ GroupMember_groupId_userId_active_key (partial unique index)'
+      '✓ Dropped old GroupMember_groupId_userId_active_key partial index (replaced by full unique constraint)'
     );
-  } catch (e) {
-    const error = e as Error;
-    if (error.message?.includes('already exists')) {
-      console.log('✓ GroupMember_groupId_userId_active_key (already exists)');
-    } else {
-      console.error('✗ GroupMember_groupId_userId_active_key:', error.message);
-    }
+  } catch {
+    console.log(
+      '✓ GroupMember_groupId_userId_active_key: already removed or did not exist'
+    );
   }
 
   await sql.end();

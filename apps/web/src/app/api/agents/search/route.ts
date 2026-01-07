@@ -1,20 +1,19 @@
 /**
- * User Search API
+ * Agent/NPC Search API
  *
  * @description
- * Search for users by username or display name with fuzzy matching.
- * Returns real users only by default (excludes NPCs, agents, banned users, and current user).
- * Designed for user mention autocomplete, friend finding, and social discovery.
+ * Search for agents and NPCs by username or display name with fuzzy matching.
+ * Returns AI agents (isAgent=true) and NPC actors (isActor=true).
+ * Designed for group chat member addition and social discovery.
  *
  * **Features:**
  * - Case-insensitive search
  * - Matches username OR display name
- * - Excludes current user (no self-mentions)
- * - Excludes NPCs/actors by default
- * - Excludes agents by default (use includeAgents=true to include)
+ * - Excludes current user
  * - Excludes banned users
  * - Limits to 20 results (performance)
  * - Alphabetically sorted results
+ * - Returns type indicator (agent vs npc)
  *
  * **Search Behavior:**
  * - Minimum 2 characters required
@@ -23,19 +22,17 @@
  * - Returns empty array if query too short
  *
  * **Use Cases:**
- * - User mention autocomplete (@username)
- * - Friend search
- * - DM recipient selection
- * - Group chat member addition
- * - Follow/unfollow user search
+ * - Group chat member addition (agents/NPCs tab)
+ * - Agent discovery
+ * - NPC search for interaction
  *
  * @openapi
- * /api/users/search:
+ * /api/agents/search:
  *   get:
  *     tags:
- *       - Users
- *     summary: Search for users
- *     description: Search for users by username or display name (min 2 chars, max 20 results)
+ *       - Agents
+ *     summary: Search for agents and NPCs
+ *     description: Search for agents/NPCs by username or display name (min 2 chars, max 20 results)
  *     security:
  *       - PrivyAuth: []
  *     parameters:
@@ -46,14 +43,7 @@
  *           type: string
  *           minLength: 2
  *         description: Search query (username or display name)
- *         example: alice
- *       - in: query
- *         name: includeAgents
- *         required: false
- *         schema:
- *           type: boolean
- *         description: Include AI agents in results (default false)
- *         example: false
+ *         example: trading
  *     responses:
  *       200:
  *         description: Search results
@@ -62,7 +52,7 @@
  *             schema:
  *               type: object
  *               properties:
- *                 users:
+ *                 agents:
  *                   type: array
  *                   items:
  *                     type: object
@@ -77,32 +67,25 @@
  *                         type: string
  *                       bio:
  *                         type: string
+ *                       type:
+ *                         type: string
+ *                         enum: [agent, npc]
  *       401:
  *         description: Unauthorized
  *
  * @example
  * ```typescript
- * // Search for users
- * const response = await fetch('/api/users/search?q=alice', {
+ * // Search for agents/NPCs
+ * const response = await fetch('/api/agents/search?q=trading', {
  *   headers: { 'Authorization': `Bearer ${token}` }
  * });
- * const { users } = await response.json();
+ * const { agents } = await response.json();
  *
- * // Display in autocomplete
- * users.forEach(user => {
- *   console.log(`@${user.username} - ${user.displayName}`);
+ * // Display in search results
+ * agents.forEach(agent => {
+ *   console.log(`${agent.displayName} (${agent.type})`);
  * });
- *
- * // Include agents in search
- * const withAgents = await fetch('/api/users/search?q=alice&includeAgents=true');
- *
- * // Too short query
- * const empty = await fetch('/api/users/search?q=a');
- * // Returns { users: [] }
  * ```
- *
- * @see {@link /lib/db/context} RLS context
- * @see {@link /src/components/MentionAutocomplete} Autocomplete UI
  */
 
 import { authenticate, successResponse, withErrorHandling } from '@babylon/api';
@@ -115,23 +98,29 @@ import {
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 
+/** Maximum number of search results to return */
+const AGENT_SEARCH_LIMIT = 20;
+
+/** Maximum length for search query input */
+const MAX_QUERY_LENGTH = 100;
+
 /**
- * GET /api/users/search
- * Search for users by username or display name
+ * GET /api/agents/search
+ * Search for agents and NPCs by username or display name
  */
 export const GET = withErrorHandling(async (request: NextRequest) => {
   const user = await authenticate(request);
 
-  // Get query parameters
+  // Get query parameter
   const { searchParams } = new URL(request.url);
   const query = searchParams.get('q');
-  const includeAgents = searchParams.get('includeAgents') === 'true';
 
   if (!query || query.trim().length < 2) {
-    return successResponse({ users: [] });
+    return successResponse({ agents: [] });
   }
 
-  const searchTerm = query.trim().toLowerCase();
+  // Cap query length to prevent abuse
+  const searchTerm = query.trim().toLowerCase().slice(0, MAX_QUERY_LENGTH);
 
   // Get blocked/muted users to exclude from search
   const [blockedIds, mutedIds, blockedByIds] = await Promise.all([
@@ -142,10 +131,9 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
   const excludedUserIds = [...blockedIds, ...mutedIds, ...blockedByIds];
 
-  // Search for users (excluding the current user, NPCs, and blocked/muted users)
-  // Optionally include AI agents if includeAgents=true
-  const users = await asUser(user, async (db) => {
-    return await db.user.findMany({
+  // Search for agents (isAgent=true) and NPCs (isActor=true)
+  const agents = await asUser(user, async (db) => {
+    const results = await db.user.findMany({
       where: {
         AND: [
           {
@@ -169,15 +157,14 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
               not: user.userId, // Exclude current user
             },
           },
-          // Conditionally exclude blocked/muted users only if the array is not empty
+          // Only add notIn clause if there are users to exclude
           ...(excludedUserIds.length > 0
             ? [{ id: { notIn: excludedUserIds } }]
             : []),
           {
-            isActor: false, // Always exclude NPCs (use /api/agents/search for those)
+            // Include agents OR NPCs (non-human participants)
+            OR: [{ isAgent: true }, { isActor: true }],
           },
-          // Exclude agents unless includeAgents is true
-          ...(includeAgents ? [] : [{ isAgent: false }]),
           {
             isBanned: false, // Exclude banned users
           },
@@ -189,28 +176,36 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         username: true,
         profileImageUrl: true,
         bio: true,
+        isAgent: true,
+        isActor: true,
       },
-      take: 20, // Limit results
+      take: AGENT_SEARCH_LIMIT,
       orderBy: [
         {
           username: 'asc',
         },
       ],
     });
+
+    // Add type indicator for each result
+    return results.map((result) => ({
+      id: result.id,
+      displayName: result.displayName,
+      username: result.username,
+      profileImageUrl: result.profileImageUrl,
+      bio: result.bio,
+      // Determine type: prefer 'npc' if isActor, otherwise 'agent'
+      type: result.isActor ? 'npc' : 'agent',
+    }));
   });
 
   logger.info(
-    'User search completed',
-    {
-      userId: user.userId,
-      query: searchTerm,
-      results: users.length,
-      includeAgents,
-    },
-    'GET /api/users/search'
+    'Agent/NPC search completed',
+    { userId: user.userId, query: searchTerm, results: agents.length },
+    'GET /api/agents/search'
   );
 
   return successResponse({
-    users,
+    agents,
   });
 });

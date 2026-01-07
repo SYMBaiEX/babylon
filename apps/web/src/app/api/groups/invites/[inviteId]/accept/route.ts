@@ -99,39 +99,35 @@ export const POST = withErrorHandling(
       });
 
       const now = new Date();
+      const memberId = await generateSnowflakeId();
 
       // Use transaction with atomic upserts to prevent race conditions
       await db.transaction(async (tx) => {
-        // Upsert GroupMember - use raw SQL for partial index compatibility
-        // INSERT new member OR update inactive member to active
-        const memberId = await generateSnowflakeId();
-        await tx.execute(sql`
-          INSERT INTO "GroupMember" (
-            "id", "groupId", "userId", "role", "addedBy", "joinedAt", "isActive",
-            "messageCount", "qualityScore"
-          ) VALUES (
-            ${memberId}, ${invite.groupId}, ${user.userId}, 'member', ${invite.invitedBy}, ${now}, true,
-            0, 1.0
-          )
-          ON CONFLICT ("groupId", "userId") WHERE "isActive" = true
-          DO NOTHING
-        `);
-
-        // Also handle the case where there's an inactive record (not covered by partial index)
-        // Update any inactive records to active
+        // Upsert GroupMember - use drizzle's onConflictDoUpdate
         await tx
-          .update(groupMembers)
-          .set({
-            isActive: true,
+          .insert(groupMembers)
+          .values({
+            id: memberId,
+            groupId: invite.groupId,
+            userId: user.userId,
             role: 'member',
             addedBy: invite.invitedBy,
             joinedAt: now,
-            kickedAt: null,
-            kickReason: null,
+            isActive: true,
+            messageCount: 0,
+            qualityScore: 1.0,
           })
-          .where(
-            sql`${groupMembers.groupId} = ${invite.groupId} AND ${groupMembers.userId} = ${user.userId} AND ${groupMembers.isActive} = false`
-          );
+          .onConflictDoUpdate({
+            target: [groupMembers.groupId, groupMembers.userId],
+            set: {
+              isActive: true,
+              role: 'member',
+              addedBy: invite.invitedBy,
+              joinedAt: now,
+              kickedAt: sql`NULL`,
+              kickReason: sql`NULL`,
+            },
+          });
 
         // Upsert ChatParticipant if chat exists
         if (groupChat) {
