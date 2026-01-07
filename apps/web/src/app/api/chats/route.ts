@@ -174,6 +174,7 @@ import {
 } from '@babylon/api';
 // Import from new Drizzle client
 import {
+  agentMessages,
   and,
   asSystem,
   asUser,
@@ -481,6 +482,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
         if (otherParticipant) {
           // Try to get user details (real users only, not actors)
+          // Include isAgent and managedBy to detect if this is the user's own agent
           const [otherUser] = await dbClient
             .select({
               id: users.id,
@@ -488,6 +490,8 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
               username: users.username,
               profileImageUrl: users.profileImageUrl,
               isActor: users.isActor,
+              isAgent: users.isAgent,
+              managedBy: users.managedBy,
             })
             .from(users)
             .where(eq(users.id, otherParticipant.userId))
@@ -500,6 +504,8 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
               displayName: otherUser.displayName,
               username: otherUser.username,
               profileImageUrl: otherUser.profileImageUrl,
+              isAgent: otherUser.isAgent,
+              managedBy: otherUser.managedBy,
             };
           }
         }
@@ -510,7 +516,35 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         }
 
         // Get last message for this chat
-        const lastMessage = messagesByChatId.get(chat.id)?.[0] || null;
+        // If the other user is an agent owned by the current user, get from agentMessages
+        let lastMessage = messagesByChatId.get(chat.id)?.[0] || null;
+
+        if (
+          otherUserDetails.isAgent &&
+          otherUserDetails.managedBy === user.userId
+        ) {
+          // Fetch last message from agentMessages table for owned agents
+          const [agentLastMsg] = await dbClient
+            .select({
+              id: agentMessages.id,
+              content: agentMessages.content,
+              createdAt: agentMessages.createdAt,
+            })
+            .from(agentMessages)
+            .where(eq(agentMessages.agentUserId, otherUserDetails.id))
+            .orderBy(desc(agentMessages.createdAt))
+            .limit(1);
+
+          if (agentLastMsg) {
+            lastMessage = {
+              id: agentLastMsg.id,
+              content: agentLastMsg.content,
+              chatId: chat.id,
+              senderId: otherUserDetails.id,
+              createdAt: agentLastMsg.createdAt,
+            };
+          }
+        }
 
         return {
           id: chat.id,

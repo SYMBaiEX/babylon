@@ -13,7 +13,7 @@
 import { agentRuntimeManager, agentService } from '@babylon/agents';
 import { authenticateUser, withErrorHandling } from '@babylon/api';
 import { db, eq, userAgentConfigs } from '@babylon/db';
-import { checkUserInput, logger } from '@babylon/shared';
+import { checkUserInput, GROQ_MODELS, logger } from '@babylon/shared';
 import {
   type ActionResult,
   composePromptFromState,
@@ -25,6 +25,7 @@ import {
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
+import { MODEL_TIER_POINTS_COST } from '@/lib/constants';
 
 // =============================================================================
 // Multi-Step Decision Template
@@ -235,9 +236,13 @@ export const POST = withErrorHandling(
     }
     const agentConfig = agentWithConfig.agentConfig;
 
-    const pointsCost = usePro ? 1 : 0;
+    const pointsCost = usePro
+      ? MODEL_TIER_POINTS_COST.pro
+      : MODEL_TIER_POINTS_COST.free;
     const modelType = usePro ? ModelType.TEXT_LARGE : ModelType.TEXT_SMALL;
-    const modelUsed = usePro ? 'groq-70b' : 'groq-8b';
+    const modelUsed = usePro
+      ? GROQ_MODELS.PRO.displayName
+      : GROQ_MODELS.FREE.displayName;
 
     // Only deduct points for pro mode (from virtualBalance)
     let newBalance = Number(agentWithConfig.virtualBalance ?? 0);
@@ -673,8 +678,13 @@ export const GET = withErrorHandling(
 
     const { searchParams } = new URL(req.url);
     const limit = Number.parseInt(searchParams.get('limit') || '50');
+    const cursor = searchParams.get('cursor') || undefined;
 
-    const messages = await agentService.getChatHistory(agentId, limit);
+    const { messages, hasMore, nextCursor } = await agentService.getChatHistory(
+      agentId,
+      limit,
+      cursor
+    );
 
     return NextResponse.json({
       success: true,
@@ -686,6 +696,10 @@ export const GET = withErrorHandling(
         pointsCost: msg.pointsCost,
         createdAt: msg.createdAt.toISOString(),
       })),
+      pagination: {
+        hasMore,
+        nextCursor,
+      },
     });
   }
 );

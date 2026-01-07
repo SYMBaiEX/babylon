@@ -68,6 +68,16 @@ class ServiceConfig:
     vllm_dtype: str = "auto"
     vllm_max_model_len: int = 4096
     
+    # Multi-GPU settings (Phase 4)
+    tensor_parallel_size: int = 1  # Number of GPUs for tensor parallelism
+    use_flash_attention: bool = False  # Enable flash attention for performance
+    
+    # GPU assignment - separate vLLM and training to avoid OOM conflicts
+    # vllm_gpu: Comma-separated GPU IDs for vLLM (e.g., "0" or "0,1" for tensor parallel)
+    # training_gpu: GPU ID for training model (e.g., "1" for dedicated training GPU)
+    vllm_gpu: Optional[str] = None  # If None, falls back to auto-assignment
+    training_gpu: Optional[str] = None  # If None, falls back to auto-assignment
+    
     # Timeouts
     startup_timeout: int = 180  # 3 minutes for vLLM to load model
     health_check_interval: float = 2.0
@@ -316,6 +326,10 @@ class ServiceManager:
         logger.info(f"Starting vLLM server on port {port}...")
         logger.info(f"  Model: {cfg.model_name}")
         logger.info(f"  GPU Memory: {cfg.vllm_gpu_memory_utilization * 100:.0f}%")
+        if cfg.tensor_parallel_size > 1:
+            logger.info(f"  Tensor Parallel: {cfg.tensor_parallel_size} GPUs")
+        if cfg.use_flash_attention:
+            logger.info("  Flash Attention: enabled")
         
         if self._port_in_use(host, port):
             logger.warning(f"Port {port} already in use, assuming vLLM is running")
@@ -338,8 +352,29 @@ class ServiceManager:
             "--served-model-name", cfg.model_name,
         ]
         
+        # Multi-GPU tensor parallelism (Phase 4)
+        if cfg.tensor_parallel_size > 1:
+            cmd.extend(["--tensor-parallel-size", str(cfg.tensor_parallel_size)])
+        
         env = os.environ.copy()
-        env.setdefault("CUDA_VISIBLE_DEVICES", "0")
+        
+        # Set attention backend if flash attention is configured
+        if cfg.use_flash_attention:
+            env["VLLM_ATTENTION_BACKEND"] = "FLASH_ATTN"
+        
+        # Set CUDA devices for vLLM based on explicit configuration or tensor parallel size
+        if cfg.vllm_gpu:
+            # Explicit GPU assignment from profile
+            env["CUDA_VISIBLE_DEVICES"] = cfg.vllm_gpu
+            logger.info(f"  vLLM GPUs (explicit): {cfg.vllm_gpu}")
+        elif cfg.tensor_parallel_size > 1:
+            # Auto-assign GPUs for tensor parallelism
+            gpu_ids = ",".join(str(i) for i in range(cfg.tensor_parallel_size))
+            env["CUDA_VISIBLE_DEVICES"] = gpu_ids
+            logger.info(f"  vLLM GPUs (auto tensor parallel): {gpu_ids}")
+        else:
+            env.setdefault("CUDA_VISIBLE_DEVICES", "0")
+            logger.info("  vLLM GPU (default): 0")
         
         try:
             process = subprocess.Popen(cmd, stdout=log_handle, stderr=subprocess.STDOUT, env=env)

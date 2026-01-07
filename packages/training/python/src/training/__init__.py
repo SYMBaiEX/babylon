@@ -109,6 +109,127 @@ from .schemas import (
     ValidationResult as SchemaValidationResult,
 )
 
+# Phase 1 & 2: Online GRPO Training Infrastructure
+from .scenario_pool import (
+    Scenario,
+    ScenarioPool,
+    ScenarioPoolConfig,
+    CurriculumManager,
+    MarketState,
+    PerpetualState,
+    NewsItem,
+    SocialPost,
+    PortfolioState as ScenarioPortfolioState,
+)
+
+from .tokenization_utils import (
+    TokenizationResult,
+    tokenize_for_trainer,
+    tokenize_conversation_for_trainer,
+    validate_masks,
+    create_masks_from_response_start,
+    fix_historical_masks,
+)
+
+from .action_executor import (
+    ActionResult,
+    ActionExecutor,
+    PortfolioState as ExecutorPortfolioState,
+    validate_action,
+    execute_action_for_training,
+    calculate_action_quality_bonus,
+    set_simulation_seed,
+    reset_simulation_rng,
+)
+
+from .format_validator import (
+    ThinkTagResult,
+    ActionValidationResult,
+    ReasoningQualityResult,
+    LengthAnalysisResult,
+    FormatValidationResult,
+    validate_response_format,
+    validate_think_tags,
+    validate_action_json,
+    get_format_and_reasoning_scores,
+    validate_for_training,
+)
+
+from .quality_scorer import (
+    QualityScore,
+    calculate_thinking_length_penalty,
+    calculate_response_length_penalty,
+    calculate_combined_length_penalty,
+    score_response,
+    score_response_for_reward,
+    get_quality_bonus_for_archetype,
+    score_response_batch,
+    get_relative_quality_scores,
+)
+
+# Phase 3: Evaluation & Monitoring
+from .evaluation import (
+    EvaluationSuite,
+    EvalResult,
+    ArchetypeMetrics,
+    TestScenarioManager,
+    TestScenario,
+    BaselineManager,
+    BaselineResult,
+    RolloutDumper,
+    RolloutRecord,
+    get_wandb_config,
+    STEP_METRICS,
+    EVAL_METRICS,
+)
+
+# Phase 4: A/B Testing & Production Evaluation
+from .ab_testing import (
+    ABTestRunner,
+    ABTestResult,
+    ModelResult,
+    EVAL_SCENARIOS,
+    run_ab_test,
+)
+
+# Phase 4: Advanced Features (NOT YET INTEGRATED - ready for future use)
+# These modules are tested but not called by babylon_env.py or online_env.py
+from .kl_controller import (
+    KLConfig,
+    KLStats,
+    KLControllerBase,
+    create_kl_controller,
+    compute_kl_divergence,
+    estimate_kl_from_samples,
+)
+
+from .multi_turn import (
+    TurnData,
+    EpisodeBuffer,
+    GAEConfig,
+    MultiTurnEpisodeManager,
+    EpisodeCollector,
+    shape_trading_rewards,
+    compute_episode_return,
+    normalize_episode_rewards,
+)
+
+# Phase 5: Simulation Bridge for online training
+from .simulation_bridge import (
+    SimulationBridge,
+    PerpMarket,
+    PredictionMarket,
+    Position,
+    NewsItem as BridgeNewsItem,
+    Relationship,
+    SocialContext,
+    MarketState as BridgeMarketState,
+    Scenario as BridgeScenario,
+    ActionOutcome,
+    TickResult,
+    create_bridge,
+)
+
 # Error recovery and graceful degradation
 from .error_recovery import (
     ErrorCategory,
@@ -151,6 +272,26 @@ def __getattr__(name: str):
         from .babylon_env import (  # noqa: F401
             BabylonRLAIFEnv,
             BabylonEnvConfig,
+        )
+        return locals()[name]
+    
+    if name in (
+        "BabylonOnlineEnv",
+        "BabylonOnlineEnvConfig",
+    ):
+        from .online_env import (  # noqa: F401
+            BabylonOnlineEnv,
+            BabylonOnlineEnvConfig,
+        )
+        return locals()[name]
+    
+    if name in (
+        "BabylonHybridEnv",
+        "BabylonHybridEnvConfig",
+    ):
+        from .hybrid_env import (  # noqa: F401
+            BabylonHybridEnv,
+            BabylonHybridEnvConfig,
         )
         return locals()[name]
     
@@ -241,6 +382,87 @@ __all__ = [
     "AtroposTrainingConfig",
     "BabylonRLAIFEnv",
     "BabylonEnvConfig",
+    "BabylonOnlineEnv",
+    "BabylonOnlineEnvConfig",
+    "BabylonHybridEnv",
+    "BabylonHybridEnvConfig",
+    # Phase 1 & 2: Online GRPO Training Infrastructure
+    "Scenario",
+    "ScenarioPool",
+    "ScenarioPoolConfig",
+    "CurriculumManager",
+    "MarketState",
+    "PerpetualState",
+    "NewsItem",
+    "SocialPost",
+    "ScenarioPortfolioState",
+    "TokenizationResult",
+    "tokenize_for_trainer",
+    "tokenize_conversation_for_trainer",
+    "validate_masks",
+    "create_masks_from_response_start",
+    "fix_historical_masks",
+    "ActionResult",
+    "ActionExecutor",
+    "ExecutorPortfolioState",
+    "validate_action",
+    "execute_action_for_training",
+    "calculate_action_quality_bonus",
+    "set_simulation_seed",
+    "reset_simulation_rng",
+    "ThinkTagResult",
+    "ActionValidationResult",
+    "ReasoningQualityResult",
+    "LengthAnalysisResult",
+    "FormatValidationResult",
+    "validate_response_format",
+    "validate_think_tags",
+    "validate_action_json",
+    "get_format_and_reasoning_scores",
+    "validate_for_training",
+    "QualityScore",
+    "calculate_thinking_length_penalty",
+    "calculate_response_length_penalty",
+    "calculate_combined_length_penalty",
+    "score_response",
+    "score_response_for_reward",
+    "get_quality_bonus_for_archetype",
+    "score_response_batch",
+    "get_relative_quality_scores",
+    # Phase 3: Evaluation & Monitoring
+    "EvaluationSuite",
+    "EvalResult",
+    "ArchetypeMetrics",
+    "TestScenarioManager",
+    "TestScenario",
+    "BaselineManager",
+    "BaselineResult",
+    "RolloutDumper",
+    "RolloutRecord",
+    "get_wandb_config",
+    "STEP_METRICS",
+    "EVAL_METRICS",
+    # Phase 4: A/B Testing
+    "ABTestRunner",
+    "ABTestResult",
+    "ModelResult",
+    "EVAL_SCENARIOS",
+    "run_ab_test",
+    # Phase 4: Advanced Features
+    "KLConfig",
+    "KLStats",
+    "KLControllerBase",
+    "create_kl_controller",
+    "compute_kl_divergence",
+    "estimate_kl_from_samples",
+    "TurnData",
+    "EpisodeBuffer",
+    "GAEConfig",
+    "MultiTurnEpisodeManager",
+    "EpisodeCollector",
+    "shape_trading_rewards",
+    "compute_episode_return",
+    "normalize_episode_rewards",
     # Tinker trainer (lazy - requires tinker)
     "BabylonTinkerClient",
     "TinkerConfig",
@@ -334,6 +556,19 @@ __all__ = [
     "validate_trajectory_file",
     "compare_trajectory_formats",
     "SchemaValidationResult",
+    # Phase 5: Simulation Bridge
+    "SimulationBridge",
+    "PerpMarket",
+    "PredictionMarket",
+    "Position",
+    "BridgeNewsItem",
+    "Relationship",
+    "SocialContext",
+    "BridgeMarketState",
+    "BridgeScenario",
+    "ActionOutcome",
+    "TickResult",
+    "create_bridge",
     # Error recovery
     "ErrorCategory",
     "TrainingError",

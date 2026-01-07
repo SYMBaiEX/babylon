@@ -13,10 +13,10 @@ Also provides utilities for normalizing and comparing rewards.
 """
 
 from dataclasses import dataclass, field
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 import math
 
-from .rubric_loader import normalize_archetype
+from .rubric_loader import normalize_archetype, get_priority_metrics
 
 
 # =============================================================================
@@ -1088,6 +1088,177 @@ def _calculate_liar_bonus(metrics: BehaviorMetrics) -> float:
 
 
 # =============================================================================
+# Priority Metrics Scoring
+# =============================================================================
+
+
+def extract_metric_value(
+    metric_name: str,
+    metrics: BehaviorMetrics,
+) -> Optional[float]:
+    """
+    Extract metric value from BehaviorMetrics based on priority metric name.
+    
+    Metric names from rubrics.json follow format: category.metricName
+    e.g., "trading.totalPnL", "social.uniqueUsersInteracted"
+    """
+    # Mapping from rubrics.json metric names to BehaviorMetrics attributes
+    metric_map = {
+        # Trading metrics
+        "trading.totalPnL": metrics.total_pnl,
+        "trading.sharpeRatio": 0.0,  # Not directly available, computed if needed
+        "trading.winRate": metrics.win_rate,
+        "trading.marketsTraded": float(metrics.markets_traded),
+        "trading.tradesExecuted": float(metrics.trades_executed),
+        "trading.avgPositionSize": metrics.avg_position_size,
+        "trading.largestWin": metrics.largest_win,
+        "trading.largestLoss": metrics.largest_loss,
+        "trading.maxDrawdown": 0.0,  # Not directly available
+        
+        # Social metrics
+        "social.uniqueUsersInteracted": float(metrics.unique_users_interacted),
+        "social.groupChatsJoined": float(metrics.group_chats_joined),
+        "social.dmsInitiated": float(metrics.dms_initiated),
+        "social.postsCreated": float(metrics.posts_created),
+        "social.commentsMade": float(metrics.comments_made),
+        "social.mentionsGiven": float(metrics.mentions_given),
+        "social.groupMessagesSent": float(metrics.group_chats_joined),  # Approximation
+        "social.dmResponseRate": 0.5,  # Default, not tracked separately
+        
+        # Influence metrics
+        "influence.reputationDelta": float(metrics.reputation_delta),
+        "influence.followersGained": float(metrics.followers_gained),
+        "influence.positiveReactions": float(metrics.positive_reactions),
+        "influence.informationSpread": float(metrics.information_spread),
+        
+        # Information metrics
+        "information.researchActions": float(metrics.research_actions),
+        "information.predictionAccuracy": metrics.prediction_accuracy,
+        "information.predictionsMade": float(metrics.predictions_made),
+        "information.correctPredictions": float(metrics.correct_predictions),
+        "information.marketDataQueries": float(metrics.research_actions),  # Approximation
+        "information.newsConsumed": 0.0,  # Not tracked separately
+        "information.infoRequestsSent": float(metrics.info_requests_sent),
+        "information.infoShared": float(metrics.info_shared),
+        
+        # Behavior metrics
+        "behavior.socialToTradeRatio": metrics.social_to_trade_ratio,
+        "behavior.actionsPerTick": metrics.actions_per_tick,
+        "behavior.actionSuccessRate": metrics.win_rate,  # Approximation
+        "behavior.episodeLength": float(metrics.episode_length),
+        "behavior.consistencyScore": 0.5,  # Default, not tracked separately
+    }
+    
+    return metric_map.get(metric_name)
+
+
+def normalize_metric_value(
+    metric_name: str,
+    value: float,
+) -> float:
+    """
+    Normalize a metric value to 0-1 range based on expected ranges.
+    
+    Different metrics have different expected ranges.
+    """
+    # Expected ranges for normalization
+    # These are reasonable defaults that can be tuned
+    normalization_ranges = {
+        # Trading (can be negative)
+        "trading.totalPnL": (-1000, 5000),
+        "trading.sharpeRatio": (-1.0, 3.0),
+        "trading.winRate": (0.0, 1.0),
+        "trading.marketsTraded": (0, 10),
+        "trading.tradesExecuted": (0, 50),
+        "trading.avgPositionSize": (0, 1000),
+        "trading.largestWin": (0, 2000),
+        "trading.largestLoss": (-2000, 0),
+        "trading.maxDrawdown": (0, 1000),
+        
+        # Social (always positive)
+        "social.uniqueUsersInteracted": (0, 30),
+        "social.groupChatsJoined": (0, 10),
+        "social.dmsInitiated": (0, 20),
+        "social.postsCreated": (0, 20),
+        "social.commentsMade": (0, 30),
+        "social.mentionsGiven": (0, 20),
+        "social.groupMessagesSent": (0, 50),
+        "social.dmResponseRate": (0.0, 1.0),
+        
+        # Influence (can be negative)
+        "influence.reputationDelta": (-50, 100),
+        "influence.followersGained": (-10, 30),
+        "influence.positiveReactions": (0, 50),
+        "influence.informationSpread": (0, 20),
+        
+        # Information (always positive)
+        "information.researchActions": (0, 20),
+        "information.predictionAccuracy": (0.0, 1.0),
+        "information.predictionsMade": (0, 20),
+        "information.correctPredictions": (0, 15),
+        "information.marketDataQueries": (0, 20),
+        "information.newsConsumed": (0, 10),
+        "information.infoRequestsSent": (0, 15),
+        "information.infoShared": (0, 15),
+        
+        # Behavior
+        "behavior.socialToTradeRatio": (0.0, 5.0),
+        "behavior.actionsPerTick": (0.0, 3.0),
+        "behavior.actionSuccessRate": (0.0, 1.0),
+        "behavior.episodeLength": (0, 50),
+        "behavior.consistencyScore": (0.0, 1.0),
+    }
+    
+    range_info = normalization_ranges.get(metric_name, (0, 100))
+    min_val, max_val = range_info
+    
+    if max_val == min_val:
+        return 0.5
+    
+    # Normalize to 0-1
+    normalized = (value - min_val) / (max_val - min_val)
+    return max(0.0, min(1.0, normalized))
+
+
+def calculate_priority_weighted_score(
+    archetype: str,
+    metrics: BehaviorMetrics,
+) -> float:
+    """
+    Calculate score based on archetype's priority metrics from rubrics.json.
+    
+    Uses weighted sum where first priority metric gets highest weight.
+    """
+    archetype_norm = normalize_archetype(archetype)
+    priority_metrics = get_priority_metrics(archetype_norm)
+    
+    if not priority_metrics:
+        return 0.5  # Default if no priority metrics defined
+    
+    # Weights decrease by position (first is most important)
+    # e.g., [0.35, 0.25, 0.20, 0.12, 0.08] for 5 metrics
+    weights = []
+    total_weight = 0.0
+    for i, _ in enumerate(priority_metrics):
+        weight = 1.0 / (i + 1)  # Harmonic weights: 1, 0.5, 0.33, 0.25, ...
+        weights.append(weight)
+        total_weight += weight
+    
+    # Normalize weights to sum to 1
+    weights = [w / total_weight for w in weights]
+    
+    # Calculate weighted score
+    weighted_sum = 0.0
+    for i, metric_name in enumerate(priority_metrics):
+        value = extract_metric_value(metric_name, metrics)
+        if value is not None:
+            normalized_value = normalize_metric_value(metric_name, value)
+            weighted_sum += weights[i] * normalized_value
+    
+    return weighted_sum
+
+
+# =============================================================================
 # Archetype Composite Reward
 # =============================================================================
 
@@ -1102,6 +1273,8 @@ def archetype_composite_reward(
     Different archetypes have different success criteria. This function
     combines PnL, format, reasoning, and behavior scores using weights
     specific to the archetype.
+    
+    Also incorporates priority metrics from rubrics.json for each archetype.
 
     Args:
         inputs: Standard trajectory reward inputs (PnL, format, reasoning scores)
@@ -1142,10 +1315,16 @@ def archetype_composite_reward(
     format_score = inputs.format_score
     reasoning_score = inputs.reasoning_score
 
-    # 4. Behavior bonus
+    # 4. Behavior bonus from archetype-specific behaviors
     behavior_bonus = 0.0
     if behavior_metrics is not None:
         behavior_bonus = calculate_archetype_behavior_bonus(archetype_norm, behavior_metrics)
+        
+        # Also incorporate priority metrics score from rubrics.json
+        priority_score = calculate_priority_weighted_score(archetype_norm, behavior_metrics)
+        
+        # Blend behavior bonus with priority metrics (priority metrics give 30% of behavior weight)
+        behavior_bonus = behavior_bonus * 0.7 + (priority_score - 0.5) * 0.3
 
     # 5. Compute weighted composite
     total_weight = (

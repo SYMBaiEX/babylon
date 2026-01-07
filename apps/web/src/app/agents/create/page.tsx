@@ -12,6 +12,8 @@ import { useAuth } from '@/hooks/useAuth';
 import { useWalletBalance } from '@/hooks/useWalletBalance';
 import {
   AgentConfigForm,
+  type AgentSettingsData,
+  AgentSettingsStep,
   AgentSetupModal,
   ProfilePreviewCard,
 } from './components';
@@ -20,6 +22,12 @@ import { useAgentForm } from './hooks';
 const TOTAL_PROFILE_PICTURES = 100;
 const TOTAL_BANNERS = 100;
 const DEFAULT_MAX_DEPOSIT = 10000;
+
+enum Step {
+  Profile = 1,
+  Prompts = 2,
+  Settings = 3,
+}
 
 export default function CreateAgentPage() {
   const router = useRouter();
@@ -51,8 +59,19 @@ export default function CreateAgentPage() {
     );
   }
 
-  const [showProfileModal, setShowProfileModal] = useState(true); // Show profile modal first
+  const [currentStep, setCurrentStep] = useState<Step>(Step.Profile);
   const [isCreating, setIsCreating] = useState(false);
+
+  // Settings state for step 3
+  const [settingsData, setSettingsData] = useState<AgentSettingsData>({
+    modelTier: 'free',
+    autonomousEnabled: false,
+    autonomousPosting: false,
+    autonomousCommenting: false,
+    autonomousDMs: false,
+    autonomousGroupChats: false,
+    a2aEnabled: true, // Enable A2A by default
+  });
 
   const {
     profileData,
@@ -65,10 +84,9 @@ export default function CreateAgentPage() {
     clearDraft,
   } = useAgentForm();
 
-  // Handle profile modal save
+  // Handle profile modal save (step 1 -> step 2)
   const handleProfileSave = useCallback(
     (data: typeof profileData) => {
-      // Use updateProfileField for displayName to trigger system prompt replacement
       if (data.displayName !== profileData.displayName) {
         updateProfileField('displayName', data.displayName);
       }
@@ -84,18 +102,27 @@ export default function CreateAgentPage() {
       if (data.coverImageUrl !== profileData.coverImageUrl) {
         updateProfileField('coverImageUrl', data.coverImageUrl);
       }
-      setShowProfileModal(false);
+      setCurrentStep(Step.Prompts);
     },
     [profileData, updateProfileField]
   );
 
-  // User balance for max deposit - default to 10k if balance not available
+  // Handle continue from step 2 -> step 3
+  const handleContinueToSettings = useCallback(() => {
+    if (!agentData.system.trim()) {
+      toast.error('System prompt is required');
+      return;
+    }
+    setCurrentStep(Step.Settings);
+  }, [agentData.system]);
+
+  // User balance for max deposit
   const maxDeposit = Math.max(
     100,
     Math.min(balance || DEFAULT_MAX_DEPOSIT, DEFAULT_MAX_DEPOSIT)
   );
 
-  // Cycle through pre-made images with direction (next/prev)
+  // Cycle through pre-made images
   const cycleImage = useCallback(
     (type: 'profile' | 'cover', direction: 'next' | 'prev') => {
       const basePath =
@@ -109,7 +136,6 @@ export default function CreateAgentPage() {
           ? profileData.profileImageUrl
           : profileData.coverImageUrl;
 
-      // Get current index from URL
       let currentIndex = 1;
       if (current?.includes(basePath)) {
         const match = current.match(/-(\d+)\.jpg/);
@@ -118,7 +144,6 @@ export default function CreateAgentPage() {
         }
       }
 
-      // Calculate next index based on direction
       let nextIndex: number;
       if (direction === 'next') {
         nextIndex = currentIndex >= totalImages ? 1 : currentIndex + 1;
@@ -135,7 +160,7 @@ export default function CreateAgentPage() {
     [profileData.profileImageUrl, profileData.coverImageUrl, updateProfileField]
   );
 
-  // Handle agent creation
+  // Handle agent creation (step 3)
   const handleCreate = useCallback(async () => {
     // Validation
     if (!profileData.displayName.trim()) {
@@ -160,14 +185,15 @@ export default function CreateAgentPage() {
       return;
     }
 
-    // Split personality by newlines for bio array (original behavior)
+    // Split personality by newlines for bio array
     const bioArray = agentData.personality.split('\n').filter((b) => b.trim());
 
-    // Append trading strategy to system prompt (original behavior)
+    // Append trading strategy to system prompt
     const systemPrompt = agentData.tradingStrategy.trim()
       ? `${agentData.system}\n\nTrading Strategy: ${agentData.tradingStrategy}`
       : agentData.system;
 
+    // Step 1: Create the agent
     const response = await fetch('/api/agents', {
       method: 'POST',
       headers: {
@@ -175,21 +201,24 @@ export default function CreateAgentPage() {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        // API expects 'name', not 'displayName'
         name: profileData.displayName,
-        // User-chosen username
         username: profileData.username,
-        // API expects 'description' for the profile bio
         description: profileData.bio,
         profileImageUrl: profileData.profileImageUrl,
         coverImageUrl: profileData.coverImageUrl,
-        // Combined system prompt with trading strategy
         system: systemPrompt,
-        // Bio array from personality split
         bio: bioArray,
         personality: agentData.personality,
         tradingStrategy: agentData.tradingStrategy,
         initialDeposit: agentData.initialDeposit,
+        // Include settings from step 3
+        modelTier: settingsData.modelTier,
+        autonomousEnabled: settingsData.autonomousEnabled,
+        autonomousPosting: settingsData.autonomousPosting,
+        autonomousCommenting: settingsData.autonomousCommenting,
+        autonomousDMs: settingsData.autonomousDMs,
+        autonomousGroupChats: settingsData.autonomousGroupChats,
+        a2aEnabled: settingsData.a2aEnabled,
       }),
     });
 
@@ -201,10 +230,61 @@ export default function CreateAgentPage() {
     }
 
     const result = await response.json();
+    const agentId = result.agent.id;
+
+    // Create DM chat with the agent first
+    let chatId: string | null = null;
+    try {
+      const dmResponse = await fetch('/api/chats/dm', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: agentId,
+        }),
+      });
+
+      if (dmResponse.ok) {
+        const dmResult = await dmResponse.json();
+        chatId = dmResult.chat.id;
+      }
+    } catch (error) {
+      console.warn('Error creating DM chat:', error);
+    }
+
+    // Generate onboarding message and wait for it to complete
+    // This ensures the message is ready when user sees the chat
+    try {
+      await fetch(`/api/agents/${agentId}/onboarding`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+    } catch (error) {
+      console.warn('Error generating onboarding message:', error);
+    }
+
     clearDraft();
     toast.success('Agent created successfully!');
-    router.push(`/agents/${result.agent.id}`);
-  }, [profileData, agentData, getAccessToken, clearDraft, router]);
+
+    // Redirect to chats page with the agent's chat selected
+    if (chatId) {
+      router.push(`/chats?chat=${chatId}`);
+    } else {
+      router.push('/chats');
+    }
+  }, [
+    profileData,
+    agentData,
+    settingsData,
+    getAccessToken,
+    clearDraft,
+    router,
+  ]);
 
   return (
     <PageContainer>
@@ -212,133 +292,183 @@ export default function CreateAgentPage() {
         {/* Header */}
         <div className="mb-8">
           <button
-            onClick={() => router.back()}
+            onClick={() => {
+              if (currentStep === Step.Profile) {
+                router.push('/agents');
+              } else {
+                setCurrentStep((prev) => prev - 1);
+              }
+            }}
             className="mb-4 flex items-center gap-3 text-muted-foreground transition-colors hover:text-foreground"
           >
             <ArrowLeft className="h-5 w-5" />
-            <span>Back</span>
+            <span>
+              {currentStep === Step.Profile ? 'Back' : 'Previous Step'}
+            </span>
           </button>
           <div className="flex items-center gap-3">
             <Bot className="h-6 w-6 text-[#0066FF]" />
             <div>
               <h1 className="font-bold text-3xl">Create AI Agent</h1>
               <p className="text-muted-foreground">
-                Configure your autonomous trading agent
+                {currentStep === Step.Prompts
+                  ? "Configure your agent's personality and prompts"
+                  : currentStep === Step.Settings
+                    ? "Set up your agent's capabilities"
+                    : 'Configure your autonomous trading agent'}
               </p>
             </div>
           </div>
         </div>
 
         {/* Main Content */}
-        <div className="grid gap-8 lg:grid-cols-3">
-          {/* Profile Preview - Left Column */}
-          <div className="space-y-4 lg:col-span-1">
-            <ProfilePreviewCard
-              profileData={profileData}
-              onCycleProfilePic={(direction) =>
-                cycleImage('profile', direction)
-              }
-              onCycleBanner={(direction) => cycleImage('cover', direction)}
-              isLoading={!isInitialized}
+        {currentStep === Step.Settings ? (
+          // Step 3: Full-width settings (no sidebar)
+          <div className="space-y-6">
+            <AgentSettingsStep
+              settings={settingsData}
+              onSettingsChange={setSettingsData}
             />
 
-            {/* Balance Info */}
-            <div className="rounded-lg border border-border bg-muted/30 p-4">
-              <div className="mb-3 flex items-center gap-2">
-                <Wallet className="h-4 w-4 text-muted-foreground" />
-                <span className="font-medium text-sm">Funding</span>
-              </div>
-              <div className="space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Initial Deposit</span>
-                  <span className="font-medium font-mono">
-                    {agentData.initialDeposit.toLocaleString()} pts
-                  </span>
+            {/* Actions */}
+            <div className="flex justify-end gap-3 border-border border-t pt-6">
+              <button
+                onClick={() => setCurrentStep(Step.Prompts)}
+                disabled={isCreating}
+                className={cn(
+                  'rounded-lg border border-border px-6 py-3 font-medium transition-colors',
+                  'text-muted-foreground hover:bg-muted hover:text-foreground',
+                  'disabled:cursor-not-allowed disabled:opacity-50'
+                )}
+              >
+                Back
+              </button>
+              <button
+                onClick={handleCreate}
+                disabled={isCreating}
+                className={cn(
+                  'flex items-center gap-2 rounded-lg px-6 py-3 font-medium transition-all',
+                  'bg-[#0066FF] text-primary-foreground hover:bg-[#2952d9]',
+                  'disabled:cursor-not-allowed disabled:opacity-50'
+                )}
+              >
+                {isCreating ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  'Create Agent'
+                )}
+              </button>
+            </div>
+          </div>
+        ) : (
+          // Step 2: Grid layout with sidebar
+          <div className="grid gap-8 lg:grid-cols-3">
+            {/* Profile Preview - Left Column */}
+            <div className="space-y-4 lg:col-span-1">
+              <ProfilePreviewCard
+                profileData={profileData}
+                onCycleProfilePic={(direction) =>
+                  cycleImage('profile', direction)
+                }
+                onCycleBanner={(direction) => cycleImage('cover', direction)}
+                isLoading={!isInitialized}
+              />
+
+              {/* Balance Info */}
+              <div className="rounded-lg border border-border bg-muted/30 p-4">
+                <div className="mb-3 flex items-center gap-2">
+                  <Wallet className="h-4 w-4 text-muted-foreground" />
+                  <span className="font-medium text-sm">Funding</span>
                 </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Your Balance</span>
-                  <span className="font-medium font-mono">
-                    {balanceLoading ? '...' : balance.toLocaleString()} pts
-                  </span>
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">
+                      Initial Deposit
+                    </span>
+                    <span className="font-medium font-mono">
+                      {agentData.initialDeposit.toLocaleString()} pts
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Your Balance</span>
+                    <span className="font-medium font-mono">
+                      {balanceLoading ? '...' : balance.toLocaleString()} pts
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
 
-          {/* Configuration - Right Column */}
-          <div className="space-y-6 lg:col-span-2">
-            {isInitialized ? (
-              <>
-                <AgentConfigForm
-                  agentData={agentData}
-                  generatingField={generatingField}
-                  maxDeposit={maxDeposit}
-                  onFieldChange={updateAgentField}
-                  onRegenerate={regenerateField}
-                />
+            {/* Configuration - Right Column */}
+            <div className="space-y-6 lg:col-span-2">
+              {/* Step 2: Prompts Configuration */}
+              {currentStep === Step.Prompts && (
+                <>
+                  {isInitialized ? (
+                    <>
+                      <AgentConfigForm
+                        agentData={agentData}
+                        generatingField={generatingField}
+                        maxDeposit={maxDeposit}
+                        onFieldChange={updateAgentField}
+                        onRegenerate={regenerateField}
+                      />
 
-                {/* Actions */}
-                <div className="flex justify-end gap-3 border-border border-t pt-6">
-                  <button
-                    onClick={() => router.push('/agents')}
-                    disabled={isCreating}
-                    className={cn(
-                      'rounded-lg border border-border px-6 py-3 font-medium transition-colors',
-                      'text-muted-foreground hover:bg-muted hover:text-foreground',
-                      'disabled:cursor-not-allowed disabled:opacity-50'
-                    )}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handleCreate}
-                    disabled={isCreating || !isInitialized}
-                    className={cn(
-                      'flex items-center gap-2 rounded-lg px-6 py-3 font-medium transition-all',
-                      'bg-[#0066FF] text-primary-foreground hover:bg-[#2952d9]',
-                      'disabled:cursor-not-allowed disabled:opacity-50'
-                    )}
-                  >
-                    {isCreating ? (
-                      <>
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        Creating...
-                      </>
-                    ) : (
-                      'Create Agent'
-                    )}
-                  </button>
-                </div>
-              </>
-            ) : (
-              <div className="space-y-6">
-                {/* Loading skeleton for form */}
-                <div className="space-y-4">
-                  <Skeleton className="h-6 w-32" />
-                  <Skeleton className="h-32 w-full" />
-                </div>
-                <div className="space-y-4">
-                  <Skeleton className="h-6 w-24" />
-                  <Skeleton className="h-24 w-full" />
-                </div>
-                <div className="space-y-4">
-                  <Skeleton className="h-6 w-36" />
-                  <Skeleton className="h-28 w-full" />
-                </div>
-                <div className="space-y-4">
-                  <Skeleton className="h-6 w-28" />
-                  <Skeleton className="h-10 w-full" />
-                </div>
-              </div>
-            )}
+                      {/* Actions */}
+                      <div className="flex justify-end gap-3 border-border border-t pt-6">
+                        <button
+                          onClick={() => router.push('/agents')}
+                          className={cn(
+                            'rounded-lg border border-border px-6 py-3 font-medium transition-colors',
+                            'text-muted-foreground hover:bg-muted hover:text-foreground'
+                          )}
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={handleContinueToSettings}
+                          disabled={!isInitialized}
+                          className={cn(
+                            'flex items-center gap-2 rounded-lg px-6 py-3 font-medium transition-all',
+                            'bg-[#0066FF] text-primary-foreground hover:bg-[#2952d9]',
+                            'disabled:cursor-not-allowed disabled:opacity-50'
+                          )}
+                        >
+                          Continue
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="space-y-6">
+                      <div className="space-y-4">
+                        <Skeleton className="h-6 w-32" />
+                        <Skeleton className="h-32 w-full" />
+                      </div>
+                      <div className="space-y-4">
+                        <Skeleton className="h-6 w-24" />
+                        <Skeleton className="h-24 w-full" />
+                      </div>
+                      <div className="space-y-4">
+                        <Skeleton className="h-6 w-36" />
+                        <Skeleton className="h-28 w-full" />
+                      </div>
+                      <div className="space-y-4">
+                        <Skeleton className="h-6 w-28" />
+                        <Skeleton className="h-10 w-full" />
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
-      {/* Profile Modal - shown first for initial setup */}
-      {showProfileModal && (
+      {/* Profile Modal - Step 1 */}
+      {currentStep === Step.Profile && (
         <AgentSetupModal
-          isOpen={showProfileModal}
+          isOpen={currentStep === Step.Profile}
           onClose={() => router.push('/agents')}
           profileData={profileData}
           onSave={handleProfileSave}

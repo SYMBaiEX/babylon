@@ -176,6 +176,14 @@ export async function POST(req: NextRequest) {
     personality,
     tradingStrategy,
     initialDeposit,
+    // New settings from step 3
+    modelTier,
+    autonomousEnabled,
+    autonomousPosting,
+    autonomousCommenting,
+    autonomousDMs,
+    autonomousGroupChats,
+    a2aEnabled,
   } = body;
 
   const agentUser = await agentService.createAgent({
@@ -197,6 +205,18 @@ export async function POST(req: NextRequest) {
     undefined,
     'AgentsAPI'
   );
+
+  // Update agent config with settings from step 3
+  // (createAgent sets all autonomous features to true by default, so we apply user's choices here)
+  await agentService.updateAgent(agentUser.id, user.id, {
+    modelTier: modelTier || 'free',
+    autonomousTrading: autonomousEnabled ?? false,
+    autonomousPosting: autonomousPosting ?? false,
+    autonomousCommenting: autonomousCommenting ?? false,
+    autonomousDMs: autonomousDMs ?? false,
+    autonomousGroupChats: autonomousGroupChats ?? false,
+    a2aEnabled: a2aEnabled ?? false,
+  });
 
   // Get agent config for the response
   const config = await getAgentConfig(agentUser.id);
