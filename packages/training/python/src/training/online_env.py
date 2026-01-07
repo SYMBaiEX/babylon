@@ -401,6 +401,11 @@ class BabylonOnlineEnvConfig(BaseEnvConfig):
         default=False,
         description="Include messages in scored data groups for debugging"
     )
+    
+    ensure_scores_are_not_same: bool = Field(
+        default=True,
+        description="Add small noise to break ties when all scores are identical (required for GRPO)"
+    )
 
 
 # =============================================================================
@@ -438,6 +443,7 @@ class BabylonOnlineEnv(BaseEnv):
     ):
         super().__init__(config, server_configs, slurm, testing)
         self.config: BabylonOnlineEnvConfig = config
+        self._server_configs = server_configs  # Store for direct access
         
         # Scenario pool (initialized in setup)
         self.scenario_pool: Optional[ScenarioPool] = None
@@ -517,11 +523,14 @@ class BabylonOnlineEnv(BaseEnv):
                 """Synchronous wrapper for async shutdown"""
                 if self.simulation_bridge is not None:
                     try:
-                        loop = asyncio.get_event_loop()
-                        if loop.is_running():
+                        # Try to get the running loop (Python 3.10+ compatible)
+                        try:
+                            loop = asyncio.get_running_loop()
+                            # Loop is running, schedule the shutdown task
                             loop.create_task(self.shutdown())
-                        else:
-                            loop.run_until_complete(self.shutdown())
+                        except RuntimeError:
+                            # No running loop, create a new one
+                            asyncio.run(self.shutdown())
                     except Exception as e:
                         logger.warning(f"Error in atexit shutdown: {e}")
             
@@ -661,7 +670,8 @@ class BabylonOnlineEnv(BaseEnv):
         import aiohttp
         from .tokenization_utils import tokenize_for_trainer
         
-        vllm_base_url = "http://localhost:9001/v1"
+        # Get vLLM URL from server config (first config is the inference server)
+        vllm_base_url = self._server_configs[0].base_url if self._server_configs else "http://localhost:9001/v1"
         
         try:
             async with aiohttp.ClientSession() as session:

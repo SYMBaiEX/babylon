@@ -1210,6 +1210,8 @@ You receive market updates and must analyze, reason, and then act."""
         # Save evaluation results
         if self.eval_suite is not None and len(self.eval_suite.history) > 0:
             logger.info("Saving evaluation results...")
+            import os
+            os.makedirs("./eval_results", exist_ok=True)
             self.eval_suite.save_results("./eval_results/history.json")
         
         await super().cleanup() if hasattr(super(), 'cleanup') else None

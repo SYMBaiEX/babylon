@@ -35,7 +35,7 @@ import { TradeExecutionService } from './trade-execution-service';
 
 interface InitRequest {
   numNPCs?: number;
-  seed?: number;
+  seed?: number; // Used for deterministic scenario generation
   archetypes?: string[];
   outcome?: boolean;
 }
@@ -158,13 +158,27 @@ class SimulationState {
   npcs: NPC[] = [];
   tickCount: number = 0;
   isInitialized: boolean = false;
+  seed: number | null = null; // For deterministic scenario generation
+
+  // Simple seeded random number generator for reproducibility
+  private seededRandom(): number {
+    if (this.seed === null) {
+      return Math.random();
+    }
+    // Linear congruential generator
+    this.seed = (this.seed * 1103515245 + 12345) & 0x7fffffff;
+    return this.seed / 0x7fffffff;
+  }
 
   async initialize(config: InitRequest): Promise<InitResponse> {
     const numNPCs = config.numNPCs ?? 20;
 
+    // Store seed for deterministic random generation
+    this.seed = config.seed ?? null;
+
     logger.info(
       'Initializing simulation bridge',
-      { numNPCs },
+      { numNPCs, seed: this.seed },
       'SimulationBridge'
     );
 
@@ -249,34 +263,37 @@ class SimulationState {
     npcId: string,
     archetype: string
   ): ScenarioResponse {
-    // Generate synthetic market data for training
+    // Generate synthetic market data for training (using seeded random for reproducibility)
     const syntheticPerpMarkets = [
       {
         ticker: 'BTC',
-        currentPrice: 45000 + Math.random() * 5000,
-        changePercent24h: (Math.random() - 0.5) * 10,
-        volume24h: 1000000 + Math.random() * 500000,
+        currentPrice: 45000 + this.seededRandom() * 5000,
+        changePercent24h: (this.seededRandom() - 0.5) * 10,
+        volume24h: 1000000 + this.seededRandom() * 500000,
       },
       {
         ticker: 'ETH',
-        currentPrice: 2500 + Math.random() * 500,
-        changePercent24h: (Math.random() - 0.5) * 15,
-        volume24h: 500000 + Math.random() * 250000,
+        currentPrice: 2500 + this.seededRandom() * 500,
+        changePercent24h: (this.seededRandom() - 0.5) * 15,
+        volume24h: 500000 + this.seededRandom() * 250000,
       },
     ];
 
+    // For prediction markets, yesPrice + noPrice should sum to ~1.0 for realistic pricing
+    const yesPrice1 = 0.2 + this.seededRandom() * 0.6; // 0.2 to 0.8 range
+    const yesPrice2 = 0.2 + this.seededRandom() * 0.6;
     const syntheticPredictionMarkets = [
       {
-        id: `market-${Math.floor(Math.random() * 1000)}`,
+        id: `market-${Math.floor(this.seededRandom() * 1000)}`,
         title: 'Will BTC exceed $50K by end of month?',
-        yesPrice: 0.3 + Math.random() * 0.4,
-        noPrice: 0.3 + Math.random() * 0.4,
+        yesPrice: yesPrice1,
+        noPrice: 1 - yesPrice1, // Complementary pricing
       },
       {
-        id: `market-${Math.floor(Math.random() * 1000)}`,
+        id: `market-${Math.floor(this.seededRandom() * 1000)}`,
         title: 'Will ETH 2.0 launch on schedule?',
-        yesPrice: 0.4 + Math.random() * 0.3,
-        noPrice: 0.3 + Math.random() * 0.4,
+        yesPrice: yesPrice2,
+        noPrice: 1 - yesPrice2, // Complementary pricing
       },
     ];
 
@@ -288,7 +305,7 @@ class SimulationState {
         predictionMarkets: syntheticPredictionMarkets,
       },
       positions: [],
-      balance: 10000 + Math.random() * 5000,
+      balance: 10000 + this.seededRandom() * 5000,
       recentNews: [
         {
           content:
@@ -430,7 +447,10 @@ class SimulationState {
       npcName,
       action: action.type,
       marketType:
-        action.type === 'buy_yes' || action.type === 'buy_no'
+        action.type === 'buy_yes' ||
+        action.type === 'buy_no' ||
+        action.type === 'sell_yes' ||
+        action.type === 'sell_no'
           ? 'prediction'
           : action.type === 'open_long' ||
               action.type === 'open_short' ||
@@ -583,7 +603,8 @@ class SimulationState {
       }
 
       case 'wait':
-        // Do nothing
+      case 'hold':
+        // Do nothing - both wait and hold mean keep current positions
         break;
 
       default:

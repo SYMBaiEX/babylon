@@ -200,6 +200,7 @@ from .kl_controller import (
     KLControllerBase,
     create_kl_controller,
     compute_kl_divergence,
+    estimate_kl_from_samples,
 )
 
 from .multi_turn import (

@@ -286,6 +286,7 @@ class ABTestRunner:
     ) -> ModelResult:
         """Evaluate a single model on a scenario."""
         import time
+        import aiohttp
         from .online_env import build_trading_system_prompt, build_observation_prompt
         
         # Build prompt
@@ -333,7 +334,7 @@ class ABTestRunner:
             response=response_text,
             score=quality_result.total_score,
             format_valid=format_result.is_valid,
-            action_type=format_result.action.get("action") if format_result.action else None,
+            action_type=format_result.action.action_type if format_result.action else None,
             reasoning_quality=quality_result.reasoning_score,
             latency_ms=latency_ms,
             tokens_generated=len(response_text.split()),
