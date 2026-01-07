@@ -251,7 +251,7 @@ export default function CreateAgentPage() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          targetUserId: agentId,
+          userId: agentId,
         }),
       });
 
@@ -260,7 +260,8 @@ export default function CreateAgentPage() {
         clearDraft();
         toast.success('Agent created successfully!');
         // Redirect to chats page with the agent's chat selected
-        router.push(`/chats?chat=${dmResult.chatId}`);
+        // API returns { chat: { id, ... } } not { chatId }
+        router.push(`/chats?chat=${dmResult.chat.id}`);
         return;
       }
     } catch (error) {

@@ -201,16 +201,9 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     const sortedIds = [user.userId, targetUserId].sort();
     const chatId = `dm-${sortedIds.join('-')}`;
 
-    // Try to find existing DM chat
+    // Try to find existing DM chat (don't use include - query separately)
     let existingChat = await db.chat.findUnique({
       where: { id: chatId },
-      include: {
-        participants: {
-          select: {
-            userId: true,
-          },
-        },
-      },
     });
 
     if (!existingChat) {
@@ -242,39 +235,10 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
         }),
       ]);
 
-      // Reload chat and get participants separately
-      const [reloadedChat, participants] = await Promise.all([
-        db.chat.findUnique({
-          where: { id: chatId },
-        }),
-        db.chatParticipant.findMany({
-          where: { chatId: { equals: chatId } },
-          select: { userId: true },
-        }),
-      ]);
-      existingChat = reloadedChat;
-
-      const participantIds = participants.map((p) => p.userId);
-
-      if (!participantIds.includes(user.userId)) {
-        await db.chatParticipant.create({
-          data: {
-            id: await generateSnowflakeId(),
-            chatId,
-            userId: user.userId,
-          },
-        });
-      }
-
-      if (!participantIds.includes(targetUserId)) {
-        await db.chatParticipant.create({
-          data: {
-            id: await generateSnowflakeId(),
-            chatId,
-            userId: targetUserId,
-          },
-        });
-      }
+      // Reload chat
+      existingChat = await db.chat.findUnique({
+        where: { id: chatId },
+      });
     } else {
       // Chat exists, ensure both participants are added
       const participants = await db.chatParticipant.findMany({
@@ -318,6 +282,15 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     { chatId: chatData.id, userId: user.userId, targetUserId },
     'POST /api/chats/dm'
   );
+
+  // DEBUG: Log DM creation result
+  console.log('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
+  console.log('[DEBUG /api/chats/dm] DM created/retrieved:', {
+    chatId: chatData.id,
+    userId: user.userId,
+    targetUserId,
+    targetUser: chat.targetUser,
+  });
 
   // Track DM created/opened event
   // Check if chat has participants by querying separately
