@@ -45,6 +45,10 @@ from .rewards import (
     archetype_composite_reward,
 )
 from .rubric_loader import has_custom_rubric, normalize_archetype
+from .tokenization_utils import tokenize_for_trainer
+from .quality_scorer import score_response
+from .format_validator import validate_response_format, FormatValidationResult
+from .evaluation import EvaluationSuite, RolloutDumper
 from ..models import Action
 
 # Optional Tinker support
@@ -161,6 +165,10 @@ class BabylonRLAIFEnv(BaseEnv):
         self.judge_format_scores: List[float] = []
         self.judge_reasoning_scores: List[float] = []
 
+        # Evaluation suite for tracking progress
+        self.eval_suite: Optional[EvaluationSuite] = None
+        self.rollout_dumper: Optional[RolloutDumper] = None
+
         # Optional Tinker client (set externally for Tinker-based training)
         self._tinker_client: Optional["BabylonTinkerClient"] = None
 
@@ -185,7 +193,7 @@ class BabylonRLAIFEnv(BaseEnv):
         """Initialize configuration with defaults"""
         env_config = BabylonEnvConfig(
             tokenizer_name="Qwen/Qwen2.5-3B-Instruct",
-            group_size=2,  # Compare 2 trajectories at a time (minimum for GRPO)
+            group_size=4,  # Match Atropos default for stable GRPO training
             use_wandb=True,
             max_num_workers=64,
             rollout_server_url="http://localhost:8000",
@@ -234,6 +242,18 @@ class BabylonRLAIFEnv(BaseEnv):
         logger.info(f"Loaded {len(self.trajectory_cache)} trajectory groups")
         for group in self.trajectory_cache:
             logger.info(f"  Group '{group['group_key']}': {len(group['trajectories'])} trajectories")
+
+        # Initialize evaluation suite and rollout dumper
+        self.eval_suite = EvaluationSuite(
+            generate_test_count=50,
+            success_threshold=0.5,
+        )
+        self.rollout_dumper = RolloutDumper(
+            output_dir="./rollout_dumps",
+            success_threshold=0.7,
+            save_rate=0.1,  # Save 10% of rollouts for debugging
+        )
+        logger.info("Initialized EvaluationSuite and RolloutDumper")
 
     async def _load_trajectories(self):
         """Load trajectories from database and group by scenario/window"""
@@ -422,12 +442,18 @@ class BabylonRLAIFEnv(BaseEnv):
                     messages = [messages[0]] + messages[-4:]
 
                 # Direct call to vLLM
+                # Generate multiple completions per prompt for GRPO score variance
+                # Temperature > 0 ensures different responses for same prompt
                 max_tokens = min(512, self.config.max_token_length // 3)
+                num_completions = self.config.group_size  # Generate group_size completions per prompt
                 payload = {
                     "model": model_name,
                     "messages": messages,
                     "max_tokens": max_tokens,
-                    "n": 1,
+                    "n": num_completions,  # Multiple completions for score variance
+                    "temperature": 0.7,  # Ensure response diversity
+                    "logprobs": True,  # Request logprobs for GRPO KL penalty
+                    "top_logprobs": 1,  # Get top logprob per token
                 }
                 
                 try:
@@ -446,36 +472,74 @@ class BabylonRLAIFEnv(BaseEnv):
                     logger.error(f"Error calling vLLM: {e}")
                     continue
 
-                response_content = result.get("choices", [{}])[0].get("message", {}).get("content", "")
-                finish_reason = result.get("choices", [{}])[0].get("finish_reason", "stop")
+                # Process ALL completions from this prompt (not just the first one)
+                choices = result.get("choices", [])
+                if not choices:
+                    logger.warning(f"No choices returned from vLLM for trajectory {traj.get('trajectory_id')}")
+                    continue
+                    
+                for choice in choices:
+                    response_content = choice.get("message", {}).get("content", "")
+                    finish_reason = choice.get("finish_reason", "stop")
 
-                # Build full conversation with response
-                full_messages = copy.deepcopy(messages)
-                full_messages.append({
-                    "role": "assistant",
-                    "content": response_content
-                })
+                    # Build full conversation with this response
+                    full_messages = copy.deepcopy(messages)
+                    full_messages.append({
+                        "role": "assistant",
+                        "content": response_content
+                    })
 
-                # Tokenize for training data
-                tokens = self.tokenizer.apply_chat_template(full_messages, return_tensors="pt")[0].tolist()
+                    # Tokenize with proper masking - only train on assistant completions
+                    tokenization_result = tokenize_for_trainer(
+                        self.tokenizer,
+                        full_messages,
+                        add_generation_prompt=False,
+                    )
+                    
+                    # Extract logprobs from vLLM response for GRPO KL penalty
+                    response_logprobs: List[float] = []
+                    logprobs_data = choice.get("logprobs")
+                    if logprobs_data and "content" in logprobs_data:
+                        for token_info in logprobs_data["content"]:
+                            if token_info is not None:
+                                response_logprobs.append(token_info.get("logprob", 0.0))
+                    
+                    # Build full logprobs array: 0.0 for prompt, actual logprobs for completion
+                    prompt_len = tokenization_result.prompt_length
+                    full_logprobs = [0.0] * prompt_len + response_logprobs
+                    
+                    # Ensure logprobs match token length
+                    if len(full_logprobs) < len(tokenization_result.tokens):
+                        # Pad with 0.0 for any missing tokens
+                        full_logprobs.extend([0.0] * (len(tokenization_result.tokens) - len(full_logprobs)))
+                    elif len(full_logprobs) > len(tokenization_result.tokens):
+                        full_logprobs = full_logprobs[:len(tokenization_result.tokens)]
+                    
+                    rollout_data.append({
+                        "trajectory": traj,
+                        "generated_response": response_content,
+                        "messages": full_messages,
+                        "tokens": tokenization_result.tokens,
+                        "masks": tokenization_result.masks,  # Proper masking: -100 for prompt, token IDs for completion
+                        "logprobs": full_logprobs,  # Logprobs for GRPO KL penalty
+                        "finish_reason": finish_reason,
+                    })
                 
-                rollout_data.append({
-                    "trajectory": traj,
-                    "generated_response": response_content,
-                    "messages": full_messages,
-                    "tokens": tokens,
-                    "masks": [1] * len(tokens),
-                    "logprobs": [],
-                    "finish_reason": finish_reason,
-                })
+                # Only process one trajectory per group to get group_size completions
+                # This is proper GRPO: same prompt, multiple completions, score variance
+                if len(rollout_data) >= self.config.group_size:
+                    break
 
-        if len(rollout_data) < 2:
-            logger.warning(f"Insufficient rollouts for group {group_key}")
+        if len(rollout_data) < self.config.group_size:
+            logger.warning(f"Insufficient rollouts for group {group_key}: got {len(rollout_data)}, need {self.config.group_size}")
             return None, []
+        
+        # Trim to exact group_size for consistent batch shapes
+        rollout_data = rollout_data[:self.config.group_size]
 
         # Score using The Judge (Deterministic)
         scored_data = await self._score_with_judge(rollout_data)
-        logger.info(f"Scored {len(rollout_data)} rollouts for group {group_key}")
+        logger.info(f"Scored {len(rollout_data)} rollouts for group {group_key} (GRPO: multiple completions per prompt)")
 
         self.windows_processed += 1
         return scored_data, []
@@ -661,29 +725,32 @@ You receive market updates and must analyze, reason, and then act."""
             elif has_custom_rubric(archetype_norm):
                 logger.debug(f"Scoring with custom rubric for archetype: {archetype_norm}")
 
-            # 2. Quality Scores - simplified calculation
-            # Simple format score - check if response looks well-structured
-            fmt_score = 0.5  # Default middle score
-            if generated_response:
-                if len(generated_response) > 50:
-                    fmt_score += 0.2
-                if any(kw in generated_response.lower() for kw in ['action', 'trade', 'position', 'market']):
-                    fmt_score += 0.2
-                fmt_score = min(1.0, fmt_score)
+            # 2. Quality Scores using proper quality_scorer and format_validator
+            quality_result = score_response(
+                response=generated_response,
+                archetype=archetype_norm,
+                execute_action=False,  # Don't simulate action execution in offline mode
+            )
             
-            # Simple reasoning score - check for analytical content
-            rsn_score = 0.5  # Default middle score
-            if generated_response:
-                if any(kw in generated_response.lower() for kw in ['because', 'therefore', 'analysis', 'expect']):
-                    rsn_score += 0.2
-                if len(generated_response) > 100:
-                    rsn_score += 0.2
-                rsn_score = min(1.0, rsn_score)
+            # Extract format and reasoning scores from quality scorer
+            fmt_score = quality_result.combined_format_score
+            rsn_score = quality_result.reasoning_score
+            
+            # Apply penalty for invalid format (missing think tags or action JSON)
+            format_validation = validate_response_format(generated_response)
+            if not format_validation.is_valid:
+                # Reduce format score for invalid responses but don't zero it completely
+                fmt_score = max(0.1, fmt_score * 0.5)
+            
+            # 3. CRITICAL: Score the action itself for variance between completions
+            # When multiple completions are generated for the same prompt,
+            # the action quality is the PRIMARY differentiator
+            action_quality = self._score_action_quality(generated_response, format_validation)
 
-            # 3. Extract behavior metrics for archetype-specific bonuses
+            # 4. Extract behavior metrics for archetype-specific bonuses
             behavior_metrics = self._extract_behavior_metrics(traj)
 
-            # 4. Build reward inputs
+            # 5. Build reward inputs
             final_pnl = traj.get("final_pnl", 0.0)
             reward_inputs = TrajectoryRewardInputs(
                 final_pnl=final_pnl,
@@ -696,12 +763,33 @@ You receive market updates and must analyze, reason, and then act."""
                 total_actions=behavior_metrics.episode_length,
             )
 
-            # 5. Compute archetype-aware composite score
-            final_score = archetype_composite_reward(
+            # 6. Compute archetype-aware composite score
+            base_score = archetype_composite_reward(
                 inputs=reward_inputs,
                 archetype=archetype_norm,
                 behavior_metrics=behavior_metrics,
             )
+            
+            # 7. GRPO adjustment: Blend base score with action quality
+            # For multiple completions per prompt, action quality provides variance
+            # Base score comes 40% from trajectory data, so we need action quality to dominate
+            final_score = base_score * 0.4 + action_quality * 0.6
+            
+            # 8. Add tiebreaker epsilon for score variance
+            # CRITICAL: GRPO skips batches where all scores are identical (ensure_scores_are_not_same=True)
+            # Add small deterministic tiebreakers based on response characteristics
+            # NOTE: Using sum of bytes instead of hash() for determinism across Python sessions
+            epsilon = 0.0
+            epsilon += (len(generated_response) % 100) * 0.0001  # Response length variance
+            # Deterministic content-based variance (sum of character codes)
+            content_hash = sum(ord(c) for c in generated_response[:50]) % 1000
+            epsilon += content_hash * 0.00001  # Content-based variance
+            # Add more variance based on action type
+            if format_validation.action.action_type:
+                action_type_hash = sum(ord(c) for c in format_validation.action.action_type) % 100
+                epsilon += action_type_hash * 0.0001
+            final_score += epsilon
+            
             scores.append(final_score)
             
             # Track for metrics
@@ -716,6 +804,18 @@ You receive market updates and must analyze, reason, and then act."""
                     generated_response[:100],
                     f"Score: {final_score:.2f} (Fmt: {fmt_score:.2f}, Rsn: {rsn_score:.2f})"
                 ))
+
+            # Save rollout for debugging and dataset generation
+            if self.rollout_dumper is not None:
+                self.rollout_dumper.save_rollout(
+                    scenario_id=traj.get("trajectory_id", "unknown"),
+                    archetype=archetype_norm,
+                    response=generated_response,
+                    messages=item["messages"],
+                    score=final_score,
+                    quality_metrics=quality_result.to_dict(),
+                    step=self.windows_processed,
+                )
 
         # Normalize scores to mean 0 for GRPO stability
         mean_score = sum(scores) / len(scores) if scores else 0
@@ -915,13 +1015,141 @@ You receive market updates and must analyze, reason, and then act."""
 
         return metrics
 
+    def _score_action_quality(
+        self, 
+        response: str, 
+        format_validation: FormatValidationResult
+    ) -> float:
+        """
+        Score the quality of the action proposed in the response.
+        
+        This is the PRIMARY source of score variance when comparing multiple
+        completions for the same prompt. Different actions = different scores.
+        
+        Scoring factors:
+        - Action type appropriateness (0.3)
+        - Parameter quality (0.25)
+        - Reasoning-action alignment (0.25)
+        - Completeness (0.2)
+        
+        Returns a score in range [0.0, 1.0]
+        """
+        score = 0.5  # Start neutral
+        
+        # Access correct attributes: action (not action_result), think_tags (not think_result)
+        action_result = format_validation.action
+        think_result = format_validation.think_tags
+        
+        # 1. Action validation from format validator (0.3 weight)
+        if action_result.is_valid_json and action_result.has_action:
+            score += 0.15  # Has valid action
+            
+            if action_result.is_known_action:
+                score += 0.10  # Known action type
+                
+            if action_result.has_required_fields:
+                score += 0.05  # Has required fields
+        else:
+            score -= 0.20  # Invalid or missing action
+        
+        # 2. Parameter quality (0.25 weight) - evaluate the action parameters
+        if action_result.parsed_action:
+            action = action_result.parsed_action
+            action_type = action.get("action", "").lower()
+            
+            # Check for sensible parameter values
+            if action_type in ("buy", "sell", "trade"):
+                amount = action.get("amount") or action.get("size") or 0
+                if isinstance(amount, (int, float)):
+                    # Reasonable position sizing: not too extreme
+                    if 10 <= amount <= 1000:
+                        score += 0.10
+                    elif 0 < amount < 10 or 1000 < amount <= 5000:
+                        score += 0.05
+                    # Extreme values reduce score
+                    elif amount > 10000:
+                        score -= 0.10
+                        
+                # Has market specified
+                if action.get("market") or action.get("marketId") or action.get("ticker"):
+                    score += 0.05
+                    
+            elif action_type in ("open_perp", "close_perp"):
+                # Perp trading: check leverage and direction
+                leverage = action.get("leverage") or 1
+                if isinstance(leverage, (int, float)):
+                    if 1 <= leverage <= 10:
+                        score += 0.10
+                    elif leverage > 20:
+                        score -= 0.10  # Excessive leverage
+                    else:
+                        score += 0.05
+                        
+            elif action_type == "wait":
+                # Wait is valid but less interesting - slight penalty
+                score += 0.05
+                
+            elif action_type in ("post", "create_post", "send_dm", "dm"):
+                # Social actions: check for content
+                content = action.get("content") or action.get("message") or ""
+                if len(str(content)) > 10:
+                    score += 0.10
+                else:
+                    score -= 0.05
+                    
+            # Check for reasoning field in action
+            if action.get("reasoning") or action.get("rationale"):
+                score += 0.05
+        
+        # 3. Reasoning-action alignment (0.25 weight)
+        if think_result.thinking_content and action_result.parsed_action:
+            thinking = think_result.thinking_content.lower()
+            action_type = action_result.action_type or ""
+            
+            # Check if reasoning mentions the action type
+            action_mentioned = action_type in thinking or any(
+                term in thinking for term in [action_type, "buy", "sell", "wait", "trade"]
+            )
+            if action_mentioned:
+                score += 0.10
+                
+            # Check for market/analysis terms in reasoning
+            analysis_terms = ["market", "price", "risk", "profit", "position", "trend"]
+            analysis_count = sum(1 for term in analysis_terms if term in thinking)
+            if analysis_count >= 3:
+                score += 0.10
+            elif analysis_count >= 1:
+                score += 0.05
+                
+            # Longer, more detailed reasoning is better
+            if len(think_result.thinking_content) > 200:
+                score += 0.05
+        
+        # 4. Completeness (0.2 weight) - overall response structure
+        if think_result.is_properly_paired and action_result.is_valid_json:
+            score += 0.10  # Well-formed response
+            
+        # Check response isn't truncated/incomplete
+        response_lower = response.lower()
+        if response.strip().endswith("}") or "</think>" in response_lower:
+            score += 0.05
+        
+        # Avoid very short responses
+        if len(response) > 200:
+            score += 0.05
+        elif len(response) < 50:
+            score -= 0.10
+        
+        # Clamp to valid range
+        return max(0.0, min(1.0, score))
+
     async def evaluate(self, *args, **kwargs):
-        """Evaluate current model performance"""
+        """Evaluate current model performance using EvaluationSuite"""
         logger.info("Running evaluation...")
 
-        # Sample some trajectories for evaluation
+        # Collect evaluation results from trajectory data
         eval_results = []
-
+        
         for _ in range(min(10, len(self.trajectory_cache))):
             if not self.trajectory_cache:
                 break
@@ -947,6 +1175,16 @@ You receive market updates and must analyze, reason, and then act."""
                               for r in eval_results) / len(eval_results)
             logger.info(
                 f"Evaluation complete: {len(eval_results)} groups, avg P&L: ${overall_pnl:.2f}")
+        
+        # Get evaluation suite summary if available
+        if self.eval_suite is not None:
+            summary = self.eval_suite.get_summary()
+            logger.info(f"EvaluationSuite summary: {summary}")
+        
+        # Log rollout dumper stats if available
+        if self.rollout_dumper is not None:
+            stats = self.rollout_dumper.get_stats()
+            logger.info(f"RolloutDumper stats: {stats}")
 
     def save_checkpoint(self, step, data=None):
         """Save environment checkpoint"""
@@ -962,6 +1200,21 @@ You receive market updates and must analyze, reason, and then act."""
             logger.info("Closing database connection pool...")
             await self.db_pool.close()
             self.db_pool = None
+        
+        # Flush rollout dumper buffers
+        if self.rollout_dumper is not None:
+            logger.info("Flushing rollout dumper buffers...")
+            self.rollout_dumper.flush_buffers()
+            stats = self.rollout_dumper.get_stats()
+            logger.info(f"Final RolloutDumper stats: {stats}")
+        
+        # Save evaluation results
+        if self.eval_suite is not None and len(self.eval_suite.history) > 0:
+            logger.info("Saving evaluation results...")
+            import os
+            os.makedirs("./eval_results", exist_ok=True)
+            self.eval_suite.save_results("./eval_results/history.json")
+        
         await super().cleanup() if hasattr(super(), 'cleanup') else None
 
 

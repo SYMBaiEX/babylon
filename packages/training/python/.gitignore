@@ -4,4 +4,4 @@ exports/
 checkpoints/
 __pycache__/
 *.pyc
-.pytest_cache/
+.pytest_cache/curriculum_state.json

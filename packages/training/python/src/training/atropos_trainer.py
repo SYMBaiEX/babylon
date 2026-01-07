@@ -758,6 +758,7 @@ class BabylonAtroposTrainer:
         
         batches_buffer: List = []
         all_metrics: List[dict] = []
+        successful_steps = 0  # Track steps that actually trained
         
         start_step = self.current_step
         for step in range(start_step, self.config.training_steps):
@@ -791,6 +792,10 @@ class BabylonAtroposTrainer:
                 token_batches, label_batches, advantage_batches, temperature_batches
             )
             
+            # Count as successful if we got non-zero gradients
+            if metrics.get("grad_norm", 0) > 0:
+                successful_steps += 1
+            
             logger.info(
                 f"  Loss: {metrics['loss']:.4f}, "
                 f"Grad norm: {metrics['grad_norm']:.4f}, "
@@ -804,6 +809,7 @@ class BabylonAtroposTrainer:
                 "train/learning_rate": metrics["learning_rate"],
                 "train/pos_logp": metrics["pos_logp"],
                 "train/neg_logp": metrics["neg_logp"],
+                "train/successful_steps": successful_steps,
             }, self.current_step)
             
             all_metrics.append(metrics)
@@ -822,8 +828,17 @@ class BabylonAtroposTrainer:
                     if self.current_step % self.config.vllm_restart_interval == 0:
                         self.start_vllm(checkpoint_path)
                     
-        # Final save
-        final_checkpoint = self.save_checkpoint(self.current_step, is_final=True)
+        # Final save - ONLY if we actually trained
+        final_checkpoint = None
+        if successful_steps > 0:
+            final_checkpoint = self.save_checkpoint(self.current_step, is_final=True)
+            logger.info(f"Training complete with {successful_steps} successful steps")
+        else:
+            logger.warning(
+                "NO SUCCESSFUL TRAINING STEPS - model NOT saved! "
+                "This may indicate issues with scoring (all identical scores) "
+                "or empty batches. Check data quality and scoring logic."
+            )
         
         # Finish W&B run
         if self._wandb_initialized:
@@ -832,11 +847,16 @@ class BabylonAtroposTrainer:
             
         logger.info("=" * 60)
         logger.info("TRAINING COMPLETE")
-        logger.info(f"Final checkpoint: {final_checkpoint}")
+        logger.info(f"Successful steps: {successful_steps}/{self.current_step}")
+        if final_checkpoint:
+            logger.info(f"Final checkpoint: {final_checkpoint}")
+        else:
+            logger.warning("No checkpoint saved - training was ineffective")
         logger.info("=" * 60)
         
         return {
             "steps": self.current_step,
+            "successful_steps": successful_steps,
             "final_checkpoint": final_checkpoint,
             "metrics": all_metrics,
         }
