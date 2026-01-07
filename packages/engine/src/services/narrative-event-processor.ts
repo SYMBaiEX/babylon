@@ -760,13 +760,14 @@ export class NarrativeEventProcessorService {
 
   async processArcTick(
     arcId: string,
-    dayNumber: number
+    dayNumber: number,
+    llmClient?: BabylonLLMClient | null
   ): Promise<{
     transitioned: boolean;
     eventGenerated: boolean;
     newState?: ArcStateType;
   }> {
-    return processArcTick(arcId, dayNumber);
+    return processArcTick(arcId, dayNumber, llmClient);
   }
 
   async createArcState(questionId: string): Promise<string> {

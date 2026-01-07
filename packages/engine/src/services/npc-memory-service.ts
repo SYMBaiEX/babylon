@@ -461,8 +461,9 @@ export class NpcMemoryService {
   }
 
   /**
-   * Add the same memory to multiple NPCs in a batch operation.
-   * Reduces N+1 query problem by fetching all states at once.
+   * Add the same memory to multiple NPCs concurrently.
+   * Uses Promise.allSettled to provide isolation between actors,
+   * ensuring failure of one actor doesn't affect others.
    *
    * @param actorIds - Array of actor IDs to add memory to
    * @param memory - Memory to add (without id, will be generated)

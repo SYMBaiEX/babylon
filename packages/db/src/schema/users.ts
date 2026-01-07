@@ -24,12 +24,13 @@ export type { GameOnboardingStep } from '@babylon/shared';
 
 /**
  * Game onboarding state stored in JSONB
+ * Note: startedAt and completedAt are ISO date strings since JSONB serializes dates as strings
  */
 export interface GameOnboardingState {
   completedSteps: GameOnboardingStep[];
   currentStep: GameOnboardingStep;
-  startedAt: Date | null;
-  completedAt: Date | null;
+  startedAt: string | null;
+  completedAt: string | null;
   rewards: Array<{ step: GameOnboardingStep; points: number }>;
 }
 

@@ -227,7 +227,7 @@ describe('Narrative Event Processor - Event Generation Decision', () => {
 
 describe('Narrative Event Processor - Edge Cases', () => {
   test('handles day number 0', () => {
-    // Day 0 is before defined ranges, falls through to 'resolution' default
+    // Day 0 is out-of-range (days are 1-indexed), falls through to 'resolution' default
     const result = getExpectedState(0);
     expect(result).toBe('resolution');
   });

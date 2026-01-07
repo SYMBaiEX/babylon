@@ -16,8 +16,11 @@
  */
 
 import {
+  and,
   db,
   eq,
+  gte,
+  lte,
   type MarketCategory,
   type MarketTimeframe,
   type NewSubMarketSpawnLog,
@@ -324,13 +327,17 @@ export class SubMarketService {
    */
   async getMarketsNeedingResolution(): Promise<TimeframedMarket[]> {
     const now = new Date();
-    // Manual filter since we need complex conditions
-    const active = await db
+    // Use database-level filtering for efficiency
+    return db
       .select()
       .from(timeframedMarkets)
-      .where(eq(timeframedMarkets.isActive, true));
-
-    return active.filter((m) => m.endTime <= now && !m.isResolved);
+      .where(
+        and(
+          eq(timeframedMarkets.isActive, true),
+          lte(timeframedMarkets.endTime, now),
+          eq(timeframedMarkets.isResolved, false)
+        )
+      );
   }
 
   // ===========================================================================
@@ -461,12 +468,18 @@ export class SubMarketService {
     withinMinutes: number
   ): Promise<number> {
     const cutoff = new Date(Date.now() - withinMinutes * 60 * 1000);
+    // Use database-level filtering for efficiency
     const logs = await db
       .select()
       .from(subMarketSpawnLogs)
-      .where(eq(subMarketSpawnLogs.parentMarketId, parentMarketId));
+      .where(
+        and(
+          eq(subMarketSpawnLogs.parentMarketId, parentMarketId),
+          gte(subMarketSpawnLogs.createdAt, cutoff)
+        )
+      );
 
-    return logs.filter((l) => l.createdAt >= cutoff).length;
+    return logs.length;
   }
 
   private async logSpawnSkipped(

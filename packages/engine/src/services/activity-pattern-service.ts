@@ -135,9 +135,10 @@ export function isActiveHour(
  */
 export function isWeekend(gameDay?: number, date: Date = new Date()): boolean {
   if (gameDay !== undefined) {
-    // Game-relative weekend: days 5 and 6 of each 7-day cycle (0-indexed)
-    // This keeps game time independent of real-world calendar
-    const dayOfWeek = gameDay % 7;
+    // Game days are 1-indexed (Day 1 is first day)
+    // Convert to 0-indexed for modulo: (gameDay - 1) % 7
+    // Weekend: indices 5 and 6 of each 7-day cycle
+    const dayOfWeek = ((gameDay - 1) % 7 + 7) % 7; // Handle edge cases with double modulo
     return dayOfWeek === 5 || dayOfWeek === 6;
   }
   // Fallback to real-world calendar
@@ -151,12 +152,12 @@ export function isWeekend(gameDay?: number, date: Date = new Date()): boolean {
  *
  * @param actor - The actor to check
  * @param date - The date to check (for extracting UTC hour)
- * @param gameDay - The current game day for rotation. Defaults to 0.
+ * @param gameDay - The current game day for rotation (1-indexed). Defaults to 1.
  */
 export function getActivityMultiplier(
   actor: ActivityActor,
   date: Date = new Date(),
-  gameDay = 0
+  gameDay = 1
 ): number {
   const utcHour = date.getUTCHours();
   return isActiveHour(actor, utcHour, gameDay) ? 1.0 : 0.0;

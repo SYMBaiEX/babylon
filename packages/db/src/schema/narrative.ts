@@ -264,8 +264,8 @@ export const timeframedMarkets = pgTable(
     startTime: timestamp('startTime', { mode: 'date' }).notNull(),
     endTime: timestamp('endTime', { mode: 'date' }).notNull(),
 
-    // Arc state
-    arcState: text('arcState').notNull().default('setup'),
+    // Arc state (typed to ArcStateType for type safety)
+    arcState: text('arcState').$type<ArcStateType>().notNull().default('setup'),
     arcStateEnteredAt: timestamp('arcStateEnteredAt', {
       mode: 'date',
     }).notNull(),

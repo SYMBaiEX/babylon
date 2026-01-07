@@ -65,8 +65,9 @@ export const actorState = pgTable(
       '0'
     ),
 
-    // Memory (bounded, summarized) - stores last 50 memories
+    // Memory array for NPC context
     // Cast to NpcMemory[] when reading/writing in services
+    // Note: 50-memory limit is enforced in NpcMemoryService, not at DB level
     recentMemories: jsonb('recentMemories').default(sql`'[]'::jsonb`),
 
     // Relationships with other actors

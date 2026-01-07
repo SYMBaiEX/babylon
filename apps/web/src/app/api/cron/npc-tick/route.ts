@@ -245,7 +245,8 @@ export async function POST(_req: NextRequest) {
 
   // Filter to NPCs in their active hours (simple ID-based rotation, ~1/3 active at any time)
   // Game day is used for daily rotation - different actors active on different game days
-  const gameDay = gameState.currentDay ?? 0;
+  // Days are 1-indexed (Day 1 is first day of game), default to 1 if not set
+  const gameDay = gameState.currentDay ?? 1;
   const activeNpcs = allNpcs.filter((npc) =>
     isActiveHour(npc, currentHour, gameDay)
   );

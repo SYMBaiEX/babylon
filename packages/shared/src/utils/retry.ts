@@ -253,10 +253,8 @@ export function fireAndForgetWithRetry(
         }
 
         if (attempt < maxAttempts - 1) {
-          // Exponential backoff
-          await new Promise((r) =>
-            setTimeout(r, initialDelayMs * Math.pow(2, attempt))
-          );
+          // Exponential backoff using shared sleep utility
+          await sleep(initialDelayMs * Math.pow(2, attempt));
         }
       }
     }

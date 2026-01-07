@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS "GameOnboarding" (
     "isComplete" BOOLEAN NOT NULL DEFAULT false,
     "skippedAt" TIMESTAMP,
     "createdAt" TIMESTAMP NOT NULL DEFAULT NOW(),
-    "updatedAt" TIMESTAMP NOT NULL
+    "updatedAt" TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS "GameOnboarding_userId_idx" ON "GameOnboarding" ("userId");
@@ -55,7 +55,7 @@ CREATE TABLE IF NOT EXISTS "ArcState" (
     "lastEventAt" TIMESTAMP,
     "pendingTransitions" JSONB DEFAULT '[]'::jsonb,
     "createdAt" TIMESTAMP NOT NULL DEFAULT NOW(),
-    "updatedAt" TIMESTAMP NOT NULL
+    "updatedAt" TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS "ArcState_questionId_idx" ON "ArcState" ("questionId");

@@ -160,13 +160,16 @@ export async function processNPCSocialEngagements(): Promise<SocialEngagementRes
     );
     const engagedActors = new Set<string>();
 
-    for (const actor of sampledActors) {
+    actorLoop: for (const actor of sampledActors) {
       // Random skip for organic feel
       if (secureRandom() < 0.3) continue;
 
+      // Check if we've hit max likes before processing this actor
+      if (result.likesCreated >= MAX_LIKES_PER_TICK) break actorLoop;
+
       for (const post of recentPosts) {
         if (post.authorId === actor.id) continue;
-        if (result.likesCreated >= MAX_LIKES_PER_TICK) break;
+        if (result.likesCreated >= MAX_LIKES_PER_TICK) break actorLoop;
 
         const key = `${post.id}-${actor.id}`;
         const probs = calculateEngagementProbability(actor, post);

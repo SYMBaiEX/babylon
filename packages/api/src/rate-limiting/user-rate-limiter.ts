@@ -277,8 +277,9 @@ async function checkRateLimitRedis(
       };
     }
 
-    // Record this action
-    await redis.zadd(key, now, `${now}-${Math.random().toString(36).slice(2)}`);
+    // Record this action with a unique identifier to prevent collisions
+    const uniqueId = crypto.randomUUID().slice(0, 8);
+    await redis.zadd(key, now, `${now}-${userId}-${uniqueId}`);
     // Set key expiration to window duration + buffer
     await redis.expire(key, Math.ceil(config.windowMs / 1000) + 10);
 

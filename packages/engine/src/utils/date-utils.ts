@@ -79,9 +79,11 @@ export function getGameDayNumber(startedAt: Date, timestamp: Date): number {
 
 /**
  * Validate a dayNumber for storage in Post/WorldEvent int columns.
+ * Days are 1-indexed (Day 1 is the first day of the game).
+ * Returns undefined for invalid day numbers to prevent DB errors.
  */
 export function toSafeDayNumber(dayNumber: number): number | undefined {
-  return Number.isFinite(dayNumber) && dayNumber >= 0 && dayNumber <= 2147483647
+  return Number.isFinite(dayNumber) && dayNumber >= 1 && dayNumber <= 2147483647
     ? dayNumber
     : undefined;
 }
