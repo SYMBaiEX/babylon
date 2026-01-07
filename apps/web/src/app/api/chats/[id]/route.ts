@@ -242,6 +242,8 @@ export const GET = withErrorHandling(
                 displayName: users.displayName,
                 username: users.username,
                 profileImageUrl: users.profileImageUrl,
+                isAgent: users.isAgent,
+                managedBy: users.managedBy,
               })
               .from(users)
               .where(inArray(users.id, participantUserIds))
@@ -295,12 +297,15 @@ export const GET = withErrorHandling(
           });
 
     // For DMs, get the other participant's name and details
+    // Include isAgent and managedBy to detect if this is the user's own agent
     let displayName = chat.name;
     let otherUser: {
       id: string;
       displayName: string | null;
       username: string | null;
       profileImageUrl: string | null;
+      isAgent?: boolean;
+      managedBy?: string | null;
     } | null = null;
     if (!chat.isGroup && !chat.name && userId) {
       const otherParticipant = fullChat.participants.find(
@@ -316,6 +321,8 @@ export const GET = withErrorHandling(
             displayName: otherUserData.displayName,
             username: otherUserData.username,
             profileImageUrl: otherUserData.profileImageUrl,
+            isAgent: otherUserData.isAgent,
+            managedBy: otherUserData.managedBy,
           };
         }
       }

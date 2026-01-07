@@ -33,7 +33,6 @@ interface ChatViewProps {
   onLeaveChat: () => void;
   onMessageChange: (value: string) => void;
   onSendMessage: () => void;
-  onTagClick?: (tag: string) => void;
 }
 
 export function ChatView({
@@ -59,7 +58,6 @@ export function ChatView({
   onLeaveChat,
   onMessageChange,
   onSendMessage,
-  onTagClick,
 }: ChatViewProps) {
   // Empty state when no chat selected
   if (!chatDetails) {
@@ -108,7 +106,7 @@ export function ChatView({
       {/* Messages - Scrollable */}
       <div
         ref={containerRef}
-        className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-3"
+        className="relative min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-3"
       >
         <MessageList
           messages={chatDetails.messages || []}
@@ -119,7 +117,6 @@ export function ChatView({
           hasMore={hasMore}
           pullDistance={pullDistance}
           authenticated={authenticated}
-          onTagClick={onTagClick}
           topSentinelRef={topSentinelRef}
           messagesEndRef={messagesEndRef}
         />

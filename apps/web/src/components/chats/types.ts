@@ -18,6 +18,10 @@ export interface Chat {
     displayName: string | null;
     username: string | null;
     profileImageUrl: string | null;
+    /** Whether this user is an AI agent */
+    isAgent?: boolean;
+    /** The user ID that manages this agent (for detecting own agents) */
+    managedBy?: string | null;
   };
   nftRequirement?: {
     contractAddress: string;
@@ -53,6 +57,10 @@ export interface ChatDetails {
       displayName: string | null;
       username: string | null;
       profileImageUrl: string | null;
+      /** Whether this user is an AI agent */
+      isAgent?: boolean;
+      /** The user ID that manages this agent (for detecting own agents) */
+      managedBy?: string | null;
     } | null;
     nftRequirement?: {
       contractAddress: string;

@@ -24,6 +24,7 @@ import {
   db,
   desc,
   eq,
+  lt,
   type User,
   type UserAgentConfig,
   userAgentConfigs,
@@ -971,13 +972,52 @@ export class AgentServiceV2 {
     };
   }
 
-  async getChatHistory(agentUserId: string, limit = 50) {
-    return db
+  async getChatHistory(
+    agentUserId: string,
+    limit = 50,
+    cursor?: string
+  ): Promise<{
+    messages: (typeof agentMessages.$inferSelect)[];
+    hasMore: boolean;
+    nextCursor: string | null;
+  }> {
+    // Build the query with optional cursor
+    let query = db
       .select()
       .from(agentMessages)
       .where(eq(agentMessages.agentUserId, agentUserId))
       .orderBy(desc(agentMessages.createdAt))
-      .limit(limit);
+      .limit(limit + 1); // Fetch one extra to check if there are more
+
+    // If cursor provided, fetch messages older than the cursor
+    if (cursor) {
+      const cursorDate = new Date(cursor);
+      query = db
+        .select()
+        .from(agentMessages)
+        .where(
+          and(
+            eq(agentMessages.agentUserId, agentUserId),
+            lt(agentMessages.createdAt, cursorDate)
+          )
+        )
+        .orderBy(desc(agentMessages.createdAt))
+        .limit(limit + 1);
+    }
+
+    const results = await query;
+
+    // Check if there are more messages
+    const hasMore = results.length > limit;
+    const messages = hasMore ? results.slice(0, limit) : results;
+
+    // Get the cursor for the next page (oldest message's createdAt)
+    const nextCursor =
+      hasMore && messages.length > 0
+        ? messages[messages.length - 1]!.createdAt.toISOString()
+        : null;
+
+    return { messages, hasMore, nextCursor };
   }
 
   async getLogs(

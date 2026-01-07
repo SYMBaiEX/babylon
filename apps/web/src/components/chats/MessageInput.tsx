@@ -14,6 +14,8 @@ interface MessageInputProps {
   onSend: () => void;
   sending: boolean;
   authenticated: boolean;
+  /** Additional disabled condition (e.g., insufficient points for agent chat) */
+  disabled?: boolean;
 }
 
 export function MessageInput({
@@ -22,6 +24,7 @@ export function MessageInput({
   onSend,
   sending,
   authenticated,
+  disabled = false,
 }: MessageInputProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -71,7 +74,7 @@ export function MessageInput({
           onChange={(e) => onChange(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder="Type a message..."
-          disabled={sending}
+          disabled={sending || disabled}
           rows={1}
           className={cn(
             'max-h-40 min-h-[44px] flex-1 resize-none overflow-y-auto rounded-lg px-4 py-3 text-sm',
@@ -83,7 +86,7 @@ export function MessageInput({
         />
         <button
           onClick={onSend}
-          disabled={!value.trim() || sending}
+          disabled={!value.trim() || sending || disabled}
           className={cn(
             'flex h-[44px] items-center gap-2 rounded-lg px-4 py-3 font-semibold md:gap-3',
             'chat-button bg-sidebar-accent/50 text-primary',

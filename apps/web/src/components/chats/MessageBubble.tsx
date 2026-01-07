@@ -2,8 +2,8 @@
 
 import { cn } from '@babylon/shared';
 import Link from 'next/link';
+import { Response } from '@/components/chat/Response';
 import { Avatar } from '@/components/shared/Avatar';
-import { TaggedText } from '@/components/shared/TaggedText';
 import type { ChatParticipant, Message } from './types';
 import { getProfilePath } from './types';
 
@@ -24,14 +24,12 @@ interface MessageBubbleProps {
   message: Message;
   sender: ChatParticipant | undefined;
   isCurrentUser: boolean;
-  onTagClick?: (tag: string) => void;
 }
 
 export function MessageBubble({
   message,
   sender,
   isCurrentUser,
-  onTagClick,
 }: MessageBubbleProps) {
   const msgDate = new Date(message.createdAt);
   const senderName = sender?.displayName || 'Unknown';
@@ -95,17 +93,15 @@ export function MessageBubble({
         </div>
         <div
           className={cn(
-            'message-bubble whitespace-pre-wrap break-words rounded-2xl px-4 py-3 text-sm',
+            'message-bubble break-words rounded-2xl px-4 py-3 text-sm',
             isCurrentUser
               ? 'rounded-tr-sm bg-primary/20'
               : 'rounded-tl-sm bg-sidebar-accent/50'
           )}
         >
-          <TaggedText
-            text={getDisplayContent(message.content)}
-            onTagClick={onTagClick}
-            className="text-foreground"
-          />
+          <Response className="text-foreground">
+            {getDisplayContent(message.content)}
+          </Response>
         </div>
       </div>
     </div>
