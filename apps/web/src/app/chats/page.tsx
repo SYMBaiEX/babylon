@@ -106,6 +106,7 @@ export default function ChatsPage() {
 
     // Actions
     sendMessage,
+    loadChats,
   } = useChatPage();
 
   // Detect if the current chat is with the user's own agent
@@ -206,6 +207,7 @@ export default function ChatsPage() {
                 onBalanceUpdate={(newBalance) =>
                   updateAgentBalance(ownAgentData.id, newBalance)
                 }
+                onMessageSent={loadChats}
                 showBackButton={showBackButton}
                 onBack={() => setSelectedChatId(null)}
               />

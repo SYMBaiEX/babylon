@@ -61,6 +61,8 @@ interface AgentChatProps {
     modelTier: 'free' | 'pro';
   };
   onBalanceUpdate?: (newBalance: number) => void;
+  /** Callback when a message is sent or received (to refresh chat list) */
+  onMessageSent?: () => void;
   /** Show back button (for mobile view in Chats page) */
   showBackButton?: boolean;
   /** Callback when back button is clicked */
@@ -70,6 +72,7 @@ interface AgentChatProps {
 export function AgentChat({
   agent,
   onBalanceUpdate,
+  onMessageSent,
   showBackButton = false,
   onBack,
 }: AgentChatProps) {
@@ -385,6 +388,9 @@ export function AgentChat({
     if (data.pointsCost > 0) {
       toast.success(`Message sent (-${data.pointsCost} points)`);
     }
+    
+    // Notify parent to refresh chat list (updates sidebar with latest message)
+    onMessageSent?.();
     setSending(false);
   };
 
