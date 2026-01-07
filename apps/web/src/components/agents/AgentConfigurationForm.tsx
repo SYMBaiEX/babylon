@@ -6,6 +6,7 @@ import { memo } from 'react';
 import { toast } from 'sonner';
 import { Switch } from '@/components/ui/switch';
 import { MODEL_TIER_POINTS_COST } from '@/lib/constants';
+import { GROQ_MODELS } from '@babylon/shared';
 
 export interface AgentConfigurationData {
   modelTier: 'free' | 'pro';
@@ -60,7 +61,7 @@ export const AgentConfigurationForm = memo(function AgentConfigurationForm({
             )}
           >
             <div className="font-medium text-sm sm:text-base">
-              Free (Groq 8B)
+              Free ({GROQ_MODELS.FREE.displayName})
             </div>
             <div className="text-muted-foreground text-xs sm:text-sm">
               Fast responses, good for simple tasks
@@ -77,7 +78,7 @@ export const AgentConfigurationForm = memo(function AgentConfigurationForm({
             )}
           >
             <div className="font-medium text-sm sm:text-base">
-              Pro (Groq 70B)
+              Pro ({GROQ_MODELS.PRO.displayName})
             </div>
             <div className="text-muted-foreground text-xs sm:text-sm">
               Smarter reasoning, better for complex tasks
