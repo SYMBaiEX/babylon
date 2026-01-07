@@ -507,7 +507,7 @@ class SimulationState {
   ): ExecuteResponse {
     // Initialize synthetic state for NPC if needed
     if (!this.syntheticBalances.has(npcId)) {
-      this.syntheticBalances.set(npcId, 10000 + Math.random() * 5000);
+      this.syntheticBalances.set(npcId, 10000 + this.seededRandom() * 5000);
       this.syntheticPositions.set(npcId, []);
     }
 
@@ -522,11 +522,11 @@ class SimulationState {
       case 'open_long':
       case 'open_short': {
         // Open a perp position
-        const entryPrice = 45000 + Math.random() * 5000; // Simulated BTC price
+        const entryPrice = 45000 + this.seededRandom() * 5000; // Simulated BTC price
         if (amount <= balance) {
           balance -= amount;
           positions.push({
-            id: `pos-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+            id: `pos-${Date.now()}-${Math.floor(this.seededRandom() * 1000000).toString(36)}`,
             marketType: 'perp',
             ticker: action.ticker ?? 'BTC',
             side: action.type === 'open_long' ? 'long' : 'short',
@@ -550,7 +550,7 @@ class SimulationState {
         );
         if (posIndex >= 0) {
           const pos = positions[posIndex]!;
-          const exitPrice = pos.entryPrice * (1 + (Math.random() - 0.5) * 0.1); // ±5% move
+          const exitPrice = pos.entryPrice * (1 + (this.seededRandom() - 0.5) * 0.1); // ±5% move
           const priceChange = exitPrice - pos.entryPrice;
           pnl =
             pos.side === 'long'
@@ -570,7 +570,7 @@ class SimulationState {
         if (amount <= balance) {
           balance -= amount;
           positions.push({
-            id: `pos-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+            id: `pos-${Date.now()}-${Math.floor(this.seededRandom() * 1000000).toString(36)}`,
             marketType: 'prediction',
             marketId: action.marketId ?? 'unknown',
             side: action.type === 'buy_yes' ? 'yes' : 'no',
@@ -592,7 +592,7 @@ class SimulationState {
         );
         if (posIndex >= 0) {
           const pos = positions[posIndex]!;
-          const exitPrice = 0.3 + Math.random() * 0.4; // Random exit between 0.3-0.7
+          const exitPrice = 0.3 + this.seededRandom() * 0.4; // Random exit between 0.3-0.7
           pnl = (exitPrice - pos.entryPrice) * pos.size;
           balance += pos.size + pnl;
           positions.splice(posIndex, 1);
@@ -627,8 +627,8 @@ class SimulationState {
         size: p.size,
       })),
       socialImpact: {
-        reputationDelta: success ? Math.floor(Math.random() * 5) : 0,
-        followersGained: success ? Math.floor(Math.random() * 3) : 0,
+        reputationDelta: success ? Math.floor(this.seededRandom() * 5) : 0,
+        followersGained: success ? Math.floor(this.seededRandom() * 3) : 0,
       },
       events: success
         ? [
