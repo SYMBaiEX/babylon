@@ -6,6 +6,7 @@
  * - CHECK_AUTONOMY action for viewing current autonomous feature status
  * - CHECK_BALANCE action for checking wallet balance
  * - CHECK_PNL action for balance, P&L, positions (with IDs), and recent trades
+ * - CHECK_FEED_POSTS action for viewing latest posts from global feed
  * - CHECK_RECENT_POSTS action for viewing recent posts (self or by userId)
  * - CHECK_RECENT_COMMENTS action for viewing recent comments (self or by userId)
  * - LOOKUP_USER action for finding a user ID by username
@@ -30,6 +31,7 @@ import { buyPredictionAction } from './actions/buy-prediction';
 import { checkAutonomyAction } from './actions/check-autonomy';
 import { checkBalanceAction } from './actions/check-balance';
 import { checkCommentDetailAction } from './actions/check-comment-detail';
+import { checkFeedPostsAction } from './actions/check-feed-posts';
 import { checkPerpsAction } from './actions/check-perps';
 import { checkPnlAction } from './actions/check-pnl';
 import { checkPostDetailAction } from './actions/check-post-detail';
@@ -65,6 +67,7 @@ export const agentCorePlugin: Plugin = {
     // Info/check actions
     checkBalanceAction,
     checkPnlAction,
+    checkFeedPostsAction,
     checkRecentPostsAction,
     checkRecentCommentsAction,
     checkPostDetailAction,

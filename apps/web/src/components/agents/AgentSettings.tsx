@@ -1,6 +1,6 @@
 'use client';
 
-import { cn } from '@babylon/shared';
+import { cn, GROQ_MODELS } from '@babylon/shared';
 import { Copy, ExternalLink, Save, Trash2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
@@ -289,10 +289,10 @@ export function AgentSettings({ agent, onUpdate }: AgentSettingsProps) {
                 )}
               >
                 <div className="font-medium text-sm sm:text-base">
-                  Free (Groq 8B)
+                  Free ({GROQ_MODELS.FREE.displayName})
                 </div>
                 <div className="text-muted-foreground text-xs sm:text-sm">
-                  1 point per message
+                  {GROQ_MODELS.FREE.description}
                 </div>
               </button>
               <button
@@ -305,10 +305,10 @@ export function AgentSettings({ agent, onUpdate }: AgentSettingsProps) {
                 )}
               >
                 <div className="font-medium text-sm sm:text-base">
-                  Pro (Groq 70B)
+                  Pro ({GROQ_MODELS.PRO.displayName})
                 </div>
                 <div className="text-muted-foreground text-xs sm:text-sm">
-                  1 point per message
+                  {GROQ_MODELS.PRO.description}
                 </div>
               </button>
             </div>
