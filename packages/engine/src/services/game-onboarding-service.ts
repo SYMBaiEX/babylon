@@ -45,7 +45,7 @@ export async function getOrCreateOnboarding(
   const initialState: GameOnboardingState = {
     completedSteps: [],
     currentStep: 'welcome',
-    startedAt: now,
+    startedAt: now.toISOString(),
     completedAt: null,
     rewards: [],
   };
@@ -107,7 +107,7 @@ export async function completeOnboardingStep(
 
   const isComplete = state.currentStep === 'complete';
   if (isComplete) {
-    state.completedAt = new Date();
+    state.completedAt = new Date().toISOString();
   }
 
   // Update database

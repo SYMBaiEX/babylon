@@ -51,6 +51,7 @@
  *    - Crypto: "Will BTC reach $100k this year?"
  */
 
+import type { ArcStateType } from '@babylon/db';
 import { logger } from '@babylon/shared';
 
 // =============================================================================
@@ -504,7 +505,7 @@ export function getCurrentArcState(
   endTime: Date,
   timeframe: MarketTimeframe,
   now: Date = new Date()
-): string {
+): ArcStateType {
   const config = TIMEFRAME_CONFIGS[timeframe];
   const states = config.arcStates;
   const totalDuration = endTime.getTime() - startTime.getTime();
@@ -520,10 +521,10 @@ export function getCurrentArcState(
   // Safe access with guaranteed fallback
   const state = states[stateIndex];
   if (state !== undefined) {
-    return state;
+    return state as ArcStateType;
   }
   // Fallback should never happen given the Math.min above, but TypeScript requires it
-  return states[0] ?? 'setup';
+  return (states[0] ?? 'setup') as ArcStateType;
 }
 
 /**

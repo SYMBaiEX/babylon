@@ -17,6 +17,7 @@
 
 import {
   and,
+  type ArcStateType,
   db,
   eq,
   gte,
@@ -259,7 +260,7 @@ export class SubMarketService {
       rootMarketId: rootMarketId,
       startTime,
       endTime,
-      arcState: arcStates[0] ?? 'setup',
+      arcState: (arcStates[0] ?? 'setup') as ArcStateType,
       arcStateEnteredAt: now,
       isActive: true,
       isResolved: false,
@@ -293,7 +294,10 @@ export class SubMarketService {
   /**
    * Update arc state for a market
    */
-  async updateArcState(marketId: string, newState: string): Promise<void> {
+  async updateArcState(
+    marketId: string,
+    newState: ArcStateType
+  ): Promise<void> {
     const now = new Date();
     await db
       .update(timeframedMarkets)
@@ -369,7 +373,7 @@ export class SubMarketService {
       rootMarketId: parent.rootMarketId ?? parent.id,
       startTime: now,
       endTime,
-      arcState: arcStatesConfig[0] ?? 'setup',
+      arcState: (arcStatesConfig[0] ?? 'setup') as ArcStateType,
       arcStateEnteredAt: now,
       isActive: true,
       isResolved: false,
