@@ -232,17 +232,8 @@ export default function CreateAgentPage() {
     const result = await response.json();
     const agentId = result.agent.id;
 
-    // Generate onboarding message (don't wait or show status)
-    fetch(`/api/agents/${agentId}/onboarding`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-    }).catch(() => {});
-
-    // Create DM chat with the agent
-
+    // Create DM chat with the agent first
+    let chatId: string | null = null;
     try {
       const dmResponse = await fetch('/api/chats/dm', {
         method: 'POST',
@@ -257,21 +248,35 @@ export default function CreateAgentPage() {
 
       if (dmResponse.ok) {
         const dmResult = await dmResponse.json();
-        clearDraft();
-        toast.success('Agent created successfully!');
-        // Redirect to chats page with the agent's chat selected
-        // API returns { chat: { id, ... } } not { chatId }
-        router.push(`/chats?chat=${dmResult.chat.id}`);
-        return;
+        chatId = dmResult.chat.id;
       }
     } catch (error) {
       console.warn('Error creating DM chat:', error);
     }
 
-    // Fallback: redirect to chats page without specific chat
+    // Generate onboarding message and wait for it to complete
+    // This ensures the message is ready when user sees the chat
+    try {
+      await fetch(`/api/agents/${agentId}/onboarding`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+    } catch (error) {
+      console.warn('Error generating onboarding message:', error);
+    }
+
     clearDraft();
     toast.success('Agent created successfully!');
-    router.push('/chats');
+    
+    // Redirect to chats page with the agent's chat selected
+    if (chatId) {
+      router.push(`/chats?chat=${chatId}`);
+    } else {
+      router.push('/chats');
+    }
   }, [
     profileData,
     agentData,
