@@ -158,7 +158,14 @@ export function useOwnedAgents(): UseOwnedAgentsReturn {
       refresh: fetchAgents,
       updateAgentBalance,
     }),
-    [agents, loading, error, isOwnAgent, getAgentData, fetchAgents, updateAgentBalance]
+    [
+      agents,
+      loading,
+      error,
+      isOwnAgent,
+      getAgentData,
+      fetchAgents,
+      updateAgentBalance,
+    ]
   );
 }
-

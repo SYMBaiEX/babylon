@@ -6,14 +6,14 @@ import { toast } from 'sonner';
 import { ChatViewHeader } from '@/components/chats/ChatViewHeader';
 import { MessageInput } from '@/components/chats/MessageInput';
 import { MessageList } from '@/components/chats/MessageList';
-import { CHAT_PAGE_SIZE } from '@/lib/constants';
 import type {
   ChatDetails,
-  ChatParticipant,
   Message as ChatMessage,
+  ChatParticipant,
 } from '@/components/chats/types';
 import { Separator } from '@/components/shared/Separator';
 import { useAuth } from '@/hooks/useAuth';
+import { CHAT_PAGE_SIZE } from '@/lib/constants';
 
 /**
  * Chat message structure for agent chat.
@@ -155,7 +155,7 @@ export function AgentChat({
     return messages.map((msg) => ({
       id: msg.id,
       content: msg.content,
-      senderId: msg.role === 'user' ? (user?.id || '') : agent.id,
+      senderId: msg.role === 'user' ? user?.id || '' : agent.id,
       createdAt: msg.createdAt,
     }));
   }, [messages, user?.id, agent.id]);
@@ -168,11 +168,14 @@ export function AgentChat({
       return;
     }
 
-    const res = await fetch(`/api/agents/${agent.id}/chat?limit=${CHAT_PAGE_SIZE}`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
+    const res = await fetch(
+      `/api/agents/${agent.id}/chat?limit=${CHAT_PAGE_SIZE}`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
 
     if (res.ok) {
       const data = (await res.json()) as {
@@ -243,7 +246,8 @@ export function AgentChat({
 
   // Scroll to bottom on initial load and when switching agents
   useEffect(() => {
-    const lastId = messages.length > 0 ? messages[messages.length - 1]?.id : null;
+    const lastId =
+      messages.length > 0 ? messages[messages.length - 1]?.id : null;
     if (!lastId || loading) return;
 
     const shouldForce = lastMessageIdRef.current === null;
