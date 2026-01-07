@@ -283,15 +283,6 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     'POST /api/chats/dm'
   );
 
-  // DEBUG: Log DM creation result
-  console.log('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
-  console.log('[DEBUG /api/chats/dm] DM created/retrieved:', {
-    chatId: chatData.id,
-    userId: user.userId,
-    targetUserId,
-    targetUser: chat.targetUser,
-  });
-
   // Track DM created/opened event
   // Check if chat has participants by querying separately
   const participants = await asUser(user, async (db) => {
