@@ -1,5 +1,6 @@
 import { logger } from '@babylon/shared';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { CHAT_PAGE_SIZE } from '@/lib/constants';
 import { useSSEChannel } from './useSSE';
 
 /**
@@ -86,7 +87,7 @@ export function useChatMessages(chatId: string | null) {
       'useChatMessages'
     );
     setIsLoading(true);
-    const response = await fetch(`/api/chats/${chatId}?limit=50`);
+    const response = await fetch(`/api/chats/${chatId}?limit=${CHAT_PAGE_SIZE}`);
     logger.debug(
       `Response status: ${response.status}`,
       { chatId, status: response.status },
@@ -157,7 +158,7 @@ export function useChatMessages(chatId: string | null) {
     setIsLoadingMore(true);
 
     const response = await fetch(
-      `/api/chats/${chatId}?cursor=${nextCursor}&limit=50`
+      `/api/chats/${chatId}?cursor=${nextCursor}&limit=${CHAT_PAGE_SIZE}`
     );
 
     if (response.ok) {
@@ -293,7 +294,7 @@ export function useChatMessages(chatId: string | null) {
         'useChatMessages'
       );
 
-      const response = await fetch(`/api/chats/${chatId}?limit=50`);
+      const response = await fetch(`/api/chats/${chatId}?limit=${CHAT_PAGE_SIZE}`);
       if (response.ok) {
         const data = await response.json();
         if (data.messages) {

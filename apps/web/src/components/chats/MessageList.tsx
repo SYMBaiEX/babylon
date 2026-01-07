@@ -16,7 +16,6 @@ interface MessageListProps {
   hasMore: boolean;
   pullDistance: number;
   authenticated: boolean;
-  onTagClick?: (tag: string) => void;
   topSentinelRef: React.RefObject<HTMLDivElement | null>;
   messagesEndRef: React.RefObject<HTMLDivElement | null>;
 }
@@ -30,19 +29,21 @@ export function MessageList({
   hasMore,
   pullDistance,
   authenticated,
-  onTagClick,
   topSentinelRef,
   messagesEndRef,
 }: MessageListProps) {
   if (loading) {
     return (
-      <div className="flex h-full items-center justify-center">
-        <div className="w-full max-w-md space-y-3">
-          <Skeleton className="h-16 w-full" />
-          <Skeleton className="h-16 w-full" />
-          <Skeleton className="h-16 w-full" />
+      <>
+        <div className="flex h-full items-center justify-center">
+          <div className="w-full max-w-md space-y-3">
+            <Skeleton className="h-16 w-full" />
+            <Skeleton className="h-16 w-full" />
+            <Skeleton className="h-16 w-full" />
+          </div>
         </div>
-      </div>
+        <div ref={messagesEndRef} />
+      </>
     );
   }
 
@@ -94,7 +95,6 @@ export function MessageList({
             message={msg}
             sender={sender}
             isCurrentUser={isCurrentUser}
-            onTagClick={onTagClick}
           />
         );
       })}

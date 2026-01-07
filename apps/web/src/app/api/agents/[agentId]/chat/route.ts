@@ -673,8 +673,13 @@ export const GET = withErrorHandling(
 
     const { searchParams } = new URL(req.url);
     const limit = Number.parseInt(searchParams.get('limit') || '50');
+    const cursor = searchParams.get('cursor') || undefined;
 
-    const messages = await agentService.getChatHistory(agentId, limit);
+    const { messages, hasMore, nextCursor } = await agentService.getChatHistory(
+      agentId,
+      limit,
+      cursor
+    );
 
     return NextResponse.json({
       success: true,
@@ -686,6 +691,10 @@ export const GET = withErrorHandling(
         pointsCost: msg.pointsCost,
         createdAt: msg.createdAt.toISOString(),
       })),
+      pagination: {
+        hasMore,
+        nextCursor,
+      },
     });
   }
 );
