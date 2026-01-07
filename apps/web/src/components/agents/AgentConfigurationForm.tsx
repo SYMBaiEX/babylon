@@ -1,7 +1,7 @@
 'use client';
 
 import { cn } from '@babylon/shared';
-import { Copy, ExternalLink } from 'lucide-react';
+import { Coins, Copy, ExternalLink } from 'lucide-react';
 import { memo } from 'react';
 import { toast } from 'sonner';
 import { Switch } from '@/components/ui/switch';
@@ -65,7 +65,8 @@ export const AgentConfigurationForm = memo(function AgentConfigurationForm({
             <div className="text-muted-foreground text-xs sm:text-sm">
               Fast responses, good for simple tasks
             </div>
-            <div className="mt-1 font-medium text-emerald-500 text-xs">
+            <div className="mt-1 flex items-center gap-1 font-medium text-muted-foreground text-xs">
+              <Coins className="h-3 w-3" />
               {MODEL_TIER_POINTS_COST.free} points per message
             </div>
           </button>
@@ -85,7 +86,8 @@ export const AgentConfigurationForm = memo(function AgentConfigurationForm({
             <div className="text-muted-foreground text-xs sm:text-sm">
               Smarter reasoning, better for complex tasks
             </div>
-            <div className="mt-1 font-medium text-amber-500 text-xs">
+            <div className="mt-1 flex items-center gap-1 font-medium text-muted-foreground text-xs">
+              <Coins className="h-3 w-3" />
               {MODEL_TIER_POINTS_COST.pro} point per message
             </div>
           </button>
