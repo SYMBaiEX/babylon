@@ -365,11 +365,8 @@ export const subMarketSpawnLogs = pgTable(
     index('SubMarketSpawnLog_spawnedMarketId_idx').on(t.spawnedMarketId),
     index('SubMarketSpawnLog_eventType_idx').on(t.eventType),
     index('SubMarketSpawnLog_createdAt_idx').on(t.createdAt),
-    // Partial unique index: prevent duplicate spawns for same parent/event pair
-    // Allows multiple rows when sourceEventId IS NULL
-    unique('SubMarketSpawnLog_parentSource_unique')
-      .on(t.parentMarketId, t.sourceEventId)
-      .where(sql`"sourceEventId" IS NOT NULL`),
+    // Note: Partial unique index on (parentMarketId, sourceEventId) WHERE sourceEventId IS NOT NULL
+    // is defined in the migration SQL file as Drizzle doesn't support partial unique constraints directly
   ]
 );
 
