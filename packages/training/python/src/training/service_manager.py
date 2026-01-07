@@ -329,7 +329,7 @@ class ServiceManager:
         if cfg.tensor_parallel_size > 1:
             logger.info(f"  Tensor Parallel: {cfg.tensor_parallel_size} GPUs")
         if cfg.use_flash_attention:
-            logger.info(f"  Flash Attention: enabled")
+            logger.info("  Flash Attention: enabled")
         
         if self._port_in_use(host, port):
             logger.warning(f"Port {port} already in use, assuming vLLM is running")
@@ -358,6 +358,10 @@ class ServiceManager:
         
         env = os.environ.copy()
         
+        # Set attention backend if flash attention is configured
+        if cfg.use_flash_attention:
+            env["VLLM_ATTENTION_BACKEND"] = "FLASH_ATTN"
+        
         # Set CUDA devices for vLLM based on explicit configuration or tensor parallel size
         if cfg.vllm_gpu:
             # Explicit GPU assignment from profile
@@ -370,7 +374,7 @@ class ServiceManager:
             logger.info(f"  vLLM GPUs (auto tensor parallel): {gpu_ids}")
         else:
             env.setdefault("CUDA_VISIBLE_DEVICES", "0")
-            logger.info(f"  vLLM GPU (default): 0")
+            logger.info("  vLLM GPU (default): 0")
         
         try:
             process = subprocess.Popen(cmd, stdout=log_handle, stderr=subprocess.STDOUT, env=env)

@@ -116,8 +116,8 @@ class ABTestResult:
             f"  Avg Latency:   A={self.model_a_avg_latency:.0f}ms, B={self.model_b_avg_latency:.0f}ms",
             "",
             "WIN RATES:",
-            f"  Model A Wins: {self.model_a_wins} ({self.model_a_wins/len(self.scenario_results):.1%})",
-            f"  Model B Wins: {self.model_b_wins} ({self.model_b_wins/len(self.scenario_results):.1%})",
+            f"  Model A Wins: {self.model_a_wins} ({self.model_a_wins/max(len(self.scenario_results), 1):.1%})",
+            f"  Model B Wins: {self.model_b_wins} ({self.model_b_wins/max(len(self.scenario_results), 1):.1%})",
             f"  Ties: {self.ties}",
             "",
         ]
@@ -135,7 +135,7 @@ class ABTestResult:
             improvement = (self.model_b_avg_score - self.model_a_avg_score) / max(abs(self.model_a_avg_score), 0.001) * 100
             lines.append(f"WINNER: Model B (+{improvement:.1f}% improvement)")
         elif self.model_a_wins > self.model_b_wins:
-            lines.append(f"WINNER: Model A (baseline)")
+            lines.append("WINNER: Model A (baseline)")
         else:
             lines.append("RESULT: TIE")
         
@@ -286,7 +286,7 @@ class ABTestRunner:
     ) -> ModelResult:
         """Evaluate a single model on a scenario."""
         import time
-        from .prompt_builder import build_trading_system_prompt, build_observation_prompt
+        from .online_env import build_trading_system_prompt, build_observation_prompt
         
         # Build prompt
         system_prompt = build_trading_system_prompt(archetype)

@@ -396,6 +396,11 @@ class BabylonOnlineEnvConfig(BaseEnvConfig):
         },
         description="Distribution of archetypes for training"
     )
+    
+    include_messages: bool = Field(
+        default=False,
+        description="Include messages in scored data groups for debugging"
+    )
 
 
 # =============================================================================

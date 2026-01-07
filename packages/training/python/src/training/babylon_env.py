@@ -777,12 +777,15 @@ You receive market updates and must analyze, reason, and then act."""
             # 8. Add tiebreaker epsilon for score variance
             # CRITICAL: GRPO skips batches where all scores are identical (ensure_scores_are_not_same=True)
             # Add small deterministic tiebreakers based on response characteristics
+            # NOTE: Using sum of bytes instead of hash() for determinism across Python sessions
             epsilon = 0.0
             epsilon += (len(generated_response) % 100) * 0.0001  # Response length variance
-            epsilon += (hash(generated_response[:50]) % 1000) * 0.00001  # Content-based variance
+            # Deterministic content-based variance (sum of character codes)
+            content_hash = sum(ord(c) for c in generated_response[:50]) % 1000
+            epsilon += content_hash * 0.00001  # Content-based variance
             # Add more variance based on action type
             if format_validation.action.action_type:
-                action_type_hash = hash(format_validation.action.action_type) % 100
+                action_type_hash = sum(ord(c) for c in format_validation.action.action_type) % 100
                 epsilon += action_type_hash * 0.0001
             final_score += epsilon
             

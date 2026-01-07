@@ -2,8 +2,8 @@
 Token Masking Utilities for GRPO Training
 
 Provides proper token masking for training data. The key requirement is:
-- Prompt tokens should be MASKED (mask=0) so the model doesn't learn from them
-- Completion tokens should be UNMASKED (mask=1) so the model learns from them
+- Prompt tokens should be MASKED (mask=-100) so the model doesn't learn from them
+- Completion tokens should be UNMASKED (mask=token_id) so the model learns from them
 
 This is critical for GRPO because we only want to update policy on the
 model's own completions, not on the prompts.

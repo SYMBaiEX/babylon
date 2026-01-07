@@ -9,8 +9,11 @@ export type MarketAction =
   | 'open_short'
   | 'buy_yes'
   | 'buy_no'
+  | 'sell_yes'
+  | 'sell_no'
   | 'close_position'
-  | 'hold';
+  | 'hold'
+  | 'wait';
 
 export type MarketType = 'perp' | 'prediction';
 

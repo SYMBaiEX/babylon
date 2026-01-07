@@ -3,6 +3,9 @@
 # dependencies
 /node_modules
 
+# cursor
+.cursor/commands/
+
 # next.js
 /.next/
 /out/
