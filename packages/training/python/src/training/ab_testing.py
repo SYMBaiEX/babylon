@@ -26,7 +26,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from .format_validator import validate_response_format
 from .quality_scorer import score_response
-from .scenario_pool import Scenario, ScenarioPool
+from .scenario_pool import Scenario, ScenarioPool, ScenarioPoolConfig
 
 logger = logging.getLogger(__name__)
 
@@ -218,7 +218,8 @@ class ABTestRunner:
         self.output_dir.mkdir(parents=True, exist_ok=True)
         
         self._session = None
-        self._scenario_pool = ScenarioPool()
+        self._scenario_pool = ScenarioPool(config=ScenarioPoolConfig())
+        self._tokenizer = None  # Lazily loaded for accurate token counting
     
     async def run(self) -> ABTestResult:
         """Run the full A/B test suite."""
@@ -277,6 +278,25 @@ class ABTestRunner:
         self._save_results(result)
         
         return result
+    
+    def _count_tokens(self, text: str) -> int:
+        """Count tokens using tokenizer, with fallback to word splitting."""
+        if self._tokenizer is None:
+            try:
+                from transformers import AutoTokenizer
+                # Use model_a as the tokenizer source (both models should use same tokenizer)
+                self._tokenizer = AutoTokenizer.from_pretrained(
+                    self.model_a,
+                    trust_remote_code=True,
+                )
+            except Exception:
+                # Fallback: return word count if tokenizer unavailable
+                return len(text.split())
+        
+        try:
+            return len(self._tokenizer.encode(text))
+        except Exception:
+            return len(text.split())
     
     async def _evaluate_model(
         self,
@@ -337,7 +357,7 @@ class ABTestRunner:
             action_type=format_result.action.action_type if format_result.action else None,
             reasoning_quality=quality_result.reasoning_score,
             latency_ms=latency_ms,
-            tokens_generated=len(response_text.split()),
+            tokens_generated=self._count_tokens(response_text),
         )
     
     def _save_results(self, result: ABTestResult) -> None:

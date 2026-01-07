@@ -189,7 +189,14 @@ def parse_action_from_response(response: str) -> Optional[Dict]:
     else:
         json_part = response
     
-    # Try to find JSON object
+    # Try to find JSON object using simple regex
+    # NOTE: This regex r'\{[^{}]*\}' only matches flat (non-nested) JSON objects.
+    # This is acceptable for our current action schema which is always flat:
+    #   {"action": "buy_yes", "market_id": "...", "amount": 100}
+    # If the action schema evolves to include nested objects, consider:
+    #   - Using json.JSONDecoder().raw_decode() for proper JSON boundary detection
+    #   - Implementing a balanced-brace parser/stack
+    #   - Using a more sophisticated regex with recursion (if supported)
     json_match = re.search(r'\{[^{}]*\}', json_part)
     if json_match:
         try:
@@ -199,7 +206,7 @@ def parse_action_from_response(response: str) -> Optional[Dict]:
         except json.JSONDecodeError:
             pass
     
-    # Try the entire remaining text
+    # Try the entire remaining text (handles nested JSON if present)
     try:
         action = json.loads(json_part.strip())
         if "action" in action:
@@ -224,13 +231,16 @@ def extract_thinking(response: str) -> str:
 # =============================================================================
 
 
-def score_response(
+def score_trading_response(
     response: str,
     scenario: Scenario,
     archetype: str = "trader",
 ) -> Tuple[float, Dict]:
     """
-    Score a model response based on format and content quality.
+    Score a trading model response based on format and content quality.
+    
+    Note: This is distinct from quality_scorer.score_response which provides
+    lower-level scoring utilities. This function is specific to trading scenarios.
     
     Returns:
         (score, metrics_dict)
@@ -786,7 +796,7 @@ class BabylonOnlineEnv(BaseEnv):
             archetype = rollout["archetype"]
             
             # Score the response
-            score, metrics = score_response(
+            score, metrics = score_trading_response(
                 response=response,
                 scenario=scenario,
                 archetype=archetype,
@@ -885,7 +895,7 @@ class BabylonOnlineEnv(BaseEnv):
             
             if chat_completion.choices:
                 response = chat_completion.choices[0].message.content or ""
-                score, metrics = score_response(response, scenario, archetype)
+                score, metrics = score_trading_response(response, scenario, archetype)
                 
                 eval_scores.append(score)
                 eval_format_scores.append(metrics["format_score"])
@@ -893,7 +903,7 @@ class BabylonOnlineEnv(BaseEnv):
         
         # Log evaluation metrics
         if eval_scores:
-            logger.info(f"Evaluation complete:")
+            logger.info("Evaluation complete:")
             logger.info(f"  Avg score: {sum(eval_scores) / len(eval_scores):.3f}")
             logger.info(f"  Avg format: {sum(eval_format_scores) / len(eval_format_scores):.3f}")
             logger.info(f"  Valid actions: {sum(eval_action_valid) / len(eval_action_valid):.1%}")
@@ -1052,11 +1062,14 @@ class BabylonOnlineEnv(BaseEnv):
                 reasoning=reasoning,
             )
         elif action_type == "wait":
-            # No action needed
+            # No action needed - balance unchanged
+            # NOTE: new_balance=0.0 is a placeholder since "wait" doesn't modify state.
+            # The caller should use the previous balance from the scenario if needed.
+            # We avoid an extra get_scenario() call here for performance.
             return ActionOutcome(
                 success=True,
                 pnl=0.0,
-                new_balance=0.0,
+                new_balance=0.0,  # Placeholder - balance unchanged on wait
                 new_positions=[],
                 social_impact={},
                 events=[],

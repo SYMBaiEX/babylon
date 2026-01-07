@@ -454,6 +454,7 @@ __all__ = [
     "KLControllerBase",
     "create_kl_controller",
     "compute_kl_divergence",
+    "estimate_kl_from_samples",
     "TurnData",
     "EpisodeBuffer",
     "GAEConfig",

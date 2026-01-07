@@ -472,8 +472,16 @@ class SimulationState {
       // Get updated context for balance/positions
       const context = await this.contextService.buildContextForNPC(npcId);
 
+      // Success if we executed trades OR if it was a valid hold/wait action
+      const isHoldOrWait =
+        decision.action === 'hold' || decision.action === 'wait';
+      const success =
+        result.executedTrades.length > 0 ||
+        result.holdDecisions > 0 ||
+        isHoldOrWait;
+
       return {
-        success: result.executedTrades.length > 0,
+        success,
         pnl: 0, // PnL calculated on position close, not on open
         newBalance: context.availableBalance,
         newPositions: context.currentPositions.map((p) => ({
@@ -550,7 +558,8 @@ class SimulationState {
         );
         if (posIndex >= 0) {
           const pos = positions[posIndex]!;
-          const exitPrice = pos.entryPrice * (1 + (this.seededRandom() - 0.5) * 0.1); // ±5% move
+          const exitPrice =
+            pos.entryPrice * (1 + (this.seededRandom() - 0.5) * 0.1); // ±5% move
           const priceChange = exitPrice - pos.entryPrice;
           pnl =
             pos.side === 'long'
@@ -794,11 +803,12 @@ app.get('/scenarios', async (c) => {
   }
 
   try {
-    const scenarios = [];
-    for (const [npcId] of state.npcArchetypes) {
-      const scenario = await state.getScenario(npcId);
-      scenarios.push(scenario);
-    }
+    // Fetch all scenarios in parallel for better performance
+    const scenarios = await Promise.all(
+      Array.from(state.npcArchetypes.keys()).map((npcId) =>
+        state.getScenario(npcId)
+      )
+    );
     return c.json({ scenarios, count: scenarios.length });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';

@@ -1,9 +1,13 @@
 """
 Token Masking Utilities for GRPO Training
 
-Provides proper token masking for training data. The key requirement is:
-- Prompt tokens should be MASKED (mask=-100) so the model doesn't learn from them
-- Completion tokens should be UNMASKED (mask=token_id) so the model learns from them
+Provides proper label values for training data. The key requirement is:
+- Prompt tokens: labels=-100 (ignored in loss calculation, model doesn't learn from them)
+- Completion tokens: labels=token_id (included in loss calculation, model learns from them)
+
+Note: These are LABEL values for CrossEntropyLoss, not attention masks.
+PyTorch's CrossEntropyLoss uses ignore_index=-100 by default, so setting
+labels=-100 for prompt tokens effectively excludes them from the loss.
 
 This is critical for GRPO because we only want to update policy on the
 model's own completions, not on the prompts.
