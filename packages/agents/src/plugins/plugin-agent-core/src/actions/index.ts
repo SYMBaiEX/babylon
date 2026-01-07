@@ -6,6 +6,7 @@ export { buyPredictionAction } from './buy-prediction';
 export { checkAutonomyAction } from './check-autonomy';
 export { checkBalanceAction } from './check-balance';
 export { checkCommentDetailAction } from './check-comment-detail';
+export { checkFeedPostsAction } from './check-feed-posts';
 export { checkPerpsAction } from './check-perps';
 export { checkPnlAction } from './check-pnl';
 export { checkPostDetailAction } from './check-post-detail';

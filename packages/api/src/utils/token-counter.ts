@@ -225,7 +225,8 @@ export const MODEL_TOKEN_LIMITS: Record<string, number> = {
   // Preview Models
   'meta-llama/llama-4-maverick-17b-128e-instruct': 131072, // 131k INPUT, 8,192 OUTPUT
   'meta-llama/llama-4-scout-17b-16e-instruct': 131072, // 131k INPUT, 8,192 OUTPUT
-  'moonshotai/kimi-k2-instruct-0905': 262144, // 262k INPUT, 16,384 OUTPUT
+  'moonshotai/kimi-k2-instruct': 262144, // 262k INPUT, 16,384 OUTPUT
+  'moonshotai/kimi-k2-instruct-0905': 262144, // 262k INPUT, 16,384 OUTPUT (versioned)
   'openai/gpt-oss-safeguard-20b': 131072, // 131k INPUT, 65,536 OUTPUT
   // Legacy
   'mixtral-8x7b-32768': 32768,
