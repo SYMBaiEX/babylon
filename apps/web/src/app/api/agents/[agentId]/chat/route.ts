@@ -14,7 +14,6 @@ import { agentRuntimeManager, agentService } from '@babylon/agents';
 import { authenticateUser, withErrorHandling } from '@babylon/api';
 import { db, eq, userAgentConfigs } from '@babylon/db';
 import { checkUserInput, logger } from '@babylon/shared';
-import { MODEL_TIER_POINTS_COST } from '@/lib/constants';
 import {
   type ActionResult,
   composePromptFromState,
@@ -26,6 +25,7 @@ import {
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
+import { MODEL_TIER_POINTS_COST } from '@/lib/constants';
 
 // =============================================================================
 // Multi-Step Decision Template

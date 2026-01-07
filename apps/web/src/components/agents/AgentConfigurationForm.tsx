@@ -4,8 +4,8 @@ import { cn } from '@babylon/shared';
 import { Copy, ExternalLink } from 'lucide-react';
 import { memo } from 'react';
 import { toast } from 'sonner';
-import { MODEL_TIER_POINTS_COST } from '@/lib/constants';
 import { Switch } from '@/components/ui/switch';
+import { MODEL_TIER_POINTS_COST } from '@/lib/constants';
 
 export interface AgentConfigurationData {
   modelTier: 'free' | 'pro';
