@@ -850,11 +850,28 @@ export async function executeGameTick(
         );
 
         if (rebalanceActions.length > 0) {
-          // Execute rebalance actions through TradeExecutionService
+          // Execute rebalance actions through NPCInvestmentManager
           for (const action of rebalanceActions) {
-            if (action.type === 'close' && action.positionId) {
-              // Close position logic would go here
+            try {
+              await NPCInvestmentManager.executeRebalanceAction(
+                pool.npcActorId,
+                pool.id,
+                action
+              );
               rebalanceActionsExecuted++;
+            } catch (actionError) {
+              logger.warn(
+                'Failed to execute rebalance action',
+                {
+                  poolId: pool.id,
+                  action: action.type,
+                  error:
+                    actionError instanceof Error
+                      ? actionError.message
+                      : String(actionError),
+                },
+                'GameTick'
+              );
             }
           }
         }
