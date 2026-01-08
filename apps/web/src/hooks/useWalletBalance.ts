@@ -1,5 +1,6 @@
 'use client';
 
+import type { UserBalanceDataAPI } from '@babylon/shared';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 /**
@@ -119,7 +120,7 @@ export function useWalletBalance(
 
     if (controller.signal.aborted) return;
 
-    const record = data as Record<string, unknown>;
+    const record = data as UserBalanceDataAPI;
     setState({
       balance: Number(record.balance) || 0,
       lifetimePnL: Number(record.lifetimePnL) || 0,

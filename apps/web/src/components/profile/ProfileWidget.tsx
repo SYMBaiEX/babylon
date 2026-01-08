@@ -4,9 +4,10 @@ import type {
   PerpPositionFromAPI,
   PredictionPosition,
   UserBalanceData,
+  UserBalanceDataAPI,
   UserProfileStats,
 } from '@babylon/shared';
-import { cn } from '@babylon/shared';
+import { cn, parseUserBalanceData } from '@babylon/shared';
 import { HelpCircle, TrendingDown, TrendingUp } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -69,13 +70,8 @@ async function fetchProfileWidgetData(userId: string): Promise<{
 
   // Process balance
   if (balanceRes.ok) {
-    const balanceJson = await balanceRes.json();
-    balanceData = {
-      balance: Number(balanceJson.balance ?? 0),
-      totalDeposited: Number(balanceJson.totalDeposited ?? 0),
-      totalWithdrawn: Number(balanceJson.totalWithdrawn ?? 0),
-      lifetimePnL: Number(balanceJson.lifetimePnL ?? 0),
-    };
+    const balanceJson: UserBalanceDataAPI = await balanceRes.json();
+    balanceData = parseUserBalanceData(balanceJson);
   }
 
   // Process positions
@@ -165,23 +161,55 @@ export function ProfileWidget({ userId }: ProfileWidgetProps) {
     PredictionPosition | PerpPositionFromAPI | null
   >(null);
 
-  // Memoize derived values to avoid recalculating on every render
-  const pointsInPositions = useMemo(
-    () => Math.max(0, (balance?.totalDeposited || 0) - (balance?.balance || 0)),
-    [balance?.totalDeposited, balance?.balance]
+  // Calculate points in positions from actual position data
+  // Sum of currentValue from predictions + margin from perpetuals
+  // For perps, we use size/leverage to get actual capital tied up (margin), not notional value
+  const pointsInPositions = useMemo(() => {
+    const predictionValue = predictions.reduce(
+      (sum, pos) => sum + (pos.currentValue ?? pos.shares * pos.currentPrice),
+      0
+    );
+    // Use margin (size/leverage) for perps to represent actual capital at risk
+    const perpValue = perps.reduce((sum, pos) => {
+      const leverage = Number(pos.leverage);
+      const effectiveLeverage =
+        Number.isFinite(leverage) && leverage > 0 ? leverage : 1;
+      return sum + Math.abs(pos.size / effectiveLeverage);
+    }, 0);
+    return predictionValue + perpValue;
+  }, [predictions, perps]);
+
+  // Total portfolio = available balance + points in positions
+  const totalPortfolio = useMemo(
+    () => (balance?.balance || 0) + pointsInPositions,
+    [balance?.balance, pointsInPositions]
   );
 
-  const totalPortfolio = useMemo(
-    () => balance?.totalDeposited || 0,
-    [balance?.totalDeposited]
+  // Calculate total unrealized P&L from positions
+  const unrealizedPnL = useMemo(() => {
+    const predictionPnL = predictions.reduce(
+      (sum, pos) => sum + (pos.unrealizedPnL ?? 0),
+      0
+    );
+    const perpPnL = perps.reduce((sum, pos) => sum + pos.unrealizedPnL, 0);
+    return predictionPnL + perpPnL;
+  }, [predictions, perps]);
+
+  // Total P&L = lifetime realized P&L + unrealized P&L
+  const totalPnL = useMemo(
+    () => (balance?.lifetimePnL || 0) + unrealizedPnL,
+    [balance?.lifetimePnL, unrealizedPnL]
+  );
+
+  // P&L percentage based on net contributions (totalDeposited - totalWithdrawn)
+  const netContributions = useMemo(
+    () => (balance?.totalDeposited || 0) - (balance?.totalWithdrawn || 0),
+    [balance?.totalDeposited, balance?.totalWithdrawn]
   );
 
   const pnlPercent = useMemo(
-    () =>
-      totalPortfolio > 0
-        ? ((balance?.lifetimePnL || 0) / totalPortfolio) * 100
-        : 0,
-    [balance?.lifetimePnL, totalPortfolio]
+    () => (netContributions > 0 ? (totalPnL / netContributions) * 100 : 0),
+    [totalPnL, netContributions]
   );
 
   /**
@@ -355,13 +383,10 @@ export function ProfileWidget({ userId }: ProfileWidgetProps) {
             <span
               className={cn(
                 'font-semibold text-sm',
-                (balance?.lifetimePnL || 0) >= 0
-                  ? 'text-green-600'
-                  : 'text-red-600'
+                totalPnL >= 0 ? 'text-green-600' : 'text-red-600'
               )}
             >
-              {formatPoints(balance?.lifetimePnL || 0)} pts (
-              {formatPercent(pnlPercent)})
+              {formatPoints(totalPnL)} pts ({formatPercent(pnlPercent)})
             </span>
           </div>
         </div>
