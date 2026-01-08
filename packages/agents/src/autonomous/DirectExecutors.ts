@@ -903,11 +903,16 @@ async function executeClosePerpPosition(params: {
 
   // Use the realized P&L from the service (computed with actual exit price)
   // This is more accurate than recalculating from potentially stale position data
-  // Note: closePosition() always returns these fields, the types are optional
-  // because PerpTradeResult is shared with openPosition() which doesn't have them
-  const realizedPnL = closeResult.realizedPnL!;
-  const size = closeResult.size;
-  const exitPrice = closeResult.exitPrice!;
+  // closePosition() always returns these fields - validate at runtime for safety
+  if (
+    closeResult.realizedPnL === undefined ||
+    closeResult.exitPrice === undefined
+  ) {
+    throw new Error(
+      `[DirectExecutor] closePosition did not return expected fields: realizedPnL=${closeResult.realizedPnL}, exitPrice=${closeResult.exitPrice}`
+    );
+  }
+  const { realizedPnL, size, exitPrice } = closeResult;
 
   // Record trade
   await agentPnLService.recordTrade({
