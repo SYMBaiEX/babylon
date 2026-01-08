@@ -2,7 +2,7 @@
 
 import { cn } from '@babylon/shared';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 
 export const GAME_GUIDE_SLIDES = [
@@ -60,13 +60,18 @@ const SLIDE_VARIANTS = {
 interface GameGuideModalProps {
   isOpen: boolean;
   onComplete: () => void;
+  isSubmitting?: boolean;
 }
 
 /**
  * 5-slide onboarding tutorial explaining how Babylon works.
  * Shown after profile setup; users must complete all slides.
  */
-export function GameGuideModal({ isOpen, onComplete }: GameGuideModalProps) {
+export function GameGuideModal({
+  isOpen,
+  onComplete,
+  isSubmitting = false,
+}: GameGuideModalProps) {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isVisible, setIsVisible] = useState(false);
   const [direction, setDirection] = useState(0);
@@ -76,31 +81,37 @@ export function GameGuideModal({ isOpen, onComplete }: GameGuideModalProps) {
   const slide = GAME_GUIDE_SLIDES[currentSlide]!;
 
   const goToNextSlide = useCallback(() => {
+    // Block navigation while submitting
+    if (isSubmitting) return;
+
     if (isLastSlide) {
       onComplete();
     } else {
       setDirection(1);
       setCurrentSlide((s) => s + 1);
     }
-  }, [isLastSlide, onComplete]);
+  }, [isLastSlide, onComplete, isSubmitting]);
 
   const goToPreviousSlide = useCallback(() => {
+    // Block navigation while submitting
+    if (isSubmitting) return;
+
     if (!isFirstSlide) {
       setDirection(-1);
       setCurrentSlide((s) => s - 1);
     }
-  }, [isFirstSlide]);
+  }, [isFirstSlide, isSubmitting]);
 
   // Keyboard navigation
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || isSubmitting) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'ArrowRight' || e.key === 'Enter') goToNextSlide();
       else if (e.key === 'ArrowLeft') goToPreviousSlide();
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, goToNextSlide, goToPreviousSlide]);
+  }, [isOpen, isSubmitting, goToNextSlide, goToPreviousSlide]);
 
   // Fade-in animation & reset state on close
   useEffect(() => {
@@ -206,10 +217,10 @@ export function GameGuideModal({ isOpen, onComplete }: GameGuideModalProps) {
               <button
                 type="button"
                 onClick={goToPreviousSlide}
-                disabled={isFirstSlide}
+                disabled={isFirstSlide || isSubmitting}
                 className={cn(
                   'flex items-center gap-2 rounded-lg px-4 py-2 font-medium text-sm transition-colors',
-                  isFirstSlide
+                  isFirstSlide || isSubmitting
                     ? 'cursor-not-allowed text-muted-foreground/40'
                     : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                 )}
@@ -225,10 +236,27 @@ export function GameGuideModal({ isOpen, onComplete }: GameGuideModalProps) {
               <button
                 type="button"
                 onClick={goToNextSlide}
-                className="flex items-center gap-2 rounded-lg bg-[#0066FF] px-4 py-2 font-medium text-primary-foreground text-sm transition-colors hover:bg-[#0066FF]/90"
+                disabled={isSubmitting}
+                className={cn(
+                  'flex items-center gap-2 rounded-lg bg-[#0066FF] px-4 py-2 font-medium text-primary-foreground text-sm transition-colors',
+                  isSubmitting
+                    ? 'cursor-not-allowed opacity-70'
+                    : 'hover:bg-[#0066FF]/90'
+                )}
               >
-                {isLastSlide ? 'Start Playing' : 'Next'}
-                {!isLastSlide && <ChevronRight className="h-4 w-4" />}
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Saving...
+                  </>
+                ) : isLastSlide ? (
+                  'Start Playing'
+                ) : (
+                  <>
+                    Next
+                    <ChevronRight className="h-4 w-4" />
+                  </>
+                )}
               </button>
             </div>
           </div>

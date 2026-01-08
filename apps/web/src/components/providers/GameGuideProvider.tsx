@@ -46,6 +46,7 @@ export function GameGuideProvider({ children }: { children: React.ReactNode }) {
   const [isOpen, setIsOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const hasAutoShown = useRef(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const hasCompleted = Boolean(user?.gameGuideCompletedAt);
   const userId = user?.id;
@@ -75,28 +76,60 @@ export function GameGuideProvider({ children }: { children: React.ReactNode }) {
     }
   }, [authenticated]);
 
+  // Cleanup: abort any in-flight request on unmount
+  useEffect(() => {
+    return () => {
+      abortControllerRef.current?.abort();
+    };
+  }, []);
+
   const openGuide = useCallback(() => setIsOpen(true), []);
 
   const handleComplete = useCallback(async () => {
-    // Always close the modal first - don't block the user
-    setIsOpen(false);
-
     // Guard against double-submit or missing user
     if (!user || isSubmitting) return;
+
+    // Abort any previous in-flight request
+    abortControllerRef.current?.abort();
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     setIsSubmitting(true);
 
-    const res = await apiFetch('/api/users/me/game-guide', { method: 'POST' });
+    try {
+      const res = await apiFetch('/api/users/me/game-guide', {
+        method: 'POST',
+        signal: controller.signal,
+      });
 
-    if (res.ok) {
-      const { gameGuideCompletedAt } = (await res.json()) as {
-        gameGuideCompletedAt: string;
-      };
-      setUser({ ...user, gameGuideCompletedAt });
-    } else {
-      logger.error('Failed to save game guide', { status: res.status }, 'GameGuideProvider');
-      toast.error('Failed to save progress. The guide may appear again later.');
+      // Check if aborted before processing response
+      if (controller.signal.aborted) return;
+
+      if (res.ok) {
+        const { gameGuideCompletedAt } = (await res.json()) as {
+          gameGuideCompletedAt: string;
+        };
+        setUser({ ...user, gameGuideCompletedAt });
+        // Only close modal on success
+        setIsOpen(false);
+      } else {
+        logger.error('Failed to save game guide', { status: res.status }, 'GameGuideProvider');
+        toast.error('Failed to save progress. Please try again.');
+        // Keep modal open so user can retry
+      }
+    } catch (error) {
+      // Ignore abort errors, they're expected on unmount
+      if (error instanceof Error && error.name === 'AbortError') return;
+
+      logger.error('Game guide API error', { error }, 'GameGuideProvider');
+      toast.error('Failed to save progress. Please try again.');
+      // Keep modal open so user can retry
+    } finally {
+      // Only clear submitting if not aborted (component still mounted)
+      if (!controller.signal.aborted) {
+        setIsSubmitting(false);
+      }
     }
-    setIsSubmitting(false);
   }, [user, setUser, isSubmitting]);
 
   const value = useMemo(
@@ -107,7 +140,11 @@ export function GameGuideProvider({ children }: { children: React.ReactNode }) {
   return (
     <GameGuideContext.Provider value={value}>
       {children}
-      <GameGuideModal isOpen={isOpen} onComplete={handleComplete} />
+      <GameGuideModal
+        isOpen={isOpen}
+        onComplete={handleComplete}
+        isSubmitting={isSubmitting}
+      />
     </GameGuideContext.Provider>
   );
 }
