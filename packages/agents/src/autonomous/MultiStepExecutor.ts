@@ -58,8 +58,10 @@ import {
   buildMultiStepDecisionPrompt,
   type MultiStepDecision,
   type PerpMarketContext,
+  type PerpPositionContext,
   type PostContext,
   type PredictionMarketContext,
+  type PredictionPositionContext,
 } from './templates/multi-step-decision';
 
 // =============================================================================
@@ -492,23 +494,22 @@ export class MultiStepExecutor {
   }
 
   /**
-   * Get agent's current positions
+   * Get agent's current positions with full context including time held and price movement
    */
   private async getAgentPositions(agentUserId: string): Promise<{
-    predictions: {
-      marketId: string;
-      question: string;
-      side: string;
-      shares: number;
-    }[];
-    perps: { ticker: string; side: string; size: number; pnl: number }[];
+    predictions: PredictionPositionContext[];
+    perps: PerpPositionContext[];
   }> {
-    // Prediction positions
+    const now = Date.now();
+
+    // Prediction positions - fetch more fields
     const predPositions = await db
       .select({
         marketId: positions.marketId,
         side: positions.side,
         shares: positions.shares,
+        avgPrice: positions.avgPrice,
+        createdAt: positions.createdAt,
       })
       .from(positions)
       .where(
@@ -516,37 +517,77 @@ export class MultiStepExecutor {
       )
       .limit(10);
 
-    // Get market questions for positions
+    // Get market data for positions (question + current prices)
     const marketIds = predPositions
       .map((p) => p.marketId)
       .filter(Boolean) as string[];
-    const marketQuestions = new Map<string, string>();
+    const marketData = new Map<
+      string,
+      { question: string; yesPrice: number; noPrice: number }
+    >();
     if (marketIds.length > 0) {
-      const marketData = await db
-        .select({ id: markets.id, question: markets.question })
+      const marketsData = await db
+        .select({
+          id: markets.id,
+          question: markets.question,
+          yesShares: markets.yesShares,
+          noShares: markets.noShares,
+        })
         .from(markets)
         .where(inArray(markets.id, marketIds));
-      for (const m of marketData) {
-        marketQuestions.set(m.id, m.question);
+      for (const m of marketsData) {
+        const yesShares = Number(m.yesShares || 1);
+        const noShares = Number(m.noShares || 1);
+        const total = yesShares + noShares;
+        marketData.set(m.id, {
+          question: m.question,
+          yesPrice: yesShares / total,
+          noPrice: noShares / total,
+        });
       }
     }
 
-    const predictions = predPositions
+    const predictions: PredictionPositionContext[] = predPositions
       .filter((p) => p.marketId)
-      .map((p) => ({
-        marketId: p.marketId as string,
-        question: marketQuestions.get(p.marketId as string) ?? 'Unknown',
-        side: p.side ? 'YES' : 'NO',
-        shares: Number(p.shares || 0),
-      }));
+      .map((p) => {
+        const market = marketData.get(p.marketId as string);
+        const avgPrice = Number(p.avgPrice || 0.5);
+        const isYes = p.side === true;
+        const currentPrice = market
+          ? isYes
+            ? market.yesPrice
+            : market.noPrice
+          : avgPrice;
+        const pnlPercent =
+          avgPrice > 0 ? ((currentPrice - avgPrice) / avgPrice) * 100 : 0;
+        const timeHeldMs = p.createdAt
+          ? now - new Date(p.createdAt).getTime()
+          : 0;
 
-    // Perp positions
+        return {
+          marketId: p.marketId as string,
+          question: market?.question ?? 'Unknown',
+          side: isYes ? 'YES' : 'NO',
+          shares: Number(p.shares || 0),
+          avgPrice,
+          currentPrice,
+          pnlPercent,
+          timeHeld: formatTimeHeld(timeHeldMs),
+          timeHeldMs,
+        };
+      });
+
+    // Perp positions - fetch more fields including entry price and opened time
     const perpPositionsList = await db
       .select({
         ticker: perpPositions.ticker,
         side: perpPositions.side,
         size: perpPositions.size,
+        entryPrice: perpPositions.entryPrice,
+        currentPrice: perpPositions.currentPrice,
         unrealizedPnL: perpPositions.unrealizedPnL,
+        unrealizedPnLPercent: perpPositions.unrealizedPnLPercent,
+        openedAt: perpPositions.openedAt,
       })
       .from(perpPositions)
       .where(
@@ -557,12 +598,31 @@ export class MultiStepExecutor {
       )
       .limit(10);
 
-    const perps = perpPositionsList.map((p) => ({
-      ticker: p.ticker,
-      side: p.side,
-      size: Number(p.size || 0),
-      pnl: Number(p.unrealizedPnL || 0),
-    }));
+    const perps: PerpPositionContext[] = perpPositionsList.map((p) => {
+      const entryPrice = Number(p.entryPrice || 100);
+      const currentPrice = Number(p.currentPrice || entryPrice);
+      const timeHeldMs = p.openedAt ? now - new Date(p.openedAt).getTime() : 0;
+
+      // Calculate P&L percent based on side
+      let pnlPercent = Number(p.unrealizedPnLPercent || 0);
+      if (pnlPercent === 0 && entryPrice > 0) {
+        const priceChange = currentPrice - entryPrice;
+        const isLong = p.side === 'long';
+        pnlPercent = (priceChange / entryPrice) * 100 * (isLong ? 1 : -1);
+      }
+
+      return {
+        ticker: p.ticker,
+        side: p.side,
+        size: Number(p.size || 0),
+        pnl: Number(p.unrealizedPnL || 0),
+        pnlPercent,
+        entryPrice,
+        currentPrice,
+        timeHeld: formatTimeHeld(timeHeldMs),
+        timeHeldMs,
+      };
+    });
 
     return { predictions, perps };
   }
@@ -880,8 +940,11 @@ export class MultiStepExecutor {
         const side = parameters.side as
           | 'buy_yes'
           | 'buy_no'
+          | 'sell_yes'
+          | 'sell_no'
           | 'open_long'
-          | 'open_short';
+          | 'open_short'
+          | 'close_position';
         const amount = Number(parameters.amount || 100);
         const reasoning = parameters.reasoning as string | undefined;
 
@@ -1383,6 +1446,33 @@ function getTimeAgo(date: Date): string {
   if (diffMins < 60) return `${diffMins}m ago`;
   if (diffHours < 24) return `${diffHours}h ago`;
   return `${diffDays}d ago`;
+}
+
+/**
+ * Format time held in human-readable format
+ * e.g., "5m", "2h 15m", "3d 4h", "1w 2d"
+ */
+function formatTimeHeld(ms: number): string {
+  if (ms < 60000) return '<1m';
+
+  const minutes = Math.floor(ms / 60000);
+  const hours = Math.floor(ms / 3600000);
+  const days = Math.floor(ms / 86400000);
+  const weeks = Math.floor(ms / 604800000);
+
+  if (weeks > 0) {
+    const remainingDays = days % 7;
+    return remainingDays > 0 ? `${weeks}w ${remainingDays}d` : `${weeks}w`;
+  }
+  if (days > 0) {
+    const remainingHours = hours % 24;
+    return remainingHours > 0 ? `${days}d ${remainingHours}h` : `${days}d`;
+  }
+  if (hours > 0) {
+    const remainingMins = minutes % 60;
+    return remainingMins > 0 ? `${hours}h ${remainingMins}m` : `${hours}h`;
+  }
+  return `${minutes}m`;
 }
 
 // Export singleton instance
