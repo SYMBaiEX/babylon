@@ -127,6 +127,9 @@ export async function GET(req: NextRequest) {
 
   const activities: AgentActivity[] = [];
 
+  // Track if any type returned exactly limit results (might have more in DB)
+  let mightHaveMore = false;
+
   // Fetch trades if requested
   if (type === 'all' || type === 'trade') {
     const trades = await db
@@ -148,6 +151,8 @@ export async function GET(req: NextRequest) {
       .where(inArray(agentTrades.agentUserId, agentIds))
       .orderBy(desc(agentTrades.executedAt))
       .limit(limit);
+
+    if (trades.length >= limit) mightHaveMore = true;
 
     // Fetch market questions for prediction trades (deduplicate inline)
     const marketIds = [
@@ -212,6 +217,8 @@ export async function GET(req: NextRequest) {
       .orderBy(desc(posts.createdAt))
       .limit(limit);
 
+    if (agentPosts.length >= limit) mightHaveMore = true;
+
     for (const post of agentPosts) {
       const agentInfo = agentMap.get(post.authorId);
       if (!agentInfo) continue;
@@ -245,6 +252,8 @@ export async function GET(req: NextRequest) {
       .orderBy(desc(comments.createdAt))
       .limit(limit);
 
+    if (agentComments.length >= limit) mightHaveMore = true;
+
     for (const comment of agentComments) {
       const agentInfo = agentMap.get(comment.authorId);
       if (!agentInfo) continue;
@@ -272,13 +281,15 @@ export async function GET(req: NextRequest) {
   // Limit total results
   const limitedActivities = activities.slice(0, limit);
 
+  // hasMore is true if combined results exceed limit OR if any individual type
+  // returned >= limit results (indicating more might exist in DB)
   return NextResponse.json({
     success: true,
     activities: limitedActivities,
     pagination: {
       limit,
       count: limitedActivities.length,
-      hasMore: activities.length > limit,
+      hasMore: activities.length > limit || mightHaveMore,
     },
   });
 }
