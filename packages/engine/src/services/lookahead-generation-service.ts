@@ -49,7 +49,7 @@ import {
   weightedPick,
 } from '../utils/entropy';
 import { worldFactsService } from '../world-facts-service';
-import { generateEvents } from './event-generation-helpers';
+// generateEvents is now consolidated in game-tick and narrative-event-processor
 import {
   getActorRivals,
   shouldGenerateOrganicPost,
@@ -75,7 +75,19 @@ const DIVERSITY_QUOTA = 0.2; // 20% of posts should cover diverse topics
 const ORGANIC_POST_RATIO = 0.15; // 15% of posts should be organic (no topic)
 const RIVALRY_POST_RATIO = 0.1; // 10% of posts should be rivalry-driven
 const ACTOR_POST_RATIO = 0.95; // 95% of posts should be from actors (NPCs)
-const EVENT_GENERATION_PROBABILITY = 0.3; // 30% chance to generate events per tick
+
+// Article probability scales with active market count
+const ARTICLE_PROB = [0.05, 0.12, 0.18, 0.25, 0.3, 0.35];
+
+/** Get article probability based on active markets */
+function getArticleProb(marketCount: number): number {
+  // Clamp marketCount to valid index range [0, ARTICLE_PROB.length - 1]
+  const clampedIndex = Math.max(
+    0,
+    Math.min(marketCount, ARTICLE_PROB.length - 1)
+  );
+  return ARTICLE_PROB[clampedIndex] ?? 0.05;
+}
 
 /**
  * Check how far ahead content is generated
@@ -545,7 +557,6 @@ async function generateContentWindow(
     1,
     Math.round(basePostsPerWindow * timeMultiplier * variance)
   );
-
   const windowDuration = windowEnd.getTime() - windowStart.getTime();
 
   logger.debug(
@@ -559,30 +570,8 @@ async function generateContentWindow(
     'LookaheadGeneration'
   );
 
-  // Generate events probabilistically using secure random
-  const shouldGenerateEvents = secureRandom() < EVENT_GENERATION_PROBABILITY;
-  if (shouldGenerateEvents && activeQuestions.length > 0) {
-    // Generate events at random times within the window
-    const randomOffset = secureRandom() * windowDuration;
-    const eventTimestamp = new Date(windowStart.getTime() + randomOffset);
-
-    // Pass currentDay for arc plan phase detection and signal direction
-    const eventsCreated = await generateEvents(
-      activeQuestions,
-      eventTimestamp,
-      dayNumberForTimestamp(eventTimestamp)
-    );
-    if (eventsCreated > 0) {
-      logger.info(
-        `Generated ${eventsCreated} events in lookahead window`,
-        {
-          timestamp: eventTimestamp.toISOString(),
-          currentDay: dayNumberForTimestamp(eventTimestamp),
-        },
-        'LookaheadGeneration'
-      );
-    }
-  }
+  // Event generation is now consolidated in game-tick and narrative-event-processor
+  // This prevents duplicate events and ties event generation to arc state
 
   // Get actors, organizations, world facts, shared post context, AND diverse topic suggestions in parallel
   // Loading shared context ONCE eliminates N+1 queries during parallel post generation
@@ -759,9 +748,9 @@ async function generateContentWindow(
 
   // Generate posts in parallel for better performance
   const postPromises = Array.from({ length: numPosts }, async (_, i) => {
-    // Distribute timestamps naturally across window using secure random
-    const randomOffset = secureRandom() * windowDuration;
-    const postTimestamp = new Date(windowStart.getTime() + randomOffset);
+    // Distribute timestamps randomly across window
+    const offset = Math.floor(secureRandom() * windowDuration);
+    const postTimestamp = new Date(windowStart.getTime() + offset);
     const postDayNumber = dayNumberForTimestamp(postTimestamp);
 
     // Check if this should be an organic post (personality-driven, no topic)
@@ -1034,9 +1023,11 @@ async function generateContentWindow(
       }
     }
 
-    // 5% chance to generate a full article (reduced from 10%)
-    // Articles are primarily event-driven, but orgs can still publish occasional articles
-    const shouldCreateArticle = secureRandom() < 0.05;
+    // Article probability scales with active market count:
+    // - With 1 active market: 12% (effective baseline, since 0 markets = early return)
+    // - Scales up to 35% with 5+ active markets
+    const articleProb = getArticleProb(activeQuestions.length);
+    const shouldCreateArticle = secureRandom() < articleProb;
     let success = false;
 
     if (shouldCreateArticle) {

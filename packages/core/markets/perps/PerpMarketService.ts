@@ -607,6 +607,7 @@ export class PerpMarketService {
 
       await this.db.updateMarketStats(market.ticker, {
         fundingRate: {
+          ticker: market.ticker,
           rate: funding.annualRate,
           nextFundingTime,
           predictedRate: funding.annualRate,

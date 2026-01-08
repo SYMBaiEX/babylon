@@ -122,7 +122,7 @@ export async function POST(_req: NextRequest) {
   }
 
   const startTime = Date.now();
-  const processId = `agent-tick-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+  const processId = `agent-tick-${Date.now()}-${crypto.randomUUID().slice(0, 8)}`;
   logger.info('Agent tick started', { processId }, 'AgentTick');
 
   // 1. Relay to staging if REDIRECT_CRON_STAGING is enabled

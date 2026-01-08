@@ -25,6 +25,8 @@ import {
   messages,
   positions,
   posts,
+  reactions,
+  shares,
   sql,
   users,
 } from '@babylon/db';
@@ -113,6 +115,30 @@ export interface DirectMessageParams {
 export interface DirectMessageResult {
   success: boolean;
   messageId?: string;
+  error?: string;
+}
+
+export interface DirectLikeParams {
+  agentUserId: string;
+  postId: string;
+}
+
+export interface DirectLikeResult {
+  success: boolean;
+  liked?: boolean;
+  error?: string;
+}
+
+export interface DirectRepostParams {
+  agentUserId: string;
+  postId: string;
+  comment?: string;
+}
+
+export interface DirectRepostResult {
+  success: boolean;
+  repostId?: string;
+  quotePostId?: string;
   error?: string;
 }
 
@@ -1447,4 +1473,174 @@ export async function executeDirectMessage(
     success: true,
     messageId,
   };
+}
+
+// =============================================================================
+// Direct Like Executor
+// =============================================================================
+
+/**
+ * Like a post directly without LLM decision-making.
+ * Includes deduplication to prevent double-liking.
+ */
+export async function executeDirectLike(
+  params: DirectLikeParams
+): Promise<DirectLikeResult> {
+  const { agentUserId, postId } = params;
+
+  // Verify post exists
+  const [post] = await db
+    .select({ id: posts.id })
+    .from(posts)
+    .where(eq(posts.id, postId))
+    .limit(1);
+
+  if (!post) {
+    return { success: false, error: `Post not found: ${postId}` };
+  }
+
+  logger.info(
+    `[DirectExecutor] Liking post ${postId}`,
+    { agentUserId },
+    'DirectExecutors'
+  );
+
+  const reactionId = await generateSnowflakeId();
+
+  // Use onConflictDoNothing to handle race conditions and prevent duplicate likes atomically
+  // This relies on a unique index on (userId, postId, type) for the reactions table
+  // No pre-check needed - the insert handles duplicates automatically
+  const insertResult = await db
+    .insert(reactions)
+    .values({
+      id: reactionId,
+      postId,
+      userId: agentUserId,
+      type: 'like',
+      createdAt: new Date(),
+    })
+    .onConflictDoNothing()
+    .returning({ id: reactions.id });
+
+  // Determine if a new row was created or it already existed
+  const alreadyLiked = insertResult.length === 0;
+  logger.info(
+    `[DirectExecutor] Post ${alreadyLiked ? 'already liked' : 'liked'}: ${postId}`,
+    { agentUserId, alreadyLiked },
+    'DirectExecutors'
+  );
+
+  return {
+    success: true,
+    liked: !alreadyLiked,
+  };
+}
+
+// =============================================================================
+// Direct Repost Executor
+// =============================================================================
+
+/**
+ * Repost/share a post directly without LLM decision-making.
+ * Creates a share record and optionally a quote post.
+ */
+export async function executeDirectRepost(
+  params: DirectRepostParams
+): Promise<DirectRepostResult> {
+  const { agentUserId, postId, comment } = params;
+
+  // Verify post exists
+  const [post] = await db
+    .select({ id: posts.id, authorId: posts.authorId, content: posts.content })
+    .from(posts)
+    .where(eq(posts.id, postId))
+    .limit(1);
+
+  if (!post) {
+    return { success: false, error: `Post not found: ${postId}` };
+  }
+
+  // Don't let agents repost their own content
+  if (post.authorId === agentUserId) {
+    return { success: false, error: 'Cannot repost own content' };
+  }
+
+  // Note: We rely on the transaction's unique constraint handling to detect duplicates.
+  // The pre-check was removed to avoid TOCTOU race conditions.
+
+  logger.info(
+    `[DirectExecutor] Reposting post ${postId}`,
+    { agentUserId, hasComment: !!comment },
+    'DirectExecutors'
+  );
+
+  const now = new Date();
+
+  try {
+    // Pre-generate IDs before transaction
+    const shareId = await generateSnowflakeId();
+    const hasQuote = comment && comment.trim().length >= 3;
+    const quotePostId = hasQuote ? await generateSnowflakeId() : undefined;
+
+    // Use transaction to ensure atomicity of share and quote post
+    await db.transaction(async (tx) => {
+      // Create share record
+      await tx.insert(shares).values({
+        id: shareId,
+        userId: agentUserId,
+        postId,
+        createdAt: now,
+      });
+
+      // If there's a quote comment, create a quote post (min 3 chars like comments)
+      if (hasQuote && quotePostId) {
+        await tx.insert(posts).values({
+          id: quotePostId,
+          content: comment!.trim(),
+          authorId: agentUserId,
+          originalPostId: postId,
+          type: 'repost',
+          timestamp: now,
+          createdAt: now,
+        });
+      }
+    });
+
+    logger.info(
+      `[DirectExecutor] Post reposted: ${postId} -> share ${shareId}${quotePostId ? ` with quote ${quotePostId}` : ''}`,
+      undefined,
+      'DirectExecutors'
+    );
+
+    return {
+      success: true,
+      repostId: shareId,
+      quotePostId,
+    };
+  } catch (error) {
+    // Handle unique constraint violation (concurrent repost)
+    // Check error code for PostgreSQL (23505) or Prisma (P2002)
+    const errorCode = (error as { code?: string }).code;
+    const isUniqueConstraint =
+      errorCode === '23505' ||
+      errorCode === 'P2002' ||
+      (error as Error).message?.includes('unique constraint');
+
+    if (isUniqueConstraint) {
+      const [share] = await db
+        .select({ id: shares.id })
+        .from(shares)
+        .where(and(eq(shares.postId, postId), eq(shares.userId, agentUserId)))
+        .limit(1);
+
+      if (!share?.id) {
+        throw new Error(
+          'Share not found after unique constraint violation - concurrent repost race condition'
+        );
+      }
+
+      return { success: true, repostId: share.id };
+    }
+    throw error;
+  }
 }

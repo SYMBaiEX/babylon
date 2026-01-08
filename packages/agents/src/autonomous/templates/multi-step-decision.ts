@@ -47,9 +47,15 @@ export interface PostContext {
   authorName: string;
   content: string;
   commentCount: number;
+  likeCount: number;
+  repostCount: number;
   timeAgo: string;
   /** Agent's existing comment on this post, if any */
   agentComment?: string;
+  /** Whether agent already liked this post */
+  agentLiked?: boolean;
+  /** Whether agent already reposted this post */
+  agentReposted?: boolean;
 }
 
 export interface PendingInteraction {
@@ -83,6 +89,12 @@ export interface PredictionPositionContext {
   timeHeldMs: number;
 }
 
+export interface GroupChatContext {
+  id: string;
+  name: string;
+  memberCount?: number;
+}
+
 export interface AgentTickContext {
   balance: number;
   pnl: number;
@@ -98,6 +110,8 @@ export interface AgentTickContext {
     predictions: PredictionPositionContext[];
     perps: PerpPositionContext[];
   };
+  // Group chats for sharing
+  groupChats?: GroupChatContext[];
   // Topic diversity guidance
   diversityInstructions?: string;
   assignedMarketId?: string;
@@ -111,6 +125,39 @@ export interface MultiStepDecision {
   action: string;
   parameters: Record<string, unknown>;
   isFinish: boolean;
+}
+
+// =============================================================================
+// Share Behavior Helper
+// =============================================================================
+
+/**
+ * Share behavior types for post-trade sharing decisions.
+ * Mutually exclusive - exactly one applies per roll.
+ */
+export type ShareBehavior = 'public_only' | 'group_only' | 'both' | 'quiet';
+
+/**
+ * Determine share behavior based on a random roll.
+ * Pure function for testability - call Math.random() only at the edge.
+ *
+ * Probability distribution (non-overlapping ranges):
+ * - 40% (0.00 - 0.40): public_only - Share publicly via POST
+ * - 15% (0.40 - 0.55): both - Share both publicly AND in group chat
+ * - 25% (0.55 - 0.80): group_only - Share in group chat only
+ * - 20% (0.80 - 1.00): quiet - Stay quiet, no sharing
+ *
+ * @param roll - Random value between 0 and 1 (clamped if out of range)
+ * @returns ShareBehavior indicating how to share the trade
+ */
+export function determineShareBehavior(roll: number): ShareBehavior {
+  // Defensively clamp roll to [0, 1] range
+  const clampedRoll = Math.max(0, Math.min(1, roll));
+
+  if (clampedRoll < 0.4) return 'public_only';
+  if (clampedRoll < 0.55) return 'both';
+  if (clampedRoll < 0.8) return 'group_only';
+  return 'quiet';
 }
 
 // =============================================================================
@@ -133,6 +180,17 @@ export function buildMultiStepDecisionPrompt(params: {
   context: AgentTickContext;
   isNpc?: boolean;
   npcGameContext?: string;
+  /**
+   * Optional pre-determined share behavior for trade posts.
+   * If provided, skips internal Math.random() call making the prompt deterministic.
+   * Useful for testing and reproducibility.
+   */
+  shareBehavior?: ShareBehavior;
+  /**
+   * Optional random value (0-1) for determining share behavior.
+   * Used instead of Math.random() if provided. Ignored if shareBehavior is set.
+   */
+  shareTradeRoll?: number;
 }): string {
   const {
     agentName,
@@ -142,6 +200,8 @@ export function buildMultiStepDecisionPrompt(params: {
     context,
     isNpc = false,
     npcGameContext = '',
+    shareBehavior: providedShareBehavior,
+    shareTradeRoll: providedShareTradeRoll,
   } = params;
 
   const actionsCompletedText =
@@ -153,6 +213,14 @@ export function buildMultiStepDecisionPrompt(params: {
           )
           .join('\n')
       : 'No actions taken yet this tick.';
+
+  // Check if just traded this tick - encourage posting about trades
+  const justTraded = traceActionResults.some(
+    (r) => r.actionType === 'TRADE' && r.success
+  );
+  const tradeDetails = justTraded
+    ? traceActionResults.find((r) => r.actionType === 'TRADE' && r.success)
+    : null;
 
   // NPC-specific sections
   const npcContextSection =
@@ -183,9 +251,113 @@ ${NPC_POST_QUALITY_RULES}
     : '';
 
   // Determine enabled features for conditional sections
+  // Use context.enabledFeatures directly - MultiStepExecutor already supplies filtered features
   const canTrade = context.enabledFeatures.includes('trading');
   const canComment = context.enabledFeatures.includes('commenting');
   const canRespondDMs = context.enabledFeatures.includes('DMs');
+  const canEngage = context.enabledFeatures.includes('engaging');
+  const canPost = context.enabledFeatures.includes('posting');
+  const canGroupChat = context.enabledFeatures.includes('groupChats');
+
+  // Check if already posted this tick (for prompt messaging, not feature filtering)
+  const hasPostedThisTick = traceActionResults.some(
+    (r) => r.actionType === 'POST' && r.success
+  );
+
+  // Encourage sharing after trades - users love seeing NPCs share their trades
+  // Add randomness to feel human - not every trade gets shared
+  // If shareBehavior or shareTradeRoll is provided, use it for deterministic behavior (useful for tests)
+  const shareBehavior =
+    providedShareBehavior ??
+    determineShareBehavior(providedShareTradeRoll ?? Math.random());
+
+  const shouldSharePublicly =
+    shareBehavior === 'public_only' || shareBehavior === 'both';
+  const shouldShareInGroup =
+    shareBehavior === 'group_only' || shareBehavior === 'both';
+  const shouldStayQuiet = shareBehavior === 'quiet';
+
+  const tradePostEncouragement =
+    justTraded && tradeDetails
+      ? `
+# 🔥 YOU JUST MADE A TRADE!
+You just traded: ${tradeDetails.summary || 'a position'}
+
+${
+  shouldStayQuiet
+    ? `**Your vibe right now**: You're feeling chill about this one. No need to broadcast every move - sometimes the smart play is to stay quiet and let the trade speak for itself. Consider FINISH or doing something else.
+
+`
+    : ''
+}${
+  shouldSharePublicly && canPost
+    ? `**Consider posting about it**: Your followers want to know what you're doing!
+- Your trade and why you made it
+- Your market thesis
+- A hot take related to this trade
+
+`
+    : ''
+}${
+  shouldShareInGroup && canGroupChat
+    ? `**Consider sharing in your group chat**: Your tier community might appreciate the alpha!
+- Discuss your reasoning with the group
+- Get reactions from your community
+- Build relationships with other traders
+
+`
+    : ''
+}${
+  shouldSharePublicly && shouldShareInGroup
+    ? `**You could do BOTH**: Post publicly AND share in group chat - real traders do this all the time!
+
+`
+    : ''
+}`
+      : '';
+
+  // Action priority guidance for NPCs - build list dynamically to avoid duplicate numbers
+  let npcActionPrioritySection = '';
+  if (isNpc) {
+    const priorityActions: string[] = [];
+
+    // Always start with RESPOND
+    priorityActions.push('RESPOND to pending interactions first (if any)');
+
+    // Add conditional actions based on flags
+    if (justTraded && canPost) {
+      priorityActions.push(
+        'POST about your trade (users love seeing your moves!)'
+      );
+    }
+    if (canComment) {
+      priorityActions.push('COMMENT on interesting posts in the feed');
+    }
+    if (canEngage) {
+      priorityActions.push('LIKE posts you agree with');
+      priorityActions.push('REPOST content worth amplifying');
+    }
+    if (canTrade && !justTraded) {
+      priorityActions.push('TRADE if you have market conviction');
+    }
+    if (canPost && !justTraded) {
+      priorityActions.push('POST only if you have something unique to say');
+    }
+
+    // Always end with FINISH
+    priorityActions.push('FINISH if nothing compelling');
+
+    // Build numbered list from the array
+    const numberedList = priorityActions
+      .map((action, index) => `${index + 1}. ${action}`)
+      .join('\n');
+
+    npcActionPrioritySection = `
+# Action Priority (prefer engagement over broadcasting)
+${numberedList}
+
+`;
+  }
 
   // Build conditional sections (only show context for enabled features)
   const tradingSection = canTrade
@@ -214,9 +386,16 @@ ${formatRecentPosts(context.recentPosts)}`
 ${formatPendingInteractions(context.pendingInteractionDetails)}`
     : '';
 
+  // Group chats section - show available groups for sharing (including member counts)
+  const groupChatsSection =
+    canGroupChat && context.groupChats && context.groupChats.length > 0
+      ? `
+# Your Group Chats (can share trades/thoughts here)
+${context.groupChats.map((g) => `- id: ${g.id} | ${g.name} | members: ${g.memberCount ?? 'unknown'}`).join('\n')}`
+      : '';
+
   return `You are ${agentName}, an autonomous agent on Babylon prediction markets.
-${npcContextSection}
-# Current Execution Context
+${npcContextSection}${tradePostEncouragement}# Current Execution Context
 **Step**: ${iterationCount}/${maxIterations}
 **Actions Completed This Tick**: ${traceActionResults.length}
 
@@ -232,6 +411,7 @@ ${formatPositionManagementGuidance(context.agentPositions)}
 ${tradingSection}
 ${commentingSection}
 ${dmsSection}
+${groupChatsSection}
 
 # Actions Completed This Tick
 ${actionsCompletedText}
@@ -249,16 +429,20 @@ ${context.assignedMarketId && canTrade ? `# YOUR FOCUS MARKET: ${context.assigne
 4. **Know When to Stop**: Set isFinish=true after 2-3 meaningful actions or when done
 5. **PRIVACY**: NEVER use POST to reply to a private message (DM). Use RESPOND for all DMs.
 ${canComment ? '6. **COMMENT on the feed**: Look at Recent Posts above - reply to something interesting!' : ''}
+${hasPostedThisTick ? `7. **ONE POST ONLY**: You already posted this tick. Choose ${[canComment ? 'COMMENT' : '', canEngage ? 'LIKE' : '', canTrade ? 'TRADE' : '', canEngage ? 'REPOST' : '', 'FINISH'].filter(Boolean).join(', ')} instead.` : ''}
 
 # Action Ideas
 ${canTrade ? '- **TRADE**: Take a position on a market' : ''}
-${context.enabledFeatures.includes('posting') ? '- **POST**: Share your take on events, markets, or anything' : ''}
+${canPost ? '- **POST**: Share your take on events, markets, or anything' : ''}
 ${canComment ? "- **COMMENT**: Reply to someone's post from the feed above (use postId)" : ''}
+${canEngage ? '- **LIKE**: Show appreciation for a post you agree with or find interesting' : ''}
+${canEngage ? "- **REPOST**: Share someone else's post (optionally with your own take)" : ''}
 ${canRespondDMs ? '- **RESPOND**: Reply to pending DMs/mentions if you have any' : ''}
 ${canRespondDMs ? '- **DM**: Message someone from the feed (use their userId)' : ''}
+${canGroupChat ? '- **GROUP_MESSAGE**: Share something with your group chat (use chatId from your groups above)' : ''}
 
 ${
-  context.enabledFeatures.includes('posting') || canComment
+  canPost || canComment
     ? `# Post/Comment Ideas:
 - React to what someone else posted
 - Events happening in the game world
@@ -274,7 +458,7 @@ ${
 - Meme language is good ("lfg", "ngmi", "gm", slang is fine)
 - SHORT summaries of markets, not full question text
 - DON'T include raw IDs in post content
-${qualityRulesSection}${npcVoiceRulesSection}
+${qualityRulesSection}${npcVoiceRulesSection}${npcActionPrioritySection}
 Examples:
   ❌ BAD: "Buying YES on 'Will Polymarket deploy its Sentient Market-Making AIs to artificially lower the price of BitcAIn below $120,000 within 5 days?'"
   ✅ GOOD: "The BitcAIn manipulation rumors are getting spicy"
@@ -286,7 +470,7 @@ Examples:
 # Output Format (JSON only, no markdown)
 {
   "thought": "Brief reasoning for this decision",
-  "action": "${[canTrade ? 'TRADE' : '', context.enabledFeatures.includes('posting') ? 'POST' : '', canComment ? 'COMMENT' : '', canRespondDMs ? 'RESPOND | DM' : '', '""'].filter(Boolean).join(' | ')}",
+  "action": "${[canTrade ? 'TRADE' : '', canPost ? 'POST' : '', canComment ? 'COMMENT' : '', canEngage ? 'LIKE' : '', canEngage ? 'REPOST' : '', canRespondDMs ? 'RESPOND' : '', canRespondDMs ? 'DM' : '', canGroupChat ? 'GROUP_MESSAGE' : '', 'FINISH'].filter(Boolean).join(' | ')}",
   "parameters": { /* action-specific, see below */ },
   "isFinish": false
 }
@@ -332,7 +516,7 @@ TRADE (perp - close):
     : ''
 }
 ${
-  context.enabledFeatures.includes('posting')
+  canPost
     ? `
 POST:
 {
@@ -352,6 +536,21 @@ COMMENT:
     : ''
 }
 ${
+  canEngage
+    ? `
+LIKE:
+{
+  "postId": "exact_post_id_from_list"
+}
+
+REPOST:
+{
+  "postId": "exact_post_id_from_list",
+  "comment": "optional quote comment (your take on the content)"
+}`
+    : ''
+}
+${
   canRespondDMs
     ? `
 RESPOND:
@@ -361,6 +560,16 @@ DM:
 {
   "recipientId": "exact_user_id_from_list",
   "content": "Message content"
+}`
+    : ''
+}
+${
+  canGroupChat
+    ? `
+GROUP_MESSAGE:
+{
+  "chatId": "exact_chat_id_from_your_groups",
+  "content": "Message to share with the group"
 }`
     : ''
 }
@@ -529,15 +738,23 @@ function formatRecentPosts(posts: PostContext[]): string {
   return posts
     .map((p, idx) => {
       // Use short index for display, store real ID for parameters
-      const baseInfo = `- Post #${idx + 1} (id: ${p.id}) @${p.authorName} (userId: ${p.authorId}) (${p.timeAgo}): "${p.content.substring(0, 80)}${p.content.length > 80 ? '...' : ''}" (${p.commentCount} comments)`;
+      const engagementStats = `💬${p.commentCount} ❤️${p.likeCount ?? 0} 🔁${p.repostCount ?? 0}`;
+      const baseInfo = `- Post #${idx + 1} (id: ${p.id}) @${p.authorName} (userId: ${p.authorId}) (${p.timeAgo}): "${p.content.substring(0, 80)}${p.content.length > 80 ? '...' : ''}" [${engagementStats}]`;
 
-      // Show agent's existing comment if any
+      // Show agent's existing engagement
+      const engagementNotes: string[] = [];
+      if (p.agentLiked) engagementNotes.push('liked');
+      if (p.agentReposted) engagementNotes.push('reposted');
       if (p.agentComment) {
         const truncatedComment =
           p.agentComment.length > 60
             ? `${p.agentComment.substring(0, 60)}...`
             : p.agentComment;
-        return `${baseInfo}\n    [Already commented: "${truncatedComment}"]`;
+        engagementNotes.push(`commented: "${truncatedComment}"`);
+      }
+
+      if (engagementNotes.length > 0) {
+        return `${baseInfo}\n    [Already: ${engagementNotes.join(', ')}]`;
       }
 
       return baseInfo;
@@ -566,6 +783,13 @@ function formatAvailableActions(enabledFeatures: string[]): string {
     );
   }
 
+  if (enabledFeatures.includes('engaging')) {
+    actions.push('- LIKE: Like a post you agree with or find interesting');
+    actions.push(
+      "- REPOST: Share/repost someone else's content (optionally with a quote comment)"
+    );
+  }
+
   if (enabledFeatures.includes('posting')) {
     actions.push('- POST: Create a new post (provide content)');
   }
@@ -578,6 +802,12 @@ function formatAvailableActions(enabledFeatures: string[]): string {
     actions.push('- RESPOND: Batch respond to pending DMs/mentions');
     actions.push(
       '- DM: Start a new direct message conversation (provide recipientId)'
+    );
+  }
+
+  if (enabledFeatures.includes('groupChats')) {
+    actions.push(
+      '- GROUP_MESSAGE: Send a message to one of your group chats (provide chatId and content)'
     );
   }
 

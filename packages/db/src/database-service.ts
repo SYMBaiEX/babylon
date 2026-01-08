@@ -1030,7 +1030,7 @@ class DatabaseService {
       activeQuestions,
       totalOrganizations,
       totalActors,
-      currentDay: gameState?.currentDay || 0,
+      currentDay: gameState?.currentDay ?? 1,
       isRunning: gameState?.isRunning || false,
     };
   }

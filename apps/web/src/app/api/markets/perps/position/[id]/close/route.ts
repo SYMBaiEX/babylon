@@ -1,5 +1,10 @@
 import { authenticate, successResponse, withErrorHandling } from '@babylon/api';
-import { ClosePerpPositionSchema, logger } from '@babylon/shared';
+import { handlePlayerTrade } from '@babylon/engine';
+import {
+  ClosePerpPositionSchema,
+  fireAndForgetWithRetry,
+  logger,
+} from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { z } from 'zod';
 import { trackServerEvent } from '@/lib/posthog/server';
@@ -88,6 +93,23 @@ export const POST = withErrorHandling(
         'PerpClose'
       );
     });
+
+    // Handle player influence - closing positions also affects NPC memory
+    // The opposite side represents the closing action
+    const closingSide = result.side === 'long' ? 'short' : 'long';
+    fireAndForgetWithRetry(
+      () =>
+        handlePlayerTrade(user.userId, result.ticker, closingSide, result.size),
+      {
+        logContext: 'PerpClose',
+        metadata: {
+          userId: user.userId,
+          ticker: result.ticker,
+          side: closingSide,
+          size: result.size,
+        },
+      }
+    );
 
     return successResponse({
       position: result,

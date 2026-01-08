@@ -493,6 +493,7 @@ export const POST = withErrorHandling(
       content: message.content,
       chatId: message.chatId,
       senderId: message.senderId,
+      type: message.type ?? 'user',
       createdAt: message.createdAt.toISOString(),
       isGameChat,
       isDMChat,

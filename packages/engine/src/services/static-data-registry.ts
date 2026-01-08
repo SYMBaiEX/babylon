@@ -88,6 +88,8 @@ export interface StaticOrganization {
   imageUrl?: string;
   originalName?: string;
   originalHandle?: string;
+  /** Custom editorial style for organization posts */
+  postStyle?: string;
 }
 
 /**
@@ -231,6 +233,7 @@ export class StaticDataRegistry {
         initialPrice?: number;
         originalName?: string;
         originalHandle?: string;
+        postStyle?: string;
       };
 
       const staticOrg: StaticOrganization = {
@@ -244,6 +247,7 @@ export class StaticDataRegistry {
         imageUrl: this.getOrgImageUrl(orgAny.id),
         originalName: orgAny.originalName,
         originalHandle: orgAny.originalHandle,
+        postStyle: orgAny.postStyle,
       };
 
       this.orgMap.set(orgAny.id, staticOrg);

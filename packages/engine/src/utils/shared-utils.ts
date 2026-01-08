@@ -667,6 +667,54 @@ export function buildCharacterFeedContext(options: {
 }
 
 /**
+ * Derive trading strategy from personality string.
+ *
+ * Parses personality with word-boundary matching for robustness.
+ * Handles negation patterns (e.g., "not aggressive", "non-aggressive").
+ * Precedence: aggressive > conservative > balanced.
+ *
+ * @param personality - Personality string to parse (may be null/undefined)
+ * @returns Trading strategy: 'aggressive' | 'conservative' | 'balanced'
+ *
+ * @example
+ * ```typescript
+ * deriveStrategyFromPersonality('bold, aggressive, risk-taker'); // 'aggressive'
+ * deriveStrategyFromPersonality('cautious, not aggressive'); // 'balanced'
+ * deriveStrategyFromPersonality('conservative investor'); // 'conservative'
+ * deriveStrategyFromPersonality('friendly, outgoing'); // 'balanced'
+ * deriveStrategyFromPersonality(null); // 'balanced'
+ * ```
+ */
+export function deriveStrategyFromPersonality(
+  personality: string | null | undefined
+): 'aggressive' | 'conservative' | 'balanced' {
+  if (!personality) {
+    return 'balanced';
+  }
+
+  const personalityLower = personality.toLowerCase();
+  const tokens = personalityLower.split(/[\s,;.]+/);
+
+  // Check for negation patterns (e.g., "not aggressive", "non-aggressive")
+  const hasNotAggressive =
+    /\bnot\s+aggressive\b/.test(personalityLower) ||
+    /\bnon-?aggressive\b/.test(personalityLower);
+  const hasNotConservative =
+    /\bnot\s+conservative\b/.test(personalityLower) ||
+    /\bnon-?conservative\b/.test(personalityLower);
+
+  // Apply precedence: aggressive > conservative > balanced
+  if (tokens.includes('aggressive') && !hasNotAggressive) {
+    return 'aggressive';
+  }
+  if (tokens.includes('conservative') && !hasNotConservative) {
+    return 'conservative';
+  }
+
+  return 'balanced';
+}
+
+/**
  * Execute async tasks in parallel with rate limiting
  * Processes tasks in batches to avoid overwhelming APIs
  *

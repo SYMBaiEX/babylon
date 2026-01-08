@@ -233,6 +233,7 @@ describe('PerpMarketService', () => {
     volume24h: 0,
     openInterest: 0,
     fundingRate: {
+      ticker: 'ABC',
       rate: 0,
       nextFundingTime: new Date().toISOString(),
       predictedRate: 0,

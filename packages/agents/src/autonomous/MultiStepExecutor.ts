@@ -11,11 +11,15 @@
 import {
   actorState,
   and,
+  chatParticipants,
+  chats,
   comments,
+  count,
   db,
   desc,
   eq,
   getDbInstance,
+  getRawDrizzle,
   gte,
   inArray,
   isNull,
@@ -25,6 +29,9 @@ import {
   perpPositions,
   positions,
   posts,
+  reactions,
+  shares,
+  sql,
   users,
 } from '@babylon/db';
 import { StaticDataRegistry, WalletService } from '@babylon/engine';
@@ -37,8 +44,10 @@ import { logger } from '../shared/logger';
 import { autonomousBatchResponseService } from './AutonomousBatchResponseService';
 import {
   executeDirectComment,
+  executeDirectLike,
   executeDirectMessage,
   executeDirectPost,
+  executeDirectRepost,
   executeDirectTrade,
 } from './DirectExecutors';
 import { topicDiversityService } from './TopicDiversityService';
@@ -66,6 +75,7 @@ export interface MultiStepExecutorResult {
     posts: number;
     comments: number;
     messages: number;
+    engagements: number;
   };
   iterations: number;
   trace: ActionTraceResult[];
@@ -130,12 +140,22 @@ export class MultiStepExecutor {
     // Determine enabled features - NPCs have all features enabled by default
     const enabledFeatures: string[] = [];
     if (isNpc) {
-      enabledFeatures.push('trading', 'posting', 'commenting', 'DMs');
+      enabledFeatures.push(
+        'trading',
+        'posting',
+        'commenting',
+        'engaging',
+        'DMs',
+        'groupChats'
+      );
     } else {
       if (config?.autonomousTrading) enabledFeatures.push('trading');
       if (config?.autonomousPosting) enabledFeatures.push('posting');
       if (config?.autonomousCommenting) enabledFeatures.push('commenting');
+      // User-controlled agents can also engage if they can comment
+      if (config?.autonomousCommenting) enabledFeatures.push('engaging');
       if (config?.autonomousDMs) enabledFeatures.push('DMs');
+      if (config?.autonomousGroupChats) enabledFeatures.push('groupChats');
     }
 
     // Get NPC game context ONCE before loop (arc awareness, world events)
@@ -164,10 +184,19 @@ export class MultiStepExecutor {
         'MultiStepExecutor'
       );
 
+      // Compute per-iteration effectiveFeatures based on current trace
+      // This enforces one-POST-per-tick: if we've already posted, remove 'posting'
+      const hasPostedThisTick = trace.some(
+        (r) => r.actionType === 'POST' && r.success
+      );
+      const effectiveFeatures = hasPostedThisTick
+        ? enabledFeatures.filter((f) => f !== 'posting')
+        : enabledFeatures;
+
       // Gather fresh context (state refreshes after each action)
       const context = await this.gatherContext(
         agentUserId,
-        enabledFeatures,
+        effectiveFeatures,
         isNpc
       );
 
@@ -224,12 +253,12 @@ export class MultiStepExecutor {
         break;
       }
 
-      // Execute the chosen action with parameters (pass enabledFeatures for enforcement)
+      // Execute the chosen action with parameters (pass effectiveFeatures for enforcement)
       const actionResult = await this.executeAction(
         agentUserId,
         decision.action,
         decision.parameters,
-        enabledFeatures,
+        effectiveFeatures,
         runtime,
         { prompt, completion: rawResponse, thought: decision.thought }
       );
@@ -297,6 +326,7 @@ export class MultiStepExecutor {
     const canTrade = enabledFeatures.includes('trading');
     const canComment = enabledFeatures.includes('commenting');
     const canRespondDMs = enabledFeatures.includes('DMs');
+    const canGroupChat = enabledFeatures.includes('groupChats');
 
     // Gather context in parallel - all these queries are independent
     const [
@@ -305,6 +335,7 @@ export class MultiStepExecutor {
       agentPositions,
       recentPosts,
       pendingInteractions,
+      agentGroupChats,
     ] = await Promise.all([
       // Get prediction markets (only if trading enabled)
       canTrade ? this.getPredictionMarkets() : Promise.resolve([]),
@@ -320,6 +351,8 @@ export class MultiStepExecutor {
       canRespondDMs
         ? autonomousBatchResponseService.gatherPendingInteractions(agentUserId)
         : Promise.resolve([]),
+      // Get agent's group chats (only if group chats enabled)
+      canGroupChat ? this.getAgentGroupChats(agentUserId) : Promise.resolve([]),
     ]);
 
     // Get topic diversity guidance for this agent
@@ -344,6 +377,8 @@ export class MultiStepExecutor {
       perpMarkets,
       recentPosts,
       agentPositions,
+      // Group chats for sharing
+      groupChats: agentGroupChats,
       // Topic diversity
       diversityInstructions,
       assignedMarketId: assignment?.marketId,
@@ -407,6 +442,55 @@ export class MultiStepExecutor {
         };
       })
       .filter((m): m is PerpMarketContext => m !== null);
+  }
+
+  /**
+   * Get agent's group chats for potential sharing
+   */
+  private async getAgentGroupChats(
+    agentUserId: string
+  ): Promise<{ id: string; name: string; memberCount: number }[]> {
+    try {
+      // Use DB-side aggregate count instead of loading all participant rows
+      // First, get chats where the agent is a participant and the chat is a group
+      // Then count all participants in those chats
+      const rawDb = getRawDrizzle();
+      const agentParticipation = rawDb
+        .select({ chatId: chatParticipants.chatId })
+        .from(chatParticipants)
+        .where(eq(chatParticipants.userId, agentUserId))
+        .as('agent_participation');
+
+      const groupChatsWithCount = await rawDb
+        .select({
+          id: chats.id,
+          name: chats.name,
+          memberCount: count(chatParticipants.id),
+        })
+        .from(chats)
+        .innerJoin(agentParticipation, eq(chats.id, agentParticipation.chatId))
+        .innerJoin(chatParticipants, eq(chats.id, chatParticipants.chatId))
+        .where(eq(chats.isGroup, true))
+        .groupBy(chats.id, chats.name)
+        .limit(5);
+
+      return groupChatsWithCount.map((chat) => ({
+        id: chat.id,
+        name: chat.name ?? 'Group Chat',
+        memberCount: chat.memberCount,
+      }));
+    } catch (error) {
+      // Log the error before returning empty fallback
+      logger.warn(
+        'Failed to fetch agent group chats',
+        {
+          agentUserId,
+          error: error instanceof Error ? error.message : String(error),
+        },
+        'MultiStepExecutor'
+      );
+      return [];
+    }
   }
 
   /**
@@ -604,11 +688,17 @@ export class MultiStepExecutor {
       }
     }
 
-    // Fetch agent's existing comments on these posts (top-level only)
+    // Fetch agent's existing engagement on these posts
     const postIds = recentPostsRaw.map((p) => p.id);
     const agentComments = new Map<string, string>();
+    const agentLikes = new Set<string>();
+    const agentReposts = new Set<string>();
+    const postLikeCounts = new Map<string, number>();
+    const postRepostCounts = new Map<string, number>();
+    const postCommentCounts = new Map<string, number>();
 
     if (postIds.length > 0) {
+      // Fetch agent's existing comments (top-level only)
       const existingComments = await db
         .select({
           postId: comments.postId,
@@ -629,6 +719,85 @@ export class MultiStepExecutor {
           agentComments.set(comment.postId, comment.content);
         }
       }
+
+      // Execute all engagement queries in parallel to reduce latency
+      const [
+        existingLikes,
+        existingReposts,
+        likeCounts,
+        repostCounts,
+        commentCounts,
+      ] = await Promise.all([
+        // Fetch agent's existing likes
+        db
+          .select({ postId: reactions.postId })
+          .from(reactions)
+          .where(
+            and(
+              inArray(reactions.postId, postIds),
+              eq(reactions.userId, agentUserId),
+              eq(reactions.type, 'like')
+            )
+          ),
+        // Fetch agent's existing reposts
+        db
+          .select({ postId: shares.postId })
+          .from(shares)
+          .where(
+            and(inArray(shares.postId, postIds), eq(shares.userId, agentUserId))
+          ),
+        // Get like counts for each post
+        db
+          .select({
+            postId: reactions.postId,
+            count: sql<number>`count(*)`,
+          })
+          .from(reactions)
+          .where(
+            and(inArray(reactions.postId, postIds), eq(reactions.type, 'like'))
+          )
+          .groupBy(reactions.postId),
+        // Get repost counts for each post
+        db
+          .select({
+            postId: shares.postId,
+            count: sql<number>`count(*)`,
+          })
+          .from(shares)
+          .where(inArray(shares.postId, postIds))
+          .groupBy(shares.postId),
+        // Get comment counts for each post
+        db
+          .select({
+            postId: comments.postId,
+            count: sql<number>`count(*)`,
+          })
+          .from(comments)
+          .where(
+            and(inArray(comments.postId, postIds), isNull(comments.deletedAt))
+          )
+          .groupBy(comments.postId),
+      ]);
+
+      for (const like of existingLikes) {
+        if (like.postId) agentLikes.add(like.postId);
+      }
+
+      for (const repost of existingReposts) {
+        agentReposts.add(repost.postId);
+      }
+
+      for (const row of likeCounts) {
+        if (row.postId) postLikeCounts.set(row.postId, Number(row.count));
+      }
+
+      for (const row of repostCounts) {
+        postRepostCounts.set(row.postId, Number(row.count));
+      }
+
+      for (const row of commentCounts) {
+        if (row.postId) postCommentCounts.set(row.postId, Number(row.count));
+      }
     }
 
     return recentPostsRaw.map((p) => ({
@@ -636,9 +805,13 @@ export class MultiStepExecutor {
       authorId: p.authorId,
       authorName: authorNames.get(p.authorId) || 'User',
       content: p.content,
-      commentCount: 0, // Simplified - could add actual count if needed
+      commentCount: postCommentCounts.get(p.id) ?? 0,
+      likeCount: postLikeCounts.get(p.id) ?? 0,
+      repostCount: postRepostCounts.get(p.id) ?? 0,
       timeAgo: getTimeAgo(p.createdAt),
       agentComment: agentComments.get(p.id),
+      agentLiked: agentLikes.has(p.id),
+      agentReposted: agentReposts.has(p.id),
     }));
   }
 
@@ -738,6 +911,9 @@ export class MultiStepExecutor {
       COMMENT: 'commenting',
       RESPOND: 'DMs',
       DM: 'DMs',
+      LIKE: 'engaging',
+      REPOST: 'engaging',
+      GROUP_MESSAGE: 'groupChats',
     };
 
     const requiredFeature = actionToFeature[normalizedAction];
@@ -918,6 +1094,111 @@ export class MultiStepExecutor {
         };
       }
 
+      case 'LIKE': {
+        const postId = parameters.postId as string;
+
+        if (!postId) {
+          return {
+            actionType: 'LIKE',
+            success: false,
+            summary: 'Missing required parameter (postId)',
+            error: 'Invalid parameters',
+            parameters,
+            timestamp: Date.now(),
+          };
+        }
+
+        const likeResult = await executeDirectLike({
+          agentUserId,
+          postId,
+        });
+
+        // Log the like action
+        await agentService.createLog(agentUserId, {
+          type: 'like',
+          level: likeResult.success ? 'info' : 'warn',
+          message: likeResult.success
+            ? `Liked post ${postId}`
+            : `Like failed: ${likeResult.error}`,
+          metadata: {
+            postId,
+            success: likeResult.success,
+            liked: likeResult.liked ?? false,
+            error: likeResult.error ?? null,
+          },
+        });
+
+        return {
+          actionType: 'LIKE',
+          success: likeResult.success,
+          summary: likeResult.success
+            ? `Liked post ${postId}`
+            : `Like failed: ${likeResult.error}`,
+          result: {
+            success: likeResult.success,
+            liked: likeResult.liked,
+            error: likeResult.error,
+          },
+          parameters,
+          timestamp: Date.now(),
+        };
+      }
+
+      case 'REPOST': {
+        const postId = parameters.postId as string;
+        const comment = parameters.comment as string | undefined;
+
+        if (!postId) {
+          return {
+            actionType: 'REPOST',
+            success: false,
+            summary: 'Missing required parameter (postId)',
+            error: 'Invalid parameters',
+            parameters,
+            timestamp: Date.now(),
+          };
+        }
+
+        const repostResult = await executeDirectRepost({
+          agentUserId,
+          postId,
+          comment,
+        });
+
+        // Log the repost action
+        await agentService.createLog(agentUserId, {
+          type: 'repost',
+          level: repostResult.success ? 'info' : 'warn',
+          message: repostResult.success
+            ? `Reposted ${postId}${comment ? ' with comment' : ''}`
+            : `Repost failed: ${repostResult.error}`,
+          metadata: {
+            postId,
+            success: repostResult.success,
+            repostId: repostResult.repostId ?? null,
+            quotePostId: repostResult.quotePostId ?? null,
+            hasComment: !!comment,
+            error: repostResult.error ?? null,
+          },
+        });
+
+        return {
+          actionType: 'REPOST',
+          success: repostResult.success,
+          summary: repostResult.success
+            ? `Reposted ${postId}${comment ? ' with comment' : ''}`
+            : `Repost failed: ${repostResult.error}`,
+          result: {
+            success: repostResult.success,
+            repostId: repostResult.repostId,
+            quotePostId: repostResult.quotePostId,
+            error: repostResult.error,
+          },
+          parameters,
+          timestamp: Date.now(),
+        };
+      }
+
       case 'RESPOND': {
         // RESPOND still uses the batch service which has its own LLM
         // for deciding WHICH interactions to respond to
@@ -1006,6 +1287,62 @@ export class MultiStepExecutor {
         };
       }
 
+      case 'GROUP_MESSAGE': {
+        const chatId = parameters.chatId as string;
+        const content = parameters.content as string;
+
+        if (!chatId || !content) {
+          return {
+            actionType: 'GROUP_MESSAGE',
+            success: false,
+            summary: 'Missing required parameters (chatId, content)',
+            error: 'Invalid parameters',
+            parameters,
+            timestamp: Date.now(),
+          };
+        }
+
+        const groupMessageResult = await executeDirectMessage({
+          agentUserId,
+          chatId,
+          content,
+        });
+
+        // Log the group message (use 'chat' type which is valid for messages)
+        // Always log regardless of logContext to be consistent with LIKE/REPOST
+        await agentService.createLog(agentUserId, {
+          type: 'chat',
+          level: groupMessageResult.success ? 'info' : 'warn',
+          message: groupMessageResult.success
+            ? `Sent group message to chat ${chatId}: ${content.substring(0, 100)}${content.length > 100 ? '...' : ''}`
+            : `Failed to send group message: ${groupMessageResult.error}`,
+          prompt: logContext?.prompt ?? undefined,
+          completion: logContext?.completion ?? undefined,
+          thinking: logContext?.thought ?? undefined,
+          metadata: {
+            messageId: groupMessageResult.messageId ?? null,
+            chatId,
+            contentLength: content.length,
+            error: groupMessageResult.error ?? null,
+          },
+        });
+
+        return {
+          actionType: 'GROUP_MESSAGE',
+          success: groupMessageResult.success,
+          summary: groupMessageResult.success
+            ? `Sent message to group chat ${chatId}`
+            : `Group message failed: ${groupMessageResult.error}`,
+          result: {
+            success: groupMessageResult.success,
+            messageId: groupMessageResult.messageId,
+            error: groupMessageResult.error,
+          },
+          parameters,
+          timestamp: Date.now(),
+        };
+      }
+
       case 'WAIT':
       case '': {
         return {
@@ -1047,6 +1384,7 @@ export class MultiStepExecutor {
       posts: 0,
       comments: 0,
       messages: 0,
+      engagements: 0,
     };
 
     for (const result of trace) {
@@ -1066,7 +1404,12 @@ export class MultiStepExecutor {
           counts.comments += (result.result?.responsesCreated as number) || 1;
           break;
         case 'DM':
+        case 'GROUP_MESSAGE':
           counts.messages++;
+          break;
+        case 'LIKE':
+        case 'REPOST':
+          counts.engagements++;
           break;
       }
     }

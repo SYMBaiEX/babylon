@@ -3,6 +3,8 @@
  * Shared date parsing and extraction utilities for the game engine.
  */
 
+import { logger } from '@babylon/shared';
+
 /**
  * Extract day number from timestamp string.
  * Assumes game runs in October 2025 format: "2025-10-DDTHH:MM:SSZ"
@@ -62,21 +64,45 @@ export function extractDayFromPost(post: {
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 /**
- * Compute a game-relative day number (0-indexed) from a game start time.
+ * Compute a game-relative day number (1-indexed) from a game start time.
+ * Day 1 = first 24 hours from startedAt
+ * Day 2 = hours 24-48, etc.
  *
  * @param startedAt - The continuous game's start timestamp
  * @param timestamp - The content/event timestamp
- * @returns 0-indexed day number since startedAt (can be negative if timestamp < startedAt)
+ * @returns 1-indexed day number since startedAt (Day 1 is first day)
  */
 export function getGameDayNumber(startedAt: Date, timestamp: Date): number {
-  return Math.floor((timestamp.getTime() - startedAt.getTime()) / MS_PER_DAY);
+  const daysElapsed = Math.floor(
+    (timestamp.getTime() - startedAt.getTime()) / MS_PER_DAY
+  );
+  // Clamp to minimum of 1 to handle timestamps before startedAt
+  const result = Math.max(daysElapsed + 1, 1); // 1-indexed: Day 1 is first day
+
+  // Log diagnostic warning when timestamp is before startedAt (clock drift or test data issue)
+  if (timestamp.getTime() < startedAt.getTime()) {
+    logger.warn(
+      'getGameDayNumber: timestamp is before startedAt, clamping to day 1',
+      {
+        startedAt: startedAt.toISOString(),
+        timestamp: timestamp.toISOString(),
+        daysElapsed,
+        result,
+      },
+      'DateUtils'
+    );
+  }
+
+  return result;
 }
 
 /**
  * Validate a dayNumber for storage in Post/WorldEvent int columns.
+ * Days are 1-indexed (Day 1 is the first day of the game).
+ * Returns undefined for invalid day numbers to prevent DB errors.
  */
 export function toSafeDayNumber(dayNumber: number): number | undefined {
-  return Number.isFinite(dayNumber) && dayNumber >= 0 && dayNumber <= 2147483647
+  return Number.isFinite(dayNumber) && dayNumber >= 1 && dayNumber <= 2147483647
     ? dayNumber
     : undefined;
 }

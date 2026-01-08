@@ -5,7 +5,22 @@ import { Loader2, MessageCircle } from 'lucide-react';
 import React from 'react';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { MessageBubble } from './MessageBubble';
+import { SystemMessage } from './SystemMessage';
+import type { MessageType } from '@babylon/db';
 import type { ChatParticipant, Message } from './types';
+import { MessageTypeEnum } from './types';
+
+/**
+ * Determines the message type for rendering.
+ * Uses message.type field if available (new messages), falls back to default user type.
+ */
+function getMessageType(message: Message): MessageType {
+  // Prefer explicit type field (new messages after migration)
+  if (message.type) {
+    return message.type;
+  }
+  return MessageTypeEnum.USER;
+}
 
 interface MessageListProps {
   messages: Message[];
@@ -84,19 +99,29 @@ export function MessageList({
 
       {/* Messages */}
       {messages.map((msg) => {
-        const sender = participants.find((p) => p.id === msg.senderId);
-        const isCurrentUser = currentUserId
-          ? msg.senderId === currentUserId
-          : false;
+        const messageType = getMessageType(msg);
 
-        return (
-          <MessageBubble
-            key={msg.id}
-            message={msg}
-            sender={sender}
-            isCurrentUser={isCurrentUser}
-          />
-        );
+        switch (messageType) {
+          case MessageTypeEnum.SYSTEM:
+            return <SystemMessage key={msg.id} message={msg} />;
+
+          case MessageTypeEnum.USER:
+          default: {
+            const sender = participants.find((p) => p.id === msg.senderId);
+            const isCurrentUser = currentUserId
+              ? msg.senderId === currentUserId
+              : false;
+
+            return (
+              <MessageBubble
+                key={msg.id}
+                message={msg}
+                sender={sender}
+                isCurrentUser={isCurrentUser}
+              />
+            );
+          }
+        }
       })}
 
       {/* Empty state */}

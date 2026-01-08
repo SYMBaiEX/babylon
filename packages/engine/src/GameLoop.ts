@@ -205,6 +205,7 @@ export class GameLoop {
           volume24h: 1000000,
           openInterest: 500000,
           fundingRate: {
+            ticker,
             rate: 0.001,
             nextFundingTime: new Date().toISOString(),
             predictedRate: 0.001,
