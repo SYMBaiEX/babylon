@@ -441,7 +441,10 @@ export class NpcMemoryService {
           if (!shouldReset && resetAt) {
             if (options.gameStartedAt) {
               // Use game day calculation - reset when game day changes
-              const currentGameDay = getGameDayNumber(options.gameStartedAt, now);
+              const currentGameDay = getGameDayNumber(
+                options.gameStartedAt,
+                now
+              );
               const lastResetGameDay = getGameDayNumber(
                 options.gameStartedAt,
                 resetAt

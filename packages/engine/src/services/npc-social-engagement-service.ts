@@ -175,13 +175,17 @@ export async function processNPCSocialEngagements(): Promise<SocialEngagementRes
 
       for (const post of recentPosts) {
         if (post.authorId === actor.id) continue;
-        if (result.likesCreated >= MAX_LIKES_PER_TICK) break actorLoop;
+
+        // Skip likes for this actor if global like quota reached, but continue processing other posts
+        // for potential shares/comments (only break inner loop for likes, not actorLoop)
+        const likesQuotaReached = result.likesCreated >= MAX_LIKES_PER_TICK;
 
         const key = `${post.id}-${actor.id}`;
         const probs = calculateEngagementProbability(actor, post);
 
         // LIKE - use onConflictDoNothing to handle race conditions atomically
-        if (!reactionSet.has(key) && secureRandom() < probs.like) {
+        // Skip if global likes quota reached (other actors may still process shares/comments)
+        if (!likesQuotaReached && !reactionSet.has(key) && secureRandom() < probs.like) {
           const insertResult = await db
             .insert(reactions)
             .values({
