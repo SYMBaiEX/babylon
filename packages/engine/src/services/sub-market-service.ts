@@ -208,7 +208,12 @@ export class SubMarketService {
     return db
       .select()
       .from(timeframedMarkets)
-      .where(eq(timeframedMarkets.timeframe, timeframe));
+      .where(
+        and(
+          eq(timeframedMarkets.timeframe, timeframe),
+          eq(timeframedMarkets.isActive, true)
+        )
+      );
   }
 
   /**

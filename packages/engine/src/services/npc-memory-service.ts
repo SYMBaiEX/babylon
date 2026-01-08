@@ -103,10 +103,10 @@ export class NpcMemoryService {
           ...memory,
         };
 
-        // Add new memory and enforce cap
+        // Add new memory and enforce cap (splice is O(n) vs repeated shift() being O(n²))
         memories.push(newMemory);
-        while (memories.length > MAX_MEMORIES) {
-          memories.shift(); // Remove oldest
+        if (memories.length > MAX_MEMORIES) {
+          memories.splice(0, memories.length - MAX_MEMORIES);
         }
 
         const now = new Date();
@@ -298,9 +298,9 @@ export class NpcMemoryService {
 
           if (interaction.note) {
             existing.notes.push(interaction.note);
-            // Keep only recent notes
-            while (existing.notes.length > MAX_RELATIONSHIP_NOTES) {
-              existing.notes.shift();
+            // Keep only recent notes (slice is O(n) vs repeated shift() being O(n²))
+            if (existing.notes.length > MAX_RELATIONSHIP_NOTES) {
+              existing.notes = existing.notes.slice(-MAX_RELATIONSHIP_NOTES);
             }
           }
         } else {

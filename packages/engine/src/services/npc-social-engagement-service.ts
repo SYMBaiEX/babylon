@@ -127,9 +127,13 @@ export async function processNPCSocialEngagements(): Promise<SocialEngagementRes
       };
     });
 
-    // Randomly sample actors
+    // Randomly sample actors using Fisher-Yates shuffle (unbiased)
     const allActors = StaticDataRegistry.getAllActors();
-    const shuffled = [...allActors].sort(() => secureRandom() - 0.5);
+    const shuffled = [...allActors];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(secureRandom() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
     const sampledActors: ActorContext[] = shuffled
       .slice(0, ACTORS_TO_SAMPLE)
       .map((a) => ({

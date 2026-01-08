@@ -343,6 +343,7 @@ export class GameBootstrapService {
     await db.insert(organizationState).values({
       id: org.id,
       currentPrice: org.initialPrice,
+      basePrice: org.initialPrice ?? 100.0,
       updatedAt: new Date(),
     });
 

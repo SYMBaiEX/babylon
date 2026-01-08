@@ -55,6 +55,14 @@ const EVENT_COOLDOWN_HOURS = 2;
  * Get the expected arc state for a given day number (long-term arcs only)
  */
 export function getExpectedState(dayNumber: number): LongTermArcState {
+  // Guard against invalid day numbers to avoid misleading 'resolution' fallback
+  if (dayNumber < 1) {
+    throw new Error(
+      `Invalid dayNumber ${dayNumber}: arc states start at day 1. ` +
+        `Ensure the game has started before querying arc state.`
+    );
+  }
+
   for (const [state, [start, end]] of Object.entries(STATE_DAY_RANGES)) {
     if (dayNumber >= start && dayNumber <= end) {
       return state as LongTermArcState;

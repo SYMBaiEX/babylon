@@ -58,6 +58,18 @@ function hashActorId(id: string): number {
 }
 
 /**
+ * Validate that gameDay is a finite integer >= 1.
+ * Throws TypeError for invalid values to prevent silent bugs from modulo on bad inputs.
+ */
+function validateGameDay(gameDay: number, functionName: string): void {
+  if (!Number.isFinite(gameDay) || !Number.isInteger(gameDay) || gameDay < 1) {
+    throw new TypeError(
+      `${functionName}: gameDay must be a finite integer >= 1, got ${gameDay}`
+    );
+  }
+}
+
+/**
  * Get the hours an actor is active based on their ID and game day.
  * Spreads actors evenly across the 24-hour day.
  *
@@ -65,6 +77,8 @@ function hashActorId(id: string): number {
  * @param gameDay - The current game day (1-indexed from games.currentDay). Defaults to 1.
  */
 function getActorActiveHours(actorId: string, gameDay = 1): number[] {
+  validateGameDay(gameDay, 'getActorActiveHours');
+
   // Combine actor ID hash with game day for daily rotation
   // Different actors will be active on different game days
   const startHour = (hashActorId(actorId) + gameDay) % 24;
@@ -93,6 +107,12 @@ export function convertToLocalHour(
  * Derive activity pattern from actor data.
  * Uses actor ID to determine their active hours.
  *
+ * **Note:** The returned {@link ActivityPattern} currently uses hardcoded boolean flags:
+ * `nightOwl`, `workaholic`, and `weekendActive` are always `true` and do not vary
+ * by actor or gameDay. This is intentional simplification for the current implementation.
+ * These fields are reserved for future extension when actor-specific activity preferences
+ * are added to the static actor data.
+ *
  * @param actor - The actor to derive pattern for
  * @param gameDay - The current game day (1-indexed) for rotation. Defaults to 1.
  */
@@ -100,6 +120,7 @@ export function deriveActivityPattern(
   actor: ActivityActor,
   gameDay = 1
 ): ActivityPattern {
+  // TODO: Read nightOwl, workaholic, weekendActive from actor data when available
   return {
     timezone: 'UTC',
     peakHours: getActorActiveHours(actor.id, gameDay),
@@ -135,6 +156,8 @@ export function isActiveHour(
  */
 export function isWeekend(gameDay?: number, date: Date = new Date()): boolean {
   if (gameDay !== undefined) {
+    validateGameDay(gameDay, 'isWeekend');
+
     // Game days are 1-indexed (Day 1 is first day)
     // Convert to 0-indexed for modulo: (gameDay - 1) % 7
     // Weekend: indices 5 and 6 of each 7-day cycle
@@ -160,6 +183,8 @@ export function getActivityMultiplier(
   date: Date = new Date(),
   gameDay = 1
 ): number {
+  validateGameDay(gameDay, 'getActivityMultiplier');
+
   const utcHour = date.getUTCHours();
   return isActiveHour(actor, utcHour, gameDay) ? 1.0 : 0.0;
 }

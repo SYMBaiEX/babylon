@@ -343,7 +343,10 @@ export class MarketMetricsService {
 
     // Enhance with PerpMarketSnapshot data if available (provides 24h price comparison)
     // Only fetch snapshots for organizations we actually have price data for
-    const snapshotMap = new Map<string, { price24hAgo: number | null }>();
+    const snapshotMap = new Map<
+      string,
+      { price24hAgo: number | null; price24hAgoUpdatedAt: Date | null }
+    >();
     const orgIds = Array.from(pricesByOrg.keys());
 
     if (orgIds.length > 0) {
@@ -352,6 +355,7 @@ export class MarketMetricsService {
           .select({
             organizationId: perpMarketSnapshots.organizationId,
             price24hAgo: perpMarketSnapshots.price24hAgo,
+            price24hAgoUpdatedAt: perpMarketSnapshots.price24hAgoUpdatedAt,
           })
           .from(perpMarketSnapshots)
           .where(inArray(perpMarketSnapshots.organizationId, orgIds));
@@ -359,18 +363,47 @@ export class MarketMetricsService {
         for (const snapshot of snapshots) {
           snapshotMap.set(snapshot.organizationId, {
             price24hAgo: snapshot.price24hAgo,
+            price24hAgoUpdatedAt: snapshot.price24hAgoUpdatedAt,
           });
         }
       } catch (error) {
-        // Table may not exist in all environments - continue without snapshot data
-        // Log error for debugging but don't fail the request
-        logger.debug(
-          'PerpMarketSnapshot table not available, using stockPrices only',
-          { error: error instanceof Error ? error.message : String(error) },
-          'MarketMetrics'
-        );
+        // Only swallow "missing table" errors (Postgres error code 42P01)
+        // Other errors (connection, permission, query issues) should propagate
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
+        const errorCode =
+          error && typeof error === 'object' && 'code' in error
+            ? (error as { code?: string }).code
+            : undefined;
+
+        const isMissingTableError =
+          errorCode === '42P01' ||
+          errorMessage.includes('relation') ||
+          errorMessage.includes('does not exist') ||
+          errorMessage.includes('PerpMarketSnapshot');
+
+        if (isMissingTableError) {
+          // Table may not exist in all environments - continue without snapshot data
+          logger.debug(
+            'PerpMarketSnapshot table not available, using stockPrices only',
+            { error: errorMessage },
+            'MarketMetrics'
+          );
+        } else {
+          // Real DB error - log as error and rethrow
+          logger.error(
+            'Failed to query PerpMarketSnapshot',
+            { error: errorMessage, errorCode },
+            'MarketMetrics'
+          );
+          throw error;
+        }
       }
     }
+
+    // Freshness window for 24h snapshot (25 hours to allow for slight delays)
+    const SNAPSHOT_FRESHNESS_MS = 25 * 60 * 60 * 1000;
+    const now = Date.now();
 
     const metrics: PerpMarketMetrics[] = [];
 
@@ -383,9 +416,15 @@ export class MarketMetricsService {
       const currentPrice = prices[0]!.price;
       const oldestPrice = prices[prices.length - 1]!.price;
 
-      // Use 24h ago price from snapshot if available (more accurate)
+      // Use 24h ago price from snapshot if available and fresh (more accurate)
       const snapshot = snapshotMap.get(orgId);
-      const referencePrice = snapshot?.price24hAgo ?? oldestPrice;
+      const snapshotIsFresh =
+        snapshot?.price24hAgo != null &&
+        snapshot?.price24hAgoUpdatedAt != null &&
+        now - snapshot.price24hAgoUpdatedAt.getTime() <= SNAPSHOT_FRESHNESS_MS;
+      const referencePrice = snapshotIsFresh
+        ? snapshot.price24hAgo
+        : oldestPrice;
 
       const priceChangePercent =
         referencePrice > 0

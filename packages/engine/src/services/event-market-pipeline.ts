@@ -85,7 +85,38 @@ export async function applyEventToMarkets(
 
   for (const impact of event.marketImpacts) {
     try {
+      // Validate lookups before using them to avoid NaN effects
       const magnitude = MAGNITUDE_MULTIPLIERS[impact.magnitude];
+      if (magnitude === undefined) {
+        logger.error(
+          `Invalid magnitude in market impact`,
+          {
+            arcId: event.arcId,
+            stockTicker: impact.stockTicker,
+            invalidMagnitude: impact.magnitude,
+            validMagnitudes: Object.keys(MAGNITUDE_MULTIPLIERS),
+          },
+          'EventMarketPipeline'
+        );
+        continue;
+      }
+
+      const decayRate = DECAY_RATES[impact.duration];
+      const durationHours = DURATION_HOURS[impact.duration];
+      if (decayRate === undefined || durationHours === undefined) {
+        logger.error(
+          `Invalid duration in market impact`,
+          {
+            arcId: event.arcId,
+            stockTicker: impact.stockTicker,
+            invalidDuration: impact.duration,
+            validDurations: Object.keys(DURATION_HOURS),
+          },
+          'EventMarketPipeline'
+        );
+        continue;
+      }
+
       // Bound the effect to prevent extreme values
       const rawEffect =
         impact.direction === 'up' ? 1 + magnitude : 1 - magnitude;
@@ -93,8 +124,6 @@ export async function applyEventToMarkets(
         MIN_PRICE_MULTIPLIER,
         Math.min(MAX_PRICE_MULTIPLIER, rawEffect)
       );
-      const decayRate = DECAY_RATES[impact.duration];
-      const durationHours = DURATION_HOURS[impact.duration];
 
       const now = new Date();
       const modifier: PriceModifier = {

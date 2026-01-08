@@ -675,7 +675,7 @@ export class MarketTimeframeService {
     endTime: Date,
     timeframe: MarketTimeframe,
     now?: Date
-  ): string {
+  ): ArcStateType {
     return getCurrentArcState(startTime, endTime, timeframe, now);
   }
 
