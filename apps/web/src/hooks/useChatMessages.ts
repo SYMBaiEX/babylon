@@ -1,6 +1,8 @@
+import type { MessageType } from '@babylon/db';
 import { logger } from '@babylon/shared';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { CHAT_PAGE_SIZE } from '@/lib/constants';
+import { MessageTypeEnum } from '@/components/chats/types';
 import { useSSEChannel } from './useSSE';
 
 /**
@@ -16,7 +18,7 @@ export interface ChatMessage {
   /** ID of the user who sent the message */
   senderId: string;
   /** Message type: 'user' for regular messages, 'system' for system notifications */
-  type?: 'user' | 'system';
+  type?: MessageType;
   /** ISO timestamp when the message was created */
   createdAt: string;
   /** Whether this is a game chat message */
@@ -106,7 +108,7 @@ export function useChatMessages(chatId: string | null) {
             id: string;
             content: string;
             senderId: string;
-            type?: 'user' | 'system';
+            type?: MessageType;
             createdAt: string | Date;
           }) => ({
             id: msg.id,
@@ -176,7 +178,7 @@ export function useChatMessages(chatId: string | null) {
             id: string;
             content: string;
             senderId: string;
-            type?: 'user' | 'system';
+            type?: MessageType;
             createdAt: string | Date;
           }) => ({
             id: msg.id,
@@ -237,8 +239,9 @@ export function useChatMessages(chatId: string | null) {
             chatId: messageData.chatId,
             senderId: messageData.senderId,
             type:
-              messageData.type === 'user' || messageData.type === 'system'
-                ? messageData.type
+              messageData.type === MessageTypeEnum.USER ||
+              messageData.type === MessageTypeEnum.SYSTEM
+                ? (messageData.type as MessageType)
                 : undefined,
             createdAt: messageData.createdAt,
             isGameChat:

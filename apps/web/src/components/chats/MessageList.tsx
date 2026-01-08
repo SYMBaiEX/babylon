@@ -6,18 +6,20 @@ import React from 'react';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { MessageBubble } from './MessageBubble';
 import { SystemMessage } from './SystemMessage';
-import type { ChatParticipant, Message, MessageType } from './types';
+import type { MessageType } from '@babylon/db';
+import type { ChatParticipant, Message } from './types';
+import { MessageTypeEnum } from './types';
 
 /**
  * Determines the message type for rendering.
- * Uses message.type field if available (new messages), falls back to senderId check for backwards compatibility.
+ * Uses message.type field if available (new messages), falls back to default user type.
  */
 function getMessageType(message: Message): MessageType {
   // Prefer explicit type field (new messages after migration)
   if (message.type) {
     return message.type;
   }
-  return 'user';
+  return MessageTypeEnum.USER;
 }
 
 interface MessageListProps {
@@ -100,10 +102,10 @@ export function MessageList({
         const messageType = getMessageType(msg);
 
         switch (messageType) {
-          case 'system':
+          case MessageTypeEnum.SYSTEM:
             return <SystemMessage key={msg.id} message={msg} />;
 
-          case 'user':
+          case MessageTypeEnum.USER:
           default: {
             const sender = participants.find((p) => p.id === msg.senderId);
             const isCurrentUser = currentUserId
