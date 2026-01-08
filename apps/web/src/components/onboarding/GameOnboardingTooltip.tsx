@@ -132,7 +132,7 @@ export function GameOnboardingProgress() {
 
   const completedCount = status.completedSteps.length;
   const totalSteps = steps.length;
-  const progress = (completedCount / totalSteps) * 100;
+  const progress = totalSteps > 0 ? (completedCount / totalSteps) * 100 : 0;
 
   return (
     <div className="fixed right-4 bottom-4 z-40 w-80 rounded-xl border border-border bg-background/95 p-4 shadow-xl backdrop-blur-sm">

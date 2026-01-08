@@ -1233,24 +1233,23 @@ export class MultiStepExecutor {
         });
 
         // Log the group message (use 'chat' type which is valid for messages)
-        if (logContext) {
-          await agentService.createLog(agentUserId, {
-            type: 'chat',
-            level: groupMessageResult.success ? 'info' : 'warn',
-            message: groupMessageResult.success
-              ? `Sent group message to chat ${chatId}: ${content.substring(0, 100)}${content.length > 100 ? '...' : ''}`
-              : `Failed to send group message: ${groupMessageResult.error}`,
-            prompt: logContext.prompt,
-            completion: logContext.completion,
-            thinking: logContext.thought,
-            metadata: {
-              messageId: groupMessageResult.messageId ?? null,
-              chatId,
-              contentLength: content.length,
-              error: groupMessageResult.error ?? null,
-            },
-          });
-        }
+        // Always log regardless of logContext to be consistent with LIKE/REPOST
+        await agentService.createLog(agentUserId, {
+          type: 'chat',
+          level: groupMessageResult.success ? 'info' : 'warn',
+          message: groupMessageResult.success
+            ? `Sent group message to chat ${chatId}: ${content.substring(0, 100)}${content.length > 100 ? '...' : ''}`
+            : `Failed to send group message: ${groupMessageResult.error}`,
+          prompt: logContext?.prompt ?? undefined,
+          completion: logContext?.completion ?? undefined,
+          thinking: logContext?.thought ?? undefined,
+          metadata: {
+            messageId: groupMessageResult.messageId ?? null,
+            chatId,
+            contentLength: content.length,
+            error: groupMessageResult.error ?? null,
+          },
+        });
 
         return {
           actionType: 'GROUP_MESSAGE',

@@ -194,6 +194,8 @@ export interface FireAndForgetRetryOptions {
   initialDelayMs?: number;
   /** Maximum delay in milliseconds (default: 2000) - caps exponential backoff */
   maxDelayMs?: number;
+  /** Multiplier for exponential backoff (default: 2) */
+  backoffMultiplier?: number;
   /** Context for logging (e.g., 'PerpOpen', 'PerpClose') */
   logContext?: string;
   /** Additional metadata to include in error logs */
@@ -227,6 +229,7 @@ export function fireAndForgetWithRetry(
     maxAttempts = 3,
     initialDelayMs = 100,
     maxDelayMs = 2000,
+    backoffMultiplier = 2,
     logContext = 'FireAndForget',
     metadata = {},
   } = options;
@@ -246,9 +249,10 @@ export function fireAndForgetWithRetry(
           logger.error(
             'Fire-and-forget operation failed with non-retryable error',
             {
+              // Spread metadata first so explicit values take precedence
+              ...metadata,
               error: lastError.message,
               attempt: attempt + 1,
-              ...metadata,
             },
             logContext
           );
@@ -257,7 +261,10 @@ export function fireAndForgetWithRetry(
 
         if (attempt < maxAttempts - 1) {
           // Exponential backoff with cap using shared sleep utility
-          const delay = Math.min(initialDelayMs * 2 ** attempt, maxDelayMs);
+          const delay = Math.min(
+            initialDelayMs * backoffMultiplier ** attempt,
+            maxDelayMs
+          );
           await sleep(delay);
         }
       }
@@ -267,9 +274,10 @@ export function fireAndForgetWithRetry(
     logger.error(
       'Fire-and-forget operation failed after retries',
       {
+        // Spread metadata first so explicit values take precedence
+        ...metadata,
         error: lastError?.message ?? 'Unknown error',
         retriesAttempted: maxAttempts,
-        ...metadata,
       },
       logContext
     );

@@ -121,12 +121,14 @@ export async function GET(
     orderBy: { createdAt: 'asc' },
   });
 
-  // Group posts by question
+  // Collect posts that aren't associated with any question
+  const unassociatedPosts = posts.filter((p) => p.relatedQuestion === null);
+
+  // Group posts by question (only include posts with matching relatedQuestion)
   const questionData = questions.map((q) => {
-    // Filter posts to those related to this question, or all posts if no relatedQuestion set
+    // Filter posts to those strictly related to this question
     const questionPosts = posts.filter(
-      (p) =>
-        p.relatedQuestion === q.questionNumber || p.relatedQuestion === null
+      (p) => p.relatedQuestion === q.questionNumber
     );
 
     return {

@@ -127,6 +127,10 @@ export async function recordMention(
     );
 
     // Also update the set of mentioned actors
+    // NOTE: This read-modify-write pattern is vulnerable to race conditions.
+    // If the cache API supported atomic SET operations (SADD), we would use that.
+    // Current trade-off: eventual consistency is acceptable for mention tracking
+    // since it's used for boosting engagement probability, not critical data.
     const currentSet = await getCache<string[]>(MENTION_SET_KEY, {});
     const updatedSet = currentSet
       ? [...new Set([...currentSet, actorId])]
@@ -159,14 +163,15 @@ async function getMentionTimestamp(actorId: string): Promise<Date | null> {
       return new Date(cached.timestamp);
     }
   } catch {
-    // Fallback to in-memory cache
-    const memoryValue = memoryFallbackCache.get(actorId);
-    if (memoryValue) {
-      return memoryValue;
-    }
+    // Log but don't return from cache lookup error - fall through to memory fallback
+    logger.debug(
+      'Redis cache lookup failed, will check memory fallback',
+      { actorId },
+      'PlayerInfluence'
+    );
   }
 
-  // Also check in-memory fallback (could have been set before Redis connected)
+  // Check in-memory fallback (could have been set before Redis connected or if Redis failed)
   const memoryValue = memoryFallbackCache.get(actorId);
   return memoryValue ?? null;
 }

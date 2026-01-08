@@ -26,6 +26,7 @@ import {
   type MarketTimeframe,
   type NewSubMarketSpawnLog,
   type NewTimeframedMarket,
+  or,
   organizations,
   sql,
   subMarketSpawnLogs,
@@ -464,27 +465,25 @@ export class SubMarketService {
     const affiliatedOrgIds: string[] = [];
     const affiliatedActorIds: string[] = [];
 
-    if (vars.org) {
-      // Try to find org by name
-      const [org] = await db
-        .select({ id: organizations.id })
-        .from(organizations)
-        .where(eq(organizations.name, vars.org))
-        .limit(1);
-      if (org) {
-        affiliatedOrgIds.push(org.id);
+    // Combine org name and ticker lookups into a single query
+    if (vars.org || vars.ticker) {
+      const conditions = [];
+      if (vars.org) {
+        conditions.push(eq(organizations.name, vars.org));
       }
-    }
+      if (vars.ticker) {
+        conditions.push(eq(organizations.ticker, vars.ticker));
+      }
 
-    if (vars.ticker) {
-      // Try to find org by ticker
-      const [org] = await db
+      const orgs = await db
         .select({ id: organizations.id })
         .from(organizations)
-        .where(eq(organizations.ticker, vars.ticker))
-        .limit(1);
-      if (org) {
-        affiliatedOrgIds.push(org.id);
+        .where(or(...conditions));
+
+      for (const org of orgs) {
+        if (!affiliatedOrgIds.includes(org.id)) {
+          affiliatedOrgIds.push(org.id);
+        }
       }
     }
 

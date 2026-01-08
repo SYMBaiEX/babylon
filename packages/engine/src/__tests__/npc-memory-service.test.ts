@@ -44,18 +44,19 @@ describe('NPC Memory Service - Format Memories For Prompt', () => {
   });
 
   test('formats multiple memories correctly', () => {
+    // Use fixed timestamps for deterministic testing
     const memories: NpcMemory[] = [
       {
         id: 'mem-1',
         type: 'posted',
-        timestamp: new Date().toISOString(),
+        timestamp: '2025-01-01T12:00:00.000Z',
         summary: 'Posted about crypto news',
         sentiment: 0.5,
       },
       {
         id: 'mem-2',
         type: 'replied_to',
-        timestamp: new Date(Date.now() - 30 * 60 * 1000).toISOString(), // 30 mins ago
+        timestamp: '2025-01-01T11:30:00.000Z', // 30 mins before first memory
         summary: 'Replied to a comment about trading',
         sentiment: 0.3,
       },
@@ -80,28 +81,26 @@ describe('NPC Memory Service - Format Memories For Prompt', () => {
   });
 
   test('formats time ago for hours', () => {
-    const memory: NpcMemory = {
-      id: 'mem-1',
-      type: 'posted',
-      timestamp: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(), // 3 hours ago
-      summary: 'Test memory',
-      sentiment: 0,
-    };
+    // Use fixed timestamps for deterministic testing
+    const fixedNow = new Date('2025-01-01T15:00:00.000Z');
+    const threeHoursAgo = new Date(
+      fixedNow.getTime() - 3 * 60 * 60 * 1000
+    ).toISOString();
 
-    const formatted = npcMemoryService.formatMemoriesForPrompt([memory]);
-    expect(formatted).toContain('3h ago');
+    // Test the formatTimeAgo method directly with fixed 'now'
+    const formatted = npcMemoryService.formatTimeAgo(threeHoursAgo, fixedNow);
+    expect(formatted).toBe('3h ago');
   });
 
   test('formats time ago for days', () => {
-    const memory: NpcMemory = {
-      id: 'mem-1',
-      type: 'posted',
-      timestamp: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(), // 2 days ago
-      summary: 'Test memory',
-      sentiment: 0,
-    };
+    // Use fixed timestamps for deterministic testing
+    const fixedNow = new Date('2025-01-03T12:00:00.000Z');
+    const twoDaysAgo = new Date(
+      fixedNow.getTime() - 2 * 24 * 60 * 60 * 1000
+    ).toISOString();
 
-    const formatted = npcMemoryService.formatMemoriesForPrompt([memory]);
-    expect(formatted).toContain('2d ago');
+    // Test the formatTimeAgo method directly with fixed 'now'
+    const formatted = npcMemoryService.formatTimeAgo(twoDaysAgo, fixedNow);
+    expect(formatted).toBe('2d ago');
   });
 });

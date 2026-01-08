@@ -61,6 +61,7 @@ export const actorState = pgTable(
     postsTodayResetAt: timestamp('postsTodayResetAt', { mode: 'date' }),
 
     // Mood state (-1 to 1)
+    // CHECK constraint current_mood_bounds enforces -1 <= currentMood <= 1 at DB level
     currentMood: decimal('currentMood', { precision: 4, scale: 3 }).default(
       '0'
     ),
@@ -86,6 +87,11 @@ export const actorState = pgTable(
     index('ActorState_lastActiveAt_idx').on(table.lastActiveAt),
     // Prevent negative trading balance at database level
     check('positive_trading_balance', sql`${table.tradingBalance} >= 0`),
+    // Enforce mood bounds (-1 to 1) at database level
+    check(
+      'current_mood_bounds',
+      sql`${table.currentMood} >= -1 AND ${table.currentMood} <= 1`
+    ),
   ]
 );
 

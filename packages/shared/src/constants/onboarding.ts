@@ -44,6 +44,13 @@ export const ONBOARDING_STEP_ORDER: GameOnboardingStep[] = [
 ];
 
 /**
+ * Total points available from completing all onboarding steps
+ */
+export const TOTAL_ONBOARDING_POINTS = Object.values(
+  ONBOARDING_STEP_POINTS
+).reduce((sum, points) => sum + points, 0);
+
+/**
  * Display information for each onboarding step
  */
 export const ONBOARDING_STEP_INFO: Record<
@@ -82,17 +89,10 @@ export const ONBOARDING_STEP_INFO: Record<
   },
   complete: {
     title: 'Onboarding Complete!',
-    description: `Congratulations! You have earned ${Object.values(ONBOARDING_STEP_POINTS).reduce((sum, points) => sum + points, 0)} points from completing all tutorial steps.`,
+    description: `Congratulations! You have earned ${TOTAL_ONBOARDING_POINTS} points from completing all tutorial steps.`,
     points: ONBOARDING_STEP_POINTS.complete,
   },
 };
-
-/**
- * Total points available from completing all onboarding steps
- */
-export const TOTAL_ONBOARDING_POINTS = Object.values(
-  ONBOARDING_STEP_POINTS
-).reduce((sum, points) => sum + points, 0);
 
 /**
  * Get the next step after completing a step

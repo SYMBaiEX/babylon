@@ -212,8 +212,8 @@ export default function ActorProfilePage() {
           const cleanUsername = user.username.startsWith('@')
             ? user.username.slice(1)
             : user.username;
-          // Only redirect if we're not already on the target URL
-          if (cleanUsername !== actorId) {
+          // Only redirect if we're not already on the target URL (case-insensitive comparison)
+          if (cleanUsername.toLowerCase() !== actorId.toLowerCase()) {
             router.replace(`/profile/${cleanUsername}`);
             return;
           }
@@ -393,8 +393,11 @@ export default function ActorProfilePage() {
         profileDescription: org.profileDescription,
         type: 'organization' as const,
         role: 'Organization',
-        // Use static organization image path
-        profileImageUrl: `/images/organizations/${org.id}.jpg`,
+        // Use org profileImageUrl if available, otherwise fall back to static path
+        profileImageUrl:
+          'profileImageUrl' in org && org.profileImageUrl
+            ? org.profileImageUrl
+            : `/images/organizations/${org.id}.jpg`,
         stats,
       });
       setLoading(false);

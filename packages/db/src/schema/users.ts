@@ -50,6 +50,9 @@ export const gameOnboarding = pgTable(
       .default('welcome'),
 
     // Full state as JSONB for flexibility
+    // IMPORTANT: This SQL literal must stay in sync with GameOnboardingState interface.
+    // If you modify GameOnboardingState (add/remove/rename fields), update this default.
+    // See: GameOnboardingState interface above for the TypeScript definition.
     state: jsonb('state')
       .$type<GameOnboardingState>()
       .default(

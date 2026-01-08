@@ -52,6 +52,46 @@ const STATE_DAY_RANGES: Record<LongTermArcState, [number, number]> = {
 const EVENT_COOLDOWN_HOURS = 2;
 
 /**
+ * Description templates for world events by event type.
+ * Shared between createWorldEventFromArcEvent and createWorldEventFromArcEventTx.
+ */
+const WORLD_EVENT_DESCRIPTION_TEMPLATES: Record<
+  StructuredEventData['type'],
+  string[]
+> = {
+  rumor: [
+    'Unconfirmed reports suggest developments regarding {topic}',
+    'Sources claim new information about {topic}',
+    'Speculation grows around {topic}',
+  ],
+  leak: [
+    'Leaked documents reveal details about {topic}',
+    'Anonymous source exposes information on {topic}',
+    'Internal memo surfaces regarding {topic}',
+  ],
+  denial: [
+    'Officials deny reports about {topic}',
+    'Spokesperson refutes claims regarding {topic}',
+    'Strong denial issued concerning {topic}',
+  ],
+  confirmation: [
+    'Sources confirm developments in {topic}',
+    'Official statement verifies {topic}',
+    'Breaking: Confirmation on {topic}',
+  ],
+  reversal: [
+    'Unexpected reversal in {topic}',
+    'Major shift reported on {topic}',
+    'Surprise development contradicts earlier reports on {topic}',
+  ],
+  proof: [
+    'Definitive evidence emerges on {topic}',
+    'Documentation confirms outcome of {topic}',
+    'Final proof released regarding {topic}',
+  ],
+};
+
+/**
  * Get the expected arc state for a given day number (long-term arcs only)
  */
 export function getExpectedState(dayNumber: number): LongTermArcState {
@@ -105,40 +145,86 @@ export function evaluateStateTransition(
 
 /**
  * Transition an arc to a new state with optimistic locking (long-term arcs only)
+ * Includes retry logic for optimistic lock conflicts.
  */
 export async function transitionArcState(
   arcId: string,
   newState: LongTermArcState,
   currentState?: ArcStateType
 ): Promise<boolean> {
-  const now = new Date();
+  const MAX_RETRIES = 3;
+  const RETRY_BASE_DELAY_MS = 50;
 
-  // If currentState provided, use optimistic locking
+  // If currentState provided, use optimistic locking with retry
   if (currentState) {
-    const result = await db
-      .update(arcStates)
-      .set({
-        currentState: newState,
-        stateEnteredAt: now,
-        updatedAt: now,
-        // Clear pending transitions that triggered
-        pendingTransitions: [],
-      })
-      .where(
-        and(eq(arcStates.id, arcId), eq(arcStates.currentState, currentState))
-      )
-      .returning({ id: arcStates.id });
+    let attemptState = currentState;
 
-    if (result.length === 0) {
+    for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+      const now = new Date();
+      const result = await db
+        .update(arcStates)
+        .set({
+          currentState: newState,
+          stateEnteredAt: now,
+          updatedAt: now,
+          // Clear pending transitions that triggered
+          pendingTransitions: [],
+        })
+        .where(
+          and(eq(arcStates.id, arcId), eq(arcStates.currentState, attemptState))
+        )
+        .returning({ id: arcStates.id });
+
+      if (result.length > 0) {
+        logger.info(
+          `Arc ${arcId} transitioned to ${newState}`,
+          { arcId, newState },
+          'NarrativeEventProcessor'
+        );
+        return true;
+      }
+
+      // Conflict - log and retry
       logger.warn(
-        `Optimistic lock conflict transitioning arc ${arcId} from ${currentState} to ${newState}`,
-        { arcId, currentState, newState },
+        `Optimistic lock conflict transitioning arc ${arcId} (attempt ${attempt + 1}/${MAX_RETRIES})`,
+        { arcId, currentState: attemptState, newState },
         'NarrativeEventProcessor'
       );
-      return false;
+
+      if (attempt < MAX_RETRIES - 1) {
+        // Re-read current state for next attempt
+        const [arc] = await db
+          .select({ currentState: arcStates.currentState })
+          .from(arcStates)
+          .where(eq(arcStates.id, arcId))
+          .limit(1);
+
+        if (!arc) {
+          logger.warn(
+            `Arc ${arcId} not found during retry`,
+            { arcId },
+            'NarrativeEventProcessor'
+          );
+          return false;
+        }
+
+        attemptState = arc.currentState;
+
+        // Exponential backoff
+        const delay = RETRY_BASE_DELAY_MS * Math.pow(2, attempt);
+        await new Promise((resolve) => setTimeout(resolve, delay));
+      }
     }
+
+    logger.warn(
+      `Arc ${arcId} transition failed after ${MAX_RETRIES} attempts`,
+      { arcId, currentState, newState },
+      'NarrativeEventProcessor'
+    );
+    return false;
   } else {
     // Fallback to simple update (for backward compatibility)
+    const now = new Date();
     await db
       .update(arcStates)
       .set({
@@ -148,14 +234,14 @@ export async function transitionArcState(
         pendingTransitions: [],
       })
       .where(eq(arcStates.id, arcId));
-  }
 
-  logger.info(
-    `Arc ${arcId} transitioned to ${newState}`,
-    { arcId, newState },
-    'NarrativeEventProcessor'
-  );
-  return true;
+    logger.info(
+      `Arc ${arcId} transitioned to ${newState}`,
+      { arcId, newState },
+      'NarrativeEventProcessor'
+    );
+    return true;
+  }
 }
 
 /**
@@ -298,41 +384,7 @@ export async function createWorldEventFromArcEvent(
   dayNumber?: number,
   questionNumber?: number | null
 ): Promise<string> {
-  // Map structured event type to world event description
-  const descriptionTemplates: Record<StructuredEventData['type'], string[]> = {
-    rumor: [
-      'Unconfirmed reports suggest developments regarding {topic}',
-      'Sources claim new information about {topic}',
-      'Speculation grows around {topic}',
-    ],
-    leak: [
-      'Leaked documents reveal details about {topic}',
-      'Anonymous source exposes information on {topic}',
-      'Internal memo surfaces regarding {topic}',
-    ],
-    denial: [
-      'Officials deny reports about {topic}',
-      'Spokesperson refutes claims regarding {topic}',
-      'Strong denial issued concerning {topic}',
-    ],
-    confirmation: [
-      'Sources confirm developments in {topic}',
-      'Official statement verifies {topic}',
-      'Breaking: Confirmation on {topic}',
-    ],
-    reversal: [
-      'Unexpected reversal in {topic}',
-      'Major shift reported on {topic}',
-      'Surprise development contradicts earlier reports on {topic}',
-    ],
-    proof: [
-      'Definitive evidence emerges on {topic}',
-      'Documentation confirms outcome of {topic}',
-      'Final proof released regarding {topic}',
-    ],
-  };
-
-  const templates = descriptionTemplates[structuredEvent.type];
+  const templates = WORLD_EVENT_DESCRIPTION_TEMPLATES[structuredEvent.type];
   const template = templates[Math.floor(secureRandom() * templates.length)]!;
   const topic =
     questionText.length > 80 ? questionText.slice(0, 80) + '...' : questionText;
@@ -384,41 +436,7 @@ async function createWorldEventFromArcEventTx(
   dayNumber?: number,
   questionNumber?: number | null
 ): Promise<string> {
-  // Map structured event type to world event description
-  const descriptionTemplates: Record<StructuredEventData['type'], string[]> = {
-    rumor: [
-      'Unconfirmed reports suggest developments regarding {topic}',
-      'Sources claim new information about {topic}',
-      'Speculation grows around {topic}',
-    ],
-    leak: [
-      'Leaked documents reveal details about {topic}',
-      'Anonymous source exposes information on {topic}',
-      'Internal memo surfaces regarding {topic}',
-    ],
-    denial: [
-      'Officials deny reports about {topic}',
-      'Spokesperson refutes claims regarding {topic}',
-      'Strong denial issued concerning {topic}',
-    ],
-    confirmation: [
-      'Sources confirm developments in {topic}',
-      'Official statement verifies {topic}',
-      'Breaking: Confirmation on {topic}',
-    ],
-    reversal: [
-      'Unexpected reversal in {topic}',
-      'Major shift reported on {topic}',
-      'Surprise development contradicts earlier reports on {topic}',
-    ],
-    proof: [
-      'Definitive evidence emerges on {topic}',
-      'Documentation confirms outcome of {topic}',
-      'Final proof released regarding {topic}',
-    ],
-  };
-
-  const templates = descriptionTemplates[structuredEvent.type];
+  const templates = WORLD_EVENT_DESCRIPTION_TEMPLATES[structuredEvent.type];
   const template = templates[Math.floor(secureRandom() * templates.length)]!;
   const topic =
     questionText.length > 80 ? questionText.slice(0, 80) + '...' : questionText;

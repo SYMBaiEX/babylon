@@ -541,6 +541,14 @@ export function getStateBoundaries(
 ): Array<{ state: string; start: Date; end: Date }> {
   const config = TIMEFRAME_CONFIGS[timeframe];
   const states = config.arcStates;
+
+  // Guard against division by zero when no arc states are defined
+  if (states.length === 0) {
+    throw new Error(
+      `getStateBoundaries: no arcStates defined for timeframe '${timeframe}'`
+    );
+  }
+
   const totalDuration = endTime.getTime() - startTime.getTime();
   const phaseDuration = totalDuration / states.length;
 

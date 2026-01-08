@@ -109,6 +109,36 @@ export interface MultiStepDecision {
 }
 
 // =============================================================================
+// Share Behavior Helper
+// =============================================================================
+
+/**
+ * Share behavior types for post-trade sharing decisions.
+ * Mutually exclusive - exactly one applies per roll.
+ */
+export type ShareBehavior = 'public_only' | 'group_only' | 'both' | 'quiet';
+
+/**
+ * Determine share behavior based on a random roll.
+ * Pure function for testability - call Math.random() only at the edge.
+ *
+ * Probability distribution (non-overlapping ranges):
+ * - 40% (0.00 - 0.40): public_only - Share publicly via POST
+ * - 15% (0.40 - 0.55): both - Share both publicly AND in group chat
+ * - 25% (0.55 - 0.80): group_only - Share in group chat only
+ * - 20% (0.80 - 1.00): quiet - Stay quiet, no sharing
+ *
+ * @param roll - Random value between 0 and 1
+ * @returns ShareBehavior indicating how to share the trade
+ */
+export function determineShareBehavior(roll: number): ShareBehavior {
+  if (roll < 0.4) return 'public_only';
+  if (roll < 0.55) return 'both';
+  if (roll < 0.8) return 'group_only';
+  return 'quiet';
+}
+
+// =============================================================================
 // Prompt Builder
 // =============================================================================
 
@@ -208,15 +238,13 @@ ${NPC_POST_QUALITY_RULES}
   // Encourage sharing after trades - users love seeing NPCs share their trades
   // Add randomness to feel human - not every trade gets shared
   const shareTradeRoll = Math.random(); // 0-1 randomness for human-like behavior
+  const shareBehavior = determineShareBehavior(shareTradeRoll);
 
-  // Determine sharing behavior based on randomness:
-  // - 40% chance: Share publicly (POST)
-  // - 25% chance: Share in group chat only
-  // - 15% chance: Share both publicly AND in group chat
-  // - 20% chance: Stay quiet (just made the trade, no need to brag)
-  const shouldSharePublicly = shareTradeRoll < 0.55; // 40% + 15% = 55%
-  const shouldShareInGroup = shareTradeRoll >= 0.4 && shareTradeRoll < 0.8; // 25% + 15% = 40%
-  const shouldStayQuiet = shareTradeRoll >= 0.8; // 20%
+  const shouldSharePublicly =
+    shareBehavior === 'public_only' || shareBehavior === 'both';
+  const shouldShareInGroup =
+    shareBehavior === 'group_only' || shareBehavior === 'both';
+  const shouldStayQuiet = shareBehavior === 'quiet';
 
   const tradePostEncouragement =
     justTraded && tradeDetails
@@ -276,6 +304,7 @@ ${
     }
     if (canEngage) {
       priorityActions.push('LIKE posts you agree with');
+      priorityActions.push('REPOST content worth amplifying');
     }
     if (canTrade && !justTraded) {
       priorityActions.push('TRADE if you have market conviction');

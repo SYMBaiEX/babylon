@@ -251,8 +251,14 @@ export async function POST(_req: NextRequest) {
     // Get world facts for context
     const worldFactsContext = await worldFactsService.generatePromptContext();
 
-    // Randomly select organizations for this tick using secureRandom for consistency
-    const shuffledOrgs = [...allOrgs].sort(() => secureRandom() - 0.5);
+    // Randomly select organizations for this tick using Fisher-Yates shuffle with secureRandom
+    const shuffledOrgs = [...allOrgs];
+    for (let i = shuffledOrgs.length - 1; i > 0; i--) {
+      const j = Math.floor(secureRandom() * (i + 1));
+      const temp = shuffledOrgs[i]!;
+      shuffledOrgs[i] = shuffledOrgs[j]!;
+      shuffledOrgs[j] = temp;
+    }
     const orgsThisTick = shuffledOrgs.slice(0, ORGS_PER_TICK);
 
     logger.info(

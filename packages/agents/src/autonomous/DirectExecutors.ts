@@ -1170,30 +1170,34 @@ export async function executeDirectRepost(
   const now = new Date();
 
   try {
+    // Pre-generate IDs before transaction
     const shareId = await generateSnowflakeId();
+    const hasQuote = comment && comment.trim().length >= 3;
+    const quotePostId = hasQuote ? await generateSnowflakeId() : undefined;
 
-    // Create share record
-    await db.insert(shares).values({
-      id: shareId,
-      userId: agentUserId,
-      postId,
-      createdAt: now,
-    });
-
-    // If there's a quote comment, create a quote post (min 3 chars like comments)
-    let quotePostId: string | undefined;
-    if (comment && comment.trim().length >= 3) {
-      quotePostId = await generateSnowflakeId();
-      await db.insert(posts).values({
-        id: quotePostId,
-        content: comment.trim(),
-        authorId: agentUserId,
-        originalPostId: postId,
-        type: 'repost',
-        timestamp: now,
+    // Use transaction to ensure atomicity of share and quote post
+    await db.transaction(async (tx) => {
+      // Create share record
+      await tx.insert(shares).values({
+        id: shareId,
+        userId: agentUserId,
+        postId,
         createdAt: now,
       });
-    }
+
+      // If there's a quote comment, create a quote post (min 3 chars like comments)
+      if (hasQuote && quotePostId) {
+        await tx.insert(posts).values({
+          id: quotePostId,
+          content: comment!.trim(),
+          authorId: agentUserId,
+          originalPostId: postId,
+          type: 'repost',
+          timestamp: now,
+          createdAt: now,
+        });
+      }
+    });
 
     logger.info(
       `[DirectExecutor] Post reposted: ${postId} -> share ${shareId}${quotePostId ? ` with quote ${quotePostId}` : ''}`,

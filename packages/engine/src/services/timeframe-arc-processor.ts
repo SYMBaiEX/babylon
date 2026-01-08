@@ -69,6 +69,10 @@ export interface TimeframeTickResult {
   eventsGenerated: number;
   subMarketsSpawned: number;
   errors: string[];
+  /** Whether a catastrophic failure occurred during processing */
+  failed?: boolean;
+  /** Error message when failed is true */
+  failureMessage?: string;
   /** Events that can trigger article generation */
   eventTriggers: Array<{
     marketId: string;
@@ -134,6 +138,7 @@ export class TimeframeArcProcessor {
    * Process all active markets for the current tick
    */
   async processTick(now: Date = new Date()): Promise<TimeframeTickResult> {
+    const BATCH_SIZE = 100; // Process markets in batches to avoid unbounded queries
     const result: TimeframeTickResult = {
       marketsProcessed: 0,
       transitionsOccurred: 0,
@@ -144,19 +149,33 @@ export class TimeframeArcProcessor {
     };
 
     try {
-      // Get all active markets
-      const activeMarkets = await db
-        .select()
-        .from(timeframedMarkets)
-        .where(eq(timeframedMarkets.isActive, true));
+      // Get active markets in batches to avoid unbounded queries
+      let offset = 0;
+      let hasMore = true;
 
-      logger.debug(
-        `Processing ${activeMarkets.length} active markets`,
-        {},
-        'TimeframeArcProcessor'
-      );
+      while (hasMore) {
+        const activeMarkets = await db
+          .select()
+          .from(timeframedMarkets)
+          .where(eq(timeframedMarkets.isActive, true))
+          .limit(BATCH_SIZE)
+          .offset(offset);
 
-      for (const market of activeMarkets) {
+        if (activeMarkets.length < BATCH_SIZE) {
+          hasMore = false;
+        }
+
+        if (activeMarkets.length === 0) {
+          break;
+        }
+
+        logger.debug(
+          `Processing batch of ${activeMarkets.length} active markets (offset: ${offset})`,
+          {},
+          'TimeframeArcProcessor'
+        );
+
+        for (const market of activeMarkets) {
         try {
           result.marketsProcessed++;
 
@@ -206,6 +225,9 @@ export class TimeframeArcProcessor {
             'TimeframeArcProcessor'
           );
         }
+        }
+
+        offset += BATCH_SIZE;
       }
 
       logger.info(
@@ -220,11 +242,15 @@ export class TimeframeArcProcessor {
         'TimeframeArcProcessor'
       );
     } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
       logger.error(
         `Tick failed`,
-        { error: error instanceof Error ? error.message : String(error) },
+        { error: errorMessage },
         'TimeframeArcProcessor'
       );
+      result.failed = true;
+      result.failureMessage = errorMessage;
     }
 
     return result;
@@ -315,10 +341,12 @@ export class TimeframeArcProcessor {
       };
     }
 
-    // Select event type
+    // Select event type with fallback to ensure non-undefined result
     const eventTypes = STATE_EVENT_TYPES[market.arcState] ?? ['generic_event'];
     const eventType =
-      eventTypes[Math.floor(secureRandom() * eventTypes.length)];
+      eventTypes.length > 0
+        ? eventTypes[Math.floor(secureRandom() * eventTypes.length)]!
+        : 'generic_event';
 
     // Update market
     await db

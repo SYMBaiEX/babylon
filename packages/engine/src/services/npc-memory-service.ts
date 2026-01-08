@@ -73,6 +73,9 @@ export class NpcMemoryService {
     actorId: string,
     memory: Omit<NpcMemory, 'id'>
   ): Promise<boolean> {
+    // Generate memory ID once before the retry loop to ensure consistency across retries
+    const memoryId = await generateSnowflakeId();
+
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
       try {
         // Get current state with updatedAt for optimistic locking
@@ -97,9 +100,9 @@ export class NpcMemoryService {
         // Parse memories with Zod validation - handles corrupted data gracefully
         const memories = parseMemoriesSafe(state.recentMemories, { actorId });
 
-        // Create new memory with ID
+        // Create new memory with pre-generated ID
         const newMemory: NpcMemory = {
-          id: await generateSnowflakeId(),
+          id: memoryId,
           ...memory,
         };
 
@@ -155,11 +158,29 @@ export class NpcMemoryService {
         );
         return true; // Success
       } catch (error) {
+        // Log the error but allow retries for transient DB errors
         logger.error(
-          `Failed to add memory for ${actorId}`,
+          `Failed to add memory for ${actorId} (attempt ${attempt + 1}/${MAX_RETRIES})`,
           { error: error instanceof Error ? error.message : String(error) },
           'NpcMemoryService'
         );
+
+        // Check if this is a non-retryable error (e.g., constraint violation)
+        const errorCode = (error as { code?: string }).code;
+        const isConstraintViolation =
+          errorCode === '23505' ||
+          errorCode === 'P2002' ||
+          errorCode === '23503';
+        if (isConstraintViolation) {
+          return false; // Don't retry constraint violations
+        }
+
+        // For transient errors, allow retry with backoff
+        if (attempt < MAX_RETRIES - 1) {
+          const delay = RETRY_BASE_DELAY_MS * Math.pow(2, attempt);
+          await new Promise((resolve) => setTimeout(resolve, delay));
+          continue;
+        }
         return false;
       }
     }
@@ -257,7 +278,7 @@ export class NpcMemoryService {
       sentimentChange: number; // -1 to 1
       note?: string;
     }
-  ): Promise<void> {
+  ): Promise<boolean> {
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
       try {
         const [state] = await db
@@ -275,7 +296,7 @@ export class NpcMemoryService {
             { actorId },
             'NpcMemoryService'
           );
-          return;
+          return false;
         }
 
         // Parse relationships with Zod validation - handles corrupted data gracefully
@@ -346,7 +367,7 @@ export class NpcMemoryService {
             { actorId },
             'NpcMemoryService'
           );
-          return;
+          return false;
         }
 
         logger.debug(
@@ -358,7 +379,7 @@ export class NpcMemoryService {
           },
           'NpcMemoryService'
         );
-        return; // Success
+        return true; // Success
       } catch (error) {
         logger.error(
           `Failed to update relationship`,
@@ -369,9 +390,10 @@ export class NpcMemoryService {
           },
           'NpcMemoryService'
         );
-        return;
+        return false;
       }
     }
+    return false; // Should not reach here, but ensures return type
   }
 
   /**
@@ -391,7 +413,7 @@ export class NpcMemoryService {
       active?: boolean;
       gameStartedAt?: Date;
     } = {}
-  ): Promise<void> {
+  ): Promise<boolean> {
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
       try {
         const now = new Date();
@@ -413,7 +435,7 @@ export class NpcMemoryService {
             { actorId },
             'NpcMemoryService'
           );
-          return;
+          return false;
         }
 
         const updates: Partial<{
@@ -495,19 +517,20 @@ export class NpcMemoryService {
             { actorId },
             'NpcMemoryService'
           );
-          return;
+          return false;
         }
 
-        return; // Success
+        return true; // Success
       } catch (error) {
         logger.error(
           `Failed to update activity state for ${actorId}`,
           { error: error instanceof Error ? error.message : String(error) },
           'NpcMemoryService'
         );
-        return;
+        return false;
       }
     }
+    return false; // Should not reach here, but ensures return type
   }
 
   /**

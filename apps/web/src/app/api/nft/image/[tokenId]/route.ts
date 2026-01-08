@@ -270,7 +270,7 @@ export async function GET(
     const contentType =
       imageResponse.headers.get('content-type') || 'image/png';
 
-    // Store in cache (with LRU eviction)
+    // Store in cache (with FIFO eviction based on insertion time)
     addToCache(tokenId, imageBuffer, contentType);
 
     // Return image with proper headers and caching

@@ -144,7 +144,8 @@ export function isActiveHour(
   gameDay = 1
 ): boolean {
   const activeHours = getActorActiveHours(actor.id, gameDay);
-  return activeHours.includes(utcHour);
+  const activeHoursSet = new Set(activeHours);
+  return activeHoursSet.has(utcHour);
 }
 
 /**

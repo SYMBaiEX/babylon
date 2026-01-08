@@ -533,20 +533,37 @@ export function ProfileWidget({ userId }: ProfileWidgetProps) {
               fetch(`/api/markets/positions/${encodeURIComponent(userId)}`),
             ]);
 
+            let balanceData: UserBalanceData | null = null;
+            let predictionsData: PredictionPosition[] = predictions;
+            let perpsData: PerpPositionFromAPI[] = perps;
+
             if (balanceRes?.ok) {
               const balanceJson = await balanceRes.json();
-              setBalance({
+              balanceData = {
                 balance: Number(balanceJson.balance),
                 totalDeposited: Number(balanceJson.totalDeposited),
                 totalWithdrawn: Number(balanceJson.totalWithdrawn),
                 lifetimePnL: Number(balanceJson.lifetimePnL),
-              });
+              };
+              setBalance(balanceData);
             }
 
             if (positionsRes?.ok) {
               const positionsJson = await positionsRes.json();
-              setPredictions(positionsJson.predictions?.positions ?? []);
-              setPerps(positionsJson.perpetuals?.positions ?? []);
+              predictionsData = positionsJson.predictions?.positions ?? [];
+              perpsData = positionsJson.perpetuals?.positions ?? [];
+              setPredictions(predictionsData);
+              setPerps(perpsData);
+            }
+
+            // Update widgetCache only when both fetches succeed
+            if (balanceRes?.ok && positionsRes?.ok && balanceData) {
+              widgetCache.setProfileWidget(userId, {
+                balance: balanceData,
+                predictions: predictionsData,
+                perps: perpsData,
+                stats,
+              });
             }
           } catch (refreshError) {
             console.error('Error refreshing profile data:', refreshError);

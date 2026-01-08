@@ -120,7 +120,26 @@ export function GameOnboardingProvider({
       });
 
       if (response.ok) {
-        const data = (await response.json()) as {
+        const rawData: unknown = await response.json();
+
+        // Runtime validation of response shape
+        if (
+          typeof rawData !== 'object' ||
+          rawData === null ||
+          typeof (rawData as Record<string, unknown>).success !== 'boolean' ||
+          typeof (rawData as Record<string, unknown>).pointsAwarded !==
+            'number' ||
+          typeof (rawData as Record<string, unknown>).nextStep !== 'string' ||
+          typeof (rawData as Record<string, unknown>).isComplete !== 'boolean'
+        ) {
+          console.error(
+            'Invalid response shape from game-complete-step API:',
+            rawData
+          );
+          return;
+        }
+
+        const data = rawData as {
           success: boolean;
           pointsAwarded: number;
           nextStep: GameOnboardingStep;
@@ -157,7 +176,9 @@ export function GameOnboardingProvider({
         method: 'POST',
       });
       if (response.ok) {
-        setStatus((prev) => (prev ? { ...prev, isComplete: true } : null));
+        setStatus((prev) =>
+          prev ? { ...prev, isComplete: true, completedSteps: [] } : null
+        );
         setShowTooltip(false);
       }
     } catch (error) {

@@ -376,9 +376,31 @@ Post: "${post.content.slice(0, 250)}"
     );
 
     const comment = response.comment?.trim();
-    return comment && comment.length > 3 && comment.length < 300
-      ? comment
-      : null;
+    if (comment && comment.length > 3 && comment.length < 300) {
+      return comment;
+    }
+
+    // Debug log for rejected comments to help diagnose filtering
+    if (comment) {
+      logger.debug(
+        'NPC comment rejected',
+        {
+          actorId: actor.id,
+          postId: post.id,
+          commentLength: comment.length,
+          rejectionReason:
+            comment.length <= 3
+              ? 'too_short'
+              : comment.length >= 300
+                ? 'too_long'
+                : 'unknown',
+          commentPreview:
+            comment.length > 50 ? comment.substring(0, 50) + '...' : comment,
+        },
+        'NPCSocialEngagement'
+      );
+    }
+    return null;
   } catch (err) {
     logger.error(
       'Failed to generate NPC comment',

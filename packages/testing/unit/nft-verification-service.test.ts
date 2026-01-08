@@ -55,7 +55,7 @@ describe('NFTVerificationService', () => {
       expect(result.reason).toContain('Wallet address required');
     });
 
-    test('should include token ID in reason when token-specific', async () => {
+    test('should throw ValidationError for invalid contract address', async () => {
       // This will fail validation, but we can check the error structure
       // Use try/catch to verify both error type and message
       try {
