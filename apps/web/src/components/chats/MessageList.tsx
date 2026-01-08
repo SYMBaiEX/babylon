@@ -5,7 +5,19 @@ import { Loader2, MessageCircle } from 'lucide-react';
 import React from 'react';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { MessageBubble } from './MessageBubble';
+import { SystemMessage } from './SystemMessage';
 import type { ChatParticipant, Message } from './types';
+
+type MessageType = 'system' | 'user';
+
+function getMessageType(senderId: string): MessageType {
+  switch (senderId) {
+    case 'system':
+      return 'system';
+    default:
+      return 'user';
+  }
+}
 
 interface MessageListProps {
   messages: Message[];
@@ -84,19 +96,29 @@ export function MessageList({
 
       {/* Messages */}
       {messages.map((msg) => {
-        const sender = participants.find((p) => p.id === msg.senderId);
-        const isCurrentUser = currentUserId
-          ? msg.senderId === currentUserId
-          : false;
+        const messageType = getMessageType(msg.senderId);
 
-        return (
-          <MessageBubble
-            key={msg.id}
-            message={msg}
-            sender={sender}
-            isCurrentUser={isCurrentUser}
-          />
-        );
+        switch (messageType) {
+          case 'system':
+            return <SystemMessage key={msg.id} message={msg} />;
+
+          case 'user':
+          default: {
+            const sender = participants.find((p) => p.id === msg.senderId);
+            const isCurrentUser = currentUserId
+              ? msg.senderId === currentUserId
+              : false;
+
+            return (
+              <MessageBubble
+                key={msg.id}
+                message={msg}
+                sender={sender}
+                isCurrentUser={isCurrentUser}
+              />
+            );
+          }
+        }
       })}
 
       {/* Empty state */}
