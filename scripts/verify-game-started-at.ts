@@ -9,6 +9,7 @@
  */
 
 import { db, eq, games } from '@babylon/db';
+import { getGameDayNumber } from '../packages/engine/src/utils/date-utils';
 
 async function verifyGameStartedAt() {
   console.log('🔍 Checking continuous game startedAt...\n');
@@ -56,20 +57,15 @@ async function verifyGameStartedAt() {
     process.exit(1);
   }
 
-  // Calculate expected day
-  const MS_PER_DAY = 24 * 60 * 60 * 1000;
+  // Calculate expected day using centralized utility
   const now = new Date();
-  const daysElapsed = Math.floor(
-    (now.getTime() - game.startedAt.getTime()) / MS_PER_DAY
-  );
-  const expectedDay = daysElapsed + 1; // 1-indexed
+  const expectedDay = getGameDayNumber(game.startedAt, now);
 
   console.log('Day Calculation:');
   console.log(`  Now: ${now.toISOString()}`);
   console.log(
     `  Hours since start: ${((now.getTime() - game.startedAt.getTime()) / (1000 * 60 * 60)).toFixed(2)}`
   );
-  console.log(`  Days elapsed: ${daysElapsed}`);
   console.log(`  Expected Day (1-indexed): ${expectedDay}`);
   console.log(`  Stored Day: ${game.currentDay}`);
   console.log('');

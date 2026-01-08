@@ -390,8 +390,8 @@ export class NpcMemoryService {
             error.message.includes('timeout'));
 
         if (isTransient && attempt < MAX_RETRIES - 1) {
-          // Exponential backoff before retry
-          const delay = 100 * 2 ** attempt;
+          // Exponential backoff before retry using shared constant
+          const delay = RETRY_BASE_DELAY_MS * 2 ** attempt;
           await new Promise((resolve) => setTimeout(resolve, delay));
           continue;
         }
@@ -538,9 +538,36 @@ export class NpcMemoryService {
 
         return true; // Success
       } catch (error) {
+        // Check if this is a transient/connection error that should be retried
+        const isTransient =
+          error instanceof Error &&
+          (error.message.includes('ECONNRESET') ||
+            error.message.includes('ETIMEDOUT') ||
+            error.message.includes('connection') ||
+            error.message.includes('timeout'));
+
+        if (isTransient && attempt < MAX_RETRIES - 1) {
+          // Exponential backoff before retry using shared constant
+          const delay = RETRY_BASE_DELAY_MS * 2 ** attempt;
+          await new Promise((resolve) => setTimeout(resolve, delay));
+          logger.debug(
+            `Transient error updating activity state for ${actorId}, retrying (attempt ${attempt + 1})`,
+            {
+              actorId,
+              error: error instanceof Error ? error.message : String(error),
+            },
+            'NpcMemoryService'
+          );
+          continue;
+        }
+
         logger.error(
           `Failed to update activity state for ${actorId}`,
-          { error: error instanceof Error ? error.message : String(error) },
+          {
+            error: error instanceof Error ? error.message : String(error),
+            attempt: attempt + 1,
+            isTransient,
+          },
           'NpcMemoryService'
         );
         return false;

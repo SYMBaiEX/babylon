@@ -366,6 +366,13 @@ export const postingProbabilityService = new PostingProbabilityService();
 const RECENT_EVENTS_HOURS = 6;
 
 /**
+ * Maximum number of recent events to fetch from the database.
+ * This cap bounds memory/processing and may exclude older events within
+ * the RECENT_EVENTS_HOURS time window when there are many events.
+ */
+const MAX_RECENT_EVENTS = 50;
+
+/**
  * Cache duration for active events (in milliseconds)
  * Events don't change frequently, so cache for 2 minutes
  */
@@ -408,13 +415,13 @@ export async function getActiveEventsForPosting(): Promise<{
     currentDate.getTime() - RECENT_EVENTS_HOURS * 60 * 60 * 1000
   );
 
-  // Fetch recent world events
+  // Fetch recent world events (capped to MAX_RECENT_EVENTS to bound memory/processing)
   const recentEvents = await db
     .select()
     .from(worldEvents)
     .where(gte(worldEvents.timestamp, cutoff))
     .orderBy(desc(worldEvents.timestamp))
-    .limit(50);
+    .limit(MAX_RECENT_EVENTS);
 
   // Build active events for posting context
   const activeEvents: PostingContext['activeEvents'] = [];

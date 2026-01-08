@@ -9,7 +9,7 @@
  * Vercel-compatible: No filesystem access, all data from database.
  */
 
-import { db, eq, games, getDbInstance, markets } from '@babylon/db';
+import { db, desc, eq, games, getDbInstance, markets } from '@babylon/db';
 import { logger } from '@babylon/shared';
 import { StaticDataRegistry } from './services/static-data-registry';
 import { getGameDayNumber } from './utils/date-utils';
@@ -135,6 +135,7 @@ class GameService {
       })
       .from(games)
       .where(eq(games.isContinuous, true))
+      .orderBy(desc(games.startedAt))
       .limit(1);
 
     if (!game) {

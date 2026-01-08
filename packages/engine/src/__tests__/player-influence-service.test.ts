@@ -99,11 +99,11 @@ describe('Player Influence Service - Synchronous Mention Check', () => {
 });
 
 describe('Player Influence Service - Service Singleton', () => {
-  test('singleton returns same instance on multiple imports', () => {
+  test('singleton returns same instance on multiple imports', async () => {
     // Verify singleton identity - multiple references should be the same object
-    const {
-      playerInfluenceService: secondRef,
-    } = require('../services/player-influence-service');
+    const { playerInfluenceService: secondRef } = await import(
+      '../services/player-influence-service'
+    );
     expect(playerInfluenceService).toBe(secondRef);
   });
 

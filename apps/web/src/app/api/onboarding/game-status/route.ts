@@ -23,21 +23,23 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   const onboarding = await getOrCreateOnboarding(user.userId);
   const state = onboarding.state;
 
+  // Type guard for reward validation
+  function isValidReward(r: unknown): r is { points: number } {
+    return (
+      r !== null &&
+      typeof r === 'object' &&
+      'points' in r &&
+      typeof (r as { points: unknown }).points === 'number' &&
+      !isNaN((r as { points: number }).points)
+    );
+  }
+
   // Calculate total points earned, defensively validating each reward item
   const totalPointsEarned =
-    state?.rewards?.reduce((sum: number, r: unknown) => {
-      // Validate r is an object with a numeric points property
-      if (
-        r !== null &&
-        typeof r === 'object' &&
-        'points' in r &&
-        typeof (r as { points: unknown }).points === 'number' &&
-        !isNaN((r as { points: number }).points)
-      ) {
-        return sum + (r as { points: number }).points;
-      }
-      return sum;
-    }, 0) ?? 0;
+    state?.rewards?.reduce(
+      (sum: number, r: unknown) => (isValidReward(r) ? sum + r.points : sum),
+      0
+    ) ?? 0;
 
   return successResponse({
     currentStep: onboarding.currentStep,

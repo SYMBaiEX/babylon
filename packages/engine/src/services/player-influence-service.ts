@@ -21,6 +21,11 @@ import { StaticDataRegistry } from './static-data-registry';
 const SIGNIFICANT_TRADE_THRESHOLD = 1000;
 
 /**
+ * Batch size for fetching mention timestamps to avoid overwhelming Redis
+ */
+const MENTION_LOOKUP_BATCH_SIZE = 20;
+
+/**
  * Threshold for a "large" trade that warrants special mention
  */
 const LARGE_TRADE_THRESHOLD = 5000;
@@ -272,13 +277,20 @@ export async function getRecentlyMentionedActorIds(): Promise<string[]> {
     // Try to get from Redis set
     const cachedSet = await getCache<string[]>(MENTION_SET_KEY, {});
     if (cachedSet && cachedSet.length > 0) {
-      // Batch fetch all timestamps in parallel to avoid N+1 queries
-      const timestampResults = await Promise.all(
-        cachedSet.map(async (actorId) => ({
-          actorId,
-          timestamp: await getMentionTimestamp(actorId),
-        }))
-      );
+      // Batch fetch timestamps in controlled chunks to avoid overwhelming Redis
+      const timestampResults: { actorId: string; timestamp: Date | null }[] =
+        [];
+
+      for (let i = 0; i < cachedSet.length; i += MENTION_LOOKUP_BATCH_SIZE) {
+        const batch = cachedSet.slice(i, i + MENTION_LOOKUP_BATCH_SIZE);
+        const batchResults = await Promise.all(
+          batch.map(async (actorId) => ({
+            actorId,
+            timestamp: await getMentionTimestamp(actorId),
+          }))
+        );
+        timestampResults.push(...batchResults);
+      }
 
       // Filter to only recently mentioned actors
       for (const { actorId, timestamp } of timestampResults) {

@@ -550,6 +550,15 @@ export function getStateBoundaries(
   }
 
   const totalDuration = endTime.getTime() - startTime.getTime();
+
+  // Guard against invalid time range (endTime must be after startTime)
+  if (totalDuration <= 0) {
+    throw new Error(
+      `getStateBoundaries: endTime must be after startTime for timeframe '${timeframe}'. ` +
+        `startTime: ${startTime.toISOString()}, endTime: ${endTime.toISOString()}`
+    );
+  }
+
   const phaseDuration = totalDuration / states.length;
 
   return states.map((state, index) => ({

@@ -221,21 +221,29 @@ describe('Activity Pattern Service - Edge Cases', () => {
   });
 
   test('different actor IDs produce different activity windows', () => {
-    const actor1: ActivityActor = { id: 'alice-123' };
-    const actor2: ActivityActor = { id: 'bob-456' };
+    // Test that the hash function provides reasonable distribution across actor IDs
+    // Generate N different actor IDs and count how often peak hours differ
+    const sampleSize = 100;
+    let differentCount = 0;
 
-    const pattern1 = deriveActivityPattern(actor1);
-    const pattern2 = deriveActivityPattern(actor2);
+    // Use a fixed reference pattern
+    const referenceActor: ActivityActor = { id: 'reference-actor-0' };
+    const referencePattern = deriveActivityPattern(referenceActor);
 
-    // Different IDs should (usually) have different start hours
-    // Note: There's a 1/24 chance they're the same, so this is probabilistic
-    const samePattern =
-      pattern1.peakHours[0] === pattern2.peakHours[0] &&
-      pattern1.peakHours[7] === pattern2.peakHours[7];
+    for (let i = 1; i <= sampleSize; i++) {
+      const testActor: ActivityActor = { id: `test-actor-${i}-${i * 7919}` }; // Use prime multiplier for variety
+      const testPattern = deriveActivityPattern(testActor);
 
-    // This assertion might occasionally fail (1/24 chance)
-    // but is useful for demonstrating the hash distribution
-    expect(samePattern || true).toBe(true); // Always pass but document behavior
+      // Compare the starting peak hour (determines the 8-hour window)
+      if (testPattern.peakHours[0] !== referencePattern.peakHours[0]) {
+        differentCount++;
+      }
+    }
+
+    // With 24 possible starting hours, we expect roughly (23/24) ≈ 95.8% to differ
+    // Allow for reasonable variance: at least 70% should be different
+    const differenceRate = differentCount / sampleSize;
+    expect(differenceRate).toBeGreaterThan(0.7);
   });
 
   test('handles very large game day numbers', () => {

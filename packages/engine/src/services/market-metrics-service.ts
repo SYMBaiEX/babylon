@@ -418,14 +418,14 @@ export class MarketMetricsService {
       const oldestPrice = prices[prices.length - 1]!.price;
 
       // Use 24h ago price from snapshot if available and fresh (more accurate)
+      // Inline the freshness check to ensure TypeScript narrows the type correctly
       const snapshot = snapshotMap.get(orgId);
-      const snapshotIsFresh =
+      const referencePrice =
         snapshot?.price24hAgo != null &&
         snapshot?.price24hAgoUpdatedAt != null &&
-        now - snapshot.price24hAgoUpdatedAt.getTime() <= SNAPSHOT_FRESHNESS_MS;
-      const referencePrice = snapshotIsFresh
-        ? snapshot.price24hAgo
-        : oldestPrice;
+        now - snapshot.price24hAgoUpdatedAt.getTime() <= SNAPSHOT_FRESHNESS_MS
+          ? snapshot.price24hAgo
+          : oldestPrice;
 
       const priceChangePercent =
         referencePrice != null && referencePrice > 0

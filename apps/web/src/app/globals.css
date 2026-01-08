@@ -37,7 +37,7 @@
   --scrollbar-track: #e5e5e6;
   --scrollbar-thumb: #0066FF;
   --scrollbar-thumb-hover: #2952d9;
-  --color-onboarding-primary: #0066FF;
+  --color-onboarding-primary: var(--primary);
   --font-sans: "Helvetica Neue", Helvetica, Arial, sans-serif;
   --font-serif: Georgia, serif;
   --font-mono: "Courier New", Courier, monospace;
@@ -96,7 +96,7 @@
   --scrollbar-track: #000000;
   --scrollbar-thumb: #0066FF;
   --scrollbar-thumb-hover: #2952d9;
-  --color-onboarding-primary: #0066FF;
+  --color-onboarding-primary: var(--primary);
   --font-sans: "Helvetica Neue", Helvetica, Arial, sans-serif;
   --font-serif: Georgia, serif;
   --font-mono: Menlo, monospace;

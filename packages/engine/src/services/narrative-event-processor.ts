@@ -302,8 +302,14 @@ export async function transitionArcState(
 
 /**
  * Check if an event should be generated for this arc (long-term arcs only)
+ *
+ * @param arc - The arc state to check
+ * @param rand - Optional RNG function returning 0-1, defaults to secureRandom(). Pass a seeded RNG for deterministic tests.
  */
-export function shouldGenerateEvent(arc: ArcState): boolean {
+export function shouldGenerateEvent(
+  arc: ArcState,
+  rand: () => number = secureRandom
+): boolean {
   // Event generation probability based on state
   const probabilities: Record<LongTermArcState, number> = {
     setup: 0.3, // 30% chance per tick
@@ -325,7 +331,7 @@ export function shouldGenerateEvent(arc: ArcState): boolean {
     }
   }
 
-  return secureRandom() < prob;
+  return rand() < prob;
 }
 
 /**

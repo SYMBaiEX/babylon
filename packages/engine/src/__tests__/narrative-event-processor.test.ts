@@ -166,18 +166,14 @@ describe('Narrative Event Processor - Event Generation Decision', () => {
       lastEventAt: new Date(Date.now() - 3 * 60 * 60 * 1000), // 3 hours ago
     });
 
-    // After cooldown, event generation is probabilistic
-    // Run multiple times to check it can return true
-    let generatedAtLeastOnce = false;
-    for (let i = 0; i < 50; i++) {
-      if (shouldGenerateEvent(arc)) {
-        generatedAtLeastOnce = true;
-        break;
-      }
-    }
+    // Deterministically test with injected RNG
+    // Crisis state has 0.6 probability, so rand() returning 0.5 should trigger generation
+    const shouldGenerate = shouldGenerateEvent(arc, () => 0.5);
+    expect(shouldGenerate).toBe(true);
 
-    // With crisis probability of 0.6, should generate at least once in 50 tries
-    expect(generatedAtLeastOnce).toBe(true);
+    // RNG returning 0.7 should NOT trigger (0.7 >= 0.6)
+    const shouldNotGenerate = shouldGenerateEvent(arc, () => 0.7);
+    expect(shouldNotGenerate).toBe(false);
   });
 
   test('may generate event when no previous event', () => {
@@ -186,16 +182,14 @@ describe('Narrative Event Processor - Event Generation Decision', () => {
       lastEventAt: null,
     });
 
-    // Without previous event, no cooldown applies
-    let generatedAtLeastOnce = false;
-    for (let i = 0; i < 50; i++) {
-      if (shouldGenerateEvent(arc)) {
-        generatedAtLeastOnce = true;
-        break;
-      }
-    }
+    // Deterministically test with injected RNG
+    // Escalation state has 0.5 probability, so rand() returning 0.4 should trigger generation
+    const shouldGenerate = shouldGenerateEvent(arc, () => 0.4);
+    expect(shouldGenerate).toBe(true);
 
-    expect(generatedAtLeastOnce).toBe(true);
+    // RNG returning 0.6 should NOT trigger (0.6 >= 0.5)
+    const shouldNotGenerate = shouldGenerateEvent(arc, () => 0.6);
+    expect(shouldNotGenerate).toBe(false);
   });
 
   test('resolution phase has lower event probability', () => {
@@ -208,18 +202,27 @@ describe('Narrative Event Processor - Event Generation Decision', () => {
       lastEventAt: null,
     });
 
-    // Count event generations for each
+    // Count event generations for each with a larger sample size
     let crisisCount = 0;
     let resolutionCount = 0;
-    const iterations = 100;
+    const iterations = 1000;
+
+    // Use a simple seeded pseudo-random number generator for deterministic results
+    let seed = 12345;
+    const seededRandom = () => {
+      seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+      return seed / 0x7fffffff;
+    };
 
     for (let i = 0; i < iterations; i++) {
-      if (shouldGenerateEvent(arcCrisis)) crisisCount++;
-      if (shouldGenerateEvent(arcResolution)) resolutionCount++;
+      if (shouldGenerateEvent(arcCrisis, seededRandom)) crisisCount++;
+      if (shouldGenerateEvent(arcResolution, seededRandom)) resolutionCount++;
     }
 
     // Crisis (0.6) should generate more than resolution (0.2)
+    // With 1000 iterations, expect roughly 600 vs 200, so difference should exceed 100
     expect(crisisCount).toBeGreaterThan(resolutionCount);
+    expect(crisisCount - resolutionCount).toBeGreaterThan(100);
   });
 });
 

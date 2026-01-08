@@ -226,7 +226,42 @@ export async function GET(
       );
     }
 
-    const metadata = await metadataResponse.json();
+    // Type for GitHub Contents API response
+    interface GitHubContentMetadata {
+      download_url: string | null;
+      name?: string;
+      path?: string;
+      sha?: string;
+      size?: number;
+      type?: string;
+    }
+
+    function isGitHubContentMetadata(
+      data: unknown
+    ): data is GitHubContentMetadata {
+      return (
+        data !== null &&
+        typeof data === 'object' &&
+        'download_url' in data &&
+        (typeof (data as GitHubContentMetadata).download_url === 'string' ||
+          (data as GitHubContentMetadata).download_url === null)
+      );
+    }
+
+    const metadata: unknown = await metadataResponse.json();
+
+    if (!isGitHubContentMetadata(metadata)) {
+      logger.warn(
+        `Invalid GitHub response for NFT metadata #${tokenId}`,
+        { tokenId },
+        'GET /api/nft/image/[tokenId]'
+      );
+      return NextResponse.json(
+        { error: 'Invalid GitHub response' },
+        { status: 502 }
+      );
+    }
+
     const downloadUrl = metadata.download_url;
 
     // Validate download URL exists and is from a trusted GitHub domain

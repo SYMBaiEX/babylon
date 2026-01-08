@@ -73,11 +73,11 @@ export function GameOnboardingTooltip({
           />
 
           {/* Tooltip content */}
-          <div className="rounded-xl border border-[#0066FF]/30 bg-gradient-to-br from-[#0066FF]/20 to-[#0066FF]/10 p-4 shadow-xl backdrop-blur-sm">
+          <div className="rounded-xl border border-[var(--color-onboarding-primary)]/30 bg-gradient-to-br from-[var(--color-onboarding-primary)]/20 to-[var(--color-onboarding-primary)]/10 p-4 shadow-xl backdrop-blur-sm">
             <div className="mb-3 flex items-start justify-between">
               <div className="flex items-center gap-2">
-                <div className="rounded-lg bg-[#0066FF]/20 p-1.5">
-                  <Sparkles className="h-4 w-4 text-[#0066FF]" />
+                <div className="rounded-lg bg-[var(--color-onboarding-primary)]/20 p-1.5">
+                  <Sparkles className="h-4 w-4 text-[var(--color-onboarding-primary)]" />
                 </div>
                 <span className="font-semibold text-sm">{stepInfo.title}</span>
               </div>
@@ -96,12 +96,12 @@ export function GameOnboardingTooltip({
             </p>
 
             <div className="flex items-center justify-between">
-              <span className="font-medium text-[#0066FF] text-xs">
+              <span className="font-medium text-[var(--color-onboarding-primary)] text-xs">
                 +{stepInfo.points} points
               </span>
               <button
                 onClick={() => void completeStep(step)}
-                className="flex items-center gap-1 rounded-lg bg-[#0066FF] px-3 py-1.5 font-medium text-sm text-white transition-colors hover:bg-[#0066FF]/90"
+                className="flex items-center gap-1 rounded-lg bg-[var(--color-onboarding-primary)] px-3 py-1.5 font-medium text-sm text-white transition-colors hover:bg-[var(--color-onboarding-primary)]/90"
               >
                 <Check className="h-3.5 w-3.5" />
                 Got it
@@ -138,7 +138,7 @@ export function GameOnboardingProgress() {
     <div className="fixed right-4 bottom-4 z-40 w-80 rounded-xl border border-border bg-background/95 p-4 shadow-xl backdrop-blur-sm">
       <div className="mb-3 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Sparkles className="h-5 w-5 text-[#0066FF]" />
+          <Sparkles className="h-5 w-5 text-[var(--color-onboarding-primary)]" />
           <span className="font-semibold">Tutorial Progress</span>
         </div>
         <button
@@ -152,7 +152,7 @@ export function GameOnboardingProgress() {
       {/* Progress bar */}
       <div className="mb-3 h-2 overflow-hidden rounded-full bg-muted">
         <div
-          className="h-full rounded-full bg-gradient-to-r from-[#0066FF] to-[#00AAFF] transition-all duration-500"
+          className="h-full rounded-full bg-gradient-to-r from-[var(--color-onboarding-primary)] to-[#00AAFF] transition-all duration-500"
           style={{ width: `${progress}%` }}
         />
       </div>
@@ -169,14 +169,15 @@ export function GameOnboardingProgress() {
               key={step}
               className={cn(
                 'flex items-center justify-between rounded-lg px-3 py-2 text-sm transition-colors',
-                isCompleted && 'bg-[#0066FF]/10 text-[#0066FF]',
+                isCompleted &&
+                  'bg-[var(--color-onboarding-primary)]/10 text-[var(--color-onboarding-primary)]',
                 isCurrent && !isCompleted && 'bg-muted',
                 !isCompleted && !isCurrent && 'text-muted-foreground'
               )}
             >
               <div className="flex items-center gap-2">
                 {isCompleted ? (
-                  <Check className="h-4 w-4 text-[#0066FF]" />
+                  <Check className="h-4 w-4 text-[var(--color-onboarding-primary)]" />
                 ) : isCurrent ? (
                   <ChevronRight className="h-4 w-4" />
                 ) : (
@@ -193,7 +194,7 @@ export function GameOnboardingProgress() {
       {/* Points earned */}
       <div className="mt-3 border-border border-t pt-3 text-center">
         <span className="text-muted-foreground text-sm">Points earned: </span>
-        <span className="font-bold text-[#0066FF]">
+        <span className="font-bold text-[var(--color-onboarding-primary)]">
           {status.totalPointsEarned}
         </span>
       </div>

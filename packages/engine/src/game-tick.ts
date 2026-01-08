@@ -846,13 +846,43 @@ export async function executeGameTick(
 
         const poolStartTime = Date.now();
         const actor = StaticDataRegistry.getActor(pool.npcActorId);
-        const strategy = actor?.personality
-          ?.toLowerCase()
-          .includes('aggressive')
-          ? 'aggressive'
-          : actor?.personality?.toLowerCase().includes('conservative')
-            ? 'conservative'
-            : 'balanced';
+
+        // Determine trading strategy from actor data
+        // Prefer explicit strategy property if available, otherwise parse personality
+        let strategy: 'aggressive' | 'conservative' | 'balanced' = 'balanced';
+        if (actor) {
+          // Check for explicit strategy property first (preferred)
+          if ('strategy' in actor && typeof actor.strategy === 'string') {
+            const explicitStrategy = actor.strategy.toLowerCase();
+            if (
+              explicitStrategy === 'aggressive' ||
+              explicitStrategy === 'conservative' ||
+              explicitStrategy === 'balanced'
+            ) {
+              strategy = explicitStrategy;
+            }
+          } else if (actor.personality) {
+            // Parse personality with word-boundary matching for robustness
+            const personalityLower = actor.personality.toLowerCase();
+            const tokens = personalityLower.split(/[\s,;.]+/);
+
+            // Check for negation patterns (e.g., "not aggressive")
+            const hasNotAggressive =
+              /\bnot\s+aggressive\b/.test(personalityLower) ||
+              /\bnon-?aggressive\b/.test(personalityLower);
+            const hasNotConservative =
+              /\bnot\s+conservative\b/.test(personalityLower) ||
+              /\bnon-?conservative\b/.test(personalityLower);
+
+            // Apply precedence: aggressive > conservative > balanced
+            if (tokens.includes('aggressive') && !hasNotAggressive) {
+              strategy = 'aggressive';
+            } else if (tokens.includes('conservative') && !hasNotConservative) {
+              strategy = 'conservative';
+            }
+            // Default remains 'balanced'
+          }
+        }
 
         const rebalanceActions = await NPCInvestmentManager.monitorPortfolio(
           pool.id,

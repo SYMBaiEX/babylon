@@ -506,21 +506,21 @@ export async function getRateLimitStatus(
       // Use read-only operations to get status without mutating the sorted set
       // Count entries within the current window
       const count = await redis.zcount(key, windowStart, '+inf');
-      // Get the oldest entry's timestamp for reset calculation
-      const oldestEntries = await redis.zrangebyscore(
-        key,
-        windowStart,
-        '+inf',
-        'WITHSCORES',
-        'LIMIT',
-        0,
-        1
-      );
-      const oldestTimestampStr = oldestEntries[1];
-      const oldestTimestamp =
-        oldestTimestampStr !== undefined
-          ? Number.parseInt(oldestTimestampStr, 10)
-          : now;
+    // Get the oldest entry's timestamp for reset calculation
+    const oldestEntries = await redis.zrangebyscore(
+      key,
+      windowStart,
+      '+inf',
+      'WITHSCORES',
+      'LIMIT',
+      0,
+      1
+    );
+    // Only read oldestEntries[1] if at least 2 elements exist (entry + score)
+    const oldestTimestamp =
+      oldestEntries.length >= 2
+        ? Number.parseInt(oldestEntries[1]!, 10)
+        : now;
 
       return {
         count,
@@ -594,7 +594,43 @@ export function cleanupMemoryRateLimits(): void {
   }
 }
 
-// Run memory cleanup every 5 minutes (only in environments that support setInterval)
-if (typeof setInterval !== 'undefined') {
-  setInterval(cleanupMemoryRateLimits, 5 * 60 * 1000);
+// Memory cleanup interval management for opt-in cleanup
+let cleanupIntervalId: ReturnType<typeof setInterval> | null = null;
+
+/**
+ * Start the memory cleanup interval.
+ * Call this from runtime bootstrap to enable automatic cleanup.
+ * Returns true if started, false if already running.
+ */
+export function startMemoryCleanup(): boolean {
+  if (cleanupIntervalId !== null) {
+    return false; // Already running
+  }
+  if (typeof setInterval === 'undefined') {
+    return false; // Environment doesn't support setInterval
+  }
+  cleanupIntervalId = setInterval(cleanupMemoryRateLimits, 5 * 60 * 1000);
+  return true;
+}
+
+/**
+ * Stop the memory cleanup interval.
+ * Useful for tests or graceful shutdown.
+ * Returns true if stopped, false if not running.
+ */
+export function stopMemoryCleanup(): boolean {
+  if (cleanupIntervalId === null) {
+    return false; // Not running
+  }
+  clearInterval(cleanupIntervalId);
+  cleanupIntervalId = null;
+  return true;
+}
+
+// Auto-start cleanup only in production (not during tests)
+if (
+  typeof setInterval !== 'undefined' &&
+  process.env.NODE_ENV !== 'test'
+) {
+  startMemoryCleanup();
 }

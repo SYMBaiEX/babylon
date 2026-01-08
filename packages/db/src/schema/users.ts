@@ -67,7 +67,8 @@ export const gameOnboarding = pgTable(
     updatedAt: timestamp('updatedAt', { mode: 'date' }).notNull().defaultNow(),
   },
   (table) => [
-    index('GameOnboarding_userId_idx').on(table.userId),
+    // Note: userId already has unique() constraint which creates an implicit unique index
+    // so a separate index on userId would be redundant
     index('GameOnboarding_isComplete_idx').on(table.isComplete),
     index('GameOnboarding_currentStep_idx').on(table.currentStep),
   ]

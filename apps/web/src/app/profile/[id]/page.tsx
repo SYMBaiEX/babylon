@@ -386,6 +386,14 @@ export default function ActorProfilePage() {
         }
       }
 
+      // Check if org has a non-empty profileImageUrl property
+      const orgProfileImageUrl =
+        'profileImageUrl' in org &&
+        typeof org.profileImageUrl === 'string' &&
+        org.profileImageUrl
+          ? org.profileImageUrl
+          : `/images/organizations/${org.id}.jpg`;
+
       setActorInfo({
         id: org.id,
         name: org.name,
@@ -393,10 +401,7 @@ export default function ActorProfilePage() {
         profileDescription: org.profileDescription,
         type: 'organization' as const,
         role: 'Organization',
-        // Use org profileImageUrl if available, otherwise fall back to static path
-        profileImageUrl:
-          (org as { profileImageUrl?: string })?.profileImageUrl ??
-          `/images/organizations/${org.id}.jpg`,
+        profileImageUrl: orgProfileImageUrl,
         stats,
       });
       setLoading(false);

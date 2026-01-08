@@ -32,31 +32,46 @@ async function fetchProfileWidgetData(userId: string): Promise<{
     fetch(`/api/users/${encodeURIComponent(userId)}/profile`),
   ]);
 
+  // Check for complete fetch failure (all requests failed)
+  if (!balanceRes.ok && !positionsRes.ok && !profileRes.ok) {
+    const errorDetails = {
+      balance: { status: balanceRes.status, statusText: balanceRes.statusText },
+      positions: {
+        status: positionsRes.status,
+        statusText: positionsRes.statusText,
+      },
+      profile: { status: profileRes.status, statusText: profileRes.statusText },
+    };
+    throw new Error(
+      `All profile widget fetches failed: ${JSON.stringify(errorDetails)}`
+    );
+  }
+
   let balanceData: UserBalanceData | null = null;
   let predictionsData: PredictionPosition[] = [];
   let perpsData: PerpPositionFromAPI[] = [];
   let statsData: UserProfileStats | null = null;
 
   // Process balance
-  if (balanceRes?.ok) {
+  if (balanceRes.ok) {
     const balanceJson = await balanceRes.json();
     balanceData = {
-      balance: Number(balanceJson.balance || 0),
-      totalDeposited: Number(balanceJson.totalDeposited || 0),
-      totalWithdrawn: Number(balanceJson.totalWithdrawn || 0),
-      lifetimePnL: Number(balanceJson.lifetimePnL || 0),
+      balance: Number(balanceJson.balance ?? 0),
+      totalDeposited: Number(balanceJson.totalDeposited ?? 0),
+      totalWithdrawn: Number(balanceJson.totalWithdrawn ?? 0),
+      lifetimePnL: Number(balanceJson.lifetimePnL ?? 0),
     };
   }
 
   // Process positions
-  if (positionsRes?.ok) {
+  if (positionsRes.ok) {
     const positionsJson = await positionsRes.json();
     predictionsData = positionsJson.predictions?.positions || [];
     perpsData = positionsJson.perpetuals?.positions || [];
   }
 
   // Process stats
-  if (profileRes?.ok) {
+  if (profileRes.ok) {
     const profileJson = await profileRes.json();
 
     // Check if user needs onboarding (graceful handling)
@@ -171,25 +186,11 @@ export function ProfileWidget({ userId }: ProfileWidgetProps) {
         // Clear any previous error on successful fetch
         setError(null);
 
-        // Check if user needs onboarding
-        if (result.needsOnboarding) {
+        // Apply fetched data to state and cache (handles needsOnboarding internally)
+        if (!applyFetchResult(result)) {
           setLoading(false);
           return;
         }
-
-        // Apply fetched data to state
-        setBalance(result.balanceData);
-        setPredictions(result.predictionsData);
-        setPerps(result.perpsData);
-        setStats(result.statsData);
-
-        // Cache all the data
-        widgetCache.setProfileWidget(userId, {
-          balance: result.balanceData,
-          predictions: result.predictionsData,
-          perps: result.perpsData,
-          stats: result.statsData,
-        });
       } catch (fetchError) {
         console.error('Error fetching profile widget data:', fetchError);
         setError(
@@ -207,7 +208,7 @@ export function ProfileWidget({ userId }: ProfileWidgetProps) {
     // Refresh every 30 seconds (skip cache to get fresh data)
     const interval = setInterval(() => fetchData(true), 30000);
     return () => clearInterval(interval);
-  }, [userId, needsOnboarding, isOwnProfile, widgetCache]);
+  }, [userId, needsOnboarding, isOwnProfile, widgetCache, applyFetchResult]);
 
   const formatPoints = (points: number) => {
     return points.toLocaleString('en-US', {
@@ -234,18 +235,15 @@ export function ProfileWidget({ userId }: ProfileWidgetProps) {
       ? ((balance?.lifetimePnL || 0) / totalPortfolio) * 100
       : 0;
 
-  // Retry function for error state - uses the shared fetchProfileWidgetData helper
-  const handleRetry = useCallback(async () => {
-    setError(null);
-    setLoading(true);
-
-    try {
-      const result = await fetchProfileWidgetData(userId);
-
+  /**
+   * Apply fetch result to state and cache.
+   * Returns true if applied, false if early-exited for needsOnboarding.
+   */
+  const applyFetchResult = useCallback(
+    (result: Awaited<ReturnType<typeof fetchProfileWidgetData>>): boolean => {
       // Check if user needs onboarding
       if (result.needsOnboarding) {
-        setLoading(false);
-        return;
+        return false;
       }
 
       // Apply fetched data to state
@@ -261,6 +259,20 @@ export function ProfileWidget({ userId }: ProfileWidgetProps) {
         perps: result.perpsData,
         stats: result.statsData,
       });
+
+      return true;
+    },
+    [userId, widgetCache]
+  );
+
+  // Retry function for error state - uses the shared fetchProfileWidgetData helper
+  const handleRetry = useCallback(async () => {
+    setError(null);
+    setLoading(true);
+
+    try {
+      const result = await fetchProfileWidgetData(userId);
+      applyFetchResult(result);
     } catch (fetchError) {
       console.error('Error fetching profile widget data:', fetchError);
       setError(
@@ -271,7 +283,7 @@ export function ProfileWidget({ userId }: ProfileWidgetProps) {
     } finally {
       setLoading(false);
     }
-  }, [userId, widgetCache]);
+  }, [userId, applyFetchResult]);
 
   if (loading) {
     return (
@@ -517,18 +529,18 @@ export function ProfileWidget({ userId }: ProfileWidgetProps) {
             let predictionsData: PredictionPosition[] = predictions;
             let perpsData: PerpPositionFromAPI[] = perps;
 
-            if (balanceRes?.ok) {
+            if (balanceRes.ok) {
               const balanceJson = await balanceRes.json();
               balanceData = {
-                balance: Number(balanceJson.balance),
-                totalDeposited: Number(balanceJson.totalDeposited),
-                totalWithdrawn: Number(balanceJson.totalWithdrawn),
-                lifetimePnL: Number(balanceJson.lifetimePnL),
+                balance: Number(balanceJson.balance ?? 0),
+                totalDeposited: Number(balanceJson.totalDeposited ?? 0),
+                totalWithdrawn: Number(balanceJson.totalWithdrawn ?? 0),
+                lifetimePnL: Number(balanceJson.lifetimePnL ?? 0),
               };
               setBalance(balanceData);
             }
 
-            if (positionsRes?.ok) {
+            if (positionsRes.ok) {
               const positionsJson = await positionsRes.json();
               predictionsData = positionsJson.predictions?.positions ?? [];
               perpsData = positionsJson.perpetuals?.positions ?? [];
@@ -537,7 +549,7 @@ export function ProfileWidget({ userId }: ProfileWidgetProps) {
             }
 
             // Update widgetCache only when both fetches succeed
-            if (balanceRes?.ok && positionsRes?.ok && balanceData) {
+            if (balanceRes.ok && positionsRes.ok && balanceData) {
               widgetCache.setProfileWidget(userId, {
                 balance: balanceData,
                 predictions: predictionsData,

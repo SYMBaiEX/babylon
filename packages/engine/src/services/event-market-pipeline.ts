@@ -31,6 +31,27 @@ import { StaticDataRegistry } from './static-data-registry';
 const MAX_RETRIES = 3;
 
 /**
+ * Base delay for exponential backoff (in milliseconds)
+ */
+const BACKOFF_BASE_DELAY_MS = 10;
+
+/**
+ * Maximum delay cap for exponential backoff (in milliseconds)
+ */
+const BACKOFF_MAX_DELAY_MS = 160;
+
+/**
+ * Shared backoff delay helper for consistent contention handling.
+ * Implements exponential backoff capped at BACKOFF_MAX_DELAY_MS.
+ *
+ * @param attempt - Current retry attempt (0-indexed)
+ */
+async function backoffDelay(attempt: number): Promise<void> {
+  const delay = Math.min(BACKOFF_BASE_DELAY_MS * 2 ** attempt, BACKOFF_MAX_DELAY_MS);
+  await new Promise((resolve) => setTimeout(resolve, delay));
+}
+
+/**
  * Price bounds to prevent invalid prices
  */
 const MIN_PRICE_MULTIPLIER = 0.01; // Minimum 1% of base price
@@ -242,11 +263,8 @@ export async function addPriceModifier(
       'EventMarketPipeline'
     );
 
-    // Exponential backoff delay before retry (10ms base, capped at 160ms)
-    const baseDelayMs = 10;
-    const maxDelayMs = 160;
-    const delay = Math.min(baseDelayMs * 2 ** attempt, maxDelayMs);
-    await new Promise((resolve) => setTimeout(resolve, delay));
+    // Exponential backoff delay before retry
+    await backoffDelay(attempt);
   }
 
   logger.error(
@@ -258,11 +276,17 @@ export async function addPriceModifier(
 
 /**
  * Calculate the current price based on fundamentals and modifiers
+ *
+ * @param basePrice - Base price before modifiers
+ * @param sentiment - Current sentiment (-100 to 100)
+ * @param modifiers - Active price modifiers
+ * @param rng - Optional RNG function returning 0-1, defaults to deterministic (0.5) for predictable pricing. Pass secureRandom() for production noise.
  */
 export function calculateCurrentPrice(
   basePrice: number,
   sentiment: number,
-  modifiers: PriceModifier[]
+  modifiers: PriceModifier[],
+  rng: () => number = () => 0.5
 ): number {
   let price = basePrice;
   const now = new Date();
@@ -304,9 +328,9 @@ export function calculateCurrentPrice(
   }
 
   // Apply sentiment-based volatility (small random component)
-  // Uses secureRandom for deterministic testing and to prevent manipulation
+  // Uses provided rng function (defaults to 0.5 for deterministic behavior)
   const volatility = (Math.abs(sentiment) / 100) * 0.02;
-  const noise = (secureRandom() - 0.5) * 2 * volatility;
+  const noise = (rng() - 0.5) * 2 * volatility;
   price *= 1 + noise;
 
   // Bound final price (minPrice and maxPrice already computed above)
@@ -356,11 +380,12 @@ export async function updateStockPrice(
         ),
       }));
 
-    // Calculate new price
+    // Calculate new price with production-level random noise
     const newPrice = calculateCurrentPrice(
       state.basePrice,
       state.sentiment ?? 0,
-      activeModifiers
+      activeModifiers,
+      secureRandom
     );
 
     // Update database with optimistic locking
@@ -390,8 +415,8 @@ export async function updateStockPrice(
       'EventMarketPipeline'
     );
 
-    // Brief delay before retry
-    await new Promise((resolve) => setTimeout(resolve, 10 * (attempt + 1)));
+    // Exponential backoff delay before retry
+    await backoffDelay(attempt);
   }
 
   logger.error(
@@ -470,9 +495,10 @@ export class EventMarketPipelineService {
   calculatePrice(
     basePrice: number,
     sentiment: number,
-    modifiers: PriceModifier[]
+    modifiers: PriceModifier[],
+    rng?: () => number
   ): number {
-    return calculateCurrentPrice(basePrice, sentiment, modifiers);
+    return calculateCurrentPrice(basePrice, sentiment, modifiers, rng);
   }
 
   async updatePrice(stockId: string): Promise<number | null> {
