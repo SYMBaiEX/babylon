@@ -1,6 +1,10 @@
 'use client';
 
-import { BABYLON_POINTS_SYMBOL, cn, formatCompactCurrency } from '@babylon/shared';
+import {
+  BABYLON_POINTS_SYMBOL,
+  cn,
+  formatCompactCurrency,
+} from '@babylon/shared';
 import { Award, DollarSign, RefreshCw, TrendingUp, Users } from 'lucide-react';
 import { useCallback, useEffect, useState, useTransition } from 'react';
 import {

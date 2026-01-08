@@ -1,6 +1,10 @@
 'use client';
 
-import { cn, formatCurrency as formatCurrencyShared, logger } from '@babylon/shared';
+import {
+  cn,
+  formatCurrency as formatCurrencyShared,
+  logger,
+} from '@babylon/shared';
 import {
   AlertCircle,
   ArrowLeftRight,
