@@ -82,7 +82,10 @@ const ARTICLE_PROB = [0.05, 0.12, 0.18, 0.25, 0.3, 0.35];
 /** Get article probability based on active markets */
 function getArticleProb(marketCount: number): number {
   // Clamp marketCount to valid index range [0, ARTICLE_PROB.length - 1]
-  const clampedIndex = Math.max(0, Math.min(marketCount, ARTICLE_PROB.length - 1));
+  const clampedIndex = Math.max(
+    0,
+    Math.min(marketCount, ARTICLE_PROB.length - 1)
+  );
   return ARTICLE_PROB[clampedIndex] ?? 0.05;
 }
 

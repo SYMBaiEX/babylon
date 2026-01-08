@@ -716,7 +716,8 @@ export async function processArcTick(
   }
 
   // Use the effective arc state for event decisions (post-transition if we transitioned)
-  const effectiveArc = transitioned && newState ? { ...arc, currentState: newState } : arc;
+  const effectiveArc =
+    transitioned && newState ? { ...arc, currentState: newState } : arc;
 
   // Check if event should be generated using post-transition state
   const shouldGenerate = shouldGenerateEvent(effectiveArc);

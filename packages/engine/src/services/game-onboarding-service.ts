@@ -276,10 +276,17 @@ export async function completeOnboardingStep(
         const isLastAttempt = attempt >= maxPointsRetries - 1;
         if (!isLastAttempt) {
           // Exponential backoff with jitter
-          const delay = baseDelayMs * Math.pow(2, attempt) * (0.5 + Math.random());
+          const delay =
+            baseDelayMs * Math.pow(2, attempt) * (0.5 + Math.random());
           logger.debug(
             `Retrying bonus points award after failure`,
-            { userId, step, points, attempt: attempt + 1, delayMs: Math.round(delay) },
+            {
+              userId,
+              step,
+              points,
+              attempt: attempt + 1,
+              delayMs: Math.round(delay),
+            },
             'GameOnboarding'
           );
           await new Promise((resolve) => setTimeout(resolve, delay));
@@ -298,7 +305,8 @@ export async function completeOnboardingStep(
           step,
           points,
           reason: `onboarding_${step}`,
-          error: lastError instanceof Error ? lastError.message : String(lastError),
+          error:
+            lastError instanceof Error ? lastError.message : String(lastError),
           failedAt: new Date().toISOString(),
           retriesAttempted: maxPointsRetries,
         },
