@@ -12,6 +12,64 @@ import {
 import { memo, useState } from 'react';
 import type { AgentActivity } from '@/hooks/useAgentActivity';
 
+// Type guards for discriminated union on activity.type
+interface TradeData {
+  tradeId: string;
+  marketType: 'prediction' | 'perp';
+  marketId: string | null;
+  ticker: string | null;
+  marketQuestion: string | null;
+  action: string;
+  side: string | null;
+  amount: number;
+  price: number;
+  pnl: number | null;
+  reasoning: string | null;
+}
+
+interface PostData {
+  postId: string;
+  contentPreview: string;
+}
+
+interface CommentData {
+  commentId: string;
+  postId: string;
+  contentPreview: string;
+  parentCommentId: string | null;
+}
+
+interface MessageData {
+  messageId: string;
+  chatId: string;
+  recipientId: string | null;
+  contentPreview: string;
+}
+
+function isTradeActivity(
+  activity: AgentActivity
+): activity is AgentActivity & { type: 'trade'; data: TradeData } {
+  return activity.type === 'trade';
+}
+
+function isPostActivity(
+  activity: AgentActivity
+): activity is AgentActivity & { type: 'post'; data: PostData } {
+  return activity.type === 'post';
+}
+
+function isCommentActivity(
+  activity: AgentActivity
+): activity is AgentActivity & { type: 'comment'; data: CommentData } {
+  return activity.type === 'comment';
+}
+
+function isMessageActivity(
+  activity: AgentActivity
+): activity is AgentActivity & { type: 'message'; data: MessageData } {
+  return activity.type === 'message';
+}
+
 interface AgentActivityCardProps {
   activity: AgentActivity;
   showAgent?: boolean;
@@ -43,6 +101,16 @@ export const AgentActivityCard = memo(function AgentActivityCard({
         className
       )}
       onClick={() => setExpanded((prev) => !prev)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          setExpanded((prev) => !prev);
+        }
+      }}
+      role="button"
+      tabIndex={0}
+      aria-expanded={expanded}
+      aria-label={`${getActivityTitle(activity)}. Click to ${expanded ? 'collapse' : 'expand'} details.`}
     >
       <div className="flex items-start gap-3">
         {/* Activity Icon */}
@@ -86,10 +154,10 @@ export const AgentActivityCard = memo(function AgentActivityCard({
 
 // Helper: Get activity icon
 function getActivityIcon(activity: AgentActivity) {
-  if (activity.type === 'trade') {
-    const data = activity.data as { side: string | null; action: string };
-    const isLong = data.side === 'long' || data.side === 'yes';
-    const isOpen = data.action === 'open';
+  if (isTradeActivity(activity)) {
+    const { side, action } = activity.data;
+    const isLong = side === 'long' || side === 'yes';
+    const isOpen = action === 'open';
 
     if (isOpen) {
       return isLong ? (
@@ -105,15 +173,15 @@ function getActivityIcon(activity: AgentActivity) {
     );
   }
 
-  if (activity.type === 'post') {
+  if (isPostActivity(activity)) {
     return <MessageSquare className="h-5 w-5 text-blue-400" />;
   }
 
-  if (activity.type === 'comment') {
+  if (isCommentActivity(activity)) {
     return <MessageCircle className="h-5 w-5 text-purple-400" />;
   }
 
-  if (activity.type === 'message') {
+  if (isMessageActivity(activity)) {
     return <MessageCircle className="h-5 w-5 text-amber-400" />;
   }
 
@@ -122,105 +190,101 @@ function getActivityIcon(activity: AgentActivity) {
 
 // Helper: Get icon background color
 function getActivityIconBackground(activity: AgentActivity): string {
-  if (activity.type === 'trade') {
-    const data = activity.data as { side: string | null };
-    const isLong = data.side === 'long' || data.side === 'yes';
+  if (isTradeActivity(activity)) {
+    const isLong =
+      activity.data.side === 'long' || activity.data.side === 'yes';
     return isLong ? 'bg-emerald-900/30' : 'bg-red-900/30';
   }
 
-  if (activity.type === 'post') return 'bg-blue-900/30';
-  if (activity.type === 'comment') return 'bg-purple-900/30';
-  if (activity.type === 'message') return 'bg-amber-900/30';
+  if (isPostActivity(activity)) return 'bg-blue-900/30';
+  if (isCommentActivity(activity)) return 'bg-purple-900/30';
+  if (isMessageActivity(activity)) return 'bg-amber-900/30';
 
   return 'bg-zinc-800';
 }
 
 // Helper: Get activity title
 function getActivityTitle(activity: AgentActivity): string {
-  if (activity.type === 'trade') {
-    const data = activity.data as {
-      action: string;
-      side: string | null;
-      marketType: string;
-    };
-    const sideLabel = data.side ? ` ${data.side.toUpperCase()}` : '';
-    return `${data.action === 'open' ? 'Opened' : 'Closed'}${sideLabel} ${data.marketType} position`;
+  if (isTradeActivity(activity)) {
+    const { action, side, marketType } = activity.data;
+    const sideLabel = side ? ` ${side.toUpperCase()}` : '';
+    return `${action === 'open' ? 'Opened' : 'Closed'}${sideLabel} ${marketType} position`;
   }
 
-  if (activity.type === 'post') return 'Created a post';
-  if (activity.type === 'comment') {
-    const data = activity.data as { parentCommentId: string | null };
-    return data.parentCommentId
+  if (isPostActivity(activity)) return 'Created a post';
+
+  if (isCommentActivity(activity)) {
+    return activity.data.parentCommentId
       ? 'Replied to a comment'
       : 'Commented on a post';
   }
-  if (activity.type === 'message') return 'Sent a message';
+
+  if (isMessageActivity(activity)) return 'Sent a message';
 
   return 'Activity';
 }
 
 // Helper: Render activity-specific content
 function renderActivityContent(activity: AgentActivity, expanded: boolean) {
-  if (activity.type === 'trade') {
-    const data = activity.data as {
-      marketType: string;
-      marketId: string | null;
-      ticker: string | null;
-      marketQuestion: string | null;
-      amount: number;
-      price: number;
-      reasoning: string | null;
-    };
+  if (isTradeActivity(activity)) {
+    const { marketType, ticker, marketQuestion, amount, price, reasoning } =
+      activity.data;
 
     return (
       <div className="space-y-2">
         <div className="flex flex-wrap items-center gap-2 text-sm">
           <span className="text-zinc-400">
-            {data.marketType === 'perp' ? data.ticker : 'Prediction'}
+            {marketType === 'perp' ? ticker : 'Prediction'}
           </span>
           <span className="text-zinc-600">•</span>
           <span className="font-mono text-white">
-            ${data.amount.toLocaleString()}
+            ${amount.toLocaleString()}
           </span>
           <span className="text-zinc-600">@</span>
           <span className="font-mono text-zinc-300">
-            {data.marketType === 'perp'
-              ? `$${data.price.toLocaleString()}`
-              : `${(data.price * 100).toFixed(1)}%`}
+            {marketType === 'perp'
+              ? `$${price.toLocaleString()}`
+              : `${(price * 100).toFixed(1)}%`}
           </span>
         </div>
 
-        {data.marketQuestion && (
-          <p className="line-clamp-2 text-sm text-zinc-400">
-            {data.marketQuestion}
-          </p>
+        {marketQuestion && (
+          <p className="line-clamp-2 text-sm text-zinc-400">{marketQuestion}</p>
         )}
 
-        {expanded && data.reasoning && (
+        {expanded && reasoning && (
           <div className="mt-3 rounded-md border border-zinc-700 bg-zinc-800/50 p-3">
             <p className="mb-1 font-medium text-xs text-zinc-500 uppercase">
               Reasoning
             </p>
-            <p className="text-sm text-zinc-300">{data.reasoning}</p>
+            <p className="text-sm text-zinc-300">{reasoning}</p>
           </div>
         )}
       </div>
     );
   }
 
-  if (activity.type === 'post' || activity.type === 'comment') {
-    const data = activity.data as { contentPreview: string };
+  if (isPostActivity(activity)) {
     return (
       <p
         className={cn('text-sm text-zinc-400', expanded ? '' : 'line-clamp-2')}
       >
-        {data.contentPreview}
+        {activity.data.contentPreview}
       </p>
     );
   }
 
-  if (activity.type === 'message') {
-    const data = activity.data as { contentPreview: string };
+  if (isCommentActivity(activity)) {
+    return (
+      <p
+        className={cn('text-sm text-zinc-400', expanded ? '' : 'line-clamp-2')}
+      >
+        {activity.data.contentPreview}
+      </p>
+    );
+  }
+
+  if (isMessageActivity(activity)) {
     return (
       <p
         className={cn(
@@ -228,7 +292,7 @@ function renderActivityContent(activity: AgentActivity, expanded: boolean) {
           expanded ? '' : 'line-clamp-2'
         )}
       >
-        {data.contentPreview}
+        {activity.data.contentPreview}
       </p>
     );
   }
