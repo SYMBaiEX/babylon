@@ -15,6 +15,8 @@ export interface ChatMessage {
   chatId: string;
   /** ID of the user who sent the message */
   senderId: string;
+  /** Message type: 'user' for regular messages, 'system' for system notifications */
+  type?: 'user' | 'system';
   /** ISO timestamp when the message was created */
   createdAt: string;
   /** Whether this is a game chat message */
@@ -104,12 +106,14 @@ export function useChatMessages(chatId: string | null) {
             id: string;
             content: string;
             senderId: string;
+            type?: 'user' | 'system';
             createdAt: string | Date;
           }) => ({
             id: msg.id,
             content: msg.content,
             chatId: chatId,
             senderId: msg.senderId,
+            type: msg.type,
             createdAt:
               typeof msg.createdAt === 'string'
                 ? msg.createdAt
@@ -172,12 +176,14 @@ export function useChatMessages(chatId: string | null) {
             id: string;
             content: string;
             senderId: string;
+            type?: 'user' | 'system';
             createdAt: string | Date;
           }) => ({
             id: msg.id,
             content: msg.content,
             chatId: chatId,
             senderId: msg.senderId,
+            type: msg.type,
             createdAt:
               typeof msg.createdAt === 'string'
                 ? msg.createdAt
@@ -230,6 +236,10 @@ export function useChatMessages(chatId: string | null) {
             content: messageData.content,
             chatId: messageData.chatId,
             senderId: messageData.senderId,
+            type:
+              messageData.type === 'user' || messageData.type === 'system'
+                ? messageData.type
+                : undefined,
             createdAt: messageData.createdAt,
             isGameChat:
               typeof messageData.isGameChat === 'boolean'

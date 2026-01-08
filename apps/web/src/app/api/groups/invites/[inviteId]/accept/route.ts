@@ -151,6 +151,28 @@ export const POST = withErrorHandling(
         }
       });
 
+      // Get user's display name for system message
+      const joiningUser = await db.user.findUnique({
+        where: { id: user.userId },
+        select: { displayName: true, username: true },
+      });
+      const joinerName =
+        joiningUser?.displayName || joiningUser?.username || 'Someone';
+
+      // Create system message for joining
+      if (groupChat) {
+        await db.message.create({
+          data: {
+            id: await generateSnowflakeId(),
+            chatId: groupChat.id,
+            senderId: 'system',
+            type: 'system',
+            content: `${joinerName} joined the group`,
+            createdAt: now,
+          },
+        });
+      }
+
       // Update invite status
       await db.groupInvite.update({
         where: { id: inviteId },

@@ -541,6 +541,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
               content: agentLastMsg.content,
               chatId: chat.id,
               senderId: otherUserDetails.id,
+              type: 'user' as const,
               createdAt: agentLastMsg.createdAt,
             };
           }

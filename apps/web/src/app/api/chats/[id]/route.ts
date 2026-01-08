@@ -394,6 +394,7 @@ export const GET = withErrorHandling(
         id: msg.id,
         content: msg.content,
         senderId: msg.senderId,
+        type: msg.type,
         createdAt: msg.createdAt,
       })),
       participants: participantsInfo,

@@ -24,4 +24,3 @@ export function SystemMessage({ message }: SystemMessageProps) {
     </div>
   );
 }
-

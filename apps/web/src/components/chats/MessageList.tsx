@@ -6,17 +6,18 @@ import React from 'react';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { MessageBubble } from './MessageBubble';
 import { SystemMessage } from './SystemMessage';
-import type { ChatParticipant, Message } from './types';
+import type { ChatParticipant, Message, MessageType } from './types';
 
-type MessageType = 'system' | 'user';
-
-function getMessageType(senderId: string): MessageType {
-  switch (senderId) {
-    case 'system':
-      return 'system';
-    default:
-      return 'user';
+/**
+ * Determines the message type for rendering.
+ * Uses message.type field if available (new messages), falls back to senderId check for backwards compatibility.
+ */
+function getMessageType(message: Message): MessageType {
+  // Prefer explicit type field (new messages after migration)
+  if (message.type) {
+    return message.type;
   }
+  return 'user';
 }
 
 interface MessageListProps {
@@ -96,7 +97,7 @@ export function MessageList({
 
       {/* Messages */}
       {messages.map((msg) => {
-        const messageType = getMessageType(msg.senderId);
+        const messageType = getMessageType(msg);
 
         switch (messageType) {
           case 'system':

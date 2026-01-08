@@ -14,6 +14,9 @@ import {
 // Enum for group types
 export const groupTypeEnum = pgEnum('group_type', ['user', 'npc', 'agent']);
 
+// Enum for message types
+export const messageTypeEnum = pgEnum('message_type', ['user', 'system']);
+
 // Chat
 export const chats = pgTable(
   'Chat',
@@ -83,11 +86,13 @@ export const messages = pgTable(
     chatId: text('chatId').notNull(),
     senderId: text('senderId').notNull(),
     content: text('content').notNull(),
+    type: messageTypeEnum('type').notNull().default('user'),
     createdAt: timestamp('createdAt', { mode: 'date' }).notNull().defaultNow(),
   },
   (table) => [
     index('Message_chatId_createdAt_idx').on(table.chatId, table.createdAt),
     index('Message_senderId_idx').on(table.senderId),
+    index('Message_type_idx').on(table.type),
   ]
 );
 
@@ -356,4 +361,5 @@ export type NewGroupInvite = typeof groupInvites.$inferInsert;
 export type GroupType = 'user' | 'npc' | 'agent';
 export type GroupMemberRole = 'owner' | 'admin' | 'member';
 export type GroupInviteStatus = 'pending' | 'accepted' | 'declined';
+export type MessageType = 'user' | 'system';
 // TierLevel is exported from @babylon/shared - use that canonical definition
