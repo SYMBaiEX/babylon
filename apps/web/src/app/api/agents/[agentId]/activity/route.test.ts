@@ -213,7 +213,9 @@ describe('Single Agent Activity API - Activity Filtering', () => {
     });
 
     it('should include parentCommentId for reply comments', () => {
-      const reply = createMockComment({ parentCommentId: 'parent-comment-123' });
+      const reply = createMockComment({
+        parentCommentId: 'parent-comment-123',
+      });
       expect(reply.parentCommentId).toBe('parent-comment-123');
     });
 
@@ -405,7 +407,11 @@ describe('Single Agent Activity API - Edge Cases', () => {
     });
 
     const activities = [
-      { type: 'trade', id: trade.id, timestamp: trade.executedAt.toISOString() },
+      {
+        type: 'trade',
+        id: trade.id,
+        timestamp: trade.executedAt.toISOString(),
+      },
       { type: 'post', id: post.id, timestamp: post.createdAt.toISOString() },
       {
         type: 'comment',
@@ -533,4 +539,3 @@ describe('Single Agent Activity API - Response Format', () => {
     expect(commentActivity.data.parentCommentId).toBe('comment-parent');
   });
 });
-

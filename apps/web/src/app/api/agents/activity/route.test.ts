@@ -53,9 +53,17 @@ interface MockAgentComment {
 
 // Test fixtures
 const createMockAgents = (): AgentInfo[] => [
-  { id: 'agent-1', name: 'Trading Bot Alpha', profileImageUrl: 'https://example.com/alpha.png' },
+  {
+    id: 'agent-1',
+    name: 'Trading Bot Alpha',
+    profileImageUrl: 'https://example.com/alpha.png',
+  },
   { id: 'agent-2', name: 'Market Analyzer', profileImageUrl: null },
-  { id: 'agent-3', name: 'Prediction Master', profileImageUrl: 'https://example.com/pm.png' },
+  {
+    id: 'agent-3',
+    name: 'Prediction Master',
+    profileImageUrl: 'https://example.com/pm.png',
+  },
 ];
 
 const createMockAgentTrade = (
@@ -444,7 +452,9 @@ describe('All Agents Activity API - Response Format', () => {
     expect(activity.agent).toBeDefined();
     expect(activity.agent.id).toBe('agent-1');
     expect(activity.agent.name).toBe('Trading Bot Alpha');
-    expect(activity.agent.profileImageUrl).toBe('https://example.com/alpha.png');
+    expect(activity.agent.profileImageUrl).toBe(
+      'https://example.com/alpha.png'
+    );
   });
 });
 
@@ -486,4 +496,3 @@ describe('All Agents Activity API - Type Filtering', () => {
     expect(shouldFetch(type, 'comment')).toBe(true);
   });
 });
-
