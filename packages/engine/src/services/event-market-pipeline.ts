@@ -47,7 +47,10 @@ const BACKOFF_MAX_DELAY_MS = 160;
  * @param attempt - Current retry attempt (0-indexed)
  */
 async function backoffDelay(attempt: number): Promise<void> {
-  const delay = Math.min(BACKOFF_BASE_DELAY_MS * 2 ** attempt, BACKOFF_MAX_DELAY_MS);
+  const delay = Math.min(
+    BACKOFF_BASE_DELAY_MS * 2 ** attempt,
+    BACKOFF_MAX_DELAY_MS
+  );
   await new Promise((resolve) => setTimeout(resolve, delay));
 }
 

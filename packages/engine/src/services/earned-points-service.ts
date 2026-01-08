@@ -40,7 +40,10 @@ export class EarnedPointsService {
     bonusPoints: number
   ): number {
     return (
-      EarnedPointsService.BASE_POINTS + invitePoints + earnedPoints + bonusPoints
+      EarnedPointsService.BASE_POINTS +
+      invitePoints +
+      earnedPoints +
+      bonusPoints
     );
   }
 

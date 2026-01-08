@@ -506,21 +506,21 @@ export async function getRateLimitStatus(
       // Use read-only operations to get status without mutating the sorted set
       // Count entries within the current window
       const count = await redis.zcount(key, windowStart, '+inf');
-    // Get the oldest entry's timestamp for reset calculation
-    const oldestEntries = await redis.zrangebyscore(
-      key,
-      windowStart,
-      '+inf',
-      'WITHSCORES',
-      'LIMIT',
-      0,
-      1
-    );
-    // Only read oldestEntries[1] if at least 2 elements exist (entry + score)
-    const oldestTimestamp =
-      oldestEntries.length >= 2
-        ? Number.parseInt(oldestEntries[1]!, 10)
-        : now;
+      // Get the oldest entry's timestamp for reset calculation
+      const oldestEntries = await redis.zrangebyscore(
+        key,
+        windowStart,
+        '+inf',
+        'WITHSCORES',
+        'LIMIT',
+        0,
+        1
+      );
+      // Only read oldestEntries[1] if at least 2 elements exist (entry + score)
+      const oldestTimestamp =
+        oldestEntries.length >= 2
+          ? Number.parseInt(oldestEntries[1]!, 10)
+          : now;
 
       return {
         count,
@@ -628,9 +628,6 @@ export function stopMemoryCleanup(): boolean {
 }
 
 // Auto-start cleanup only in production (not during tests)
-if (
-  typeof setInterval !== 'undefined' &&
-  process.env.NODE_ENV !== 'test'
-) {
+if (typeof setInterval !== 'undefined' && process.env.NODE_ENV !== 'test') {
   startMemoryCleanup();
 }
