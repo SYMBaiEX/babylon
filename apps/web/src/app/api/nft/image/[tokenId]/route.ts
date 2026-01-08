@@ -42,12 +42,21 @@ const COLLECTION_SIZE = Number(process.env.NFT_COLLECTION_SIZE) || 100;
  * - Each entry contains an ArrayBuffer (typically 50KB-500KB for images)
  * - At MAX_CACHE_SIZE=100 entries, worst case memory is ~50MB
  * - Acceptable for Vercel serverless functions (1GB limit)
- * - If memory becomes an issue, consider:
- *   1. Reducing MAX_CACHE_SIZE
- *   2. Adding a MAX_CACHE_BYTES limit with size tracking
- *   3. Using external caching (Redis, Vercel CDN already handles this)
  */
 const MAX_CACHE_SIZE = 100;
+
+/**
+ * Maximum total bytes for the cache (10MB).
+ * Evicts oldest entries (FIFO) when exceeded.
+ */
+const MAX_CACHE_BYTES = 10 * 1024 * 1024;
+
+/**
+ * Maximum bytes for a single cache entry (2MB).
+ * Entries larger than this are not cached to prevent one large image
+ * from consuming too much of the cache budget.
+ */
+const MAX_ENTRY_BYTES = 2 * 1024 * 1024;
 
 /**
  * In-memory cache for image data (survives across requests in same worker).
@@ -61,26 +70,53 @@ const MAX_CACHE_SIZE = 100;
  */
 const imageCache = new Map<
   number,
-  { buffer: ArrayBuffer; contentType: string; cachedAt: number }
+  { buffer: ArrayBuffer; contentType: string; cachedAt: number; byteLength: number }
 >();
+
+/** Tracks total cached bytes for memory budget enforcement */
+let totalCachedBytes = 0;
 
 /** Cache TTL: 1 hour (images are immutable, but allow refresh for updates) */
 const CACHE_TTL_MS = 60 * 60 * 1000;
 
 /**
- * Add to cache with FIFO eviction when max size exceeded.
+ * Add to cache with FIFO eviction when max size or byte limit exceeded.
  * Leverages Map's insertion order: first key is the oldest entry.
  * Note: cachedAt is kept for TTL expiry checks.
+ *
+ * @param tokenId - The token ID to cache
+ * @param buffer - The image ArrayBuffer
+ * @param contentType - The content type of the image
+ * @returns true if cached, false if entry was too large to cache
  */
 function addToCache(
   tokenId: number,
   buffer: ArrayBuffer,
   contentType: string
-): void {
-  // Evict oldest entry (first key by insertion order) if cache is full
-  if (imageCache.size >= MAX_CACHE_SIZE) {
+): boolean {
+  const byteLength = buffer.byteLength;
+
+  // Skip caching entries that exceed per-entry limit
+  if (byteLength > MAX_ENTRY_BYTES) {
+    logger.debug(
+      `Skipping cache for token ${tokenId}: entry too large (${byteLength} bytes > ${MAX_ENTRY_BYTES})`,
+      { tokenId, byteLength },
+      'NFT Image Proxy'
+    );
+    return false;
+  }
+
+  // Evict oldest entries until we have room for the new entry (FIFO)
+  while (
+    (imageCache.size >= MAX_CACHE_SIZE || totalCachedBytes + byteLength > MAX_CACHE_BYTES) &&
+    imageCache.size > 0
+  ) {
     const oldestKey = imageCache.keys().next().value;
     if (oldestKey !== undefined) {
+      const oldEntry = imageCache.get(oldestKey);
+      if (oldEntry) {
+        totalCachedBytes -= oldEntry.byteLength;
+      }
       imageCache.delete(oldestKey);
     }
   }
@@ -89,7 +125,11 @@ function addToCache(
     buffer,
     contentType,
     cachedAt: Date.now(),
+    byteLength,
   });
+  totalCachedBytes += byteLength;
+
+  return true;
 }
 
 /** Fetch timeout in milliseconds */

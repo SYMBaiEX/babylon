@@ -302,14 +302,12 @@ export class EarnedPointsService {
       );
     }
 
-    // Early return for zero points - avoid unnecessary DB operations
+    // Early return for zero points - no DB mutation needed.
+    // We intentionally skip fetching bonusPoints here because awarding 0 points
+    // should be a pure no-op. If callers need the current balance, they should
+    // query it separately. This saves a DB round-trip for the common case.
     if (points === 0) {
-      const [user] = await tx
-        .select({ bonusPoints: users.bonusPoints })
-        .from(users)
-        .where(eq(users.id, userId))
-        .limit(1);
-      return user?.bonusPoints ?? 0;
+      return 0;
     }
 
     const result = await tx

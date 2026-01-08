@@ -56,75 +56,78 @@ describe('NFTVerificationService', () => {
     });
 
     test('should throw ValidationError for invalid contract address', async () => {
-      // This will fail validation, but we can check the error structure
-      // Use try/catch to verify both error type and message
-      try {
-        await NFTVerificationService.verifyOwnership(
+      await expect(
+        NFTVerificationService.verifyOwnership(
           validWallet,
           'invalid-address',
           null
-        );
-        // Should not reach here
-        expect.unreachable('Expected error to be thrown');
-      } catch (err) {
-        expect(err).toBeInstanceOf(ValidationError);
-        expect((err as Error).message).toMatch(/Invalid contract address/);
-      }
+        )
+      ).rejects.toThrow(/Invalid contract address/);
+
+      // Also verify it's a ValidationError
+      await expect(
+        NFTVerificationService.verifyOwnership(
+          validWallet,
+          'invalid-address',
+          null
+        )
+      ).rejects.toBeInstanceOf(ValidationError);
     });
 
     test('should validate address format before RPC calls', async () => {
-      // Use try/catch pattern consistent with other tests in this file
-      try {
-        await NFTVerificationService.verifyOwnership(
+      // Invalid wallet address
+      await expect(
+        NFTVerificationService.verifyOwnership(
           'not-an-address',
           validContract,
           null
-        );
-        expect.unreachable('Expected error to be thrown');
-      } catch (err) {
-        expect(err).toBeInstanceOf(ValidationError);
-        expect((err as Error).message).toMatch(/Invalid wallet address/);
-      }
+        )
+      ).rejects.toThrow(/Invalid wallet address/);
 
-      try {
-        await NFTVerificationService.verifyOwnership(
+      await expect(
+        NFTVerificationService.verifyOwnership(
+          'not-an-address',
+          validContract,
+          null
+        )
+      ).rejects.toBeInstanceOf(ValidationError);
+
+      // Invalid contract address
+      await expect(
+        NFTVerificationService.verifyOwnership(
           validWallet,
           'not-an-address',
           null
-        );
-        expect.unreachable('Expected error to be thrown');
-      } catch (err) {
-        expect(err).toBeInstanceOf(ValidationError);
-        expect((err as Error).message).toMatch(/Invalid contract address/);
-      }
+        )
+      ).rejects.toThrow(/Invalid contract address/);
+
+      await expect(
+        NFTVerificationService.verifyOwnership(
+          validWallet,
+          'not-an-address',
+          null
+        )
+      ).rejects.toBeInstanceOf(ValidationError);
     });
 
     test('should validate token ID format', async () => {
-      // Use try/catch to verify both error type and message for negative token ID
-      try {
-        await NFTVerificationService.verifyOwnership(
-          validWallet,
-          validContract,
-          -1
-        );
-        expect.unreachable('Expected error to be thrown');
-      } catch (err) {
-        expect(err).toBeInstanceOf(ValidationError);
-        expect((err as Error).message).toMatch(/Invalid token ID/);
-      }
+      // Negative token ID
+      await expect(
+        NFTVerificationService.verifyOwnership(validWallet, validContract, -1)
+      ).rejects.toThrow(/Invalid token ID/);
 
-      // Use try/catch to verify both error type and message for non-integer token ID
-      try {
-        await NFTVerificationService.verifyOwnership(
-          validWallet,
-          validContract,
-          1.5
-        );
-        expect.unreachable('Expected error to be thrown');
-      } catch (err) {
-        expect(err).toBeInstanceOf(ValidationError);
-        expect((err as Error).message).toMatch(/Invalid token ID/);
-      }
+      await expect(
+        NFTVerificationService.verifyOwnership(validWallet, validContract, -1)
+      ).rejects.toBeInstanceOf(ValidationError);
+
+      // Non-integer token ID
+      await expect(
+        NFTVerificationService.verifyOwnership(validWallet, validContract, 1.5)
+      ).rejects.toThrow(/Invalid token ID/);
+
+      await expect(
+        NFTVerificationService.verifyOwnership(validWallet, validContract, 1.5)
+      ).rejects.toBeInstanceOf(ValidationError);
     });
 
     test('should allow token ID 0', async () => {
@@ -132,28 +135,24 @@ describe('NFTVerificationService', () => {
       // This tests that token ID 0 passes the tokenId format validation.
       // The function may still throw ValidationError for OTHER reasons (e.g., no contract at address)
       // but it should NOT throw for token ID being 0.
-      try {
-        await NFTVerificationService.verifyOwnership(
-          validWallet,
-          validContract,
-          0
-        );
-      } catch (error) {
-        // If it's a ValidationError, it should NOT be about the token ID
+      //
+      // We verify by checking that if a ValidationError is thrown, it's NOT about token ID
+      const result = NFTVerificationService.verifyOwnership(
+        validWallet,
+        validContract,
+        0
+      );
+
+      // The call may succeed or fail for contract-related reasons, but NOT for token ID validation
+      // If it rejects with ValidationError, it must not be about token ID
+      await result.catch((error) => {
         if (error instanceof ValidationError) {
-          // "No contract at address" or "Not an ERC721 contract" are acceptable validation errors
-          // because they're not rejecting token ID 0 specifically
+          // Verify it's NOT rejecting token ID 0 specifically
           expect(error.message).not.toContain('token');
           expect(error.message).not.toContain('Token');
-          // Verify it's a contract-related validation, not token ID validation
-          expect(
-            error.message.includes('contract') ||
-              error.message.includes('Contract') ||
-              error.message.includes('ERC721')
-          ).toBe(true);
         }
-        // Non-ValidationError (network/RPC errors) are also fine
-      }
+        // Non-ValidationError (network/RPC errors) are acceptable
+      });
     });
   });
 

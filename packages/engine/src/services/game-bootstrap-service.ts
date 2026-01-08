@@ -35,6 +35,11 @@ const MINIMUM_BALANCE_BY_TIER: Record<string, number> = {
 const DEFAULT_MINIMUM_BALANCE = 5000;
 const MAX_TOP_UP_AMOUNT = 100000;
 
+/** Funding interval in hours for perpetual markets */
+const FUNDING_INTERVAL_HOURS = 8;
+/** Funding interval in milliseconds */
+const FUNDING_INTERVAL_MS = FUNDING_INTERVAL_HOURS * 60 * 60 * 1000;
+
 // RSS Feed sources for news generation
 const RSS_FEEDS = [
   {
@@ -632,8 +637,8 @@ export class GameBootstrapService {
 
     const now = new Date();
     const nextFundingTime = new Date(
-      now.getTime() + 8 * 60 * 60 * 1000
-    ).toISOString(); // 8 hours
+      now.getTime() + FUNDING_INTERVAL_MS
+    ).toISOString();
 
     for (const org of tradeableOrgs) {
       if (!org.ticker || existingTickers.has(org.ticker)) {

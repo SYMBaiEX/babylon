@@ -89,7 +89,7 @@ import {
   ReputationService,
   rssFeedService,
   StaticDataRegistry,
-  setSocialEngagementLLMClient,
+  npcSocialEngagementService,
   syncReputationIfAvailable,
   TokenStatsService,
   TradeExecutionService,
@@ -107,6 +107,7 @@ import type {
 } from './types/shared';
 import { calculateEstimatedCost } from './types/token-stats';
 import { getGameDayNumber, toSafeDayNumber } from './utils/date-utils';
+import { deriveStrategyFromPersonality } from './utils/shared-utils';
 import { worldFactsService } from './world-facts-service';
 // Note: Event-market pipeline is called from within narrative-event-processor
 
@@ -754,7 +755,7 @@ export async function executeGameTick(
   if (Date.now() < deadline) {
     try {
       // Set LLM client for NPC comment generation
-      setSocialEngagementLLMClient(llmClient);
+      npcSocialEngagementService.setLLMClient(llmClient);
 
       const socialEngagementResult = await processNPCSocialEngagements();
       result.npcLikesCreated = socialEngagementResult.likesCreated;
@@ -853,7 +854,7 @@ export async function executeGameTick(
         const actor = StaticDataRegistry.getActor(pool.npcActorId);
 
         // Determine trading strategy from actor data
-        // Prefer explicit strategy property if available, otherwise parse personality
+        // Prefer explicit strategy property if available, otherwise derive from personality
         let strategy: 'aggressive' | 'conservative' | 'balanced' = 'balanced';
         if (actor) {
           // Check for explicit strategy property first (preferred)
@@ -866,26 +867,9 @@ export async function executeGameTick(
             ) {
               strategy = explicitStrategy;
             }
-          } else if (actor.personality) {
-            // Parse personality with word-boundary matching for robustness
-            const personalityLower = actor.personality.toLowerCase();
-            const tokens = personalityLower.split(/[\s,;.]+/);
-
-            // Check for negation patterns (e.g., "not aggressive")
-            const hasNotAggressive =
-              /\bnot\s+aggressive\b/.test(personalityLower) ||
-              /\bnon-?aggressive\b/.test(personalityLower);
-            const hasNotConservative =
-              /\bnot\s+conservative\b/.test(personalityLower) ||
-              /\bnon-?conservative\b/.test(personalityLower);
-
-            // Apply precedence: aggressive > conservative > balanced
-            if (tokens.includes('aggressive') && !hasNotAggressive) {
-              strategy = 'aggressive';
-            } else if (tokens.includes('conservative') && !hasNotConservative) {
-              strategy = 'conservative';
-            }
-            // Default remains 'balanced'
+          } else {
+            // Use utility function to derive strategy from personality
+            strategy = deriveStrategyFromPersonality(actor.personality);
           }
         }
 

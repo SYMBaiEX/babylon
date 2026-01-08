@@ -105,21 +105,15 @@ export class NPCSocialEngagementService {
 }
 
 // =============================================================================
-// SINGLETON INSTANCE
+// SERVICE INSTANCE
 // =============================================================================
 
-/** Singleton service instance for LLM client management */
-const serviceInstance = new NPCSocialEngagementService();
-
-/** @deprecated Use serviceInstance.setLLMClient() instead */
-export function setSocialEngagementLLMClient(client: BabylonLLMClient): void {
-  serviceInstance.setLLMClient(client);
-}
-
-/** Internal helper to get the current LLM client */
-function getLLMClient(): BabylonLLMClient | null {
-  return serviceInstance.getLLMClient();
-}
+/**
+ * Default service instance for convenience.
+ * For full dependency injection, construct your own NPCSocialEngagementService
+ * and pass it to consumers that need social engagement functionality.
+ */
+export const npcSocialEngagementService = new NPCSocialEngagementService();
 
 // =============================================================================
 // MAIN SERVICE FUNCTION
@@ -271,7 +265,10 @@ export async function processNPCSocialEngagements(): Promise<SocialEngagementRes
         }
 
         // COMMENT - comments don't have unique constraints per-actor
-        if (getLLMClient() && result.commentsCreated < MAX_COMMENTS_PER_TICK) {
+        if (
+          npcSocialEngagementService.getLLMClient() &&
+          result.commentsCreated < MAX_COMMENTS_PER_TICK
+        ) {
           if (secureRandom() < probs.comment) {
             const comment = await generateNPCComment(actor, post);
             if (comment) {
@@ -392,7 +389,7 @@ async function generateNPCComment(
   actor: ActorContext,
   post: PostContext
 ): Promise<string | null> {
-  const llmClient = getLLMClient();
+  const llmClient = npcSocialEngagementService.getLLMClient();
   if (!llmClient) return null;
 
   try {

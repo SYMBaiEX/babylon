@@ -35,13 +35,29 @@ export interface GameOnboardingState {
 }
 
 /**
+ * Default game onboarding state.
+ * This constant is used to generate the SQL default for the state column,
+ * ensuring TypeScript validates the default against the GameOnboardingState interface.
+ */
+export const DEFAULT_GAME_ONBOARDING_STATE: GameOnboardingState = {
+  completedSteps: [],
+  currentStep: 'welcome',
+  startedAt: null,
+  completedAt: null,
+  rewards: [],
+};
+
+/**
  * GameOnboarding - Tracks user's game tutorial progress
  */
 export const gameOnboarding = pgTable(
   'GameOnboarding',
   {
     id: text('id').primaryKey(),
-    userId: text('userId').notNull().unique(),
+    userId: text('userId')
+      .notNull()
+      .unique()
+      .references(() => users.id, { onDelete: 'cascade' }),
 
     // Current step in the tutorial
     currentStep: text('currentStep')
@@ -50,14 +66,11 @@ export const gameOnboarding = pgTable(
       .default('welcome'),
 
     // Full state as JSONB for flexibility
-    // IMPORTANT: This SQL literal must stay in sync with GameOnboardingState interface.
-    // If you modify GameOnboardingState (add/remove/rename fields), update this default.
-    // See: GameOnboardingState interface above for the TypeScript definition.
+    // The default is generated from DEFAULT_GAME_ONBOARDING_STATE constant,
+    // ensuring TypeScript validates the default against the GameOnboardingState interface.
     state: jsonb('state')
       .$type<GameOnboardingState>()
-      .default(
-        sql`'{"completedSteps":[],"currentStep":"welcome","startedAt":null,"completedAt":null,"rewards":[]}'::jsonb`
-      ),
+      .default(sql`${JSON.stringify(DEFAULT_GAME_ONBOARDING_STATE)}::jsonb`),
 
     // Quick access flags
     isComplete: boolean('isComplete').notNull().default(false),

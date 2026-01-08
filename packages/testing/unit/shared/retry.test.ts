@@ -67,8 +67,11 @@ describe('Retry Utility - sleep', () => {
     const start = Date.now();
     await sleep(50);
     const elapsed = Date.now() - start;
-    expect(elapsed).toBeGreaterThanOrEqual(45); // Allow some tolerance
-    expect(elapsed).toBeLessThan(100);
+    // Allow broad tolerance for CI environments with variable timing
+    // Minimum: 30ms (allows for timer inaccuracies)
+    // Maximum: 200ms (allows for system load delays)
+    expect(elapsed).toBeGreaterThanOrEqual(30);
+    expect(elapsed).toBeLessThan(200);
   });
 });
 

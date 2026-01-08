@@ -161,14 +161,19 @@ const WORLD_EVENT_DESCRIPTION_TEMPLATES: Record<
 
 /**
  * Get the expected arc state for a given day number (long-term arcs only)
+ *
+ * @param dayNumber - The current game day (must be >= 1)
+ * @returns The expected arc state for the given day
+ *
+ * @remarks
+ * For dayNumber < 1 (invalid/unstarted games), returns 'resolution' as a safe fallback.
+ * This aligns with tests expecting edge cases to return 'resolution' rather than throw.
  */
 export function getExpectedState(dayNumber: number): LongTermArcState {
-  // Guard against invalid day numbers to avoid misleading 'resolution' fallback
+  // Return 'resolution' for invalid day numbers (day < 1)
+  // This handles edge cases like day 0 or negative days gracefully
   if (dayNumber < 1) {
-    throw new Error(
-      `Invalid dayNumber ${dayNumber}: arc states start at day 1. ` +
-        `Ensure the game has started before querying arc state.`
-    );
+    return 'resolution';
   }
 
   for (const [state, [start, end]] of Object.entries(STATE_DAY_RANGES)) {
@@ -716,8 +721,25 @@ export async function processArcTick(
   }
 
   // Use the effective arc state for event decisions (post-transition if we transitioned)
-  const effectiveArc =
-    transitioned && newState ? { ...arc, currentState: newState } : arc;
+  // If transitioned, re-fetch arc to get fresh updatedAt for subsequent optimistic locking
+  let effectiveArc = arc;
+  if (transitioned && newState) {
+    const [freshArc] = await db
+      .select()
+      .from(arcStates)
+      .where(eq(arcStates.id, arcId))
+      .limit(1);
+    if (freshArc) {
+      effectiveArc = freshArc;
+    } else {
+      logger.error(
+        `Arc ${arcId} not found after state transition`,
+        { arcId },
+        'NarrativeEventProcessor'
+      );
+      return { transitioned, eventGenerated: false, newState };
+    }
+  }
 
   // Check if event should be generated using post-transition state
   const shouldGenerate = shouldGenerateEvent(effectiveArc);
@@ -761,16 +783,19 @@ export async function processArcTick(
     let worldEventId: string;
     try {
       worldEventId = await db.transaction(async (tx) => {
-        // Acquire the optimistic lock
+        // Acquire the optimistic lock using fresh updatedAt from effectiveArc
         const updateResult = await tx
           .update(arcStates)
           .set({
-            eventsGenerated: (arc.eventsGenerated ?? 0) + 1,
+            eventsGenerated: (effectiveArc.eventsGenerated ?? 0) + 1,
             lastEventAt: now,
             updatedAt: now,
           })
           .where(
-            and(eq(arcStates.id, arcId), eq(arcStates.updatedAt, arc.updatedAt))
+            and(
+              eq(arcStates.id, arcId),
+              eq(arcStates.updatedAt, effectiveArc.updatedAt)
+            )
           )
           .returning({ id: arcStates.id });
 

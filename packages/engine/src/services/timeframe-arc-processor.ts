@@ -402,8 +402,9 @@ export class TimeframeArcProcessor {
       let orgName = 'Organization';
       let ticker = 'TICK';
 
-      if (affiliatedOrgIds.length > 0) {
-        const org = StaticDataRegistry.getOrganization(affiliatedOrgIds[0]!);
+      const firstOrgId = affiliatedOrgIds[0];
+      if (firstOrgId) {
+        const org = StaticDataRegistry.getOrganization(firstOrgId);
         if (org) {
           orgName = org.name;
           ticker = org.ticker ?? 'TICK';

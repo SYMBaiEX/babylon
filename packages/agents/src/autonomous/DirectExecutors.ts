@@ -1064,42 +1064,35 @@ export async function executeDirectLike(
     'DirectExecutors'
   );
 
-  try {
-    const reactionId = await generateSnowflakeId();
+  const reactionId = await generateSnowflakeId();
 
-    // Use onConflictDoNothing to handle race conditions and prevent duplicate likes atomically
-    // This relies on a unique index on (userId, postId, type) for the reactions table
-    // No pre-check needed - the insert handles duplicates automatically
-    const insertResult = await db
-      .insert(reactions)
-      .values({
-        id: reactionId,
-        postId,
-        userId: agentUserId,
-        type: 'like',
-        createdAt: new Date(),
-      })
-      .onConflictDoNothing()
-      .returning({ id: reactions.id });
+  // Use onConflictDoNothing to handle race conditions and prevent duplicate likes atomically
+  // This relies on a unique index on (userId, postId, type) for the reactions table
+  // No pre-check needed - the insert handles duplicates automatically
+  const insertResult = await db
+    .insert(reactions)
+    .values({
+      id: reactionId,
+      postId,
+      userId: agentUserId,
+      type: 'like',
+      createdAt: new Date(),
+    })
+    .onConflictDoNothing()
+    .returning({ id: reactions.id });
 
-    const alreadyLiked = insertResult.length === 0;
-    logger.info(
-      `[DirectExecutor] Post ${alreadyLiked ? 'already liked' : 'liked'}: ${postId}`,
-      { agentUserId, alreadyLiked },
-      'DirectExecutors'
-    );
+  // Determine if a new row was created or it already existed
+  const alreadyLiked = insertResult.length === 0;
+  logger.info(
+    `[DirectExecutor] Post ${alreadyLiked ? 'already liked' : 'liked'}: ${postId}`,
+    { agentUserId, alreadyLiked },
+    'DirectExecutors'
+  );
 
-    return {
-      success: true,
-      liked: true,
-    };
-  } catch (error) {
-    // Handle unique constraint violation (concurrent like)
-    if ((error as Error).message?.includes('unique constraint')) {
-      return { success: true, liked: true };
-    }
-    throw error;
-  }
+  return {
+    success: true,
+    liked: !alreadyLiked,
+  };
 }
 
 // =============================================================================

@@ -11,13 +11,32 @@ import {
 } from 'drizzle-orm/pg-core';
 
 /**
- * Price modifier applied from narrative events
- * Note: Dates stored as ISO strings for JSONB compatibility
+ * Price modifier applied from narrative events.
+ * Note: Dates stored as ISO strings for JSONB compatibility.
+ *
+ * @remarks
+ * Bounds and semantics for numeric fields:
+ * - `effect`: A price multiplier. Expected range is constrained at runtime
+ *   between MIN_PRICE_MULTIPLIER (e.g., 0.5) and MAX_PRICE_MULTIPLIER (e.g., 2.0).
+ *   Values below 1.0 decrease price, above 1.0 increase price (e.g., 1.05 = +5%).
+ * - `decayRate`: Non-negative per-hour decay rate. Typically 0.0 to 1.0,
+ *   where 0.0 means no decay and 1.0 means full decay per hour.
+ *   Expected to be constrained by runtime logic to reasonable limits.
+ *
+ * See tests for MIN_PRICE_MULTIPLIER and MAX_PRICE_MULTIPLIER constants.
  */
 export interface PriceModifier {
   eventId: string;
-  effect: number; // Multiplier (1.05 = +5%)
-  decayRate: number; // Per-hour decay rate
+  /**
+   * Price multiplier effect. Constrained between MIN_PRICE_MULTIPLIER and MAX_PRICE_MULTIPLIER.
+   * Values < 1.0 decrease price, > 1.0 increase price (e.g., 1.05 = +5%).
+   */
+  effect: number;
+  /**
+   * Per-hour decay rate. Non-negative value, typically 0.0 to 1.0.
+   * 0.0 = no decay, 1.0 = full decay per hour.
+   */
+  decayRate: number;
   appliedAt: string; // ISO date string
   expiresAt: string; // ISO date string
 }

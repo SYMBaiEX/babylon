@@ -445,14 +445,15 @@ export async function getActiveEventsForPosting(): Promise<{
       }
     }
 
-    activeEvents.push({
-      questionId: event.relatedQuestion?.toString() || '',
-      affectedActorIds: actorIds,
-      affectedStocks: Array.from(affectedStocks),
-    });
-
+    // Only add events with a valid relatedQuestion to avoid empty-string questionIds
     if (event.relatedQuestion) {
-      activeEventQuestionIds.add(event.relatedQuestion.toString());
+      const questionId = event.relatedQuestion.toString();
+      activeEvents.push({
+        questionId,
+        affectedActorIds: actorIds,
+        affectedStocks: Array.from(affectedStocks),
+      });
+      activeEventQuestionIds.add(questionId);
     }
   }
 

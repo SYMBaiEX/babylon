@@ -544,8 +544,17 @@ export async function getRateLimitStatus(
         remaining: Math.max(0, config.maxRequests - count),
         resetAt: new Date(oldestTimestamp + config.windowMs),
       };
-    } catch {
-      // Fall through to memory fallback
+    } catch (e) {
+      // Log the Redis failure before falling back to memory
+      logger.error(
+        'Redis rate limiter failed, falling back to in-memory',
+        {
+          error: e instanceof Error ? e.message : String(e),
+          userId,
+          actionType: config.actionType,
+        },
+        'RateLimiter'
+      );
     }
   }
 

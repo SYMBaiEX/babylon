@@ -228,14 +228,14 @@ describe('Narrative Event Processor - Event Generation Decision', () => {
 
 describe('Narrative Event Processor - Edge Cases', () => {
   test('handles day number 0', () => {
-    // Day 0 is out-of-range (days are 1-indexed), falls through to 'resolution' default
+    // Day 0 is out-of-range (days are 1-indexed), returns 'resolution' as safe fallback
     const result = getExpectedState(0);
     expect(result).toBe('resolution');
   });
 
   test('handles negative day numbers', () => {
     const result = getExpectedState(-5);
-    // Negative days fall through to resolution (default return)
+    // Negative days return 'resolution' as safe fallback
     expect(result).toBe('resolution');
   });
 

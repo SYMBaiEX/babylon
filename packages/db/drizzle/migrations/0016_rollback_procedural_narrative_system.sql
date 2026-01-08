@@ -16,6 +16,10 @@ DROP TABLE IF EXISTS "ArcState";
 DROP TABLE IF EXISTS "QuestionArcPlan";
 DROP TABLE IF EXISTS "GameOnboarding";
 
+-- Drop CHECK constraints before dropping columns that have them
+ALTER TABLE "OrganizationState" DROP CONSTRAINT IF EXISTS sentiment_range;
+ALTER TABLE "ActorState" DROP CONSTRAINT IF EXISTS current_mood_bounds;
+
 -- Remove OrganizationState columns
 ALTER TABLE "OrganizationState" DROP COLUMN IF EXISTS "activeModifiers";
 ALTER TABLE "OrganizationState" DROP COLUMN IF EXISTS "sentiment";

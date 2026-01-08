@@ -351,9 +351,13 @@ export default function ActorProfilePage() {
           ? (actor.username as string)
           : actor.id) as string | undefined, // Use username if available, fallback to ID
         // Explicitly set profile image URL with fallback to static actor image
+        // Use same defensive pattern as organization fallback below
         profileImageUrl:
-          ('profileImageUrl' in actor && actor.profileImageUrl) ||
-          `/images/actors/${actor.id}.jpg`,
+          'profileImageUrl' in actor &&
+          typeof actor.profileImageUrl === 'string' &&
+          actor.profileImageUrl
+            ? actor.profileImageUrl
+            : `/images/actors/${actor.id}.jpg`,
         stats,
       });
       setLoading(false);

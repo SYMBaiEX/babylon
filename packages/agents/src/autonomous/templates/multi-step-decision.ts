@@ -195,11 +195,6 @@ export function buildMultiStepDecisionPrompt(params: {
           .join('\n')
       : 'No actions taken yet this tick.';
 
-  // Check if already posted this tick to enforce one-post-per-tick rule
-  const hasPostedThisTick = traceActionResults.some(
-    (r) => r.actionType === 'POST' && r.success
-  );
-
   // Check if just traded this tick - encourage posting about trades
   const justTraded = traceActionResults.some(
     (r) => r.actionType === 'TRADE' && r.success
@@ -207,12 +202,6 @@ export function buildMultiStepDecisionPrompt(params: {
   const tradeDetails = justTraded
     ? traceActionResults.find((r) => r.actionType === 'TRADE' && r.success)
     : null;
-
-  // Hard-enforce one-post-per-tick by filtering POST from enabled features
-  // This ensures POST is not even offered as an option after posting
-  const effectiveFeatures = hasPostedThisTick
-    ? context.enabledFeatures.filter((f) => f !== 'posting')
-    : context.enabledFeatures;
 
   // NPC-specific sections
   const npcContextSection =
@@ -243,13 +232,18 @@ ${NPC_POST_QUALITY_RULES}
     : '';
 
   // Determine enabled features for conditional sections
-  // Use effectiveFeatures (which excludes 'posting' if already posted this tick)
-  const canTrade = effectiveFeatures.includes('trading');
-  const canComment = effectiveFeatures.includes('commenting');
-  const canRespondDMs = effectiveFeatures.includes('DMs');
-  const canEngage = effectiveFeatures.includes('engaging');
-  const canPost = effectiveFeatures.includes('posting');
-  const canGroupChat = effectiveFeatures.includes('groupChats');
+  // Use context.enabledFeatures directly - MultiStepExecutor already supplies filtered features
+  const canTrade = context.enabledFeatures.includes('trading');
+  const canComment = context.enabledFeatures.includes('commenting');
+  const canRespondDMs = context.enabledFeatures.includes('DMs');
+  const canEngage = context.enabledFeatures.includes('engaging');
+  const canPost = context.enabledFeatures.includes('posting');
+  const canGroupChat = context.enabledFeatures.includes('groupChats');
+
+  // Check if already posted this tick (for prompt messaging, not feature filtering)
+  const hasPostedThisTick = traceActionResults.some(
+    (r) => r.actionType === 'POST' && r.success
+  );
 
   // Encourage sharing after trades - users love seeing NPCs share their trades
   // Add randomness to feel human - not every trade gets shared
@@ -403,7 +397,7 @@ ${groupChatsSection}
 ${actionsCompletedText}
 
 # Available Actions
-${formatAvailableActions(effectiveFeatures)}
+${formatAvailableActions(context.enabledFeatures)}
 
 ${context.diversityInstructions ? `${context.diversityInstructions}` : ''}
 ${context.assignedMarketId && canTrade ? `# YOUR FOCUS MARKET: ${context.assignedMarketId}\nConsider this market for trades or posts. Bring your ${context.personality || 'unique'} perspective.\n` : ''}

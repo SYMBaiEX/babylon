@@ -9,10 +9,17 @@
  * Sets the onboarding as complete without awarding any points.
  */
 
-import { authenticate, successResponse, withErrorHandling } from '@babylon/api';
+import {
+  authenticate,
+  checkRateLimitAsync,
+  RATE_LIMIT_CONFIGS,
+  successResponse,
+  withErrorHandling,
+} from '@babylon/api';
 import { getOnboardingStatus, skipOnboarding } from '@babylon/engine';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
 
 /**
  * POST /api/onboarding/game-skip
@@ -60,6 +67,19 @@ import type { NextRequest } from 'next/server';
  */
 export const POST = withErrorHandling(async (request: NextRequest) => {
   const user = await authenticate(request);
+
+  // Rate limit: prevent abusive rapid calls to skip onboarding
+  const rateLimit = await checkRateLimitAsync(
+    user.userId,
+    RATE_LIMIT_CONFIGS.UPDATE_PROFILE // 5 per minute - reasonable for profile-like updates
+  );
+
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      { error: 'Too many requests', retryAfter: rateLimit.retryAfter },
+      { status: 429 }
+    );
+  }
 
   await skipOnboarding(user.userId);
 

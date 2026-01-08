@@ -225,10 +225,11 @@ export async function completeOnboardingStep(
         { userId, step, retryCount },
         'GameOnboarding'
       );
+      // Return the original persisted value, not the mutated state
       return {
         success: false,
         pointsAwarded: 0,
-        nextStep: state.currentStep,
+        nextStep: onboarding.currentStep,
         isComplete: onboarding.isComplete,
       };
     }

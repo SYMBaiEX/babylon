@@ -100,13 +100,19 @@ export async function GET(
 
   // Get all posts from this time period, filtered by related question if available
   const questionNumbers = questions.map((q) => q.questionNumber);
+  
+  // Handle empty questionNumbers - avoid sending { in: [] } to Prisma
   const posts = await db.post.findMany({
     where: {
       gameId: gameId,
-      OR: [
-        { relatedQuestion: { in: questionNumbers } },
-        { relatedQuestion: null }, // Include posts without question association
-      ],
+      ...(questionNumbers.length === 0
+        ? { relatedQuestion: null } // Only get posts without question association
+        : {
+            OR: [
+              { relatedQuestion: { in: questionNumbers } },
+              { relatedQuestion: null }, // Include posts without question association
+            ],
+          }),
     },
     select: {
       id: true,

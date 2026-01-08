@@ -562,6 +562,7 @@ export class NpcMemoryService {
           continue;
         }
 
+        const isTransient = isTransientError(error);
         logger.error(
           `Failed to update activity state for ${actorId}`,
           {

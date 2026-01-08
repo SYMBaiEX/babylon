@@ -185,7 +185,13 @@ export async function retryWithCondition<T>(
 }
 
 /**
- * Fire-and-forget retry options
+ * Configuration options for fire-and-forget retry operations.
+ *
+ * Shares common retry fields with `RetryOptions` (maxAttempts, initialDelayMs,
+ * maxDelayMs, backoffMultiplier) but is specialized for fire-and-forget use cases:
+ * - Omits `onRetry` callback (uses logging instead)
+ * - Provides `logContext` and `metadata` for error logging
+ * - Does not extend `RetryOptions` to keep the interfaces decoupled
  */
 export interface FireAndForgetRetryOptions {
   /** Maximum number of retry attempts (default: 3) */
