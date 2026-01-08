@@ -53,33 +53,30 @@
 
 import type {
   ArcStateType,
+  LongTermArcState,
   MarketCategory,
   MarketTimeframe,
 } from '@babylon/db';
 import { logger } from '@babylon/shared';
 
 // Re-export types from DB schema for consumers of this module
-export type { MarketCategory, MarketTimeframe } from '@babylon/db';
+// Arc state types are canonical in @babylon/db/schema/narrative.ts
+export type {
+  ArcStateType,
+  DailyArcState,
+  FlashArcState,
+  IntradayArcState,
+  LongTermArcState,
+  MarketCategory,
+  MarketTimeframe,
+  WeeklyArcState,
+} from '@babylon/db';
 
 /**
- * Arc state types for different timeframes
- * Shorter markets have fewer, faster state transitions
+ * Standard arc state alias for weekly/monthly/quarterly markets.
+ * These use the same state progression as LongTermArcState but over shorter periods.
  */
-export type FlashArcState = 'live' | 'resolving';
-export type IntradayArcState = 'setup' | 'active' | 'climax' | 'resolution';
-export type DailyArcState =
-  | 'morning'
-  | 'midday'
-  | 'afternoon'
-  | 'evening'
-  | 'resolution';
-export type StandardArcState =
-  | 'setup'
-  | 'tension'
-  | 'escalation'
-  | 'crisis'
-  | 'revelation'
-  | 'resolution';
+export type StandardArcState = LongTermArcState;
 
 /**
  * Configuration for a market timeframe
