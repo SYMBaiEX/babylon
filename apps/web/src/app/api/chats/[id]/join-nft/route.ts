@@ -25,6 +25,7 @@ import {
   eq,
   groupMembers,
   isUniqueConstraintError,
+  messages,
   toDatabaseErrorType,
   users,
 } from '@babylon/db';
@@ -199,6 +200,26 @@ export const POST = withErrorHandling(
       }
       throw error;
     }
+
+    // Get user's display name for system message
+    const [joiningUser] = await db
+      .select({ displayName: users.displayName, username: users.username })
+      .from(users)
+      .where(eq(users.id, user.userId))
+      .limit(1);
+    const joinerName =
+      joiningUser?.displayName || joiningUser?.username || 'Someone';
+
+    // Create system message for joining
+    const messageId = await generateSnowflakeId();
+    await db.insert(messages).values({
+      id: messageId,
+      chatId,
+      senderId: 'system',
+      type: 'system',
+      content: `${joinerName} joined the group`,
+      createdAt: now,
+    });
 
     logger.info(
       'User joined NFT-gated chat',

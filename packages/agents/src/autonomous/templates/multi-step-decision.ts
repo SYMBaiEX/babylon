@@ -65,10 +65,41 @@ export interface PendingInteraction {
   postId?: string;
 }
 
+export interface PerpPositionContext {
+  ticker: string;
+  side: string;
+  size: number;
+  pnl: number;
+  pnlPercent: number; // e.g., +2.3 or -10.5
+  entryPrice: number;
+  currentPrice: number;
+  timeHeld: string; // Human readable: "2h 15m", "3d 4h", etc.
+  timeHeldMs: number; // Raw milliseconds for calculations
+}
+
+export interface PredictionPositionContext {
+  marketId: string;
+  question: string;
+  side: string;
+  shares: number;
+  avgPrice: number;
+  currentPrice: number;
+  pnlPercent: number;
+  timeHeld: string;
+  timeHeldMs: number;
+}
+
 export interface GroupChatContext {
   id: string;
   name: string;
   memberCount?: number;
+}
+
+export interface AgentOwnPostContext {
+  content: string;
+  timeAgo: string;
+  likeCount: number;
+  commentCount: number;
 }
 
 export interface AgentTickContext {
@@ -83,13 +114,8 @@ export interface AgentTickContext {
   perpMarkets: PerpMarketContext[];
   recentPosts: PostContext[];
   agentPositions: {
-    predictions: {
-      marketId: string;
-      question: string;
-      side: string;
-      shares: number;
-    }[];
-    perps: { ticker: string; side: string; size: number; pnl: number }[];
+    predictions: PredictionPositionContext[];
+    perps: PerpPositionContext[];
   };
   // Group chats for sharing
   groupChats?: GroupChatContext[];
@@ -99,6 +125,8 @@ export interface AgentTickContext {
   // NPC's actual character data for personalized guidance
   personality?: string;
   postStyle?: string;
+  // Agent's own recent posts for self-awareness
+  agentOwnPosts?: AgentOwnPostContext[];
 }
 
 export interface MultiStepDecision {
@@ -388,7 +416,11 @@ ${npcContextSection}${tradePostEncouragement}# Current Execution Context
 
 # Your Open Positions
 ${formatAgentPositions(context.agentPositions)}
-${tradingSection}
+${formatPositionManagementGuidance(context.agentPositions)}
+${canPost ? `
+# Your Recent Posts (AVOID REPEATING - check how long ago you posted!)
+${formatAgentOwnPosts(context.agentOwnPosts)}
+` : ''}${tradingSection}
 ${commentingSection}
 ${dmsSection}
 ${groupChatsSection}
@@ -459,7 +491,7 @@ Examples:
 ${
   canTrade
     ? `
-TRADE (prediction):
+TRADE (prediction - buy):
 {
   "marketType": "prediction",
   "marketId": "exact_market_id_from_list",
@@ -468,13 +500,30 @@ TRADE (prediction):
   "reasoning": "Why this trade"
 }
 
-TRADE (perp):
+TRADE (prediction - sell/close):
+{
+  "marketType": "prediction",
+  "marketId": "exact_market_id_from_position",
+  "side": "sell_yes" | "sell_no",
+  "amount": 0,
+  "reasoning": "Why selling (use amount=0 to sell entire position)"
+}
+
+TRADE (perp - open):
 {
   "marketType": "perp",
   "marketId": "TICKER",
   "side": "open_long" | "open_short",
   "amount": 100,
   "reasoning": "Why this trade"
+}
+
+TRADE (perp - close):
+{
+  "marketType": "perp",
+  "marketId": "TICKER",
+  "side": "close_position",
+  "reasoning": "Why closing this position"
 }`
     : ''
 }
@@ -556,24 +605,123 @@ function formatAgentPositions(
   const lines: string[] = [];
 
   if (positions.predictions.length > 0) {
-    lines.push('Prediction positions:');
+    lines.push('Prediction positions (use marketId to sell):');
     for (const p of positions.predictions) {
+      const pnlSign = p.pnlPercent >= 0 ? '+' : '';
+      const priceMovement = p.pnlPercent >= 0 ? '📈' : '📉';
+      const priceInfo = `entry: ${(p.avgPrice * 100).toFixed(0)}¢ → now: ${(p.currentPrice * 100).toFixed(0)}¢`;
       lines.push(
-        `  - ${p.side} on "${p.question.substring(0, 50)}..." (${p.shares} shares)`
+        `  - ${p.side} on "${p.question.substring(0, 35)}..." (marketId: ${p.marketId})`
+      );
+      lines.push(
+        `    ${p.shares.toFixed(1)} shares | ${priceInfo} | ${priceMovement} ${pnlSign}${p.pnlPercent.toFixed(1)}% | held: ${p.timeHeld}`
       );
     }
   }
 
   if (positions.perps.length > 0) {
-    lines.push('Perp positions:');
+    lines.push('Perp positions (use ticker to close):');
     for (const p of positions.perps) {
+      const pnlSign = p.pnlPercent >= 0 ? '+' : '';
+      const priceMovement = p.pnlPercent >= 0 ? '📈' : '📉';
+      const priceInfo = `entry: $${p.entryPrice.toFixed(2)} → now: $${p.currentPrice.toFixed(2)}`;
       lines.push(
-        `  - ${p.side} ${p.ticker}: $${p.size} (P&L: ${p.pnl >= 0 ? '+' : ''}$${p.pnl.toFixed(2)})`
+        `  - ${p.side.toUpperCase()} ${p.ticker}: $${p.size.toFixed(0)} size`
+      );
+      lines.push(
+        `    ${priceInfo} | ${priceMovement} ${pnlSign}${p.pnlPercent.toFixed(1)}% | P&L: ${p.pnl >= 0 ? '+' : ''}$${p.pnl.toFixed(2)} | held: ${p.timeHeld}`
       );
     }
   }
 
   return lines.length > 0 ? lines.join('\n') : 'No open positions.';
+}
+
+/**
+ * Analyze positions and generate management guidance for the agent
+ * Helps identify stagnant, losing, or aged positions that should be reviewed
+ */
+function formatPositionManagementGuidance(
+  positions: AgentTickContext['agentPositions']
+): string {
+  const alerts: string[] = [];
+
+  // Thresholds for position management
+  const STAGNANT_THRESHOLD_PERCENT = 1.0; // Less than 1% movement = stagnant
+  const STAGNANT_TIME_MS = 2 * 60 * 60 * 1000; // 2 hours
+  const LONG_HOLD_TIME_MS = 24 * 60 * 60 * 1000; // 24 hours
+  const LOSS_THRESHOLD_PERCENT = -5.0; // More than 5% loss
+  const PROFIT_THRESHOLD_PERCENT = 10.0; // More than 10% profit - consider taking
+
+  // Check perp positions
+  for (const p of positions.perps) {
+    const absChange = Math.abs(p.pnlPercent);
+
+    // Stagnant position - held for a while with minimal movement
+    if (
+      absChange < STAGNANT_THRESHOLD_PERCENT &&
+      p.timeHeldMs > STAGNANT_TIME_MS
+    ) {
+      alerts.push(
+        `⚠️ STAGNANT: ${p.ticker} ${p.side} has barely moved (${p.pnlPercent >= 0 ? '+' : ''}${p.pnlPercent.toFixed(1)}%) in ${p.timeHeld}. Consider closing if no catalyst expected.`
+      );
+    }
+    // Significant loss
+    else if (p.pnlPercent < LOSS_THRESHOLD_PERCENT) {
+      alerts.push(
+        `🔴 LOSING: ${p.ticker} ${p.side} is down ${p.pnlPercent.toFixed(1)}%. Consider cutting losses or averaging down if still bullish.`
+      );
+    }
+    // Good profit - consider taking
+    else if (p.pnlPercent > PROFIT_THRESHOLD_PERCENT) {
+      alerts.push(
+        `🟢 PROFIT: ${p.ticker} ${p.side} is up +${p.pnlPercent.toFixed(1)}%. Consider taking profits or setting a mental stop.`
+      );
+    }
+    // Very long hold
+    else if (p.timeHeldMs > LONG_HOLD_TIME_MS) {
+      alerts.push(
+        `⏰ AGED: ${p.ticker} ${p.side} held for ${p.timeHeld} (${p.pnlPercent >= 0 ? '+' : ''}${p.pnlPercent.toFixed(1)}%). Review if thesis still valid.`
+      );
+    }
+  }
+
+  // Check prediction positions
+  for (const p of positions.predictions) {
+    const absChange = Math.abs(p.pnlPercent);
+
+    if (
+      absChange < STAGNANT_THRESHOLD_PERCENT &&
+      p.timeHeldMs > STAGNANT_TIME_MS
+    ) {
+      alerts.push(
+        `⚠️ STAGNANT: "${p.question.substring(0, 30)}..." ${p.side} hasn't moved (${p.pnlPercent >= 0 ? '+' : ''}${p.pnlPercent.toFixed(1)}%) in ${p.timeHeld}.`
+      );
+    } else if (p.pnlPercent < LOSS_THRESHOLD_PERCENT) {
+      alerts.push(
+        `🔴 LOSING: "${p.question.substring(0, 30)}..." ${p.side} down ${p.pnlPercent.toFixed(1)}%.`
+      );
+    } else if (p.pnlPercent > PROFIT_THRESHOLD_PERCENT) {
+      alerts.push(
+        `🟢 PROFIT: "${p.question.substring(0, 30)}..." ${p.side} up +${p.pnlPercent.toFixed(1)}%.`
+      );
+    }
+    // Very long hold - check if thesis still valid
+    else if (p.timeHeldMs > LONG_HOLD_TIME_MS) {
+      alerts.push(
+        `⏰ AGED: "${p.question.substring(0, 30)}..." ${p.side} held for ${p.timeHeld} (${p.pnlPercent >= 0 ? '+' : ''}${p.pnlPercent.toFixed(1)}%). Review if thesis still valid.`
+      );
+    }
+  }
+
+  if (alerts.length === 0) {
+    return '';
+  }
+
+  return `
+# Position Management Alerts
+${alerts.join('\n')}
+`;
 }
 
 function formatPredictionMarkets(markets: PredictionMarketContext[]): string {
@@ -641,6 +789,22 @@ function formatPendingInteractions(interactions: PendingInteraction[]): string {
       (i) =>
         `- [${i.type}] @${i.author}: "${i.content.substring(0, 60)}${i.content.length > 60 ? '...' : ''}"`
     )
+    .join('\n');
+}
+
+function formatAgentOwnPosts(
+  ownPosts: AgentOwnPostContext[] | undefined
+): string {
+  if (!ownPosts || ownPosts.length === 0)
+    return 'You have not posted recently.';
+
+  return ownPosts
+    .map((p, i) => {
+      const engagement = `❤️${p.likeCount} 💬${p.commentCount}`;
+      const truncatedContent =
+        p.content.length > 80 ? `${p.content.substring(0, 80)}...` : p.content;
+      return `[${i + 1}] "${truncatedContent}" (${p.timeAgo}) [${engagement}]`;
+    })
     .join('\n');
 }
 

@@ -152,15 +152,17 @@ export interface PerpTradeResult {
   size: number;
   leverage: number;
   entryPrice: number;
+  /** Exit price (present on close operations) */
   exitPrice?: number;
   liquidationPrice: number;
   marginPaid?: number;
+  /** Realized P&L from the trade (present on close operations) */
   realizedPnL?: number;
   feePaid: number;
   balance?: number;
-  /** If partial close, the remaining position size */
+  /** If partial close, the remaining position size (present on close operations) */
   remainingSize?: number;
-  /** True if position was fully closed */
+  /** True if position was fully closed (present on close operations) */
   fullyClosed?: boolean;
   /** True if this trade modified an existing position (rebalance) */
   isRebalance?: boolean;

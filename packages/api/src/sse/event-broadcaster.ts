@@ -81,6 +81,7 @@ export async function broadcastChatMessage(
     content: string;
     chatId: string;
     senderId: string;
+    type?: string;
     createdAt: string;
     isGameChat?: boolean;
     isDMChat?: boolean;

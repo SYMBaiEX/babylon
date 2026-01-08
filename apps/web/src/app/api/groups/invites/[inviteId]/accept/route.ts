@@ -51,32 +51,46 @@ export const POST = withErrorHandling(
         throw new ApiError('This invite has already been processed', 400);
       }
 
-      // Check if user is at the NPC group limit (only NPC groups count toward the limit)
-      const activeMemberships = await db.groupMember.findMany({
-        where: {
-          userId: user.userId,
-          isActive: true,
-        },
+      // Check if the invited group exists and get its type
+      const invitedGroup = await db.group.findUnique({
+        where: { id: invite.groupId },
+        select: { type: true },
       });
 
-      // Fetch all groups in one query to avoid N+1
-      const groupIds = activeMemberships.map((m) => m.groupId);
-      const memberGroups =
-        groupIds.length > 0
-          ? await db.group.findMany({
-              where: { id: { in: groupIds } },
-              select: { id: true, type: true },
-            })
-          : [];
+      if (!invitedGroup) {
+        throw new ApiError('Group not found', 404);
+      }
 
-      // Count NPC groups
-      const npcGroupCount = memberGroups.filter((g) => g.type === 'npc').length;
+      // Only check NPC group limit if the invited group is an NPC group
+      if (invitedGroup.type === 'npc') {
+        const activeMemberships = await db.groupMember.findMany({
+          where: {
+            userId: user.userId,
+            isActive: true,
+          },
+        });
 
-      if (npcGroupCount >= GROUP_CONFIG.MAX_ACTIVE_USER_GROUPS) {
-        throw new ApiError(
-          `You can only be in ${GROUP_CONFIG.MAX_ACTIVE_USER_GROUPS} NPC groups at a time. Leave a group first.`,
-          400
-        );
+        // Fetch all groups in one query to avoid N+1
+        const groupIds = activeMemberships.map((m) => m.groupId);
+        const memberGroups =
+          groupIds.length > 0
+            ? await db.group.findMany({
+                where: { id: { in: groupIds } },
+                select: { id: true, type: true },
+              })
+            : [];
+
+        // Count NPC groups
+        const npcGroupCount = memberGroups.filter(
+          (g) => g.type === 'npc'
+        ).length;
+
+        if (npcGroupCount >= GROUP_CONFIG.MAX_ACTIVE_USER_GROUPS) {
+          throw new ApiError(
+            `You can only be in ${GROUP_CONFIG.MAX_ACTIVE_USER_GROUPS} NPC groups at a time. Leave a group first.`,
+            400
+          );
+        }
       }
 
       // Check if user is already an active member (fail fast, no race condition here)
@@ -101,55 +115,75 @@ export const POST = withErrorHandling(
       const now = new Date();
       const memberId = await generateSnowflakeId();
 
-      // Use transaction with atomic upserts to prevent race conditions
-      await db.transaction(async (tx) => {
-        // Upsert GroupMember - use drizzle's onConflictDoUpdate
-        await tx
-          .insert(groupMembers)
-          .values({
-            id: memberId,
-            groupId: invite.groupId,
-            userId: user.userId,
+      // Upsert GroupMember - use drizzle's onConflictDoUpdate
+      // Note: asUser already wraps this in a transaction, so no need for nested transaction
+      await db
+        .insert(groupMembers)
+        .values({
+          id: memberId,
+          groupId: invite.groupId,
+          userId: user.userId,
+          role: 'member',
+          addedBy: invite.invitedBy,
+          joinedAt: now,
+          isActive: true,
+          messageCount: 0,
+          qualityScore: 1.0,
+        })
+        .onConflictDoUpdate({
+          target: [groupMembers.groupId, groupMembers.userId],
+          set: {
+            isActive: true,
             role: 'member',
             addedBy: invite.invitedBy,
             joinedAt: now,
+            kickedAt: sql`NULL`,
+            kickReason: sql`NULL`,
+          },
+        });
+
+      // Upsert ChatParticipant if chat exists
+      if (groupChat) {
+        const participantId = await generateSnowflakeId();
+        await db
+          .insert(chatParticipants)
+          .values({
+            id: participantId,
+            chatId: groupChat.id,
+            userId: user.userId,
+            joinedAt: now,
             isActive: true,
-            messageCount: 0,
-            qualityScore: 1.0,
           })
           .onConflictDoUpdate({
-            target: [groupMembers.groupId, groupMembers.userId],
+            target: [chatParticipants.chatId, chatParticipants.userId],
             set: {
               isActive: true,
-              role: 'member',
-              addedBy: invite.invitedBy,
               joinedAt: now,
-              kickedAt: sql`NULL`,
-              kickReason: sql`NULL`,
             },
           });
+      }
 
-        // Upsert ChatParticipant if chat exists
-        if (groupChat) {
-          const participantId = await generateSnowflakeId();
-          await tx
-            .insert(chatParticipants)
-            .values({
-              id: participantId,
-              chatId: groupChat.id,
-              userId: user.userId,
-              joinedAt: now,
-              isActive: true,
-            })
-            .onConflictDoUpdate({
-              target: [chatParticipants.chatId, chatParticipants.userId],
-              set: {
-                isActive: true,
-                joinedAt: now,
-              },
-            });
-        }
+      // Get user's display name for system message
+      const joiningUser = await db.user.findUnique({
+        where: { id: user.userId },
+        select: { displayName: true, username: true },
       });
+      const joinerName =
+        joiningUser?.displayName || joiningUser?.username || 'Someone';
+
+      // Create system message for joining
+      if (groupChat) {
+        await db.message.create({
+          data: {
+            id: await generateSnowflakeId(),
+            chatId: groupChat.id,
+            senderId: 'system',
+            type: 'system',
+            content: `${joinerName} joined the group`,
+            createdAt: now,
+          },
+        });
+      }
 
       // Update invite status
       await db.groupInvite.update({

@@ -537,12 +537,12 @@ export function PositionDetailModal({
                       <span
                         className={cn(
                           'rounded px-2 py-1 font-medium text-sm',
-                          (data as PerpPositionFromAPI).side === 'LONG'
+                          (data as PerpPositionFromAPI).side === 'long'
                             ? 'bg-green-600/20 text-green-600'
                             : 'bg-red-600/20 text-red-600'
                         )}
                       >
-                        {(data as PerpPositionFromAPI).side}
+                        {(data as PerpPositionFromAPI).side.toUpperCase()}
                       </span>
                       {(data as PerpPositionFromAPI).leverage && (
                         <span className="rounded bg-muted px-2 py-1 text-muted-foreground text-xs">
