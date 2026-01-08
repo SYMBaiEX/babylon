@@ -192,7 +192,9 @@ export class TeamChatService {
    * @param userId - The human user ID
    * @returns Team chat with agents or null if not found
    */
-  async getTeamChatWithMembers(userId: string): Promise<TeamChatWithMembers | null> {
+  async getTeamChatWithMembers(
+    userId: string
+  ): Promise<TeamChatWithMembers | null> {
     const teamChat = await this.getTeamChat(userId);
     if (!teamChat) {
       return null;
@@ -221,7 +223,9 @@ export class TeamChatService {
       .select({ user: users })
       .from(groupMembers)
       .innerJoin(users, eq(groupMembers.userId, users.id))
-      .where(and(eq(groupMembers.groupId, gid), eq(groupMembers.isActive, true)))
+      .where(
+        and(eq(groupMembers.groupId, gid), eq(groupMembers.isActive, true))
+      )
       .orderBy(users.createdAt);
 
     // Filter to only agents (not the human owner)
@@ -412,9 +416,7 @@ export class TeamChatService {
       'TeamChatService'
     );
   }
-
 }
 
 /** Singleton instance */
 export const teamChatService = new TeamChatService();
-

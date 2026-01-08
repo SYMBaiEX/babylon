@@ -7,10 +7,10 @@
 
 import { usePrivy } from '@privy-io/react-auth';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { ChatDetails, ChatParticipant } from '@/components/chats/types';
 import { type ChatMessage, useChatMessages } from '@/hooks/useChatMessages';
 import { useSSEChannel } from '@/hooks/useSSE';
 import { useAuthStore } from '@/stores/authStore';
-import type { ChatDetails, ChatParticipant } from '@/components/chats/types';
 
 /** Typing user info */
 interface TypingUser {
@@ -329,7 +329,8 @@ export function useTeamChat(): UseTeamChatReturn {
       body: JSON.stringify({
         content: messageInput.trim(),
         // Include mentioned agent IDs for priority response handling
-        mentionedAgentIds: mentionedAgentIds.length > 0 ? mentionedAgentIds : undefined,
+        mentionedAgentIds:
+          mentionedAgentIds.length > 0 ? mentionedAgentIds : undefined,
       }),
     });
 
@@ -367,7 +368,14 @@ export function useTeamChat(): UseTeamChatReturn {
 
     // Clear success after 2 seconds
     setTimeout(() => setSendSuccess(false), 2000);
-  }, [teamChat, messageInput, sending, mentionedAgentIds, getAccessToken, addMessage]);
+  }, [
+    teamChat,
+    messageInput,
+    sending,
+    mentionedAgentIds,
+    getAccessToken,
+    addMessage,
+  ]);
 
   // Send message and stop typing indicator
   const sendMessageWithTypingStop = useCallback(async () => {
@@ -401,4 +409,3 @@ export function useTeamChat(): UseTeamChatReturn {
     refresh: fetchTeamChat,
   };
 }
-

@@ -48,8 +48,12 @@ export async function POST(req: NextRequest) {
   const displayName = userInfo?.displayName || userInfo?.username || 'User';
 
   // Broadcast typing indicator
-  await broadcastTypingIndicator(teamChat.chatId, user.id, displayName, isTyping);
+  await broadcastTypingIndicator(
+    teamChat.chatId,
+    user.id,
+    displayName,
+    isTyping
+  );
 
   return NextResponse.json({ success: true });
 }
-

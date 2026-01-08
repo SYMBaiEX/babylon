@@ -99,7 +99,11 @@ export async function POST(req: NextRequest) {
 
   logger.info(
     `Team chat message sent by user ${user.id}`,
-    { chatId: teamChat.chatId, messageId, mentionCount: mentionedAgentIds?.length ?? 0 },
+    {
+      chatId: teamChat.chatId,
+      messageId,
+      mentionCount: mentionedAgentIds?.length ?? 0,
+    },
     'TeamChatMessageAPI'
   );
 
@@ -131,7 +135,8 @@ export async function POST(req: NextRequest) {
         .from(users)
         .where(eq(users.id, user.id))
         .limit(1);
-      const senderDisplayName = userInfo?.displayName || userInfo?.username || 'User';
+      const senderDisplayName =
+        userInfo?.displayName || userInfo?.username || 'User';
 
       // Trigger responses asynchronously (don't block the API response)
       teamChatResponseService
@@ -173,4 +178,3 @@ export async function POST(req: NextRequest) {
     { status: 201 }
   );
 }
-

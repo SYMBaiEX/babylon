@@ -13,9 +13,9 @@ import type { ChatDetails } from './types';
 function TypingIndicator({ typingUsers }: { typingUsers: TypingUserInfo[] }) {
   const first = typingUsers[0];
   const second = typingUsers[1];
-  
+
   if (!first) return null;
-  
+
   const text =
     typingUsers.length === 1
       ? `${first.displayName} is typing...`
@@ -26,9 +26,15 @@ function TypingIndicator({ typingUsers }: { typingUsers: TypingUserInfo[] }) {
   return (
     <div className="flex items-center gap-2 px-4 py-2 text-muted-foreground text-sm">
       <span className="flex gap-1">
-        <span className="animate-bounce" style={{ animationDelay: '0ms' }}>•</span>
-        <span className="animate-bounce" style={{ animationDelay: '150ms' }}>•</span>
-        <span className="animate-bounce" style={{ animationDelay: '300ms' }}>•</span>
+        <span className="animate-bounce" style={{ animationDelay: '0ms' }}>
+          •
+        </span>
+        <span className="animate-bounce" style={{ animationDelay: '150ms' }}>
+          •
+        </span>
+        <span className="animate-bounce" style={{ animationDelay: '300ms' }}>
+          •
+        </span>
       </span>
       <span>{text}</span>
     </div>
@@ -69,7 +75,7 @@ interface TeamChatViewProps {
 
 /**
  * Chat view component for Team Chat (Command Center)
- * 
+ *
  * Similar to ChatView but uses TeamChatMessageInput with @mention support
  */
 export function TeamChatView({
@@ -102,9 +108,7 @@ export function TeamChatView({
           <h3 className="mb-2 font-bold text-foreground text-xl">
             Command Center
           </h3>
-          <p className="text-sm">
-            Loading your team chat...
-          </p>
+          <p className="text-sm">Loading your team chat...</p>
         </div>
       </div>
     );
@@ -120,7 +124,8 @@ export function TeamChatView({
               Command Center
             </h2>
             <p className="text-muted-foreground text-sm">
-              {chatDetails.participants.length} member{chatDetails.participants.length !== 1 ? 's' : ''}
+              {chatDetails.participants.length} member
+              {chatDetails.participants.length !== 1 ? 's' : ''}
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -207,4 +212,3 @@ export function TeamChatView({
     </div>
   );
 }
-

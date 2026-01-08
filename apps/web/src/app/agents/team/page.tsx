@@ -72,7 +72,7 @@ export default function TeamChatPage() {
       <div className="flex h-[calc(100dvh-112px)] flex-col md:h-dvh">
         <div className="flex min-h-0 flex-1 overflow-hidden">
           {/* Member sidebar skeleton */}
-          <div className="hidden w-64 flex-col border-r border-border p-4 lg:flex">
+          <div className="hidden w-64 flex-col border-border border-r p-4 lg:flex">
             <Skeleton className="mb-4 h-8 w-32" />
             <div className="space-y-3">
               {[1, 2, 3].map((i) => (
@@ -104,7 +104,7 @@ export default function TeamChatPage() {
             <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-blue-500/20 to-purple-500/20">
               <Bot className="h-10 w-10 text-blue-500" />
             </div>
-            <h2 className="mb-2 font-bold text-foreground text-2xl">
+            <h2 className="mb-2 font-bold text-2xl text-foreground">
               Your Command Center is ready
             </h2>
             <p className="mb-6 text-muted-foreground">
@@ -236,7 +236,10 @@ export default function TeamChatPage() {
 
               {/* Add agent button */}
               <div className="mt-4">
-                <Link href="/agents/create" onClick={() => setShowMemberDrawer(false)}>
+                <Link
+                  href="/agents/create"
+                  onClick={() => setShowMemberDrawer(false)}
+                >
                   <Button variant="outline" size="sm" className="w-full gap-2">
                     <Plus className="h-4 w-4" />
                     Add Agent
@@ -250,7 +253,7 @@ export default function TeamChatPage() {
 
       <div className="flex min-h-0 flex-1 overflow-hidden">
         {/* Member Sidebar - visible on lg+ */}
-        <div className="hidden w-64 flex-col border-r border-border lg:flex">
+        <div className="hidden w-64 flex-col border-border border-r lg:flex">
           {/* Header */}
           <div className="flex items-center justify-between p-4">
             <h3 className="font-semibold text-foreground">Team Members</h3>
@@ -365,12 +368,14 @@ export default function TeamChatPage() {
             messagesEndRef={messagesEndRef}
             onMessageChange={handleInputChange}
             onSendMessage={sendMessage}
-            agents={teamChat?.agents.map((agent) => ({
-              id: agent.id,
-              username: agent.username,
-              displayName: agent.displayName,
-              profileImageUrl: agent.profileImageUrl,
-            })) || []}
+            agents={
+              teamChat?.agents.map((agent) => ({
+                id: agent.id,
+                username: agent.username,
+                displayName: agent.displayName,
+                profileImageUrl: agent.profileImageUrl,
+              })) || []
+            }
             onMentionsChange={setMentionedAgentIds}
             typingUsers={typingUsers}
             onShowMembers={() => setShowMemberDrawer(true)}
@@ -380,4 +385,3 @@ export default function TeamChatPage() {
     </div>
   );
 }
-

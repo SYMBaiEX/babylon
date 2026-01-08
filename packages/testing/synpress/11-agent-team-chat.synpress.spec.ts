@@ -70,7 +70,9 @@ test.describe('Agent Team Chat (Command Center)', () => {
     console.log('✅ Command Center page loaded');
   });
 
-  test('should display "no agents" state when user has no agents', async ({ page }) => {
+  test('should display "no agents" state when user has no agents', async ({
+    page,
+  }) => {
     await page.waitForTimeout(1000);
 
     // Check for empty state or agent content
@@ -91,7 +93,9 @@ test.describe('Agent Team Chat (Command Center)', () => {
 
     // Look for SSE connection status indicator
     const liveIndicator = page.getByText(/Live|Connecting/i).first();
-    const isVisible = await liveIndicator.isVisible({ timeout: 5000 }).catch(() => false);
+    const isVisible = await liveIndicator
+      .isVisible({ timeout: 5000 })
+      .catch(() => false);
 
     if (isVisible) {
       console.log('✅ SSE connection status indicator visible');
@@ -99,7 +103,9 @@ test.describe('Agent Team Chat (Command Center)', () => {
       // Check if page content loaded at all
       const pageContent = await page.locator('body').textContent();
       expect(pageContent?.length).toBeGreaterThan(100);
-      console.log('ℹ️ SSE status indicator not found - may be in different location');
+      console.log(
+        'ℹ️ SSE status indicator not found - may be in different location'
+      );
     }
   });
 
@@ -108,7 +114,9 @@ test.describe('Agent Team Chat (Command Center)', () => {
 
     // Check for member sidebar content
     const teamMembersHeader = page.getByText(/Team Members|Members/i).first();
-    const isVisible = await teamMembersHeader.isVisible({ timeout: 5000 }).catch(() => false);
+    const isVisible = await teamMembersHeader
+      .isVisible({ timeout: 5000 })
+      .catch(() => false);
 
     if (isVisible) {
       console.log('✅ Member sidebar visible on desktop');
@@ -125,11 +133,15 @@ test.describe('Agent Team Chat (Command Center)', () => {
 
     // Look for message input
     const messageInput = page
-      .locator('textarea[placeholder*="message" i], input[placeholder*="message" i]')
+      .locator(
+        'textarea[placeholder*="message" i], input[placeholder*="message" i]'
+      )
       .or(page.locator('[contenteditable="true"]'))
       .first();
 
-    const inputVisible = await messageInput.isVisible({ timeout: 5000 }).catch(() => false);
+    const inputVisible = await messageInput
+      .isVisible({ timeout: 5000 })
+      .catch(() => false);
 
     if (inputVisible) {
       console.log('✅ Message input area visible');
@@ -167,7 +179,9 @@ test.describe('Command Center @Mention Functionality', () => {
       .first()
       .or(page.locator('[contenteditable="true"]').first());
 
-    const inputVisible = await messageInput.isVisible({ timeout: 5000 }).catch(() => false);
+    const inputVisible = await messageInput
+      .isVisible({ timeout: 5000 })
+      .catch(() => false);
 
     if (inputVisible) {
       await messageInput.click();
@@ -180,7 +194,9 @@ test.describe('Command Center @Mention Functionality', () => {
         .or(page.locator('.mention-autocomplete, .autocomplete'))
         .first();
 
-      const autocompleteVisible = await autocomplete.isVisible({ timeout: 3000 }).catch(() => false);
+      const autocompleteVisible = await autocomplete
+        .isVisible({ timeout: 3000 })
+        .catch(() => false);
 
       await page.screenshot({
         path: 'test-results/screenshots/11-mention-autocomplete.png',
@@ -189,22 +205,26 @@ test.describe('Command Center @Mention Functionality', () => {
       if (autocompleteVisible) {
         console.log('✅ @mention autocomplete appears when typing @');
       } else {
-        console.log('ℹ️ Autocomplete not visible (may have no agents to mention)');
+        console.log(
+          'ℹ️ Autocomplete not visible (may have no agents to mention)'
+        );
       }
     } else {
       console.log('ℹ️ Message input not visible (may need agents first)');
     }
   });
 
-  test('should insert mention when selecting from autocomplete', async ({ page }) => {
+  test('should insert mention when selecting from autocomplete', async ({
+    page,
+  }) => {
     await page.waitForTimeout(1500);
 
     // Find message input
-    const messageInput = page
-      .locator('textarea, input[type="text"]')
-      .first();
+    const messageInput = page.locator('textarea, input[type="text"]').first();
 
-    const inputVisible = await messageInput.isVisible({ timeout: 5000 }).catch(() => false);
+    const inputVisible = await messageInput
+      .isVisible({ timeout: 5000 })
+      .catch(() => false);
 
     if (inputVisible) {
       await messageInput.click();
@@ -216,7 +236,9 @@ test.describe('Command Center @Mention Functionality', () => {
         .locator('[role="option"], [role="menuitem"]')
         .first();
 
-      const itemVisible = await autocompleteItem.isVisible({ timeout: 3000 }).catch(() => false);
+      const itemVisible = await autocompleteItem
+        .isVisible({ timeout: 3000 })
+        .catch(() => false);
 
       if (itemVisible) {
         await autocompleteItem.click();
@@ -224,7 +246,9 @@ test.describe('Command Center @Mention Functionality', () => {
 
         // Input should now contain the mention
         const inputValue = await messageInput.inputValue().catch(() => '');
-        console.log(`✅ Mention inserted: ${inputValue.includes('@') ? 'yes' : 'no'}`);
+        console.log(
+          `✅ Mention inserted: ${inputValue.includes('@') ? 'yes' : 'no'}`
+        );
       } else {
         console.log('ℹ️ No autocomplete items to select');
       }
@@ -275,7 +299,9 @@ test.describe('Command Center Mobile Responsiveness', () => {
       .or(page.locator('button svg.lucide-users').locator('..'))
       .first();
 
-    const buttonVisible = await memberButton.isVisible({ timeout: 5000 }).catch(() => false);
+    const buttonVisible = await memberButton
+      .isVisible({ timeout: 5000 })
+      .catch(() => false);
 
     if (buttonVisible) {
       await memberButton.click();
@@ -287,13 +313,17 @@ test.describe('Command Center Mobile Responsiveness', () => {
         .or(page.getByText(/Team Members/i))
         .first();
 
-      const drawerVisible = await drawer.isVisible({ timeout: 3000 }).catch(() => false);
+      const drawerVisible = await drawer
+        .isVisible({ timeout: 3000 })
+        .catch(() => false);
 
       await page.screenshot({
         path: 'test-results/screenshots/11-mobile-member-drawer.png',
       });
 
-      console.log(`✅ Mobile member drawer: ${drawerVisible ? 'opened' : 'button visible'}`);
+      console.log(
+        `✅ Mobile member drawer: ${drawerVisible ? 'opened' : 'button visible'}`
+      );
     } else {
       console.log('ℹ️ Mobile member button not visible (may have no agents)');
     }
@@ -310,15 +340,22 @@ test.describe('Command Center Mobile Responsiveness', () => {
       .or(page.locator('button:has(svg)'))
       .first();
 
-    const buttonVisible = await memberButton.isVisible({ timeout: 5000 }).catch(() => false);
+    const buttonVisible = await memberButton
+      .isVisible({ timeout: 5000 })
+      .catch(() => false);
 
     if (buttonVisible) {
       await memberButton.click();
       await page.waitForTimeout(500);
 
       // Click backdrop to close
-      const backdrop = page.locator('[class*="backdrop"]').or(page.locator('.fixed.inset-0')).first();
-      const backdropVisible = await backdrop.isVisible({ timeout: 2000 }).catch(() => false);
+      const backdrop = page
+        .locator('[class*="backdrop"]')
+        .or(page.locator('.fixed.inset-0'))
+        .first();
+      const backdropVisible = await backdrop
+        .isVisible({ timeout: 2000 })
+        .catch(() => false);
 
       if (backdropVisible) {
         await backdrop.click({ position: { x: 50, y: 300 } });
@@ -353,7 +390,9 @@ test.describe('Command Center Navigation', () => {
       .or(page.getByRole('link', { name: /Command Center/i }))
       .first();
 
-    const linkVisible = await commandCenterLink.isVisible({ timeout: 5000 }).catch(() => false);
+    const linkVisible = await commandCenterLink
+      .isVisible({ timeout: 5000 })
+      .catch(() => false);
 
     if (linkVisible) {
       await commandCenterLink.click();
@@ -367,7 +406,9 @@ test.describe('Command Center Navigation', () => {
     }
   });
 
-  test('should navigate to Command Center from agents page', async ({ page }) => {
+  test('should navigate to Command Center from agents page', async ({
+    page,
+  }) => {
     await navigateTo(page, ROUTES.AGENTS);
     await waitForPageLoad(page);
     await page.waitForTimeout(1500);
@@ -375,10 +416,17 @@ test.describe('Command Center Navigation', () => {
     // Look for Command Center card/link on agents page
     const commandCenterCard = page
       .locator('a[href="/agents/team"]')
-      .or(page.getByText(/Command Center/i).locator('..').locator('a'))
+      .or(
+        page
+          .getByText(/Command Center/i)
+          .locator('..')
+          .locator('a')
+      )
       .first();
 
-    const cardVisible = await commandCenterCard.isVisible({ timeout: 5000 }).catch(() => false);
+    const cardVisible = await commandCenterCard
+      .isVisible({ timeout: 5000 })
+      .catch(() => false);
 
     if (cardVisible) {
       await commandCenterCard.click();
@@ -391,7 +439,9 @@ test.describe('Command Center Navigation', () => {
     }
   });
 
-  test('should navigate to agent profile from member list', async ({ page }) => {
+  test('should navigate to agent profile from member list', async ({
+    page,
+  }) => {
     await navigateTo(page, ROUTES.AGENTS_TEAM_CHAT);
     await waitForPageLoad(page);
     await page.waitForTimeout(2000);
@@ -402,7 +452,9 @@ test.describe('Command Center Navigation', () => {
       .or(page.locator('a[href^="/agents/"]:has(svg.lucide-bot)'))
       .first();
 
-    const linkVisible = await agentLink.isVisible({ timeout: 5000 }).catch(() => false);
+    const linkVisible = await agentLink
+      .isVisible({ timeout: 5000 })
+      .catch(() => false);
 
     if (linkVisible) {
       await agentLink.click();
@@ -415,4 +467,3 @@ test.describe('Command Center Navigation', () => {
     }
   });
 });
-
