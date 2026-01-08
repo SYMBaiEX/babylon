@@ -1,12 +1,12 @@
 'use client';
 
+import type { MessageType } from '@babylon/db';
 import { cn } from '@babylon/shared';
 import { Loader2, MessageCircle } from 'lucide-react';
 import React from 'react';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { MessageBubble } from './MessageBubble';
 import { SystemMessage } from './SystemMessage';
-import type { MessageType } from '@babylon/db';
 import type { ChatParticipant, Message } from './types';
 import { MessageTypeEnum } from './types';
 

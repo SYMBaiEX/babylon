@@ -903,11 +903,11 @@ async function executeClosePerpPosition(params: {
 
   // Use the realized P&L from the service (computed with actual exit price)
   // This is more accurate than recalculating from potentially stale position data
-  const realizedPnL = closeResult.realizedPnL ?? 0;
-  const size = closeResult.size ?? Number(existingPosition.size || 0);
-  const exitPrice =
-    closeResult.exitPrice ??
-    Number(existingPosition.currentPrice || existingPosition.entryPrice);
+  // Note: closePosition() always returns these fields, the types are optional
+  // because PerpTradeResult is shared with openPosition() which doesn't have them
+  const realizedPnL = closeResult.realizedPnL!;
+  const size = closeResult.size;
+  const exitPrice = closeResult.exitPrice!;
 
   // Record trade
   await agentPnLService.recordTrade({
