@@ -95,6 +95,13 @@ export interface GroupChatContext {
   memberCount?: number;
 }
 
+export interface AgentOwnPostContext {
+  content: string;
+  timeAgo: string;
+  likeCount: number;
+  commentCount: number;
+}
+
 export interface AgentTickContext {
   balance: number;
   pnl: number;
@@ -118,6 +125,8 @@ export interface AgentTickContext {
   // NPC's actual character data for personalized guidance
   personality?: string;
   postStyle?: string;
+  // Agent's own recent posts for self-awareness
+  agentOwnPosts?: AgentOwnPostContext[];
 }
 
 export interface MultiStepDecision {
@@ -408,7 +417,10 @@ ${npcContextSection}${tradePostEncouragement}# Current Execution Context
 # Your Open Positions
 ${formatAgentPositions(context.agentPositions)}
 ${formatPositionManagementGuidance(context.agentPositions)}
-${tradingSection}
+${canPost ? `
+# Your Recent Posts (AVOID REPEATING - check how long ago you posted!)
+${formatAgentOwnPosts(context.agentOwnPosts)}
+` : ''}${tradingSection}
 ${commentingSection}
 ${dmsSection}
 ${groupChatsSection}
@@ -777,6 +789,22 @@ function formatPendingInteractions(interactions: PendingInteraction[]): string {
       (i) =>
         `- [${i.type}] @${i.author}: "${i.content.substring(0, 60)}${i.content.length > 60 ? '...' : ''}"`
     )
+    .join('\n');
+}
+
+function formatAgentOwnPosts(
+  ownPosts: AgentOwnPostContext[] | undefined
+): string {
+  if (!ownPosts || ownPosts.length === 0)
+    return 'You have not posted recently.';
+
+  return ownPosts
+    .map((p, i) => {
+      const engagement = `❤️${p.likeCount} 💬${p.commentCount}`;
+      const truncatedContent =
+        p.content.length > 80 ? `${p.content.substring(0, 80)}...` : p.content;
+      return `[${i + 1}] "${truncatedContent}" (${p.timeAgo}) [${engagement}]`;
+    })
     .join('\n');
 }
 
