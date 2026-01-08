@@ -34,10 +34,10 @@ const isLocalnet = detectedEnv === 'localnet';
 if (isLocalnet) {
   // Start Hardhat, deploy, Next.js, and cron
   // Note: Using "cd apps/web && bun run dev" instead of "bunx turbo dev" to avoid WSL glob pattern issues
-  // Note: Removed --kill-others-on-fail so Hardhat issues don't kill Next.js
-  await $`concurrently --kill-others -n "hardhat,deploy,next,cron" -c "yellow,blue,cyan,magenta" "cd packages/contracts && bunx hardhat node --hostname 0.0.0.0" "bun run scripts/wait-for-hardhat-and-deploy.ts" "cd apps/web && bun run dev" "bun run scripts/local-cron-simulator.ts"`.nothrow();
+  // Note: Using --kill-others-on-fail so only failures kill other processes (deploy exits successfully after completion)
+  await $`concurrently --kill-others-on-fail -n "hardhat,deploy,next,cron" -c "yellow,blue,cyan,magenta" "cd packages/contracts && bunx hardhat node --hostname 0.0.0.0" "bun run scripts/wait-for-hardhat-and-deploy.ts" "cd apps/web && bun run dev" "bun run scripts/local-cron-simulator.ts"`.nothrow();
 } else {
   // Start Next.js and cron only (no Hardhat/deploy)
   // Note: Using "cd apps/web && bun run dev" instead of "bunx turbo dev" to avoid WSL glob pattern issues
-  await $`concurrently --kill-others -n "next,cron" -c "cyan,magenta" "cd apps/web && bun run dev" "bun run scripts/local-cron-simulator.ts"`.nothrow();
+  await $`concurrently --kill-others-on-fail -n "next,cron" -c "cyan,magenta" "cd apps/web && bun run dev" "bun run scripts/local-cron-simulator.ts"`.nothrow();
 }

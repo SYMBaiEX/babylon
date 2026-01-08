@@ -1,6 +1,6 @@
 'use client';
 
-import { cn } from '@babylon/shared';
+import { cn, formatCompactCurrency } from '@babylon/shared';
 import {
   ArrowDownRight,
   ArrowUpRight,
@@ -182,12 +182,10 @@ export function TradeCard({ trade }: TradeCardProps) {
     return 'Just now';
   };
 
+  /** Use shared formatCompactCurrency for currency formatting */
   const formatCurrency = (value: string | number) => {
     const num = typeof value === 'string' ? Number.parseFloat(value) : value;
-    if (isNaN(num)) return '$0.00';
-    if (num >= 1000000) return `$${(num / 1000000).toFixed(2)}M`;
-    if (num >= 1000) return `$${(num / 1000).toFixed(2)}K`;
-    return `$${num.toFixed(2)}`;
+    return formatCompactCurrency(Number.isNaN(num) ? 0 : num);
   };
 
   const handleProfileClick = (e: React.MouseEvent) => {
