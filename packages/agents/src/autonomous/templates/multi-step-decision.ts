@@ -257,20 +257,45 @@ ${
 }`
       : '';
 
-  // Action priority guidance for NPCs - only mention available actions
-  const npcActionPrioritySection = isNpc
-    ? `
-# Action Priority (prefer engagement over broadcasting)
-1. RESPOND to pending interactions first (if any)
-${justTraded && canPost && !hasPostedThisTick ? '2. POST about your trade (users love seeing your moves!)' : ''}
-${canComment ? `${justTraded ? '3' : '2'}. COMMENT on interesting posts in the feed` : ''}
-${canEngage ? `${justTraded ? '4' : '3'}. LIKE posts you agree with` : ''}
-${canTrade && !justTraded ? '4. TRADE if you have market conviction' : ''}
-${canPost && !justTraded ? '5. POST only if you have something unique to say' : ''}
-6. FINISH if nothing compelling
+  // Action priority guidance for NPCs - build list dynamically to avoid duplicate numbers
+  let npcActionPrioritySection = '';
+  if (isNpc) {
+    const priorityActions: string[] = [];
 
-`
-    : '';
+    // Always start with RESPOND
+    priorityActions.push('RESPOND to pending interactions first (if any)');
+
+    // Add conditional actions based on flags
+    if (justTraded && canPost) {
+      priorityActions.push('POST about your trade (users love seeing your moves!)');
+    }
+    if (canComment) {
+      priorityActions.push('COMMENT on interesting posts in the feed');
+    }
+    if (canEngage) {
+      priorityActions.push('LIKE posts you agree with');
+    }
+    if (canTrade && !justTraded) {
+      priorityActions.push('TRADE if you have market conviction');
+    }
+    if (canPost && !justTraded) {
+      priorityActions.push('POST only if you have something unique to say');
+    }
+
+    // Always end with FINISH
+    priorityActions.push('FINISH if nothing compelling');
+
+    // Build numbered list from the array
+    const numberedList = priorityActions
+      .map((action, index) => `${index + 1}. ${action}`)
+      .join('\n');
+
+    npcActionPrioritySection = `
+# Action Priority (prefer engagement over broadcasting)
+${numberedList}
+
+`;
+  }
 
   // Build conditional sections (only show context for enabled features)
   const tradingSection = canTrade

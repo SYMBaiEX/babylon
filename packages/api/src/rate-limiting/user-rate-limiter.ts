@@ -264,7 +264,8 @@ async function checkRateLimitRedis(
       return {1, 0, count + 1}
     `;
 
-    const uniqueId = randomUUID().slice(0, 8);
+    // Use full UUID to avoid collisions under high request volume
+    const uniqueId = randomUUID();
     const member = `${now}-${userId}-${uniqueId}`;
 
     const result = (await redis.eval(

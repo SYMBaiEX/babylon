@@ -434,9 +434,9 @@ export class MultiStepExecutor {
    */
   private async getAgentGroupChats(
     agentUserId: string
-  ): Promise<{ id: string; name: string; memberCount: number }[]> {
+  ): Promise<{ id: string; name: string }[]> {
     try {
-      const chatParticipants = await db.query.chatParticipants.findMany({
+      const participantResults = await db.query.chatParticipants.findMany({
         where: (cp, { eq }) => eq(cp.userId, agentUserId),
         with: {
           chat: true,
@@ -444,16 +444,28 @@ export class MultiStepExecutor {
         limit: 10,
       });
 
-      return chatParticipants
-        .filter((cp) => cp.chat?.isGroup)
+      const groupParticipants = participantResults.filter((cp) => cp.chat?.isGroup);
+
+      if (groupParticipants.length === 0) {
+        return [];
+      }
+
+      return groupParticipants
         .map((cp) => ({
           id: cp.chat!.id,
           name: cp.chat!.name || 'Group Chat',
-          memberCount: 0, // Could query member count if needed
         }))
         .slice(0, 5); // Limit to 5 groups
-    } catch {
-      // Graceful fallback if chat tables don't exist
+    } catch (error) {
+      // Log the error before returning empty fallback
+      logger.warn(
+        'Failed to fetch agent group chats',
+        {
+          agentUserId,
+          error: error instanceof Error ? error.message : String(error),
+        },
+        'MultiStepExecutor'
+      );
       return [];
     }
   }
@@ -1013,6 +1025,21 @@ export class MultiStepExecutor {
           postId,
         });
 
+        // Log the like action
+        await agentService.createLog(agentUserId, {
+          type: 'like',
+          level: likeResult.success ? 'info' : 'warn',
+          message: likeResult.success
+            ? `Liked post ${postId}`
+            : `Like failed: ${likeResult.error}`,
+          metadata: {
+            postId,
+            success: likeResult.success,
+            liked: likeResult.liked,
+            error: likeResult.error ?? null,
+          },
+        });
+
         return {
           actionType: 'LIKE',
           success: likeResult.success,
@@ -1050,6 +1077,23 @@ export class MultiStepExecutor {
           comment,
         });
 
+        // Log the repost action
+        await agentService.createLog(agentUserId, {
+          type: 'repost',
+          level: repostResult.success ? 'info' : 'warn',
+          message: repostResult.success
+            ? `Reposted ${postId}${comment ? ' with comment' : ''}`
+            : `Repost failed: ${repostResult.error}`,
+          metadata: {
+            postId,
+            success: repostResult.success,
+            repostId: repostResult.repostId ?? null,
+            quotePostId: repostResult.quotePostId ?? null,
+            hasComment: !!comment,
+            error: repostResult.error ?? null,
+          },
+        });
+
         return {
           actionType: 'REPOST',
           success: repostResult.success,
@@ -1059,6 +1103,7 @@ export class MultiStepExecutor {
           result: {
             success: repostResult.success,
             repostId: repostResult.repostId,
+            quotePostId: repostResult.quotePostId,
             error: repostResult.error,
           },
           parameters,

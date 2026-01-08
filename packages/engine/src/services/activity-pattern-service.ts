@@ -138,7 +138,8 @@ export function isWeekend(gameDay?: number, date: Date = new Date()): boolean {
     // Game days are 1-indexed (Day 1 is first day)
     // Convert to 0-indexed for modulo: (gameDay - 1) % 7
     // Weekend: indices 5 and 6 of each 7-day cycle
-    const dayOfWeek = (((gameDay - 1) % 7) + 7) % 7; // Handle edge cases with double modulo
+    // Since gameDay >= 1, (gameDay - 1) is always >= 0, so single modulo suffices
+    const dayOfWeek = (gameDay - 1) % 7;
     return dayOfWeek === 5 || dayOfWeek === 6;
   }
   // Fallback to real-world calendar

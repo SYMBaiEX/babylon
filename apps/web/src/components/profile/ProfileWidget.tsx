@@ -51,6 +51,7 @@ export function ProfileWidget({ userId }: ProfileWidgetProps) {
   const [perps, setPerps] = useState<PerpPositionFromAPI[]>([]);
   const [stats, setStats] = useState<UserProfileStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
   const widgetCache = useWidgetCacheStore();
 
   // Check if viewing own profile
@@ -107,8 +108,15 @@ export function ProfileWidget({ userId }: ProfileWidgetProps) {
           fetch(`/api/markets/positions/${encodeURIComponent(userId)}`),
           fetch(`/api/users/${encodeURIComponent(userId)}/profile`),
         ]);
-      } catch (error) {
-        console.error('Error fetching profile widget data:', error);
+        // Clear any previous error on successful fetch
+        setError(null);
+      } catch (fetchError) {
+        console.error('Error fetching profile widget data:', fetchError);
+        setError(
+          fetchError instanceof Error
+            ? fetchError
+            : new Error('Failed to load profile data')
+        );
         setLoading(false);
         return;
       }
@@ -203,6 +211,88 @@ export function ProfileWidget({ userId }: ProfileWidgetProps) {
       ? ((balance?.lifetimePnL || 0) / totalPortfolio) * 100
       : 0;
 
+  // Retry function for error state
+  const handleRetry = () => {
+    setError(null);
+    setLoading(true);
+    // Re-fetch data by triggering the useEffect dependency
+    // This works because the fetch is in useEffect with userId dependency
+    // We need to manually trigger it, so we'll call the inline fetch
+    const retryFetch = async () => {
+      let balanceRes: Response | null = null;
+      let positionsRes: Response | null = null;
+      let profileRes: Response | null = null;
+
+      try {
+        [balanceRes, positionsRes, profileRes] = await Promise.all([
+          fetch(`/api/users/${encodeURIComponent(userId)}/balance`),
+          fetch(`/api/markets/positions/${encodeURIComponent(userId)}`),
+          fetch(`/api/users/${encodeURIComponent(userId)}/profile`),
+        ]);
+        setError(null);
+      } catch (fetchError) {
+        console.error('Error fetching profile widget data:', fetchError);
+        setError(
+          fetchError instanceof Error
+            ? fetchError
+            : new Error('Failed to load profile data')
+        );
+        setLoading(false);
+        return;
+      }
+
+      let balanceData: UserBalanceData | null = null;
+      let predictionsData: PredictionPosition[] = [];
+      let perpsData: PerpPositionFromAPI[] = [];
+      let statsData: UserProfileStats | null = null;
+
+      if (balanceRes?.ok) {
+        const balanceJson = await balanceRes.json();
+        balanceData = {
+          balance: Number(balanceJson.balance || 0),
+          totalDeposited: Number(balanceJson.totalDeposited || 0),
+          totalWithdrawn: Number(balanceJson.totalWithdrawn || 0),
+          lifetimePnL: Number(balanceJson.lifetimePnL || 0),
+        };
+        setBalance(balanceData);
+      }
+
+      if (positionsRes?.ok) {
+        const positionsJson = await positionsRes.json();
+        predictionsData = positionsJson.predictions?.positions || [];
+        perpsData = positionsJson.perpetuals?.positions || [];
+        setPredictions(predictionsData);
+        setPerps(perpsData);
+      }
+
+      if (profileRes?.ok) {
+        const profileJson = await profileRes.json();
+        if (!profileJson.needsOnboarding) {
+          const userStats = profileJson.user?.stats || {};
+          statsData = {
+            following: userStats.following || 0,
+            followers: userStats.followers || 0,
+            totalActivity:
+              (userStats.comments || 0) +
+              (userStats.reactions || 0) +
+              (userStats.positions || 0),
+          };
+          setStats(statsData);
+        }
+      }
+
+      widgetCache.setProfileWidget(userId, {
+        balance: balanceData,
+        predictions: predictionsData,
+        perps: perpsData,
+        stats: statsData,
+      });
+      setLoading(false);
+    };
+
+    void retryFetch();
+  };
+
   if (loading) {
     return (
       <div className="flex h-full w-full flex-col overflow-y-auto">
@@ -213,6 +303,22 @@ export function ProfileWidget({ userId }: ProfileWidgetProps) {
             <Skeleton className="h-24 w-full" />
           </div>
         </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex h-full w-full flex-col items-center justify-center gap-4 p-4">
+        <p className="text-center text-muted-foreground text-sm">
+          Failed to load profile data
+        </p>
+        <button
+          onClick={handleRetry}
+          className="rounded-lg bg-primary px-4 py-2 text-primary-foreground text-sm hover:bg-primary/90"
+        >
+          Retry
+        </button>
       </div>
     );
   }
@@ -420,26 +526,31 @@ export function ProfileWidget({ userId }: ProfileWidgetProps) {
         data={selectedPosition}
         userId={userId}
         onSuccess={async () => {
-          // Refresh both balance and positions
-          const [balanceRes, positionsRes] = await Promise.all([
-            fetch(`/api/users/${encodeURIComponent(userId)}/balance`),
-            fetch(`/api/markets/positions/${encodeURIComponent(userId)}`),
-          ]);
+          // Refresh both balance and positions with proper error handling
+          try {
+            const [balanceRes, positionsRes] = await Promise.all([
+              fetch(`/api/users/${encodeURIComponent(userId)}/balance`),
+              fetch(`/api/markets/positions/${encodeURIComponent(userId)}`),
+            ]);
 
-          if (balanceRes.ok) {
-            const balanceJson = await balanceRes.json();
-            setBalance({
-              balance: Number(balanceJson.balance),
-              totalDeposited: Number(balanceJson.totalDeposited),
-              totalWithdrawn: Number(balanceJson.totalWithdrawn),
-              lifetimePnL: Number(balanceJson.lifetimePnL),
-            });
-          }
+            if (balanceRes?.ok) {
+              const balanceJson = await balanceRes.json();
+              setBalance({
+                balance: Number(balanceJson.balance),
+                totalDeposited: Number(balanceJson.totalDeposited),
+                totalWithdrawn: Number(balanceJson.totalWithdrawn),
+                lifetimePnL: Number(balanceJson.lifetimePnL),
+              });
+            }
 
-          if (positionsRes.ok) {
-            const positionsJson = await positionsRes.json();
-            setPredictions(positionsJson.predictions?.positions ?? []);
-            setPerps(positionsJson.perpetuals?.positions ?? []);
+            if (positionsRes?.ok) {
+              const positionsJson = await positionsRes.json();
+              setPredictions(positionsJson.predictions?.positions ?? []);
+              setPerps(positionsJson.perpetuals?.positions ?? []);
+            }
+          } catch (refreshError) {
+            console.error('Error refreshing profile data:', refreshError);
+            // Don't set error state here since original data is still valid
           }
         }}
       />

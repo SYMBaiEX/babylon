@@ -142,12 +142,10 @@ describe('Narrative Event Processor - State Transitions', () => {
       ],
     });
 
-    // Run multiple times to verify probability 0 never triggers
-    for (let i = 0; i < 10; i++) {
-      const result = evaluateStateTransition(arc, 6);
-      // Should not transition to crisis via pending (probability 0)
-      expect(result).not.toBe('crisis');
-    }
+    // With 0% probability, should deterministically return null (no transition)
+    const result = evaluateStateTransition(arc, 6);
+    // A 0% pending transition should not trigger, so result should be null
+    expect(result).toBe(null);
   });
 });
 

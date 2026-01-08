@@ -1,7 +1,7 @@
 'use client';
 
 import type { GameOnboardingStep } from '@babylon/db';
-import { cn } from '@babylon/shared';
+import { cn, ONBOARDING_STEP_ORDER } from '@babylon/shared';
 import { Check, ChevronRight, Sparkles, X } from 'lucide-react';
 import { STEP_INFO, useGameOnboarding } from './GameOnboardingProvider';
 
@@ -85,6 +85,7 @@ export function GameOnboardingTooltip({
                 onClick={() => void skipOnboarding()}
                 className="rounded-lg p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
                 title="Skip tutorial"
+                aria-label="Skip tutorial"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -123,14 +124,10 @@ export function GameOnboardingProgress() {
 
   if (!needsOnboarding || !status) return null;
 
-  const steps: GameOnboardingStep[] = [
-    'welcome',
-    'explore_feed',
-    'follow_npc',
-    'view_markets',
-    'first_prediction',
-    'first_trade',
-  ];
+  // Use the shared step order, excluding the 'complete' marker step for UI display
+  const steps = ONBOARDING_STEP_ORDER.filter(
+    (step): step is Exclude<GameOnboardingStep, 'complete'> => step !== 'complete'
+  );
 
   const completedCount = status.completedSteps.length;
   const totalSteps = steps.length;

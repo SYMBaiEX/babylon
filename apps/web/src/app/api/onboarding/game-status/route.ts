@@ -23,12 +23,12 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   const onboarding = await getOrCreateOnboarding(user.userId);
   const state = onboarding.state;
 
-  // Calculate total points earned
+  // Calculate total points earned, guarding against invalid/missing points values
   const totalPointsEarned =
-    state?.rewards?.reduce(
-      (sum: number, r: { points: number }) => sum + r.points,
-      0
-    ) ?? 0;
+    state?.rewards?.reduce((sum: number, r: { points: number }) => {
+      const points = typeof r.points === 'number' && !isNaN(r.points) ? r.points : 0;
+      return sum + points;
+    }, 0) ?? 0;
 
   return successResponse({
     currentStep: onboarding.currentStep,

@@ -192,6 +192,8 @@ export interface FireAndForgetRetryOptions {
   maxAttempts?: number;
   /** Initial delay in milliseconds before first retry (default: 100) - aligned with RetryOptions */
   initialDelayMs?: number;
+  /** Maximum delay in milliseconds (default: 2000) - caps exponential backoff */
+  maxDelayMs?: number;
   /** Context for logging (e.g., 'PerpOpen', 'PerpClose') */
   logContext?: string;
   /** Additional metadata to include in error logs */
@@ -224,6 +226,7 @@ export function fireAndForgetWithRetry(
   const {
     maxAttempts = 3,
     initialDelayMs = 100,
+    maxDelayMs = 2000,
     logContext = 'FireAndForget',
     metadata = {},
   } = options;
@@ -253,8 +256,9 @@ export function fireAndForgetWithRetry(
         }
 
         if (attempt < maxAttempts - 1) {
-          // Exponential backoff using shared sleep utility
-          await sleep(initialDelayMs * Math.pow(2, attempt));
+          // Exponential backoff with cap using shared sleep utility
+          const delay = Math.min(initialDelayMs * Math.pow(2, attempt), maxDelayMs);
+          await sleep(delay);
         }
       }
     }

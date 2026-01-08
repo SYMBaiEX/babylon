@@ -571,11 +571,18 @@ export class NpcMemoryService {
 
   /**
    * Format time ago string for memory display.
+   * @param timestamp - ISO timestamp string to format
+   * @param now - Optional current time for testing (defaults to new Date())
    */
-  private formatTimeAgo(timestamp: string): string {
-    const now = new Date();
+  formatTimeAgo(timestamp: string, now?: Date | string | number): string {
+    const currentTime =
+      now !== undefined
+        ? now instanceof Date
+          ? now
+          : new Date(now)
+        : new Date();
     const then = new Date(timestamp);
-    const diffMs = now.getTime() - then.getTime();
+    const diffMs = currentTime.getTime() - then.getTime();
     const diffMins = Math.floor(diffMs / 60000);
     const diffHours = Math.floor(diffMins / 60);
     const diffDays = Math.floor(diffHours / 24);

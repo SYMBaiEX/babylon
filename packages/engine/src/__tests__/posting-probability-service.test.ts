@@ -292,7 +292,8 @@ describe('Posting Probability Service - Weighted Random Sample', () => {
     ];
 
     let highCount = 0;
-    const iterations = 100;
+    // Increase iterations for more stable statistical results
+    const iterations = 1000;
 
     for (let i = 0; i < iterations; i++) {
       const result = weightedRandomSample(candidates, 1);
@@ -301,8 +302,9 @@ describe('Posting Probability Service - Weighted Random Sample', () => {
       }
     }
 
-    // High probability candidate should be selected majority of the time
-    expect(highCount).toBeGreaterThan(50);
+    // With 0.9/(0.9+0.01) ≈ 98.9% probability, expect at least 850 hits out of 1000
+    // Using a generous threshold to avoid flakiness
+    expect(highCount).toBeGreaterThan(850);
   });
 
   test('does not include duplicates in result', () => {

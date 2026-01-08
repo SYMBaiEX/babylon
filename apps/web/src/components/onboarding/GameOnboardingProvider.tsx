@@ -23,6 +23,22 @@ interface OnboardingStatus {
 }
 
 /**
+ * Type-guard to validate OnboardingStatus shape at runtime
+ */
+function isValidOnboardingStatus(data: unknown): data is OnboardingStatus {
+  if (typeof data !== 'object' || data === null) {
+    return false;
+  }
+  const obj = data as Record<string, unknown>;
+  return (
+    typeof obj.currentStep === 'string' &&
+    Array.isArray(obj.completedSteps) &&
+    typeof obj.totalPointsEarned === 'number' &&
+    typeof obj.isComplete === 'boolean'
+  );
+}
+
+/**
  * Game onboarding context value
  */
 interface GameOnboardingContextValue {
@@ -72,11 +88,16 @@ export function GameOnboardingProvider({
       try {
         const response = await apiFetch('/api/onboarding/game-status');
         if (response.ok) {
-          const data = (await response.json()) as OnboardingStatus;
-          setStatus(data);
-          // Show tooltip if not complete
-          if (!data.isComplete) {
-            setShowTooltip(true);
+          const data = await response.json();
+          // Validate response shape before using
+          if (isValidOnboardingStatus(data)) {
+            setStatus(data);
+            // Show tooltip if not complete
+            if (!data.isComplete) {
+              setShowTooltip(true);
+            }
+          } else {
+            console.error('Invalid onboarding status response shape:', data);
           }
         }
       } catch (error) {

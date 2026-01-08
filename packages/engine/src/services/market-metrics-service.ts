@@ -15,6 +15,7 @@ import {
   desc,
   eq,
   gte,
+  inArray,
   markets,
   perpMarketSnapshots,
   positions,
@@ -341,28 +342,34 @@ export class MarketMetricsService {
     }
 
     // Enhance with PerpMarketSnapshot data if available (provides 24h price comparison)
+    // Only fetch snapshots for organizations we actually have price data for
     const snapshotMap = new Map<string, { price24hAgo: number | null }>();
-    try {
-      const snapshots = await db
-        .select({
-          organizationId: perpMarketSnapshots.organizationId,
-          price24hAgo: perpMarketSnapshots.price24hAgo,
-        })
-        .from(perpMarketSnapshots);
+    const orgIds = Array.from(pricesByOrg.keys());
 
-      for (const snapshot of snapshots) {
-        snapshotMap.set(snapshot.organizationId, {
-          price24hAgo: snapshot.price24hAgo,
-        });
+    if (orgIds.length > 0) {
+      try {
+        const snapshots = await db
+          .select({
+            organizationId: perpMarketSnapshots.organizationId,
+            price24hAgo: perpMarketSnapshots.price24hAgo,
+          })
+          .from(perpMarketSnapshots)
+          .where(inArray(perpMarketSnapshots.organizationId, orgIds));
+
+        for (const snapshot of snapshots) {
+          snapshotMap.set(snapshot.organizationId, {
+            price24hAgo: snapshot.price24hAgo,
+          });
+        }
+      } catch (error) {
+        // Table may not exist in all environments - continue without snapshot data
+        // Log error for debugging but don't fail the request
+        logger.debug(
+          'PerpMarketSnapshot table not available, using stockPrices only',
+          { error: error instanceof Error ? error.message : String(error) },
+          'MarketMetrics'
+        );
       }
-    } catch (error) {
-      // Table may not exist in all environments - continue without snapshot data
-      // Log error for debugging but don't fail the request
-      logger.debug(
-        'PerpMarketSnapshot table not available, using stockPrices only',
-        { error: error instanceof Error ? error.message : String(error) },
-        'MarketMetrics'
-      );
     }
 
     const metrics: PerpMarketMetrics[] = [];

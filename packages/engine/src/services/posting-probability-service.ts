@@ -17,6 +17,7 @@ import {
   worldEvents,
 } from '@babylon/db';
 import { type ActorTier } from '@babylon/shared';
+import { secureRandom } from '../utils/entropy';
 import { StaticDataRegistry } from './static-data-registry';
 
 /**
@@ -265,7 +266,7 @@ export function calculatePostingProbability(
 
 /**
  * Weighted random sample from a list of candidates.
- * Uses probabilities as weights.
+ * Uses probabilities as weights and secureRandom for consistent randomness quality.
  */
 export function weightedRandomSample<T extends { probability: number }>(
   candidates: T[],
@@ -282,14 +283,14 @@ export function weightedRandomSample<T extends { probability: number }>(
     const totalWeight = remaining.reduce((sum, c) => sum + c.probability, 0);
 
     if (totalWeight <= 0) {
-      // All remaining have 0 probability, pick randomly
-      const idx = Math.floor(Math.random() * remaining.length);
+      // All remaining have 0 probability, pick randomly using secureRandom
+      const idx = Math.floor(secureRandom() * remaining.length);
       selected.push(remaining.splice(idx, 1)[0]!);
       continue;
     }
 
-    // Random selection weighted by probability
-    let random = Math.random() * totalWeight;
+    // Random selection weighted by probability using secureRandom
+    let random = secureRandom() * totalWeight;
     let selectedIdx = 0;
 
     for (let i = 0; i < remaining.length; i++) {

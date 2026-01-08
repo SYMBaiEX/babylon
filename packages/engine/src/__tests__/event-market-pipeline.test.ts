@@ -149,10 +149,12 @@ describe('Event Market Pipeline - Price Calculation', () => {
 
   test('sentiment affects volatility', () => {
     // High sentiment should create more variance
+    // Use more samples for statistical stability
     const pricesHighSentiment: number[] = [];
     const pricesLowSentiment: number[] = [];
+    const sampleCount = 100;
 
-    for (let i = 0; i < 20; i++) {
+    for (let i = 0; i < sampleCount; i++) {
       pricesHighSentiment.push(calculateCurrentPrice(100, 100, [])); // Max sentiment
       pricesLowSentiment.push(calculateCurrentPrice(100, 0, [])); // Zero sentiment
     }
@@ -161,10 +163,19 @@ describe('Event Market Pipeline - Price Calculation', () => {
     const varianceHigh = calculateVariance(pricesHighSentiment);
     const varianceLow = calculateVariance(pricesLowSentiment);
 
-    // High sentiment should generally have higher variance
-    // Note: This is probabilistic, so we use a generous tolerance
+    // Both variances should be valid numbers
     expect(varianceHigh).toBeDefined();
+    expect(typeof varianceHigh).toBe('number');
     expect(varianceLow).toBeDefined();
+    expect(typeof varianceLow).toBe('number');
+
+    // High sentiment (100) should produce more volatility than zero sentiment (0)
+    // With zero sentiment, volatility = 0, so prices should be nearly identical (variance ≈ 0)
+    // With max sentiment, volatility = 0.02 (2%), so there should be measurable variance
+    // Due to the randomness, we check that high variance is greater in most cases
+    // Using a tolerant assertion: varianceHigh should be >= varianceLow
+    // (If varianceLow is 0 due to no noise, varianceHigh will definitely be greater)
+    expect(varianceHigh).toBeGreaterThanOrEqual(varianceLow);
   });
 });
 

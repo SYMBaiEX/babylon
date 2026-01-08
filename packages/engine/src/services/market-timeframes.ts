@@ -490,7 +490,29 @@ export function getCurrentArcState(
 ): ArcStateType {
   const config = TIMEFRAME_CONFIGS[timeframe];
   const states = config.arcStates;
+
+  // Handle empty states array
+  if (states.length === 0) {
+    return 'setup';
+  }
+
+  // Edge case: if before start time, return first state
+  if (now.getTime() <= startTime.getTime()) {
+    return (states[0] ?? 'setup') as ArcStateType;
+  }
+
+  // Edge case: if at or after end time, return last state
+  if (now.getTime() >= endTime.getTime()) {
+    return (states[states.length - 1] ?? 'setup') as ArcStateType;
+  }
+
   const totalDuration = endTime.getTime() - startTime.getTime();
+
+  // Edge case: if duration is zero or negative, return last state
+  if (totalDuration <= 0) {
+    return (states[states.length - 1] ?? 'setup') as ArcStateType;
+  }
+
   const elapsed = now.getTime() - startTime.getTime();
   const progress = Math.max(0, Math.min(1, elapsed / totalDuration));
 

@@ -31,6 +31,8 @@ import {
   subMarketSpawnLogs,
   type TimeframedMarket,
   timeframedMarkets,
+  type Transaction,
+  withTransaction,
 } from '@babylon/db';
 import { generateSnowflakeId, logger } from '@babylon/shared';
 import {
@@ -249,7 +251,7 @@ export class SubMarketService {
     }
 
     const id = await generateSnowflakeId();
-    const arcStates = TIMEFRAME_CONFIGS[params.timeframe].arcStates;
+    const arcStatesConfig = TIMEFRAME_CONFIGS[params.timeframe].arcStates;
 
     const newMarket: NewTimeframedMarket = {
       id,
@@ -260,7 +262,7 @@ export class SubMarketService {
       rootMarketId: rootMarketId,
       startTime,
       endTime,
-      arcState: (arcStates[0] ?? 'setup') as ArcStateType,
+      arcState: (arcStatesConfig[0] ?? 'setup') as ArcStateType,
       arcStateEnteredAt: now,
       isActive: true,
       isResolved: false,
@@ -272,25 +274,17 @@ export class SubMarketService {
       updatedAt: now,
     };
 
-    const [created] = await db
-      .insert(timeframedMarkets)
-      .values(newMarket)
-      .returning();
+    // Persist market and update parent count atomically within a transaction
+    const created = await withTransaction(async (tx) => {
+      const market = await this.persistTimeframedMarket(newMarket, tx);
 
-    if (!created) {
-      throw new Error(`Failed to create timeframed market ${id}`);
-    }
+      // Update parent's child count if applicable
+      if (params.parentMarketId) {
+        await this.incrementParentChildCount(params.parentMarketId, tx);
+      }
 
-    // Update parent's child count if applicable
-    if (params.parentMarketId) {
-      await db
-        .update(timeframedMarkets)
-        .set({
-          childMarketCount: sql`${timeframedMarkets.childMarketCount} + 1`,
-          updatedAt: now,
-        })
-        .where(eq(timeframedMarkets.id, params.parentMarketId));
-    }
+      return market;
+    });
 
     return created;
   }
@@ -352,6 +346,50 @@ export class SubMarketService {
   // PRIVATE METHODS
   // ===========================================================================
 
+  /**
+   * Shared helper to persist a timeframed market and return the created row.
+   * Centralizes the insert logic to avoid duplication between createMarket and createChildMarket.
+   * @param marketData - The market data to persist
+   * @param tx - Optional transaction context for atomicity
+   */
+  private async persistTimeframedMarket(
+    marketData: NewTimeframedMarket,
+    tx?: Transaction
+  ): Promise<TimeframedMarket> {
+    const dbClient = tx ?? db;
+    const [created] = await dbClient
+      .insert(timeframedMarkets)
+      .values(marketData)
+      .returning();
+
+    if (!created) {
+      throw new Error(`Failed to create timeframed market ${marketData.id}`);
+    }
+
+    return created;
+  }
+
+  /**
+   * Shared helper to increment a parent market's child count.
+   * Centralizes the parent-child count update logic.
+   * @param parentMarketId - The parent market ID to update
+   * @param tx - Optional transaction context for atomicity
+   */
+  private async incrementParentChildCount(
+    parentMarketId: string,
+    tx?: Transaction
+  ): Promise<void> {
+    const dbClient = tx ?? db;
+    const now = new Date();
+    await dbClient
+      .update(timeframedMarkets)
+      .set({
+        childMarketCount: sql`${timeframedMarkets.childMarketCount} + 1`,
+        updatedAt: now,
+      })
+      .where(eq(timeframedMarkets.id, parentMarketId));
+  }
+
   private async createChildMarket(
     parent: TimeframedMarket,
     trigger: SubMarketTrigger,
@@ -395,23 +433,12 @@ export class SubMarketService {
       updatedAt: now,
     };
 
-    const [created] = await db
-      .insert(timeframedMarkets)
-      .values(newMarket)
-      .returning();
-
-    if (!created) {
-      throw new Error(`Failed to create child market for parent ${parent.id}`);
-    }
-
-    // Update parent's child count
-    await db
-      .update(timeframedMarkets)
-      .set({
-        childMarketCount: sql`${timeframedMarkets.childMarketCount} + 1`,
-        updatedAt: now,
-      })
-      .where(eq(timeframedMarkets.id, parent.id));
+    // Persist market and update parent count atomically within a transaction
+    const created = await withTransaction(async (tx) => {
+      const market = await this.persistTimeframedMarket(newMarket, tx);
+      await this.incrementParentChildCount(parent.id, tx);
+      return market;
+    });
 
     return created;
   }

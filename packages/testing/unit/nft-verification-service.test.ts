@@ -57,14 +57,19 @@ describe('NFTVerificationService', () => {
 
     test('should include token ID in reason when token-specific', async () => {
       // This will fail validation, but we can check the error structure
-      // Use message matching since Bun's toThrow(Class) has issues with inheritance
-      await expect(
-        NFTVerificationService.verifyOwnership(
+      // Use try/catch to verify both error type and message
+      try {
+        await NFTVerificationService.verifyOwnership(
           validWallet,
           'invalid-address',
           null
-        )
-      ).rejects.toThrow(/Invalid contract address/);
+        );
+        // Should not reach here
+        expect.unreachable('Expected error to be thrown');
+      } catch (err) {
+        expect(err).toBeInstanceOf(ValidationError);
+        expect((err as Error).message).toMatch(/Invalid contract address/);
+      }
     });
 
     test('should validate address format before RPC calls', async () => {
@@ -87,14 +92,23 @@ describe('NFTVerificationService', () => {
     });
 
     test('should validate token ID format', async () => {
-      // Use message matching since Bun's toThrow(Class) has issues with inheritance
-      await expect(
-        NFTVerificationService.verifyOwnership(validWallet, validContract, -1)
-      ).rejects.toThrow(/Invalid token ID/);
+      // Use try/catch to verify both error type and message for negative token ID
+      try {
+        await NFTVerificationService.verifyOwnership(validWallet, validContract, -1);
+        expect.unreachable('Expected error to be thrown');
+      } catch (err) {
+        expect(err).toBeInstanceOf(ValidationError);
+        expect((err as Error).message).toMatch(/Invalid token ID/);
+      }
 
-      await expect(
-        NFTVerificationService.verifyOwnership(validWallet, validContract, 1.5)
-      ).rejects.toThrow(/Invalid token ID/);
+      // Use try/catch to verify both error type and message for non-integer token ID
+      try {
+        await NFTVerificationService.verifyOwnership(validWallet, validContract, 1.5);
+        expect.unreachable('Expected error to be thrown');
+      } catch (err) {
+        expect(err).toBeInstanceOf(ValidationError);
+        expect((err as Error).message).toMatch(/Invalid token ID/);
+      }
     });
 
     test('should allow token ID 0', async () => {

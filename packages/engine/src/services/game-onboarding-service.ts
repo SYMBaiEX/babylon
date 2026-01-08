@@ -89,7 +89,8 @@ export async function getOrCreateOnboarding(
   };
 
   // Attempt insert, do nothing on conflict (userId is unique)
-  await db
+  // Use RETURNING to detect if the insert actually happened
+  const insertResult = await db
     .insert(gameOnboarding)
     .values({
       id,
@@ -100,7 +101,11 @@ export async function getOrCreateOnboarding(
       createdAt: now,
       updatedAt: now,
     })
-    .onConflictDoNothing({ target: gameOnboarding.userId });
+    .onConflictDoNothing({ target: gameOnboarding.userId })
+    .returning({ insertedId: gameOnboarding.id });
+
+  // If insert returned a row, it was newly created
+  const wasCreated = insertResult.length > 0;
 
   // Select the row (either just created or already existed)
   const [row] = await db
@@ -114,8 +119,8 @@ export async function getOrCreateOnboarding(
     throw new Error(`Failed to get or create onboarding for user ${userId}`);
   }
 
-  // Log only if this was a new creation (check if createdAt matches)
-  if (row.createdAt.getTime() === now.getTime()) {
+  // Log only if this was a new creation (based on insert result, not timestamp comparison)
+  if (wasCreated) {
     logger.info(
       `Created game onboarding for user ${userId}`,
       { userId, onboardingId: row.id },

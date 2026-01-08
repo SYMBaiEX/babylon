@@ -5,6 +5,7 @@ import {
   integer,
   jsonb,
   pgTable,
+  type PgColumn,
   text,
   timestamp,
   unique,
@@ -258,9 +259,15 @@ export const timeframedMarkets = pgTable(
       .notNull()
       .default('general'),
 
-    // Hierarchy
-    parentMarketId: text('parentMarketId'),
-    rootMarketId: text('rootMarketId'), // Top-level parent for nested hierarchies
+    // Hierarchy (self-referential foreign keys)
+    parentMarketId: text('parentMarketId').references(
+      (): PgColumn => timeframedMarkets.id,
+      { onDelete: 'set null' }
+    ),
+    rootMarketId: text('rootMarketId').references(
+      (): PgColumn => timeframedMarkets.id,
+      { onDelete: 'set null' }
+    ), // Top-level parent for nested hierarchies
 
     // Timing
     startTime: timestamp('startTime', { mode: 'date' }).notNull(),
@@ -318,6 +325,14 @@ export const timeframedMarketsRelations = relations(
     }),
     childMarkets: many(timeframedMarkets, {
       relationName: 'parentChild',
+    }),
+    rootMarket: one(timeframedMarkets, {
+      fields: [timeframedMarkets.rootMarketId],
+      references: [timeframedMarkets.id],
+      relationName: 'rootRelation',
+    }),
+    descendantMarkets: many(timeframedMarkets, {
+      relationName: 'rootRelation',
     }),
   })
 );

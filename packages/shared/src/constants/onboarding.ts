@@ -82,8 +82,7 @@ export const ONBOARDING_STEP_INFO: Record<
   },
   complete: {
     title: 'Onboarding Complete!',
-    description:
-      'Congratulations! You have earned 180 points from completing all tutorial steps.',
+    description: `Congratulations! You have earned ${Object.values(ONBOARDING_STEP_POINTS).reduce((sum, points) => sum + points, 0)} points from completing all tutorial steps.`,
     points: ONBOARDING_STEP_POINTS.complete,
   },
 };

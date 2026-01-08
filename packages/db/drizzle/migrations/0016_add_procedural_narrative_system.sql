@@ -1,5 +1,5 @@
 -- Migration: Add Procedural Narrative System
--- PR #711: AI procedural narrative system with perpetuals and prediction markets integration
+-- PR #0: AI procedural narrative system with perpetuals and prediction markets integration
 -- 
 -- This migration adds:
 -- 1. GameOnboarding table for tutorial progression
@@ -22,7 +22,7 @@ CREATE TABLE IF NOT EXISTS "GameOnboarding" (
     "updatedAt" TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS "GameOnboarding_userId_idx" ON "GameOnboarding" ("userId");
+-- Note: GameOnboarding_userId_idx is not needed because userId is UNIQUE (implicit index)
 CREATE INDEX IF NOT EXISTS "GameOnboarding_isComplete_idx" ON "GameOnboarding" ("isComplete");
 CREATE INDEX IF NOT EXISTS "GameOnboarding_currentStep_idx" ON "GameOnboarding" ("currentStep");
 
@@ -58,7 +58,7 @@ CREATE TABLE IF NOT EXISTS "ArcState" (
     "updatedAt" TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS "ArcState_questionId_idx" ON "ArcState" ("questionId");
+-- Note: ArcState_questionId_idx is not needed because ArcState_questionId_unique provides the same coverage
 CREATE INDEX IF NOT EXISTS "ArcState_currentState_idx" ON "ArcState" ("currentState");
 CREATE UNIQUE INDEX IF NOT EXISTS "ArcState_questionId_unique" ON "ArcState" ("questionId");
 

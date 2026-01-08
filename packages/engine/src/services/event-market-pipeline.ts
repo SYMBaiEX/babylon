@@ -235,7 +235,11 @@ export function calculateCurrentPrice(
   let price = basePrice;
   const now = new Date();
 
-  // Apply all active modifiers with decay
+  // Pre-compute bounds for clamping during the loop
+  const minPrice = basePrice * MIN_PRICE_MULTIPLIER;
+  const maxPrice = basePrice * MAX_PRICE_MULTIPLIER;
+
+  // Apply all active modifiers with decay, clamping after each to avoid overflow
   for (const mod of modifiers) {
     const appliedAt = new Date(mod.appliedAt);
     const expiresAt = new Date(mod.expiresAt);
@@ -252,9 +256,19 @@ export function calculateCurrentPrice(
     );
 
     const hoursSince = (now.getTime() - appliedAt.getTime()) / (1000 * 60 * 60);
-    const decayedEffect =
+    let decayedEffect =
       1 + (boundedEffect - 1) * Math.exp(-mod.decayRate * hoursSince);
+
+    // Clamp decayed effect to prevent extreme per-modifier impact
+    decayedEffect = Math.max(
+      MIN_PRICE_MULTIPLIER,
+      Math.min(MAX_PRICE_MULTIPLIER, decayedEffect)
+    );
+
     price *= decayedEffect;
+
+    // Clamp price after each modifier to avoid overflow from sequential multiplications
+    price = Math.max(minPrice, Math.min(maxPrice, price));
   }
 
   // Apply sentiment-based volatility (small random component)
@@ -263,9 +277,7 @@ export function calculateCurrentPrice(
   const noise = (secureRandom() - 0.5) * 2 * volatility;
   price *= 1 + noise;
 
-  // Bound final price
-  const minPrice = basePrice * MIN_PRICE_MULTIPLIER;
-  const maxPrice = basePrice * MAX_PRICE_MULTIPLIER;
+  // Bound final price (minPrice and maxPrice already computed above)
   return Math.max(minPrice, Math.min(maxPrice, price));
 }
 

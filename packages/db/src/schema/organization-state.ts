@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
 import {
+  check,
   doublePrecision,
   index,
   integer,
@@ -55,6 +56,11 @@ export const organizationState = pgTable(
   (table) => [
     index('OrganizationState_currentPrice_idx').on(table.currentPrice),
     index('OrganizationState_sentiment_idx').on(table.sentiment),
+    // Enforce sentiment bounds at database level (-100 to +100)
+    check(
+      'sentiment_range',
+      sql`${table.sentiment} >= -100 AND ${table.sentiment} <= 100`
+    ),
   ]
 );
 

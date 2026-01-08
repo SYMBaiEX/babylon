@@ -35,7 +35,18 @@ const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
  */
 const COLLECTION_SIZE = Number(process.env.NFT_COLLECTION_SIZE) || 100;
 
-/** Max cache size to prevent memory leaks (LRU eviction when exceeded) */
+/**
+ * Max cache size to prevent memory leaks (FIFO eviction when exceeded).
+ *
+ * Memory considerations:
+ * - Each entry contains an ArrayBuffer (typically 50KB-500KB for images)
+ * - At MAX_CACHE_SIZE=100 entries, worst case memory is ~50MB
+ * - Acceptable for Vercel serverless functions (1GB limit)
+ * - If memory becomes an issue, consider:
+ *   1. Reducing MAX_CACHE_SIZE
+ *   2. Adding a MAX_CACHE_BYTES limit with size tracking
+ *   3. Using external caching (Redis, Vercel CDN already handles this)
+ */
 const MAX_CACHE_SIZE = 100;
 
 /**
@@ -57,8 +68,9 @@ const imageCache = new Map<
 const CACHE_TTL_MS = 60 * 60 * 1000;
 
 /**
- * Add to cache with LRU eviction when max size exceeded
- * Removes oldest entry (by cachedAt) when cache is full
+ * Add to cache with FIFO eviction when max size exceeded.
+ * Evicts oldest entry by insertion time (cachedAt), not true LRU.
+ * Note: This is simpler than LRU but sufficient for immutable images.
  */
 function addToCache(
   tokenId: number,

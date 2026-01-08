@@ -24,10 +24,14 @@ export function isValidGitHubUrl(url: unknown): url is string {
   try {
     const parsed = new URL(url);
     const hostname = parsed.hostname.toLowerCase();
-    return (
-      hostname.endsWith('githubusercontent.com') ||
-      hostname.endsWith('github.com')
-    );
+    // Only allow exact matches or true subdomains (with leading dot)
+    // This prevents malicious domains like "evilgithubusercontent.com"
+    const isValidGitHub =
+      hostname === 'github.com' || hostname.endsWith('.github.com');
+    const isValidGitHubUserContent =
+      hostname === 'githubusercontent.com' ||
+      hostname.endsWith('.githubusercontent.com');
+    return isValidGitHub || isValidGitHubUserContent;
   } catch {
     return false;
   }

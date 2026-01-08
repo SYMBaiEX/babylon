@@ -215,12 +215,12 @@ export async function generateStructuredEvent(
   };
   const baseSeverity =
     severityByState[arc.currentState as LongTermArcState] ?? 2;
-  const severity = Math.min(5, baseSeverity + Math.floor(secureRandom() * 2)) as
-    | 1
-    | 2
-    | 3
-    | 4
-    | 5;
+  // Compute severity with proper bounds checking (1-5 range)
+  const rawSeverity = Math.max(
+    1,
+    Math.min(5, baseSeverity + Math.floor(secureRandom() * 2))
+  );
+  const severity = rawSeverity as 1 | 2 | 3 | 4 | 5;
 
   // Signal direction based on event type and state
   let signalDirection: 'YES' | 'NO' | 'NEUTRAL';
@@ -352,6 +352,92 @@ export async function createWorldEventFromArcEvent(
 
   logger.info(
     'Created world event from arc event',
+    {
+      eventId,
+      arcId: structuredEvent.arcId,
+      type: structuredEvent.type,
+      severity: structuredEvent.severity,
+    },
+    'NarrativeEventProcessor'
+  );
+
+  return eventId;
+}
+
+/**
+ * Transaction-aware version of createWorldEventFromArcEvent.
+ * Used within db.transaction() to ensure atomicity with arc state updates.
+ */
+async function createWorldEventFromArcEventTx(
+  tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
+  structuredEvent: StructuredEventData,
+  questionText: string,
+  timestamp: Date,
+  dayNumber?: number,
+  questionNumber?: number | null
+): Promise<string> {
+  // Map structured event type to world event description
+  const descriptionTemplates: Record<StructuredEventData['type'], string[]> = {
+    rumor: [
+      'Unconfirmed reports suggest developments regarding {topic}',
+      'Sources claim new information about {topic}',
+      'Speculation grows around {topic}',
+    ],
+    leak: [
+      'Leaked documents reveal details about {topic}',
+      'Anonymous source exposes information on {topic}',
+      'Internal memo surfaces regarding {topic}',
+    ],
+    denial: [
+      'Officials deny reports about {topic}',
+      'Spokesperson refutes claims regarding {topic}',
+      'Strong denial issued concerning {topic}',
+    ],
+    confirmation: [
+      'Sources confirm developments in {topic}',
+      'Official statement verifies {topic}',
+      'Breaking: Confirmation on {topic}',
+    ],
+    reversal: [
+      'Unexpected reversal in {topic}',
+      'Major shift reported on {topic}',
+      'Surprise development contradicts earlier reports on {topic}',
+    ],
+    proof: [
+      'Definitive evidence emerges on {topic}',
+      'Documentation confirms outcome of {topic}',
+      'Final proof released regarding {topic}',
+    ],
+  };
+
+  const templates = descriptionTemplates[structuredEvent.type];
+  const template = templates[Math.floor(secureRandom() * templates.length)]!;
+  const topic =
+    questionText.length > 80 ? questionText.slice(0, 80) + '...' : questionText;
+  const description = template.replace('{topic}', topic);
+
+  const eventId = await generateSnowflakeId();
+  const safeDayNumber =
+    typeof dayNumber === 'number' ? toSafeDayNumber(dayNumber) : undefined;
+
+  await tx.insert(worldEvents).values({
+    id: eventId,
+    eventType: structuredEvent.type,
+    description,
+    actors: structuredEvent.affectedActors,
+    relatedQuestion: questionNumber ?? undefined,
+    visibility: structuredEvent.type === 'leak' ? 'leaked' : 'public',
+    gameId: 'continuous',
+    dayNumber: safeDayNumber,
+    timestamp,
+    pointsToward:
+      structuredEvent.signalDirection === 'NEUTRAL'
+        ? null
+        : structuredEvent.signalDirection,
+  });
+
+  logger.info(
+    'Created world event from arc event (tx)',
     {
       eventId,
       arcId: structuredEvent.arcId,
@@ -543,35 +629,8 @@ export async function processArcTick(
   if (shouldGenerate) {
     const now = new Date();
 
-    // FIRST: Acquire the lock before creating any side effects
-    // This prevents race conditions where world events are created but the arc isn't updated
-    const updateResult = await db
-      .update(arcStates)
-      .set({
-        eventsGenerated: (arc.eventsGenerated ?? 0) + 1,
-        lastEventAt: now,
-        updatedAt: now,
-      })
-      .where(
-        and(eq(arcStates.id, arcId), eq(arcStates.updatedAt, arc.updatedAt))
-      )
-      .returning({ id: arcStates.id });
-
-    if (updateResult.length === 0) {
-      // Optimistic lock conflict - another process updated the arc
-      logger.warn(
-        `Optimistic lock conflict for arc ${arcId}, skipping event generation`,
-        { arcId },
-        'NarrativeEventProcessor'
-      );
-      return {
-        transitioned,
-        eventGenerated: false,
-        newState: newState ?? undefined,
-      };
-    }
-
-    // Lock acquired successfully - now generate the event
+    // FIRST: Gather all data needed BEFORE acquiring the lock
+    // This ensures we don't hold a lock while doing expensive queries/LLM calls
 
     // Get arc plan for actor assignments
     const [arcPlan] = await db
@@ -590,31 +649,95 @@ export async function processArcTick(
           deceiverActorIds: arcPlan.deceiverActorIds ?? [],
         }
       : null;
+
+    // Generate the structured event (may involve DB queries for affected stocks)
     const structuredEvent = await generateStructuredEvent(
       arc,
       normalizedArcPlan
     );
 
-    // Apply market impacts if event affects stocks
-    if (structuredEvent.marketImpacts.length > 0) {
-      const { applyEventToMarkets } = await import('./event-market-pipeline');
-      const modifiersApplied = await applyEventToMarkets(structuredEvent);
-      logger.info(
-        `Applied ${modifiersApplied} market modifiers from event`,
-        { arcId, modifiersApplied },
-        'NarrativeEventProcessor'
-      );
+    // Get question details before the transaction
+    const questionDetails = await getQuestionDetails(arc.questionId);
+
+    // NOW: Use a transaction to atomically update arc state AND create world event
+    // This prevents inconsistent state if either operation fails
+    let worldEventId: string;
+    try {
+      worldEventId = await db.transaction(async (tx) => {
+        // Acquire the optimistic lock
+        const updateResult = await tx
+          .update(arcStates)
+          .set({
+            eventsGenerated: (arc.eventsGenerated ?? 0) + 1,
+            lastEventAt: now,
+            updatedAt: now,
+          })
+          .where(
+            and(eq(arcStates.id, arcId), eq(arcStates.updatedAt, arc.updatedAt))
+          )
+          .returning({ id: arcStates.id });
+
+        if (updateResult.length === 0) {
+          // Optimistic lock conflict - throw to rollback transaction
+          throw new Error('OPTIMISTIC_LOCK_CONFLICT');
+        }
+
+        // Create the world event within the same transaction
+        const eventId = await createWorldEventFromArcEventTx(
+          tx,
+          structuredEvent,
+          questionDetails.text,
+          now,
+          dayNumber,
+          questionDetails.questionNumber
+        );
+
+        return eventId;
+      });
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        error.message === 'OPTIMISTIC_LOCK_CONFLICT'
+      ) {
+        logger.warn(
+          `Optimistic lock conflict for arc ${arcId}, skipping event generation`,
+          { arcId },
+          'NarrativeEventProcessor'
+        );
+        return {
+          transitioned,
+          eventGenerated: false,
+          newState: newState ?? undefined,
+        };
+      }
+      throw error; // Re-throw other errors
     }
 
-    // Create a world event so it appears in the feed
-    const questionDetails = await getQuestionDetails(arc.questionId);
-    const worldEventId = await createWorldEventFromArcEvent(
-      structuredEvent,
-      questionDetails.text,
-      now,
-      dayNumber,
-      questionDetails.questionNumber
-    );
+    // Apply market impacts AFTER the transaction succeeds (non-critical, can fail independently)
+    if (structuredEvent.marketImpacts.length > 0) {
+      try {
+        const { applyEventToMarkets } = await import('./event-market-pipeline');
+        const modifiersApplied = await applyEventToMarkets(structuredEvent);
+        logger.info(
+          `Applied ${modifiersApplied} market modifiers from event`,
+          { arcId, modifiersApplied },
+          'NarrativeEventProcessor'
+        );
+      } catch (marketError) {
+        logger.warn(
+          'Failed to apply market impacts for arc event',
+          {
+            arcId,
+            worldEventId,
+            error:
+              marketError instanceof Error
+                ? marketError.message
+                : String(marketError),
+          },
+          'NarrativeEventProcessor'
+        );
+      }
+    }
 
     // Trigger article generation for significant events (severity >= 3)
     if (structuredEvent.severity >= 3 && llmClient) {

@@ -131,6 +131,7 @@ export interface DirectRepostParams {
 export interface DirectRepostResult {
   success: boolean;
   repostId?: string;
+  quotePostId?: string;
   error?: string;
 }
 
@@ -1180,8 +1181,9 @@ export async function executeDirectRepost(
     });
 
     // If there's a quote comment, create a quote post (min 3 chars like comments)
+    let quotePostId: string | undefined;
     if (comment && comment.trim().length >= 3) {
-      const quotePostId = await generateSnowflakeId();
+      quotePostId = await generateSnowflakeId();
       await db.insert(posts).values({
         id: quotePostId,
         content: comment.trim(),
@@ -1194,7 +1196,7 @@ export async function executeDirectRepost(
     }
 
     logger.info(
-      `[DirectExecutor] Post reposted: ${postId} -> share ${shareId}`,
+      `[DirectExecutor] Post reposted: ${postId} -> share ${shareId}${quotePostId ? ` with quote ${quotePostId}` : ''}`,
       undefined,
       'DirectExecutors'
     );
@@ -1202,16 +1204,31 @@ export async function executeDirectRepost(
     return {
       success: true,
       repostId: shareId,
+      quotePostId,
     };
   } catch (error) {
     // Handle unique constraint violation (concurrent repost)
-    if ((error as Error).message?.includes('unique constraint')) {
+    // Check error code for PostgreSQL (23505) or Prisma (P2002)
+    const errorCode = (error as { code?: string }).code;
+    const isUniqueConstraint =
+      errorCode === '23505' ||
+      errorCode === 'P2002' ||
+      (error as Error).message?.includes('unique constraint');
+
+    if (isUniqueConstraint) {
       const [share] = await db
         .select({ id: shares.id })
         .from(shares)
         .where(and(eq(shares.postId, postId), eq(shares.userId, agentUserId)))
         .limit(1);
-      return { success: true, repostId: share?.id };
+
+      if (!share?.id) {
+        throw new Error(
+          'Share not found after unique constraint violation - concurrent repost race condition'
+        );
+      }
+
+      return { success: true, repostId: share.id };
     }
     throw error;
   }

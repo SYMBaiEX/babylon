@@ -15,6 +15,7 @@ import {
 import {
   actorRelationships,
   and,
+  arcStates,
   count,
   db,
   getDbInstance as dbService,
@@ -3703,7 +3704,7 @@ async function processNarrativeArcs(
   transitioned: number;
   eventsGenerated: number;
 }> {
-  const { arcStates } = await import('@babylon/db');
+  // arcStates is now statically imported at the top of the file
 
   let arcsProcessed = 0;
   let transitioned = 0;
