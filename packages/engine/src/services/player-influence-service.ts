@@ -106,6 +106,16 @@ class LRUMentionCache {
 
 /**
  * In-memory fallback cache (used when Redis is unavailable)
+ *
+ * NOTE: This cache is local to each process instance. In multi-process or
+ * serverless deployments, each instance maintains its own separate cache.
+ * This means:
+ * - wasMentionedRecentlySync/wasMentionedRecently are only reliable within a single process
+ * - getRecentlyMentionedActorIds returns mentions from the local instance only
+ * - For true cross-instance mention tracking, Redis-backed storage would be needed
+ *
+ * This is intentional for simplicity and performance. The mention boost is a
+ * soft preference, not a critical feature, so local-only semantics are acceptable.
  */
 const memoryFallbackCache = new LRUMentionCache(MAX_MENTION_CACHE_SIZE);
 
@@ -430,10 +440,12 @@ async function getNpcsAffiliatedWith(stockTicker: string): Promise<string[]> {
 /**
  * Extract mentions from post content
  * Returns unique usernames in first-seen order
+ * Ignores email-like patterns (e.g., user@example.com)
  */
 export function extractMentions(content: string): string[] {
-  // Match @username patterns
-  const mentionPattern = /@([a-zA-Z0-9_-]+)/g;
+  // Match @username patterns only when preceded by start of string or whitespace
+  // This prevents matching the domain part of email addresses
+  const mentionPattern = /(?:^|[\s])@([a-zA-Z0-9_-]+)/g;
   const matches = content.matchAll(mentionPattern);
   const seen = new Set<string>();
   const mentions: string[] = [];

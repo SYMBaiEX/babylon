@@ -443,11 +443,21 @@ function buildOrderBy<TTable extends PgTable>(
  * in schema definitions. These typed interfaces don't satisfy the strict JsonValue constraint
  * because they have narrower field types (e.g., literal unions instead of string).
  *
- * We include `unknown` in the union to accept any schema-inferred type. Type safety is
- * preserved because:
- * 1. Repository generics (TSelect, TInsert) are inferred from InferSelect/InferInsert
- * 2. The specific types flow through method signatures to call sites
- * 3. Internal helper functions use type assertions where needed
+ * The `unknown` in this union is intentional and necessary to accept schema-inferred
+ * custom JSONB types. This does NOT weaken type safety because:
+ *
+ * 1. **Repository generics preserve types**: TSelect and TInsert are inferred from
+ *    InferSelect<TTable> and InferInsert<TTable>, which carry full type information
+ * 2. **Public API remains typed**: Method signatures like findUnique() return TSelect,
+ *    not DatabaseValue - callers always receive properly typed results
+ * 3. **This union is internal only**: It only affects internal constraint checking
+ *    on Record<string, DatabaseValue>, not the types exposed to consumers
+ *
+ * Without `unknown`, schema-defined types like `NpcMemory[]` and `PriceModifier[]`
+ * would fail the constraint check, breaking TableRepository for those tables.
+ *
+ * @see NpcMemory, PriceModifier for examples of custom JSONB types
+ * @see TableRepository for how types flow through the repository pattern
  */
 type DatabaseValue =
   | SQLValue

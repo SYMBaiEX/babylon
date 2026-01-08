@@ -45,12 +45,17 @@ describe('Player Influence Service - Mention Extraction', () => {
     expect(mentions).toEqual(['start', 'end']);
   });
 
-  test('handles email-like patterns (extracts domain part)', () => {
-    // Email addresses are partially parsed - the domain part after @ is extracted
-    // This is expected behavior since we only match @word patterns
+  test('ignores email-like patterns', () => {
+    // Email addresses should not produce mentions - we require whitespace before @
     const content = 'Contact user@example.com for more';
     const mentions = extractMentions(content);
-    expect(mentions).toEqual(['example']);
+    expect(mentions).toEqual([]);
+  });
+
+  test('handles mixed content with emails and real mentions', () => {
+    const content = 'Hey @alice, send to bob@example.com, also cc @charlie';
+    const mentions = extractMentions(content);
+    expect(mentions).toEqual(['alice', 'charlie']);
   });
 
   test('handles empty content', () => {

@@ -81,7 +81,9 @@ const ARTICLE_PROB = [0.05, 0.12, 0.18, 0.25, 0.3, 0.35];
 
 /** Get article probability based on active markets */
 function getArticleProb(marketCount: number): number {
-  return ARTICLE_PROB[Math.min(marketCount, ARTICLE_PROB.length - 1)] ?? 0.05;
+  // Clamp marketCount to valid index range [0, ARTICLE_PROB.length - 1]
+  const clampedIndex = Math.max(0, Math.min(marketCount, ARTICLE_PROB.length - 1));
+  return ARTICLE_PROB[clampedIndex] ?? 0.05;
 }
 
 /**
@@ -1018,7 +1020,10 @@ async function generateContentWindow(
       }
     }
 
-    // Article probability scales with active market count (5% baseline, up to 35%)
+    // Article probability scales with active market count:
+    // - With 1 active market: 12% (getArticleProb(1))
+    // - Scales up to 35% with 5+ active markets
+    // Note: The 5% baseline only applies when marketCount === 0 (filtered out earlier)
     const articleProb = getArticleProb(activeQuestions.length);
     const shouldCreateArticle = secureRandom() < articleProb;
     let success = false;

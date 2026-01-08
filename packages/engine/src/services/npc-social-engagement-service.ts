@@ -77,17 +77,47 @@ const ACTORS_TO_SAMPLE = 15;
 const POSTS_TO_CONSIDER = 30;
 
 // =============================================================================
-// LLM CLIENT
+// SERVICE CLASS
 // =============================================================================
 
+/**
+ * NPC Social Engagement Service
+ *
+ * Injectable service for processing NPC social engagements.
+ * Accepts a BabylonLLMClient via constructor for testability and context isolation.
+ */
+export class NPCSocialEngagementService {
+  constructor(private llmClient: BabylonLLMClient | null = null) {}
+
+  /**
+   * Set the LLM client for comment generation.
+   */
+  setLLMClient(client: BabylonLLMClient): void {
+    this.llmClient = client;
+  }
+
+  /**
+   * Get the current LLM client reference.
+   */
+  getLLMClient(): BabylonLLMClient | null {
+    return this.llmClient;
+  }
+}
+
+// =============================================================================
+// LLM CLIENT (deprecated - use NPCSocialEngagementService instead)
+// =============================================================================
+
+/** @deprecated Use NPCSocialEngagementService class instead */
 let llmClientRef: BabylonLLMClient | null = null;
 
+/** @deprecated Use NPCSocialEngagementService class instead */
 export function setSocialEngagementLLMClient(client: BabylonLLMClient): void {
   llmClientRef = client;
 }
 
 // =============================================================================
-// MAIN SERVICE
+// MAIN SERVICE FUNCTION
 // =============================================================================
 
 /**
@@ -240,15 +270,31 @@ export async function processNPCSocialEngagements(): Promise<SocialEngagementRes
           if (secureRandom() < probs.comment) {
             const comment = await generateNPCComment(actor, post);
             if (comment) {
-              await db.insert(comments).values({
-                id: await generateSnowflakeId(),
-                postId: post.id,
-                authorId: actor.id,
-                content: comment,
-                updatedAt: new Date(),
-              });
-              result.commentsCreated++;
-              engagedActors.add(actor.id);
+              try {
+                await db.insert(comments).values({
+                  id: await generateSnowflakeId(),
+                  postId: post.id,
+                  authorId: actor.id,
+                  content: comment,
+                  updatedAt: new Date(),
+                });
+                result.commentsCreated++;
+                engagedActors.add(actor.id);
+              } catch (commentError) {
+                // Log error but continue processing other actors
+                logger.warn(
+                  'Failed to insert NPC comment',
+                  {
+                    actorId: actor.id,
+                    postId: post.id,
+                    error:
+                      commentError instanceof Error
+                        ? commentError.message
+                        : String(commentError),
+                  },
+                  'NPCSocialEngagement'
+                );
+              }
             }
           }
         }

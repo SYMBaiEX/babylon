@@ -68,7 +68,7 @@ export interface PendingInteraction {
 export interface GroupChatContext {
   id: string;
   name: string;
-  memberCount: number;
+  memberCount?: number;
 }
 
 export interface AgentTickContext {

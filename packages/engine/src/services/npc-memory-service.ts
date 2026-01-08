@@ -56,6 +56,21 @@ const MAX_RETRIES = 3;
 const RETRY_BASE_DELAY_MS = 50;
 
 /**
+ * Check if an error is transient and should trigger a retry.
+ * Transient errors include connection resets, timeouts, and network issues.
+ */
+function isTransientError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  const message = error.message.toLowerCase();
+  return (
+    message.includes('econnreset') ||
+    message.includes('etimedout') ||
+    message.includes('connection') ||
+    message.includes('timeout')
+  );
+}
+
+/**
  * NPC Memory Service
  *
  * Provides memory management for NPC continuity:
@@ -382,14 +397,7 @@ export class NpcMemoryService {
         return true; // Success
       } catch (error) {
         // Check if this is a transient/connection error that should be retried
-        const isTransient =
-          error instanceof Error &&
-          (error.message.includes('ECONNRESET') ||
-            error.message.includes('ETIMEDOUT') ||
-            error.message.includes('connection') ||
-            error.message.includes('timeout'));
-
-        if (isTransient && attempt < MAX_RETRIES - 1) {
+        if (isTransientError(error) && attempt < MAX_RETRIES - 1) {
           // Exponential backoff before retry using shared constant
           const delay = RETRY_BASE_DELAY_MS * 2 ** attempt;
           await new Promise((resolve) => setTimeout(resolve, delay));
@@ -637,6 +645,7 @@ export class NpcMemoryService {
 
   /**
    * Format time ago string for memory display.
+   * Handles both past and future timestamps gracefully.
    * @param timestamp - ISO timestamp string to format
    * @param now - Optional current time for testing (defaults to new Date())
    */
@@ -649,6 +658,27 @@ export class NpcMemoryService {
         : new Date();
     const then = new Date(timestamp);
     const diffMs = currentTime.getTime() - then.getTime();
+
+    // Handle future timestamps (negative diff)
+    if (diffMs < 0) {
+      const absDiffMs = Math.abs(diffMs);
+      // Treat small future offsets as "just now" (clock skew tolerance)
+      if (absDiffMs < 60000) {
+        return 'just now';
+      }
+      const futureMins = Math.floor(absDiffMs / 60000);
+      const futureHours = Math.floor(futureMins / 60);
+      const futureDays = Math.floor(futureHours / 24);
+
+      if (futureDays > 0) {
+        return `in ${futureDays}d`;
+      }
+      if (futureHours > 0) {
+        return `in ${futureHours}h`;
+      }
+      return `in ${futureMins}m`;
+    }
+
     const diffMins = Math.floor(diffMs / 60000);
     const diffHours = Math.floor(diffMins / 60);
     const diffDays = Math.floor(diffHours / 24);

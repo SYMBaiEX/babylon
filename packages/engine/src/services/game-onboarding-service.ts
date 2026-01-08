@@ -233,11 +233,20 @@ export async function completeOnboardingStep(
       };
     }
 
+    // Exponential backoff with jitter to avoid thundering herd
+    const baseDelayMs = 50;
+    const maxDelayMs = 1000;
+    const exponentialDelay = baseDelayMs * Math.pow(2, retryCount);
+    const jitter = Math.random() * exponentialDelay * 0.3; // Up to 30% jitter
+    const delay = Math.min(exponentialDelay + jitter, maxDelayMs);
+
     logger.debug(
       `Optimistic lock conflict, retrying onboarding step completion`,
-      { userId, step, retryCount: retryCount + 1 },
+      { userId, step, retryCount: retryCount + 1, delayMs: Math.round(delay) },
       'GameOnboarding'
     );
+
+    await new Promise((resolve) => setTimeout(resolve, delay));
     return completeOnboardingStep(userId, step, retryCount + 1);
   }
 
@@ -247,28 +256,51 @@ export async function completeOnboardingStep(
     'GameOnboarding'
   );
 
-  // Award bonus points to user balance
+  // Award bonus points to user balance with retry on transient failures
   if (points > 0) {
-    try {
-      await EarnedPointsService.awardBonusPoints(
-        userId,
-        points,
-        `onboarding_${step}`
-      );
-    } catch (error) {
-      // Log the failure - onboarding completion succeeded but points award failed
-      // Note: Ideally this would enqueue a compensating retry job, but for now we log
-      // the failure with enough context for manual reconciliation if needed
+    const maxPointsRetries = 3;
+    const baseDelayMs = 100;
+    let lastError: unknown = null;
+
+    for (let attempt = 0; attempt < maxPointsRetries; attempt++) {
+      try {
+        await EarnedPointsService.awardBonusPoints(
+          userId,
+          points,
+          `onboarding_${step}`
+        );
+        lastError = null;
+        break; // Success - exit retry loop
+      } catch (error) {
+        lastError = error;
+        const isLastAttempt = attempt >= maxPointsRetries - 1;
+        if (!isLastAttempt) {
+          // Exponential backoff with jitter
+          const delay = baseDelayMs * Math.pow(2, attempt) * (0.5 + Math.random());
+          logger.debug(
+            `Retrying bonus points award after failure`,
+            { userId, step, points, attempt: attempt + 1, delayMs: Math.round(delay) },
+            'GameOnboarding'
+          );
+          await new Promise((resolve) => setTimeout(resolve, delay));
+        }
+      }
+    }
+
+    if (lastError) {
+      // All retries exhausted - log for manual reconciliation
+      // TODO: Consider adding a persistent retry queue (e.g., DB-backed job table)
+      // to ensure points are eventually awarded even after process restart
       logger.warn(
-        `Failed to award bonus points for onboarding step - consider manual reconciliation`,
+        `Failed to award bonus points for onboarding step after ${maxPointsRetries} attempts - manual reconciliation needed`,
         {
           userId,
           step,
           points,
           reason: `onboarding_${step}`,
-          error: error instanceof Error ? error.message : String(error),
-          // Include timestamp for audit trail
+          error: lastError instanceof Error ? lastError.message : String(lastError),
           failedAt: new Date().toISOString(),
+          retriesAttempted: maxPointsRetries,
         },
         'GameOnboarding'
       );

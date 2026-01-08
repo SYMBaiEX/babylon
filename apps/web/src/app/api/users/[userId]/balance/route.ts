@@ -164,7 +164,7 @@ export const GET = withErrorHandling(
       dbUser = newUser;
     }
 
-    const canonicalUserId = dbUser!.id;
+    const canonicalUserId = dbUser.id;
 
     // Get balance info with caching (balance is publicly viewable)
     const balanceData = await cachedDb.getUserBalance(canonicalUserId);

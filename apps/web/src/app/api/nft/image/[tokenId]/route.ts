@@ -69,25 +69,18 @@ const CACHE_TTL_MS = 60 * 60 * 1000;
 
 /**
  * Add to cache with FIFO eviction when max size exceeded.
- * Evicts oldest entry by insertion time (cachedAt), not true LRU.
- * Note: This is simpler than LRU but sufficient for immutable images.
+ * Leverages Map's insertion order: first key is the oldest entry.
+ * Note: cachedAt is kept for TTL expiry checks.
  */
 function addToCache(
   tokenId: number,
   buffer: ArrayBuffer,
   contentType: string
 ): void {
-  // Evict oldest entry if cache is full
+  // Evict oldest entry (first key by insertion order) if cache is full
   if (imageCache.size >= MAX_CACHE_SIZE) {
-    let oldestKey: number | null = null;
-    let oldestTime = Infinity;
-    for (const [key, entry] of imageCache.entries()) {
-      if (entry.cachedAt < oldestTime) {
-        oldestTime = entry.cachedAt;
-        oldestKey = key;
-      }
-    }
-    if (oldestKey !== null) {
+    const oldestKey = imageCache.keys().next().value;
+    if (oldestKey !== undefined) {
       imageCache.delete(oldestKey);
     }
   }

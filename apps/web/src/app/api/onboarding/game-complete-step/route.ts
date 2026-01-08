@@ -45,7 +45,6 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   const result = await completeOnboardingStep(user.userId, step);
 
   return successResponse({
-    success: true,
     pointsAwarded: result.pointsAwarded,
     nextStep: result.nextStep,
     isComplete: result.isComplete,

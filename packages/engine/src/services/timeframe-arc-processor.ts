@@ -441,23 +441,20 @@ export class TimeframeArcProcessor {
 
   /**
    * Resolve a market that has reached its end time
-   * Uses a transaction to ensure all updates commit atomically
    */
   async resolveMarket(market: TimeframedMarket): Promise<void> {
     const now = new Date();
 
-    await db.transaction(async (tx) => {
-      await tx
-        .update(timeframedMarkets)
-        .set({
-          isActive: false,
-          isResolved: true,
-          resolvedAt: now,
-          arcState: 'resolution',
-          updatedAt: now,
-        })
-        .where(eq(timeframedMarkets.id, market.id));
-    });
+    await db
+      .update(timeframedMarkets)
+      .set({
+        isActive: false,
+        isResolved: true,
+        resolvedAt: now,
+        arcState: 'resolution',
+        updatedAt: now,
+      })
+      .where(eq(timeframedMarkets.id, market.id));
 
     logger.info(
       `Market resolved`,

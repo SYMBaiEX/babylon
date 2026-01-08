@@ -376,12 +376,11 @@ export class MarketMetricsService {
             ? (error as { code?: string }).code
             : undefined;
 
-        // Match Postgres error code for undefined table, OR a message pattern
-        // that specifically mentions the table name with "does not exist"
-        const missingTablePattern =
-          /(?:relation|table).*perpmarketsnapshot.*does not exist|perpmarketsnapshot.*(?:relation|table).*does not exist/i;
+        // Prefer Postgres error code 42P01 for missing table detection
+        // Fallback message check only for non-Postgres drivers (simplified pattern)
         const isMissingTableError =
-          errorCode === '42P01' || missingTablePattern.test(errorMessage);
+          errorCode === '42P01' ||
+          errorMessage.toLowerCase().includes('does not exist');
 
         if (isMissingTableError) {
           // Table may not exist in all environments - continue without snapshot data

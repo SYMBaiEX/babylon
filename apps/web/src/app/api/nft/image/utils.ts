@@ -23,6 +23,8 @@ export function isValidGitHubUrl(url: unknown): url is string {
   if (typeof url !== 'string') return false;
   try {
     const parsed = new URL(url);
+    // Enforce HTTPS to prevent downgrade attacks
+    if (parsed.protocol !== 'https:') return false;
     const hostname = parsed.hostname.toLowerCase();
     // Only allow exact matches or true subdomains (with leading dot)
     // This prevents malicious domains like "evilgithubusercontent.com"

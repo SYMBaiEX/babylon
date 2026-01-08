@@ -185,6 +185,9 @@ export function parseRelationshipsSafe(
       }
     }
 
+    // Compute entries skipped due to cap (not inspected at all)
+    const skippedDueToCap = Math.max(0, entries.length - inspectedCount);
+
     // Log salvage statistics
     if (discardedCount > 0 || capHit) {
       logger.info(
@@ -196,6 +199,7 @@ export function parseRelationshipsSafe(
           inspectedCount,
           total: entries.length,
           capHit,
+          skippedDueToCap,
         },
         'JSONBValidation'
       );

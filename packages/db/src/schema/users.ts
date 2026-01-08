@@ -601,6 +601,17 @@ export const usersRelations = relations(users, ({ many, one }) => ({
     fields: [users.id],
     references: [userAgentConfigs.userId],
   }),
+  gameOnboarding: one(gameOnboarding, {
+    fields: [users.id],
+    references: [gameOnboarding.userId],
+  }),
+}));
+
+export const gameOnboardingRelations = relations(gameOnboarding, ({ one }) => ({
+  user: one(users, {
+    fields: [gameOnboarding.userId],
+    references: [users.id],
+  }),
 }));
 
 export const onboardingIntentsRelations = relations(

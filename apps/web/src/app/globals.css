@@ -37,6 +37,8 @@
   --scrollbar-track: #e5e5e6;
   --scrollbar-thumb: #0066FF;
   --scrollbar-thumb-hover: #2952d9;
+  /* Reserved for onboarding theme overrides. Currently aliases --primary but can be
+     customized for onboarding-specific styling without affecting the global theme. */
   --color-onboarding-primary: var(--primary);
   --font-sans: "Helvetica Neue", Helvetica, Arial, sans-serif;
   --font-serif: Georgia, serif;
@@ -96,6 +98,8 @@
   --scrollbar-track: #000000;
   --scrollbar-thumb: #0066FF;
   --scrollbar-thumb-hover: #2952d9;
+  /* Reserved for onboarding theme overrides. Currently aliases --primary but can be
+     customized for onboarding-specific styling without affecting the global theme. */
   --color-onboarding-primary: var(--primary);
   --font-sans: "Helvetica Neue", Helvetica, Arial, sans-serif;
   --font-serif: Georgia, serif;

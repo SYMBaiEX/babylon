@@ -301,6 +301,17 @@ export class EarnedPointsService {
         `Invalid points value: ${points}. Bonus points must be non-negative.`
       );
     }
+
+    // Early return for zero points - avoid unnecessary DB operations
+    if (points === 0) {
+      const [user] = await tx
+        .select({ bonusPoints: users.bonusPoints })
+        .from(users)
+        .where(eq(users.id, userId))
+        .limit(1);
+      return user?.bonusPoints ?? 0;
+    }
+
     const result = await tx
       .select({
         earnedPoints: users.earnedPoints,

@@ -1058,28 +1058,6 @@ export async function executeDirectLike(
     return { success: false, error: `Post not found: ${postId}` };
   }
 
-  // Check if already liked
-  const [existingLike] = await db
-    .select({ id: reactions.id })
-    .from(reactions)
-    .where(
-      and(
-        eq(reactions.postId, postId),
-        eq(reactions.userId, agentUserId),
-        eq(reactions.type, 'like')
-      )
-    )
-    .limit(1);
-
-  if (existingLike) {
-    logger.debug(
-      `[DirectExecutor] Agent already liked post ${postId}`,
-      { agentUserId },
-      'DirectExecutors'
-    );
-    return { success: true, liked: true };
-  }
-
   logger.info(
     `[DirectExecutor] Liking post ${postId}`,
     { agentUserId },
@@ -1089,9 +1067,10 @@ export async function executeDirectLike(
   try {
     const reactionId = await generateSnowflakeId();
 
-    // Use onConflictDoNothing to handle race conditions and prevent duplicate likes
+    // Use onConflictDoNothing to handle race conditions and prevent duplicate likes atomically
     // This relies on a unique index on (userId, postId, type) for the reactions table
-    await db
+    // No pre-check needed - the insert handles duplicates automatically
+    const insertResult = await db
       .insert(reactions)
       .values({
         id: reactionId,
@@ -1100,11 +1079,13 @@ export async function executeDirectLike(
         type: 'like',
         createdAt: new Date(),
       })
-      .onConflictDoNothing();
+      .onConflictDoNothing()
+      .returning({ id: reactions.id });
 
+    const alreadyLiked = insertResult.length === 0;
     logger.info(
-      `[DirectExecutor] Post liked: ${postId}`,
-      undefined,
+      `[DirectExecutor] Post ${alreadyLiked ? 'already liked' : 'liked'}: ${postId}`,
+      { agentUserId, alreadyLiked },
       'DirectExecutors'
     );
 

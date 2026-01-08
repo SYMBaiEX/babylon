@@ -93,7 +93,16 @@ function getActorActiveHours(actorId: string, gameDay = 1): number[] {
 
 /**
  * Convert UTC hour to local hour for a timezone.
- * Kept for API compatibility.
+ *
+ * **Note:** This is currently a no-op that returns utcHour unchanged.
+ * The _timezone and _date parameters are intentionally unused and kept for API compatibility.
+ * Real timezone conversion should be implemented here when timezone-aware activity patterns
+ * are needed. For now, all activity patterns operate in UTC.
+ *
+ * @param utcHour - The hour in UTC (0-23)
+ * @param _timezone - Unused timezone string (reserved for future use)
+ * @param _date - Unused date parameter (reserved for future DST handling)
+ * @returns The same utcHour value unchanged
  */
 export function convertToLocalHour(
   utcHour: number,

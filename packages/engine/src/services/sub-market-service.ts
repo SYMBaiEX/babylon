@@ -465,7 +465,7 @@ export class SubMarketService {
     const affiliatedOrgIds: string[] = [];
     const affiliatedActorIds: string[] = [];
 
-    // Combine org name and ticker lookups into a single query
+    // Combine org name and ticker lookups into a single query with DISTINCT
     if (vars.org || vars.ticker) {
       const conditions = [];
       if (vars.org) {
@@ -476,14 +476,12 @@ export class SubMarketService {
       }
 
       const orgs = await db
-        .select({ id: organizations.id })
+        .selectDistinct({ id: organizations.id })
         .from(organizations)
         .where(or(...conditions));
 
       for (const org of orgs) {
-        if (!affiliatedOrgIds.includes(org.id)) {
-          affiliatedOrgIds.push(org.id);
-        }
+        affiliatedOrgIds.push(org.id);
       }
     }
 

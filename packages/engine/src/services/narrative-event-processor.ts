@@ -77,8 +77,20 @@ async function prepareWorldEventData(
     pointsToward: 'YES' | 'NO' | null;
   };
 }> {
+  // Defensive guard: ensure templates exist for this event type
   const templates = WORLD_EVENT_DESCRIPTION_TEMPLATES[structuredEvent.type];
-  const template = templates[Math.floor(secureRandom() * templates.length)]!;
+  const fallbackTemplate = 'An event related to {topic} occurred';
+  const safeTemplates =
+    templates && templates.length > 0 ? templates : [fallbackTemplate];
+  if (!templates || templates.length === 0) {
+    logger.warn(
+      `Missing templates for event type ${structuredEvent.type}, using fallback`,
+      { eventType: structuredEvent.type },
+      'NarrativeEventProcessor'
+    );
+  }
+  const template =
+    safeTemplates[Math.floor(secureRandom() * safeTemplates.length)]!;
   const topic =
     questionText.length > 80 ? questionText.slice(0, 80) + '...' : questionText;
   const description = template.replace('{topic}', topic);
@@ -560,21 +572,32 @@ async function getAffectedStocksForQuestion(
     }
 
     // Get all organizations and look for mentions in the question text
+    // Use word-boundary regex to avoid false positives (e.g., "PEAR" in "appeared")
     const allOrgs = StaticDataRegistry.getAllOrganizations();
-    const questionTextLower = question.text.toLowerCase();
+    const questionText = question.text;
 
     const mentionedOrgs = allOrgs.filter((org) => {
-      // Check if org name is mentioned in question
-      const nameMatch = questionTextLower.includes(org.name.toLowerCase());
-      // Check if ticker is mentioned (e.g., "$PEAR" or "PEAR")
+      // Escape special regex characters in names
+      const escapeRegex = (str: string) =>
+        str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+      // Check if org name is mentioned (word boundary match)
+      const namePattern = new RegExp(`\\b${escapeRegex(org.name)}\\b`, 'i');
+      const nameMatch = namePattern.test(questionText);
+
+      // Check if ticker is mentioned (e.g., "$PEAR" or "PEAR" with word boundary)
       const tickerMatch =
         org.ticker &&
-        (questionTextLower.includes(`$${org.ticker.toLowerCase()}`) ||
-          questionTextLower.includes(org.ticker.toLowerCase()));
-      // Check if original name is mentioned
+        new RegExp(`\\$?\\b${escapeRegex(org.ticker)}\\b`, 'i').test(
+          questionText
+        );
+
+      // Check if original name is mentioned (word boundary match)
       const originalMatch =
         org.originalName &&
-        questionTextLower.includes(org.originalName.toLowerCase());
+        new RegExp(`\\b${escapeRegex(org.originalName)}\\b`, 'i').test(
+          questionText
+        );
 
       return nameMatch || tickerMatch || originalMatch;
     });
@@ -692,8 +715,11 @@ export async function processArcTick(
     transitioned = await transitionArcState(arcId, newState, arc.currentState);
   }
 
-  // Check if event should be generated
-  const shouldGenerate = shouldGenerateEvent(arc);
+  // Use the effective arc state for event decisions (post-transition if we transitioned)
+  const effectiveArc = transitioned && newState ? { ...arc, currentState: newState } : arc;
+
+  // Check if event should be generated using post-transition state
+  const shouldGenerate = shouldGenerateEvent(effectiveArc);
   let eventGenerated = false;
 
   if (shouldGenerate) {
@@ -720,14 +746,14 @@ export async function processArcTick(
         }
       : null;
 
-    // Generate the structured event (may involve DB queries for affected stocks)
+    // Generate the structured event using post-transition state (may involve DB queries for affected stocks)
     const structuredEvent = await generateStructuredEvent(
-      arc,
+      effectiveArc,
       normalizedArcPlan
     );
 
     // Get question details before the transaction
-    const questionDetails = await getQuestionDetails(arc.questionId);
+    const questionDetails = await getQuestionDetails(effectiveArc.questionId);
 
     // NOW: Use a transaction to atomically update arc state AND create world event
     // This prevents inconsistent state if either operation fails

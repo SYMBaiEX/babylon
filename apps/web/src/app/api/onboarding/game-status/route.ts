@@ -13,6 +13,20 @@ import { getOrCreateOnboarding } from '@babylon/engine';
 import type { NextRequest } from 'next/server';
 
 /**
+ * Type guard for reward validation.
+ * Validates that a reward object has a numeric points field.
+ */
+function isValidReward(r: unknown): r is { points: number } {
+  return (
+    r !== null &&
+    typeof r === 'object' &&
+    'points' in r &&
+    typeof (r as { points: unknown }).points === 'number' &&
+    !isNaN((r as { points: number }).points)
+  );
+}
+
+/**
  * GET /api/onboarding/game-status
  *
  * Returns current game onboarding status for the authenticated user.
@@ -22,17 +36,6 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
   const onboarding = await getOrCreateOnboarding(user.userId);
   const state = onboarding.state;
-
-  // Type guard for reward validation
-  function isValidReward(r: unknown): r is { points: number } {
-    return (
-      r !== null &&
-      typeof r === 'object' &&
-      'points' in r &&
-      typeof (r as { points: unknown }).points === 'number' &&
-      !isNaN((r as { points: number }).points)
-    );
-  }
 
   // Calculate total points earned, defensively validating each reward item
   const totalPointsEarned =

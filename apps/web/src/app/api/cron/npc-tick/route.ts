@@ -200,8 +200,10 @@ export async function POST(_req: NextRequest) {
     }
 
     // Get all NPCs from the StaticDataRegistry (excludes test actors)
+    // Use word-boundary regex to avoid false positives like "Contest" or "Testament"
+    const testActorPattern = /\btest\b/i;
     const allNpcs = StaticDataRegistry.getAllActors().filter(
-      (a) => !a.name.toLowerCase().includes('test')
+      (a) => !testActorPattern.test(a.name)
     );
 
     if (allNpcs.length === 0) {

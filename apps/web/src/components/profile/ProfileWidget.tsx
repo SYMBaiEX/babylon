@@ -150,6 +150,61 @@ export function ProfileWidget({ userId }: ProfileWidgetProps) {
     PredictionPosition | PerpPositionFromAPI | null
   >(null);
 
+  const formatPoints = (points: number) => {
+    return points.toLocaleString('en-US', {
+      maximumFractionDigits: 0,
+    });
+  };
+
+  const formatPercent = (value: number) => {
+    return `${value >= 0 ? '+' : ''}${value.toFixed(1)}%`;
+  };
+
+  const formatPrice = (price: number) => {
+    return `$${price.toFixed(2)}`;
+  };
+
+  // Calculate points in positions (total deposited minus available balance)
+  const pointsInPositions = Math.max(
+    0,
+    (balance?.totalDeposited || 0) - (balance?.balance || 0)
+  );
+  const totalPortfolio = balance?.totalDeposited || 0;
+  const pnlPercent =
+    totalPortfolio > 0
+      ? ((balance?.lifetimePnL || 0) / totalPortfolio) * 100
+      : 0;
+
+  /**
+   * Apply fetch result to state and cache.
+   * Returns true if applied, false if early-exited for needsOnboarding.
+   */
+  const applyFetchResult = useCallback(
+    (result: Awaited<ReturnType<typeof fetchProfileWidgetData>>): boolean => {
+      // Check if user needs onboarding
+      if (result.needsOnboarding) {
+        return false;
+      }
+
+      // Apply fetched data to state
+      setBalance(result.balanceData);
+      setPredictions(result.predictionsData);
+      setPerps(result.perpsData);
+      setStats(result.statsData);
+
+      // Cache all the data
+      widgetCache.setProfileWidget(userId, {
+        balance: result.balanceData,
+        predictions: result.predictionsData,
+        perps: result.perpsData,
+        stats: result.statsData,
+      });
+
+      return true;
+    },
+    [userId, widgetCache]
+  );
+
   useEffect(() => {
     if (!userId) return;
 
@@ -209,61 +264,6 @@ export function ProfileWidget({ userId }: ProfileWidgetProps) {
     const interval = setInterval(() => fetchData(true), 30000);
     return () => clearInterval(interval);
   }, [userId, needsOnboarding, isOwnProfile, widgetCache, applyFetchResult]);
-
-  const formatPoints = (points: number) => {
-    return points.toLocaleString('en-US', {
-      maximumFractionDigits: 0,
-    });
-  };
-
-  const formatPercent = (value: number) => {
-    return `${value >= 0 ? '+' : ''}${value.toFixed(1)}%`;
-  };
-
-  const formatPrice = (price: number) => {
-    return `$${price.toFixed(2)}`;
-  };
-
-  // Calculate points in positions (total deposited minus available balance)
-  const pointsInPositions = Math.max(
-    0,
-    (balance?.totalDeposited || 0) - (balance?.balance || 0)
-  );
-  const totalPortfolio = balance?.totalDeposited || 0;
-  const pnlPercent =
-    totalPortfolio > 0
-      ? ((balance?.lifetimePnL || 0) / totalPortfolio) * 100
-      : 0;
-
-  /**
-   * Apply fetch result to state and cache.
-   * Returns true if applied, false if early-exited for needsOnboarding.
-   */
-  const applyFetchResult = useCallback(
-    (result: Awaited<ReturnType<typeof fetchProfileWidgetData>>): boolean => {
-      // Check if user needs onboarding
-      if (result.needsOnboarding) {
-        return false;
-      }
-
-      // Apply fetched data to state
-      setBalance(result.balanceData);
-      setPredictions(result.predictionsData);
-      setPerps(result.perpsData);
-      setStats(result.statsData);
-
-      // Cache all the data
-      widgetCache.setProfileWidget(userId, {
-        balance: result.balanceData,
-        predictions: result.predictionsData,
-        perps: result.perpsData,
-        stats: result.statsData,
-      });
-
-      return true;
-    },
-    [userId, widgetCache]
-  );
 
   // Retry function for error state - uses the shared fetchProfileWidgetData helper
   const handleRetry = useCallback(async () => {
@@ -518,43 +518,19 @@ export function ProfileWidget({ userId }: ProfileWidgetProps) {
         data={selectedPosition}
         userId={userId}
         onSuccess={async () => {
-          // Refresh both balance and positions with proper error handling
+          // Refresh profile data using the shared helper
           try {
-            const [balanceRes, positionsRes] = await Promise.all([
-              fetch(`/api/users/${encodeURIComponent(userId)}/balance`),
-              fetch(`/api/markets/positions/${encodeURIComponent(userId)}`),
-            ]);
-
-            let balanceData: UserBalanceData | null = null;
-            let predictionsData: PredictionPosition[] = predictions;
-            let perpsData: PerpPositionFromAPI[] = perps;
-
-            if (balanceRes.ok) {
-              const balanceJson = await balanceRes.json();
-              balanceData = {
-                balance: Number(balanceJson.balance ?? 0),
-                totalDeposited: Number(balanceJson.totalDeposited ?? 0),
-                totalWithdrawn: Number(balanceJson.totalWithdrawn ?? 0),
-                lifetimePnL: Number(balanceJson.lifetimePnL ?? 0),
-              };
-              setBalance(balanceData);
-            }
-
-            if (positionsRes.ok) {
-              const positionsJson = await positionsRes.json();
-              predictionsData = positionsJson.predictions?.positions ?? [];
-              perpsData = positionsJson.perpetuals?.positions ?? [];
-              setPredictions(predictionsData);
-              setPerps(perpsData);
-            }
-
-            // Update widgetCache only when both fetches succeed
-            if (balanceRes.ok && positionsRes.ok && balanceData) {
+            const result = await fetchProfileWidgetData(userId);
+            if (!result.needsOnboarding) {
+              setBalance(result.balanceData);
+              setPredictions(result.predictionsData);
+              setPerps(result.perpsData);
+              setStats(result.statsData);
               widgetCache.setProfileWidget(userId, {
-                balance: balanceData,
-                predictions: predictionsData,
-                perps: perpsData,
-                stats,
+                balance: result.balanceData,
+                predictions: result.predictionsData,
+                perps: result.perpsData,
+                stats: result.statsData,
               });
             }
           } catch (refreshError) {

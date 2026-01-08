@@ -424,8 +424,9 @@ export async function POST(_req: NextRequest) {
     );
 
     // Record metrics
+    // Consider success if there were no errors OR if some work succeeded (partial success)
     recordCronExecution('organization-tick', new Date(startTime), {
-      success: errors === 0,
+      success: errors === 0 || postsCreated > 0,
       processed: orgsThisTick.length,
       postsCreated,
       errorCount: errors,
