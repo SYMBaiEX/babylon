@@ -9,6 +9,9 @@ import { MODEL_TIER_POINTS_COST } from '@/lib/constants';
 
 export interface AgentConfigurationData {
   modelTier: 'free' | 'pro';
+  /** Controls autonomous trading. Named 'autonomousEnabled' on frontend,
+   * maps to 'autonomousTrading' in DB schema for consistency with other
+   * autonomous feature toggles. The API handles the field name translation. */
   autonomousEnabled: boolean;
   autonomousPosting: boolean;
   autonomousCommenting: boolean;
