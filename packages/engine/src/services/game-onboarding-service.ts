@@ -250,7 +250,8 @@ export async function completeOnboardingStep(
 }
 
 /**
- * Get onboarding status for a user
+ * Get onboarding status for a user.
+ * Returns null if no onboarding record exists (does not auto-create).
  */
 export async function getOnboardingStatus(userId: string): Promise<{
   currentStep: GameOnboardingStep;
@@ -258,7 +259,17 @@ export async function getOnboardingStatus(userId: string): Promise<{
   totalPointsEarned: number;
   isComplete: boolean;
 } | null> {
-  const onboarding = await getOrCreateOnboarding(userId);
+  // Query directly without auto-creating - status check shouldn't have side effects
+  const [onboarding] = await db
+    .select()
+    .from(gameOnboarding)
+    .where(eq(gameOnboarding.userId, userId))
+    .limit(1);
+
+  if (!onboarding) {
+    return null;
+  }
+
   const state = getValidatedState(onboarding.state, userId);
 
   const totalPointsEarned = state.rewards.reduce((sum, r) => sum + r.points, 0);
