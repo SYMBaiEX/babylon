@@ -28,8 +28,8 @@ import { db, eq, games, generateSnowflakeId, posts } from '@babylon/db';
 import {
   BabylonLLMClient,
   getActiveEventsForPosting,
-  secureRandom,
   StaticDataRegistry,
+  secureRandom,
   worldFactsService,
 } from '@babylon/engine';
 import { logger } from '@babylon/shared';

@@ -180,54 +180,44 @@ export async function processNPCSocialEngagements(): Promise<SocialEngagementRes
         const key = `${post.id}-${actor.id}`;
         const probs = calculateEngagementProbability(actor, post);
 
-        // LIKE - with unique constraint handling for concurrent execution
+        // LIKE - use onConflictDoNothing to handle race conditions atomically
         if (!reactionSet.has(key) && secureRandom() < probs.like) {
-          try {
-            await db.insert(reactions).values({
+          const insertResult = await db
+            .insert(reactions)
+            .values({
               id: await generateSnowflakeId(),
               postId: post.id,
               userId: actor.id,
               type: 'like',
-            });
+            })
+            .onConflictDoNothing()
+            .returning({ id: reactions.id });
+
+          if (insertResult.length > 0) {
             result.likesCreated++;
-            reactionSet.add(key);
             engagedActors.add(actor.id);
-          } catch (error) {
-            // Handle unique constraint violation (race condition with concurrent tick)
-            if (
-              error instanceof Error &&
-              error.message.includes('unique constraint')
-            ) {
-              reactionSet.add(key); // Mark as existing to prevent retries
-            } else {
-              throw error;
-            }
           }
+          reactionSet.add(key); // Mark as processed either way
         }
 
-        // SHARE - with unique constraint handling for concurrent execution
+        // SHARE - use onConflictDoNothing to handle race conditions atomically
         if (!shareSet.has(key) && result.sharesCreated < MAX_SHARES_PER_TICK) {
           if (secureRandom() < probs.share) {
-            try {
-              await db.insert(shares).values({
+            const insertResult = await db
+              .insert(shares)
+              .values({
                 id: await generateSnowflakeId(),
                 postId: post.id,
                 userId: actor.id,
-              });
+              })
+              .onConflictDoNothing({ target: [shares.userId, shares.postId] })
+              .returning({ id: shares.id });
+
+            if (insertResult.length > 0) {
               result.sharesCreated++;
-              shareSet.add(key);
               engagedActors.add(actor.id);
-            } catch (error) {
-              // Handle unique constraint violation (race condition with concurrent tick)
-              if (
-                error instanceof Error &&
-                error.message.includes('unique constraint')
-              ) {
-                shareSet.add(key); // Mark as existing to prevent retries
-              } else {
-                throw error;
-              }
             }
+            shareSet.add(key); // Mark as processed either way
           }
         }
 

@@ -265,9 +265,16 @@ export async function getRecentlyMentionedActorIds(): Promise<string[]> {
     // Try to get from Redis set
     const cachedSet = await getCache<string[]>(MENTION_SET_KEY, {});
     if (cachedSet && cachedSet.length > 0) {
-      // Verify each ID is still valid
-      for (const actorId of cachedSet) {
-        const timestamp = await getMentionTimestamp(actorId);
+      // Batch fetch all timestamps in parallel to avoid N+1 queries
+      const timestampResults = await Promise.all(
+        cachedSet.map(async (actorId) => ({
+          actorId,
+          timestamp: await getMentionTimestamp(actorId),
+        }))
+      );
+
+      // Filter to only recently mentioned actors
+      for (const { actorId, timestamp } of timestampResults) {
         if (
           timestamp &&
           now.getTime() - timestamp.getTime() < MENTION_RECENCY_SECONDS * 1000

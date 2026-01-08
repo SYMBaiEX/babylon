@@ -630,13 +630,9 @@ export class GameBootstrapService {
     );
 
     const now = new Date();
-    const defaultFundingRate = {
-      rate: 0.01, // 1% APR base
-      nextFundingTime: new Date(
-        now.getTime() + 8 * 60 * 60 * 1000
-      ).toISOString(), // 8 hours
-      predictedRate: 0.01,
-    };
+    const nextFundingTime = new Date(
+      now.getTime() + 8 * 60 * 60 * 1000
+    ).toISOString(); // 8 hours
 
     for (const org of tradeableOrgs) {
       if (!org.ticker || existingTickers.has(org.ticker)) {
@@ -660,7 +656,12 @@ export class GameBootstrapService {
         low24h: currentPrice,
         volume24h: 0,
         openInterest: 0,
-        fundingRate: defaultFundingRate,
+        fundingRate: {
+          ticker: org.ticker,
+          rate: 0.01, // 1% APR base
+          nextFundingTime,
+          predictedRate: 0.01,
+        },
         maxLeverage: 100,
         minOrderSize: 10,
         markPrice: currentPrice,

@@ -66,13 +66,15 @@ export const actorState = pgTable(
     ),
 
     // Memory array for NPC context
-    // Cast to NpcMemory[] when reading/writing in services
     // Note: 50-memory limit is enforced in NpcMemoryService, not at DB level
-    recentMemories: jsonb('recentMemories').default(sql`'[]'::jsonb`),
+    recentMemories: jsonb('recentMemories')
+      .$type<NpcMemory[]>()
+      .default(sql`'[]'::jsonb`),
 
     // Relationships with other actors
-    // Cast to Record<string, RelationshipState> when reading/writing in services
-    relationships: jsonb('relationships').default(sql`'{}'::jsonb`),
+    relationships: jsonb('relationships')
+      .$type<Record<string, RelationshipState>>()
+      .default(sql`'{}'::jsonb`),
 
     createdAt: timestamp('createdAt', { mode: 'date' }).notNull().defaultNow(),
     updatedAt: timestamp('updatedAt', { mode: 'date' }).notNull(),

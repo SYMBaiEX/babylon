@@ -17,7 +17,16 @@ import { NextResponse } from 'next/server';
 const GITHUB_REPO = 'BabylonSocial/ProductManagementDocumentation';
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
 
-/** Collection size - configurable for different NFT collections */
+/**
+ * NFT collection size - determines valid tokenId range (1 to COLLECTION_SIZE).
+ *
+ * Configure via NFT_COLLECTION_SIZE environment variable.
+ * Default: 100 (fallback when env var is not set or invalid)
+ *
+ * IMPORTANT: When deploying a new collection or expanding an existing one,
+ * update NFT_COLLECTION_SIZE to match the actual collection size.
+ * Requests for tokenIds outside this range will return 400 Bad Request.
+ */
 const COLLECTION_SIZE = Number(process.env.NFT_COLLECTION_SIZE) || 100;
 
 /** Max cache size to prevent memory leaks (LRU eviction when exceeded) */

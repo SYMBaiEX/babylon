@@ -45,8 +45,9 @@ export const organizationState = pgTable(
     // Fundamentals for narrative-driven pricing
     basePrice: doublePrecision('basePrice'),
     sentiment: integer('sentiment').default(0), // -100 to +100
-    // Cast to PriceModifier[] when reading/writing in services
-    activeModifiers: jsonb('activeModifiers').default(sql`'[]'::jsonb`),
+    activeModifiers: jsonb('activeModifiers')
+      .$type<PriceModifier[]>()
+      .default(sql`'[]'::jsonb`),
 
     createdAt: timestamp('createdAt', { mode: 'date' }).notNull().defaultNow(),
     updatedAt: timestamp('updatedAt', { mode: 'date' }).notNull(),
