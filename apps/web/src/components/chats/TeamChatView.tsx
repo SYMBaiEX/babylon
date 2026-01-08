@@ -49,12 +49,10 @@ interface TeamChatViewProps {
   loading: boolean;
   isLoadingMore: boolean;
   hasMore: boolean;
-  pullDistance: number;
   messageInput: string;
   sending: boolean;
   sendError: string | null;
   sendSuccess: boolean;
-  containerRef: (node: HTMLDivElement | null) => void;
   topSentinelRef: React.RefObject<HTMLDivElement | null>;
   messagesEndRef: React.RefObject<HTMLDivElement | null>;
   onMessageChange: (value: string) => void;
@@ -82,12 +80,10 @@ export function TeamChatView({
   loading,
   isLoadingMore,
   hasMore,
-  pullDistance,
   messageInput,
   sending,
   sendError,
   sendSuccess,
-  containerRef,
   topSentinelRef,
   messagesEndRef,
   onMessageChange,
@@ -161,10 +157,7 @@ export function TeamChatView({
       </div>
 
       {/* Messages - Scrollable */}
-      <div
-        ref={containerRef}
-        className="relative min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-3"
-      >
+      <div className="relative min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-3">
         <MessageList
           messages={chatDetails.messages || []}
           participants={chatDetails.participants || []}
@@ -172,7 +165,7 @@ export function TeamChatView({
           loading={loading}
           isLoadingMore={isLoadingMore}
           hasMore={hasMore}
-          pullDistance={pullDistance}
+          pullDistance={0}
           authenticated={authenticated}
           topSentinelRef={topSentinelRef}
           messagesEndRef={messagesEndRef}

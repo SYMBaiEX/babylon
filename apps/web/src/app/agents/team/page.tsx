@@ -38,10 +38,8 @@ export default function TeamChatPage() {
     sendError,
     sendSuccess,
     setMentionedAgentIds,
-    pullDistance,
     messagesEndRef,
     topSentinelRef,
-    setRefs,
     sendMessage,
   } = useTeamChat();
 
@@ -359,12 +357,10 @@ export default function TeamChatPage() {
             loading={false}
             isLoadingMore={isLoadingMore}
             hasMore={hasMore}
-            pullDistance={pullDistance}
             messageInput={messageInput}
             sending={sending}
             sendError={sendError}
             sendSuccess={sendSuccess}
-            containerRef={setRefs}
             topSentinelRef={topSentinelRef}
             messagesEndRef={messagesEndRef}
             onMessageChange={handleInputChange}

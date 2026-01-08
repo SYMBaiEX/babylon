@@ -192,31 +192,27 @@ export class TeamChatService {
    * @param userId - The human user ID
    * @returns Team chat with agents or null if not found
    */
-  async getTeamChatWithMembers(
-    userId: string
-  ): Promise<TeamChatWithMembers | null> {
+  async getTeamChatWithMembers(userId: string): Promise<TeamChatWithMembers | null> {
     const teamChat = await this.getTeamChat(userId);
     if (!teamChat) {
       return null;
     }
 
-    const agents = await this.getTeamChatAgents(userId);
+    const agents = await this.getTeamChatAgents(userId, teamChat.groupId);
 
-    return {
-      ...teamChat,
-      agents,
-    };
+    return { ...teamChat, agents };
   }
 
   /**
    * Get all agents in the user's team chat
    *
    * @param userId - The human user ID
+   * @param groupId - Optional group ID if already known (avoids extra query)
    * @returns Array of agent User objects
    */
-  async getTeamChatAgents(userId: string): Promise<User[]> {
-    const teamChat = await this.getTeamChat(userId);
-    if (!teamChat) {
+  async getTeamChatAgents(userId: string, groupId?: string): Promise<User[]> {
+    const gid = groupId ?? (await this.getTeamChat(userId))?.groupId;
+    if (!gid) {
       return [];
     }
 
@@ -225,13 +221,13 @@ export class TeamChatService {
       .select({ user: users })
       .from(groupMembers)
       .innerJoin(users, eq(groupMembers.userId, users.id))
-      .where(eq(groupMembers.groupId, teamChat.groupId))
+      .where(and(eq(groupMembers.groupId, gid), eq(groupMembers.isActive, true)))
       .orderBy(users.createdAt);
 
     // Filter to only agents (not the human owner)
     return memberRows
       .map((row) => row.user)
-      .filter((user) => user.isAgent && user.managedBy === userId);
+      .filter((u) => u.isAgent && u.managedBy === userId);
   }
 
   /**
@@ -417,28 +413,8 @@ export class TeamChatService {
     );
   }
 
-  /**
-   * Check if a user has a team chat
-   *
-   * @param userId - The human user ID
-   * @returns true if team chat exists
-   */
-  async hasTeamChat(userId: string): Promise<boolean> {
-    const teamChat = await this.getTeamChat(userId);
-    return teamChat !== null;
-  }
-
-  /**
-   * Get the number of active agents in a user's team chat
-   *
-   * @param userId - The human user ID
-   * @returns Number of active agents
-   */
-  async getActiveAgentCount(userId: string): Promise<number> {
-    const agents = await this.getTeamChatAgents(userId);
-    return agents.length;
-  }
 }
 
 /** Singleton instance */
 export const teamChatService = new TeamChatService();
+

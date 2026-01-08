@@ -80,7 +80,8 @@ export async function GET(req: NextRequest) {
       {
         success: false,
         error: 'No team chat exists',
-        message: 'Create your first agent to initialize your Command Center.',
+        message:
+          'Create your first agent to initialize your Command Center.',
       },
       { status: 404 }
     );
@@ -120,8 +121,7 @@ export async function POST(req: NextRequest) {
   const user = await authenticateUser(req);
 
   const teamChat = await teamChatService.ensureTeamChat(user.id);
-
-  const agents = await teamChatService.getTeamChatAgents(user.id);
+  const agents = await teamChatService.getTeamChatAgents(user.id, teamChat.groupId);
 
   logger.info(
     `Team chat ensured for user ${user.id}`,
@@ -148,3 +148,4 @@ export async function POST(req: NextRequest) {
     },
   });
 }
+

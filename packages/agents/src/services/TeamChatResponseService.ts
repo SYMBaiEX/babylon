@@ -297,21 +297,8 @@ Generate ONLY the response text:`;
   }): Promise<void> {
     const { respondingAgentId, respondingAgentName, chatId, responseContent } = params;
 
-    // Parse @mentions from the response
-    const mentionRegex = /@(\w+)/g;
-    const mentionedUsernames: string[] = [];
-    let match: RegExpExecArray | null = null;
-
-    while ((match = mentionRegex.exec(responseContent)) !== null) {
-      const matchedUsername = match[1];
-      if (matchedUsername) {
-        mentionedUsernames.push(matchedUsername.toLowerCase());
-      }
-    }
-
-    if (mentionedUsernames.length === 0) {
-      return;
-    }
+    const mentionedUsernames = this.extractMentionedUsernames(responseContent);
+    if (mentionedUsernames.length === 0) return;
 
     // Get team chat info to find other agents
     const [chatWithGroup] = await db
@@ -414,39 +401,16 @@ Generate ONLY the response text:`;
   }
 
   /**
-   * Parse @mentions from message content and return valid agent IDs
-   *
-   * @param content - Message content to parse
-   * @param validAgentIds - List of valid agent IDs in the team chat
-   * @param agentUsernames - Map of agent IDs to usernames
-   * @returns Array of mentioned agent IDs
+   * Extract @mentioned usernames from content
    */
-  parseMentions(
-    content: string,
-    validAgentIds: string[],
-    agentUsernames: Map<string, string>
-  ): string[] {
-    const mentionRegex = /@(\w+)/g;
+  private extractMentionedUsernames(content: string): string[] {
     const mentions: string[] = [];
-    let match: RegExpExecArray | null = null;
-
-    while ((match = mentionRegex.exec(content)) !== null) {
-      const matchedUsername = match[1];
-      if (!matchedUsername) continue;
-
-      const usernameLower = matchedUsername.toLowerCase();
-
-      // Find agent with matching username
-      for (const agentId of validAgentIds) {
-        const agentUsername = agentUsernames.get(agentId)?.toLowerCase();
-        if (agentUsername === usernameLower) {
-          mentions.push(agentId);
-          break;
-        }
-      }
+    const regex = /@(\w+)/g;
+    let match: RegExpExecArray | null;
+    while ((match = regex.exec(content)) !== null) {
+      if (match[1]) mentions.push(match[1].toLowerCase());
     }
-
-    return [...new Set(mentions)]; // Deduplicate
+    return mentions;
   }
 }
 

@@ -44,7 +44,7 @@
  */
 
 import { teamChatResponseService, teamChatService } from '@babylon/agents';
-import { authenticateUser } from '@babylon/api';
+import { authenticateUser, broadcastChatMessage } from '@babylon/api';
 import { asUser, db, eq, generateSnowflakeId, users } from '@babylon/db';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
@@ -103,8 +103,7 @@ export async function POST(req: NextRequest) {
     'TeamChatMessageAPI'
   );
 
-  // Broadcast the message via SSE (import from api package)
-  const { broadcastChatMessage } = await import('@babylon/api');
+  // Broadcast the message via SSE
   await broadcastChatMessage(teamChat.chatId, {
     id: messageId,
     content: content.trim(),

@@ -65,11 +65,9 @@ interface UseTeamChatReturn {
   mentionedAgentIds: string[];
   setMentionedAgentIds: (ids: string[]) => void;
 
-  // Scroll state
-  pullDistance: number;
+  // Refs
   messagesEndRef: React.RefObject<HTMLDivElement | null>;
   topSentinelRef: React.RefObject<HTMLDivElement | null>;
-  setRefs: (node: HTMLDivElement | null) => void;
 
   // Actions
   sendMessage: () => Promise<void>;
@@ -100,8 +98,6 @@ export function useTeamChat(): UseTeamChatReturn {
   // Refs
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const topSentinelRef = useRef<HTMLDivElement | null>(null);
-  const chatContainerRef = useRef<HTMLDivElement | null>(null);
-  const pullDistance = 0; // Simplified - not using pull-to-refresh for team chat
 
   // SSE for real-time messages - connect once we have the chat ID
   const {
@@ -373,20 +369,14 @@ export function useTeamChat(): UseTeamChatReturn {
     setTimeout(() => setSendSuccess(false), 2000);
   }, [teamChat, messageInput, sending, mentionedAgentIds, getAccessToken, addMessage]);
 
-  // Scroll container ref callback
-  const setRefs = useCallback((node: HTMLDivElement | null) => {
-    chatContainerRef.current = node;
-  }, []);
-
-  // Stop typing when message is sent
-  const originalSendMessage = sendMessage;
+  // Send message and stop typing indicator
   const sendMessageWithTypingStop = useCallback(async () => {
     if (isTypingRef.current) {
       isTypingRef.current = false;
       sendTypingIndicator(false);
     }
-    await originalSendMessage();
-  }, [originalSendMessage, sendTypingIndicator]);
+    await sendMessage();
+  }, [sendMessage, sendTypingIndicator]);
 
   return {
     teamChat,
@@ -394,27 +384,19 @@ export function useTeamChat(): UseTeamChatReturn {
     loading,
     sending,
     error,
-
     sseConnected,
     isLoadingMore,
     hasMore,
-
     messageInput,
     setMessageInput,
     handleInputChange,
-
     typingUsers,
-
     sendError,
     sendSuccess,
     mentionedAgentIds,
     setMentionedAgentIds,
-
-    pullDistance,
     messagesEndRef,
     topSentinelRef,
-    setRefs,
-
     sendMessage: sendMessageWithTypingStop,
     refresh: fetchTeamChat,
   };
