@@ -671,7 +671,12 @@ export class MarketTimeframeService {
     parentTimeframe: MarketTimeframe,
     randomValue?: number
   ): SubMarketTrigger | null {
-    return shouldSpawnSubMarket(eventType, category, parentTimeframe, randomValue);
+    return shouldSpawnSubMarket(
+      eventType,
+      category,
+      parentTimeframe,
+      randomValue
+    );
   }
 
   getTriggers(category: MarketCategory): SubMarketTrigger[] {

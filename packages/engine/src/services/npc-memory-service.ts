@@ -20,16 +20,38 @@ import {
 import { generateSnowflakeId, logger } from '@babylon/shared';
 import { parseMemoriesSafe, parseRelationshipsSafe } from './jsonb-validators';
 
-/** Maximum memories per NPC before eviction */
+/**
+ * Maximum memories per NPC before oldest are evicted.
+ * 50 memories balances context richness against:
+ * - LLM token limits (~4K tokens for memory context)
+ * - Prompt latency (more memories = slower inference)
+ * - Memory relevance decay (older memories less useful)
+ * At ~80 tokens/memory, 50 memories ≈ 4000 tokens.
+ */
 const MAX_MEMORIES = 50;
 
-/** Maximum relationship notes per actor pair */
+/**
+ * Maximum relationship notes per actor pair.
+ * 10 notes captures recent interaction patterns while:
+ * - Keeping JSONB column size manageable
+ * - Maintaining relevance (oldest notes less meaningful)
+ * - Balancing read/write performance
+ */
 const MAX_RELATIONSHIP_NOTES = 10;
 
-/** Maximum retries for optimistic locking */
+/**
+ * Maximum retries for optimistic locking conflicts.
+ * 3 retries with exponential backoff handles:
+ * - Typical contention during concurrent NPC ticks
+ * - Total max wait: 50 + 100 + 200 = 350ms
+ * - Avoids excessive delays while ensuring eventual success
+ */
 const MAX_RETRIES = 3;
 
-/** Delay between retries in ms (with exponential backoff) */
+/**
+ * Base delay between retries (doubles each attempt).
+ * 50ms base yields 50ms, 100ms, 200ms backoff sequence.
+ */
 const RETRY_BASE_DELAY_MS = 50;
 
 /**
